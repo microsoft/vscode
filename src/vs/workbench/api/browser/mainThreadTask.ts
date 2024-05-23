@@ -10,7 +10,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import * as Types from 'vs/base/common/types';
 import * as Platform from 'vs/base/common/platform';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
@@ -284,7 +284,7 @@ namespace TaskSourceDTO {
 			scope = value.scope;
 		} else {
 			scope = TaskScope.Folder;
-			workspaceFolder = Types.withNullAsUndefined(workspace.getWorkspaceFolder(URI.revive(value.scope)));
+			workspaceFolder = workspace.getWorkspaceFolder(URI.revive(value.scope)) ?? undefined;
 		}
 		const result: IExtensionTaskSource = {
 			kind: TaskSourceKind.Extension,
@@ -414,7 +414,7 @@ namespace TaskFilterDTO {
 }
 
 @extHostNamedCustomer(MainContext.MainThreadTask)
-export class MainThreadTask implements MainThreadTaskShape {
+export class MainThreadTask extends Disposable implements MainThreadTaskShape {
 
 	private readonly _extHostContext: IExtHostContext | undefined;
 	private readonly _proxy: ExtHostTaskShape;
@@ -426,10 +426,15 @@ export class MainThreadTask implements MainThreadTaskShape {
 		@IWorkspaceContextService private readonly _workspaceContextServer: IWorkspaceContextService,
 		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService
 	) {
+		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTask);
 		this._providers = new Map();
-		this._taskService.onDidStateChange(async (event: ITaskEvent) => {
-			const task = event.__task!;
+		this._register(this._taskService.onDidStateChange(async (event: ITaskEvent) => {
+			if (event.kind === TaskEventKind.Changed) {
+				return;
+			}
+
+			const task = event.__task;
 			if (event.kind === TaskEventKind.Start) {
 				const execution = TaskExecutionDTO.from(task.getTaskExecution());
 				let resolvedDefinition: ITaskDefinitionDTO = execution.task!.definition;
@@ -441,22 +446,23 @@ export class MainThreadTask implements MainThreadTaskShape {
 					resolvedDefinition = await this._configurationResolverService.resolveAnyAsync(task.getWorkspaceFolder(),
 						execution.task.definition, dictionary);
 				}
-				this._proxy.$onDidStartTask(execution, event.terminalId!, resolvedDefinition);
+				this._proxy.$onDidStartTask(execution, event.terminalId, resolvedDefinition);
 			} else if (event.kind === TaskEventKind.ProcessStarted) {
-				this._proxy.$onDidStartTaskProcess(TaskProcessStartedDTO.from(task.getTaskExecution(), event.processId!));
+				this._proxy.$onDidStartTaskProcess(TaskProcessStartedDTO.from(task.getTaskExecution(), event.processId));
 			} else if (event.kind === TaskEventKind.ProcessEnded) {
 				this._proxy.$onDidEndTaskProcess(TaskProcessEndedDTO.from(task.getTaskExecution(), event.exitCode));
 			} else if (event.kind === TaskEventKind.End) {
 				this._proxy.$OnDidEndTask(TaskExecutionDTO.from(task.getTaskExecution()));
 			}
-		});
+		}));
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		for (const value of this._providers.values()) {
 			value.disposable.dispose();
 		}
 		this._providers.clear();
+		super.dispose();
 	}
 
 	$createTaskId(taskDTO: ITaskDTO): Promise<string> {

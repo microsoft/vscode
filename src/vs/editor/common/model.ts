@@ -7,6 +7,7 @@ import { Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { equals } from 'vs/base/common/objects';
+import { ThemeColor } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { IPosition, Position } from 'vs/editor/common/core/position';
@@ -16,13 +17,12 @@ import { TextChange } from 'vs/editor/common/core/textChange';
 import { WordCharacterClassifier } from 'vs/editor/common/core/wordCharacterClassifier';
 import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { FormattingOptions } from 'vs/editor/common/languages';
+import { ILanguageSelection } from 'vs/editor/common/languages/language';
 import { IBracketPairsTextModelPart } from 'vs/editor/common/textModelBracketPairs';
 import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, ModelInjectedTextChangedEvent } from 'vs/editor/common/textModelEvents';
 import { IGuidesTextModelPart } from 'vs/editor/common/textModelGuides';
 import { ITokenizationTextModelPart } from 'vs/editor/common/tokenizationTextModelPart';
-import { ThemeColor } from 'vs/base/common/themables';
 import { UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
-import { ILanguageSelection } from 'vs/editor/common/languages/language';
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -39,15 +39,48 @@ export enum OverviewRulerLane {
  */
 export enum GlyphMarginLane {
 	Left = 1,
-	Right = 2
+	Center = 2,
+	Right = 3,
+}
+
+export interface IGlyphMarginLanesModel {
+	/**
+	 * The number of lanes that should be rendered in the editor.
+	 */
+	readonly requiredLanes: number;
+
+	/**
+	 * Gets the lanes that should be rendered starting at a given line number.
+	 */
+	getLanesAtLine(lineNumber: number): GlyphMarginLane[];
+
+	/**
+	 * Resets the model and ensures it can contain at least `maxLine` lines.
+	 */
+	reset(maxLine: number): void;
+
+	/**
+	 * Registers that a lane should be visible at the Range in the model.
+	 * @param persist - if true, notes that the lane should always be visible,
+	 * even on lines where there's no specific request for that lane.
+	 */
+	push(lane: GlyphMarginLane, range: Range, persist?: boolean): void;
 }
 
 /**
  * Position in the minimap to render the decoration.
  */
-export enum MinimapPosition {
+export const enum MinimapPosition {
 	Inline = 1,
 	Gutter = 2
+}
+
+/**
+ * Section header style.
+ */
+export const enum MinimapSectionHeaderStyle {
+	Normal = 1,
+	Underlined = 2
 }
 
 export interface IDecorationOptions {
@@ -68,6 +101,12 @@ export interface IModelDecorationGlyphMarginOptions {
 	 * The position in the glyph margin.
 	 */
 	position: GlyphMarginLane;
+
+	/**
+	 * Whether the glyph margin lane in {@link position} should be rendered even
+	 * outside of this decoration's range.
+	 */
+	persistLane?: boolean;
 }
 
 /**
@@ -88,6 +127,14 @@ export interface IModelDecorationMinimapOptions extends IDecorationOptions {
 	 * The position in the minimap.
 	 */
 	position: MinimapPosition;
+	/**
+	 * If the decoration is for a section header, which header style.
+	 */
+	sectionHeaderStyle?: MinimapSectionHeaderStyle | null;
+	/**
+	 * If the decoration is for a section header, the header text.
+	 */
+	sectionHeaderText?: string | null;
 }
 
 /**
@@ -108,6 +155,10 @@ export interface IModelDecorationOptions {
 	 * CSS class name describing the decoration.
 	 */
 	className?: string | null;
+	/**
+	 * Indicates whether the decoration should span across the entire line when it continues onto the next line.
+	 */
+	shouldFillLineOnLineBreak?: boolean | null;
 	blockClassName?: string | null;
 	/**
 	 * Indicates if this block should be rendered after the last line.
@@ -125,6 +176,10 @@ export interface IModelDecorationOptions {
 	 * Array of MarkdownString to render as the decoration message.
 	 */
 	hoverMessage?: IMarkdownString | IMarkdownString[] | null;
+	/**
+	 * Array of MarkdownString to render as the line number message.
+	 */
+	lineNumberHoverMessage?: IMarkdownString | IMarkdownString[] | null;
 	/**
 	 * Should the decoration expand to encompass a whole line.
 	 */
@@ -165,6 +220,14 @@ export interface IModelDecorationOptions {
 	 * If set, the decoration will be rendered in the lines decorations with this CSS class name.
 	 */
 	linesDecorationsClassName?: string | null;
+	/**
+	 * Controls the tooltip text of the line decoration.
+	 */
+	linesDecorationsTooltip?: string | null;
+	/**
+	 * If set, the decoration will be rendered on the line number.
+	 */
+	lineNumberClassName?: string | null;
 	/**
 	 * If set, the decoration will be rendered in the lines decorations with this CSS class name, but only for the first line in case of line wrapping.
 	 */
@@ -837,6 +900,13 @@ export interface ITextModel {
 	isTooLargeForTokenization(): boolean;
 
 	/**
+	 * The file is so large, that operations on it might be too large for heap
+	 * and can lead to OOM crashes so they should be disabled.
+	 * @internal
+	 */
+	isTooLargeForHeapOperation(): boolean;
+
+	/**
 	 * Search the model.
 	 * @param searchString The string used to search. If it is a regular expression, set `isRegex` to true.
 	 * @param searchOnlyEditableRange Limit the searching to only search inside the editable range of the model.
@@ -1391,7 +1461,7 @@ export class SearchData {
 /**
  * @internal
  */
-export interface ITextBuffer extends IReadonlyTextBuffer {
+export interface ITextBuffer extends IReadonlyTextBuffer, IDisposable {
 	setEOL(newEOL: '\r\n' | '\n'): void;
 	applyEdits(rawOperations: ValidAnnotatedEditOperation[], recordTrimAutoWhitespace: boolean, computeUndoEdits: boolean): ApplyEditsResult;
 }

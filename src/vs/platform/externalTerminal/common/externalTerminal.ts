@@ -35,9 +35,3 @@ export interface IExternalTerminalConfiguration {
 }
 
 export const DEFAULT_TERMINAL_OSX = 'Terminal.app';
-
-export const IExternalTerminalMainService = createDecorator<IExternalTerminalMainService>('externalTerminal');
-
-export interface IExternalTerminalMainService extends IExternalTerminalService {
-	readonly _serviceBrand: undefined;
-}

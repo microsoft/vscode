@@ -234,7 +234,9 @@ export class OutlineModel extends TreeElement {
 				return result._compact();
 			}
 		}).finally(() => {
+			cts.dispose();
 			listener.dispose();
+			cts.dispose();
 		});
 	}
 
@@ -467,8 +469,8 @@ export class OutlineModelService implements IOutlineModelService {
 
 		const listener = token.onCancellationRequested(() => {
 			// last -> cancel provider request, remove cached promise
-			if (--data!.promiseCnt === 0) {
-				data!.source.cancel();
+			if (--data.promiseCnt === 0) {
+				data.source.cancel();
 				this._cache.delete(textModel.id);
 			}
 		});

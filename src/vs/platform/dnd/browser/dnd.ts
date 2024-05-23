@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DataTransfers } from 'vs/base/browser/dnd';
+import { mainWindow } from 'vs/base/browser/window';
 import { DragMouseEvent } from 'vs/base/browser/mouseEvent';
 import { coalesce } from 'vs/base/common/arrays';
 import { DeferredPromise } from 'vs/base/common/async';
@@ -12,7 +13,6 @@ import { ResourceMap } from 'vs/base/common/map';
 import { parse } from 'vs/base/common/marshalling';
 import { Schemas } from 'vs/base/common/network';
 import { isWeb } from 'vs/base/common/platform';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -183,7 +183,7 @@ interface IFileTransferData {
 async function extractFilesDropData(accessor: ServicesAccessor, event: DragEvent): Promise<IFileTransferData[]> {
 
 	// Try to extract via `FileSystemHandle`
-	if (WebFileSystemAccess.supported(window)) {
+	if (WebFileSystemAccess.supported(mainWindow)) {
 		const items = event.dataTransfer?.items;
 		if (items) {
 			return extractFileTransferData(accessor, items);
@@ -269,7 +269,7 @@ export async function extractFileListData(accessor: ServicesAccessor, files: Fil
 
 			reader.onload = async event => {
 				const name = file.name;
-				const loadResult = withNullAsUndefined(event.target?.result);
+				const loadResult = event.target?.result ?? undefined;
 				if (typeof name !== 'string' || typeof loadResult === 'undefined') {
 					result.complete(undefined);
 					return;

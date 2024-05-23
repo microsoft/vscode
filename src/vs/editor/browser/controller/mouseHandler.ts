@@ -98,7 +98,7 @@ export class MouseHandler extends ViewEventHandler {
 			// remove this listener
 
 			if (!this._mouseLeaveMonitor) {
-				this._mouseLeaveMonitor = dom.addDisposableListener(document, 'mousemove', (e) => {
+				this._mouseLeaveMonitor = dom.addDisposableListener(this.viewHelper.viewDomNode.ownerDocument, 'mousemove', (e) => {
 					if (!this.viewHelper.viewDomNode.contains(e.target as Node | null)) {
 						// went outside the editor!
 						this._onMouseLeave(new EditorMouseEvent(e, false, this.viewHelper.viewDomNode));
@@ -226,7 +226,7 @@ export class MouseHandler extends ViewEventHandler {
 
 	public getTargetAtClientPoint(clientX: number, clientY: number): IMouseTarget | null {
 		const clientPos = new ClientCoordinates(clientX, clientY);
-		const pos = clientPos.toPageCoordinates();
+		const pos = clientPos.toPageCoordinates(dom.getWindow(this.viewHelper.viewDomNode));
 		const editorPos = createEditorPagePosition(this.viewHelper.viewDomNode);
 
 		if (pos.y < editorPos.y || pos.y > editorPos.y + editorPos.height || pos.x < editorPos.x || pos.x > editorPos.x + editorPos.width) {
@@ -464,7 +464,7 @@ class MouseDownOperation extends Disposable {
 				(browserEvent?: MouseEvent | KeyboardEvent) => {
 					const position = this._findMousePosition(this._lastMouseEvent!, false);
 
-					if (browserEvent && browserEvent instanceof KeyboardEvent) {
+					if (dom.isKeyboardEvent(browserEvent)) {
 						// cancel
 						this._viewController.emitMouseDropCanceled();
 					} else {
@@ -682,11 +682,12 @@ class TopBottomDragScrollingOperation extends Disposable {
 		this._position = position;
 		this._mouseEvent = mouseEvent;
 		this._lastTime = Date.now();
-		this._animationFrameDisposable = dom.scheduleAtNextAnimationFrame(() => this._execute());
+		this._animationFrameDisposable = dom.scheduleAtNextAnimationFrame(dom.getWindow(mouseEvent.browserEvent), () => this._execute());
 	}
 
 	public override dispose(): void {
 		this._animationFrameDisposable.dispose();
+		super.dispose();
 	}
 
 	public setPosition(position: IMouseTargetOutsideEditor, mouseEvent: EditorMouseEvent): void {
@@ -752,7 +753,7 @@ class TopBottomDragScrollingOperation extends Disposable {
 		}
 
 		this._dispatchMouse(mouseTarget, true, NavigationCommandRevealType.None);
-		this._animationFrameDisposable = dom.scheduleAtNextAnimationFrame(() => this._execute());
+		this._animationFrameDisposable = dom.scheduleAtNextAnimationFrame(dom.getWindow(mouseTarget.element), () => this._execute());
 	}
 }
 

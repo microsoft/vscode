@@ -41,12 +41,12 @@
     }
     </script>
     <script type="text/javascript">
-	
+
         var libText = "";
         $.get("../compiler/lib.ts", function(newLibText) {
             libText = newLibText;
-        });	
-        
+        });
+
 
         // execute the javascript in the compiledOutput pane
         function execute() {
@@ -54,9 +54,9 @@
           var txt = $('#compiledOutput').val();
           var res;
           try {
-             var ret = eval(txt);
+             var ret = eval(txt); // CodeQL [SM01632] This code is only used for tests
              res = "Ran successfully!";
-          } catch(e) { 
+          } catch(e) {
              res = "Exception thrown: " + e;
           }
           $('#compilation').text(String(res));
@@ -70,7 +70,7 @@
                 compiledSource = compile(newText, libText);
             } catch (e) {
                 compiledSource = "//Parse error"
-                for(var i in e) 
+                for(var i in e)
                   compiledSource += "\r// " + e[i];
             }
             $('#compiledOutput').val(compiledSource);
@@ -111,7 +111,7 @@
 //Compiled code will show up here...
       </textarea>
       <br />
-      <button onclick='execute()'/>Run</button> 
+      <button onclick='execute()'/>Run</button>
       <div id='compilation'>Press 'run' to execute code...</div>
       <div id='results'>...write your results into #results...</div>
     </div>

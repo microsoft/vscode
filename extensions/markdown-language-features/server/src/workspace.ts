@@ -63,6 +63,18 @@ class VsCodeDocument implements md.ITextDocument {
 		throw new Error('Document has been closed');
 	}
 
+	offsetAt(position: Position): number {
+		if (this.inMemoryDoc) {
+			return this.inMemoryDoc.offsetAt(position);
+		}
+
+		if (this.onDiskDoc) {
+			return this.onDiskDoc.offsetAt(position);
+		}
+
+		throw new Error('Document has been closed');
+	}
+
 	hasInMemoryDoc(): boolean {
 		return !!this.inMemoryDoc;
 	}

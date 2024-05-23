@@ -6,6 +6,7 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IDimension } from 'vs/editor/common/core/dimension';
 import { Emitter, Event } from 'vs/base/common/event';
+import { getWindow, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 
 export class ElementSizeObserver extends Disposable {
 
@@ -41,12 +42,46 @@ export class ElementSizeObserver extends Disposable {
 
 	public startObserving(): void {
 		if (!this._resizeObserver && this._referenceDomElement) {
-			this._resizeObserver = new ResizeObserver((entries) => {
-				if (entries && entries[0] && entries[0].contentRect) {
-					this.observe({ width: entries[0].contentRect.width, height: entries[0].contentRect.height });
+			// We want to react to the resize observer only once per animation frame
+			// The first time the resize observer fires, we will react to it immediately.
+			// Otherwise we will postpone to the next animation frame.
+			// We'll use `observeContentRect` to store the content rect we received.
+
+			let observedDimenstion: IDimension | null = null;
+			const observeNow = () => {
+				if (observedDimenstion) {
+					this.observe({ width: observedDimenstion.width, height: observedDimenstion.height });
 				} else {
 					this.observe();
 				}
+			};
+
+			let shouldObserve = false;
+			let alreadyObservedThisAnimationFrame = false;
+
+			const update = () => {
+				if (shouldObserve && !alreadyObservedThisAnimationFrame) {
+					try {
+						shouldObserve = false;
+						alreadyObservedThisAnimationFrame = true;
+						observeNow();
+					} finally {
+						scheduleAtNextAnimationFrame(getWindow(this._referenceDomElement), () => {
+							alreadyObservedThisAnimationFrame = false;
+							update();
+						});
+					}
+				}
+			};
+
+			this._resizeObserver = new ResizeObserver((entries) => {
+				if (entries && entries[0] && entries[0].contentRect) {
+					observedDimenstion = { width: entries[0].contentRect.width, height: entries[0].contentRect.height };
+				} else {
+					observedDimenstion = null;
+				}
+				shouldObserve = true;
+				update();
 			});
 			this._resizeObserver.observe(this._referenceDomElement);
 		}

@@ -49,9 +49,13 @@ function getTagBodyText(
 		return '```\n' + text + '\n```';
 	}
 
-	const text = convertLinkTags(tag.text, filePathConverter);
+	let text = convertLinkTags(tag.text, filePathConverter);
 	switch (tag.name) {
 		case 'example': {
+			// Example text does not support `{@link}` as it is considered code.
+			// TODO: should we support it if it appears outside of an explicit code block?
+			text = asPlainText(tag.text);
+
 			// check for caption tags, fix for #79704
 			const captionTagMatches = text.match(/<caption>(.*?)<\/caption>\s*(\r\n|\n)/);
 			if (captionTagMatches && captionTagMatches.index === 0) {
@@ -132,6 +136,13 @@ function getTagBody(tag: Proto.JSDocTagInfo, filePathConverter: IFilePathToResou
 	return (convertLinkTags(tag.text, filePathConverter)).split(/^(\S+)\s*-?\s*/);
 }
 
+function asPlainText(parts: readonly Proto.SymbolDisplayPart[] | string): string {
+	if (typeof parts === 'string') {
+		return parts;
+	}
+	return parts.map(part => part.text).join('');
+}
+
 export function asPlainTextWithLinks(
 	parts: readonly Proto.SymbolDisplayPart[] | string,
 	filePathConverter: IFilePathToResourceConverter,
@@ -177,10 +188,10 @@ function convertLinkTags(
 							if (/^https?:/.test(text)) {
 								const parts = text.split(' ');
 								if (parts.length === 1) {
-									out.push(parts[0]);
+									out.push(`<${parts[0]}>`);
 								} else if (parts.length > 1) {
-									const linkText = escapeMarkdownSyntaxTokensForCode(parts.slice(1).join(' '));
-									out.push(`[${currentLink.linkcode ? '`' + linkText + '`' : linkText}](${parts[0]})`);
+									const linkText = parts.slice(1).join(' ');
+									out.push(`[${currentLink.linkcode ? '`' + escapeMarkdownSyntaxTokensForCode(linkText) + '`' : linkText}](${parts[0]})`);
 								}
 							} else {
 								out.push(escapeMarkdownSyntaxTokensForCode(text));
@@ -217,7 +228,7 @@ function convertLinkTags(
 }
 
 function escapeMarkdownSyntaxTokensForCode(text: string): string {
-	return text.replace(/`/g, '\\$&');
+	return text.replace(/`/g, '\\$&'); // CodeQL [SM02383] This is only meant to escape backticks. The Markdown is fully sanitized after being rendered.
 }
 
 export function tagsToMarkdown(

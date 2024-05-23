@@ -50,3 +50,7 @@
 .minimap.autohide:hover {
 	opacity: 1;
 }
+
+.monaco-editor .minimap {
+	z-index: 5;
+}

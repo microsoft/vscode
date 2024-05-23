@@ -3,7 +3,11 @@
 	"name": "Light High Contrast",
 	"tokenColors": [
 		{
-			"scope": ["meta.embedded", "source.groovy.embedded"],
+			"scope": [
+				"meta.embedded",
+				"source.groovy.embedded",
+				"variable.legacy.builtin.python"
+			],
 			"settings": {
 				"foreground": "#292929"
 			}
@@ -76,10 +80,11 @@
 		{
 			"scope": [
 				"entity.other.attribute-name.class.css",
-				"entity.other.attribute-name.class.mixin.css",
+				"source.css entity.other.attribute-name.class",
 				"entity.other.attribute-name.id.css",
 				"entity.other.attribute-name.parent-selector.css",
-				"entity.other.attribute-name.pseudo-class.css",
+				"entity.other.attribute-name.parent.less",
+				"source.css entity.other.attribute-name.pseudo-class",
 				"entity.other.attribute-name.pseudo-element.css",
 				"source.css.less entity.other.attribute-name.id",
 				"entity.other.attribute-name.scss"
@@ -275,9 +280,7 @@
 			"scope": [
 				"support.type.vendored.property-name",
 				"support.type.property-name",
-				"variable.css",
-				"variable.scss",
-				"variable.other.less",
+				"source.css variable",
 				"source.coffee.embedded"
 			],
 			"settings": {
@@ -438,6 +441,7 @@
 				"source.cpp keyword.operator.new",
 				"source.cpp keyword.operator.delete",
 				"keyword.other.using",
+				"keyword.other.directive.using",
 				"keyword.other.operator",
 				"entity.name.operator"
 			],
@@ -562,5 +566,8 @@
 				"foreground": "#800080"
 			}
 		}
-	]
+	],
+	"colors": {
+		"actionBar.toggledBackground": "#dddddd"
+	}
 }

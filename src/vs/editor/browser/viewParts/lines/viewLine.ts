@@ -151,7 +151,7 @@ export class ViewLine implements IVisibleLine {
 		return false;
 	}
 
-	public renderLine(lineNumber: number, deltaTop: number, viewportData: ViewportData, sb: StringBuilder): boolean {
+	public renderLine(lineNumber: number, deltaTop: number, lineHeight: number, viewportData: ViewportData, sb: StringBuilder): boolean {
 		if (this._isMaybeInvalid === false) {
 			// it appears that nothing relevant has changed
 			return false;
@@ -222,7 +222,7 @@ export class ViewLine implements IVisibleLine {
 		sb.appendString('<div style="top:');
 		sb.appendString(String(deltaTop));
 		sb.appendString('px;height:');
-		sb.appendString(String(this._options.lineHeight));
+		sb.appendString(String(lineHeight));
 		sb.appendString('px;" class="');
 		sb.appendString(ViewLine.CLASS_NAME);
 		sb.appendString('">');
@@ -255,10 +255,10 @@ export class ViewLine implements IVisibleLine {
 		return true;
 	}
 
-	public layoutLine(lineNumber: number, deltaTop: number): void {
+	public layoutLine(lineNumber: number, deltaTop: number, lineHeight: number): void {
 		if (this._renderedViewLine && this._renderedViewLine.domNode) {
 			this._renderedViewLine.domNode.setTop(deltaTop);
-			this._renderedViewLine.domNode.setHeight(this._options.lineHeight);
+			this._renderedViewLine.domNode.setHeight(lineHeight);
 		}
 	}
 
@@ -332,11 +332,11 @@ export class ViewLine implements IVisibleLine {
 		return null;
 	}
 
-	public getColumnOfNodeOffset(lineNumber: number, spanNode: HTMLElement, offset: number): number {
+	public getColumnOfNodeOffset(spanNode: HTMLElement, offset: number): number {
 		if (!this._renderedViewLine) {
 			return 1;
 		}
-		return this._renderedViewLine.getColumnOfNodeOffset(lineNumber, spanNode, offset);
+		return this._renderedViewLine.getColumnOfNodeOffset(spanNode, offset);
 	}
 }
 
@@ -346,7 +346,7 @@ interface IRenderedViewLine {
 	getWidth(context: DomReadingContext | null): number;
 	getWidthIsFast(): boolean;
 	getVisibleRangesForRange(lineNumber: number, startColumn: number, endColumn: number, context: DomReadingContext): FloatHorizontalRange[] | null;
-	getColumnOfNodeOffset(lineNumber: number, spanNode: HTMLElement, offset: number): number;
+	getColumnOfNodeOffset(spanNode: HTMLElement, offset: number): number;
 }
 
 const enum Constants {
@@ -476,16 +476,8 @@ class FastRenderedViewLine implements IRenderedViewLine {
 		return r[0].left;
 	}
 
-	public getColumnOfNodeOffset(lineNumber: number, spanNode: HTMLElement, offset: number): number {
-		const spanNodeTextContentLength = spanNode.textContent!.length;
-
-		let spanIndex = -1;
-		while (spanNode) {
-			spanNode = <HTMLElement>spanNode.previousSibling;
-			spanIndex++;
-		}
-
-		return this._characterMapping.getColumn(new DomPosition(spanIndex, offset), spanNodeTextContentLength);
+	public getColumnOfNodeOffset(spanNode: HTMLElement, offset: number): number {
+		return getColumnOfNodeOffset(this._characterMapping, spanNode, offset);
 	}
 }
 
@@ -679,16 +671,8 @@ class RenderedViewLine implements IRenderedViewLine {
 	/**
 	 * Returns the column for the text found at a specific offset inside a rendered dom node
 	 */
-	public getColumnOfNodeOffset(lineNumber: number, spanNode: HTMLElement, offset: number): number {
-		const spanNodeTextContentLength = spanNode.textContent!.length;
-
-		let spanIndex = -1;
-		while (spanNode) {
-			spanNode = <HTMLElement>spanNode.previousSibling;
-			spanIndex++;
-		}
-
-		return this._characterMapping.getColumn(new DomPosition(spanIndex, offset), spanNodeTextContentLength);
+	public getColumnOfNodeOffset(spanNode: HTMLElement, offset: number): number {
+		return getColumnOfNodeOffset(this._characterMapping, spanNode, offset);
 	}
 }
 
@@ -732,4 +716,16 @@ function createWebKitRenderedLine(domNode: FastDomNode<HTMLElement> | null, rend
 
 function createNormalRenderedLine(domNode: FastDomNode<HTMLElement> | null, renderLineInput: RenderLineInput, characterMapping: CharacterMapping, containsRTL: boolean, containsForeignElements: ForeignElementType): RenderedViewLine {
 	return new RenderedViewLine(domNode, renderLineInput, characterMapping, containsRTL, containsForeignElements);
+}
+
+export function getColumnOfNodeOffset(characterMapping: CharacterMapping, spanNode: HTMLElement, offset: number): number {
+	const spanNodeTextContentLength = spanNode.textContent!.length;
+
+	let spanIndex = -1;
+	while (spanNode) {
+		spanNode = <HTMLElement>spanNode.previousSibling;
+		spanIndex++;
+	}
+
+	return characterMapping.getColumn(new DomPosition(spanIndex, offset), spanNodeTextContentLength);
 }

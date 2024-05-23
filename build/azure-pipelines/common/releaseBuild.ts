@@ -67,7 +67,9 @@ async function main(force: boolean): Promise<void> {
 
 const [, , force] = process.argv;
 
-main(force === 'true').then(() => {
+console.log(process.argv);
+
+main(/^true$/i.test(force)).then(() => {
 	console.log('Build successfully released');
 	process.exit(0);
 }, err => {

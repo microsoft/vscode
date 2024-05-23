@@ -5,6 +5,8 @@
 
 import * as assert from 'assert';
 import * as sinon from 'sinon';
+import { AsyncIterableObject } from 'vs/base/common/async';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -23,7 +25,7 @@ import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewMod
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CellKind, IOutputDto, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { INotebookKernel, INotebookKernelHistoryService, INotebookKernelService, INotebookTextModelLike } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookKernel, INotebookKernelHistoryService, INotebookKernelService, INotebookTextModelLike, VariablesResult } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { setupInstantiationService, withTestNotebook as _withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 
@@ -33,6 +35,10 @@ suite('NotebookExecutionService', () => {
 	let contextKeyService: IContextKeyService;
 	let kernelService: INotebookKernelService;
 	let disposables: DisposableStore;
+
+	teardown(() => {
+		disposables.dispose();
+	});
 
 	setup(function () {
 
@@ -69,13 +75,9 @@ suite('NotebookExecutionService', () => {
 			}
 		});
 
-		kernelService = instantiationService.createInstance(NotebookKernelService);
+		kernelService = disposables.add(instantiationService.createInstance(NotebookKernelService));
 		instantiationService.set(INotebookKernelService, kernelService);
 		contextKeyService = instantiationService.get(IContextKeyService);
-	});
-
-	teardown(() => {
-		disposables.dispose();
 	});
 
 	async function withTestNotebook(cells: [string, string, CellKind, IOutputDto[], NotebookCellMetadata][], callback: (viewModel: NotebookViewModel, textModel: NotebookTextModel) => void | Promise<void>) {
@@ -172,6 +174,9 @@ class TestNotebookKernel implements INotebookKernel {
 	preloadUris: URI[] = [];
 	preloadProvides: string[] = [];
 	supportedLanguages: string[] = [];
+	provideVariables(notebookUri: URI, parentId: number | undefined, kind: 'named' | 'indexed', start: number, token: CancellationToken): AsyncIterableObject<VariablesResult> {
+		return AsyncIterableObject.EMPTY;
+	}
 	executeNotebookCellsRequest(): Promise<void> {
 		throw new Error('Method not implemented.');
 	}

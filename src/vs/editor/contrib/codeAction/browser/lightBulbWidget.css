@@ -13,12 +13,18 @@
 	cursor: pointer;
 }
 
-.monaco-editor .lightBulbWidget.codicon-light-bulb {
+.monaco-editor .lightBulbWidget.codicon-light-bulb,
+.monaco-editor .lightBulbWidget.codicon-lightbulb-sparkle {
 	color: var(--vscode-editorLightBulb-foreground);
 }
 
-.monaco-editor .lightBulbWidget.codicon-lightbulb-autofix {
+.monaco-editor .lightBulbWidget.codicon-lightbulb-autofix,
+.monaco-editor .lightBulbWidget.codicon-lightbulb-sparkle-autofix {
 	color: var(--vscode-editorLightBulbAutoFix-foreground, var(--vscode-editorLightBulb-foreground));
+}
+
+.monaco-editor .lightBulbWidget.codicon-sparkle-filled {
+	color: var(--vscode-editorLightBulbAi-foreground, var(--vscode-icon-foreground));
 }
 
 .monaco-editor .lightBulbWidget:before {

@@ -8,6 +8,7 @@ import { IList } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { ObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
 import { ITreeFilter, ITreeNode, ObjectTreeElementCollapseState, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 import { timeout } from 'vs/base/common/async';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 function toList<T>(arr: T[]): IList<T> {
 	return {
@@ -24,6 +25,8 @@ function toArray<T>(list: ITreeNode<T>[]): T[] {
 }
 
 suite('ObjectTreeModel', function () {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('ctor', () => {
 		const list: ITreeNode<number>[] = [];

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/workbench/contrib/welcomeWalkthrough/browser/editor/vs_code_editor_walkthrough';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { WalkThroughInput, WalkThroughInputOptions } from 'vs/workbench/contrib/welcomeWalkthrough/browser/walkThroughInput';
@@ -29,14 +29,17 @@ const inputOptions: WalkThroughInputOptions = {
 export class EditorWalkThroughAction extends Action2 {
 
 	public static readonly ID = 'workbench.action.showInteractivePlayground';
-	public static readonly LABEL = { value: localize('editorWalkThrough', "Interactive Editor Playground"), original: 'Interactive Editor Playground' };
+	public static readonly LABEL = localize2('editorWalkThrough', 'Interactive Editor Playground');
 
 	constructor() {
 		super({
 			id: EditorWalkThroughAction.ID,
 			title: EditorWalkThroughAction.LABEL,
 			category: Categories.Help,
-			f1: true
+			f1: true,
+			metadata: {
+				description: localize2('editorWalkThroughMetadata', "Opens an interactive playground for learning about the editor.")
+			}
 		});
 	}
 

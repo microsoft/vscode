@@ -4,11 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 use async_trait::async_trait;
 use std::{marker::PhantomData, sync::Arc};
-use tokio::{
-	sync::{
-		broadcast, mpsc,
-		watch::{self, error::RecvError},
-	},
+use tokio::sync::{
+	broadcast, mpsc,
+	watch::{self, error::RecvError},
 };
 
 #[derive(Clone)]
@@ -65,7 +63,7 @@ impl<T: Clone> BarrierOpener<T> {
 /// and is thereafter permanently closed. It can contain a value.
 pub fn new_barrier<T>() -> (Barrier<T>, BarrierOpener<T>)
 where
-	T: Copy,
+	T: Clone,
 {
 	let (closed_tx, closed_rx) = watch::channel(None);
 	(Barrier(closed_rx), BarrierOpener(Arc::new(closed_tx)))

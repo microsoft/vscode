@@ -4,18 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { throttle } from 'vs/base/common/decorators';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookCellExecution, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { IUserActivityService } from 'vs/workbench/services/userActivity/common/userActivityService';
 
 export class ExecutionEditorProgressController extends Disposable implements INotebookEditorContribution {
 	static id: string = 'workbench.notebook.executionEditorProgress';
 
+	private readonly _activityMutex = this._register(new MutableDisposable());
+
 	constructor(
 		private readonly _notebookEditor: INotebookEditor,
-		@INotebookExecutionStateService private readonly _notebookExecutionStateService: INotebookExecutionStateService
+		@INotebookExecutionStateService private readonly _notebookExecutionStateService: INotebookExecutionStateService,
+		@IUserActivityService private readonly _userActivity: IUserActivityService,
 	) {
 		super();
 
@@ -38,8 +42,6 @@ export class ExecutionEditorProgressController extends Disposable implements INo
 			return;
 		}
 
-		const scrollPadding = this._notebookEditor.notebookOptions.computeTopInsertToolbarHeight(this._notebookEditor.textModel.viewType);
-
 		const cellExecutions = this._notebookExecutionStateService.getCellExecutionsForNotebook(this._notebookEditor.textModel?.uri)
 			.filter(exe => exe.state === NotebookCellExecutionState.Executing);
 		const notebookExecution = this._notebookExecutionStateService.getExecution(this._notebookEditor.textModel?.uri);
@@ -48,7 +50,7 @@ export class ExecutionEditorProgressController extends Disposable implements INo
 				for (const cell of this._notebookEditor.getCellsInRange(range)) {
 					if (cell.handle === exe.cellHandle) {
 						const top = this._notebookEditor.getAbsoluteTopOfElement(cell);
-						if (this._notebookEditor.scrollTop < top + scrollPadding + 5) {
+						if (this._notebookEditor.scrollTop < top + 5) {
 							return true;
 						}
 					}
@@ -57,6 +59,14 @@ export class ExecutionEditorProgressController extends Disposable implements INo
 
 			return false;
 		};
+
+		const hasAnyExecution = cellExecutions.length || notebookExecution;
+		if (hasAnyExecution && !this._activityMutex.value) {
+			this._activityMutex.value = this._userActivity.markActive();
+		} else if (!hasAnyExecution && this._activityMutex.value) {
+			this._activityMutex.clear();
+		}
+
 		const shouldShowEditorProgressbarForCellExecutions = cellExecutions.length && !cellExecutions.some(executionIsVisible) && !cellExecutions.some(e => e.isPaused);
 		const showEditorProgressBar = !!notebookExecution || shouldShowEditorProgressbarForCellExecutions;
 		if (showEditorProgressBar) {

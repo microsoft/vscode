@@ -20,7 +20,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
-import { registerStickyScroll } from 'vs/workbench/contrib/notebook/browser/view/cellParts/stickyScroll';
+import { registerCellToolbarStickyScroll } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellToolbarStickyScroll';
 import { NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 
 export class RunToolbar extends CellContentPart {
@@ -56,7 +56,7 @@ export class RunToolbar extends CellContentPart {
 	}
 
 	override didRenderCell(element: ICellViewModel): void {
-		this.cellDisposables.add(registerStickyScroll(this.notebookEditor, element, this.runButtonContainer));
+		this.cellDisposables.add(registerCellToolbarStickyScroll(this.notebookEditor, element, this.runButtonContainer));
 
 		this.toolbar.context = <INotebookCellActionContext>{
 			ui: true,
@@ -84,7 +84,7 @@ export class RunToolbar extends CellContentPart {
 		const executionContextKeyService = this._register(getCodeCellExecutionContextKeyService(contextKeyService));
 		this.toolbar = this._register(new ToolBar(container, this.contextMenuService, {
 			getKeyBinding: keybindingProvider,
-			actionViewItemProvider: _action => {
+			actionViewItemProvider: (_action, _options) => {
 				actionViewItemDisposables.clear();
 
 				const primary = this.getCellToolbarActions(this.primaryMenu).primary[0];
@@ -104,6 +104,7 @@ export class RunToolbar extends CellContentPart {
 					'notebook-cell-run-toolbar',
 					this.contextMenuService,
 					{
+						..._options,
 						getKeyBinding: keybindingProvider
 					});
 				actionViewItemDisposables.add(item.onDidChangeDropdownVisibility(visible => {

@@ -5,9 +5,11 @@
 
 import * as assert from 'assert';
 import { deepClone } from 'vs/base/common/objects';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
 import { IExtensionManifest, IConfiguration } from 'vs/platform/extensions/common/extensions';
+import { NullLogger } from 'vs/platform/log/common/log';
 
 const manifest: IExtensionManifest = {
 	name: 'test',
@@ -44,8 +46,10 @@ const manifest: IExtensionManifest = {
 };
 
 suite('Localize Manifest', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	test('replaces template strings', function () {
 		const localizedManifest = localizeManifest(
+			store.add(new NullLogger()),
 			deepClone(manifest),
 			{
 				'test.command.title': 'Test Command',
@@ -63,6 +67,7 @@ suite('Localize Manifest', () => {
 
 	test('replaces template strings with fallback if not found in translations', function () {
 		const localizedManifest = localizeManifest(
+			store.add(new NullLogger()),
 			deepClone(manifest),
 			{},
 			{
@@ -81,6 +86,7 @@ suite('Localize Manifest', () => {
 
 	test('replaces template strings - command title & categories become ILocalizedString', function () {
 		const localizedManifest = localizeManifest(
+			store.add(new NullLogger()),
 			deepClone(manifest),
 			{
 				'test.command.title': 'Befehl test',
@@ -135,6 +141,7 @@ suite('Localize Manifest', () => {
 		};
 
 		const localizedManifest = localizeManifest(
+			store.add(new NullLogger()),
 			deepClone(manifestWithTypo),
 			{
 				'test.command.title': 'Test Command',

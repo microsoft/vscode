@@ -5,8 +5,11 @@
 
 import * as assert from 'assert';
 import { Iterable } from 'vs/base/common/iterator';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Iterable', function () {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const customIterable = new class {
 

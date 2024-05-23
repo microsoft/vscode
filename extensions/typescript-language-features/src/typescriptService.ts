@@ -76,6 +76,7 @@ interface StandardTsServerRequests {
 	'findSourceDefinition': [Proto.FileLocationRequestArgs, Proto.DefinitionResponse];
 	'getMoveToRefactoringFileSuggestions': [Proto.GetMoveToRefactoringFileSuggestionsRequestArgs, Proto.GetMoveToRefactoringFileSuggestions];
 	'linkedEditingRange': [Proto.FileLocationRequestArgs, Proto.LinkedEditingRangeResponse];
+	'mapCode': [Proto.MapCodeRequestArgs, Proto.MapCodeResponse];
 }
 
 interface NoResponseTsServerRequests {
@@ -85,6 +86,7 @@ interface NoResponseTsServerRequests {
 	'compilerOptionsForInferredProjects': [Proto.SetCompilerOptionsForInferredProjectsArgs, null];
 	'reloadProjects': [null, null];
 	'configurePlugin': [Proto.ConfigurePluginRequest, Proto.ConfigurePluginResponse];
+	'watchChange': [Proto.Request, null];
 }
 
 interface AsyncTsServerRequests {
@@ -156,7 +158,7 @@ export interface ITypeScriptServiceClient {
 	 */
 	hasCapabilityForResource(resource: vscode.Uri, capability: ClientCapability): boolean;
 
-	getWorkspaceRootForResource(resource: vscode.Uri): string | undefined;
+	getWorkspaceRootForResource(resource: vscode.Uri): vscode.Uri | undefined;
 
 	readonly onTsServerStarted: vscode.Event<{ version: TypeScriptVersion; usedApiVersion: API }>;
 	readonly onProjectLanguageServiceStateChanged: vscode.Event<Proto.ProjectLanguageServiceStateEventBody>;

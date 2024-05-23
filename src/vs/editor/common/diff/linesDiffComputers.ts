@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SmartLinesDiffComputer } from 'vs/editor/common/diff/smartLinesDiffComputer';
-import { StandardLinesDiffComputer } from 'vs/editor/common/diff/standardLinesDiffComputer';
+import { LegacyLinesDiffComputer } from 'vs/editor/common/diff/legacyLinesDiffComputer';
+import { DefaultLinesDiffComputer } from 'vs/editor/common/diff/defaultLinesDiffComputer/defaultLinesDiffComputer';
+import { ILinesDiffComputer } from 'vs/editor/common/diff/linesDiffComputer';
 
 export const linesDiffComputers = {
-	legacy: new SmartLinesDiffComputer(),
-	advanced: new StandardLinesDiffComputer(),
-};
+	getLegacy: () => new LegacyLinesDiffComputer(),
+	getDefault: () => new DefaultLinesDiffComputer(),
+} satisfies Record<string, () => ILinesDiffComputer>;

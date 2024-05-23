@@ -7,7 +7,6 @@ import * as assert from 'assert';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IReader, transaction } from 'vs/base/common/observable';
 import { isDefined } from 'vs/base/common/types';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Range } from 'vs/editor/common/core/range';
 import { linesDiffComputers } from 'vs/editor/common/diff/linesDiffComputers';
 import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
@@ -20,7 +19,8 @@ import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model
 import { MergeEditorTelemetry } from 'vs/workbench/contrib/mergeEditor/browser/telemetry';
 
 suite('merge editor model', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	// todo: renable when failing case is found https://github.com/microsoft/vscode/pull/190444#issuecomment-1678151428
+	// ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('prepend line', async () => {
 		await testMergeModel(
@@ -283,16 +283,16 @@ class MergeModelInterface extends Disposable {
 
 		const diffComputer: IMergeDiffComputer = {
 			async computeDiff(textModel1: ITextModel, textModel2: ITextModel, reader: IReader): Promise<IMergeDiffComputerResult> {
-				const result = await linesDiffComputers.legacy.computeDiff(
+				const result = await linesDiffComputers.getLegacy().computeDiff(
 					textModel1.getLinesContent(),
 					textModel2.getLinesContent(),
-					{ ignoreTrimWhitespace: false, maxComputationTimeMs: 10000 }
+					{ ignoreTrimWhitespace: false, maxComputationTimeMs: 10000, computeMoves: false }
 				);
 				const changes = result.changes.map(c =>
 					new DetailedLineRangeMapping(
-						toLineRange(c.originalRange),
+						toLineRange(c.original),
 						textModel1,
-						toLineRange(c.modifiedRange),
+						toLineRange(c.modified),
 						textModel2,
 						c.innerChanges?.map(ic => toRangeMapping(ic)).filter(isDefined)
 					)

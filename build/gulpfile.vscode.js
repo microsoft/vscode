@@ -33,7 +33,6 @@ const createAsar = require('./lib/asar').createAsar;
 const minimist = require('minimist');
 const { compileBuildTask } = require('./gulpfile.compile');
 const { compileExtensionsBuildTask, compileExtensionMediaBuildTask } = require('./gulpfile.extensions');
-const { getSettingsSearchBuildId, shouldSetupSettingsSearch } = require('./azure-pipelines/upload-configuration');
 const { promisify } = require('util');
 const glob = promisify(require('glob'));
 const rcedit = promisify(require('rcedit'));
@@ -65,18 +64,17 @@ const vscodeResources = [
 	'out-build/vs/base/node/{stdForkStart.js,terminateProcess.sh,cpuUsage.sh,ps.sh}',
 	'out-build/vs/base/browser/ui/codicons/codicon/**',
 	'out-build/vs/base/parts/sandbox/electron-sandbox/preload.js',
+	'out-build/vs/base/parts/sandbox/electron-sandbox/preload-aux.js',
 	'out-build/vs/workbench/browser/media/*-theme.css',
 	'out-build/vs/workbench/contrib/debug/**/*.json',
 	'out-build/vs/workbench/contrib/externalTerminal/**/*.scpt',
-	'out-build/vs/workbench/contrib/terminal/browser/media/*.fish',
+	'out-build/vs/workbench/contrib/terminal/browser/media/fish_xdg_data/fish/vendor_conf.d/*.fish',
 	'out-build/vs/workbench/contrib/terminal/browser/media/*.ps1',
 	'out-build/vs/workbench/contrib/terminal/browser/media/*.sh',
 	'out-build/vs/workbench/contrib/terminal/browser/media/*.zsh',
 	'out-build/vs/workbench/contrib/webview/browser/pre/*.js',
 	'out-build/vs/**/markdown.css',
 	'out-build/vs/workbench/contrib/tasks/**/*.json',
-	'out-build/vs/platform/files/**/*.exe',
-	'out-build/vs/platform/files/**/*.md',
 	'!**/test/**'
 ];
 
@@ -150,6 +148,16 @@ const core = task.define('core-ci', task.series(
 ));
 gulp.task(core);
 
+const corePr = task.define('core-ci-pr', task.series(
+	gulp.task('compile-build-pr'),
+	task.parallel(
+		gulp.task('minify-vscode'),
+		gulp.task('minify-vscode-reh'),
+		gulp.task('minify-vscode-reh-web'),
+	)
+));
+gulp.task(corePr);
+
 /**
  * Compute checksums for some files.
  *
@@ -176,7 +184,7 @@ function computeChecksum(filename) {
 	const contents = fs.readFileSync(filename);
 
 	const hash = crypto
-		.createHash('md5')
+		.createHash('sha256')
 		.update(contents)
 		.digest('base64')
 		.replace(/=+$/, '');
@@ -244,10 +252,6 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		const date = new Date().toISOString();
 		const productJsonUpdate = { commit, date, checksums, version };
 
-		if (shouldSetupSettingsSearch()) {
-			productJsonUpdate.settingsSearchBuildId = getSettingsSearchBuildId(packageJson);
-		}
-
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
 			.pipe(json(productJsonUpdate));
 
@@ -266,6 +270,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		const deps = gulp.src(dependenciesSrc, { base: '.', dot: true })
 			.pipe(filter(['**', `!**/${config.version}/**`, '!**/bin/darwin-arm64-87/**', '!**/package-lock.json', '!**/yarn.lock', '!**/*.js.map']))
 			.pipe(util.cleanNodeModules(path.join(__dirname, '.moduleignore')))
+			.pipe(util.cleanNodeModules(path.join(__dirname, `.moduleignore.${process.platform}`)))
 			.pipe(jsFilter)
 			.pipe(util.rewriteSourceMappingURL(sourceMappingURLBase))
 			.pipe(jsFilter.restore)
@@ -276,7 +281,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 				'**/node-pty/lib/worker/conoutSocketWorker.js',
 				'**/node-pty/lib/shared/conout.js',
 				'**/*.wasm',
-				'**/node-vsce-sign/bin/*',
+				'**/@vscode/vsce-sign/bin/*',
 			], 'node_modules.asar'));
 
 		let all = es.merge(
@@ -417,12 +422,10 @@ function patchWin32DependenciesTask(destinationFolderName) {
 const buildRoot = path.dirname(root);
 
 const BUILD_TARGETS = [
-	{ platform: 'win32', arch: 'ia32' },
 	{ platform: 'win32', arch: 'x64' },
 	{ platform: 'win32', arch: 'arm64' },
 	{ platform: 'darwin', arch: 'x64', opts: { stats: true } },
 	{ platform: 'darwin', arch: 'arm64', opts: { stats: true } },
-	{ platform: 'linux', arch: 'ia32' },
 	{ platform: 'linux', arch: 'x64' },
 	{ platform: 'linux', arch: 'armhf' },
 	{ platform: 'linux', arch: 'arm64' },

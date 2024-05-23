@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { EditorLayoutInfo, EditorLayoutInfoComputer, RenderMinimap, EditorOption, EditorMinimapOptions, InternalEditorScrollbarOptions, EditorOptions, RenderLineNumbersType, InternalEditorRenderLineNumbersOptions } from 'vs/editor/common/config/editorOptions';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ComputedEditorOptions } from 'vs/editor/browser/config/editorConfiguration';
+import { EditorLayoutInfo, EditorLayoutInfoComputer, EditorMinimapOptions, EditorOption, EditorOptions, InternalEditorRenderLineNumbersOptions, InternalEditorScrollbarOptions, RenderLineNumbersType, RenderMinimap } from 'vs/editor/common/config/editorOptions';
 
 interface IEditorLayoutProviderOpts {
 	readonly outerWidth: number;
@@ -39,6 +40,8 @@ interface IEditorLayoutProviderOpts {
 
 suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	function doTest(input: IEditorLayoutProviderOpts, expected: EditorLayoutInfo): void {
 		const options = new ComputedEditorOptions();
 		options._write(EditorOption.glyphMargin, input.showGlyphMargin);
@@ -55,6 +58,9 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			maxColumn: input.minimapMaxColumn,
 			showSlider: 'mouseover',
 			scale: 1,
+			showRegionSectionHeaders: true,
+			showMarkSectionHeaders: true,
+			sectionHeaderFontSize: 9
 		};
 		options._write(EditorOption.minimap, minimapOptions);
 		const scrollbarOptions: InternalEditorScrollbarOptions = {
@@ -71,6 +77,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			verticalScrollbarSize: input.verticalScrollbarWidth,
 			verticalSliderSize: EditorOptions.scrollbar.defaultValue.verticalSliderSize,
 			scrollByPage: EditorOptions.scrollbar.defaultValue.scrollByPage,
+			ignoreHorizontalScrollbarInContentHeight: false,
 		};
 		options._write(EditorOption.scrollbar, scrollbarOptions);
 		const lineNumbersOptions: InternalEditorRenderLineNumbersOptions = {

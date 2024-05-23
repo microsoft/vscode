@@ -25,7 +25,7 @@ export interface IOptions {
 	className?: string;
 	isAccessible?: boolean;
 	isResizeable?: boolean;
-	frameColor?: Color;
+	frameColor?: Color | string;
 	arrowColor?: Color;
 	keepEditorSelection?: boolean;
 	allowUnlimitedHeight?: boolean;
@@ -34,7 +34,7 @@ export interface IOptions {
 }
 
 export interface IStyles {
-	frameColor?: Color | null;
+	frameColor?: Color | string | null;
 	arrowColor?: Color | null;
 }
 
@@ -148,7 +148,7 @@ class Arrow {
 		dom.removeCSSRulesContainingSelector(this._ruleName);
 		dom.createCSSRule(
 			`.monaco-editor ${this._ruleName}`,
-			`border-style: solid; border-color: transparent; border-bottom-color: ${this._color}; border-width: ${this._height}px; bottom: -${this._height}px; margin-left: -${this._height}px; `
+			`border-style: solid; border-color: transparent; border-bottom-color: ${this._color}; border-width: ${this._height}px; bottom: -${this._height}px !important; margin-left: -${this._height}px; `
 		);
 	}
 
@@ -307,6 +307,10 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		return range.getStartPosition();
 	}
 
+	hasFocus() {
+		return this.domNode.contains(dom.getActiveElement());
+	}
+
 	protected _isShowing: boolean = false;
 
 	show(rangeOrPos: IRange | IPosition, heightInLines: number): void {
@@ -315,6 +319,24 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		this._showImpl(range, heightInLines);
 		this._isShowing = false;
 		this._positionMarkerId.set([{ range, options: ModelDecorationOptions.EMPTY }]);
+	}
+
+	updatePositionAndHeight(rangeOrPos: IRange | IPosition, heightInLines?: number): void {
+		if (this._viewZone) {
+			rangeOrPos = Range.isIRange(rangeOrPos) ? Range.getStartPosition(rangeOrPos) : rangeOrPos;
+			this._viewZone.afterLineNumber = rangeOrPos.lineNumber;
+			this._viewZone.afterColumn = rangeOrPos.column;
+			this._viewZone.heightInLines = heightInLines ?? this._viewZone.heightInLines;
+
+			this.editor.changeViewZones(accessor => {
+				accessor.layoutZone(this._viewZone!.id);
+			});
+			this._positionMarkerId.set([{
+				range: Range.isIRange(rangeOrPos) ? rangeOrPos : Range.fromPositions(rangeOrPos),
+				options: ModelDecorationOptions.EMPTY
+			}]);
+
+		}
 	}
 
 	hide(): void {
@@ -331,6 +353,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 			this._overlayWidget = null;
 		}
 		this._arrow?.hide();
+		this._positionMarkerId.clear();
 	}
 
 	private _decoratingElementsHeight(): number {
@@ -431,7 +454,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		const model = this.editor.getModel();
 		if (model) {
 			const range = model.validateRange(new Range(where.startLineNumber, 1, where.endLineNumber + 1, 1));
-			this.revealRange(range, range.endLineNumber === model.getLineCount());
+			this.revealRange(range, range.startLineNumber === model.getLineCount());
 		}
 	}
 

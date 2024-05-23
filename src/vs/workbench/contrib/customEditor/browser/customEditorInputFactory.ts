@@ -119,6 +119,8 @@ function reviveWebview(webviewService: IWebviewService, data: { origin: string |
 
 export class ComplexCustomWorkingCopyEditorHandler extends Disposable implements IWorkbenchContribution, IWorkingCopyEditorHandler {
 
+	static readonly ID = 'workbench.contrib.complexCustomWorkingCopyEditorHandler';
+
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IWorkingCopyEditorService _workingCopyEditorService: IWorkingCopyEditorService,

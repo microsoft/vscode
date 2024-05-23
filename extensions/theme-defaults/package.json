@@ -21,9 +21,9 @@
       },
       {
         "id": "Default Dark Modern",
-        "label": "%darkPlusExperimentalColorThemeLabel%",
+        "label": "%darkModernThemeLabel%",
         "uiTheme": "vs-dark",
-        "path": "./themes/dark_plus_experimental.json"
+        "path": "./themes/dark_modern.json"
       },
       {
         "id": "Default Light+",
@@ -33,9 +33,9 @@
       },
       {
         "id": "Default Light Modern",
-        "label": "%lightPlusExperimentalColorThemeLabel%",
+        "label": "%lightModernThemeLabel%",
         "uiTheme": "vs",
-        "path": "./themes/light_plus_experimental.json"
+        "path": "./themes/light_modern.json"
       },
       {
         "id": "Visual Studio Dark",

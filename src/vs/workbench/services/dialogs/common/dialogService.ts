@@ -5,7 +5,7 @@
 
 import Severity from 'vs/base/common/severity';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IConfirmation, IConfirmationResult, IDialogService, IInput, IInputResult, IPrompt, IPromptResult, IPromptResultWithCancel, IPromptWithCustomCancel, IPromptWithDefaultCancel } from 'vs/platform/dialogs/common/dialogs';
+import { IAsyncPromptResult, IAsyncPromptResultWithCancel, IConfirmation, IConfirmationResult, IDialogService, IInput, IInputResult, IPrompt, IPromptResult, IPromptResultWithCancel, IPromptWithCustomCancel, IPromptWithDefaultCancel } from 'vs/platform/dialogs/common/dialogs';
 import { DialogsModel } from 'vs/workbench/common/dialogs';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -58,7 +58,12 @@ export class DialogService extends Disposable implements IDialogService {
 
 		const handle = this.model.show({ promptArgs: { prompt } });
 
-		return await handle.result as Promise<IPromptResult<T> | IPromptResultWithCancel<T>>;
+		const dialogResult = await handle.result as IAsyncPromptResult<T> | IAsyncPromptResultWithCancel<T>;
+
+		return {
+			result: await dialogResult.result,
+			checkboxChecked: dialogResult.checkboxChecked
+		};
 	}
 
 	async input(input: IInput): Promise<IInputResult> {

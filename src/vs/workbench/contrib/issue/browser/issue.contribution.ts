@@ -13,10 +13,12 @@ import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common
 import { WebIssueService } from 'vs/workbench/services/issue/browser/issueService';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 import { BaseIssueContribution } from 'vs/workbench/contrib/issue/common/issue.contribution';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+
 
 class WebIssueContribution extends BaseIssueContribution {
-	constructor(@IProductService productService: IProductService) {
-		super(productService);
+	constructor(@IProductService productService: IProductService, @IConfigurationService configurationService: IConfigurationService) {
+		super(productService, configurationService);
 	}
 }
 

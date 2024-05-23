@@ -7,21 +7,24 @@ import { DeferredPromise } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { IObservable, observableValue } from 'vs/base/common/observable';
 import { language } from 'vs/base/common/platform';
-import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
+import { WellDefinedPrefixTree } from 'vs/base/common/prefixTree';
 import { localize } from 'vs/nls';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IComputedStateAccessor, refreshComputedState } from 'vs/workbench/contrib/testing/common/getComputedState';
-import { IObservableValue, MutableObservableValue, staticObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
 import { TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { maxPriority, statesInOrder, terminalStatePriorities } from 'vs/workbench/contrib/testing/common/testingStates';
+import { makeEmptyCounts, maxPriority, statesInOrder, terminalStatePriorities, TestStateCount } from 'vs/workbench/contrib/testing/common/testingStates';
 import { getMarkId, IRichLocation, ISerializedTestResults, ITestItem, ITestMessage, ITestOutputMessage, ITestRunTask, ITestTaskState, ResolvedTestRunRequest, TestItemExpandState, TestMessageType, TestResultItem, TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
 
 export interface ITestRunTaskResults extends ITestRunTask {
 	/**
 	 * Contains test coverage for the result, if it's available.
 	 */
-	readonly coverage: IObservableValue<TestCoverage | undefined>;
+	readonly coverage: IObservable<TestCoverage | undefined>;
 
 	/**
 	 * Messages from the task not associated with any specific test.
@@ -97,7 +100,10 @@ export interface ITaskRawOutput {
 	readonly buffers: VSBuffer[];
 	readonly length: number;
 
-	getRange(start: number, end: number): VSBuffer;
+	/** Gets a continuous buffer for the desired range */
+	getRange(start: number, length: number): VSBuffer;
+	/** Gets an iterator of buffers for the range; may avoid allocation of getRange() */
+	getRangeIter(start: number, length: number): Iterable<VSBuffer>;
 }
 
 const emptyRawOutput: ITaskRawOutput = {
@@ -106,6 +112,7 @@ const emptyRawOutput: ITaskRawOutput = {
 	onDidWriteData: Event.None,
 	endPromise: Promise.resolve(),
 	getRange: () => VSBuffer.alloc(0),
+	getRangeIter: () => [],
 };
 
 export class TaskRawOutput implements ITaskRawOutput {
@@ -130,8 +137,18 @@ export class TaskRawOutput implements ITaskRawOutput {
 	/** @inheritdoc */
 	getRange(start: number, length: number): VSBuffer {
 		const buf = VSBuffer.alloc(length);
-
 		let bufLastWrite = 0;
+		for (const chunk of this.getRangeIter(start, length)) {
+			buf.buffer.set(chunk.buffer, bufLastWrite);
+			bufLastWrite += chunk.byteLength;
+		}
+
+		return bufLastWrite < length ? buf.slice(0, bufLastWrite) : buf;
+	}
+
+	/** @inheritdoc */
+	*getRangeIter(start: number, length: number) {
+		let soFar = 0;
 		let internalLastRead = 0;
 		for (const b of this.buffers) {
 			if (internalLastRead + b.byteLength <= start) {
@@ -140,37 +157,68 @@ export class TaskRawOutput implements ITaskRawOutput {
 			}
 
 			const bstart = Math.max(0, start - internalLastRead);
-			const bend = Math.min(b.byteLength, bstart + length - bufLastWrite);
+			const bend = Math.min(b.byteLength, bstart + length - soFar);
 
-			buf.buffer.set(b.buffer.subarray(bstart, bend), bufLastWrite);
-			bufLastWrite += bend - bstart;
+			yield b.slice(bstart, bend);
+			soFar += bend - bstart;
 			internalLastRead += b.byteLength;
 
-			if (bufLastWrite === buf.byteLength) {
+			if (soFar === length) {
+				break;
+			}
+		}
+	}
+
+	/**
+	 * Appends data to the output, returning the byte range where the data can be found.
+	 */
+	public append(data: VSBuffer, marker?: number) {
+		const offset = this.offset;
+		let length = data.byteLength;
+		if (marker === undefined) {
+			this.push(data);
+			return { offset, length };
+		}
+
+		// Bytes that should be 'trimmed' off the end of data. This is done because
+		// selections in the terminal are based on the entire line, and commonly
+		// the interesting marked range has a trailing new line. We don't want to
+		// select the trailing line (which might have other data)
+		// so we place the marker before all trailing trimbytes.
+		const enum TrimBytes {
+			CR = 13,
+			LF = 10,
+		}
+
+		const start = VSBuffer.fromString(getMarkCode(marker, true));
+		const end = VSBuffer.fromString(getMarkCode(marker, false));
+		length += start.byteLength + end.byteLength;
+
+		this.push(start);
+		let trimLen = data.byteLength;
+		for (; trimLen > 0; trimLen--) {
+			const last = data.buffer[trimLen - 1];
+			if (last !== TrimBytes.CR && last !== TrimBytes.LF) {
 				break;
 			}
 		}
 
-		return bufLastWrite < length ? buf.slice(0, bufLastWrite) : buf;
+		this.push(data.slice(0, trimLen));
+		this.push(end);
+		this.push(data.slice(trimLen));
+
+
+		return { offset, length };
 	}
 
-	/**
-	 * Appends data to the output, returning the byte index where data starts.
-	 */
-	public append(data: VSBuffer, marker?: number): number {
-		let startOffset = this.offset;
-		if (marker !== undefined) {
-			const start = VSBuffer.fromString(getMarkCode(marker, true));
-			const end = VSBuffer.fromString(getMarkCode(marker, false));
-			startOffset += start.byteLength;
-			data = VSBuffer.concat([start, data, end]);
+	private push(data: VSBuffer) {
+		if (data.byteLength === 0) {
+			return;
 		}
 
 		this.buffers.push(data);
 		this.writeDataEmitter.fire(data);
 		this.offset += data.byteLength;
-
-		return startOffset;
 	}
 
 	/** Signals the output has ended. */
@@ -183,20 +231,6 @@ export const resultItemParents = function* (results: ITestResult, item: TestResu
 	for (const id of TestId.fromString(item.item.extId).idsToRoot()) {
 		yield results.getStateById(id.toString())!;
 	}
-};
-
-/**
- * Count of the number of tests in each run state.
- */
-export type TestStateCount = { [K in TestResultState]: number };
-
-export const makeEmptyCounts = () => {
-	const o: Partial<TestStateCount> = {};
-	for (const state of statesInOrder) {
-		o[state] = 0;
-	}
-
-	return o as TestStateCount;
 };
 
 export const maxCountPriority = (counts: Readonly<TestStateCount>) => {
@@ -229,26 +263,30 @@ const itemToNode = (controllerId: string, item: ITestItem, parent: string | null
 export const enum TestResultItemChangeReason {
 	ComputedStateChange,
 	OwnStateChange,
+	NewMessage,
 }
 
 export type TestResultItemChange = { item: TestResultItem; result: ITestResult } & (
 	| { reason: TestResultItemChangeReason.ComputedStateChange }
 	| { reason: TestResultItemChangeReason.OwnStateChange; previousState: TestResultState; previousOwnDuration: number | undefined }
+	| { reason: TestResultItemChangeReason.NewMessage; message: ITestMessage }
 );
 
 /**
  * Results of a test. These are created when the test initially started running
  * and marked as "complete" when the run finishes.
  */
-export class LiveTestResult implements ITestResult {
-	private readonly completeEmitter = new Emitter<void>();
-	private readonly newTaskEmitter = new Emitter<number>();
-	private readonly endTaskEmitter = new Emitter<number>();
-	private readonly changeEmitter = new Emitter<TestResultItemChange>();
+export class LiveTestResult extends Disposable implements ITestResult {
+	private readonly completeEmitter = this._register(new Emitter<void>());
+	private readonly newTaskEmitter = this._register(new Emitter<number>());
+	private readonly endTaskEmitter = this._register(new Emitter<number>());
+	private readonly changeEmitter = this._register(new Emitter<TestResultItemChange>());
+	/** todo@connor4312: convert to a WellDefinedPrefixTree */
 	private readonly testById = new Map<string, TestResultItemWithChildren>();
 	private testMarkerCounter = 0;
 	private _completedAt?: number;
 
+	public readonly startedAt = Date.now();
 	public readonly onChange = this.changeEmitter.event;
 	public readonly onComplete = this.completeEmitter.event;
 	public readonly onNewTask = this.newTaskEmitter.event;
@@ -266,13 +304,18 @@ export class LiveTestResult implements ITestResult {
 	/**
 	 * @inheritdoc
 	 */
-	public readonly counts: { [K in TestResultState]: number } = makeEmptyCounts();
+	public readonly counts = makeEmptyCounts();
 
 	/**
 	 * @inheritdoc
 	 */
 	public get tests() {
 		return this.testById.values();
+	}
+
+	/** Gets an included test item by ID. */
+	public getTestById(id: string) {
+		return this.testById.get(id)?.item;
 	}
 
 	private readonly computedStateAccessor: IComputedStateAccessor<TestResultItemWithChildren> = {
@@ -297,7 +340,9 @@ export class LiveTestResult implements ITestResult {
 		public readonly id: string,
 		public readonly persist: boolean,
 		public readonly request: ResolvedTestRunRequest,
+		@ITelemetryService private readonly telemetry: ITelemetryService,
 	) {
+		super();
 	}
 
 	/**
@@ -323,18 +368,20 @@ export class LiveTestResult implements ITestResult {
 		const index = this.mustGetTaskIndex(taskId);
 		const task = this.tasks[index];
 
-		const offset = task.output.append(output, marker);
+		const { offset, length } = task.output.append(output, marker);
 		const message: ITestOutputMessage = {
 			location,
-			message: removeAnsiEscapeCodes(preview),
+			message: preview,
 			offset,
-			length: output.byteLength,
-			marker: marker,
+			length,
+			marker,
 			type: TestMessageType.Output,
 		};
 
-		if (testId) {
-			this.testById.get(testId)?.tasks[index].messages.push(message);
+		const test = testId && this.testById.get(testId);
+		if (test) {
+			test.tasks[index].messages.push(message);
+			this.changeEmitter.fire({ item: test, result: this, reason: TestResultItemChangeReason.NewMessage, message });
 		} else {
 			task.otherMessages.push(message);
 		}
@@ -344,7 +391,7 @@ export class LiveTestResult implements ITestResult {
 	 * Adds a new run task to the results.
 	 */
 	public addTask(task: ITestRunTask) {
-		this.tasks.push({ ...task, coverage: new MutableObservableValue(undefined), otherMessages: [], output: new TaskRawOutput() });
+		this.tasks.push({ ...task, coverage: observableValue(this, undefined), otherMessages: [], output: new TaskRawOutput() });
 
 		for (const test of this.tests) {
 			test.tasks.push({ duration: undefined, messages: [], state: TestResultState.Unset });
@@ -404,13 +451,7 @@ export class LiveTestResult implements ITestResult {
 		}
 
 		entry.tasks[this.mustGetTaskIndex(taskId)].messages.push(message);
-		this.changeEmitter.fire({
-			item: entry,
-			result: this,
-			reason: TestResultItemChangeReason.OwnStateChange,
-			previousState: entry.ownComputedState,
-			previousOwnDuration: entry.ownDuration,
-		});
+		this.changeEmitter.fire({ item: entry, result: this, reason: TestResultItemChangeReason.NewMessage, message });
 	}
 
 	/**
@@ -447,6 +488,33 @@ export class LiveTestResult implements ITestResult {
 
 		this._completedAt = Date.now();
 		this.completeEmitter.fire();
+
+		this.telemetry.publicLog2<
+			{ failures: number; passes: number; controller: string },
+			{
+				owner: 'connor4312';
+				comment: 'Test outcome metrics. This helps us understand magnitude of feature use and how to build fix suggestions.';
+				failures: { comment: 'Number of test failures'; classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+				passes: { comment: 'Number of test failures'; classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+				controller: { comment: 'The test controller being used'; classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			}
+		>('test.outcomes', {
+			failures: this.counts[TestResultState.Errored] + this.counts[TestResultState.Failed],
+			passes: this.counts[TestResultState.Passed],
+			controller: this.request.targets.map(t => t.controllerId).join(',')
+		});
+	}
+
+	/**
+	 * Marks the test and all of its children in the run as retired.
+	 */
+	public markRetired(testIds: WellDefinedPrefixTree<undefined> | undefined) {
+		for (const [id, test] of this.testById) {
+			if (!test.retired && (!testIds || testIds.hasKeyOrParent(TestId.fromString(id).path))) {
+				test.retired = true;
+				this.changeEmitter.fire({ reason: TestResultItemChangeReason.ComputedStateChange, item: test, result: this });
+			}
+		}
 	}
 
 	/**
@@ -599,6 +667,7 @@ export class HydratedTestResult implements ITestResult {
 	private readonly testById = new Map<string, TestResultItem>();
 
 	constructor(
+		identity: IUriIdentityService,
 		private readonly serialized: ISerializedTestResults,
 		private readonly persist = true,
 	) {
@@ -608,7 +677,7 @@ export class HydratedTestResult implements ITestResult {
 			id: task.id,
 			name: task.name,
 			running: false,
-			coverage: staticObservableValue(undefined),
+			coverage: observableValue(this, undefined),
 			output: emptyRawOutput,
 			otherMessages: []
 		}));
@@ -616,7 +685,7 @@ export class HydratedTestResult implements ITestResult {
 		this.request = serialized.request;
 
 		for (const item of serialized.items) {
-			const de = TestResultItem.deserialize(item);
+			const de = TestResultItem.deserialize(identity, item);
 			this.counts[de.ownComputedState]++;
 			this.testById.set(item.item.extId, de);
 		}

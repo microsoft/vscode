@@ -78,8 +78,6 @@ export class TokenizationRegistry implements ITokenizationRegistry {
 		return this.get(languageId);
 	}
 
-
-
 	public isResolved(languageId: string): boolean {
 		const tokenizationSupport = this.get(languageId);
 		if (tokenizationSupport) {

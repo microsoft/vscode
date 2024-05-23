@@ -26,20 +26,19 @@ pub fn next_counter() -> u32 {
 }
 
 // Log level
-#[derive(clap::ArgEnum, PartialEq, Eq, PartialOrd, Clone, Copy, Debug, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(
+	clap::ValueEnum, PartialEq, Eq, PartialOrd, Clone, Copy, Debug, Serialize, Deserialize, Default,
+)]
 pub enum Level {
 	Trace = 0,
 	Debug,
 	#[default]
- Info,
+	Info,
 	Warn,
 	Error,
 	Critical,
 	Off,
 }
-
-
 
 impl fmt::Display for Level {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -160,9 +159,21 @@ pub struct FileLogSink {
 	file: Arc<std::sync::Mutex<std::fs::File>>,
 }
 
+const FILE_LOG_SIZE_LIMIT: u64 = 1024 * 1024 * 10; // 10MB
+
 impl FileLogSink {
 	pub fn new(level: Level, path: &Path) -> std::io::Result<Self> {
-		let file = std::fs::File::create(path)?;
+		// Truncate the service log occasionally to avoid growing infinitely
+		if matches!(path.metadata(), Ok(m) if m.len() > FILE_LOG_SIZE_LIMIT) {
+			// ignore errors, can happen if another process is writing right now
+			let _ = std::fs::remove_file(path);
+		}
+
+		let file = std::fs::OpenOptions::new()
+			.append(true)
+			.create(true)
+			.open(path)?;
+
 		Ok(Self {
 			level,
 			file: Arc::new(std::sync::Mutex::new(file)),
@@ -312,8 +323,8 @@ fn format(level: Level, prefix: &str, message: &str, use_colors: bool) -> String
 }
 
 pub fn emit(level: Level, prefix: &str, message: &str) {
-	let line = format(level, prefix, message, true);
-	if level == Level::Trace {
+	let line = format(level, prefix, message, *COLORS_ENABLED);
+	if level == Level::Trace && *COLORS_ENABLED {
 		print!("\x1b[2m{}\x1b[0m", line);
 	} else {
 		print!("{}", line);
@@ -344,8 +355,7 @@ impl log::Log for RustyLogger {
 
 		// exclude noisy log modules:
 		let src = match record.module_path() {
-			Some("russh::cipher") => return,
-			Some("russh::negotiation") => return,
+			Some("russh::cipher" | "russh::negotiation" | "russh::kex::dh") => return,
 			Some(s) => s,
 			None => "<unknown>",
 		};

@@ -1,0 +1,12 @@
+[
+  {
+    content: {
+      value: "some code <vscode_annotation details='%5B%7B%22title%22%3A%22title%22%2C%22description%22%3A%22vuln%22%7D%5D'>content with vuln</vscode_annotation> after",
+      isTrusted: false,
+      supportThemeIcons: false,
+      supportHtml: false,
+      baseUri: undefined
+    },
+    kind: "markdownContent"
+  }
+]

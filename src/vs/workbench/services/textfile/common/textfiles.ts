@@ -195,7 +195,7 @@ export interface ISaveErrorHandler {
 	/**
 	 * Called whenever a save fails.
 	 */
-	onSaveError(error: Error, model: ITextFileEditorModel): void;
+	onSaveError(error: Error, model: ITextFileEditorModel, options: ITextFileSaveAsOptions): void;
 }
 
 /**
@@ -313,6 +313,22 @@ export interface ITextFileResolveEvent {
 	readonly reason: TextFileResolveReason;
 }
 
+export interface ITextFileSaveParticipantContext {
+
+	/**
+	 * The reason why the save was triggered.
+	 */
+	readonly reason: SaveReason;
+
+	/**
+	 * Only applies to when a text file was saved as, for
+	 * example when starting with untitled and saving. This
+	 * provides access to the initial resource the text
+	 * file had before.
+	 */
+	readonly savedFrom?: URI;
+}
+
 export interface ITextFileSaveParticipant {
 
 	/**
@@ -321,7 +337,7 @@ export interface ITextFileSaveParticipant {
 	 */
 	participate(
 		model: ITextFileEditorModel,
-		context: { reason: SaveReason },
+		context: ITextFileSaveParticipantContext,
 		progress: IProgress<IProgressStep>,
 		token: CancellationToken
 	): Promise<void>;
@@ -369,7 +385,7 @@ export interface ITextFileEditorModelManager {
 	/**
 	 * Runs the registered save participants on the provided model.
 	 */
-	runSaveParticipants(model: ITextFileEditorModel, context: { reason: SaveReason }, token: CancellationToken): Promise<void>;
+	runSaveParticipants(model: ITextFileEditorModel, context: ITextFileSaveParticipantContext, token: CancellationToken): Promise<void>;
 
 	/**
 	 * Waits for the model to be ready to be disposed. There may be conditions
@@ -405,6 +421,11 @@ export interface ITextFileSaveOptions extends ISaveOptions {
 }
 
 export interface ITextFileSaveAsOptions extends ITextFileSaveOptions {
+
+	/**
+	 * Optional URI of the resource the text file is saved from if known.
+	 */
+	readonly from?: URI;
 
 	/**
 	 * Optional URI to use as suggested file path to save as.
@@ -498,7 +519,7 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	updatePreferredEncoding(encoding: string | undefined): void;
 
-	save(options?: ITextFileSaveOptions): Promise<boolean>;
+	save(options?: ITextFileSaveAsOptions): Promise<boolean>;
 	revert(options?: IRevertOptions): Promise<void>;
 
 	resolve(options?: ITextFileResolveOptions): Promise<void>;

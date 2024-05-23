@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { incrementFileName } from 'vs/workbench/contrib/files/browser/fileActions';
 
 suite('Files - Increment file name simple', () => {
@@ -134,6 +135,7 @@ suite('Files - Increment file name simple', () => {
 		assert.strictEqual(result, 'test copy 2');
 	});
 
+	ensureNoDisposablesAreLeakedInTestSuite();
 });
 
 suite('Files - Increment file name smart', () => {
@@ -324,4 +326,5 @@ suite('Files - Increment file name smart', () => {
 		assert.strictEqual(result, '2-test');
 	});
 
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

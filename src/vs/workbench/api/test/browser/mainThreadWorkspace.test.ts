@@ -3,33 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ISearchService, IFileQuery } from 'vs/workbench/services/search/common/search';
-import { MainThreadWorkspace } from 'vs/workbench/api/browser/mainThreadWorkspace';
 import * as assert from 'assert';
-import { SingleProxyRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { MainThreadWorkspace } from 'vs/workbench/api/browser/mainThreadWorkspace';
+import { SingleProxyRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
+import { IFileQuery, ISearchService } from 'vs/workbench/services/search/common/search';
+import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 suite('MainThreadWorkspace', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	let disposables: DisposableStore;
 	let configService: TestConfigurationService;
 	let instantiationService: TestInstantiationService;
 
 	setup(() => {
-		disposables = new DisposableStore();
 		instantiationService = workbenchInstantiationService(undefined, disposables) as TestInstantiationService;
 
 		configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
 		configService.setUserConfiguration('search', {});
-	});
-
-	teardown(() => {
-		disposables.dispose();
 	});
 
 	test('simple', () => {
@@ -45,8 +40,8 @@ suite('MainThreadWorkspace', () => {
 			}
 		});
 
-		const mtw = instantiationService.createInstance(MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } }));
-		return mtw.$startFileSearch('foo', null, null, 10, new CancellationTokenSource().token);
+		const mtw = disposables.add(instantiationService.createInstance(MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } })));
+		return mtw.$startFileSearch(null, { maxResults: 10, includePattern: 'foo', disregardSearchExcludeSettings: true }, CancellationToken.None);
 	});
 
 	test('exclude defaults', () => {
@@ -67,8 +62,8 @@ suite('MainThreadWorkspace', () => {
 			}
 		});
 
-		const mtw = instantiationService.createInstance(MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } }));
-		return mtw.$startFileSearch('', null, null, 10, new CancellationTokenSource().token);
+		const mtw = disposables.add(instantiationService.createInstance(MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } })));
+		return mtw.$startFileSearch(null, { maxResults: 10, includePattern: '', disregardSearchExcludeSettings: true }, CancellationToken.None);
 	});
 
 	test('disregard excludes', () => {
@@ -81,15 +76,37 @@ suite('MainThreadWorkspace', () => {
 
 		instantiationService.stub(ISearchService, {
 			fileSearch(query: IFileQuery) {
-				assert.strictEqual(query.folderQueries[0].excludePattern, undefined);
+				assert.deepStrictEqual(query.folderQueries[0].excludePattern, undefined);
 				assert.deepStrictEqual(query.excludePattern, undefined);
 
 				return Promise.resolve({ results: [], messages: [] });
 			}
 		});
 
-		const mtw = instantiationService.createInstance(MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } }));
-		return mtw.$startFileSearch('', null, false, 10, new CancellationTokenSource().token);
+		const mtw = disposables.add(instantiationService.createInstance(MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } })));
+		return mtw.$startFileSearch(null, { maxResults: 10, includePattern: '', disregardSearchExcludeSettings: true, disregardExcludeSettings: true }, CancellationToken.None);
+	});
+
+	test('do not disregard anything if disregardExcludeSettings is true', () => {
+		configService.setUserConfiguration('search', {
+			'exclude': { 'searchExclude': true }
+		});
+		configService.setUserConfiguration('files', {
+			'exclude': { 'filesExclude': true }
+		});
+
+		instantiationService.stub(ISearchService, {
+			fileSearch(query: IFileQuery) {
+				assert.strictEqual(query.folderQueries.length, 1);
+				assert.strictEqual(query.folderQueries[0].disregardIgnoreFiles, true);
+				assert.deepStrictEqual(query.folderQueries[0].excludePattern, undefined);
+
+				return Promise.resolve({ results: [], messages: [] });
+			}
+		});
+
+		const mtw = disposables.add(instantiationService.createInstance(MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } })));
+		return mtw.$startFileSearch(null, { maxResults: 10, includePattern: '', disregardExcludeSettings: true, disregardSearchExcludeSettings: false }, CancellationToken.None);
 	});
 
 	test('exclude string', () => {
@@ -102,7 +119,7 @@ suite('MainThreadWorkspace', () => {
 			}
 		});
 
-		const mtw = instantiationService.createInstance(MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } }));
-		return mtw.$startFileSearch('', null, 'exclude/**', 10, new CancellationTokenSource().token);
+		const mtw = disposables.add(instantiationService.createInstance(MainThreadWorkspace, SingleProxyRPCProtocol({ $initializeWorkspace: () => { } })));
+		return mtw.$startFileSearch(null, { maxResults: 10, includePattern: '', excludePattern: 'exclude/**', disregardSearchExcludeSettings: true }, CancellationToken.None);
 	});
 });

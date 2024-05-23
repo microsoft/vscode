@@ -11,8 +11,10 @@ import { SingleProxyRPCProtocol } from 'vs/workbench/api/test/common/testRPCProt
 import { mock } from 'vs/base/test/common/mock';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('ExtHostCommands', function () {
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('dispose calls unregister', function () {
 

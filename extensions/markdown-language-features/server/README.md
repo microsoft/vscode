@@ -6,7 +6,6 @@ The Markdown language server powers VS Code's built-in markdown support, providi
 
 This server uses the [Markdown Language Service](https://github.com/microsoft/vscode-markdown-languageservice) to implement almost all of the language features. You can use that library if you need a library for working with Markdown instead of a full language server.
 
-
 ## Server capabilities
 
 - [Completions](https://microsoft.github.io/language-server-protocol/specification#textDocument_completion) for Markdown links.
@@ -31,13 +30,12 @@ This server uses the [Markdown Language Service](https://github.com/microsoft/vs
 
 - [Code Actions](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_codeAction)
 
-	- Organize link definitions source action.
-	- Extract link to definition refactoring.
+  - Organize link definitions source action.
+  - Extract link to definition refactoring.
 
 - Updating links when a file is moved / renamed. Uses a custom `markdown/getEditForFileRenames` message.
 
 - [Pull diagnostics (validation)](https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/#textDocument_pullDiagnostics) for links.
-
 
 ## Client requirements
 
@@ -53,27 +51,27 @@ Clients may send a `workspace/didChangeConfiguration` notification to notify the
 The server supports the following settings:
 
 - `markdown`
-	- `suggest`
-		- `paths`
-			- `enabled` — Enable/disable path suggestions.
+  - `suggest`
+    - `paths`
+      - `enabled` — Enable/disable path suggestions.
 
-	- `occurrencesHighlight`
-		- `enabled` — Enable/disable highlighting of link occurrences.
+  - `occurrencesHighlight`
+    - `enabled` — Enable/disable highlighting of link occurrences.
 
-	- `validate`
-		- `enabled` — Enable/disable all validation.
-		- `referenceLinks`
-			- `enabled` — Enable/disable validation of reference links: `[text][ref]`
-		- `fragmentLinks`
-			- `enabled` — Enable/disable validation of links to fragments in the current files: `[text](#head)`
-		- `fileLinks`
-			- `enabled` — Enable/disable validation of links to file in the workspace.
-			- `markdownFragmentLinks` — Enable/disable validation of links to headers in other Markdown files. Use `inherit` to inherit the `fragmentLinks` setting.
-		- `ignoredLinks` — Array of glob patterns for files that should not be validated.
-		- `unusedLinkDefinitions`
-			- `enabled` — Enable/disable validation of unused link definitions.
-		- `duplicateLinkDefinitions`
-			- `enabled` — Enable/disable validation of duplicated link definitions.
+  - `validate`
+    - `enabled` — Enable/disable all validation.
+    - `referenceLinks`
+      - `enabled` — Enable/disable validation of reference links: `[text][ref]`
+    - `fragmentLinks`
+      - `enabled` — Enable/disable validation of links to fragments in the current files: `[text](#head)`
+    - `fileLinks`
+      - `enabled` — Enable/disable validation of links to file in the workspace.
+      - `markdownFragmentLinks` — Enable/disable validation of links to headers in other Markdown files. Use `inherit` to inherit the `fragmentLinks` setting.
+    - `ignoredLinks` — Array of glob patterns for files that should not be validated.
+    - `unusedLinkDefinitions`
+      - `enabled` — Enable/disable validation of unused link definitions.
+    - `duplicateLinkDefinitions`
+      - `enabled` — Enable/disable validation of duplicated link definitions.
 
 ### Custom requests
 
@@ -109,7 +107,6 @@ Delete a previously created file watcher.
 
 Get a list of all markdown files in the workspace.
 
-
 ## Contribute
 
 The source code of the Markdown language server can be found in the [VSCode repository](https://github.com/microsoft/vscode) at [extensions/markdown-language-features/server](https://github.com/microsoft/vscode/tree/master/extensions/markdown-language-features/server).
@@ -132,4 +129,3 @@ This project has adopted the [Microsoft Open Source Code of Conduct](https://ope
 Copyright (c) Microsoft Corporation. All rights reserved.
 
 Licensed under the [MIT](https://github.com/microsoft/vscode/blob/master/LICENSE.txt) License.
-

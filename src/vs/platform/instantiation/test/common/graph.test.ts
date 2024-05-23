@@ -3,14 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Graph } from 'vs/platform/instantiation/common/graph';
 
 suite('Graph', () => {
+
 	let graph: Graph<string>;
 
 	setup(() => {
 		graph = new Graph<string>(s => s);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('is possible to lookup nodes that don\'t exist', function () {
 		assert.strictEqual(graph.lookup('ddd'), undefined);

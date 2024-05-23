@@ -4,18 +4,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getSysroot = void 0;
+exports.getVSCodeSysroot = getVSCodeSysroot;
+exports.getChromiumSysroot = getChromiumSysroot;
 const child_process_1 = require("child_process");
-const crypto_1 = require("crypto");
 const os_1 = require("os");
 const fs = require("fs");
 const https = require("https");
 const path = require("path");
-const util = require("../../lib/util");
+const crypto_1 = require("crypto");
+const ansiColors = require("ansi-colors");
 // Based on https://source.chromium.org/chromium/chromium/src/+/main:build/linux/sysroot_scripts/install-sysroot.py.
 const URL_PREFIX = 'https://msftelectron.blob.core.windows.net';
 const URL_PATH = 'sysroots/toolchain';
+const REPO_ROOT = path.dirname(path.dirname(path.dirname(__dirname)));
+const ghApiHeaders = {
+    Accept: 'application/vnd.github.v3+json',
+    'User-Agent': 'VSCode Build',
+};
+if (process.env.GITHUB_TOKEN) {
+    ghApiHeaders.Authorization = 'Basic ' + Buffer.from(process.env.GITHUB_TOKEN).toString('base64');
+}
+const ghDownloadHeaders = {
+    ...ghApiHeaders,
+    Accept: 'application/octet-stream',
+};
+function getElectronVersion() {
+    const yarnrc = fs.readFileSync(path.join(REPO_ROOT, '.yarnrc'), 'utf8');
+    const electronVersion = /^target "(.*)"$/m.exec(yarnrc)[1];
+    const msBuildId = /^ms_build_id "(.*)"$/m.exec(yarnrc)[1];
+    return { electronVersion, msBuildId };
+}
 function getSha(filename) {
+    // CodeQL [SM04514] Hash logic cannot be changed due to external dependency, also the code is only used during build.
     const hash = (0, crypto_1.createHash)('sha1');
     // Read file 1 MB at a time
     const fd = fs.openSync(filename, 'r');
@@ -29,15 +49,123 @@ function getSha(filename) {
     hash.update(buffer.slice(0, bytesRead));
     return hash.digest('hex');
 }
-async function getSysroot(arch) {
-    const sysrootJSONUrl = `https://raw.githubusercontent.com/electron/electron/v${util.getElectronVersion()}/script/sysroots.json`;
+function getVSCodeSysrootChecksum(expectedName) {
+    const checksums = fs.readFileSync(path.join(REPO_ROOT, 'build', 'checksums', 'vscode-sysroot.txt'), 'utf8');
+    for (const line of checksums.split('\n')) {
+        const [checksum, name] = line.split(/\s+/);
+        if (name === expectedName) {
+            return checksum;
+        }
+    }
+    return undefined;
+}
+/*
+ * Do not use the fetch implementation from build/lib/fetch as it relies on vinyl streams
+ * and vinyl-fs breaks the symlinks in the compiler toolchain sysroot. We use the native
+ * tar implementation for that reason.
+ */
+async function fetchUrl(options, retries = 10, retryDelay = 1000) {
+    try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 30 * 1000);
+        const version = '20240129-253798';
+        try {
+            const response = await fetch(`https://api.github.com/repos/Microsoft/vscode-linux-build-agent/releases/tags/v${version}`, {
+                headers: ghApiHeaders,
+                signal: controller.signal /* Typings issue with lib.dom.d.ts */
+            });
+            if (response.ok && (response.status >= 200 && response.status < 300)) {
+                console.log(`Fetch completed: Status ${response.status}.`);
+                const contents = Buffer.from(await response.arrayBuffer());
+                const asset = JSON.parse(contents.toString()).assets.find((a) => a.name === options.assetName);
+                if (!asset) {
+                    throw new Error(`Could not find asset in release of Microsoft/vscode-linux-build-agent @ ${version}`);
+                }
+                console.log(`Found asset ${options.assetName} @ ${asset.url}.`);
+                const assetResponse = await fetch(asset.url, {
+                    headers: ghDownloadHeaders
+                });
+                if (assetResponse.ok && (assetResponse.status >= 200 && assetResponse.status < 300)) {
+                    const assetContents = Buffer.from(await assetResponse.arrayBuffer());
+                    console.log(`Fetched response body buffer: ${ansiColors.magenta(`${assetContents.byteLength} bytes`)}`);
+                    if (options.checksumSha256) {
+                        const actualSHA256Checksum = (0, crypto_1.createHash)('sha256').update(assetContents).digest('hex');
+                        if (actualSHA256Checksum !== options.checksumSha256) {
+                            throw new Error(`Checksum mismatch for ${ansiColors.cyan(asset.url)} (expected ${options.checksumSha256}, actual ${actualSHA256Checksum}))`);
+                        }
+                    }
+                    console.log(`Verified SHA256 checksums match for ${ansiColors.cyan(asset.url)}`);
+                    const tarCommand = `tar -xz -C ${options.dest}`;
+                    (0, child_process_1.execSync)(tarCommand, { input: assetContents });
+                    console.log(`Fetch complete!`);
+                    return;
+                }
+                throw new Error(`Request ${ansiColors.magenta(asset.url)} failed with status code: ${assetResponse.status}`);
+            }
+            throw new Error(`Request ${ansiColors.magenta('https://api.github.com')} failed with status code: ${response.status}`);
+        }
+        finally {
+            clearTimeout(timeout);
+        }
+    }
+    catch (e) {
+        if (retries > 0) {
+            console.log(`Fetching failed: ${e}`);
+            await new Promise(resolve => setTimeout(resolve, retryDelay));
+            return fetchUrl(options, retries - 1, retryDelay);
+        }
+        throw e;
+    }
+}
+async function getVSCodeSysroot(arch) {
+    let expectedName;
+    let triple;
+    const prefix = process.env['VSCODE_SYSROOT_PREFIX'] ?? '-glibc-2.28';
+    switch (arch) {
+        case 'amd64':
+            expectedName = `x86_64-linux-gnu${prefix}.tar.gz`;
+            triple = 'x86_64-linux-gnu';
+            break;
+        case 'arm64':
+            expectedName = `aarch64-linux-gnu${prefix}.tar.gz`;
+            triple = 'aarch64-linux-gnu';
+            break;
+        case 'armhf':
+            expectedName = `arm-rpi-linux-gnueabihf${prefix}.tar.gz`;
+            triple = 'arm-rpi-linux-gnueabihf';
+            break;
+    }
+    console.log(`Fetching ${expectedName} for ${triple}`);
+    const checksumSha256 = getVSCodeSysrootChecksum(expectedName);
+    if (!checksumSha256) {
+        throw new Error(`Could not find checksum for ${expectedName}`);
+    }
+    const sysroot = process.env['VSCODE_SYSROOT_DIR'] ?? path.join((0, os_1.tmpdir)(), `vscode-${arch}-sysroot`);
+    const stamp = path.join(sysroot, '.stamp');
+    const result = `${sysroot}/${triple}/${triple}/sysroot`;
+    if (fs.existsSync(stamp) && fs.readFileSync(stamp).toString() === expectedName) {
+        return result;
+    }
+    console.log(`Installing ${arch} root image: ${sysroot}`);
+    fs.rmSync(sysroot, { recursive: true, force: true });
+    fs.mkdirSync(sysroot);
+    await fetchUrl({
+        checksumSha256,
+        assetName: expectedName,
+        dest: sysroot
+    });
+    fs.writeFileSync(stamp, expectedName);
+    return result;
+}
+async function getChromiumSysroot(arch) {
+    const sysrootJSONUrl = `https://raw.githubusercontent.com/electron/electron/v${getElectronVersion().electronVersion}/script/sysroots.json`;
     const sysrootDictLocation = `${(0, os_1.tmpdir)()}/sysroots.json`;
     const result = (0, child_process_1.spawnSync)('curl', [sysrootJSONUrl, '-o', sysrootDictLocation]);
     if (result.status !== 0) {
         throw new Error('Cannot retrieve sysroots.json. Stderr:\n' + result.stderr);
     }
     const sysrootInfo = require(sysrootDictLocation);
-    const sysrootArch = arch === 'armhf' ? 'bullseye_arm' : `bullseye_${arch}`;
+    const sysrootArch = `bullseye_${arch}`;
     const sysrootDict = sysrootInfo[sysrootArch];
     const tarballFilename = sysrootDict['Tarball'];
     const tarballSha = sysrootDict['Sha1Sum'];
@@ -86,5 +214,4 @@ async function getSysroot(arch) {
     fs.writeFileSync(stamp, url);
     return sysroot;
 }
-exports.getSysroot = getSysroot;
-//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiaW5zdGFsbC1zeXNyb290LmpzIiwic291cmNlUm9vdCI6IiIsInNvdXJjZXMiOlsiaW5zdGFsbC1zeXNyb290LnRzIl0sIm5hbWVzIjpbXSwibWFwcGluZ3MiOiI7QUFBQTs7O2dHQUdnRzs7O0FBRWhHLGlEQUEwQztBQUMxQyxtQ0FBb0M7QUFDcEMsMkJBQTRCO0FBQzVCLHlCQUF5QjtBQUN6QiwrQkFBK0I7QUFDL0IsNkJBQTZCO0FBRTdCLHVDQUF1QztBQUV2QyxvSEFBb0g7QUFDcEgsTUFBTSxVQUFVLEdBQUcsNENBQTRDLENBQUM7QUFDaEUsTUFBTSxRQUFRLEdBQUcsb0JBQW9CLENBQUM7QUFFdEMsU0FBUyxNQUFNLENBQUMsUUFBcUI7SUFDcEMsTUFBTSxJQUFJLEdBQUcsSUFBQSxtQkFBVSxFQUFDLE1BQU0sQ0FBQyxDQUFDO0lBQ2hDLDJCQUEyQjtJQUMzQixNQUFNLEVBQUUsR0FBRyxFQUFFLENBQUMsUUFBUSxDQUFDLFFBQVEsRUFBRSxHQUFHLENBQUMsQ0FBQztJQUN0QyxNQUFNLE1BQU0sR0FBRyxNQUFNLENBQUMsS0FBSyxDQUFDLElBQUksR0FBRyxJQUFJLENBQUMsQ0FBQztJQUN6QyxJQUFJLFFBQVEsR0FBRyxDQUFDLENBQUM7SUFDakIsSUFBSSxTQUFTLEdBQUcsQ0FBQyxDQUFDO0lBQ2xCLE9BQU8sQ0FBQyxTQUFTLEdBQUcsRUFBRSxDQUFDLFFBQVEsQ0FBQyxFQUFFLEVBQUUsTUFBTSxFQUFFLENBQUMsRUFBRSxNQUFNLENBQUMsTUFBTSxFQUFFLFFBQVEsQ0FBQyxDQUFDLEtBQUssTUFBTSxDQUFDLE1BQU0sRUFBRTtRQUMzRixJQUFJLENBQUMsTUFBTSxDQUFDLE1BQU0sQ0FBQyxDQUFDO1FBQ3BCLFFBQVEsSUFBSSxTQUFTLENBQUM7S0FDdEI7SUFDRCxJQUFJLENBQUMsTUFBTSxDQUFDLE1BQU0sQ0FBQyxLQUFLLENBQUMsQ0FBQyxFQUFFLFNBQVMsQ0FBQyxDQUFDLENBQUM7SUFDeEMsT0FBTyxJQUFJLENBQUMsTUFBTSxDQUFDLEtBQUssQ0FBQyxDQUFDO0FBQzNCLENBQUM7QUFRTSxLQUFLLFVBQVUsVUFBVSxDQUFDLElBQXNCO0lBQ3RELE1BQU0sY0FBYyxHQUFHLHdEQUF3RCxJQUFJLENBQUMsa0JBQWtCLEVBQUUsdUJBQXVCLENBQUM7SUFDaEksTUFBTSxtQkFBbUIsR0FBRyxHQUFHLElBQUEsV0FBTSxHQUFFLGdCQUFnQixDQUFDO0lBQ3hELE1BQU0sTUFBTSxHQUFHLElBQUEseUJBQVMsRUFBQyxNQUFNLEVBQUUsQ0FBQyxjQUFjLEVBQUUsSUFBSSxFQUFFLG1CQUFtQixDQUFDLENBQUMsQ0FBQztJQUM5RSxJQUFJLE1BQU0sQ0FBQyxNQUFNLEtBQUssQ0FBQyxFQUFFO1FBQ3hCLE1BQU0sSUFBSSxLQUFLLENBQUMsMENBQTBDLEdBQUcsTUFBTSxDQUFDLE1BQU0sQ0FBQyxDQUFDO0tBQzVFO0lBQ0QsTUFBTSxXQUFXLEdBQUcsT0FBTyxDQUFDLG1CQUFtQixDQUFDLENBQUM7SUFDakQsTUFBTSxXQUFXLEdBQUcsSUFBSSxLQUFLLE9BQU8sQ0FBQyxDQUFDLENBQUMsY0FBYyxDQUFDLENBQUMsQ0FBQyxZQUFZLElBQUksRUFBRSxDQUFDO0lBQzNFLE1BQU0sV0FBVyxHQUFxQixXQUFXLENBQUMsV0FBVyxDQUFDLENBQUM7SUFDL0QsTUFBTSxlQUFlLEdBQUcsV0FBVyxDQUFDLFNBQVMsQ0FBQyxDQUFDO0lBQy9DLE1BQU0sVUFBVSxHQUFHLFdBQVcsQ0FBQyxTQUFTLENBQUMsQ0FBQztJQUMxQyxNQUFNLE9BQU8sR0FBRyxJQUFJLENBQUMsSUFBSSxDQUFDLElBQUEsV0FBTSxHQUFFLEVBQUUsV0FBVyxDQUFDLFlBQVksQ0FBQyxDQUFDLENBQUM7SUFDL0QsTUFBTSxHQUFHLEdBQUcsQ0FBQyxVQUFVLEVBQUUsUUFBUSxFQUFFLFVBQVUsRUFBRSxlQUFlLENBQUMsQ0FBQyxJQUFJLENBQUMsR0FBRyxDQUFDLENBQUM7SUFDMUUsTUFBTSxLQUFLLEdBQUcsSUFBSSxDQUFDLElBQUksQ0FBQyxPQUFPLEVBQUUsUUFBUSxDQUFDLENBQUM7SUFDM0MsSUFBSSxFQUFFLENBQUMsVUFBVSxDQUFDLEtBQUssQ0FBQyxJQUFJLEVBQUUsQ0FBQyxZQUFZLENBQUMsS0FBSyxDQUFDLENBQUMsUUFBUSxFQUFFLEtBQUssR0FBRyxFQUFFO1FBQ3RFLE9BQU8sT0FBTyxDQUFDO0tBQ2Y7SUFFRCxPQUFPLENBQUMsR0FBRyxDQUFDLHFCQUFxQixJQUFJLGdCQUFnQixPQUFPLEVBQUUsQ0FBQyxDQUFDO0lBQ2hFLEVBQUUsQ0FBQyxNQUFNLENBQUMsT0FBTyxFQUFFLEVBQUUsU0FBUyxFQUFFLElBQUksRUFBRSxLQUFLLEVBQUUsSUFBSSxFQUFFLENBQUMsQ0FBQztJQUNyRCxFQUFFLENBQUMsU0FBUyxDQUFDLE9BQU8sQ0FBQyxDQUFDO0lBQ3RCLE1BQU0sT0FBTyxHQUFHLElBQUksQ0FBQyxJQUFJLENBQUMsT0FBTyxFQUFFLGVBQWUsQ0FBQyxDQUFDO0lBQ3BELE9BQU8sQ0FBQyxHQUFHLENBQUMsZUFBZSxHQUFHLEVBQUUsQ0FBQyxDQUFDO0lBQ2xDLElBQUksZUFBZSxHQUFHLEtBQUssQ0FBQztJQUM1QixLQUFLLElBQUksQ0FBQyxHQUFHLENBQUMsRUFBRSxDQUFDLEdBQUcsQ0FBQyxJQUFJLENBQUMsZUFBZSxFQUFFLENBQUMsRUFBRSxFQUFFO1FBQy9DLEVBQUUsQ0FBQyxhQUFhLENBQUMsT0FBTyxFQUFFLEVBQUUsQ0FBQyxDQUFDO1FBQzlCLE1BQU0sSUFBSSxPQUFPLENBQU8sQ0FBQyxDQUFDLEVBQUUsRUFBRTtZQUM3QixLQUFLLENBQUMsR0FBRyxDQUFDLEdBQUcsRUFBRSxDQUFDLEdBQUcsRUFBRSxFQUFFO2dCQUN0QixHQUFHLENBQUMsRUFBRSxDQUFDLE1BQU0sRUFBRSxDQUFDLEtBQUssRUFBRSxFQUFFO29CQUN4QixFQUFFLENBQUMsY0FBYyxDQUFDLE9BQU8sRUFBRSxLQUFLLENBQUMsQ0FBQztnQkFDbkMsQ0FBQyxDQUFDLENBQUM7Z0JBQ0gsR0FBRyxDQUFDLEVBQUUsQ0FBQyxLQUFLLEVBQUUsR0FBRyxFQUFFO29CQUNsQixlQUFlLEdBQUcsSUFBSSxDQUFDO29CQUN2QixDQUFDLEVBQUUsQ0FBQztnQkFDTCxDQUFDLENBQUMsQ0FBQztZQUNKLENBQUMsQ0FBQyxDQUFDLEVBQUUsQ0FBQyxPQUFPLEVBQUUsQ0FBQyxHQUFHLEVBQUUsRUFBRTtnQkFDdEIsT0FBTyxDQUFDLEtBQUssQ0FBQyxvREFBb0QsR0FBRyxHQUFHLENBQUMsT0FBTyxDQUFDLENBQUM7Z0JBQ2xGLENBQUMsRUFBRSxDQUFDO1lBQ0wsQ0FBQyxDQUFDLENBQUM7UUFDSixDQUFDLENBQUMsQ0FBQztLQUNIO0lBQ0QsSUFBSSxDQUFDLGVBQWUsRUFBRTtRQUNyQixFQUFFLENBQUMsTUFBTSxDQUFDLE9BQU8sQ0FBQyxDQUFDO1FBQ25CLE1BQU0sSUFBSSxLQUFLLENBQUMscUJBQXFCLEdBQUcsR0FBRyxDQUFDLENBQUM7S0FDN0M7SUFDRCxNQUFNLEdBQUcsR0FBRyxNQUFNLENBQUMsT0FBTyxDQUFDLENBQUM7SUFDNUIsSUFBSSxHQUFHLEtBQUssVUFBVSxFQUFFO1FBQ3ZCLE1BQU0sSUFBSSxLQUFLLENBQUMsc0NBQXNDLFVBQVUsWUFBWSxHQUFHLEVBQUUsQ0FBQyxDQUFDO0tBQ25GO0lBRUQsTUFBTSxJQUFJLEdBQUcsSUFBQSx5QkFBUyxFQUFDLEtBQUssRUFBRSxDQUFDLElBQUksRUFBRSxPQUFPLEVBQUUsSUFBSSxFQUFFLE9BQU8sQ0FBQyxDQUFDLENBQUM7SUFDOUQsSUFBSSxJQUFJLENBQUMsTUFBTSxFQUFFO1FBQ2hCLE1BQU0sSUFBSSxLQUFLLENBQUMsc0NBQXNDLEdBQUcsSUFBSSxDQUFDLE1BQU0sQ0FBQyxDQUFDO0tBQ3RFO0lBQ0QsRUFBRSxDQUFDLE1BQU0sQ0FBQyxPQUFPLENBQUMsQ0FBQztJQUNuQixFQUFFLENBQUMsYUFBYSxDQUFDLEtBQUssRUFBRSxHQUFHLENBQUMsQ0FBQztJQUM3QixPQUFPLE9BQU8sQ0FBQztBQUNoQixDQUFDO0FBMURELGdDQTBEQyJ9
+//# sourceMappingURL=install-sysroot.js.map

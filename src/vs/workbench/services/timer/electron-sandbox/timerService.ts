@@ -53,10 +53,11 @@ export class TimerService extends AbstractTimerService {
 
 	protected async _extendStartupInfo(info: Writeable<IStartupMetrics>): Promise<void> {
 		try {
-			const [osProperties, osStatistics, virtualMachineHint] = await Promise.all([
+			const [osProperties, osStatistics, virtualMachineHint, isARM64Emulated] = await Promise.all([
 				this._nativeHostService.getOSProperties(),
 				this._nativeHostService.getOSStatistics(),
-				this._nativeHostService.getOSVirtualMachineHint()
+				this._nativeHostService.getOSVirtualMachineHint(),
+				this._nativeHostService.isRunningUnderARM64Translation()
 			]);
 
 			info.totalmem = osStatistics.totalmem;
@@ -65,6 +66,7 @@ export class TimerService extends AbstractTimerService {
 			info.release = osProperties.release;
 			info.arch = osProperties.arch;
 			info.loadavg = osStatistics.loadavg;
+			info.isARM64Emulated = isARM64Emulated;
 
 			const processMemoryInfo = await process.getProcessMemoryInfo();
 			info.meminfo = {

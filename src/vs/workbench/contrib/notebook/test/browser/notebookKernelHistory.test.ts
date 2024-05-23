@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { setupInstantiationService, withTestNotebook as _withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 import { Emitter, Event } from 'vs/base/common/event';
-import { INotebookKernel, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookKernel, INotebookKernelService, VariablesResult } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { NotebookKernelService } from 'vs/workbench/contrib/notebook/browser/services/notebookKernelServiceImpl';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { mock } from 'vs/base/test/common/mock';
@@ -18,20 +18,28 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { IMenu, IMenuService } from 'vs/platform/actions/common/actions';
 import { NotebookKernelHistoryService } from 'vs/workbench/contrib/notebook/browser/services/notebookKernelHistoryServiceImpl';
-import { IStorageService, IWillSaveStateEvent, StorageScope } from 'vs/platform/storage/common/storage';
+import { IApplicationStorageValueChangeEvent, IProfileStorageValueChangeEvent, IStorageService, IStorageValueChangeEvent, IWillSaveStateEvent, IWorkspaceStorageValueChangeEvent, StorageScope } from 'vs/platform/storage/common/storage';
 import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/notebookLoggingService';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { AsyncIterableObject } from 'vs/base/common/async';
 
 suite('NotebookKernelHistoryService', () => {
 
+	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
 	let kernelService: INotebookKernelService;
-	let disposables: DisposableStore;
 
 	let onDidAddNotebookDocument: Emitter<NotebookTextModel>;
 
+	teardown(() => {
+		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	setup(function () {
 		disposables = new DisposableStore();
-
 		onDidAddNotebookDocument = new Emitter();
 		disposables.add(onDidAddNotebookDocument);
 
@@ -50,12 +58,8 @@ suite('NotebookKernelHistoryService', () => {
 				};
 			}
 		});
-		kernelService = instantiationService.createInstance(NotebookKernelService);
+		kernelService = disposables.add(instantiationService.createInstance(NotebookKernelService));
 		instantiationService.set(INotebookKernelService, kernelService);
-	});
-
-	teardown(() => {
-		disposables.dispose();
 	});
 
 	test('notebook kernel empty history', function () {
@@ -65,11 +69,17 @@ suite('NotebookKernelHistoryService', () => {
 		const k1 = new TestNotebookKernel({ label: 'z', viewType: 'foo' });
 		const k2 = new TestNotebookKernel({ label: 'a', viewType: 'foo' });
 
-		kernelService.registerKernel(k1);
-		kernelService.registerKernel(k2);
+		disposables.add(kernelService.registerKernel(k1));
+		disposables.add(kernelService.registerKernel(k2));
 
 		instantiationService.stub(IStorageService, new class extends mock<IStorageService>() {
 			override onWillSaveState: Event<IWillSaveStateEvent> = Event.None;
+			override onDidChangeValue(scope: StorageScope.WORKSPACE, key: string | undefined, disposable: DisposableStore): Event<IWorkspaceStorageValueChangeEvent>;
+			override onDidChangeValue(scope: StorageScope.PROFILE, key: string | undefined, disposable: DisposableStore): Event<IProfileStorageValueChangeEvent>;
+			override onDidChangeValue(scope: StorageScope.APPLICATION, key: string | undefined, disposable: DisposableStore): Event<IApplicationStorageValueChangeEvent>;
+			override onDidChangeValue(scope: StorageScope, key: string | undefined, disposable: DisposableStore): Event<IStorageValueChangeEvent> {
+				return Event.None;
+			}
 			override get(key: string, scope: StorageScope, fallbackValue: string): string;
 			override get(key: string, scope: StorageScope, fallbackValue?: string | undefined): string | undefined;
 			override get(key: unknown, scope: unknown, fallbackValue?: unknown): string | undefined {
@@ -90,7 +100,7 @@ suite('NotebookKernelHistoryService', () => {
 			override debug() { }
 		});
 
-		const kernelHistoryService = instantiationService.createInstance(NotebookKernelHistoryService);
+		const kernelHistoryService = disposables.add(instantiationService.createInstance(NotebookKernelHistoryService));
 
 		let info = kernelHistoryService.getKernels({ uri: u1, viewType: 'foo' });
 		assert.equal(info.all.length, 0);
@@ -113,12 +123,18 @@ suite('NotebookKernelHistoryService', () => {
 		const k2 = new TestNotebookKernel({ label: 'a', viewType: 'foo' });
 		const k3 = new TestNotebookKernel({ label: 'b', viewType: 'foo' });
 
-		kernelService.registerKernel(k1);
-		kernelService.registerKernel(k2);
-		kernelService.registerKernel(k3);
+		disposables.add(kernelService.registerKernel(k1));
+		disposables.add(kernelService.registerKernel(k2));
+		disposables.add(kernelService.registerKernel(k3));
 
 		instantiationService.stub(IStorageService, new class extends mock<IStorageService>() {
 			override onWillSaveState: Event<IWillSaveStateEvent> = Event.None;
+			override onDidChangeValue(scope: StorageScope.WORKSPACE, key: string | undefined, disposable: DisposableStore): Event<IWorkspaceStorageValueChangeEvent>;
+			override onDidChangeValue(scope: StorageScope.PROFILE, key: string | undefined, disposable: DisposableStore): Event<IProfileStorageValueChangeEvent>;
+			override onDidChangeValue(scope: StorageScope.APPLICATION, key: string | undefined, disposable: DisposableStore): Event<IApplicationStorageValueChangeEvent>;
+			override onDidChangeValue(scope: StorageScope, key: string | undefined, disposable: DisposableStore): Event<IStorageValueChangeEvent> {
+				return Event.None;
+			}
 			override get(key: string, scope: StorageScope, fallbackValue: string): string;
 			override get(key: string, scope: StorageScope, fallbackValue?: string | undefined): string | undefined;
 			override get(key: unknown, scope: unknown, fallbackValue?: unknown): string | undefined {
@@ -141,7 +157,7 @@ suite('NotebookKernelHistoryService', () => {
 			override debug() { }
 		});
 
-		const kernelHistoryService = instantiationService.createInstance(NotebookKernelHistoryService);
+		const kernelHistoryService = disposables.add(instantiationService.createInstance(NotebookKernelHistoryService));
 		let info = kernelHistoryService.getKernels({ uri: u1, viewType: 'foo' });
 		assert.equal(info.all.length, 1);
 		assert.deepStrictEqual(info.selected, undefined);
@@ -169,6 +185,9 @@ class TestNotebookKernel implements INotebookKernel {
 	}
 	cancelNotebookCellExecution(): Promise<void> {
 		throw new Error('Method not implemented.');
+	}
+	provideVariables(notebookUri: URI, parentId: number | undefined, kind: 'named' | 'indexed', start: number, token: CancellationToken): AsyncIterableObject<VariablesResult> {
+		return AsyncIterableObject.EMPTY;
 	}
 
 	constructor(opts?: { languages?: string[]; label?: string; viewType?: string }) {

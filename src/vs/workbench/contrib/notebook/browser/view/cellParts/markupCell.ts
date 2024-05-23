@@ -11,7 +11,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ILanguageService } from 'vs/editor/common/languages/language';
@@ -44,6 +44,7 @@ export class MarkupCell extends Disposable {
 	private foldingState: CellFoldingState;
 	private cellEditorOptions: CellEditorOptions;
 	private editorOptions: IEditorOptions;
+	private _isDisposed: boolean = false;
 
 	constructor(
 		private readonly notebookEditor: IActiveNotebookEditorDelegate,
@@ -174,9 +175,31 @@ export class MarkupCell extends Disposable {
 			}
 		}));
 
-		this._register(this.cellEditorOptions.onDidChange(() => {
-			this.updateEditorOptions(this.cellEditorOptions.getUpdatedValue(this.viewCell.internalMetadata, this.viewCell.uri));
-		}));
+		this._register(this.cellEditorOptions.onDidChange(() => this.updateMarkupCellOptions()));
+	}
+
+	private updateMarkupCellOptions(): any {
+		this.updateEditorOptions(this.cellEditorOptions.getUpdatedValue(this.viewCell.internalMetadata, this.viewCell.uri));
+
+		if (this.editor) {
+			this.editor.updateOptions(this.cellEditorOptions.getUpdatedValue(this.viewCell.internalMetadata, this.viewCell.uri));
+
+			const cts = new CancellationTokenSource();
+			this._register({ dispose() { cts.dispose(true); } });
+			raceCancellation(this.viewCell.resolveTextModel(), cts.token).then(model => {
+				if (this._isDisposed) {
+					return;
+				}
+
+				if (model) {
+					model.updateOptions({
+						indentSize: this.cellEditorOptions.indentSize,
+						tabSize: this.cellEditorOptions.tabSize,
+						insertSpaces: this.cellEditorOptions.insertSpaces,
+					});
+				}
+			});
+		}
 	}
 
 	private updateCollapsedState() {
@@ -223,8 +246,10 @@ export class MarkupCell extends Disposable {
 	}
 
 	override dispose() {
+		this._isDisposed = true;
+
 		// move focus back to the cell list otherwise the focus goes to body
-		if (this.notebookEditor.getActiveCell() === this.viewCell && this.viewCell.focusMode === CellFocusMode.Editor && (this.notebookEditor.hasEditorFocus() || document.activeElement === document.body)) {
+		if (this.notebookEditor.getActiveCell() === this.viewCell && this.viewCell.focusMode === CellFocusMode.Editor && (this.notebookEditor.hasEditorFocus() || this.notebookEditor.getDomNode().ownerDocument.activeElement === this.notebookEditor.getDomNode().ownerDocument.body)) {
 			this.notebookEditor.focusContainer();
 		}
 
@@ -233,7 +258,7 @@ export class MarkupCell extends Disposable {
 	}
 
 	private updateFoldingIconShowClass() {
-		const showFoldingIcon = this.notebookEditor.notebookOptions.getLayoutConfiguration().showFoldingControls;
+		const showFoldingIcon = this.notebookEditor.notebookOptions.getDisplayOptions().showFoldingControls;
 		this.templateData.foldingIndicator.classList.remove('mouseover', 'always');
 		this.templateData.foldingIndicator.classList.add(showFoldingIcon);
 	}
@@ -354,6 +379,11 @@ export class MarkupCell extends Disposable {
 				}
 
 				this.editor!.setModel(model);
+				model.updateOptions({
+					indentSize: this.cellEditorOptions.indentSize,
+					tabSize: this.cellEditorOptions.tabSize,
+					insertSpaces: this.cellEditorOptions.insertSpaces,
+				});
 
 				const realContentHeight = this.editor!.getContentHeight();
 				if (realContentHeight !== editorHeight) {
@@ -380,7 +410,7 @@ export class MarkupCell extends Disposable {
 
 		this.viewCell.editorHeight = editorHeight;
 		this.focusEditorIfNeeded();
-		this.renderedEditors.set(this.viewCell, this.editor!);
+		this.renderedEditors.set(this.viewCell, this.editor);
 	}
 
 	private viewUpdatePreview(): void {
@@ -407,7 +437,7 @@ export class MarkupCell extends Disposable {
 
 	private focusEditorIfNeeded() {
 		if (this.viewCell.focusMode === CellFocusMode.Editor &&
-			(this.notebookEditor.hasEditorFocus() || document.activeElement === document.body)
+			(this.notebookEditor.hasEditorFocus() || this.notebookEditor.getDomNode().ownerDocument.activeElement === this.notebookEditor.getDomNode().ownerDocument.body)
 		) { // Don't steal focus from other workbench parts, but if body has focus, we can take it
 			if (!this.editor) {
 				return;
@@ -512,7 +542,7 @@ export class MarkupCell extends Disposable {
 			// this is for a special case:
 			// users click the status bar empty space, which we will then focus the editor
 			// so we don't want to update the focus state too eagerly
-			if (document.activeElement?.contains(this.templateData.container)) {
+			if (this.templateData.container.ownerDocument.activeElement?.contains(this.templateData.container)) {
 				this.focusSwitchDisposable.value = disposableTimeout(() => updateFocusMode(), 300);
 			} else {
 				updateFocusMode();

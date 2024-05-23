@@ -41,7 +41,7 @@ module.exports = [withBrowserDefaults({
 			patterns: [
 				{
 					from: '../node_modules/typescript/lib/*.d.ts',
-					to: 'typescript/',
+					to: 'typescript/[name][ext]',
 				},
 				{
 					from: '../node_modules/typescript/lib/typesMap.json',
@@ -65,7 +65,7 @@ module.exports = [withBrowserDefaults({
 }), withBrowserDefaults({
 	context: __dirname,
 	entry: {
-		'typescript/tsserver.web': './web/webServer.ts'
+		'typescript/tsserver.web': './web/src/webServer.ts'
 	},
 	module: {
 		exprContextCritical: false,

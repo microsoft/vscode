@@ -76,16 +76,19 @@ export class ViewDecorationsChangedEvent {
 	readonly affectsMinimap: boolean;
 	readonly affectsOverviewRuler: boolean;
 	readonly affectsGlyphMargin: boolean;
+	readonly affectsLineNumber: boolean;
 
 	constructor(source: IModelDecorationsChangedEvent | null) {
 		if (source) {
 			this.affectsMinimap = source.affectsMinimap;
 			this.affectsOverviewRuler = source.affectsOverviewRuler;
 			this.affectsGlyphMargin = source.affectsGlyphMargin;
+			this.affectsLineNumber = source.affectsLineNumber;
 		} else {
 			this.affectsMinimap = true;
 			this.affectsOverviewRuler = true;
 			this.affectsGlyphMargin = true;
+			this.affectsLineNumber = true;
 		}
 	}
 }

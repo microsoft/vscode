@@ -6,13 +6,13 @@
 import * as sinon from 'sinon';
 import * as assert from 'assert';
 import { generateUuid } from 'vs/base/common/uuid';
-import { IExtensionsWorkbenchService, ExtensionState, AutoCheckUpdatesConfigurationKey, AutoUpdateConfigurationKey } from 'vs/workbench/contrib/extensions/common/extensions';
+import { ExtensionState, AutoCheckUpdatesConfigurationKey, AutoUpdateConfigurationKey } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension,
 	DidUninstallExtensionEvent, InstallExtensionEvent, IGalleryExtensionAssets, InstallOperation, IExtensionTipsService, InstallExtensionResult, getTargetPlatform, IExtensionsControlManifest, UninstallExtensionEvent, Metadata
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IProfileAwareExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IProfileAwareExtensionManagementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { anExtensionManagementServerService, TestExtensionEnablementService } from 'vs/workbench/services/extensionManagement/test/browser/extensionEnablementService.test';
@@ -42,34 +42,41 @@ import { TestContextService } from 'vs/workbench/test/common/workbenchTestServic
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { IExperimentService } from 'vs/workbench/contrib/experiments/common/experimentService';
-import { TestExperimentService } from 'vs/workbench/contrib/experiments/test/electron-sandbox/experimentService.test';
 import { Schemas } from 'vs/base/common/network';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { platform } from 'vs/base/common/platform';
 import { arch } from 'vs/base/common/process';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { toDisposable } from 'vs/base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { Mutable } from 'vs/base/common/types';
+import { IUpdateService, State } from 'vs/platform/update/common/update';
+import { IFileService } from 'vs/platform/files/common/files';
+import { FileService } from 'vs/platform/files/common/fileService';
 
 suite('ExtensionsWorkbenchServiceTest', () => {
 
 	let instantiationService: TestInstantiationService;
-	let testObject: IExtensionsWorkbenchService;
+	let testObject: ExtensionsWorkbenchService;
+	const disposableStore = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let installEvent: Emitter<InstallExtensionEvent>,
 		didInstallEvent: Emitter<readonly InstallExtensionResult[]>,
 		uninstallEvent: Emitter<UninstallExtensionEvent>,
 		didUninstallEvent: Emitter<DidUninstallExtensionEvent>;
 
-	suiteSetup(() => {
-		installEvent = new Emitter<InstallExtensionEvent>();
-		didInstallEvent = new Emitter<readonly InstallExtensionResult[]>();
-		uninstallEvent = new Emitter<UninstallExtensionEvent>();
-		didUninstallEvent = new Emitter<DidUninstallExtensionEvent>();
+	setup(async () => {
+		disposableStore.add(toDisposable(() => sinon.restore()));
+		installEvent = disposableStore.add(new Emitter<InstallExtensionEvent>());
+		didInstallEvent = disposableStore.add(new Emitter<readonly InstallExtensionResult[]>());
+		uninstallEvent = disposableStore.add(new Emitter<UninstallExtensionEvent>());
+		didUninstallEvent = disposableStore.add(new Emitter<DidUninstallExtensionEvent>());
 
-		instantiationService = new TestInstantiationService();
+		instantiationService = disposableStore.add(new TestInstantiationService());
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(ILogService, NullLogService);
+		instantiationService.stub(IFileService, disposableStore.add(new FileService(new NullLogService())));
 		instantiationService.stub(IProgressService, ProgressService);
 		instantiationService.stub(IProductService, {});
 
@@ -79,25 +86,21 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 
 		instantiationService.stub(IWorkspaceContextService, new TestContextService());
-		instantiationService.stub(IConfigurationService, <Partial<IConfigurationService>>{
-			onDidChangeConfiguration: () => { return undefined!; },
-			getValue: (key?: string) => {
-				return (key === AutoCheckUpdatesConfigurationKey || key === AutoUpdateConfigurationKey) ? true : undefined;
-			}
-		});
+		stubConfiguration();
 
 		instantiationService.stub(IRemoteAgentService, RemoteAgentService);
 
-		instantiationService.stub(IExtensionManagementService, <Partial<IExtensionManagementService>>{
-			onInstallExtension: installEvent.event,
+		instantiationService.stub(IWorkbenchExtensionManagementService, {
 			onDidInstallExtensions: didInstallEvent.event,
-			onUninstallExtension: uninstallEvent.event,
-			onDidUninstallExtension: didUninstallEvent.event,
-			onDidChangeProfile: Event.None,
+			onInstallExtension: installEvent.event as any,
+			onUninstallExtension: uninstallEvent.event as any,
+			onDidUninstallExtension: didUninstallEvent.event as any,
 			onDidUpdateExtensionMetadata: Event.None,
+			onDidChangeProfile: Event.None,
 			async getInstalled() { return []; },
-			async getExtensionsControlManifest() { return { malicious: [], deprecated: {} }; },
-			async updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>) {
+			async getInstalledWorkspaceExtensions() { return []; },
+			async getExtensionsControlManifest() { return { malicious: [], deprecated: {}, search: [] }; },
+			async updateMetadata(local: Mutable<ILocalExtension>, metadata: Partial<Metadata>) {
 				local.identifier.uuid = metadata.id;
 				local.publisherDisplayName = metadata.publisherDisplayName!;
 				local.publisherId = metadata.publisherId!;
@@ -113,33 +116,27 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			extensionManagementService: instantiationService.get(IExtensionManagementService) as IProfileAwareExtensionManagementService,
 		}, null, null));
 
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposableStore.add(new TestExtensionEnablementService(instantiationService)));
 
-		instantiationService.stub(ILifecycleService, new TestLifecycleService());
-		instantiationService.stub(IExperimentService, instantiationService.createInstance(TestExperimentService));
-		instantiationService.stub(IExtensionTipsService, instantiationService.createInstance(TestExtensionTipsService));
+		instantiationService.stub(ILifecycleService, disposableStore.add(new TestLifecycleService()));
+		instantiationService.stub(IExtensionTipsService, disposableStore.add(instantiationService.createInstance(TestExtensionTipsService)));
 		instantiationService.stub(IExtensionRecommendationsService, {});
 
 		instantiationService.stub(INotificationService, { prompt: () => null! });
 
-		instantiationService.stub(IExtensionService, <Partial<IExtensionService>>{
+		instantiationService.stub(IExtensionService, {
 			onDidChangeExtensions: Event.None,
 			extensions: [],
 			async whenInstalledExtensionsRegistered() { return true; }
 		});
-	});
 
-	setup(async () => {
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', []);
 		instantiationService.stub(IExtensionGalleryService, 'isEnabled', true);
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage());
 		instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', []);
 		instantiationService.stubPromise(INotificationService, 'prompt', 0);
 		(<TestExtensionEnablementService>instantiationService.get(IWorkbenchExtensionEnablementService)).reset();
-	});
-
-	teardown(() => {
-		(<ExtensionsWorkbenchService>testObject).dispose();
+		instantiationService.stub(IUpdateService, { onStateChange: Event.None, state: State.Uninitialized });
 	});
 
 	test('test gallery extension', async () => {
@@ -323,7 +320,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		testObject = await aWorkbenchService();
 		await testObject.queryLocal();
 
-		return eventToPromise(testObject.onChange).then(() => {
+		return Event.toPromise(testObject.onChange).then(() => {
 			const actuals = testObject.local;
 			assert.strictEqual(2, actuals.length);
 
@@ -374,7 +371,6 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			const extension = page.firstPage[0];
 			assert.strictEqual(ExtensionState.Uninstalled, extension.state);
 
-			testObject.install(extension);
 			const identifier = gallery.identifier;
 
 			// Installing
@@ -446,7 +442,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		testObject = await aWorkbenchService();
 		const target = testObject.local[0];
 
-		await eventToPromise(Event.filter(testObject.onChange, e => !!e?.gallery));
+		await Event.toPromise(Event.filter(testObject.onChange, e => !!e?.gallery));
 		assert.ok(await testObject.canInstall(target));
 	});
 
@@ -459,7 +455,6 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		const extension = page.firstPage[0];
 		assert.strictEqual(ExtensionState.Uninstalled, extension.state);
 
-		testObject.install(extension);
 		installEvent.fire({ identifier: gallery.identifier, source: gallery });
 		const promise = Event.toPromise(testObject.onChange);
 
@@ -479,8 +474,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			const extension = page.firstPage[0];
 			assert.strictEqual(ExtensionState.Uninstalled, extension.state);
 
-			testObject.install(extension);
-			testObject.onChange(target);
+			disposableStore.add(testObject.onChange(target));
 
 			// Installing
 			installEvent.fire({ identifier: gallery.identifier, source: gallery });
@@ -496,7 +490,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		const target = sinon.spy();
 
 		testObject.uninstall(testObject.local[0]);
-		testObject.onChange(target);
+		disposableStore.add(testObject.onChange(target));
 		uninstallEvent.fire({ identifier: local.identifier });
 
 		assert.ok(target.calledOnce);
@@ -510,7 +504,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		testObject.uninstall(testObject.local[0]);
 		uninstallEvent.fire({ identifier: local.identifier });
-		testObject.onChange(target);
+		disposableStore.add(testObject.onChange(target));
 		didUninstallEvent.fire({ identifier: local.identifier });
 
 		assert.ok(target.calledOnce);
@@ -704,9 +698,10 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		const extensionB = aLocalExtension('b');
 		const extensionC = aLocalExtension('c');
 
-		instantiationService.stub(INotificationService, <Partial<INotificationService>>{
+		instantiationService.stub(INotificationService, {
 			prompt(severity, message, choices, options) {
 				options!.onCancel!();
+				return null!;
 			}
 		});
 		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionA], EnablementState.EnabledGlobally)
@@ -724,9 +719,10 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		const extensionB = aLocalExtension('b');
 		const extensionC = aLocalExtension('c');
 
-		instantiationService.stub(INotificationService, <Partial<INotificationService>>{
+		instantiationService.stub(INotificationService, {
 			prompt(severity, message, choices, options) {
 				choices[0].run();
+				return null!;
 			}
 		});
 		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionA], EnablementState.EnabledGlobally)
@@ -846,9 +842,10 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		const extensionB = aLocalExtension('b', { extensionDependencies: ['pub.a'] });
 		const extensionC = aLocalExtension('c');
 
-		instantiationService.stub(INotificationService, <Partial<INotificationService>>{
+		instantiationService.stub(INotificationService, {
 			prompt(severity, message, choices, options) {
 				options!.onCancel!();
+				return null!;
 			}
 		});
 		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionA], EnablementState.EnabledGlobally)
@@ -886,9 +883,10 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		const extensionB = aLocalExtension('b', { extensionDependencies: ['pub.c'] });
 		const extensionC = aLocalExtension('c', { extensionDependencies: ['pub.a'] });
 
-		instantiationService.stub(INotificationService, <Partial<INotificationService>>{
+		instantiationService.stub(INotificationService, {
 			prompt(severity, message, choices, options) {
 				options!.onCancel!();
+				return null!;
 			}
 		});
 		return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([extensionA], EnablementState.EnabledGlobally)
@@ -994,7 +992,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [aLocalExtension('a')]);
 				testObject = await aWorkbenchService();
 				const target = sinon.spy();
-				testObject.onChange(target);
+				disposableStore.add(testObject.onChange(target));
 
 				return testObject.setEnablement(testObject.local[0], EnablementState.DisabledGlobally)
 					.then(() => assert.ok(target.calledOnce));
@@ -1009,7 +1007,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [localExtension]);
 				testObject = await aWorkbenchService();
 				const target = sinon.spy();
-				testObject.onChange(target);
+				disposableStore.add(testObject.onChange(target));
 
 				return instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([localExtension], EnablementState.DisabledGlobally)
 					.then(() => assert.ok(target.calledOnce));
@@ -1069,7 +1067,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localExtension]), createExtensionManagementService([]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposableStore.add(new TestExtensionEnablementService(instantiationService)));
 		testObject = await aWorkbenchService();
 
 		const actual = await testObject.queryLocal();
@@ -1085,7 +1083,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localExtension]), createExtensionManagementService([]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposableStore.add(new TestExtensionEnablementService(instantiationService)));
 		testObject = await aWorkbenchService();
 
 		const actual = await testObject.queryLocal();
@@ -1101,7 +1099,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localExtension]), createExtensionManagementService([]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposableStore.add(new TestExtensionEnablementService(instantiationService)));
 		testObject = await aWorkbenchService();
 
 		const actual = await testObject.queryLocal();
@@ -1117,7 +1115,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localExtension]), createExtensionManagementService([]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposableStore.add(new TestExtensionEnablementService(instantiationService)));
 		testObject = await aWorkbenchService();
 
 		const actual = await testObject.queryLocal();
@@ -1133,7 +1131,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localExtension]), createExtensionManagementService([]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposableStore.add(new TestExtensionEnablementService(instantiationService)));
 		testObject = await aWorkbenchService();
 
 		const actual = await testObject.queryLocal();
@@ -1149,7 +1147,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localExtension]), createExtensionManagementService([]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposableStore.add(new TestExtensionEnablementService(instantiationService)));
 		testObject = await aWorkbenchService();
 
 		const actual = await testObject.queryLocal();
@@ -1165,7 +1163,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localExtension]), createExtensionManagementService([]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposableStore.add(new TestExtensionEnablementService(instantiationService)));
 		testObject = await aWorkbenchService();
 
 		const actual = await testObject.queryLocal();
@@ -1181,7 +1179,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localExtension]), createExtensionManagementService([]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposableStore.add(new TestExtensionEnablementService(instantiationService)));
 		testObject = await aWorkbenchService();
 
 		const actual = await testObject.queryLocal();
@@ -1197,7 +1195,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localExtension]), createExtensionManagementService([]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposableStore.add(new TestExtensionEnablementService(instantiationService)));
 		testObject = await aWorkbenchService();
 
 		const actual = await testObject.queryLocal();
@@ -1213,7 +1211,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localExtension]), createExtensionManagementService([]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposableStore.add(new TestExtensionEnablementService(instantiationService)));
 		testObject = await aWorkbenchService();
 
 		const actual = await testObject.queryLocal();
@@ -1229,7 +1227,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localExtension]), createExtensionManagementService([]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposableStore.add(new TestExtensionEnablementService(instantiationService)));
 		testObject = await aWorkbenchService();
 
 		const actual = await testObject.queryLocal();
@@ -1246,7 +1244,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localExtension]), createExtensionManagementService([remoteExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposableStore.add(new TestExtensionEnablementService(instantiationService)));
 		testObject = await aWorkbenchService();
 
 		const actual = await testObject.queryLocal();
@@ -1263,7 +1261,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localExtension]), createExtensionManagementService([remoteExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposableStore.add(new TestExtensionEnablementService(instantiationService)));
 		testObject = await aWorkbenchService();
 
 		const actual = await testObject.queryLocal();
@@ -1279,7 +1277,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService(), createExtensionManagementService([remoteExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposableStore.add(new TestExtensionEnablementService(instantiationService)));
 		testObject = await aWorkbenchService();
 
 		const actual = await testObject.queryLocal();
@@ -1296,7 +1294,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localExtension]), createExtensionManagementService([remoteExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposableStore.add(new TestExtensionEnablementService(instantiationService)));
 		testObject = await aWorkbenchService();
 
 		const actual = await testObject.queryLocal();
@@ -1313,7 +1311,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localExtension]), createExtensionManagementService([remoteExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposableStore.add(new TestExtensionEnablementService(instantiationService)));
 		await instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([remoteExtension], EnablementState.DisabledGlobally);
 		testObject = await aWorkbenchService();
 
@@ -1332,7 +1330,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localExtension]), createExtensionManagementService([remoteExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposableStore.add(new TestExtensionEnablementService(instantiationService)));
 		await instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([remoteExtension], EnablementState.DisabledWorkspace);
 		testObject = await aWorkbenchService();
 
@@ -1351,7 +1349,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localExtension]), createExtensionManagementService([remoteExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposableStore.add(new TestExtensionEnablementService(instantiationService)));
 		await instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([localExtension], EnablementState.DisabledGlobally);
 		testObject = await aWorkbenchService();
 
@@ -1370,7 +1368,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localExtension]), createExtensionManagementService([remoteExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposableStore.add(new TestExtensionEnablementService(instantiationService)));
 		await instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([localExtension], EnablementState.DisabledWorkspace);
 		testObject = await aWorkbenchService();
 
@@ -1389,7 +1387,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localExtension]), createExtensionManagementService([remoteExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposableStore.add(new TestExtensionEnablementService(instantiationService)));
 		testObject = await aWorkbenchService();
 
 		const actual = await testObject.queryLocal();
@@ -1405,7 +1403,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([]), createExtensionManagementService([remoteExtension]));
 		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposableStore.add(new TestExtensionEnablementService(instantiationService)));
 		testObject = await aWorkbenchService();
 
 		const actual = await testObject.queryLocal();
@@ -1414,10 +1412,272 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		assert.strictEqual(actual[0].local, remoteExtension);
 	});
 
+	test('Test disable autoupdate for extension when auto update is enabled for all', async () => {
+		const extension1 = aLocalExtension('a');
+		const extension2 = aLocalExtension('b');
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extension1, extension2]);
+		instantiationService.stub(IExtensionManagementService, 'updateMetadata', (local: Mutable<ILocalExtension>, metadata: Partial<Metadata>) => {
+			local.pinned = !!metadata.pinned;
+			return local;
+		});
+		testObject = await aWorkbenchService();
+
+		assert.strictEqual(testObject.local[0].local?.pinned, undefined);
+		assert.strictEqual(testObject.local[1].local?.pinned, undefined);
+
+		await testObject.updateAutoUpdateEnablementFor(testObject.local[0], false);
+
+		assert.strictEqual(testObject.local[0].local?.pinned, true);
+		assert.strictEqual(testObject.local[1].local?.pinned, undefined);
+
+		assert.deepStrictEqual(testObject.getSelectedExtensionsToAutoUpdate(), []);
+	});
+
+	test('Test enable autoupdate for extension when auto update is enabled for all', async () => {
+		const extension1 = aLocalExtension('a');
+		const extension2 = aLocalExtension('b');
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extension1, extension2]);
+		instantiationService.stub(IExtensionManagementService, 'updateMetadata', (local: Mutable<ILocalExtension>, metadata: Partial<Metadata>) => {
+			local.pinned = !!metadata.pinned;
+			return local;
+		});
+		testObject = await aWorkbenchService();
+
+		assert.strictEqual(testObject.local[0].local?.pinned, undefined);
+		assert.strictEqual(testObject.local[1].local?.pinned, undefined);
+
+		await testObject.updateAutoUpdateEnablementFor(testObject.local[0], false);
+		await testObject.updateAutoUpdateEnablementFor(testObject.local[0], true);
+
+		assert.strictEqual(testObject.local[0].local?.pinned, false);
+		assert.strictEqual(testObject.local[1].local?.pinned, undefined);
+
+		assert.deepStrictEqual(testObject.getSelectedExtensionsToAutoUpdate(), []);
+	});
+
+	test('Test updateAutoUpdateEnablementFor throws error when auto update is disabled', async () => {
+		stubConfiguration(false);
+
+		const extension1 = aLocalExtension('a');
+		const extension2 = aLocalExtension('b');
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extension1, extension2]);
+		testObject = await aWorkbenchService();
+
+		try {
+			await testObject.updateAutoUpdateEnablementFor(testObject.local[0], true);
+			assert.fail('error expected');
+		} catch (error) {
+			// expected
+		}
+	});
+
+	test('Test updateAutoUpdateEnablementFor throws error for publisher when auto update is enabled', async () => {
+		const extension1 = aLocalExtension('a');
+		const extension2 = aLocalExtension('b');
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extension1, extension2]);
+		testObject = await aWorkbenchService();
+
+		try {
+			await testObject.updateAutoUpdateEnablementFor(testObject.local[0].publisher, true);
+			assert.fail('error expected');
+		} catch (error) {
+			// expected
+		}
+	});
+
+	test('Test updateAutoUpdateEnablementFor throws error for extension id when auto update mode is onlySelectedExtensions', async () => {
+		stubConfiguration('onlySelectedExtensions');
+
+		const extension1 = aLocalExtension('a');
+		const extension2 = aLocalExtension('b');
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extension1, extension2]);
+		testObject = await aWorkbenchService();
+
+		try {
+			await testObject.updateAutoUpdateEnablementFor(testObject.local[0].identifier.id, true);
+			assert.fail('error expected');
+		} catch (error) {
+			// expected
+		}
+	});
+
+	test('Test enable autoupdate for extension when auto update is set to onlySelectedExtensions', async () => {
+		stubConfiguration('onlySelectedExtensions');
+
+		const extension1 = aLocalExtension('a', undefined, { pinned: true });
+		const extension2 = aLocalExtension('b', undefined, { pinned: true });
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extension1, extension2]);
+		instantiationService.stub(IExtensionManagementService, 'updateMetadata', (local: Mutable<ILocalExtension>, metadata: Partial<Metadata>) => {
+			local.pinned = !!metadata.pinned;
+			return local;
+		});
+		testObject = await aWorkbenchService();
+
+		assert.strictEqual(testObject.local[0].local?.pinned, true);
+		assert.strictEqual(testObject.local[1].local?.pinned, true);
+
+		await testObject.updateAutoUpdateEnablementFor(testObject.local[0], true);
+
+		assert.strictEqual(testObject.local[0].local?.pinned, false);
+		assert.strictEqual(testObject.local[1].local?.pinned, true);
+
+		assert.deepStrictEqual(testObject.getSelectedExtensionsToAutoUpdate(), ['pub.a']);
+		assert.equal(instantiationService.get(IConfigurationService).getValue(AutoUpdateConfigurationKey), 'onlySelectedExtensions');
+	});
+
+	test('Test enable autoupdate for extension when auto update is disabled', async () => {
+		stubConfiguration(false);
+
+		const extension1 = aLocalExtension('a', undefined, { pinned: true });
+		const extension2 = aLocalExtension('b', undefined, { pinned: true });
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extension1, extension2]);
+		instantiationService.stub(IExtensionManagementService, 'updateMetadata', (local: Mutable<ILocalExtension>, metadata: Partial<Metadata>) => {
+			local.pinned = !!metadata.pinned;
+			return local;
+		});
+		testObject = await aWorkbenchService();
+
+		assert.strictEqual(testObject.local[0].local?.pinned, true);
+		assert.strictEqual(testObject.local[1].local?.pinned, true);
+
+		await testObject.updateAutoUpdateEnablementFor(testObject.local[0], true);
+
+		assert.strictEqual(testObject.local[0].local?.pinned, false);
+		assert.strictEqual(testObject.local[1].local?.pinned, true);
+
+		assert.deepStrictEqual(testObject.getSelectedExtensionsToAutoUpdate(), ['pub.a']);
+		assert.equal(instantiationService.get(IConfigurationService).getValue(AutoUpdateConfigurationKey), 'onlySelectedExtensions');
+	});
+
+	test('Test disable autoupdate for extension when auto update is set to onlySelectedExtensions', async () => {
+		stubConfiguration('onlySelectedExtensions');
+
+		const extension1 = aLocalExtension('a', undefined, { pinned: true });
+		const extension2 = aLocalExtension('b', undefined, { pinned: true });
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extension1, extension2]);
+		instantiationService.stub(IExtensionManagementService, 'updateMetadata', (local: Mutable<ILocalExtension>, metadata: Partial<Metadata>) => {
+			local.pinned = !!metadata.pinned;
+			return local;
+		});
+		testObject = await aWorkbenchService();
+
+		await testObject.updateAutoUpdateEnablementFor(testObject.local[0], true);
+		await testObject.updateAutoUpdateEnablementFor(testObject.local[0], false);
+
+		assert.strictEqual(testObject.local[0].local?.pinned, true);
+		assert.strictEqual(testObject.local[1].local?.pinned, true);
+		assert.deepStrictEqual(testObject.getSelectedExtensionsToAutoUpdate(), []);
+		assert.equal(instantiationService.get(IConfigurationService).getValue(AutoUpdateConfigurationKey), false);
+	});
+
+	test('Test enable auto update for publisher when auto update mode is onlySelectedExtensions', async () => {
+		stubConfiguration('onlySelectedExtensions');
+
+		const extension1 = aLocalExtension('a', undefined, { pinned: true });
+		const extension2 = aLocalExtension('b', undefined, { pinned: true });
+		const extension3 = aLocalExtension('a', { publisher: 'pub2' }, { pinned: true });
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extension1, extension2, extension3]);
+		instantiationService.stub(IExtensionManagementService, 'updateMetadata', (local: ILocalExtension, metadata: Partial<Metadata>) => {
+			local.pinned = !!metadata.pinned;
+			return local;
+		});
+		testObject = await aWorkbenchService();
+
+		await testObject.updateAutoUpdateEnablementFor(testObject.local[0].publisher, true);
+
+		assert.strictEqual(testObject.local[0].local?.pinned, false);
+		assert.strictEqual(testObject.local[1].local?.pinned, false);
+		assert.strictEqual(testObject.local[2].local?.pinned, true);
+		assert.deepStrictEqual(testObject.getSelectedExtensionsToAutoUpdate(), ['pub']);
+	});
+
+	test('Test disable auto update for publisher when auto update mode is onlySelectedExtensions', async () => {
+		stubConfiguration('onlySelectedExtensions');
+
+		const extension1 = aLocalExtension('a', undefined, { pinned: true });
+		const extension2 = aLocalExtension('b', undefined, { pinned: true });
+		const extension3 = aLocalExtension('a', { publisher: 'pub2' }, { pinned: true });
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extension1, extension2, extension3]);
+		instantiationService.stub(IExtensionManagementService, 'updateMetadata', (local: ILocalExtension, metadata: Partial<Metadata>) => {
+			local.pinned = !!metadata.pinned;
+			return local;
+		});
+		testObject = await aWorkbenchService();
+
+		await testObject.updateAutoUpdateEnablementFor(testObject.local[0].publisher, true);
+		await testObject.updateAutoUpdateEnablementFor(testObject.local[0].publisher, false);
+
+		assert.strictEqual(testObject.local[0].local?.pinned, true);
+		assert.strictEqual(testObject.local[1].local?.pinned, true);
+		assert.strictEqual(testObject.local[2].local?.pinned, true);
+		assert.deepStrictEqual(testObject.getSelectedExtensionsToAutoUpdate(), []);
+	});
+
+	test('Test disable auto update for an extension when auto update for publisher is enabled and update mode is onlySelectedExtensions', async () => {
+		stubConfiguration('onlySelectedExtensions');
+
+		const extension1 = aLocalExtension('a', undefined, { pinned: true });
+		const extension2 = aLocalExtension('b', undefined, { pinned: true });
+		const extension3 = aLocalExtension('a', { publisher: 'pub2' }, { pinned: true });
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extension1, extension2, extension3]);
+		instantiationService.stub(IExtensionManagementService, 'updateMetadata', (local: ILocalExtension, metadata: Partial<Metadata>) => {
+			local.pinned = !!metadata.pinned;
+			return local;
+		});
+		testObject = await aWorkbenchService();
+
+		await testObject.updateAutoUpdateEnablementFor(testObject.local[0].publisher, true);
+		await testObject.updateAutoUpdateEnablementFor(testObject.local[0], false);
+
+		assert.strictEqual(testObject.local[0].local?.pinned, true);
+		assert.strictEqual(testObject.local[1].local?.pinned, false);
+		assert.strictEqual(testObject.local[2].local?.pinned, true);
+		assert.deepStrictEqual(testObject.getSelectedExtensionsToAutoUpdate(), ['pub', '-pub.a']);
+	});
+
+	test('Test enable auto update for an extension when auto updates is enabled for publisher and disabled for extension and update mode is onlySelectedExtensions', async () => {
+		stubConfiguration('onlySelectedExtensions');
+
+		const extension1 = aLocalExtension('a', undefined, { pinned: true });
+		const extension2 = aLocalExtension('b', undefined, { pinned: true });
+		const extension3 = aLocalExtension('a', { publisher: 'pub2' }, { pinned: true });
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extension1, extension2, extension3]);
+		instantiationService.stub(IExtensionManagementService, 'updateMetadata', (local: ILocalExtension, metadata: Partial<Metadata>) => {
+			local.pinned = !!metadata.pinned;
+			return local;
+		});
+		testObject = await aWorkbenchService();
+
+		await testObject.updateAutoUpdateEnablementFor(testObject.local[0].publisher, true);
+		await testObject.updateAutoUpdateEnablementFor(testObject.local[0], false);
+		await testObject.updateAutoUpdateEnablementFor(testObject.local[0], true);
+
+		assert.strictEqual(testObject.local[0].local?.pinned, false);
+		assert.strictEqual(testObject.local[1].local?.pinned, false);
+		assert.strictEqual(testObject.local[2].local?.pinned, true);
+		assert.deepStrictEqual(testObject.getSelectedExtensionsToAutoUpdate(), ['pub']);
+	});
+
 	async function aWorkbenchService(): Promise<ExtensionsWorkbenchService> {
-		const workbenchService: ExtensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
+		const workbenchService: ExtensionsWorkbenchService = disposableStore.add(instantiationService.createInstance(ExtensionsWorkbenchService));
 		await workbenchService.queryLocal();
 		return workbenchService;
+	}
+
+	function stubConfiguration(autoUpdateValue?: any, autoCheckUpdatesValue?: any): void {
+		const values: any = {
+			[AutoUpdateConfigurationKey]: autoUpdateValue ?? true,
+			[AutoCheckUpdatesConfigurationKey]: autoCheckUpdatesValue ?? true
+		};
+		instantiationService.stub(IConfigurationService, {
+			onDidChangeConfiguration: () => { return undefined!; },
+			getValue: (key?: any) => {
+				return key ? values[key] : undefined;
+			},
+			updateValue: async (key: string, value: any) => {
+				values[key] = value;
+			}
+		});
 	}
 
 	function aLocalExtension(name: string = 'someext', manifest: any = {}, properties: any = {}): ILocalExtension {
@@ -1456,17 +1716,6 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		return { firstPage: objects, total: objects.length, pageSize: objects.length, getPage: () => null! };
 	}
 
-	function eventToPromise(event: Event<any>, count: number = 1): Promise<void> {
-		return new Promise<void>(c => {
-			let counter = 0;
-			event(() => {
-				if (++counter === count) {
-					c(undefined);
-				}
-			});
-		});
-	}
-
 	function aMultiExtensionManagementServerService(instantiationService: TestInstantiationService, localExtensionManagementService?: IProfileAwareExtensionManagementService, remoteExtensionManagementService?: IProfileAwareExtensionManagementService): IExtensionManagementServerService {
 		const localExtensionManagementServer: IExtensionManagementServer = {
 			id: 'vscode-local',
@@ -1491,14 +1740,14 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			onDidUpdateExtensionMetadata: Event.None,
 			getInstalled: () => Promise.resolve<ILocalExtension[]>(installed),
 			installFromGallery: (extension: IGalleryExtension) => Promise.reject(new Error('not supported')),
-			updateMetadata: async (local: ILocalExtension, metadata: Partial<Metadata>) => {
+			updateMetadata: async (local: Mutable<ILocalExtension>, metadata: Partial<Metadata>) => {
 				local.identifier.uuid = metadata.id;
 				local.publisherDisplayName = metadata.publisherDisplayName!;
 				local.publisherId = metadata.publisherId!;
 				return local;
 			},
 			getTargetPlatform: async () => getTargetPlatform(platform, arch),
-			async getExtensionsControlManifest() { return <IExtensionsControlManifest>{ malicious: [], deprecated: {} }; },
+			async getExtensionsControlManifest() { return <IExtensionsControlManifest>{ malicious: [], deprecated: {}, search: [] }; },
 		};
 	}
 });

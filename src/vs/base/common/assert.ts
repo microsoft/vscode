@@ -29,9 +29,18 @@ export function assertNever(value: never, message = 'Unreachable'): never {
 	throw new Error(message);
 }
 
-export function assert(condition: boolean): void {
+export function assert(condition: boolean, message = 'unexpected state'): asserts condition {
 	if (!condition) {
-		throw new BugIndicatingError('Assertion Failed');
+		throw new BugIndicatingError(`Assertion Failed: ${message}`);
+	}
+}
+
+/**
+ * Like assert, but doesn't throw.
+ */
+export function softAssert(condition: boolean): void {
+	if (!condition) {
+		onUnexpectedError(new BugIndicatingError('Soft Assertion Failed'));
 	}
 }
 

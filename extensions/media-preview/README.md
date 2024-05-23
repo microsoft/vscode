@@ -16,7 +16,6 @@ This extension provides basic preview for images, audio and video files.
 - `.webp`
 - `.avif`
 
-
 ### Supported audio formats
 
 - `.mp3`

@@ -66,7 +66,7 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 	) {
 		super();
 
-		this._languageDetectionWorkerClient = new LanguageDetectionWorkerClient(
+		this._languageDetectionWorkerClient = this._register(new LanguageDetectionWorkerClient(
 			modelService,
 			languageService,
 			telemetryService,
@@ -84,7 +84,7 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 				? FileAccess.asBrowserUri(`${regexpModuleLocationAsar}/dist/index.js`).toString(true)
 				: FileAccess.asBrowserUri(`${regexpModuleLocation}/dist/index.js`).toString(true),
 			languageConfigurationService
-		);
+		));
 
 		this.initEditorOpenedListeners(storageService);
 	}
@@ -344,7 +344,7 @@ export class LanguageDetectionWorkerClient extends EditorWorkerClient {
 		type LanguageDetectionPerfClassification = {
 			owner: 'TylerLeonhardt';
 			comment: 'Helps understand how effective language detection and how long it takes to run';
-			timeSpent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The time it took to run language detection' };
+			timeSpent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The time it took to run language detection' };
 			detection: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language that was detected' };
 		};
 

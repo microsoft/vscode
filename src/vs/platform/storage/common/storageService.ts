@@ -5,6 +5,7 @@
 
 import { Promises } from 'vs/base/common/async';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
 import { joinPath } from 'vs/base/common/resources';
 import { IStorage, Storage } from 'vs/base/parts/storage/common/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -40,7 +41,7 @@ export class RemoteStorageService extends AbstractStorageService {
 		const storageDataBaseClient = this._register(new ApplicationStorageDatabaseClient(this.remoteService.getChannel('storage')));
 		const applicationStorage = this._register(new Storage(storageDataBaseClient));
 
-		this._register(applicationStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.APPLICATION, key)));
+		this._register(applicationStorage.onDidChangeStorage(e => this.emitDidChangeValue(StorageScope.APPLICATION, e)));
 
 		return applicationStorage;
 	}
@@ -67,7 +68,7 @@ export class RemoteStorageService extends AbstractStorageService {
 			profileStorage = this.profileStorageDisposables.add(new Storage(storageDataBaseClient));
 		}
 
-		this.profileStorageDisposables.add(profileStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.PROFILE, key)));
+		this.profileStorageDisposables.add(profileStorage.onDidChangeStorage(e => this.emitDidChangeValue(StorageScope.PROFILE, e)));
 
 		return profileStorage;
 	}
@@ -87,7 +88,7 @@ export class RemoteStorageService extends AbstractStorageService {
 			const storageDataBaseClient = this.workspaceStorageDisposables.add(new WorkspaceStorageDatabaseClient(this.remoteService.getChannel('storage'), workspace));
 			workspaceStorage = this.workspaceStorageDisposables.add(new Storage(storageDataBaseClient));
 
-			this.workspaceStorageDisposables.add(workspaceStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.WORKSPACE, key)));
+			this.workspaceStorageDisposables.add(workspaceStorage.onDidChangeStorage(e => this.emitDidChangeValue(StorageScope.WORKSPACE, e)));
 		}
 
 		return workspaceStorage;
@@ -117,11 +118,11 @@ export class RemoteStorageService extends AbstractStorageService {
 	protected getLogDetails(scope: StorageScope): string | undefined {
 		switch (scope) {
 			case StorageScope.APPLICATION:
-				return this.applicationStorageProfile.globalStorageHome.fsPath;
+				return this.applicationStorageProfile.globalStorageHome.with({ scheme: Schemas.file }).fsPath;
 			case StorageScope.PROFILE:
-				return this.profileStorageProfile?.globalStorageHome.fsPath;
+				return this.profileStorageProfile?.globalStorageHome.with({ scheme: Schemas.file }).fsPath;
 			default:
-				return this.workspaceStorageId ? `${joinPath(this.environmentService.workspaceStorageHome, this.workspaceStorageId, 'state.vscdb').fsPath}` : undefined;
+				return this.workspaceStorageId ? `${joinPath(this.environmentService.workspaceStorageHome, this.workspaceStorageId, 'state.vscdb').with({ scheme: Schemas.file }).fsPath}` : undefined;
 		}
 	}
 
@@ -141,7 +142,7 @@ export class RemoteStorageService extends AbstractStorageService {
 		]);
 	}
 
-	protected async switchToProfile(toProfile: IUserDataProfile, preserveData: boolean): Promise<void> {
+	protected async switchToProfile(toProfile: IUserDataProfile): Promise<void> {
 		if (!this.canSwitchProfile(this.profileStorageProfile, toProfile)) {
 			return;
 		}
@@ -160,7 +161,7 @@ export class RemoteStorageService extends AbstractStorageService {
 		await this.profileStorage.init();
 
 		// Handle data switch and eventing
-		this.switchData(oldItems, this.profileStorage, StorageScope.PROFILE, preserveData);
+		this.switchData(oldItems, this.profileStorage, StorageScope.PROFILE);
 	}
 
 	protected async switchToWorkspace(toWorkspace: IAnyWorkspaceIdentifier, preserveData: boolean): Promise<void> {
@@ -175,7 +176,7 @@ export class RemoteStorageService extends AbstractStorageService {
 		await this.workspaceStorage.init();
 
 		// Handle data switch and eventing
-		this.switchData(oldItems, this.workspaceStorage, StorageScope.WORKSPACE, preserveData);
+		this.switchData(oldItems, this.workspaceStorage, StorageScope.WORKSPACE);
 	}
 
 	hasScope(scope: IAnyWorkspaceIdentifier | IUserDataProfile): boolean {

@@ -3,18 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { Event } from 'vs/base/common/event';
+import { ThemeColor } from 'vs/base/common/themables';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IDimension } from 'vs/editor/common/core/dimension';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
-import { IModelDecorationsChangeAccessor, ITextModel, OverviewRulerLane, TrackedRangeStickiness, IValidEditOperation, IModelDeltaDecoration, IModelDecoration } from 'vs/editor/common/model';
-import { ThemeColor } from 'vs/base/common/themables';
-import { IDimension } from 'vs/editor/common/core/dimension';
+import { IModelDecoration, IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel, IValidEditOperation, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { IModelDecorationsChangedEvent } from 'vs/editor/common/textModelEvents';
+import { ICommandMetadata } from 'vs/platform/commands/common/commands';
 
 /**
  * A builder and helper for edit operations for a command.
@@ -104,6 +105,12 @@ export interface IDiffEditorModel {
 	modified: ITextModel;
 }
 
+export interface IDiffEditorViewModel extends IDisposable {
+	readonly model: IDiffEditorModel;
+
+	waitForDiff(): Promise<void>;
+}
+
 /**
  * An event describing that an editor has had its model reset (i.e. `editor.setModel()`).
  */
@@ -149,11 +156,12 @@ export interface IEditorAction {
 	readonly id: string;
 	readonly label: string;
 	readonly alias: string;
+	readonly metadata: ICommandMetadata | undefined;
 	isSupported(): boolean;
 	run(args?: unknown): Promise<void>;
 }
 
-export type IEditorModel = ITextModel | IDiffEditorModel;
+export type IEditorModel = ITextModel | IDiffEditorModel | IDiffEditorViewModel;
 
 /**
  * A (serializable) state of the cursors.
@@ -189,6 +197,7 @@ export interface ICodeEditorViewState {
 export interface IDiffEditorViewState {
 	original: ICodeEditorViewState | null;
 	modified: ICodeEditorViewState | null;
+	modelState?: unknown;
 }
 /**
  * An editor view state.
@@ -248,8 +257,11 @@ export interface IEditor {
 	 * be called when the container of the editor gets resized.
 	 *
 	 * If a dimension is passed in, the passed in value will be used.
+	 *
+	 * By default, this will also render the editor immediately.
+	 * If you prefer to delay rendering to the next animation frame, use postponeRendering == true.
 	 */
-	layout(dimension?: IDimension): void;
+	layout(dimension?: IDimension, postponeRendering?: boolean): void;
 
 	/**
 	 * Brings browser focus to the editor text
@@ -547,6 +559,10 @@ export interface IEditorDecorationsCollection {
 	 */
 	set(newDecorations: readonly IModelDeltaDecoration[]): string[];
 	/**
+	 * Append `newDecorations` to this collection.
+	 */
+	append(newDecorations: readonly IModelDeltaDecoration[]): string[];
+	/**
 	 * Remove all previous decorations.
 	 */
 	clear(): void;
@@ -755,12 +771,3 @@ export interface CompositionTypePayload {
 	positionDelta: number;
 }
 
-/**
- * @internal
- */
-export interface PastePayload {
-	text: string;
-	pasteOnNewLine: boolean;
-	multicursorText: string[] | null;
-	mode: string | null;
-}

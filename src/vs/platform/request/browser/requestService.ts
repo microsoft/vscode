@@ -35,4 +35,8 @@ export class RequestService extends AbstractRequestService implements IRequestSe
 	async resolveProxy(url: string): Promise<string | undefined> {
 		return undefined; // not implemented in the web
 	}
+
+	async loadCertificates(): Promise<string[]> {
+		return []; // not implemented in the web
+	}
 }

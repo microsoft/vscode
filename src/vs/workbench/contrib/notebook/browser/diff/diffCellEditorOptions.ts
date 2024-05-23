@@ -50,4 +50,6 @@ export const fixedDiffEditorOptions: IDiffEditorConstructionOptions = {
 	wordWrap: 'off',
 	diffWordWrap: 'off',
 	diffAlgorithm: 'advanced',
+	renderSideBySide: true,
+	useInlineViewWhenSpaceIsLimited: false
 };

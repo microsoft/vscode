@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize2 } from 'vs/nls';
 import { IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
@@ -19,7 +19,7 @@ export class OpenExtensionsFolderAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.extensions.action.openExtensionsFolder',
-			title: { value: localize('openExtensionsFolder', "Open Extensions Folder"), original: 'Open Extensions Folder' },
+			title: localize2('openExtensionsFolder', 'Open Extensions Folder'),
 			category: ExtensionsLocalizedLabel,
 			f1: true
 		});
@@ -51,7 +51,7 @@ export class CleanUpExtensionsFolderAction extends Action2 {
 	constructor() {
 		super({
 			id: '_workbench.extensions.action.cleanUpExtensionsFolder',
-			title: { value: localize('cleanUpExtensionsFolder', "Cleanup Extensions Folder"), original: 'Cleanup Extensions Folder' },
+			title: localize2('cleanUpExtensionsFolder', 'Cleanup Extensions Folder'),
 			category: Categories.Developer,
 			f1: true
 		});

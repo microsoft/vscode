@@ -3,26 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Terminal } from 'xterm';
-import { LineDataEventAddon } from 'vs/workbench/contrib/terminal/browser/xterm/lineDataEventAddon';
-import { OperatingSystem } from 'vs/base/common/platform';
+import type { Terminal } from '@xterm/xterm';
 import { deepStrictEqual } from 'assert';
+import { importAMDNodeModule } from 'vs/amdX';
+import { OperatingSystem } from 'vs/base/common/platform';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { writeP } from 'vs/workbench/contrib/terminal/browser/terminalTestHelpers';
+import { LineDataEventAddon } from 'vs/workbench/contrib/terminal/browser/xterm/lineDataEventAddon';
 
 suite('LineDataEventAddon', () => {
 	let xterm: Terminal;
 	let lineDataEventAddon: LineDataEventAddon;
 
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
 	suite('onLineData', () => {
 		let events: string[];
 
-		setup(() => {
-			xterm = new Terminal({ allowProposedApi: true, cols: 4 });
-			lineDataEventAddon = new LineDataEventAddon();
+		setup(async () => {
+			const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
+			xterm = store.add(new TerminalCtor({ allowProposedApi: true, cols: 4 }));
+			lineDataEventAddon = store.add(new LineDataEventAddon());
 			xterm.loadAddon(lineDataEventAddon);
 
 			events = [];
-			lineDataEventAddon.onLineData(e => events.push(e));
+			store.add(lineDataEventAddon.onLineData(e => events.push(e)));
 		});
 
 		test('should fire when a non-wrapped line ends with a line feed', async () => {

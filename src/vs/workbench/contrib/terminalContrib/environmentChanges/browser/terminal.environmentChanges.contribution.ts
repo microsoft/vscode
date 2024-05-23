@@ -8,7 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EnvironmentVariableMutatorType, EnvironmentVariableScope, IEnvironmentVariableMutator, IMergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
 import { registerActiveInstanceAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
@@ -17,9 +17,11 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 
 // TODO: The rest of the terminal environment changes feature should move here https://github.com/microsoft/vscode/issues/177241
 
+// #region Actions
+
 registerActiveInstanceAction({
 	id: TerminalCommandId.ShowEnvironmentContributions,
-	title: { value: localize('workbench.action.terminal.showEnvironmentContributions', "Show Environment Contributions"), original: 'Show Environment Contributions' },
+	title: localize2('workbench.action.terminal.showEnvironmentContributions', 'Show Environment Contributions'),
 	run: async (activeInstance, c, accessor, arg) => {
 		const collection = activeInstance.extEnvironmentVariableCollection;
 		if (collection) {
@@ -45,13 +47,27 @@ registerActiveInstanceAction({
 	}
 });
 
+// #endregion
 
 function describeEnvironmentChanges(collection: IMergedEnvironmentVariableCollection, scope: EnvironmentVariableScope | undefined): string {
 	let content = `# ${localize('envChanges', 'Terminal Environment Changes')}`;
+	const globalDescriptions = collection.getDescriptionMap(undefined);
+	const workspaceDescriptions = collection.getDescriptionMap(scope);
 	for (const [ext, coll] of collection.collections) {
 		content += `\n\n## ${localize('extension', 'Extension: {0}', ext)}`;
 		content += '\n';
-		for (const [_, mutator] of coll.map.entries()) {
+		const globalDescription = globalDescriptions.get(ext);
+		if (globalDescription) {
+			content += `\n${globalDescription}\n`;
+		}
+		const workspaceDescription = workspaceDescriptions.get(ext);
+		if (workspaceDescription) {
+			// Only show '(workspace)' suffix if there is already a description for the extension.
+			const workspaceSuffix = globalDescription ? ` (${localize('ScopedEnvironmentContributionInfo', 'workspace')})` : '';
+			content += `\n${workspaceDescription}${workspaceSuffix}\n`;
+		}
+
+		for (const mutator of coll.map.values()) {
 			if (filterScope(mutator, scope) === false) {
 				continue;
 			}

@@ -6,25 +6,24 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { Iterable } from 'vs/base/common/iterator';
-import { IDisposable, RefCountedDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, RefCountedDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { EditorOption, FindComputedEditorOptionValueById } from 'vs/editor/common/config/editorOptions';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { registerEditorFeature } from 'vs/editor/common/editorFeatures';
 import { Command, CompletionItemInsertTextRule, CompletionItemProvider, CompletionTriggerKind, InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { CompletionModel, LineContext } from 'vs/editor/contrib/suggest/browser/completionModel';
 import { CompletionItem, CompletionItemModel, CompletionOptions, provideSuggestionItems, QuickSuggestionsOptions } from 'vs/editor/contrib/suggest/browser/suggest';
 import { ISuggestMemoryService } from 'vs/editor/contrib/suggest/browser/suggestMemory';
+import { SuggestModel } from 'vs/editor/contrib/suggest/browser/suggestModel';
 import { WordDistance } from 'vs/editor/contrib/suggest/browser/wordDistance';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 class SuggestInlineCompletion implements InlineCompletion {
 
@@ -105,16 +104,19 @@ class InlineCompletionResults extends RefCountedDisposable implements InlineComp
 }
 
 
-export class SuggestInlineCompletions implements InlineCompletionsProvider<InlineCompletionResults> {
+export class SuggestInlineCompletions extends Disposable implements InlineCompletionsProvider<InlineCompletionResults> {
 
 	private _lastResult?: InlineCompletionResults;
 
 	constructor(
-		private readonly _getEditorOption: <T extends EditorOption>(id: T, model: ITextModel) => FindComputedEditorOptionValueById<T>,
 		@ILanguageFeaturesService private readonly _languageFeatureService: ILanguageFeaturesService,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@ISuggestMemoryService private readonly _suggestMemoryService: ISuggestMemoryService,
-	) { }
+		@ICodeEditorService private readonly _editorService: ICodeEditorService,
+	) {
+		super();
+		this._store.add(_languageFeatureService.inlineCompletionsProvider.register('*', this));
+	}
 
 	async provideInlineCompletions(model: ITextModel, position: Position, context: InlineCompletionContext, token: CancellationToken): Promise<InlineCompletionResults | undefined> {
 
@@ -122,7 +124,19 @@ export class SuggestInlineCompletions implements InlineCompletionsProvider<Inlin
 			return;
 		}
 
-		const config = this._getEditorOption(EditorOption.quickSuggestions, model);
+		let editor: ICodeEditor | undefined;
+		for (const candidate of this._editorService.listCodeEditors()) {
+			if (candidate.getModel() === model) {
+				editor = candidate;
+				break;
+			}
+		}
+
+		if (!editor) {
+			return;
+		}
+
+		const config = editor.getOption(EditorOption.quickSuggestions);
 		if (QuickSuggestionsOptions.isAllOff(config)) {
 			// quick suggest is off (for this model/language)
 			return;
@@ -175,7 +189,7 @@ export class SuggestInlineCompletions implements InlineCompletionsProvider<Inlin
 			const completions = await provideSuggestionItems(
 				this._languageFeatureService.completionProvider,
 				model, position,
-				new CompletionOptions(undefined, undefined, triggerCharacterInfo?.providers),
+				new CompletionOptions(undefined, SuggestModel.createSuggestFilter(editor).itemKind, triggerCharacterInfo?.providers),
 				triggerCharacterInfo && { triggerKind: CompletionTriggerKind.TriggerCharacter, triggerCharacter: triggerCharacterInfo.ch },
 				token
 			);
@@ -190,8 +204,8 @@ export class SuggestInlineCompletions implements InlineCompletionsProvider<Inlin
 				position.column,
 				new LineContext(leadingLineContents, 0),
 				WordDistance.None,
-				this._getEditorOption(EditorOption.suggest, model),
-				this._getEditorOption(EditorOption.snippetSuggestions, model),
+				editor.getOption(EditorOption.suggest),
+				editor.getOption(EditorOption.snippetSuggestions),
 				{ boostFullMatch: false, firstMatchCanBeWeak: false },
 				clipboardText
 			);
@@ -225,37 +239,5 @@ export class SuggestInlineCompletions implements InlineCompletionsProvider<Inlin
 	}
 }
 
-class EditorContribution implements IEditorContribution {
 
-	private static _counter = 0;
-	private static _disposable: IDisposable | undefined;
-
-	constructor(
-		_editor: ICodeEditor,
-		@ILanguageFeaturesService languageFeatureService: ILanguageFeaturesService,
-		@ICodeEditorService editorService: ICodeEditorService,
-		@IInstantiationService instaService: IInstantiationService,
-	) {
-		// HACK - way to contribute something only once
-		if (++EditorContribution._counter === 1) {
-			const provider = instaService.createInstance(
-				SuggestInlineCompletions,
-				(id, model) => {
-					// HACK - reuse the editor options world outside from a "normal" contribution
-					const editor = editorService.listCodeEditors().find(editor => editor.getModel() === model) ?? _editor;
-					return editor.getOption(id);
-				},
-			);
-			EditorContribution._disposable = languageFeatureService.inlineCompletionsProvider.register('*', provider);
-		}
-	}
-
-	dispose(): void {
-		if (--EditorContribution._counter === 0) {
-			EditorContribution._disposable?.dispose();
-			EditorContribution._disposable = undefined;
-		}
-	}
-}
-
-registerEditorContribution('suggest.inlineCompletionsProvider', EditorContribution, EditorContributionInstantiation.Eager); // eager because the contribution is used as a way to ONCE access a service to which a provider is registered
+registerEditorFeature(SuggestInlineCompletions);

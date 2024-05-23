@@ -32,6 +32,11 @@ export interface IBrowserWorkbenchEnvironmentService extends IWorkbenchEnvironme
 	 * Options used to configure the workbench.
 	 */
 	readonly options?: IWorkbenchConstructionOptions;
+
+	/**
+	 * Gets whether a resolver extension is expected for the environment.
+	 */
+	readonly expectsResolverExtension: boolean;
 }
 
 export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvironmentService {
@@ -40,6 +45,11 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 
 	@memoize
 	get remoteAuthority(): string | undefined { return this.options.remoteAuthority; }
+
+	@memoize
+	get expectsResolverExtension(): boolean {
+		return !!this.options.remoteAuthority?.includes('+') && !this.options.webSocketFactory;
+	}
 
 	@memoize
 	get isBuilt(): boolean { return !!this.productService.commit; }

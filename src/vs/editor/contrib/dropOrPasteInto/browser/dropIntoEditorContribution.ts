@@ -6,13 +6,17 @@
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorCommand, EditorContributionInstantiation, ServicesAccessor, registerEditorCommand, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { editorConfigurationBaseNode } from 'vs/editor/common/config/editorConfigurationSchema';
 import { registerEditorFeature } from 'vs/editor/common/editorFeatures';
 import { DefaultDropProvidersFeature } from 'vs/editor/contrib/dropOrPasteInto/browser/defaultProviders';
+import * as nls from 'vs/nls';
+import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { DropIntoEditorController, changeDropTypeCommandId, dropWidgetVisibleCtx } from './dropIntoEditorController';
-
+import { Registry } from 'vs/platform/registry/common/platform';
+import { DropIntoEditorController, changeDropTypeCommandId, defaultProviderConfig, dropWidgetVisibleCtx } from './dropIntoEditorController';
 
 registerEditorContribution(DropIntoEditorController.ID, DropIntoEditorController, EditorContributionInstantiation.BeforeFirstInteraction);
+registerEditorFeature(DefaultDropProvidersFeature);
 
 registerEditorCommand(new class extends EditorCommand {
 	constructor() {
@@ -31,4 +35,34 @@ registerEditorCommand(new class extends EditorCommand {
 	}
 });
 
-registerEditorFeature(DefaultDropProvidersFeature);
+registerEditorCommand(new class extends EditorCommand {
+	constructor() {
+		super({
+			id: 'editor.hideDropWidget',
+			precondition: dropWidgetVisibleCtx,
+			kbOpts: {
+				weight: KeybindingWeight.EditorContrib,
+				primary: KeyCode.Escape,
+			}
+		});
+	}
+
+	public override runEditorCommand(_accessor: ServicesAccessor | null, editor: ICodeEditor, _args: any) {
+		DropIntoEditorController.get(editor)?.clearWidgets();
+	}
+});
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	...editorConfigurationBaseNode,
+	properties: {
+		[defaultProviderConfig]: {
+			type: 'object',
+			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE,
+			description: nls.localize('defaultProviderDescription', "Configures the default drop provider to use for content of a given mime type."),
+			default: {},
+			additionalProperties: {
+				type: 'string',
+			},
+		},
+	}
+});

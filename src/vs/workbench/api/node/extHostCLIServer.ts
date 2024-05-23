@@ -80,9 +80,9 @@ export class CLIServerBase {
 	}
 
 	private onRequest(req: http.IncomingMessage, res: http.ServerResponse): void {
-		const sendResponse = (statusCode: number, returnObj: any) => {
+		const sendResponse = (statusCode: number, returnObj: string | undefined) => {
 			res.writeHead(statusCode, { 'content-type': 'application/json' });
-			res.end(JSON.stringify(returnObj || null), (err?: any) => err && this.logService.error(err));
+			res.end(JSON.stringify(returnObj || null), (err?: any) => err && this.logService.error(err)); // CodeQL [SM01524] Only the message portion of errors are passed in.
 		};
 
 		const chunks: string[] = [];
@@ -91,7 +91,7 @@ export class CLIServerBase {
 		req.on('end', async () => {
 			try {
 				const data: PipeCommand | any = JSON.parse(chunks.join(''));
-				let returnObj;
+				let returnObj: string | undefined;
 				switch (data.type) {
 					case 'open':
 						returnObj = await this.open(data);
@@ -118,7 +118,7 @@ export class CLIServerBase {
 		});
 	}
 
-	private async open(data: OpenCommandPipeArgs): Promise<string> {
+	private async open(data: OpenCommandPipeArgs): Promise<undefined> {
 		const { fileURIs, folderURIs, forceNewWindow, diffMode, mergeMode, addMode, forceReuseWindow, gotoLineMode, waitMarkerFilePath, remoteAuthority } = data;
 		const urisToOpen: IWindowOpenable[] = [];
 		if (Array.isArray(folderURIs)) {
@@ -147,11 +147,9 @@ export class CLIServerBase {
 		const preferNewWindow = !forceReuseWindow && !waitMarkerFileURI && !addMode;
 		const windowOpenArgs: IOpenWindowOptions = { forceNewWindow, diffMode, mergeMode, addMode, gotoLineMode, forceReuseWindow, preferNewWindow, waitMarkerFileURI, remoteAuthority };
 		this._commands.executeCommand('_remoteCLI.windowOpen', urisToOpen, windowOpenArgs);
-
-		return '';
 	}
 
-	private async openExternal(data: OpenExternalCommandPipeArgs): Promise<any> {
+	private async openExternal(data: OpenExternalCommandPipeArgs): Promise<undefined> {
 		for (const uriString of data.uris) {
 			const uri = URI.parse(uriString);
 			const urioOpen = uri.scheme === 'file' ? uri : uriString; // workaround for #112577
@@ -159,7 +157,7 @@ export class CLIServerBase {
 		}
 	}
 
-	private async manageExtensions(data: ExtensionManagementPipeArgs): Promise<any> {
+	private async manageExtensions(data: ExtensionManagementPipeArgs): Promise<string | undefined> {
 		const toExtOrVSIX = (inputs: string[] | undefined) => inputs?.map(input => /\.vsix$/i.test(input) ? URI.parse(input) : input);
 		const commandArgs = {
 			list: data.list,
@@ -167,11 +165,11 @@ export class CLIServerBase {
 			uninstall: toExtOrVSIX(data.uninstall),
 			force: data.force
 		};
-		return await this._commands.executeCommand('_remoteCLI.manageExtensions', commandArgs);
+		return await this._commands.executeCommand<string | undefined>('_remoteCLI.manageExtensions', commandArgs);
 	}
 
-	private async getStatus(data: StatusPipeArgs) {
-		return await this._commands.executeCommand('_remoteCLI.getSystemStatus');
+	private async getStatus(data: StatusPipeArgs): Promise<string | undefined> {
+		return await this._commands.executeCommand<string | undefined>('_remoteCLI.getSystemStatus');
 	}
 
 	dispose(): void {

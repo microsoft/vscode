@@ -7,6 +7,7 @@ import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { IIndexTreeModelSpliceOptions, IList } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { IObjectTreeModel, IObjectTreeModelOptions, IObjectTreeModelSetChildrenOptions, ObjectTreeModel } from 'vs/base/browser/ui/tree/objectTreeModel';
 import { ICollapseStateChangeEvent, IObjectTreeElement, ITreeModel, ITreeModelSpliceEvent, ITreeNode, TreeError, TreeFilterResult, TreeVisibility, WeakMapper } from 'vs/base/browser/ui/tree/tree';
+import { equals } from 'vs/base/common/arrays';
 import { Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 
@@ -146,7 +147,7 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 		children: Iterable<ICompressedTreeElement<T>> = Iterable.empty(),
 		options: IObjectTreeModelSetChildrenOptions<T, TFilterData>,
 	): void {
-		// Diffs must be deem, since the compression can affect nested elements.
+		// Diffs must be deep, since the compression can affect nested elements.
 		// @see https://github.com/microsoft/vscode/pull/114237#issuecomment-759425034
 
 		const diffIdentityProvider = options.diffIdentityProvider && wrapIdentityProvider(options.diffIdentityProvider);
@@ -169,6 +170,16 @@ export class CompressedObjectTreeModel<T extends NonNullable<any>, TFilterData e
 		const decompressedElement = decompress(node);
 		const splicedElement = splice(decompressedElement, element, children);
 		const recompressedElement = (this.enabled ? compress : noCompress)(splicedElement);
+
+		// If the recompressed node is identical to the original, just set its children.
+		// Saves work and churn diffing the parent element.
+		const elementComparator = options.diffIdentityProvider
+			? ((a: T, b: T) => options.diffIdentityProvider!.getId(a) === options.diffIdentityProvider!.getId(b))
+			: undefined;
+		if (equals(recompressedElement.element.elements, node.element.elements, elementComparator)) {
+			this._setChildren(compressedNode, recompressedElement.children || Iterable.empty(), { diffIdentityProvider, diffDepth: 1 });
+			return;
+		}
 
 		const parentChildren = parent.children
 			.map(child => child === node ? recompressedElement : child);

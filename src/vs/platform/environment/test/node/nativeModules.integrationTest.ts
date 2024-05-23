@@ -4,15 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { isLinux, isWindows } from 'vs/base/common/platform';
+import { isWindows } from 'vs/base/common/platform';
 import { flakySuite } from 'vs/base/test/common/testUtils';
-import { Encryption } from 'vs/platform/encryption/node/encryptionMainService';
 
 function testErrorMessage(module: string): string {
 	return `Unable to load "${module}" dependency. It was probably not compiled for the right operating system architecture or had missing build tools.`;
 }
 
 flakySuite('Native Modules (all platforms)', () => {
+
+	test('kerberos', async () => {
+		const kerberos = await import('kerberos');
+		assert.ok(typeof kerberos.initializeClient === 'function', testErrorMessage('kerberos'));
+	});
 
 	test('native-is-elevated', async () => {
 		const isElevated = await import('native-is-elevated');
@@ -56,21 +60,6 @@ flakySuite('Native Modules (all platforms)', () => {
 		assert.ok(typeof sqlite3.Database === 'function', testErrorMessage('@vscode/sqlite3'));
 	});
 
-	test('vscode-encrypt', async () => {
-		try {
-			const vscodeEncrypt: Encryption = globalThis._VSCODE_NODE_MODULES['vscode-encrypt'];
-			const encrypted = await vscodeEncrypt.encrypt('salt', 'value');
-			const decrypted = await vscodeEncrypt.decrypt('salt', encrypted);
-
-			assert.ok(typeof encrypted === 'string', testErrorMessage('vscode-encrypt'));
-			assert.ok(typeof decrypted === 'string', testErrorMessage('vscode-encrypt'));
-		} catch (error) {
-			if (error.code !== 'MODULE_NOT_FOUND') {
-				throw error;
-			}
-		}
-	});
-
 	test('vsda', async () => {
 		try {
 			const vsda: any = globalThis._VSCODE_NODE_MODULES['vsda'];
@@ -81,28 +70,6 @@ flakySuite('Native Modules (all platforms)', () => {
 			if (error.code !== 'MODULE_NOT_FOUND') {
 				throw error;
 			}
-		}
-	});
-});
-
-(isLinux ? suite.skip : suite)('Native Modules (Windows, macOS)', () => {
-
-	test('keytar', async () => {
-		const keytar = await import('keytar');
-		const name = `VSCode Test ${Math.floor(Math.random() * 1e9)}`;
-		try {
-			await keytar.setPassword(name, 'foo', 'bar');
-			assert.strictEqual(await keytar.findPassword(name), 'bar');
-			assert.strictEqual((await keytar.findCredentials(name)).length, 1);
-			assert.strictEqual(await keytar.getPassword(name, 'foo'), 'bar');
-			await keytar.deletePassword(name, 'foo');
-			assert.strictEqual(await keytar.getPassword(name, 'foo'), null);
-		} catch (err) {
-			try {
-				await keytar.deletePassword(name, 'foo'); // try to clean up
-			} catch { }
-
-			throw err;
 		}
 	});
 });

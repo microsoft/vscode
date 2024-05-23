@@ -23,12 +23,8 @@
 			"modifiedRange": "[9,11)",
 			"innerChanges": [
 				{
-					"originalRange": "[8,1 -> 8,1]",
-					"modifiedRange": "[9,1 -> 10,1]"
-				},
-				{
 					"originalRange": "[8,9 -> 8,9]",
-					"modifiedRange": "[10,9 -> 10,30]"
+					"modifiedRange": "[9,9 -> 10,30]"
 				}
 			]
 		}

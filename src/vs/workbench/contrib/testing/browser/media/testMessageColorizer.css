@@ -1,0 +1,55 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.test-output-peek-message-container {
+	.tstm-ansidec-1 {
+		font-weight: bold;
+	}
+	.tstm-ansidec-2 {
+		opacity: 0.7
+	}
+	.tstm-ansidec-3 {
+		font-style: italic;
+	}
+	.tstm-ansidec-4 {
+		text-decoration: underline;
+	}
+
+	.tstm-ansidec-fg30 { color: var(--vscode-terminal-ansiBlack); }
+	.tstm-ansidec-fg31 { color: var(--vscode-terminal-ansiRed); }
+	.tstm-ansidec-fg32 { color: var(--vscode-terminal-ansiGreen); }
+	.tstm-ansidec-fg33 { color: var(--vscode-terminal-ansiYellow); }
+	.tstm-ansidec-fg34 { color: var(--vscode-terminal-ansiBlue); }
+	.tstm-ansidec-fg35 { color: var(--vscode-terminal-ansiMagenta); }
+	.tstm-ansidec-fg36 { color: var(--vscode-terminal-ansiCyan); }
+	.tstm-ansidec-fg37 { color: var(--vscode-terminal-ansiWhite); }
+
+	.tstm-ansidec-fg90 { color: var(--vscode-terminal-ansiBrightBlack); }
+	.tstm-ansidec-fg91 { color: var(--vscode-terminal-ansiBrightRed); }
+	.tstm-ansidec-fg92 { color: var(--vscode-terminal-ansiBrightGreen); }
+	.tstm-ansidec-fg93 { color: var(--vscode-terminal-ansiBrightYellow); }
+	.tstm-ansidec-fg94 { color: var(--vscode-terminal-ansiBrightBlue); }
+	.tstm-ansidec-fg95 { color: var(--vscode-terminal-ansiBrightMagenta); }
+	.tstm-ansidec-fg96 { color: var(--vscode-terminal-ansiBrightCyan); }
+	.tstm-ansidec-fg97 { color: var(--vscode-terminal-ansiBrightWhite); }
+
+	.tstm-ansidec-bg30 { background-color: var(--vscode-terminal-ansiBlack); }
+	.tstm-ansidec-bg31 { background-color: var(--vscode-terminal-ansiRed); }
+	.tstm-ansidec-bg32 { background-color: var(--vscode-terminal-ansiGreen); }
+	.tstm-ansidec-bg33 { background-color: var(--vscode-terminal-ansiYellow); }
+	.tstm-ansidec-bg34 { background-color: var(--vscode-terminal-ansiBlue); }
+	.tstm-ansidec-bg35 { background-color: var(--vscode-terminal-ansiMagenta); }
+	.tstm-ansidec-bg36 { background-color: var(--vscode-terminal-ansiCyan); }
+	.tstm-ansidec-bg37 { background-color: var(--vscode-terminal-ansiWhite); }
+
+	.tstm-ansidec-bg100 { background-color: var(--vscode-terminal-ansiBrightBlack); }
+	.tstm-ansidec-bg101 { background-color: var(--vscode-terminal-ansiBrightRed); }
+	.tstm-ansidec-bg102 { background-color: var(--vscode-terminal-ansiBrightGreen); }
+	.tstm-ansidec-bg103 { background-color: var(--vscode-terminal-ansiBrightYellow); }
+	.tstm-ansidec-bg104 { background-color: var(--vscode-terminal-ansiBrightBlue); }
+	.tstm-ansidec-bg105 { background-color: var(--vscode-terminal-ansiBrightMagenta); }
+	.tstm-ansidec-bg106 { background-color: var(--vscode-terminal-ansiBrightCyan); }
+	.tstm-ansidec-bg107 { background-color: var(--vscode-terminal-ansiBrightWhite); }
+}

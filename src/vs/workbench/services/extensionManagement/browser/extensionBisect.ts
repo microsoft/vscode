@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { IExtensionManagementService, IGlobalExtensionEnablementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ExtensionType, IExtension, isResolverExtension } from 'vs/platform/extensions/common/extensions';
@@ -185,11 +185,11 @@ class ExtensionBisectUi {
 	private _showBisectPrompt(): void {
 
 		const goodPrompt: IPromptChoice = {
-			label: 'Good Now',
+			label: localize('I cannot reproduce', "I can't reproduce"),
 			run: () => this._commandService.executeCommand('extension.bisect.next', false)
 		};
 		const badPrompt: IPromptChoice = {
-			label: 'This is Bad',
+			label: localize('This is Bad', "I can reproduce"),
 			run: () => this._commandService.executeCommand('extension.bisect.next', true)
 		};
 		const stop: IPromptChoice = {
@@ -219,7 +219,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'extension.bisect.start',
-			title: { value: localize('title.start', "Start Extension Bisect"), original: 'Start Extension Bisect' },
+			title: localize2('title.start', 'Start Extension Bisect'),
 			category: Categories.Help,
 			f1: true,
 			precondition: ExtensionBisectUi.ctxIsBisectActive.negate(),
@@ -258,7 +258,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'extension.bisect.next',
-			title: { value: localize('title.isBad', "Continue Extension Bisect"), original: 'Continue Extension Bisect' },
+			title: localize2('title.isBad', 'Continue Extension Bisect'),
 			category: Categories.Help,
 			f1: true,
 			precondition: ExtensionBisectUi.ctxIsBisectActive
@@ -329,11 +329,11 @@ registerAction2(class extends Action2 {
 			detail: localize('bisect', "Extension Bisect is active and has disabled {0} extensions. Check if you can still reproduce the problem and proceed by selecting from these options.", bisectService.disabledCount),
 			buttons: [
 				{
-					label: localize({ key: 'next.good', comment: ['&& denotes a mnemonic'] }, "&&Good now"),
+					label: localize({ key: 'next.good', comment: ['&& denotes a mnemonic'] }, "I ca&&n't reproduce"),
 					run: () => false // good now
 				},
 				{
-					label: localize({ key: 'next.bad', comment: ['&& denotes a mnemonic'] }, "This is &&bad"),
+					label: localize({ key: 'next.bad', comment: ['&& denotes a mnemonic'] }, "I can &&reproduce"),
 					run: () => true // bad
 				},
 				{
@@ -354,7 +354,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'extension.bisect.stop',
-			title: { value: localize('title.stop', "Stop Extension Bisect"), original: 'Stop Extension Bisect' },
+			title: localize2('title.stop', 'Stop Extension Bisect'),
 			category: Categories.Help,
 			f1: true,
 			precondition: ExtensionBisectUi.ctxIsBisectActive

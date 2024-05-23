@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { compressConsecutiveTextChanges, TextChange } from 'vs/editor/common/core/textChange';
 
 const GENERATE_TESTS = false;
@@ -15,6 +16,8 @@ interface IGeneratedEdit {
 }
 
 suite('TextChangeCompressor', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function getResultingContent(initialContent: string, edits: IGeneratedEdit[]): string {
 		let content = initialContent;
@@ -282,6 +285,8 @@ suite('TextChangeCompressor', () => {
 });
 
 suite('TextChange', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('issue #118041: unicode character undo bug', () => {
 		const textChange = new TextChange(428, '﻿', 428, '');

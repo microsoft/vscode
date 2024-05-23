@@ -22,6 +22,7 @@ import { IView } from 'vs/workbench/common/views';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { VIEWPANE_FILTER_ACTION } from 'vs/workbench/browser/parts/views/viewPane';
 import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
+import { IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 export abstract class PaneComposite extends Composite implements IPaneComposite {
 
@@ -41,6 +42,7 @@ export abstract class PaneComposite extends Composite implements IPaneComposite 
 	}
 
 	override create(parent: HTMLElement): void {
+		super.create(parent);
 		this.viewPaneContainer = this._register(this.createViewPaneContainer(parent));
 		this._register(this.viewPaneContainer.onTitleAreaUpdate(() => this.updateTitleArea()));
 		this.viewPaneContainer.create(parent);
@@ -139,8 +141,8 @@ export abstract class PaneComposite extends Composite implements IPaneComposite 
 		return menuActions.length ? menuActions : viewPaneActions;
 	}
 
-	override getActionViewItem(action: IAction): IActionViewItem | undefined {
-		return this.viewPaneContainer?.getActionViewItem(action);
+	override getActionViewItem(action: IAction, options: IBaseActionViewItemOptions): IActionViewItem | undefined {
+		return this.viewPaneContainer?.getActionViewItem(action, options);
 	}
 
 	override getTitle(): string {
@@ -148,6 +150,7 @@ export abstract class PaneComposite extends Composite implements IPaneComposite 
 	}
 
 	override focus(): void {
+		super.focus();
 		this.viewPaneContainer?.focus();
 	}
 

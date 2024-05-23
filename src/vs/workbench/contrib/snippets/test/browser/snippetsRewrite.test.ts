@@ -5,9 +5,12 @@
 
 import * as assert from 'assert';
 import { generateUuid } from 'vs/base/common/uuid';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
 
 suite('SnippetRewrite', function () {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function assertRewrite(input: string, expected: string | boolean): void {
 		const actual = new Snippet(false, ['foo'], 'foo', 'foo', 'foo', input, 'foo', SnippetSource.User, generateUuid());
