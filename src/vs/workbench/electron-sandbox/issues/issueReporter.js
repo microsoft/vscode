@@ -24,7 +24,7 @@
 	);
 
 	/**
-	 * @typedef {import('../../../../base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration} ISandboxConfiguration
+	 * @typedef {import('../../../base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration} ISandboxConfiguration
 	 *
 	 * @returns {{
 	 *   load: (

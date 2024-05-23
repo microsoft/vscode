@@ -18,7 +18,7 @@ import product from 'vs/platform/product/common/product';
 import { IssueWebReporter } from 'vs/workbench/contrib/issue/browser/issueReporterService';
 import { AuxiliaryWindowMode, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 
-export class IssueMainService implements IIssueMainService {
+export class IssueFormService implements IIssueMainService {
 
 	readonly _serviceBrand: undefined;
 
