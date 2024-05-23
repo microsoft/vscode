@@ -173,7 +173,7 @@ export class IssueMainService implements IIssueMainService {
 				});
 
 				this.issueReporterWindow.loadURL(
-					FileAccess.asBrowserUri(`vs/workbench/electron-sandbox/issues/issueReporter${this.environmentMainService.isBuilt ? '' : '-dev'}.html`).toString(true)
+					FileAccess.asBrowserUri(`vs/workbench/contrib/issue/electron-sandbox/issueReporter${this.environmentMainService.isBuilt ? '' : '-dev'}.html`).toString(true)
 				);
 
 				this.issueReporterWindow.on('close', () => {
