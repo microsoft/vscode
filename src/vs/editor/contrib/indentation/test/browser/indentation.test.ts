@@ -1404,10 +1404,6 @@ suite('Auto Indent On Type - PHP', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('temp issue because there should be at least one passing test in a suite', () => {
-		assert.ok(true);
-	});
-
 	test('issue #199050: should not indent after { detected in a string', () => {
 
 		// https://github.com/microsoft/vscode/issues/199050

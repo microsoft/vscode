@@ -187,6 +187,7 @@ class IndentationLineProcessor {
 			return adjustedLine;
 		};
 
+		this.model.tokenization.forceTokenization?.(lineNumber);
 		const tokens = this.model.tokenization.getLineTokens(lineNumber);
 		let processedLine = this.getProcessedTokens(tokens).getLineContent();
 		if (newIndentation !== undefined) {
@@ -225,6 +226,7 @@ class IndentationLineProcessor {
 }
 
 export function isLanguageDifferentFromLineStart(model: ITextModel, position: Position): boolean {
+	model.tokenization.forceTokenization(position.lineNumber);
 	const lineTokens = model.tokenization.getLineTokens(position.lineNumber);
 	const scopedLineTokens = createScopedLineTokens(lineTokens, position.column - 1);
 	const doesScopeStartAtOffsetZero = scopedLineTokens.firstCharOffset === 0;
