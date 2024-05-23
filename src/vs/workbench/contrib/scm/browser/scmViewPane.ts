@@ -3852,6 +3852,8 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			}
 
 			return result;
+		} else if (isSCMInput(element)) {
+			return element.repository;
 		} else {
 			throw new Error('Unexpected call to getParent');
 		}
