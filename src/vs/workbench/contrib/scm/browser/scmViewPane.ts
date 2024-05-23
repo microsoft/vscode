@@ -24,7 +24,7 @@ import { MenuItemAction, IMenuService, registerAction2, MenuId, IAction2Options,
 import { IAction, ActionRunner, Action, Separator, IActionRunner } from 'vs/base/common/actions';
 import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService, IFileIconTheme } from 'vs/platform/theme/common/themeService';
-import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, getActionViewItemProvider, isSCMActionButton, isSCMViewService, isSCMHistoryItemGroupTreeElement, isSCMHistoryItemTreeElement, isSCMHistoryItemChangeTreeElement, toDiffEditorArguments, isSCMResourceNode, isSCMHistoryItemChangeNode, isSCMViewSeparator, connectPrimaryMenu, getArrayPreviousIndex, getArrayNextIndex } from './util';
+import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, getActionViewItemProvider, isSCMActionButton, isSCMViewService, isSCMHistoryItemGroupTreeElement, isSCMHistoryItemTreeElement, isSCMHistoryItemChangeTreeElement, toDiffEditorArguments, isSCMResourceNode, isSCMHistoryItemChangeNode, isSCMViewSeparator, connectPrimaryMenu } from './util';
 import { WorkbenchCompressibleAsyncDataTree, IOpenEvent } from 'vs/platform/list/browser/listService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { disposableTimeout, Sequencer, ThrottledDelayer, Throttler } from 'vs/base/common/async';
@@ -109,6 +109,7 @@ import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { OpenScmGroupAction } from 'vs/workbench/contrib/multiDiffEditor/browser/scmMultiDiffSourceResolver';
 import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
 import { ITextModel } from 'vs/editor/common/model';
+import { ArrayNavigator } from 'vs/base/common/navigator';
 
 // type SCMResourceTreeNode = IResourceNode<ISCMResource, ISCMResourceGroup>;
 // type SCMHistoryItemChangeResourceTreeNode = IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement>;
@@ -3434,18 +3435,27 @@ export class SCMViewPane extends ViewPane {
 
 	focusPreviousInput(): void {
 		this.treeOperationSequencer.queue(async () => {
-			await this.focusInput(getArrayPreviousIndex);
+			const getRepository = (items: readonly ISCMRepository[], index: number): ISCMRepository | null => {
+				return new ArrayNavigator(items, 0, items.length, index).previous();
+			};
+
+			await this.focusInput(getRepository);
 		});
 	}
 
 	focusNextInput(): void {
 		this.treeOperationSequencer.queue(async () => {
-			await this.focusInput(getArrayNextIndex);
+			const getRepository = (items: readonly ISCMRepository[], index: number): ISCMRepository | null => {
+				return new ArrayNavigator(items, 0, items.length, index).next();
+			};
+
+			await this.focusInput(getRepository);
 		});
 	}
 
-	private async focusInput(getIndex: (index: number, length: number) => number): Promise<void> {
-		if (!this.scmViewService.focusedRepository) {
+	private async focusInput(getRepository: (items: readonly ISCMRepository[], index: number) => ISCMRepository | null): Promise<void> {
+		if (!this.scmViewService.focusedRepository ||
+			this.scmViewService.visibleRepositories.length === 0) {
 			return;
 		}
 
@@ -3459,10 +3469,11 @@ export class SCMViewPane extends ViewPane {
 
 		// Multiple visible repositories and the input already focused
 		if (repositories.length > 1 && this.inputRenderer.getRenderedInputWidget(input)?.hasFocus() === true) {
-			const repositoryIndex = repositories.indexOf(this.scmViewService.focusedRepository);
-			const repositoryIndexNew = getIndex(repositoryIndex, repositories.length);
-
-			input = repositories[repositoryIndexNew].input;
+			const focusedRepositoryIndex = repositories.indexOf(this.scmViewService.focusedRepository);
+			const focusedRepositoryNew = getRepository(repositories, focusedRepositoryIndex);
+			if (focusedRepositoryNew) {
+				input = focusedRepositoryNew.input;
+			}
 		}
 
 		await this.tree.expandTo(input);
