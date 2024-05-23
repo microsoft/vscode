@@ -23,6 +23,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
 import { IssueQuickAccess } from 'vs/workbench/contrib/issue/browser/issueQuickAccess';
+import 'vs/workbench/contrib/issue/electron-sandbox/issueMainService';
+import 'vs/workbench/contrib/issue/electron-sandbox/issueService';
 
 
 //#region Issue Contribution
