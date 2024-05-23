@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { localize } from 'vs/nls';
-import { format } from 'vs/base/common/strings';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
 import { AccessibleViewType, AccessibleViewProviderId, AdvancedContentProvider, IAccessibleViewContentProvider, IAccessibleViewOptions } from 'vs/platform/accessibility/browser/accessibleView';
@@ -11,7 +10,6 @@ import { IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/a
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { HoverVerbosityAction } from 'vs/editor/common/languages';
 import { DECREASE_HOVER_VERBOSITY_ACCESSIBLE_ACTION_ID, DECREASE_HOVER_VERBOSITY_ACTION_ID, DECREASE_HOVER_VERBOSITY_ACTION_LABEL, INCREASE_HOVER_VERBOSITY_ACCESSIBLE_ACTION_ID, INCREASE_HOVER_VERBOSITY_ACTION_ID, INCREASE_HOVER_VERBOSITY_ACTION_LABEL } from 'vs/editor/contrib/hover/browser/hoverActionIds';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -24,16 +22,14 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 
 namespace HoverAccessibilityHelpNLS {
 	export const intro = localize('intro', "The hover widget is focused. Press the Tab key to cycle through the hover parts.");
-	export const increaseVerbosity = localize('increaseVerbosity', "- The focused hover part verbosity level can be increased ({0}).");
-	export const increaseVerbosityNoKb = localize('increaseVerbosityNoKb', "- The focused hover part verbosity level can be increased, which is currently not triggerable via keybinding.");
-	export const decreaseVerbosity = localize('decreaseVerbosity', "- The focused hover part verbosity level can be decreased ({0}).");
-	export const decreaseVerbosityNoKb = localize('decreaseVerbosityNoKb', "- The focused hover part verbosity level can be decreased, which is currently not triggerable via keybinding.");
+	export const increaseVerbosity = localize('increaseVerbosity', "- The focused hover part verbosity level can be increased with the Increase Hover Verbosity command<keybinding:{0}>.", INCREASE_HOVER_VERBOSITY_ACTION_ID);
+	export const decreaseVerbosity = localize('decreaseVerbosity', "- The focused hover part verbosity level can be decreased with the Decrease Hover Verbosity command<keybinding:{0}>.", DECREASE_HOVER_VERBOSITY_ACTION_ID);
 	export const hoverContent = localize('contentHover', "The last focused hover content is the following.");
 }
 
 export class HoverAccessibleView implements IAccessibleViewImplentation {
 
-	readonly type = AccessibleViewType.View;
+	readonly type = AccessibleViewType.Help;
 	readonly priority = 95;
 	readonly name = 'hover';
 	readonly when = EditorContextKeys.hoverFocused;
@@ -70,13 +66,12 @@ export class HoverAccessibilityHelpProvider extends Disposable implements IAcces
 	public onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 
 	constructor(
-		private readonly _editor: ICodeEditor,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService
+		private readonly _editor: ICodeEditor
 	) {
 		super();
 		this.options = {
 			language: this._editor.getModel()?.getLanguageId(),
-			type: AccessibleViewType.View
+			type: AccessibleViewType.Help
 		};
 		this._hoverController = HoverController.get(this._editor);
 		this._initializeActions();
@@ -160,27 +155,12 @@ export class HoverAccessibilityHelpProvider extends Disposable implements IAcces
 		if (!isActionSupported) {
 			return;
 		}
-		let actionId: string;
-		let descriptionWithKb: string;
-		let descriptionWithoutKb: string;
 		switch (action) {
 			case HoverVerbosityAction.Increase:
-				actionId = INCREASE_HOVER_VERBOSITY_ACTION_ID;
-				descriptionWithKb = HoverAccessibilityHelpNLS.increaseVerbosity;
-				descriptionWithoutKb = HoverAccessibilityHelpNLS.increaseVerbosityNoKb;
-				break;
+				return HoverAccessibilityHelpNLS.increaseVerbosity;
 			case HoverVerbosityAction.Decrease:
-				actionId = DECREASE_HOVER_VERBOSITY_ACTION_ID;
-				descriptionWithKb = HoverAccessibilityHelpNLS.decreaseVerbosity;
-				descriptionWithoutKb = HoverAccessibilityHelpNLS.decreaseVerbosityNoKb;
-				break;
+				return HoverAccessibilityHelpNLS.decreaseVerbosity;
 		}
-		return this._descriptionForCommand(actionId, descriptionWithKb, descriptionWithoutKb);
-	}
-
-	private _descriptionForCommand(commandId: string, msg: string, noKbMsg: string): string {
-		const kb = this._keybindingService.lookupKeybinding(commandId);
-		return kb ? format(msg, kb.getAriaLabel()) : format(noKbMsg, commandId);
 	}
 
 	private _descriptionOfFocusedMarkdownHover(hoverController: HoverController): string[] {
