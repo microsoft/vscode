@@ -15,8 +15,8 @@ import { isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnost
 import { IIssueMainService, IssueReporterData, IssueReporterExtensionData, IssueReporterWindowConfiguration, IssueType } from 'vs/platform/issue/common/issue';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { applyZoom, zoomIn, zoomOut } from 'vs/platform/window/electron-sandbox/window';
-import { BaseIssueReporterService, hide, show } from 'vs/workbench/browser/issues/issue';
-import { IssueReporterData as IssueReporterModelData } from 'vs/workbench/browser/issues/issueReporterModel';
+import { BaseIssueReporterService, hide, show } from 'vs/workbench/contrib/issue/browser/issue';
+import { IssueReporterData as IssueReporterModelData } from 'vs/workbench/contrib/issue/browser/issueReporterModel';
 
 // GitHub has let us know that we could up our limit here to 8k. We chose 7500 to play it safe.
 // ref https://github.com/microsoft/vscode/issues/159191

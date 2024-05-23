@@ -58,7 +58,7 @@ exports.workbenchDesktop = [
 	createModuleDescription('vs/platform/files/node/watcher/watcherMain'),
 	createModuleDescription('vs/platform/terminal/node/ptyHostMain'),
 	createModuleDescription('vs/workbench/api/node/extensionHostProcess'),
-	createModuleDescription('vs/workbench/electron-sandbox/issues/issueReporterMain'),
+	createModuleDescription('vs/workbench/contrib/issue/electron-sandbox/issueReporterMain'),
 ];
 
 exports.workbenchWeb = [

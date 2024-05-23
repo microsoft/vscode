@@ -122,7 +122,7 @@ const optimizeVSCodeTask = task.define('optimize-vscode', task.series(
 			},
 			manual: [
 				{ src: [...windowBootstrapFiles, 'out-build/vs/code/electron-sandbox/workbench/workbench.js'], out: 'vs/code/electron-sandbox/workbench/workbench.js' },
-				{ src: [...windowBootstrapFiles, 'out-build/vs/workbench/electron-sandbox/issues/issueReporter.js'], out: 'vs/workbench/electron-sandbox/issues/issueReporter.js' },
+				{ src: [...windowBootstrapFiles, 'out-build/vs/workbench/contrib/issue/electron-sandbox/issueReporter.js'], out: 'vs/workbench/issue/contrib/electron-sandbox/issueReporter.js' },
 				{ src: [...windowBootstrapFiles, 'out-build/vs/code/electron-sandbox/processExplorer/processExplorer.js'], out: 'vs/code/electron-sandbox/processExplorer/processExplorer.js' }
 			]
 		}

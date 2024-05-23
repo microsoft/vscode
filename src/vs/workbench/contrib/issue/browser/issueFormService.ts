@@ -6,7 +6,7 @@ import { safeInnerHtml } from 'vs/base/browser/dom';
 import { mainWindow } from 'vs/base/browser/window';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import BaseHtml from 'vs/workbench/browser/issues/issueReporterPage';
+import BaseHtml from 'vs/workbench/contrib/issue/browser/issueReporterPage';
 import 'vs/css!./media/issueReporter';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -15,7 +15,7 @@ import { ExtensionIdentifier, ExtensionIdentifierSet } from 'vs/platform/extensi
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IIssueMainService, IssueReporterData, ProcessExplorerData } from 'vs/platform/issue/common/issue';
 import product from 'vs/platform/product/common/product';
-import { IssueWebReporter } from 'vs/workbench/browser/issues/issueReporterService';
+import { IssueWebReporter } from 'vs/workbench/contrib/issue/browser/issueReporterService';
 import { AuxiliaryWindowMode, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 
 export class IssueMainService implements IIssueMainService {
