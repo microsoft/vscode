@@ -62,7 +62,7 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 
 	private registerListeners(): void {
 		this._register(this.onDidChangeMementoValue(StorageScope.WORKSPACE, this._store)(e => this.onDidChangeMementoState(e)));
-		this.registerContextKeyListeners();
+		this.whenReady.then(() => this.registerGroupsContextKeyListeners());
 	}
 
 	protected createMainEditorPart(): MainEditorPart {
@@ -637,8 +637,9 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 	private readonly globalContextKeys = new Map<string, IContextKey<ContextKeyValue>>();
 	private readonly scopedContextKeys = new Map<GroupIdentifier, Map<string, IContextKey<ContextKeyValue>>>();
 
-	private registerContextKeyListeners(): void {
+	private registerGroupsContextKeyListeners(): void {
 		this._register(this.onDidChangeActiveGroup(() => this.updateGlobalContextKeys()));
+		this.groups.forEach(group => this.registerGroupContextKeyProvidersListeners(group));
 		this._register(this.onDidAddGroup(group => this.registerGroupContextKeyProvidersListeners(group)));
 		this._register(this.onDidRemoveGroup(group => {
 			this.scopedContextKeys.delete(group.id);

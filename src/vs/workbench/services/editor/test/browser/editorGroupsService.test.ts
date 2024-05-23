@@ -21,6 +21,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/uti
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Emitter } from 'vs/base/common/event';
+import { isEqual } from 'vs/base/common/resources';
 
 suite('EditorGroupsService', () => {
 
@@ -2043,7 +2044,7 @@ suite('EditorGroupsService', () => {
 
 		const [parts] = await createParts(instantiationService);
 
-		const input = createTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+		const input1 = createTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
 		const input2 = createTestFileEditorInput(URI.file('foo/bar2'), TEST_EDITOR_INPUT_ID);
 		const input3 = createTestFileEditorInput(URI.file('foo/bar3'), TEST_EDITOR_INPUT_ID);
 
@@ -2051,7 +2052,7 @@ suite('EditorGroupsService', () => {
 		const group2 = parts.addGroup(group1, GroupDirection.RIGHT);
 
 		await group2.openEditor(input2, { pinned: true });
-		await group1.openEditor(input, { pinned: true });
+		await group1.openEditor(input1, { pinned: true });
 
 		// Create context key provider
 		const rawContextKey = new RawContextKey<number>('testContextKey', parts.activeGroup.id);
@@ -2107,14 +2108,14 @@ suite('EditorGroupsService', () => {
 
 		const parts = await createEditorParts(instantiationService, disposables);
 
-		const input = createTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+		const input1 = createTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
 		const input2 = createTestFileEditorInput(URI.file('foo/bar2'), TEST_EDITOR_INPUT_ID);
 
 		const group1 = parts.activeGroup;
 		const group2 = parts.addGroup(group1, GroupDirection.RIGHT);
 
 		await group2.openEditor(input2, { pinned: true });
-		await group1.openEditor(input, { pinned: true });
+		await group1.openEditor(input1, { pinned: true });
 
 		// Create context key provider
 		let offset = 0;
@@ -2148,6 +2149,50 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(globalContextKeyValue, group1.id + offset);
 		assert.strictEqual(group1ContextKeyValue, group1.id + offset);
 		assert.strictEqual(group2ContextKeyValue, group2.id + offset);
+
+		disposables.dispose();
+	});
+
+	test('context key provider: active editor change', async function () {
+		const disposables = new DisposableStore();
+
+		// Instantiate workbench and setup initial state
+		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+		const rootContextKeyService = instantiationService.get(IContextKeyService);
+
+		const parts = await createEditorParts(instantiationService, disposables);
+
+		const input1 = createTestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+		const input2 = createTestFileEditorInput(URI.file('foo/bar2'), TEST_EDITOR_INPUT_ID);
+
+		const group1 = parts.activeGroup;
+
+		await group1.openEditor(input2, { pinned: true });
+		await group1.openEditor(input1, { pinned: true });
+
+		// Create context key provider
+		const rawContextKey = new RawContextKey<string>('testContextKey', input1.resource.toString());
+		const contextKeyProvider: IEditorGroupContextKeyProvider<string> = {
+			contextKey: rawContextKey,
+			getGroupContextKeyValue: (group) => group.activeEditor?.resource?.toString() ?? '',
+		};
+		disposables.add(parts.registerContextKeyProvider(contextKeyProvider));
+
+		// Initial state: input1 is active
+		assert.strictEqual(isEqual(group1.activeEditor?.resource, input1.resource), true);
+
+		let globalContextKeyValue = rootContextKeyService.getContextKeyValue(rawContextKey.key);
+		let group1ContextKeyValue = group1.scopedContextKeyService.getContextKeyValue(rawContextKey.key);
+		assert.strictEqual(globalContextKeyValue, input1.resource.toString());
+		assert.strictEqual(group1ContextKeyValue, input1.resource.toString());
+
+		// Make input2 active and ensure both gloabal and local context key values are updated
+		await group1.openEditor(input2);
+
+		globalContextKeyValue = rootContextKeyService.getContextKeyValue(rawContextKey.key);
+		group1ContextKeyValue = group1.scopedContextKeyService.getContextKeyValue(rawContextKey.key);
+		assert.strictEqual(globalContextKeyValue, input2.resource.toString());
+		assert.strictEqual(group1ContextKeyValue, input2.resource.toString());
 
 		disposables.dispose();
 	});
