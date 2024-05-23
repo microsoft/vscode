@@ -3434,42 +3434,41 @@ export class SCMViewPane extends ViewPane {
 
 	focusPreviousInput(): void {
 		this.treeOperationSequencer.queue(async () => {
-			this.focusInput(getArrayPreviousIndex);
+			await this.focusInput(getArrayPreviousIndex);
 		});
 	}
 
 	focusNextInput(): void {
 		this.treeOperationSequencer.queue(async () => {
-			this.focusInput(getArrayNextIndex);
+			await this.focusInput(getArrayNextIndex);
 		});
 	}
 
-	private focusInput(getIndex: (index: number, length: number) => number): void {
+	private async focusInput(getIndex: (index: number, length: number) => number): Promise<void> {
 		if (!this.scmViewService.focusedRepository) {
 			return;
 		}
 
+		let input = this.scmViewService.focusedRepository.input;
 		const repositories = this.scmViewService.visibleRepositories;
 
-		let input = this.scmViewService.focusedRepository.input;
-		let inputWidget = this.inputRenderer.getRenderedInputWidget(input);
-
 		// One visible repository and the input is already focused
-		if (repositories.length === 1 && inputWidget?.hasFocus() === true) {
+		if (repositories.length === 1 && this.inputRenderer.getRenderedInputWidget(input)?.hasFocus() === true) {
 			return;
 		}
 
 		// Multiple visible repositories and the input already focused
-		if (repositories.length > 1 && inputWidget?.hasFocus() === true) {
+		if (repositories.length > 1 && this.inputRenderer.getRenderedInputWidget(input)?.hasFocus() === true) {
 			const repositoryIndex = repositories.indexOf(this.scmViewService.focusedRepository);
 			const repositoryIndexNew = getIndex(repositoryIndex, repositories.length);
 
 			input = repositories[repositoryIndexNew].input;
-			inputWidget = this.inputRenderer.getRenderedInputWidget(input);
 		}
 
+		await this.tree.expandTo(input);
+
 		this.tree.reveal(input);
-		inputWidget?.focus();
+		this.inputRenderer.getRenderedInputWidget(input)?.focus();
 	}
 
 	override shouldShowWelcome(): boolean {
