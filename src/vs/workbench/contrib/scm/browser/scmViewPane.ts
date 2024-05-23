@@ -3466,6 +3466,66 @@ export class SCMViewPane extends ViewPane {
 		});
 	}
 
+	focusPreviousResourceGroup(): void {
+		this.treeOperationSequencer.queue(async () => {
+			const getPreviousIndex = (index: number, length: number) => {
+				return index > 0 ? index - 1 : length - 1;
+			};
+
+			this.focusResourceGroup(getPreviousIndex);
+		});
+	}
+
+	focusNextResourceGroup(): void {
+		this.treeOperationSequencer.queue(async () => {
+			const getNextIndex = (index: number, length: number) => {
+				return index < length - 1 ? index + 1 : 0;
+			};
+
+			this.focusResourceGroup(getNextIndex);
+		});
+	}
+
+	private focusResourceGroup(getIndex: (index: number, length: number) => number): void {
+		if (!this.scmViewService.focusedRepository) {
+			return;
+		}
+
+		let resourceGroupNext: ISCMResourceGroup | undefined;
+
+		const resourceGroup = this.tree.getFocus().find(e => isSCMResourceGroup(e));
+		const resourceGroups = this.scmViewService.focusedRepository.provider.groups;
+		const resourceGroupIndex = resourceGroup ? resourceGroups.indexOf(resourceGroup) : -1;
+
+		if (resourceGroupIndex === -1) {
+			// First visible resource group
+			for (const resourceGroup of resourceGroups) {
+				if (this.tree.hasNode(resourceGroup)) {
+					resourceGroupNext = resourceGroup;
+					break;
+				}
+			}
+		} else {
+			// Next/Previous visible resource group
+			let index = getIndex(resourceGroupIndex, resourceGroups.length);
+			while (index !== resourceGroupIndex) {
+				if (this.tree.hasNode(resourceGroups[index])) {
+					resourceGroupNext = resourceGroups[index];
+					break;
+				}
+				index = getIndex(index, resourceGroups.length);
+			}
+		}
+
+		if (resourceGroupNext) {
+			this.tree.reveal(resourceGroupNext);
+
+			this.tree.setSelection([resourceGroupNext]);
+			this.tree.setFocus([resourceGroupNext]);
+			this.tree.domFocus();
+		}
+	}
+
 	override shouldShowWelcome(): boolean {
 		return this.scmService.repositoryCount === 0;
 	}

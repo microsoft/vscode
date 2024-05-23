@@ -34,6 +34,7 @@ import { IQuickDiffService } from 'vs/workbench/contrib/scm/common/quickDiff';
 import { QuickDiffService } from 'vs/workbench/contrib/scm/common/quickDiffService';
 import { getActiveElement } from 'vs/base/browser/dom';
 import { SCMWorkingSetController } from 'vs/workbench/contrib/scm/browser/workingSet';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 
 ModesRegistry.registerLanguage({
 	id: 'scminput',
@@ -473,6 +474,30 @@ MenuRegistry.appendMenuItem(MenuId.SCMSourceControl, {
 		title: localize('open in integrated terminal', "Open in Integrated Terminal")
 	},
 	when: ContextKeyExpr.and(ContextKeyExpr.equals('scmProviderHasRootUri', true), ContextKeyExpr.or(ContextKeyExpr.equals('config.terminal.sourceControlRepositoriesKind', 'integrated'), ContextKeyExpr.equals('config.terminal.sourceControlRepositoriesKind', 'both')))
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'workbench.scm.action.focusPreviousResourceGroup',
+	weight: KeybindingWeight.WorkbenchContrib,
+	handler: async accessor => {
+		const viewsService = accessor.get(IViewsService);
+		const scmView = await viewsService.openView<SCMViewPane>(VIEW_PANE_ID);
+		if (scmView) {
+			scmView.focusPreviousResourceGroup();
+		}
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'workbench.scm.action.focusNextResourceGroup',
+	weight: KeybindingWeight.WorkbenchContrib,
+	handler: async accessor => {
+		const viewsService = accessor.get(IViewsService);
+		const scmView = await viewsService.openView<SCMViewPane>(VIEW_PANE_ID);
+		if (scmView) {
+			scmView.focusNextResourceGroup();
+		}
+	}
 });
 
 registerSingleton(ISCMService, SCMService, InstantiationType.Delayed);
