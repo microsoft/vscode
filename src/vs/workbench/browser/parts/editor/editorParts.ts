@@ -733,7 +733,7 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		});
 	}
 
-	private groupContextKeyProvidersRunners = this._register(new DisposableMap<GroupIdentifier, IDisposable>());
+	private readonly groupContextKeyProvidersRunners = this._register(new DisposableMap<GroupIdentifier, IDisposable>());
 	private registerRunGroupContextKeyProviders(group: IEditorGroupView): void {
 		if (this.groupContextKeyProvidersRunners.has(group.id)) {
 			throw new Error(`A context key provider runner for group ${group.id} already exists.`);
