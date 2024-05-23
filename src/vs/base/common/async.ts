@@ -880,7 +880,7 @@ export class ResourceQueue implements IDisposable {
 
 export class TimeoutTimer implements IDisposable {
 	private _token: any;
-	private isDisposed = false;
+	private _isDisposed = false;
 
 	constructor();
 	constructor(runner: () => void, timeout: number);
@@ -894,7 +894,7 @@ export class TimeoutTimer implements IDisposable {
 
 	dispose(): void {
 		this.cancel();
-		this.isDisposed = true;
+		this._isDisposed = true;
 	}
 
 	cancel(): void {
@@ -905,9 +905,8 @@ export class TimeoutTimer implements IDisposable {
 	}
 
 	cancelAndSet(runner: () => void, timeout: number): void {
-		if (this.isDisposed) {
-			console.warn(`Calling 'cancelAndSet' on a disposed TimeoutTimer. Callback will not be scheduled.`);
-			return;
+		if (this._isDisposed) {
+			throw new BugIndicatingError(`Calling 'cancelAndSet' on a disposed TimeoutTimer`);
 		}
 
 		this.cancel();
@@ -918,9 +917,8 @@ export class TimeoutTimer implements IDisposable {
 	}
 
 	setIfNotSet(runner: () => void, timeout: number): void {
-		if (this.isDisposed) {
-			console.warn(`Calling 'setIfNotSet' on a disposed TimeoutTimer. Callback will not be scheduled.`);
-			return;
+		if (this._isDisposed) {
+			throw new BugIndicatingError(`Calling 'setIfNotSet' on a disposed TimeoutTimer`);
 		}
 
 		if (this._token !== -1) {
@@ -946,8 +944,7 @@ export class IntervalTimer implements IDisposable {
 
 	cancelAndSet(runner: () => void, interval: number, context = globalThis): void {
 		if (this.isDisposed) {
-			console.warn(`Trying to schedule on a disposed IntervalTimer. Callback will not be scheduled.`);
-			return;
+			throw new BugIndicatingError(`Calling 'cancelAndSet' on a disposed IntervalTimer`);
 		}
 
 		this.cancel();
