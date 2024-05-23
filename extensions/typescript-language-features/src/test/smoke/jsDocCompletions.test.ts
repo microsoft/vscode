@@ -14,7 +14,7 @@ const testDocumentUri = vscode.Uri.parse('untitled:test.ts');
 suite('JSDoc Completions', () => {
 	const _disposables: vscode.Disposable[] = [];
 
-	const configDefaults: VsCodeConfiguration = Object.freeze({
+	const configDefaults = Object.freeze<VsCodeConfiguration>({
 		[Config.snippetSuggestions]: 'inline',
 	});
 

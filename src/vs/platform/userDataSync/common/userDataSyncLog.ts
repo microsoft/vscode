@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { joinPath } from 'vs/base/common/resources';
+import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { AbstractLogger, ILogger, ILoggerService } from 'vs/platform/log/common/log';
-import { IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncLogService, USER_DATA_SYNC_LOG_ID } from 'vs/platform/userDataSync/common/userDataSync';
 
 export class UserDataSyncLogService extends AbstractLogger implements IUserDataSyncLogService {
 
@@ -14,10 +16,10 @@ export class UserDataSyncLogService extends AbstractLogger implements IUserDataS
 
 	constructor(
 		@ILoggerService loggerService: ILoggerService,
-		@IEnvironmentService environmentService: IEnvironmentService
+		@IEnvironmentService environmentService: IEnvironmentService,
 	) {
 		super();
-		this.logger = this._register(loggerService.createLogger(environmentService.userDataSyncLogResource, { name: 'settingssync' }));
+		this.logger = this._register(loggerService.createLogger(joinPath(environmentService.logsHome, `${USER_DATA_SYNC_LOG_ID}.log`), { id: USER_DATA_SYNC_LOG_ID, name: localize('userDataSyncLog', "Settings Sync") }));
 	}
 
 	trace(message: string, ...args: any[]): void {
@@ -38,10 +40,6 @@ export class UserDataSyncLogService extends AbstractLogger implements IUserDataS
 
 	error(message: string | Error, ...args: any[]): void {
 		this.logger.error(message, ...args);
-	}
-
-	critical(message: string | Error, ...args: any[]): void {
-		this.logger.critical(message, ...args);
 	}
 
 	flush(): void {

@@ -11,8 +11,9 @@ import * as model from 'vs/editor/common/model';
 import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 import { CellKind, ICellDto2, IMainCellDto, INotebookDiffResult, IOutputDto, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookCellTextModelSplice, NotebookData, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Range } from 'vs/editor/common/core/range';
-import { EditorWorkerHost } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerServiceImpl';
+import { INotebookWorkerHost } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerHost';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { SearchParams } from 'vs/editor/common/model/textModelSearch';
 
 function bufferHash(buffer: VSBuffer): number {
 	let initialHashVal = numberHash(104579, 0);
@@ -68,12 +69,7 @@ class MirrorCell {
 
 	getValue(): string {
 		const fullRange = this.getFullModelRange();
-		const eol = this.textBuffer.getEOL();
-		if (eol === '\n') {
-			return this.textBuffer.getValueInRange(fullRange, model.EndOfLinePreference.LF);
-		} else {
-			return this.textBuffer.getValueInRange(fullRange, model.EndOfLinePreference.CRLF);
-		}
+		return this.textBuffer.getValueInRange(fullRange, model.EndOfLinePreference.LF);
 	}
 
 	getComparisonValue(): number {
@@ -122,17 +118,26 @@ class MirrorNotebookDocument {
 			} else if (e.kind === NotebookCellsChangeType.Output) {
 				const cell = this.cells[e.index];
 				cell.outputs = e.outputs;
-			} else if (e.kind === NotebookCellsChangeType.ChangeLanguage) {
+			} else if (e.kind === NotebookCellsChangeType.ChangeCellLanguage) {
+				this._assertIndex(e.index);
 				const cell = this.cells[e.index];
 				cell.language = e.language;
 			} else if (e.kind === NotebookCellsChangeType.ChangeCellMetadata) {
+				this._assertIndex(e.index);
 				const cell = this.cells[e.index];
 				cell.metadata = e.metadata;
 			} else if (e.kind === NotebookCellsChangeType.ChangeCellInternalMetadata) {
+				this._assertIndex(e.index);
 				const cell = this.cells[e.index];
 				cell.internalMetadata = e.internalMetadata;
 			}
 		});
+	}
+
+	private _assertIndex(index: number): void {
+		if (index < 0 || index >= this.cells.length) {
+			throw new Error(`Illegal index ${index}. Cells length: ${this.cells.length}`);
+		}
 	}
 
 	_spliceNotebookCells(splices: NotebookCellTextModelSplice<IMainCellDto>[]) {
@@ -154,7 +159,7 @@ class MirrorNotebookDocument {
 	}
 }
 
-export class CellSequence implements ISequence {
+class CellSequence implements ISequence {
 
 	constructor(readonly textModel: MirrorNotebookDocument) {
 	}
@@ -178,7 +183,7 @@ export class CellSequence implements ISequence {
 export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable {
 	_requestHandlerBrand: any;
 
-	private _models: { [uri: string]: MirrorNotebookDocument; };
+	private _models: { [uri: string]: MirrorNotebookDocument };
 
 	constructor() {
 		this._models = Object.create(null);
@@ -199,9 +204,7 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 
 	public acceptModelChanged(strURL: string, event: NotebookCellsChangedEventDto) {
 		const model = this._models[strURL];
-		if (model) {
-			model.acceptModelChanged(event);
-		}
+		model?.acceptModelChanged(event);
 	}
 
 	public acceptRemovedModel(strURL: string): void {
@@ -218,7 +221,7 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 		const diff = new LcsDiff(new CellSequence(original), new CellSequence(modified));
 		const diffResult = diff.ComputeDiff(false);
 
-		/* let cellLineChanges: { originalCellhandle: number, modifiedCellhandle: number, lineChanges: editorCommon.ILineChange[] }[] = [];
+		/* let cellLineChanges: { originalCellhandle: number, modifiedCellhandle: number, lineChanges: ILineChange[] }[] = [];
 
 		diffResult.changes.forEach(change => {
 			if (change.modifiedLength === 0) {
@@ -273,6 +276,39 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 		};
 	}
 
+	canPromptRecommendation(modelUrl: string): boolean {
+		const model = this._getModel(modelUrl);
+		const cells = model.cells;
+
+		for (let i = 0; i < cells.length; i++) {
+			const cell = cells[i];
+			if (cell.cellKind === CellKind.Markup) {
+				continue;
+			}
+
+			if (cell.language !== 'python') {
+				continue;
+			}
+
+			const lineCount = cell.textBuffer.getLineCount();
+			const maxLineCount = Math.min(lineCount, 20);
+			const range = new Range(1, 1, maxLineCount, cell.textBuffer.getLineLength(maxLineCount) + 1);
+			const searchParams = new SearchParams('import\\s*pandas|from\\s*pandas', true, false, null);
+			const searchData = searchParams.parseSearchRequest();
+
+			if (!searchData) {
+				continue;
+			}
+
+			const cellMatches = cell.textBuffer.findMatchesLineByLine(range, searchData, true, 1);
+			if (cellMatches.length > 0) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
 	protected _getModel(uri: string): MirrorNotebookDocument {
 		return this._models[uri];
 	}
@@ -282,6 +318,6 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
  * Called on the worker side
  * @internal
  */
-export function create(host: EditorWorkerHost): IRequestHandler {
+export function create(host: INotebookWorkerHost): IRequestHandler {
 	return new NotebookEditorSimpleWorker();
 }

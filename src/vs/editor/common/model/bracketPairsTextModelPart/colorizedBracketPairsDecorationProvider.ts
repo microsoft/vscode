@@ -8,13 +8,14 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
 import { BracketPairColorizationOptions, IModelDecoration } from 'vs/editor/common/model';
-import { BracketInfo } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairs';
+import { BracketInfo } from 'vs/editor/common/textModelBracketPairs';
 import { DecorationProvider } from 'vs/editor/common/model/decorationProvider';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import {
 	editorBracketHighlightingForeground1, editorBracketHighlightingForeground2, editorBracketHighlightingForeground3, editorBracketHighlightingForeground4, editorBracketHighlightingForeground5, editorBracketHighlightingForeground6, editorBracketHighlightingUnexpectedBracketForeground
-} from 'vs/editor/common/view/editorColorRegistry';
+} from 'vs/editor/common/core/editorColorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IModelOptionsChangedEvent } from 'vs/editor/common/textModelEvents';
 
 export class ColorizedBracketPairsDecorationProvider extends Disposable implements DecorationProvider {
 	private colorizationOptions: BracketPairColorizationOptions;
@@ -28,16 +29,24 @@ export class ColorizedBracketPairsDecorationProvider extends Disposable implemen
 
 		this.colorizationOptions = textModel.getOptions().bracketPairColorizationOptions;
 
-		this._register(textModel.onDidChangeOptions(e => {
-			this.colorizationOptions = textModel.getOptions().bracketPairColorizationOptions;
-		}));
-
 		this._register(textModel.bracketPairs.onDidChange(e => {
 			this.onDidChangeEmitter.fire();
 		}));
 	}
 
-	getDecorationsInRange(range: Range, ownerId?: number, filterOutValidation?: boolean): IModelDecoration[] {
+	//#region TextModel events
+
+	public handleDidChangeOptions(e: IModelOptionsChangedEvent): void {
+		this.colorizationOptions = this.textModel.getOptions().bracketPairColorizationOptions;
+	}
+
+	//#endregion
+
+	getDecorationsInRange(range: Range, ownerId?: number, filterOutValidation?: boolean, onlyMinimapDecorations?: boolean): IModelDecoration[] {
+		if (onlyMinimapDecorations) {
+			// Bracket pair colorization decorations are not rendered in the minimap
+			return [];
+		}
 		if (ownerId === undefined) {
 			return [];
 		}
@@ -45,16 +54,19 @@ export class ColorizedBracketPairsDecorationProvider extends Disposable implemen
 			return [];
 		}
 
-		const result = new Array<IModelDecoration>();
-		const bracketsInRange = this.textModel.bracketPairs.getBracketsInRange(range);
-		for (const bracket of bracketsInRange) {
-			result.push({
-				id: `bracket${bracket.range.toString()}-${bracket.nestingLevel}`,
-				options: { description: 'BracketPairColorization', inlineClassName: this.colorProvider.getInlineClassName(bracket) },
-				ownerId: 0,
-				range: bracket.range
-			});
-		}
+		const result = this.textModel.bracketPairs.getBracketsInRange(range, true).map<IModelDecoration>(bracket => ({
+			id: `bracket${bracket.range.toString()}-${bracket.nestingLevel}`,
+			options: {
+				description: 'BracketPairColorization',
+				inlineClassName: this.colorProvider.getInlineClassName(
+					bracket,
+					this.colorizationOptions.independentColorPoolPerBracketType
+				),
+			},
+			ownerId: 0,
+			range: bracket.range,
+		})).toArray();
+
 		return result;
 	}
 
@@ -76,11 +88,11 @@ export class ColorizedBracketPairsDecorationProvider extends Disposable implemen
 class ColorProvider {
 	public readonly unexpectedClosingBracketClassName = 'unexpected-closing-bracket';
 
-	getInlineClassName(bracket: BracketInfo): string {
+	getInlineClassName(bracket: BracketInfo, independentColorPoolPerBracketType: boolean): string {
 		if (bracket.isInvalid) {
 			return this.unexpectedClosingBracketClassName;
 		}
-		return this.getInlineClassNameOfLevel(bracket.nestingLevel);
+		return this.getInlineClassNameOfLevel(independentColorPoolPerBracketType ? bracket.nestingLevelOfEqualBracketType : bracket.nestingLevel);
 	}
 
 	getInlineClassNameOfLevel(level: number): string {

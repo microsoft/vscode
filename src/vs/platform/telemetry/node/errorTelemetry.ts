@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isPromiseCanceledError, onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
+import { isCancellationError, isSigPipeError, onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import BaseErrorTelemetry from 'vs/platform/telemetry/common/errorTelemetry';
 
 export default class ErrorTelemetry extends BaseErrorTelemetry {
@@ -21,7 +21,7 @@ export default class ErrorTelemetry extends BaseErrorTelemetry {
 				if (idx >= 0) {
 					promise.catch(e => {
 						unhandledPromises.splice(idx, 1);
-						if (!isPromiseCanceledError(e)) {
+						if (!isCancellationError(e)) {
 							console.warn(`rejected promise not handled within 1 second: ${e}`);
 							if (e.stack) {
 								console.warn(`stack trace: ${e.stack}`);
@@ -43,7 +43,11 @@ export default class ErrorTelemetry extends BaseErrorTelemetry {
 		});
 
 		// Print a console message when an exception isn't handled.
-		process.on('uncaughtException', (err: Error) => {
+		process.on('uncaughtException', (err: Error | NodeJS.ErrnoException) => {
+			if (isSigPipeError(err)) {
+				return;
+			}
+
 			onUnexpectedError(err);
 		});
 	}

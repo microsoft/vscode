@@ -4,13 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { NotSupportedError } from 'vs/base/common/errors';
-import { LineTokens } from 'vs/editor/common/model/tokens/lineTokens';
-import { ITextModel } from 'vs/editor/common/model';
-import { SmallImmutableSet } from './smallImmutableSet';
-import { StandardTokenType, TokenMetadata } from 'vs/editor/common/languages';
+import { StandardTokenType, TokenMetadata } from 'vs/editor/common/encodedTokenAttributes';
+import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { BracketAstNode, TextAstNode } from './ast';
 import { BracketTokens, LanguageAgnosticBracketTokens } from './brackets';
-import { lengthGetColumnCountIfZeroLineCount, Length, lengthAdd, lengthDiff, lengthToObj, lengthZero, toLength } from './length';
+import { Length, lengthAdd, lengthDiff, lengthGetColumnCountIfZeroLineCount, lengthToObj, lengthZero, toLength } from './length';
+import { SmallImmutableSet } from './smallImmutableSet';
 
 export interface Tokenizer {
 	readonly offset: Length;
@@ -51,6 +50,16 @@ export class Token {
 	) { }
 }
 
+export interface ITokenizerSource {
+	getValue(): string;
+	getLineCount(): number;
+	getLineLength(lineNumber: number): number;
+
+	tokenization: {
+		getLineTokens(lineNumber: number): IViewLineTokens;
+	};
+}
+
 export class TextBufferTokenizer implements Tokenizer {
 	private readonly textBufferLineCount: number;
 	private readonly textBufferLastLineLength: number;
@@ -58,7 +67,7 @@ export class TextBufferTokenizer implements Tokenizer {
 	private readonly reader = new NonPeekableTextBufferTokenizer(this.textModel, this.bracketTokens);
 
 	constructor(
-		private readonly textModel: ITextModel,
+		private readonly textModel: ITokenizerSource,
 		private readonly bracketTokens: LanguageAgnosticBracketTokens
 	) {
 		this.textBufferLineCount = textModel.getLineCount();
@@ -72,7 +81,7 @@ export class TextBufferTokenizer implements Tokenizer {
 	}
 
 	get length() {
-		return toLength(this.textBufferLineCount, this.textBufferLastLineLength);
+		return toLength(this.textBufferLineCount - 1, this.textBufferLastLineLength);
 	}
 
 	getText() {
@@ -119,7 +128,7 @@ class NonPeekableTextBufferTokenizer {
 	private readonly textBufferLineCount: number;
 	private readonly textBufferLastLineLength: number;
 
-	constructor(private readonly textModel: ITextModel, private readonly bracketTokens: LanguageAgnosticBracketTokens) {
+	constructor(private readonly textModel: ITokenizerSource, private readonly bracketTokens: LanguageAgnosticBracketTokens) {
 		this.textBufferLineCount = textModel.getLineCount();
 		this.textBufferLastLineLength = textModel.getLineLength(this.textBufferLineCount);
 	}
@@ -127,14 +136,16 @@ class NonPeekableTextBufferTokenizer {
 	private lineIdx = 0;
 	private line: string | null = null;
 	private lineCharOffset = 0;
-	private lineTokens: LineTokens | null = null;
+	private lineTokens: IViewLineTokens | null = null;
 	private lineTokenOffset = 0;
 
 	public setPosition(lineIdx: number, column: number): void {
 		// We must not jump into a token!
 		if (lineIdx === this.lineIdx) {
 			this.lineCharOffset = column;
-			this.lineTokenOffset = this.lineCharOffset === 0 ? 0 : this.lineTokens!.findTokenIndexAtOffset(this.lineCharOffset);
+			if (this.line !== null) {
+				this.lineTokenOffset = this.lineCharOffset === 0 ? 0 : this.lineTokens!.findTokenIndexAtOffset(this.lineCharOffset);
+			}
 		} else {
 			this.lineIdx = lineIdx;
 			this.lineCharOffset = column;
@@ -160,9 +171,9 @@ class NonPeekableTextBufferTokenizer {
 		}
 
 		if (this.line === null) {
-			this.lineTokens = this.textModel.getLineTokens(this.lineIdx + 1);
+			this.lineTokens = this.textModel.tokenization.getLineTokens(this.lineIdx + 1);
 			this.line = this.lineTokens.getLineContent();
-			this.lineTokenOffset = this.lineCharOffset === 0 ? 0 : this.lineTokens!.findTokenIndexAtOffset(this.lineCharOffset);
+			this.lineTokenOffset = this.lineCharOffset === 0 ? 0 : this.lineTokens.findTokenIndexAtOffset(this.lineCharOffset);
 		}
 
 		const startLineIdx = this.lineIdx;
@@ -186,10 +197,11 @@ class NonPeekableTextBufferTokenizer {
 				}
 
 				const isOther = TokenMetadata.getTokenType(tokenMetadata) === StandardTokenType.Other;
+				const containsBracketType = TokenMetadata.containsBalancedBrackets(tokenMetadata);
 
 				const endOffset = lineTokens.getEndOffset(this.lineTokenOffset);
 				// Is there a bracket token next? Only consume text.
-				if (isOther && endOffset !== this.lineCharOffset) {
+				if (containsBracketType && isOther && this.lineCharOffset < endOffset) {
 					const languageId = lineTokens.getLanguageId(this.lineTokenOffset);
 					const text = this.line.substring(this.lineCharOffset, endOffset);
 
@@ -232,7 +244,7 @@ class NonPeekableTextBufferTokenizer {
 					break;
 				}
 				this.lineIdx++;
-				this.lineTokens = this.textModel.getLineTokens(this.lineIdx + 1);
+				this.lineTokens = this.textModel.tokenization.getLineTokens(this.lineIdx + 1);
 				this.lineTokenOffset = 0;
 				this.line = this.lineTokens.getLineContent();
 				this.lineCharOffset = 0;
@@ -270,7 +282,7 @@ export class FastTokenizer implements Tokenizer {
 
 	constructor(private readonly text: string, brackets: BracketTokens) {
 		const regExpStr = brackets.getRegExpStr();
-		const regexp = regExpStr ? new RegExp(brackets.getRegExpStr() + '|\n', 'g') : null;
+		const regexp = regExpStr ? new RegExp(regExpStr + '|\n', 'gi') : null;
 
 		const tokens: Token[] = [];
 
@@ -281,7 +293,7 @@ export class FastTokenizer implements Tokenizer {
 		let lastTokenEndOffset = 0;
 		let lastTokenEndLine = 0;
 
-		const smallTextTokens0Line = new Array<Token>();
+		const smallTextTokens0Line: Token[] = [];
 		for (let i = 0; i < 60; i++) {
 			smallTextTokens0Line.push(
 				new Token(
@@ -291,7 +303,7 @@ export class FastTokenizer implements Tokenizer {
 			);
 		}
 
-		const smallTextTokens1Line = new Array<Token>();
+		const smallTextTokens1Line: Token[] = [];
 		for (let i = 0; i < 60; i++) {
 			smallTextTokens1Line.push(
 				new Token(

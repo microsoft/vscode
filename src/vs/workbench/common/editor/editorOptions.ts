@@ -4,20 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IRange } from 'vs/editor/common/core/range';
-import { IEditor, IEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
-import { ITextEditorOptions, TextEditorSelectionRevealType } from 'vs/platform/editor/common/editor';
+import { ICodeEditorViewState, IDiffEditorViewState, IEditor, ScrollType } from 'vs/editor/common/editorCommon';
+import { ITextEditorOptions, TextEditorSelectionRevealType, TextEditorSelectionSource } from 'vs/platform/editor/common/editor';
+import { isTextEditorViewState } from 'vs/workbench/common/editor';
 
 export function applyTextEditorOptions(options: ITextEditorOptions, editor: IEditor, scrollType: ScrollType): boolean {
+	let applied = false;
 
-	// First try viewstate
-	if (options.viewState) {
-		editor.restoreViewState(options.viewState as IEditorViewState);
+	// Restore view state if any
+	const viewState = massageEditorViewState(options);
+	if (isTextEditorViewState(viewState)) {
+		editor.restoreViewState(viewState);
 
-		return true;
+		applied = true;
 	}
 
-	// Otherwise check for selection
-	else if (options.selection) {
+	// Restore selection if any
+	if (options.selection) {
 		const range: IRange = {
 			startLineNumber: options.selection.startLineNumber,
 			startColumn: options.selection.startColumn,
@@ -25,8 +28,13 @@ export function applyTextEditorOptions(options: ITextEditorOptions, editor: IEdi
 			endColumn: options.selection.endColumn ?? options.selection.startColumn
 		};
 
-		editor.setSelection(range);
+		// Apply selection with a source so that listeners can
+		// distinguish this selection change from others.
+		// If no source is provided, set a default source to
+		// signal this navigation.
+		editor.setSelection(range, options.selectionSource ?? TextEditorSelectionSource.NAVIGATION);
 
+		// Reveal selection
 		if (options.selectionRevealType === TextEditorSelectionRevealType.NearTop) {
 			editor.revealRangeNearTop(range, scrollType);
 		} else if (options.selectionRevealType === TextEditorSelectionRevealType.NearTopIfOutsideViewport) {
@@ -37,8 +45,35 @@ export function applyTextEditorOptions(options: ITextEditorOptions, editor: IEdi
 			editor.revealRangeInCenter(range, scrollType);
 		}
 
-		return true;
+		applied = true;
 	}
 
-	return false;
+	return applied;
+}
+
+function massageEditorViewState(options: ITextEditorOptions): object | undefined {
+
+	// Without a selection or view state, just return immediately
+	if (!options.selection || !options.viewState) {
+		return options.viewState;
+	}
+
+	// Diff editor: since we have an explicit selection, clear the
+	// cursor state from the modified side where the selection
+	// applies. This avoids a redundant selection change event.
+	const candidateDiffViewState = options.viewState as IDiffEditorViewState;
+	if (candidateDiffViewState.modified) {
+		candidateDiffViewState.modified.cursorState = [];
+
+		return candidateDiffViewState;
+	}
+
+	// Code editor: since we have an explicit selection, clear the
+	// cursor state. This avoids a redundant selection change event.
+	const candidateEditorViewState = options.viewState as ICodeEditorViewState;
+	if (candidateEditorViewState.cursorState) {
+		candidateEditorViewState.cursorState = [];
+	}
+
+	return candidateEditorViewState;
 }

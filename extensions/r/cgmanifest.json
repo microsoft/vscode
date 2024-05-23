@@ -4,13 +4,13 @@
 			"component": {
 				"type": "git",
 				"git": {
-					"name": "Ikuyadeu/vscode-R",
-					"repositoryUrl": "https://github.com/Ikuyadeu/vscode-R",
-					"commitHash": "f99fdd79533b62b0b6eb6142190963349aa621d7"
+					"name": "REditorSupport/vscode-R",
+					"repositoryUrl": "https://github.com/REditorSupport/vscode-R",
+					"commitHash": "ad966f3b2de8a83594f90aa5b51f5b569cf02c08"
 				}
 			},
 			"license": "MIT",
-			"version": "2.3.2"
+			"version": "2.8.1"
 		}
 	],
 	"version": 1

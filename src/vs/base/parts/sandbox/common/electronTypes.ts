@@ -7,10 +7,9 @@
 // #######################################################################
 // ###                                                                 ###
 // ###      electron.d.ts types we need in a common layer for reuse    ###
-// ###                    (copied from Electron 11.x)                  ###
+// ###                    (copied from Electron 29.x)                  ###
 // ###                                                                 ###
 // #######################################################################
-
 
 export interface MessageBoxOptions {
 	/**
@@ -18,12 +17,11 @@ export interface MessageBoxOptions {
 	 */
 	message: string;
 	/**
-	 * Can be `"none"`, `"info"`, `"error"`, `"question"` or `"warning"`. On Windows,
-	 * `"question"` displays the same icon as `"info"`, unless you set an icon using
-	 * the `"icon"` option. On macOS, both `"warning"` and `"error"` display the same
-	 * warning icon.
+	 * Can be `none`, `info`, `error`, `question` or `warning`. On Windows, `question`
+	 * displays the same icon as `info`, unless you set an icon using the `icon`
+	 * option. On macOS, both `warning` and `error` display the same warning icon.
 	 */
-	type?: string;
+	type?: ('none' | 'info' | 'error' | 'question' | 'warning');
 	/**
 	 * Array of texts for buttons. On Windows, an empty array will result in one button
 	 * labeled "OK".
@@ -34,6 +32,13 @@ export interface MessageBoxOptions {
 	 * the message box opens.
 	 */
 	defaultId?: number;
+	/**
+	 * Pass an instance of AbortSignal to optionally close the message box, the message
+	 * box will behave as if it was cancelled by the user. On macOS, `signal` does not
+	 * work with message boxes that do not have a parent window, since those message
+	 * boxes run synchronously due to platform limitations.
+	 */
+	signal?: AbortSignal;
 	/**
 	 * Title of the message box, some platforms will not show it.
 	 */
@@ -50,7 +55,12 @@ export interface MessageBoxOptions {
 	 * Initial checked state of the checkbox. `false` by default.
 	 */
 	checkboxChecked?: boolean;
-	// icon?: NativeImage;
+	/**
+	 * Custom width of the text in the message box.
+	 *
+	 * @platform darwin
+	 */
+	textWidth?: number;
 	/**
 	 * The index of the button to be used to cancel the dialog, via the `Esc` key. By
 	 * default this is assigned to the first button with "cancel" or "no" as the label.
@@ -88,21 +98,10 @@ export interface MessageBoxReturnValue {
 	checkboxChecked: boolean;
 }
 
-export interface OpenDevToolsOptions {
-	/**
-	 * Opens the devtools with specified dock state, can be `right`, `bottom`,
-	 * `undocked`, `detach`. Defaults to last used dock state. In `undocked` mode it's
-	 * possible to dock back. In `detach` mode it's not.
-	 */
-	mode: ('right' | 'bottom' | 'undocked' | 'detach');
-	/**
-	 * Whether to bring the opened devtools window to the foreground. The default is
-	 * `true`.
-	 */
-	activate?: boolean;
-}
-
 export interface SaveDialogOptions {
+	/**
+	 * The dialog title. Cannot be displayed on some _Linux_ desktop environments.
+	 */
 	title?: string;
 	/**
 	 * Absolute directory path, absolute file path, or file name to use by default.
@@ -141,6 +140,25 @@ export interface SaveDialogOptions {
 	 * @platform darwin,mas
 	 */
 	securityScopedBookmarks?: boolean;
+}
+
+export interface SaveDialogReturnValue {
+	/**
+	 * whether or not the dialog was canceled.
+	 */
+	canceled: boolean;
+	/**
+	 * If the dialog is canceled, this will be an empty string.
+	 */
+	filePath: string;
+	/**
+	 * Base64 encoded string which contains the security scoped bookmark data for the
+	 * saved file. `securityScopedBookmarks` must be enabled for this to be present.
+	 * (For return values, see table here.)
+	 *
+	 * @platform darwin,mas
+	 */
+	bookmark?: string;
 }
 
 export interface OpenDialogOptions {
@@ -191,25 +209,6 @@ export interface OpenDialogReturnValue {
 	bookmarks?: string[];
 }
 
-export interface SaveDialogReturnValue {
-	/**
-	 * whether or not the dialog was canceled.
-	 */
-	canceled: boolean;
-	/**
-	 * If the dialog is canceled, this will be `undefined`.
-	 */
-	filePath?: string;
-	/**
-	 * Base64 encoded string which contains the security scoped bookmark data for the
-	 * saved file. `securityScopedBookmarks` must be enabled for this to be present.
-	 * (For return values, see table here.)
-	 *
-	 * @platform darwin,mas
-	 */
-	bookmark?: string;
-}
-
 export interface FileFilter {
 
 	// Docs: https://electronjs.org/docs/api/structures/file-filter
@@ -218,7 +217,25 @@ export interface FileFilter {
 	name: string;
 }
 
-export interface InputEvent {
+export interface OpenDevToolsOptions {
+	/**
+	 * Opens the devtools with specified dock state, can be `left`, `right`, `bottom`,
+	 * `undocked`, `detach`. Defaults to last used dock state. In `undocked` mode it's
+	 * possible to dock back. In `detach` mode it's not.
+	 */
+	mode: ('left' | 'right' | 'bottom' | 'undocked' | 'detach');
+	/**
+	 * Whether to bring the opened devtools window to the foreground. The default is
+	 * `true`.
+	 */
+	activate?: boolean;
+	/**
+	 * A title for the DevTools window (only in `undocked` or `detach` mode).
+	 */
+	title?: string;
+}
+
+interface InputEvent {
 
 	// Docs: https://electronjs.org/docs/api/structures/input-event
 
@@ -228,6 +245,19 @@ export interface InputEvent {
 	 * `middleButtonDown`, `rightButtonDown`, `capsLock`, `numLock`, `left`, `right`.
 	 */
 	modifiers?: Array<'shift' | 'control' | 'ctrl' | 'alt' | 'meta' | 'command' | 'cmd' | 'isKeypad' | 'isAutoRepeat' | 'leftButtonDown' | 'middleButtonDown' | 'rightButtonDown' | 'capsLock' | 'numLock' | 'left' | 'right'>;
+	/**
+	 * Can be `undefined`, `mouseDown`, `mouseUp`, `mouseMove`, `mouseEnter`,
+	 * `mouseLeave`, `contextMenu`, `mouseWheel`, `rawKeyDown`, `keyDown`, `keyUp`,
+	 * `char`, `gestureScrollBegin`, `gestureScrollEnd`, `gestureScrollUpdate`,
+	 * `gestureFlingStart`, `gestureFlingCancel`, `gesturePinchBegin`,
+	 * `gesturePinchEnd`, `gesturePinchUpdate`, `gestureTapDown`, `gestureShowPress`,
+	 * `gestureTap`, `gestureTapCancel`, `gestureShortPress`, `gestureLongPress`,
+	 * `gestureLongTap`, `gestureTwoFingerTap`, `gestureTapUnconfirmed`,
+	 * `gestureDoubleTap`, `touchStart`, `touchMove`, `touchEnd`, `touchCancel`,
+	 * `touchScrollStarted`, `pointerDown`, `pointerUp`, `pointerMove`,
+	 * `pointerRawUpdate`, `pointerCancel` or `pointerCausedUaAction`.
+	 */
+	type: ('undefined' | 'mouseDown' | 'mouseUp' | 'mouseMove' | 'mouseEnter' | 'mouseLeave' | 'contextMenu' | 'mouseWheel' | 'rawKeyDown' | 'keyDown' | 'keyUp' | 'char' | 'gestureScrollBegin' | 'gestureScrollEnd' | 'gestureScrollUpdate' | 'gestureFlingStart' | 'gestureFlingCancel' | 'gesturePinchBegin' | 'gesturePinchEnd' | 'gesturePinchUpdate' | 'gestureTapDown' | 'gestureShowPress' | 'gestureTap' | 'gestureTapCancel' | 'gestureShortPress' | 'gestureLongPress' | 'gestureLongTap' | 'gestureTwoFingerTap' | 'gestureTapUnconfirmed' | 'gestureDoubleTap' | 'touchStart' | 'touchMove' | 'touchEnd' | 'touchCancel' | 'touchScrollStarted' | 'pointerDown' | 'pointerUp' | 'pointerMove' | 'pointerRawUpdate' | 'pointerCancel' | 'pointerCausedUaAction');
 }
 
 export interface MouseInputEvent extends InputEvent {

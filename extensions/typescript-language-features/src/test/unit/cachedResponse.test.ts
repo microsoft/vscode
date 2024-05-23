@@ -6,8 +6,8 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
-import type * as Proto from '../../protocol';
 import { CachedResponse } from '../../tsServer/cachedResponse';
+import type * as Proto from '../../tsServer/protocol/protocol';
 import { ServerResponse } from '../../typescriptService';
 
 suite('CachedResponse', () => {
@@ -118,7 +118,7 @@ function createResponse(command: string): Proto.Response {
 	};
 }
 
-function createEventualResponder<T>(): { promise: Promise<T>, resolve: (x: T) => void } {
+function createEventualResponder<T>(): { promise: Promise<T>; resolve: (x: T) => void } {
 	let resolve: (value: T) => void;
 	const promise = new Promise<T>(r => { resolve = r; });
 	return { promise, resolve: resolve! };

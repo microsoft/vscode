@@ -5,8 +5,8 @@
 
 // file generated from PHP53Schema.xml using php-exclude_generate_php_globals.js
 
-export interface IEntry { description?: string; signature?: string; }
-export interface IEntries { [name: string]: IEntry; }
+export interface IEntry { description?: string; signature?: string }
+export interface IEntries { [name: string]: IEntry }
 
 export const globalvariables: IEntries = {
 	$GLOBALS: {

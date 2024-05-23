@@ -10,7 +10,7 @@ import { OperatingSystem, OS } from 'vs/base/common/platform';
 import { basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { getVirtualWorkspaceScheme } from 'vs/platform/remote/common/remoteHosts';
+import { getVirtualWorkspaceScheme } from 'vs/platform/workspace/common/virtualWorkspace';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -57,6 +57,7 @@ export interface IPathService {
 	 * remote's user home directory, otherwise the local one unless
 	 * `preferLocal` is set to `true`.
 	 */
+	userHome(options: { preferLocal: true }): URI;
 	userHome(options?: { preferLocal: boolean }): Promise<URI>;
 
 	/**
@@ -103,8 +104,7 @@ export abstract class AbstractPathService implements IPathService {
 		// User Home
 		this.resolveUserHome = (async () => {
 			const env = await this.remoteAgentService.getEnvironment();
-			const userHome = this.maybeUnresolvedUserHome = env?.userHome || localUserHome;
-
+			const userHome = this.maybeUnresolvedUserHome = env?.userHome ?? localUserHome;
 
 			return userHome;
 		})();
@@ -139,7 +139,7 @@ export abstract class AbstractPathService implements IPathService {
 		return AbstractPathService.findDefaultUriScheme(this.environmentService, this.contextService);
 	}
 
-	protected static findDefaultUriScheme(environmentService: IWorkbenchEnvironmentService, contextService: IWorkspaceContextService): string {
+	static findDefaultUriScheme(environmentService: IWorkbenchEnvironmentService, contextService: IWorkspaceContextService): string {
 		if (environmentService.remoteAuthority) {
 			return Schemas.vscodeRemote;
 		}
@@ -162,7 +162,9 @@ export abstract class AbstractPathService implements IPathService {
 		return Schemas.file;
 	}
 
-	async userHome(options?: { preferLocal: boolean }): Promise<URI> {
+	userHome(options?: { preferLocal: boolean }): Promise<URI>;
+	userHome(options: { preferLocal: true }): URI;
+	userHome(options?: { preferLocal: boolean }): Promise<URI> | URI {
 		return options?.preferLocal ? this.localUserHome : this.resolveUserHome;
 	}
 

@@ -31,7 +31,9 @@ export class ExtHostMessageService {
 	showMessage(extension: IExtensionDescription, severity: Severity, message: string, optionsOrFirstItem: vscode.MessageOptions | vscode.MessageItem | string | undefined, rest: Array<vscode.MessageItem | string>): Promise<string | vscode.MessageItem | undefined>;
 	showMessage(extension: IExtensionDescription, severity: Severity, message: string, optionsOrFirstItem: vscode.MessageOptions | string | vscode.MessageItem | undefined, rest: Array<string | vscode.MessageItem>): Promise<string | vscode.MessageItem | undefined> {
 
-		const options: MainThreadMessageOptions = { extension };
+		const options: MainThreadMessageOptions = {
+			source: { identifier: extension.identifier, label: extension.displayName || extension.name }
+		};
 		let items: (string | vscode.MessageItem)[];
 
 		if (typeof optionsOrFirstItem === 'string' || isMessageItem(optionsOrFirstItem)) {
@@ -47,17 +49,25 @@ export class ExtHostMessageService {
 			checkProposedApiEnabled(extension, 'resolvers');
 		}
 
-		const commands: { title: string; isCloseAffordance: boolean; handle: number; }[] = [];
+		const commands: { title: string; isCloseAffordance: boolean; handle: number }[] = [];
+		let hasCloseAffordance = false;
 
 		for (let handle = 0; handle < items.length; handle++) {
 			const command = items[handle];
 			if (typeof command === 'string') {
 				commands.push({ title: command, handle, isCloseAffordance: false });
 			} else if (typeof command === 'object') {
-				let { title, isCloseAffordance } = command;
+				const { title, isCloseAffordance } = command;
 				commands.push({ title, isCloseAffordance: !!isCloseAffordance, handle });
+				if (isCloseAffordance) {
+					if (hasCloseAffordance) {
+						this._logService.warn(`[${extension.identifier}] Only one message item can have 'isCloseAffordance':`, command);
+					} else {
+						hasCloseAffordance = true;
+					}
+				}
 			} else {
-				this._logService.warn('Invalid message item:', command);
+				this._logService.warn(`[${extension.identifier}] Invalid message item:`, command);
 			}
 		}
 

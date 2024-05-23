@@ -4,14 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { StandardTokenType } from 'vs/editor/common/languages';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 import { StandardAutoClosingPairConditional } from 'vs/editor/common/languages/languageConfiguration';
-import { LanguageConfigurationRegistry } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 
 suite('StandardAutoClosingPairConditional', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('Missing notIn', () => {
-		let v = new StandardAutoClosingPairConditional({ open: '{', close: '}' });
+		const v = new StandardAutoClosingPairConditional({ open: '{', close: '}' });
 		assert.strictEqual(v.isOK(StandardTokenType.Other), true);
 		assert.strictEqual(v.isOK(StandardTokenType.Comment), true);
 		assert.strictEqual(v.isOK(StandardTokenType.String), true);
@@ -19,7 +22,7 @@ suite('StandardAutoClosingPairConditional', () => {
 	});
 
 	test('Empty notIn', () => {
-		let v = new StandardAutoClosingPairConditional({ open: '{', close: '}', notIn: [] });
+		const v = new StandardAutoClosingPairConditional({ open: '{', close: '}', notIn: [] });
 		assert.strictEqual(v.isOK(StandardTokenType.Other), true);
 		assert.strictEqual(v.isOK(StandardTokenType.Comment), true);
 		assert.strictEqual(v.isOK(StandardTokenType.String), true);
@@ -27,7 +30,7 @@ suite('StandardAutoClosingPairConditional', () => {
 	});
 
 	test('Invalid notIn', () => {
-		let v = new StandardAutoClosingPairConditional({ open: '{', close: '}', notIn: ['bla'] });
+		const v = new StandardAutoClosingPairConditional({ open: '{', close: '}', notIn: ['bla'] });
 		assert.strictEqual(v.isOK(StandardTokenType.Other), true);
 		assert.strictEqual(v.isOK(StandardTokenType.Comment), true);
 		assert.strictEqual(v.isOK(StandardTokenType.String), true);
@@ -35,7 +38,7 @@ suite('StandardAutoClosingPairConditional', () => {
 	});
 
 	test('notIn in strings', () => {
-		let v = new StandardAutoClosingPairConditional({ open: '{', close: '}', notIn: ['string'] });
+		const v = new StandardAutoClosingPairConditional({ open: '{', close: '}', notIn: ['string'] });
 		assert.strictEqual(v.isOK(StandardTokenType.Other), true);
 		assert.strictEqual(v.isOK(StandardTokenType.Comment), true);
 		assert.strictEqual(v.isOK(StandardTokenType.String), false);
@@ -43,7 +46,7 @@ suite('StandardAutoClosingPairConditional', () => {
 	});
 
 	test('notIn in comments', () => {
-		let v = new StandardAutoClosingPairConditional({ open: '{', close: '}', notIn: ['comment'] });
+		const v = new StandardAutoClosingPairConditional({ open: '{', close: '}', notIn: ['comment'] });
 		assert.strictEqual(v.isOK(StandardTokenType.Other), true);
 		assert.strictEqual(v.isOK(StandardTokenType.Comment), false);
 		assert.strictEqual(v.isOK(StandardTokenType.String), true);
@@ -51,7 +54,7 @@ suite('StandardAutoClosingPairConditional', () => {
 	});
 
 	test('notIn in regex', () => {
-		let v = new StandardAutoClosingPairConditional({ open: '{', close: '}', notIn: ['regex'] });
+		const v = new StandardAutoClosingPairConditional({ open: '{', close: '}', notIn: ['regex'] });
 		assert.strictEqual(v.isOK(StandardTokenType.Other), true);
 		assert.strictEqual(v.isOK(StandardTokenType.Comment), true);
 		assert.strictEqual(v.isOK(StandardTokenType.String), true);
@@ -59,7 +62,7 @@ suite('StandardAutoClosingPairConditional', () => {
 	});
 
 	test('notIn in strings nor comments', () => {
-		let v = new StandardAutoClosingPairConditional({ open: '{', close: '}', notIn: ['string', 'comment'] });
+		const v = new StandardAutoClosingPairConditional({ open: '{', close: '}', notIn: ['string', 'comment'] });
 		assert.strictEqual(v.isOK(StandardTokenType.Other), true);
 		assert.strictEqual(v.isOK(StandardTokenType.Comment), false);
 		assert.strictEqual(v.isOK(StandardTokenType.String), false);
@@ -67,7 +70,7 @@ suite('StandardAutoClosingPairConditional', () => {
 	});
 
 	test('notIn in strings nor regex', () => {
-		let v = new StandardAutoClosingPairConditional({ open: '{', close: '}', notIn: ['string', 'regex'] });
+		const v = new StandardAutoClosingPairConditional({ open: '{', close: '}', notIn: ['string', 'regex'] });
 		assert.strictEqual(v.isOK(StandardTokenType.Other), true);
 		assert.strictEqual(v.isOK(StandardTokenType.Comment), true);
 		assert.strictEqual(v.isOK(StandardTokenType.String), false);
@@ -75,7 +78,7 @@ suite('StandardAutoClosingPairConditional', () => {
 	});
 
 	test('notIn in comments nor regex', () => {
-		let v = new StandardAutoClosingPairConditional({ open: '{', close: '}', notIn: ['comment', 'regex'] });
+		const v = new StandardAutoClosingPairConditional({ open: '{', close: '}', notIn: ['comment', 'regex'] });
 		assert.strictEqual(v.isOK(StandardTokenType.Other), true);
 		assert.strictEqual(v.isOK(StandardTokenType.Comment), false);
 		assert.strictEqual(v.isOK(StandardTokenType.String), true);
@@ -83,7 +86,7 @@ suite('StandardAutoClosingPairConditional', () => {
 	});
 
 	test('notIn in strings, comments nor regex', () => {
-		let v = new StandardAutoClosingPairConditional({ open: '{', close: '}', notIn: ['string', 'comment', 'regex'] });
+		const v = new StandardAutoClosingPairConditional({ open: '{', close: '}', notIn: ['string', 'comment', 'regex'] });
 		assert.strictEqual(v.isOK(StandardTokenType.Other), true);
 		assert.strictEqual(v.isOK(StandardTokenType.Comment), false);
 		assert.strictEqual(v.isOK(StandardTokenType.String), false);
@@ -91,11 +94,13 @@ suite('StandardAutoClosingPairConditional', () => {
 	});
 
 	test('language configurations priorities', () => {
+		const languageConfigurationService = new TestLanguageConfigurationService();
 		const id = 'testLang1';
-		const d1 = LanguageConfigurationRegistry.register(id, { comments: { lineComment: '1' } }, 100);
-		const d2 = LanguageConfigurationRegistry.register(id, { comments: { lineComment: '2' } }, 10);
-		assert.strictEqual(LanguageConfigurationRegistry.getComments(id)?.lineCommentToken, '1');
+		const d1 = languageConfigurationService.register(id, { comments: { lineComment: '1' } }, 100);
+		const d2 = languageConfigurationService.register(id, { comments: { lineComment: '2' } }, 10);
+		assert.strictEqual(languageConfigurationService.getLanguageConfiguration(id).comments?.lineCommentToken, '1');
 		d1.dispose();
 		d2.dispose();
+		languageConfigurationService.dispose();
 	});
 });

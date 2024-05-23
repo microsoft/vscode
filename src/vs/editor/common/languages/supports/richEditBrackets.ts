@@ -208,11 +208,11 @@ export class RichEditBrackets {
 	/**
 	 * A map useful for decoding a regex match and finding which bracket group was matched.
 	 */
-	public readonly textIsBracket: { [text: string]: RichEditBracket; };
+	public readonly textIsBracket: { [text: string]: RichEditBracket };
 	/**
 	 * A set useful for decoding if a regex match is the open bracket of a bracket pair.
 	 */
-	public readonly textIsOpenBracket: { [text: string]: boolean; };
+	public readonly textIsOpenBracket: { [text: string]: boolean };
 
 	constructor(languageId: string, _brackets: readonly CharacterPair[]) {
 		const brackets = groupFuzzyBrackets(_brackets);
@@ -416,22 +416,13 @@ function createBracketOrRegExp(pieces: string[]): RegExp {
 const toReversedString = (function () {
 
 	function reverse(str: string): string {
-		if (stringBuilder.hasTextDecoder) {
-			// create a Uint16Array and then use a TextDecoder to create a string
-			const arr = new Uint16Array(str.length);
-			let offset = 0;
-			for (let i = str.length - 1; i >= 0; i--) {
-				arr[offset++] = str.charCodeAt(i);
-			}
-			return stringBuilder.getPlatformTextDecoder().decode(arr);
-		} else {
-			const result: string[] = [];
-			let resultLen = 0;
-			for (let i = str.length - 1; i >= 0; i--) {
-				result[resultLen++] = str.charAt(i);
-			}
-			return result.join('');
+		// create a Uint16Array and then use a TextDecoder to create a string
+		const arr = new Uint16Array(str.length);
+		let offset = 0;
+		for (let i = str.length - 1; i >= 0; i--) {
+			arr[offset++] = str.charCodeAt(i);
 		}
+		return stringBuilder.getPlatformTextDecoder().decode(arr);
 	}
 
 	let lastInput: string | null = null;

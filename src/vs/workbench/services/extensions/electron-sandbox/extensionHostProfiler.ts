@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TernarySearchTree } from 'vs/base/common/map';
+import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { IExtensionHostProfile, IExtensionService, ProfileSegmentId, ProfileSession } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { IV8InspectProfilingService, IV8Profile, IV8ProfileNode } from 'vs/platform/profiling/common/profiling';
-import { once } from 'vs/base/common/functional';
+import { createSingleCallFunction } from 'vs/base/common/functional';
 
 export class ExtensionHostProfiler {
 
 	constructor(
+		private readonly _host: string,
 		private readonly _port: number,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@IV8InspectProfilingService private readonly _profilingService: IV8InspectProfilingService,
@@ -23,29 +23,30 @@ export class ExtensionHostProfiler {
 
 	public async start(): Promise<ProfileSession> {
 
-		const id = await this._profilingService.startProfiling({ port: this._port });
+		const id = await this._profilingService.startProfiling({ host: this._host, port: this._port });
 
 		return {
-			stop: once(async () => {
+			stop: createSingleCallFunction(async () => {
 				const profile = await this._profilingService.stopProfiling(id);
-				const extensions = await this._extensionService.getExtensions();
+				await this._extensionService.whenInstalledExtensionsRegistered();
+				const extensions = this._extensionService.extensions;
 				return this._distill(profile, extensions);
 			})
 		};
 	}
 
-	private _distill(profile: IV8Profile, extensions: IExtensionDescription[]): IExtensionHostProfile {
-		let searchTree = TernarySearchTree.forUris<IExtensionDescription>();
-		for (let extension of extensions) {
+	private _distill(profile: IV8Profile, extensions: readonly IExtensionDescription[]): IExtensionHostProfile {
+		const searchTree = TernarySearchTree.forUris<IExtensionDescription>();
+		for (const extension of extensions) {
 			if (extension.extensionLocation.scheme === Schemas.file) {
 				searchTree.set(URI.file(extension.extensionLocation.fsPath), extension);
 			}
 		}
 
-		let nodes = profile.nodes;
-		let idsToNodes = new Map<number, IV8ProfileNode>();
-		let idsToSegmentId = new Map<number, ProfileSegmentId | null>();
-		for (let node of nodes) {
+		const nodes = profile.nodes;
+		const idsToNodes = new Map<number, IV8ProfileNode>();
+		const idsToSegmentId = new Map<number, ProfileSegmentId | null>();
+		for (const node of nodes) {
 			idsToNodes.set(node.id, node);
 		}
 
@@ -89,21 +90,21 @@ export class ExtensionHostProfiler {
 		visit(nodes[0], null);
 
 		const samples = profile.samples || [];
-		let timeDeltas = profile.timeDeltas || [];
-		let distilledDeltas: number[] = [];
-		let distilledIds: ProfileSegmentId[] = [];
+		const timeDeltas = profile.timeDeltas || [];
+		const distilledDeltas: number[] = [];
+		const distilledIds: ProfileSegmentId[] = [];
 
 		let currSegmentTime = 0;
 		let currSegmentId: string | undefined;
 		for (let i = 0; i < samples.length; i++) {
-			let id = samples[i];
-			let segmentId = idsToSegmentId.get(id);
+			const id = samples[i];
+			const segmentId = idsToSegmentId.get(id);
 			if (segmentId !== currSegmentId) {
 				if (currSegmentId) {
 					distilledIds.push(currSegmentId);
 					distilledDeltas.push(currSegmentTime);
 				}
-				currSegmentId = withNullAsUndefined(segmentId);
+				currSegmentId = segmentId ?? undefined;
 				currSegmentTime = 0;
 			}
 			currSegmentTime += timeDeltas[i];
@@ -120,9 +121,9 @@ export class ExtensionHostProfiler {
 			ids: distilledIds,
 			data: profile,
 			getAggregatedTimes: () => {
-				let segmentsToTime = new Map<ProfileSegmentId, number>();
+				const segmentsToTime = new Map<ProfileSegmentId, number>();
 				for (let i = 0; i < distilledIds.length; i++) {
-					let id = distilledIds[i];
+					const id = distilledIds[i];
 					segmentsToTime.set(id, (segmentsToTime.get(id) || 0) + distilledDeltas[i]);
 				}
 				return segmentsToTime;

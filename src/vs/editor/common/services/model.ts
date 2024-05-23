@@ -6,10 +6,9 @@
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { ITextBufferFactory, ITextModel, ITextModelCreationOptions } from 'vs/editor/common/model';
-import { ILanguageSelection } from 'vs/editor/common/services/language';
+import { ILanguageSelection } from 'vs/editor/common/languages/language';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { DocumentSemanticTokensProvider, DocumentRangeSemanticTokensProvider } from 'vs/editor/common/languages';
-import { SemanticTokensProviderStyling } from 'vs/editor/common/services/semanticTokensProviderStyling';
 
 export const IModelService = createDecorator<IModelService>('modelService');
 
@@ -22,8 +21,6 @@ export interface IModelService {
 
 	updateModel(model: ITextModel, value: string | ITextBufferFactory): void;
 
-	setMode(model: ITextModel, languageSelection: ILanguageSelection): void;
-
 	destroyModel(resource: URI): void;
 
 	getModels(): ITextModel[];
@@ -32,17 +29,9 @@ export interface IModelService {
 
 	getModel(resource: URI): ITextModel | null;
 
-	getSemanticTokensProviderStyling(provider: DocumentTokensProvider): SemanticTokensProviderStyling;
-
 	onModelAdded: Event<ITextModel>;
 
 	onModelRemoved: Event<ITextModel>;
 
-	onModelLanguageChanged: Event<{ model: ITextModel; oldLanguageId: string; }>;
-}
-
-export function shouldSynchronizeModel(model: ITextModel): boolean {
-	return (
-		!model.isTooLargeForSyncing() && !model.isForSimpleWidget
-	);
+	onModelLanguageChanged: Event<{ model: ITextModel; oldLanguageId: string }>;
 }

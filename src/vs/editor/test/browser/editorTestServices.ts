@@ -5,19 +5,52 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { AbstractCodeEditorService } from 'vs/editor/browser/services/abstractCodeEditorService';
+import { AbstractCodeEditorService, GlobalStyleSheet } from 'vs/editor/browser/services/abstractCodeEditorService';
 import { CommandsRegistry, ICommandEvent, ICommandService } from 'vs/platform/commands/common/commands';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class TestCodeEditorService extends AbstractCodeEditorService {
+
+	public readonly globalStyleSheet = new TestGlobalStyleSheet();
+
+	protected override _createGlobalStyleSheet(): GlobalStyleSheet {
+		return this.globalStyleSheet;
+	}
+
 	getActiveCodeEditor(): ICodeEditor | null {
 		return null;
 	}
 	public lastInput?: IResourceEditorInput;
-	openCodeEditor(input: IResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
+	override openCodeEditor(input: IResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
 		this.lastInput = input;
 		return Promise.resolve(null);
+	}
+}
+
+export class TestGlobalStyleSheet extends GlobalStyleSheet {
+
+	public rules: string[] = [];
+
+	constructor() {
+		super(null!);
+	}
+
+	public override insertRule(selector: string, rule: string): void {
+		this.rules.unshift(`${selector} {${rule}}`);
+	}
+
+	public override removeRulesContainingSelector(ruleName: string): void {
+		for (let i = 0; i < this.rules.length; i++) {
+			if (this.rules[i].indexOf(ruleName) >= 0) {
+				this.rules.splice(i, 1);
+				i--;
+			}
+		}
+	}
+
+	public read(): string {
+		return this.rules.join('\n');
 	}
 }
 

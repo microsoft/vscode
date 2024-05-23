@@ -4,29 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, DisposableStore, DisposableMap } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { FileWriteOptions, FileSystemProviderCapabilities, IFileChange, IFileService, IStat, IWatchOptions, FileType, FileOverwriteOptions, FileDeleteOptions, FileOpenOptions, IFileStat, FileOperationError, FileOperationResult, FileSystemProviderErrorCode, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithFileFolderCopyCapability, FilePermission, toFileSystemProviderErrorCode } from 'vs/platform/files/common/files';
-import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
-import { ExtHostContext, ExtHostFileSystemShape, IExtHostContext, IFileChangeDto, MainContext, MainThreadFileSystemShape } from '../common/extHost.protocol';
+import { IFileWriteOptions, FileSystemProviderCapabilities, IFileChange, IFileService, IStat, IWatchOptions, FileType, IFileOverwriteOptions, IFileDeleteOptions, IFileOpenOptions, FileOperationError, FileOperationResult, FileSystemProviderErrorCode, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithFileFolderCopyCapability, FilePermission, toFileSystemProviderErrorCode, IFileStatWithPartialMetadata, IFileStat } from 'vs/platform/files/common/files';
+import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { ExtHostContext, ExtHostFileSystemShape, IFileChangeDto, MainContext, MainThreadFileSystemShape } from '../common/extHost.protocol';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 @extHostNamedCustomer(MainContext.MainThreadFileSystem)
 export class MainThreadFileSystem implements MainThreadFileSystemShape {
 
 	private readonly _proxy: ExtHostFileSystemShape;
-	private readonly _fileProvider = new Map<number, RemoteFileSystemProvider>();
+	private readonly _fileProvider = new DisposableMap<number, RemoteFileSystemProvider>();
 	private readonly _disposables = new DisposableStore();
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IFileService private readonly _fileService: IFileService,
+		@IFileService private readonly _fileService: IFileService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostFileSystem);
 
 		const infoProxy = extHostContext.getProxy(ExtHostContext.ExtHostFileSystemInfo);
 
-		for (let entry of _fileService.listCapabilities()) {
+		for (const entry of _fileService.listCapabilities()) {
 			infoProxy.$acceptProviderInfos(URI.from({ scheme: entry.scheme, path: '/dummy' }), entry.capabilities);
 		}
 		this._disposables.add(_fileService.onDidChangeFileSystemProviderRegistrations(e => infoProxy.$acceptProviderInfos(URI.from({ scheme: e.scheme, path: '/dummy' }), e.provider?.capabilities ?? null)));
@@ -35,17 +36,15 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 
 	dispose(): void {
 		this._disposables.dispose();
-		dispose(this._fileProvider.values());
-		this._fileProvider.clear();
+		this._fileProvider.dispose();
 	}
 
-	async $registerFileSystemProvider(handle: number, scheme: string, capabilities: FileSystemProviderCapabilities): Promise<void> {
-		this._fileProvider.set(handle, new RemoteFileSystemProvider(this._fileService, scheme, capabilities, handle, this._proxy));
+	async $registerFileSystemProvider(handle: number, scheme: string, capabilities: FileSystemProviderCapabilities, readonlyMessage?: IMarkdownString): Promise<void> {
+		this._fileProvider.set(handle, new RemoteFileSystemProvider(this._fileService, scheme, capabilities, readonlyMessage, handle, this._proxy));
 	}
 
 	$unregisterProvider(handle: number): void {
-		this._fileProvider.get(handle)?.dispose();
-		this._fileProvider.delete(handle);
+		this._fileProvider.deleteAndDispose(handle);
 	}
 
 	$onFileSystemChange(handle: number, changes: IFileChangeDto[]): void {
@@ -60,7 +59,7 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 	// --- consumer fs, vscode.workspace.fs
 
 	$stat(uri: UriComponents): Promise<IStat> {
-		return this._fileService.resolve(URI.revive(uri), { resolveMetadata: true }).then(stat => {
+		return this._fileService.stat(URI.revive(uri)).then(stat => {
 			return {
 				ctime: stat.ctime,
 				mtime: stat.mtime,
@@ -82,7 +81,7 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 		}).catch(MainThreadFileSystem._handleError);
 	}
 
-	private static _asFileType(stat: IFileStat): FileType {
+	private static _asFileType(stat: IFileStat | IFileStatWithPartialMetadata): FileType {
 		let res = 0;
 		if (stat.isFile) {
 			res += FileType.File;
@@ -105,12 +104,12 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 			.then(() => undefined).catch(MainThreadFileSystem._handleError);
 	}
 
-	$rename(source: UriComponents, target: UriComponents, opts: FileOverwriteOptions): Promise<void> {
+	$rename(source: UriComponents, target: UriComponents, opts: IFileOverwriteOptions): Promise<void> {
 		return this._fileService.move(URI.revive(source), URI.revive(target), opts.overwrite)
 			.then(() => undefined).catch(MainThreadFileSystem._handleError);
 	}
 
-	$copy(source: UriComponents, target: UriComponents, opts: FileOverwriteOptions): Promise<void> {
+	$copy(source: UriComponents, target: UriComponents, opts: IFileOverwriteOptions): Promise<void> {
 		return this._fileService.copy(URI.revive(source), URI.revive(target), opts.overwrite)
 			.then(() => undefined).catch(MainThreadFileSystem._handleError);
 	}
@@ -120,7 +119,7 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 			.then(() => undefined).catch(MainThreadFileSystem._handleError);
 	}
 
-	$delete(uri: UriComponents, opts: FileDeleteOptions): Promise<void> {
+	$delete(uri: UriComponents, opts: IFileDeleteOptions): Promise<void> {
 		return this._fileService.del(URI.revive(uri), opts).catch(MainThreadFileSystem._handleError);
 	}
 
@@ -153,6 +152,8 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 	$ensureActivation(scheme: string): Promise<void> {
 		return this._fileService.activateProvider(scheme);
 	}
+
+
 }
 
 class RemoteFileSystemProvider implements IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileFolderCopyCapability {
@@ -169,6 +170,7 @@ class RemoteFileSystemProvider implements IFileSystemProviderWithFileReadWriteCa
 		fileService: IFileService,
 		scheme: string,
 		capabilities: FileSystemProviderCapabilities,
+		public readonly readOnlyMessage: IMarkdownString | undefined,
 		private readonly _handle: number,
 		private readonly _proxy: ExtHostFileSystemShape
 	) {
@@ -209,11 +211,11 @@ class RemoteFileSystemProvider implements IFileSystemProviderWithFileReadWriteCa
 		return this._proxy.$readFile(this._handle, resource).then(buffer => buffer.buffer);
 	}
 
-	writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
+	writeFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> {
 		return this._proxy.$writeFile(this._handle, resource, VSBuffer.wrap(content), opts);
 	}
 
-	delete(resource: URI, opts: FileDeleteOptions): Promise<void> {
+	delete(resource: URI, opts: IFileDeleteOptions): Promise<void> {
 		return this._proxy.$delete(this._handle, resource, opts);
 	}
 
@@ -225,15 +227,15 @@ class RemoteFileSystemProvider implements IFileSystemProviderWithFileReadWriteCa
 		return this._proxy.$readdir(this._handle, resource);
 	}
 
-	rename(resource: URI, target: URI, opts: FileOverwriteOptions): Promise<void> {
+	rename(resource: URI, target: URI, opts: IFileOverwriteOptions): Promise<void> {
 		return this._proxy.$rename(this._handle, resource, target, opts);
 	}
 
-	copy(resource: URI, target: URI, opts: FileOverwriteOptions): Promise<void> {
+	copy(resource: URI, target: URI, opts: IFileOverwriteOptions): Promise<void> {
 		return this._proxy.$copy(this._handle, resource, target, opts);
 	}
 
-	open(resource: URI, opts: FileOpenOptions): Promise<number> {
+	open(resource: URI, opts: IFileOpenOptions): Promise<number> {
 		return this._proxy.$open(this._handle, resource, opts);
 	}
 

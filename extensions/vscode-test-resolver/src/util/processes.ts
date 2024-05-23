@@ -16,14 +16,14 @@ export function terminateProcess(p: cp.ChildProcess, extensionPath: string): Ter
 			const options: any = {
 				stdio: ['pipe', 'pipe', 'ignore']
 			};
-			cp.execFileSync('taskkill', ['/T', '/F', '/PID', p.pid.toString()], options);
+			cp.execFileSync('taskkill', ['/T', '/F', '/PID', p.pid!.toString()], options);
 		} catch (err) {
 			return { success: false, error: err };
 		}
 	} else if (process.platform === 'darwin' || process.platform === 'linux') {
 		try {
 			const cmd = path.join(extensionPath, 'scripts', 'terminateProcess.sh');
-			const result = cp.spawnSync(cmd, [p.pid.toString()]);
+			const result = cp.spawnSync(cmd, [p.pid!.toString()]);
 			if (result.error) {
 				return { success: false, error: result.error };
 			}

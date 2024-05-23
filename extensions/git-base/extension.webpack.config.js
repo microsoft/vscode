@@ -13,5 +13,8 @@ module.exports = withDefaults({
 	context: __dirname,
 	entry: {
 		extension: './src/extension.ts'
+	},
+	output: {
+		filename: 'extension.js'
 	}
 });

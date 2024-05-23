@@ -3,6 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* Animations */
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
 /* Font Families (with CJK support) */
 
 .mac { font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
@@ -45,18 +49,17 @@ body.web {
 	position: fixed; /* prevent bounce effect */
 }
 
-.monaco-workbench.web {
-	touch-action: none; /* Disable browser handling of all panning and zooming gestures. Removes 300ms touch delay. */
-}
-
-@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-
 .monaco-workbench {
 	font-size: 13px;
 	line-height: 1.4em;
 	position: relative;
 	z-index: 1;
 	overflow: hidden;
+	color: var(--vscode-foreground);
+}
+
+.monaco-workbench.web {
+	touch-action: none; /* Disable browser handling of all panning and zooming gestures. Removes 300ms touch delay. */
 }
 
 .monaco-workbench.border:not(.fullscreen) {
@@ -84,6 +87,11 @@ body.web {
 	text-decoration: none;
 }
 
+.monaco-workbench.hc-black p > a,
+.monaco-workbench.hc-light p > a {
+	text-decoration: underline !important;
+}
+
 .monaco-workbench a:active {
 	color: inherit;
 	background-color: inherit;
@@ -106,9 +114,23 @@ body.web {
 	font-size: 100%;
 }
 
-.monaco-workbench select {
-	font-family: inherit;
+.monaco-workbench table {
+	/*
+	 * Somehow this is required when tables show in floating windows
+	 * to override the user-agent style which sets a specific color
+	 * and font-size
+	 */
+	color: inherit;
+	font-size: inherit;
 }
+
+.monaco-workbench input::placeholder { color: var(--vscode-input-placeholderForeground); }
+.monaco-workbench input::-webkit-input-placeholder  { color: var(--vscode-input-placeholderForeground); }
+.monaco-workbench input::-moz-placeholder { color: var(--vscode-input-placeholderForeground); }
+
+.monaco-workbench textarea::placeholder { color: var(--vscode-input-placeholderForeground); }
+.monaco-workbench textarea::-webkit-input-placeholder { color: var(--vscode-input-placeholderForeground); }
+.monaco-workbench textarea::-moz-placeholder { color: var(--vscode-input-placeholderForeground); }
 
 .monaco-workbench .pointer {
 	cursor: pointer;
@@ -135,53 +157,26 @@ body.web {
 	-webkit-app-region: no-drag;
 }
 
-.monaco-workbench .monaco-menu .monaco-action-bar.vertical {
-	padding: .5em 0;
-}
-
-.monaco-workbench .monaco-menu .monaco-action-bar.vertical .action-menu-item {
-	height: 1.8em;
-}
-
-.monaco-workbench .monaco-menu .monaco-action-bar.vertical .action-label:not(.separator),
-.monaco-workbench .monaco-menu .monaco-action-bar.vertical .keybinding {
-	font-size: inherit;
-	padding: 0 2em;
-}
-
-.monaco-workbench .monaco-menu .monaco-action-bar.vertical .menu-item-check {
-	font-size: inherit;
-	width: 2em;
-}
-
-.monaco-workbench .monaco-menu .monaco-action-bar.vertical .action-label.separator {
-	font-size: inherit;
-	padding: 0.2em 0 0 0;
-	margin-bottom: 0.2em;
-}
-
-.monaco-workbench.linux .monaco-menu .monaco-action-bar.vertical .action-label.separator {
-	margin-left: 0;
-	margin-right: 0;
-}
-
-.monaco-workbench .monaco-menu .monaco-action-bar.vertical .submenu-indicator {
-	font-size: 60%;
-	padding: 0 1.8em;
-}
-
-.monaco-workbench.linux .monaco-menu .monaco-action-bar.vertical .submenu-indicator {
-	height: 100%;
-	mask-size: 10px 10px;
-	-webkit-mask-size: 10px 10px;
-}
-
-.monaco-workbench .monaco-menu .action-item {
-	cursor: default;
+.monaco-workbench .codicon {
+	color: var(--vscode-icon-foreground);
 }
 
 .monaco-workbench .codicon[class*='codicon-'] {
 	font-size: 16px; /* sets font-size for codicons in workbench (https://github.com/microsoft/vscode/issues/98495) */
+}
+
+.monaco-workbench .predefined-file-icon[class*='codicon-']::before {
+	width: 16px;
+	padding-left: 3px; /* width (16px) - font-size (13px) = padding-left (3px) */
+	padding-right: 3px;
+}
+
+.predefined-file-icon::before { /* do add additional specificity to this selector, so it can be overridden by product themes */
+	font-family: 'codicon';
+}
+
+.monaco-workbench:not(.file-icons-enabled) .predefined-file-icon[class*='codicon-']::before {
+	content: unset !important;
 }
 
 .monaco-workbench.modal-dialog-visible .monaco-progress-container.infinite .progress-bit {
@@ -191,6 +186,8 @@ body.web {
 /* Custom Dropdown (select) Arrows */
 
 .monaco-workbench select {
+	font-family: inherit;
+	appearance: none;
 	-webkit-appearance: none;
 	-moz-appearance: none;
 	/* Hides inner border from FF */
@@ -202,8 +199,8 @@ body.web {
 }
 
 .monaco-workbench .select-container:after {
-	content: "\eab4";
-	font-family: codicon;
+	content: var(--vscode-icon-chevron-down-content);
+	font-family: var(--vscode-icon-chevron-down-font-family);
 	font-size: 16px;
 	width: 16px;
 	height: 16px;
@@ -224,12 +221,20 @@ body.web {
 .monaco-workbench select:focus,
 .monaco-workbench input[type="button"]:focus,
 .monaco-workbench input[type="text"]:focus,
+.monaco-workbench button:focus,
 .monaco-workbench textarea:focus,
+.monaco-workbench input[type="search"]:focus,
 .monaco-workbench input[type="checkbox"]:focus {
 	outline-width: 1px;
 	outline-style: solid;
 	outline-offset: -1px;
-	opacity: 1 !important;
+	outline-color: var(--vscode-focusBorder);
+	opacity: 1;
+}
+
+.monaco-workbench.hc-black .synthetic-focus input,
+.monaco-workbench.hc-light .synthetic-focus input {
+	background: transparent; /* Search input focus fix when in high contrast */
 }
 
 .monaco-workbench input[type="checkbox"]:focus {
@@ -254,13 +259,22 @@ body.web {
 	left: 0;
 	width: 100%;
 	height: 100%;
-	z-index: 5; /* make sure we are on top of the tree items */
+	z-index: 15; /* make sure we are on top of the tree sticky scroll widget */
 	content: "";
 	pointer-events: none; /* enable click through */
 	outline: 1px solid; /* we still need to handle the empty tree or no focus item case */
 	outline-width: 1px;
 	outline-style: solid;
 	outline-offset: -1px;
+	outline-color: var(--vscode-focusBorder);
+}
+
+.monaco-workbench .monaco-list .monaco-list-row .monaco-highlighted-label .highlight {
+	color: var(--vscode-list-highlightForeground);
+}
+
+.monaco-workbench .monaco-list .monaco-list-row.focused .monaco-highlighted-label .highlight {
+	color: var(--vscode-list-focusHighlightForeground);
 }
 
 .monaco-workbench .synthetic-focus :focus {
@@ -278,4 +292,23 @@ body.web {
 
 .monaco-workbench .monaco-list:focus {
 	outline: 0 !important; /* tree indicates focus not via outline but through the focused item */
+}
+
+.monaco-workbench a.monaco-link:hover {
+	text-decoration: underline; /* render underline on hover for accessibility requirements */
+}
+
+.monaco-workbench .monaco-action-bar:not(.vertical) .action-label:not(.disabled):hover,
+.monaco-workbench .monaco-action-bar:not(.vertical) .monaco-dropdown-with-primary:not(.disabled):hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.monaco-workbench .monaco-action-bar:not(.vertical) .action-item.active .action-label:not(.disabled),
+.monaco-workbench .monaco-action-bar:not(.vertical) .monaco-dropdown.active .action-label:not(.disabled) {
+	background-color: var(--vscode-toolbar-activeBackground);
+}
+
+.monaco-workbench .monaco-action-bar:not(.vertical) .action-item .action-label:hover:not(.disabled) {
+	outline: 1px dashed var(--vscode-toolbar-hoverOutline);
+	outline-offset: -1px;
 }

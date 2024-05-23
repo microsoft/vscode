@@ -24,7 +24,7 @@ export class ExeBasedRecommendations extends ExtensionRecommendations {
 		super();
 	}
 
-	getRecommendations(exe: string): { important: ExtensionRecommendation[], others: ExtensionRecommendation[] } {
+	getRecommendations(exe: string): { important: ExtensionRecommendation[]; others: ExtensionRecommendation[] } {
 		const important = this._importantTips
 			.filter(tip => tip.exeName.toLowerCase() === exe.toLowerCase())
 			.map(tip => this.toExtensionRecommendation(tip));
@@ -58,7 +58,7 @@ export class ExeBasedRecommendations extends ExtensionRecommendations {
 
 	private toExtensionRecommendation(tip: IExecutableBasedExtensionTip): ExtensionRecommendation {
 		return {
-			extensionId: tip.extensionId.toLowerCase(),
+			extension: tip.extensionId.toLowerCase(),
 			reason: {
 				reasonId: ExtensionRecommendationReason.Executable,
 				reasonText: localize('exeBasedRecommendation', "This extension is recommended because you have {0} installed.", tip.exeFriendlyName)

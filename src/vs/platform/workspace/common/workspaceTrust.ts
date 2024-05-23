@@ -6,7 +6,6 @@
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export enum WorkspaceTrustScope {
@@ -14,17 +13,9 @@ export enum WorkspaceTrustScope {
 	Remote = 1
 }
 
-export function workspaceTrustToString(trustState: boolean) {
-	if (trustState) {
-		return localize('trusted', "Trusted");
-	} else {
-		return localize('untrusted', "Restricted Mode");
-	}
-}
-
 export interface WorkspaceTrustRequestButton {
 	readonly label: string;
-	readonly type: 'ContinueWithTrust' | 'ContinueWithoutTrust' | 'Manage' | 'Cancel'
+	readonly type: 'ContinueWithTrust' | 'ContinueWithoutTrust' | 'Manage' | 'Cancel';
 }
 
 export interface WorkspaceTrustRequestOptions {
@@ -83,6 +74,7 @@ export interface IWorkspaceTrustRequestService {
 
 	readonly onDidInitiateOpenFilesTrustRequest: Event<void>;
 	readonly onDidInitiateWorkspaceTrustRequest: Event<WorkspaceTrustRequestOptions | undefined>;
+	readonly onDidInitiateWorkspaceTrustRequestOnStartup: Event<void>;
 
 	completeOpenFilesTrustRequest(result: WorkspaceTrustUriResponse, saveResponse?: boolean): Promise<void>;
 	requestOpenFilesTrust(openFiles: URI[]): Promise<WorkspaceTrustUriResponse>;
@@ -90,6 +82,7 @@ export interface IWorkspaceTrustRequestService {
 	cancelWorkspaceTrustRequest(): void;
 	completeWorkspaceTrustRequest(trusted?: boolean): Promise<void>;
 	requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean | undefined>;
+	requestWorkspaceTrustOnStartup(): void;
 }
 
 export interface IWorkspaceTrustTransitionParticipant {
@@ -97,10 +90,10 @@ export interface IWorkspaceTrustTransitionParticipant {
 }
 
 export interface IWorkspaceTrustUriInfo {
-	uri: URI,
-	trusted: boolean
+	uri: URI;
+	trusted: boolean;
 }
 
 export interface IWorkspaceTrustInfo {
-	uriTrustInfo: IWorkspaceTrustUriInfo[]
+	uriTrustInfo: IWorkspaceTrustUriInfo[];
 }

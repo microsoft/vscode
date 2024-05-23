@@ -2,8 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import { default as VSCodeTelemetryReporter } from '@vscode/extension-telemetry';
 import * as vscode from 'vscode';
-import { default as VSCodeTelemetryReporter } from 'vscode-extension-telemetry';
 
 interface IPackageInfo {
 	name: string;
@@ -29,7 +29,7 @@ class ExtensionReporter implements TelemetryReporter {
 	constructor(
 		packageInfo: IPackageInfo
 	) {
-		this._reporter = new VSCodeTelemetryReporter(packageInfo.name, packageInfo.version, packageInfo.aiKey);
+		this._reporter = new VSCodeTelemetryReporter(packageInfo.aiKey);
 	}
 	sendTelemetryEvent(eventName: string, properties?: {
 		[key: string]: string;

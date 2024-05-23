@@ -3,14 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ShutdownReason, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ShutdownReason, ILifecycleService, StartupKind } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { AbstractLifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycleService';
 import { localize } from 'vs/nls';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { IStorageService, WillSaveStateReason } from 'vs/platform/storage/common/storage';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { mainWindow } from 'vs/base/browser/window';
+import { firstOrDefault } from 'vs/base/common/arrays';
 
 export class BrowserLifecycleService extends AbstractLifecycleService {
 
@@ -33,14 +36,14 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 	private registerListeners(): void {
 
 		// Listen to `beforeUnload` to support to veto
-		this.beforeUnloadListener = addDisposableListener(window, EventType.BEFORE_UNLOAD, (e: BeforeUnloadEvent) => this.onBeforeUnload(e));
+		this.beforeUnloadListener = addDisposableListener(mainWindow, EventType.BEFORE_UNLOAD, (e: BeforeUnloadEvent) => this.onBeforeUnload(e));
 
 		// Listen to `pagehide` to support orderly shutdown
 		// We explicitly do not listen to `unload` event
 		// which would disable certain browser caching.
 		// We currently do not handle the `persisted` property
 		// (https://github.com/microsoft/vscode/issues/136216)
-		this.unloadListener = addDisposableListener(window, EventType.PAGE_HIDE, () => this.onUnload());
+		this.unloadListener = addDisposableListener(mainWindow, EventType.PAGE_HIDE, () => this.onUnload());
 	}
 
 	private onBeforeUnload(event: BeforeUnloadEvent): void {
@@ -135,13 +138,13 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 
 		// Before Shutdown
 		this._onBeforeShutdown.fire({
+			reason: ShutdownReason.QUIT,
 			veto(value, id) {
 				handleVeto(value, id);
 			},
 			finalVeto(valueFn, id) {
 				handleVeto(valueFn(), id); // in browser, trigger instantly because we do not support async anyway
-			},
-			reason: ShutdownReason.QUIT
+			}
 		});
 
 		// Veto: handle if provided
@@ -161,15 +164,18 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 		this.didUnload = true;
 
 		// Register a late `pageshow` listener specifically on unload
-		this._register(addDisposableListener(window, EventType.PAGE_SHOW, (e: PageTransitionEvent) => this.onLoadAfterUnload(e)));
+		this._register(addDisposableListener(mainWindow, EventType.PAGE_SHOW, (e: PageTransitionEvent) => this.onLoadAfterUnload(e)));
 
 		// First indicate will-shutdown
 		const logService = this.logService;
 		this._onWillShutdown.fire({
-			join(promise, id) {
-				logService.error(`[lifecycle] Long running operations during shutdown are unsupported in the web (id: ${id})`);
+			reason: ShutdownReason.QUIT,
+			joiners: () => [], 				// Unsupported in web
+			token: CancellationToken.None, 	// Unsupported in web
+			join(promise, joiner) {
+				logService.error(`[lifecycle] Long running operations during shutdown are unsupported in the web (id: ${joiner.id})`);
 			},
-			reason: ShutdownReason.QUIT
+			force: () => { /* No-Op in web */ },
 		});
 
 		// Finally end with did-shutdown
@@ -193,8 +199,21 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 		// currently can only reload the window
 		// Docs: https://web.dev/bfcache/#optimize-your-pages-for-bfcache
 		// Refs: https://github.com/microsoft/vscode/issues/136035
-		this.withExpectedShutdown({ disableShutdownHandling: true }, () => window.location.reload());
+		this.withExpectedShutdown({ disableShutdownHandling: true }, () => mainWindow.location.reload());
+	}
+
+	protected override doResolveStartupKind(): StartupKind | undefined {
+		let startupKind = super.doResolveStartupKind();
+		if (typeof startupKind !== 'number') {
+			const timing = firstOrDefault(performance.getEntriesByType('navigation')) as PerformanceNavigationTiming | undefined;
+			if (timing?.type === 'reload') {
+				// MDN: https://developer.mozilla.org/en-US/docs/Web/API/PerformanceNavigationTiming/type#value
+				startupKind = StartupKind.ReloadedWindow;
+			}
+		}
+
+		return startupKind;
 	}
 }
 
-registerSingleton(ILifecycleService, BrowserLifecycleService);
+registerSingleton(ILifecycleService, BrowserLifecycleService, InstantiationType.Eager);

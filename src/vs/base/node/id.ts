@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { networkInterfaces } from 'os';
-import * as errors from 'vs/base/common/errors';
-import { TernarySearchTree } from 'vs/base/common/map';
+import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import * as uuid from 'vs/base/common/uuid';
 import { getMac } from 'vs/base/node/macAddress';
+import { isWindows } from 'vs/base/common/platform';
 
 // http://www.techrepublic.com/blog/data-center/mac-address-scorecard-for-common-virtual-machine-platforms/
 // VMware ESX 3, Server, Workstation, Player	00-50-56, 00-0C-29, 00-05-69
@@ -55,7 +55,7 @@ export const virtualMachineHint: { value(): number } = new class {
 			let interfaceCount = 0;
 
 			const interfaces = networkInterfaces();
-			for (let name in interfaces) {
+			for (const name in interfaces) {
 				const networkInterface = interfaces[name];
 				if (networkInterface) {
 					for (const { mac, internal } of networkInterface) {
@@ -78,10 +78,10 @@ export const virtualMachineHint: { value(): number } = new class {
 };
 
 let machineId: Promise<string>;
-export async function getMachineId(): Promise<string> {
+export async function getMachineId(errorLogger: (error: any) => void): Promise<string> {
 	if (!machineId) {
 		machineId = (async () => {
-			const id = await getMacMachineId();
+			const id = await getMacMachineId(errorLogger);
 
 			return id || uuid.generateUuid(); // fallback, generate a UUID
 		})();
@@ -90,13 +90,38 @@ export async function getMachineId(): Promise<string> {
 	return machineId;
 }
 
-async function getMacMachineId(): Promise<string | undefined> {
+async function getMacMachineId(errorLogger: (error: any) => void): Promise<string | undefined> {
 	try {
 		const crypto = await import('crypto');
 		const macAddress = getMac();
 		return crypto.createHash('sha256').update(macAddress, 'utf8').digest('hex');
 	} catch (err) {
-		errors.onUnexpectedError(err);
+		errorLogger(err);
 		return undefined;
+	}
+}
+
+const SQM_KEY: string = 'Software\\Microsoft\\SQMClient';
+export async function getSqmMachineId(errorLogger: (error: any) => void): Promise<string> {
+	if (isWindows) {
+		const Registry = await import('@vscode/windows-registry');
+		try {
+			return Registry.GetStringRegKey('HKEY_LOCAL_MACHINE', SQM_KEY, 'MachineId') || '';
+		} catch (err) {
+			errorLogger(err);
+			return '';
+		}
+	}
+	return '';
+}
+
+export async function getdevDeviceId(errorLogger: (error: any) => void): Promise<string> {
+	try {
+		const deviceIdPackage = await import('@vscode/deviceid');
+		const id = await deviceIdPackage.getDeviceId();
+		return id;
+	} catch (err) {
+		errorLogger(err);
+		return '';
 	}
 }

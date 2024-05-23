@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
-import { URI } from 'vs/base/common/uri';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { URI, UriComponents } from 'vs/base/common/uri';
+import { IRange } from 'vs/editor/common/core/range';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookCellExecutionState, NotebookExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType, ICellExecuteOutputEdit, ICellExecuteOutputItemEdit } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 
 export type ICellExecuteUpdate = ICellExecuteOutputEdit | ICellExecuteOutputItemEdit | ICellExecutionStateUpdate;
@@ -17,25 +18,47 @@ export interface ICellExecutionStateUpdate {
 	executionOrder?: number;
 	runStartTime?: number;
 	didPause?: boolean;
+	isPaused?: boolean;
 }
 
+export interface ICellExecutionError {
+	message: string;
+	stack: string | undefined;
+	uri: UriComponents;
+	location: IRange | undefined;
+}
 export interface ICellExecutionComplete {
 	runEndTime?: number;
 	lastRunSuccess?: boolean;
+	error?: ICellExecutionError;
 }
-
-export interface ICellExecutionEntry {
-	notebook: URI;
-	cellHandle: number;
-	state: NotebookCellExecutionState;
-	didPause: boolean;
+export enum NotebookExecutionType {
+	cell,
+	notebook
 }
-
 export interface ICellExecutionStateChangedEvent {
+	type: NotebookExecutionType.cell;
 	notebook: URI;
 	cellHandle: number;
-	changed?: ICellExecutionEntry; // undefined -> execution was completed
-	affectsCell(cell: NotebookCellTextModel): boolean;
+	changed?: INotebookCellExecution; // undefined -> execution was completed
+	affectsCell(cell: URI): boolean;
+	affectsNotebook(notebook: URI): boolean;
+}
+export interface IExecutionStateChangedEvent {
+	type: NotebookExecutionType.notebook;
+	notebook: URI;
+	changed?: INotebookExecution; // undefined -> execution was completed
+	affectsNotebook(notebook: URI): boolean;
+}
+export interface INotebookFailStateChangedEvent {
+	visible: boolean;
+	notebook: URI;
+}
+
+export interface IFailedCellInfo {
+	cellHandle: number;
+	disposable: IDisposable;
+	visible: boolean;
 }
 
 export const INotebookExecutionStateService = createDecorator<INotebookExecutionStateService>('INotebookExecutionStateService');
@@ -43,13 +66,35 @@ export const INotebookExecutionStateService = createDecorator<INotebookExecution
 export interface INotebookExecutionStateService {
 	_serviceBrand: undefined;
 
-	onDidChangeCellExecution: Event<ICellExecutionStateChangedEvent>;
+	onDidChangeExecution: Event<ICellExecutionStateChangedEvent | IExecutionStateChangedEvent>;
+	onDidChangeLastRunFailState: Event<INotebookFailStateChangedEvent>;
 
-	getCellExecutionStatesForNotebook(notebook: URI): ICellExecutionEntry[];
+	forceCancelNotebookExecutions(notebookUri: URI): void;
+	getCellExecutionsForNotebook(notebook: URI): INotebookCellExecution[];
+	getCellExecutionsByHandleForNotebook(notebook: URI): Map<number, INotebookCellExecution> | undefined;
+	getCellExecution(cellUri: URI): INotebookCellExecution | undefined;
+	createCellExecution(notebook: URI, cellHandle: number): INotebookCellExecution;
+	getExecution(notebook: URI): INotebookExecution | undefined;
+	createExecution(notebook: URI): INotebookExecution;
+	getLastFailedCellForNotebook(notebook: URI): number | undefined;
+}
 
-	getCellExecutionState(cellUri: URI): ICellExecutionEntry | undefined;
+export interface INotebookCellExecution {
+	readonly notebook: URI;
+	readonly cellHandle: number;
+	readonly state: NotebookCellExecutionState;
+	readonly didPause: boolean;
+	readonly isPaused: boolean;
 
-	createNotebookCellExecution(notebook: URI, cellHandle: number): void;
-	updateNotebookCellExecution(notebook: URI, cellHandle: number, updates: ICellExecuteUpdate[]): void;
-	completeNotebookCellExecution(notebook: URI, cellHandle: number, complete: ICellExecutionComplete): void;
+	confirm(): void;
+	update(updates: ICellExecuteUpdate[]): void;
+	complete(complete: ICellExecutionComplete): void;
+}
+export interface INotebookExecution {
+	readonly notebook: URI;
+	readonly state: NotebookExecutionState;
+
+	confirm(): void;
+	begin(): void;
+	complete(): void;
 }

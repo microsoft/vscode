@@ -4,14 +4,14 @@
 		"noImplicitAny": false,
 		"removeComments": false,
 		"preserveConstEnums": true,
-		"target": "es2017",
-		"strictNullChecks": true,
+		"target": "es2020",
+		"strict": true,
 		"noUnusedParameters": false,
 		"noUnusedLocals": true,
 		"outDir": "out",
 		"sourceMap": true,
 		"lib": [
-			"es2016",
+			"esnext", // for #201187
 			"dom"
 		]
 	},

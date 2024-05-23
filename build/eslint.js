@@ -5,16 +5,15 @@
 
 const es = require('event-stream');
 const vfs = require('vinyl-fs');
-const { jsHygieneFilter, tsHygieneFilter } = require('./filters');
+const { eslintFilter } = require('./filters');
 
 function eslint() {
 	const gulpeslint = require('gulp-eslint');
 	return vfs
-		.src([...jsHygieneFilter, ...tsHygieneFilter], { base: '.', follow: true, allowEmpty: true })
+		.src(eslintFilter, { base: '.', follow: true, allowEmpty: true })
 		.pipe(
 			gulpeslint({
-				configFile: '.eslintrc.json',
-				rulePaths: ['./build/lib/eslint'],
+				configFile: '.eslintrc.json'
 			})
 		)
 		.pipe(gulpeslint.formatEach('compact'))

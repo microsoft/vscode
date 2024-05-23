@@ -9,8 +9,8 @@ import { HtmlNode as HtmlFlatNode } from 'EmmetFlatNode';
 import { getRootNode } from './parseDocument';
 
 interface TagRange {
-	name: string,
-	range: vscode.Range
+	name: string;
+	range: vscode.Range;
 }
 
 export async function updateTag(tagName: string | undefined): Promise<boolean | undefined> {
@@ -25,8 +25,8 @@ export async function updateTag(tagName: string | undefined): Promise<boolean | 
 		return;
 	}
 
-	const rangesToUpdate = Array.from(editor.selections).reverse()
-		.reduce<TagRange[]>((prev, selection) =>
+	const rangesToUpdate = editor.selections
+		.reduceRight<TagRange[]>((prev, selection) =>
 			prev.concat(getRangesToUpdate(document, selection, rootNode)), []);
 	if (!rangesToUpdate.length) {
 		return;
@@ -54,7 +54,7 @@ export async function updateTag(tagName: string | undefined): Promise<boolean | 
 }
 
 function getRangesFromNode(node: HtmlFlatNode, document: vscode.TextDocument): TagRange[] {
-	let ranges: TagRange[] = [];
+	const ranges: TagRange[] = [];
 	if (node.open) {
 		const start = document.positionAt(node.open.start);
 		ranges.push({

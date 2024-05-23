@@ -11,6 +11,7 @@
   "scripts": {
     "update-grammar": "node ../node_modules/vscode-grammar-updater/bin textmate/yaml.tmbundle Syntaxes/YAML.tmLanguage ./syntaxes/yaml.tmLanguage.json"
   },
+  "categories": ["Programming Languages"],
   "contributes": {
     "languages": [
       {
@@ -36,11 +37,14 @@
           "yaml"
         ],
         "extensions": [
+          ".yaml",
           ".yml",
           ".eyaml",
           ".eyml",
-          ".yaml",
-          ".cff"
+          ".cff",
+          ".yaml-tmlanguage",
+          ".yaml-tmpreferences",
+          ".yaml-tmtheme"
         ],
         "firstLine": "^#cloud-config",
         "configuration": "./language-configuration.json"
@@ -62,7 +66,8 @@
       "[yaml]": {
         "editor.insertSpaces": true,
         "editor.tabSize": 2,
-        "editor.autoIndent": "advanced"
+        "editor.autoIndent": "advanced",
+        "diffEditor.ignoreTrimWhitespace": false
       },
       "[dockercompose]": {
         "editor.insertSpaces": true,

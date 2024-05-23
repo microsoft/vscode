@@ -15,6 +15,6 @@ function getRawRequest(options: IRequestOptions): IRawRequestFunction {
 export class RequestMainService extends NodeRequestService {
 
 	override request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {
-		return super.request({ ...(options || {}), getRawRequest }, token);
+		return super.request({ ...(options || {}), getRawRequest, isChromiumNetwork: true }, token);
 	}
 }

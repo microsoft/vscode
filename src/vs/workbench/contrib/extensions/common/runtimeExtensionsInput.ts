@@ -7,6 +7,11 @@ import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { EditorInputCapabilities, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { ThemeIcon } from 'vs/base/common/themables';
+import { Codicon } from 'vs/base/common/codicons';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+
+const RuntimeExtensionsEditorIcon = registerIcon('runtime-extensions-editor-label-icon', Codicon.extensions, nls.localize('runtimeExtensionEditorLabelIcon', 'Icon of the runtime extensions editor label.'));
 
 export class RuntimeExtensionsInput extends EditorInput {
 
@@ -36,6 +41,10 @@ export class RuntimeExtensionsInput extends EditorInput {
 
 	override getName(): string {
 		return nls.localize('extensionsInputName', "Running Extensions");
+	}
+
+	override getIcon(): ThemeIcon {
+		return RuntimeExtensionsEditorIcon;
 	}
 
 	override matches(other: EditorInput | IUntypedEditorInput): boolean {

@@ -46,6 +46,7 @@ export interface IJSONSchema {
 	const?: any;
 	contains?: IJSONSchema;
 	propertyNames?: IJSONSchema;
+	examples?: any[];
 
 	// schema draft 07
 	$comment?: string;
@@ -53,7 +54,27 @@ export interface IJSONSchema {
 	then?: IJSONSchema;
 	else?: IJSONSchema;
 
-	// VS Code extensions
+	// schema 2019-09
+	unevaluatedProperties?: boolean | IJSONSchema;
+	unevaluatedItems?: boolean | IJSONSchema;
+	minContains?: number;
+	maxContains?: number;
+	deprecated?: boolean;
+	dependentRequired?: { [prop: string]: string[] };
+	dependentSchemas?: IJSONSchemaMap;
+	$defs?: { [name: string]: IJSONSchema };
+	$anchor?: string;
+	$recursiveRef?: string;
+	$recursiveAnchor?: string;
+	$vocabulary?: any;
+
+	// schema 2020-12
+	prefixItems?: IJSONSchema[];
+	$dynamicRef?: string;
+	$dynamicAnchor?: string;
+
+	// VSCode extensions
+
 	defaultSnippets?: IJSONSchemaSnippet[];
 	errorMessage?: string;
 	patternErrorMessage?: string;
@@ -78,3 +99,22 @@ export interface IJSONSchemaSnippet {
 	body?: any; // a object that will be JSON stringified
 	bodyText?: string; // an already stringified JSON object that can contain new lines (\n) and tabs (\t)
 }
+
+/**
+ * Converts a basic JSON schema to a TypeScript type.
+ *
+ * TODO: only supports basic schemas. Doesn't support all JSON schema features.
+ */
+export type SchemaToType<T> = T extends { type: 'string' }
+	? string
+	: T extends { type: 'number' }
+	? number
+	: T extends { type: 'boolean' }
+	? boolean
+	: T extends { type: 'null' }
+	? null
+	: T extends { type: 'object'; properties: infer P }
+	? { [K in keyof P]: SchemaToType<P[K]> }
+	: T extends { type: 'array'; items: infer I }
+	? Array<SchemaToType<I>>
+	: never;

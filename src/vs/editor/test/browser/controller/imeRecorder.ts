@@ -8,14 +8,15 @@ import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { IRecorded, IRecordedCompositionEvent, IRecordedEvent, IRecordedInputEvent, IRecordedKeyboardEvent, IRecordedTextareaState } from 'vs/editor/test/browser/controller/imeRecordedTypes';
 import * as browser from 'vs/base/browser/browser';
 import * as platform from 'vs/base/common/platform';
+import { mainWindow } from 'vs/base/browser/window';
 
 (() => {
 
-	const startButton = <HTMLButtonElement>document.getElementById('startRecording')!;
-	const endButton = <HTMLButtonElement>document.getElementById('endRecording')!;
+	const startButton = <HTMLButtonElement>mainWindow.document.getElementById('startRecording')!;
+	const endButton = <HTMLButtonElement>mainWindow.document.getElementById('endRecording')!;
 
 	let inputarea: HTMLTextAreaElement;
-	let disposables = new DisposableStore();
+	const disposables = new DisposableStore();
 	let originTimeStamp = 0;
 	let recorded: IRecorded = {
 		env: null!,
@@ -68,18 +69,21 @@ import * as platform from 'vs/base/common/platform';
 
 		return lines.join('\n');
 
+		function printString(str: string) {
+			return str.replace(/\\/g, '\\\\').replace(/'/g, '\\\'');
+		}
 		function printState(state: IRecordedTextareaState) {
-			return `{ value: '${state.value}', selectionStart: ${state.selectionStart}, selectionEnd: ${state.selectionEnd}, selectionDirection: '${state.selectionDirection}' }`;
+			return `{ value: '${printString(state.value)}', selectionStart: ${state.selectionStart}, selectionEnd: ${state.selectionEnd}, selectionDirection: '${state.selectionDirection}' }`;
 		}
 		function printEvent(ev: IRecordedEvent) {
 			if (ev.type === 'keydown' || ev.type === 'keypress' || ev.type === 'keyup') {
 				return `{ timeStamp: ${ev.timeStamp.toFixed(2)}, state: ${printState(ev.state)}, type: '${ev.type}', altKey: ${ev.altKey}, charCode: ${ev.charCode}, code: '${ev.code}', ctrlKey: ${ev.ctrlKey}, isComposing: ${ev.isComposing}, key: '${ev.key}', keyCode: ${ev.keyCode}, location: ${ev.location}, metaKey: ${ev.metaKey}, repeat: ${ev.repeat}, shiftKey: ${ev.shiftKey} }`;
 			}
 			if (ev.type === 'compositionstart' || ev.type === 'compositionupdate' || ev.type === 'compositionend') {
-				return `{ timeStamp: ${ev.timeStamp.toFixed(2)}, state: ${printState(ev.state)}, type: '${ev.type}', data: '${ev.data}' }`;
+				return `{ timeStamp: ${ev.timeStamp.toFixed(2)}, state: ${printState(ev.state)}, type: '${ev.type}', data: '${printString(ev.data)}' }`;
 			}
 			if (ev.type === 'beforeinput' || ev.type === 'input') {
-				return `{ timeStamp: ${ev.timeStamp.toFixed(2)}, state: ${printState(ev.state)}, type: '${ev.type}', data: ${ev.data === null ? 'null' : `'${ev.data}'`}, inputType: '${ev.inputType}', isComposing: ${ev.isComposing} }`;
+				return `{ timeStamp: ${ev.timeStamp.toFixed(2)}, state: ${printState(ev.state)}, type: '${ev.type}', data: ${ev.data === null ? 'null' : `'${printString(ev.data)}'`}, inputType: '${ev.inputType}', isComposing: ${ev.isComposing} }`;
 			}
 			return JSON.stringify(ev);
 		}
@@ -87,7 +91,7 @@ import * as platform from 'vs/base/common/platform';
 
 	function startTest() {
 		inputarea = document.createElement('textarea');
-		document.body.appendChild(inputarea);
+		mainWindow.document.body.appendChild(inputarea);
 		inputarea.focus();
 		disposables.add(toDisposable(() => {
 			inputarea.remove();

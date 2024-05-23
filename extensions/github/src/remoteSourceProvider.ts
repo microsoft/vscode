@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RemoteSourceProvider, RemoteSource } from './typings/git-base';
+import { Uri, env, l10n, workspace } from 'vscode';
+import { RemoteSourceProvider, RemoteSource, RemoteSourceAction } from './typings/git-base';
 import { getOctokit } from './auth';
 import { Octokit } from '@octokit/rest';
-
-function parse(url: string): { owner: string, repo: string } | undefined {
-	const match = /^https:\/\/github\.com\/([^/]+)\/([^/]+)\.git/i.exec(url)
-		|| /^git@github\.com:([^/]+)\/([^/]+)\.git/i.exec(url);
-	return (match && { owner: match[1], repo: match[2] }) ?? undefined;
-}
+import { getRepositoryFromQuery, getRepositoryFromUrl } from './util';
+import { getBranchLink, getVscodeDevHost } from './links';
 
 function asRemoteSource(raw: any): RemoteSource {
+	const protocol = workspace.getConfiguration('github').get<'https' | 'ssh'>('gitProtocol');
 	return {
 		name: `$(github) ${raw.full_name}`,
-		description: raw.description || undefined,
-		url: raw.clone_url
+		description: `${raw.stargazers_count > 0 ? `$(star-full) ${raw.stargazers_count}` : ''
+			}`,
+		detail: raw.description || undefined,
+		url: protocol === 'https' ? raw.clone_url : raw.ssh_url
 	};
 }
 
@@ -33,7 +33,7 @@ export class GithubRemoteSourceProvider implements RemoteSourceProvider {
 		const octokit = await getOctokit();
 
 		if (query) {
-			const repository = parse(query);
+			const repository = getRepositoryFromUrl(query);
 
 			if (repository) {
 				const raw = await octokit.repos.get(repository);
@@ -61,7 +61,7 @@ export class GithubRemoteSourceProvider implements RemoteSourceProvider {
 		if (!query) {
 			const user = await octokit.users.getAuthenticated({});
 			const username = user.data.login;
-			const res = await octokit.repos.listForUser({ username, sort: 'updated', per_page: 100 });
+			const res = await octokit.repos.listForAuthenticatedUser({ username, sort: 'updated', per_page: 100 });
 			this.userReposCache = res.data.map(asRemoteSource);
 		}
 
@@ -73,12 +73,20 @@ export class GithubRemoteSourceProvider implements RemoteSourceProvider {
 			return [];
 		}
 
+		const repository = getRepositoryFromQuery(query);
+
+		if (repository) {
+			query = `user:${repository.owner}+${repository.repo}`;
+		}
+
+		query += ` fork:true`;
+
 		const raw = await octokit.search.repos({ q: query, sort: 'stars' });
 		return raw.data.items.map(asRemoteSource);
 	}
 
 	async getBranches(url: string): Promise<string[]> {
-		const repository = parse(url);
+		const repository = getRepositoryFromUrl(url);
 
 		if (!repository) {
 			return [];
@@ -90,7 +98,7 @@ export class GithubRemoteSourceProvider implements RemoteSourceProvider {
 		let page = 1;
 
 		while (true) {
-			let res = await octokit.repos.listBranches({ ...repository, per_page: 100, page });
+			const res = await octokit.repos.listBranches({ ...repository, per_page: 100, page });
 
 			if (res.data.length === 0) {
 				break;
@@ -104,5 +112,28 @@ export class GithubRemoteSourceProvider implements RemoteSourceProvider {
 		const defaultBranch = repo.data.default_branch;
 
 		return branches.sort((a, b) => a === defaultBranch ? -1 : b === defaultBranch ? 1 : 0);
+	}
+
+	async getRemoteSourceActions(url: string): Promise<RemoteSourceAction[]> {
+		const repository = getRepositoryFromUrl(url);
+		if (!repository) {
+			return [];
+		}
+
+		return [{
+			label: l10n.t('Open on GitHub'),
+			icon: 'github',
+			run(branch: string) {
+				const link = getBranchLink(url, branch);
+				env.openExternal(Uri.parse(link));
+			}
+		}, {
+			label: l10n.t('Checkout on vscode.dev'),
+			icon: 'globe',
+			run(branch: string) {
+				const link = getBranchLink(url, branch, getVscodeDevHost());
+				env.openExternal(Uri.parse(link));
+			}
+		}];
 	}
 }

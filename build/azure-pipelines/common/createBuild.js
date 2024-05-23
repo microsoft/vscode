@@ -1,8 +1,8 @@
+"use strict";
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 Object.defineProperty(exports, "__esModule", { value: true });
 const identity_1 = require("@azure/identity");
 const cosmos_1 = require("@azure/cosmos");
@@ -34,6 +34,7 @@ async function main() {
         timestamp: (new Date()).getTime(),
         version,
         isReleased: false,
+        private: process.env['VSCODE_PRIVATE_BUILD']?.toLowerCase() === 'true',
         sourceBranch,
         queuedBy,
         assets: [],
@@ -42,7 +43,7 @@ async function main() {
     const aadCredentials = new identity_1.ClientSecretCredential(process.env['AZURE_TENANT_ID'], process.env['AZURE_CLIENT_ID'], process.env['AZURE_CLIENT_SECRET']);
     const client = new cosmos_1.CosmosClient({ endpoint: process.env['AZURE_DOCUMENTDB_ENDPOINT'], aadCredentials });
     const scripts = client.database('builds').container(quality).scripts;
-    await (0, retry_1.retry)(() => scripts.storedProcedure('createBuild').execute('', [Object.assign(Object.assign({}, build), { _partitionKey: '' })]));
+    await (0, retry_1.retry)(() => scripts.storedProcedure('createBuild').execute('', [{ ...build, _partitionKey: '' }]));
 }
 main().then(() => {
     console.log('Build successfully created');
@@ -51,3 +52,4 @@ main().then(() => {
     console.error(err);
     process.exit(1);
 });
+//# sourceMappingURL=createBuild.js.map

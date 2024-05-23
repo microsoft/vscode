@@ -20,6 +20,8 @@
 
 .monaco-editor .zone-widget .zone-widget-container.exception-widget .title .label {
 	font-weight: bold;
+	display: flex;
+	align-items: center;
 }
 
 .monaco-editor .zone-widget .zone-widget-container.exception-widget .title .actions {

@@ -16,7 +16,7 @@ export class ExtensionMemento implements vscode.Memento {
 	protected readonly _storage: ExtHostStorage;
 
 	private readonly _init: Promise<ExtensionMemento>;
-	private _value?: { [n: string]: any; };
+	private _value?: { [n: string]: any };
 	private readonly _storageListener: IDisposable;
 
 	private _deferredPromises: Map<string, DeferredPromise<void>> = new Map();
@@ -27,7 +27,7 @@ export class ExtensionMemento implements vscode.Memento {
 		this._shared = global;
 		this._storage = storage;
 
-		this._init = this._storage.getValue(this._shared, this._id, Object.create(null)).then(value => {
+		this._init = this._storage.initializeExtensionStorage(this._shared, this._id, Object.create(null)).then(value => {
 			this._value = value;
 			return this;
 		});
@@ -78,7 +78,7 @@ export class ExtensionMemento implements vscode.Memento {
 	update(key: string, value: any): Promise<void> {
 		this._value![key] = value;
 
-		let record = this._deferredPromises.get(key);
+		const record = this._deferredPromises.get(key);
 		if (record !== undefined) {
 			return record.p;
 		}

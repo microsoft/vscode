@@ -62,13 +62,13 @@ suite('Tests for Next/Previous Select/Edit point and Balance actions', () => {
 		return withRandomFileEditor(htmlContents, '.html', (editor, _) => {
 			editor.selections = [new Selection(1, 5, 1, 5)];
 
-			let expectedNextEditPoints: [number, number][] = [[4, 16], [6, 8], [10, 2], [10, 2]];
+			const expectedNextEditPoints: [number, number][] = [[4, 16], [6, 8], [10, 2], [10, 2]];
 			expectedNextEditPoints.forEach(([line, col]) => {
 				fetchEditPoint('next');
 				testSelection(editor.selection, col, line);
 			});
 
-			let expectedPrevEditPoints = [[6, 8], [4, 16], [4, 16]];
+			const expectedPrevEditPoints = [[6, 8], [4, 16], [4, 16]];
 			expectedPrevEditPoints.forEach(([line, col]) => {
 				fetchEditPoint('prev');
 				testSelection(editor.selection, col, line);
@@ -82,7 +82,7 @@ suite('Tests for Next/Previous Select/Edit point and Balance actions', () => {
 		return withRandomFileEditor(htmlContents, '.html', (editor, _) => {
 			editor.selections = [new Selection(2, 2, 2, 2)];
 
-			let expectedNextItemPoints: [number, number, number][] = [
+			const expectedNextItemPoints: [number, number, number][] = [
 				[2, 1, 5],   // html
 				[2, 6, 15],  // lang="en"
 				[2, 12, 14], // en
@@ -141,7 +141,7 @@ suite('Tests for Next/Previous Select/Edit point and Balance actions', () => {
 		return withRandomFileEditor(templateContents, '.html', (editor, _) => {
 			editor.selections = [new Selection(2, 2, 2, 2)];
 
-			let expectedNextItemPoints: [number, number, number][] = [
+			const expectedNextItemPoints: [number, number, number][] = [
 				[2, 2, 5],  // div
 				[2, 6, 20], // class="header"
 				[2, 13, 19], // header
@@ -170,7 +170,7 @@ suite('Tests for Next/Previous Select/Edit point and Balance actions', () => {
 		return withRandomFileEditor(cssContents, '.css', (editor, _) => {
 			editor.selections = [new Selection(0, 0, 0, 0)];
 
-			let expectedNextItemPoints: [number, number, number][] = [
+			const expectedNextItemPoints: [number, number, number][] = [
 				[1, 0, 4],   // .boo
 				[2, 1, 19],  // margin: 20px 10px;
 				[2, 9, 18],   // 20px 10px
@@ -201,7 +201,7 @@ suite('Tests for Next/Previous Select/Edit point and Balance actions', () => {
 		return withRandomFileEditor(scssContents, '.scss', (editor, _) => {
 			editor.selections = [new Selection(0, 0, 0, 0)];
 
-			let expectedNextItemPoints: [number, number, number][] = [
+			const expectedNextItemPoints: [number, number, number][] = [
 				[1, 0, 4],   // .boo
 				[2, 1, 19],  // margin: 20px 10px;
 				[2, 9, 18],   // 20px 10px
@@ -232,7 +232,7 @@ suite('Tests for Next/Previous Select/Edit point and Balance actions', () => {
 		return withRandomFileEditor(htmlContents, 'html', (editor, _) => {
 
 			editor.selections = [new Selection(14, 6, 14, 10)];
-			let expectedBalanceOutRanges: [number, number, number, number][] = [
+			const expectedBalanceOutRanges: [number, number, number, number][] = [
 				[14, 3, 14, 32],   // <li class="item1">Item 1</li>
 				[13, 23, 16, 2],  // inner contents of <ul class="nav main">
 				[13, 2, 16, 7],		// outer contents of <ul class="nav main">
@@ -249,7 +249,7 @@ suite('Tests for Next/Previous Select/Edit point and Balance actions', () => {
 			});
 
 			editor.selections = [new Selection(12, 7, 12, 7)];
-			let expectedBalanceInRanges: [number, number, number, number][] = [
+			const expectedBalanceInRanges: [number, number, number, number][] = [
 				[12, 21, 17, 1],   // inner contents of <div class="header">
 				[13, 2, 16, 7],		// outer contents of <ul class="nav main">
 				[13, 23, 16, 2],  // inner contents of <ul class="nav main">
@@ -269,7 +269,7 @@ suite('Tests for Next/Previous Select/Edit point and Balance actions', () => {
 		return withRandomFileEditor(htmlContents, 'html', (editor, _) => {
 
 			editor.selections = [new Selection(15, 6, 15, 10)];
-			let expectedBalanceOutRanges: [number, number, number, number][] = [
+			const expectedBalanceOutRanges: [number, number, number, number][] = [
 				[15, 3, 15, 32],   // <li class="item1">Item 2</li>
 				[13, 23, 16, 2],  // inner contents of <ul class="nav main">
 				[13, 2, 16, 7],		// outer contents of <ul class="nav main">
@@ -327,7 +327,7 @@ suite('Tests for Next/Previous Select/Edit point and Balance actions', () => {
 		return withRandomFileEditor(htmlTemplate, 'html', (editor, _) => {
 
 			editor.selections = [new Selection(5, 24, 5, 24)];
-			let expectedBalanceOutRanges: [number, number, number, number][] = [
+			const expectedBalanceOutRanges: [number, number, number, number][] = [
 				[5, 20, 5, 26],	// <li class="item1">``Item 2''</li>
 				[5, 2, 5, 31],	// ``<li class="item1">Item 2</li>''
 				[3, 22, 6, 1],	// inner contents of ul

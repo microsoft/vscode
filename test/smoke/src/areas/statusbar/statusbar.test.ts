@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { join } from 'path';
-import { Application, Quality, StatusBarElement, Logger } from '../../../../automation';
+import { Application, StatusBarElement, Logger } from '../../../../automation';
 import { installAllHandlers } from '../../utils';
 
-export function setup(isWeb: boolean, logger: Logger) {
+export function setup(logger: Logger) {
 	describe('Statusbar', () => {
 
 		// Shared before/after handling
@@ -16,17 +16,11 @@ export function setup(isWeb: boolean, logger: Logger) {
 		it('verifies presence of all default status bar elements', async function () {
 			const app = this.app as Application;
 			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.BRANCH_STATUS);
-			if (app.quality !== Quality.Dev) {
-				await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.FEEDBACK_ICON);
-			}
 			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.SYNC_STATUS);
 			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.PROBLEMS_STATUS);
 
-			await app.workbench.quickaccess.openFile(join(app.workspacePathOrFolder, 'app.js'));
-			if (!isWeb) {
-				// Encoding picker currently hidden in web (only UTF-8 supported)
-				await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.ENCODING_STATUS);
-			}
+			await app.workbench.quickaccess.openFile(join(app.workspacePathOrFolder, 'readme.md'));
+			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.ENCODING_STATUS);
 			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.EOL_STATUS);
 			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.INDENTATION_STATUS);
 			await app.workbench.statusbar.waitForStatusbarElement(StatusBarElement.LANGUAGE_STATUS);
@@ -39,16 +33,13 @@ export function setup(isWeb: boolean, logger: Logger) {
 			await app.workbench.quickinput.waitForQuickInputOpened();
 			await app.workbench.quickinput.closeQuickInput();
 
-			await app.workbench.quickaccess.openFile(join(app.workspacePathOrFolder, 'app.js'));
+			await app.workbench.quickaccess.openFile(join(app.workspacePathOrFolder, 'readme.md'));
 			await app.workbench.statusbar.clickOn(StatusBarElement.INDENTATION_STATUS);
 			await app.workbench.quickinput.waitForQuickInputOpened();
 			await app.workbench.quickinput.closeQuickInput();
-			if (!isWeb) {
-				// Encoding picker currently hidden in web (only UTF-8 supported)
-				await app.workbench.statusbar.clickOn(StatusBarElement.ENCODING_STATUS);
-				await app.workbench.quickinput.waitForQuickInputOpened();
-				await app.workbench.quickinput.closeQuickInput();
-			}
+			await app.workbench.statusbar.clickOn(StatusBarElement.ENCODING_STATUS);
+			await app.workbench.quickinput.waitForQuickInputOpened();
+			await app.workbench.quickinput.closeQuickInput();
 			await app.workbench.statusbar.clickOn(StatusBarElement.EOL_STATUS);
 			await app.workbench.quickinput.waitForQuickInputOpened();
 			await app.workbench.quickinput.closeQuickInput();
@@ -65,22 +56,12 @@ export function setup(isWeb: boolean, logger: Logger) {
 
 		it(`verifies if changing EOL is reflected in the status bar`, async function () {
 			const app = this.app as Application;
-			await app.workbench.quickaccess.openFile(join(app.workspacePathOrFolder, 'app.js'));
+			await app.workbench.quickaccess.openFile(join(app.workspacePathOrFolder, 'readme.md'));
 			await app.workbench.statusbar.clickOn(StatusBarElement.EOL_STATUS);
 
 			await app.workbench.quickinput.selectQuickInputElement(1);
 
 			await app.workbench.statusbar.waitForEOL('CRLF');
-		});
-
-		it(`verifies that 'Tweet us feedback' pop-up appears when clicking on 'Feedback' icon`, async function () {
-			const app = this.app as Application;
-			if (app.quality === Quality.Dev) {
-				return this.skip();
-			}
-
-			await app.workbench.statusbar.clickOn(StatusBarElement.FEEDBACK_ICON);
-			await app.code.waitForElement('.feedback-form');
 		});
 	});
 }

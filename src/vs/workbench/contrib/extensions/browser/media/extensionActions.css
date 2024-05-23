@@ -31,18 +31,67 @@
 	line-height: 14px;
 }
 
+.monaco-action-bar .action-item .action-label.extension-action.built-in-status {
+	border-color: var(--vscode-foreground);
+}
+
+.monaco-action-bar .action-item .action-label.extension-action.label,
+.monaco-action-bar .action-item.action-dropdown-item > .action-dropdown-item-separator {
+	background-color: var(--vscode-extensionButton-background) !important;
+}
+
+.monaco-action-bar .action-item .action-label.extension-action.label {
+	color: var(--vscode-extensionButton-foreground) !important;
+}
+
+.monaco-action-bar .action-item:not(.disabled) .action-label.extension-action.label:hover {
+	background-color: var(--vscode-extensionButton-hoverBackground) !important;
+}
+
+.monaco-action-bar .action-item.action-dropdown-item > .action-dropdown-item-separator > div {
+	background-color: var(--vscode-extensionButton-separator);
+}
+
+.monaco-action-bar .action-item .action-label.extension-action.label.prominent,
+.monaco-action-bar .action-item.action-dropdown-item > .action-dropdown-item-separator.prominent {
+	background-color: var(--vscode-extensionButton-prominentBackground);
+}
+
+.monaco-action-bar .action-item .action-label.extension-action.label.prominent {
+	color: var(--vscode-extensionButton-prominentForeground) !important;
+}
+
+.monaco-action-bar .action-item.action-item:not(.disabled) .action-label.extension-action.label.prominent:hover {
+	background-color: var(--vscode-extensionButton-prominentHoverBackground);
+}
+
+.monaco-action-bar .action-item .action-label.extension-action:not(.disabled) {
+	border: 1px solid var(--vscode-contrastBorder);
+}
+
+.monaco-action-bar .action-item.action-dropdown-item > .action-dropdown-item-separator {
+	border-top: 1px solid var(--vscode-contrastBorder);
+	border-bottom: 1px solid var(--vscode-contrastBorder);
+}
+
+.monaco-action-bar .action-item .action-label.extension-action.extension-status-error {
+	color: var(--vscode-editorError-foreground);
+}
+
+.monaco-action-bar .action-item .action-label.extension-action.extension-status-warning {
+	color: var(--vscode-editorWarning-foreground);
+}
+
+.monaco-action-bar .action-item .action-label.extension-action.extension-status-info {
+	color: var(--vscode-editorInfo-foreground);
+}
+
 .monaco-action-bar .action-item:not(.disabled) .action-label.extension-action.text,
 .monaco-action-bar .action-item:not(.disabled) .action-label.extension-action.label,
 .monaco-action-bar .action-item .action-label.extension-action.icon,
 .monaco-action-bar .action-dropdown-item .action-label.extension-action.label {
-	margin-top: 2px; /* margin for outline */
-}
-
-.monaco-action-bar .action-item .action-label.extension-action.multiserver.install:after,
-.monaco-action-bar .action-item .action-label.extension-action.multiserver.update:after {
-	content: '▼';
-	padding-left: 2px;
-	font-size: 80%;
+	margin-top: 2px;
+	/* margin for outline */
 }
 
 .monaco-action-bar .action-item.disabled .action-label.extension-action.hide,
@@ -52,7 +101,9 @@
 .monaco-action-bar .action-item.disabled .action-label.extension-action.uninstall:not(.uninstalling),
 .monaco-action-bar .action-item.disabled .action-label.extension-action.hide-when-disabled,
 .monaco-action-bar .action-item.disabled .action-label.extension-action.update,
+.monaco-action-bar .action-item.disabled .action-label.extension-action.migrate,
 .monaco-action-bar .action-item.disabled .action-label.extension-action.theme,
+.monaco-action-bar .action-item.disabled .action-label.extension-action.language,
 .monaco-action-bar .action-item.disabled .action-label.extension-action.extension-sync,
 .monaco-action-bar .action-item.action-dropdown-item.disabled,
 .monaco-action-bar .action-item.action-dropdown-item .action-label.extension-action.hide,
@@ -61,6 +112,10 @@
 .monaco-action-bar .action-item.disabled .action-label.extension-status.hide,
 .monaco-action-bar .action-item.disabled .action-label.extension-status-label.hide,
 .monaco-action-bar .action-item .action-label.extension-action.manage.hide {
+	display: none;
+}
+
+.monaco-action-bar .action-item.checkbox-action-item.disabled {
 	display: none;
 }
 
@@ -73,7 +128,7 @@
 }
 
 .monaco-action-bar .action-item.disabled .action-label.extension-status-label:before {
-	content: '✓';
+	content: '\2713';
 	padding-right: 4px;
 }
 

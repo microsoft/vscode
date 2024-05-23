@@ -4,10 +4,38 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { formatCellDuration, getRanges, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
+
+/**
+ * Return a set of ranges for the cells matching the given predicate
+ */
+function getRanges(cells: ICellViewModel[], included: (cell: ICellViewModel) => boolean): ICellRange[] {
+	const ranges: ICellRange[] = [];
+	let currentRange: ICellRange | undefined;
+
+	cells.forEach((cell, idx) => {
+		if (included(cell)) {
+			if (!currentRange) {
+				currentRange = { start: idx, end: idx + 1 };
+				ranges.push(currentRange);
+			} else {
+				currentRange.end = idx + 1;
+			}
+		} else {
+			currentRange = undefined;
+		}
+	});
+
+	return ranges;
+}
+
 
 suite('notebookBrowser', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	suite('getRanges', function () {
 		const predicate = (cell: ICellViewModel) => cell.cellKind === CellKind.Code;
 
@@ -47,14 +75,5 @@ suite('notebookBrowser', () => {
 			];
 			assert.deepStrictEqual(getRanges(cells as ICellViewModel[], predicate), [{ start: 0, end: 2 }, { start: 3, end: 4 }, { start: 6, end: 7 }]);
 		});
-	});
-
-	test('formatCellDuration', function () {
-		assert.strictEqual(formatCellDuration(0), '0.0s');
-		assert.strictEqual(formatCellDuration(10), '0.1s');
-		assert.strictEqual(formatCellDuration(200), '0.2s');
-		assert.strictEqual(formatCellDuration(3300), '3.3s');
-		assert.strictEqual(formatCellDuration(180000), '3m 0.0s');
-		assert.strictEqual(formatCellDuration(189412), '3m 9.4s');
 	});
 });

@@ -5,8 +5,7 @@
 
 import { range } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { canceled } from 'vs/base/common/errors';
-import { isArray } from 'vs/base/common/types';
+import { CancellationError } from 'vs/base/common/errors';
 
 /**
  * A Pager is a stateless abstraction over a paged collection.
@@ -65,7 +64,7 @@ export class PagedModel<T> implements IPagedModel<T> {
 	get length(): number { return this.pager.total; }
 
 	constructor(arg: IPager<T> | T[]) {
-		this.pager = isArray(arg) ? singlePagePager<T>(arg) : arg;
+		this.pager = Array.isArray(arg) ? singlePagePager<T>(arg) : arg;
 
 		const totalPages = Math.ceil(this.pager.total / this.pager.pageSize);
 
@@ -92,7 +91,7 @@ export class PagedModel<T> implements IPagedModel<T> {
 
 	resolve(index: number, cancellationToken: CancellationToken): Promise<T> {
 		if (cancellationToken.isCancellationRequested) {
-			return Promise.reject(canceled());
+			return Promise.reject(new CancellationError());
 		}
 
 		const pageIndex = Math.floor(index / this.pager.pageSize);
@@ -119,7 +118,7 @@ export class PagedModel<T> implements IPagedModel<T> {
 				});
 		}
 
-		cancellationToken.onCancellationRequested(() => {
+		const listener = cancellationToken.onCancellationRequested(() => {
 			if (!page.cts) {
 				return;
 			}
@@ -133,7 +132,8 @@ export class PagedModel<T> implements IPagedModel<T> {
 
 		page.promiseIndexes.add(index);
 
-		return page.promise.then(() => page.elements[indexInPage]);
+		return page.promise.then(() => page.elements[indexInPage])
+			.finally(() => listener.dispose());
 	}
 }
 
@@ -154,12 +154,12 @@ export class DelayedPagedModel<T> implements IPagedModel<T> {
 	resolve(index: number, cancellationToken: CancellationToken): Promise<T> {
 		return new Promise((c, e) => {
 			if (cancellationToken.isCancellationRequested) {
-				return e(canceled());
+				return e(new CancellationError());
 			}
 
 			const timer = setTimeout(() => {
 				if (cancellationToken.isCancellationRequested) {
-					return e(canceled());
+					return e(new CancellationError());
 				}
 
 				timeoutCancellation.dispose();
@@ -169,7 +169,7 @@ export class DelayedPagedModel<T> implements IPagedModel<T> {
 			const timeoutCancellation = cancellationToken.onCancellationRequested(() => {
 				clearTimeout(timer);
 				timeoutCancellation.dispose();
-				e(canceled());
+				e(new CancellationError());
 			});
 		});
 	}

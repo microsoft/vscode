@@ -3,19 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { flatten } from 'vs/base/common/arrays';
 import { EXTENSION_CATEGORIES } from 'vs/platform/extensions/common/extensions';
 
 export class Query {
 
-	constructor(public value: string, public sortBy: string, public groupBy: string) {
+	constructor(public value: string, public sortBy: string) {
 		this.value = value.trim();
 	}
 
 	static suggestions(query: string): string[] {
-		const commands = ['installed', 'outdated', 'enabled', 'disabled', 'builtin', 'featured', 'popular', 'recommended', 'workspaceUnsupported', 'sort', 'category', 'tag', 'ext', 'id'] as const;
+		const commands = ['installed', 'updates', 'enabled', 'disabled', 'builtin', 'featured', 'popular', 'recommended', 'recentlyPublished', 'workspaceUnsupported', 'deprecated', 'sort', 'category', 'tag', 'ext', 'id'] as const;
 		const subcommands = {
-			'sort': ['installs', 'rating', 'name', 'publishedDate'],
+			'sort': ['installs', 'rating', 'name', 'publishedDate', 'updateDate'],
 			'category': EXTENSION_CATEGORIES.map(c => `"${c.toLowerCase()}"`),
 			'tag': [''],
 			'ext': [''],
@@ -26,19 +25,18 @@ export class Query {
 		const hasSort = subcommands.sort.some(subcommand => queryContains(`@sort:${subcommand}`));
 		const hasCategory = subcommands.category.some(subcommand => queryContains(`@category:${subcommand}`));
 
-		return flatten(
-			commands.map(command => {
-				if (hasSort && command === 'sort' || hasCategory && command === 'category') {
-					return [];
-				}
-				if (command in subcommands) {
-					return (subcommands as Record<string, readonly string[]>)[command]
-						.map(subcommand => `@${command}:${subcommand}${subcommand === '' ? '' : ' '}`);
-				}
-				else {
-					return queryContains(`@${command}`) ? [] : [`@${command} `];
-				}
-			}));
+		return commands.flatMap(command => {
+			if (hasSort && command === 'sort' || hasCategory && command === 'category') {
+				return [];
+			}
+			if (command in subcommands) {
+				return (subcommands as Record<string, readonly string[]>)[command]
+					.map(subcommand => `@${command}:${subcommand}${subcommand === '' ? '' : ' '}`);
+			}
+			else {
+				return queryContains(`@${command}`) ? [] : [`@${command} `];
+			}
+		});
 	}
 
 	static parse(value: string): Query {
@@ -48,15 +46,7 @@ export class Query {
 
 			return '';
 		});
-
-		let groupBy = '';
-		value = value.replace(/@group:(\w+)(-\w*)?/g, (match, by: string, order: string) => {
-			groupBy = by;
-
-			return '';
-		});
-
-		return new Query(value, sortBy, groupBy);
+		return new Query(value, sortBy);
 	}
 
 	toString(): string {
@@ -65,10 +55,6 @@ export class Query {
 		if (this.sortBy) {
 			result = `${result}${result ? ' ' : ''}@sort:${this.sortBy}`;
 		}
-		if (this.groupBy) {
-			result = `${result}${result ? ' ' : ''}@group:${this.groupBy}`;
-		}
-
 		return result;
 	}
 

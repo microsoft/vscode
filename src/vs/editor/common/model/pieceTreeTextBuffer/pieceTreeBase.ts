@@ -6,14 +6,14 @@
 import { CharCode } from 'vs/base/common/charCode';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { FindMatch, ITextSnapshot } from 'vs/editor/common/model';
+import { FindMatch, ITextSnapshot, SearchData } from 'vs/editor/common/model';
 import { NodeColor, SENTINEL, TreeNode, fixInsert, leftest, rbDelete, righttest, updateTreeMetadata } from 'vs/editor/common/model/pieceTreeTextBuffer/rbTreeBase';
-import { SearchData, Searcher, createFindMatch, isValidMatch } from 'vs/editor/common/model/textModelSearch';
+import { Searcher, createFindMatch, isValidMatch } from 'vs/editor/common/model/textModelSearch';
 
 // const lfRegex = new RegExp(/\r\n|\r|\n/g);
-export const AverageBufferSize = 65535;
+const AverageBufferSize = 65535;
 
-export function createUintArray(arr: number[]): Uint32Array | Uint16Array {
+function createUintArray(arr: number[]): Uint32Array | Uint16Array {
 	let r;
 	if (arr[arr.length - 1] < 65536) {
 		r = new Uint16Array(arr.length);
@@ -24,7 +24,7 @@ export function createUintArray(arr: number[]): Uint32Array | Uint16Array {
 	return r;
 }
 
-export class LineStarts {
+class LineStarts {
 	constructor(
 		public readonly lineStarts: Uint32Array | Uint16Array | number[],
 		public readonly cr: number,
@@ -98,13 +98,13 @@ export function createLineStarts(r: number[], str: string): LineStarts {
 	return result;
 }
 
-export interface NodePosition {
+interface NodePosition {
 	/**
 	 * Piece Index
 	 */
 	node: TreeNode;
 	/**
-	 * remainer in current piece.
+	 * remainder in current piece.
 	*/
 	remainder: number;
 	/**
@@ -113,7 +113,7 @@ export interface NodePosition {
 	nodeStartOffset: number;
 }
 
-export interface BufferCursor {
+interface BufferCursor {
 	/**
 	 * Line number in current buffer
 	 */
@@ -223,11 +223,11 @@ class PieceTreeSearchCache {
 		return null;
 	}
 
-	public get2(lineNumber: number): { node: TreeNode, nodeStartOffset: number, nodeStartLineNumber: number } | null {
+	public get2(lineNumber: number): { node: TreeNode; nodeStartOffset: number; nodeStartLineNumber: number } | null {
 		for (let i = this._cache.length - 1; i >= 0; i--) {
 			const nodePos = this._cache[i];
 			if (nodePos.nodeStartLineNumber && nodePos.nodeStartLineNumber < lineNumber && nodePos.nodeStartLineNumber + nodePos.node.piece.lineFeedCnt >= lineNumber) {
-				return <{ node: TreeNode, nodeStartOffset: number, nodeStartLineNumber: number }>nodePos;
+				return <{ node: TreeNode; nodeStartOffset: number; nodeStartLineNumber: number }>nodePos;
 			}
 		}
 		return null;
@@ -275,7 +275,7 @@ export class PieceTreeBase {
 	protected _EOLNormalized!: boolean;
 	private _lastChangeBufferPos!: BufferCursor;
 	private _searchCache!: PieceTreeSearchCache;
-	private _lastVisitedLine!: { lineNumber: number; value: string; };
+	private _lastVisitedLine!: { lineNumber: number; value: string };
 
 	constructor(chunks: StringBuffer[], eol: '\r\n' | '\n', eolNormalized: boolean) {
 		this.create(chunks, eol, eolNormalized);
@@ -374,7 +374,7 @@ export class PieceTreeBase {
 			return false;
 		}
 
-		const offset = 0;
+		let offset = 0;
 		const ret = this.iterate(this.root, node => {
 			if (node === SENTINEL) {
 				return true;
@@ -385,6 +385,7 @@ export class PieceTreeBase {
 			const endPosition = other.nodeAt(offset + len);
 			const val = other.getValueInRange2(startPosition, endPosition);
 
+			offset += len;
 			return str === val;
 		});
 
@@ -1318,7 +1319,7 @@ export class PieceTreeBase {
 	}
 
 	// #region node operations
-	private getIndexOf(node: TreeNode, accumulatedValue: number): { index: number, remainder: number } {
+	private getIndexOf(node: TreeNode, accumulatedValue: number): { index: number; remainder: number } {
 		const piece = node.piece;
 		const pos = this.positionInBuffer(node, accumulatedValue);
 		const lineCnt = pos.line - piece.start.line;
@@ -1768,11 +1769,10 @@ export class PieceTreeBase {
 			return '';
 		}
 		const buffer = this._buffers[node.piece.bufferIndex];
-		let currentContent;
 		const piece = node.piece;
 		const startOffset = this.offsetInBuffer(piece.bufferIndex, piece.start);
 		const endOffset = this.offsetInBuffer(piece.bufferIndex, piece.end);
-		currentContent = buffer.buffer.substring(startOffset, endOffset);
+		const currentContent = buffer.buffer.substring(startOffset, endOffset);
 		return currentContent;
 	}
 

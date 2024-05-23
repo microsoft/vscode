@@ -3,112 +3,118 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { localize } from 'vs/nls';
-import { registerColor, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { ColorTransformType, asCssVariable, asCssVariableName, registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { IDebugService, State, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_BACKGROUND, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_BORDER, STATUS_BAR_BORDER } from 'vs/workbench/common/theme';
-import { assertIsDefined } from 'vs/base/common/types';
-import { createStyleSheet } from 'vs/base/browser/dom';
+import { IDebugService, State, IDebugSession, IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { STATUS_BAR_FOREGROUND, STATUS_BAR_BORDER, COMMAND_CENTER_BACKGROUND } from 'vs/workbench/common/theme';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { IStatusbarService } from 'vs/workbench/services/statusbar/browser/statusbar';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
+
 
 // colors for theming
 
 export const STATUS_BAR_DEBUGGING_BACKGROUND = registerColor('statusBar.debuggingBackground', {
 	dark: '#CC6633',
 	light: '#CC6633',
-	hc: '#CC6633'
+	hcDark: '#BA592C',
+	hcLight: '#B5200D'
 }, localize('statusBarDebuggingBackground', "Status bar background color when a program is being debugged. The status bar is shown in the bottom of the window"));
 
 export const STATUS_BAR_DEBUGGING_FOREGROUND = registerColor('statusBar.debuggingForeground', {
 	dark: STATUS_BAR_FOREGROUND,
 	light: STATUS_BAR_FOREGROUND,
-	hc: STATUS_BAR_FOREGROUND
+	hcDark: STATUS_BAR_FOREGROUND,
+	hcLight: '#FFFFFF'
 }, localize('statusBarDebuggingForeground', "Status bar foreground color when a program is being debugged. The status bar is shown in the bottom of the window"));
 
 export const STATUS_BAR_DEBUGGING_BORDER = registerColor('statusBar.debuggingBorder', {
 	dark: STATUS_BAR_BORDER,
 	light: STATUS_BAR_BORDER,
-	hc: STATUS_BAR_BORDER
+	hcDark: STATUS_BAR_BORDER,
+	hcLight: STATUS_BAR_BORDER
 }, localize('statusBarDebuggingBorder', "Status bar border color separating to the sidebar and editor when a program is being debugged. The status bar is shown in the bottom of the window"));
 
-export class StatusBarColorProvider extends Themable implements IWorkbenchContribution {
-	private styleElement: HTMLStyleElement | undefined;
+export const COMMAND_CENTER_DEBUGGING_BACKGROUND = registerColor(
+	'commandCenter.debuggingBackground',
+	{
+		dark: { value: STATUS_BAR_DEBUGGING_BACKGROUND, op: ColorTransformType.Transparent, factor: 0.258 },
+		hcDark: { value: STATUS_BAR_DEBUGGING_BACKGROUND, op: ColorTransformType.Transparent, factor: 0.258 },
+		light: { value: STATUS_BAR_DEBUGGING_BACKGROUND, op: ColorTransformType.Transparent, factor: 0.258 },
+		hcLight: { value: STATUS_BAR_DEBUGGING_BACKGROUND, op: ColorTransformType.Transparent, factor: 0.258 }
+	},
+	localize('commandCenter-activeBackground', "Command center background color when a program is being debugged"),
+	true
+);
+
+export class StatusBarColorProvider implements IWorkbenchContribution {
+
+	private readonly disposables = new DisposableStore();
+	private disposable: IDisposable | undefined;
+
+	private set enabled(enabled: boolean) {
+		if (enabled === !!this.disposable) {
+			return;
+		}
+
+		if (enabled) {
+			this.disposable = this.statusbarService.overrideStyle({
+				priority: 10,
+				foreground: STATUS_BAR_DEBUGGING_FOREGROUND,
+				background: STATUS_BAR_DEBUGGING_BACKGROUND,
+				border: STATUS_BAR_DEBUGGING_BORDER,
+			});
+		} else {
+			this.disposable!.dispose();
+			this.disposable = undefined;
+		}
+	}
 
 	constructor(
-		@IThemeService themeService: IThemeService,
 		@IDebugService private readonly debugService: IDebugService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
+		@IStatusbarService private readonly statusbarService: IStatusbarService,
+		@ILayoutService private readonly layoutService: ILayoutService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
-		super(themeService);
-
-		this.registerListeners();
-		this.updateStyles();
-	}
-
-	private registerListeners(): void {
-		this._register(this.debugService.onDidChangeState(state => this.updateStyles()));
-		this._register(this.contextService.onDidChangeWorkbenchState(state => this.updateStyles()));
-	}
-
-	protected override updateStyles(): void {
-		super.updateStyles();
-
-		const container = assertIsDefined(this.layoutService.getContainer(Parts.STATUSBAR_PART));
-		if (isStatusbarInDebugMode(this.debugService.state, this.debugService.getViewModel().focusedSession)) {
-			container.classList.add('debugging');
-		} else {
-			container.classList.remove('debugging');
-		}
-
-		// Container Colors
-		const backgroundColor = this.getColor(this.getColorKey(STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_DEBUGGING_BACKGROUND, STATUS_BAR_BACKGROUND));
-		container.style.backgroundColor = backgroundColor || '';
-		container.style.color = this.getColor(this.getColorKey(STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_DEBUGGING_FOREGROUND, STATUS_BAR_FOREGROUND)) || '';
-
-		// Border Color
-		const borderColor = this.getColor(this.getColorKey(STATUS_BAR_NO_FOLDER_BORDER, STATUS_BAR_DEBUGGING_BORDER, STATUS_BAR_BORDER)) || this.getColor(contrastBorder);
-		if (borderColor) {
-			container.classList.add('status-border-top');
-			container.style.setProperty('--status-border-top-color', borderColor.toString());
-		} else {
-			container.classList.remove('status-border-top');
-			container.style.removeProperty('--status-border-top-color');
-		}
-
-		// Notification Beak
-		if (!this.styleElement) {
-			this.styleElement = createStyleSheet(container);
-		}
-
-		this.styleElement.textContent = `.monaco-workbench .part.statusbar > .items-container > .statusbar-item.has-beak:before { border-bottom-color: ${backgroundColor} !important; }`;
-	}
-
-	private getColorKey(noFolderColor: string, debuggingColor: string, normalColor: string): string {
-
-		// Not debugging
-		if (!isStatusbarInDebugMode(this.debugService.state, this.debugService.getViewModel().focusedSession)) {
-			if (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
-				return normalColor;
+		this.debugService.onDidChangeState(this.update, this, this.disposables);
+		this.contextService.onDidChangeWorkbenchState(this.update, this, this.disposables);
+		this.configurationService.onDidChangeConfiguration((e) => {
+			if (e.affectsConfiguration('debug.enableStatusBarColor') || e.affectsConfiguration('debug.toolBarLocation')) {
+				this.update();
 			}
+		}, this.disposables);
+		this.update();
+	}
 
-			return noFolderColor;
+	protected update(): void {
+		const debugConfig = this.configurationService.getValue<IDebugConfiguration>('debug');
+		const isInDebugMode = isStatusbarInDebugMode(this.debugService.state, this.debugService.getModel().getSessions());
+		if (!debugConfig.enableStatusBarColor) {
+			this.enabled = false;
+		} else {
+			this.enabled = isInDebugMode;
 		}
 
-		// Debugging
-		return debuggingColor;
+		const isInCommandCenter = debugConfig.toolBarLocation === 'commandCenter';
+		this.layoutService.mainContainer.style.setProperty(asCssVariableName(COMMAND_CENTER_BACKGROUND), isInCommandCenter && isInDebugMode
+			? asCssVariable(COMMAND_CENTER_DEBUGGING_BACKGROUND)
+			: ''
+		);
+
+	}
+
+	dispose(): void {
+		this.disposable?.dispose();
+		this.disposables.dispose();
 	}
 }
 
-export function isStatusbarInDebugMode(state: State, session: IDebugSession | undefined): boolean {
-	if (state === State.Inactive || state === State.Initializing || session?.isSimpleUI) {
-		return false;
-	}
-	const isRunningWithoutDebug = session?.configuration?.noDebug;
-	if (isRunningWithoutDebug) {
+export function isStatusbarInDebugMode(state: State, sessions: IDebugSession[]): boolean {
+	if (state === State.Inactive || state === State.Initializing || sessions.every(s => s.suppressDebugStatusbar || s.configuration?.noDebug)) {
 		return false;
 	}
 

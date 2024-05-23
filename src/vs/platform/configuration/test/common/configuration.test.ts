@@ -17,8 +17,20 @@ suite('Configuration', () => {
 		assert.deepStrictEqual(base, { 'a': 1, 'b': 2, 'c': 4 });
 	});
 
+	test('object merge', () => {
+		const base = { 'a': { 'b': 1, 'c': true, 'd': 2 } };
+		merge(base, { 'a': { 'b': undefined, 'c': false, 'e': 'a' } }, true);
+		assert.deepStrictEqual(base, { 'a': { 'b': undefined, 'c': false, 'd': 2, 'e': 'a' } });
+	});
+
+	test('array merge', () => {
+		const base = { 'a': ['b', 'c'] };
+		merge(base, { 'a': ['b', 'd'] }, true);
+		assert.deepStrictEqual(base, { 'a': ['b', 'd'] });
+	});
+
 	test('removeFromValueTree: remove a non existing key', () => {
-		let target = { 'a': { 'b': 2 } };
+		const target = { 'a': { 'b': 2 } };
 
 		removeFromValueTree(target, 'c');
 
@@ -26,7 +38,7 @@ suite('Configuration', () => {
 	});
 
 	test('removeFromValueTree: remove a multi segmented key from an object that has only sub sections of the key', () => {
-		let target = { 'a': { 'b': 2 } };
+		const target = { 'a': { 'b': 2 } };
 
 		removeFromValueTree(target, 'a.b.c');
 
@@ -34,7 +46,7 @@ suite('Configuration', () => {
 	});
 
 	test('removeFromValueTree: remove a single segmented key', () => {
-		let target = { 'a': 1 };
+		const target = { 'a': 1 };
 
 		removeFromValueTree(target, 'a');
 
@@ -42,7 +54,7 @@ suite('Configuration', () => {
 	});
 
 	test('removeFromValueTree: remove a single segmented key when its value is undefined', () => {
-		let target = { 'a': undefined };
+		const target = { 'a': undefined };
 
 		removeFromValueTree(target, 'a');
 
@@ -50,7 +62,7 @@ suite('Configuration', () => {
 	});
 
 	test('removeFromValueTree: remove a multi segmented key when its value is undefined', () => {
-		let target = { 'a': { 'b': 1 } };
+		const target = { 'a': { 'b': 1 } };
 
 		removeFromValueTree(target, 'a.b');
 
@@ -58,7 +70,7 @@ suite('Configuration', () => {
 	});
 
 	test('removeFromValueTree: remove a multi segmented key when its value is array', () => {
-		let target = { 'a': { 'b': [1] } };
+		const target = { 'a': { 'b': [1] } };
 
 		removeFromValueTree(target, 'a.b');
 
@@ -66,7 +78,7 @@ suite('Configuration', () => {
 	});
 
 	test('removeFromValueTree: remove a multi segmented key first segment value is array', () => {
-		let target = { 'a': [1] };
+		const target = { 'a': [1] };
 
 		removeFromValueTree(target, 'a.0');
 
@@ -74,7 +86,7 @@ suite('Configuration', () => {
 	});
 
 	test('removeFromValueTree: remove when key is the first segmenet', () => {
-		let target = { 'a': { 'b': 1 } };
+		const target = { 'a': { 'b': 1 } };
 
 		removeFromValueTree(target, 'a');
 
@@ -82,7 +94,7 @@ suite('Configuration', () => {
 	});
 
 	test('removeFromValueTree: remove a multi segmented key when the first node has more values', () => {
-		let target = { 'a': { 'b': { 'c': 1 }, 'd': 1 } };
+		const target = { 'a': { 'b': { 'c': 1 }, 'd': 1 } };
 
 		removeFromValueTree(target, 'a.b.c');
 
@@ -90,7 +102,7 @@ suite('Configuration', () => {
 	});
 
 	test('removeFromValueTree: remove a multi segmented key when in between node has more values', () => {
-		let target = { 'a': { 'b': { 'c': { 'd': 1 }, 'd': 1 } } };
+		const target = { 'a': { 'b': { 'c': { 'd': 1 }, 'd': 1 } } };
 
 		removeFromValueTree(target, 'a.b.c.d');
 
@@ -98,7 +110,7 @@ suite('Configuration', () => {
 	});
 
 	test('removeFromValueTree: remove a multi segmented key when the last but one node has more values', () => {
-		let target = { 'a': { 'b': { 'c': 1, 'd': 1 } } };
+		const target = { 'a': { 'b': { 'c': 1, 'd': 1 } } };
 
 		removeFromValueTree(target, 'a.b.c');
 

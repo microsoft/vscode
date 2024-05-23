@@ -5,33 +5,59 @@
 
 (function () {
 
-	const MonacoEnvironment = (<any>self).MonacoEnvironment;
-	const monacoBaseUrl = MonacoEnvironment && MonacoEnvironment.baseUrl ? MonacoEnvironment.baseUrl : '../../../';
+	interface IMonacoEnvironment {
+		baseUrl?: string;
+		createTrustedTypesPolicy<Options extends TrustedTypePolicyOptions>(
+			policyName: string,
+			policyOptions?: Options,
+		): undefined | Pick<TrustedTypePolicy<Options>, 'name' | Extract<keyof Options, keyof TrustedTypePolicyOptions>>;
+	}
+	const monacoEnvironment: IMonacoEnvironment | undefined = (globalThis as any).MonacoEnvironment;
+	const monacoBaseUrl = monacoEnvironment && monacoEnvironment.baseUrl ? monacoEnvironment.baseUrl : '../../../';
 
-	const trustedTypesPolicy = (
-		typeof self.trustedTypes?.createPolicy === 'function'
-			? self.trustedTypes?.createPolicy('amdLoader', {
-				createScriptURL: value => value,
-				createScript: (_, ...args: string[]) => {
-					// workaround a chrome issue not allowing to create new functions
-					// see https://github.com/w3c/webappsec-trusted-types/wiki/Trusted-Types-for-function-constructor
-					const fnArgs = args.slice(0, -1).join(',');
-					const fnBody = args.pop()!.toString();
-					const body = `(function anonymous(${fnArgs}) {\n${fnBody}\n})`;
-					return body;
-				}
-			})
-			: undefined
-	);
+	function createTrustedTypesPolicy<Options extends TrustedTypePolicyOptions>(
+		policyName: string,
+		policyOptions?: Options,
+	): undefined | Pick<TrustedTypePolicy<Options>, 'name' | Extract<keyof Options, keyof TrustedTypePolicyOptions>> {
+
+		if (monacoEnvironment?.createTrustedTypesPolicy) {
+			try {
+				return monacoEnvironment.createTrustedTypesPolicy(policyName, policyOptions);
+			} catch (err) {
+				console.warn(err);
+				return undefined;
+			}
+		}
+
+		try {
+			return self.trustedTypes?.createPolicy(policyName, policyOptions);
+		} catch (err) {
+			console.warn(err);
+			return undefined;
+		}
+	}
+
+	const trustedTypesPolicy = createTrustedTypesPolicy('amdLoader', {
+		createScriptURL: value => value,
+		createScript: (_, ...args: string[]) => {
+			// workaround a chrome issue not allowing to create new functions
+			// see https://github.com/w3c/webappsec-trusted-types/wiki/Trusted-Types-for-function-constructor
+			const fnArgs = args.slice(0, -1).join(',');
+			const fnBody = args.pop()!.toString();
+			// Do not add a new line to fnBody, as this will confuse source maps.
+			const body = `(function anonymous(${fnArgs}) { ${fnBody}\n})`;
+			return body;
+		}
+	});
 
 	function canUseEval(): boolean {
 		try {
 			const func = (
 				trustedTypesPolicy
-					? self.eval(<any>trustedTypesPolicy.createScript('', 'true'))
-					: new Function('true')
+					? globalThis.eval(<any>trustedTypesPolicy.createScript('', 'true')) // CodeQL [SM01632] fetch + eval is used on the web worker instead of importScripts if possible because importScripts is synchronous and we observed deadlocks on Safari
+					: new Function('true') // CodeQL [SM01632] fetch + eval is used on the web worker instead of importScripts if possible because importScripts is synchronous and we observed deadlocks on Safari
 			);
-			func.call(self);
+			func.call(globalThis);
 			return true;
 		} catch (err) {
 			return false;
@@ -40,12 +66,12 @@
 
 	function loadAMDLoader() {
 		return new Promise<void>((resolve, reject) => {
-			if (typeof (<any>self).define === 'function' && (<any>self).define.amd) {
+			if (typeof (<any>globalThis).define === 'function' && (<any>globalThis).define.amd) {
 				return resolve();
 			}
 			const loaderSrc: string | TrustedScriptURL = monacoBaseUrl + 'vs/loader.js';
 
-			const isCrossOrigin = (/^((http:)|(https:)|(file:))/.test(loaderSrc) && loaderSrc.substring(0, self.origin.length) !== self.origin);
+			const isCrossOrigin = (/^((http:)|(https:)|(file:))/.test(loaderSrc) && loaderSrc.substring(0, globalThis.origin.length) !== globalThis.origin);
 			if (!isCrossOrigin && canUseEval()) {
 				// use `fetch` if possible because `importScripts`
 				// is synchronous and can lead to deadlocks on Safari
@@ -58,10 +84,10 @@
 					text = `${text}\n//# sourceURL=${loaderSrc}`;
 					const func = (
 						trustedTypesPolicy
-							? self.eval(trustedTypesPolicy.createScript('', text) as unknown as string)
-							: new Function(text)
+							? globalThis.eval(trustedTypesPolicy.createScript('', text) as unknown as string) // CodeQL [SM01632] fetch + eval is used on the web worker instead of importScripts if possible because importScripts is synchronous and we observed deadlocks on Safari
+							: new Function(text) // CodeQL [SM01632] fetch + eval is used on the web worker instead of importScripts if possible because importScripts is synchronous and we observed deadlocks on Safari
 					);
-					func.call(self);
+					func.call(globalThis);
 					resolve();
 				}).then(undefined, reject);
 				return;
@@ -76,32 +102,44 @@
 		});
 	}
 
-	const loadCode = function (moduleId: string) {
+	function configureAMDLoader() {
+		require.config({
+			baseUrl: monacoBaseUrl,
+			catchError: true,
+			trustedTypesPolicy,
+			amdModulesPattern: /^vs\//
+		});
+	}
+
+	function loadCode(moduleId: string) {
 		loadAMDLoader().then(() => {
-			require.config({
-				baseUrl: monacoBaseUrl,
-				catchError: true,
-				trustedTypesPolicy,
-				amdModulesPattern: /^vs\//
-			});
+			configureAMDLoader();
 			require([moduleId], function (ws) {
 				setTimeout(function () {
-					let messageHandler = ws.create((msg: any, transfer?: Transferable[]) => {
-						(<any>self).postMessage(msg, transfer);
+					const messageHandler = ws.create((msg: any, transfer?: Transferable[]) => {
+						(<any>globalThis).postMessage(msg, transfer);
 					}, null);
 
-					self.onmessage = (e: MessageEvent) => messageHandler.onmessage(e.data, e.ports);
+					globalThis.onmessage = (e: MessageEvent) => messageHandler.onmessage(e.data, e.ports);
 					while (beforeReadyMessages.length > 0) {
-						self.onmessage(beforeReadyMessages.shift()!);
+						const e = beforeReadyMessages.shift()!;
+						messageHandler.onmessage(e.data, e.ports);
 					}
 				}, 0);
 			});
 		});
-	};
+	}
+
+	// If the loader is already defined, configure it immediately
+	// This helps in the bundled case, where we must load nls files
+	// and they need a correct baseUrl to be loaded.
+	if (typeof (<any>globalThis).define === 'function' && (<any>globalThis).define.amd) {
+		configureAMDLoader();
+	}
 
 	let isFirstMessage = true;
-	let beforeReadyMessages: MessageEvent[] = [];
-	self.onmessage = (message: MessageEvent) => {
+	const beforeReadyMessages: MessageEvent[] = [];
+	globalThis.onmessage = (message: MessageEvent) => {
 		if (!isFirstMessage) {
 			beforeReadyMessages.push(message);
 			return;

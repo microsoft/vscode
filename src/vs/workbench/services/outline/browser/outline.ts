@@ -9,6 +9,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchDataTreeOptions } from 'vs/platform/list/browser/listService';
@@ -68,10 +69,12 @@ export interface IOutlineListConfig<E> {
 }
 
 export interface OutlineChangeEvent {
-	affectOnlyActiveElement?: true
+	affectOnlyActiveElement?: true;
 }
 
 export interface IOutline<E> {
+
+	readonly uri: URI | undefined;
 
 	readonly config: IOutlineListConfig<E>;
 	readonly outlineKind: string;
@@ -80,7 +83,7 @@ export interface IOutline<E> {
 	readonly activeElement: E | undefined;
 	readonly onDidChange: Event<OutlineChangeEvent>;
 
-	reveal(entry: E, options: IEditorOptions, sideBySide: boolean): Promise<void> | void;
+	reveal(entry: E, options: IEditorOptions, sideBySide: boolean, select: boolean): Promise<void> | void;
 	preview(entry: E): IDisposable;
 	captureViewState(): IDisposable;
 	dispose(): void;
@@ -89,7 +92,13 @@ export interface IOutline<E> {
 
 export const enum OutlineConfigKeys {
 	'icons' = 'outline.icons',
+	'collapseItems' = 'outline.collapseItems',
 	'problemsEnabled' = 'outline.problems.enabled',
 	'problemsColors' = 'outline.problems.colors',
 	'problemsBadges' = 'outline.problems.badges'
+}
+
+export const enum OutlineConfigCollapseItemsValues {
+	Collapsed = 'alwaysCollapse',
+	Expanded = 'alwaysExpand'
 }

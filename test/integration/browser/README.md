@@ -15,13 +15,13 @@ All integration tests run in an Electron instance. You can specify to run the te
 
 ## Run (inside browser)
 
-    resources/server/test/test-web-integration.[sh|bat] --browser [chromium|webkit] [--debug]
+    scripts/test-web-integration.[sh|bat] --browser [chromium|webkit] [--debug]
 
 All integration tests run in a browser instance as specified by the command line arguments.
 
 Add the `--debug` flag to see a browser window with the tests running.
 
-**Note**: you can enable verbose logging of playwright library by setting a `DEBUG` environment variable before running the tests (https://playwright.dev/docs/debug#verbose-api-logs)
+**Note**: you can enable verbose logging of playwright library by setting a `DEBUG` environment variable before running the tests (<https://playwright.dev/docs/debug#verbose-api-logs>)
 
 ## Debug
 

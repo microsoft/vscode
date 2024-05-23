@@ -1,19 +1,26 @@
-// Can be removed once https://github.com/electron/electron-rebuild/pull/703 is available.
-'use strict';
+"use strict";
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.downloadLibcxxObjects = exports.downloadLibcxxHeaders = void 0;
+exports.downloadLibcxxHeaders = downloadLibcxxHeaders;
+exports.downloadLibcxxObjects = downloadLibcxxObjects;
+// Can be removed once https://github.com/electron/electron-rebuild/pull/703 is available.
+const fs = require("fs");
+const path = require("path");
 const debug = require("debug");
 const extract = require("extract-zip");
-const fs = require("fs-extra");
-const path = require("path");
-const packageJSON = require("../../package.json");
 const get_1 = require("@electron/get");
+const root = path.dirname(path.dirname(__dirname));
 const d = debug('libcxx-fetcher');
 async function downloadLibcxxHeaders(outDir, electronVersion, lib_name) {
-    if (await fs.pathExists(path.resolve(outDir, 'include')))
+    if (await fs.existsSync(path.resolve(outDir, 'include'))) {
         return;
-    if (!await fs.pathExists(outDir))
-        await fs.mkdirp(outDir);
+    }
+    if (!await fs.existsSync(outDir)) {
+        await fs.mkdirSync(outDir, { recursive: true });
+    }
     d(`downloading ${lib_name}_headers`);
     const headers = await (0, get_1.downloadArtifact)({
         version: electronVersion,
@@ -23,12 +30,13 @@ async function downloadLibcxxHeaders(outDir, electronVersion, lib_name) {
     d(`unpacking ${lib_name}_headers from ${headers}`);
     await extract(headers, { dir: outDir });
 }
-exports.downloadLibcxxHeaders = downloadLibcxxHeaders;
 async function downloadLibcxxObjects(outDir, electronVersion, targetArch = 'x64') {
-    if (await fs.pathExists(path.resolve(outDir, 'libc++.a')))
+    if (await fs.existsSync(path.resolve(outDir, 'libc++.a'))) {
         return;
-    if (!await fs.pathExists(outDir))
-        await fs.mkdirp(outDir);
+    }
+    if (!await fs.existsSync(outDir)) {
+        await fs.mkdirSync(outDir, { recursive: true });
+    }
     d(`downloading libcxx-objects-linux-${targetArch}`);
     const objects = await (0, get_1.downloadArtifact)({
         version: electronVersion,
@@ -39,12 +47,12 @@ async function downloadLibcxxObjects(outDir, electronVersion, targetArch = 'x64'
     d(`unpacking libcxx-objects from ${objects}`);
     await extract(objects, { dir: outDir });
 }
-exports.downloadLibcxxObjects = downloadLibcxxObjects;
 async function main() {
     const libcxxObjectsDirPath = process.env['VSCODE_LIBCXX_OBJECTS_DIR'];
     const libcxxHeadersDownloadDir = process.env['VSCODE_LIBCXX_HEADERS_DIR'];
     const libcxxabiHeadersDownloadDir = process.env['VSCODE_LIBCXXABI_HEADERS_DIR'];
     const arch = process.env['VSCODE_ARCH'];
+    const packageJSON = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
     const electronVersion = packageJSON.devDependencies.electron;
     if (!libcxxObjectsDirPath || !libcxxHeadersDownloadDir || !libcxxabiHeadersDownloadDir) {
         throw new Error('Required build env not set');
@@ -59,3 +67,4 @@ if (require.main === module) {
         process.exit(1);
     });
 }
+//# sourceMappingURL=libcxx-fetcher.js.map

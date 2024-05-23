@@ -88,7 +88,7 @@ export class OutputLinkComputer {
 		}
 
 		for (const workspaceFolderVariant of workspaceFolderVariants) {
-			const validPathCharacterPattern = '[^\\s\\(\\):<>"]';
+			const validPathCharacterPattern = '[^\\s\\(\\):<>\'"]';
 			const validPathCharacterOrSpacePattern = `(?:${validPathCharacterPattern}| ${validPathCharacterPattern})`;
 			const pathPattern = `${validPathCharacterOrSpacePattern}+\\.${validPathCharacterPattern}+`;
 			const strictPathPattern = `${validPathCharacterPattern}+`;
@@ -179,6 +179,7 @@ export class OutputLinkComputer {
 	}
 }
 
+// Export this function because this will be called by the web worker for computing links
 export function create(ctx: IWorkerContext, createData: ICreateData): OutputLinkComputer {
 	return new OutputLinkComputer(ctx, createData);
 }

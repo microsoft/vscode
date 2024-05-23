@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TextDocument, Range, LineChange, Selection } from 'vscode';
+import { TextDocument, Range, LineChange, Selection, Uri } from 'vscode';
 
 export function applyLineChanges(original: TextDocument, modified: TextDocument, diffs: LineChange[]): string {
 	const result: string[] = [];
 	let currentLine = 0;
 
-	for (let diff of diffs) {
+	for (const diff of diffs) {
 		const isInsertion = diff.originalEndLineNumber === 0;
 		const isDeletion = diff.modifiedEndLineNumber === 0;
 
@@ -109,12 +109,28 @@ export function intersectDiffWithRange(textDocument: TextDocument, diff: LineCha
 	if (diff.modifiedEndLineNumber === 0) {
 		return diff;
 	} else {
-		return {
-			originalStartLineNumber: diff.originalStartLineNumber,
-			originalEndLineNumber: diff.originalEndLineNumber,
-			modifiedStartLineNumber: intersection.start.line + 1,
-			modifiedEndLineNumber: intersection.end.line + 1
-		};
+		const modifiedStartLineNumber = intersection.start.line + 1;
+		const modifiedEndLineNumber = intersection.end.line + 1;
+
+		// heuristic: same number of lines on both sides, let's assume line by line
+		if (diff.originalEndLineNumber - diff.originalStartLineNumber === diff.modifiedEndLineNumber - diff.modifiedStartLineNumber) {
+			const delta = modifiedStartLineNumber - diff.modifiedStartLineNumber;
+			const length = modifiedEndLineNumber - modifiedStartLineNumber;
+
+			return {
+				originalStartLineNumber: diff.originalStartLineNumber + delta,
+				originalEndLineNumber: diff.originalStartLineNumber + delta + length,
+				modifiedStartLineNumber,
+				modifiedEndLineNumber
+			};
+		} else {
+			return {
+				originalStartLineNumber: diff.originalStartLineNumber,
+				originalEndLineNumber: diff.originalEndLineNumber,
+				modifiedStartLineNumber,
+				modifiedEndLineNumber
+			};
+		}
 	}
 }
 
@@ -125,4 +141,15 @@ export function invertLineChange(diff: LineChange): LineChange {
 		originalStartLineNumber: diff.modifiedStartLineNumber,
 		originalEndLineNumber: diff.modifiedEndLineNumber
 	};
+}
+
+export interface DiffEditorSelectionHunkToolbarContext {
+	mapping: unknown;
+	/**
+	 * The original text with the selected modified changes applied.
+	*/
+	originalWithModifiedChanges: string;
+
+	modifiedUri: Uri;
+	originalUri: Uri;
 }

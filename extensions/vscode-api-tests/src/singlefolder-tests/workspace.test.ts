@@ -131,14 +131,16 @@ suite('vscode API - workspace', () => {
 			assert.strictEqual(doc.uri.scheme, 'untitled');
 			assert.ok(doc.isDirty);
 
-			let closed: vscode.TextDocument;
-			let d0 = vscode.workspace.onDidCloseTextDocument(e => closed = e);
+			const closedDocuments: vscode.TextDocument[] = [];
+			const d0 = vscode.workspace.onDidCloseTextDocument(e => closedDocuments.push(e));
 
 			return vscode.window.showTextDocument(doc).then(() => {
 				return doc.save().then((didSave: boolean) => {
 
 					assert.strictEqual(didSave, true, `FAILED to save${doc.uri.toString()}`);
 
+					const closed = closedDocuments.filter(close => close.uri.toString() === doc.uri.toString())[0];
+					assert.ok(closed);
 					assert.ok(closed === doc);
 					assert.ok(!doc.isDirty);
 					assert.ok(fs.existsSync(path));
@@ -153,7 +155,7 @@ suite('vscode API - workspace', () => {
 
 	test('openTextDocument, uri scheme/auth/path', function () {
 
-		let registration = vscode.workspace.registerTextDocumentContentProvider('sc', {
+		const registration = vscode.workspace.registerTextDocumentContentProvider('sc', {
 			provideTextDocumentContent() {
 				return 'SC';
 			}
@@ -182,28 +184,28 @@ suite('vscode API - workspace', () => {
 		const fs = new TestFS('this-fs', false);
 		const reg = vscode.workspace.registerFileSystemProvider(fs.scheme, fs, { isCaseSensitive: fs.isCaseSensitive });
 
-		let uriOne = vscode.Uri.parse('this-fs:/one');
-		let uriTwo = vscode.Uri.parse('this-fs:/two');
-		let uriONE = vscode.Uri.parse('this-fs:/ONE'); // same resource, different uri
-		let uriTWO = vscode.Uri.parse('this-fs:/TWO');
+		const uriOne = vscode.Uri.parse('this-fs:/one');
+		const uriTwo = vscode.Uri.parse('this-fs:/two');
+		const uriONE = vscode.Uri.parse('this-fs:/ONE'); // same resource, different uri
+		const uriTWO = vscode.Uri.parse('this-fs:/TWO');
 
 		fs.writeFile(uriOne, Buffer.from('one'), { create: true, overwrite: true });
 		fs.writeFile(uriTwo, Buffer.from('two'), { create: true, overwrite: true });
 
 		// lower case (actual case) comes first
-		let docOne = await vscode.workspace.openTextDocument(uriOne);
+		const docOne = await vscode.workspace.openTextDocument(uriOne);
 		assert.strictEqual(docOne.uri.toString(), uriOne.toString());
 
-		let docONE = await vscode.workspace.openTextDocument(uriONE);
+		const docONE = await vscode.workspace.openTextDocument(uriONE);
 		assert.strictEqual(docONE === docOne, true);
 		assert.strictEqual(docONE.uri.toString(), uriOne.toString());
 		assert.strictEqual(docONE.uri.toString() !== uriONE.toString(), true); // yep
 
 		// upper case (NOT the actual case) comes first
-		let docTWO = await vscode.workspace.openTextDocument(uriTWO);
+		const docTWO = await vscode.workspace.openTextDocument(uriTWO);
 		assert.strictEqual(docTWO.uri.toString(), uriTWO.toString());
 
-		let docTwo = await vscode.workspace.openTextDocument(uriTwo);
+		const docTwo = await vscode.workspace.openTextDocument(uriTwo);
 		assert.strictEqual(docTWO === docTwo, true);
 		assert.strictEqual(docTwo.uri.toString(), uriTWO.toString());
 		assert.strictEqual(docTwo.uri.toString() !== uriTwo.toString(), true); // yep
@@ -264,7 +266,7 @@ suite('vscode API - workspace', () => {
 
 	test('eol, change via onWillSave', async function () {
 		let called = false;
-		let sub = vscode.workspace.onWillSaveTextDocument(e => {
+		const sub = vscode.workspace.onWillSaveTextDocument(e => {
 			called = true;
 			e.waitUntil(Promise.resolve([vscode.TextEdit.setEndOfLine(vscode.EndOfLine.LF)]));
 		});
@@ -286,33 +288,27 @@ suite('vscode API - workspace', () => {
 		sub.dispose();
 	});
 
-	function assertEqualPath(a: string, b: string): void {
-		assert.ok(pathEquals(a, b), `${a} <-> ${b}`);
-	}
 
 	test('events: onDidOpenTextDocument, onDidChangeTextDocument, onDidSaveTextDocument', async () => {
 		const file = await createRandomFile();
-		let disposables: vscode.Disposable[] = [];
+		const disposables: vscode.Disposable[] = [];
 
 		await revertAllDirty(); // needed for a clean state for `onDidSaveTextDocument` (#102365)
 
-		let pendingAsserts: Function[] = [];
-		let onDidOpenTextDocument = false;
+		const onDidOpenTextDocument = new Set<vscode.TextDocument>();
+		const onDidChangeTextDocument = new Set<vscode.TextDocument>();
+		const onDidSaveTextDocument = new Set<vscode.TextDocument>();
+
 		disposables.push(vscode.workspace.onDidOpenTextDocument(e => {
-			pendingAsserts.push(() => assertEqualPath(e.uri.fsPath, file.fsPath));
-			onDidOpenTextDocument = true;
+			onDidOpenTextDocument.add(e);
 		}));
 
-		let onDidChangeTextDocument = false;
 		disposables.push(vscode.workspace.onDidChangeTextDocument(e => {
-			pendingAsserts.push(() => assertEqualPath(e.document.uri.fsPath, file.fsPath));
-			onDidChangeTextDocument = true;
+			onDidChangeTextDocument.add(e.document);
 		}));
 
-		let onDidSaveTextDocument = false;
 		disposables.push(vscode.workspace.onDidSaveTextDocument(e => {
-			pendingAsserts.push(() => assertEqualPath(e.uri.fsPath, file.fsPath));
-			onDidSaveTextDocument = true;
+			onDidSaveTextDocument.add(e);
 		}));
 
 		const doc = await vscode.workspace.openTextDocument(file);
@@ -323,25 +319,24 @@ suite('vscode API - workspace', () => {
 		});
 		await doc.save();
 
-		assert.ok(onDidOpenTextDocument);
-		assert.ok(onDidChangeTextDocument);
-		assert.ok(onDidSaveTextDocument);
-		pendingAsserts.forEach(assert => assert());
+		assert.ok(Array.from(onDidOpenTextDocument).find(e => e.uri.toString() === file.toString()), 'did Open: ' + file.toString());
+		assert.ok(Array.from(onDidChangeTextDocument).find(e => e.uri.toString() === file.toString()), 'did Change: ' + file.toString());
+		assert.ok(Array.from(onDidSaveTextDocument).find(e => e.uri.toString() === file.toString()), 'did Save: ' + file.toString());
+
 		disposeAll(disposables);
 		return deleteFile(file);
 	});
 
 	test('events: onDidSaveTextDocument fires even for non dirty file when saved', async () => {
 		const file = await createRandomFile();
-		let disposables: vscode.Disposable[] = [];
-		let pendingAsserts: Function[] = [];
+		const disposables: vscode.Disposable[] = [];
 
 		await revertAllDirty(); // needed for a clean state for `onDidSaveTextDocument` (#102365)
 
-		let onDidSaveTextDocument = false;
+		const onDidSaveTextDocument = new Set<vscode.TextDocument>();
+
 		disposables.push(vscode.workspace.onDidSaveTextDocument(e => {
-			pendingAsserts.push(() => assertEqualPath(e.uri.fsPath, file.fsPath));
-			onDidSaveTextDocument = true;
+			onDidSaveTextDocument.add(e);
 		}));
 
 		const doc = await vscode.workspace.openTextDocument(file);
@@ -349,7 +344,7 @@ suite('vscode API - workspace', () => {
 		await vscode.commands.executeCommand('workbench.action.files.save');
 
 		assert.ok(onDidSaveTextDocument);
-		pendingAsserts.forEach(fn => fn());
+		assert.ok(Array.from(onDidSaveTextDocument).find(e => e.uri.toString() === file.toString()), 'did Save: ' + file.toString());
 		disposeAll(disposables);
 		return deleteFile(file);
 	});
@@ -369,7 +364,7 @@ suite('vscode API - workspace', () => {
 
 	test('registerTextDocumentContentProvider, simple', function () {
 
-		let registration = vscode.workspace.registerTextDocumentContentProvider('foo', {
+		const registration = vscode.workspace.registerTextDocumentContentProvider('foo', {
 			provideTextDocumentContent(uri) {
 				return uri.toString();
 			}
@@ -406,7 +401,7 @@ suite('vscode API - workspace', () => {
 	test('registerTextDocumentContentProvider, multiple', function () {
 
 		// duplicate registration
-		let registration1 = vscode.workspace.registerTextDocumentContentProvider('foo', {
+		const registration1 = vscode.workspace.registerTextDocumentContentProvider('foo', {
 			provideTextDocumentContent(uri) {
 				if (uri.authority === 'foo') {
 					return '1';
@@ -414,7 +409,7 @@ suite('vscode API - workspace', () => {
 				return undefined;
 			}
 		});
-		let registration2 = vscode.workspace.registerTextDocumentContentProvider('foo', {
+		const registration2 = vscode.workspace.registerTextDocumentContentProvider('foo', {
 			provideTextDocumentContent(uri) {
 				if (uri.authority === 'bar') {
 					return '2';
@@ -435,12 +430,12 @@ suite('vscode API - workspace', () => {
 	test('registerTextDocumentContentProvider, evil provider', function () {
 
 		// duplicate registration
-		let registration1 = vscode.workspace.registerTextDocumentContentProvider('foo', {
+		const registration1 = vscode.workspace.registerTextDocumentContentProvider('foo', {
 			provideTextDocumentContent(_uri) {
 				return '1';
 			}
 		});
-		let registration2 = vscode.workspace.registerTextDocumentContentProvider('foo', {
+		const registration2 = vscode.workspace.registerTextDocumentContentProvider('foo', {
 			provideTextDocumentContent(_uri): string {
 				throw new Error('fail');
 			}
@@ -455,7 +450,7 @@ suite('vscode API - workspace', () => {
 
 	test('registerTextDocumentContentProvider, invalid text', function () {
 
-		let registration = vscode.workspace.registerTextDocumentContentProvider('foo', {
+		const registration = vscode.workspace.registerTextDocumentContentProvider('foo', {
 			provideTextDocumentContent(_uri) {
 				return <any>123;
 			}
@@ -470,7 +465,7 @@ suite('vscode API - workspace', () => {
 
 	test('registerTextDocumentContentProvider, show virtual document', function () {
 
-		let registration = vscode.workspace.registerTextDocumentContentProvider('foo', {
+		const registration = vscode.workspace.registerTextDocumentContentProvider('foo', {
 			provideTextDocumentContent(_uri) {
 				return 'I am virtual';
 			}
@@ -489,7 +484,7 @@ suite('vscode API - workspace', () => {
 	test('registerTextDocumentContentProvider, open/open document', function () {
 
 		let callCount = 0;
-		let registration = vscode.workspace.registerTextDocumentContentProvider('foo', {
+		const registration = vscode.workspace.registerTextDocumentContentProvider('foo', {
 			provideTextDocumentContent(_uri) {
 				callCount += 1;
 				return 'I am virtual';
@@ -499,7 +494,7 @@ suite('vscode API - workspace', () => {
 		const uri = vscode.Uri.parse('foo://testing/path');
 
 		return Promise.all([vscode.workspace.openTextDocument(uri), vscode.workspace.openTextDocument(uri)]).then(docs => {
-			let [first, second] = docs;
+			const [first, second] = docs;
 			assert.ok(first === second);
 			assert.ok(vscode.workspace.textDocuments.some(doc => doc.uri.toString() === uri.toString()));
 			assert.strictEqual(callCount, 1);
@@ -509,7 +504,7 @@ suite('vscode API - workspace', () => {
 
 	test('registerTextDocumentContentProvider, empty doc', function () {
 
-		let registration = vscode.workspace.registerTextDocumentContentProvider('foo', {
+		const registration = vscode.workspace.registerTextDocumentContentProvider('foo', {
 			provideTextDocumentContent(_uri) {
 				return '';
 			}
@@ -527,9 +522,9 @@ suite('vscode API - workspace', () => {
 	test('registerTextDocumentContentProvider, change event', async function () {
 
 		let callCount = 0;
-		let emitter = new vscode.EventEmitter<vscode.Uri>();
+		const emitter = new vscode.EventEmitter<vscode.Uri>();
 
-		let registration = vscode.workspace.registerTextDocumentContentProvider('foo', {
+		const registration = vscode.workspace.registerTextDocumentContentProvider('foo', {
 			onDidChange: emitter.event,
 			provideTextDocumentContent(_uri) {
 				return 'call' + (callCount++);
@@ -544,7 +539,7 @@ suite('vscode API - workspace', () => {
 
 		return new Promise<void>(resolve => {
 
-			let subscription = vscode.workspace.onDidChangeTextDocument(event => {
+			const subscription = vscode.workspace.onDidChangeTextDocument(event => {
 				assert.ok(event.document === doc);
 				assert.strictEqual(event.document.getText(), 'call1');
 				subscription.dispose();
@@ -602,6 +597,43 @@ suite('vscode API - workspace', () => {
 		});
 	});
 
+	test('`findFiles2`', () => {
+		return vscode.workspace.findFiles2('**/image.png').then((res) => {
+			assert.strictEqual(res.length, 2);
+		});
+	});
+
+	test('findFiles2 - null exclude', async () => {
+		await vscode.workspace.findFiles2('**/file.txt', { useDefaultExcludes: true, useDefaultSearchExcludes: false }).then((res) => {
+			// file.exclude folder is still searched, search.exclude folder is not
+			assert.strictEqual(res.length, 1);
+			assert.strictEqual(basename(vscode.workspace.asRelativePath(res[0])), 'file.txt');
+		});
+
+		await vscode.workspace.findFiles2('**/file.txt', { useDefaultExcludes: false, useDefaultSearchExcludes: false }).then((res) => {
+			// search.exclude and files.exclude folders are both searched
+			assert.strictEqual(res.length, 2);
+			assert.strictEqual(basename(vscode.workspace.asRelativePath(res[0])), 'file.txt');
+		});
+	});
+
+	test('findFiles2, exclude', () => {
+		return vscode.workspace.findFiles2('**/image.png', { exclude: '**/sub/**' }).then((res) => {
+			assert.strictEqual(res.length, 1);
+		});
+	});
+
+	test('findFiles2, cancellation', () => {
+
+		const source = new vscode.CancellationTokenSource();
+		const token = source.token; // just to get an instance first
+		source.cancel();
+
+		return vscode.workspace.findFiles2('*.js', {}, token).then((res) => {
+			assert.deepStrictEqual(res, []);
+		});
+	});
+
 	test('findTextInFiles', async () => {
 		const options: vscode.FindTextInFilesOptions = {
 			include: '*.ts',
@@ -635,10 +667,10 @@ suite('vscode API - workspace', () => {
 	test('applyEdit', async () => {
 		const doc = await vscode.workspace.openTextDocument(vscode.Uri.parse('untitled:' + join(vscode.workspace.rootPath || '', './new2.txt')));
 
-		let edit = new vscode.WorkspaceEdit();
+		const edit = new vscode.WorkspaceEdit();
 		edit.insert(doc.uri, new vscode.Position(0, 0), new Array(1000).join('Hello World'));
 
-		let success = await vscode.workspace.applyEdit(edit);
+		const success = await vscode.workspace.applyEdit(edit);
 		assert.strictEqual(success, true);
 		assert.strictEqual(doc.isDirty, true);
 	});
@@ -650,7 +682,7 @@ suite('vscode API - workspace', () => {
 		edit.deleteFile(resource);
 		edit.insert(resource, new vscode.Position(0, 0), '');
 
-		let success = await vscode.workspace.applyEdit(edit);
+		const success = await vscode.workspace.applyEdit(edit);
 		assert.strictEqual(success, false);
 	}));
 
@@ -661,7 +693,7 @@ suite('vscode API - workspace', () => {
 		edit.deleteFile(resource);
 		edit.renameFile(resource, resource);
 
-		let success = await vscode.workspace.applyEdit(edit);
+		const success = await vscode.workspace.applyEdit(edit);
 		assert.strictEqual(success, false);
 	}));
 
@@ -672,7 +704,7 @@ suite('vscode API - workspace', () => {
 		edit.renameFile(resource, newResource);
 		edit.insert(resource, new vscode.Position(0, 0), '');
 
-		let success = await vscode.workspace.applyEdit(edit);
+		const success = await vscode.workspace.applyEdit(edit);
 		assert.strictEqual(success, false);
 	}));
 
@@ -698,7 +730,7 @@ suite('vscode API - workspace', () => {
 
 		assert.ok(await vscode.workspace.applyEdit(edit));
 
-		let doc = await vscode.workspace.openTextDocument(newUri);
+		const doc = await vscode.workspace.openTextDocument(newUri);
 		assert.strictEqual(doc.getText(), 'AFTERBEFORE');
 		assert.strictEqual(doc.isDirty, true);
 	}
@@ -708,25 +740,25 @@ suite('vscode API - workspace', () => {
 	}
 
 	test('WorkspaceEdit: applying edits before and after rename duplicates resource #42633', withLogDisabled(async function () {
-		let docUri = await createRandomFile();
-		let newUri = nameWithUnderscore(docUri);
+		const docUri = await createRandomFile();
+		const newUri = nameWithUnderscore(docUri);
 
-		let we = new vscode.WorkspaceEdit();
+		const we = new vscode.WorkspaceEdit();
 		we.insert(docUri, new vscode.Position(0, 0), 'Hello');
 		we.insert(docUri, new vscode.Position(0, 0), 'Foo');
 		we.renameFile(docUri, newUri);
 		we.insert(newUri, new vscode.Position(0, 0), 'Bar');
 
 		assert.ok(await vscode.workspace.applyEdit(we));
-		let doc = await vscode.workspace.openTextDocument(newUri);
+		const doc = await vscode.workspace.openTextDocument(newUri);
 		assert.strictEqual(doc.getText(), 'BarHelloFoo');
 	}));
 
 	test('WorkspaceEdit: Problem recreating a renamed resource #42634', withLogDisabled(async function () {
-		let docUri = await createRandomFile();
-		let newUri = nameWithUnderscore(docUri);
+		const docUri = await createRandomFile();
+		const newUri = nameWithUnderscore(docUri);
 
-		let we = new vscode.WorkspaceEdit();
+		const we = new vscode.WorkspaceEdit();
 		we.insert(docUri, new vscode.Position(0, 0), 'Hello');
 		we.insert(docUri, new vscode.Position(0, 0), 'Foo');
 		we.renameFile(docUri, newUri);
@@ -736,15 +768,15 @@ suite('vscode API - workspace', () => {
 
 		assert.ok(await vscode.workspace.applyEdit(we));
 
-		let newDoc = await vscode.workspace.openTextDocument(newUri);
+		const newDoc = await vscode.workspace.openTextDocument(newUri);
 		assert.strictEqual(newDoc.getText(), 'HelloFoo');
-		let doc = await vscode.workspace.openTextDocument(docUri);
+		const doc = await vscode.workspace.openTextDocument(docUri);
 		assert.strictEqual(doc.getText(), 'Bar');
 	}));
 
 	test('WorkspaceEdit api - after saving a deleted file, it still shows up as deleted. #42667', withLogDisabled(async function () {
-		let docUri = await createRandomFile();
-		let we = new vscode.WorkspaceEdit();
+		const docUri = await createRandomFile();
+		const we = new vscode.WorkspaceEdit();
 		we.deleteFile(docUri);
 		we.insert(docUri, new vscode.Position(0, 0), 'InsertText');
 
@@ -759,14 +791,14 @@ suite('vscode API - workspace', () => {
 
 	test('WorkspaceEdit: edit and rename parent folder duplicates resource #42641', async function () {
 
-		let dir = vscode.Uri.parse(`${testFs.scheme}:/before-${rndName()}`);
+		const dir = vscode.Uri.parse(`${testFs.scheme}:/before-${rndName()}`);
 		await testFs.createDirectory(dir);
 
-		let docUri = await createRandomFile('', dir);
-		let docParent = docUri.with({ path: posix.dirname(docUri.path) });
-		let newParent = nameWithUnderscore(docParent);
+		const docUri = await createRandomFile('', dir);
+		const docParent = docUri.with({ path: posix.dirname(docUri.path) });
+		const newParent = nameWithUnderscore(docParent);
 
-		let we = new vscode.WorkspaceEdit();
+		const we = new vscode.WorkspaceEdit();
 		we.insert(docUri, new vscode.Position(0, 0), 'Hello');
 		we.renameFile(docParent, newParent);
 
@@ -779,30 +811,30 @@ suite('vscode API - workspace', () => {
 			assert.ok(true);
 		}
 
-		let newUri = newParent.with({ path: posix.join(newParent.path, posix.basename(docUri.path)) });
-		let doc = await vscode.workspace.openTextDocument(newUri);
+		const newUri = newParent.with({ path: posix.join(newParent.path, posix.basename(docUri.path)) });
+		const doc = await vscode.workspace.openTextDocument(newUri);
 		assert.ok(doc);
 
 		assert.strictEqual(doc.getText(), 'Hello');
 	});
 
 	test('WorkspaceEdit: rename resource followed by edit does not work #42638', withLogDisabled(async function () {
-		let docUri = await createRandomFile();
-		let newUri = nameWithUnderscore(docUri);
+		const docUri = await createRandomFile();
+		const newUri = nameWithUnderscore(docUri);
 
-		let we = new vscode.WorkspaceEdit();
+		const we = new vscode.WorkspaceEdit();
 		we.renameFile(docUri, newUri);
 		we.insert(newUri, new vscode.Position(0, 0), 'Hello');
 
 		assert.ok(await vscode.workspace.applyEdit(we));
 
-		let doc = await vscode.workspace.openTextDocument(newUri);
+		const doc = await vscode.workspace.openTextDocument(newUri);
 		assert.strictEqual(doc.getText(), 'Hello');
 	}));
 
 	test('WorkspaceEdit: create & override', withLogDisabled(async function () {
 
-		let docUri = await createRandomFile('before');
+		const docUri = await createRandomFile('before');
 
 		let we = new vscode.WorkspaceEdit();
 		we.createFile(docUri);
@@ -816,7 +848,7 @@ suite('vscode API - workspace', () => {
 	}));
 
 	test('WorkspaceEdit: create & ignoreIfExists', withLogDisabled(async function () {
-		let docUri = await createRandomFile('before');
+		const docUri = await createRandomFile('before');
 
 		let we = new vscode.WorkspaceEdit();
 		we.createFile(docUri, { ignoreIfExists: true });
@@ -830,8 +862,8 @@ suite('vscode API - workspace', () => {
 	}));
 
 	test('WorkspaceEdit: rename & ignoreIfExists', withLogDisabled(async function () {
-		let aUri = await createRandomFile('aaa');
-		let bUri = await createRandomFile('bbb');
+		const aUri = await createRandomFile('aaa');
+		const bUri = await createRandomFile('bbb');
 
 		let we = new vscode.WorkspaceEdit();
 		we.renameFile(aUri, bUri);
@@ -852,7 +884,7 @@ suite('vscode API - workspace', () => {
 
 	test('WorkspaceEdit: delete & ignoreIfNotExists', withLogDisabled(async function () {
 
-		let docUri = await createRandomFile();
+		const docUri = await createRandomFile();
 		let we = new vscode.WorkspaceEdit();
 		we.deleteFile(docUri, { ignoreIfNotExists: false });
 		assert.ok(await vscode.workspace.applyEdit(we));
@@ -868,14 +900,14 @@ suite('vscode API - workspace', () => {
 
 	test('WorkspaceEdit: insert & rename multiple', async function () {
 
-		let [f1, f2, f3] = await Promise.all([createRandomFile(), createRandomFile(), createRandomFile()]);
+		const [f1, f2, f3] = await Promise.all([createRandomFile(), createRandomFile(), createRandomFile()]);
 
-		let we = new vscode.WorkspaceEdit();
+		const we = new vscode.WorkspaceEdit();
 		we.insert(f1, new vscode.Position(0, 0), 'f1');
 		we.insert(f2, new vscode.Position(0, 0), 'f2');
 		we.insert(f3, new vscode.Position(0, 0), 'f3');
 
-		let f1_ = nameWithUnderscore(f1);
+		const f1_ = nameWithUnderscore(f1);
 		we.renameFile(f1, f1_);
 
 		assert.ok(await vscode.workspace.applyEdit(we));
@@ -902,6 +934,7 @@ suite('vscode API - workspace', () => {
 	async function test77735(withOpenedEditor: boolean): Promise<void> {
 		const docUriOriginal = await createRandomFile();
 		const docUriMoved = docUriOriginal.with({ path: `${docUriOriginal.path}.moved` });
+		await deleteFile(docUriMoved);
 
 		if (withOpenedEditor) {
 			const document = await vscode.workspace.openTextDocument(docUriOriginal);
@@ -911,7 +944,7 @@ suite('vscode API - workspace', () => {
 		}
 
 		for (let i = 0; i < 4; i++) {
-			let we = new vscode.WorkspaceEdit();
+			const we = new vscode.WorkspaceEdit();
 			let oldUri: vscode.Uri;
 			let newUri: vscode.Uri;
 			let expected: string;
@@ -934,8 +967,9 @@ suite('vscode API - workspace', () => {
 			const document = await vscode.workspace.openTextDocument(newUri);
 			assert.strictEqual(document.isDirty, true);
 
-			await document.save();
-			assert.strictEqual(document.isDirty, false);
+			const result = await document.save();
+			assert.strictEqual(result, true, `save failed in iteration: ${i} (docUriOriginal: ${docUriOriginal.fsPath})`);
+			assert.strictEqual(document.isDirty, false, `document still dirty in iteration: ${i} (docUriOriginal: ${docUriOriginal.fsPath})`);
 
 			assert.strictEqual(document.getText(), expected);
 
@@ -943,10 +977,10 @@ suite('vscode API - workspace', () => {
 		}
 	}
 
-	test('The api workspace.applyEdit failed for some case of mixing resourceChange and textEdit #80688', async function () {
+	test('The api workspace.applyEdit failed for some case of mixing resourceChange and textEdit #80688, 1/2', async function () {
 		const file1 = await createRandomFile();
 		const file2 = await createRandomFile();
-		let we = new vscode.WorkspaceEdit();
+		const we = new vscode.WorkspaceEdit();
 		we.insert(file1, new vscode.Position(0, 0), 'import1;');
 
 		const file2Name = basename(file2.fsPath);
@@ -962,10 +996,10 @@ suite('vscode API - workspace', () => {
 		assert.strictEqual(document.getText(), expected2);
 	});
 
-	test('The api workspace.applyEdit failed for some case of mixing resourceChange and textEdit #80688', async function () {
+	test('The api workspace.applyEdit failed for some case of mixing resourceChange and textEdit #80688, 2/2', async function () {
 		const file1 = await createRandomFile();
 		const file2 = await createRandomFile();
-		let we = new vscode.WorkspaceEdit();
+		const we = new vscode.WorkspaceEdit();
 		we.insert(file1, new vscode.Position(0, 0), 'import1;');
 		we.insert(file1, new vscode.Position(0, 0), 'import2;');
 
@@ -981,6 +1015,22 @@ suite('vscode API - workspace', () => {
 		assert.strictEqual(document.getText(), expected);
 	});
 
+
+	test('[Bug] Failed to create new test file when in an untitled file #1261', async function () {
+		const uri = vscode.Uri.parse('untitled:Untitled-5.test');
+		const contents = `Hello Test File ${uri.toString()}`;
+		const we = new vscode.WorkspaceEdit();
+		we.createFile(uri, { ignoreIfExists: true });
+		we.replace(uri, new vscode.Range(0, 0, 0, 0), contents);
+
+		const success = await vscode.workspace.applyEdit(we);
+
+		assert.ok(success);
+
+		const doc = await vscode.workspace.openTextDocument(uri);
+		assert.strictEqual(doc.getText(), contents);
+	});
+
 	test('Should send a single FileWillRenameEvent instead of separate events when moving multiple files at once#111867, 1/3', async function () {
 
 		const file1 = await createRandomFile();
@@ -990,7 +1040,7 @@ suite('vscode API - workspace', () => {
 		const file2New = await createRandomFile();
 
 		const event = new Promise<vscode.FileWillRenameEvent>(resolve => {
-			let sub = vscode.workspace.onWillRenameFiles(e => {
+			const sub = vscode.workspace.onWillRenameFiles(e => {
 				sub.dispose();
 				resolve(e);
 			});
@@ -1008,10 +1058,34 @@ suite('vscode API - workspace', () => {
 		assert.strictEqual(e.files[1].oldUri.toString(), file2.toString());
 	});
 
+	test('WorkspaceEdit fails when creating then writing to file if file is open in the editor and is not empty #146964', async function () {
+		const file1 = await createRandomFile();
+
+		{
+			// prepare: open file in editor, make sure it has contents
+			const editor = await vscode.window.showTextDocument(file1);
+			const prepEdit = new vscode.WorkspaceEdit();
+			prepEdit.insert(file1, new vscode.Position(0, 0), 'Hello Here And There');
+			const status = await vscode.workspace.applyEdit(prepEdit);
+
+			assert.ok(status);
+			assert.strictEqual(editor.document.getText(), 'Hello Here And There');
+			assert.ok(vscode.window.activeTextEditor === editor);
+		}
+
+		const we = new vscode.WorkspaceEdit();
+		we.createFile(file1, { overwrite: true, ignoreIfExists: false });
+		we.set(file1, [new vscode.TextEdit(new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 0)), 'SOME TEXT')]);
+		const status = await vscode.workspace.applyEdit(we);
+		assert.ok(status);
+		assert.strictEqual(vscode.window.activeTextEditor!.document.getText(), 'SOME TEXT');
+
+	});
+
 	test('Should send a single FileWillRenameEvent instead of separate events when moving multiple files at once#111867, 2/3', async function () {
 
 		const event = new Promise<vscode.FileWillCreateEvent>(resolve => {
-			let sub = vscode.workspace.onWillCreateFiles(e => {
+			const sub = vscode.workspace.onWillCreateFiles(e => {
 				sub.dispose();
 				resolve(e);
 			});
@@ -1038,7 +1112,7 @@ suite('vscode API - workspace', () => {
 		const file2 = await createRandomFile();
 
 		const event = new Promise<vscode.FileWillDeleteEvent>(resolve => {
-			let sub = vscode.workspace.onWillDeleteFiles(e => {
+			const sub = vscode.workspace.onWillDeleteFiles(e => {
 				sub.dispose();
 				resolve(e);
 			});
@@ -1130,4 +1204,82 @@ suite('vscode API - workspace', () => {
 			assert.strictEqual(document.isDirty, false);
 		}
 	});
+
+	test('SnippetString in WorkspaceEdit', async function (): Promise<any> {
+		const file = await createRandomFile('hello\nworld');
+
+		const document = await vscode.workspace.openTextDocument(file);
+		const edt = await vscode.window.showTextDocument(document);
+
+		assert.ok(edt === vscode.window.activeTextEditor);
+
+		const we = new vscode.WorkspaceEdit();
+		we.set(document.uri, [new vscode.SnippetTextEdit(new vscode.Range(0, 0, 0, 0), new vscode.SnippetString('${1:foo}${2:bar}'))]);
+		const success = await vscode.workspace.applyEdit(we);
+		if (edt !== vscode.window.activeTextEditor) {
+			return this.skip();
+		}
+
+		assert.ok(success);
+		assert.strictEqual(document.getText(), 'foobarhello\nworld');
+		assert.deepStrictEqual(edt.selections, [new vscode.Selection(0, 0, 0, 3)]);
+	});
+
+	test('Support creating binary files in a WorkspaceEdit', async function (): Promise<any> {
+
+		const fileUri = vscode.Uri.parse(`${testFs.scheme}:/${rndName()}`);
+		const data = Buffer.from('Hello Binary Files');
+
+		const ws = new vscode.WorkspaceEdit();
+		ws.createFile(fileUri, { contents: data, ignoreIfExists: false, overwrite: false });
+
+		const success = await vscode.workspace.applyEdit(ws);
+		assert.ok(success);
+
+		const actual = await vscode.workspace.fs.readFile(fileUri);
+
+		assert.deepStrictEqual(actual, data);
+	});
+
+	test('saveAll', async () => {
+		await testSave(true);
+	});
+
+	test('save', async () => {
+		await testSave(false);
+	});
+
+	async function testSave(saveAll: boolean) {
+		const file = await createRandomFile();
+		const disposables: vscode.Disposable[] = [];
+
+		await revertAllDirty(); // needed for a clean state for `onDidSaveTextDocument` (#102365)
+
+		const onDidSaveTextDocument = new Set<vscode.TextDocument>();
+
+		disposables.push(vscode.workspace.onDidSaveTextDocument(e => {
+			onDidSaveTextDocument.add(e);
+		}));
+
+		const doc = await vscode.workspace.openTextDocument(file);
+		await vscode.window.showTextDocument(doc);
+
+		if (saveAll) {
+			const edit = new vscode.WorkspaceEdit();
+			edit.insert(doc.uri, new vscode.Position(0, 0), 'Hello World');
+
+			await vscode.workspace.applyEdit(edit);
+			assert.ok(doc.isDirty);
+
+			await vscode.workspace.saveAll(false); // requires dirty documents
+		} else {
+			const res = await vscode.workspace.save(doc.uri); // enforces to save even when not dirty
+			assert.ok(res?.toString() === doc.uri.toString());
+		}
+
+		assert.ok(onDidSaveTextDocument);
+		assert.ok(Array.from(onDidSaveTextDocument).find(e => e.uri.toString() === file.toString()), 'did Save: ' + file.toString());
+		disposeAll(disposables);
+		return deleteFile(file);
+	}
 });

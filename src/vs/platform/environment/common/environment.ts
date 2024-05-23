@@ -5,7 +5,6 @@
 
 import { URI } from 'vs/base/common/uri';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { ExtensionKind } from 'vs/platform/extensions/common/extensions';
 import { createDecorator, refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IEnvironmentService = createDecorator<IEnvironmentService>('environmentService');
@@ -20,6 +19,13 @@ export interface IExtensionHostDebugParams extends IDebugParams {
 	debugId?: string;
 	env?: Record<string, string>;
 }
+
+/**
+ * Type of extension.
+ *
+ * **NOTE**: This is defined in `platform/environment` because it can appear as a CLI argument.
+ */
+export type ExtensionKind = 'ui' | 'workspace' | 'web';
 
 /**
  * A basic environment service that can be used in various processes,
@@ -42,23 +48,24 @@ export interface IEnvironmentService {
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 	// --- user roaming data
+	stateResource: URI;
 	userRoamingDataHome: URI;
-	settingsResource: URI;
-	keybindingsResource: URI;
 	keyboardLayoutResource: URI;
 	argvResource: URI;
-	snippetsHome: URI;
 
 	// --- data paths
 	untitledWorkspacesHome: URI;
-	globalStorageHome: URI;
 	workspaceStorageHome: URI;
+	localHistoryHome: URI;
 	cacheHome: URI;
 
 	// --- settings sync
 	userDataSyncHome: URI;
-	userDataSyncLogResource: URI;
 	sync: 'on' | 'off' | undefined;
+
+	// --- continue edit session
+	continueOn?: string;
+	editSessionId?: string;
 
 	// --- extension development
 	debugExtensionHost: IExtensionHostDebugParams;
@@ -70,15 +77,18 @@ export interface IEnvironmentService {
 	extensionTestsLocationURI?: URI;
 
 	// --- logging
-	logsPath: string;
+	logsHome: URI;
 	logLevel?: string;
+	extensionLogLevel?: [string, string][];
 	verbose: boolean;
 	isBuilt: boolean;
 
 	// --- telemetry
 	disableTelemetry: boolean;
-	telemetryLogResource: URI;
 	serviceMachineIdResource: URI;
+
+	// --- Policy
+	policyFile?: URI;
 
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	//
@@ -112,21 +122,29 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 	args: NativeParsedArgs;
 
 	// --- data paths
+	/**
+	 * Root path of the JavaScript sources.
+	 *
+	 * Note: This is NOT the installation root
+	 * directory itself but contained in it at
+	 * a level that is platform dependent.
+	 */
 	appRoot: string;
 	userHome: URI;
 	appSettingsHome: URI;
 	tmpDir: URI;
 	userDataPath: string;
 	machineSettingsResource: URI;
-	installSourcePath: string;
 
 	// --- extensions
 	extensionsPath: string;
-	extensionsDownloadPath: string;
+	extensionsDownloadLocation: URI;
 	builtinExtensionsPath: string;
 
-	// --- smoke test support
-	driverHandle?: string;
+	// --- use in-memory Secret Storage
+	useInMemorySecretStorage?: boolean;
+
+	crossOriginIsolated?: boolean;
 
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	//

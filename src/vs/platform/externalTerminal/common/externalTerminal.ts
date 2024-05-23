@@ -15,9 +15,9 @@ export interface IExternalTerminalSettings {
 }
 
 export interface ITerminalForPlatform {
-	windows: string,
-	linux: string,
-	osx: string
+	windows: string;
+	linux: string;
+	osx: string;
 }
 
 export interface IExternalTerminalService {
@@ -29,15 +29,9 @@ export interface IExternalTerminalService {
 
 export interface IExternalTerminalConfiguration {
 	terminal: {
-		explorerKind: 'integrated' | 'external',
+		explorerKind: 'integrated' | 'external' | 'both';
 		external: IExternalTerminalSettings;
 	};
 }
 
 export const DEFAULT_TERMINAL_OSX = 'Terminal.app';
-
-export const IExternalTerminalMainService = createDecorator<IExternalTerminalMainService>('externalTerminal');
-
-export interface IExternalTerminalMainService extends IExternalTerminalService {
-	readonly _serviceBrand: undefined;
-}

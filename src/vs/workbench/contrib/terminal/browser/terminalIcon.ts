@@ -3,15 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
 import { hash } from 'vs/base/common/hash';
 import { URI } from 'vs/base/common/uri';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionTerminalProfile, ITerminalProfile } from 'vs/platform/terminal/common/terminal';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { IColorTheme, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IColorTheme } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ansiColorMap } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
+import { createStyleSheet } from 'vs/base/browser/dom';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 
 
 export function getColorClass(colorKey: string): string;
@@ -45,9 +49,10 @@ export function getStandardColors(colorTheme: IColorTheme): string[] {
 	return standardColors;
 }
 
-export function getColorStyleElement(colorTheme: IColorTheme): HTMLElement {
+export function createColorStyleElement(colorTheme: IColorTheme): IDisposable {
+	const disposable = new DisposableStore();
 	const standardColors = getStandardColors(colorTheme);
-	const styleElement = document.createElement('style');
+	const styleElement = createStyleSheet(undefined, undefined, disposable);
 	let css = '';
 	for (const colorKey of standardColors) {
 		const colorClass = getColorClass(colorKey);
@@ -60,7 +65,7 @@ export function getColorStyleElement(colorTheme: IColorTheme): HTMLElement {
 		}
 	}
 	styleElement.textContent = css;
-	return styleElement;
+	return disposable;
 }
 
 export function getColorStyleContent(colorTheme: IColorTheme, editor?: boolean): string {
@@ -72,6 +77,7 @@ export function getColorStyleContent(colorTheme: IColorTheme, editor?: boolean):
 		if (color) {
 			if (editor) {
 				css += (
+					`.monaco-workbench .show-file-icons .predefined-file-icon.terminal-tab.${colorClass}::before,` +
 					`.monaco-workbench .show-file-icons .file-icon.terminal-tab.${colorClass}::before` +
 					`{ color: ${color} !important; }`
 				);
@@ -116,9 +122,9 @@ export function getUriClasses(terminal: ITerminalInstance | IExtensionTerminalPr
 	return iconClasses;
 }
 
-export function getIconId(terminal: ITerminalInstance | IExtensionTerminalProfile | ITerminalProfile): string {
+export function getIconId(accessor: ServicesAccessor, terminal: ITerminalInstance | IExtensionTerminalProfile | ITerminalProfile): string {
 	if (!terminal.icon || (terminal.icon instanceof Object && !('id' in terminal.icon))) {
-		return Codicon.terminal.id;
+		return accessor.get(ITerminalProfileResolverService).getDefaultIcon().id;
 	}
 	return typeof terminal.icon === 'string' ? terminal.icon : terminal.icon.id;
 }

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Color } from 'vs/base/common/color';
-import { ColorId, FontStyle, LanguageId, MetadataConsts, StandardTokenType } from 'vs/editor/common/languages';
+import { LanguageId, FontStyle, ColorId, StandardTokenType, MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
 
 export interface ITokenThemeRule {
 	token: string;
@@ -132,7 +132,7 @@ function resolveParsedTokenThemeRules(parsedThemeRules: ParsedTokenThemeRule[], 
 	const colorMap = new ColorMap();
 
 	// start with token colors from custom token themes
-	for (let color of customTokenColors) {
+	for (const color of customTokenColors) {
 		colorMap.getId(color);
 	}
 

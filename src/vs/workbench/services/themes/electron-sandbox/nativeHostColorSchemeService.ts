@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from 'vs/base/common/event';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { INativeHostService } from 'vs/platform/native/common/native';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IHostColorSchemeService } from 'vs/workbench/services/themes/common/hostColorSchemeService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { isBoolean, isObject } from 'vs/base/common/types';
-import { IColorScheme } from 'vs/platform/windows/common/windows';
+import { IColorScheme } from 'vs/platform/window/common/window';
 
 export class NativeHostColorSchemeService extends Disposable implements IHostColorSchemeService {
 
@@ -35,7 +35,7 @@ export class NativeHostColorSchemeService extends Disposable implements IHostCol
 		// register listener with the OS
 		this._register(this.nativeHostService.onDidChangeColorScheme(scheme => this.update(scheme)));
 
-		const initial = this.getStoredValue() ?? environmentService.configuration.colorScheme;
+		const initial = this.getStoredValue() ?? environmentService.window.colorScheme;
 		this.dark = initial.dark;
 		this.highContrast = initial.highContrast;
 
@@ -44,7 +44,7 @@ export class NativeHostColorSchemeService extends Disposable implements IHostCol
 	}
 
 	private getStoredValue(): IColorScheme | undefined {
-		const stored = this.storageService.get(NativeHostColorSchemeService.STORAGE_KEY, StorageScope.GLOBAL);
+		const stored = this.storageService.get(NativeHostColorSchemeService.STORAGE_KEY, StorageScope.APPLICATION);
 		if (stored) {
 			try {
 				const scheme = JSON.parse(stored);
@@ -63,11 +63,11 @@ export class NativeHostColorSchemeService extends Disposable implements IHostCol
 
 			this.dark = dark;
 			this.highContrast = highContrast;
-			this.storageService.store(NativeHostColorSchemeService.STORAGE_KEY, JSON.stringify({ highContrast, dark }), StorageScope.GLOBAL, StorageTarget.MACHINE);
+			this.storageService.store(NativeHostColorSchemeService.STORAGE_KEY, JSON.stringify({ highContrast, dark }), StorageScope.APPLICATION, StorageTarget.MACHINE);
 			this._onDidChangeColorScheme.fire();
 		}
 	}
 
 }
 
-registerSingleton(IHostColorSchemeService, NativeHostColorSchemeService, true);
+registerSingleton(IHostColorSchemeService, NativeHostColorSchemeService, InstantiationType.Delayed);

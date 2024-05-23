@@ -14,7 +14,7 @@ export const IConfigurationResolverService = createDecorator<IConfigurationResol
 export interface IConfigurationResolverService {
 	readonly _serviceBrand: undefined;
 
-	resolveWithEnvironment(environment: IProcessEnvironment, folder: IWorkspaceFolder | undefined, value: string): string;
+	resolveWithEnvironment(environment: IProcessEnvironment, folder: IWorkspaceFolder | undefined, value: string): Promise<string>;
 
 	resolveAsync(folder: IWorkspaceFolder | undefined, value: string): Promise<string>;
 	resolveAsync(folder: IWorkspaceFolder | undefined, value: string[]): Promise<string[]>;
@@ -31,7 +31,7 @@ export interface IConfigurationResolverService {
 	 * Returns a copy of it with substituted values and a map of variables and their resolution.
 	 * Keys in the map will be of the format input:variableName or command:variableName.
 	 */
-	resolveAnyMap(folder: IWorkspaceFolder | undefined, config: any, commandValueMapping?: IStringDictionary<string>): Promise<{ newConfig: any, resolvedVariables: Map<string, string> }>;
+	resolveAnyMap(folder: IWorkspaceFolder | undefined, config: any, commandValueMapping?: IStringDictionary<string>): Promise<{ newConfig: any; resolvedVariables: Map<string, string> }>;
 
 	/**
 	 * Recursively resolves all variables (including commands and user input) in the given config and returns a copy of it with substituted values.
@@ -55,7 +55,7 @@ export interface IConfigurationResolverService {
 	contributeVariable(variable: string, resolution: () => Promise<string | undefined>): void;
 }
 
-export interface PromptStringInputInfo {
+interface PromptStringInputInfo {
 	id: string;
 	type: 'promptString';
 	description: string;
@@ -63,15 +63,15 @@ export interface PromptStringInputInfo {
 	password?: boolean;
 }
 
-export interface PickStringInputInfo {
+interface PickStringInputInfo {
 	id: string;
 	type: 'pickString';
 	description: string;
-	options: (string | { value: string, label?: string })[];
+	options: (string | { value: string; label?: string })[];
 	default?: string;
 }
 
-export interface CommandInputInfo {
+interface CommandInputInfo {
 	id: string;
 	type: 'command';
 	command: string;
@@ -79,3 +79,40 @@ export interface CommandInputInfo {
 }
 
 export type ConfiguredInput = PromptStringInputInfo | PickStringInputInfo | CommandInputInfo;
+
+export enum VariableKind {
+	Unknown = 'unknown',
+
+	Env = 'env',
+	Config = 'config',
+	Command = 'command',
+	Input = 'input',
+	ExtensionInstallFolder = 'extensionInstallFolder',
+
+	WorkspaceFolder = 'workspaceFolder',
+	Cwd = 'cwd',
+	WorkspaceFolderBasename = 'workspaceFolderBasename',
+	UserHome = 'userHome',
+	LineNumber = 'lineNumber',
+	SelectedText = 'selectedText',
+	File = 'file',
+	FileWorkspaceFolder = 'fileWorkspaceFolder',
+	FileWorkspaceFolderBasename = 'fileWorkspaceFolderBasename',
+	RelativeFile = 'relativeFile',
+	RelativeFileDirname = 'relativeFileDirname',
+	FileDirname = 'fileDirname',
+	FileExtname = 'fileExtname',
+	FileBasename = 'fileBasename',
+	FileBasenameNoExtension = 'fileBasenameNoExtension',
+	FileDirnameBasename = 'fileDirnameBasename',
+	ExecPath = 'execPath',
+	ExecInstallFolder = 'execInstallFolder',
+	PathSeparator = 'pathSeparator',
+	PathSeparatorAlias = '/'
+}
+
+export class VariableError extends Error {
+	constructor(public readonly variable: VariableKind, message?: string) {
+		super(message);
+	}
+}

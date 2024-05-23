@@ -7,7 +7,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IEnvironment, IStaticWorkspaceData } from 'vs/workbench/api/common/extHost.protocol';
+import { IEnvironment, IStaticWorkspaceData } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { IExtHostConsumerFileSystem } from 'vs/workbench/api/common/extHostFileSystemConsumer';
 import { URI } from 'vs/base/common/uri';
 

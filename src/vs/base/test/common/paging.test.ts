@@ -4,13 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { disposableTimeout } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { canceled, isPromiseCanceledError } from 'vs/base/common/errors';
+import { CancellationError, isCancellationError } from 'vs/base/common/errors';
 import { IPager, PagedModel } from 'vs/base/common/paging';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 function getPage(pageIndex: number, cancellationToken: CancellationToken): Promise<number[]> {
 	if (cancellationToken.isCancellationRequested) {
-		return Promise.reject(canceled());
+		return Promise.reject(new CancellationError());
 	}
 
 	return Promise.resolve([0, 1, 2, 3, 4].map(i => i + (pageIndex * 5)));
@@ -29,6 +31,8 @@ class TestPager implements IPager<number> {
 }
 
 suite('PagedModel', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('isResolved', () => {
 		const pager = new TestPager();
@@ -110,21 +114,21 @@ suite('PagedModel', () => {
 			return assert(false);
 		}
 		catch (err) {
-			return assert(isPromiseCanceledError(err));
+			return assert(isCancellationError(err));
 		}
 	});
 
 	test('cancellation works', function () {
 		const pager = new TestPager((_, token) => new Promise((_, e) => {
-			token.onCancellationRequested(() => e(canceled()));
+			store.add(token.onCancellationRequested(() => e(new CancellationError())));
 		}));
 
 		const model = new PagedModel(pager);
-		const tokenSource = new CancellationTokenSource();
+		const tokenSource = store.add(new CancellationTokenSource());
 
 		const promise = model.resolve(5, tokenSource.token).then(
 			() => assert(false),
-			err => assert(isPromiseCanceledError(err))
+			err => assert(isCancellationError(err))
 		);
 
 		setTimeout(() => tokenSource.cancel(), 10);
@@ -139,10 +143,10 @@ suite('PagedModel', () => {
 			state = 'resolving';
 
 			return new Promise((_, e) => {
-				token.onCancellationRequested(() => {
+				store.add(token.onCancellationRequested(() => {
 					state = 'idle';
-					e(canceled());
-				});
+					e(new CancellationError());
+				}));
 			});
 		});
 
@@ -153,7 +157,7 @@ suite('PagedModel', () => {
 		const tokenSource1 = new CancellationTokenSource();
 		const promise1 = model.resolve(5, tokenSource1.token).then(
 			() => assert(false),
-			err => assert(isPromiseCanceledError(err))
+			err => assert(isCancellationError(err))
 		);
 
 		assert.strictEqual(state, 'resolving');
@@ -161,22 +165,22 @@ suite('PagedModel', () => {
 		const tokenSource2 = new CancellationTokenSource();
 		const promise2 = model.resolve(6, tokenSource2.token).then(
 			() => assert(false),
-			err => assert(isPromiseCanceledError(err))
+			err => assert(isCancellationError(err))
 		);
 
 		assert.strictEqual(state, 'resolving');
 
-		setTimeout(() => {
+		store.add(disposableTimeout(() => {
 			assert.strictEqual(state, 'resolving');
 			tokenSource1.cancel();
 			assert.strictEqual(state, 'resolving');
 
-			setTimeout(() => {
+			store.add(disposableTimeout(() => {
 				assert.strictEqual(state, 'resolving');
 				tokenSource2.cancel();
 				assert.strictEqual(state, 'idle');
-			}, 10);
-		}, 10);
+			}, 10));
+		}, 10));
 
 		return Promise.all([promise1, promise2]);
 	});

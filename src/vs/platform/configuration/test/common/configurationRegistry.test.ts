@@ -4,10 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 
 suite('ConfigurationRegistry', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
@@ -49,5 +52,31 @@ suite('ConfigurationRegistry', () => {
 		configurationRegistry.registerDefaultConfigurations([{ overrides: { 'config': { a: 2, c: 3 } } }]);
 
 		assert.deepStrictEqual(configurationRegistry.getConfigurationProperties()['config'].default, { a: 2, c: 3 });
+	});
+
+	test('registering multiple settings with same policy', async () => {
+		configurationRegistry.registerConfiguration({
+			'id': '_test_default',
+			'type': 'object',
+			'properties': {
+				'policy1': {
+					'type': 'object',
+					policy: {
+						name: 'policy',
+						minimumVersion: '1.0.0'
+					}
+				},
+				'policy2': {
+					'type': 'object',
+					policy: {
+						name: 'policy',
+						minimumVersion: '1.0.0'
+					}
+				}
+			}
+		});
+		const actual = configurationRegistry.getConfigurationProperties();
+		assert.ok(actual['policy1'] !== undefined);
+		assert.ok(actual['policy2'] === undefined);
 	});
 });

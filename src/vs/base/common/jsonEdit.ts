@@ -35,7 +35,7 @@ export function setProperty(text: string, originalPath: JSONPath, value: any, fo
 	if (!parent) {
 		// empty document
 		if (value === undefined) { // delete
-			throw new Error('Can not delete in empty document');
+			return []; // property does not exist, nothing to do
 		}
 		return withFormatting(text, { offset: root ? root.offset : 0, length: root ? root.length : 0, content: JSON.stringify(value) }, formattingOptions);
 	} else if (parent.type === 'object' && typeof lastSegment === 'string' && Array.isArray(parent.children)) {
@@ -155,7 +155,7 @@ export function applyEdit(text: string, edit: Edit): string {
 }
 
 export function applyEdits(text: string, edits: Edit[]): string {
-	let sortedEdits = edits.slice(0).sort((a, b) => {
+	const sortedEdits = edits.slice(0).sort((a, b) => {
 		const diff = a.offset - b.offset;
 		if (diff === 0) {
 			return a.length - b.length;
@@ -164,7 +164,7 @@ export function applyEdits(text: string, edits: Edit[]): string {
 	});
 	let lastModifiedOffset = text.length;
 	for (let i = sortedEdits.length - 1; i >= 0; i--) {
-		let e = sortedEdits[i];
+		const e = sortedEdits[i];
 		if (e.offset + e.length <= lastModifiedOffset) {
 			text = applyEdit(text, e);
 		} else {

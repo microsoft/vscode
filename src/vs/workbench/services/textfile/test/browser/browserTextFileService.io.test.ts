@@ -16,12 +16,13 @@ import { URI } from 'vs/base/common/uri';
 import { join } from 'vs/base/common/path';
 import { UTF16le, detectEncodingByBOMFromBuffer, UTF8_with_bom, UTF16be, toCanonicalName } from 'vs/workbench/services/textfile/common/encoding';
 import { VSBuffer } from 'vs/base/common/buffer';
-import files from 'vs/workbench/services/textfile/test/browser/fixtures/files';
+import files from 'vs/workbench/services/textfile/test/common/fixtures/files';
 import createSuite from 'vs/workbench/services/textfile/test/common/textFileService.io.test';
 import { isWeb } from 'vs/base/common/platform';
 import { IWorkingCopyFileService, WorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { WorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 // optimization: we don't need to run this suite in native environment,
 // because we have nativeTextFileService.io.test.ts for it,
@@ -39,25 +40,24 @@ if (isWeb) {
 				const instantiationService = workbenchInstantiationService(undefined, disposables);
 
 				const logService = new NullLogService();
-				const fileService = new FileService(logService);
+				const fileService = disposables.add(new FileService(logService));
 
-				fileProvider = new TestInMemoryFileSystemProvider();
+				fileProvider = disposables.add(new TestInMemoryFileSystemProvider());
 				disposables.add(fileService.registerProvider(Schemas.file, fileProvider));
-				disposables.add(fileProvider);
 
 				const collection = new ServiceCollection();
 				collection.set(IFileService, fileService);
+				collection.set(IWorkingCopyFileService, disposables.add(new WorkingCopyFileService(fileService, disposables.add(new WorkingCopyService()), instantiationService, disposables.add(new UriIdentityService(fileService)))));
 
-				collection.set(IWorkingCopyFileService, new WorkingCopyFileService(fileService, new WorkingCopyService(), instantiationService, new UriIdentityService(fileService)));
-
-				service = instantiationService.createChild(collection).createInstance(TestBrowserTextFileServiceWithEncodingOverrides);
+				service = disposables.add(instantiationService.createChild(collection).createInstance(TestBrowserTextFileServiceWithEncodingOverrides));
+				disposables.add(<TextFileEditorModelManager>service.files);
 
 				await fileProvider.mkdir(URI.file(testDir));
-				for (let fileName in files) {
+				for (const fileName in files) {
 					await fileProvider.writeFile(
 						URI.file(join(testDir, fileName)),
 						files[fileName],
-						{ create: true, overwrite: false, unlock: false }
+						{ create: true, overwrite: false, unlock: false, atomic: false }
 					);
 				}
 
@@ -65,8 +65,6 @@ if (isWeb) {
 			},
 
 			teardown: async () => {
-				(<TextFileEditorModelManager>service.files).dispose();
-
 				disposables.clear();
 			},
 
@@ -111,5 +109,7 @@ if (isWeb) {
 				return null; // ignore errors (like file not found)
 			}
 		}
+
+		ensureNoDisposablesAreLeakedInTestSuite();
 	});
 }

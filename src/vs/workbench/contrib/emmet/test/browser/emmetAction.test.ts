@@ -7,7 +7,8 @@ import { IGrammarContributions, EmmetEditorAction } from 'vs/workbench/contrib/e
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import * as assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 class MockGrammarContributions implements IGrammarContributions {
 	private scopeName: string;
@@ -22,15 +23,15 @@ class MockGrammarContributions implements IGrammarContributions {
 }
 
 suite('Emmet', () => {
-
 	test('Get language mode and parent mode for emmet', () => {
-		withTestCodeEditor([], {}, (editor) => {
+		withTestCodeEditor([], {}, (editor, viewModel, instantiationService) => {
+			const languageService = instantiationService.get(ILanguageService);
 
 			const disposables = new DisposableStore();
-			disposables.add(ModesRegistry.registerLanguage({ id: 'markdown' }));
-			disposables.add(ModesRegistry.registerLanguage({ id: 'handlebars' }));
-			disposables.add(ModesRegistry.registerLanguage({ id: 'nunjucks' }));
-			disposables.add(ModesRegistry.registerLanguage({ id: 'laravel-blade' }));
+			disposables.add(languageService.registerLanguage({ id: 'markdown' }));
+			disposables.add(languageService.registerLanguage({ id: 'handlebars' }));
+			disposables.add(languageService.registerLanguage({ id: 'nunjucks' }));
+			disposables.add(languageService.registerLanguage({ id: 'laravel-blade' }));
 
 			function testIsEnabled(mode: string, scopeName: string, expectedLanguage?: string, expectedParentLanguage?: string) {
 				const model = editor.getModel();
@@ -38,8 +39,8 @@ suite('Emmet', () => {
 					assert.fail('Editor model not found');
 				}
 
-				model.setMode(mode);
-				let langOutput = EmmetEditorAction.getLanguage(editor, new MockGrammarContributions(scopeName));
+				model.setLanguage(mode);
+				const langOutput = EmmetEditorAction.getLanguage(editor, new MockGrammarContributions(scopeName));
 				if (!langOutput) {
 					assert.fail('langOutput not found');
 				}
@@ -62,4 +63,6 @@ suite('Emmet', () => {
 
 		});
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

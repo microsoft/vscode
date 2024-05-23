@@ -4,15 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as nls from 'vscode-nls';
+import { DocumentSelector } from '../configuration/documentSelector';
+import { LanguageDescription } from '../configuration/languageDescription';
+import * as typeConverters from '../typeConverters';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import { conditionalRegistration, requireConfiguration } from '../utils/dependentRegistration';
-import { DocumentSelector } from '../utils/documentSelector';
-import * as typeConverters from '../utils/typeConverters';
 import FileConfigurationManager from './fileConfigurationManager';
 
 
-const localize = nls.loadMessageBundle();
 
 const defaultJsDoc = new vscode.SnippetString(`/**\n * $0\n */`);
 
@@ -22,7 +20,7 @@ class JsDocCompletionItem extends vscode.CompletionItem {
 		public readonly position: vscode.Position
 	) {
 		super('/** */', vscode.CompletionItemKind.Text);
-		this.detail = localize('typescript.jsDocCompletionItem.documentation', 'JSDoc comment');
+		this.detail = vscode.l10n.t("JSDoc comment");
 		this.sortText = '\0';
 
 		const line = document.lineAt(position.line).text;
@@ -38,6 +36,7 @@ class JsDocCompletionProvider implements vscode.CompletionItemProvider {
 
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
+		private readonly language: LanguageDescription,
 		private readonly fileConfigurationManager: FileConfigurationManager,
 	) { }
 
@@ -46,7 +45,11 @@ class JsDocCompletionProvider implements vscode.CompletionItemProvider {
 		position: vscode.Position,
 		token: vscode.CancellationToken
 	): Promise<vscode.CompletionItem[] | undefined> {
-		const file = this.client.toOpenedFilePath(document);
+		if (!vscode.workspace.getConfiguration(this.language.id, document).get('suggest.completeJSDocs')) {
+			return undefined;
+		}
+
+		const file = this.client.toOpenTsFilePath(document);
 		if (!file) {
 			return undefined;
 		}
@@ -100,7 +103,7 @@ class JsDocCompletionProvider implements vscode.CompletionItemProvider {
 export function templateToSnippet(template: string): vscode.SnippetString {
 	// TODO: use append placeholder
 	let snippetIndex = 1;
-	template = template.replace(/\$/g, '\\$');
+	template = template.replace(/\$/g, '\\$'); // CodeQL [SM02383] This is only used for text which is put into the editor. It is not for rendered html
 	template = template.replace(/^[ \t]*(?=(\/|[ ]\*))/gm, '');
 	template = template.replace(/^(\/\*\*\s*\*[ ]*)$/m, (x) => x + `\$0`);
 	template = template.replace(/\* @param([ ]\{\S+\})?\s+(\S+)[ \t]*$/gm, (_param, type, post) => {
@@ -121,16 +124,12 @@ export function templateToSnippet(template: string): vscode.SnippetString {
 
 export function register(
 	selector: DocumentSelector,
-	modeId: string,
+	language: LanguageDescription,
 	client: ITypeScriptServiceClient,
 	fileConfigurationManager: FileConfigurationManager,
 
 ): vscode.Disposable {
-	return conditionalRegistration([
-		requireConfiguration(modeId, 'suggest.completeJSDocs')
-	], () => {
-		return vscode.languages.registerCompletionItemProvider(selector.syntax,
-			new JsDocCompletionProvider(client, fileConfigurationManager),
-			'*');
-	});
+	return vscode.languages.registerCompletionItemProvider(selector.syntax,
+		new JsDocCompletionProvider(client, language, fileConfigurationManager),
+		'*');
 }

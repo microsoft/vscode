@@ -10,6 +10,7 @@
 .monaco-editor .cursors-layer > .cursor {
 	position: absolute;
 	overflow: hidden;
+	box-sizing: border-box;
 }
 
 /* -- smooth-caret-animation -- */
@@ -19,7 +20,6 @@
 
 /* -- block-outline-style -- */
 .monaco-editor .cursors-layer.cursor-block-outline-style > .cursor {
-	box-sizing: border-box;
 	background: transparent !important;
 	border-style: solid;
 	border-width: 1px;
@@ -30,7 +30,6 @@
 	border-bottom-width: 2px;
 	border-bottom-style: solid;
 	background: transparent !important;
-	box-sizing: border-box;
 }
 
 /* -- underline-thin-style -- */
@@ -38,7 +37,6 @@
 	border-bottom-width: 1px;
 	border-bottom-style: solid;
 	background: transparent !important;
-	box-sizing: border-box;
 }
 
 @keyframes monaco-cursor-smooth {

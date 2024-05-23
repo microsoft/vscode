@@ -2,6 +2,14 @@
 	"extends": "./tsconfig.json",
 	"compilerOptions": {
 		"allowJs": false,
-		"checkJs": false
-	}
+		"checkJs": false,
+		"noEmit": false,
+		"skipLibCheck": true
+	},
+	"include": [
+		"**/*.ts"
+	],
+	"exclude": [
+		"lib/eslint-plugin-vscode/**/*"
+	]
 }

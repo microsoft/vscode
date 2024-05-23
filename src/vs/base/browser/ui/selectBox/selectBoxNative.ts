@@ -35,6 +35,10 @@ export class SelectBoxNative extends Disposable implements ISelectBoxDelegate {
 			this.selectElement.setAttribute('aria-label', this.selectBoxOptions.ariaLabel);
 		}
 
+		if (typeof this.selectBoxOptions.ariaDescription === 'string') {
+			this.selectElement.setAttribute('aria-description', this.selectBoxOptions.ariaDescription);
+		}
+
 		this._onDidSelect = this._register(new Emitter<ISelectData>());
 
 		this.styles = styles;
@@ -144,6 +148,10 @@ export class SelectBoxNative extends Disposable implements ISelectBoxDelegate {
 		}
 	}
 
+	public setEnabled(enable: boolean): void {
+		this.selectElement.disabled = !enable;
+	}
+
 	public setFocusable(focusable: boolean): void {
 		this.selectElement.tabIndex = focusable ? 0 : -1;
 	}
@@ -164,13 +172,9 @@ export class SelectBoxNative extends Disposable implements ISelectBoxDelegate {
 
 		// Style native select
 		if (this.selectElement) {
-			const background = this.styles.selectBackground ? this.styles.selectBackground.toString() : '';
-			const foreground = this.styles.selectForeground ? this.styles.selectForeground.toString() : '';
-			const border = this.styles.selectBorder ? this.styles.selectBorder.toString() : '';
-
-			this.selectElement.style.backgroundColor = background;
-			this.selectElement.style.color = foreground;
-			this.selectElement.style.borderColor = border;
+			this.selectElement.style.backgroundColor = this.styles.selectBackground ?? '';
+			this.selectElement.style.color = this.styles.selectForeground ?? '';
+			this.selectElement.style.borderColor = this.styles.selectBorder ?? '';
 		}
 
 	}

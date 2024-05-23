@@ -1,0 +1,295 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.workspace-trust-editor {
+	max-width: 1000px;
+	padding-top: 11px;
+	margin: auto;
+	height: calc(100% - 11px);
+}
+
+.workspace-trust-editor:focus {
+	outline: none !important;
+}
+
+.workspace-trust-editor > .workspace-trust-header {
+	padding: 14px;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+}
+
+.workspace-trust-editor .workspace-trust-header .workspace-trust-title {
+	font-size: 24px;
+	font-weight: 600;
+	line-height: 32px;
+	padding: 10px 0px;
+	display: flex;
+}
+
+.workspace-trust-editor .workspace-trust-header .workspace-trust-title .workspace-trust-title-icon {
+	font-size: 32px;
+	margin-right: 8px;
+}
+
+.workspace-trust-editor .workspace-trust-header .workspace-trust-title .workspace-trust-title-icon {
+	color: var(--workspace-trust-selected-color) !important;
+}
+
+.workspace-trust-editor .workspace-trust-header .workspace-trust-description {
+	cursor: default;
+	user-select: text;
+	max-width: 600px;
+	text-align: center;
+	padding: 14px 0;
+}
+
+.workspace-trust-editor .workspace-trust-section-title {
+	font-weight: 600;
+	font-size: 18px;
+	padding-bottom: 5px;
+}
+
+.workspace-trust-editor .workspace-trust-subsection-title {
+	font-size: 16px;
+	font-weight: 600;
+	line-height: 32px;
+}
+
+.workspace-trust-editor .workspace-trust-editor-body {
+	height: 100%;
+}
+
+/** Features List */
+.workspace-trust-editor .workspace-trust-features {
+	padding: 14px;
+	cursor: default;
+	user-select: text;
+	display: flex;
+	flex-direction: row;
+	flex-flow: wrap;
+	justify-content: space-evenly;
+}
+
+.workspace-trust-editor .workspace-trust-features .workspace-trust-limitations {
+	min-height: 315px;
+	border: 1px solid var(--workspace-trust-unselected-color);
+	margin: 4px 4px;
+	display: flex;
+	flex-direction: column;
+	padding: 10px 40px;
+}
+
+.workspace-trust-editor.trusted .workspace-trust-features .workspace-trust-limitations.trusted,
+.workspace-trust-editor.untrusted .workspace-trust-features .workspace-trust-limitations.untrusted {
+	border-width: 2px;
+	border-color: var(--workspace-trust-selected-color) !important;
+	padding: 9px 39px;
+	outline-offset: 2px;
+}
+
+.workspace-trust-editor .workspace-trust-features .workspace-trust-limitations ul {
+	list-style: none;
+	padding-inline-start: 0px;
+}
+
+.workspace-trust-editor .workspace-trust-features .workspace-trust-limitations li {
+	display: flex;
+	padding-bottom: 10px;
+}
+
+.workspace-trust-editor .workspace-trust-features .workspace-trust-limitations .list-item-icon {
+	padding-right: 5px;
+	line-height: 24px;
+}
+
+.workspace-trust-editor .workspace-trust-features .workspace-trust-limitations.trusted .list-item-icon {
+	color: var(--workspace-trust-check-color) !important;
+	font-size: 18px;
+}
+
+.workspace-trust-editor .workspace-trust-features .workspace-trust-limitations.untrusted .list-item-icon {
+	color: var(--workspace-trust-x-color) !important;
+	font-size: 20px;
+}
+
+.workspace-trust-editor .workspace-trust-features .workspace-trust-limitations .list-item-text {
+	font-size: 16px;
+	line-height: 24px;
+}
+
+.workspace-trust-editor .workspace-trust-features .workspace-trust-limitations-header {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+}
+
+.workspace-trust-editor .workspace-trust-features .workspace-trust-limitations-header .workspace-trust-limitations-title {
+	font-size: 16px;
+	font-weight: 600;
+	line-height: 24px;
+	padding: 10px 0px;
+	display: flex;
+}
+
+.workspace-trust-editor .workspace-trust-features .workspace-trust-limitations-header .workspace-trust-limitations-title .workspace-trust-title-icon {
+	font-size: 24px;
+	margin-right: 8px;
+	display: none;
+}
+
+.workspace-trust-editor.trusted .workspace-trust-features .workspace-trust-limitations.trusted .workspace-trust-limitations-header .workspace-trust-limitations-title .workspace-trust-title-icon,
+.workspace-trust-editor.untrusted .workspace-trust-features .workspace-trust-limitations.untrusted .workspace-trust-limitations-header .workspace-trust-limitations-title .workspace-trust-title-icon {
+	display: unset;
+	color: var(--workspace-trust-selected-color) !important;
+}
+
+.workspace-trust-editor .workspace-trust-features .workspace-trust-untrusted-description {
+	font-style: italic;
+	padding-bottom: 10px;
+}
+
+/** Buttons Container */
+.workspace-trust-editor .workspace-trust-features .workspace-trust-buttons-row {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 5px 0 10px 0;
+	overflow: hidden; /* buttons row should never overflow */
+	white-space: nowrap;
+	margin-top: auto;
+}
+
+/** Buttons */
+.workspace-trust-editor .workspace-trust-features .workspace-trust-buttons-row .workspace-trust-buttons,
+.workspace-trust-editor .workspace-trust-settings .trusted-uris-button-bar {
+	display: flex;
+	overflow: hidden;
+}
+
+.workspace-trust-editor .workspace-trust-settings .trusted-uris-button-bar {
+	margin-top: 5px;
+}
+
+.workspace-trust-editor .workspace-trust-settings .trusted-uris-button-bar .monaco-button {
+	width: fit-content;
+	padding: 5px 10px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	outline-offset: 2px !important;
+}
+
+.workspace-trust-editor .workspace-trust-features .workspace-trust-buttons-row .workspace-trust-buttons > .monaco-button,
+.workspace-trust-editor .workspace-trust-features .workspace-trust-buttons-row .workspace-trust-buttons > .monaco-button-dropdown,
+.workspace-trust-editor .workspace-trust-settings .trusted-uris-button-bar .monaco-button {
+	margin: 4px 5px; /* allows button focus outline to be visible */
+}
+
+.workspace-trust-editor .workspace-trust-features .workspace-trust-buttons-row .workspace-trust-buttons .monaco-button-dropdown .monaco-dropdown-button {
+	padding: 5px;
+}
+
+.workspace-trust-limitations {
+	width: 50%;
+	max-width: 350px;
+	min-width: 250px;
+	flex: 1;
+}
+
+.workspace-trust-intro-dialog {
+	min-width: min(50vw, 500px);
+	padding-right: 24px;
+}
+
+.workspace-trust-intro-dialog .workspace-trust-dialog-image-row p {
+	display: flex;
+	align-items: center;
+}
+
+.workspace-trust-intro-dialog .workspace-trust-dialog-image-row.badge-row img {
+	max-height: 40px;
+	padding-right: 10px;
+}
+
+.workspace-trust-intro-dialog .workspace-trust-dialog-image-row.status-bar img {
+	max-height: 32px;
+	padding-right: 10px;
+}
+
+.workspace-trust-editor .workspace-trust-settings {
+	padding: 20px 14px;
+}
+
+.workspace-trust-editor .workspace-trust-settings .workspace-trusted-folders-title {
+	font-weight: 600;
+}
+
+.workspace-trust-editor .empty > .trusted-uris-table {
+	display: none;
+}
+
+.workspace-trust-editor .monaco-table-tr .monaco-table-td .path {
+	width: 100%;
+}
+
+.workspace-trust-editor .monaco-table-tr .monaco-table-td .path:not(.input-mode) .monaco-inputbox,
+.workspace-trust-editor .monaco-table-tr .monaco-table-td .path.input-mode .path-label {
+	display: none;
+}
+
+.workspace-trust-editor .monaco-table-tr .monaco-table-td .current-workspace-parent .path-label,
+.workspace-trust-editor .monaco-table-tr .monaco-table-td .current-workspace-parent .host-label {
+	font-weight: bold;
+	font-style: italic;
+}
+
+.workspace-trust-editor .monaco-table-th,
+.workspace-trust-editor .monaco-table-td {
+	padding-left: 5px;
+}
+
+.workspace-trust-editor .workspace-trust-settings .monaco-action-bar .action-item > .codicon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: inherit;
+}
+
+.workspace-trust-editor .workspace-trust-settings .monaco-table-tr .monaco-table-td {
+	align-items: center;
+	display: flex;
+	overflow: hidden;
+}
+
+.workspace-trust-editor .workspace-trust-settings .monaco-table-tr .monaco-table-td .host,
+.workspace-trust-editor .workspace-trust-settings .monaco-table-tr .monaco-table-td .path {
+	max-width: 100%;
+}
+
+.workspace-trust-editor .workspace-trust-settings .monaco-table-tr .monaco-table-td .actions {
+	width: 100%;
+}
+
+.workspace-trust-editor .workspace-trust-settings .monaco-table-tr .monaco-table-td .actions .actions-container {
+	justify-content: flex-end;
+	padding-right: 3px;
+}
+
+.workspace-trust-editor .workspace-trust-settings .monaco-table-tr .monaco-table-td .monaco-button {
+	height: 18px;
+	padding-left: 8px;
+	padding-right: 8px;
+}
+
+.workspace-trust-editor .workspace-trust-settings .monaco-table-tr .monaco-table-td .actions .monaco-action-bar {
+	display: none;
+	flex: 1;
+}
+
+.workspace-trust-editor .workspace-trust-settings .monaco-list-row.selected .monaco-table-tr .monaco-table-td .actions .monaco-action-bar,
+.workspace-trust-editor .workspace-trust-settings .monaco-table .monaco-list-row.focused .monaco-table-tr .monaco-table-td .actions .monaco-action-bar,
+.workspace-trust-editor .workspace-trust-settings .monaco-list-row:hover .monaco-table-tr .monaco-table-td .actions .monaco-action-bar {
+	display: flex;
+}

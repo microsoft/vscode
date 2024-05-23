@@ -9,10 +9,10 @@ import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { QuickPickInput, IQuickPickItem, IQuickInputService, IQuickPickItemButtonEvent } from 'vs/platform/quickinput/common/quickInput';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { testingUpdateProfiles } from 'vs/workbench/contrib/testing/browser/icons';
 import { testConfigurationGroupNames } from 'vs/workbench/contrib/testing/common/constants';
-import { InternalTestItem, ITestRunProfile, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testCollection';
+import { InternalTestItem, ITestRunProfile, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
 import { canUseProfileWithTest, ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
 
 interface IConfigurationPickerOptions {
@@ -100,7 +100,7 @@ const triggerButtonHandler = (service: ITestProfileService, resolve: (arg: undef
 CommandsRegistry.registerCommand({
 	id: 'vscode.pickMultipleTestProfiles',
 	handler: async (accessor: ServicesAccessor, options: IConfigurationPickerOptions & {
-		selected?: ITestRunProfile[],
+		selected?: ITestRunProfile[];
 	}) => {
 		const profileService = accessor.get(ITestProfileService);
 		const quickpick = buildPicker(accessor, options);

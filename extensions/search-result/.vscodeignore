@@ -4,3 +4,4 @@ tsconfig.json
 extension.webpack.config.js
 extension-browser.webpack.config.js
 yarn.lock
+syntaxes/generateTMLanguage.js

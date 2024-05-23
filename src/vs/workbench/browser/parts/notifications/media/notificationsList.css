@@ -5,6 +5,13 @@
 
 /** Notification: Container */
 
+.monaco-workbench .notifications-list-container {
+	color: var(--vscode-notifications-foreground);
+	background: var(--vscode-notifications-background);
+	outline-color: var(--vscode-contrastBorder);
+	border-radius: inherit;
+}
+
 .monaco-workbench .notifications-list-container .notification-list-item {
 	display: flex;
 	flex-direction: column;
@@ -12,6 +19,7 @@
 	padding: 10px 5px;
 	height: 100%;
 	box-sizing: border-box;
+	border-radius: 4px;
 }
 
 .monaco-workbench .notifications-list-container .notification-offset-helper {
@@ -19,6 +27,10 @@
 	position: absolute;
 	line-height: 22px;
 	word-wrap: break-word; /* never overflow long words, but break to next line */
+}
+
+.monaco-workbench .notifications-list-container .monaco-scrollable-element {
+	border-radius: 4px;
 }
 
 /** Notification: Main Row */
@@ -53,9 +65,14 @@
 	-webkit-user-select: text;
 }
 
+.monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-message a {
+	color: var(--vscode-notificationLink-foreground);
+}
+
 .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-message a:focus {
 	outline-width: 1px;
 	outline-style: solid;
+	outline-color: var(--vscode-focusBorder);
 }
 
 .monaco-workbench .notifications-list-container .notification-list-item.expanded .notification-list-item-message {
@@ -70,6 +87,7 @@
 	height: 22px;
 }
 
+.monaco-workbench .notifications-list-container .monaco-list:focus-within .notification-list-item .notification-list-item-toolbar-container,
 .monaco-workbench .notifications-list-container .notification-list-item:hover .notification-list-item-toolbar-container,
 .monaco-workbench .notifications-list-container .monaco-list-row.focused .notification-list-item .notification-list-item-toolbar-container,
 .monaco-workbench .notifications-list-container .notification-list-item.expanded .notification-list-item-toolbar-container {
@@ -116,8 +134,7 @@
 
 .monaco-workbench .notifications-list-container .notification-list-item .notification-list-item-buttons-container .monaco-text-button {
 	width: fit-content;
-	width: -moz-fit-content;
-	padding: 5px 10px;
+	padding: 4px 10px;
 	display: inline-block;	/* to enable ellipsis in text overflow */
 	font-size: 12px;
 	overflow: hidden;
@@ -131,6 +148,5 @@
 /** Notification: Progress */
 
 .monaco-workbench .notifications-list-container .progress-bit {
-	height: 2px;
 	bottom: 0;
 }

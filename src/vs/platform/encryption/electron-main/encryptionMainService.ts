@@ -3,43 +3,98 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ICommonEncryptionService } from 'vs/platform/encryption/common/encryptionService';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { safeStorage as safeStorageElectron, app } from 'electron';
+import { isMacintosh, isWindows } from 'vs/base/common/platform';
+import { KnownStorageProvider, IEncryptionMainService, PasswordStoreCLIOption } from 'vs/platform/encryption/common/encryptionService';
+import { ILogService } from 'vs/platform/log/common/log';
 
-export const IEncryptionMainService = createDecorator<IEncryptionMainService>('encryptionMainService');
-
-export interface IEncryptionMainService extends ICommonEncryptionService { }
-
-export interface Encryption {
-	encrypt(salt: string, value: string): Promise<string>;
-	decrypt(salt: string, value: string): Promise<string>;
+// These APIs are currently only supported in our custom build of electron so
+// we need to guard against them not being available.
+interface ISafeStorageAdditionalAPIs {
+	setUsePlainTextEncryption(usePlainText: boolean): void;
+	getSelectedStorageBackend(): string;
 }
-export class EncryptionMainService implements ICommonEncryptionService {
-	declare readonly _serviceBrand: undefined;
+
+const safeStorage: typeof import('electron').safeStorage & Partial<ISafeStorageAdditionalAPIs> = safeStorageElectron;
+
+export class EncryptionMainService implements IEncryptionMainService {
+	_serviceBrand: undefined;
+
 	constructor(
-		private machineId: string) {
-
-	}
-
-	private encryption(): Promise<Encryption> {
-		return new Promise((resolve, reject) => require(['vscode-encrypt'], resolve, reject));
+		@ILogService private readonly logService: ILogService
+	) {
+		// if this commandLine switch is set, the user has opted in to using basic text encryption
+		if (app.commandLine.getSwitchValue('password-store') === PasswordStoreCLIOption.basic) {
+			safeStorage.setUsePlainTextEncryption?.(true);
+		}
 	}
 
 	async encrypt(value: string): Promise<string> {
+		this.logService.trace('[EncryptionMainService] Encrypting value.');
 		try {
-			const encryption = await this.encryption();
-			return encryption.encrypt(this.machineId, value);
+			const result = JSON.stringify(safeStorage.encryptString(value));
+			this.logService.trace('[EncryptionMainService] Encrypted value.');
+			return result;
 		} catch (e) {
-			return value;
+			this.logService.error(e);
+			throw e;
 		}
 	}
 
 	async decrypt(value: string): Promise<string> {
+		let parsedValue: { data: string };
 		try {
-			const encryption = await this.encryption();
-			return encryption.decrypt(this.machineId, value);
+			parsedValue = JSON.parse(value);
+			if (!parsedValue.data) {
+				throw new Error(`[EncryptionMainService] Invalid encrypted value: ${value}`);
+			}
+			const bufferToDecrypt = Buffer.from(parsedValue.data);
+
+			this.logService.trace('[EncryptionMainService] Decrypting value.');
+			const result = safeStorage.decryptString(bufferToDecrypt);
+			this.logService.trace('[EncryptionMainService] Decrypted value.');
+			return result;
 		} catch (e) {
-			return value;
+			this.logService.error(e);
+			throw e;
 		}
+	}
+
+	isEncryptionAvailable(): Promise<boolean> {
+		return Promise.resolve(safeStorage.isEncryptionAvailable());
+	}
+
+	getKeyStorageProvider(): Promise<KnownStorageProvider> {
+		if (isWindows) {
+			return Promise.resolve(KnownStorageProvider.dplib);
+		}
+		if (isMacintosh) {
+			return Promise.resolve(KnownStorageProvider.keychainAccess);
+		}
+		if (safeStorage.getSelectedStorageBackend) {
+			try {
+				const result = safeStorage.getSelectedStorageBackend() as KnownStorageProvider;
+				return Promise.resolve(result);
+			} catch (e) {
+				this.logService.error(e);
+			}
+		}
+		return Promise.resolve(KnownStorageProvider.unknown);
+	}
+
+	async setUsePlainTextEncryption(): Promise<void> {
+		if (isWindows) {
+			throw new Error('Setting plain text encryption is not supported on Windows.');
+		}
+
+		if (isMacintosh) {
+			throw new Error('Setting plain text encryption is not supported on macOS.');
+		}
+
+		if (!safeStorage.setUsePlainTextEncryption) {
+			throw new Error('Setting plain text encryption is not supported.');
+		}
+
+		safeStorage.setUsePlainTextEncryption(true);
 	}
 }

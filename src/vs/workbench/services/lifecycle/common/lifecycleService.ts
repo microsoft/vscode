@@ -29,6 +29,9 @@ export abstract class AbstractLifecycleService extends Disposable implements ILi
 	protected readonly _onBeforeShutdownError = this._register(new Emitter<BeforeShutdownErrorEvent>());
 	readonly onBeforeShutdownError = this._onBeforeShutdownError.event;
 
+	protected readonly _onShutdownVeto = this._register(new Emitter<void>());
+	readonly onShutdownVeto = this._onShutdownVeto.event;
+
 	private _startupKind: StartupKind;
 	get startupKind(): StartupKind { return this._startupKind; }
 
@@ -49,21 +52,28 @@ export abstract class AbstractLifecycleService extends Disposable implements ILi
 		this._startupKind = this.resolveStartupKind();
 
 		// Save shutdown reason to retrieve on next startup
-		this.storageService.onWillSaveState(e => {
+		this._register(this.storageService.onWillSaveState(e => {
 			if (e.reason === WillSaveStateReason.SHUTDOWN) {
 				this.storageService.store(AbstractLifecycleService.LAST_SHUTDOWN_REASON_KEY, this.shutdownReason, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 			}
-		});
+		}));
 	}
 
 	private resolveStartupKind(): StartupKind {
+		const startupKind = this.doResolveStartupKind() ?? StartupKind.NewWindow;
+		this.logService.trace(`[lifecycle] starting up (startup kind: ${startupKind})`);
+
+		return startupKind;
+	}
+
+	protected doResolveStartupKind(): StartupKind | undefined {
 
 		// Retrieve and reset last shutdown reason
 		const lastShutdownReason = this.storageService.getNumber(AbstractLifecycleService.LAST_SHUTDOWN_REASON_KEY, StorageScope.WORKSPACE);
 		this.storageService.remove(AbstractLifecycleService.LAST_SHUTDOWN_REASON_KEY, StorageScope.WORKSPACE);
 
 		// Convert into startup kind
-		let startupKind: StartupKind;
+		let startupKind: StartupKind | undefined = undefined;
 		switch (lastShutdownReason) {
 			case ShutdownReason.RELOAD:
 				startupKind = StartupKind.ReloadedWindow;
@@ -71,11 +81,7 @@ export abstract class AbstractLifecycleService extends Disposable implements ILi
 			case ShutdownReason.LOAD:
 				startupKind = StartupKind.ReopenedWindow;
 				break;
-			default:
-				startupKind = StartupKind.NewWindow;
 		}
-
-		this.logService.trace(`[lifecycle] starting up (startup kind: ${startupKind})`);
 
 		return startupKind;
 	}

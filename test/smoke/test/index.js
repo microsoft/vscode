@@ -3,13 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-const path = require('path');
+//@ts-check
+'use strict';
+
+const { join } = require('path');
 const Mocha = require('mocha');
 const minimist = require('minimist');
 
 const [, , ...args] = process.argv;
 const opts = minimist(args, {
-	boolean: 'web',
+	boolean: ['web'],
 	string: ['f', 'g']
 });
 
@@ -17,8 +20,8 @@ const suite = opts['web'] ? 'Browser Smoke Tests' : 'Desktop Smoke Tests';
 
 const options = {
 	color: true,
-	timeout: 60000,
-	slow: 30000,
+	timeout: 2 * 60 * 1000,
+	slow: 30 * 1000,
 	grep: opts['f'] || opts['g']
 };
 
@@ -28,7 +31,7 @@ if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
 		reporterEnabled: 'spec, mocha-junit-reporter',
 		mochaJunitReporterReporterOptions: {
 			testsuitesTitle: `${suite} ${process.platform}`,
-			mochaFile: path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, `test-results/${process.platform}-${process.arch}-${suite.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`)
+			mochaFile: join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, `test-results/${process.platform}-${process.arch}-${suite.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`)
 		}
 	};
 }
@@ -39,9 +42,8 @@ mocha.run(failures => {
 
 	// Indicate location of log files for further diagnosis
 	if (failures) {
-		const repoPath = path.join(__dirname, '..', '..', '..');
-		const logPath = path.join(repoPath, '.build', 'logs', opts.web ? 'smoke-tests-browser' : opts.remote ? 'smoke-tests-remote' : 'smoke-tests');
-		const logFile = path.join(logPath, 'smoke-test-runner.log');
+		const rootPath = join(__dirname, '..', '..', '..');
+		const logPath = join(rootPath, '.build', 'logs');
 
 		if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
 			console.log(`
@@ -62,7 +64,7 @@ mocha.run(failures => {
 # '${logPath}'.
 #
 # Logs of the smoke test runner are stored into
-# '${logFile}'.
+# 'smoke-test-runner.log' in respective folder.
 #
 #############################################
 		`);

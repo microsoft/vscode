@@ -41,19 +41,15 @@ export function beginTrackingDisposables(): void {
 export function endTrackingDisposables(): void {
 	if (currentTracker) {
 		setDisposableTracker(null);
-		console.log(currentTracker!.allDisposables.map(e => `${e[0]}\n${e[1]}`).join('\n\n'));
+		console.log(currentTracker.allDisposables.map(e => `${e[0]}\n${e[1]}`).join('\n\n'));
 		currentTracker = null;
 	}
 }
 
 export function beginLoggingFS(withStacks: boolean = false): void {
-	if ((<any>self).beginLoggingFS) {
-		(<any>self).beginLoggingFS(withStacks);
-	}
+	(<any>self).beginLoggingFS?.(withStacks);
 }
 
 export function endLoggingFS(): void {
-	if ((<any>self).endLoggingFS) {
-		(<any>self).endLoggingFS();
-	}
+	(<any>self).endLoggingFS?.();
 }

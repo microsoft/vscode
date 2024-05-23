@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { ClientSecretCredential } from '@azure/identity';
 import { CosmosClient } from '@azure/cosmos';
 import { retry } from './retry';
@@ -42,6 +40,7 @@ async function main(): Promise<void> {
 		timestamp: (new Date()).getTime(),
 		version,
 		isReleased: false,
+		private: process.env['VSCODE_PRIVATE_BUILD']?.toLowerCase() === 'true',
 		sourceBranch,
 		queuedBy,
 		assets: [],

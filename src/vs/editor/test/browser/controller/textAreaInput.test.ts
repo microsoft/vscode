@@ -7,12 +7,17 @@ import * as assert from 'assert';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { OperatingSystem } from 'vs/base/common/platform';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ClipboardDataToCopy, IBrowser, ICompleteTextAreaWrapper, ITextAreaInputHost, TextAreaInput } from 'vs/editor/browser/controller/textAreaInput';
 import { TextAreaState } from 'vs/editor/browser/controller/textAreaState';
 import { Position } from 'vs/editor/common/core/position';
 import { IRecorded, IRecordedEvent, IRecordedTextareaState } from 'vs/editor/test/browser/controller/imeRecordedTypes';
+import { TestAccessibilityService } from 'vs/platform/accessibility/test/common/testAccessibilityService';
+import { NullLogService } from 'vs/platform/log/common/log';
 
 suite('TextAreaInput', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	interface OutgoingType {
 		type: 'type';
@@ -41,13 +46,13 @@ suite('TextAreaInput', () => {
 	}
 
 	async function simulateInteraction(recorded: IRecorded): Promise<OutoingEvent[]> {
-		let disposables = new DisposableStore();
+		const disposables = new DisposableStore();
 		const host: ITextAreaInputHost = {
 			getDataToCopy: function (): ClipboardDataToCopy {
 				throw new Error('Function not implemented.');
 			},
-			getScreenReaderContent: function (currentState: TextAreaState): TextAreaState {
-				return new TextAreaState('', 0, 0, null, null);
+			getScreenReaderContent: function (): TextAreaState {
+				return new TextAreaState('', 0, 0, null, undefined);
 			},
 			deduceModelPosition: function (viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position {
 				throw new Error('Function not implemented.');
@@ -88,6 +93,8 @@ suite('TextAreaInput', () => {
 			private _state: IRecordedTextareaState;
 			private _currDispatchingEvent: IRecordedEvent | null;
 
+			public ownerDocument = document;
+
 			constructor() {
 				super();
 				this._state = {
@@ -127,6 +134,7 @@ suite('TextAreaInput', () => {
 						metaKey: event.metaKey,
 						repeat: event.repeat,
 						shiftKey: event.shiftKey,
+						getModifierState: (keyArg: string) => false
 					};
 					if (event.type === 'keydown') {
 						this._onKeyDown.fire(mockEvent);
@@ -197,12 +205,12 @@ suite('TextAreaInput', () => {
 
 			public hasFocus(): boolean { return true; }
 		});
-		const input = disposables.add(new TextAreaInput(host, wrapper, recorded.env.OS, recorded.env.browser));
+		const input = disposables.add(new TextAreaInput(host, wrapper, recorded.env.OS, recorded.env.browser, new TestAccessibilityService(), new NullLogService()));
 
 		wrapper._initialize(recorded.initial);
 		input._initializeFromTest();
 
-		let outgoingEvents: OutoingEvent[] = [];
+		const outgoingEvents: OutoingEvent[] = [];
 
 		disposables.add(input.onType((e) => outgoingEvents.push({
 			type: 'type',
@@ -227,6 +235,8 @@ suite('TextAreaInput', () => {
 			wrapper._dispatchRecordedEvent(event);
 			await yieldNow();
 		}
+
+		disposables.dispose();
 
 		return outgoingEvents;
 	}
@@ -539,6 +549,60 @@ suite('TextAreaInput', () => {
 			{ type: 'type', text: 'ö', replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
 			{ type: 'compositionEnd' }
 		]);
+
+		const actualResultingState = interpretTypeEvents(recorded.env.OS, recorded.env.browser, recorded.initial, actualOutgoingEvents);
+		assert.deepStrictEqual(actualResultingState, recorded.final);
+	});
+
+	test('macOS - Chrome - pressing quotes on US Intl', async () => {
+		// macOS, US International - PC, press ', ', ;
+		const recorded: IRecorded = {
+			env: { OS: OperatingSystem.Macintosh, browser: { isAndroid: false, isFirefox: false, isChrome: true, isSafari: false } },
+			initial: { value: 'aaaa', selectionStart: 2, selectionEnd: 2, selectionDirection: 'none' },
+			events: [
+				{ timeStamp: 0.00, state: { value: 'aaaa', selectionStart: 2, selectionEnd: 2, selectionDirection: 'none' }, type: 'keydown', altKey: false, charCode: 0, code: 'Quote', ctrlKey: false, isComposing: false, key: 'Dead', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 2.80, state: { value: 'aaaa', selectionStart: 2, selectionEnd: 2, selectionDirection: 'none' }, type: 'compositionstart', data: '' },
+				{ timeStamp: 3.10, state: { value: 'aaaa', selectionStart: 2, selectionEnd: 2, selectionDirection: 'none' }, type: 'beforeinput', data: '\'', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 3.20, state: { value: 'aaaa', selectionStart: 2, selectionEnd: 2, selectionDirection: 'none' }, type: 'compositionupdate', data: '\'' },
+				{ timeStamp: 3.70, state: { value: 'aa\'aa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'none' }, type: 'input', data: '\'', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 71.90, state: { value: 'aa\'aa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'none' }, type: 'keyup', altKey: false, charCode: 0, code: 'Quote', ctrlKey: false, isComposing: true, key: 'Dead', keyCode: 222, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 144.00, state: { value: 'aa\'aa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'none' }, type: 'keydown', altKey: false, charCode: 0, code: 'Quote', ctrlKey: false, isComposing: true, key: 'Dead', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 146.20, state: { value: 'aa\'aa', selectionStart: 2, selectionEnd: 3, selectionDirection: 'none' }, type: 'beforeinput', data: '\'', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 146.40, state: { value: 'aa\'aa', selectionStart: 2, selectionEnd: 3, selectionDirection: 'none' }, type: 'compositionupdate', data: '\'' },
+				{ timeStamp: 146.70, state: { value: 'aa\'aa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'none' }, type: 'input', data: '\'', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 146.80, state: { value: 'aa\'aa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'none' }, type: 'compositionend', data: '\'' },
+				{ timeStamp: 147.20, state: { value: 'aa\'aa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'none' }, type: 'compositionstart', data: '' },
+				{ timeStamp: 147.20, state: { value: 'aa\'aa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'none' }, type: 'beforeinput', data: '\'', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 147.70, state: { value: 'aa\'aa', selectionStart: 3, selectionEnd: 3, selectionDirection: 'none' }, type: 'compositionupdate', data: '\'' },
+				{ timeStamp: 148.20, state: { value: 'aa\'\'aa', selectionStart: 4, selectionEnd: 4, selectionDirection: 'none' }, type: 'input', data: '\'', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 208.10, state: { value: 'aa\'\'aa', selectionStart: 4, selectionEnd: 4, selectionDirection: 'none' }, type: 'keyup', altKey: false, charCode: 0, code: 'Quote', ctrlKey: false, isComposing: true, key: 'Dead', keyCode: 222, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 323.70, state: { value: 'aa\'\'aa', selectionStart: 4, selectionEnd: 4, selectionDirection: 'none' }, type: 'keydown', altKey: false, charCode: 0, code: 'Semicolon', ctrlKey: false, isComposing: true, key: ';', keyCode: 229, location: 0, metaKey: false, repeat: false, shiftKey: false },
+				{ timeStamp: 325.70, state: { value: 'aa\'\'aa', selectionStart: 3, selectionEnd: 4, selectionDirection: 'none' }, type: 'beforeinput', data: '\';', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 325.80, state: { value: 'aa\'\'aa', selectionStart: 3, selectionEnd: 4, selectionDirection: 'none' }, type: 'compositionupdate', data: '\';' },
+				{ timeStamp: 326.30, state: { value: 'aa\'\';aa', selectionStart: 5, selectionEnd: 5, selectionDirection: 'none' }, type: 'input', data: '\';', inputType: 'insertCompositionText', isComposing: true },
+				{ timeStamp: 326.30, state: { value: 'aa\'\';aa', selectionStart: 5, selectionEnd: 5, selectionDirection: 'none' }, type: 'compositionend', data: '\';' },
+				{ timeStamp: 428.00, state: { value: 'aa\'\';aa', selectionStart: 5, selectionEnd: 5, selectionDirection: 'none' }, type: 'keyup', altKey: false, charCode: 0, code: 'Semicolon', ctrlKey: false, isComposing: false, key: ';', keyCode: 186, location: 0, metaKey: false, repeat: false, shiftKey: false }
+			],
+			final: { value: 'aa\'\';aa', selectionStart: 5, selectionEnd: 5, selectionDirection: 'none' },
+		};
+
+		const actualOutgoingEvents = await simulateInteraction(recorded);
+		assert.deepStrictEqual(actualOutgoingEvents, ([
+			{ type: "compositionStart", data: "" },
+			{ type: "type", text: "'", replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 },
+			{ type: "compositionUpdate", data: "'" },
+			{ type: "type", text: "'", replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
+			{ type: "compositionUpdate", data: "'" },
+			{ type: "type", text: "'", replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
+			{ type: "compositionEnd" },
+			{ type: "compositionStart", data: "" },
+			{ type: "type", text: "'", replacePrevCharCnt: 0, replaceNextCharCnt: 0, positionDelta: 0 },
+			{ type: "compositionUpdate", data: "'" },
+			{ type: "type", text: "';", replacePrevCharCnt: 1, replaceNextCharCnt: 0, positionDelta: 0 },
+			{ type: "compositionUpdate", data: "';" },
+			{ type: "type", text: "';", replacePrevCharCnt: 2, replaceNextCharCnt: 0, positionDelta: 0 },
+			{ type: "compositionEnd" }
+		]));
 
 		const actualResultingState = interpretTypeEvents(recorded.env.OS, recorded.env.browser, recorded.initial, actualOutgoingEvents);
 		assert.deepStrictEqual(actualResultingState, recorded.final);

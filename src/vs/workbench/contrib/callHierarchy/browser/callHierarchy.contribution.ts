@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { CallHierarchyProviderRegistry, CallHierarchyDirection, CallHierarchyModel } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { CallHierarchyTreePeekWidget } from 'vs/workbench/contrib/callHierarchy/browser/callHierarchyPeek';
 import { Event } from 'vs/base/common/event';
-import { registerEditorContribution, EditorAction2 } from 'vs/editor/browser/editorExtensions';
+import { registerEditorContribution, EditorAction2, EditorContributionInstantiation } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IContextKeyService, RawContextKey, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -17,7 +17,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { PeekContext } from 'vs/editor/contrib/peekView/peekView';
+import { PeekContext } from 'vs/editor/contrib/peekView/browser/peekView';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Range } from 'vs/editor/common/core/range';
@@ -25,6 +25,7 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { isCancellationError } from 'vs/base/common/errors';
 
 const _ctxHasCallHierarchyProvider = new RawContextKey<boolean>('editorHasCallHierarchyProvider', false, localize('editorHasCallHierarchyProvider', 'Whether a call hierarchy provider is available'));
 const _ctxCallHierarchyVisible = new RawContextKey<boolean>('callHierarchyVisible', false, localize('callHierarchyVisible', 'Whether call hierarchy peek is currently showing'));
@@ -91,7 +92,7 @@ class CallHierarchyController implements IEditorContribution {
 
 		const cts = new CancellationTokenSource();
 		const model = CallHierarchyModel.create(document, position, cts.token);
-		const direction = sanitizedDirection(this._storageService.get(CallHierarchyController._StorageDirection, StorageScope.GLOBAL, CallHierarchyDirection.CallsTo));
+		const direction = sanitizedDirection(this._storageService.get(CallHierarchyController._StorageDirection, StorageScope.PROFILE, CallHierarchyDirection.CallsTo));
 
 		this._showCallHierarchyWidget(position, direction, model, cts);
 	}
@@ -129,7 +130,7 @@ class CallHierarchyController implements IEditorContribution {
 		this._widget.showLoading();
 		this._sessionDisposables.add(this._widget.onDidClose(() => {
 			this.endCallHierarchy();
-			this._storageService.store(CallHierarchyController._StorageDirection, this._widget!.direction, StorageScope.GLOBAL, StorageTarget.USER);
+			this._storageService.store(CallHierarchyController._StorageDirection, this._widget!.direction, StorageScope.PROFILE, StorageTarget.USER);
 		}));
 		this._sessionDisposables.add({ dispose() { cts.dispose(true); } });
 		this._sessionDisposables.add(this._widget);
@@ -145,9 +146,12 @@ class CallHierarchyController implements IEditorContribution {
 			else {
 				this._widget!.showMessage(localize('no.item', "No results"));
 			}
-		}).catch(e => {
+		}).catch(err => {
+			if (isCancellationError(err)) {
+				this.endCallHierarchy();
+				return;
+			}
 			this._widget!.showMessage(localize('error', "Failed to show call hierarchy"));
-			console.error(e);
 		});
 	}
 
@@ -168,21 +172,22 @@ class CallHierarchyController implements IEditorContribution {
 	}
 }
 
-registerEditorContribution(CallHierarchyController.Id, CallHierarchyController);
+registerEditorContribution(CallHierarchyController.Id, CallHierarchyController, EditorContributionInstantiation.Eager); // eager because it needs to define a context key
 
-registerAction2(class extends EditorAction2 {
+registerAction2(class PeekCallHierarchyAction extends EditorAction2 {
 
 	constructor() {
 		super({
 			id: 'editor.showCallHierarchy',
-			title: { value: localize('title', "Peek Call Hierarchy"), original: 'Peek Call Hierarchy' },
+			title: localize2('title', 'Peek Call Hierarchy'),
 			menu: {
 				id: MenuId.EditorContextPeek,
 				group: 'navigation',
 				order: 1000,
 				when: ContextKeyExpr.and(
 					_ctxHasCallHierarchyProvider,
-					PeekContext.notInPeekEditor
+					PeekContext.notInPeekEditor,
+					EditorContextKeys.isInEmbeddedEditor.toNegated(),
 				),
 			},
 			keybinding: {
@@ -193,7 +198,8 @@ registerAction2(class extends EditorAction2 {
 			precondition: ContextKeyExpr.and(
 				_ctxHasCallHierarchyProvider,
 				PeekContext.notInPeekEditor
-			)
+			),
+			f1: true
 		});
 	}
 
@@ -207,7 +213,7 @@ registerAction2(class extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'editor.showIncomingCalls',
-			title: { value: localize('title.incoming', "Show Incoming Calls"), original: 'Show Incoming Calls' },
+			title: localize2('title.incoming', 'Show Incoming Calls'),
 			icon: registerIcon('callhierarchy-incoming', Codicon.callIncoming, localize('showIncomingCallsIcons', 'Icon for incoming calls in the call hierarchy view.')),
 			precondition: ContextKeyExpr.and(_ctxCallHierarchyVisible, _ctxCallHierarchyDirection.isEqualTo(CallHierarchyDirection.CallsFrom)),
 			keybinding: {
@@ -232,7 +238,7 @@ registerAction2(class extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'editor.showOutgoingCalls',
-			title: { value: localize('title.outgoing', "Show Outgoing Calls"), original: 'Show Outgoing Calls' },
+			title: localize2('title.outgoing', 'Show Outgoing Calls'),
 			icon: registerIcon('callhierarchy-outgoing', Codicon.callOutgoing, localize('showOutgoingCallsIcon', 'Icon for outgoing calls in the call hierarchy view.')),
 			precondition: ContextKeyExpr.and(_ctxCallHierarchyVisible, _ctxCallHierarchyDirection.isEqualTo(CallHierarchyDirection.CallsTo)),
 			keybinding: {
@@ -258,7 +264,7 @@ registerAction2(class extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'editor.refocusCallHierarchy',
-			title: { value: localize('title.refocus', "Refocus Call Hierarchy"), original: 'Refocus Call Hierarchy' },
+			title: localize2('title.refocus', 'Refocus Call Hierarchy'),
 			precondition: _ctxCallHierarchyVisible,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -280,13 +286,11 @@ registerAction2(class extends EditorAction2 {
 			id: 'editor.closeCallHierarchy',
 			title: localize('close', 'Close'),
 			icon: Codicon.close,
-			precondition: ContextKeyExpr.and(
-				_ctxCallHierarchyVisible,
-				ContextKeyExpr.not('config.editor.stablePeek')
-			),
+			precondition: _ctxCallHierarchyVisible,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib + 10,
-				primary: KeyCode.Escape
+				primary: KeyCode.Escape,
+				when: ContextKeyExpr.not('config.editor.stablePeek')
 			},
 			menu: {
 				id: CallHierarchyTreePeekWidget.TitleMenu,

@@ -8,9 +8,9 @@ import type { RendererContext } from 'vscode-notebook-renderer';
 const styleHref = import.meta.url.replace(/katex.js$/, 'katex.min.css');
 
 export async function activate(ctx: RendererContext<void>) {
-	const markdownItRenderer = (await ctx.getRenderer('markdownItRenderer')) as undefined | any;
+	const markdownItRenderer = (await ctx.getRenderer('vscode.markdown-it-renderer')) as undefined | any;
 	if (!markdownItRenderer) {
-		throw new Error('Could not load markdownItRenderer');
+		throw new Error(`Could not load 'vscode.markdown-it-renderer'`);
 	}
 
 	// Add katex styles to be copied to shadow dom
@@ -33,6 +33,9 @@ export async function activate(ctx: RendererContext<void>) {
 		.katex-error {
 			color: var(--vscode-editorError-foreground);
 		}
+		.katex-block {
+			counter-reset: katexEqnNo mmlEqnNo;
+		}
 	`;
 
 	// Put Everything into a template
@@ -42,11 +45,13 @@ export async function activate(ctx: RendererContext<void>) {
 	styleTemplate.content.appendChild(link);
 	document.head.appendChild(styleTemplate);
 
-	const katex = require('@iktakahiro/markdown-it-katex');
+	const katex = require('@vscode/markdown-it-katex').default;
+	const macros = {};
 	markdownItRenderer.extendMarkdownIt((md: markdownIt.MarkdownIt) => {
 		return md.use(katex, {
 			globalGroup: true,
 			enableBareBlocks: true,
+			macros
 		});
 	});
 }

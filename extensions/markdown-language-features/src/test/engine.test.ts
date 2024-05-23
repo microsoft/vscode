@@ -6,8 +6,8 @@
 import * as assert from 'assert';
 import 'mocha';
 import * as vscode from 'vscode';
+import { InMemoryDocument } from '../client/inMemoryDocument';
 import { createNewMarkdownEngine } from './engine';
-import { InMemoryDocument } from './inMemoryDocument';
 
 
 const testFileName = vscode.Uri.file('test.md');
@@ -15,8 +15,8 @@ const testFileName = vscode.Uri.file('test.md');
 suite('markdown.engine', () => {
 	suite('rendering', () => {
 		const input = '# hello\n\nworld!';
-		const output = '<h1 data-line="0" class="code-line" id="hello">hello</h1>\n'
-			+ '<p data-line="2" class="code-line">world!</p>\n';
+		const output = '<h1 data-line="0" class="code-line" dir="auto" id="hello">hello</h1>\n'
+			+ '<p data-line="2" class="code-line" dir="auto">world!</p>\n';
 
 		test('Renders a document', async () => {
 			const doc = new InMemoryDocument(testFileName, input);
@@ -35,17 +35,18 @@ suite('markdown.engine', () => {
 
 		test('Extracts all images', async () => {
 			const engine = createNewMarkdownEngine();
-			assert.deepStrictEqual((await engine.render(input)), {
-				html: '<p data-line="0" class="code-line">'
-					+ '<img src="img.png" alt="" class="loading" id="image-hash--754511435" data-src="img.png"> '
-					+ '<a href="no-img.png" data-href="no-img.png"></a> '
-					+ '<img src="http://example.org/img.png" alt="" class="loading" id="image-hash--1903814170" data-src="http://example.org/img.png"> '
-					+ '<img src="img.png" alt="" class="loading" id="image-hash--754511435" data-src="img.png"> '
-					+ '<img src="./img2.png" alt="" class="loading" id="image-hash-265238964" data-src="./img2.png">'
-					+ '</p>\n'
-				,
-				containingImages: [{ src: 'img.png' }, { src: 'http://example.org/img.png' }, { src: 'img.png' }, { src: './img2.png' }],
-			});
+			const result = await engine.render(input);
+			assert.deepStrictEqual(result.html,
+				'<p data-line="0" class="code-line" dir="auto">'
+				+ '<img src="img.png" alt="" data-src="img.png"> '
+				+ '<a href="no-img.png" data-href="no-img.png"></a> '
+				+ '<img src="http://example.org/img.png" alt="" data-src="http://example.org/img.png"> '
+				+ '<img src="img.png" alt="" data-src="img.png"> '
+				+ '<img src="./img2.png" alt="" data-src="./img2.png">'
+				+ '</p>\n'
+			);
+
+			assert.deepStrictEqual([...result.containingImages], ['img.png', 'http://example.org/img.png', './img2.png']);
 		});
 	});
 });

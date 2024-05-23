@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
+import { ISaveOptions, IRevertOptions, SaveReason, SaveSource } from 'vs/workbench/common/editor';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 
@@ -21,7 +21,14 @@ export const enum WorkingCopyCapabilities {
 	 * additional input when saving, e.g. an
 	 * associated path to save to.
 	 */
-	Untitled = 1 << 1
+	Untitled = 1 << 1,
+
+	/**
+	 * The working copy will not indicate that
+	 * it is dirty and unsaved content will be
+	 * discarded without prompting if closed.
+	 */
+	Scratchpad = 1 << 2
 }
 
 /**
@@ -93,6 +100,19 @@ export interface IWorkingCopyIdentifier {
 	readonly resource: URI;
 }
 
+export interface IWorkingCopySaveEvent {
+
+	/**
+	 * The reason why the working copy was saved.
+	 */
+	readonly reason?: SaveReason;
+
+	/**
+	 * The source of the working copy save request.
+	 */
+	readonly source?: SaveSource;
+}
+
 /**
  * A working copy is an abstract concept to unify handling of
  * data that can be worked on (e.g. edited) in an editor.
@@ -132,17 +152,44 @@ export interface IWorkingCopy extends IWorkingCopyIdentifier {
 	 */
 	readonly onDidChangeContent: Event<void>;
 
+	/**
+	 * Used by the workbench e.g. to track local history
+	 * (unless this working copy is untitled).
+	 */
+	readonly onDidSave: Event<IWorkingCopySaveEvent>;
+
 	//#endregion
 
 
 	//#region Dirty Tracking
 
+	/**
+	 * Indicates that the file has unsaved changes
+	 * and should confirm before closing.
+	 */
 	isDirty(): boolean;
+
+	/**
+	 * Indicates that the file has unsaved changes.
+	 * Used for backup tracking and accounts for
+	 * working copies that are never dirty e.g.
+	 * scratchpads.
+	 */
+	isModified(): boolean;
 
 	//#endregion
 
 
 	//#region Save / Backup
+
+	/**
+	 * The delay in milliseconds to wait before triggering
+	 * a backup after the content of the model has changed.
+	 *
+	 * If not configured, a sensible default will be taken
+	 * based on user settings.
+	 */
+	readonly backupDelay?: number;
 
 	/**
 	 * The workbench may call this method often after it receives
