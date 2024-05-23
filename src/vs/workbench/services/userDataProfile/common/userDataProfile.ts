@@ -8,7 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { localize, localize2 } from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IUserDataProfile, IUserDataProfileOptions, IUserDataProfileUpdateOptions, ProfileResourceType } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfile, IUserDataProfileOptions, IUserDataProfileUpdateOptions, ProfileResourceType, ProfileResourceTypeFlags } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
@@ -82,6 +82,11 @@ export interface IProfileImportOptions extends IUserDataProfileOptions {
 	readonly name?: string;
 	readonly icon?: string;
 	readonly mode?: 'preview' | 'apply' | 'both';
+	readonly resourceTypeFlags?: ProfileResourceTypeFlags;
+}
+
+export interface IUserDataProfileCreateOptions extends IUserDataProfileOptions {
+	readonly resourceTypeFlags?: ProfileResourceTypeFlags;
 }
 
 export const IUserDataProfileImportExportService = createDecorator<IUserDataProfileImportExportService>('IUserDataProfileImportExportService');
@@ -91,10 +96,13 @@ export interface IUserDataProfileImportExportService {
 	registerProfileContentHandler(id: string, profileContentHandler: IUserDataProfileContentHandler): IDisposable;
 	unregisterProfileContentHandler(id: string): void;
 
+	resolveProfileTemplate(uri: URI): Promise<IUserDataProfileTemplate | null>;
 	exportProfile(): Promise<void>;
+	exportProfile2(profile: IUserDataProfile): Promise<void>;
 	importProfile(uri: URI, options?: IProfileImportOptions): Promise<void>;
 	showProfileContents(): Promise<void>;
 	createProfile(from?: IUserDataProfile | URI): Promise<void>;
+	createFromProfile(from: IUserDataProfile, name: string, options?: IUserDataProfileCreateOptions): Promise<void>;
 	editProfile(profile: IUserDataProfile): Promise<void>;
 	createTroubleshootProfile(): Promise<void>;
 	setProfile(profile: IUserDataProfileTemplate): Promise<void>;

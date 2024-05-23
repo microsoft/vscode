@@ -367,9 +367,9 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		}));
 	}
 
-	// --- quick fix
+	// --- code actions
 
-	$registerQuickFixSupport(handle: number, selector: IDocumentFilterDto[], metadata: ICodeActionProviderMetadataDto, displayName: string, supportsResolve: boolean): void {
+	$registerCodeActionSupport(handle: number, selector: IDocumentFilterDto[], metadata: ICodeActionProviderMetadataDto, displayName: string, extensionId: string, supportsResolve: boolean): void {
 		const provider: languages.CodeActionProvider = {
 			provideCodeActions: async (model: ITextModel, rangeOrSelection: EditorRange | Selection, context: languages.CodeActionContext, token: CancellationToken): Promise<languages.CodeActionList | undefined> => {
 				const listDto = await this._proxy.$provideCodeActions(handle, model.uri, rangeOrSelection, context, token);
@@ -387,7 +387,8 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 			},
 			providedCodeActionKinds: metadata.providedKinds,
 			documentation: metadata.documentation,
-			displayName
+			displayName,
+			extensionId,
 		};
 
 		if (supportsResolve) {

@@ -137,12 +137,14 @@ export function getMultiSelectedResources(resource: URI | object | undefined, li
 		}
 	}
 
+	// Check for tabs multiselect.
 	const activeGroup = editorGroupService.activeGroup;
 	const selection = activeGroup.selectedEditors;
-	if (selection.length) {
-		const selectedResources = selection.map(editor => EditorResourceAccessor.getOriginalUri(editor)).filter(uri => !!uri) as URI[];
-		if (selectedResources.some(r => r.toString() === resource?.toString())) {
-			return selectedResources;
+	if (selection.length > 1 && URI.isUri(resource)) {
+		// If the resource is part of the tabs selection, return all selected tabs/resources.
+		// It's possible that multiple tabs are selected but the action was applied to a resource that is not part of the selection.
+		if (selection.some(e => e.matches({ resource }))) {
+			return selection.map(editor => EditorResourceAccessor.getOriginalUri(editor)).filter(uri => !!uri);
 		}
 	}
 

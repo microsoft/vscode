@@ -86,6 +86,7 @@ interface IVoiceChatSessionController {
 	readonly onDidHideInput: Event<unknown>;
 
 	readonly context: VoiceChatSessionContext;
+	readonly scopedContextKeyService: IContextKeyService;
 
 	updateState(state: VoiceChatSessionState): void;
 
@@ -187,15 +188,15 @@ class VoiceChatSessionControllerFactory {
 			switch (state) {
 				case VoiceChatSessionState.GettingReady:
 					contextVoiceChatGettingReady.set(true);
-					contextVoiceChatInProgress.set(undefined);
+					contextVoiceChatInProgress.reset();
 					break;
 				case VoiceChatSessionState.Started:
-					contextVoiceChatGettingReady.set(false);
+					contextVoiceChatGettingReady.reset();
 					contextVoiceChatInProgress.set(context);
 					break;
 				case VoiceChatSessionState.Stopped:
-					contextVoiceChatGettingReady.set(false);
-					contextVoiceChatInProgress.set(undefined);
+					contextVoiceChatGettingReady.reset();
+					contextVoiceChatInProgress.reset();
 					break;
 			}
 		};
@@ -204,6 +205,7 @@ class VoiceChatSessionControllerFactory {
 	private static doCreateForChatWidget(context: VoiceChatSessionContext, chatWidget: IChatWidget): IVoiceChatSessionController {
 		return {
 			context,
+			scopedContextKeyService: chatWidget.scopedContextKeyService,
 			onDidAcceptInput: chatWidget.onDidAcceptInput,
 			onDidHideInput: chatWidget.onDidHide,
 			focusInput: () => chatWidget.focusInput(),
@@ -220,6 +222,7 @@ class VoiceChatSessionControllerFactory {
 		const context = 'terminal';
 		return {
 			context,
+			scopedContextKeyService: terminalChat.scopedContextKeyService,
 			onDidAcceptInput: terminalChat.onDidAcceptInput,
 			onDidHideInput: terminalChat.onDidHide,
 			focusInput: () => terminalChat.focus(),
@@ -380,7 +383,8 @@ class VoiceChatSessions {
 			return;
 		}
 
-		const response = await this.currentVoiceChatSession.controller.acceptInput();
+		const controller = this.currentVoiceChatSession.controller;
+		const response = await controller.acceptInput();
 		if (!response) {
 			return;
 		}
@@ -389,8 +393,16 @@ class VoiceChatSessions {
 			!this.accessibilityService.isScreenReaderOptimized() && // do not auto synthesize when screen reader is active
 			this.configurationService.getValue<boolean>(AccessibilityVoiceSettingId.AutoSynthesize) === true
 		) {
-			const controller = this.instantiationService.invokeFunction(accessor => ChatSynthesizerSessionController.create(accessor, response));
-			ChatSynthesizerSessions.getInstance(this.instantiationService).start(controller);
+			let context: IVoiceChatSessionController | 'focused';
+			if (controller.context === 'inline') {
+				// TODO@bpasero this is ugly, but the lightweight inline chat turns into
+				// a different widget as soon as a response comes in, so we fallback to
+				// picking up from the focused chat widget
+				context = 'focused';
+			} else {
+				context = controller;
+			}
+			ChatSynthesizerSessions.getInstance(this.instantiationService).start(this.instantiationService.invokeFunction(accessor => ChatSynthesizerSessionController.create(accessor, context, response)));
 		}
 	}
 }
@@ -617,7 +629,8 @@ export class StopListeningAction extends Action2 {
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib + 100,
-				primary: KeyCode.Escape
+				primary: KeyCode.Escape,
+				when: AnyScopedVoiceChatInProgress
 			},
 			icon: spinningLoading,
 			precondition: GlobalVoiceChatInProgress, // need global context here because of `f1: true`
@@ -680,14 +693,40 @@ interface IChatSynthesizerSessionController {
 
 class ChatSynthesizerSessionController {
 
-	static create(accessor: ServicesAccessor, response: IChatResponseModel): IChatSynthesizerSessionController {
+	static create(accessor: ServicesAccessor, context: IVoiceChatSessionController | 'focused', response: IChatResponseModel): IChatSynthesizerSessionController {
+		if (context === 'focused') {
+			return ChatSynthesizerSessionController.doCreateForFocusedChat(accessor, response);
+		} else {
+			return {
+				onDidHideChat: context.onDidHideInput,
+				contextKeyService: context.scopedContextKeyService,
+				response
+			};
+		}
+	}
+
+	private static doCreateForFocusedChat(accessor: ServicesAccessor, response: IChatResponseModel): IChatSynthesizerSessionController {
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const contextKeyService = accessor.get(IContextKeyService);
+		const terminalService = accessor.get(ITerminalService);
 
+		// 1.) probe terminal chat which is not part of chat widget service
+		const activeInstance = terminalService.activeInstance;
+		if (activeInstance) {
+			const terminalChat = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+			if (terminalChat?.hasFocus()) {
+				return {
+					onDidHideChat: terminalChat.onDidHide,
+					contextKeyService: terminalChat.scopedContextKeyService,
+					response
+				};
+			}
+		}
+
+		// 2.) otherwise go via chat widget service
 		let chatWidget = chatWidgetService.getWidgetBySessionId(response.session.sessionId);
 		if (chatWidget?.location === ChatAgentLocation.Editor) {
-			// somehow for inline chat, the response session returns the wrong widget
-			// so we need to find the correct one by going through the last focused
+			// TODO@bpasero workaround for https://github.com/microsoft/vscode/issues/212785
 			chatWidget = chatWidgetService.lastFocusedWidget;
 		}
 
@@ -737,7 +776,7 @@ class ChatSynthesizerSessions {
 		disposables.add(controller.onDidHideChat(() => this.stop()));
 
 		const scopedChatToSpeechInProgress = ScopedChatSynthesisInProgress.bindTo(controller.contextKeyService);
-		disposables.add(toDisposable(() => scopedChatToSpeechInProgress.set(false)));
+		disposables.add(toDisposable(() => scopedChatToSpeechInProgress.reset()));
 
 		disposables.add(session.onDidChange(e => {
 			switch (e.status) {
@@ -745,7 +784,7 @@ class ChatSynthesizerSessions {
 					scopedChatToSpeechInProgress.set(true);
 					break;
 				case TextToSpeechStatus.Stopped:
-					scopedChatToSpeechInProgress.set(false);
+					scopedChatToSpeechInProgress.reset();
 					break;
 			}
 		}));
@@ -859,7 +898,7 @@ export class ReadChatResponseAloud extends Action2 {
 			return;
 		}
 
-		const controller = ChatSynthesizerSessionController.create(accessor, response.model);
+		const controller = ChatSynthesizerSessionController.create(accessor, 'focused', response.model);
 		ChatSynthesizerSessions.getInstance(instantiationService).start(controller);
 	}
 }
@@ -879,6 +918,7 @@ export class StopReadAloud extends Action2 {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib + 100,
 				primary: KeyCode.Escape,
+				when: ScopedChatSynthesisInProgress
 			},
 			menu: [
 				{
@@ -1199,7 +1239,7 @@ abstract class BaseInstallSpeechProviderAction extends Action2 {
 				enable: true
 			}, ProgressLocation.Notification);
 		} finally {
-			InstallingSpeechProvider.bindTo(contextKeyService).set(false);
+			InstallingSpeechProvider.bindTo(contextKeyService).reset();
 		}
 	}
 

@@ -893,9 +893,9 @@ export class EditorStatusContribution extends Disposable implements IWorkbenchCo
 		super();
 
 		// Main Editor Status
-		const mainInstantiationService = instantiationService.createChild(new ServiceCollection(
+		const mainInstantiationService = this._register(instantiationService.createChild(new ServiceCollection(
 			[IEditorService, editorService.createScoped('main', this._store)]
-		));
+		)));
 		this._register(mainInstantiationService.createInstance(EditorStatus, mainWindow.vscodeWindowId));
 
 		// Auxiliary Editor Status

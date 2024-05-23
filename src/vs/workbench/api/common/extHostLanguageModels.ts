@@ -60,7 +60,7 @@ class LanguageModelResponse {
 		const that = this;
 		this.apiObject = {
 			// result: promise,
-			stream: that._defaultStream.asyncIterable,
+			text: that._defaultStream.asyncIterable,
 			// streams: AsyncIterable<string>[] // FUTURE responses per N
 		};
 	}
@@ -382,8 +382,8 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 
 		try {
 			const detail = justification
-				? localize('chatAccessWithJustification', "To allow access to the language models provided by {0}. Justification:\n\n{1}", to.displayName, justification)
-				: localize('chatAccess', "To allow access to the language models provided by {0}", to.displayName);
+				? localize('chatAccessWithJustification', "Justification: {1}", to.displayName, justification)
+				: undefined;
 			await this._extHostAuthentication.getSession(from, providerId, [], { forceNewSession: { detail } });
 			this.$updateModelAccesslist([{ from: from.identifier, to: to.identifier, enabled: true }]);
 			return true;
