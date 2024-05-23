@@ -46,7 +46,7 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 	private mostRecentActiveParts = [this.mainPart];
 
 	constructor(
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IThemeService themeService: IThemeService,
 		@IAuxiliaryWindowService private readonly auxiliaryWindowService: IAuxiliaryWindowService,

@@ -1847,26 +1847,29 @@ export class TestEditorPart extends MainEditorPart implements IEditorGroupsServi
 	registerContextKeyProvider<T extends ContextKeyValue>(provider: IEditorGroupContextKeyProvider<T>): IDisposable { throw new Error('Method not implemented.'); }
 }
 
-export async function createEditorPart(instantiationService: IInstantiationService, disposables: DisposableStore): Promise<TestEditorPart> {
+export class TestEditorParts extends EditorParts {
+	testMainPart!: TestEditorPart;
 
-	class TestEditorParts extends EditorParts {
+	protected override createMainEditorPart(): MainEditorPart {
+		this.testMainPart = this.instantiationService.createInstance(TestEditorPart, this);
 
-		testMainPart!: TestEditorPart;
-
-		protected override createMainEditorPart(): MainEditorPart {
-			this.testMainPart = instantiationService.createInstance(TestEditorPart, this);
-
-			return this.testMainPart;
-		}
+		return this.testMainPart;
 	}
+}
 
-	const part = disposables.add(instantiationService.createInstance(TestEditorParts)).testMainPart;
+export async function createEditorParts(instantiationService: IInstantiationService, disposables: DisposableStore): Promise<TestEditorParts> {
+	const parts = instantiationService.createInstance(TestEditorParts);
+	const part = disposables.add(parts).testMainPart;
 	part.create(document.createElement('div'));
 	part.layout(1080, 800, 0, 0);
 
-	await part.whenReady;
+	await parts.whenReady;
 
-	return part;
+	return parts;
+}
+
+export async function createEditorPart(instantiationService: IInstantiationService, disposables: DisposableStore): Promise<TestEditorPart> {
+	return (await createEditorParts(instantiationService, disposables)).testMainPart;
 }
 
 export class TestListService implements IListService {
