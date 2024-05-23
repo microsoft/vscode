@@ -260,7 +260,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 			provideHover: async (model: ITextModel, position: EditorPosition, token: CancellationToken, context?: languages.HoverContext<HoverWithId>): Promise<HoverWithId | undefined> => {
 				const serializedContext: languages.HoverContext<{ id: number }> = {
 					verbosityRequest: context?.verbosityRequest ? {
-						action: context.verbosityRequest.action,
+						verbosityDelta: context.verbosityRequest.verbosityDelta,
 						previousHover: { id: context.verbosityRequest.previousHover.id }
 					} : undefined,
 				};
