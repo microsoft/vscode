@@ -19,21 +19,21 @@ body {
   padding-bottom: 0;
 }
 
-.start-chat>button {
+.start-chat > button {
   background-color: var(--vscode-button-secondaryBackground);
   color: var(--vscode-button-secondaryForeground);
 }
 
-.start-chat>button:hover {
+.start-chat > button:hover {
   background-color: var(--vscode-button-secondaryHoverBackground);
 }
 
-.enter-api-key>button {
+.enter-api-key > button {
   background-color: var(--vscode-button-background);
   color: var(--vscode-button-foreground);
 }
 
-.enter-api-key>button:hover {
+.enter-api-key > button:hover {
   background-color: var(--vscode-button-hoverBackground);
 }
 
@@ -41,19 +41,19 @@ body {
   cursor: default;
 }
 
-.conversation>.header>i {
+.conversation > .header > i {
   margin-right: 5px;
 }
 
-.conversation>.message-exchange {
+.conversation > .message-exchange {
   min-height: 25px;
 }
 
-.conversation>.instruction-refinement {
+.conversation > .instruction-refinement {
   margin: var(--pearai-container-padding);
 }
 
-.conversation>.instruction-refinement>.chat-input {
+.conversation > .instruction-refinement > .chat-input {
   margin: 0;
 }
 
@@ -62,7 +62,7 @@ body {
   cursor: default;
 }
 
-.conversation>.footer {
+.conversation > .footer {
   color: var(--vscode-disabledForeground);
 
   padding: var(--pearai-container-padding);
@@ -86,16 +86,16 @@ body {
 
 .conversation.expanded {
   color: var(--vscode-list-inactiveSelectionForeground);
-  background-color: var(--vscode-list-inactiveSelectionBackground);
+  background-color: transparent;
 }
 
-.conversation.expanded>.header {
+.conversation.expanded > .header {
   margin-bottom: 10px;
   padding: 10px;
   background-color: var(--vscode-inputValidation-infoBackground);
 }
 
-.conversation>.header>.message.user {
+.conversation > .header > .message.user {
   margin: 0;
   padding: 0;
   background-color: inherit;
@@ -133,7 +133,7 @@ body {
   border-radius: 5px;
   padding: 5px;
 
-  background-color: var(--vscode-sideBar-background);
+  background-color: var(--vscode-input-background);
 }
 
 /* Inspired from https://css-tricks.com/the-cleanest-trick-for-autogrowing-textareas */
@@ -149,18 +149,18 @@ body {
   visibility: hidden;
 }
 
-.chat-input>textarea {
+.chat-input > textarea {
   resize: none;
   overflow: hidden;
 }
 
 /* Use same visual style */
-.chat-input>textarea,
+.chat-input > textarea,
 .chat-input::after {
   display: block;
   width: 100%;
   border: none;
-  background-color: var(--vscode-sideBar-background);
+  background-color: var(--vscode-input-background);
   color: var(--vscode-input-foreground);
 
   padding: var(--input-padding-vertical) var(--input-padding-horizontal);
@@ -171,11 +171,11 @@ body {
   grid-area: 1 / 1 / 2 / 2;
 }
 
-.chat-input>textarea:focus {
+.chat-input > textarea:focus {
   outline: none;
 }
 
-.chat-input>textarea:disabled {
+.chat-input > textarea:disabled {
   color: var(--vscode-disabledForeground);
 }
 
@@ -185,7 +185,7 @@ body {
   margin-bottom: 10px;
 }
 
-.message>p {
+.message > p {
   padding-top: 5px;
   padding-bottom: 5px;
 }
@@ -212,7 +212,7 @@ body {
   background-color: var(--vscode-inputValidation-infoBackground);
 }
 
-.message>p {
+.message > p {
   padding-top: 5px;
   padding-bottom: 5px;
 }
@@ -246,7 +246,7 @@ body {
   gap: 1rem;
 }
 
-.error-body>.error-retry {
+.error-body > .error-retry {
   display: flex;
   text-align: left;
   margin-top: auto;
@@ -274,7 +274,7 @@ body {
   margin-top: var(--pearai-container-padding);
 }
 
-.error-retry { 
+.error-retry {
   min-width: fit-content;
   align-self: end;
 }
@@ -314,6 +314,7 @@ span.error-retry:hover {
   cursor: pointer;
   border-radius: 5px;
   padding: 3px;
+  transition: color 0.1s ease-in-out;
 }
 
 .action-delete:hover,
