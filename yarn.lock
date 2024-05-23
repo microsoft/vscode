@@ -33,7 +33,7 @@
     "@azure/core-util" "^1.0.0"
     tslib "^2.6.2"
 
-"@azure/abort-controller@^1.0.0":
+"C/abort-controller@^3.2.1":
   version "1.0.4"
   resolved "https://registry.yarnpkg.com/@azure/abort-controller/-/abort-controller-1.0.4.tgz#fd3c4d46c8ed67aace42498c8e2270960250eafd"
   integrity sha512-lNUmDRVGpanCsiUN3NWxFTdwmdFI53xwhkTFfHDGTYk46ca7Ind3nanJc+U6Zj9Tv+9nTCWRBscWEW1DyKOpTw==
