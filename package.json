@@ -206,6 +206,7 @@
     "style-loader": "^3.3.2",
     "tree-sitter-cli": "^0.22.6",
     "tree-sitter-html": "^0.20.3",
+    "tree-sitter-typescript": "0.20.4",
     "ts-loader": "^9.4.2",
     "ts-node": "^10.9.1",
     "tsec": "0.2.7",
