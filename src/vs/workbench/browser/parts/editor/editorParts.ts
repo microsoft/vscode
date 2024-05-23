@@ -737,7 +737,7 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		});
 	}
 
-	private readonly groupContextKeyProvidersRunners = this._register(new DisposableMap<GroupIdentifier, IDisposable>());
+	private readonly groupContextKeyProvidersDisposables = this._register(new DisposableMap<GroupIdentifier, IDisposable>());
 	private registerGroupContextKeyProvidersListeners(group: IEditorGroupView): void {
 
 		// Run the context key providers for the group when its active editor changes
@@ -747,11 +747,11 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 			}
 		});
 
-		this.groupContextKeyProvidersRunners.set(group.id, disposable);
+		this.groupContextKeyProvidersDisposables.set(group.id, disposable);
 	}
 
 	private unregisterGroupContextKeyProvidersListeners(group: IEditorGroupView): void {
-		this.groupContextKeyProvidersRunners.deleteAndDispose(group.id);
+		this.groupContextKeyProvidersDisposables.deleteAndDispose(group.id);
 	}
 
 	private runRegisteredContextKeyProvider<T extends ContextKeyValue>(group: IEditorGroupView, provider: IEditorGroupContextKeyProvider<T>): void {
