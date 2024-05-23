@@ -26,7 +26,7 @@ import { IWorkbenchIssueService } from 'vs/workbench/contrib/issue/common/issue'
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 
-export class WebIssueService implements IWorkbenchIssueService {
+export class BrowserIssueService implements IWorkbenchIssueService {
 	declare readonly _serviceBrand: undefined;
 
 	constructor(
@@ -207,4 +207,4 @@ function getColor(theme: IColorTheme, key: string): string | undefined {
 	return color ? color.toString() : undefined;
 }
 
-registerSingleton(IWorkbenchIssueService, WebIssueService, InstantiationType.Delayed);
+registerSingleton(IWorkbenchIssueService, BrowserIssueService, InstantiationType.Delayed);
