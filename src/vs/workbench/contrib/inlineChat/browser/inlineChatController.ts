@@ -457,9 +457,9 @@ export class InlineChatController implements IEditorContribution {
 
 				const result: CompletionList = { suggestions: [], incomplete: false };
 				for (const command of this._session.session.slashCommands) {
-					const withSlash = `/${command.command}`;
+					const withSlash = `/${command.name}`;
 					result.suggestions.push({
-						label: { label: withSlash, description: command.detail ?? '' },
+						label: { label: withSlash, description: command.description ?? '' },
 						kind: CompletionItemKind.Text,
 						insertText: withSlash,
 						range: Range.fromPositions(new Position(1, 1), position),
@@ -473,8 +473,8 @@ export class InlineChatController implements IEditorContribution {
 		const updateSlashDecorations = (collection: IEditorDecorationsCollection, model: ITextModel) => {
 
 			const newDecorations: IModelDeltaDecoration[] = [];
-			for (const command of (this._session?.session.slashCommands ?? []).sort((a, b) => b.command.length - a.command.length)) {
-				const withSlash = `/${command.command}`;
+			for (const command of (this._session?.session.slashCommands ?? []).sort((a, b) => b.name.length - a.name.length)) {
+				const withSlash = `/${command.name}`;
 				const firstLine = model.getLineContent(1);
 				if (firstLine.startsWith(withSlash)) {
 					newDecorations.push({
@@ -490,13 +490,13 @@ export class InlineChatController implements IEditorContribution {
 					});
 
 					// inject detail when otherwise empty
-					if (firstLine.trim() === `/${command.command}`) {
+					if (firstLine.trim() === `/${command.name}`) {
 						newDecorations.push({
 							range: new Range(1, withSlash.length, 1, withSlash.length),
 							options: {
 								description: 'inline-chat-slash-command-detail',
 								after: {
-									content: `${command.detail}`,
+									content: `${command.description}`,
 									inlineClassName: 'inline-chat-slash-command-detail'
 								}
 							}
