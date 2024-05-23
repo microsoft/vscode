@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { waitForState } from 'vs/base/common/observable';
@@ -15,12 +15,13 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IMarkerData, IMarkerService } from 'vs/platform/markers/common/markers';
-import { IInlineChatService, IInlineChatSessionProvider } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { ChatAgentLocation, IChatAgent, IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CellDiagnostics } from 'vs/workbench/contrib/notebook/browser/contrib/cellDiagnostics/cellDiagnosticEditorContrib';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { CellKind, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellExecutionStateChangedEvent, IExecutionStateChangedEvent, INotebookCellExecution, INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { setupInstantiationService, TestNotebookExecutionStateService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
+import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 
 
 suite('notebookCellDiagnostics', () => {
@@ -64,8 +65,26 @@ suite('notebookCellDiagnostics', () => {
 		testExecutionService = new TestExecutionService();
 		instantiationService.stub(INotebookExecutionStateService, testExecutionService);
 
-		const chatProviders = instantiationService.get<IInlineChatService>(IInlineChatService);
-		disposables.add(chatProviders.addProvider({} as IInlineChatSessionProvider));
+		const agentData = {
+			extensionId: nullExtensionDescription.identifier,
+			extensionDisplayName: '',
+			extensionPublisherId: '',
+			name: 'testEditorAgent',
+			isDefault: true,
+			locations: [ChatAgentLocation.Editor],
+			metadata: {},
+			slashCommands: []
+		};
+		const chatAgentService = new class extends mock<IChatAgentService>() {
+			override getAgents(): IChatAgentData[] {
+				return [{
+					id: 'testEditorAgent',
+					...agentData
+				}];
+			}
+			override onDidChangeAgents: Event<IChatAgent | undefined> = Event.None;
+		};
+		instantiationService.stub(IChatAgentService, chatAgentService);
 
 		markerService = new class extends mock<ITestMarkerService>() {
 			override markers: ResourceMap<IMarkerData[]> = new ResourceMap();

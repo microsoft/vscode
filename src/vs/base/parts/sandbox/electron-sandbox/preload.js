@@ -248,6 +248,7 @@
 		 * @type {ISandboxNodeProcess}
 		 */
 		process: {
+			get pid() { return process.pid; },
 			get platform() { return process.platform; },
 			get arch() { return process.arch; },
 			get env() { return { ...process.env }; },

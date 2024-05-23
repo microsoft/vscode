@@ -790,7 +790,7 @@ export interface INotebookEditorModel extends IDisposable {
 	readonly viewType: string;
 	readonly notebook: INotebookTextModel | undefined;
 	readonly hasErrorState: boolean;
-	isResolved(): this is IResolvedNotebookEditorModel;
+	isResolved(): boolean;
 	isDirty(): boolean;
 	isModified(): boolean;
 	isReadonly(): boolean | IMarkdownString;
@@ -932,6 +932,7 @@ export const NotebookSetting = {
 	openGettingStarted: 'notebook.experimental.openGettingStarted',
 	globalToolbarShowLabel: 'notebook.globalToolbarShowLabel',
 	markupFontSize: 'notebook.markup.fontSize',
+	markdownLineHeight: 'notebook.markdown.lineHeight',
 	interactiveWindowCollapseCodeCells: 'interactiveWindow.collapseCellInputCode',
 	outputScrollingDeprecated: 'notebook.experimental.outputScrolling',
 	outputScrolling: 'notebook.output.scrolling',
@@ -940,6 +941,7 @@ export const NotebookSetting = {
 	minimalErrorRendering: 'notebook.output.minimalErrorRendering',
 	formatOnSave: 'notebook.formatOnSave.enabled',
 	insertFinalNewline: 'notebook.insertFinalNewline',
+	defaultFormatter: 'notebook.defaultFormatter',
 	formatOnCellExecution: 'notebook.formatOnCellExecution',
 	codeActionsOnSave: 'notebook.codeActionsOnSave',
 	outputWordWrap: 'notebook.output.wordWrap',
