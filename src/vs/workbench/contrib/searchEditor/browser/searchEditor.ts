@@ -62,8 +62,8 @@ import { UnusualLineTerminatorsDetector } from 'vs/editor/contrib/unusualLineTer
 import { defaultToggleStyles, getInputBoxStyle } from 'vs/platform/theme/browser/defaultStyles';
 import { ILogService } from 'vs/platform/log/common/log';
 import { SearchContext } from 'vs/workbench/contrib/search/common/constants';
-import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 const RESULT_LINE_REGEX = /^(\s+)(\d+)(: |  )(\s*)(.*)$/;
 const FILE_LINE_REGEX = /^(\S.*):$/;
@@ -90,7 +90,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 	private showingIncludesExcludes: boolean = false;
 	private searchOperation: LongRunningOperation;
 	private searchHistoryDelayer: Delayer<void>;
-	private messageDisposables: DisposableStore;
+	private readonly messageDisposables: DisposableStore;
 	private container: HTMLElement;
 	private searchModel: SearchModel;
 	private ongoingOperations: number = 0;
@@ -115,7 +115,8 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 		@IEditorService editorService: IEditorService,
 		@IConfigurationService protected configurationService: IConfigurationService,
 		@IFileService fileService: IFileService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IHoverService private readonly hoverService: IHoverService
 	) {
 		super(SearchEditor.ID, group, telemetryService, instantiationService, storageService, textResourceService, themeService, editorService, editorGroupService, fileService);
 		this.container = DOM.$('.search-editor');
@@ -165,7 +166,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 
 		// Toggle query details button
 		this.toggleQueryDetailsButton = DOM.append(this.includesExcludesContainer, DOM.$('.expand' + ThemeIcon.asCSSSelector(searchDetailsIcon), { tabindex: 0, role: 'button' }));
-		this._register(setupCustomHover(getDefaultHoverDelegate('element'), this.toggleQueryDetailsButton, localize('moreSearch', "Toggle Search Details")));
+		this._register(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('element'), this.toggleQueryDetailsButton, localize('moreSearch', "Toggle Search Details")));
 		this._register(DOM.addDisposableListener(this.toggleQueryDetailsButton, DOM.EventType.CLICK, e => {
 			DOM.EventHelper.stop(e);
 			this.toggleIncludesExcludes();

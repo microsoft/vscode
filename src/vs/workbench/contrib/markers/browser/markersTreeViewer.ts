@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import * as network from 'vs/base/common/network';
 import * as paths from 'vs/base/common/path';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
@@ -18,7 +17,7 @@ import { IDisposable, dispose, Disposable, toDisposable, DisposableStore } from 
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { QuickFixAction, QuickFixActionViewItem } from 'vs/workbench/contrib/markers/browser/markersViewActions';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { dirname, basename, isEqual } from 'vs/base/common/resources';
+import { basename, isEqual } from 'vs/base/common/resources';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeFilter, TreeVisibility, TreeFilterResult, ITreeRenderer, ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { FilterOptions } from 'vs/workbench/contrib/markers/browser/markersFilterOptions';
@@ -39,7 +38,6 @@ import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/commo
 import { SeverityIcon } from 'vs/platform/severityIcon/browser/severityIcon';
 import { CodeActionTriggerType } from 'vs/editor/common/languages';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IFileService } from 'vs/platform/files/common/files';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { Codicon } from 'vs/base/common/codicons';
@@ -51,8 +49,9 @@ import { MarkersContextKeys, MarkersViewMode } from 'vs/workbench/contrib/marker
 import { unsupportedSchemas } from 'vs/platform/markers/common/markerService';
 import { defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
 import Severity from 'vs/base/common/severity';
-import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 interface IResourceMarkersTemplateData {
 	readonly resourceLabel: IResourceLabel;
@@ -158,8 +157,6 @@ export class ResourceMarkersRenderer implements ITreeRenderer<ResourceMarkers, R
 	constructor(
 		private labels: ResourceLabels,
 		onDidChangeRenderNodeCount: Event<ITreeNode<ResourceMarkers, ResourceMarkersFilterData>>,
-		@ILabelService private readonly labelService: ILabelService,
-		@IFileService private readonly fileService: IFileService
 	) {
 		onDidChangeRenderNodeCount(this.onDidChangeRenderNodeCount, this, this.disposables);
 	}
@@ -180,11 +177,7 @@ export class ResourceMarkersRenderer implements ITreeRenderer<ResourceMarkers, R
 		const resourceMarkers = node.element;
 		const uriMatches = node.filterData && node.filterData.uriMatches || [];
 
-		if (this.fileService.hasProvider(resourceMarkers.resource) || resourceMarkers.resource.scheme === network.Schemas.untitled) {
-			templateData.resourceLabel.setFile(resourceMarkers.resource, { matches: uriMatches });
-		} else {
-			templateData.resourceLabel.setResource({ name: resourceMarkers.name, description: this.labelService.getUriLabel(dirname(resourceMarkers.resource), { relative: true }), resource: resourceMarkers.resource }, { matches: uriMatches });
-		}
+		templateData.resourceLabel.setFile(resourceMarkers.resource, { matches: uriMatches });
 
 		this.updateCount(node, templateData);
 		const nodeRenders = this.renderedNodes.get(resourceMarkers) ?? [];
@@ -236,6 +229,7 @@ export class MarkerRenderer implements ITreeRenderer<Marker, MarkerFilterData, I
 
 	constructor(
 		private readonly markersViewState: MarkersViewModel,
+		@IHoverService protected hoverService: IHoverService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IOpenerService protected openerService: IOpenerService,
 	) { }
@@ -244,7 +238,7 @@ export class MarkerRenderer implements ITreeRenderer<Marker, MarkerFilterData, I
 
 	renderTemplate(container: HTMLElement): IMarkerTemplateData {
 		const data: IMarkerTemplateData = Object.create(null);
-		data.markerWidget = new MarkerWidget(container, this.markersViewState, this.openerService, this.instantiationService);
+		data.markerWidget = new MarkerWidget(container, this.markersViewState, this.hoverService, this.openerService, this.instantiationService);
 		return data;
 	}
 
@@ -287,12 +281,13 @@ class MarkerWidget extends Disposable {
 	private readonly icon: HTMLElement;
 	private readonly iconContainer: HTMLElement;
 	private readonly messageAndDetailsContainer: HTMLElement;
-	private readonly messageAndDetailsContainerHover: ICustomHover;
+	private readonly messageAndDetailsContainerHover: IUpdatableHover;
 	private readonly disposables = this._register(new DisposableStore());
 
 	constructor(
 		private parent: HTMLElement,
 		private readonly markersViewModel: MarkersViewModel,
+		private readonly _hoverService: IHoverService,
 		private readonly _openerService: IOpenerService,
 		_instantiationService: IInstantiationService
 	) {
@@ -307,7 +302,7 @@ class MarkerWidget extends Disposable {
 		this.iconContainer = dom.append(parent, dom.$(''));
 		this.icon = dom.append(this.iconContainer, dom.$(''));
 		this.messageAndDetailsContainer = dom.append(parent, dom.$('.marker-message-details-container'));
-		this.messageAndDetailsContainerHover = this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this.messageAndDetailsContainer, ''));
+		this.messageAndDetailsContainerHover = this._register(this._hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), this.messageAndDetailsContainer, ''));
 	}
 
 	render(element: Marker, filterData: MarkerFilterData | undefined): void {
@@ -404,7 +399,7 @@ class MarkerWidget extends Disposable {
 					const container = dom.$('.marker-code');
 					const code = this.disposables.add(new HighlightedLabel(container));
 					const link = marker.code.target.toString(true);
-					this.disposables.add(new Link(parent, { href: link, label: container, title: link }, undefined, this._openerService));
+					this.disposables.add(new Link(parent, { href: link, label: container, title: link }, undefined, this._hoverService, this._openerService));
 					const codeMatches = filterData && filterData.codeMatches || [];
 					code.set(marker.code.value, codeMatches);
 				}

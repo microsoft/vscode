@@ -26,11 +26,15 @@ module.exports = class FullJsonStreamReporter extends BaseRunner {
 		super(runner, options);
 
 		const total = runner.total;
-		runner.once(EVENT_RUN_BEGIN, () => writeEvent(['start', { total }]));
-		runner.once(EVENT_RUN_END, () => writeEvent(['end', this.stats]));
+		runner.once(EVENT_RUN_BEGIN, () => this.writeEvent(['start', { total }]));
+		runner.once(EVENT_RUN_END, () => this.writeEvent(['end', this.stats]));
 
-		runner.on(EVENT_TEST_BEGIN, test => writeEvent(['testStart', clean(test)]));
-		runner.on(EVENT_TEST_PASS, test => writeEvent(['pass', clean(test)]));
+		// custom coverage events:
+		runner.on('coverage init', (c) => this.writeEvent(['coverageInit', c]));
+		runner.on('coverage increment', (context, coverage) => this.writeEvent(['coverageIncrement', { ...context, coverage }]));
+
+		runner.on(EVENT_TEST_BEGIN, test => this.writeEvent(['testStart', clean(test)]));
+		runner.on(EVENT_TEST_PASS, test => this.writeEvent(['pass', clean(test)]));
 		runner.on(EVENT_TEST_FAIL, (test, err) => {
 			test = clean(test);
 			test.actual = err.actual;
@@ -40,14 +44,18 @@ module.exports = class FullJsonStreamReporter extends BaseRunner {
 			test.snapshotPath = err.snapshotPath;
 			test.err = err.message;
 			test.stack = err.stack || null;
-			writeEvent(['fail', test]);
+			this.writeEvent(['fail', test]);
 		});
 	}
-};
 
-function writeEvent(event) {
-	process.stdout.write(JSON.stringify(event) + '\n');
-}
+	drain() {
+		return Promise.resolve(this.lastEvent);
+	}
+
+	writeEvent(event) {
+		this.lastEvent = new Promise(r => process.stdout.write(JSON.stringify(event) + '\n', r));
+	}
+};
 
 const clean = test => ({
 	title: test.title,

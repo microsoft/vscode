@@ -18,6 +18,7 @@ import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/se
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { IWordWrapTransientState, readTransientState, writeTransientState } from 'vs/workbench/contrib/codeEditor/browser/toggleWordWrap';
+import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 import { CellEditState, CellFocusMode, CursorAtBoundary, CursorAtLineBoundary, IEditableCellViewModel, INotebookCellDecorationOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
 import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
@@ -103,7 +104,7 @@ export abstract class BaseCellViewModel extends Disposable {
 	private _editorViewStates: editorCommon.ICodeEditorViewState | null = null;
 	private _editorTransientState: IWordWrapTransientState | null = null;
 	private _resolvedCellDecorations = new Map<string, INotebookCellDecorationOptions>();
-	private _textModelRefChangeDisposable = this._register(new MutableDisposable());
+	private readonly _textModelRefChangeDisposable = this._register(new MutableDisposable());
 
 	private readonly _cellDecorationsChanged = this._register(new Emitter<{ added: INotebookCellDecorationOptions[]; removed: INotebookCellDecorationOptions[] }>());
 	onCellDecorationsChanged: Event<{ added: INotebookCellDecorationOptions[]; removed: INotebookCellDecorationOptions[] }> = this._cellDecorationsChanged.event;
@@ -272,6 +273,14 @@ export abstract class BaseCellViewModel extends Disposable {
 		});
 
 		this._editorListeners.push(this._textEditor.onDidChangeCursorSelection(() => { this._onDidChangeState.fire({ selectionChanged: true }); }));
+		const inlineChatController = InlineChatController.get(this._textEditor);
+		if (inlineChatController) {
+			this._editorListeners.push(inlineChatController.onWillStartSession(() => {
+				if (this.textBuffer.getLength() === 0) {
+					this.enableAutoLanguageDetection();
+				}
+			}));
+		}
 		// this._editorListeners.push(this._textEditor.onKeyDown(e => this.handleKeyDown(e)));
 		this._onDidChangeState.fire({ selectionChanged: true });
 		this._onDidChangeEditorAttachState.fire();
@@ -307,8 +316,16 @@ export abstract class BaseCellViewModel extends Disposable {
 		return this.model.getValue();
 	}
 
+	getAlternativeId(): number {
+		return this.model.alternativeId;
+	}
+
 	getTextLength(): number {
 		return this.model.getTextLength();
+	}
+
+	enableAutoLanguageDetection() {
+		this.model.enableAutoLanguageDetection();
 	}
 
 	private saveViewState(): void {

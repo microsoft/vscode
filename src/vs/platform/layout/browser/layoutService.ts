@@ -91,7 +91,7 @@ export interface ILayoutService {
 	 * will resolve once the styles have been loaded and helps
 	 * for when certain layout assumptions are made.
 	 */
-	whenContainerStylesLoaded(window: Window): Promise<void>;
+	whenContainerStylesLoaded(window: Window): Promise<void> | undefined;
 
 	/**
 	 * An offset to use for positioning elements inside the main container.

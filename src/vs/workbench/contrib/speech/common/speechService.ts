@@ -14,8 +14,9 @@ import { language } from 'vs/base/common/platform';
 
 export const ISpeechService = createDecorator<ISpeechService>('speechService');
 
-export const HasSpeechProvider = new RawContextKey<boolean>('hasSpeechProvider', false, { type: 'string', description: localize('hasSpeechProvider', "A speech provider is registered to the speech service.") });
-export const SpeechToTextInProgress = new RawContextKey<boolean>('speechToTextInProgress', false, { type: 'string', description: localize('speechToTextInProgress', "A speech-to-text session is in progress.") });
+export const HasSpeechProvider = new RawContextKey<boolean>('hasSpeechProvider', false, { type: 'boolean', description: localize('hasSpeechProvider', "A speech provider is registered to the speech service.") });
+export const SpeechToTextInProgress = new RawContextKey<boolean>('speechToTextInProgress', false, { type: 'boolean', description: localize('speechToTextInProgress', "A speech-to-text session is in progress.") });
+export const TextToSpeechInProgress = new RawContextKey<boolean>('textToSpeechInProgress', false, { type: 'boolean', description: localize('textToSpeechInProgress', "A text-to-speech session is in progress.") });
 
 export interface ISpeechProviderMetadata {
 	readonly extension: ExtensionIdentifier;
@@ -26,7 +27,8 @@ export enum SpeechToTextStatus {
 	Started = 1,
 	Recognizing = 2,
 	Recognized = 3,
-	Stopped = 4
+	Stopped = 4,
+	Error = 5
 }
 
 export interface ISpeechToTextEvent {
@@ -36,6 +38,23 @@ export interface ISpeechToTextEvent {
 
 export interface ISpeechToTextSession {
 	readonly onDidChange: Event<ISpeechToTextEvent>;
+}
+
+export enum TextToSpeechStatus {
+	Started = 1,
+	Stopped = 2,
+	Error = 3
+}
+
+export interface ITextToSpeechEvent {
+	readonly status: TextToSpeechStatus;
+	readonly text?: string;
+}
+
+export interface ITextToSpeechSession {
+	readonly onDidChange: Event<ITextToSpeechEvent>;
+
+	synthesize(text: string): Promise<void>;
 }
 
 export enum KeywordRecognitionStatus {
@@ -57,10 +76,15 @@ export interface ISpeechToTextSessionOptions {
 	readonly language?: string;
 }
 
+export interface ITextToSpeechSessionOptions {
+	readonly language?: string;
+}
+
 export interface ISpeechProvider {
 	readonly metadata: ISpeechProviderMetadata;
 
 	createSpeechToTextSession(token: CancellationToken, options?: ISpeechToTextSessionOptions): ISpeechToTextSession;
+	createTextToSpeechSession(token: CancellationToken, options?: ITextToSpeechSessionOptions): ITextToSpeechSession;
 	createKeywordRecognitionSession(token: CancellationToken): IKeywordRecognitionSession;
 }
 
@@ -85,6 +109,18 @@ export interface ISpeechService {
 	 */
 	createSpeechToTextSession(token: CancellationToken, context?: string): Promise<ISpeechToTextSession>;
 
+	readonly onDidStartTextToSpeechSession: Event<void>;
+	readonly onDidEndTextToSpeechSession: Event<void>;
+
+	readonly hasActiveTextToSpeechSession: boolean;
+
+	/**
+	 * Creates a synthesizer to synthesize speech from text. The returned
+	 * session object provides a method to synthesize text and listen for
+	 * events.
+	 */
+	createTextToSpeechSession(token: CancellationToken, context?: string): Promise<ITextToSpeechSession>;
+
 	readonly onDidStartKeywordRecognition: Event<void>;
 	readonly onDidEndKeywordRecognition: Event<void>;
 
@@ -98,7 +134,13 @@ export interface ISpeechService {
 	recognizeKeyword(token: CancellationToken): Promise<KeywordRecognitionStatus>;
 }
 
-export const SPEECH_LANGUAGE_CONFIG = 'accessibility.voice.speechLanguage';
+export const enum AccessibilityVoiceSettingId {
+	SpeechTimeout = 'accessibility.voice.speechTimeout',
+	AutoSynthesize = 'accessibility.voice.autoSynthesize',
+	SpeechLanguage = 'accessibility.voice.speechLanguage',
+}
+
+export const SPEECH_LANGUAGE_CONFIG = AccessibilityVoiceSettingId.SpeechLanguage;
 
 export const SPEECH_LANGUAGES = {
 	['da-DK']: {

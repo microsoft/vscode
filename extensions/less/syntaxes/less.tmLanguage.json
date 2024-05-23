@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/radium-v/Better-Less/commit/05de79f600227201e35f07a49f07acce80e49dbf",
+	"version": "https://github.com/radium-v/Better-Less/commit/24047277622c245dbe9309f0004d0ccb8f02636f",
 	"name": "Less",
 	"scopeName": "source.css.less",
 	"patterns": [
@@ -3966,7 +3966,7 @@
 							]
 						},
 						{
-							"begin": "\\bfilter\\b",
+							"begin": "\\b(?:backdrop-)?filter\\b",
 							"beginCaptures": {
 								"0": {
 									"name": "support.type.property-name.less"

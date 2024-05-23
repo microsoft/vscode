@@ -17,7 +17,7 @@ import { IObservable, ITransaction, observableValue, transaction } from 'vs/base
 import { SingleTextEdit } from 'vs/editor/common/core/textEdit';
 import { ITextModel } from 'vs/editor/common/model';
 import { compareBy, numberComparator } from 'vs/base/common/arrays';
-import { findFirstMaxBy } from 'vs/base/common/arraysFind';
+import { findFirstMax } from 'vs/base/common/arraysFind';
 import { singleTextEditAugments, singleTextRemoveCommonPrefix } from 'vs/editor/contrib/inlineCompletions/browser/singleTextEdit';
 
 export class SuggestWidgetAdaptor extends Disposable {
@@ -83,7 +83,7 @@ export class SuggestWidgetAdaptor extends Disposable {
 						})
 						.filter(item => item && item.valid && item.prefixLength > 0);
 
-					const result = findFirstMaxBy(
+					const result = findFirstMax(
 						candidates,
 						compareBy(s => s!.prefixLength, numberComparator)
 					);

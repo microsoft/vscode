@@ -20,12 +20,15 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModel } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { isDefined } from 'vs/base/common/types';
+import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
 
 
 class StackOperation implements IWorkspaceUndoRedoElement {
 	type: UndoRedoElementType.Workspace;
 
-	readonly code = 'undoredo.notebooks.stackOperation';
+	public get code() {
+		return this._operations.length === 1 ? this._operations[0].code : 'undoredo.notebooks.stackOperation';
+	}
 
 	private _operations: IUndoRedoElement[] = [];
 	private _beginSelectionState: ISelectionState | undefined = undefined;
@@ -74,32 +77,38 @@ class StackOperation implements IWorkspaceUndoRedoElement {
 
 	async undo(): Promise<void> {
 		this._pauseableEmitter.pause();
-		for (let i = this._operations.length - 1; i >= 0; i--) {
-			await this._operations[i].undo();
+		try {
+			for (let i = this._operations.length - 1; i >= 0; i--) {
+				await this._operations[i].undo();
+			}
+			this._postUndoRedo(this._beginAlternativeVersionId);
+			this._pauseableEmitter.fire({
+				rawEvents: [],
+				synchronous: undefined,
+				versionId: this.textModel.versionId,
+				endSelectionState: this._beginSelectionState
+			});
+		} finally {
+			this._pauseableEmitter.resume();
 		}
-		this._postUndoRedo(this._beginAlternativeVersionId);
-		this._pauseableEmitter.fire({
-			rawEvents: [],
-			synchronous: undefined,
-			versionId: this.textModel.versionId,
-			endSelectionState: this._beginSelectionState
-		});
-		this._pauseableEmitter.resume();
 	}
 
 	async redo(): Promise<void> {
 		this._pauseableEmitter.pause();
-		for (let i = 0; i < this._operations.length; i++) {
-			await this._operations[i].redo();
+		try {
+			for (let i = 0; i < this._operations.length; i++) {
+				await this._operations[i].redo();
+			}
+			this._postUndoRedo(this._resultAlternativeVersionId);
+			this._pauseableEmitter.fire({
+				rawEvents: [],
+				synchronous: undefined,
+				versionId: this.textModel.versionId,
+				endSelectionState: this._resultSelectionState
+			});
+		} finally {
+			this._pauseableEmitter.resume();
 		}
-		this._postUndoRedo(this._resultAlternativeVersionId);
-		this._pauseableEmitter.fire({
-			rawEvents: [],
-			synchronous: undefined,
-			versionId: this.textModel.versionId,
-			endSelectionState: this._resultSelectionState
-		});
-		this._pauseableEmitter.resume();
 
 	}
 }
@@ -143,6 +152,10 @@ type TransformedEdit = {
 };
 
 class NotebookEventEmitter extends PauseableEmitter<NotebookTextModelChangedEvent> {
+	get isEmpty() {
+		return this._eventQueue.isEmpty();
+	}
+
 	isDirtyEvent() {
 		for (const e of this._eventQueue) {
 			for (let i = 0; i < e.rawEvents.length; i++) {
@@ -211,6 +224,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		@IUndoRedoService private readonly _undoService: IUndoRedoService,
 		@IModelService private readonly _modelService: IModelService,
 		@ILanguageService private readonly _languageService: ILanguageService,
+		@ILanguageDetectionService private readonly _languageDetectionService: ILanguageDetectionService
 	) {
 		super();
 		this.transientOptions = options;
@@ -283,7 +297,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			const cellHandle = this._cellhandlePool++;
 			const cellUri = CellUri.generate(this.uri, cellHandle);
 			const collapseState = this._getDefaultCollapseState(cell);
-			return new NotebookCellTextModel(cellUri, cellHandle, cell.source, cell.language, cell.mime, cell.cellKind, cell.outputs, cell.metadata, cell.internalMetadata, collapseState, this.transientOptions, this._languageService);
+			return new NotebookCellTextModel(cellUri, cellHandle, cell.source, cell.language, cell.mime, cell.cellKind, cell.outputs, cell.metadata, cell.internalMetadata, collapseState, this.transientOptions, this._languageService, this._languageDetectionService);
 		});
 
 		for (let i = 0; i < mainCells.length; i++) {
@@ -509,15 +523,17 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			this._doApplyEdits(rawEdits, synchronous, computeUndoRedo, beginSelectionState, undoRedoGroup);
 			return true;
 		} finally {
-			// Update selection and versionId after applying edits.
-			const endSelections = endSelectionsComputer();
-			this._increaseVersionId(this._operationManager.isUndoStackEmpty() && !this._pauseableEmitter.isDirtyEvent());
+			if (!this._pauseableEmitter.isEmpty) {
+				// Update selection and versionId after applying edits.
+				const endSelections = endSelectionsComputer();
+				this._increaseVersionId(this._operationManager.isUndoStackEmpty() && !this._pauseableEmitter.isDirtyEvent());
 
-			// Finalize undo element
-			this._operationManager.pushStackElement(this._alternativeVersionId, endSelections);
+				// Finalize undo element
+				this._operationManager.pushStackElement(this._alternativeVersionId, endSelections);
 
-			// Broadcast changes
-			this._pauseableEmitter.fire({ rawEvents: [], versionId: this.versionId, synchronous: synchronous, endSelectionState: endSelections });
+				// Broadcast changes
+				this._pauseableEmitter.fire({ rawEvents: [], versionId: this.versionId, synchronous: synchronous, endSelectionState: endSelections });
+			}
 			this._pauseableEmitter.resume();
 		}
 	}
@@ -645,7 +661,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 					this._changeCellLanguage(this._cells[edit.index], edit.language, computeUndoRedo, beginSelectionState, undoRedoGroup);
 					break;
 				case CellEditType.DocumentMetadata:
-					this._updateNotebookMetadata(edit.metadata, computeUndoRedo, beginSelectionState, undoRedoGroup);
+					this._updateNotebookCellMetadata(edit.metadata, computeUndoRedo, beginSelectionState, undoRedoGroup);
 					break;
 				case CellEditType.Move:
 					this._moveCellToIdx(edit.index, edit.length, edit.newIdx, synchronous, computeUndoRedo, beginSelectionState, undefined, undoRedoGroup);
@@ -720,7 +736,8 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			const cell = new NotebookCellTextModel(
 				cellUri, cellHandle,
 				cellDto.source, cellDto.language, cellDto.mime, cellDto.cellKind, cellDto.outputs || [], cellDto.metadata, cellDto.internalMetadata, collapseState, this.transientOptions,
-				this._languageService
+				this._languageService,
+				this._languageDetectionService
 			);
 			const textModel = this._modelService.getModel(cellUri);
 			if (textModel && textModel instanceof TextModel) {
@@ -786,7 +803,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this._notebookSpecificAlternativeId = Number(newAlternativeVersionId.substring(0, newAlternativeVersionId.indexOf('_')));
 	}
 
-	private _updateNotebookMetadata(metadata: NotebookDocumentMetadata, computeUndoRedo: boolean, beginSelectionState: ISelectionState | undefined, undoRedoGroup: UndoRedoGroup | undefined) {
+	private _updateNotebookCellMetadata(metadata: NotebookDocumentMetadata, computeUndoRedo: boolean, beginSelectionState: ISelectionState | undefined, undoRedoGroup: UndoRedoGroup | undefined) {
 		const oldMetadata = this.metadata;
 		const triggerDirtyChange = this._isDocumentMetadataChanged(this.metadata, metadata);
 
@@ -798,13 +815,13 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 					get resource() {
 						return that.uri;
 					}
-					readonly label = 'Update Notebook Metadata';
-					readonly code = 'undoredo.notebooks.updateCellMetadata';
+					readonly label = 'Update Cell Metadata';
+					readonly code = 'undoredo.textBufferEdit';
 					undo() {
-						that._updateNotebookMetadata(oldMetadata, false, beginSelectionState, undoRedoGroup);
+						that._updateNotebookCellMetadata(oldMetadata, false, beginSelectionState, undoRedoGroup);
 					}
 					redo() {
-						that._updateNotebookMetadata(metadata, false, beginSelectionState, undoRedoGroup);
+						that._updateNotebookCellMetadata(metadata, false, beginSelectionState, undoRedoGroup);
 					}
 				}(), beginSelectionState, undefined, this._alternativeVersionId, undoRedoGroup);
 			}
@@ -1024,7 +1041,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 					return that.uri;
 				}
 				readonly label = 'Update Cell Language';
-				readonly code = 'undoredo.notebooks.updateCellLanguage';
+				readonly code = 'undoredo.textBufferEdit';
 				undo() {
 					that._changeCellLanguage(cell, oldLanguage, false, beginSelectionState, undoRedoGroup);
 				}

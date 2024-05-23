@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-declare const enum LoaderEventType {
+declare enum LoaderEventType {
 	LoaderAvailable = 1,
 
 	BeginLoadingScript = 10,

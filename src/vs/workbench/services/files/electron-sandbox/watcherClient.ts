@@ -46,7 +46,7 @@ export class UniversalWatcherClient extends AbstractUniversalWatcherClient {
 				if (reason?.code === 0) {
 					this.trace(`terminated by itself with code ${reason.code}, signal: ${reason.signal}`);
 				} else {
-					this.onError(`terminated by itself unexpectedly with code ${reason?.code}, signal: ${reason?.signal}`);
+					this.onError(`terminated by itself unexpectedly with code ${reason?.code}, signal: ${reason?.signal} (ETERM)`);
 				}
 			});
 

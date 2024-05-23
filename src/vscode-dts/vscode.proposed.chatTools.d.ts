@@ -6,24 +6,28 @@
 declare module 'vscode' {
 
 	export namespace chat {
-		// canBeInvokedExplicitlyByUser: whether the tool shows up in the chat input suggest widget
-		// isFast: whether the tool returns a value quickly, and so can be invoked before sending the request
-		//    Could also be like shouldInvokeBeforeRequest, communicating that its value should be captured early because it could change during the processing of the request
-		export function registerTool(tool: ChatTool, options: { canBeInvokedExplicitlyByUser: boolean; isFast: boolean }): Disposable;
+		/**
+		 * TODO@API also statically registered
+		 * TODO@API ?? canBeInvokedExplicitlyByUser: whether the tool shows up in the chat input suggest widget
+		 */
+		export function registerTool(tool: ChatTool, options: { canBeInvokedExplicitlyByUser: boolean }): Disposable;
 
 		export const tools: ReadonlyArray<ChatToolDescription>;
 
-		// Can non-chat participant AI actions invoke tools, just at any random time?
+		/**
+		 * For non-chat AI actions to invoke tools arbitrarily
+		 * TODO@API is chat namespace right?
+		 */
 		export function invokeTool(toolId: string, parameters: Object, token: CancellationToken): Thenable<any>;
 	}
 
 	export interface ChatToolDescription {
-		id: string; // A unique identifier
-		displayName: string; // These might not show up anywhere
+		id: string;
+		displayName: string;
 		description: string;
 		parametersSchema: any; // JSON schema
 
-		// TODO@API Is output only a string, or can it be structured data?
+		// TODO@API Is output only a string, or can it be structured data? Both?
 		// Does it stream?
 		returnValueSchema: any; // JSON schema
 	}
@@ -32,7 +36,7 @@ declare module 'vscode' {
 		prompt: string;
 	}
 
-	// Are these just commands with a schema for parameters?
+	// Are these just vscode commands with a schema for parameters?
 	export interface ChatTool extends ChatToolDescription {
 		// TODO@API Does it stream?
 		// How does it ask for confirmation? This resolver would get some other resolver/accessor object that lets it ask to render some confirm dialog in chat.

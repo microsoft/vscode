@@ -211,6 +211,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	constructor(
 		private readonly machineId: string,
 		private readonly sqmId: string,
+		private readonly devDeviceId: string,
 		private readonly initialUserEnv: IProcessEnvironment,
 		@ILogService private readonly logService: ILogService,
 		@ILoggerMainService private readonly loggerService: ILoggerMainService,
@@ -667,7 +668,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		const focusedWindow = BrowserWindow.getFocusedWindow();
 		if (focusedWindow && focusedWindow.id !== mainWindow.id) {
-			const auxiliaryWindowCandidate = this.auxiliaryWindowsMainService.getWindowById(focusedWindow.id);
+			const auxiliaryWindowCandidate = this.auxiliaryWindowsMainService.getWindowByWebContents(focusedWindow.webContents);
 			if (auxiliaryWindowCandidate && auxiliaryWindowCandidate.parentId === mainWindow.id) {
 				windowToFocus = auxiliaryWindowCandidate;
 			}
@@ -1409,6 +1410,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 			machineId: this.machineId,
 			sqmId: this.sqmId,
+			devDeviceId: this.devDeviceId,
 
 			windowId: -1,	// Will be filled in by the window once loaded later
 
@@ -1506,7 +1508,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 			const webContents = assertIsDefined(createdWindow.win?.webContents);
 			webContents.removeAllListeners('devtools-reload-page'); // remove built in listener so we can handle this on our own
-			webContents.on('devtools-reload-page', () => this.lifecycleMainService.reload(createdWindow));
+			disposables.add(Event.fromNodeEventEmitter(webContents, 'devtools-reload-page')(() => this.lifecycleMainService.reload(createdWindow)));
 
 			// Lifecycle
 			this.lifecycleMainService.registerWindow(createdWindow);
@@ -1701,6 +1703,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			return undefined;
 		}
 
-		return this.getWindowById(browserWindow.id);
+		const window = this.getWindowById(browserWindow.id);
+
+		return window?.matches(webContents) ? window : undefined;
 	}
 }

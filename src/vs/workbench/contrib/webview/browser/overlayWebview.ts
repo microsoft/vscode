@@ -6,7 +6,7 @@
 import { Dimension, getWindowById } from 'vs/base/browser/dom';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { CodeWindow, mainWindow } from 'vs/base/browser/window';
+import { CodeWindow } from 'vs/base/browser/window';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -183,11 +183,12 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 			return;
 		}
 
-		if (this.window !== mainWindow) {
+		const whenContainerStylesLoaded = this._layoutService.whenContainerStylesLoaded(this.window);
+		if (whenContainerStylesLoaded) {
 			// In floating windows, we need to ensure that the
 			// container is ready for us to compute certain
 			// layout related properties.
-			this._layoutService.whenContainerStylesLoaded(this.window).then(() => this.doLayoutWebviewOverElement(element, dimension, clippingContainer));
+			whenContainerStylesLoaded.then(() => this.doLayoutWebviewOverElement(element, dimension, clippingContainer));
 		} else {
 			this.doLayoutWebviewOverElement(element, dimension, clippingContainer);
 		}

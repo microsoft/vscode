@@ -227,7 +227,7 @@ function toLocalExtension(extension: IExtension): ILocalExtension {
 		isMachineScoped: !!metadata.isMachineScoped,
 		isApplicationScoped: !!metadata.isApplicationScoped,
 		publisherId: metadata.publisherId || null,
-		publisherDisplayName: metadata.publisherDisplayName || null,
+		publisherDisplayName: metadata.publisherDisplayName,
 		installedTimestamp: metadata.installedTimestamp,
 		isPreReleaseVersion: !!metadata.isPreReleaseVersion,
 		hasPreReleaseVersion: !!metadata.hasPreReleaseVersion,
@@ -258,7 +258,7 @@ class InstallExtensionTask extends AbstractExtensionTask<ILocalExtension> implem
 	get operation() { return isUndefined(this.options.operation) ? this._operation : this.options.operation; }
 
 	constructor(
-		manifest: IExtensionManifest,
+		readonly manifest: IExtensionManifest,
 		private readonly extension: URI | IGalleryExtension,
 		readonly options: InstallExtensionTaskOptions,
 		private readonly webExtensionsScannerService: IWebExtensionsScannerService,

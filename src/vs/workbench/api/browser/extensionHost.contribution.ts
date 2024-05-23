@@ -11,7 +11,7 @@ import { JSONValidationExtensionPoint } from 'vs/workbench/api/common/jsonValida
 import { ColorExtensionPoint } from 'vs/workbench/services/themes/common/colorExtensionPoint';
 import { IconExtensionPoint } from 'vs/workbench/services/themes/common/iconExtensionPoint';
 import { TokenClassificationExtensionPoints } from 'vs/workbench/services/themes/common/tokenClassificationExtensionPoint';
-import { LanguageConfigurationFileHandler } from 'vs/workbench/contrib/codeEditor/browser/languageConfigurationExtensionPoint';
+import { LanguageConfigurationFileHandler } from 'vs/workbench/contrib/codeEditor/common/languageConfigurationExtensionPoint';
 import { StatusBarItemsExtensionPoint } from 'vs/workbench/api/browser/statusBarExtensionPoint';
 
 // --- mainThread participants
@@ -21,6 +21,7 @@ import './mainThreadLanguageModels';
 import './mainThreadChatAgents2';
 import './mainThreadChatVariables';
 import './mainThreadChatSkills';
+import './mainThreadEmbeddings';
 import './mainThreadCodeInsets';
 import './mainThreadCLICommands';
 import './mainThreadClipboard';
@@ -60,6 +61,7 @@ import './mainThreadStatusBar';
 import './mainThreadStorage';
 import './mainThreadTelemetry';
 import './mainThreadTerminalService';
+import './mainThreadTerminalShellIntegration';
 import './mainThreadTheming';
 import './mainThreadTreeViews';
 import './mainThreadDownloadService';
@@ -75,8 +77,6 @@ import './mainThreadNotebookDocumentsAndEditors';
 import './mainThreadNotebookRenderers';
 import './mainThreadNotebookSaveParticipant';
 import './mainThreadInteractive';
-import './mainThreadInlineChat';
-import './mainThreadChat';
 import './mainThreadTask';
 import './mainThreadLabelService';
 import './mainThreadTunnelService';
@@ -88,7 +88,6 @@ import './mainThreadShare';
 import './mainThreadProfileContentHandlers';
 import './mainThreadAiRelatedInformation';
 import './mainThreadAiEmbeddingVector';
-import './mainThreadIssueReporter';
 
 export class ExtensionPoints implements IWorkbenchContribution {
 

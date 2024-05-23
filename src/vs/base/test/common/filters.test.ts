@@ -580,8 +580,16 @@ suite('Filters', () => {
 		const a = 'createModelServices';
 		const b = 'create';
 
-		const aBoost = fuzzyScore(prefix, prefix, 0, a, a.toLowerCase(), 0, { boostFullMatch: true, firstMatchCanBeWeak: true });
-		const bBoost = fuzzyScore(prefix, prefix, 0, b, b.toLowerCase(), 0, { boostFullMatch: true, firstMatchCanBeWeak: true });
+		let aBoost = fuzzyScore(prefix, prefix, 0, a, a.toLowerCase(), 0, { boostFullMatch: true, firstMatchCanBeWeak: true });
+		let bBoost = fuzzyScore(prefix, prefix, 0, b, b.toLowerCase(), 0, { boostFullMatch: true, firstMatchCanBeWeak: true });
+		assert.ok(aBoost);
+		assert.ok(bBoost);
+		assert.ok(aBoost[0] < bBoost[0]);
+
+		// also works with wordStart > 0 (https://github.com/microsoft/vscode/issues/187921)
+		const wordPrefix = '$(symbol-function) ';
+		aBoost = fuzzyScore(prefix, prefix, 0, `${wordPrefix}${a}`, `${wordPrefix}${a}`.toLowerCase(), wordPrefix.length, { boostFullMatch: true, firstMatchCanBeWeak: true });
+		bBoost = fuzzyScore(prefix, prefix, 0, `${wordPrefix}${b}`, `${wordPrefix}${b}`.toLowerCase(), wordPrefix.length, { boostFullMatch: true, firstMatchCanBeWeak: true });
 		assert.ok(aBoost);
 		assert.ok(bBoost);
 		assert.ok(aBoost[0] < bBoost[0]);

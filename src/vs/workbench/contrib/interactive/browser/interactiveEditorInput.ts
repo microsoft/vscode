@@ -209,7 +209,11 @@ export class InteractiveEditorInput extends EditorInput implements ICompositeNot
 			return undefined; // save cancelled
 		}
 
-		return await this._editorModelReference.saveAs(target);
+		const saved = await this._editorModelReference.saveAs(target);
+		if (saved && 'resource' in saved && saved.resource) {
+			this._notebookService.getNotebookTextModel(saved.resource)?.dispose();
+		}
+		return saved;
 	}
 
 	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {

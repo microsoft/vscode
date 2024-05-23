@@ -145,7 +145,7 @@ async function deleteFiles(explorerService: IExplorerService, workingCopyFileSer
 	let confirmation: IConfirmationResult;
 	// We do not support undo of folders, so in that case the delete action is irreversible
 	const deleteDetail = distinctElements.some(e => e.isDirectory) ? nls.localize('irreversible', "This action is irreversible!") :
-		distinctElements.length > 1 ? nls.localize('restorePlural', "You can restore these files using the Undo command") : nls.localize('restore', "You can restore this file using the Undo command");
+		distinctElements.length > 1 ? nls.localize('restorePlural', "You can restore these files using the Undo command.") : nls.localize('restore', "You can restore this file using the Undo command.");
 
 	// Check if we need to ask for confirmation at all
 	if (skipConfirm || (useTrash && configurationService.getValue<boolean>(CONFIRM_DELETE_SETTING_KEY) === false)) {
@@ -490,7 +490,10 @@ export class GlobalCompareResourcesAction extends Action2 {
 			title: GlobalCompareResourcesAction.LABEL,
 			f1: true,
 			category: Categories.File,
-			precondition: ActiveEditorContext
+			precondition: ActiveEditorContext,
+			metadata: {
+				description: nls.localize2('compareFileWithMeta', "Opens a picker to select a file to diff with the active editor.")
+			}
 		});
 	}
 
@@ -617,7 +620,10 @@ export class FocusFilesExplorer extends Action2 {
 			id: FocusFilesExplorer.ID,
 			title: FocusFilesExplorer.LABEL,
 			f1: true,
-			category: Categories.File
+			category: Categories.File,
+			metadata: {
+				description: nls.localize2('focusFilesExplorerMetadata', "Moves focus to the file explorer view container.")
+			}
 		});
 	}
 
@@ -637,7 +643,10 @@ export class ShowActiveFileInExplorer extends Action2 {
 			id: ShowActiveFileInExplorer.ID,
 			title: ShowActiveFileInExplorer.LABEL,
 			f1: true,
-			category: Categories.File
+			category: Categories.File,
+			metadata: {
+				description: nls.localize2('showInExplorerMetadata', "Reveals and selects the active file within the explorer view.")
+			}
 		});
 	}
 
@@ -663,7 +672,10 @@ export class OpenActiveFileInEmptyWorkspace extends Action2 {
 			title: OpenActiveFileInEmptyWorkspace.LABEL,
 			f1: true,
 			category: Categories.File,
-			precondition: EmptyWorkspaceSupportContext
+			precondition: EmptyWorkspaceSupportContext,
+			metadata: {
+				description: nls.localize2('openFileInEmptyWorkspaceMetadata', "Opens the active file in a new window with no folders open.")
+			}
 		});
 	}
 
@@ -771,7 +783,10 @@ export class CompareNewUntitledTextFilesAction extends Action2 {
 			id: CompareNewUntitledTextFilesAction.ID,
 			title: CompareNewUntitledTextFilesAction.LABEL,
 			f1: true,
-			category: Categories.File
+			category: Categories.File,
+			metadata: {
+				description: nls.localize2('compareNewUntitledTextFilesMeta', "Opens a new diff editor with two untitled files.")
+			}
 		});
 	}
 
@@ -800,7 +815,10 @@ export class CompareWithClipboardAction extends Action2 {
 			title: CompareWithClipboardAction.LABEL,
 			f1: true,
 			category: Categories.File,
-			keybinding: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyC), weight: KeybindingWeight.WorkbenchContrib }
+			keybinding: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyC), weight: KeybindingWeight.WorkbenchContrib },
+			metadata: {
+				description: nls.localize2('compareWithClipboardMeta', "Opens a new diff editor to compare the active file with the contents of the clipboard.")
+			}
 		});
 	}
 

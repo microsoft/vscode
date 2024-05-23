@@ -210,6 +210,9 @@ pub struct ServeWebArgs {
 	/// If set, the user accepts the server license terms and the server will be started without a user prompt.
 	#[clap(long)]
 	pub accept_server_license_terms: bool,
+	/// Specifies the path under which the web UI and the code server is provided.
+	#[clap(long)]
+	pub server_base_path: Option<String>,
 	/// Specifies the directory that server data is kept in.
 	#[clap(long)]
 	pub server_data_dir: Option<String>,
@@ -226,9 +229,12 @@ pub struct CommandShellArgs {
 	/// Listen on a socket instead of stdin/stdout.
 	#[clap(long)]
 	pub on_socket: bool,
-	/// Listen on a port instead of stdin/stdout.
+	/// Listen on a host/port instead of stdin/stdout.
 	#[clap(long, num_args = 0..=1, default_missing_value = "0")]
 	pub on_port: Option<u16>,
+	/// Listen on a host/port instead of stdin/stdout.
+	#[clap[long]]
+	pub on_host: Option<String>,
 	/// Require the given token string to be given in the handshake.
 	#[clap(long, env = "VSCODE_CLI_REQUIRE_TOKEN")]
 	pub require_token: Option<String>,
@@ -659,12 +665,28 @@ pub struct TunnelServeArgs {
 	/// Requests that extensions be preloaded and installed on connecting servers.
 	#[clap(long)]
 	pub install_extension: Vec<String>,
+
+	/// Specifies the directory that server data is kept in.
+	#[clap(long)]
+	pub server_data_dir: Option<String>,
+
+	/// Set the root path for extensions.
+	#[clap(long)]
+	pub extensions_dir: Option<String>,
 }
 
 impl TunnelServeArgs {
 	pub fn apply_to_server_args(&self, csa: &mut CodeServerArgs) {
 		csa.install_extensions
 			.extend_from_slice(&self.install_extension);
+
+		if let Some(d) = &self.server_data_dir {
+			csa.server_data_dir = Some(d.clone());
+		}
+
+		if let Some(d) = &self.extensions_dir {
+			csa.extensions_dir = Some(d.clone());
+		}
 	}
 }
 
@@ -766,10 +788,13 @@ pub enum TunnelUserSubCommands {
 
 #[derive(Args, Debug, Clone)]
 pub struct LoginArgs {
-	/// An access token to store for authentication. Note: this will not be
-	/// refreshed if it expires!
-	#[clap(long, requires = "provider")]
+	/// An access token to store for authentication.
+	#[clap(long, requires = "provider", env = "VSCODE_CLI_ACCESS_TOKEN")]
 	pub access_token: Option<String>,
+
+	/// An access token to store for authentication.
+	#[clap(long, requires = "access_token", env = "VSCODE_CLI_REFRESH_TOKEN")]
+	pub refresh_token: Option<String>,
 
 	/// The auth provider to use. If not provided, a prompt will be shown.
 	#[clap(value_enum, long)]

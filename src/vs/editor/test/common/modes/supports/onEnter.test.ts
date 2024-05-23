@@ -5,7 +5,7 @@
 import * as assert from 'assert';
 import { CharacterPair, IndentAction } from 'vs/editor/common/languages/languageConfiguration';
 import { OnEnterSupport } from 'vs/editor/common/languages/supports/onEnter';
-import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
+import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/onEnterRules';
 import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 

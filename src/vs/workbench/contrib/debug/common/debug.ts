@@ -24,7 +24,7 @@ import { ITelemetryEndpoint } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IEditorPane } from 'vs/workbench/common/editor';
 import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
-import { IDataBreakpointOptions, IInstructionBreakpointOptions } from 'vs/workbench/contrib/debug/common/debugModel';
+import { IDataBreakpointOptions, IFunctionBreakpointOptions, IInstructionBreakpointOptions } from 'vs/workbench/contrib/debug/common/debugModel';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { ITaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -90,6 +90,7 @@ export const CONTEXT_VARIABLE_EVALUATE_NAME_PRESENT = new RawContextKey<boolean>
 export const CONTEXT_VARIABLE_IS_READONLY = new RawContextKey<boolean>('variableIsReadonly', false, { type: 'boolean', description: nls.localize('variableIsReadonly', "True when the focused variable is read-only.") });
 export const CONTEXT_VARIABLE_VALUE = new RawContextKey<boolean>('variableValue', false, { type: 'string', description: nls.localize('variableValue', "Value of the variable, present for debug visualization clauses.") });
 export const CONTEXT_VARIABLE_TYPE = new RawContextKey<boolean>('variableType', false, { type: 'string', description: nls.localize('variableType', "Type of the variable, present for debug visualization clauses.") });
+export const CONTEXT_VARIABLE_INTERFACES = new RawContextKey<boolean>('variableInterfaces', false, { type: 'array', description: nls.localize('variableInterfaces', "Any interfaces or contracts that the variable satisfies, present for debug visualization clauses.") });
 export const CONTEXT_VARIABLE_NAME = new RawContextKey<boolean>('variableName', false, { type: 'string', description: nls.localize('variableName', "Name of the variable, present for debug visualization clauses.") });
 export const CONTEXT_VARIABLE_LANGUAGE = new RawContextKey<boolean>('variableLanguage', false, { type: 'string', description: nls.localize('variableLanguage', "Language of the variable source, present for debug visualization clauses.") });
 export const CONTEXT_VARIABLE_EXTENSIONID = new RawContextKey<boolean>('variableExtensionId', false, { type: 'string', description: nls.localize('variableExtensionId', "Extension ID of the variable source, present for debug visualization clauses.") });
@@ -530,6 +531,10 @@ export interface IStackFrame extends ITreeElement {
 	toString(): string;
 	openInEditor(editorService: IEditorService, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<IEditorPane | undefined>;
 	equals(other: IStackFrame): boolean;
+}
+
+export function isFrameDeemphasized(frame: IStackFrame): boolean {
+	return frame.source.presentationHint === 'deemphasize' || frame.presentationHint === 'deemphasize' || frame.presentationHint === 'subtle';
 }
 
 export interface IEnablement extends ITreeElement {
@@ -1145,7 +1150,7 @@ export interface IDebugService {
 	/**
 	 * Adds a new function breakpoint for the given name.
 	 */
-	addFunctionBreakpoint(name?: string, id?: string, mode?: string): void;
+	addFunctionBreakpoint(opts?: IFunctionBreakpointOptions, id?: string): void;
 
 	/**
 	 * Updates an already existing function breakpoint.

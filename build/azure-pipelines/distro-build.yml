@@ -12,4 +12,4 @@ steps:
       versionSource: fromFile
       versionFilePath: .nvmrc
       nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
-  - template: ./distro/download-distro.yml
+  - template: ./distro/download-distro.yml@self

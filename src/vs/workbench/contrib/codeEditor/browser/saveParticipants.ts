@@ -47,12 +47,14 @@ export class TrimWhitespaceParticipant implements ITextFileSaveParticipant {
 			return;
 		}
 
-		if (this.configurationService.getValue('files.trimTrailingWhitespace', { overrideIdentifier: model.textEditorModel.getLanguageId(), resource: model.resource })) {
-			this.doTrimTrailingWhitespace(model.textEditorModel, context.reason === SaveReason.AUTO);
+		const trimTrailingWhitespaceOption = this.configurationService.getValue<boolean>('files.trimTrailingWhitespace', { overrideIdentifier: model.textEditorModel.getLanguageId(), resource: model.resource });
+		const trimInRegexAndStrings = this.configurationService.getValue<boolean>('files.trimTrailingWhitespaceInRegexAndStrings', { overrideIdentifier: model.textEditorModel.getLanguageId(), resource: model.resource });
+		if (trimTrailingWhitespaceOption) {
+			this.doTrimTrailingWhitespace(model.textEditorModel, context.reason === SaveReason.AUTO, trimInRegexAndStrings);
 		}
 	}
 
-	private doTrimTrailingWhitespace(model: ITextModel, isAutoSaved: boolean): void {
+	private doTrimTrailingWhitespace(model: ITextModel, isAutoSaved: boolean, trimInRegexesAndStrings: boolean): void {
 		let prevSelection: Selection[] = [];
 		let cursors: Position[] = [];
 
@@ -72,7 +74,7 @@ export class TrimWhitespaceParticipant implements ITextFileSaveParticipant {
 			}
 		}
 
-		const ops = trimTrailingWhitespace(model, cursors);
+		const ops = trimTrailingWhitespace(model, cursors, trimInRegexesAndStrings);
 		if (!ops.length) {
 			return; // Nothing to do
 		}

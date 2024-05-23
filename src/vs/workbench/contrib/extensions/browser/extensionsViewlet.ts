@@ -637,6 +637,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		const focusTracker = this._register(trackFocus(this.root));
 		const isSearchBoxFocused = () => this.searchBox?.inputWidget.hasWidgetFocus();
 		this._register(registerNavigableContainer({
+			name: 'extensionsView',
 			focusNotifiers: [focusTracker],
 			focusNextWidget: () => {
 				if (isSearchBoxFocused()) {

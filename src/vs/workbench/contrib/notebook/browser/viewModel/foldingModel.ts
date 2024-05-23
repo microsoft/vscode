@@ -317,7 +317,7 @@ export function* getMarkdownHeadersInCell(cellContent: string): Iterable<{ reado
 		if (token.type === 'heading') {
 			yield {
 				depth: token.depth,
-				text: renderMarkdownAsPlaintext({ value: token.text }).trim()
+				text: renderMarkdownAsPlaintext({ value: token.raw }).trim()
 			};
 		}
 	}

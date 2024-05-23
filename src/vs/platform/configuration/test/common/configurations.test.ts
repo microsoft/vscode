@@ -9,6 +9,7 @@ import { equals } from 'vs/base/common/objects';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { DefaultConfiguration } from 'vs/platform/configuration/common/configurations';
+import { NullLogService } from 'vs/platform/log/common/log';
 import { Registry } from 'vs/platform/registry/common/platform';
 
 suite('DefaultConfiguration', () => {
@@ -26,7 +27,7 @@ suite('DefaultConfiguration', () => {
 	}
 
 	test('Test registering a property before initialize', async () => {
-		const testObject = disposables.add(new DefaultConfiguration());
+		const testObject = disposables.add(new DefaultConfiguration(new NullLogService()));
 		configurationRegistry.registerConfiguration({
 			'id': 'a',
 			'order': 1,
@@ -45,7 +46,7 @@ suite('DefaultConfiguration', () => {
 	});
 
 	test('Test registering a property and do not initialize', async () => {
-		const testObject = disposables.add(new DefaultConfiguration());
+		const testObject = disposables.add(new DefaultConfiguration(new NullLogService()));
 		configurationRegistry.registerConfiguration({
 			'id': 'a',
 			'order': 1,
@@ -63,7 +64,7 @@ suite('DefaultConfiguration', () => {
 	});
 
 	test('Test registering a property after initialize', async () => {
-		const testObject = disposables.add(new DefaultConfiguration());
+		const testObject = disposables.add(new DefaultConfiguration(new NullLogService()));
 		await testObject.initialize();
 		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
 		configurationRegistry.registerConfiguration({
@@ -85,7 +86,7 @@ suite('DefaultConfiguration', () => {
 	});
 
 	test('Test registering nested properties', async () => {
-		const testObject = disposables.add(new DefaultConfiguration());
+		const testObject = disposables.add(new DefaultConfiguration(new NullLogService()));
 		configurationRegistry.registerConfiguration({
 			'id': 'a',
 			'order': 1,
@@ -113,7 +114,7 @@ suite('DefaultConfiguration', () => {
 	});
 
 	test('Test registering the same property again', async () => {
-		const testObject = disposables.add(new DefaultConfiguration());
+		const testObject = disposables.add(new DefaultConfiguration(new NullLogService()));
 		configurationRegistry.registerConfiguration({
 			'id': 'a',
 			'order': 1,
@@ -145,7 +146,7 @@ suite('DefaultConfiguration', () => {
 	});
 
 	test('Test registering an override identifier', async () => {
-		const testObject = disposables.add(new DefaultConfiguration());
+		const testObject = disposables.add(new DefaultConfiguration(new NullLogService()));
 		configurationRegistry.registerDefaultConfigurations([{
 			overrides: {
 				'[a]': {
@@ -162,7 +163,7 @@ suite('DefaultConfiguration', () => {
 	});
 
 	test('Test registering a normal property and override identifier', async () => {
-		const testObject = disposables.add(new DefaultConfiguration());
+		const testObject = disposables.add(new DefaultConfiguration(new NullLogService()));
 		configurationRegistry.registerConfiguration({
 			'id': 'a',
 			'order': 1,
@@ -195,7 +196,7 @@ suite('DefaultConfiguration', () => {
 	});
 
 	test('Test normal property is registered after override identifier', async () => {
-		const testObject = disposables.add(new DefaultConfiguration());
+		const testObject = disposables.add(new DefaultConfiguration(new NullLogService()));
 		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
 		configurationRegistry.registerDefaultConfigurations([{
 			overrides: {
@@ -232,7 +233,7 @@ suite('DefaultConfiguration', () => {
 	});
 
 	test('Test override identifier is registered after property', async () => {
-		const testObject = disposables.add(new DefaultConfiguration());
+		const testObject = disposables.add(new DefaultConfiguration(new NullLogService()));
 		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
 		configurationRegistry.registerConfiguration({
 			'id': 'a',
@@ -268,7 +269,7 @@ suite('DefaultConfiguration', () => {
 	});
 
 	test('Test register override identifier and property after initialize', async () => {
-		const testObject = disposables.add(new DefaultConfiguration());
+		const testObject = disposables.add(new DefaultConfiguration(new NullLogService()));
 
 		await testObject.initialize();
 
@@ -303,7 +304,7 @@ suite('DefaultConfiguration', () => {
 	});
 
 	test('Test deregistering a property', async () => {
-		const testObject = disposables.add(new DefaultConfiguration());
+		const testObject = disposables.add(new DefaultConfiguration(new NullLogService()));
 		const promise = Event.toPromise(testObject.onDidChangeConfiguration);
 		const node: IConfigurationNode = {
 			'id': 'a',
@@ -330,7 +331,7 @@ suite('DefaultConfiguration', () => {
 	});
 
 	test('Test deregistering an override identifier', async () => {
-		const testObject = disposables.add(new DefaultConfiguration());
+		const testObject = disposables.add(new DefaultConfiguration(new NullLogService()));
 		configurationRegistry.registerConfiguration({
 			'id': 'a',
 			'order': 1,

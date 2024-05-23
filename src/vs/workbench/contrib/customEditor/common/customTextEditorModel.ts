@@ -16,8 +16,6 @@ import { ITextFileEditorModel, ITextFileService, TextFileEditorModelState } from
 
 export class CustomTextEditorModel extends Disposable implements ICustomEditorModel {
 
-	readonly isTextBased = true;
-
 	public static async create(
 		instantiationService: IInstantiationService,
 		viewType: string,
@@ -72,6 +70,10 @@ export class CustomTextEditorModel extends Disposable implements ICustomEditorMo
 
 	public get backupId() {
 		return undefined;
+	}
+
+	public get canHotExit() {
+		return true; // ensured via backups from text file models
 	}
 
 	public isDirty(): boolean {

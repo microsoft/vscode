@@ -326,6 +326,21 @@ export function isEditorPaneWithSelection(editorPane: IEditorPane | undefined): 
 	return !!candidate && typeof candidate.getSelection === 'function' && !!candidate.onDidChangeSelection;
 }
 
+export interface IEditorPaneWithScrolling extends IEditorPane {
+
+	readonly onDidChangeScroll: Event<void>;
+
+	getScrollPosition(): IEditorPaneScrollPosition;
+
+	setScrollPosition(position: IEditorPaneScrollPosition): void;
+}
+
+export function isEditorPaneWithScrolling(editorPane: IEditorPane | undefined): editorPane is IEditorPaneWithScrolling {
+	const candidate = editorPane as IEditorPaneWithScrolling | undefined;
+
+	return !!candidate && typeof candidate.getScrollPosition === 'function' && typeof candidate.setScrollPosition === 'function' && !!candidate.onDidChangeScroll;
+}
+
 /**
  * Scroll position of a pane
  */
@@ -818,13 +833,7 @@ export const enum EditorInputCapabilities {
 	 * Signals that the editor cannot be in a dirty state
 	 * and may still have unsaved changes
 	 */
-	Scratchpad = 1 << 9,
-
-	/**
-	 * Signals that the editor does not support opening in
-	 * auxiliary windows.
-	 */
-	AuxWindowUnsupported = 1 << 10
+	Scratchpad = 1 << 9
 }
 
 export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput | IResourceMultiDiffEditorInput | IResourceSideBySideEditorInput | IResourceMergeEditorInput;
@@ -1070,6 +1079,12 @@ export interface IEditorCommandsContext {
 	preserveFocus?: boolean;
 }
 
+export function isEditorCommandsContext(context: unknown): context is IEditorCommandsContext {
+	const candidate = context as IEditorCommandsContext | undefined;
+
+	return typeof candidate?.groupId === 'number';
+}
+
 /**
  * More information around why an editor was closed in the model.
  */
@@ -1153,6 +1168,9 @@ export const enum GroupModelChangeKind {
 	GROUP_LABEL,
 	GROUP_LOCKED,
 
+	/* Editors Change */
+	EDITORS_SELECTION,
+
 	/* Editor Changes */
 	EDITOR_OPEN,
 	EDITOR_CLOSE,
@@ -1198,6 +1216,7 @@ interface IEditorPartConfiguration {
 	tabActionLocation?: 'left' | 'right';
 	tabActionCloseVisibility?: boolean;
 	tabActionUnpinVisibility?: boolean;
+	alwaysShowEditorActions?: boolean;
 	tabSizing?: 'fit' | 'shrink' | 'fixed';
 	tabSizingFixedMinWidth?: number;
 	tabSizingFixedMaxWidth?: number;
