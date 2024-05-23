@@ -1,14 +1,17 @@
 name: Basic checks
 
-on: workflow_dispatch
-
-# on:
-#   push:
-#     branches:
-#       - main
-#   pull_request:
-#     branches:
-#       - main
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - 'extensions/pearai-extension/**'
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - 'extensions/pearai-extension/**'
 
 jobs:
   main:
