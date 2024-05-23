@@ -10,7 +10,7 @@
 	const bootstrapWindow = bootstrapWindowLib();
 
 	// Load issue reporter into window
-	bootstrapWindow.load(['vs/workbench/electron-sandbox/issues/issueReporterMain'], function (issueReporter, configuration) {
+	bootstrapWindow.load(['vs/workbench/contrib/issue/electron-sandbox/issueReporterMain'], function (issueReporter, configuration) {
 		return issueReporter.startup(configuration);
 	},
 		{
