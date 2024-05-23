@@ -173,3 +173,11 @@ export function getActionViewItemProvider(instaService: IInstantiationService): 
 export function getProviderKey(provider: ISCMProvider): string {
 	return `${provider.contextValue}:${provider.label}${provider.rootUri ? `:${provider.rootUri.toString()}` : ''}`;
 }
+
+export function getArrayPreviousIndex(index: number, length: number): number {
+	return index > 0 ? index - 1 : length - 1;
+}
+
+export function getArrayNextIndex(index: number, length: number): number {
+	return index < length - 1 ? index + 1 : 0;
+}

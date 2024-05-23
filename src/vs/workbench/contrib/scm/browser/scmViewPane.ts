@@ -24,7 +24,7 @@ import { MenuItemAction, IMenuService, registerAction2, MenuId, IAction2Options,
 import { IAction, ActionRunner, Action, Separator, IActionRunner } from 'vs/base/common/actions';
 import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService, IFileIconTheme } from 'vs/platform/theme/common/themeService';
-import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, getActionViewItemProvider, isSCMActionButton, isSCMViewService, isSCMHistoryItemGroupTreeElement, isSCMHistoryItemTreeElement, isSCMHistoryItemChangeTreeElement, toDiffEditorArguments, isSCMResourceNode, isSCMHistoryItemChangeNode, isSCMViewSeparator, connectPrimaryMenu } from './util';
+import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, getActionViewItemProvider, isSCMActionButton, isSCMViewService, isSCMHistoryItemGroupTreeElement, isSCMHistoryItemTreeElement, isSCMHistoryItemChangeTreeElement, toDiffEditorArguments, isSCMResourceNode, isSCMHistoryItemChangeNode, isSCMViewSeparator, connectPrimaryMenu, getArrayPreviousIndex, getArrayNextIndex } from './util';
 import { WorkbenchCompressibleAsyncDataTree, IOpenEvent } from 'vs/platform/list/browser/listService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { disposableTimeout, Sequencer, ThrottledDelayer, Throttler } from 'vs/base/common/async';
@@ -38,7 +38,7 @@ import { FileKind } from 'vs/platform/files/common/files';
 import { compareFileNames, comparePaths } from 'vs/base/common/comparers';
 import { FuzzyScore, createMatches, IMatch } from 'vs/base/common/filters';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { localize, localize2 } from 'vs/nls';
+import { localize } from 'vs/nls';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { SIDE_BAR_BACKGROUND, PANEL_BACKGROUND } from 'vs/workbench/common/theme';
@@ -109,7 +109,6 @@ import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { OpenScmGroupAction } from 'vs/workbench/contrib/multiDiffEditor/browser/scmMultiDiffSourceResolver';
 import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
 import { ITextModel } from 'vs/editor/common/model';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 
 // type SCMResourceTreeNode = IResourceNode<ISCMResource, ISCMResourceGroup>;
 // type SCMHistoryItemChangeResourceTreeNode = IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement>;
@@ -1462,7 +1461,7 @@ const Menus = {
 	ChangesSettings: new MenuId('SCMChangesSettings'),
 };
 
-const ContextKeys = {
+export const ContextKeys = {
 	SCMViewMode: new RawContextKey<ViewMode>('scmViewMode', ViewMode.List),
 	SCMViewSortKey: new RawContextKey<ViewSortKey>('scmViewSortKey', ViewSortKey.Path),
 	SCMViewAreAllRepositoriesCollapsed: new RawContextKey<boolean>('scmViewAreAllRepositoriesCollapsed', false),
@@ -1957,26 +1956,6 @@ class ExpandAllRepositoriesAction extends ViewAction<SCMViewPane> {
 
 registerAction2(CollapseAllRepositoriesAction);
 registerAction2(ExpandAllRepositoriesAction);
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.scm.action.focusInput',
-			title: { ...localize2('focusInput', "Focus Input") },
-			category: localize2('source control', "Source Control"),
-			precondition: ContextKeys.RepositoryCount.notEqualsTo(0),
-			f1: true
-		});
-	}
-
-	override async run(accessor: ServicesAccessor) {
-		const viewsService = accessor.get(IViewsService);
-		const scmView = await viewsService.openView<SCMViewPane>(VIEW_PANE_ID);
-		if (scmView) {
-			scmView.focusInput();
-		}
-	}
-});
 
 const enum SCMInputWidgetCommandId {
 	CancelAction = 'scm.input.cancelAction'
@@ -3453,17 +3432,44 @@ export class SCMViewPane extends ViewPane {
 		}
 	}
 
-	focusInput(): void {
-		this.treeOperationSequencer.queue(() => {
-			return new Promise<void>(resolve => {
-				if (this.scmViewService.focusedRepository) {
-					this.tree.reveal(this.scmViewService.focusedRepository.input, 0.5);
-					this.inputRenderer.getRenderedInputWidget(this.scmViewService.focusedRepository.input)?.focus();
-				}
-
-				resolve();
-			});
+	focusPreviousInput(): void {
+		this.treeOperationSequencer.queue(async () => {
+			this.focusInput(getArrayPreviousIndex);
 		});
+	}
+
+	focusNextInput(): void {
+		this.treeOperationSequencer.queue(async () => {
+			this.focusInput(getArrayNextIndex);
+		});
+	}
+
+	private focusInput(getIndex: (index: number, length: number) => number): void {
+		if (!this.scmViewService.focusedRepository) {
+			return;
+		}
+
+		const repositories = this.scmViewService.visibleRepositories;
+
+		let input = this.scmViewService.focusedRepository.input;
+		let inputWidget = this.inputRenderer.getRenderedInputWidget(input);
+
+		// One visible repository and the input is already focused
+		if (repositories.length === 1 && inputWidget?.hasFocus() === true) {
+			return;
+		}
+
+		// Multiple visible repositories and the input already focused
+		if (repositories.length > 1 && inputWidget?.hasFocus() === true) {
+			const repositoryIndex = repositories.indexOf(this.scmViewService.focusedRepository);
+			const repositoryIndexNew = getIndex(repositoryIndex, repositories.length);
+
+			input = repositories[repositoryIndexNew].input;
+			inputWidget = this.inputRenderer.getRenderedInputWidget(input);
+		}
+
+		this.tree.reveal(input);
+		inputWidget?.focus();
 	}
 
 	override shouldShowWelcome(): boolean {
