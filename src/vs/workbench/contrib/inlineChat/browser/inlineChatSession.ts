@@ -31,7 +31,7 @@ import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ChatModel, IChatRequestModel, IChatResponseModel } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatModel, IChatRequestModel, IChatResponseModel, IChatTextEditGroupState } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IChatAgent } from 'vs/workbench/contrib/chat/common/chatAgents';
 
@@ -571,7 +571,7 @@ export class HunkData {
 		this._textModel0.pushEditOperations(null, edits, () => null);
 	}
 
-	async recompute(responseId: string) {
+	async recompute(editState: IChatTextEditGroupState) {
 
 		const diff = await this._editorWorkerService.computeDiff(this._textModel0.uri, this._textModelN.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: Number.MAX_SAFE_INTEGER, computeMoves: false }, 'advanced');
 
@@ -625,7 +625,7 @@ export class HunkData {
 					}
 
 					this._data.set(hunk, {
-						responseId,
+						editState,
 						textModelNDecorations,
 						textModel0Decorations,
 						state: HunkState.Pending
@@ -659,7 +659,7 @@ export class HunkData {
 	discardAll() {
 		const edits: ISingleEditOperation[][] = [];
 		for (const item of this.getInfo()) {
-			if (item.getState() !== HunkState.Rejected) {
+			if (item.getState() === HunkState.Pending) {
 				edits.push(this._discardEdits(item));
 			}
 		}
@@ -677,9 +677,6 @@ export class HunkData {
 
 		for (const [hunk, data] of this._data.entries()) {
 			const item: HunkInformation = {
-				getResponseId: () => {
-					return data.responseId;
-				},
 				getState: () => {
 					return data.state;
 				},
@@ -719,6 +716,7 @@ export class HunkData {
 						}
 						this._textModel0.pushEditOperations(null, edits, () => null);
 						data.state = HunkState.Accepted;
+						data.editState.applied += 1;
 					}
 				}
 			};
@@ -741,7 +739,7 @@ type RawHunkData = {
 	textModelNDecorations: string[];
 	textModel0Decorations: string[];
 	state: HunkState;
-	responseId: string;
+	editState: IChatTextEditGroupState;
 };
 
 export const enum HunkState {
@@ -768,6 +766,4 @@ export interface HunkInformation {
 	acceptChanges(): void;
 
 	getState(): HunkState;
-
-	getResponseId(): string;
 }

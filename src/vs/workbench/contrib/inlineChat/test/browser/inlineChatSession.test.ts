@@ -56,7 +56,6 @@ import { ChatVariablesService } from 'vs/workbench/contrib/chat/browser/chatVari
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { TestCommandService } from 'vs/editor/test/browser/editorTestServices';
 import { IAccessibleViewService } from 'vs/platform/accessibility/browser/accessibleView';
-import { generateUuid } from 'vs/base/common/uuid';
 
 suite('InlineChatSession', function () {
 
@@ -161,7 +160,7 @@ suite('InlineChatSession', function () {
 		} finally {
 			session.hunkData.ignoreTextModelNChanges = false;
 		}
-		await session.hunkData.recompute(generateUuid());
+		await session.hunkData.recompute({ applied: 0, sha1: 'fakeSha1' });
 	}
 
 	function makeEdit(edit: EditOperation | EditOperation[]) {
@@ -434,4 +433,25 @@ suite('InlineChatSession', function () {
 		assert.strictEqual(session.textModelN.getValue(), session.textModel0.getValue());
 	});
 
+	test('HunkData, accept, discardAll', async function () {
+
+		const session = await inlineChatSessionService.createSession(editor, { editMode: EditMode.Live }, CancellationToken.None);
+		assertType(session);
+
+		await makeEditAsAi([EditOperation.insert(new Position(1, 1), 'AI_EDIT\n'), EditOperation.insert(new Position(10, 1), 'AI_EDIT\n')]);
+
+		assert.strictEqual(session.hunkData.size, 2);
+		assert.ok(!session.textModel0.equalsTextBuffer(session.textModelN.getTextBuffer()));
+
+		const textModeNNow = session.textModelN.getValue();
+
+		session.hunkData.getInfo()[0].acceptChanges();
+		assert.strictEqual(textModeNNow, session.textModelN.getValue());
+
+		session.hunkData.discardAll(); // all remaining
+		assert.strictEqual(session.textModelN.getValue(), 'AI_EDIT\none\ntwo\nthree\nfour\nfive\nsix\nseven\neight\nnine\nten\neleven');
+		assert.strictEqual(session.textModelN.getValue(), session.textModel0.getValue());
+
+		inlineChatSessionService.releaseSession(session);
+	});
 });
