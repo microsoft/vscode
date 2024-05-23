@@ -201,10 +201,10 @@ class TextModelTokens extends Disposable {
 	private _parseCallback(index: number, position?: Parser.Point): string | null {
 		try {
 			const modelPositionStart: Position = position ? new Position(position.row + 1, position.column + 1) : this._textModel.getPositionAt(index);
-			let modelPositionEnd = this._textModel.getPositionAt(index + 1);
-			let value = this._textModel.getValueInRange(Range.fromPositions(modelPositionStart, modelPositionEnd));
-			if (value.length === 0) { // When we hit the end of the line the value is an empty string, we need to get the next character.
-				modelPositionEnd = this._textModel.getPositionAt(index + 2);
+			const lineContent = this._textModel.getLineContent(modelPositionStart.lineNumber);
+			let value = lineContent.substring(modelPositionStart.column - 1);
+			if (value.length === 0 && (lineContent.length <= modelPositionStart.column)) { // When we hit the end of the line the value is an empty string, we need to get the next character.
+				const modelPositionEnd = this._textModel.getPositionAt(index + 2);
 				value = this._textModel.getValueInRange(Range.fromPositions(modelPositionStart, modelPositionEnd));
 			}
 			return value;
@@ -248,7 +248,7 @@ class TextModelTokens extends Disposable {
 		const tree = this._ensureTree();
 		const query = this._ensureQuery();
 		const lineLength = this._textModel.getLineMaxColumn(lineNumber);
-		const captures = query.captures(tree.rootNode, { startPosition: { row: lineNumber - 1, column: 0 }, endPosition: { row: lineNumber - 1, column: lineLength - 1 } });
+		const captures = query.captures(tree.rootNode, { startPosition: { row: lineNumber - 1, column: 0 }, endPosition: { row: lineNumber - 1, column: lineLength } });
 		if (captures.length === 0 && lineLength > 0) {
 			// No captures, but we always want to return at least one token for each line
 			return new Uint32Array([lineLength, 0]);
@@ -256,16 +256,18 @@ class TextModelTokens extends Disposable {
 
 		let tokens: Uint32Array = new Uint32Array(captures.length * 2);
 		let tokenIndex = 0;
+		const lineStartOffset = this._textModel.getOffsetAt({ lineNumber: lineNumber, column: 0 });
+
 		for (let captureIndex = 0; captureIndex < captures.length; captureIndex++) {
 			const capture = captures[captureIndex];
 			const metadata = this.findMetadata(capture.name);
-			const lineStartOffset = this._textModel.getOffsetAt({ lineNumber: lineNumber, column: 0 });
-			const offset = this._textModel.getOffsetAt({ lineNumber: capture.node.endPosition.row + 1, column: capture.node.endPosition.column + 1 }) - lineStartOffset;
+
+			const offset = capture.node.endIndex - lineStartOffset;
 			// Not every character will get captured, so we need to make sure that our current capture doesn't bleed toward the start of the line and cover characters that it doesn't apply to.
 			// We do this by creating a new token in the array if the previous token ends before the current token starts.
 			if (captureIndex > 0) {
 				const previousTokenEnd = tokens[(tokenIndex - 1) * 2];
-				const currentTokenLength = capture.node.text.length;
+				const currentTokenLength = capture.node.endIndex - capture.node.startIndex;
 				const intermediateTokenOffset = offset - currentTokenLength;
 				if (previousTokenEnd < intermediateTokenOffset) {
 					tokens[tokenIndex * 2] = intermediateTokenOffset;
@@ -279,6 +281,14 @@ class TextModelTokens extends Disposable {
 			tokens[tokenIndex * 2] = offset;
 			tokens[tokenIndex * 2 + 1] = metadata;
 			tokenIndex++;
+		}
+
+		if (captures[captures.length - 1].node.endPosition.column + 1 < lineLength) {
+			const newTokens = new Uint32Array(tokens.length + 2);
+			newTokens.set(tokens);
+			tokens = newTokens;
+			tokens[tokenIndex * 2] = lineLength;
+			tokens[tokenIndex * 2 + 1] = 0;
 		}
 		return tokens;
 	}
