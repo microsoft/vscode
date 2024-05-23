@@ -451,7 +451,7 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 
 	//#endregion
 
-	//#region Editor Groups Service
+	//#region Group Management
 
 	get activeGroup(): IEditorGroupView {
 		return this.activePart.activeGroup;
@@ -630,17 +630,42 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		return this.getPart(container).createEditorDropTarget(container, delegate);
 	}
 
-	private registerContextKeyListeners(): void {
-		this._register(this.onDidChangeActiveGroup(group => this.updateGlobalContextKeys()));
-		this._register(this.onDidAddGroup(group => this.registerRunGroupContextKeyProviders(group)));
-		this._register(this.onDidRemoveGroup(group => {
-			this.unregisterRunGroupContextKeyProviders(group);
-			this.removeGroupScopedContextKeys(group);
-		}));
-	}
+	//#endregion
+
+	//#region Editor Group Context Key Handling
 
 	private readonly globalContextKeys = new Map<string, IContextKey<ContextKeyValue>>();
 	private readonly scopedContextKeys = new Map<GroupIdentifier, Map<string, IContextKey<ContextKeyValue>>>();
+
+	private registerContextKeyListeners(): void {
+		this._register(this.onDidChangeActiveGroup(() => this.updateGlobalContextKeys()));
+		this._register(this.onDidAddGroup(group => this.registerRunGroupContextKeyProviders(group)));
+		this._register(this.onDidRemoveGroup(group => {
+			this.removeGroupScopedContextKeys(group);
+			this.unregisterRunGroupContextKeyProviders(group);
+		}));
+	}
+
+	private updateGlobalContextKeys(): void {
+		const activeGroupScopedContextKeys = this.scopedContextKeys.get(this.activeGroup.id);
+		if (!activeGroupScopedContextKeys) {
+			return;
+		}
+
+		for (const [key, globalContextKey] of this.globalContextKeys) {
+			const scopedContextKey = activeGroupScopedContextKeys.get(key);
+			if (scopedContextKey) {
+				globalContextKey.set(scopedContextKey.get());
+			} else {
+				globalContextKey.reset();
+			}
+		}
+	}
+
+	private removeGroupScopedContextKeys(group: IEditorGroupView): void {
+		this.scopedContextKeys.delete(group.id);
+		this.registeredContextKeys.delete(group.id);
+	}
 
 	bind<T extends ContextKeyValue>(contextKey: RawContextKey<T>, group: IEditorGroupView): IContextKey<T> {
 
@@ -683,27 +708,6 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		};
 	}
 
-	private updateGlobalContextKeys(): void {
-		const activeGroupScopedContextKeys = this.scopedContextKeys.get(this.activeGroup.id);
-		if (!activeGroupScopedContextKeys) {
-			return;
-		}
-
-		for (const [key, globalContextKey] of this.globalContextKeys) {
-			const scopedContextKey = activeGroupScopedContextKeys.get(key);
-			if (scopedContextKey) {
-				globalContextKey.set(scopedContextKey.get());
-			} else {
-				globalContextKey.reset();
-			}
-		}
-	}
-
-	private removeGroupScopedContextKeys(group: IEditorGroupView): void {
-		this.scopedContextKeys.delete(group.id);
-		this.registeredContextKeys.delete(group.id);
-	}
-
 	private readonly contextKeyProviders = new Map<string, IEditorGroupContextKeyProvider<ContextKeyValue>>();
 	private readonly registeredContextKeys = new Map<GroupIdentifier, Map<string, IContextKey>>();
 
@@ -735,12 +739,14 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 
 	private readonly groupContextKeyProvidersRunners = this._register(new DisposableMap<GroupIdentifier, IDisposable>());
 	private registerRunGroupContextKeyProviders(group: IEditorGroupView): void {
+
 		// Run the context key providers when the active editor changes
 		const disposable = group.onDidActiveEditorChange(() => {
 			for (const contextKeyProvider of this.contextKeyProviders.values()) {
 				this.runRegisteredContextKeyProvider(group, contextKeyProvider);
 			}
 		});
+
 		this.groupContextKeyProvidersRunners.set(group.id, disposable);
 	}
 
@@ -749,8 +755,11 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 	}
 
 	private runRegisteredContextKeyProvider<T extends ContextKeyValue>(group: IEditorGroupView, provider: IEditorGroupContextKeyProvider<T>): void {
+
 		// Get the group scoped context keys for the provider
-		// If the providers context key has not yet been bound to the group, do so now
+		// If the providers context key has not yet been bound
+		// to the group, do so now
+
 		let groupRegisteredContextKeys = this.registeredContextKeys.get(group.id);
 		if (!groupRegisteredContextKeys) {
 			groupRegisteredContextKeys = new Map<string, IContextKey>();

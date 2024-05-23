@@ -492,6 +492,7 @@ export interface IEditorWorkingSet {
 }
 
 export interface IEditorGroupContextKeyProvider<T extends ContextKeyValue> {
+
 	/**
 	 * The context key that needs to be set for each editor group context and the global context.
 	 */
