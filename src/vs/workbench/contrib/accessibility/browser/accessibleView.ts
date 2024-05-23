@@ -567,9 +567,9 @@ export class AccessibleView extends Disposable {
 		});
 		this._updateToolbar(this._currentProvider.actions, provider.options.type);
 
-		const hide = (e: KeyboardEvent | IKeyboardEvent): void => {
+		const hide = (e?: KeyboardEvent | IKeyboardEvent): void => {
 			provider.onClose();
-			e.stopPropagation();
+			e?.stopPropagation();
 			this._contextViewService.hideContextView();
 			this._updateContextKeys(provider, false);
 			this._lastProvider = undefined;
@@ -600,7 +600,7 @@ export class AccessibleView extends Disposable {
 		}));
 		disposableStore.add(this._editorWidget.onDidBlurEditorWidget(() => {
 			if (!isActiveElement(this._toolbar.getElement())) {
-				this._contextViewService.hideContextView();
+				hide();
 			}
 		}));
 		disposableStore.add(this._editorWidget.onDidContentSizeChange(() => this._layout()));
