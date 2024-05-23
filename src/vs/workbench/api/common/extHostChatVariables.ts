@@ -42,9 +42,9 @@ export class ExtHostChatVariables implements ExtHostChatVariablesShape {
 					return value[0].value;
 				}
 			} else {
-				const value = await item.resolver.resolve(item.data.name, { prompt: messageText }, token);
-				if (value && value[0]) {
-					return value[0].value;
+				const value = await item.resolver.resolve(token);
+				if (value && value) {
+					return value.value;
 				}
 			}
 		} catch (err) {
@@ -53,11 +53,15 @@ export class ExtHostChatVariables implements ExtHostChatVariablesShape {
 		return undefined;
 	}
 
-	registerVariableResolver(extension: IExtensionDescription, id: string, name: string, userDescription: string, modelDescription: string | undefined, isSlow: boolean | undefined, resolver: vscode.ChatVariableResolver, fullName?: string, themeIconId?: string): IDisposable {
+	registerVariableResolver(extension: IExtensionDescription, id: string, name: string, userDescription: string, isSlow: boolean | undefined, resolver: vscode.ChatVariableResolver, fullName?: string, themeIconId?: string): IDisposable {
+		if (isSlow) {
+			checkProposedApiEnabled(extension, 'chatParticipantPrivate');
+		}
+
 		const handle = ExtHostChatVariables._idPool++;
 		const icon = themeIconId ? ThemeIcon.fromId(themeIconId) : undefined;
-		this._resolver.set(handle, { extension, data: { id, name, description: userDescription, modelDescription, icon }, resolver: resolver });
-		this._proxy.$registerVariable(handle, { id, name, description: userDescription, modelDescription, isSlow, fullName, icon });
+		this._resolver.set(handle, { extension, data: { id, name, description: userDescription, icon }, resolver: resolver });
+		this._proxy.$registerVariable(handle, { id, name, description: userDescription, isSlow, fullName, icon });
 
 		return toDisposable(() => {
 			this._resolver.delete(handle);
