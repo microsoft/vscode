@@ -57,6 +57,7 @@ import { ChatVariablesService } from 'vs/workbench/contrib/chat/browser/chatVari
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { TestCommandService } from 'vs/editor/test/browser/editorTestServices';
 import { IAccessibleViewService } from 'vs/platform/accessibility/browser/accessibleView';
+import { generateUuid } from 'vs/base/common/uuid';
 
 suite('InlineChatSession', function () {
 
@@ -162,7 +163,7 @@ suite('InlineChatSession', function () {
 		} finally {
 			session.hunkData.ignoreTextModelNChanges = false;
 		}
-		await session.hunkData.recompute();
+		await session.hunkData.recompute(generateUuid());
 	}
 
 	function makeEdit(edit: EditOperation | EditOperation[]) {

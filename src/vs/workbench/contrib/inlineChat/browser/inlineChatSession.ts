@@ -440,7 +440,7 @@ export class HunkData {
 	private static readonly _HUNK_THRESHOLD = 8;
 
 	private readonly _store = new DisposableStore();
-	private readonly _data = new Map<RawHunk, { textModelNDecorations: string[]; textModel0Decorations: string[]; state: HunkState }>();
+	private readonly _data = new Map<RawHunk, RawHunkData>();
 	private _ignoreChanges: boolean = false;
 
 	constructor(
@@ -571,7 +571,7 @@ export class HunkData {
 		this._textModel0.pushEditOperations(null, edits, () => null);
 	}
 
-	async recompute() {
+	async recompute(responseId: string) {
 
 		const diff = await this._editorWorkerService.computeDiff(this._textModel0.uri, this._textModelN.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: Number.MAX_SAFE_INTEGER, computeMoves: false }, 'advanced');
 
@@ -625,6 +625,7 @@ export class HunkData {
 					}
 
 					this._data.set(hunk, {
+						responseId,
 						textModelNDecorations,
 						textModel0Decorations,
 						state: HunkState.Pending
@@ -676,6 +677,9 @@ export class HunkData {
 
 		for (const [hunk, data] of this._data.entries()) {
 			const item: HunkInformation = {
+				getResponseId: () => {
+					return data.responseId;
+				},
 				getState: () => {
 					return data.state;
 				},
@@ -733,6 +737,13 @@ class RawHunk {
 	) { }
 }
 
+type RawHunkData = {
+	textModelNDecorations: string[];
+	textModel0Decorations: string[];
+	state: HunkState;
+	responseId: string;
+};
+
 export const enum HunkState {
 	Pending = 0,
 	Accepted = 1,
@@ -757,4 +768,6 @@ export interface HunkInformation {
 	acceptChanges(): void;
 
 	getState(): HunkState;
+
+	getResponseId(): string;
 }

@@ -720,7 +720,7 @@ export class InlineChatController implements IEditorContribution {
 		const diff = await this._editorWorkerService.computeDiff(this._session.textModel0.uri, this._session.textModelN.uri, { computeMoves: false, maxComputationTimeMs: Number.MAX_SAFE_INTEGER, ignoreTrimWhitespace: false }, 'advanced');
 		this._session.wholeRange.fixup(diff?.changes ?? []);
 
-		await this._session.hunkData.recompute();
+		await this._session.hunkData.recompute(response.id);
 
 		this._zone.value.widget.updateToolbar(true);
 		this._zone.value.widget.updateProgress(false);
