@@ -17,7 +17,7 @@ import { markdownEscapeEscapedIcons } from 'vs/base/common/iconLabels';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Lazy } from 'vs/base/common/lazy';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { marked } from 'vs/base/common/marked/marked';
 import { parse } from 'vs/base/common/marshalling';
 import { FileAccess, Schemas } from 'vs/base/common/network';
@@ -383,7 +383,8 @@ function sanitizeRenderedMarkdown(
 	renderedMarkdown: string,
 ): TrustedHTML {
 	const { config, allowedSchemes } = getSanitizerOptions(options);
-	dompurify.addHook('uponSanitizeAttribute', (element, e) => {
+	const store = new DisposableStore();
+	store.add(addDompurifyHook('uponSanitizeAttribute', (element, e) => {
 		if (e.attrName === 'style' || e.attrName === 'class') {
 			if (element.tagName === 'SPAN') {
 				if (e.attrName === 'style') {
@@ -403,9 +404,9 @@ function sanitizeRenderedMarkdown(
 			}
 			e.keepAttr = false;
 		}
-	});
+	}));
 
-	dompurify.addHook('uponSanitizeElement', (element, e) => {
+	store.add(addDompurifyHook('uponSanitizeElement', (element, e) => {
 		if (e.tagName === 'input') {
 			if (element.attributes.getNamedItem('type')?.value === 'checkbox') {
 				element.setAttribute('disabled', '');
@@ -413,16 +414,14 @@ function sanitizeRenderedMarkdown(
 				element.parentElement?.removeChild(element);
 			}
 		}
-	});
+	}));
 
-
-	const hook = DOM.hookDomPurifyHrefAndSrcSanitizer(allowedSchemes);
+	store.add(DOM.hookDomPurifyHrefAndSrcSanitizer(allowedSchemes));
 
 	try {
 		return dompurify.sanitize(renderedMarkdown, { ...config, RETURN_TRUSTED_TYPE: true });
 	} finally {
-		dompurify.removeHook('uponSanitizeAttribute');
-		hook.dispose();
+		store.dispose();
 	}
 }
 
@@ -875,4 +874,17 @@ function completeTable(tokens: marked.Token[]): marked.Token[] | undefined {
 	}
 
 	return undefined;
+}
+
+function addDompurifyHook(
+	hook: 'uponSanitizeElement',
+	cb: (currentNode: Element, data: dompurify.SanitizeElementHookEvent, config: dompurify.Config) => void,
+): IDisposable;
+function addDompurifyHook(
+	hook: 'uponSanitizeAttribute',
+	cb: (currentNode: Element, data: dompurify.SanitizeAttributeHookEvent, config: dompurify.Config) => void,
+): IDisposable;
+function addDompurifyHook(hook: 'uponSanitizeElement' | 'uponSanitizeAttribute', cb: any): IDisposable {
+	dompurify.addHook(hook, cb);
+	return toDisposable(() => dompurify.removeHook(hook));
 }
