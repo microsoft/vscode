@@ -77,6 +77,9 @@ export function getInheritIndentForLine(
 	honorIntentialIndent: boolean = true,
 	languageConfigurationService: ILanguageConfigurationService
 ): { indentation: string; action: IndentAction | null; line?: number } | null {
+
+	console.log('getInheritedIndentForLine');
+
 	if (autoIndent < EditorAutoIndentStrategy.Full) {
 		return null;
 	}
@@ -117,6 +120,9 @@ export function getInheritIndentForLine(
 	}
 
 	const precedingUnIgnoredLineContent = model.getLineContent(precedingUnIgnoredLine);
+
+	// TODO when should indent next line is true, and on the next line, should increase is true, then should remove indentation at that line
+
 	if (indentRulesSupport.shouldIncrease(precedingUnIgnoredLineContent) || indentRulesSupport.shouldIndentNextLine(precedingUnIgnoredLineContent)) {
 		return {
 			indentation: strings.getLeadingWhitespace(precedingUnIgnoredLineContent),
@@ -398,6 +404,8 @@ export function getIndentActionForType(
 	indentConverter: IIndentConverter,
 	languageConfigurationService: ILanguageConfigurationService
 ): string | null {
+	console.log('getIndentActionForType ');
+
 	if (autoIndent < EditorAutoIndentStrategy.Full) {
 		return null;
 	}
@@ -440,6 +448,26 @@ export function getIndentActionForType(
 			indentation = indentConverter.unshiftIndent(indentation);
 		}
 
+		return indentation;
+	}
+
+	console.log('beforeTypeText : ', beforeTypeText);
+	console.log('afterTypeText : ', afterTypeText);
+	console.log('ch : ', ch);
+
+	const previousLineNumber = range.startLineNumber - 1;
+	const previousLine = model.getLineContent(previousLineNumber);
+	const lineWithCharacter = beforeTypeText + ch + afterTypeText;
+	console.log('fullNewLine : ', lineWithCharacter);
+
+	if (indentRulesSupport.shouldIndentNextLine(previousLine) && indentRulesSupport.shouldIncrease(lineWithCharacter)) {
+		const r = getInheritIndentForLine(autoIndent, model, range.startLineNumber, false, languageConfigurationService);
+		if (!r) {
+			return null;
+		}
+		console.log('r : ', r);
+		const indentation = r.indentation;
+		// first indents, then we want to outdent, hence we just return the initial indentation
 		return indentation;
 	}
 

@@ -403,11 +403,13 @@ export class TypeOperations {
 				return TypeOperations.unshiftIndent(config, indentation);
 			},
 		}, config.languageConfigurationService);
+		console.log('actualIndentation : ', actualIndentation);
 
 		if (actualIndentation === null) {
 			return null;
 		}
 
+		console.log('currentIndentation : ', currentIndentation);
 		if (actualIndentation !== config.normalizeIndentation(currentIndentation)) {
 			const firstNonWhitespace = model.getLineFirstNonWhitespaceColumn(range.startLineNumber);
 			if (firstNonWhitespace === 0) {
@@ -694,11 +696,18 @@ export class TypeOperations {
 	}
 
 	private static _runAutoClosingOpenCharType(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string, chIsAlreadyTyped: boolean, autoClosingPairClose: string): EditOperationResult {
+		console.log('_runAutoClosingOpenCharType');
+		console.log('selections : ', selections);
+		console.log('ch : ', ch);
+		console.log('chIsAlreadyTyped : ', chIsAlreadyTyped);
+		console.log('autoClosingPairClose : ', autoClosingPairClose);
+
 		const commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
 			commands[i] = new TypeWithAutoClosingCommand(selection, ch, !chIsAlreadyTyped, autoClosingPairClose);
 		}
+		console.log('commands : ', commands);
 		return new EditOperationResult(EditOperationType.TypingOther, commands, {
 			shouldPushStackElementBefore: true,
 			shouldPushStackElementAfter: false
@@ -914,7 +923,9 @@ export class TypeOperations {
 			});
 		}
 
-		if (this._isAutoClosingOvertype(config, model, selections, autoClosedCharacters, ch)) {
+		const autoClosingOvertype = this._isAutoClosingOvertype(config, model, selections, autoClosedCharacters, ch);
+		console.log('autoClosingOvertype : ', autoClosingOvertype);
+		if (autoClosingOvertype) {
 			// Unfortunately, the close character is at this point "doubled", so we need to delete it...
 			const commands = selections.map(s => new ReplaceCommand(new Range(s.positionLineNumber, s.positionColumn, s.positionLineNumber, s.positionColumn + 1), '', false));
 			return new EditOperationResult(EditOperationType.TypingOther, commands, {
@@ -924,6 +935,7 @@ export class TypeOperations {
 		}
 
 		const autoClosingPairClose = this._getAutoClosingPairClose(config, model, selections, ch, true);
+		console.log('autoClosingPairClose : ', autoClosingPairClose);
 		if (autoClosingPairClose !== null) {
 			return this._runAutoClosingOpenCharType(prevEditOperationType, config, model, selections, ch, true, autoClosingPairClose);
 		}
@@ -932,6 +944,7 @@ export class TypeOperations {
 	}
 
 	public static typeWithInterceptors(isDoingComposition: boolean, prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], autoClosedCharacters: Range[], ch: string): EditOperationResult {
+		console.log('typeWithInterceptors');
 
 		if (!isDoingComposition && ch === '\n') {
 			const commands: ICommand[] = [];
@@ -944,6 +957,7 @@ export class TypeOperations {
 			});
 		}
 
+		// Is there a reason why the auto closing over type can not be applied at the same time as the reindentation?
 		if (!isDoingComposition && this._isAutoIndentType(config, model, selections)) {
 			const commands: Array<ICommand | null> = [];
 			let autoIndentFails = false;
@@ -954,6 +968,7 @@ export class TypeOperations {
 					break;
 				}
 			}
+			console.log('autoIndentFails : ', autoIndentFails);
 			if (!autoIndentFails) {
 				return new EditOperationResult(EditOperationType.TypingOther, commands, {
 					shouldPushStackElementBefore: true,
@@ -962,12 +977,15 @@ export class TypeOperations {
 			}
 		}
 
-		if (this._isAutoClosingOvertype(config, model, selections, autoClosedCharacters, ch)) {
+		const isAutoClosingOvertype = this._isAutoClosingOvertype(config, model, selections, autoClosedCharacters, ch);
+		console.log('isAutoClosingOvertype : ', isAutoClosingOvertype);
+		if (isAutoClosingOvertype) {
 			return this._runAutoClosingOvertype(prevEditOperationType, config, model, selections, ch);
 		}
 
 		if (!isDoingComposition) {
 			const autoClosingPairClose = this._getAutoClosingPairClose(config, model, selections, ch, false);
+			console.log('autoClosingPairClose : ', autoClosingPairClose);
 			if (autoClosingPairClose) {
 				return this._runAutoClosingOpenCharType(prevEditOperationType, config, model, selections, ch, false, autoClosingPairClose);
 			}
