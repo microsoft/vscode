@@ -148,6 +148,9 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 
 	private _unusedRects: ITextureAtlasSlabUnusedRect[] = [];
 
+	private _openRegionsByHeight: Map<number, ITextureAtlasSlabUnusedRect[]> = new Map();
+	private _openRegionsByWidth: Map<number, ITextureAtlasSlabUnusedRect[]> = new Map();
+
 	readonly glyphMap: TwoKeyMap<string, number, ITextureAtlasGlyph> = new TwoKeyMap();
 
 	private _nextIndex = 0;
@@ -168,7 +171,7 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 
 		// Round slab glyph dimensions to the nearest x pixels, where x scaled with device pixel ratio
 		// const nearestXPixels = Math.max(1, Math.floor(dpr / 0.5));
-		const nearestXPixels = Math.max(1, Math.floor(dpr));
+		// const nearestXPixels = Math.max(1, Math.floor(dpr));
 		const desiredSlabSize = {
 			// Nearest square number
 			// TODO: This can probably be optimized
@@ -176,16 +179,16 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 			// h: 1 << Math.ceil(Math.sqrt(glyphHeight)),
 
 			// Nearest x px
-			w: Math.ceil(glyphWidth / nearestXPixels) * nearestXPixels,
-			h: Math.ceil(glyphHeight / nearestXPixels) * nearestXPixels,
+			// w: Math.ceil(glyphWidth / nearestXPixels) * nearestXPixels,
+			// h: Math.ceil(glyphHeight / nearestXPixels) * nearestXPixels,
 
 			// Round odd numbers up
 			// w: glyphWidth % 0 === 1 ? glyphWidth + 1 : glyphWidth,
 			// h: glyphHeight % 0 === 1 ? glyphHeight + 1 : glyphHeight,
 
 			// Exact number only
-			// w: glyphWidth,
-			// h: glyphHeight,
+			w: glyphWidth,
+			h: glyphHeight,
 		};
 
 		const slabW = 64 << (Math.floor(getActiveWindow().devicePixelRatio) - 1); // this._canvas.width / 8;
@@ -208,48 +211,112 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 
 		// Search for suitable space in unused rectangles
 		if (!slab) {
-			for (const [i, r] of this._unusedRects.entries()) {
-				if (r.w < r.h) {
-					if (r.w >= glyphWidth && r.h >= glyphHeight) {
-						dx = r.x;
-						dy = r.y;
-						if (glyphWidth < r.w) {
-							this._unusedRects.push({
-								x: r.x + glyphWidth,
-								y: r.y,
-								w: r.w - glyphWidth,
-								h: glyphHeight
-							});
+			// Only check availability for the smallest side
+			if (glyphWidth < glyphHeight) {
+				const openRegions = this._openRegionsByWidth.get(glyphWidth);
+				if (openRegions?.length) {
+					// TODO: Don't search everything?
+					// Search from the end so we can typically pop it off the stack
+					for (let i = openRegions.length - 1; i >= 0; i--) {
+						const r = openRegions[i];
+						if (r.w >= glyphWidth && r.h >= glyphHeight) {
+							dx = r.x;
+							dy = r.y;
+							if (glyphWidth < r.w) {
+								this._unusedRects.push({
+									x: r.x + glyphWidth,
+									y: r.y,
+									w: r.w - glyphWidth,
+									h: glyphHeight
+								});
+							}
+							r.y += glyphHeight;
+							r.h -= glyphHeight;
+							if (r.h === 0) {
+								if (i === openRegions.length - 1) {
+									openRegions.pop();
+								} else {
+									this._unusedRects.splice(i, 1);
+								}
+							}
+							break;
 						}
-						r.y += glyphHeight;
-						r.h -= glyphHeight;
-						if (r.h === 0) {
-							// TODO: This is slow
-							this._unusedRects.splice(i, 1);
-						}
-						break;
 					}
-				} else {
-					if (r.w >= glyphWidth && r.h >= glyphHeight) {
-						dx = r.x;
-						dy = r.y;
-						if (glyphHeight < r.h) {
-							this._unusedRects.push({
-								x: r.x,
-								y: r.y + glyphHeight,
-								w: glyphWidth,
-								h: r.h - glyphHeight
-							});
-						}
-						r.x += glyphWidth;
-						r.w -= glyphWidth;
-						if (r.w === 0) {
-							// TODO: This is slow
-							this._unusedRects.splice(i, 1);
+				}
+			} else {
+				const openRegions = this._openRegionsByHeight.get(glyphHeight);
+				if (openRegions?.length) {
+					// TODO: Don't search everything?
+					// Search from the end so we can typically pop it off the stack
+					for (let i = openRegions.length - 1; i >= 0; i--) {
+						const r = openRegions[i];
+						if (r.w >= glyphWidth && r.h >= glyphHeight) {
+							dx = r.x;
+							dy = r.y;
+							if (glyphHeight < r.h) {
+								this._unusedRects.push({
+									x: r.x,
+									y: r.y + glyphHeight,
+									w: glyphWidth,
+									h: r.h - glyphHeight
+								});
+							}
+							r.x += glyphWidth;
+							r.w -= glyphWidth;
+							if (r.h === 0) {
+								if (i === openRegions.length - 1) {
+									openRegions.pop();
+								} else {
+									this._unusedRects.splice(i, 1);
+								}
+							}
+							break;
 						}
 					}
 				}
 			}
+			// for (const [i, r] of this._unusedRects.entries()) {
+			// 	if (r.w < r.h) {
+			// 		if (r.w >= glyphWidth && r.h >= glyphHeight) {
+			// 			dx = r.x;
+			// 			dy = r.y;
+			// 			if (glyphWidth < r.w) {
+			// 				this._unusedRects.push({
+			// 					x: r.x + glyphWidth,
+			// 					y: r.y,
+			// 					w: r.w - glyphWidth,
+			// 					h: glyphHeight
+			// 				});
+			// 			}
+			// 			r.y += glyphHeight;
+			// 			r.h -= glyphHeight;
+			// 			if (r.h === 0) {
+			// 				// TODO: This is slow
+			// 				this._unusedRects.splice(i, 1);
+			// 			}
+			// 			break;
+			// 		}
+			// 	} else {
+			// 		if (r.w >= glyphWidth && r.h >= glyphHeight) {
+			// 			dx = r.x;
+			// 			dy = r.y;
+			// 			if (glyphHeight < r.h) {
+			// 				this._unusedRects.push({
+			// 					x: r.x,
+			// 					y: r.y + glyphHeight,
+			// 					w: glyphWidth,
+			// 					h: r.h - glyphHeight
+			// 				});
+			// 			}
+			// 			r.x += glyphWidth;
+			// 			r.w -= glyphWidth;
+			// 			if (r.w === 0) {
+			// 				// TODO: This is slow
+			// 				this._unusedRects.splice(i, 1);
+			// 			}
+			// 		}
+			// 	}
+			// }
 		}
 
 		// Create a new slab
@@ -273,7 +340,7 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 				const unusedW = slabW % slab.entryW;
 				const unusedH = slabH % slab.entryH;
 				if (unusedW) {
-					this._unusedRects.push({
+					addEntryToMapArray(this._openRegionsByWidth, unusedW, {
 						x: slab.x + slabW - unusedW,
 						w: unusedW,
 						y: slab.y,
@@ -281,7 +348,7 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 					});
 				}
 				if (unusedH) {
-					this._unusedRects.push({
+					addEntryToMapArray(this._openRegionsByHeight, unusedH, {
 						x: slab.x,
 						w: slabW,
 						y: slab.y + slabH - unusedH,
@@ -382,7 +449,8 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 		}
 
 		// Draw unused space on side
-		for (const r of this._unusedRects) {
+		const unusedRegions = Array.from(this._openRegionsByWidth.values()).flat().concat(Array.from(this._openRegionsByHeight.values()).flat());
+		for (const r of unusedRegions) {
 			ctx.fillStyle = '#FF000080';
 			ctx.fillRect(r.x, r.y, r.w, r.h);
 			restrictedPixels += r.w * r.h;
@@ -429,6 +497,15 @@ export interface ITextureAtlasSlabUnusedRect {
 	y: number;
 	w: number;
 	h: number;
+}
+
+function addEntryToMapArray<K, V>(map: Map<K, V[]>, key: K, entry: V) {
+	let list = map.get(key);
+	if (!list) {
+		list = [];
+		map.set(key, list);
+	}
+	list.push(entry);
 }
 
 // #endregion

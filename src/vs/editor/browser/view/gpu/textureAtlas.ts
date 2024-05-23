@@ -111,9 +111,27 @@ export class TextureAtlas extends Disposable {
 		// TODO: Clean up on dispose
 		this._warmUpTask?.clear();
 		this._warmUpTask = new IdleTaskQueue();
-		for (const tokenFg of this._colorMap.keys()) {
+		// Warm up using roughly the larger glyphs first to help optimize atlas allocation
+		// A-Z
+		for (let code = 65; code <= 90; code++) {
 			this._warmUpTask.enqueue(() => {
-				for (let code = 33; code <= 126; code++) {
+				for (const tokenFg of this._colorMap.keys()) {
+					this.getGlyph(String.fromCharCode(code), tokenFg);
+				}
+			});
+		}
+		// a-z
+		for (let code = 97; code <= 122; code++) {
+			this._warmUpTask.enqueue(() => {
+				for (const tokenFg of this._colorMap.keys()) {
+					this.getGlyph(String.fromCharCode(code), tokenFg);
+				}
+			});
+		}
+		// Remaining ascii
+		for (let code = 33; code <= 126; code++) {
+			this._warmUpTask.enqueue(() => {
+				for (const tokenFg of this._colorMap.keys()) {
 					this.getGlyph(String.fromCharCode(code), tokenFg);
 				}
 			});

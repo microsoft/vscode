@@ -111,7 +111,7 @@ export class GpuViewLayerRenderer<T extends IVisibleLine> {
 
 		// Create texture atlas
 		if (!GpuViewLayerRenderer._textureAtlas) {
-			const pageSize = 1024; // this._device.limits.maxTextureDimension2D;
+			const pageSize = this._device.limits.maxTextureDimension2D;
 			GpuViewLayerRenderer._textureAtlas = this._instantiationService.createInstance(TextureAtlas, this.domNode, pageSize, this._device.limits.maxTextureDimension2D);
 		}
 		const textureAtlas = GpuViewLayerRenderer._textureAtlas;

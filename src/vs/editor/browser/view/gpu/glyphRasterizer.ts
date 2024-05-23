@@ -35,7 +35,8 @@ export class GlyphRasterizer extends Disposable {
 		const originX = this._fontSize;
 		const originY = this._fontSize;
 		this._ctx.fillStyle = fg;
-		const textMetrics = this._ctx.measureText(chars);
+		// TODO: This might actually be slower
+		// const textMetrics = this._ctx.measureText(chars);
 		this._ctx.fillText(chars, originX, originY);
 
 		const imageData = this._ctx.getImageData(0, 0, this._canvas.width, this._canvas.height);
@@ -60,19 +61,19 @@ export class GlyphRasterizer extends Disposable {
 				y: boundingBox.top - originY
 			}
 		};
-		const result2: IRasterizedGlyph = {
-			source: this._canvas,
-			boundingBox: {
-				left: Math.floor(originX - textMetrics.actualBoundingBoxLeft),
-				right: Math.ceil(originX + textMetrics.actualBoundingBoxRight),
-				top: Math.floor(originY - textMetrics.actualBoundingBoxAscent),
-				bottom: Math.ceil(originY + textMetrics.actualBoundingBoxDescent),
-			},
-			originOffset: {
-				x: Math.floor(boundingBox.left - originX),
-				y: Math.floor(boundingBox.top - originY)
-			}
-		};
+		// const result2: IRasterizedGlyph = {
+		// 	source: this._canvas,
+		// 	boundingBox: {
+		// 		left: Math.floor(originX - textMetrics.actualBoundingBoxLeft),
+		// 		right: Math.ceil(originX + textMetrics.actualBoundingBoxRight),
+		// 		top: Math.floor(originY - textMetrics.actualBoundingBoxAscent),
+		// 		bottom: Math.ceil(originY + textMetrics.actualBoundingBoxDescent),
+		// 	},
+		// 	originOffset: {
+		// 		x: Math.floor(boundingBox.left - originX),
+		// 		y: Math.floor(boundingBox.top - originY)
+		// 	}
+		// };
 
 		// DEBUG: Show image data in console
 		// (console as any).image(imageData);
@@ -91,9 +92,9 @@ export class GlyphRasterizer extends Disposable {
 		// if (result2.boundingBox.bottom < result.boundingBox.bottom) {
 		// 	debugger;
 		// }
-		if (JSON.stringify(result2.originOffset) !== JSON.stringify(result.originOffset)) {
-			debugger;
-		}
+		// if (JSON.stringify(result2.originOffset) !== JSON.stringify(result.originOffset)) {
+		// 	debugger;
+		// }
 
 		return result;
 	}
