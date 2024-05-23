@@ -46,9 +46,9 @@ declare module 'vscode' {
 
 		/**
 		 * Creates a stream of raw data (including escape sequences) that is written to the
-		 * terminal. This will only include data that was written after `readData` was called for
-		 * the first time, ie. you must call `readData` immediately after the command is executed
-		 * via {@link TerminalShellIntegration.executeCommand} or
+		 * terminal. This will only include data that was written after `read` was called for
+		 * the first time, ie. you must call `read` immediately after the command is executed via
+		 * {@link TerminalShellIntegration.executeCommand} or
 		 * {@link window.onDidStartTerminalShellExecution} to not miss any data.
 		 *
 		 * @example

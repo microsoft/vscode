@@ -44,6 +44,8 @@ import { ReplacePattern } from 'vs/workbench/services/search/common/replace';
 import { IAITextQuery, IFileMatch, IPatternInfo, ISearchComplete, ISearchConfigurationProperties, ISearchProgressItem, ISearchRange, ISearchService, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchPreviewOptions, ITextSearchResult, ITextSearchStats, OneLineRange, QueryType, resultIsMatch, SearchCompletionExitCode, SearchSortOrder } from 'vs/workbench/services/search/common/search';
 import { getTextSearchMatchWithModelContext, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
 import { CellSearchModel } from 'vs/workbench/contrib/search/common/cellSearchModel';
+import { CellFindMatchModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findModel';
+import { coalesce } from 'vs/base/common/arrays';
 
 export class Match {
 
@@ -583,10 +585,10 @@ export class FileMatch extends Disposable implements IFileMatch {
 		this._model.changeDecorations((accessor) => {
 			const newDecorations = (
 				this.parent().showHighlights
-					? this.matches().map(match => <IModelDeltaDecoration>{
+					? this.matches().map((match): IModelDeltaDecoration => ({
 						range: match.range(),
 						options: FileMatch.getDecorationOption(this.isMatchSelected(match))
-					})
+					}))
 					: []
 			);
 			this._modelDecorations = accessor.deltaDecorations(this._modelDecorations, newDecorations);
@@ -836,22 +838,23 @@ export class FileMatch extends Disposable implements IFileMatch {
 		if (!this._findMatchDecorationModel) {
 			return;
 		}
-		const cellFindMatch: CellFindMatchWithIndex[] = cells.map((cell) => {
-			const webviewMatches: CellWebviewFindMatch[] = cell.webviewMatches.map(match => {
-				return <CellWebviewFindMatch>{
+		const cellFindMatch = coalesce(cells.map((cell): CellFindMatchModel | undefined => {
+			const webviewMatches: CellWebviewFindMatch[] = coalesce(cell.webviewMatches.map((match): CellWebviewFindMatch | undefined => {
+				if (!match.webviewIndex) {
+					return undefined;
+				}
+				return {
 					index: match.webviewIndex,
 				};
-			});
+			}));
+			if (!cell.cell) {
+				return undefined;
+			}
 			const findMatches: FindMatch[] = cell.contentMatches.map(match => {
 				return new FindMatch(match.range(), [match.text()]);
 			});
-			return <CellFindMatchWithIndex>{
-				cell: cell.cell,
-				index: cell.cellIndex,
-				contentMatches: findMatches,
-				webviewMatches: webviewMatches
-			};
-		});
+			return new CellFindMatchModel(cell.cell, cell.cellIndex, findMatches, webviewMatches);
+		}));
 		try {
 			this._findMatchDecorationModel.setAllFindMatchesDecorations(cellFindMatch);
 		} catch (e) {
@@ -2154,7 +2157,7 @@ export class SearchModel extends Disposable {
 			const resolvedNotebookResults = await notebookResult.completeData;
 			tokenSource.dispose();
 			const searchLength = Date.now() - searchStart;
-			const resolvedResult = <ISearchComplete>{
+			const resolvedResult: ISearchComplete = {
 				results: [...allClosedEditorResults.results, ...resolvedNotebookResults.results],
 				messages: [...allClosedEditorResults.messages, ...resolvedNotebookResults.messages],
 				limitHit: allClosedEditorResults.limitHit || resolvedNotebookResults.limitHit,
@@ -2560,3 +2563,4 @@ function mergeSearchResultEvents(events: IChangeEvent[]): IChangeEvent {
 
 	return retEvent;
 }
+

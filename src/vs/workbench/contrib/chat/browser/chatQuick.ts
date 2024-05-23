@@ -22,7 +22,7 @@ import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatProgress, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 
 export class QuickChatService extends Disposable implements IQuickChatService {
@@ -206,14 +206,15 @@ class QuickChat extends Disposable {
 
 	render(parent: HTMLElement): void {
 		if (this.widget) {
+			// NOTE: if this changes, we need to make sure disposables in this function are tracked differently.
 			throw new Error('Cannot render quick chat twice');
 		}
-		const scopedInstantiationService = this.instantiationService.createChild(
+		const scopedInstantiationService = this._register(this.instantiationService.createChild(
 			new ServiceCollection([
 				IContextKeyService,
 				this._register(this.contextKeyService.createScoped(parent))
 			])
-		);
+		));
 		this.widget = this._register(
 			scopedInstantiationService.createInstance(
 				ChatWidget,
@@ -271,7 +272,7 @@ class QuickChat extends Disposable {
 		}));
 	}
 
-	async acceptInput(): Promise<void> {
+	async acceptInput() {
 		return this.widget.acceptInput();
 	}
 
@@ -283,12 +284,29 @@ class QuickChat extends Disposable {
 
 		for (const request of this.model.getRequests()) {
 			if (request.response?.response.value || request.response?.result) {
+
+
+				const message: IChatProgress[] = [];
+				for (const item of request.response.response.value) {
+					if (item.kind === 'textEditGroup') {
+						for (const group of item.edits) {
+							message.push({
+								kind: 'textEdit',
+								edits: group,
+								uri: item.uri
+							});
+						}
+					} else {
+						message.push(item);
+					}
+				}
+
 				this.chatService.addCompleteRequest(widget.viewModel.sessionId,
 					request.message as IParsedChatRequest,
 					request.variableData,
 					request.attempt,
 					{
-						message: request.response.response.value,
+						message,
 						result: request.response.result,
 						followups: request.response.followups
 					});

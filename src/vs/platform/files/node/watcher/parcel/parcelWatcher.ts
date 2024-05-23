@@ -21,7 +21,7 @@ import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { realcaseSync, realpathSync } from 'vs/base/node/extpath';
 import { NodeJSFileWatcherLibrary } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
 import { FileChangeType, IFileChange } from 'vs/platform/files/common/files';
-import { coalesceEvents, IRecursiveWatchRequest, parseWatcherPatterns, IRecursiveWatcherWithSubscribe } from 'vs/platform/files/common/watcher';
+import { coalesceEvents, IRecursiveWatchRequest, parseWatcherPatterns, IRecursiveWatcherWithSubscribe, isFiltered, IWatcherErrorEvent } from 'vs/platform/files/common/watcher';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 
 export class ParcelWatcherInstance extends Disposable {
@@ -147,7 +147,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 
 	private static readonly PARCEL_WATCHER_BACKEND = isWindows ? 'windows' : isLinux ? 'inotify' : 'fs-events';
 
-	private readonly _onDidError = this._register(new Emitter<string>());
+	private readonly _onDidError = this._register(new Emitter<IWatcherErrorEvent>());
 	readonly onDidError = this._onDidError.event;
 
 	readonly watchers = new Set<ParcelWatcherInstance>();
@@ -175,7 +175,6 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		events => this._onDidChangeFile.fire(events)
 	));
 
-	private verboseLogging = false;
 	private enospcErrorLogged = false;
 
 	constructor() {
@@ -236,7 +235,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		for (const watcher of this.watchers) {
 
 			// Requests or watchers with correlation always match on that
-			if (typeof request.correlationId === 'number' || typeof watcher.request.correlationId === 'number') {
+			if (this.isCorrelated(request) || this.isCorrelated(watcher.request)) {
 				if (watcher.request.correlationId === request.correlationId) {
 					return watcher;
 				}
@@ -360,7 +359,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 			// the state of parcel at this point and as such will try to restart
 			// up to our maximum of restarts.
 			if (error) {
-				this.onUnexpectedError(error, watcher);
+				this.onUnexpectedError(error, request);
 			}
 
 			// Handle & emit events
@@ -373,7 +372,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 
 			instance.complete(parcelWatcher);
 		}).catch(error => {
-			this.onUnexpectedError(error, watcher);
+			this.onUnexpectedError(error, request);
 
 			instance.complete(undefined);
 
@@ -407,13 +406,13 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		for (const { path, type: parcelEventType } of parcelEvents) {
 			const type = ParcelWatcher.MAP_PARCEL_WATCHER_ACTION_TO_FILE_CHANGE.get(parcelEventType)!;
 			if (this.verboseLogging) {
-				this.trace(`${type === FileChangeType.ADDED ? '[ADDED]' : type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${path}`);
+				this.traceWithCorrelation(`${type === FileChangeType.ADDED ? '[ADDED]' : type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${path}`, watcher.request);
 			}
 
 			// Apply include filter if any
 			if (!watcher.include(path)) {
 				if (this.verboseLogging) {
-					this.trace(` >> ignored (not included) ${path}`);
+					this.traceWithCorrelation(` >> ignored (not included) ${path}`, watcher.request);
 				}
 			} else {
 				events.push({ type, resource: URI.file(path), cId: watcher.request.correlationId });
@@ -443,19 +442,6 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 	private emitEvents(events: IFileChange[], watcher: ParcelWatcherInstance): void {
 		if (events.length === 0) {
 			return;
-		}
-
-		for (const event of events) {
-
-			// Emit to instance subscriptions if any
-			if (watcher.subscriptionsCount > 0) {
-				watcher.notifyFileChange(event.resource.fsPath, event);
-			}
-
-			// Logging
-			if (this.verboseLogging) {
-				this.traceEvent(event, watcher.request);
-			}
 		}
 
 		// Broadcast to clients via throttler
@@ -528,11 +514,18 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		const filteredEvents: IFileChange[] = [];
 		let rootDeleted = false;
 
+		const filter = this.isCorrelated(watcher.request) ? watcher.request.filter : undefined; // TODO@bpasero filtering for now is only enabled when correlating because watchers are otherwise potentially reused
 		for (const event of events) {
+
+			// Emit to instance subscriptions if any before filtering
+			if (watcher.subscriptionsCount > 0) {
+				watcher.notifyFileChange(event.resource.fsPath, event);
+			}
+
+			// Filtering
 			rootDeleted = event.type === FileChangeType.DELETED && isEqual(event.resource.fsPath, watcher.request.path, !isLinux);
-
-			if (rootDeleted && !this.isCorrelated(watcher.request)) {
-
+			if (
+				isFiltered(event, filter) ||
 				// Explicitly exclude changes to root if we have any
 				// to avoid VS Code closing all opened editors which
 				// can happen e.g. in case of network connectivity
@@ -543,9 +536,17 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 				// really do not want to skip over file events any
 				// more, so we only ignore this event for non-correlated
 				// watch requests.
+				(rootDeleted && !this.isCorrelated(watcher.request))
+			) {
+				if (this.verboseLogging) {
+					this.traceWithCorrelation(` >> ignored (filtered) ${event.resource.fsPath}`, watcher.request);
+				}
 
 				continue;
 			}
+
+			// Logging
+			this.traceEvent(event, watcher.request);
 
 			filteredEvents.push(event);
 		}
@@ -606,7 +607,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		return false;
 	}
 
-	private onUnexpectedError(error: unknown, watcher?: ParcelWatcherInstance): void {
+	private onUnexpectedError(error: unknown, request?: IRecursiveWatchRequest): void {
 		const msg = toErrorMessage(error);
 
 		// Specially handle ENOSPC errors that can happen when
@@ -616,7 +617,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		// See https://github.com/microsoft/vscode/issues/7950
 		if (msg.indexOf('No space left on device') !== -1) {
 			if (!this.enospcErrorLogged) {
-				this.error('Inotify limit reached (ENOSPC)', watcher);
+				this.error('Inotify limit reached (ENOSPC)', request);
 
 				this.enospcErrorLogged = true;
 			}
@@ -626,9 +627,9 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		// restart the watcher as a result to get into healthy
 		// state again if possible and if not attempted too much
 		else {
-			this.error(`Unexpected error: ${msg} (EUNKNOWN)`, watcher);
+			this.error(`Unexpected error: ${msg} (EUNKNOWN)`, request);
 
-			this._onDidError.fire(msg);
+			this._onDidError.fire({ request, error: msg });
 		}
 	}
 
@@ -680,7 +681,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		try {
 			await watcher.stop(joinRestart);
 		} catch (error) {
-			this.error(`Unexpected error stopping watcher: ${toErrorMessage(error)}`, watcher);
+			this.error(`Unexpected error stopping watcher: ${toErrorMessage(error)}`, watcher.request);
 		}
 	}
 
@@ -781,7 +782,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		return true;
 	}
 
-	subscribe(path: string, callback: (error: boolean, change?: IFileChange) => void): IDisposable | undefined {
+	subscribe(path: string, callback: (error: true | null, change?: IFileChange) => void): IDisposable | undefined {
 		for (const watcher of this.watchers) {
 			if (watcher.failed) {
 				continue; // watcher has already failed
@@ -809,7 +810,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 				callback(true /* error */);
 			}));
 			disposables.add(Event.once(watcher.onDidFail)(() => callback(true /* error */)));
-			disposables.add(watcher.subscribe(path, change => callback(false, change)));
+			disposables.add(watcher.subscribe(path, change => callback(null, change)));
 
 			return disposables;
 		}
@@ -817,26 +818,22 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		return undefined;
 	}
 
-	async setVerboseLogging(enabled: boolean): Promise<void> {
-		this.verboseLogging = enabled;
-	}
-
 	protected trace(message: string, watcher?: ParcelWatcherInstance): void {
 		if (this.verboseLogging) {
-			this._onDidLogMessage.fire({ type: 'trace', message: this.toMessage(message, watcher) });
+			this._onDidLogMessage.fire({ type: 'trace', message: this.toMessage(message, watcher?.request) });
 		}
 	}
 
 	protected warn(message: string, watcher?: ParcelWatcherInstance) {
-		this._onDidLogMessage.fire({ type: 'warn', message: this.toMessage(message, watcher) });
+		this._onDidLogMessage.fire({ type: 'warn', message: this.toMessage(message, watcher?.request) });
 	}
 
-	private error(message: string, watcher: ParcelWatcherInstance | undefined) {
-		this._onDidLogMessage.fire({ type: 'error', message: this.toMessage(message, watcher) });
+	private error(message: string, request?: IRecursiveWatchRequest) {
+		this._onDidLogMessage.fire({ type: 'error', message: this.toMessage(message, request) });
 	}
 
-	private toMessage(message: string, watcher?: ParcelWatcherInstance): string {
-		return watcher ? `[File Watcher (parcel)] ${message} (path: ${watcher.request.path})` : `[File Watcher (parcel)] ${message}`;
+	private toMessage(message: string, request?: IRecursiveWatchRequest): string {
+		return request ? `[File Watcher (parcel)] ${message} (path: ${request.path})` : `[File Watcher (parcel)] ${message}`;
 	}
 
 	protected get recursiveWatcher() { return this; }

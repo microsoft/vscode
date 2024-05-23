@@ -28,6 +28,7 @@ export class MockChatService implements IChatService {
 		throw new Error('Method not implemented.');
 	}
 	getSession(sessionId: string): IChatModel | undefined {
+		// eslint-disable-next-line local/code-no-dangerous-type-assertions
 		return {} as IChatModel;
 	}
 	getOrRestoreSession(sessionId: string): IChatModel | undefined {
@@ -43,6 +44,9 @@ export class MockChatService implements IChatService {
 		throw new Error('Method not implemented.');
 	}
 	resendRequest(request: IChatRequestModel, options?: IChatSendRequestOptions | undefined): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+	adoptRequest(sessionId: string, request: IChatRequestModel): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
 	removeRequest(sessionid: string, requestId: string): Promise<void> {

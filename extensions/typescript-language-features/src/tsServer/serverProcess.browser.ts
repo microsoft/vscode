@@ -8,12 +8,13 @@ import { ApiService, Requests } from '@vscode/sync-api-service';
 import * as vscode from 'vscode';
 import { TypeScriptServiceConfiguration } from '../configuration/configuration';
 import { Logger } from '../logging/logger';
+import { supportsReadableByteStreams } from '../utils/platform';
 import { FileWatcherManager } from './fileWatchingManager';
+import { NodeVersionManager } from './nodeManager';
 import type * as Proto from './protocol/protocol';
 import { TsServerLog, TsServerProcess, TsServerProcessFactory, TsServerProcessKind } from './server';
 import { TypeScriptVersionManager } from './versionManager';
 import { TypeScriptVersion } from './versionProvider';
-import { NodeVersionManager } from './nodeManager';
 
 type BrowserWatchEvent = {
 	type: 'watchDirectory' | 'watchFile';
@@ -50,7 +51,7 @@ export class WorkerServerProcessFactory implements TsServerProcessFactory {
 			// Explicitly give TS Server its path so it can load local resources
 			'--executingFilePath', tsServerPath,
 		];
-		if (_configuration.webExperimentalTypeAcquisition) {
+		if (_configuration.webTypeAcquisitionEnabled && supportsReadableByteStreams()) {
 			launchArgs.push('--experimentalTypeAcquisition');
 		}
 		return new WorkerServerProcess(kind, tsServerPath, this._extensionUri, launchArgs, tsServerLog, this._logger);

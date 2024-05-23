@@ -62,7 +62,9 @@ export class HoverService extends Disposable implements IHoverService {
 		// HACK, remove this check when #189076 is fixed
 		if (!skipLastFocusedUpdate) {
 			if (trapFocus && activeElement) {
-				this._lastFocusedElementBeforeOpen = activeElement as HTMLElement;
+				if (!activeElement.classList.contains('monaco-hover')) {
+					this._lastFocusedElementBeforeOpen = activeElement as HTMLElement;
+				}
 			} else {
 				this._lastFocusedElementBeforeOpen = undefined;
 			}
@@ -187,6 +189,8 @@ export class HoverService extends Disposable implements IHoverService {
 		}
 	}
 
+	private readonly _existingHovers = new Map<HTMLElement, IUpdatableHover>();
+
 	// TODO: Investigate performance of this function. There seems to be a lot of content created
 	//       and thrown away on start up
 	setupUpdatableHover(hoverDelegate: IHoverDelegate, htmlElement: HTMLElement, content: IUpdatableHoverContentOrFactory, options?: IUpdatableHoverOptions | undefined): IUpdatableHover {
@@ -218,11 +222,11 @@ export class HoverService extends Disposable implements IHoverService {
 			}
 		};
 
-		const triggerShowHover = (delay: number, focus?: boolean, target?: IHoverDelegateTarget) => {
+		const triggerShowHover = (delay: number, focus?: boolean, target?: IHoverDelegateTarget, trapFocus?: boolean) => {
 			return new TimeoutTimer(async () => {
 				if (!hoverWidget || hoverWidget.isDisposed) {
 					hoverWidget = new UpdatableHoverWidget(hoverDelegate, target || htmlElement, delay > 0);
-					await hoverWidget.update(typeof content === 'function' ? content() : content, focus, options);
+					await hoverWidget.update(typeof content === 'function' ? content() : content, focus, { ...options, trapFocus });
 				}
 			}, delay);
 		};
@@ -297,7 +301,7 @@ export class HoverService extends Disposable implements IHoverService {
 		const hover: IUpdatableHover = {
 			show: focus => {
 				hideHover(false, true); // terminate a ongoing mouse over preparation
-				triggerShowHover(0, focus); // show hover immediately
+				triggerShowHover(0, focus, undefined, focus); // show hover immediately
 			},
 			hide: () => {
 				hideHover(true, true);
@@ -307,6 +311,7 @@ export class HoverService extends Disposable implements IHoverService {
 				await hoverWidget?.update(content, undefined, hoverOptions);
 			},
 			dispose: () => {
+				this._existingHovers.delete(htmlElement);
 				mouseOverDomEmitter.dispose();
 				mouseLeaveEmitter.dispose();
 				mouseDownEmitter.dispose();
@@ -315,7 +320,20 @@ export class HoverService extends Disposable implements IHoverService {
 				hideHover(true, true);
 			}
 		};
+		this._existingHovers.set(htmlElement, hover);
 		return hover;
+	}
+
+	triggerUpdatableHover(target: HTMLElement): void {
+		const hover = this._existingHovers.get(target);
+		if (hover) {
+			hover.show(true);
+		}
+	}
+
+	public override dispose(): void {
+		this._existingHovers.forEach(hover => hover.dispose());
+		super.dispose();
 	}
 }
 

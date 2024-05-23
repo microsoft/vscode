@@ -3,28 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .xterm.dev-mode .xterm-helper-textarea {
-	z-index: 36 !important;
-	opacity: 0.8 !important;
-	right: 0 !important;
-	left: initial !important;
-	width: 50% !important;
-	background-color: var(--vscode-terminal-background, var(--vscode-panel-background));
-	color: var(--vscode-terminal-foreground);
-	transform: translateY(-100%);
-}
-.monaco-workbench .xterm.dev-mode .xterm-helper-textarea:focus {
-	opacity: 0.8 !important;
-}
-.monaco-workbench .xterm.dev-mode .xterm-helpers {
-	/* This could maybe be done outside of .dev-mode, but I'm scared to break something */
-	left: 0;
-	right: 0;
-}
-.monaco-workbench .xterm.dev-mode .xterm-helper-textarea:hover {
-	opacity: 0.25 !important;
-}
-
 .monaco-workbench .xterm.dev-mode .xterm-sequence-decoration {
 	background-color: var(--vscode-terminal-background, var(--vscode-panel-background));
 	display: none !important;

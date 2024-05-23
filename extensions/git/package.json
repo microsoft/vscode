@@ -31,6 +31,7 @@
     "scmSelectedProvider",
     "scmTextDocument",
     "scmValidation",
+    "tabInputMultiDiff",
     "tabInputTextMerge",
     "timeline"
   ],
@@ -1385,6 +1386,18 @@
         {
           "command": "git.stashView",
           "when": "config.git.enabled && !git.missing && config.multiDiffEditor.experimental.enabled"
+        },
+        {
+          "command": "git.viewChanges",
+          "when": "config.git.enabled && !git.missing && config.multiDiffEditor.experimental.enabled"
+        },
+        {
+          "command": "git.viewStagedChanges",
+          "when": "config.git.enabled && !git.missing && config.multiDiffEditor.experimental.enabled"
+        },
+        {
+          "command": "git.viewUntrackedChanges",
+          "when": "config.git.enabled && !git.missing && config.multiDiffEditor.experimental.enabled && config.git.untrackedChanges == separate"
         },
         {
           "command": "git.viewCommit",
@@ -3396,7 +3409,7 @@
   "devDependencies": {
     "@types/byline": "4.2.31",
     "@types/mocha": "^9.1.1",
-    "@types/node": "18.x",
+    "@types/node": "20.x",
     "@types/picomatch": "2.3.0",
     "@types/which": "3.0.0"
   },
