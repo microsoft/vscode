@@ -641,8 +641,9 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		this._register(this.onDidChangeActiveGroup(() => this.updateGlobalContextKeys()));
 		this._register(this.onDidAddGroup(group => this.registerGroupContextKeyProvidersListeners(group)));
 		this._register(this.onDidRemoveGroup(group => {
-			this.removeGroupScopedContextKeys(group);
-			this.unregisterGroupContextKeyProvidersListeners(group);
+			this.scopedContextKeys.delete(group.id);
+			this.registeredContextKeys.delete(group.id);
+			this.contextKeyProviderDisposables.deleteAndDispose(group.id);
 		}));
 	}
 
@@ -660,11 +661,6 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 				globalContextKey.reset();
 			}
 		}
-	}
-
-	private removeGroupScopedContextKeys(group: IEditorGroupView): void {
-		this.scopedContextKeys.delete(group.id);
-		this.registeredContextKeys.delete(group.id);
 	}
 
 	bind<T extends ContextKeyValue>(contextKey: RawContextKey<T>, group: IEditorGroupView): IContextKey<T> {
@@ -720,7 +716,7 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 
 		const setContextKeyForGroups = () => {
 			for (const group of this.groups) {
-				this.runRegisteredContextKeyProvider(group, provider);
+				this.updateRegisteredContextKey(group, provider);
 			}
 		};
 
@@ -730,35 +726,33 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 
 		return toDisposable(() => {
 			onDidChange?.dispose();
-			this.contextKeyProviders.delete(provider.contextKey.key);
+
 			this.globalContextKeys.delete(provider.contextKey.key);
 			this.scopedContextKeys.forEach(scopedContextKeys => scopedContextKeys.delete(provider.contextKey.key));
+
+			this.contextKeyProviders.delete(provider.contextKey.key);
 			this.registeredContextKeys.forEach(registeredContextKeys => registeredContextKeys.delete(provider.contextKey.key));
 		});
 	}
 
-	private readonly groupContextKeyProvidersDisposables = this._register(new DisposableMap<GroupIdentifier, IDisposable>());
+	private readonly contextKeyProviderDisposables = this._register(new DisposableMap<GroupIdentifier, IDisposable>());
 	private registerGroupContextKeyProvidersListeners(group: IEditorGroupView): void {
 
-		// Run the context key providers for the group when its active editor changes
+		// Update context keys from providers for the group when its active editor changes
 		const disposable = group.onDidActiveEditorChange(() => {
 			for (const contextKeyProvider of this.contextKeyProviders.values()) {
-				this.runRegisteredContextKeyProvider(group, contextKeyProvider);
+				this.updateRegisteredContextKey(group, contextKeyProvider);
 			}
 		});
 
-		this.groupContextKeyProvidersDisposables.set(group.id, disposable);
+		this.contextKeyProviderDisposables.set(group.id, disposable);
 	}
 
-	private unregisterGroupContextKeyProvidersListeners(group: IEditorGroupView): void {
-		this.groupContextKeyProvidersDisposables.deleteAndDispose(group.id);
-	}
-
-	private runRegisteredContextKeyProvider<T extends ContextKeyValue>(group: IEditorGroupView, provider: IEditorGroupContextKeyProvider<T>): void {
+	private updateRegisteredContextKey<T extends ContextKeyValue>(group: IEditorGroupView, provider: IEditorGroupContextKeyProvider<T>): void {
 
 		// Get the group scoped context keys for the provider
 		// If the providers context key has not yet been bound
-		// to the group, do so now
+		// to the group, do so now.
 
 		let groupRegisteredContextKeys = this.registeredContextKeys.get(group.id);
 		if (!groupRegisteredContextKeys) {
