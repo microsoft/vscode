@@ -1019,23 +1019,15 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 
 					// Delegate to working copy model save method if any
 					if (typeof resolvedFileWorkingCopy.model.save === 'function') {
-						const optionalIfCancelled = async <T>(callback: (token: CancellationToken) => Promise<T>, token: CancellationToken): Promise<T | undefined> => {
-							try {
-								return await callback(token);
-							} catch (error) {
-								if (token.isCancellationRequested) {
-									return undefined;
-								}
-
-								throw error;
+						try {
+							stat = await resolvedFileWorkingCopy.model.save(writeFileOptions, saveCancellation.token);
+						} catch (error) {
+							if (saveCancellation.token.isCancellationRequested) {
+								return undefined; // save was cancelled
 							}
-						};
 
-						const result = await optionalIfCancelled((token) => resolvedFileWorkingCopy.model.save!(writeFileOptions, token), saveCancellation.token);
-						if (!result) {
-							return;
+							throw error;
 						}
-						stat = result;
 					}
 
 					// Otherwise ask for a snapshot and save via file services
