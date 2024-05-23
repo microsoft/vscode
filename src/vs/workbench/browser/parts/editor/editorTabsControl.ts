@@ -86,7 +86,7 @@ export interface IEditorTabsControl extends IDisposable {
 	stickEditor(editor: EditorInput): void;
 	unstickEditor(editor: EditorInput): void;
 	setActive(isActive: boolean): void;
-	setEditorSelections(editors: EditorInput[], selected: boolean): void;
+	updateEditorSelections(): void;
 	updateEditorLabel(editor: EditorInput): void;
 	updateEditorDirty(editor: EditorInput): void;
 	layout(dimensions: IEditorTitleControlDimensions): Dimension;
@@ -146,9 +146,9 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		super(themeService);
 
 		this.contextMenuContextKeyService = this._register(this.contextKeyService.createScoped(parent));
-		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
+		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, this.contextMenuContextKeyService],
-		));
+		)));
 
 		this.resourceContext = this._register(scopedInstantiationService.createInstance(ResourceContextKey));
 
@@ -503,7 +503,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 
 	abstract setActive(isActive: boolean): void;
 
-	abstract setEditorSelections(editors: EditorInput[], selected: boolean): void;
+	abstract updateEditorSelections(): void;
 
 	abstract updateEditorLabel(editor: EditorInput): void;
 

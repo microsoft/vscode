@@ -130,6 +130,17 @@ suite('ChatService', () => {
 		assert.strictEqual(model.getRequests()[0].response?.response.asString(), 'test response');
 	});
 
+	test('sendRequest fails', async () => {
+		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
+
+		const model = testDisposables.add(testService.startSession(ChatAgentLocation.Panel, CancellationToken.None));
+		const response = await testService.sendRequest(model.sessionId, `@${chatAgentWithUsedContextId} test request`);
+		assert(response);
+		await response.responseCompletePromise;
+
+		await assertSnapshot(model.toExport());
+	});
+
 	test('can serialize', async () => {
 		testDisposables.add(chatAgentService.registerAgentImplementation(chatAgentWithUsedContextId, chatAgentWithUsedContext));
 		chatAgentService.updateAgent(chatAgentWithUsedContextId, { requester: { name: 'test' } });

@@ -29,4 +29,15 @@ suite('ChatWordCounter', () => {
 
 		cases.forEach(([str, nWords, result]) => doTest(str, nWords, result));
 	});
+
+	test('getNWords, matching links', () => {
+		const cases: [string, number, string][] = [
+			['[hello](https://example.com) world', 1, '[hello](https://example.com)'],
+			['[hello](https://example.com) world', 2, '[hello](https://example.com) world'],
+			['oh [hello](https://example.com "title") world', 1, 'oh'],
+			['oh [hello](https://example.com "title") world', 2, 'oh [hello](https://example.com "title")'],
+		];
+
+		cases.forEach(([str, nWords, result]) => doTest(str, nWords, result));
+	});
 });

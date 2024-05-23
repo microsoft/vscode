@@ -205,6 +205,10 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'disable-dev-shm-usage': { type: 'boolean' },
 	'profile-temp': { type: 'boolean' },
 	'ozone-platform': { type: 'string' },
+	'enable-tracing': { type: 'string' },
+	'trace-startup-format': { type: 'string' },
+	'trace-startup-file': { type: 'string' },
+	'trace-startup-duration': { type: 'string' },
 
 	_: { type: 'string[]' } // main arguments
 };

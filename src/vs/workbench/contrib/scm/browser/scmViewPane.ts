@@ -38,7 +38,7 @@ import { FileKind } from 'vs/platform/files/common/files';
 import { compareFileNames, comparePaths } from 'vs/base/common/comparers';
 import { FuzzyScore, createMatches, IMatch } from 'vs/base/common/filters';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { SIDE_BAR_BACKGROUND, PANEL_BACKGROUND } from 'vs/workbench/common/theme';
@@ -109,6 +109,7 @@ import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { OpenScmGroupAction } from 'vs/workbench/contrib/multiDiffEditor/browser/scmMultiDiffSourceResolver';
 import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
 import { ITextModel } from 'vs/editor/common/model';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 
 // type SCMResourceTreeNode = IResourceNode<ISCMResource, ISCMResourceGroup>;
 // type SCMHistoryItemChangeResourceTreeNode = IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement>;
@@ -1957,6 +1958,26 @@ class ExpandAllRepositoriesAction extends ViewAction<SCMViewPane> {
 registerAction2(CollapseAllRepositoriesAction);
 registerAction2(ExpandAllRepositoriesAction);
 
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.scm.action.focusInput',
+			title: { ...localize2('focusInput', "Focus Input") },
+			category: localize2('source control', "Source Control"),
+			precondition: ContextKeys.RepositoryCount.notEqualsTo(0),
+			f1: true
+		});
+	}
+
+	override async run(accessor: ServicesAccessor) {
+		const viewsService = accessor.get(IViewsService);
+		const scmView = await viewsService.openView<SCMViewPane>(VIEW_PANE_ID);
+		if (scmView) {
+			scmView.focusInput();
+		}
+	}
+});
+
 const enum SCMInputWidgetCommandId {
 	CancelAction = 'scm.input.cancelAction'
 }
@@ -3430,6 +3451,19 @@ export class SCMViewPane extends ViewPane {
 				this.tree.expand(repository);
 			}
 		}
+	}
+
+	focusInput(): void {
+		this.treeOperationSequencer.queue(() => {
+			return new Promise<void>(resolve => {
+				if (this.scmViewService.focusedRepository) {
+					this.tree.reveal(this.scmViewService.focusedRepository.input, 0.5);
+					this.inputRenderer.getRenderedInputWidget(this.scmViewService.focusedRepository.input)?.focus();
+				}
+
+				resolve();
+			});
+		});
 	}
 
 	override shouldShowWelcome(): boolean {

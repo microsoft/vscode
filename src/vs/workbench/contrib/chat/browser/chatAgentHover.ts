@@ -121,7 +121,7 @@ export function getChatAgentHoverOptions(getAgent: () => IChatAgentData | undefi
 		actions: [
 			{
 				commandId: showExtensionsWithIdsCommandId,
-				label: localize('marketplaceLabel', "View in Marketplace"),
+				label: localize('viewExtensionLabel', "View Extension"),
 				run: () => {
 					const agent = getAgent();
 					if (agent) {
