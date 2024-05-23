@@ -68,7 +68,7 @@ class SCMResourceGroupActionReferenceCollection extends ReferenceCollection<IDis
 		return registerAction2(class extends Action2 {
 			constructor() {
 				super({
-					id: `workbench.scm.action.focus.${key}`,
+					id: `workbench.scm.action.resourceGroup.focus.${key}`,
 					title: { ...localize2('focusResourceGroup', "Focus on {0} Source Control Resource Group", args[0] as string) },
 					category: localize2('source control', "Source Control"),
 					f1: true
