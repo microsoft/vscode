@@ -30,11 +30,10 @@ import { IInlineChatSavingService } from 'vs/workbench/contrib/inlineChat/browse
 import { HunkState, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { IInlineChatSessionService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSessionService';
 import { InlineChatSessionServiceImpl } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSessionServiceImpl';
-import { EditMode, IInlineChatService } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { EditMode } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { assertType } from 'vs/base/common/types';
-import { InlineChatServiceImpl } from 'vs/workbench/contrib/inlineChat/common/inlineChatServiceImpl';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
@@ -86,7 +85,6 @@ suite('InlineChatSession', function () {
 			[IChatService, new SyncDescriptor(ChatService)],
 			[IEditorWorkerService, new SyncDescriptor(TestWorkerService)],
 			[IChatAgentService, new SyncDescriptor(ChatAgentService)],
-			[IInlineChatService, new SyncDescriptor(InlineChatServiceImpl)],
 			[IContextKeyService, contextKeyService],
 			[IDiffProviderFactoryService, new SyncDescriptor(TestDiffProviderFactoryService)],
 			[IInlineChatSessionService, new SyncDescriptor(InlineChatSessionServiceImpl)],

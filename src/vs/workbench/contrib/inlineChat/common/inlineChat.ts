@@ -3,46 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { IRange } from 'vs/editor/common/core/range';
-import { ISelection } from 'vs/editor/common/core/selection';
 import { TextEdit, WorkspaceEdit } from 'vs/editor/common/languages';
 import { localize } from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { diffInserted, diffRemoved, editorHoverHighlight, editorWidgetBackground, editorWidgetBorder, focusBorder, inputBackground, inputPlaceholderForeground, registerColor, transparent, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { Extensions as ExtensionsMigration, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
-import { URI } from 'vs/base/common/uri';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-
-export interface IInlineChatSlashCommand {
-	command: string;
-	detail?: string;
-}
+import { IChatAgentCommand } from 'vs/workbench/contrib/chat/common/chatAgents';
 
 export interface IInlineChatSession {
 	id: number;
 	placeholder?: string;
 	input?: string;
 	message?: string;
-	slashCommands?: IInlineChatSlashCommand[];
+	slashCommands?: IChatAgentCommand[];
 	wholeRange?: IRange;
-}
-
-export interface IInlineChatRequest {
-	prompt: string;
-	selection: ISelection;
-	wholeRange: IRange;
-	attempt: number;
-	requestId: string;
-	live: boolean;
-	previewDocument: URI;
-	withIntentDetection: boolean;
 }
 
 export type IInlineChatResponse = IInlineChatEditResponse | IInlineChatBulkEditResponse;
@@ -77,81 +56,6 @@ export interface IInlineChatBulkEditResponse {
 	wholeRange?: IRange;
 }
 
-export interface IInlineChatProgressItem {
-	markdownFragment?: string;
-	edits?: TextEdit[];
-	editsShouldBeInstant?: boolean;
-	message?: string;
-	slashCommand?: string;
-}
-
-export const enum InlineChatResponseFeedbackKind {
-	Unhelpful = 0,
-	Helpful = 1,
-	Undone = 2,
-	Accepted = 3,
-	Bug = 4
-}
-
-export interface IInlineChatReplyFollowup {
-	kind: 'reply';
-	message: string;
-	title?: string;
-	tooltip?: string;
-}
-
-export interface IInlineChatCommandFollowup {
-	kind: 'command';
-	commandId: string;
-	args?: any[];
-	title: string; // supports codicon strings
-	when?: string;
-}
-
-export type IInlineChatFollowup = IInlineChatReplyFollowup | IInlineChatCommandFollowup;
-
-/**
- * @deprecated
- */
-export interface IInlineChatSessionProvider {
-
-	extensionId: ExtensionIdentifier;
-	label: string;
-
-}
-
-/**
- * @deprecated
- */
-export const IInlineChatService = createDecorator<IInlineChatService>('IInlineChatService');
-
-/**
- * @deprecated
- */
-export interface InlineChatProviderChangeEvent {
-	readonly added?: IInlineChatSessionProvider;
-	readonly removed?: IInlineChatSessionProvider;
-}
-
-/**
- * @deprecated
- */
-export interface IInlineChatService {
-	_serviceBrand: undefined;
-
-	/**
-	 * @deprecated
-	 */
-	onDidChangeProviders: Event<InlineChatProviderChangeEvent>;
-	/**
-	 * @deprecated
-	 */
-	addProvider(provider: IInlineChatSessionProvider): IDisposable;
-	/**
-	 * @deprecated
-	 */
-	getAllProvider(): Iterable<IInlineChatSessionProvider>;
-}
 
 export const INLINE_CHAT_ID = 'interactiveEditor';
 export const INTERACTIVE_EDITOR_ACCESSIBILITY_HELP_ID = 'interactiveEditorAccessiblityHelp';

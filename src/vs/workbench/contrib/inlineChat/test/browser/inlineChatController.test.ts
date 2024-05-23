@@ -35,8 +35,7 @@ import { ChatAgentLocation, ChatAgentService, IChatAgentService } from 'vs/workb
 import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { InlineChatController, InlineChatRunOptions, State } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 import { Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
-import { CTX_INLINE_CHAT_USER_DID_EDIT, EditMode, IInlineChatService, InlineChatConfigKeys } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { InlineChatServiceImpl } from 'vs/workbench/contrib/inlineChat/common/inlineChatServiceImpl';
+import { CTX_INLINE_CHAT_USER_DID_EDIT, EditMode, InlineChatConfigKeys } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { IInlineChatSavingService } from '../../browser/inlineChatSavingService';
 import { IInlineChatSessionService } from '../../browser/inlineChatSessionService';
@@ -149,7 +148,6 @@ suite('InteractiveChatController', function () {
 			[IEditorWorkerService, new SyncDescriptor(TestWorkerService)],
 			[IContextKeyService, contextKeyService],
 			[IChatAgentService, new SyncDescriptor(ChatAgentService)],
-			[IInlineChatService, new SyncDescriptor(InlineChatServiceImpl)],
 			[IDiffProviderFactoryService, new SyncDescriptor(TestDiffProviderFactoryService)],
 			[IInlineChatSessionService, new SyncDescriptor(InlineChatSessionServiceImpl)],
 			[ICommandService, new SyncDescriptor(TestCommandService)],
