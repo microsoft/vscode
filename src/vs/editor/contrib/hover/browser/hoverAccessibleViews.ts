@@ -188,15 +188,13 @@ export class HoverAccessibilityHelpProvider extends BaseHoverAccessibleViewProvi
 export class HoverAccessibleViewProvider extends BaseHoverAccessibleViewProvider implements IAccessibleViewContentProvider {
 
 	public readonly options: IAccessibleViewOptions = { type: AccessibleViewType.View };
-	public readonly actions: IAction[] = [];
 
 	constructor(
-		editor: ICodeEditor,
+		private readonly _editor: ICodeEditor,
 		hoverController: HoverController,
 	) {
 		super(hoverController);
-		this._initializeActions(editor);
-		this._initializeOptions(editor, hoverController);
+		this._initializeOptions(this._editor, hoverController);
 	}
 
 	public provideContent(): string {
@@ -204,9 +202,11 @@ export class HoverAccessibleViewProvider extends BaseHoverAccessibleViewProvider
 		return hoverContent.length > 0 ? hoverContent : HoverAccessibilityHelpNLS.intro;
 	}
 
-	private _initializeActions(editor: ICodeEditor): void {
-		this.actions.push(this._getActionFor(editor, HoverVerbosityAction.Increase));
-		this.actions.push(this._getActionFor(editor, HoverVerbosityAction.Decrease));
+	public get actions(): IAction[] {
+		const actions: IAction[] = [];
+		actions.push(this._getActionFor(this._editor, HoverVerbosityAction.Increase));
+		actions.push(this._getActionFor(this._editor, HoverVerbosityAction.Decrease));
+		return actions;
 	}
 
 	private _getActionFor(editor: ICodeEditor, action: HoverVerbosityAction): IAction {
@@ -228,7 +228,8 @@ export class HoverAccessibleViewProvider extends BaseHoverAccessibleViewProvider
 				actionCodicon = Codicon.remove;
 				break;
 		}
-		return new Action(accessibleActionId, actionLabel, ThemeIcon.asClassName(actionCodicon), true, () => {
+		const actionEnabled = this._hoverController.doesMarkdownHoverAtIndexSupportVerbosityAction(this._markdownHoverFocusedIndex, action);
+		return new Action(accessibleActionId, actionLabel, ThemeIcon.asClassName(actionCodicon), actionEnabled, () => {
 			editor.getAction(actionId)?.run({ index: this._markdownHoverFocusedIndex, focus: false });
 		});
 	}
