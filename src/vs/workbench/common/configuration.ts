@@ -271,7 +271,8 @@ export class DynamicWindowConfiguration extends Disposable implements IWorkbench
 					'type': ['string', 'null'],
 					'default': null,
 					'enum': [...this.userDataProfilesService.profiles.map(profile => profile.name), null],
-					'description': localize('newWindowProfile', "Specifies the profile to use when opening a new window. If a profile name is provided, the new window will use that profile. If no profile name is provided, the new window will use the profile of the last window or the default profile if no previous window exists."),
+					'enumItemLabels': [...this.userDataProfilesService.profiles.map(p => ''), localize('active window', "Active Window")],
+					'description': localize('newWindowProfile', "Specifies the profile to use when opening a new window. If a profile name is provided, the new window will use that profile. If no profile name is provided, the new window will use the profile of the active window or the default profile if no active window exists."),
 					'scope': ConfigurationScope.APPLICATION,
 				}
 			}
