@@ -2518,6 +2518,26 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			return;
 		}
 
+		// TODO: @Yoyokrazy -- selective webview warmup to improve perf (not in accessiblility mode, and not doing full nb search)
+		// let findCells: ICellViewModel[] = [];
+		// if (cellSelections) {
+		// 	const selectedRanges = cellSelections.map(range => this.viewModel?.validateRange(range));
+		// 	for (const range of selectedRanges.filter(range => !!range)) {
+		// 		for (let i = range.start; i < range.end; i++) {
+		// 			findCells.push(this.viewModel.viewCells[i]);
+		// 		}
+		// 	}
+		// } else {
+		// 	findCells = this.viewModel.viewCells;
+		// }
+
+		// const requests = [];
+		// for (let i = 0; i < findCells.length; i++) {
+		// 	if (findCells[i].cellKind === CellKind.Markup && !this._webview!.markupPreviewMapping.has(findCells[i].id)) {
+		// 		requests.push(this.createMarkupPreview(findCells[i]));
+		// 	}
+		// }
+
 		const cells = this.viewModel.viewCells;
 		const requests = [];
 
@@ -2536,7 +2556,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				}
 			}
 		}
-
 
 		return Promise.all(requests);
 	}
@@ -2576,7 +2595,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				return [];
 			}
 
-			const webviewMatches = await this._webview.find(query, { caseSensitive: options.caseSensitive, wholeWord: options.wholeWord, includeMarkup: !!options.includeMarkupPreview, includeOutput: !!options.includeOutput, shouldGetSearchPreviewInfo, ownerID });
+			const selectedRanges = options.selectedRanges?.map(range => this._notebookViewModel?.validateRange(range)).filter(range => !!range);
+			const findIds = [];
+			for (const range of selectedRanges ?? []) {
+				for (let i = range.start; i < range.end; i++) {
+					findIds.push(this._notebookViewModel.viewCells[i].id);
+				}
+			}
+
+			const webviewMatches = await this._webview.find(query, { caseSensitive: options.caseSensitive, wholeWord: options.wholeWord, includeMarkup: !!options.includeMarkupPreview, includeOutput: !!options.includeOutput, shouldGetSearchPreviewInfo, ownerID, findIds: options.searchInRanges ? findIds : [] });
 
 			if (token.isCancellationRequested) {
 				return [];

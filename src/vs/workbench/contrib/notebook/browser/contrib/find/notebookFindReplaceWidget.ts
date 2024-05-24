@@ -13,7 +13,7 @@ import { Delayer } from 'vs/base/common/async';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import 'vs/css!./notebookFindReplaceWidget';
 import { FindReplaceState, FindReplaceStateChangedEvent } from 'vs/editor/contrib/find/browser/findState';
-import { findNextMatchIcon, findPreviousMatchIcon, findReplaceAllIcon, findReplaceIcon, SimpleButton } from 'vs/editor/contrib/find/browser/findWidget';
+import { findNextMatchIcon, findPreviousMatchIcon, findReplaceAllIcon, findReplaceIcon, findSelectionIcon, SimpleButton } from 'vs/editor/contrib/find/browser/findWidget';
 import * as nls from 'vs/nls';
 import { ContextScopedReplaceInput, registerAndCreateHistoryNavigationContext } from 'vs/platform/history/browser/contextScopedHistoryWidget';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -37,17 +37,21 @@ import { isSafari } from 'vs/base/common/platform';
 import { ISashEvent, Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { defaultInputBoxStyles, defaultProgressBarStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { IToggleStyles } from 'vs/base/browser/ui/toggle/toggle';
+import { IToggleStyles, Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { asCssVariable, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground } from 'vs/platform/theme/common/colorRegistry';
+import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
+
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
 const NLS_PREVIOUS_MATCH_BTN_LABEL = nls.localize('label.previousMatchButton', "Previous Match");
 // const NLS_FILTER_BTN_LABEL = nls.localize('label.findFilterButton', "Search in View");
 const NLS_NEXT_MATCH_BTN_LABEL = nls.localize('label.nextMatchButton', "Next Match");
+const NLS_FIND_IN_CELL_SELECTION_BTN_LABEL = nls.localize('label.findInCellSelectionButton', "Find in Cell Selection");
 const NLS_CLOSE_BTN_LABEL = nls.localize('label.closeButton', "Close");
 const NLS_TOGGLE_REPLACE_MODE_BTN_LABEL = nls.localize('label.toggleReplaceButton', "Toggle Replace");
 const NLS_REPLACE_INPUT_LABEL = nls.localize('label.replace', "Replace");
@@ -294,6 +298,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	protected readonly _matchesCount!: HTMLElement;
 	private readonly prevBtn: SimpleButton;
 	private readonly nextBtn: SimpleButton;
+	private readonly inSelectionToggle: Toggle;
 
 	protected readonly _replaceInput!: ReplaceInput;
 	private readonly _innerReplaceDomNode!: HTMLElement;
@@ -326,14 +331,14 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	) {
 		super();
 
-		const findScope = this._configurationService.getValue<{
+		const findFilters = this._configurationService.getValue<{
 			markupSource: boolean;
 			markupPreview: boolean;
 			codeSource: boolean;
 			codeOutput: boolean;
-		}>(NotebookSetting.findScope) ?? { markupSource: true, markupPreview: true, codeSource: true, codeOutput: true };
+		}>(NotebookSetting.findFilters) ?? { markupSource: true, markupPreview: true, codeSource: true, codeOutput: true };
 
-		this._filters = new NotebookFindFilters(findScope.markupSource, findScope.markupPreview, findScope.codeSource, findScope.codeOutput);
+		this._filters = new NotebookFindFilters(findFilters.markupSource, findFilters.markupPreview, findFilters.codeSource, findFilters.codeOutput, false, []);
 		this._state.change({ filters: this._filters }, false);
 
 		this._filters.onDidChange(() => {
@@ -410,6 +415,9 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		});
 
 		this._register(this._findInput.inputBox.onDidChange(() => {
+			// ! this._filters.searchInRanges = this.inSelectionToggle.checked;
+			// this._filters.selectedRanges = this._notebookEditor.getSelections();
+
 			this._state.change({ searchString: this._findInput.getValue() }, true);
 		}));
 
@@ -430,7 +438,6 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 			this._findInput.setWholeWords(this._state.wholeWord);
 			this._findInput.setCaseSensitive(this._state.matchCase);
 			this._replaceInput.setPreserveCase(this._state.preserveCase);
-			this.findFirst();
 		}));
 
 		this._matchesCount = document.createElement('div');
@@ -453,6 +460,25 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 			}
 		}, hoverService));
 
+		this.inSelectionToggle = this._register(new Toggle({
+			icon: findSelectionIcon,
+			title: NLS_FIND_IN_CELL_SELECTION_BTN_LABEL,
+			isChecked: false,
+			inputActiveOptionBackground: asCssVariable(inputActiveOptionBackground),
+			inputActiveOptionBorder: asCssVariable(inputActiveOptionBorder),
+			inputActiveOptionForeground: asCssVariable(inputActiveOptionForeground),
+		}));
+
+		this.inSelectionToggle.onChange(() => {
+			const checked = this.inSelectionToggle.checked;
+			this._filters.searchInRanges = checked;
+			if (checked) {
+				this._filters.selectedRanges = this._notebookEditor.getSelections();
+			} else {
+				this._filters.selectedRanges = [];
+			}
+		});
+
 		const closeBtn = this._register(new SimpleButton({
 			label: NLS_CLOSE_BTN_LABEL,
 			icon: widgetClose,
@@ -465,6 +491,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this._innerFindDomNode.appendChild(this._matchesCount);
 		this._innerFindDomNode.appendChild(this.prevBtn.domNode);
 		this._innerFindDomNode.appendChild(this.nextBtn.domNode);
+		this._innerFindDomNode.appendChild(this.inSelectionToggle.domNode);
 		this._innerFindDomNode.appendChild(closeBtn.domNode);
 
 		// _domNode wraps _innerDomNode, ensuring that
@@ -599,7 +626,6 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 
 	protected abstract onInputChanged(): boolean;
 	protected abstract find(previous: boolean): void;
-	protected abstract findFirst(): void;
 	protected abstract replaceOne(): void;
 	protected abstract replaceAll(): void;
 	protected abstract onFocusTrackerFocus(): void;
@@ -686,9 +712,17 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this._findInput.focus();
 	}
 
-	public show(initialInput?: string, options?: { focus?: boolean }): void {
+	public show(initialInput?: string, options?: { focus?: boolean; searchInRanges?: boolean; selectedRanges?: ICellRange[] }): void {
 		if (initialInput) {
 			this._findInput.setValue(initialInput);
+		}
+
+		if (options?.searchInRanges !== undefined) {
+			this._filters.searchInRanges = options.searchInRanges;
+			this.inSelectionToggle.checked = options.searchInRanges;
+			if (options.selectedRanges) {
+				this._filters.selectedRanges = options.selectedRanges;
+			}
 		}
 
 		this._isVisible = true;

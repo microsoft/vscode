@@ -1026,8 +1026,8 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: true
 		},
-		[NotebookSetting.findScope]: {
-			markdownDescription: nls.localize('notebook.findScope', "Customize the Find Widget behavior for searching within notebook cells. When both markup source and markup preview are enabled, the Find Widget will search either the source code or preview based on the current state of the cell."),
+		[NotebookSetting.findFilters]: {
+			markdownDescription: nls.localize('notebook.findFilters', "Customize the Find Widget behavior for searching within notebook cells. When both markup source and markup preview are enabled, the Find Widget will search either the source code or preview based on the current state of the cell."),
 			type: 'object',
 			properties: {
 				markupSource: {

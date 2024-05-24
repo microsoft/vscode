@@ -5,17 +5,19 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
+import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 
-export interface INotebookFindFiltersChangeEvent {
+export interface INotebookFindChangeEvent {
 	markupInput?: boolean;
 	markupPreview?: boolean;
 	codeInput?: boolean;
 	codeOutput?: boolean;
+	searchInRanges?: boolean;
 }
 
 export class NotebookFindFilters extends Disposable {
-	private readonly _onDidChange: Emitter<INotebookFindFiltersChangeEvent> = this._register(new Emitter<INotebookFindFiltersChangeEvent>());
-	readonly onDidChange: Event<INotebookFindFiltersChangeEvent> = this._onDidChange.event;
+	private readonly _onDidChange: Emitter<INotebookFindChangeEvent> = this._register(new Emitter<INotebookFindChangeEvent>());
+	readonly onDidChange: Event<INotebookFindChangeEvent> = this._onDidChange.event;
 
 	private _markupInput: boolean = true;
 
@@ -68,17 +70,46 @@ export class NotebookFindFilters extends Disposable {
 		}
 	}
 
+	private _searchInRanges: boolean = false;
+
+	get searchInRanges(): boolean {
+		return this._searchInRanges;
+	}
+
+	set searchInRanges(value: boolean) {
+		if (this._searchInRanges !== value) {
+			this._searchInRanges = value;
+			this._onDidChange.fire({ searchInRanges: value });
+		}
+	}
+
+	private _selectedRanges: ICellRange[] = [];
+
+	get selectedRanges(): ICellRange[] {
+		return this._selectedRanges;
+	}
+
+	set selectedRanges(value: ICellRange[]) {
+		if (this._selectedRanges !== value) {
+			this._selectedRanges = value;
+			this._onDidChange.fire({ searchInRanges: this._searchInRanges });
+		}
+	}
+
 	private readonly _initialMarkupInput: boolean;
 	private readonly _initialMarkupPreview: boolean;
 	private readonly _initialCodeInput: boolean;
 	private readonly _initialCodeOutput: boolean;
-
+	private readonly _initialSearchInRanges: boolean;
+	private readonly _initialSelectedRanges: ICellRange[];
 
 	constructor(
 		markupInput: boolean,
 		markupPreview: boolean,
 		codeInput: boolean,
-		codeOutput: boolean
+		codeOutput: boolean,
+		searchInRanges: boolean,
+		selectedRanges: ICellRange[]
 	) {
 		super();
 
@@ -86,11 +117,15 @@ export class NotebookFindFilters extends Disposable {
 		this._markupPreview = markupPreview;
 		this._codeInput = codeInput;
 		this._codeOutput = codeOutput;
+		this._searchInRanges = searchInRanges;
+		this._selectedRanges = selectedRanges;
 
 		this._initialMarkupInput = markupInput;
 		this._initialMarkupPreview = markupPreview;
 		this._initialCodeInput = codeInput;
 		this._initialCodeOutput = codeOutput;
+		this._initialSearchInRanges = searchInRanges;
+		this._initialSelectedRanges = selectedRanges;
 	}
 
 	isModified(): boolean {
@@ -99,6 +134,8 @@ export class NotebookFindFilters extends Disposable {
 			|| this._markupPreview !== this._initialMarkupPreview
 			|| this._codeInput !== this._initialCodeInput
 			|| this._codeOutput !== this._initialCodeOutput
+			|| this._searchInRanges !== this._initialSearchInRanges
+			|| this._selectedRanges !== this._initialSelectedRanges
 		);
 	}
 
@@ -107,5 +144,7 @@ export class NotebookFindFilters extends Disposable {
 		this._markupPreview = v.markupPreview;
 		this._codeInput = v.codeInput;
 		this._codeOutput = v.codeOutput;
+		this._searchInRanges = v.searchInRanges;
+		this._selectedRanges = v.selectedRanges;
 	}
 }

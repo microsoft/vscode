@@ -910,7 +910,20 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	//#region Find
 	find(value: string, options: INotebookSearchOptions): CellFindMatchWithIndex[] {
 		const matches: CellFindMatchWithIndex[] = [];
-		this._viewCells.forEach((cell, index) => {
+		let findCells: CellViewModel[] = [];
+
+		const selectedRanges = options.selectedRanges?.map(range => this.validateRange(range));
+		if (options.searchInRanges && selectedRanges) {
+			for (const range of selectedRanges.filter(range => !!range)) {
+				for (let i = range.start; i < range.end; i++) {
+					findCells.push(this._viewCells[i]);
+				}
+			}
+		} else {
+			findCells = this._viewCells;
+		}
+
+		findCells.forEach((cell, index) => {
 			const cellMatches = cell.startFind(value, options);
 			if (cellMatches) {
 				matches.push(new CellFindMatchModel(
