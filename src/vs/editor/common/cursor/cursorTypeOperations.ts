@@ -393,7 +393,7 @@ export class TypeOperations {
 		return true;
 	}
 
-	private static _runAutoIndentType(config: CursorConfiguration, model: ITextModel, range: Range, ch: string): ICommand | null {
+	private static _runAutoIndentType(config: CursorConfiguration, model: ITextModel, range: Range, ch: string, includeChInEdit: boolean = true): ICommand | null {
 		const currentIndentation = getIndentationAtPosition(model, range.startLineNumber, range.startColumn);
 		const actualIndentation = getIndentActionForType(config.autoIndent, model, range, ch, {
 			shiftIndent: (indentation) => {
@@ -415,14 +415,14 @@ export class TypeOperations {
 			if (firstNonWhitespace === 0) {
 				return TypeOperations._typeCommand(
 					new Range(range.startLineNumber, 1, range.endLineNumber, range.endColumn),
-					config.normalizeIndentation(actualIndentation) + ch,
+					config.normalizeIndentation(actualIndentation) + (includeChInEdit ? ch : ''),
 					false
 				);
 			} else {
 				return TypeOperations._typeCommand(
 					new Range(range.startLineNumber, 1, range.endLineNumber, range.endColumn),
 					config.normalizeIndentation(actualIndentation) +
-					model.getLineContent(range.startLineNumber).substring(firstNonWhitespace - 1, range.startColumn - 1) + ch,
+					model.getLineContent(range.startLineNumber).substring(firstNonWhitespace - 1, range.startColumn - 1) + (includeChInEdit ? ch : ''),
 					false
 				);
 			}
@@ -696,22 +696,29 @@ export class TypeOperations {
 	}
 
 	private static _runAutoClosingOpenCharType(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string, chIsAlreadyTyped: boolean, autoClosingPairClose: string): EditOperationResult {
+
 		console.log('_runAutoClosingOpenCharType');
 		console.log('selections : ', selections);
 		console.log('ch : ', ch);
 		console.log('chIsAlreadyTyped : ', chIsAlreadyTyped);
 		console.log('autoClosingPairClose : ', autoClosingPairClose);
 
+		const commands = this._autoClosingCommands(selections, ch, chIsAlreadyTyped, autoClosingPairClose);
+		console.log('commands : ', commands);
+
+		return new EditOperationResult(EditOperationType.TypingOther, commands, {
+			shouldPushStackElementBefore: true,
+			shouldPushStackElementAfter: false
+		});
+	}
+
+	private static _autoClosingCommands(selections: Selection[], ch: string, chIsAlreadyTyped: boolean, autoClosingPairClose: string): ICommand[] {
 		const commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
 			commands[i] = new TypeWithAutoClosingCommand(selection, ch, !chIsAlreadyTyped, autoClosingPairClose);
 		}
-		console.log('commands : ', commands);
-		return new EditOperationResult(EditOperationType.TypingOther, commands, {
-			shouldPushStackElementBefore: true,
-			shouldPushStackElementAfter: false
-		});
+		return commands;
 	}
 
 	private static _shouldSurroundChar(config: CursorConfiguration, ch: string): boolean {
@@ -957,19 +964,39 @@ export class TypeOperations {
 			});
 		}
 
-		// Is there a reason why the auto closing over type can not be applied at the same time as the reindentation?
 		if (!isDoingComposition && this._isAutoIndentType(config, model, selections)) {
-			const commands: Array<ICommand | null> = [];
+			const tempCommands: Array<ICommand | null> = [];
 			let autoIndentFails = false;
 			for (let i = 0, len = selections.length; i < len; i++) {
-				commands[i] = this._runAutoIndentType(config, model, selections[i], ch);
-				if (!commands[i]) {
+				tempCommands[i] = this._runAutoIndentType(config, model, selections[i], ch);
+				if (!tempCommands[i]) {
 					autoIndentFails = true;
 					break;
 				}
 			}
 			console.log('autoIndentFails : ', autoIndentFails);
 			if (!autoIndentFails) {
+				let commands = tempCommands;
+				const autoClosingPairClose = this._getAutoClosingPairClose(config, model, selections, ch, false);
+				console.log('autoClosingPairClose : ', autoClosingPairClose);
+				if (autoClosingPairClose) {
+					const commandsModified: Array<ICommand | null> = [];
+					let autoIndentFails = false;
+					for (let i = 0, len = selections.length; i < len; i++) {
+						commandsModified[i] = this._runAutoIndentType(config, model, selections[i], ch, false);
+						if (!commandsModified[i]) {
+							autoIndentFails = true;
+							break;
+						}
+					}
+					if (!autoIndentFails) {
+						// need to update the cursor state also after auto-indentation and modification of the auto-closing pair
+						commands = [...commandsModified];
+						const autoClosingCommands = this._autoClosingCommands(selections, ch, false, autoClosingPairClose);
+						commands.push(...autoClosingCommands);
+					}
+				}
+				console.log('commands : ', commands);
 				return new EditOperationResult(EditOperationType.TypingOther, commands, {
 					shouldPushStackElementBefore: true,
 					shouldPushStackElementAfter: false,
@@ -977,9 +1004,7 @@ export class TypeOperations {
 			}
 		}
 
-		const isAutoClosingOvertype = this._isAutoClosingOvertype(config, model, selections, autoClosedCharacters, ch);
-		console.log('isAutoClosingOvertype : ', isAutoClosingOvertype);
-		if (isAutoClosingOvertype) {
+		if (this._isAutoClosingOvertype(config, model, selections, autoClosedCharacters, ch)) {
 			return this._runAutoClosingOvertype(prevEditOperationType, config, model, selections, ch);
 		}
 

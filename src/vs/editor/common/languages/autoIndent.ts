@@ -120,9 +120,6 @@ export function getInheritIndentForLine(
 	}
 
 	const precedingUnIgnoredLineContent = model.getLineContent(precedingUnIgnoredLine);
-
-	// TODO when should indent next line is true, and on the next line, should increase is true, then should remove indentation at that line
-
 	if (indentRulesSupport.shouldIncrease(precedingUnIgnoredLineContent) || indentRulesSupport.shouldIndentNextLine(precedingUnIgnoredLineContent)) {
 		return {
 			indentation: strings.getLeadingWhitespace(precedingUnIgnoredLineContent),
