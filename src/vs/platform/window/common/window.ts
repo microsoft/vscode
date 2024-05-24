@@ -158,6 +158,7 @@ export interface IWindowSettings {
 	readonly enableMenuBarMnemonics: boolean;
 	readonly closeWhenEmpty: boolean;
 	readonly clickThroughInactive: boolean;
+	readonly newWindowProfile: string;
 	readonly density: IDensitySettings;
 }
 
