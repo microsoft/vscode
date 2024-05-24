@@ -28,14 +28,14 @@ suite('ChatMarkdownRenderer', () => {
 	});
 
 	test('invalid HTML', async () => {
-		const md = new MarkdownString('1<canvas>2<div>3</div></canvas>4');
+		const md = new MarkdownString('1<canvas>2<details>3</details></canvas>4');
 		md.supportHtml = true;
 		const result = store.add(testRenderer.render(md));
 		await assertSnapshot(result.element.outerHTML);
 	});
 
 	test('invalid HTML with attributes', async () => {
-		const md = new MarkdownString('1<div id="id1" style="display: none">2<div id="my id 2">3</div></div>4');
+		const md = new MarkdownString('1<details id="id1" style="display: none">2<details id="my id 2">3</details></details>4');
 		md.supportHtml = true;
 		const result = store.add(testRenderer.render(md));
 		await assertSnapshot(result.element.outerHTML);
@@ -57,12 +57,12 @@ suite('ChatMarkdownRenderer', () => {
 	test('mixed valid and invalid HTML', async () => {
 		const md = new MarkdownString(`
 <h1>heading</h1>
-<div>
+<details>
 <ul>
-	<li><span><div><i>1</i></div></span></li>
+	<li><span><details><i>1</i></details></span></li>
 	<li><b>hi</b></li>
 </ul>
-</div>
+</details>
 <pre><canvas>canvas here</canvas></pre><details></details>`);
 		md.supportHtml = true;
 		const result = store.add(testRenderer.render(md));
