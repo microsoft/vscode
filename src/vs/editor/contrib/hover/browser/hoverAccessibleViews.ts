@@ -135,7 +135,8 @@ export class HoverAccessibilityHelpProvider extends BaseHoverAccessibleViewProvi
 	}
 
 	provideContent(): string {
-		const content: string[] = [HoverAccessibilityHelpNLS.intro];
+		const content: string[] = [];
+		content.push(HoverAccessibilityHelpNLS.intro);
 		content.push(...this._descriptionsOfVerbosityActions());
 		content.push(...this._descriptionOfFocusedMarkdownHover());
 		return content.join('\n');
@@ -167,7 +168,7 @@ export class HoverAccessibilityHelpProvider extends BaseHoverAccessibleViewProvi
 		}
 	}
 
-	private _descriptionOfFocusedMarkdownHover(): string[] {
+	protected _descriptionOfFocusedMarkdownHover(): string[] {
 		const content: string[] = [];
 		const hoverContent = this._hoverController.markdownHoverContentAtIndex(this._markdownHoverFocusedIndex);
 		if (hoverContent) {
@@ -198,7 +199,8 @@ export class HoverAccessibleViewProvider extends BaseHoverAccessibleViewProvider
 	}
 
 	public provideContent(): string {
-		return this._hoverController.getWidgetContent() || '';
+		const hoverContent = this._hoverController.markdownHoverContentAtIndex(this._markdownHoverFocusedIndex);
+		return hoverContent.length > 0 ? hoverContent : HoverAccessibilityHelpNLS.intro;
 	}
 
 	private _initializeActions(): void {
