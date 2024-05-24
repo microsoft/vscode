@@ -185,21 +185,16 @@ export class HoverAccessibilityHelpProvider extends BaseHoverAccessibleViewProvi
 
 export class HoverAccessibleViewProvider extends BaseHoverAccessibleViewProvider implements IAccessibleViewContentProvider {
 
-	public readonly options: IAccessibleViewOptions;
+	public readonly options: IAccessibleViewOptions = { type: AccessibleViewType.View };
 	public readonly actions: IAction[] = [];
 
 	constructor(
-		private readonly _editor: ICodeEditor,
+		editor: ICodeEditor,
 		hoverController: HoverController,
 	) {
 		super(hoverController);
-		const helpProvider = this._register(new HoverAccessibilityHelpProvider(hoverController));
-		this.options = {
-			language: this._editor.getModel()?.getLanguageId(),
-			type: AccessibleViewType.View,
-			customHelp: () => { return helpProvider.provideContentAtIndex(this._markdownHoverFocusedIndex); }
-		};
-		this._initializeActions();
+		this._initializeActions(editor);
+		this._initializeOptions(editor, hoverController);
 	}
 
 	public provideContent(): string {
@@ -207,12 +202,12 @@ export class HoverAccessibleViewProvider extends BaseHoverAccessibleViewProvider
 		return hoverContent.length > 0 ? hoverContent : HoverAccessibilityHelpNLS.intro;
 	}
 
-	private _initializeActions(): void {
-		this.actions.push(this._getActionFor(HoverVerbosityAction.Increase));
-		this.actions.push(this._getActionFor(HoverVerbosityAction.Decrease));
+	private _initializeActions(editor: ICodeEditor): void {
+		this.actions.push(this._getActionFor(editor, HoverVerbosityAction.Increase));
+		this.actions.push(this._getActionFor(editor, HoverVerbosityAction.Decrease));
 	}
 
-	private _getActionFor(action: HoverVerbosityAction): IAction {
+	private _getActionFor(editor: ICodeEditor, action: HoverVerbosityAction): IAction {
 		let actionId: string;
 		let accessibleActionId: string;
 		let actionLabel: string;
@@ -232,8 +227,14 @@ export class HoverAccessibleViewProvider extends BaseHoverAccessibleViewProvider
 				break;
 		}
 		return new Action(accessibleActionId, actionLabel, ThemeIcon.asClassName(actionCodicon), true, () => {
-			this._editor.getAction(actionId)?.run({ index: this._markdownHoverFocusedIndex, focus: false });
+			editor.getAction(actionId)?.run({ index: this._markdownHoverFocusedIndex, focus: false });
 		});
+	}
+
+	private _initializeOptions(editor: ICodeEditor, hoverController: HoverController): void {
+		const helpProvider = this._register(new HoverAccessibilityHelpProvider(hoverController));
+		this.options.language = editor.getModel()?.getLanguageId();
+		this.options.customHelp = () => { return helpProvider.provideContentAtIndex(this._markdownHoverFocusedIndex); };
 	}
 }
 
