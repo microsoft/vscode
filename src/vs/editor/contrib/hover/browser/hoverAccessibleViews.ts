@@ -87,13 +87,15 @@ abstract class BaseHoverAccessibleViewProvider extends Disposable implements IAc
 
 	abstract provideContent(): string;
 	abstract options: IAccessibleViewOptions;
-	public id = AccessibleViewProviderId.Hover;
-	public verbositySettingKey = 'accessibility.verbosity.hover';
-	private _onHoverContentsChanged: IDisposable | undefined;
-	protected _markdownHoverFocusedIndex: number = -1;
 
-	private _onDidChangeContent: Emitter<void> = this._register(new Emitter<void>());
-	public onDidChangeContent: Event<void> = this._onDidChangeContent.event;
+	public readonly id = AccessibleViewProviderId.Hover;
+	public readonly verbositySettingKey = 'accessibility.verbosity.hover';
+
+	private readonly _onDidChangeContent: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
+
+	protected _markdownHoverFocusedIndex: number = -1;
+	private _onHoverContentsChanged: IDisposable | undefined;
 
 	constructor(
 		protected readonly _hoverController: HoverController,
