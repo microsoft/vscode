@@ -144,7 +144,6 @@ export class Session {
 	private readonly _teldata: TelemetryData;
 
 	readonly textModelNAltVersion: number;
-	private _textModelNSnapshotAltVersion: number | undefined;
 
 	constructor(
 		readonly editMode: EditMode,
@@ -198,14 +197,6 @@ export class Session {
 	markUnstashed() {
 		this._teldata.unstashed! += 1;
 		this._isUnstashed = true;
-	}
-
-	get textModelNSnapshotAltVersion(): number | undefined {
-		return this._textModelNSnapshotAltVersion;
-	}
-
-	createSnapshot(): void {
-		this._textModelNSnapshotAltVersion = this.textModelN.getAlternativeVersionId();
 	}
 
 	addExchange(exchange: SessionExchange): void {
