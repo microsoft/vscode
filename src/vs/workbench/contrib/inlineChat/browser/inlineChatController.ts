@@ -40,12 +40,14 @@ import { StashedSession } from './inlineChatSession';
 import { IModelDeltaDecoration, ITextModel, IValidEditOperation } from 'vs/editor/common/model';
 import { InlineChatContentWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatContentWidget';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
-import { ChatModel, IChatRequestModel, IResponse } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatModel, IChatRequestModel, IChatTextEditGroup, IChatTextEditGroupState, IResponse } from 'vs/workbench/contrib/chat/common/chatModel';
 import { InlineChatError } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSessionServiceImpl';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
-import { isEqual } from 'vs/base/common/resources';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
+import { DefaultModelSHA1Computer } from 'vs/editor/common/services/modelService';
+import { generateUuid } from 'vs/base/common/uuid';
+import { isEqual } from 'vs/base/common/resources';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -653,6 +655,13 @@ export class InlineChatController implements IEditorContribution {
 		let lastLength = 0;
 		let isFirstChange = true;
 
+		const sha1 = new DefaultModelSHA1Computer();
+		const textModel0Sha1 = sha1.canComputeSHA1(this._session.textModel0)
+			? sha1.computeSHA1(this._session.textModel0)
+			: generateUuid();
+		const editState: IChatTextEditGroupState = { sha1: textModel0Sha1, applied: 0 };
+		let localEditGroup: IChatTextEditGroup | undefined;
+
 		// apply edits
 		store.add(response.onDidChange(() => {
 
@@ -667,17 +676,18 @@ export class InlineChatController implements IEditorContribution {
 				return;
 			}
 
-			const edits = response.response.value.map(part => {
-				if (part.kind === 'textEditGroup' && isEqual(part.uri, this._session?.textModelN.uri)) {
-					return part.edits;
-				} else {
-					return [];
-				}
-			}).flat();
+			if (!localEditGroup) {
+				localEditGroup = <IChatTextEditGroup>response.response.value.find(part => part.kind === 'textEditGroup' && isEqual(part.uri, this._session?.textModelN.uri));
+			}
 
-			// const edits = response.edits.get(this._session!.textModelN.uri) ?? [];
+			if (!localEditGroup) {
+				return;
+			}
+
+			localEditGroup.state ??= editState;
+
+			const edits = localEditGroup.edits;
 			const newEdits = edits.slice(lastLength);
-			// console.log('NEW edits', newEdits, edits);
 			if (newEdits.length === 0) {
 				return; // NO change
 			}
@@ -720,7 +730,7 @@ export class InlineChatController implements IEditorContribution {
 		const diff = await this._editorWorkerService.computeDiff(this._session.textModel0.uri, this._session.textModelN.uri, { computeMoves: false, maxComputationTimeMs: Number.MAX_SAFE_INTEGER, ignoreTrimWhitespace: false }, 'advanced');
 		this._session.wholeRange.fixup(diff?.changes ?? []);
 
-		await this._session.hunkData.recompute();
+		await this._session.hunkData.recompute(editState);
 
 		this._zone.value.widget.updateToolbar(true);
 		this._zone.value.widget.updateProgress(false);
@@ -1007,15 +1017,33 @@ export class InlineChatController implements IEditorContribution {
 			return;
 		}
 
-		// TODO@jrieken REMOVE this as soon as we can mark responses as accepted
-		// and as soon as hunks support request-linking
-		const textEditsResponseCount = this._session.chatModel.getRequests().filter(request => request.response?.response.value.some(part => part.kind === 'textEditGroup')).length;
-		if (textEditsResponseCount > 1) {
-			return;
+		let someApplied = false;
+		let lastEdit: IChatTextEditGroup | undefined;
+
+		const uri = this._editor.getModel()?.uri;
+		const requests = this._session.chatModel.getRequests();
+		for (const request of requests) {
+			if (!request.response) {
+				continue;
+			}
+			for (const part of request.response.response.value) {
+				if (part.kind === 'textEditGroup' && isEqual(part.uri, uri)) {
+					// fully or partially applied edits
+					someApplied = someApplied || Boolean(part.state?.applied);
+					lastEdit = part;
+				}
+			}
 		}
 
-		this._strategy.cancel();
+		const doEdits = this._strategy.cancel();
+
+		if (someApplied) {
+			assertType(lastEdit);
+			lastEdit.edits = [doEdits];
+		}
+
 		await this._instaService.invokeFunction(moveToPanelChat, this._session?.chatModel);
+
 		this.cancelSession();
 	}
 
