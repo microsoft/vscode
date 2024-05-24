@@ -8,7 +8,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { basename, dirname } from 'vs/base/common/resources';
 import { IDisposable, Disposable, DisposableStore, combinedDisposable, dispose, toDisposable, MutableDisposable, DisposableMap } from 'vs/base/common/lifecycle';
 import { ViewPane, IViewPaneOptions, ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
-import { append, $, Dimension, asCSSUrl, trackFocus, clearNode, prepend, isPointerEvent } from 'vs/base/browser/dom';
+import { append, $, Dimension, asCSSUrl, trackFocus, clearNode, prepend, isPointerEvent, isActiveElement } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryProviderCacheEntry, SCMHistoryItemChangeTreeElement, SCMHistoryItemGroupTreeElement, SCMHistoryItemTreeElement, SCMViewSeparatorElement } from 'vs/workbench/contrib/scm/common/history';
 import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, SCMInputChangeReason, VIEW_PANE_ID, ISCMActionButton, ISCMActionButtonDescriptor, ISCMRepositorySortKey, ISCMInputValueProviderContext, ISCMProvider } from 'vs/workbench/contrib/scm/common/scm';
@@ -3481,13 +3481,14 @@ export class SCMViewPane extends ViewPane {
 			return;
 		}
 
+		const treeHasDomFocus = isActiveElement(this.tree.getHTMLElement());
+		const resourceGroups = this.scmViewService.focusedRepository.provider.groups;
+		const focusedResourceGroup = this.tree.getFocus().find(e => isSCMResourceGroup(e));
+		const focusedResourceGroupIndex = treeHasDomFocus && focusedResourceGroup ? resourceGroups.indexOf(focusedResourceGroup) : -1;
+
 		let resourceGroupNext: ISCMResourceGroup | undefined;
 
-		const resourceGroup = this.tree.getFocus().find(e => isSCMResourceGroup(e));
-		const resourceGroups = this.scmViewService.focusedRepository.provider.groups;
-		const resourceGroupIndex = resourceGroup ? resourceGroups.indexOf(resourceGroup) : -1;
-
-		if (resourceGroupIndex === -1) {
+		if (focusedResourceGroupIndex === -1) {
 			// First visible resource group
 			for (const resourceGroup of resourceGroups) {
 				if (this.tree.hasNode(resourceGroup)) {
@@ -3497,13 +3498,13 @@ export class SCMViewPane extends ViewPane {
 			}
 		} else {
 			// Next/Previous visible resource group
-			let index = rot(resourceGroupIndex, resourceGroups.length);
-			while (index !== resourceGroupIndex) {
+			let index = rot(focusedResourceGroupIndex + delta, resourceGroups.length);
+			while (index !== focusedResourceGroupIndex) {
 				if (this.tree.hasNode(resourceGroups[index])) {
 					resourceGroupNext = resourceGroups[index];
 					break;
 				}
-				index = rot(index, resourceGroups.length);
+				index = rot(index + delta, resourceGroups.length);
 			}
 		}
 
