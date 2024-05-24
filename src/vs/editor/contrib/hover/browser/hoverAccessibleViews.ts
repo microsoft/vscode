@@ -40,11 +40,11 @@ export class HoverAccessibleView implements IAccessibleViewImplentation {
 		const codeEditorService = accessor.get(ICodeEditorService);
 		const codeEditor = codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor();
 		if (!codeEditor) {
-			return undefined;
+			throw new Error('No active or focused code editor');
 		}
 		const hoverController = HoverController.get(codeEditor);
-		if (!hoverController?.getWidgetContent()) {
-			return undefined;
+		if (!hoverController) {
+			return;
 		}
 		this._provider = accessor.get(IInstantiationService).createInstance(HoverAccessibleViewProvider, codeEditor, hoverController);
 		return this._provider;
@@ -84,20 +84,23 @@ export class HoverAccessibilityHelp implements IAccessibleViewImplentation {
 
 
 abstract class BaseHoverAccessibleViewProvider extends Disposable implements IAccessibleViewContentProvider {
+
 	abstract provideContent(): string;
 	abstract options: IAccessibleViewOptions;
-	id = AccessibleViewProviderId.Hover;
-	verbositySettingKey = 'accessibility.verbosity.hover';
+	public id = AccessibleViewProviderId.Hover;
+	public verbositySettingKey = 'accessibility.verbosity.hover';
 	private _onHoverContentsChanged: IDisposable | undefined;
 	protected _markdownHoverFocusedIndex: number = -1;
 
 	private _onDidChangeContent: Emitter<void> = this._register(new Emitter<void>());
 	public onDidChangeContent: Event<void> = this._onDidChangeContent.event;
+
 	constructor(
 		protected readonly _hoverController: HoverController,
 	) {
 		super();
 	}
+
 	public onOpen(): void {
 		if (!this._hoverController) {
 			return;
@@ -122,18 +125,22 @@ abstract class BaseHoverAccessibleViewProvider extends Disposable implements IAc
 
 
 export class HoverAccessibilityHelpProvider extends BaseHoverAccessibleViewProvider implements IAccessibleViewContentProvider {
-	options: IAccessibleViewOptions = { type: AccessibleViewType.Help };
+
+	public readonly options: IAccessibleViewOptions = { type: AccessibleViewType.Help };
+
+	constructor(
+		hoverController: HoverController,
+	) {
+		super(hoverController);
+	}
+
 	provideContent(): string {
 		const content: string[] = [HoverAccessibilityHelpNLS.intro];
 		content.push(...this._descriptionsOfVerbosityActions());
 		content.push(...this._descriptionOfFocusedMarkdownHover());
 		return content.join('\n');
 	}
-	constructor(
-		hoverController: HoverController,
-	) {
-		super(hoverController);
-	}
+
 	private _descriptionsOfVerbosityActions(): string[] {
 		const content: string[] = [];
 		const descriptionForIncreaseAction = this._descriptionOfVerbosityAction(HoverVerbosityAction.Increase);
