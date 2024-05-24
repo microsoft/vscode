@@ -35,16 +35,6 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
  */
 export interface IStoredFileWorkingCopyModelFactory<M extends IStoredFileWorkingCopyModel> extends IFileWorkingCopyModelFactory<M> { }
 
-export async function createOptionalResult<T>(callback: (token: CancellationToken) => Promise<T | undefined>, token: CancellationToken): Promise<T | undefined> {
-	const result = await callback(token);
-	if (result === undefined && token.isCancellationRequested) {
-		return undefined;
-	}
-	else {
-		return assertIsDefined(result);
-	}
-}
-
 /**
  * The underlying model of a stored file working copy provides some
  * methods for the stored file working copy to function. The model is
@@ -1029,7 +1019,15 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 
 					// Delegate to working copy model save method if any
 					if (typeof resolvedFileWorkingCopy.model.save === 'function') {
-						stat = await resolvedFileWorkingCopy.model.save(writeFileOptions, saveCancellation.token);
+						try {
+							stat = await resolvedFileWorkingCopy.model.save(writeFileOptions, saveCancellation.token);
+						} catch (error) {
+							if (saveCancellation.token.isCancellationRequested) {
+								return undefined; // save was cancelled
+							}
+
+							throw error;
+						}
 					}
 
 					// Otherwise ask for a snapshot and save via file services

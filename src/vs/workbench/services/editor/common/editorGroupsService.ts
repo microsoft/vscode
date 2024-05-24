@@ -11,7 +11,7 @@ import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDimension } from 'vs/editor/common/core/dimension';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyValue, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
 import { IGroupModelChangeEvent } from 'vs/workbench/common/editor/editorGroupModel';
 import { IRectangle } from 'vs/platform/window/common/window';
@@ -491,6 +491,24 @@ export interface IEditorWorkingSet {
 	readonly name: string;
 }
 
+export interface IEditorGroupContextKeyProvider<T extends ContextKeyValue> {
+
+	/**
+	 * The context key that needs to be set for each editor group context and the global context.
+	 */
+	readonly contextKey: RawContextKey<T>;
+
+	/**
+	 * Retrieves the context key value for the given editor group.
+	 */
+	readonly getGroupContextKeyValue: (group: IEditorGroup) => T;
+
+	/**
+	 * An event that is fired when there was a change leading to the context key value to be re-evaluated.
+	 */
+	readonly onDidChange?: Event<void>;
+}
+
 /**
  * The main service to interact with editor groups across all opened editor parts.
  */
@@ -561,6 +579,14 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	 * Deletes a working set.
 	 */
 	deleteWorkingSet(workingSet: IEditorWorkingSet): void;
+
+	/**
+	 * Registers a context key provider. This provider sets a context key for each scoped editor group context and the global context.
+	 *
+	 * @param provider - The context key provider to be registered.
+	 * @returns - A disposable object to unregister the provider.
+	 */
+	registerContextKeyProvider<T extends ContextKeyValue>(provider: IEditorGroupContextKeyProvider<T>): IDisposable;
 }
 
 export const enum OpenEditorContext {

@@ -507,6 +507,10 @@
 	color: var(--vscode-descriptionForeground);
 }
 
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label .codicon {
+	padding-left: 4px;
+}
+
 .interactive-session .chat-attached-context {
 	padding: 0 0 8px 0;
 	display: flex;

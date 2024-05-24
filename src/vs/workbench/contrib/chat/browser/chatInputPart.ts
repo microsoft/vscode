@@ -442,7 +442,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const widget = dom.append(container, $('.chat-attached-context-attachment.show-file-icons'));
 			const label = this._contextResourceLabels.create(widget, { supportIcons: true });
 			const file = URI.isUri(attachment.value) ? attachment.value : attachment.value && typeof attachment.value === 'object' && 'uri' in attachment.value && URI.isUri(attachment.value.uri) ? attachment.value.uri : undefined;
-			if (file) {
+			if (file && attachment.isFile) {
 				label.setFile(file, {
 					fileKind: FileKind.FILE,
 					hidePath: true,
