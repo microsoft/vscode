@@ -314,7 +314,7 @@ registerAction2(class extends Action2 {
 				await extensionEnablementService.disableExtension({ id: done.id }, undefined);
 			}
 			if (res.confirmed) {
-				await commandService.executeCommand('OpenIssueReporterActionId', done.id);
+				await commandService.executeCommand('workbench.action.openIssueReporter', done.id);
 			}
 		}
 		await bisectService.reset();
