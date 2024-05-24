@@ -35,7 +35,7 @@ import { EmptyResponse, ErrorResponse, ReplyResponse, Session, SessionPrompt } f
 import { IInlineChatSessionService } from './inlineChatSessionService';
 import { EditModeStrategy, IEditObserver, LiveStrategy, PreviewStrategy, ProgressingEditsOptions } from 'vs/workbench/contrib/inlineChat/browser/inlineChatStrategies';
 import { InlineChatZoneWidget } from './inlineChatZoneWidget';
-import { CTX_INLINE_CHAT_DID_EDIT, CTX_INLINE_CHAT_LAST_FEEDBACK, CTX_INLINE_CHAT_RESPONSE_TYPES, CTX_INLINE_CHAT_SUPPORT_ISSUE_REPORTING, CTX_INLINE_CHAT_USER_DID_EDIT, CTX_INLINE_CHAT_VISIBLE, EditMode, INLINE_CHAT_ID, InlineChatConfigKeys, InlineChatResponseTypes } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_RESPONSE_TYPES, CTX_INLINE_CHAT_USER_DID_EDIT, CTX_INLINE_CHAT_VISIBLE, EditMode, INLINE_CHAT_ID, InlineChatConfigKeys, InlineChatResponseTypes } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { StashedSession } from './inlineChatSession';
 import { IModelDeltaDecoration, ITextModel, IValidEditOperation } from 'vs/editor/common/model';
 import { InlineChatContentWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatContentWidget';
@@ -109,10 +109,7 @@ export class InlineChatController implements IEditorContribution {
 
 	private readonly _ctxVisible: IContextKey<boolean>;
 	private readonly _ctxResponseTypes: IContextKey<undefined | InlineChatResponseTypes>;
-	private readonly _ctxDidEdit: IContextKey<boolean>;
 	private readonly _ctxUserDidEdit: IContextKey<boolean>;
-	private readonly _ctxLastFeedbackKind: IContextKey<'helpful' | 'unhelpful' | ''>;
-	private readonly _ctxSupportIssueReporting: IContextKey<boolean>;
 
 	private _messages = this._store.add(new Emitter<Message>());
 
@@ -147,11 +144,8 @@ export class InlineChatController implements IEditorContribution {
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 	) {
 		this._ctxVisible = CTX_INLINE_CHAT_VISIBLE.bindTo(contextKeyService);
-		this._ctxDidEdit = CTX_INLINE_CHAT_DID_EDIT.bindTo(contextKeyService);
 		this._ctxUserDidEdit = CTX_INLINE_CHAT_USER_DID_EDIT.bindTo(contextKeyService);
 		this._ctxResponseTypes = CTX_INLINE_CHAT_RESPONSE_TYPES.bindTo(contextKeyService);
-		this._ctxLastFeedbackKind = CTX_INLINE_CHAT_LAST_FEEDBACK.bindTo(contextKeyService);
-		this._ctxSupportIssueReporting = CTX_INLINE_CHAT_SUPPORT_ISSUE_REPORTING.bindTo(contextKeyService);
 
 		this._input = new Lazy(() => this._store.add(_instaService.createInstance(InlineChatContentWidget, this._editor)));
 		this._zone = new Lazy(() => this._store.add(_instaService.createInstance(InlineChatZoneWidget, this._editor)));
@@ -435,9 +429,6 @@ export class InlineChatController implements IEditorContribution {
 				// }
 			}
 		}));
-
-		// Update context key
-		this._ctxSupportIssueReporting.set(this._session.agent.metadata.supportIssueReporting ?? false);
 
 		// #region DEBT
 		// DEBT@jrieken
@@ -758,7 +749,6 @@ export class InlineChatController implements IEditorContribution {
 			}
 		}
 		this._ctxResponseTypes.set(responseTypes);
-		this._ctxDidEdit.set(this._session.hasChangedText);
 
 		let newPosition: Position | undefined;
 
@@ -908,10 +898,7 @@ export class InlineChatController implements IEditorContribution {
 	private _resetWidget() {
 		this._sessionStore.clear();
 		this._ctxVisible.reset();
-		this._ctxDidEdit.reset();
 		this._ctxUserDidEdit.reset();
-		this._ctxLastFeedbackKind.reset();
-		this._ctxSupportIssueReporting.reset();
 
 		this._input.rawValue?.hide();
 		this._zone.rawValue?.hide();
@@ -949,8 +936,6 @@ export class InlineChatController implements IEditorContribution {
 		} else {
 			await this._strategy.makeChanges(editOperations, editsObserver, undoStopBefore);
 		}
-		this._ctxDidEdit.set(this._session.hasChangedText);
-
 	}
 
 	private _forcedPlaceholder: string | undefined = undefined;
@@ -1051,12 +1036,6 @@ export class InlineChatController implements IEditorContribution {
 		this._strategy?.toggleDiff?.();
 	}
 
-	createSnapshot(): void {
-		if (this._session && !this._session.textModel0.equalsTextBuffer(this._session.textModelN.getTextBuffer())) {
-			this._session.createSnapshot();
-		}
-	}
-
 	acceptSession(): void {
 		if (this._session?.lastExchange?.response instanceof ReplyResponse && this._session?.lastExchange?.response.chatResponse) {
 			const response = this._session?.lastExchange?.response.chatResponse;
@@ -1084,29 +1063,21 @@ export class InlineChatController implements IEditorContribution {
 
 	async cancelSession() {
 
-		let result: string | undefined;
-		if (this._session) {
-
-			const diff = await this._editorWorkerService.computeDiff(this._session.textModel0.uri, this._session.textModelN.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: 5000, computeMoves: false }, 'advanced');
-			result = this._session.asChangedText(diff?.changes ?? []);
-
-			if (this._session.lastExchange?.response instanceof ReplyResponse && this._session?.lastExchange?.response.chatResponse) {
-				const response = this._session?.lastExchange?.response.chatResponse;
-				this._chatService.notifyUserAction({
-					sessionId: this._session.chatModel.sessionId,
-					requestId: response.requestId,
-					agentId: response.agent?.id,
-					result: response.result,
-					action: {
-						kind: 'inlineChat',
-						action: 'discarded'
-					}
-				});
-			}
+		if (this._session?.lastExchange?.response instanceof ReplyResponse && this._session?.lastExchange?.response.chatResponse) {
+			const response = this._session?.lastExchange?.response.chatResponse;
+			this._chatService.notifyUserAction({
+				sessionId: this._session.chatModel.sessionId,
+				requestId: response.requestId,
+				agentId: response.agent?.id,
+				result: response.result,
+				action: {
+					kind: 'inlineChat',
+					action: 'discarded'
+				}
+			});
 		}
 
 		this._messages.fire(Message.CANCEL_SESSION);
-		return result;
 	}
 
 	finishExistingSession(): void {
