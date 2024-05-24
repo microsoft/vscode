@@ -209,7 +209,7 @@
         },
         "pearai.model": {
           "type": "string",
-          "default": "gpt-3.5-turbo-0125",
+          "default": "gpt-4-turbo-preview",
           "enum": [
             "gpt-3.5-turbo",
             "gpt-3.5-turbo-16k",
