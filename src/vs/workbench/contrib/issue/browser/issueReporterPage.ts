@@ -24,7 +24,7 @@ const reviewGuidanceLabel = localize( // intentionally not escaped because of it
 );
 
 export default (): string => `
-<div id="issue-reporter">
+<div class="issue-reporter" id="issue-reporter">
 	<div id="english" class="input-group hidden">${escape(localize('completeInEnglish', "Please complete the form in English."))}</div>
 
 	<div id="review-guidance-help-text" class="input-group">${reviewGuidanceLabel}</div>

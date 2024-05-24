@@ -20,7 +20,7 @@ import { IAuthenticationService } from 'vs/workbench/services/authentication/com
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
-import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
+import { IWorkbenchIssueService } from 'vs/workbench/contrib/issue/common/issue';
 import { mainWindow } from 'vs/base/browser/window';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';

@@ -3,12 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { $, reset, windowOpenNoOpener } from 'vs/base/browser/dom';
+import { Codicon } from 'vs/base/common/codicons';
 import { groupBy } from 'vs/base/common/collections';
 import { isMacintosh } from 'vs/base/common/platform';
 import { IProductConfiguration } from 'vs/base/common/product';
-import { BaseIssueReporterService } from 'vs/code/browser/issue/issue';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { localize } from 'vs/nls';
 import { IIssueMainService, IssueReporterData, IssueReporterExtensionData } from 'vs/platform/issue/common/issue';
+import { BaseIssueReporterService } from 'vs/workbench/contrib/issue/browser/issue';
 
 // GitHub has let us know that we could up our limit here to 8k. We chose 7500 to play it safe.
 // ref https://github.com/microsoft/vscode/issues/159191
@@ -27,6 +29,17 @@ export class IssueWebReporter extends BaseIssueReporterService {
 		@IIssueMainService issueMainService: IIssueMainService
 	) {
 		super(disableExtensions, data, os, product, window, true, issueMainService);
+
+		const target = this.window.document.querySelector<HTMLElement>('.block-system .block-info');
+
+		const webInfo = this.window.navigator.userAgent;
+		if (webInfo) {
+			target?.appendChild(this.window.document.createTextNode(webInfo));
+			this.receivedSystemInfo = true;
+			this.issueReporterModel.update({ systemInfoWeb: webInfo });
+
+		}
+
 		this.setEventHandlers();
 		this.handleExtensionData(data.enabledExtensions);
 	}
@@ -174,7 +187,31 @@ export class IssueWebReporter extends BaseIssueReporterService {
 					this.issueReporterModel.update({ selectedExtension: matches[0] });
 					const selectedExtension = this.issueReporterModel.getData().selectedExtension;
 					if (selectedExtension) {
-						await this.sendReporterMenu(selectedExtension);
+						const iconElement = document.createElement('span');
+						iconElement.classList.add(...ThemeIcon.asClassNameArray(Codicon.loading), 'codicon-modifier-spin');
+						this.setLoading(iconElement);
+						const openReporterData = await this.sendReporterMenu(selectedExtension);
+						if (openReporterData) {
+							if (this.selectedExtension === selectedExtensionId) {
+								this.removeLoading(iconElement, true);
+								this.data = openReporterData;
+							} else if (this.selectedExtension !== selectedExtensionId) {
+							}
+						}
+						else {
+							if (!this.loadingExtensionData) {
+								iconElement.classList.remove(...ThemeIcon.asClassNameArray(Codicon.loading), 'codicon-modifier-spin');
+							}
+							this.removeLoading(iconElement);
+							this.clearExtensionData();
+							selectedExtension.data = undefined;
+							selectedExtension.uri = undefined;
+						}
+						if (this.selectedExtension === selectedExtensionId) {
+							// repopulates the fields with the new data given the selected extension.
+							this.updateExtensionStatus(matches[0]);
+							this.openReporter = false;
+						}
 					} else {
 						this.issueReporterModel.update({ selectedExtension: undefined });
 						this.clearSearchResults();

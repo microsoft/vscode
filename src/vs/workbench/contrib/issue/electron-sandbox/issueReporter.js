@@ -10,7 +10,7 @@
 	const bootstrapWindow = bootstrapWindowLib();
 
 	// Load issue reporter into window
-	bootstrapWindow.load(['vs/code/electron-sandbox/issue/issueReporterMain'], function (issueReporter, configuration) {
+	bootstrapWindow.load(['vs/workbench/contrib/issue/electron-sandbox/issueReporterMain'], function (issueReporter, configuration) {
 		return issueReporter.startup(configuration);
 	},
 		{
@@ -24,7 +24,7 @@
 	);
 
 	/**
-	 * @typedef {import('../../../base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration} ISandboxConfiguration
+	 * @typedef {import('../../../../base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration} ISandboxConfiguration
 	 *
 	 * @returns {{
 	 *   load: (
