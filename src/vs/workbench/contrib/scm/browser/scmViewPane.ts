@@ -38,7 +38,7 @@ import { FileKind } from 'vs/platform/files/common/files';
 import { compareFileNames, comparePaths } from 'vs/base/common/comparers';
 import { FuzzyScore, createMatches, IMatch } from 'vs/base/common/filters';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { localize, localize2 } from 'vs/nls';
+import { localize } from 'vs/nls';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { SIDE_BAR_BACKGROUND, PANEL_BACKGROUND } from 'vs/workbench/common/theme';
@@ -100,7 +100,7 @@ import { foreground, listActiveSelectionForeground, registerColor, transparent }
 import { IMenuWorkbenchToolBarOptions, MenuWorkbenchToolBar, WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
-import { clamp } from 'vs/base/common/numbers';
+import { clamp, rot } from 'vs/base/common/numbers';
 import { ILogService } from 'vs/platform/log/common/log';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { MarkdownString } from 'vs/base/common/htmlContent';
@@ -109,7 +109,6 @@ import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { OpenScmGroupAction } from 'vs/workbench/contrib/multiDiffEditor/browser/scmMultiDiffSourceResolver';
 import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
 import { ITextModel } from 'vs/editor/common/model';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 
 // type SCMResourceTreeNode = IResourceNode<ISCMResource, ISCMResourceGroup>;
 // type SCMHistoryItemChangeResourceTreeNode = IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement>;
@@ -1462,7 +1461,7 @@ const Menus = {
 	ChangesSettings: new MenuId('SCMChangesSettings'),
 };
 
-const ContextKeys = {
+export const ContextKeys = {
 	SCMViewMode: new RawContextKey<ViewMode>('scmViewMode', ViewMode.List),
 	SCMViewSortKey: new RawContextKey<ViewSortKey>('scmViewSortKey', ViewSortKey.Path),
 	SCMViewAreAllRepositoriesCollapsed: new RawContextKey<boolean>('scmViewAreAllRepositoriesCollapsed', false),
@@ -1957,26 +1956,6 @@ class ExpandAllRepositoriesAction extends ViewAction<SCMViewPane> {
 
 registerAction2(CollapseAllRepositoriesAction);
 registerAction2(ExpandAllRepositoriesAction);
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'workbench.scm.action.focusInput',
-			title: { ...localize2('focusInput', "Focus Input") },
-			category: localize2('source control', "Source Control"),
-			precondition: ContextKeys.RepositoryCount.notEqualsTo(0),
-			f1: true
-		});
-	}
-
-	override async run(accessor: ServicesAccessor) {
-		const viewsService = accessor.get(IViewsService);
-		const scmView = await viewsService.openView<SCMViewPane>(VIEW_PANE_ID);
-		if (scmView) {
-			scmView.focusInput();
-		}
-	}
-});
 
 const enum SCMInputWidgetCommandId {
 	CancelAction = 'scm.input.cancelAction'
@@ -3453,17 +3432,39 @@ export class SCMViewPane extends ViewPane {
 		}
 	}
 
-	focusInput(): void {
-		this.treeOperationSequencer.queue(() => {
-			return new Promise<void>(resolve => {
-				if (this.scmViewService.focusedRepository) {
-					this.tree.reveal(this.scmViewService.focusedRepository.input, 0.5);
-					this.inputRenderer.getRenderedInputWidget(this.scmViewService.focusedRepository.input)?.focus();
-				}
+	focusPreviousInput(): void {
+		this.treeOperationSequencer.queue(() => this.focusInput(-1));
+	}
 
-				resolve();
-			});
-		});
+	focusNextInput(): void {
+		this.treeOperationSequencer.queue(() => this.focusInput(1));
+	}
+
+	private async focusInput(delta: number): Promise<void> {
+		if (!this.scmViewService.focusedRepository ||
+			this.scmViewService.visibleRepositories.length === 0) {
+			return;
+		}
+
+		let input = this.scmViewService.focusedRepository.input;
+		const repositories = this.scmViewService.visibleRepositories;
+
+		// One visible repository and the input is already focused
+		if (repositories.length === 1 && this.inputRenderer.getRenderedInputWidget(input)?.hasFocus() === true) {
+			return;
+		}
+
+		// Multiple visible repositories and the input already focused
+		if (repositories.length > 1 && this.inputRenderer.getRenderedInputWidget(input)?.hasFocus() === true) {
+			const focusedRepositoryIndex = repositories.indexOf(this.scmViewService.focusedRepository);
+			const newFocusedRepositoryIndex = rot(focusedRepositoryIndex + delta, repositories.length);
+			input = repositories[newFocusedRepositoryIndex].input;
+		}
+
+		await this.tree.expandTo(input);
+
+		this.tree.reveal(input);
+		this.inputRenderer.getRenderedInputWidget(input)?.focus();
 	}
 
 	override shouldShowWelcome(): boolean {
@@ -3847,6 +3848,8 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			}
 
 			return result;
+		} else if (isSCMInput(element)) {
+			return element.repository;
 		} else {
 			throw new Error('Unexpected call to getParent');
 		}
