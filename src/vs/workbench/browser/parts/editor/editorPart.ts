@@ -615,16 +615,16 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		}
 	}
 
-	private doCreateGroupView(from?: IEditorGroupView | ISerializedEditorGroupModel | null): IEditorGroupView {
+	private doCreateGroupView(from?: IEditorGroupView | ISerializedEditorGroupModel | null, preserveFocus?: boolean): IEditorGroupView {
 
 		// Create group view
 		let groupView: IEditorGroupView;
 		if (from instanceof EditorGroupView) {
-			groupView = EditorGroupView.createCopy(from, this.editorPartsView, this, this.groupsLabel, this.count, this.scopedInstantiationService,);
+			groupView = EditorGroupView.createCopy(from, this.editorPartsView, this, this.groupsLabel, this.count, this.scopedInstantiationService, preserveFocus);
 		} else if (isSerializedEditorGroupModel(from)) {
-			groupView = EditorGroupView.createFromSerialized(from, this.editorPartsView, this, this.groupsLabel, this.count, this.scopedInstantiationService);
+			groupView = EditorGroupView.createFromSerialized(from, this.editorPartsView, this, this.groupsLabel, this.count, this.scopedInstantiationService, preserveFocus);
 		} else {
-			groupView = EditorGroupView.createNew(this.editorPartsView, this, this.groupsLabel, this.count, this.scopedInstantiationService);
+			groupView = EditorGroupView.createNew(this.editorPartsView, this, this.groupsLabel, this.count, this.scopedInstantiationService, preserveFocus);
 		}
 
 		// Keep in map
@@ -1192,7 +1192,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		return true; // success
 	}
 
-	private doCreateGridControlWithState(serializedGrid: ISerializedGrid, activeGroupId: GroupIdentifier, editorGroupViewsToReuse?: IEditorGroupView[]): void {
+	private doCreateGridControlWithState(serializedGrid: ISerializedGrid, activeGroupId: GroupIdentifier, editorGroupViewsToReuse?: IEditorGroupView[], preserveFocus?: boolean): void {
 
 		// Determine group views to reuse if any
 		let reuseGroupViews: IEditorGroupView[];
@@ -1210,7 +1210,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 				if (reuseGroupViews.length > 0) {
 					groupView = reuseGroupViews.shift()!;
 				} else {
-					groupView = this.doCreateGroupView(serializedEditorGroup);
+					groupView = this.doCreateGroupView(serializedEditorGroup, preserveFocus);
 				}
 
 				groupViews.push(groupView);
@@ -1342,15 +1342,15 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		};
 	}
 
-	applyState(state: IEditorPartUIState | 'empty'): Promise<void> {
+	applyState(state: IEditorPartUIState | 'empty', preserveFocus?: boolean): Promise<void> {
 		if (state === 'empty') {
 			return this.doApplyEmptyState();
 		} else {
-			return this.doApplyState(state);
+			return this.doApplyState(state, preserveFocus);
 		}
 	}
 
-	private async doApplyState(state: IEditorPartUIState): Promise<void> {
+	private async doApplyState(state: IEditorPartUIState, preserveFocus?: boolean): Promise<void> {
 		const groups = await this.doPrepareApplyState();
 		const resumeEvents = this.disposeGroups(true /* suspress events for the duration of applying state */);
 
@@ -1359,7 +1359,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 
 		// Grid Widget
 		try {
-			this.doApplyGridState(state.serializedGrid, state.activeGroup);
+			this.doApplyGridState(state.serializedGrid, state.activeGroup, undefined, preserveFocus);
 		} finally {
 			resumeEvents();
 		}
@@ -1396,10 +1396,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		return groups;
 	}
 
-	private doApplyGridState(gridState: ISerializedGrid, activeGroupId: GroupIdentifier, editorGroupViewsToReuse?: IEditorGroupView[]): void {
+	private doApplyGridState(gridState: ISerializedGrid, activeGroupId: GroupIdentifier, editorGroupViewsToReuse?: IEditorGroupView[], preserveFocus?: boolean): void {
 
 		// Recreate grid widget from state
-		this.doCreateGridControlWithState(gridState, activeGroupId, editorGroupViewsToReuse);
+		this.doCreateGridControlWithState(gridState, activeGroupId, editorGroupViewsToReuse, preserveFocus);
 
 		// Layout
 		this.doLayout(this._contentDimension);

@@ -63,16 +63,16 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region factory
 
-	static createNew(editorPartsView: IEditorPartsView, groupsView: IEditorGroupsView, groupsLabel: string, groupIndex: number, instantiationService: IInstantiationService): IEditorGroupView {
-		return instantiationService.createInstance(EditorGroupView, null, editorPartsView, groupsView, groupsLabel, groupIndex);
+	static createNew(editorPartsView: IEditorPartsView, groupsView: IEditorGroupsView, groupsLabel: string, groupIndex: number, instantiationService: IInstantiationService, preserveFocus?: boolean): IEditorGroupView {
+		return instantiationService.createInstance(EditorGroupView, null, editorPartsView, groupsView, groupsLabel, groupIndex, preserveFocus);
 	}
 
-	static createFromSerialized(serialized: ISerializedEditorGroupModel, editorPartsView: IEditorPartsView, groupsView: IEditorGroupsView, groupsLabel: string, groupIndex: number, instantiationService: IInstantiationService): IEditorGroupView {
-		return instantiationService.createInstance(EditorGroupView, serialized, editorPartsView, groupsView, groupsLabel, groupIndex);
+	static createFromSerialized(serialized: ISerializedEditorGroupModel, editorPartsView: IEditorPartsView, groupsView: IEditorGroupsView, groupsLabel: string, groupIndex: number, instantiationService: IInstantiationService, preserveFocus?: boolean): IEditorGroupView {
+		return instantiationService.createInstance(EditorGroupView, serialized, editorPartsView, groupsView, groupsLabel, groupIndex, preserveFocus);
 	}
 
-	static createCopy(copyFrom: IEditorGroupView, editorPartsView: IEditorPartsView, groupsView: IEditorGroupsView, groupsLabel: string, groupIndex: number, instantiationService: IInstantiationService): IEditorGroupView {
-		return instantiationService.createInstance(EditorGroupView, copyFrom, editorPartsView, groupsView, groupsLabel, groupIndex);
+	static createCopy(copyFrom: IEditorGroupView, editorPartsView: IEditorPartsView, groupsView: IEditorGroupsView, groupsLabel: string, groupIndex: number, instantiationService: IInstantiationService, preserveFocus?: boolean): IEditorGroupView {
+		return instantiationService.createInstance(EditorGroupView, copyFrom, editorPartsView, groupsView, groupsLabel, groupIndex, preserveFocus);
 	}
 
 	//#endregion
@@ -145,6 +145,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		readonly groupsView: IEditorGroupsView,
 		private groupsLabel: string,
 		private _index: number,
+		private preserveFocus: boolean | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
@@ -236,7 +237,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		//#endregion
 
 		// Restore editors if provided
-		const restoreEditorsPromise = this.restoreEditors(from) ?? Promise.resolve();
+		const restoreEditorsPromise = this.restoreEditors(from, preserveFocus) ?? Promise.resolve();
 
 		// Signal restored once editors have restored
 		restoreEditorsPromise.finally(() => {
@@ -534,7 +535,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.titleContainer.classList.toggle('show-file-icons', this.groupsView.partOptions.showIcons);
 	}
 
-	private restoreEditors(from: IEditorGroupView | ISerializedEditorGroupModel | null): Promise<void> | undefined {
+	private restoreEditors(from: IEditorGroupView | ISerializedEditorGroupModel | null, preserveFocus: boolean | undefined): Promise<void> | undefined {
 		if (this.count === 0) {
 			return; // nothing to show
 		}
@@ -571,7 +572,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			// stolen accidentally on startup when the user already
 			// clicked somewhere.
 
-			if (this.groupsView.activeGroup === this && activeElement && isActiveElement(activeElement)) {
+			if (this.groupsView.activeGroup === this && activeElement && isActiveElement(activeElement) && this.preserveFocus === false) {
 				this.focus();
 			}
 		});

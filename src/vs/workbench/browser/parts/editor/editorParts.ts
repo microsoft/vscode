@@ -21,6 +21,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ContextKeyValue, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 
 interface IEditorPartsUIState {
 	readonly auxiliary: IAuxiliaryEditorPartState[];
@@ -50,7 +51,8 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		@IStorageService private readonly storageService: IStorageService,
 		@IThemeService themeService: IThemeService,
 		@IAuxiliaryWindowService private readonly auxiliaryWindowService: IAuxiliaryWindowService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
 		super('workbench.editorParts', themeService, storageService);
 
@@ -387,6 +389,12 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 			return false;
 		}
 
+		// Applying a working set can be the result of a user action that has been
+		// initiated from the terminal (ex: switching branches). As such, we want
+		// to preserve the focus in the terminal. This does not cover the scenario
+		// in which the terminal is in the editor part.
+		const preserveFocus = this.layoutService.hasFocus(Parts.PANEL_PART);
+
 		// Apply state: begin with auxiliary windows first because it helps to keep
 		// editors around that need confirmation by moving them into the main part.
 		// Also, in rare cases, the auxiliary part may not be able to apply the state
@@ -395,13 +403,15 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		if (!applied) {
 			return false;
 		}
-		await this.mainPart.applyState(workingSetState === 'empty' ? workingSetState : workingSetState.main);
+		await this.mainPart.applyState(workingSetState === 'empty' ? workingSetState : workingSetState.main, preserveFocus);
 
 		// Restore Focus
-		const mostRecentActivePart = firstOrDefault(this.mostRecentActiveParts);
-		if (mostRecentActivePart) {
-			await mostRecentActivePart.whenReady;
-			mostRecentActivePart.activeGroup.focus();
+		if (!preserveFocus) {
+			const mostRecentActivePart = firstOrDefault(this.mostRecentActiveParts);
+			if (mostRecentActivePart) {
+				await mostRecentActivePart.whenReady;
+				mostRecentActivePart.activeGroup.focus();
+			}
 		}
 
 		return true;
