@@ -71,8 +71,6 @@ export class FailingDeepStrictEqualAssertFixer {
 				},
 			})
 		);
-
-		tests.testResults;
 	}
 
 	dispose() {
@@ -99,15 +97,15 @@ const formatJsonValue = (value: unknown) => {
 		context => (node: ts.Node) => {
 			const visitor = (node: ts.Node): ts.Node =>
 				ts.isPropertyAssignment(node) &&
-				ts.isStringLiteralLike(node.name) &&
-				identifierLikeRe.test(node.name.text)
+					ts.isStringLiteralLike(node.name) &&
+					identifierLikeRe.test(node.name.text)
 					? ts.factory.createPropertyAssignment(
-							ts.factory.createIdentifier(node.name.text),
-							ts.visitNode(node.initializer, visitor) as ts.Expression
-					  )
+						ts.factory.createIdentifier(node.name.text),
+						ts.visitNode(node.initializer, visitor) as ts.Expression
+					)
 					: ts.isStringLiteralLike(node) && node.text === '[undefined]'
-					? ts.factory.createIdentifier('undefined')
-					: ts.visitEachChild(node, visitor, context);
+						? ts.factory.createIdentifier('undefined')
+						: ts.visitEachChild(node, visitor, context);
 
 			return ts.visitNode(node, visitor);
 		},
@@ -190,7 +188,7 @@ class StrictEqualAssertion {
 		return undefined;
 	}
 
-	constructor(private readonly expression: ts.CallExpression) {}
+	constructor(private readonly expression: ts.CallExpression) { }
 
 	/** Gets the expected value */
 	public get expectedValue(): ts.Expression | undefined {

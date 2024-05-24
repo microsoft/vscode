@@ -3,51 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { IRange } from 'vs/editor/common/core/range';
-import { ISelection } from 'vs/editor/common/core/selection';
-import { ProviderResult, TextEdit, WorkspaceEdit } from 'vs/editor/common/languages';
-import { ITextModel } from 'vs/editor/common/model';
+import { TextEdit, WorkspaceEdit } from 'vs/editor/common/languages';
 import { localize } from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IProgress } from 'vs/platform/progress/common/progress';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { diffInserted, diffRemoved, editorHoverHighlight, editorWidgetBackground, editorWidgetBorder, focusBorder, inputBackground, inputPlaceholderForeground, registerColor, transparent, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { Extensions as ExtensionsMigration, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
-import { URI } from 'vs/base/common/uri';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-
-export interface IInlineChatSlashCommand {
-	command: string;
-	detail?: string;
-	refer?: boolean;
-	executeImmediately?: boolean;
-}
+import { IChatAgentCommand } from 'vs/workbench/contrib/chat/common/chatAgents';
 
 export interface IInlineChatSession {
 	id: number;
 	placeholder?: string;
 	input?: string;
 	message?: string;
-	slashCommands?: IInlineChatSlashCommand[];
+	slashCommands?: IChatAgentCommand[];
 	wholeRange?: IRange;
-}
-
-export interface IInlineChatRequest {
-	prompt: string;
-	selection: ISelection;
-	wholeRange: IRange;
-	attempt: number;
-	requestId: string;
-	live: boolean;
-	previewDocument: URI;
-	withIntentDetection: boolean;
 }
 
 export type IInlineChatResponse = IInlineChatEditResponse | IInlineChatBulkEditResponse;
@@ -82,71 +56,14 @@ export interface IInlineChatBulkEditResponse {
 	wholeRange?: IRange;
 }
 
-export interface IInlineChatProgressItem {
-	markdownFragment?: string;
-	edits?: TextEdit[];
-	editsShouldBeInstant?: boolean;
-	message?: string;
-	slashCommand?: string;
-}
-
-export const enum InlineChatResponseFeedbackKind {
-	Unhelpful = 0,
-	Helpful = 1,
-	Undone = 2,
-	Accepted = 3,
-	Bug = 4
-}
-
-export interface IInlineChatReplyFollowup {
-	kind: 'reply';
-	message: string;
-	title?: string;
-	tooltip?: string;
-}
-
-export interface IInlineChatCommandFollowup {
-	kind: 'command';
-	commandId: string;
-	args?: any[];
-	title: string; // supports codicon strings
-	when?: string;
-}
-
-export type IInlineChatFollowup = IInlineChatReplyFollowup | IInlineChatCommandFollowup;
-
-export interface IInlineChatSessionProvider {
-
-	extensionId: ExtensionIdentifier;
-	label: string;
-	supportIssueReporting?: boolean;
-
-	prepareInlineChatSession(model: ITextModel, range: ISelection, token: CancellationToken): ProviderResult<IInlineChatSession>;
-
-	provideResponse(item: IInlineChatSession, request: IInlineChatRequest, progress: IProgress<IInlineChatProgressItem>, token: CancellationToken): ProviderResult<IInlineChatResponse>;
-
-	provideFollowups?(session: IInlineChatSession, response: IInlineChatResponse, token: CancellationToken): ProviderResult<IInlineChatFollowup[]>;
-
-	handleInlineChatResponseFeedback?(session: IInlineChatSession, response: IInlineChatResponse, kind: InlineChatResponseFeedbackKind): void;
-}
-
-export const IInlineChatService = createDecorator<IInlineChatService>('IInlineChatService');
-
-export interface InlineChatProviderChangeEvent {
-	readonly added?: IInlineChatSessionProvider;
-	readonly removed?: IInlineChatSessionProvider;
-}
-
-export interface IInlineChatService {
-	_serviceBrand: undefined;
-
-	onDidChangeProviders: Event<InlineChatProviderChangeEvent>;
-	addProvider(provider: IInlineChatSessionProvider): IDisposable;
-	getAllProvider(): Iterable<IInlineChatSessionProvider>;
-}
 
 export const INLINE_CHAT_ID = 'interactiveEditor';
 export const INTERACTIVE_EDITOR_ACCESSIBILITY_HELP_ID = 'interactiveEditorAccessiblityHelp';
+
+export const enum EditMode {
+	Live = 'live',
+	Preview = 'preview'
+}
 
 export const CTX_INLINE_CHAT_HAS_PROVIDER = new RawContextKey<boolean>('inlineChatHasProvider', false, localize('inlineChatHasProvider', "Whether a provider for interactive editors exists"));
 export const CTX_INLINE_CHAT_VISIBLE = new RawContextKey<boolean>('inlineChatVisible', false, localize('inlineChatVisible', "Whether the interactive editor input is visible"));
@@ -182,7 +99,6 @@ export const ACTION_TOGGLE_DIFF = 'inlineChat.toggleDiff';
 
 export const MENU_INLINE_CHAT_WIDGET = MenuId.for('inlineChatWidget');
 export const MENU_INLINE_CHAT_WIDGET_STATUS = MenuId.for('inlineChatWidget.status');
-export const MENU_INLINE_CHAT_WIDGET_DISCARD = MenuId.for('inlineChatWidget.undo');
 
 // --- colors
 
@@ -206,10 +122,7 @@ export const overviewRulerInlineChatDiffRemoved = registerColor('editorOverviewR
 
 // settings
 
-export const enum EditMode {
-	Live = 'live',
-	Preview = 'preview'
-}
+
 
 Registry.as<IConfigurationMigrationRegistry>(ExtensionsMigration.ConfigurationMigration).registerConfigurationMigrations(
 	[{

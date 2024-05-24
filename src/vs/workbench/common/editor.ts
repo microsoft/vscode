@@ -1168,6 +1168,9 @@ export const enum GroupModelChangeKind {
 	GROUP_LABEL,
 	GROUP_LOCKED,
 
+	/* Editors Change */
+	EDITORS_SELECTION,
+
 	/* Editor Changes */
 	EDITOR_OPEN,
 	EDITOR_CLOSE,
@@ -1177,7 +1180,6 @@ export const enum GroupModelChangeKind {
 	EDITOR_CAPABILITIES,
 	EDITOR_PIN,
 	EDITOR_TRANSIENT,
-	EDITOR_SELECTION,
 	EDITOR_STICKY,
 	EDITOR_DIRTY,
 	EDITOR_WILL_DISPOSE

@@ -27,7 +27,7 @@ import { TestRunProfileKind, TestRunRequest, FileCoverage } from 'vs/workbench/a
 import { TestCommandId } from 'vs/workbench/contrib/testing/common/constants';
 import { TestId, TestIdPathParts, TestPosition } from 'vs/workbench/contrib/testing/common/testId';
 import { InvalidTestItemError } from 'vs/workbench/contrib/testing/common/testItemCollection';
-import { AbstractIncrementalTestCollection, CoverageDetails, ICallProfileRunHandler, ISerializedTestResults, IStartControllerTests, IStartControllerTestsResult, ITestErrorMessage, ITestItem, ITestItemContext, ITestMessageMenuArgs, ITestRunProfile, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, TestResultState, TestRunProfileBitset, TestsDiff, TestsDiffOp, isStartControllerTests } from 'vs/workbench/contrib/testing/common/testTypes';
+import { AbstractIncrementalTestCollection, CoverageDetails, ICallProfileRunHandler, ISerializedTestResults, IStartControllerTests, IStartControllerTestsResult, ITestErrorMessage, ITestItem, ITestItemContext, ITestMessageMenuArgs, ITestRunProfile, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, TestMessageFollowupRequest, TestMessageFollowupResponse, TestResultState, TestRunProfileBitset, TestsDiff, TestsDiffOp, isStartControllerTests } from 'vs/workbench/contrib/testing/common/testTypes';
 import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import type * as vscode from 'vscode';
 
@@ -41,6 +41,10 @@ interface ControllerInfo {
 
 type DefaultProfileChangeEvent = Map</* controllerId */ string, Map< /* profileId */number, boolean>>;
 
+let followupCounter = 0;
+
+const testResultInternalIDs = new WeakMap<vscode.TestRunResult, string>();
+
 export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 	private readonly resultsChangedEmitter = this._register(new Emitter<void>());
 	protected readonly controllers = new Map</* controller ID */ string, ControllerInfo>();
@@ -48,14 +52,16 @@ export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 	private readonly runTracker: TestRunCoordinator;
 	private readonly observer: TestObservers;
 	private readonly defaultProfilesChangedEmitter = this._register(new Emitter<DefaultProfileChangeEvent>());
+	private readonly followupProviders = new Set<vscode.TestFollowupProvider>();
+	private readonly testFollowups = new Map<number, vscode.Command>();
 
 	public onResultsChanged = this.resultsChangedEmitter.event;
 	public results: ReadonlyArray<vscode.TestRunResult> = [];
 
 	constructor(
 		@IExtHostRpcService rpc: IExtHostRpcService,
-		@ILogService logService: ILogService,
-		commands: ExtHostCommands,
+		@ILogService private readonly logService: ILogService,
+		private readonly commands: ExtHostCommands,
 		private readonly editors: ExtHostDocumentsAndEditors,
 	) {
 		super();
@@ -223,6 +229,14 @@ export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 	}
 
 	/**
+	 * Implements vscode.test.registerTestFollowupProvider
+	 */
+	public registerTestFollowupProvider(provider: vscode.TestFollowupProvider): vscode.Disposable {
+		this.followupProviders.add(provider);
+		return { dispose: () => { this.followupProviders.delete(provider); } };
+	}
+
+	/**
 	 * @inheritdoc
 	 */
 	$syncTests(): Promise<void> {
@@ -292,7 +306,11 @@ export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 	public $publishTestResults(results: ISerializedTestResults[]): void {
 		this.results = Object.freeze(
 			results
-				.map(Convert.TestResults.to)
+				.map(r => {
+					const o = Convert.TestResults.to(r);
+					testResultInternalIDs.set(o, r.id);
+					return o;
+				})
 				.concat(this.results)
 				.sort((a, b) => b.completedAt - a.completedAt)
 				.slice(0, 32),
@@ -346,6 +364,52 @@ export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 
 		cts.dispose(true);
 		return res;
+	}
+
+	/** @inheritdoc */
+	public async $provideTestFollowups(req: TestMessageFollowupRequest, token: CancellationToken): Promise<TestMessageFollowupResponse[]> {
+		const results = this.results.find(r => testResultInternalIDs.get(r) === req.resultId);
+		const test = results && findTestInResultSnapshot(TestId.fromString(req.extId), results?.results);
+		if (!test) {
+			return [];
+		}
+
+		let followups: vscode.Command[] = [];
+		await Promise.all([...this.followupProviders].map(async provider => {
+			try {
+				const r = await provider.provideFollowup(results, test, req.taskIndex, req.messageIndex, token);
+				if (r) {
+					followups = followups.concat(r);
+				}
+			} catch (e) {
+				this.logService.error(`Error thrown while providing followup for test message`, e);
+			}
+		}));
+
+		if (token.isCancellationRequested) {
+			return [];
+		}
+
+		return followups.map(command => {
+			const id = followupCounter++;
+			this.testFollowups.set(id, command);
+			return { title: command.title, id };
+		});
+	}
+
+	$disposeTestFollowups(id: number[]): void {
+		for (const i of id) {
+			this.testFollowups.delete(i);
+		}
+	}
+
+	$executeTestFollowup(id: number): Promise<void> {
+		const command = this.testFollowups.get(id);
+		if (!command) {
+			return Promise.resolve();
+		}
+
+		return this.commands.executeCommand(command.command, ...(command.arguments || []));
 	}
 
 	private async runControllerTestRequest(req: ICallProfileRunHandler | ICallProfileRunHandler, isContinuous: boolean, token: CancellationToken): Promise<IStartControllerTestsResult> {
@@ -1202,3 +1266,20 @@ const profileGroupToBitset: { [K in TestRunProfileKind]: TestRunProfileBitset } 
 	[TestRunProfileKind.Debug]: TestRunProfileBitset.Debug,
 	[TestRunProfileKind.Run]: TestRunProfileBitset.Run,
 };
+
+function findTestInResultSnapshot(extId: TestId, snapshot: readonly Readonly<vscode.TestResultSnapshot>[]) {
+	for (let i = 0; i < extId.path.length; i++) {
+		const item = snapshot.find(s => s.id === extId.path[i]);
+		if (!item) {
+			return undefined;
+		}
+
+		if (i === extId.path.length - 1) {
+			return item;
+		}
+
+		snapshot = item.children;
+	}
+
+	return undefined;
+}

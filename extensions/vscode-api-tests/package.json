@@ -7,8 +7,6 @@
   "enabledApiProposals": [
     "activeComment",
     "authSession",
-    "chatParticipant",
-    "languageModels",
     "defaultChatParticipant",
     "chatVariableResolver",
     "contribViewsRemote",

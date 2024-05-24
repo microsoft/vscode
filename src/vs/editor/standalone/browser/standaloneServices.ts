@@ -792,6 +792,7 @@ class StandaloneTelemetryService implements ITelemetryService {
 	readonly sessionId = 'someValue.sessionId';
 	readonly machineId = 'someValue.machineId';
 	readonly sqmId = 'someValue.sqmId';
+	readonly devDeviceId = 'someValue.devDeviceId';
 	readonly firstSessionDate = 'someValue.firstSessionDate';
 	readonly sendErrorTelemetry = false;
 	setEnabled(): void { }
@@ -1081,6 +1082,10 @@ class StandaloneAccessbilitySignalService implements IAccessibilitySignalService
 
 	getEnabledState(signal: AccessibilitySignal, userGesture: boolean, modality?: AccessibilityModality | undefined): IValueWithChangeEvent<boolean> {
 		return ValueWithChangeEvent.const(false);
+	}
+
+	getDelayMs(signal: AccessibilitySignal, modality: AccessibilityModality): number {
+		return 0;
 	}
 
 	isSoundEnabled(cue: AccessibilitySignal): boolean {
