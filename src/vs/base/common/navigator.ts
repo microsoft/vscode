@@ -17,7 +17,7 @@ export class ArrayNavigator<T> implements INavigator<T> {
 		private readonly items: readonly T[],
 		protected start: number = 0,
 		protected end: number = items.length,
-		protected index: number = start - 1
+		protected index = start - 1
 	) { }
 
 	current(): T | null {
