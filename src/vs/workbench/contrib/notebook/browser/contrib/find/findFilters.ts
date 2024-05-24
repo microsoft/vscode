@@ -100,8 +100,6 @@ export class NotebookFindFilters extends Disposable {
 	private readonly _initialMarkupPreview: boolean;
 	private readonly _initialCodeInput: boolean;
 	private readonly _initialCodeOutput: boolean;
-	private readonly _initialSearchInRanges: boolean;
-	private readonly _initialSelectedRanges: ICellRange[];
 
 	constructor(
 		markupInput: boolean,
@@ -124,18 +122,15 @@ export class NotebookFindFilters extends Disposable {
 		this._initialMarkupPreview = markupPreview;
 		this._initialCodeInput = codeInput;
 		this._initialCodeOutput = codeOutput;
-		this._initialSearchInRanges = searchInRanges;
-		this._initialSelectedRanges = selectedRanges;
 	}
 
 	isModified(): boolean {
+		// do not include searchInRanges or selectedRanges in the check. This will incorrectly mark the filter icon as modified
 		return (
 			this._markupInput !== this._initialMarkupInput
 			|| this._markupPreview !== this._initialMarkupPreview
 			|| this._codeInput !== this._initialCodeInput
 			|| this._codeOutput !== this._initialCodeOutput
-			|| this._searchInRanges !== this._initialSearchInRanges
-			|| this._selectedRanges !== this._initialSelectedRanges
 		);
 	}
 
