@@ -59,6 +59,7 @@ import { NullHoverService } from 'vs/platform/hover/test/browser/nullHoverServic
 import { ChatVariablesService } from 'vs/workbench/contrib/chat/browser/chatVariables';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { TestCommandService } from 'vs/editor/test/browser/editorTestServices';
+import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 
 suite('InteractiveChatController', function () {
 
@@ -177,6 +178,9 @@ suite('InteractiveChatController', function () {
 			[IConfigurationService, configurationService],
 			[IViewDescriptorService, new class extends mock<IViewDescriptorService>() {
 				override onDidChangeLocation = Event.None;
+			}],
+			[INotebookEditorService, new class extends mock<INotebookEditorService>() {
+				override listNotebookEditors() { return []; }
 			}]
 		);
 
