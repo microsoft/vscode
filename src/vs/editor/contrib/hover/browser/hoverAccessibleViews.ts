@@ -135,28 +135,32 @@ export class HoverAccessibilityHelpProvider extends BaseHoverAccessibleViewProvi
 	}
 
 	provideContent(): string {
+		return this.provideContentAtIndex(this._markdownHoverFocusedIndex);
+	}
+
+	provideContentAtIndex(index: number): string {
 		const content: string[] = [];
 		content.push(HoverAccessibilityHelpNLS.intro);
-		content.push(...this._descriptionsOfVerbosityActions());
-		content.push(...this._descriptionOfFocusedMarkdownHover());
+		content.push(...this._descriptionsOfVerbosityActionsForIndex(index));
+		content.push(...this._descriptionOfFocusedMarkdownHoverAtIndex(index));
 		return content.join('\n');
 	}
 
-	private _descriptionsOfVerbosityActions(): string[] {
+	private _descriptionsOfVerbosityActionsForIndex(index: number): string[] {
 		const content: string[] = [];
-		const descriptionForIncreaseAction = this._descriptionOfVerbosityAction(HoverVerbosityAction.Increase);
+		const descriptionForIncreaseAction = this._descriptionOfVerbosityActionForIndex(HoverVerbosityAction.Increase, index);
 		if (descriptionForIncreaseAction !== undefined) {
 			content.push(descriptionForIncreaseAction);
 		}
-		const descriptionForDecreaseAction = this._descriptionOfVerbosityAction(HoverVerbosityAction.Decrease);
+		const descriptionForDecreaseAction = this._descriptionOfVerbosityActionForIndex(HoverVerbosityAction.Decrease, index);
 		if (descriptionForDecreaseAction !== undefined) {
 			content.push(descriptionForDecreaseAction);
 		}
 		return content;
 	}
 
-	private _descriptionOfVerbosityAction(action: HoverVerbosityAction): string | undefined {
-		const isActionSupported = this._hoverController.doesMarkdownHoverAtIndexSupportVerbosityAction(this._markdownHoverFocusedIndex, action);
+	private _descriptionOfVerbosityActionForIndex(action: HoverVerbosityAction, index: number): string | undefined {
+		const isActionSupported = this._hoverController.doesMarkdownHoverAtIndexSupportVerbosityAction(index, action);
 		if (!isActionSupported) {
 			return;
 		}
@@ -168,9 +172,9 @@ export class HoverAccessibilityHelpProvider extends BaseHoverAccessibleViewProvi
 		}
 	}
 
-	protected _descriptionOfFocusedMarkdownHover(): string[] {
+	protected _descriptionOfFocusedMarkdownHoverAtIndex(index: number): string[] {
 		const content: string[] = [];
-		const hoverContent = this._hoverController.markdownHoverContentAtIndex(this._markdownHoverFocusedIndex);
+		const hoverContent = this._hoverController.markdownHoverContentAtIndex(index);
 		if (hoverContent) {
 			content.push('\n' + HoverAccessibilityHelpNLS.hoverContent);
 			content.push('\n' + hoverContent);
@@ -193,7 +197,7 @@ export class HoverAccessibleViewProvider extends BaseHoverAccessibleViewProvider
 		this.options = {
 			language: this._editor.getModel()?.getLanguageId(),
 			type: AccessibleViewType.View,
-			customHelp: helpProvider.provideContent.bind(helpProvider)
+			customHelp: () => { return helpProvider.provideContentAtIndex(this._markdownHoverFocusedIndex); }
 		};
 		this._initializeActions();
 	}
