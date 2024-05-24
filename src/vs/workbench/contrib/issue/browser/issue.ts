@@ -14,11 +14,12 @@ import { CancellationError } from 'vs/base/common/errors';
 import { isLinuxSnap } from 'vs/base/common/platform';
 import { escape } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
-import { IssueReporterModel, IssueReporterData as IssueReporterModelData } from 'vs/code/browser/issue/issueReporterModel';
 import { localize } from 'vs/nls';
 import { IIssueMainService, IssueReporterData, IssueReporterExtensionData, IssueReporterStyles, IssueType } from 'vs/platform/issue/common/issue';
 import { normalizeGitHubUrl } from 'vs/platform/issue/common/issueReporterUtil';
 import { getIconsStyleSheet } from 'vs/platform/theme/browser/iconsStyleSheet';
+import { IssueReporterModel, IssueReporterData as IssueReporterModelData } from 'vs/workbench/contrib/issue/browser/issueReporterModel';
+import { mainWindow } from 'vs/base/browser/window';
 
 const MAX_URL_LENGTH = 7500;
 
@@ -156,7 +157,7 @@ export class BaseIssueReporterService extends Disposable {
 		const content: string[] = [];
 
 		if (styles.inputBackground) {
-			content.push(`input[type="text"], textarea, select, .issues-container > .issue > .issue-state, .block-info { background-color: ${styles.inputBackground}; }`);
+			content.push(`input[type="text"], textarea, select, .issues-container > .issue > .issue-state, .block-info { background-color: ${styles.inputBackground} !important; }`);
 		}
 
 		if (styles.inputBorder) {
@@ -166,7 +167,7 @@ export class BaseIssueReporterService extends Disposable {
 		}
 
 		if (styles.inputForeground) {
-			content.push(`input[type="text"], textarea, select, .issues-container > .issue > .issue-state, .block-info { color: ${styles.inputForeground}; }`);
+			content.push(`input[type="text"], textarea, select, .issues-container > .issue > .issue-state, .block-info { color: ${styles.inputForeground} !important; }`);
 		}
 
 		if (styles.inputErrorBorder) {
@@ -825,7 +826,8 @@ export class BaseIssueReporterService extends Disposable {
 			}),
 			headers: new Headers({
 				'Content-Type': 'application/json',
-				'Authorization': `Bearer ${this.data.githubAccessToken}`
+				'Authorization': `Bearer ${this.data.githubAccessToken}`,
+				'User-Agent': 'request'
 			})
 		};
 
@@ -835,8 +837,7 @@ export class BaseIssueReporterService extends Disposable {
 			return false;
 		}
 		const result = await response.json();
-		this.window.open(result.html_url, '_blank');
-
+		mainWindow.open(result.html_url, '_blank');
 		this.close();
 		return true;
 	}
