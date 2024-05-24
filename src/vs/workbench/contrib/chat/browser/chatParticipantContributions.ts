@@ -204,7 +204,6 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 					if (providerDescriptor.when && !isProposedApiEnabled(extension.description, 'chatParticipantAdditions')) {
 						this.logService.error(`Extension '${extension.description.identifier.value}' CANNOT use API proposal: chatParticipantAdditions.`);
 						continue;
-
 					}
 
 					store.add(this._chatAgentService.registerAgent(
