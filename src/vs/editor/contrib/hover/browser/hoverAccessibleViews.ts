@@ -29,10 +29,10 @@ namespace HoverAccessibilityHelpNLS {
 
 export class HoverAccessibleView implements IAccessibleViewImplentation {
 
-	readonly type = AccessibleViewType.View;
-	readonly priority = 95;
-	readonly name = 'hover';
-	readonly when = EditorContextKeys.hoverFocused;
+	public readonly type = AccessibleViewType.View;
+	public readonly priority = 95;
+	public readonly name = 'hover';
+	public readonly when = EditorContextKeys.hoverFocused;
 
 	private _provider: HoverAccessibleViewProvider | undefined;
 
@@ -57,10 +57,10 @@ export class HoverAccessibleView implements IAccessibleViewImplentation {
 
 export class HoverAccessibilityHelp implements IAccessibleViewImplentation {
 
-	readonly priority = 100;
-	readonly name = 'hover';
-	readonly type = AccessibleViewType.Help;
-	readonly when = EditorContextKeys.hoverVisible;
+	public readonly priority = 100;
+	public readonly name = 'hover';
+	public readonly type = AccessibleViewType.Help;
+	public readonly when = EditorContextKeys.hoverVisible;
 
 	private _provider: HoverAccessibleViewProvider | undefined;
 
@@ -242,9 +242,9 @@ export class HoverAccessibleViewProvider extends BaseHoverAccessibleViewProvider
 
 export class ExtHoverAccessibleView implements IAccessibleViewImplentation {
 
-	readonly type = AccessibleViewType.View;
-	readonly priority = 90;
-	readonly name = 'extension-hover';
+	public readonly type = AccessibleViewType.View;
+	public readonly priority = 90;
+	public readonly name = 'extension-hover';
 
 	getProvider(accessor: ServicesAccessor): AdvancedContentProvider | undefined {
 		const contextViewService = accessor.get(IContextViewService);
