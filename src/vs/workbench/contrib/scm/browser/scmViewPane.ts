@@ -100,7 +100,7 @@ import { foreground, listActiveSelectionForeground, registerColor, transparent }
 import { IMenuWorkbenchToolBarOptions, MenuWorkbenchToolBar, WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
-import { clamp } from 'vs/base/common/numbers';
+import { clamp, rot } from 'vs/base/common/numbers';
 import { ILogService } from 'vs/platform/log/common/log';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { MarkdownString } from 'vs/base/common/htmlContent';
@@ -109,7 +109,6 @@ import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { OpenScmGroupAction } from 'vs/workbench/contrib/multiDiffEditor/browser/scmMultiDiffSourceResolver';
 import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
 import { ITextModel } from 'vs/editor/common/model';
-import { ArrayNavigator } from 'vs/base/common/navigator';
 
 // type SCMResourceTreeNode = IResourceNode<ISCMResource, ISCMResourceGroup>;
 // type SCMHistoryItemChangeResourceTreeNode = IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement>;
@@ -3435,25 +3434,17 @@ export class SCMViewPane extends ViewPane {
 
 	focusPreviousInput(): void {
 		this.treeOperationSequencer.queue(async () => {
-			const getRepository = (items: readonly ISCMRepository[], index: number): ISCMRepository | null => {
-				return new ArrayNavigator(items, 0, items.length, index, true).previous();
-			};
-
-			await this.focusInput(getRepository);
+			await this.focusInput(-1);
 		});
 	}
 
 	focusNextInput(): void {
 		this.treeOperationSequencer.queue(async () => {
-			const getRepository = (items: readonly ISCMRepository[], index: number): ISCMRepository | null => {
-				return new ArrayNavigator(items, 0, items.length, index, true).next();
-			};
-
-			await this.focusInput(getRepository);
+			await this.focusInput(1);
 		});
 	}
 
-	private async focusInput(getRepository: (items: readonly ISCMRepository[], index: number) => ISCMRepository | null): Promise<void> {
+	private async focusInput(delta: number): Promise<void> {
 		if (!this.scmViewService.focusedRepository ||
 			this.scmViewService.visibleRepositories.length === 0) {
 			return;
@@ -3470,10 +3461,8 @@ export class SCMViewPane extends ViewPane {
 		// Multiple visible repositories and the input already focused
 		if (repositories.length > 1 && this.inputRenderer.getRenderedInputWidget(input)?.hasFocus() === true) {
 			const focusedRepositoryIndex = repositories.indexOf(this.scmViewService.focusedRepository);
-			const focusedRepositoryNew = getRepository(repositories, focusedRepositoryIndex);
-			if (focusedRepositoryNew) {
-				input = focusedRepositoryNew.input;
-			}
+			const newFocusedRepositoryIndex = rot(focusedRepositoryIndex + delta, repositories.length);
+			input = repositories[newFocusedRepositoryIndex].input;
 		}
 
 		await this.tree.expandTo(input);
