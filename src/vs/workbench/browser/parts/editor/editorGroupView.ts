@@ -269,7 +269,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		const groupActiveEditorAvailableEditorIds = this.editorPartsView.bind(ActiveEditorAvailableEditorIdsContext, this);
 		const groupActiveEditorCanSplitInGroupContext = this.editorPartsView.bind(ActiveEditorCanSplitInGroupContext, this);
-		const sideBySideEditorContext = this.editorPartsView.bind(SideBySideEditorActiveContext, this);
+		const groupActiveEditorIsSideBySideEditorContext = this.editorPartsView.bind(SideBySideEditorActiveContext, this);
 
 		const activeEditorListener = this._register(new MutableDisposable());
 
@@ -286,7 +286,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 				if (activeEditor) {
 					groupActiveEditorCanSplitInGroupContext.set(activeEditor.hasCapability(EditorInputCapabilities.CanSplitInGroup));
-					sideBySideEditorContext.set(activeEditor.typeId === SideBySideEditorInput.ID);
+					groupActiveEditorIsSideBySideEditorContext.set(activeEditor.typeId === SideBySideEditorInput.ID);
 
 					groupActiveEditorDirtyContext.set(activeEditor.isDirty() && !activeEditor.isSaving());
 					activeEditorListener.value = activeEditor.onDidChangeDirty(() => {
@@ -294,7 +294,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 					});
 				} else {
 					groupActiveEditorCanSplitInGroupContext.set(false);
-					sideBySideEditorContext.set(false);
+					groupActiveEditorIsSideBySideEditorContext.set(false);
 					groupActiveEditorDirtyContext.set(false);
 				}
 

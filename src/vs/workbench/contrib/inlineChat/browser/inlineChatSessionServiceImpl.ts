@@ -23,7 +23,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { ChatAgentLocation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
-import { CTX_INLINE_CHAT_HAS_PROVIDER, EditMode, IInlineChatBulkEditResponse, IInlineChatSession, IInlineChatSlashCommand, InlineChatResponseType } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_HAS_PROVIDER, EditMode, IInlineChatBulkEditResponse, IInlineChatSession, InlineChatResponseType } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { EmptyResponse, ErrorResponse, HunkData, ReplyResponse, Session, SessionExchange, SessionWholeRange, StashedSession, TelemetryData, TelemetryDataClassification } from './inlineChatSession';
@@ -150,14 +150,8 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			id: Math.random(),
 			wholeRange: new Range(selection.selectionStartLineNumber, selection.selectionStartColumn, selection.positionLineNumber, selection.positionColumn),
 			placeholder: agent.description,
-			slashCommands: agent.slashCommands.map(agentCommand => {
-				return {
-					command: agentCommand.name,
-					detail: agentCommand.description,
-				} satisfies IInlineChatSlashCommand;
-			})
+			slashCommands: agent.slashCommands
 		};
-
 
 		const store = new DisposableStore();
 		this._logService.trace(`[IE] creating NEW session for ${editor.getId()}, ${agent.extensionId}`);

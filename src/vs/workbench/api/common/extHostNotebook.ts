@@ -335,7 +335,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			throw new files.FileOperationError(localize('err.readonly', "Unable to modify read-only file '{0}'", this._resourceForError(uri)), files.FileOperationResult.FILE_PERMISSION_DENIED);
 		}
 
-
 		const data: vscode.NotebookData = {
 			metadata: filter(document.apiNotebook.metadata, key => !(serializer.options?.transientDocumentMetadata ?? {})[key]),
 			cells: [],
@@ -360,7 +359,15 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		// validate write
 		await this._validateWriteFile(uri, options);
 
+		if (token.isCancellationRequested) {
+			throw new Error('canceled');
+		}
 		const bytes = await serializer.serializer.serializeNotebook(data, token);
+		if (token.isCancellationRequested) {
+			throw new Error('canceled');
+		}
+
+		// Don't accept any cancellation beyond this point, we need to report the result of the file write
 		this.trace(`serialized versionId: ${versionId} ${uri.toString()}`);
 		await this._extHostFileSystem.value.writeFile(uri, bytes);
 		this.trace(`Finished write versionId: ${versionId} ${uri.toString()}`);
