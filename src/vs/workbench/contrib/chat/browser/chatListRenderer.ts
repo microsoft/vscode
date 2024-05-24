@@ -30,7 +30,7 @@ import { FileAccess, Schemas, matchesSomeScheme } from 'vs/base/common/network';
 import { clamp } from 'vs/base/common/numbers';
 import { autorun } from 'vs/base/common/observable';
 import { basename } from 'vs/base/common/path';
-import { basenameOrAuthority } from 'vs/base/common/resources';
+import { basenameOrAuthority, isEqual } from 'vs/base/common/resources';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
@@ -1083,7 +1083,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 							continue;
 						}
 						for (const item of request.response.response.value) {
-							if (item.kind !== 'textEditGroup' || item.state?.applied) {
+							if (item.kind !== 'textEditGroup' || item.state?.applied || !isEqual(item.uri, chatTextEdit.uri)) {
 								continue;
 							}
 							for (const group of item.edits) {
