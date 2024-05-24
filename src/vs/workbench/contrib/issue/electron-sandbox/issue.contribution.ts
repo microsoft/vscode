@@ -25,6 +25,7 @@ import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/pl
 import { IssueQuickAccess } from 'vs/workbench/contrib/issue/browser/issueQuickAccess';
 import 'vs/workbench/contrib/issue/electron-sandbox/issueMainService';
 import 'vs/workbench/contrib/issue/electron-sandbox/issueService';
+import 'vs/workbench/contrib/issue/browser/issueTroubleshoot';
 
 
 //#region Issue Contribution

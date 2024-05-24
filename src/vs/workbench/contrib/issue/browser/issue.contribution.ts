@@ -17,6 +17,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IIssueMainService } from 'vs/platform/issue/common/issue';
 import { IssueFormService } from 'vs/workbench/contrib/issue/browser/issueFormService';
+import 'vs/workbench/contrib/issue/browser/issueTroubleshoot';
 
 
 class WebIssueContribution extends BaseIssueContribution {
