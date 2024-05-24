@@ -81,6 +81,7 @@ import { IChatListItemRendererOptions } from './chat';
 import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 
 const $ = dom.$;
 
@@ -1073,12 +1074,34 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					false
 				);
 				store.add(modified);
-				if (!chatTextEdit.state?.applied) {
-					for (const group of chatTextEdit.edits) {
-						const edits = group.map(TextEdit.asEditOperation);
-						modified.pushEditOperations(null, edits, () => null);
+
+				const editGroups: ISingleEditOperation[][] = [];
+				if (isResponseVM(element)) {
+					const chatModel = this.chatService.getSession(element.sessionId)!;
+
+					for (const request of chatModel.getRequests()) {
+						if (!request.response) {
+							continue;
+						}
+						for (const item of request.response.response.value) {
+							if (item.kind !== 'textEditGroup' || item.state?.applied) {
+								continue;
+							}
+							for (const group of item.edits) {
+								const edits = group.map(TextEdit.asEditOperation);
+								editGroups.push(edits);
+							}
+						}
+						if (request.response === element.model) {
+							break;
+						}
 					}
 				}
+
+				for (const edits of editGroups) {
+					modified.pushEditOperations(null, edits, () => null);
+				}
+
 				return {
 					modified,
 					original,

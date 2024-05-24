@@ -1017,15 +1017,33 @@ export class InlineChatController implements IEditorContribution {
 			return;
 		}
 
-		// TODO@jrieken REMOVE this as soon as we can mark responses as accepted
-		// and as soon as hunks support request-linking
-		const textEditsResponseCount = this._session.chatModel.getRequests().filter(request => request.response?.response.value.some(part => part.kind === 'textEditGroup')).length;
-		if (textEditsResponseCount > 1) {
-			return;
+		let someApplied = false;
+		let lastEdit: IChatTextEditGroup | undefined;
+
+		const uri = this._editor.getModel()?.uri;
+		const requests = this._session.chatModel.getRequests();
+		for (const request of requests) {
+			if (!request.response) {
+				continue;
+			}
+			for (const part of request.response.response.value) {
+				if (part.kind === 'textEditGroup' && isEqual(part.uri, uri)) {
+					// fully or partially applied edits
+					someApplied = someApplied || Boolean(part.state?.applied);
+					lastEdit = part;
+				}
+			}
 		}
 
-		this._strategy.cancel();
+		const doEdits = this._strategy.cancel();
+
+		if (someApplied) {
+			assertType(lastEdit);
+			lastEdit.edits = [doEdits];
+		}
+
 		await this._instaService.invokeFunction(moveToPanelChat, this._session?.chatModel);
+
 		this.cancelSession();
 	}
 

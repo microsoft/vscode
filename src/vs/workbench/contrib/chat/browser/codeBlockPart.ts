@@ -775,7 +775,7 @@ export class DefaultChatTextEditor {
 		@IDialogService private readonly dialogService: IDialogService,
 	) { }
 
-	async apply(response: IChatResponseModel | IChatResponseViewModel, item: IChatTextEditGroup): Promise<void> {
+	async apply(response: IChatResponseModel | IChatResponseViewModel, item: IChatTextEditGroup, diffEditor: IDiffEditor | undefined): Promise<void> {
 
 		if (!response.response.value.includes(item)) {
 			// bogous item
@@ -787,15 +787,16 @@ export class DefaultChatTextEditor {
 			return;
 		}
 
-		let diffEditor: IDiffEditor | undefined;
-		for (const candidate of this.editorService.listDiffEditors()) {
-			if (!candidate.getContainerDomNode().isConnected) {
-				continue;
-			}
-			const model = candidate.getModel();
-			if (!model || !isEqual(model.original.uri, item.uri) || model.modified.uri.scheme !== Schemas.vscodeChatCodeCompareBlock) {
-				diffEditor = candidate;
-				break;
+		if (!diffEditor) {
+			for (const candidate of this.editorService.listDiffEditors()) {
+				if (!candidate.getContainerDomNode().isConnected) {
+					continue;
+				}
+				const model = candidate.getModel();
+				if (!model || !isEqual(model.original.uri, item.uri) || model.modified.uri.scheme !== Schemas.vscodeChatCodeCompareBlock) {
+					diffEditor = candidate;
+					break;
+				}
 			}
 		}
 
