@@ -3468,27 +3468,16 @@ export class SCMViewPane extends ViewPane {
 	}
 
 	focusPreviousResourceGroup(): void {
-		this.treeOperationSequencer.queue(async () => {
-			const getPreviousIndex = (index: number, length: number) => {
-				return index > 0 ? index - 1 : length - 1;
-			};
-
-			this.focusResourceGroup(getPreviousIndex);
-		});
+		this.treeOperationSequencer.queue(() => this.focusResourceGroup(-1));
 	}
 
 	focusNextResourceGroup(): void {
-		this.treeOperationSequencer.queue(async () => {
-			const getNextIndex = (index: number, length: number) => {
-				return index < length - 1 ? index + 1 : 0;
-			};
-
-			this.focusResourceGroup(getNextIndex);
-		});
+		this.treeOperationSequencer.queue(() => this.focusResourceGroup(1));
 	}
 
-	private focusResourceGroup(getIndex: (index: number, length: number) => number): void {
-		if (!this.scmViewService.focusedRepository) {
+	private async focusResourceGroup(delta: number): Promise<void> {
+		if (!this.scmViewService.focusedRepository ||
+			this.scmViewService.visibleRepositories.length === 0) {
 			return;
 		}
 
@@ -3508,17 +3497,18 @@ export class SCMViewPane extends ViewPane {
 			}
 		} else {
 			// Next/Previous visible resource group
-			let index = getIndex(resourceGroupIndex, resourceGroups.length);
+			let index = rot(resourceGroupIndex, resourceGroups.length);
 			while (index !== resourceGroupIndex) {
 				if (this.tree.hasNode(resourceGroups[index])) {
 					resourceGroupNext = resourceGroups[index];
 					break;
 				}
-				index = getIndex(index, resourceGroups.length);
+				index = rot(index, resourceGroups.length);
 			}
 		}
 
 		if (resourceGroupNext) {
+			await this.tree.expandTo(resourceGroupNext);
 			this.tree.reveal(resourceGroupNext);
 
 			this.tree.setSelection([resourceGroupNext]);
