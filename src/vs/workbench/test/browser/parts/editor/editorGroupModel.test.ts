@@ -2405,5 +2405,224 @@ suite('EditorGroupModel', () => {
 		assert.strictEqual(group2Events.unsticky[0].editorIndex, 1);
 	});
 
+	test('editor selection: selectedEditors', () => {
+		const group = createEditorGroupModel();
+
+		let activeEditor = group.activeEditor;
+		let selectedEditors = group.selectedEditors;
+		assert.strictEqual(activeEditor, null);
+		assert.strictEqual(selectedEditors.length, 0);
+
+		// active editor: input1, selection: [input1]
+		const input1 = input();
+		group.openEditor(input1, { pinned: true, active: true, index: 0 });
+
+		activeEditor = group.activeEditor;
+		selectedEditors = group.selectedEditors;
+		assert.strictEqual(activeEditor, input1);
+		assert.strictEqual(selectedEditors.length, 1);
+		assert.strictEqual(selectedEditors[0], input1);
+
+		// active editor: input3, selection: [input3]
+		const input2 = input();
+		const input3 = input();
+		group.openEditor(input2, { pinned: true, active: true, index: 1 });
+		group.openEditor(input3, { pinned: true, active: true, index: 2 });
+
+		activeEditor = group.activeEditor;
+		selectedEditors = group.selectedEditors;
+		assert.strictEqual(activeEditor, input3);
+		assert.strictEqual(selectedEditors.length, 1);
+		assert.strictEqual(selectedEditors[0], input3);
+
+		// active editor: input2, selection: [input1, input2] (in sequential order)
+		group.setSelection(input2, [input1]);
+
+		activeEditor = group.activeEditor;
+		selectedEditors = group.selectedEditors;
+		assert.strictEqual(activeEditor, input2);
+		assert.strictEqual(selectedEditors.length, 2);
+		assert.strictEqual(selectedEditors[0], input1);
+		assert.strictEqual(selectedEditors[1], input2);
+	});
+
+	test('editor selection: openEditor with inactive selection', () => {
+		const group = createEditorGroupModel();
+
+		// active editor: input3, selection: [input3]
+		const input1 = input();
+		const input2 = input();
+		const input3 = input();
+		group.openEditor(input1, { pinned: true, active: true, index: 0 });
+		group.openEditor(input2, { pinned: true, active: true, index: 1 });
+		group.openEditor(input3, { pinned: true, active: true, index: 2 });
+
+		// active editor: input2, selection: [input1, input2, input3] (in sequential order)
+		group.openEditor(input2, { active: true, inactiveSelection: [input3, input1] });
+
+		let activeEditor = group.activeEditor;
+		let selectedEditors = group.selectedEditors;
+		assert.strictEqual(activeEditor, input2);
+		assert.strictEqual(selectedEditors.length, 3);
+		assert.strictEqual(selectedEditors[0], input1);
+		assert.strictEqual(selectedEditors[1], input2);
+		assert.strictEqual(selectedEditors[2], input3);
+
+		// active editor: input1, selection: [input1, input3] (in sequential order)
+		// test duplicate entries
+		group.openEditor(input1, { active: true, inactiveSelection: [input3, input1, input3] });
+
+		activeEditor = group.activeEditor;
+		selectedEditors = group.selectedEditors;
+		assert.strictEqual(activeEditor, input1);
+		assert.strictEqual(selectedEditors.length, 2);
+		assert.strictEqual(selectedEditors[0], input1);
+		assert.strictEqual(selectedEditors[1], input3);
+
+		// active editor: input1, selection: [input1, input2] (in sequential order)
+		// open new Editor as inactive with selection
+		const input4 = input();
+		group.openEditor(input4, { pinned: true, active: false, inactiveSelection: [input2], index: 3 });
+
+		activeEditor = group.activeEditor;
+		selectedEditors = group.selectedEditors;
+		assert.strictEqual(activeEditor, input1);
+		assert.strictEqual(selectedEditors.length, 2);
+		assert.strictEqual(selectedEditors[0], input1);
+		assert.strictEqual(selectedEditors[1], input2);
+
+		// active editor: input5, selection: [input4, input5] (in sequential order)
+		// open new Editor as active with selection
+		const input5 = input();
+		group.openEditor(input5, { pinned: true, active: true, inactiveSelection: [input4], index: 4 });
+
+		activeEditor = group.activeEditor;
+		selectedEditors = group.selectedEditors;
+		assert.strictEqual(activeEditor, input5);
+		assert.strictEqual(selectedEditors.length, 2);
+		assert.strictEqual(selectedEditors[0], input4);
+		assert.strictEqual(selectedEditors[1], input5);
+	});
+
+	test('editor selection: closeEditor keeps selection', () => {
+		const group = createEditorGroupModel();
+
+		// active editor: input3, selection: [input3]
+		const input1 = input();
+		const input2 = input();
+		const input3 = input();
+		group.openEditor(input1, { pinned: true, active: true, index: 0 });
+		group.openEditor(input2, { pinned: true, active: true, index: 1 });
+		group.openEditor(input3, { pinned: true, active: true, index: 2 });
+
+		group.setSelection(input2, [input3, input1]);
+		group.closeEditor(input3);
+
+		const activeEditor = group.activeEditor;
+		const selectedEditors = group.selectedEditors;
+		assert.strictEqual(activeEditor, input2);
+		assert.strictEqual(selectedEditors.length, 2);
+		assert.strictEqual(selectedEditors[0], input1);
+		assert.strictEqual(selectedEditors[1], input2);
+	});
+
+	test('editor selection: setSeletion', () => {
+		const group = createEditorGroupModel();
+
+		// active editor: input3, selection: [input3]
+		const input1 = input();
+		const input2 = input();
+		const input3 = input();
+		group.openEditor(input1, { pinned: true, active: true, index: 0 });
+		group.openEditor(input2, { pinned: true, active: true, index: 1 });
+		group.openEditor(input3, { pinned: true, active: true, index: 2 });
+
+		// active editor: input2, selection: [input1, input2, input3] (in sequential order)
+		group.setSelection(input2, [input3, input1]);
+
+		let activeEditor = group.activeEditor;
+		let selectedEditors = group.selectedEditors;
+		assert.strictEqual(activeEditor, input2);
+		assert.strictEqual(selectedEditors.length, 3);
+		assert.strictEqual(selectedEditors[0], input1);
+		assert.strictEqual(selectedEditors[1], input2);
+		assert.strictEqual(selectedEditors[2], input3);
+
+		// active editor: input3, selection: [input3]
+		group.setSelection(input3, []);
+
+		activeEditor = group.activeEditor;
+		selectedEditors = group.selectedEditors;
+		assert.strictEqual(activeEditor, input3);
+		assert.strictEqual(selectedEditors.length, 1);
+		assert.strictEqual(selectedEditors[0], input3);
+
+		// active editor: input2, selection: [input1, input3]
+		// test duplicate entries
+		group.setSelection(input2, [input1, input2, input1]);
+
+		activeEditor = group.activeEditor;
+		selectedEditors = group.selectedEditors;
+		assert.strictEqual(activeEditor, input2);
+		assert.strictEqual(selectedEditors.length, 2);
+		assert.strictEqual(selectedEditors[0], input1);
+		assert.strictEqual(selectedEditors[1], input2);
+	});
+
+	test('editor selection: isSelected', () => {
+		const group = createEditorGroupModel();
+
+		// active editor: input3, selection: [input3]
+		const input1 = input();
+		const input2 = input();
+		const input3 = input();
+		group.openEditor(input1, { pinned: true, active: true, index: 0 });
+		group.openEditor(input2, { pinned: true, active: true, index: 1 });
+		group.openEditor(input3, { pinned: true, active: true, index: 2 });
+
+		// active editor: input2, selection: [input1, input2, input3] (in sequential order)
+		group.setSelection(input2, [input3, input1]);
+
+		assert.strictEqual(group.isSelected(input1), true);
+		assert.strictEqual(group.isSelected(input2), true);
+		assert.strictEqual(group.isSelected(input3), true);
+
+		// active editor: input3, selection: [input3]
+		group.setSelection(input3, []);
+
+		assert.strictEqual(group.isSelected(input1), false);
+		assert.strictEqual(group.isSelected(input2), false);
+		assert.strictEqual(group.isSelected(input3), true);
+
+		// use index
+		assert.strictEqual(group.isSelected(0), false);
+		assert.strictEqual(group.isSelected(1), false);
+		assert.strictEqual(group.isSelected(2), true);
+	});
+
+	test('editor selection: select invalid editor', () => {
+		const group = createEditorGroupModel();
+
+		const input1 = input();
+		const input2 = input();
+		group.openEditor(input1, { pinned: true, active: true, index: 0 });
+
+		group.setSelection(input2, [input1]);
+
+		assert.strictEqual(group.activeEditor, input1);
+		assert.strictEqual(group.selectedEditors.length, 1);
+		assert.strictEqual(group.isSelected(input1), true);
+		assert.strictEqual(group.isSelected(input1), true);
+		assert.strictEqual(group.isSelected(input2), false);
+
+		group.setSelection(input1, [input2]);
+
+		assert.strictEqual(group.activeEditor, input1);
+		assert.strictEqual(group.selectedEditors.length, 1);
+		assert.strictEqual(group.isSelected(input1), true);
+		assert.strictEqual(group.isSelected(input1), true);
+		assert.strictEqual(group.isSelected(input2), false);
+	});
+
 	ensureNoDisposablesAreLeakedInTestSuite();
 });
