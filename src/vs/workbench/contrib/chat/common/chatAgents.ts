@@ -61,6 +61,7 @@ export interface IChatAgentData {
 	name: string;
 	fullName?: string;
 	description?: string;
+	when?: string;
 	extensionId: ExtensionIdentifier;
 	extensionPublisherId: string;
 	/** This is the extension publisher id, or, in the case of a dynamically registered participant (remote agent), whatever publisher name we have for it */
@@ -307,23 +308,40 @@ export class ChatAgentService implements IChatAgentService {
 	}
 
 	getAgent(id: string): IChatAgentData | undefined {
+		if (!this._agentIsEnabled(id)) {
+			return;
+		}
+
 		return this._getAgentEntry(id)?.data;
 	}
 
+	private _agentIsEnabled(id: string): boolean {
+		const entry = this._getAgentEntry(id);
+		return !entry?.data.when || this.contextKeyService.contextMatchesRules(ContextKeyExpr.deserialize(entry.data.when));
+	}
+
 	getAgentByFullyQualifiedId(id: string): IChatAgentData | undefined {
-		return this._agents.find(a => getFullyQualifiedId(a.data) === id)?.data;
+		const agent = this._agents.find(a => getFullyQualifiedId(a.data) === id)?.data;
+		if (agent && !this._agentIsEnabled(agent.id)) {
+			return;
+		}
+
+		return agent;
 	}
 
 	/**
 	 * Returns all agent datas that exist- static registered and dynamic ones.
 	 */
 	getAgents(): IChatAgentData[] {
-		return this._agents.map(entry => entry.data);
+		return this._agents
+			.map(entry => entry.data)
+			.filter(a => this._agentIsEnabled(a.id));
 	}
 
 	getActivatedAgents(): IChatAgent[] {
 		return Array.from(this._agents.values())
 			.filter(a => !!a.impl)
+			.filter(a => this._agentIsEnabled(a.data.id))
 			.map(a => new MergedChatAgent(a.data, a.impl!));
 	}
 

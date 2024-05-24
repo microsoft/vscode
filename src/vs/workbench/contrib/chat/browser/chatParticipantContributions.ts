@@ -201,6 +201,12 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 						store.add(this.registerDefaultParticipantView(providerDescriptor));
 					}
 
+					if (providerDescriptor.when && !isProposedApiEnabled(extension.description, 'chatParticipantPrivate')) {
+						this.logService.error(`Extension '${extension.description.identifier.value}' CANNOT use API proposal: chatParticipantPrivate.`);
+						continue;
+
+					}
+
 					store.add(this._chatAgentService.registerAgent(
 						providerDescriptor.id,
 						{
@@ -210,6 +216,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 							extensionDisplayName: extension.description.displayName ?? extension.description.name,
 							id: providerDescriptor.id,
 							description: providerDescriptor.description,
+							when: providerDescriptor.when,
 							metadata: {
 								isSticky: providerDescriptor.isSticky,
 								sampleRequest: providerDescriptor.sampleRequest,
