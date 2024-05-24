@@ -28,12 +28,13 @@ import { IChatRequestVariableEntry } from 'vs/workbench/contrib/chat/common/chat
 import { ChatRequestAgentPart } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { AnythingQuickAccessProvider } from 'vs/workbench/contrib/search/browser/anythingQuickAccess';
+import { ISymbolQuickPickItem, SymbolsQuickAccessProvider } from 'vs/workbench/contrib/search/browser/symbolsQuickAccess';
 
 export function registerChatContextActions() {
 	registerAction2(AttachContextAction);
 }
 
-export type IChatContextQuickPickItem = IFileQuickPickItem | IDynamicVariableQuickPickItem | IStaticVariableQuickPickItem | IGotoSymbolQuickPickItem;
+export type IChatContextQuickPickItem = IFileQuickPickItem | IDynamicVariableQuickPickItem | IStaticVariableQuickPickItem | IGotoSymbolQuickPickItem | ISymbolQuickPickItem;
 
 export interface IFileQuickPickItem extends IQuickPickItem {
 	kind: 'file';
@@ -124,11 +125,21 @@ class AttachContextAction extends Action2 {
 					// Apply the original icon with the new name
 					fullName: `${pick.icon ? `$(${pick.icon.id}) ` : ''}${selection}`
 				});
-			} else if (pick && typeof pick === 'object' && 'resource' in pick) {
+			} else if ('symbol' in pick && pick.symbol) {
+				// Symbol
+				toAttach.push({
+					...pick,
+					id: this._getFileContextId(pick.symbol.location),
+					value: pick.symbol.location,
+					fullName: pick.label,
+					name: pick.symbol.name,
+					isDynamic: true
+				});
+			} else if (pick && typeof pick === 'object' && 'resource' in pick && pick.resource) {
 				// #file variable
 				toAttach.push({
 					...pick,
-					id: this._getFileContextId(pick),
+					id: this._getFileContextId({ resource: pick.resource }),
 					value: pick.resource,
 					name: pick.label,
 					isFile: true,
@@ -212,6 +223,7 @@ class AttachContextAction extends Action2 {
 		quickInputService.quickAccess.show('', {
 			enabledProviderPrefixes: [
 				AnythingQuickAccessProvider.PREFIX,
+				SymbolsQuickAccessProvider.PREFIX,
 				AbstractGotoSymbolQuickAccessProvider.PREFIX
 			],
 			placeholder: localize('chatContext.attach.placeholder', 'Search attachments'),
@@ -224,6 +236,10 @@ class AttachContextAction extends Action2 {
 				filter: (item: IChatContextQuickPickItem) => {
 					// Avoid attaching the same context twice
 					const attachedContext = widget.getContrib<ChatContextAttachments>(ChatContextAttachments.ID)?.getContext() ?? new Set();
+
+					if ('symbol' in item && item.symbol) {
+						return !attachedContext.has(this._getFileContextId(item.symbol.location));
+					}
 
 					if (item && typeof item === 'object' && 'resource' in item && URI.isUri(item.resource)) {
 						return [Schemas.file, Schemas.vscodeRemote].includes(item.resource.scheme)
