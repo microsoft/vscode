@@ -21,6 +21,7 @@ export class TreeSitterTokenizationService implements ITreeSitterTokenizationSer
 		});
 		// Eventually, this should actually use an extension point to add tree sitter grammars, but for now they are hard coded in core
 		this._addGrammar('html', 'tree-sitter-html');
+		this._addGrammar('typescript', 'tree-sitter-typescript');
 	}
 
 	public initTreeSitter(): Promise<void> {
