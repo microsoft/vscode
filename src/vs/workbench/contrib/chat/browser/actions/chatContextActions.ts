@@ -34,7 +34,7 @@ export function registerChatContextActions() {
 	registerAction2(AttachContextAction);
 }
 
-export type IChatContextQuickPickItem = IFileQuickPickItem | IDynamicVariableQuickPickItem | IStaticVariableQuickPickItem | IGotoSymbolQuickPickItem | ISymbolQuickPickItem;
+export type IChatContextQuickPickItem = IFileQuickPickItem | IDynamicVariableQuickPickItem | IStaticVariableQuickPickItem | IGotoSymbolQuickPickItem | ISymbolQuickPickItem | IQuickAccessQuickPickItem;
 
 export interface IFileQuickPickItem extends IQuickPickItem {
 	kind: 'file';
@@ -65,6 +65,15 @@ export interface IStaticVariableQuickPickItem extends IQuickPickItem {
 	isDynamic?: false;
 
 	icon?: ThemeIcon;
+}
+
+export interface IQuickAccessQuickPickItem extends IQuickPickItem {
+	kind: 'quickaccess';
+	id: string;
+	name: string;
+	value: string;
+
+	prefix: string;
 }
 
 class AttachContextAction extends Action2 {
@@ -220,7 +229,17 @@ class AttachContextAction extends Action2 {
 
 		}
 
-		quickInputService.quickAccess.show('', {
+		quickPickItems.push({
+			label: localize('chatContext.symbol', '{0} Symbol...', `$(${Codicon.symbolField.id})`),
+			icon: ThemeIcon.fromId(Codicon.symbolField.id),
+			prefix: SymbolsQuickAccessProvider.PREFIX
+		});
+
+		this._show(quickInputService, commandService, widget, quickPickItems);
+	}
+
+	private _show(quickInputService: IQuickInputService, commandService: ICommandService, widget: IChatWidget, quickPickItems: (IChatContextQuickPickItem | QuickPickItem)[], query: string = '') {
+		quickInputService.quickAccess.show(query, {
 			enabledProviderPrefixes: [
 				AnythingQuickAccessProvider.PREFIX,
 				SymbolsQuickAccessProvider.PREFIX,
@@ -229,10 +248,13 @@ class AttachContextAction extends Action2 {
 			placeholder: localize('chatContext.attach.placeholder', 'Search attachments'),
 			providerOptions: <AnythingQuickAccessProviderRunOptions>{
 				handleAccept: (item: IChatContextQuickPickItem) => {
-					this._attachContext(widget, commandService, item);
+					if ('prefix' in item) {
+						this._show(quickInputService, commandService, widget, quickPickItems, item.prefix);
+					} else {
+						this._attachContext(widget, commandService, item);
+					}
 				},
 				additionPicks: quickPickItems,
-				includeSymbols: false,
 				filter: (item: IChatContextQuickPickItem) => {
 					// Avoid attaching the same context twice
 					const attachedContext = widget.getContrib<ChatContextAttachments>(ChatContextAttachments.ID)?.getContext() ?? new Set();
