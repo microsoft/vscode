@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatModel, IChatModel, IChatRequestModel, IChatRequestVariableData, ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatCompleteResponse, IChatContentVariableReference, IChatDetail, IChatProviderInfo, IChatSendRequestData, IChatSendRequestOptions, IChatService, IChatTransferredSessionData, IChatUserActionEvent } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatCompleteResponse, IChatDetail, IChatProviderInfo, IChatSendRequestData, IChatSendRequestOptions, IChatService, IChatTransferredSessionData, IChatUserActionEvent } from 'vs/workbench/contrib/chat/common/chatService';
 
 export class MockChatService implements IChatService {
 	_serviceBrand: undefined;
@@ -46,6 +46,9 @@ export class MockChatService implements IChatService {
 	resendRequest(request: IChatRequestModel, options?: IChatSendRequestOptions | undefined): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
+	adoptRequest(sessionId: string, request: IChatRequestModel): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
 	removeRequest(sessionid: string, requestId: string): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
@@ -76,8 +79,5 @@ export class MockChatService implements IChatService {
 
 	transferChatSession(transferredSessionData: IChatTransferredSessionData, toWorkspace: URI): void {
 		throw new Error('Method not implemented.');
-	}
-	attachContext(...context: IChatContentVariableReference[]): void {
-		return;
 	}
 }

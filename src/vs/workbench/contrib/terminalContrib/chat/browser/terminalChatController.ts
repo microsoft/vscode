@@ -78,7 +78,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	}
 
 	readonly onDidAcceptInput = Event.filter(this._messages.event, m => m === Message.ACCEPT_INPUT, this._store);
-	get onDidHideInput() { return this.chatWidget?.onDidHideInput ?? Event.None; }
+	get onDidHide() { return this.chatWidget?.onDidHide ?? Event.None; }
 
 	private _terminalAgentName = 'terminal';
 	private _terminalAgentId: string | undefined;
@@ -314,7 +314,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		try {
 			const task = this._chatAgentService.invokeAgent(this._terminalAgentId!, requestProps, progressCallback, getHistoryEntriesFromModel(model, this._terminalAgentId!), cancellationToken);
 			this._chatWidget?.value.inlineChatWidget.updateChatMessage(undefined);
-			this._chatWidget?.value.inlineChatWidget.updateFollowUps(undefined);
 			this._chatWidget?.value.inlineChatWidget.updateProgress(true);
 			this._chatWidget?.value.inlineChatWidget.updateInfo(GeneratingPhrase + '\u2026');
 			await task;

@@ -6,6 +6,7 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtHostChatVariablesShape, IChatVariableResolverProgressDto, IMainContext, MainContext, MainThreadChatVariablesShape } from 'vs/workbench/api/common/extHost.protocol';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
@@ -52,15 +53,20 @@ export class ExtHostChatVariables implements ExtHostChatVariablesShape {
 		return undefined;
 	}
 
-	registerVariableResolver(extension: IExtensionDescription, id: string, name: string, userDescription: string, modelDescription: string | undefined, resolver: vscode.ChatVariableResolver): IDisposable {
+	registerVariableResolver(extension: IExtensionDescription, id: string, name: string, userDescription: string, modelDescription: string | undefined, isSlow: boolean | undefined, resolver: vscode.ChatVariableResolver, fullName?: string, themeIconId?: string): IDisposable {
 		const handle = ExtHostChatVariables._idPool++;
-		this._resolver.set(handle, { extension, data: { id, name, description: userDescription, modelDescription }, resolver: resolver });
-		this._proxy.$registerVariable(handle, { id, name, description: userDescription, modelDescription });
+		const icon = themeIconId ? ThemeIcon.fromId(themeIconId) : undefined;
+		this._resolver.set(handle, { extension, data: { id, name, description: userDescription, modelDescription, icon }, resolver: resolver });
+		this._proxy.$registerVariable(handle, { id, name, description: userDescription, modelDescription, isSlow, fullName, icon });
 
 		return toDisposable(() => {
 			this._resolver.delete(handle);
 			this._proxy.$unregisterVariable(handle);
 		});
+	}
+
+	attachContext(name: string, value: string | vscode.Location | vscode.Uri | unknown, location: vscode.ChatLocation.Panel) {
+		this._proxy.$attachContext(name, extHostTypes.Location.isLocation(value) ? typeConvert.Location.from(value) : value, typeConvert.ChatLocation.from(location));
 	}
 }
 

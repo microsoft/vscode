@@ -204,7 +204,7 @@ export async function scanTestOutput(
 					return;
 				}
 
-				const logLocation = store.getSourceLocation(match[2], Number(match[3]));
+				const logLocation = store.getSourceLocation(match[2], Number(match[3]) - 1);
 				const logContents = replaceAllLocations(store, match[1]);
 				const test = currentTest;
 
@@ -459,7 +459,8 @@ export class SourceMapStore {
 		};
 	}
 
-	async getSourceLocation(fileUri: string, line: number, col = 1) {
+	/** Gets an original location from a base 0 line and column */
+	async getSourceLocation(fileUri: string, line: number, col = 0) {
 		return this.getSourceLocationMapper(fileUri).then(m => m(line, col));
 	}
 
@@ -599,5 +600,5 @@ async function tryDeriveStackLocation(
 
 async function deriveSourceLocation(store: SourceMapStore, parts: RegExpMatchArray) {
 	const [, fileUri, line, col] = parts;
-	return store.getSourceLocation(fileUri, Number(line), Number(col));
+	return store.getSourceLocation(fileUri, Number(line) - 1, Number(col));
 }

@@ -81,4 +81,8 @@ export class API {
 	public lt(other: API): boolean {
 		return !this.gte(other);
 	}
+
+	public isYarnPnp(): boolean {
+		return this.fullVersionString.includes('-sdk');
+	}
 }
