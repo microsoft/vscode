@@ -110,17 +110,20 @@
 	"[plaintext]": {
 		"files.insertFinalNewline": false
 	},
+	"editor.codeActionsOnSave": {
+		"source.fixAll.eslint": "always"
+	},
+	"[typescriptreact]": {
+		"editor.defaultFormatter": "esbenp.prettier-vscode",
+		"editor.formatOnSave": true
+	},
 	"[typescript]": {
-		"editor.defaultFormatter": "vscode.typescript-language-features",
+		"editor.defaultFormatter": "esbenp.prettier-vscode",
 		"editor.formatOnSave": true
 	},
 	"[javascript]": {
 		"editor.defaultFormatter": "vscode.typescript-language-features",
 		"editor.formatOnSave": true
-	},
-	"[rust]": {
-		"editor.defaultFormatter": "rust-lang.rust-analyzer",
-		"editor.formatOnSave": true,
 	},
 	"rust-analyzer.linkedProjects": [
 		"cli/Cargo.toml"
