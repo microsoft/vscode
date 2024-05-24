@@ -61,8 +61,6 @@ export class NativeStartupTimings extends StartupTimings implements IWorkbenchCo
 	}
 
 	private async _report() {
-		const id = await this._nativeHostService.getProcessId();
-		console.log(id);
 		const standardStartupError = await this._isStandardStartup();
 		this._appendStartupTimes(standardStartupError).catch(onUnexpectedError);
 	}
