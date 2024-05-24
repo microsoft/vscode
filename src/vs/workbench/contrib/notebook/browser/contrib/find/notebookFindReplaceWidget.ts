@@ -35,7 +35,7 @@ import { filterIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIc
 import { NotebookFindFilters } from 'vs/workbench/contrib/notebook/browser/contrib/find/findFilters';
 import { isSafari } from 'vs/base/common/platform';
 import { ISashEvent, Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
-import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookDeltaDecoration, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { defaultInputBoxStyles, defaultProgressBarStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { IToggleStyles, Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -298,7 +298,6 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	protected readonly _matchesCount!: HTMLElement;
 	private readonly prevBtn: SimpleButton;
 	private readonly nextBtn: SimpleButton;
-	private readonly inSelectionToggle: Toggle;
 
 	protected readonly _replaceInput!: ReplaceInput;
 	private readonly _innerReplaceDomNode!: HTMLElement;
@@ -318,6 +317,10 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	protected _scopedContextKeyService: IContextKeyService;
 
 	private _filters: NotebookFindFilters;
+
+	private readonly inSelectionToggle: Toggle;
+	private searchInSelectionEnabled: boolean;
+	private selectionDecorationIds: string[] = [];
 
 	constructor(
 		@IContextViewService private readonly _contextViewService: IContextViewService,
@@ -415,9 +418,6 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		});
 
 		this._register(this._findInput.inputBox.onDidChange(() => {
-			// ! this._filters.searchInRanges = this.inSelectionToggle.checked;
-			// this._filters.selectedRanges = this._notebookEditor.getSelections();
-
 			this._state.change({ searchString: this._findInput.getValue() }, true);
 		}));
 
@@ -474,8 +474,10 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 			this._filters.searchInRanges = checked;
 			if (checked) {
 				this._filters.selectedRanges = this._notebookEditor.getSelections();
+				this.setCellSelectionDecorations();
 			} else {
 				this._filters.selectedRanges = [];
+				this.clearCellSelectionDecorations();
 			}
 		});
 
@@ -493,6 +495,22 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this._innerFindDomNode.appendChild(this.nextBtn.domNode);
 		this._innerFindDomNode.appendChild(this.inSelectionToggle.domNode);
 		this._innerFindDomNode.appendChild(closeBtn.domNode);
+
+		this.searchInSelectionEnabled = this._configurationService.getValue<boolean>(NotebookSetting.findScope);
+		this.inSelectionToggle.domNode.style.display = this.searchInSelectionEnabled ? 'inline' : 'none';
+
+		this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(NotebookSetting.findScope)) {
+				this.searchInSelectionEnabled = this._configurationService.getValue<boolean>(NotebookSetting.findScope);
+				if (this.searchInSelectionEnabled) {
+					this.inSelectionToggle.domNode.style.display = 'inline';
+				} else {
+					this.inSelectionToggle.domNode.style.display = 'none';
+					this.inSelectionToggle.checked = false;
+					this.clearCellSelectionDecorations();
+				}
+			}
+		});
 
 		// _domNode wraps _innerDomNode, ensuring that
 		this._domNode.appendChild(this._innerFindDomNode);
@@ -673,6 +691,26 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this.updateButtons(this.foundMatch);
 	}
 
+	private setCellSelectionDecorations() {
+		const cellHandles: number[] = [];
+		this._notebookEditor.getSelectionViewModels().forEach(viewModel => {
+			cellHandles.push(viewModel.handle);
+		});
+
+		const decorations: INotebookDeltaDecoration[] = [];
+		for (const handle of cellHandles) {
+			decorations.push({
+				handle: handle,
+				options: { className: 'nb-multiCellHighlight', outputClassName: 'nb-multiCellHighlight' }
+			} satisfies INotebookDeltaDecoration);
+		}
+		this.selectionDecorationIds = this._notebookEditor.deltaCellDecorations([], decorations);
+	}
+
+	private clearCellSelectionDecorations() {
+		this._notebookEditor.deltaCellDecorations(this.selectionDecorationIds, []);
+	}
+
 	protected _updateMatchesCount(): void {
 	}
 
@@ -717,11 +755,12 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 			this._findInput.setValue(initialInput);
 		}
 
-		if (options?.searchInRanges !== undefined) {
+		if (this.searchInSelectionEnabled && options?.searchInRanges !== undefined) {
 			this._filters.searchInRanges = options.searchInRanges;
 			this.inSelectionToggle.checked = options.searchInRanges;
-			if (options.selectedRanges) {
+			if (options.searchInRanges && options.selectedRanges) {
 				this._filters.selectedRanges = options.selectedRanges;
+				this.setCellSelectionDecorations();
 			}
 		}
 
@@ -772,6 +811,9 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 
 	public hide(): void {
 		if (this._isVisible) {
+			this.inSelectionToggle.checked = false;
+			this._notebookEditor.deltaCellDecorations(this.selectionDecorationIds, []);
+
 			this._domNode.classList.remove('visible-transition');
 			this._domNode.setAttribute('aria-hidden', 'true');
 			// Need to delay toggling visibility until after Transition, then visibility hidden - removes from tabIndex list

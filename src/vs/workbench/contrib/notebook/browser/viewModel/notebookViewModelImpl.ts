@@ -912,13 +912,11 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		const matches: CellFindMatchWithIndex[] = [];
 		let findCells: CellViewModel[] = [];
 
-		const selectedRanges = options.selectedRanges?.map(range => this.validateRange(range));
+		const selectedRanges = options.selectedRanges?.map(range => this.validateRange(range)).filter(range => !!range);
+
 		if (options.searchInRanges && selectedRanges) {
-			for (const range of selectedRanges.filter(range => !!range)) {
-				for (let i = range.start; i < range.end; i++) {
-					findCells.push(this._viewCells[i]);
-				}
-			}
+			const selectedIndexes = cellRangesToIndexes(selectedRanges);
+			findCells = selectedIndexes.map(index => this._viewCells[index]);
 		} else {
 			findCells = this._viewCells;
 		}

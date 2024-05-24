@@ -80,7 +80,7 @@ import { INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { NotebookOptions, OutputInnerContainerTopPadding } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
-import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
+import { cellRangesToIndexes, ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { INotebookRendererMessagingService } from 'vs/workbench/contrib/notebook/common/notebookRendererMessagingService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IWebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
@@ -832,6 +832,18 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		styleSheets.push(`
 			.notebookOverlay .monaco-list .monaco-list-row:has(+ .monaco-list-row.selected) .cell-focus-indicator-bottom {
 				height: ${bottomToolbarGap + cellBottomMargin}px;
+			}
+		`);
+
+		styleSheets.push(`
+			.notebookOverlay .monaco-list .monaco-list-row.code-cell-row.nb-multiCellHighlight:has(+ .monaco-list-row.nb-multiCellHighlight) .cell-focus-indicator-bottom {
+				height: ${bottomToolbarGap + cellBottomMargin}px;
+				background-color: var(--vscode-notebook-symbolHighlightBackground) !important;
+			}
+
+			.notebookOverlay .monaco-list .monaco-list-row.markdown-cell-row.nb-multiCellHighlight:has(+ .monaco-list-row.nb-multiCellHighlight) .cell-focus-indicator-bottom {
+				height: ${bottomToolbarGap + cellBottomMargin - 6}px;
+				background-color: var(--vscode-notebook-symbolHighlightBackground) !important;
 			}
 		`);
 
@@ -2518,26 +2530,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			return;
 		}
 
-		// TODO: @Yoyokrazy -- selective webview warmup to improve perf (not in accessiblility mode, and not doing full nb search)
-		// let findCells: ICellViewModel[] = [];
-		// if (cellSelections) {
-		// 	const selectedRanges = cellSelections.map(range => this.viewModel?.validateRange(range));
-		// 	for (const range of selectedRanges.filter(range => !!range)) {
-		// 		for (let i = range.start; i < range.end; i++) {
-		// 			findCells.push(this.viewModel.viewCells[i]);
-		// 		}
-		// 	}
-		// } else {
-		// 	findCells = this.viewModel.viewCells;
-		// }
-
-		// const requests = [];
-		// for (let i = 0; i < findCells.length; i++) {
-		// 	if (findCells[i].cellKind === CellKind.Markup && !this._webview!.markupPreviewMapping.has(findCells[i].id)) {
-		// 		requests.push(this.createMarkupPreview(findCells[i]));
-		// 	}
-		// }
-
 		const cells = this.viewModel.viewCells;
 		const requests = [];
 
@@ -2596,12 +2588,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			}
 
 			const selectedRanges = options.selectedRanges?.map(range => this._notebookViewModel?.validateRange(range)).filter(range => !!range);
-			const findIds = [];
-			for (const range of selectedRanges ?? []) {
-				for (let i = range.start; i < range.end; i++) {
-					findIds.push(this._notebookViewModel.viewCells[i].id);
-				}
-			}
+			const selectedIndexes = cellRangesToIndexes(selectedRanges ?? []);
+			const findIds: string[] = selectedIndexes.map<string>(index => this._notebookViewModel?.viewCells[index].id ?? '');
 
 			const webviewMatches = await this._webview.find(query, { caseSensitive: options.caseSensitive, wholeWord: options.wholeWord, includeMarkup: !!options.includeMarkupPreview, includeOutput: !!options.includeOutput, shouldGetSearchPreviewInfo, ownerID, findIds: options.searchInRanges ? findIds : [] });
 

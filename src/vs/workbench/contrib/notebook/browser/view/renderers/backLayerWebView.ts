@@ -401,6 +401,14 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 						background-color: var(--theme-notebook-symbol-highlight-background);
 					}
 
+					#container .markup > div.nb-multiCellHighlight {
+						background-color: var(--theme-notebook-symbol-highlight-background);
+					}
+
+					#container .nb-multiCellHighlight .output_container .output {
+						background-color: var(--theme-notebook-symbol-highlight-background);
+					}
+
 					#container .nb-chatGenerationHighlight .output_container .output {
 						background-color: var(--vscode-notebook-selectedCellBackground);
 					}

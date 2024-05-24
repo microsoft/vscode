@@ -954,6 +954,7 @@ export const NotebookSetting = {
 	outputFontFamilyDeprecated: 'notebook.outputFontFamily',
 	outputFontFamily: 'notebook.output.fontFamily',
 	findFilters: 'notebook.find.filters',
+	findScope: 'notebook.experimental.find.scope.enabled',
 	logging: 'notebook.logging',
 	confirmDeleteRunningCell: 'notebook.confirmDeleteRunningCell',
 	remoteSaving: 'notebook.experimental.remoteSave',
