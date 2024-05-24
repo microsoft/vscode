@@ -336,6 +336,14 @@ export class BaseIssueReporterService extends Disposable {
 			}
 		});
 
+		this.addEventListener('issue-title', 'input', _ => {
+			const titleElement = this.getElementById('issue-title') as HTMLInputElement;
+			if (titleElement) {
+				const title = titleElement.value;
+				this.issueReporterModel.update({ issueTitle: title });
+			}
+		});
+
 		this.addEventListener('issue-title', 'input', (e: Event) => {
 			const title = (<HTMLInputElement>e.target).value;
 			const lengthValidationMessage = this.getElementById('issue-title-length-validation-error');
