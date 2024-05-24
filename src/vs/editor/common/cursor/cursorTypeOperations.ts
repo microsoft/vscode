@@ -1083,9 +1083,7 @@ export class TypeWithIndentationAndAutoClosingCommand implements ICommand {
 	}
 
 	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
-		// TODO: compute the appropriate edits!
-
-		const rangeAndTextOfAutoIndentation = _rangeAndTextOfAutoIndentation(this._config, model, this._range, this._openCharacter);
+		const rangeAndTextOfAutoIndentation = _rangeAndTextOfAutoIndentation(this._config, model, this._range, this._openCharacter, false);
 		if (rangeAndTextOfAutoIndentation) {
 			builder.addTrackedEditOperation(rangeAndTextOfAutoIndentation.range, rangeAndTextOfAutoIndentation.text);
 		}
@@ -1094,13 +1092,24 @@ export class TypeWithIndentationAndAutoClosingCommand implements ICommand {
 
 	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
 		// TODO: Need to compute appropriate cursor state!
+		// TODO: use range instead of srcRange?
 
 		const inverseEditOperations = helper.getInverseEditOperations();
 		const range = inverseEditOperations[0].range;
+		// Look at the meaning of these fields and find the exact cursor state logic
 		this.closeCharacterRange = new Range(range.startLineNumber, range.endColumn - this._closeCharacter.length, range.endLineNumber, range.endColumn);
 		this.enclosingRange = new Range(range.startLineNumber, range.endColumn - this._openCharacter.length - this._closeCharacter.length, range.endLineNumber, range.endColumn);
 		const srcRange = inverseEditOperations[0].range;
-		return Selection.fromPositions(srcRange.getEndPosition().delta(this._lineNumberDeltaOffset, this._columnDeltaOffset));
+		const res = Selection.fromPositions(srcRange.getEndPosition().delta(this._lineNumberDeltaOffset, this._columnDeltaOffset));
+
+		console.log('inverseEditOperations : ', inverseEditOperations);
+		console.log('range : ', range);
+		console.log('this.closeCharacterRange : ', this.closeCharacterRange);
+		console.log('this.enclosingRange : ', this.enclosingRange);
+		console.log('srcRange : ', srcRange);
+		console.log('res : ', res);
+
+		return res;
 	}
 }
 
