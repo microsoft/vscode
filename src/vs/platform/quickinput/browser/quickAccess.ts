@@ -8,7 +8,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { DefaultQuickAccessFilterValue, Extensions, IQuickAccessController, IQuickAccessOptions, IQuickAccessProvider, IQuickAccessProviderDescriptor, IQuickAccessProviderRunOptions, IQuickAccessRegistry } from 'vs/platform/quickinput/common/quickAccess';
+import { DefaultQuickAccessFilterValue, Extensions, IQuickAccessController, IQuickAccessOptions, IQuickAccessProvider, IQuickAccessProviderDescriptor, IQuickAccessRegistry } from 'vs/platform/quickinput/common/quickAccess';
 import { IQuickInputService, IQuickPick, IQuickPickItem, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
 import { Registry } from 'vs/platform/registry/common/platform';
 
@@ -223,7 +223,7 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 		return disposables;
 	}
 
-	private getOrInstantiateProvider(value: string, enabledProviderPrefixes?: string[], runOptions?: IQuickAccessProviderRunOptions): [IQuickAccessProvider | undefined, IQuickAccessProviderDescriptor | undefined] {
+	private getOrInstantiateProvider(value: string, enabledProviderPrefixes?: string[]): [IQuickAccessProvider | undefined, IQuickAccessProviderDescriptor | undefined] {
 		const providerDescriptor = this.registry.getQuickAccessProvider(value);
 		if (!providerDescriptor || enabledProviderPrefixes && !enabledProviderPrefixes?.includes(providerDescriptor.prefix)) {
 			return [undefined, undefined];
@@ -231,7 +231,7 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 
 		let provider = this.mapProviderToDescriptor.get(providerDescriptor);
 		if (!provider) {
-			provider = this.instantiationService.createInstance(providerDescriptor.ctor, runOptions);
+			provider = this.instantiationService.createInstance(providerDescriptor.ctor);
 			this.mapProviderToDescriptor.set(providerDescriptor, provider);
 		}
 
