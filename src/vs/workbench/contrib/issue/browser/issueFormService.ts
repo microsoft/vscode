@@ -18,6 +18,11 @@ import product from 'vs/platform/product/common/product';
 import { IssueWebReporter } from 'vs/workbench/contrib/issue/browser/issueReporterService';
 import { AuxiliaryWindowMode, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 
+export interface IssuePassData {
+	issueTitle: string;
+	issueBody: string;
+}
+
 export class IssueFormService implements IIssueMainService {
 
 	readonly _serviceBrand: undefined;
@@ -71,18 +76,32 @@ export class IssueFormService implements IIssueMainService {
 		}
 
 		if (this.issueReporterWindow) {
+			const getModelData = await this.getIssueData();
+			if (getModelData) {
+				const { issueTitle, issueBody } = getModelData;
+				if (issueTitle || issueBody) {
+					data.issueTitle = data.issueTitle ?? issueTitle;
+					data.issueBody = data.issueBody ?? issueBody;
+
+					// close issue reporter and re-open with new data
+					this.issueReporterWindow.close();
+					this.openAuxIssueReporter(data);
+					return;
+				}
+			}
 			this.issueReporterWindow.focus();
 			return;
 		}
+		this.openAuxIssueReporter(data);
+	}
 
+	async openAuxIssueReporter(data: IssueReporterData): Promise<void> {
 		const disposables = new DisposableStore();
 
 		// Auxiliary Window
 		const auxiliaryWindow = disposables.add(await this.auxiliaryWindowService.open({ mode: AuxiliaryWindowMode.Normal }));
 
 		this.issueReporterWindow = auxiliaryWindow.window;
-
-
 
 		if (auxiliaryWindow) {
 			await auxiliaryWindow.whenStylesHaveLoaded;
@@ -172,6 +191,31 @@ export class IssueFormService implements IIssueMainService {
 		});
 
 		return result as IssueReporterData | undefined;
+	}
+
+	// Listens to data from the issue reporter model, which is updated regularly
+	async getIssueData(): Promise<IssuePassData | undefined> {
+		const sendChannel = `vscode:triggerIssueData`;
+		mainWindow.postMessage({ sendChannel }, '*');
+
+		const result = await new Promise((resolve, reject) => {
+			const timeout = setTimeout(() => {
+				mainWindow.removeEventListener('message', listener);
+				reject(new Error('Timeout exceeded'));
+			}, 5000); // Set the timeout value in milliseconds (e.g., 5000 for 5 seconds)
+
+			const listener = (event: MessageEvent) => {
+				const replyChannel = `vscode:triggerIssueDataResponse`;
+				if (event.data && event.data.replyChannel === replyChannel) {
+					clearTimeout(timeout);
+					mainWindow.removeEventListener('message', listener);
+					resolve(event.data.data);
+				}
+			};
+			mainWindow.addEventListener('message', listener);
+		});
+
+		return result as IssuePassData | undefined;
 	}
 
 	async $closeReporter(): Promise<void> {
