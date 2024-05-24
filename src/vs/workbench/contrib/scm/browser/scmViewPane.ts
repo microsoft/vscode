@@ -3433,15 +3433,11 @@ export class SCMViewPane extends ViewPane {
 	}
 
 	focusPreviousInput(): void {
-		this.treeOperationSequencer.queue(async () => {
-			await this.focusInput(-1);
-		});
+		this.treeOperationSequencer.queue(() => this.focusInput(-1));
 	}
 
 	focusNextInput(): void {
-		this.treeOperationSequencer.queue(async () => {
-			await this.focusInput(1);
-		});
+		this.treeOperationSequencer.queue(() => this.focusInput(1));
 	}
 
 	private async focusInput(delta: number): Promise<void> {
