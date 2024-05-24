@@ -7,10 +7,12 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Schemas } from 'vs/base/common/network';
+import { IRange } from 'vs/editor/common/core/range';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { Command } from 'vs/editor/common/languages';
+import { AbstractGotoSymbolQuickAccessProvider, IGotoSymbolQuickPickItem } from 'vs/editor/contrib/quickAccess/browser/gotoSymbolQuickAccess';
 import { localize, localize2 } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -20,7 +22,6 @@ import { IQuickInputService, IQuickPickItem, QuickPickItem } from 'vs/platform/q
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatContextAttachments } from 'vs/workbench/contrib/chat/browser/contrib/chatContextAttachments';
-import { SelectAndInsertFileAction } from 'vs/workbench/contrib/chat/browser/contrib/chatDynamicVariables';
 import { ChatAgentLocation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_CHAT_LOCATION, CONTEXT_IN_CHAT_INPUT } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatRequestVariableEntry } from 'vs/workbench/contrib/chat/common/chatModel';
@@ -32,9 +33,10 @@ export function registerChatContextActions() {
 	registerAction2(AttachContextAction);
 }
 
-export type IChatContextQuickPickItem = IFileQuickPickItem | IDynamicVariableQuickPickItem | IStaticVariableQuickPickItem;
+export type IChatContextQuickPickItem = IFileQuickPickItem | IDynamicVariableQuickPickItem | IStaticVariableQuickPickItem | IGotoSymbolQuickPickItem;
 
 export interface IFileQuickPickItem extends IQuickPickItem {
+	kind: 'file';
 	id: string;
 	name: string;
 	value: URI;
@@ -44,6 +46,7 @@ export interface IFileQuickPickItem extends IQuickPickItem {
 }
 
 export interface IDynamicVariableQuickPickItem extends IQuickPickItem {
+	kind: 'dynamic';
 	id: string;
 	name?: string;
 	value: unknown;
@@ -54,6 +57,7 @@ export interface IDynamicVariableQuickPickItem extends IQuickPickItem {
 }
 
 export interface IStaticVariableQuickPickItem extends IQuickPickItem {
+	kind: 'static';
 	id: string;
 	name: string;
 	value: unknown;
@@ -92,8 +96,14 @@ class AttachContextAction extends Action2 {
 		});
 	}
 
-	private _getFileContextId(item: { resource: URI }) {
-		return item.resource.toString();
+	private _getFileContextId(item: { resource: URI } | { uri: URI; range: IRange }) {
+		if ('resource' in item) {
+			return item.resource.toString();
+		}
+
+		return item.uri.toString() + (item.range.startLineNumber !== item.range.endLineNumber ?
+			`:${item.range.startLineNumber}-${item.range.endLineNumber}` :
+			`:${item.range.startLineNumber}`);
 	}
 
 	private async _attachContext(widget: IChatWidget, commandService: ICommandService, ...picks: IChatContextQuickPickItem[]) {
@@ -121,14 +131,27 @@ class AttachContextAction extends Action2 {
 					id: this._getFileContextId(pick),
 					value: pick.resource,
 					name: pick.label,
+					isFile: true,
+					isDynamic: true
+				});
+			} else if ('symbolName' in pick && pick.uri && pick.range) {
+				// Symbol
+				toAttach.push({
+					...pick,
+					range: undefined,
+					id: this._getFileContextId({ uri: pick.uri, range: pick.range.decoration }),
+					value: { uri: pick.uri, range: pick.range.decoration },
+					fullName: pick.label,
+					name: pick.symbolName!,
 					isDynamic: true
 				});
 			} else {
 				// All other dynamic variables and static variables
 				toAttach.push({
 					...pick,
-					id: pick.id,
-					value: pick.value,
+					range: undefined,
+					id: pick.id ?? '',
+					value: 'value' in pick ? pick.value : undefined,
 					fullName: pick.label,
 					name: 'name' in pick && typeof pick.name === 'string' ? pick.name : pick.label,
 					icon: 'icon' in pick && ThemeIcon.isThemeIcon(pick.icon) ? pick.icon : undefined
@@ -186,12 +209,11 @@ class AttachContextAction extends Action2 {
 
 		}
 
-		if (chatVariablesService.hasVariable(SelectAndInsertFileAction.Name)) {
-			quickPickItems.push(SelectAndInsertFileAction.Item, { type: 'separator' });
-		}
-
 		quickInputService.quickAccess.show('', {
-			enabledProviderPrefixes: [AnythingQuickAccessProvider.PREFIX],
+			enabledProviderPrefixes: [
+				AnythingQuickAccessProvider.PREFIX,
+				AbstractGotoSymbolQuickAccessProvider.PREFIX
+			],
 			placeholder: localize('chatContext.attach.placeholder', 'Search attachments'),
 			providerOptions: <AnythingQuickAccessProviderRunOptions>{
 				handleAccept: (item: IChatContextQuickPickItem) => {
@@ -208,7 +230,11 @@ class AttachContextAction extends Action2 {
 							&& !attachedContext.has(this._getFileContextId({ resource: item.resource })); // Hack because Typescript doesn't narrow this type correctly
 					}
 
-					if (!('command' in item)) {
+					if (item && typeof item === 'object' && 'uri' in item && item.uri && item.range) {
+						return !attachedContext.has(this._getFileContextId({ uri: item.uri, range: item.range.decoration }));
+					}
+
+					if (!('command' in item) && item.id) {
 						return !attachedContext.has(item.id);
 					}
 

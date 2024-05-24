@@ -33,6 +33,7 @@ export interface IChatRequestVariableEntry {
 	value: IChatRequestVariableValue;
 	references?: IChatContentReference[];
 	isDynamic?: boolean;
+	isFile?: boolean;
 }
 
 export interface IChatRequestVariableData {
