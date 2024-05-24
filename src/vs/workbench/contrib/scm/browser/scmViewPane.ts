@@ -3850,6 +3850,13 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			return result;
 		} else if (isSCMInput(element)) {
 			return element.repository;
+		} else if (isSCMResourceGroup(element)) {
+			const repository = this.scmViewService.visibleRepositories.find(r => r.provider === element.provider);
+			if (!repository) {
+				throw new Error('Invalid element passed to getParent');
+			}
+
+			return repository;
 		} else {
 			throw new Error('Unexpected call to getParent');
 		}
