@@ -56,11 +56,13 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IChatResponseModel, IChatTextEditGroup } from 'vs/workbench/contrib/chat/common/chatModel';
 import { TextEdit } from 'vs/editor/common/languages';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { isEqual } from 'vs/base/common/resources';
+import { basename, isEqual } from 'vs/base/common/resources';
 import { DefaultModelSHA1Computer } from 'vs/editor/common/services/modelService';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { TextModelText } from 'vs/editor/common/model/textModelText';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { toAction } from 'vs/base/common/actions';
 
 const $ = dom.$;
 
@@ -466,7 +468,8 @@ export class CodeCompareBlockPart extends Disposable {
 
 	private readonly contextKeyService: IContextKeyService;
 	private readonly diffEditor: DiffEditorWidget;
-	private readonly toolbar: MenuWorkbenchToolBar;
+	private readonly toolbar1: ActionBar;
+	private readonly toolbar2: MenuWorkbenchToolBar;
 	readonly element: HTMLElement;
 	private readonly messageElement: HTMLElement;
 
@@ -523,16 +526,20 @@ export class CodeCompareBlockPart extends Disposable {
 		});
 
 		const toolbarElement = dom.append(this.element, $('.interactive-result-code-block-toolbar'));
+
+		// this.resourceLabel = this._register(scopedInstantiationService.createInstance(ResourceLabel, toolbarElement, { supportIcons: true }));
+
 		const editorScopedService = this.diffEditor.getModifiedEditor().contextKeyService.createScoped(toolbarElement);
 		const editorScopedInstantiationService = scopedInstantiationService.createChild(new ServiceCollection([IContextKeyService, editorScopedService]));
-		this.toolbar = this._register(editorScopedInstantiationService.createInstance(MenuWorkbenchToolBar, toolbarElement, menuId, {
+		this.toolbar1 = this._register(new ActionBar(toolbarElement, {}));
+		this.toolbar2 = this._register(editorScopedInstantiationService.createInstance(MenuWorkbenchToolBar, toolbarElement, menuId, {
 			menuOptions: {
 				shouldForwardArgs: true
 			}
 		}));
 
 
-		this._register(this.toolbar.onDidChangeDropdownVisibility(e => {
+		this._register(this.toolbar2.onDidChangeDropdownVisibility(e => {
 			toolbarElement.classList.toggle('force-visibility', e);
 		}));
 
@@ -629,7 +636,7 @@ export class CodeCompareBlockPart extends Disposable {
 	}
 
 	private _configureForScreenReader(): void {
-		const toolbarElt = this.toolbar.getElement();
+		const toolbarElt = this.toolbar2.getElement();
 		if (this.accessibilityService.isScreenReaderOptimized()) {
 			toolbarElt.style.display = 'block';
 			toolbarElt.ariaLabel = this.configurationService.getValue(AccessibilityVerbositySettingId.Chat) ? localize('chat.codeBlock.toolbarVerbose', 'Toolbar for code block which can be reached via tab') : localize('chat.codeBlock.toolbar', 'Code block toolbar');
@@ -682,10 +689,19 @@ export class CodeCompareBlockPart extends Disposable {
 		this.layout(width);
 		this.diffEditor.updateOptions({ ariaLabel: localize('chat.compareCodeBlockLabel', "Code Edits") });
 
+		this.toolbar1.push(toAction({
+			label: basename(data.edit.uri),
+			tooltip: localize('chat.edit.tooltip', "Open '{0}'", this.labelService.getUriLabel(data.edit.uri, { relative: true })),
+			run: () => {
+				this.openerService.open(data.edit.uri, { fromUserGesture: true, allowCommands: false });
+			},
+			id: '',
+		}), { icon: false, label: true });
+
 		if (data.hideToolbar) {
-			dom.hide(this.toolbar.getElement());
+			dom.hide(this.toolbar2.getElement());
 		} else {
-			dom.show(this.toolbar.getElement());
+			dom.show(this.toolbar2.getElement());
 		}
 	}
 
@@ -757,7 +773,7 @@ export class CodeCompareBlockPart extends Disposable {
 			this._lastDiffEditorViewModel.value = undefined;
 		}
 
-		this.toolbar.context = {
+		this.toolbar2.context = {
 			edit: data.edit,
 			element: data.element,
 			diffEditor: this.diffEditor,
@@ -775,7 +791,7 @@ export class DefaultChatTextEditor {
 		@IDialogService private readonly dialogService: IDialogService,
 	) { }
 
-	async apply(response: IChatResponseModel | IChatResponseViewModel, item: IChatTextEditGroup): Promise<void> {
+	async apply(response: IChatResponseModel | IChatResponseViewModel, item: IChatTextEditGroup, diffEditor: IDiffEditor | undefined): Promise<void> {
 
 		if (!response.response.value.includes(item)) {
 			// bogous item
@@ -787,15 +803,16 @@ export class DefaultChatTextEditor {
 			return;
 		}
 
-		let diffEditor: IDiffEditor | undefined;
-		for (const candidate of this.editorService.listDiffEditors()) {
-			if (!candidate.getContainerDomNode().isConnected) {
-				continue;
-			}
-			const model = candidate.getModel();
-			if (!model || !isEqual(model.original.uri, item.uri) || model.modified.uri.scheme !== Schemas.vscodeChatCodeCompareBlock) {
-				diffEditor = candidate;
-				break;
+		if (!diffEditor) {
+			for (const candidate of this.editorService.listDiffEditors()) {
+				if (!candidate.getContainerDomNode().isConnected) {
+					continue;
+				}
+				const model = candidate.getModel();
+				if (!model || !isEqual(model.original.uri, item.uri) || model.modified.uri.scheme !== Schemas.vscodeChatCodeCompareBlock) {
+					diffEditor = candidate;
+					break;
+				}
 			}
 		}
 

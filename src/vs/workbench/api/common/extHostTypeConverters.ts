@@ -2351,10 +2351,13 @@ export namespace ChatResponseFilesPart {
 
 export namespace ChatResponseAnchorPart {
 	export function from(part: vscode.ChatResponseAnchorPart): Dto<IChatContentInlineReference> {
+		// Work around type-narrowing confusion between vscode.Uri and URI
+		const isUri = (thing: unknown): thing is vscode.Uri => URI.isUri(thing);
+
 		return {
 			kind: 'inlineReference',
 			name: part.title,
-			inlineReference: !URI.isUri(part.value) ? Location.from(<vscode.Location>part.value) : part.value
+			inlineReference: isUri(part.value) ? part.value : Location.from(part.value)
 		};
 	}
 
@@ -2563,10 +2566,19 @@ export namespace ChatLocation {
 			case ChatAgentLocation.Editor: return types.ChatLocation.Editor;
 		}
 	}
+
+	export function from(loc: types.ChatLocation): ChatAgentLocation {
+		switch (loc) {
+			case types.ChatLocation.Notebook: return ChatAgentLocation.Notebook;
+			case types.ChatLocation.Terminal: return ChatAgentLocation.Terminal;
+			case types.ChatLocation.Panel: return ChatAgentLocation.Panel;
+			case types.ChatLocation.Editor: return ChatAgentLocation.Editor;
+		}
+	}
 }
 
 export namespace ChatAgentValueReference {
-	export function to(variable: IChatRequestVariableEntry): vscode.ChatValueReference {
+	export function to(variable: IChatRequestVariableEntry): vscode.ChatPromptReference {
 		const value = variable.value;
 		if (!value) {
 			throw new Error('Invalid value reference');
@@ -2576,7 +2588,9 @@ export namespace ChatAgentValueReference {
 			id: variable.id,
 			name: variable.name,
 			range: variable.range && [variable.range.start, variable.range.endExclusive],
-			value: isUriComponents(value) ? URI.revive(value) : value,
+			value: isUriComponents(value) ? URI.revive(value) :
+				value && typeof value === 'object' && 'uri' in value && 'range' in value && isUriComponents(value.uri) ?
+					Location.to(revive(value)) : value,
 			modelDescription: variable.modelDescription
 		};
 	}
@@ -2587,6 +2601,8 @@ export namespace ChatAgentCompletionItem {
 		return {
 			id: item.id,
 			label: item.label,
+			fullName: item.fullName,
+			icon: item.icon?.id,
 			value: item.values[0].value,
 			insertText: item.insertText,
 			detail: item.detail,

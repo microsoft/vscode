@@ -122,6 +122,7 @@ import { NotebookVariables } from 'vs/workbench/contrib/notebook/browser/contrib
 import { AccessibleViewRegistry } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
 import { NotebookAccessibilityHelp } from 'vs/workbench/contrib/notebook/browser/notebookAccessibilityHelp';
 import { NotebookAccessibleView } from 'vs/workbench/contrib/notebook/browser/notebookAccessibleView';
+import { DefaultFormatter } from 'vs/workbench/contrib/format/browser/formatActionsMultiple';
 
 /*--------------------------------------------------------------------------------------------- */
 
@@ -982,6 +983,14 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			tags: ['notebookLayout', 'notebookOutputLayout'],
 			default: false
+		},
+		[NotebookSetting.defaultFormatter]: {
+			description: nls.localize('notebookFormatter.default', "Defines a default notebook formatter which takes precedence over all other formatter settings. Must be the identifier of an extension contributing a formatter."),
+			type: ['string', 'null'],
+			default: null,
+			enum: DefaultFormatter.extensionIds,
+			enumItemLabels: DefaultFormatter.extensionItemLabels,
+			markdownEnumDescriptions: DefaultFormatter.extensionDescriptions
 		},
 		[NotebookSetting.formatOnSave]: {
 			markdownDescription: nls.localize('notebook.formatOnSave', "Format a notebook on save. A formatter must be available, the file must not be saved after delay, and the editor must not be shutting down."),

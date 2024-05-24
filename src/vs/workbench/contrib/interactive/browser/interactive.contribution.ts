@@ -814,7 +814,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: false,
 			markdownDescription: localize('interactiveWindow.promptToSaveOnClose', "Prompt to save the interactive window when it is closed. Only new interactive windows will be affected by this setting change.")
 		},
-		['executeWithShiftEnter']: {
+		['interactiveWindow.executeWithShiftEnter']: {
 			type: 'boolean',
 			default: true,
 			markdownDescription: localize('interactiveWindow.executeWithShiftEnter', "Execute the interactive window (REPL) input box with shift+enter, so that enter can be used to create a newline.")
