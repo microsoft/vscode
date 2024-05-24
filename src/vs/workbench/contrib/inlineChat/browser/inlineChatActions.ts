@@ -383,14 +383,10 @@ export class ConfigureInlineChatAction extends AbstractInlineChatAction {
 	constructor() {
 		super({
 			id: 'inlineChat.configure',
-			title: localize('configure', 'Configure '),
+			title: localize2('configure', 'Configure Inline Chat'),
 			icon: Codicon.settingsGear,
 			precondition: CTX_INLINE_CHAT_VISIBLE,
-			menu: {
-				id: MENU_INLINE_CHAT_WIDGET,
-				group: 'config',
-				order: 1,
-			}
+			f1: true,
 		});
 	}
 
