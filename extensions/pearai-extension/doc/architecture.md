@@ -53,3 +53,28 @@ The entrypoint for the extension is [`extension.ts`](https://github.com/trypear/
 - [`ChatModel.ts`](https://github.com/trypear/pearai-app/blob/main/lib/extension/src/chat/ChatModel.ts): The chat model contains the different conversations and the currently active conversation.
 - [`ChatPanel.ts`](https://github.com/trypear/pearai-app/blob/main/lib/extension/src/chat/ChatPanel.ts): The chat panel adds an abstraction layout over the webview panel o make it easier to use.
 - [`ChatController.ts`](https://github.com/trypear/pearai-app/blob/main/lib/extension/src/chat/ChatController.ts): The chat controller handlers the different user actions, both from commands and from the webview. It executes logic, including chat creation, OpenAI API calls and updating the chat panel.
+
+## How does the extension interact with the webview (UI)?
+
+*Note: Think of webview as the ReactJS or frontend code. This is rendered within the chat panel.
+
+#### pearai-extension/lib/extension folder
+- ChatModel.ts
+    - 1 chat can have multiple conversations (e.g. when you reply to prompts)
+- ChatController.ts
+    - Contains 1 instance of both the ChatModel and ChatPanel
+    - Important function: updateChatPanel() and createConversation()
+        - This updates the state within the ChatModel (re-render UI). E.g.: Adding new text to the chat
+        - createConversation() creates a new conversation!
+- ChatPanel.ts
+    - Important function: renderPanel()
+        - renderPanel() calls updateState() which uses vscode api to send messages between the extension
+              and the webview (pub/sub event listener pattern).
+              The message (postMessage) is received by the actual webview (reactjs code) and it
+              contains the state of all the conversations that needs to be displayed.
+
+#### pearai-extension/lib/webview folder
+- webview/vscode/StateManager.ts
+    - This is where the global state for the webview / ReactJS is. The ChatPanel will send the message to
+       this place, where it is set to the state. This state is then passed down to webview.tsx which renders
+       the entire webview.
