@@ -20,6 +20,7 @@ import { AbstractTokens, AttachedViews } from 'vs/editor/common/model/tokens';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { ITextSnapshot } from 'vs/editor/common/model';
 
 export class TreeSitterTokens extends AbstractTokens {
 	private _colorThemeData: ColorThemeData;
@@ -198,7 +199,10 @@ class TextModelTokens extends Disposable {
 		this._tree = this._parser.parse((index: number, position?: Parser.Point) => this._parseCallback(index, position), this._tree);
 	}
 
-	private _parseCallback(index: number, position?: Parser.Point): string | null {
+	private _parseCallback(index: number, position?: Parser.Point, snapshot?: ITextSnapshot): string | null {
+		if (snapshot) {
+			return snapshot.read();
+		}
 		try {
 			const modelPositionStart: Position = position ? new Position(position.row + 1, position.column + 1) : this._textModel.getPositionAt(index);
 			const lineContent = this._textModel.getLineContent(modelPositionStart.lineNumber);
@@ -215,7 +219,10 @@ class TextModelTokens extends Disposable {
 
 	private _ensureTree() {
 		if (!this._tree) {
-			this._tree = this._parser.parse((index: number, position?: Parser.Point) => this._parseCallback(index, position));
+			const timer = performance.now();
+			const snapshot = this._textModel.createSnapshot();
+			this._tree = this._parser.parse((index: number, position?: Parser.Point) => this._parseCallback(index, position, snapshot));
+			console.log('Tree parsing took ' + (performance.now() - timer) + 'ms');
 		}
 		return this._tree;
 	}

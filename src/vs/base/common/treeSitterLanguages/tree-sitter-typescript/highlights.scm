@@ -1,0 +1,4 @@
+; Variables
+
+(identifier) @variable
+
