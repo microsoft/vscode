@@ -1284,13 +1284,13 @@
         },
         "typescript.tsserver.web.projectWideIntellisense.suppressSemanticErrors": {
           "type": "boolean",
-          "default": false,
+          "default": true,
           "description": "%configuration.tsserver.web.projectWideIntellisense.suppressSemanticErrors%",
           "scope": "window"
         },
         "typescript.tsserver.web.typeAcquisition.enabled": {
           "type": "boolean",
-          "default": true,
+          "default": false,
           "description": "%configuration.tsserver.web.typeAcquisition.enabled%",
           "scope": "window"
         },

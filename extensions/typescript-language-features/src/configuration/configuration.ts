@@ -261,10 +261,10 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 	}
 
 	private readWebProjectWideIntellisenseSuppressSemanticErrors(configuration: vscode.WorkspaceConfiguration): boolean {
-		return configuration.get<boolean>('typescript.tsserver.web.projectWideIntellisense.suppressSemanticErrors', false);
+		return configuration.get<boolean>('typescript.tsserver.web.projectWideIntellisense.suppressSemanticErrors', true);
 	}
 
 	private readWebTypeAcquisition(configuration: vscode.WorkspaceConfiguration): boolean {
-		return configuration.get<boolean>('typescript.tsserver.web.typeAcquisition.enabled', true);
+		return configuration.get<boolean>('typescript.tsserver.web.typeAcquisition.enabled', false);
 	}
 }
