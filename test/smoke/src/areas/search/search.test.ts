@@ -48,30 +48,23 @@ export function setup(logger: Logger) {
 			await app.workbench.search.removeFileMatch('app.js', '2 results in 2 files');
 		});
 
-		it('navigates search results & checks for correct selection after removal', async function () {
+		it('#206511, navigates results & checks for correct selection after editing current result', async function () {
 			const app = this.app as Application;
 			await app.workbench.search.openSearchViewlet();
+			await app.workbench.search.matchWholeWord();
 			await app.workbench.search.searchFor('body');
+			await app.workbench.search.waitForResultText('3 results in 3 files');
 
-			// Go to the first result not in app.js
-			await app.workbench.search.waitForSelectNextResult();
-			await app.workbench.search.waitForSelectNextResult();
-			await app.workbench.search.waitForSelectNextResult();
-			await app.workbench.search.waitForSelectNextResult();
-			await app.workbench.search.waitForSelectNextResult();
-
-			// Delete the next result (only result in style.css)
-			await app.code.dispatchKeybinding('Backspace');
-
-			// Should go to the result in layout.pug
-			await app.workbench.search.waitForSelectNextResult();
-			// Delete the next result (only result in style.css)
-			await app.code.dispatchKeybinding('Backspace');
-			await app.code.dispatchKeybinding('escape');
-
-			// The only results left should be in app.js
-			await app.workbench.search.searchFor('body');
-			await app.workbench.search.waitForResultText('4 results in 1 file');
+			// Select second result ("body {" in style.css)
+			await app.code.dispatchKeybinding('F4');
+			await app.code.dispatchKeybinding('F4');
+			await app.workbench.search.waitForSelectedMatchText('body {');
+			// Replace the current selection so that it no longer matches the query
+			await app.workbench.editor.waitForTypeInEditor('style.css', 'ist');
+			await app.code.dispatchKeybinding('F4');
+			// Verify that the selection goes to the actual "next",
+			// instead of going back to the first result
+			await app.workbench.search.waitForSelectedMatchText('body');
 		});
 
 		it.skip('replaces first search result with a replace term', async function () { // TODO@roblourens https://github.com/microsoft/vscode/issues/137195

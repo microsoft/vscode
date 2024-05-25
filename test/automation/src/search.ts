@@ -10,6 +10,7 @@ const VIEWLET = '.search-view';
 const INPUT = `${VIEWLET} .search-widget .search-container .monaco-inputbox textarea`;
 const INCLUDE_INPUT = `${VIEWLET} .query-details .file-types.includes .monaco-inputbox input`;
 const FILE_MATCH = (filename: string) => `${VIEWLET} .results .filematch[data-resource$="${filename}"]`;
+const SELECTED_MATCH = `${VIEWLET} .results .focused.selected .plain.match`;
 
 async function retry(setup: () => Promise<any>, attempt: () => Promise<any>) {
 	let count = 0;
@@ -81,6 +82,10 @@ export class Search extends Viewlet {
 		await this.code.waitAndClick(`${VIEWLET} .query-details.more .more`);
 	}
 
+	async matchWholeWord(): Promise<void> {
+		await this.code.waitAndClick(`${VIEWLET} .search-widget .search-container .codicon-whole-word`);
+	}
+
 	async removeFileMatch(filename: string, expectedText: string): Promise<void> {
 		const fileMatch = FILE_MATCH(filename);
 
@@ -126,8 +131,9 @@ export class Search extends Viewlet {
 		await this.code.waitForTextContent(`${VIEWLET} .messages`, undefined, text => text === '' || text.startsWith('Search was canceled before any results could be found'), retryCount);
 	}
 
-	async waitForSelectNextResult(): Promise<void> {
-		await this.code.dispatchKeybinding('F4');
+	async waitForSelectedMatchText(text: string, retryCount?: number): Promise<void> {
+		// Confirms that the current selected result contains the provided text
+		await this.code.waitForTextContent(SELECTED_MATCH, undefined, result => result.startsWith(text), retryCount);
 	}
 
 	private async waitForInputFocus(selector: string): Promise<void> {
