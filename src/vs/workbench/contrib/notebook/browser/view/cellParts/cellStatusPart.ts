@@ -235,7 +235,7 @@ export class CellEditorStatusBar extends CellContentPart {
 			if (renderedItems.length > newItems.length) {
 				const deleted = renderedItems.splice(newItems.length, renderedItems.length - newItems.length);
 				for (const deletedItem of deleted) {
-					container.removeChild(deletedItem.container);
+					deletedItem.container.remove();
 					deletedItem.dispose();
 				}
 			}
