@@ -134,7 +134,6 @@ class ColorRegistry implements IColorRegistry {
 	}
 
 	public setTheme(colorThemeData: ColorThemeData) {
-		console.log({ colorThemeData })
 		for (const key of Object.keys(this.colorsById)) {
 			const color = colorThemeData.getColor(key)
 			if (!color) {
