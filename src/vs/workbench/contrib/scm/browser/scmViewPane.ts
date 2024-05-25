@@ -2464,7 +2464,7 @@ class SCMInputWidget {
 		};
 
 		const services = new ServiceCollection([IContextKeyService, this.contextKeyService]);
-		const instantiationService2 = instantiationService.createChild(services);
+		const instantiationService2 = instantiationService.createChild(services, this.disposables);
 		this.inputEditor = instantiationService2.createInstance(CodeEditorWidget, this.editorContainer, editorConstructionOptions, codeEditorWidgetOptions);
 		this.disposables.add(this.inputEditor);
 
