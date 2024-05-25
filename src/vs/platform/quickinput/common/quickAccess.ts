@@ -16,6 +16,12 @@ import { Registry } from 'vs/platform/registry/common/platform';
 export interface IQuickAccessProviderRunOptions {
 	readonly from?: string;
 	readonly placeholder?: string;
+	/**
+	 * A handler to invoke when an item is accepted for
+	 * this particular showing of the quick access.
+	 * @param item The item that was accepted.
+	 */
+	readonly handleAccept?: (item: IQuickPickItem) => void;
 }
 
 /**
@@ -65,7 +71,7 @@ export interface IQuickAccessOptions {
 
 	/**
 	 * A placeholder to use for this particular showing of the quick access.
-	 */
+	*/
 	readonly placeholder?: string;
 }
 

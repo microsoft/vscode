@@ -314,7 +314,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		try {
 			const task = this._chatAgentService.invokeAgent(this._terminalAgentId!, requestProps, progressCallback, getHistoryEntriesFromModel(model, this._terminalAgentId!), cancellationToken);
 			this._chatWidget?.value.inlineChatWidget.updateChatMessage(undefined);
-			this._chatWidget?.value.inlineChatWidget.updateFollowUps(undefined);
 			this._chatWidget?.value.inlineChatWidget.updateProgress(true);
 			this._chatWidget?.value.inlineChatWidget.updateInfo(GeneratingPhrase + '\u2026');
 			await task;

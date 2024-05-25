@@ -235,6 +235,8 @@ export interface Repository {
 	getBranchBase(name: string): Promise<Branch | undefined>;
 	setBranchUpstream(name: string, upstream: string): Promise<void>;
 
+	checkIgnore(paths: string[]): Promise<Set<string>>;
+
 	getRefs(query: RefQuery, cancellationToken?: CancellationToken): Promise<Ref[]>;
 
 	getMergeBase(ref1: string, ref2: string): Promise<string | undefined>;

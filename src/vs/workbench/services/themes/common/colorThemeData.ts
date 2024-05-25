@@ -437,7 +437,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 	}
 
 	public getThemeSpecificColors(colors: IThemeScopableCustomizations): IThemeScopedCustomizations | undefined {
-		let themeSpecificColors;
+		let themeSpecificColors: IThemeScopedCustomizations | undefined;
 		for (const key in colors) {
 			const scopedColors = colors[key];
 			if (this.isThemeScope(key) && scopedColors instanceof Object && !Array.isArray(scopedColors)) {
@@ -446,7 +446,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 					const themeId = themeScope.substring(1, themeScope.length - 1);
 					if (this.isThemeScopeMatch(themeId)) {
 						if (!themeSpecificColors) {
-							themeSpecificColors = {} as IThemeScopedCustomizations;
+							themeSpecificColors = {};
 						}
 						const scopedThemeSpecificColors = scopedColors as IThemeScopedCustomizations;
 						for (const subkey in scopedThemeSpecificColors) {

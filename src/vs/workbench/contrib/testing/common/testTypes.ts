@@ -474,6 +474,20 @@ export const applyTestItemUpdate = (internal: InternalTestItem | ITestItemUpdate
 	}
 };
 
+/** Request to an ext host to get followup messages for a test failure. */
+export interface TestMessageFollowupRequest {
+	resultId: string;
+	extId: string;
+	taskIndex: number;
+	messageIndex: number;
+}
+
+/** Request to an ext host to get followup messages for a test failure. */
+export interface TestMessageFollowupResponse {
+	id: number;
+	title: string;
+}
+
 /**
  * Test result item used in the main thread.
  */

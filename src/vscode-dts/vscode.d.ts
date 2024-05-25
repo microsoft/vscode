@@ -19008,7 +19008,7 @@ declare module 'vscode' {
 		 * ```ts
 		 * try {
 		 *   // consume stream
-		 *   for await (const chunk of response.stream) {
+		 *   for await (const chunk of response.text) {
 		 *    console.log(chunk);
 		 *   }
 		 *

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
@@ -16,6 +17,7 @@ import { ITreeContextMenuEvent, ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { Delayer, Limiter, RunOnceScheduler } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -67,6 +69,7 @@ import { WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listSe
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProgressService } from 'vs/platform/progress/common/progress';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
@@ -97,7 +100,7 @@ import { ITestExplorerFilterState } from 'vs/workbench/contrib/testing/common/te
 import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
 import { ITaskRawOutput, ITestResult, ITestRunTaskResults, LiveTestResult, TestResultItemChange, TestResultItemChangeReason, maxCountPriority, resultItemParents } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService, ResultChangeEvent } from 'vs/workbench/contrib/testing/common/testResultService';
-import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
+import { ITestFollowup, ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { IRichLocation, ITestErrorMessage, ITestItem, ITestItemContext, ITestMessage, ITestMessageMenuArgs, ITestRunTask, ITestTaskState, InternalTestItem, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset, getMarkId, testResultStateToContextValues } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { IShowResultOptions, ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
@@ -769,11 +772,115 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 	}
 }
 
+const FOLLOWUP_ANIMATION_MIN_TIME = 500;
+
+class FollowupActionWidget extends Disposable {
+	private readonly el = dom.h('div.testing-followup-action', []);
+	private readonly visibleStore = this._register(new DisposableStore());
+
+	constructor(
+		private readonly container: HTMLElement,
+		@ITestService private readonly testService: ITestService,
+		@IQuickInputService private readonly quickInput: IQuickInputService,
+	) {
+		super();
+	}
+
+	public show(subject: InspectSubject) {
+		this.visibleStore.clear();
+		if (subject instanceof MessageSubject) {
+			this.showMessage(subject);
+		}
+	}
+
+	private async showMessage(subject: MessageSubject) {
+		const cts = this.visibleStore.add(new CancellationTokenSource());
+		const start = Date.now();
+
+		// Wait for completion otherwise results will not be available to the ext host:
+		if (subject.result instanceof LiveTestResult && !subject.result.completedAt) {
+			await new Promise(r => Event.once((subject.result as LiveTestResult).onComplete)(r));
+		}
+
+		const followups = await this.testService.provideTestFollowups({
+			extId: subject.test.extId,
+			messageIndex: subject.messageIndex,
+			resultId: subject.result.id,
+			taskIndex: subject.taskIndex,
+		}, cts.token);
+
+
+		if (!followups.followups.length || cts.token.isCancellationRequested) {
+			followups.dispose();
+			return;
+		}
+
+		this.visibleStore.add(followups);
+
+		dom.clearNode(this.el.root);
+		this.el.root.classList.toggle('animated', Date.now() - start > FOLLOWUP_ANIMATION_MIN_TIME);
+
+		this.el.root.appendChild(this.makeFollowupLink(followups.followups[0]));
+		if (followups.followups.length > 1) {
+			this.el.root.appendChild(this.makeMoreLink(followups.followups));
+		}
+
+		this.container.appendChild(this.el.root);
+		this.visibleStore.add(toDisposable(() => {
+			this.el.root.parentElement?.removeChild(this.el.root);
+		}));
+	}
+
+	private makeFollowupLink(first: ITestFollowup) {
+		const link = this.makeLink(() => this.actionFollowup(link, first));
+		dom.reset(link, ...renderLabelWithIcons(first.message));
+		return link;
+	}
+
+	private makeMoreLink(followups: ITestFollowup[]) {
+		const link = this.makeLink(() =>
+			this.quickInput.pick(followups.map((f, i) => ({
+				label: f.message,
+				index: i
+			}))).then(picked => {
+				if (picked?.length) {
+					followups[picked[0].index].execute();
+				}
+			})
+		);
+
+		link.innerText = localize('testFollowup.more', '+{0} More...', followups.length - 1);
+		return link;
+	}
+
+	private makeLink(onClick: () => void) {
+		const link = document.createElement('a');
+		link.tabIndex = 0;
+		this.visibleStore.add(dom.addDisposableListener(link, 'click', onClick));
+		this.visibleStore.add(dom.addDisposableListener(link, 'keydown', e => {
+			const event = new StandardKeyboardEvent(e);
+			if (event.equals(KeyCode.Space) || event.equals(KeyCode.Enter)) {
+				onClick();
+			}
+		}));
+
+		return link;
+	}
+
+	private actionFollowup(link: HTMLAnchorElement, fu: ITestFollowup) {
+		if (link.ariaDisabled !== 'true') {
+			link.ariaDisabled = 'true';
+			fu.execute();
+		}
+	}
+}
+
 class TestResultsViewContent extends Disposable {
 	private static lastSplitWidth?: number;
 
 	private readonly didReveal = this._register(new Emitter<{ subject: InspectSubject; preserveFocus: boolean }>());
 	private readonly currentSubjectStore = this._register(new DisposableStore());
+	private followupWidget!: FollowupActionWidget;
 	private messageContextKeyService!: IContextKeyService;
 	private contextKeyTestMessage!: IContextKey<string>;
 	private contextKeyResultOutdated!: IContextKey<boolean>;
@@ -810,6 +917,7 @@ class TestResultsViewContent extends Disposable {
 		const { historyVisible, showRevealLocationOnMessages } = this.options;
 		const isInPeekView = this.editor !== undefined;
 		const messageContainer = this.messageContainer = dom.append(containerElement, dom.$('.test-output-peek-message-container'));
+		this.followupWidget = this._register(this.instantiationService.createInstance(FollowupActionWidget, messageContainer));
 		this.contentProviders = [
 			this._register(this.instantiationService.createInstance(DiffContentProvider, this.editor, messageContainer)),
 			this._register(this.instantiationService.createInstance(MarkdownTestMessagePeek, messageContainer)),
@@ -883,7 +991,7 @@ class TestResultsViewContent extends Disposable {
 		this.current = opts.subject;
 		return this.contentProvidersUpdateLimiter.queue(async () => {
 			await Promise.all(this.contentProviders.map(p => p.update(opts.subject)));
-
+			this.followupWidget.show(opts.subject);
 			this.currentSubjectStore.clear();
 			this.populateFloatingClick(opts.subject);
 		});

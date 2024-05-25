@@ -4272,6 +4272,8 @@ export enum ChatVariableLevel {
 export class ChatCompletionItem implements vscode.ChatCompletionItem {
 	id: string;
 	label: string | CompletionItemLabel;
+	fullName?: string | undefined;
+	icon?: vscode.ThemeIcon;
 	insertText?: string;
 	values: vscode.ChatVariableValue[];
 	detail?: string;

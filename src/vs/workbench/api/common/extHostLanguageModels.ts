@@ -159,8 +159,8 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			name: metadata.name ?? '',
 			family: metadata.family ?? '',
 			version: metadata.version,
-			maxInputTokens: metadata.maxInputTokens ?? metadata.tokens,
-			maxOutputTokens: metadata.maxOutputTokens ?? metadata.tokens,
+			maxInputTokens: metadata.maxInputTokens,
+			maxOutputTokens: metadata.maxOutputTokens,
 			auth,
 			targetExtensions: metadata.extensions
 		});

@@ -250,17 +250,17 @@ export class NotebookFileWorkingCopyModel extends Disposable implements IStoredF
 				if (!token.isCancellationRequested) {
 					type notebookSaveErrorData = {
 						isRemote: boolean;
-						versionMismatch: boolean;
+						error: Error;
 					};
 					type notebookSaveErrorClassification = {
 						owner: 'amunger';
 						comment: 'Detect if we are having issues saving a notebook on the Extension Host';
 						isRemote: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the save is happening on a remote file system' };
-						versionMismatch: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'If the error was because of a version mismatch' };
+						error: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Info about the error that occurred' };
 					};
 					this._telemetryService.publicLogError2<notebookSaveErrorData, notebookSaveErrorClassification>('notebook/SaveError', {
 						isRemote: this._notebookModel.uri.scheme === Schemas.vscodeRemote,
-						versionMismatch: error instanceof Error && error.message === 'Document version mismatch'
+						error: error
 					});
 				}
 
