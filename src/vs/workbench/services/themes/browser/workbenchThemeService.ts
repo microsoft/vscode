@@ -486,6 +486,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 	}
 
 	private applyTheme(newTheme: ColorThemeData, settingsTarget: ThemeSettingTarget, silent = false): Promise<IWorkbenchColorTheme | null> {
+		setTheme(newTheme)
 		this.updateDynamicCSSRules(newTheme);
 
 		if (this.currentColorTheme.id) {
