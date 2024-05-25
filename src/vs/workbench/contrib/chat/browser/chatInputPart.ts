@@ -53,6 +53,8 @@ import { IChatFollowup } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IChatHistoryEntry, IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { KeyCode } from 'vs/base/common/keyCodes';
 
 const $ = dom.$;
 
@@ -95,6 +97,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._attachedContext;
 	}
 
+	private _indexOfLastAttachedContextDeletedWithKeyboard: number = -1;
 	private readonly _attachedContext = new Set<IChatRequestVariableEntry>();
 
 	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
@@ -438,7 +441,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		dom.clearNode(container);
 		this.attachedContextDisposables.clear();
 		dom.setVisibility(Boolean(this.attachedContext.size), this.attachedContextContainer);
-		for (const attachment of this.attachedContext) {
+		if (!this.attachedContext.size) {
+			this._indexOfLastAttachedContextDeletedWithKeyboard = -1;
+		}
+		[...this.attachedContext.values()].forEach((attachment, index) => {
 			const widget = dom.append(container, $('.chat-attached-context-attachment.show-file-icons'));
 			const label = this._contextResourceLabels.create(widget, { supportIcons: true });
 			const file = URI.isUri(attachment.value) ? attachment.value : attachment.value && typeof attachment.value === 'object' && 'uri' in attachment.value && URI.isUri(attachment.value.uri) ? attachment.value.uri : undefined;
@@ -453,16 +459,31 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			}
 
 			const clearButton = new Button(widget, { supportIcons: true });
+
+			// If this item is rendering in place of the last attached context item, focus the clear button so the user can continue deleting attached context items with the keyboard
+			if (index === Math.min(this._indexOfLastAttachedContextDeletedWithKeyboard, this.attachedContext.size - 1)) {
+				clearButton.focus();
+			}
+
 			this.attachedContextDisposables.add(clearButton);
 			clearButton.icon = Codicon.close;
-			const disp = clearButton.onDidClick(() => {
+			const disp = clearButton.onDidClick((e) => {
 				this.attachedContext.delete(attachment);
 				disp.dispose();
+
+				// Set focus to the next attached context item if deletion was triggered by a keystroke (vs a mouse click)
+				if (dom.isKeyboardEvent(e)) {
+					const event = new StandardKeyboardEvent(e);
+					if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
+						this._indexOfLastAttachedContextDeletedWithKeyboard = index;
+					}
+				}
+
 				this._onDidChangeHeight.fire();
 				this._onDidDeleteContext.fire(attachment);
 			});
 			this.attachedContextDisposables.add(disp);
-		}
+		});
 	}
 
 	async renderFollowups(items: IChatFollowup[] | undefined, response: IChatResponseViewModel | undefined): Promise<void> {
