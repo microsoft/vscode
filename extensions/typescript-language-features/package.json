@@ -1177,10 +1177,7 @@
         "typescript.tsserver.experimental.useVsCodeWatcher": {
           "type": "boolean",
           "description": "%configuration.tsserver.useVsCodeWatcher%",
-          "default": false,
-          "tags": [
-            "experimental"
-          ]
+          "default": true
         },
         "typescript.tsserver.watchOptions": {
           "type": "object",
