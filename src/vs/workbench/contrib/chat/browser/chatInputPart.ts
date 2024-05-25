@@ -138,6 +138,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private inputEditorHasText: IContextKey<boolean>;
 	private chatCursorAtTop: IContextKey<boolean>;
 	private inputEditorHasFocus: IContextKey<boolean>;
+	private currentInputState: Object = {};
 
 	private cachedDimensions: dom.Dimension | undefined;
 	private cachedToolbarWidth: number | undefined;
@@ -164,7 +165,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.chatCursorAtTop = CONTEXT_CHAT_INPUT_CURSOR_AT_TOP.bindTo(contextKeyService);
 		this.inputEditorHasFocus = CONTEXT_CHAT_INPUT_HAS_FOCUS.bindTo(contextKeyService);
 
-		this.history = new HistoryNavigator([], 5);
+		const history = this.historyService.getHistory(this.location);
+		this.history = new HistoryNavigator(history, 50);
 		this._register(this.historyService.onDidClearHistory(() => this.history.clear()));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -183,9 +185,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return localize('chatInput', "Chat Input");
 	}
 
-	setState(inputValue: string | undefined): void {
-		const history = this.historyService.getHistory(this.location);
-		this.history = new HistoryNavigator(history, 50);
+	setState(inputValue: string | undefined, inputState: Object): void {
+		if (!this.inHistoryNavigation) {
+			this.currentInputState = inputState;
+		}
 
 		if (typeof inputValue === 'string') {
 			this.setValue(inputValue);
@@ -221,6 +224,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.setValue(historyEntry.text);
 		this.inHistoryNavigation = false;
 
+		this.currentInputState = historyEntry.state;
 		this._onDidLoadInputState.fire(historyEntry.state);
 		if (previous) {
 			this._inputEditor.setPosition({ lineNumber: 1, column: 1 });
@@ -252,17 +256,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * Reset the input and update history.
 	 * @param userQuery If provided, this will be added to the history. Followups and programmatic queries should not be passed.
 	 */
-	async acceptInput(userQuery?: string, inputState?: any): Promise<void> {
+	async acceptInput(userQuery?: string): Promise<void> {
 		if (userQuery) {
 			let element = this.history.getHistory().find(candidate => candidate.text === userQuery);
 			if (!element) {
-				element = { text: userQuery, state: inputState };
+				element = { text: userQuery, state: this.currentInputState };
 			} else {
-				element.state = inputState;
+				element.state = this.currentInputState;
 			}
 			this.history.add(element);
 		}
 
+		this.currentInputState = {};
+		this._onDidLoadInputState.fire(this.currentInputState);
 		if (this.accessibilityService.isScreenReaderOptimized() && isMacintosh) {
 			this._acceptInputForVoiceover();
 		} else {
