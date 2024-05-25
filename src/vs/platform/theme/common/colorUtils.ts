@@ -11,7 +11,7 @@ import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import * as platform from 'vs/platform/registry/common/platform';
 import { IColorTheme } from 'vs/platform/theme/common/themeService';
-import { ColorThemeData } from 'vs/workbench/services/themes/common/colorThemeData';
+import type { ColorThemeData } from 'vs/workbench/services/themes/common/colorThemeData';
 
 //  ------ API types
 
