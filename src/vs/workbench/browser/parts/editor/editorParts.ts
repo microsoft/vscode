@@ -397,8 +397,8 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		}
 		await this.mainPart.applyState(workingSetState === 'empty' ? workingSetState : workingSetState.main, options);
 
-		// Restore Focus
-		if (options?.preserveFocus === false) {
+		// Restore Focus unless instructed otherwise
+		if (!options?.preserveFocus) {
 			const mostRecentActivePart = firstOrDefault(this.mostRecentActiveParts);
 			if (mostRecentActivePart) {
 				await mostRecentActivePart.whenReady;
