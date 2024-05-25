@@ -136,6 +136,17 @@ class ColorRegistry implements IColorRegistry {
 
 	public setTheme(colorThemeData: ColorThemeData) {
 		console.log({ colorThemeData })
+		for (const key of Object.keys(this.colorsById)) {
+			const color = colorThemeData.getColor(key)
+			if (!color) {
+				continue
+			}
+			const colorString = color.toString()
+			this.colorSchema.properties[key].defaultSnippets = [
+				{ body: `\${1:${colorString}}` }
+			]
+			console.log({ color })
+		}
 	}
 
 	public registerColor(id: string, defaults: ColorDefaults | null, description: string, needsTransparency = false, deprecationMessage?: string): ColorIdentifier {
