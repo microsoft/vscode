@@ -145,7 +145,6 @@ class ColorRegistry implements IColorRegistry {
 			this.colorSchema.properties[key].defaultSnippets = [
 				{ body: `\${1:${colorString}}` }
 			]
-			console.log({ color })
 		}
 	}
 
