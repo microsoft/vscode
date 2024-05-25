@@ -39,7 +39,7 @@ import { IHostColorSchemeService } from 'vs/workbench/services/themes/common/hos
 import { RunOnceScheduler, Sequencer } from 'vs/base/common/async';
 import { IUserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
 import { getIconsStyleSheet } from 'vs/platform/theme/browser/iconsStyleSheet';
-import { asCssVariableName, getColorRegistry } from 'vs/platform/theme/common/colorRegistry';
+import { asCssVariableName, getColorRegistry, setTheme } from 'vs/platform/theme/common/colorRegistry';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { mainWindow } from 'vs/base/browser/window';
 

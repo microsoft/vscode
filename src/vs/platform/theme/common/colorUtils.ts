@@ -8,9 +8,12 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
+import { Disposable } from 'vs/base/common/lifecycle.js';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import * as platform from 'vs/platform/registry/common/platform';
 import { IColorTheme } from 'vs/platform/theme/common/themeService';
+import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService.js';
+import { IHostService } from 'vs/workbench/services/host/browser/host.js';
 
 //  ------ API types
 
@@ -128,14 +131,21 @@ class ColorRegistry implements IColorRegistry {
 	private colorSchema: IJSONSchema & { properties: IJSONSchemaMap } = { type: 'object', properties: {} };
 	private colorReferenceSchema: IJSONSchema & { enum: string[]; enumDescriptions: string[] } = { type: 'string', enum: [], enumDescriptions: [] };
 
-	constructor() {
+	constructor(
+	) {
 		this.colorsById = {};
+	}
+
+	public setThemeService(themeMainService: IThemeMainService) {
+		themeMainService.onDidChangeColorScheme(x => {
+			console.log('color theme change')
+		})
 	}
 
 	public registerColor(id: string, defaults: ColorDefaults | null, description: string, needsTransparency = false, deprecationMessage?: string): ColorIdentifier {
 		const colorContribution: ColorContribution = { id, description, defaults, needsTransparency, deprecationMessage };
 		this.colorsById[id] = colorContribution;
-		const propertySchema: IJSONSchema = { type: 'string', description, format: 'color-hex', defaultSnippets: [{ body: '${1:#ff0000}' }] };
+		const propertySchema: IJSONSchema = { type: 'string', description, format: 'color-hex', defaultSnippets: [{ body: `\${1:${id}}` }] };
 		if (deprecationMessage) {
 			propertySchema.deprecationMessage = deprecationMessage;
 		}
@@ -209,6 +219,10 @@ export function registerColor(id: string, defaults: ColorDefaults | null, descri
 
 export function getColorRegistry(): IColorRegistry {
 	return colorRegistry;
+}
+
+export const setTheme = (theme: any) => {
+	colorRegistry.setThemeService(theme)
 }
 
 // ----- color functions
