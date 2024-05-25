@@ -129,8 +129,7 @@ class ColorRegistry implements IColorRegistry {
 	private colorSchema: IJSONSchema & { properties: IJSONSchemaMap } = { type: 'object', properties: {} };
 	private colorReferenceSchema: IJSONSchema & { enum: string[]; enumDescriptions: string[] } = { type: 'string', enum: [], enumDescriptions: [] };
 
-	constructor(
-	) {
+	constructor() {
 		this.colorsById = {};
 	}
 
