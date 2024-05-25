@@ -491,7 +491,7 @@ export interface IEditorWorkingSet {
 	readonly name: string;
 }
 
-export interface IEditorWorkingSetApplyOptions {
+export interface IEditorWorkingSetOptions {
 	readonly preserveFocus?: boolean;
 }
 
@@ -577,7 +577,7 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	 *
 	 * @returns `true` when the working set as applied.
 	 */
-	applyWorkingSet(workingSet: IEditorWorkingSet | 'empty', options?: IEditorWorkingSetApplyOptions): Promise<boolean>;
+	applyWorkingSet(workingSet: IEditorWorkingSet | 'empty', options?: IEditorWorkingSetOptions): Promise<boolean>;
 
 	/**
 	 * Deletes a working set.
