@@ -1339,8 +1339,6 @@ export class CommandCenter {
 
 	@command('git.stage')
 	async stage(...resourceStates: SourceControlResourceState[]): Promise<void> {
-		console.log('GIT STAGING')
-		console.log(resourceStates)
 		this.logger.debug(`git.stage ${resourceStates.length} `);
 
 		resourceStates = resourceStates.filter(s => !!s);
@@ -1351,7 +1349,6 @@ export class CommandCenter {
 			this.logger.debug(`git.stage.getSCMResource ${resource ? resource.resourceUri.toString() : null} `);
 
 			if (!resource) {
-				console.log('GI RTURN NO RESOURCE')
 				return;
 			}
 
@@ -1375,7 +1372,6 @@ export class CommandCenter {
 		}
 
 		try {
-			console.log('RUN BY REPOSITORY')
 			await this.runByRepository(deletionConflicts.map(r => r.resourceUri), async (repository, resources) => {
 				for (const resource of resources) {
 					await this._stageDeletionConflict(repository, resource);
@@ -1396,13 +1392,10 @@ export class CommandCenter {
 		this.logger.debug(`git.stage.scmResources ${scmResources.length} `);
 
 		if (!scmResources.length) {
-			console.log('NO SCM RESOURCES')
 			return;
 		}
 
 		const resources = scmResources.map(r => r.resourceUri);
-		console.log('RUN BY')
-		console.log(resources.length)
 		await this.runByRepository(resources, async (repository, resources) => repository.add(resources));
 	}
 
