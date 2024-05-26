@@ -1010,8 +1010,8 @@ export class MenuBar extends Disposable {
 		if (this.options.compactMode?.horizontal === HorizontalDirection.Right) {
 			menuHolder.style.left = `${titleBoundingRect.left + this.container.clientWidth}px`;
 		} else if (this.options.compactMode?.horizontal === HorizontalDirection.Left) {
-			menuHolder.style.top = `${titleBoundingRect.top}px`;
-			menuHolder.style.right = `${this.container.clientWidth}px`;
+			const windowWidth = DOM.getWindow(this.container).innerWidth;
+			menuHolder.style.right = `${windowWidth - titleBoundingRect.left}px`;
 			menuHolder.style.left = 'auto';
 		} else {
 			menuHolder.style.left = `${titleBoundingRect.left * titleBoundingRectZoom}px`;

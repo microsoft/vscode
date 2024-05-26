@@ -185,6 +185,15 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	private readonly _onDidChangeHiddenAreas: Emitter<void> = this._register(new Emitter<void>({ deliveryQueue: this._deliveryQueue }));
 	public readonly onDidChangeHiddenAreas: Event<void> = this._onDidChangeHiddenAreas.event;
+
+	private _updateCounter = 0;
+
+	private readonly _onBeginUpdate: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onBeginUpdate: Event<void> = this._onBeginUpdate.event;
+
+	private readonly _onEndUpdate: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onEndUpdate: Event<void> = this._onEndUpdate.event;
+
 	//#endregion
 
 	public get isSimpleWidget(): boolean {
@@ -280,7 +289,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._register(new EditorContextKeysManager(this, this._contextKeyService));
 		this._register(new EditorModeContext(this, this._contextKeyService, languageFeaturesService));
 
-		this._instantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, this._contextKeyService]));
+		this._instantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, this._contextKeyService])));
 
 		this._modelData = null;
 
@@ -444,10 +453,15 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	public setValue(newValue: string): void {
-		if (!this._modelData) {
-			return;
+		try {
+			this._beginUpdate();
+			if (!this._modelData) {
+				return;
+			}
+			this._modelData.model.setValue(newValue);
+		} finally {
+			this._endUpdate();
 		}
-		this._modelData.model.setValue(newValue);
 	}
 
 	public getModel(): ITextModel | null {
@@ -458,34 +472,39 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	public setModel(_model: ITextModel | editorCommon.IDiffEditorModel | editorCommon.IDiffEditorViewModel | null = null): void {
-		const model = <ITextModel | null>_model;
-		if (this._modelData === null && model === null) {
-			// Current model is the new model
-			return;
+		try {
+			this._beginUpdate();
+			const model = <ITextModel | null>_model;
+			if (this._modelData === null && model === null) {
+				// Current model is the new model
+				return;
+			}
+			if (this._modelData && this._modelData.model === model) {
+				// Current model is the new model
+				return;
+			}
+
+			const e: editorCommon.IModelChangedEvent = {
+				oldModelUrl: this._modelData?.model.uri || null,
+				newModelUrl: model?.uri || null
+			};
+			this._onWillChangeModel.fire(e);
+
+			const hasTextFocus = this.hasTextFocus();
+			const detachedModel = this._detachModel();
+			this._attachModel(model);
+			if (hasTextFocus && this.hasModel()) {
+				this.focus();
+			}
+
+			this._removeDecorationTypes();
+			this._onDidChangeModel.fire(e);
+			this._postDetachModelCleanup(detachedModel);
+
+			this._contributionsDisposable = this._contributions.onAfterModelAttached();
+		} finally {
+			this._endUpdate();
 		}
-		if (this._modelData && this._modelData.model === model) {
-			// Current model is the new model
-			return;
-		}
-
-		const e: editorCommon.IModelChangedEvent = {
-			oldModelUrl: this._modelData?.model.uri || null,
-			newModelUrl: model?.uri || null
-		};
-		this._onWillChangeModel.fire(e);
-
-		const hasTextFocus = this.hasTextFocus();
-		const detachedModel = this._detachModel();
-		this._attachModel(model);
-		if (hasTextFocus && this.hasModel()) {
-			this.focus();
-		}
-
-		this._removeDecorationTypes();
-		this._onDidChangeModel.fire(e);
-		this._postDetachModelCleanup(detachedModel);
-
-		this._contributionsDisposable = this._contributions.onAfterModelAttached();
 	}
 
 	private _removeDecorationTypes(): void {
@@ -1026,53 +1045,59 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	public trigger(source: string | null | undefined, handlerId: string, payload: any): void {
 		payload = payload || {};
 
-		switch (handlerId) {
-			case editorCommon.Handler.CompositionStart:
-				this._startComposition();
-				return;
-			case editorCommon.Handler.CompositionEnd:
-				this._endComposition(source);
-				return;
-			case editorCommon.Handler.Type: {
-				const args = <Partial<editorCommon.TypePayload>>payload;
-				this._type(source, args.text || '');
+		try {
+			this._beginUpdate();
+
+			switch (handlerId) {
+				case editorCommon.Handler.CompositionStart:
+					this._startComposition();
+					return;
+				case editorCommon.Handler.CompositionEnd:
+					this._endComposition(source);
+					return;
+				case editorCommon.Handler.Type: {
+					const args = <Partial<editorCommon.TypePayload>>payload;
+					this._type(source, args.text || '');
+					return;
+				}
+				case editorCommon.Handler.ReplacePreviousChar: {
+					const args = <Partial<editorCommon.ReplacePreviousCharPayload>>payload;
+					this._compositionType(source, args.text || '', args.replaceCharCnt || 0, 0, 0);
+					return;
+				}
+				case editorCommon.Handler.CompositionType: {
+					const args = <Partial<editorCommon.CompositionTypePayload>>payload;
+					this._compositionType(source, args.text || '', args.replacePrevCharCnt || 0, args.replaceNextCharCnt || 0, args.positionDelta || 0);
+					return;
+				}
+				case editorCommon.Handler.Paste: {
+					const args = <Partial<editorBrowser.PastePayload>>payload;
+					this._paste(source, args.text || '', args.pasteOnNewLine || false, args.multicursorText || null, args.mode || null, args.clipboardEvent);
+					return;
+				}
+				case editorCommon.Handler.Cut:
+					this._cut(source);
+					return;
+			}
+
+			const action = this.getAction(handlerId);
+			if (action) {
+				Promise.resolve(action.run(payload)).then(undefined, onUnexpectedError);
 				return;
 			}
-			case editorCommon.Handler.ReplacePreviousChar: {
-				const args = <Partial<editorCommon.ReplacePreviousCharPayload>>payload;
-				this._compositionType(source, args.text || '', args.replaceCharCnt || 0, 0, 0);
+
+			if (!this._modelData) {
 				return;
 			}
-			case editorCommon.Handler.CompositionType: {
-				const args = <Partial<editorCommon.CompositionTypePayload>>payload;
-				this._compositionType(source, args.text || '', args.replacePrevCharCnt || 0, args.replaceNextCharCnt || 0, args.positionDelta || 0);
+
+			if (this._triggerEditorCommand(source, handlerId, payload)) {
 				return;
 			}
-			case editorCommon.Handler.Paste: {
-				const args = <Partial<editorBrowser.PastePayload>>payload;
-				this._paste(source, args.text || '', args.pasteOnNewLine || false, args.multicursorText || null, args.mode || null, args.clipboardEvent);
-				return;
-			}
-			case editorCommon.Handler.Cut:
-				this._cut(source);
-				return;
-		}
 
-		const action = this.getAction(handlerId);
-		if (action) {
-			Promise.resolve(action.run(payload)).then(undefined, onUnexpectedError);
-			return;
+			this._triggerCommand(handlerId, payload);
+		} finally {
+			this._endUpdate();
 		}
-
-		if (!this._modelData) {
-			return;
-		}
-
-		if (this._triggerEditorCommand(source, handlerId, payload)) {
-			return;
-		}
-
-		this._triggerCommand(handlerId, payload);
 	}
 
 	protected _triggerCommand(handlerId: string, payload: any): void {
@@ -1893,6 +1918,20 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	public setContextValue(key: string, value: ContextKeyValue): void {
 		this._contextKeyService.createKey(key, value);
+	}
+
+	private _beginUpdate(): void {
+		this._updateCounter++;
+		if (this._updateCounter === 1) {
+			this._onBeginUpdate.fire();
+		}
+	}
+
+	private _endUpdate(): void {
+		this._updateCounter--;
+		if (this._updateCounter === 0) {
+			this._onEndUpdate.fire();
+		}
 	}
 }
 

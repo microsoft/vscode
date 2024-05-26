@@ -5387,12 +5387,21 @@ declare namespace monaco.editor {
 		 * The position preference for the overlay widget.
 		 */
 		preference: OverlayWidgetPositionPreference | IOverlayWidgetPositionCoordinates | null;
+		/**
+		 * When set, stacks with other overlay widgets with the same preference,
+		 * in an order determined by the ordinal value.
+		 */
+		stackOridinal?: number;
 	}
 
 	/**
 	 * An overlay widgets renders on top of the text.
 	 */
 	export interface IOverlayWidget {
+		/**
+		 * Event fired when the widget layout changes.
+		 */
+		onDidLayout?: IEvent<void>;
 		/**
 		 * Render this overlay widget in a location where it could overflow the editor's view dom node.
 		 */
@@ -5818,6 +5827,18 @@ declare namespace monaco.editor {
 		 * @event
 		 */
 		readonly onDidChangeHiddenAreas: IEvent<void>;
+		/**
+		 * Some editor operations fire multiple events at once.
+		 * To allow users to react to multiple events fired by a single operation,
+		 * the editor fires a begin update before the operation and an end update after the operation.
+		 * Whenever the editor fires `onBeginUpdate`, it will also fire `onEndUpdate` once the operation finishes.
+		 * Note that not all operations are bracketed by `onBeginUpdate` and `onEndUpdate`.
+		*/
+		readonly onBeginUpdate: IEvent<void>;
+		/**
+		 * Fires after the editor completes the operation it fired `onBeginUpdate` for.
+		*/
+		readonly onEndUpdate: IEvent<void>;
 		/**
 		 * Saves current view state of the editor in a serializable object.
 		 */
@@ -6864,9 +6885,9 @@ declare namespace monaco.languages {
 
 	export interface HoverVerbosityRequest<THover = Hover> {
 		/**
-		 * Whether to increase or decrease the hover's verbosity
+		 * The delta by which to increase/decrease the hover verbosity level
 		 */
-		action: HoverVerbosityAction;
+		verbosityDelta: number;
 		/**
 		 * The previous hover for the same position
 		 */

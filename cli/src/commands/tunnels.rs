@@ -274,10 +274,11 @@ pub async fn service(
 pub async fn user(ctx: CommandContext, user_args: TunnelUserSubCommands) -> Result<i32, AnyError> {
 	let auth = Auth::new(&ctx.paths, ctx.log.clone());
 	match user_args {
-		TunnelUserSubCommands::Login(login_args) => {
+		TunnelUserSubCommands::Login(mut login_args) => {
 			auth.login(
 				login_args.provider.map(|p| p.into()),
-				login_args.access_token.to_owned(),
+				login_args.access_token.take(),
+				login_args.refresh_token.take(),
 			)
 			.await?;
 		}
@@ -488,7 +489,12 @@ pub async fn forward(
 		forward_args.login.provider.take(),
 		forward_args.login.access_token.take(),
 	) {
-		auth.login(Some(p.into()), Some(at)).await?;
+		auth.login(
+			Some(p.into()),
+			Some(at),
+			forward_args.login.refresh_token.take(),
+		)
+		.await?;
 	}
 
 	let mut tunnels = DevTunnels::new_port_forwarding(&ctx.log, auth, &ctx.paths);

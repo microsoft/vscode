@@ -202,7 +202,10 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		'disable-hardware-acceleration',
 
 		// override for the color profile to use
-		'force-color-profile'
+		'force-color-profile',
+
+		// disable LCD font rendering, a Chromium flag
+		'disable-lcd-text'
 	];
 
 	if (process.platform === 'linux') {
