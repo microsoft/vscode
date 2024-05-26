@@ -108,7 +108,7 @@ export interface IFilesConfiguration extends PlatformIFilesConfiguration, IWorkb
 			expand: boolean;
 			patterns: { [parent: string]: string };
 		};
-		autoOpenDroppedFile: true
+		autoOpenDroppedFile: boolean
 	};
 	editor: IEditorOptions;
 }
