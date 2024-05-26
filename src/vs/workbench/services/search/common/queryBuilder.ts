@@ -189,7 +189,8 @@ export class QueryBuilder {
 			exists: options.exists,
 			sortByScore: options.sortByScore,
 			cacheKey: options.cacheKey,
-			shouldGlobMatchFilePattern: options.shouldGlobSearch
+			shouldGlobMatchFilePattern: options.shouldGlobSearch,
+			threads: 1
 		};
 	}
 
