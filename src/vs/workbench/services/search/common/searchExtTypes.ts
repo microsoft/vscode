@@ -116,6 +116,11 @@ export interface TextSearchQuery {
 	 * Whether or not to search for whole word matches only.
 	 */
 	isWordMatch?: boolean;
+
+	/**
+	 * Number of threads to use for searching.
+	 */
+	threads?: number;
 }
 
 /**
