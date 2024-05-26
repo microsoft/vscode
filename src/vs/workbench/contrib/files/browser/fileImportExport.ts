@@ -564,6 +564,7 @@ export class ExternalFileImport {
 			});
 
 			// if we only add one file, just open it directly
+			const autoOpen = this.configurationService.getValue<IFilesConfiguration>().explorer.autoOpenDroppedFile
 			if (resourceFileEdits.length === 1) {
 				const item = this.explorerService.findClosest(resourceFileEdits[0].newResource!);
 				if (item && !item.isDirectory) {
