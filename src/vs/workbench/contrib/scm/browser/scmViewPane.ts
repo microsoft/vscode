@@ -3019,12 +3019,16 @@ export class SCMViewPane extends ViewPane {
 	private async handleDoubleClick(e: ITreeMouseEvent<TreeElement | undefined>): Promise<void> {
 		if (isSCMResource(e.element)) {
 			if (e.element.doubleClickCommand) {
-				await this.commandService.executeCommand(e.element.doubleClickCommand.id, ...(e.element.doubleClickCommand.arguments || []), e);
+				console.log(e.element.doubleClickCommand)
+				console.log(e.element.sourceUri.toString())
+				await this.commandService.executeCommand(e.element.doubleClickCommand.id, e.element.sourceUri.toString());
+				// await this.commandService.executeCommand('_files.newWindow', {})
 			}
 		}
 	}
 
 	private async open(e: IOpenEvent<TreeElement | undefined>): Promise<void> {
+		console.log('did open')
 		if (!e.element) {
 			return;
 		} else if (isSCMRepository(e.element)) {
