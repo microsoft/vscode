@@ -2983,6 +2983,7 @@ export class SCMViewPane extends ViewPane {
 				horizontalScrolling: false,
 				setRowLineHeight: false,
 				transformOptimization: false,
+				openOnSingleClick: false,
 				filter: new SCMTreeFilter(),
 				dnd: new SCMTreeDragAndDrop(this.instantiationService),
 				identityProvider: new SCMResourceIdentityProvider(),
