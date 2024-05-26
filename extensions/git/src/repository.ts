@@ -175,7 +175,7 @@ export class Resource implements SourceControlResourceState {
 	}
 
 	@memoize
-	get doubleClickCommand(): Command {
+	get doubleClickCommand(): Command | undefined {
 		return this._commandResolver.resolveDoubleClickCommand(this)
 	}
 
@@ -498,7 +498,12 @@ class ResourceCommandResolver {
 
 	constructor(private repository: Repository) { }
 
-	resolveDoubleClickCommand(resource: Resource): Command {
+	resolveDoubleClickCommand(resource: Resource): Command | undefined {
+		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
+		const stageOnDoubleClick = config.get('stageOnDoubleclick', false);
+		if (!stageOnDoubleClick) {
+			return undefined
+		}
 		return {
 			command: 'git.stage',
 			title: l10n.t('Stage'),
