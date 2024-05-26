@@ -287,7 +287,7 @@ export class FindDecorations implements IDisposable {
 		description: 'current-find-match',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		zIndex: 13,
-		className: 'currentFindMatch',
+		inlineClassName: 'currentFindMatch',
 		showIfCollapsed: true,
 		overviewRuler: {
 			color: themeColorFromId(overviewRulerFindMatchForeground),
