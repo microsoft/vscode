@@ -15487,6 +15487,12 @@ declare module 'vscode' {
 		readonly command?: Command;
 
 		/**
+		 * The {@link Command} which should be run when the resource
+		 * state is double clicked in the Source Control viewlet.
+		 */
+		readonly doubleClickCommand?: Command;
+
+		/**
 		 * The {@link SourceControlResourceDecorations decorations} for this source control
 		 * resource state.
 		 */
