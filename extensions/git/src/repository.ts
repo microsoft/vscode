@@ -500,7 +500,7 @@ class ResourceCommandResolver {
 
 	resolveDoubleClickCommand(resource: Resource): Command | undefined {
 		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
-		const stageOnDoubleClick = config.get('stageOnDoubleclick', false);
+		const stageOnDoubleClick = config.get('stageOnDoubleClick', false);
 		if (!stageOnDoubleClick) {
 			return undefined
 		}
