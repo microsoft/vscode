@@ -465,7 +465,6 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 					} else {
 						this._resourceStatesDisposablesMap.set(handle, disposables);
 					}
-
 				}
 
 				const hasScmMultiDiffEditorProposalEnabled = isProposedApiEnabled(this._extension, 'scmMultiDiffEditor');
