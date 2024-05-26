@@ -322,7 +322,7 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 		}
 	}
 
-	override create(parent: HTMLElement): HTMLElement {
+	override create(parent: HTMLElement, draggable = true): HTMLElement {
 		this.element = parent;
 
 		// Install menubar if compact
@@ -331,7 +331,7 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 		}
 
 		// View Containers action bar
-		this.compositeBarContainer = super.create(this.element);
+		this.compositeBarContainer = super.create(this.element, draggable);
 
 		// Global action bar
 		if (this.globalCompositeBar) {
