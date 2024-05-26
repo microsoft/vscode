@@ -422,9 +422,8 @@ export function getRgArgs(query: TextSearchQuery, options: TextSearchOptions): s
 		args.push('--encoding', options.encoding);
 	}
 
-	console.log(`threads: ${options.threads}`)
 	if (options.threads) {
-		args.push('-j', `${options.threads}`)
+		args.push('--threads', `${options.threads}`)
 	}
 
 	// Ripgrep handles -- as a -- arg separator. Only --.
