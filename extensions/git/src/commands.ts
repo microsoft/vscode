@@ -1339,6 +1339,8 @@ export class CommandCenter {
 
 	@command('git.stage')
 	async stage(...resourceStates: SourceControlResourceState[]): Promise<void> {
+		console.log('GIT STAGING')
+		console.log(resourceStates)
 		this.logger.debug(`git.stage ${resourceStates.length} `);
 
 		resourceStates = resourceStates.filter(s => !!s);
