@@ -94,6 +94,7 @@ export interface ICommonQueryProps<U extends UriComponents> {
 
 	maxResults?: number;
 	usingSearchPaths?: boolean;
+	threads?: number
 }
 
 export interface IFileQueryProps<U extends UriComponents> extends ICommonQueryProps<U> {
@@ -111,7 +112,6 @@ export interface IFileQueryProps<U extends UriComponents> extends ICommonQueryPr
 	exists?: boolean;
 	sortByScore?: boolean;
 	cacheKey?: string;
-	threads?: number
 }
 
 export interface ITextQueryProps<U extends UriComponents> extends ICommonQueryProps<U> {
