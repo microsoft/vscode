@@ -502,7 +502,7 @@ class ResourceCommandResolver {
 		return {
 			command: 'git.stage',
 			title: l10n.t('Stage'),
-			arguments: [resource.resourceUri]
+			arguments: [resource]
 		}
 	}
 
