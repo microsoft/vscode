@@ -110,6 +110,7 @@ export interface IFileQueryProps<U extends UriComponents> extends ICommonQueryPr
 	exists?: boolean;
 	sortByScore?: boolean;
 	cacheKey?: string;
+	threads?: number
 }
 
 export interface ITextQueryProps<U extends UriComponents> extends ICommonQueryProps<U> {
