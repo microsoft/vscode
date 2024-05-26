@@ -28,7 +28,7 @@ import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar,
 import { WorkbenchCompressibleAsyncDataTree, IOpenEvent } from 'vs/platform/list/browser/listService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { disposableTimeout, Sequencer, ThrottledDelayer, Throttler } from 'vs/base/common/async';
-import { ITreeNode, ITreeFilter, ITreeSorter, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeDragOverReaction, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
+import { ITreeNode, ITreeFilter, ITreeSorter, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeDragOverReaction, IAsyncDataSource, ITreeMouseEvent } from 'vs/base/browser/ui/tree/tree';
 import { ResourceTree, IResourceNode } from 'vs/base/common/resourceTree';
 import { ICompressibleTreeRenderer, ICompressibleKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/tree/objectTree';
 import { Iterable } from 'vs/base/common/iterator';
@@ -3006,9 +3006,7 @@ export class SCMViewPane extends ViewPane {
 
 		this.disposables.add(this.tree);
 
-		this.tree.onMouseDblClick(x => {
-			console.log('clicked', x)
-		}, this, this.disposables)
+		this.tree.onMouseDblClick(this.handleDoubleClick, this, this.disposables)
 
 		this.tree.onDidOpen(this.open, this, this.disposables);
 		this.tree.onContextMenu(this.onListContextMenu, this, this.disposables);
@@ -3016,6 +3014,14 @@ export class SCMViewPane extends ViewPane {
 		Event.filter(this.tree.onDidChangeCollapseState, e => isSCMRepository(e.node.element?.element), this.disposables)(this.updateRepositoryCollapseAllContextKeys, this, this.disposables);
 
 		append(container, overflowWidgetsDomNode);
+	}
+
+	private async handleDoubleClick(e: ITreeMouseEvent<TreeElement | undefined>): Promise<void> {
+		if (isSCMResource(e.element)) {
+
+			console.log('clicked', e.element)
+
+		}
 	}
 
 	private async open(e: IOpenEvent<TreeElement | undefined>): Promise<void> {
