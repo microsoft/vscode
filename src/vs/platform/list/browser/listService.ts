@@ -769,8 +769,6 @@ abstract class ResourceNavigator<T> extends Disposable {
 			return;
 		}
 
-		console.log('list dbl click 32')
-
 		const preserveFocus = false;
 		const pinned = true;
 		const sideBySide = (browserEvent.ctrlKey || browserEvent.metaKey || browserEvent.altKey);

@@ -793,7 +793,6 @@ export class MouseController<T> implements IDisposable {
 			return;
 		}
 
-		console.log('list dbl click')
 		if (e.browserEvent.isHandledByList) {
 			return;
 		}

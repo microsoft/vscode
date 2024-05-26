@@ -3019,8 +3019,6 @@ export class SCMViewPane extends ViewPane {
 	private async handleDoubleClick(e: ITreeMouseEvent<TreeElement | undefined>): Promise<void> {
 		if (isSCMResource(e.element)) {
 			if (e.element.doubleClickCommand) {
-				console.log('scm view click')
-				e.browserEvent.isHandledByList = true
 				await this.commandService.executeCommand(e.element.doubleClickCommand.id, ...(e.element.doubleClickCommand.arguments || []), e);
 			}
 		}
