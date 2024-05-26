@@ -175,6 +175,11 @@ export class Resource implements SourceControlResourceState {
 	}
 
 	@memoize
+	get doubleClickCommand(): Command {
+		return this._commandResolver.resolveDoubleClickCommand(this)
+	}
+
+	@memoize
 	private get resources(): { left: Uri | undefined; right: Uri | undefined; original: Uri | undefined; modified: Uri | undefined } {
 		return this._commandResolver.getResources(this);
 	}
@@ -492,6 +497,14 @@ class DotGitWatcher implements IFileWatcher {
 class ResourceCommandResolver {
 
 	constructor(private repository: Repository) { }
+
+	resolveDoubleClickCommand(resource: Resource): Command {
+		return {
+			command: 'git.stage',
+			title: l10n.t('Stage'),
+			arguments: [resource.resourceUri]
+		}
+	}
 
 	resolveDefaultCommand(resource: Resource): Command {
 		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
