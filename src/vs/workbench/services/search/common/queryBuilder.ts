@@ -180,6 +180,7 @@ export class QueryBuilder {
 
 	file(folders: (IWorkspaceFolderData | URI)[], options: IFileQueryBuilderOptions = {}): IFileQuery {
 		const commonQuery = this.commonQuery(folders, options);
+		const threads = this.configurationService.getValue<number>('search.threads') ?? 0
 		return {
 			...commonQuery,
 			type: QueryType.File,
@@ -190,7 +191,7 @@ export class QueryBuilder {
 			sortByScore: options.sortByScore,
 			cacheKey: options.cacheKey,
 			shouldGlobMatchFilePattern: options.shouldGlobSearch,
-			threads: 1
+			threads
 		};
 	}
 
