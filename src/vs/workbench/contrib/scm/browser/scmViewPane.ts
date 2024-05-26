@@ -3021,8 +3021,7 @@ export class SCMViewPane extends ViewPane {
 			if (e.element.doubleClickCommand) {
 				console.log(e.element.doubleClickCommand)
 				console.log(e.element.sourceUri.toString())
-				await this.commandService.executeCommand(e.element.doubleClickCommand.id, e.element.sourceUri.toString());
-				// await this.commandService.executeCommand('_files.newWindow', {})
+				await this.commandService.executeCommand(e.element.doubleClickCommand.id, ...(e.element.doubleClickCommand.arguments || []),);
 			}
 		}
 	}

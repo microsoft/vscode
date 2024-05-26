@@ -457,9 +457,13 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 				}
 				let doubleClickCommand: ICommandDto | undefined;
 				if (r.doubleClickCommand) {
-					doubleClickCommand = {
-						id: r.doubleClickCommand.command,
-						title: ''
+					const disposables = new DisposableStore();
+					doubleClickCommand = this._commands.converter.toInternal(r.doubleClickCommand, disposables);
+					const existing = this._resourceStatesDisposablesMap.get(handle)
+					if (existing && existing instanceof DisposableStore) {
+						existing.add(disposables)
+					} else {
+						this._resourceStatesDisposablesMap.set(handle, disposables);
 					}
 				}
 
