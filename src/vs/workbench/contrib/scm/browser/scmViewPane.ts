@@ -2961,6 +2961,8 @@ export class SCMViewPane extends ViewPane {
 		const treeDataSource = this.instantiationService.createInstance(SCMTreeDataSource, () => this.viewMode);
 		this.disposables.add(treeDataSource);
 
+		const openOnClick = this.configurationService.getValue<boolean>('scm.openItemOnClick') ?? true;
+
 		this.tree = this.instantiationService.createInstance(
 			WorkbenchCompressibleAsyncDataTree,
 			'SCM Tree Repo',
@@ -2983,8 +2985,8 @@ export class SCMViewPane extends ViewPane {
 				horizontalScrolling: false,
 				setRowLineHeight: false,
 				transformOptimization: false,
-				openOnSingleClick: false,
-				openOnDoubleClick: false,
+				openOnSingleClick: openOnClick,
+				openOnDoubleClick: openOnClick,
 				filter: new SCMTreeFilter(),
 				dnd: new SCMTreeDragAndDrop(this.instantiationService),
 				identityProvider: new SCMResourceIdentityProvider(),
