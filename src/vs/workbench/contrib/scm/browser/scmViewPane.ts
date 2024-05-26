@@ -2984,6 +2984,7 @@ export class SCMViewPane extends ViewPane {
 				setRowLineHeight: false,
 				transformOptimization: false,
 				openOnSingleClick: false,
+				openOnDoubleClick: false,
 				filter: new SCMTreeFilter(),
 				dnd: new SCMTreeDragAndDrop(this.instantiationService),
 				identityProvider: new SCMResourceIdentityProvider(),
@@ -3007,7 +3008,6 @@ export class SCMViewPane extends ViewPane {
 		this.disposables.add(this.tree);
 
 		this.tree.onMouseDblClick(this.handleDoubleClick, this, this.disposables)
-
 		this.tree.onDidOpen(this.open, this, this.disposables);
 		this.tree.onContextMenu(this.onListContextMenu, this, this.disposables);
 		this.tree.onDidScroll(this.inputRenderer.clearValidation, this.inputRenderer, this.disposables);
@@ -3019,6 +3019,8 @@ export class SCMViewPane extends ViewPane {
 	private async handleDoubleClick(e: ITreeMouseEvent<TreeElement | undefined>): Promise<void> {
 		if (isSCMResource(e.element)) {
 			if (e.element.doubleClickCommand) {
+				console.log('scm view click')
+				e.browserEvent.isHandledByList = true
 				await this.commandService.executeCommand(e.element.doubleClickCommand.id, ...(e.element.doubleClickCommand.arguments || []), e);
 			}
 		}
