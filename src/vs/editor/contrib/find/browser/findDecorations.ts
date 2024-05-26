@@ -300,14 +300,6 @@ export class FindDecorations implements IDisposable {
 		}
 	});
 
-	// public static readonly _CURRENT_FIND_MATCH_DECORATION_INLINE = ModelDecorationOptions.register({
-	// 	description: 'current-find-match-inline',
-	// 	stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-	// 	zIndex: 13,
-	// 	inlineClassName: 'currentFindMatchInline',
-	// 	showIfCollapsed: true,
-	// });
-
 	public static readonly _FIND_MATCH_DECORATION = ModelDecorationOptions.register({
 		description: 'find-match',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
@@ -324,14 +316,6 @@ export class FindDecorations implements IDisposable {
 			position: MinimapPosition.Inline
 		}
 	});
-
-	// public static readonly _FIND_MATCH_DECORATION_INLINE = ModelDecorationOptions.register({
-	// 	description: 'find-match-inline',
-	// 	stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-	// 	zIndex: 10,
-	// 	inlineClassName: 'findMatchInline',
-	// 	showIfCollapsed: true,
-	// });
 
 	public static readonly _FIND_MATCH_NO_OVERVIEW_DECORATION = ModelDecorationOptions.register({
 		description: 'find-match-no-overview',
