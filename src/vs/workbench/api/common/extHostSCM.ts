@@ -455,9 +455,17 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 						this._resourceStatesCommandsMap.set(handle, r.command);
 					}
 				}
-				let doubleClickCommand = undefined;
+				let doubleClickCommand: ICommandDto | undefined;
 				if (r.doubleClickCommand) {
-					this._resourceStatesCommandsMap.set(handle, r.doubleClickCommand);
+					const disposables = new DisposableStore();
+					doubleClickCommand = this._commands.converter.toInternal(r.doubleClickCommand, disposables);
+					const existing = this._resourceStatesDisposablesMap.get(handle)
+					if (existing && existing instanceof DisposableStore) {
+						existing.add(disposables)
+					} else {
+						this._resourceStatesDisposablesMap.set(handle, disposables);
+					}
+
 				}
 
 				const hasScmMultiDiffEditorProposalEnabled = isProposedApiEnabled(this._extension, 'scmMultiDiffEditor');
