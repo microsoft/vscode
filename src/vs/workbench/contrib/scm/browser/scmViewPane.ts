@@ -3006,6 +3006,10 @@ export class SCMViewPane extends ViewPane {
 
 		this.disposables.add(this.tree);
 
+		this.tree.onMouseDblClick(x => {
+			console.log('clicked', x)
+		}, this, this.disposables)
+
 		this.tree.onDidOpen(this.open, this, this.disposables);
 		this.tree.onContextMenu(this.onListContextMenu, this, this.disposables);
 		this.tree.onDidScroll(this.inputRenderer.clearValidation, this.inputRenderer, this.disposables);
