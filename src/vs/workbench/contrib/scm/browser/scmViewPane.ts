@@ -3027,7 +3027,6 @@ export class SCMViewPane extends ViewPane {
 	}
 
 	private async open(e: IOpenEvent<TreeElement | undefined>): Promise<void> {
-		console.log('did open')
 		if (!e.element) {
 			return;
 		} else if (isSCMRepository(e.element)) {
