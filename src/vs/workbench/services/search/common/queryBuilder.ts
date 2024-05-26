@@ -180,7 +180,6 @@ export class QueryBuilder {
 
 	file(folders: (IWorkspaceFolderData | URI)[], options: IFileQueryBuilderOptions = {}): IFileQuery {
 		const commonQuery = this.commonQuery(folders, options);
-		const threads = this.configurationService.getValue<number>('search.threads') ?? 0
 		return {
 			...commonQuery,
 			type: QueryType.File,
@@ -191,7 +190,6 @@ export class QueryBuilder {
 			sortByScore: options.sortByScore,
 			cacheKey: options.cacheKey,
 			shouldGlobMatchFilePattern: options.shouldGlobSearch,
-			threads
 		};
 	}
 
@@ -241,6 +239,9 @@ export class QueryBuilder {
 		// Filter extraFileResources against global include/exclude patterns - they are already expected to not belong to a workspace
 		const extraFileResources = options.extraFileResources && options.extraFileResources.filter(extraFile => pathIncludedInQuery(queryProps, extraFile.fsPath));
 		queryProps.extraFileResources = extraFileResources && extraFileResources.length ? extraFileResources : undefined;
+
+		const threads = this.configurationService.getValue<number>('search.threads') ?? 0;
+		queryProps.threads = threads;
 
 		return queryProps;
 	}
