@@ -322,8 +322,9 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 		}
 	}
 
-	override create(parent: HTMLElement, draggable = true): HTMLElement {
+	override create(parent: HTMLElement): HTMLElement {
 		this.element = parent;
+		const draggable = this.configurationService.getValue<boolean>('workbench.activityBar.dragAndDrop.enabled') ?? true
 
 		// Install menubar if compact
 		if (getMenuBarVisibility(this.configurationService) === 'compact') {
