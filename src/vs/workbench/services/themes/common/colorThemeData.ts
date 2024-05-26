@@ -132,8 +132,9 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 	}
 
 	public getColor(colorId: ColorIdentifier, useDefault?: boolean): Color | undefined {
+		const hasCustomColor = Object.hasOwn(this.customColorMap, colorId);
 		let color: Color | undefined = this.customColorMap[colorId];
-		if (color) {
+		if (hasCustomColor) {
 			return color;
 		}
 		color = this.colorMap[colorId];
@@ -375,6 +376,9 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 			if (typeof colorVal === 'string') {
 				this.customColorMap[id] = Color.fromHex(colorVal);
 			}
+			if (colorVal === null) {
+				this.customColorMap[id] = undefined
+			}
 		}
 	}
 
@@ -546,9 +550,11 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 	}
 
 	toStorage(storageService: IStorageService) {
-		const colorMapData: { [key: string]: string } = {};
+		const colorMapData: { [key: string]: string | null } = {};
 		for (const key in this.colorMap) {
-			colorMapData[key] = Color.Format.CSS.formatHexA(this.colorMap[key], true);
+			const value = this.colorMap[key]
+			const serialized = value ? Color.Format.CSS.formatHexA(value, true) : null;
+			colorMapData[key] = serialized;
 		}
 		// no need to persist custom colors, they will be taken from the settings
 		const value = JSON.stringify({

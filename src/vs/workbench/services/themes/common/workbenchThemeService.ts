@@ -124,7 +124,7 @@ export interface IWorkbenchColorTheme extends IWorkbenchTheme, IColorTheme {
 }
 
 export interface IColorMap {
-	[id: string]: Color;
+	[id: string]: Color | undefined;
 }
 
 export interface IWorkbenchFileIconTheme extends IWorkbenchTheme, IFileIconTheme {
@@ -168,7 +168,7 @@ export interface IThemeScopedColorCustomizations {
 }
 
 export interface IColorCustomizations {
-	[colorIdOrThemeScope: string]: IThemeScopedColorCustomizations | string;
+	[colorIdOrThemeScope: string]: IThemeScopedColorCustomizations | string | null;
 }
 
 export interface IThemeScopedTokenColorCustomizations {
