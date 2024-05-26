@@ -139,7 +139,11 @@ export const editorSelectionHighlightBorder = registerColor('editor.selectionHig
 
 export const editorFindMatch = registerColor('editor.findMatchBackground',
 	{ light: '#A8AC94', dark: '#515C6A', hcDark: null, hcLight: null },
-	nls.localize('editorFindMatch', "Color of the current search match."));
+	nls.localize('editorFindMatch', "Background color of the current search match."));
+
+export const editorFindMatchForeground = registerColor('editor.findMatchForeground',
+	{ light: null, dark: null, hcDark: null, hcLight: null },
+	nls.localize('editorFindMatchForeground', "Text color of the current search match."));
 
 export const editorFindMatchHighlight = registerColor('editor.findMatchHighlightBackground',
 	{ light: '#EA5C0055', dark: '#EA5C0055', hcDark: null, hcLight: null },
