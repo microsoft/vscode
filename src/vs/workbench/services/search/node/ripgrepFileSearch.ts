@@ -71,6 +71,10 @@ function getRgArgs(config: IFileQuery, folderQuery: IFolderQuery, includePattern
 		args.push('--quiet');
 	}
 
+	if (config.threads) {
+		args.push('--threads', `${config.threads}`)
+	}
+
 	args.push('--no-config');
 	if (folderQuery.disregardGlobalIgnoreFiles) {
 		args.push('--no-ignore-global');
