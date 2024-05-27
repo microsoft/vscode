@@ -24,13 +24,12 @@ import { ModelService } from 'vs/editor/common/services/modelService';
 import { SemanticTokensStylingService } from 'vs/editor/common/services/semanticTokensStylingService';
 import { DocumentSemanticTokensFeature } from 'vs/editor/contrib/semanticTokens/browser/documentSemanticTokens';
 import { getDocumentSemanticTokens, isSemanticTokens } from 'vs/editor/contrib/semanticTokens/common/getSemanticTokens';
-import { TestTreeSitterTokenizationService } from 'vs/editor/test/browser/services/testTreeSitterService';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 import { TestTextResourcePropertiesService } from 'vs/editor/test/common/services/testTextResourcePropertiesService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { TestFileService } from 'vs/platform/files/test/browser/workbenchTestServices';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
@@ -58,9 +57,7 @@ suite('ModelSemanticColoring', () => {
 			new UndoRedoService(new TestDialogService(), new TestNotificationService()),
 			languageService,
 			new TestLanguageConfigurationService(),
-			new TestFileService(),
-			new TestThemeService(),
-			new TestTreeSitterTokenizationService()
+			new TestInstantiationService()
 		));
 		const envService = new class extends mock<IEnvironmentService>() {
 			override isBuilt: boolean = true;

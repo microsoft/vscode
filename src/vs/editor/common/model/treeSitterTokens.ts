@@ -5,7 +5,7 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { AppResourcePath, FileAccess } from 'vs/base/common/network';
-import { ILanguageIdCodec, TreeSitterTokenizationRegistry } from 'vs/editor/common/languages';
+import { ILanguageIdCodec } from 'vs/editor/common/languages';
 import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { IFileService } from 'vs/platform/files/common/files';
 import { Parser } from 'vs/base/common/web-tree-sitter/tree-sitter-web';
@@ -14,25 +14,21 @@ import { FontStyle, MetadataConsts, StandardTokenType } from 'vs/editor/common/e
 import { TokenStyle } from 'vs/platform/theme/common/tokenClassificationRegistry';
 import { ColorThemeData } from 'vs/workbench/services/themes/common/colorThemeData';
 import { TextModel } from 'vs/editor/common/model/textModel';
-import { ITreeSitterTokenizationService } from 'vs/editor/common/services/treeSitterTokenizationFeature';
+import { ITreeSitterParserService } from 'vs/editor/common/services/treeSitterParserService';
 import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
 import { AbstractTokens, AttachedViews } from 'vs/editor/common/model/tokens';
 import { LineRange } from 'vs/editor/common/core/lineRange';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
-import { ITextSnapshot } from 'vs/editor/common/model';
+import { IPosition } from 'vs/editor/common/core/position';
 
 export class TreeSitterTokens extends AbstractTokens {
 	private _colorThemeData: ColorThemeData;
-	private _parser: Parser | undefined;
-	private _language: Parser.Language | undefined;
 	private _queries: string | undefined;
 	private _tokens: TextModelTokens | undefined;
 	private _lastLanguageId: string | undefined;
 
 	constructor(private readonly _fileService: IFileService,
 		private readonly _themeService: IThemeService,
-		private readonly _treeSitterService: ITreeSitterTokenizationService,
+		private readonly _treeSitterService: ITreeSitterParserService,
 		languageIdCodec: ILanguageIdCodec,
 		textModel: TextModel,
 		languageId: () => string,
@@ -50,36 +46,12 @@ export class TreeSitterTokens extends AbstractTokens {
 	}
 
 	private async _initialize() {
-		const parser = await this._getParser();
 		const newLanguage = this.getLanguageId();
-		const [language, queries] = await Promise.all([this._getLanguage(newLanguage), this._getQueries(newLanguage)]);
-		parser.setLanguage(language);
+		const queries = await this._getQueries(newLanguage);
 		if (!this._tokens || this._lastLanguageId !== newLanguage) {
 			this._tokens?.dispose();
-			this._tokens = new TextModelTokens(this._textModel, parser, queries, language, this._colorThemeData);
+			this._tokens = new TextModelTokens(this._treeSitterService, this._textModel, queries, this._colorThemeData);
 		}
-	}
-
-	private async _getParser(): Promise<Parser> {
-		if (!this._parser) {
-			await this._treeSitterService.initTreeSitter();
-			this._parser = new Parser();
-		}
-		return this._parser;
-	}
-
-	private async _getLanguage(newLanguage: string): Promise<Parser.Language> {
-		if (!this._language || this._lastLanguageId !== newLanguage) {
-			this._language = await this._fetchLanguage();
-		}
-		return this._language;
-	}
-
-	private async _fetchLanguage() {
-		const grammarName = TreeSitterTokenizationRegistry.get(this.getLanguageId());
-		const wasmPath: AppResourcePath = `vs/base/common/treeSitterLanguages/${grammarName?.name}/${grammarName?.name}.wasm`;
-		const languageFile = await (this._fileService.readFile(FileAccess.asFileUri(wasmPath)));
-		return Parser.Language.load(languageFile.value.buffer);
 	}
 
 	private async _getQueries(newLanguage: string): Promise<string> {
@@ -90,12 +62,14 @@ export class TreeSitterTokens extends AbstractTokens {
 	}
 
 	private async _fetchQueries(newLanguage: string): Promise<string> {
-		const grammarName = TreeSitterTokenizationRegistry.get(newLanguage);
-		const scmPath: AppResourcePath = `vs/base/common/treeSitterLanguages/${grammarName?.name}/highlights.scm`;
+		const languageLocation = this._treeSitterService.getLanguageLocation(newLanguage);
+		if (!languageLocation) {
+			throw new Error(`No language location for ${newLanguage}`);
+		}
+		const scmPath: AppResourcePath = `${languageLocation}/highlights.scm`;
 		const query = await this._fileService.readFile(FileAccess.asFileUri(scmPath));
 		return query.value.toString();
 	}
-
 
 	public getLineTokens(lineNumber: number): LineTokens {
 		if (this._tokens) {
@@ -127,8 +101,6 @@ export class TreeSitterTokens extends AbstractTokens {
 		if (e.isFlush) {
 			// Don't fire the event, as the view might not have got the text change event yet
 			this.resetTokenization(false);
-		} else if (!e.isEolChange) { // We don't have to do anything on an EOL change
-			this._tokens?.onDidChangeContent(e);
 		}
 	}
 	protected override refreshRanges(ranges: readonly LineRange[]): void {
@@ -159,77 +131,34 @@ export class TreeSitterTokens extends AbstractTokens {
 	}
 	public override get hasTokens(): boolean {
 		// TODO @alexr00 once we have a token store, implement properly
-		return true;
+		const hasTree = this._treeSitterService.getTree(this._textModel) !== undefined;
+		return hasTree;
 	}
 
 }
 
-
-/**
- * For handling the text model changes.
- */
 class TextModelTokens extends Disposable {
-	private _tree: Parser.Tree | undefined;
 	private _query: Parser.Query | undefined;
 
-	constructor(private readonly _textModel: TextModel,
-		private readonly _parser: Parser,
+	constructor(
+		private readonly _treeSitterService: ITreeSitterParserService,
+		private readonly _textModel: TextModel,
 		private readonly _queries: string,
-		private readonly _language: Parser.Language,
 		private _colorThemeData: ColorThemeData) {
 		super();
 	}
 
-	public onDidChangeContent(e: IModelContentChangedEvent) {
-		if (!this._tree) {
-			return;
-		}
-		for (const change of e.changes) {
-			const newEndOffset = change.rangeOffset + change.text.length;
-			const newEndPosition = this._textModel.getPositionAt(newEndOffset);
-			this._tree.edit({
-				startIndex: change.rangeOffset,
-				oldEndIndex: change.rangeOffset + change.rangeLength,
-				newEndIndex: change.rangeOffset + change.text.length,
-				startPosition: { row: change.range.startLineNumber - 1, column: change.range.startColumn - 1 },
-				oldEndPosition: { row: change.range.endLineNumber - 1, column: change.range.endColumn - 1 },
-				newEndPosition: { row: newEndPosition.lineNumber - 1, column: newEndPosition.column - 1 }
-			});
-		}
-		this._tree = this._parser.parse((index: number, position?: Parser.Point) => this._parseCallback(index, position), this._tree);
-	}
-
-	private _parseCallback(index: number, position?: Parser.Point, snapshot?: ITextSnapshot): string | null {
-		if (snapshot) {
-			return snapshot.read();
-		}
-		try {
-			const modelPositionStart: Position = position ? new Position(position.row + 1, position.column + 1) : this._textModel.getPositionAt(index);
-			const lineContent = this._textModel.getLineContent(modelPositionStart.lineNumber);
-			let value = lineContent.substring(modelPositionStart.column - 1);
-			if (value.length === 0 && (lineContent.length <= modelPositionStart.column)) { // When we hit the end of the line the value is an empty string, we need to get the next character.
-				const modelPositionEnd = this._textModel.getPositionAt(index + 2);
-				value = this._textModel.getValueInRange(Range.fromPositions(modelPositionStart, modelPositionEnd));
-			}
-			return value;
-		} catch (e) {
-			return null;
-		}
-	}
-
-	private _ensureTree() {
-		if (!this._tree) {
-			const timer = performance.now();
-			const snapshot = this._textModel.createSnapshot();
-			this._tree = this._parser.parse((index: number, position?: Parser.Point) => this._parseCallback(index, position, snapshot));
-			console.log('Tree parsing took ' + (performance.now() - timer) + 'ms');
-		}
-		return this._tree;
+	private _getTree(): Parser.Tree | undefined {
+		return this._treeSitterService.getTree(this._textModel);
 	}
 
 	private _ensureQuery() {
 		if (!this._query) {
-			this._query = this._language.query(this._queries);
+			const language = this._treeSitterService.getLanguage(this._textModel);
+			if (!language) {
+				return;
+			}
+			this._query = language.query(this._queries);
 		}
 		return this._query;
 	}
@@ -237,10 +166,6 @@ class TextModelTokens extends Disposable {
 	public reset(colorThemeData?: ColorThemeData) {
 		if (colorThemeData) {
 			this._colorThemeData = colorThemeData;
-		} else {
-			this._tree?.delete();
-			this._tree = undefined;
-			this._parser.reset();
 		}
 	}
 
@@ -252,8 +177,11 @@ class TextModelTokens extends Disposable {
 	 * @returns
 	 */
 	public lineTokens(lineNumber: number): Uint32Array {
-		const tree = this._ensureTree();
+		const tree = this._getTree();
 		const query = this._ensureQuery();
+		if (!tree || !query) {
+			return new Uint32Array([0, 0]);
+		}
 		const lineLength = this._textModel.getLineMaxColumn(lineNumber);
 		const captures = query.captures(tree.rootNode, { startPosition: { row: lineNumber - 1, column: 0 }, endPosition: { row: lineNumber - 1, column: lineLength } });
 		if (captures.length === 0 && lineLength > 0) {
@@ -334,9 +262,7 @@ class TextModelTokens extends Disposable {
 
 	override dispose() {
 		super.dispose();
-		this._tree?.delete();
 		this._query?.delete();
-		this._tree = undefined;
 		this._query = undefined;
 	}
 }
