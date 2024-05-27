@@ -10,7 +10,7 @@ import { CursorConfiguration, CursorState, EditOperationResult, EditOperationTyp
 import { CursorContext } from 'vs/editor/common/cursor/cursorContext';
 import { DeleteOperations } from 'vs/editor/common/cursor/cursorDeleteOperations';
 import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
-import { CompositionOutcome, TypeOperations, TypeWithAutoClosingCommand } from 'vs/editor/common/cursor/cursorTypeOperations';
+import { CompositionOutcome, TypeOperations, TypeWithAutoClosingCommand, TypeWithIndentationAndAutoClosingCommand } from 'vs/editor/common/cursor/cursorTypeOperations';
 import { Position } from 'vs/editor/common/core/position';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { ISelection, Selection, SelectionDirection } from 'vs/editor/common/core/selection';
@@ -367,8 +367,7 @@ export class CursorsController extends Disposable {
 
 			for (let i = 0; i < opResult.commands.length; i++) {
 				const command = opResult.commands[i];
-				console.log('command instanceof TypeWithAutoClosingCommand && command.enclosingRange && command.closeCharacterRange : ', command instanceof TypeWithAutoClosingCommand && command.enclosingRange && command.closeCharacterRange);
-				if (command instanceof TypeWithAutoClosingCommand && command.enclosingRange && command.closeCharacterRange) {
+				if ((command instanceof TypeWithAutoClosingCommand || command instanceof TypeWithIndentationAndAutoClosingCommand) && command.enclosingRange && command.closeCharacterRange) {
 					autoClosedCharactersRanges.push(command.closeCharacterRange);
 					autoClosedEnclosingRanges.push(command.enclosingRange);
 				}

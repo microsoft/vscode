@@ -1053,6 +1053,7 @@ export class TypeOperations {
 	}
 }
 
+// TODO: probably should make it share same base class as other class
 export class TypeWithIndentationAndAutoClosingCommand implements ICommand {
 
 	private readonly _openCharacter: string;
@@ -1071,7 +1072,7 @@ export class TypeWithIndentationAndAutoClosingCommand implements ICommand {
 
 		this._config = config;
 		this._range = selection;
-		this._text = openCharacter;
+		this._text = openCharacter + closeCharacter;
 		this._columnDeltaOffset = openCharacter.length; // actually should be open character length not closed character length
 		this._lineNumberDeltaOffset = 0;
 		this.insertsAutoWhitespace = false;
@@ -1092,11 +1093,14 @@ export class TypeWithIndentationAndAutoClosingCommand implements ICommand {
 
 	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
 		const inverseEditOperations = helper.getInverseEditOperations();
-		const range = inverseEditOperations[0].range;
-
-		// Check that I need the following for the autocomplete parenthesis check also
-
-		// Ptobably need the following in order to swallow the parenthesis, if need be
+		let range: Range;
+		if (inverseEditOperations.length === 2) {
+			const firstRange = inverseEditOperations[0].range;
+			const secondRange = inverseEditOperations[1].range;
+			range = firstRange.plusRange(secondRange);
+		} else {
+			range = inverseEditOperations[0].range;
+		}
 		this.closeCharacterRange = new Range(range.startLineNumber, range.endColumn - this._closeCharacter.length, range.endLineNumber, range.endColumn);
 		this.enclosingRange = new Range(range.startLineNumber, range.endColumn - this._openCharacter.length - this._closeCharacter.length, range.endLineNumber, range.endColumn);
 		const srcRange = inverseEditOperations[0].range;
