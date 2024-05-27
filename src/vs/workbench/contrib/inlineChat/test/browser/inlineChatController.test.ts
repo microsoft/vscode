@@ -60,6 +60,7 @@ import { ChatVariablesService } from 'vs/workbench/contrib/chat/browser/chatVari
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { TestCommandService } from 'vs/editor/test/browser/editorTestServices';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
+import { RerunAction } from 'vs/workbench/contrib/inlineChat/browser/inlineChatActions';
 
 suite('InteractiveChatController', function () {
 
@@ -457,5 +458,40 @@ suite('InteractiveChatController', function () {
 		assert.ok(model.getValue().includes('GENERATED'));
 		assert.ok(model.getValue().includes('MANUAL'));
 
+	});
+
+	test('re-run should discard pending edits', async function () {
+
+		let count = 1;
+
+		store.add(chatAgentService.registerDynamicAgent({
+			id: 'testEditorAgent2',
+			...agentData
+		}, {
+			async invoke(request, progress, history, token) {
+				progress({ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(1, 1, 1, 1), text: request.message + (count++) }] });
+				return {};
+			},
+		}));
+
+		ctrl = instaService.createInstance(TestController, editor);
+		const rerun = new RerunAction();
+
+		model.setValue('');
+
+		const p = ctrl.waitFor([...TestController.INIT_SEQUENCE, State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
+		const r = ctrl.run({ message: 'PROMPT_', autoSend: true });
+		await p;
+
+		assert.strictEqual(model.getValue(), 'PROMPT_1');
+
+		const p2 = ctrl.waitFor([State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
+		await instaService.invokeFunction(rerun.runInlineChatCommand, ctrl, editor);
+
+		await p2;
+
+		assert.strictEqual(model.getValue(), 'PROMPT_2');
+		ctrl.finishExistingSession();
+		await r;
 	});
 });

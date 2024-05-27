@@ -439,15 +439,9 @@ export class InlineChatController implements IEditorContribution {
 					}
 				});
 			} else if (e.kind === 'removeRequest') {
-				// TODO@jrieken this currently is buggy when removing not the very last request/response
-				// if (this._session!.lastExchange?.response instanceof ReplyResponse) {
-				// 	try {
-				// 		this._session!.hunkData.ignoreTextModelNChanges = true;
-				// 		await this._strategy!.undoChanges(this._session!.lastExchange.response.modelAltVersionId);
-				// 	} finally {
-				// 		this._session!.hunkData.ignoreTextModelNChanges = false;
-				// 	}
-				// }
+				// TODO@jrieken this is buggy/weird when having code changes from multiple turns because
+				// logically they are all the same hunks
+				this._strategy?.cancel();
 			}
 		}));
 
