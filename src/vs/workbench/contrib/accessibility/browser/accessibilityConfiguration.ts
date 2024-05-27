@@ -199,11 +199,13 @@ const configuration: IConfigurationNode = {
 									'description': localize('accessibility.signalOptions.delays.general.announcement', "The delay in milliseconds before an announcement is made."),
 									'type': 'number',
 									'minimum': 0,
+									'default': 3000
 								},
 								'sound': {
 									'description': localize('accessibility.signalOptions.delays.general.sound', "The delay in milliseconds before a sound is played."),
 									'type': 'number',
 									'minimum': 0,
+									'default': 400
 								}
 							},
 						},
@@ -215,11 +217,13 @@ const configuration: IConfigurationNode = {
 									'description': localize('accessibility.signalOptions.delays.warningAtPosition.announcement', "The delay in milliseconds before an announcement is made when there's a warning at the position."),
 									'type': 'number',
 									'minimum': 0,
+									'default': 3000
 								},
 								'sound': {
 									'description': localize('accessibility.signalOptions.delays.warningAtPosition.sound', "The delay in milliseconds before a sound is played when there's a warning at the position."),
 									'type': 'number',
 									'minimum': 0,
+									'default': 1000
 								}
 							},
 						},
@@ -231,18 +235,34 @@ const configuration: IConfigurationNode = {
 									'description': localize('accessibility.signalOptions.delays.errorAtPosition.announcement', "The delay in milliseconds before an announcement is made when there's an error at the position."),
 									'type': 'number',
 									'minimum': 0,
+									'default': 3000
 								},
 								'sound': {
 									'description': localize('accessibility.signalOptions.delays.errorAtPosition.sound', "The delay in milliseconds before a sound is played when there's an error at the position."),
 									'type': 'number',
 									'minimum': 0,
+									'default': 1000
 								}
 							},
 						},
+					},
+					'default': {
+						'general': {
+							'announcement': 3000,
+							'sound': 400
+						},
+						'warningAtPosition': {
+							'announcement': 3000,
+							'sound': 1000
+						},
+						'errorAtPosition': {
+							'announcement': 3000,
+							'sound': 1000
+						}
 					}
-				}
+				},
 			},
-			default: {
+			'default': {
 				'volume': 70,
 				'debouncePositionChanges': false,
 				'delays': {
@@ -712,7 +732,7 @@ export function registerAccessibilityConfiguration() {
 	});
 }
 
-export { AccessibilityVoiceSettingId }
+export { AccessibilityVoiceSettingId };
 
 export const SpeechTimeoutDefault = 1200;
 

@@ -5,7 +5,6 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { CancellationError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { MarkdownString } from 'vs/base/common/htmlContent';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
@@ -23,7 +22,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { ChatAgentLocation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
-import { CTX_INLINE_CHAT_HAS_PROVIDER, EditMode, IInlineChatBulkEditResponse, IInlineChatSession, InlineChatResponseType } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_HAS_AGENT, EditMode, IInlineChatResponse, IInlineChatSession } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { EmptyResponse, ErrorResponse, HunkData, ReplyResponse, Session, SessionExchange, SessionWholeRange, StashedSession, TelemetryData, TelemetryDataClassification } from './inlineChatSession';
@@ -199,17 +198,11 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 					inlineResponse = new EmptyResponse();
 				} else {
 					// replay response
-					const markdownContent = new MarkdownString();
-					const raw: IInlineChatBulkEditResponse = {
-						id: Math.random(),
-						type: InlineChatResponseType.BulkEdit,
-						message: markdownContent,
+					const raw: IInlineChatResponse = {
 						edits: { edits: [] },
 					};
 					for (const item of response.response.value) {
-						if (item.kind === 'markdownContent') {
-							markdownContent.value += item.content.value;
-						} else if (item.kind === 'textEditGroup') {
+						if (item.kind === 'textEditGroup') {
 							for (const group of item.edits) {
 								for (const edit of group) {
 									raw.edits.edits.push({
@@ -225,12 +218,10 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 					inlineResponse = this._instaService.createInstance(
 						ReplyResponse,
 						raw,
-						markdownContent,
 						session.textModelN.uri,
 						modelAltVersionIdNow,
-						[],
-						e.request.id,
-						e.request.response
+						e.request,
+						response
 					);
 				}
 
@@ -426,7 +417,7 @@ export class InlineChatEnabler {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatAgentService chatAgentService: IChatAgentService
 	) {
-		this._ctxHasProvider = CTX_INLINE_CHAT_HAS_PROVIDER.bindTo(contextKeyService);
+		this._ctxHasProvider = CTX_INLINE_CHAT_HAS_AGENT.bindTo(contextKeyService);
 		chatAgentService.onDidChangeAgents(() => {
 			const hasEditorAgent = Boolean(chatAgentService.getDefaultAgent(ChatAgentLocation.Editor));
 			this._ctxHasProvider.set(hasEditorAgent);

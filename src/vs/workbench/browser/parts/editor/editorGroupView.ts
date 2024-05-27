@@ -28,7 +28,7 @@ import { DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DeferredPromise, Promises, RunOnceWorker } from 'vs/base/common/async';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
-import { IEditorGroupsView, IEditorGroupView, fillActiveEditorViewState, EditorServiceImpl, IEditorGroupTitleHeight, IInternalEditorOpenOptions, IInternalMoveCopyOptions, IInternalEditorCloseOptions, IInternalEditorTitleControlOptions, IEditorPartsView } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsView, IEditorGroupView, fillActiveEditorViewState, EditorServiceImpl, IEditorGroupTitleHeight, IInternalEditorOpenOptions, IInternalMoveCopyOptions, IInternalEditorCloseOptions, IInternalEditorTitleControlOptions, IEditorPartsView, IEditorGroupViewOptions } from 'vs/workbench/browser/parts/editor/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IAction, SubmenuAction } from 'vs/base/common/actions';
@@ -63,16 +63,16 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region factory
 
-	static createNew(editorPartsView: IEditorPartsView, groupsView: IEditorGroupsView, groupsLabel: string, groupIndex: number, instantiationService: IInstantiationService): IEditorGroupView {
-		return instantiationService.createInstance(EditorGroupView, null, editorPartsView, groupsView, groupsLabel, groupIndex);
+	static createNew(editorPartsView: IEditorPartsView, groupsView: IEditorGroupsView, groupsLabel: string, groupIndex: number, instantiationService: IInstantiationService, options?: IEditorGroupViewOptions): IEditorGroupView {
+		return instantiationService.createInstance(EditorGroupView, null, editorPartsView, groupsView, groupsLabel, groupIndex, options);
 	}
 
-	static createFromSerialized(serialized: ISerializedEditorGroupModel, editorPartsView: IEditorPartsView, groupsView: IEditorGroupsView, groupsLabel: string, groupIndex: number, instantiationService: IInstantiationService): IEditorGroupView {
-		return instantiationService.createInstance(EditorGroupView, serialized, editorPartsView, groupsView, groupsLabel, groupIndex);
+	static createFromSerialized(serialized: ISerializedEditorGroupModel, editorPartsView: IEditorPartsView, groupsView: IEditorGroupsView, groupsLabel: string, groupIndex: number, instantiationService: IInstantiationService, options?: IEditorGroupViewOptions): IEditorGroupView {
+		return instantiationService.createInstance(EditorGroupView, serialized, editorPartsView, groupsView, groupsLabel, groupIndex, options);
 	}
 
-	static createCopy(copyFrom: IEditorGroupView, editorPartsView: IEditorPartsView, groupsView: IEditorGroupsView, groupsLabel: string, groupIndex: number, instantiationService: IInstantiationService): IEditorGroupView {
-		return instantiationService.createInstance(EditorGroupView, copyFrom, editorPartsView, groupsView, groupsLabel, groupIndex);
+	static createCopy(copyFrom: IEditorGroupView, editorPartsView: IEditorPartsView, groupsView: IEditorGroupsView, groupsLabel: string, groupIndex: number, instantiationService: IInstantiationService, options?: IEditorGroupViewOptions): IEditorGroupView {
+		return instantiationService.createInstance(EditorGroupView, copyFrom, editorPartsView, groupsView, groupsLabel, groupIndex, options);
 	}
 
 	//#endregion
@@ -145,6 +145,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		readonly groupsView: IEditorGroupsView,
 		private groupsLabel: string,
 		private _index: number,
+		options: IEditorGroupViewOptions | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
@@ -236,7 +237,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		//#endregion
 
 		// Restore editors if provided
-		const restoreEditorsPromise = this.restoreEditors(from) ?? Promise.resolve();
+		const restoreEditorsPromise = this.restoreEditors(from, options) ?? Promise.resolve();
 
 		// Signal restored once editors have restored
 		restoreEditorsPromise.finally(() => {
@@ -269,7 +270,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		const groupActiveEditorAvailableEditorIds = this.editorPartsView.bind(ActiveEditorAvailableEditorIdsContext, this);
 		const groupActiveEditorCanSplitInGroupContext = this.editorPartsView.bind(ActiveEditorCanSplitInGroupContext, this);
-		const sideBySideEditorContext = this.editorPartsView.bind(SideBySideEditorActiveContext, this);
+		const groupActiveEditorIsSideBySideEditorContext = this.editorPartsView.bind(SideBySideEditorActiveContext, this);
 
 		const activeEditorListener = this._register(new MutableDisposable());
 
@@ -286,7 +287,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 				if (activeEditor) {
 					groupActiveEditorCanSplitInGroupContext.set(activeEditor.hasCapability(EditorInputCapabilities.CanSplitInGroup));
-					sideBySideEditorContext.set(activeEditor.typeId === SideBySideEditorInput.ID);
+					groupActiveEditorIsSideBySideEditorContext.set(activeEditor.typeId === SideBySideEditorInput.ID);
 
 					groupActiveEditorDirtyContext.set(activeEditor.isDirty() && !activeEditor.isSaving());
 					activeEditorListener.value = activeEditor.onDidChangeDirty(() => {
@@ -294,7 +295,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 					});
 				} else {
 					groupActiveEditorCanSplitInGroupContext.set(false);
-					sideBySideEditorContext.set(false);
+					groupActiveEditorIsSideBySideEditorContext.set(false);
 					groupActiveEditorDirtyContext.set(false);
 				}
 
@@ -534,7 +535,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.titleContainer.classList.toggle('show-file-icons', this.groupsView.partOptions.showIcons);
 	}
 
-	private restoreEditors(from: IEditorGroupView | ISerializedEditorGroupModel | null): Promise<void> | undefined {
+	private restoreEditors(from: IEditorGroupView | ISerializedEditorGroupModel | null, groupViewOptions?: IEditorGroupViewOptions): Promise<void> | undefined {
 		if (this.count === 0) {
 			return; // nothing to show
 		}
@@ -571,7 +572,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			// stolen accidentally on startup when the user already
 			// clicked somewhere.
 
-			if (this.groupsView.activeGroup === this && activeElement && isActiveElement(activeElement)) {
+			if (this.groupsView.activeGroup === this && activeElement && isActiveElement(activeElement) && !groupViewOptions?.preserveFocus) {
 				this.focus();
 			}
 		});

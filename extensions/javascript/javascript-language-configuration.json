@@ -111,10 +111,10 @@
 	},
 	"indentationRules": {
 		"decreaseIndentPattern": {
-			"pattern": "^((?!.*?/\\*).*\\*\/)?\\s*[\\}\\]\\)].*$"
+			"pattern": "^\\s*[\\}\\]\\)].*$"
 		},
 		"increaseIndentPattern": {
-			"pattern": "^((?!//).)*(\\{([^}\"'`/]*|(\\t|[ ])*//.*)|\\([^)\"'`/]*|\\[[^\\]\"'`/]*)$"
+			"pattern": "^.*(\\{[^}]*|\\([^)]*|\\[[^\\]]*)$"
 		},
 		// e.g.  * ...| or */| or *-----*/|
 		"unIndentedLinePattern": {

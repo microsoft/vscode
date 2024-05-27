@@ -33,6 +33,7 @@ export interface IChatRequestVariableEntry {
 	value: IChatRequestVariableValue;
 	references?: IChatContentReference[];
 	isDynamic?: boolean;
+	isFile?: boolean;
 }
 
 export interface IChatRequestVariableData {
@@ -50,13 +51,15 @@ export interface IChatRequestModel {
 	readonly response?: IChatResponseModel;
 }
 
+export interface IChatTextEditGroupState {
+	sha1: string;
+	applied: number;
+}
+
 export interface IChatTextEditGroup {
 	uri: URI;
 	edits: TextEdit[][];
-	state?: {
-		sha1: string;
-		applied: number;
-	};
+	state?: IChatTextEditGroupState;
 	kind: 'textEditGroup';
 }
 

@@ -1828,6 +1828,9 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 						update = true;
 					}
 				}
+				if (extensionOrPublisher.local?.pinned) {
+					await this.extensionManagementService.updateMetadata(extensionOrPublisher.local, { pinned: false });
+				}
 			}
 			// Disable Auto Updates
 			else {

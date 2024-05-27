@@ -6885,9 +6885,9 @@ declare namespace monaco.languages {
 
 	export interface HoverVerbosityRequest<THover = Hover> {
 		/**
-		 * Whether to increase or decrease the hover's verbosity
+		 * The delta by which to increase/decrease the hover verbosity level
 		 */
-		action: HoverVerbosityAction;
+		verbosityDelta: number;
 		/**
 		 * The previous hover for the same position
 		 */

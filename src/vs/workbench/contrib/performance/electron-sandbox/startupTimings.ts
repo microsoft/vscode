@@ -20,7 +20,6 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { StartupTimings } from 'vs/workbench/contrib/performance/browser/startupTimings';
-import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { coalesce } from 'vs/base/common/arrays';
 
 interface ITracingData {
@@ -160,6 +159,7 @@ export class NativeStartupTimings extends StartupTimings implements IWorkbenchCo
 			return undefined; // unexpected arguments for startup heap statistics
 		}
 
+		const windowProcessId = await this._nativeHostService.getProcessId();
 		const used = (performance as unknown as { memory?: { usedJSHeapSize?: number } }).memory?.usedJSHeapSize ?? 0; // https://developer.mozilla.org/en-US/docs/Web/API/Performance/memory
 
 		let minorGCs = 0;
@@ -170,7 +170,7 @@ export class NativeStartupTimings extends StartupTimings implements IWorkbenchCo
 		try {
 			const traceContents: { traceEvents: ITracingData[] } = JSON.parse((await this._fileService.readFile(URI.file(this._environmentService.args['trace-startup-file']))).value.toString());
 			for (const event of traceContents.traceEvents) {
-				if (event.pid !== process.pid) {
+				if (event.pid !== windowProcessId) {
 					continue;
 				}
 

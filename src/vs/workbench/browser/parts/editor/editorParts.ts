@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { EditorGroupLayout, GroupDirection, GroupLocation, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, IAuxiliaryEditorPartCreateEvent, IEditorGroupContextKeyProvider, IEditorDropTargetDelegate, IEditorGroupsService, IEditorSideGroup, IEditorWorkingSet, IFindGroupScope, IMergeGroupOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { EditorGroupLayout, GroupDirection, GroupLocation, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, IAuxiliaryEditorPartCreateEvent, IEditorGroupContextKeyProvider, IEditorDropTargetDelegate, IEditorGroupsService, IEditorSideGroup, IEditorWorkingSet, IFindGroupScope, IMergeGroupOptions, IEditorWorkingSetOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Emitter } from 'vs/base/common/event';
 import { DisposableMap, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
@@ -375,7 +375,7 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		}
 	}
 
-	async applyWorkingSet(workingSet: IEditorWorkingSet | 'empty'): Promise<boolean> {
+	async applyWorkingSet(workingSet: IEditorWorkingSet | 'empty', options?: IEditorWorkingSetOptions): Promise<boolean> {
 		let workingSetState: IEditorWorkingSetState | 'empty' | undefined;
 		if (workingSet === 'empty') {
 			workingSetState = 'empty';
@@ -395,13 +395,15 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		if (!applied) {
 			return false;
 		}
-		await this.mainPart.applyState(workingSetState === 'empty' ? workingSetState : workingSetState.main);
+		await this.mainPart.applyState(workingSetState === 'empty' ? workingSetState : workingSetState.main, options);
 
-		// Restore Focus
-		const mostRecentActivePart = firstOrDefault(this.mostRecentActiveParts);
-		if (mostRecentActivePart) {
-			await mostRecentActivePart.whenReady;
-			mostRecentActivePart.activeGroup.focus();
+		// Restore Focus unless instructed otherwise
+		if (!options?.preserveFocus) {
+			const mostRecentActivePart = firstOrDefault(this.mostRecentActiveParts);
+			if (mostRecentActivePart) {
+				await mostRecentActivePart.whenReady;
+				mostRecentActivePart.activeGroup.focus();
+			}
 		}
 
 		return true;
