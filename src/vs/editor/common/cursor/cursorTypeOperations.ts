@@ -669,7 +669,7 @@ export class TypeOperations {
 		}
 	}
 
-	private static _runAutoClosingOpenCharType(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string, chIsAlreadyTyped: boolean, autoClosingPairClose: string): EditOperationResult {
+	private static _runAutoClosingOpenCharType(selections: Selection[], ch: string, chIsAlreadyTyped: boolean, autoClosingPairClose: string): EditOperationResult {
 		const commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
@@ -681,11 +681,11 @@ export class TypeOperations {
 		});
 	}
 
-	private static _runIndentedAutoClosingCommands(config: CursorConfiguration, selections: Selection[], ch: string, chIsAlreadyTyped: boolean, autoClosingPairClose: string) {
+	private static _runIndentedAutoClosingOpenCharType(config: CursorConfiguration, selections: Selection[], ch: string, autoClosingPairClose: string) {
 		const commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
-			commands[i] = new TypeWithIndentationAndAutoClosingCommand(config, selection, ch, !chIsAlreadyTyped, autoClosingPairClose);
+			commands[i] = new TypeWithIndentationAndAutoClosingCommand(config, selection, ch, autoClosingPairClose);
 		}
 		return new EditOperationResult(EditOperationType.TypingOther, commands, {
 			shouldPushStackElementBefore: true,
@@ -913,7 +913,7 @@ export class TypeOperations {
 
 		const autoClosingPairClose = this._getAutoClosingPairClose(config, model, selections, ch, true);
 		if (autoClosingPairClose !== null) {
-			return this._runAutoClosingOpenCharType(prevEditOperationType, config, model, selections, ch, true, autoClosingPairClose);
+			return this._runAutoClosingOpenCharType(selections, ch, true, autoClosingPairClose);
 		}
 
 		return null;
@@ -951,7 +951,7 @@ export class TypeOperations {
 				console.log('autoClosingPairClose : ', autoClosingPairClose);
 
 				if (autoClosingPairClose) {
-					return this._runIndentedAutoClosingCommands(config, selections, ch, false, autoClosingPairClose);
+					return this._runIndentedAutoClosingOpenCharType(config, selections, ch, autoClosingPairClose);
 				}
 				return new EditOperationResult(EditOperationType.TypingOther, commands, {
 					shouldPushStackElementBefore: true,
@@ -967,7 +967,7 @@ export class TypeOperations {
 		if (!isDoingComposition) {
 			const autoClosingPairClose = this._getAutoClosingPairClose(config, model, selections, ch, false);
 			if (autoClosingPairClose) {
-				return this._runAutoClosingOpenCharType(prevEditOperationType, config, model, selections, ch, false, autoClosingPairClose);
+				return this._runAutoClosingOpenCharType(selections, ch, false, autoClosingPairClose);
 			}
 		}
 
@@ -1067,13 +1067,13 @@ export class TypeWithIndentationAndAutoClosingCommand implements ICommand {
 	private readonly _lineNumberDeltaOffset: number;
 	public readonly insertsAutoWhitespace: boolean;
 
-	constructor(config: CursorConfiguration, selection: Selection, openCharacter: string, insertOpenCharacter: boolean, closeCharacter: string) {
+	constructor(config: CursorConfiguration, selection: Selection, openCharacter: string, closeCharacter: string) {
 
 		this._config = config;
 		this._range = selection;
-		this._text = (insertOpenCharacter ? openCharacter : '') + closeCharacter;
-		this._columnDeltaOffset = 0;
-		this._lineNumberDeltaOffset = -closeCharacter.length;
+		this._text = openCharacter;
+		this._columnDeltaOffset = openCharacter.length; // actually should be open character length not closed character length
+		this._lineNumberDeltaOffset = 0;
 		this.insertsAutoWhitespace = false;
 
 		this._openCharacter = openCharacter;
@@ -1091,21 +1091,24 @@ export class TypeWithIndentationAndAutoClosingCommand implements ICommand {
 	}
 
 	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
-		// TODO: Need to compute appropriate cursor state!
-		// TODO: use range instead of srcRange?
-
 		const inverseEditOperations = helper.getInverseEditOperations();
 		const range = inverseEditOperations[0].range;
-		// Look at the meaning of these fields and find the exact cursor state logic
+
+		// Check that I need the following for the autocomplete parenthesis check also
+
+		// Ptobably need the following in order to swallow the parenthesis, if need be
 		this.closeCharacterRange = new Range(range.startLineNumber, range.endColumn - this._closeCharacter.length, range.endLineNumber, range.endColumn);
 		this.enclosingRange = new Range(range.startLineNumber, range.endColumn - this._openCharacter.length - this._closeCharacter.length, range.endLineNumber, range.endColumn);
 		const srcRange = inverseEditOperations[0].range;
 		const res = Selection.fromPositions(srcRange.getEndPosition().delta(this._lineNumberDeltaOffset, this._columnDeltaOffset));
 
+		console.log('computeCursorState');
 		console.log('inverseEditOperations : ', inverseEditOperations);
 		console.log('range : ', range);
 		console.log('this.closeCharacterRange : ', this.closeCharacterRange);
 		console.log('this.enclosingRange : ', this.enclosingRange);
+		console.log('this._lineNumberDeltaOffset : ', this._lineNumberDeltaOffset);
+		console.log('this._columnDeltaOffset : ', this._columnDeltaOffset);
 		console.log('srcRange : ', srcRange);
 		console.log('res : ', res);
 
