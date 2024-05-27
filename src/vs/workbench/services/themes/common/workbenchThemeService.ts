@@ -168,7 +168,7 @@ export interface IThemeScopedColorCustomizations {
 }
 
 export interface IColorCustomizations {
-	[colorIdOrThemeScope: string]: IThemeScopedColorCustomizations | string | null;
+	[colorIdOrThemeScope: string]: IThemeScopedColorCustomizations | string;
 }
 
 export interface IThemeScopedTokenColorCustomizations {
