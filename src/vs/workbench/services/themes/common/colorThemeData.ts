@@ -132,9 +132,8 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 	}
 
 	public getColor(colorId: ColorIdentifier, useDefault?: boolean): Color | undefined {
-		const hasCustomColor = Object.hasOwn(this.customColorMap, colorId);
 		let color: Color | undefined = this.customColorMap[colorId];
-		if (hasCustomColor) {
+		if (color) {
 			return color;
 		}
 		color = this.colorMap[colorId];
