@@ -82,6 +82,12 @@ export class SectionHeaderDetector extends Disposable implements IEditorContribu
 			this.computeSectionHeaders.schedule();
 		}));
 
+		this._register(editor.onDidChangeModelTokens((e) => {
+			if (!this.computeSectionHeaders.isScheduled()) {
+				this.computeSectionHeaders.schedule(1000);
+			}
+		}));
+
 		this.computeSectionHeaders = this._register(new RunOnceScheduler(() => {
 			this.findSectionHeaders();
 		}, 250));

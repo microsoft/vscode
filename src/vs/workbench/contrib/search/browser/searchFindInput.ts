@@ -26,6 +26,7 @@ export class SearchFindInput extends ContextScopedFindInput {
 	private _filterChecked: boolean = false;
 	private readonly _onDidChangeAIToggle = this._register(new Emitter<boolean>());
 	public readonly onDidChangeAIToggle = this._onDidChangeAIToggle.event;
+	private shouldNotebookFilterBeVisible: boolean = false; // followed, but overriden by the whether aiToggle is visible
 
 	constructor(
 		container: HTMLElement | null,
@@ -66,25 +67,30 @@ export class SearchFindInput extends ContextScopedFindInput {
 		this.sparkleVisible = shouldShowAIButton;
 
 		this._register(this._aiButton.onChange(() => {
-			if (this._aiButton.checked) {
-				this.regex?.disable();
-				this.wholeWords?.disable();
-				this.caseSensitive?.disable();
-				this._findFilter.disable();
-			} else {
-				this.regex?.enable();
-				this.wholeWords?.enable();
-				this.caseSensitive?.enable();
-				this._findFilter.enable();
+			if (this.regex) {
+				this.regex.visible = !this._aiButton.checked;
 			}
+			if (this.wholeWords) {
+				this.wholeWords.visible = !this._aiButton.checked;
+			}
+			if (this.caseSensitive) {
+				this.caseSensitive.visible = !this._aiButton.checked;
+			}
+			if (this._aiButton.checked) {
+				this._findFilter.visible = false;
+			} else {
+				this.filterVisible = this.shouldNotebookFilterBeVisible;
+			}
+			this._updatePadding();
+
 		}));
 	}
 
 	private _updatePadding() {
 		this.inputBox.paddingRight =
-			(this.caseSensitive?.width() ?? 0) +
-			(this.wholeWords?.width() ?? 0) +
-			(this.regex?.width() ?? 0) +
+			(this.caseSensitive?.visible ? this.caseSensitive.width() : 0) +
+			(this.wholeWords?.visible ? this.wholeWords.width() : 0) +
+			(this.regex?.visible ? this.regex.width() : 0) +
 			(this._findFilter.visible ? this._findFilter.width() : 0) +
 			(this._aiButton.visible ? this._aiButton.width() : 0);
 	}
@@ -95,6 +101,10 @@ export class SearchFindInput extends ContextScopedFindInput {
 	}
 
 	set filterVisible(visible: boolean) {
+		this.shouldNotebookFilterBeVisible = visible;
+		if (this._aiButton.visible && this._aiButton.checked) {
+			return;
+		}
 		this._findFilter.visible = visible;
 		this.updateFilterStyles();
 		this._updatePadding();
@@ -137,13 +147,5 @@ class AIToggle extends Toggle {
 			inputActiveOptionForeground: opts.inputActiveOptionForeground,
 			inputActiveOptionBackground: opts.inputActiveOptionBackground
 		});
-	}
-
-	set visible(visible: boolean) {
-		this.domNode.style.display = visible ? '' : 'none';
-	}
-
-	get visible() {
-		return this.domNode.style.display !== 'none';
 	}
 }

@@ -455,6 +455,29 @@ export class LinkedMap<K, V> implements Map<K, V> {
 		this._state++;
 	}
 
+	protected trimNew(newSize: number) {
+		if (newSize >= this.size) {
+			return;
+		}
+		if (newSize === 0) {
+			this.clear();
+			return;
+		}
+		let current = this._tail;
+		let currentSize = this.size;
+		while (current && currentSize > newSize) {
+			this._map.delete(current.key);
+			current = current.previous;
+			currentSize--;
+		}
+		this._tail = current;
+		this._size = currentSize;
+		if (current) {
+			current.next = undefined;
+		}
+		this._state++;
+	}
+
 	private addItemFirst(item: Item<K, V>): void {
 		// First time Insert
 		if (!this._head && !this._tail) {
@@ -601,10 +624,10 @@ export class LinkedMap<K, V> implements Map<K, V> {
 	}
 }
 
-export class LRUCache<K, V> extends LinkedMap<K, V> {
+abstract class Cache<K, V> extends LinkedMap<K, V> {
 
-	private _limit: number;
-	private _ratio: number;
+	protected _limit: number;
+	protected _ratio: number;
 
 	constructor(limit: number, ratio: number = 1) {
 		super();
@@ -640,14 +663,52 @@ export class LRUCache<K, V> extends LinkedMap<K, V> {
 
 	override set(key: K, value: V): this {
 		super.set(key, value, Touch.AsNew);
-		this.checkTrim();
 		return this;
 	}
 
-	private checkTrim() {
+	protected checkTrim() {
 		if (this.size > this._limit) {
-			this.trimOld(Math.round(this._limit * this._ratio));
+			this.trim(Math.round(this._limit * this._ratio));
 		}
+	}
+
+	protected abstract trim(newSize: number): void;
+}
+
+export class LRUCache<K, V> extends Cache<K, V> {
+
+	constructor(limit: number, ratio: number = 1) {
+		super(limit, ratio);
+	}
+
+	protected override trim(newSize: number) {
+		this.trimOld(newSize);
+	}
+
+	override set(key: K, value: V): this {
+		super.set(key, value);
+		this.checkTrim();
+		return this;
+	}
+}
+
+export class MRUCache<K, V> extends Cache<K, V> {
+
+	constructor(limit: number, ratio: number = 1) {
+		super(limit, ratio);
+	}
+
+	protected override trim(newSize: number) {
+		this.trimNew(newSize);
+	}
+
+	override set(key: K, value: V): this {
+		if (this._limit <= this.size && !this.has(key)) {
+			this.trim(Math.round(this._limit * this._ratio) - 1);
+		}
+
+		super.set(key, value);
+		return this;
 	}
 }
 

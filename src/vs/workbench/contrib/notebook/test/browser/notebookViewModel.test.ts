@@ -31,6 +31,7 @@ import { IBaseCellEditorOptions } from 'vs/workbench/contrib/notebook/browser/no
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { mainWindow } from 'vs/base/browser/window';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
 
 suite('NotebookViewModel', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -42,6 +43,7 @@ suite('NotebookViewModel', () => {
 	let undoRedoService: IUndoRedoService;
 	let modelService: IModelService;
 	let languageService: ILanguageService;
+	let languageDetectionService: ILanguageDetectionService;
 	let notebookExecutionStateService: INotebookExecutionStateService;
 
 	suiteSetup(() => {
@@ -52,6 +54,7 @@ suite('NotebookViewModel', () => {
 		undoRedoService = instantiationService.get(IUndoRedoService);
 		modelService = instantiationService.get(IModelService);
 		languageService = instantiationService.get(ILanguageService);
+		languageDetectionService = instantiationService.get(ILanguageDetectionService);
 		notebookExecutionStateService = instantiationService.get(INotebookExecutionStateService);
 
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
@@ -61,7 +64,7 @@ suite('NotebookViewModel', () => {
 	suiteTeardown(() => disposables.dispose());
 
 	test('ctor', function () {
-		const notebook = new NotebookTextModel('notebook', URI.parse('test'), [], {}, { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false, cellContentMetadata: {} }, undoRedoService, modelService, languageService);
+		const notebook = new NotebookTextModel('notebook', URI.parse('test'), [], {}, { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false, cellContentMetadata: {} }, undoRedoService, modelService, languageService, languageDetectionService);
 		const model = new NotebookEditorTestModel(notebook);
 		const options = new NotebookOptions(mainWindow, instantiationService.get(IConfigurationService), instantiationService.get(INotebookExecutionStateService), instantiationService.get(ICodeEditorService), false);
 		const eventDispatcher = new NotebookEventDispatcher();

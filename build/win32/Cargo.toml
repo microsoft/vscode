@@ -1,6 +1,6 @@
 [package]
 name = "inno_updater"
-version = "0.11.0"
+version = "0.11.1"
 authors = ["Microsoft <monacotools@microsoft.com>"]
 build = "build.rs"
 
@@ -9,7 +9,7 @@ byteorder = "1.4.3"
 crc = "3.0.1"
 slog = "2.7.0"
 slog-async = "2.7.0"
-slog-term = "2.9.0"
+slog-term = "2.9.1"
 
 [target.'cfg(windows)'.dependencies.windows-sys]
 version = "0.42"

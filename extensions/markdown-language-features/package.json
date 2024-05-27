@@ -494,7 +494,7 @@
           ]
         },
         "markdown.editor.filePaste.enabled": {
-          "type": "boolean",
+          "type": "string",
           "scope": "resource",
           "markdownDescription": "%configuration.markdown.editor.filePaste.enabled%",
           "default": "smart",

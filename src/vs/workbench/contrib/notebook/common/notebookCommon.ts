@@ -790,7 +790,7 @@ export interface INotebookEditorModel extends IDisposable {
 	readonly viewType: string;
 	readonly notebook: INotebookTextModel | undefined;
 	readonly hasErrorState: boolean;
-	isResolved(): this is IResolvedNotebookEditorModel;
+	isResolved(): boolean;
 	isDirty(): boolean;
 	isModified(): boolean;
 	isReadonly(): boolean | IMarkdownString;
@@ -932,13 +932,16 @@ export const NotebookSetting = {
 	openGettingStarted: 'notebook.experimental.openGettingStarted',
 	globalToolbarShowLabel: 'notebook.globalToolbarShowLabel',
 	markupFontSize: 'notebook.markup.fontSize',
+	markdownLineHeight: 'notebook.markdown.lineHeight',
 	interactiveWindowCollapseCodeCells: 'interactiveWindow.collapseCellInputCode',
 	outputScrollingDeprecated: 'notebook.experimental.outputScrolling',
 	outputScrolling: 'notebook.output.scrolling',
 	textOutputLineLimit: 'notebook.output.textLineLimit',
 	LinkifyOutputFilePaths: 'notebook.output.linkifyFilePaths',
+	minimalErrorRendering: 'notebook.output.minimalErrorRendering',
 	formatOnSave: 'notebook.formatOnSave.enabled',
 	insertFinalNewline: 'notebook.insertFinalNewline',
+	defaultFormatter: 'notebook.defaultFormatter',
 	formatOnCellExecution: 'notebook.formatOnCellExecution',
 	codeActionsOnSave: 'notebook.codeActionsOnSave',
 	outputWordWrap: 'notebook.output.wordWrap',
@@ -959,9 +962,11 @@ export const NotebookSetting = {
 	breadcrumbsShowCodeCells: 'notebook.breadcrumbs.showCodeCells',
 	scrollToRevealCell: 'notebook.scrolling.revealNextCellOnExecute',
 	cellChat: 'notebook.experimental.cellChat',
+	cellGenerate: 'notebook.experimental.generate',
 	notebookVariablesView: 'notebook.experimental.variablesView',
 	InteractiveWindowPromptToSave: 'interactiveWindow.promptToSaveOnClose',
 	cellFailureDiagnostics: 'notebook.cellFailureDiagnostics',
+	outputBackupSizeLimit: 'notebook.backup.sizeLimit',
 } as const;
 
 export const enum CellStatusbarAlignment {

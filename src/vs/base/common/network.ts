@@ -74,6 +74,8 @@ export namespace Schemas {
 
 	/** Scheme used for code blocks in chat. */
 	export const vscodeChatCodeBlock = 'vscode-chat-code-block';
+	/** Scheme used for LHS of code compare (aka diff) blocks in chat. */
+	export const vscodeChatCodeCompareBlock = 'vscode-chat-code-compare-block';
 	/** Scheme used for the chat input editor. */
 	export const vscodeChatSesssion = 'vscode-chat-editor';
 

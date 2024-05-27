@@ -328,13 +328,13 @@ import { MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL } from 'vs/platform/window/electron-sand
 				'type': 'boolean',
 				'default': true,
 				'markdownDescription': localize('security.promptForLocalFileProtocolHandling', 'If enabled, a dialog will ask for confirmation whenever a local file or workspace is about to open through a protocol handler.'),
-				'scope': ConfigurationScope.MACHINE
+				'scope': ConfigurationScope.APPLICATION
 			},
 			'security.promptForRemoteFileProtocolHandling': {
 				'type': 'boolean',
 				'default': true,
 				'markdownDescription': localize('security.promptForRemoteFileProtocolHandling', 'If enabled, a dialog will ask for confirmation whenever a remote file or workspace is about to open through a protocol handler.'),
-				'scope': ConfigurationScope.MACHINE
+				'scope': ConfigurationScope.APPLICATION
 			}
 		}
 	});
@@ -355,6 +355,10 @@ import { MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL } from 'vs/platform/window/electron-sand
 			locale: {
 				type: 'string',
 				description: localize('argv.locale', 'The display Language to use. Picking a different language requires the associated language pack to be installed.')
+			},
+			'disable-lcd-text': {
+				type: 'boolean',
+				description: localize('argv.disableLcdText', 'Disables LCD font antialiasing.')
 			},
 			'disable-hardware-acceleration': {
 				type: 'boolean',

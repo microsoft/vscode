@@ -72,6 +72,8 @@ export const ActiveEditorGroupLastContext = new RawContextKey<boolean>('activeEd
 export const ActiveEditorGroupLockedContext = new RawContextKey<boolean>('activeEditorGroupLocked', false, localize('activeEditorGroupLocked', "Whether the active editor group is locked"));
 export const MultipleEditorGroupsContext = new RawContextKey<boolean>('multipleEditorGroups', false, localize('multipleEditorGroups', "Whether there are multiple editor groups opened"));
 export const SingleEditorGroupsContext = MultipleEditorGroupsContext.toNegated();
+export const MultipleEditorsSelectedInGroupContext = new RawContextKey<boolean>('multipleEditorsSelectedInGroup', false, localize('multipleEditorsSelectedInGroup', "Whether multiple editors have been selected in an editor group"));
+export const TwoEditorsSelectedInGroupContext = new RawContextKey<boolean>('twoEditorsSelectedInGroup', false, localize('twoEditorsSelectedInGroup', "Whether exactly two editors have been selected in an editor group"));
 
 // Editor Part Context Keys
 export const EditorPartMultipleEditorGroupsContext = new RawContextKey<boolean>('editorPartMultipleEditorGroups', false, localize('editorPartMultipleEditorGroups', "Whether there are multiple editor groups opened in an editor part"));
@@ -292,13 +294,12 @@ export function applyAvailableEditorIds(contextKey: IContextKey<string>, editor:
 	}
 
 	const editorResource = editor.resource;
-	const editors = editorResource ? editorResolverService.getEditors(editorResource).map(editor => editor.id) : [];
-
 	if (editorResource?.scheme === Schemas.untitled && editor.editorId !== DEFAULT_EDITOR_ASSOCIATION.id) {
 		// Non text editor untitled files cannot be easily serialized between extensions
 		// so instead we disable this context key to prevent common commands that act on the active editor
 		contextKey.set('');
 	} else {
+		const editors = editorResource ? editorResolverService.getEditors(editorResource).map(editor => editor.id) : [];
 		contextKey.set(editors.join(','));
 	}
 }

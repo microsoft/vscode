@@ -40,6 +40,7 @@ import 'vs/workbench/contrib/search/browser/searchActionsSymbol';
 import 'vs/workbench/contrib/search/browser/searchActionsTopBar';
 import 'vs/workbench/contrib/search/browser/searchActionsTextQuickAccess';
 import { TEXT_SEARCH_QUICK_ACCESS_PREFIX, TextSearchQuickAccess } from 'vs/workbench/contrib/search/browser/quickTextSearch/textSearchQuickAccess';
+import { Extensions, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
 
 registerSingleton(ISearchViewModelWorkbenchService, SearchViewModelWorkbenchService, InstantiationType.Delayed);
 registerSingleton(ISearchHistoryService, SearchHistoryService, InstantiationType.Delayed);
@@ -108,12 +109,12 @@ quickAccessRegistry.registerQuickAccessProvider({
 	ctor: TextSearchQuickAccess,
 	prefix: TEXT_SEARCH_QUICK_ACCESS_PREFIX,
 	contextKey: 'inTextSearchPicker',
-	placeholder: nls.localize('textSearchPickerPlaceholder', "Search for text in your workspace files (experimental)."),
+	placeholder: nls.localize('textSearchPickerPlaceholder', "Search for text in your workspace files."),
 	helpEntries: [
 		{
-			description: nls.localize('textSearchPickerHelp', "Search for Text (Experimental)"),
+			description: nls.localize('textSearchPickerHelp', "Search for Text"),
 			commandId: Constants.SearchCommandIds.QuickTextSearchActionId,
-			commandCenterOrder: 65,
+			commandCenterOrder: 25,
 		}
 	]
 });
@@ -203,14 +204,14 @@ configurationRegistry.registerConfiguration({
 			default: true
 		},
 		'search.quickOpen.history.filterSortOrder': {
-			'type': 'string',
-			'enum': ['default', 'recency'],
-			'default': 'default',
-			'enumDescriptions': [
+			type: 'string',
+			enum: ['default', 'recency'],
+			default: 'default',
+			enumDescriptions: [
 				nls.localize('filterSortOrder.default', 'History entries are sorted by relevance based on the filter value used. More relevant entries appear first.'),
 				nls.localize('filterSortOrder.recency', 'History entries are sorted by recency. More recently opened entries appear first.')
 			],
-			'description': nls.localize('filterSortOrder', "Controls sorting order of editor history in quick open when filtering.")
+			description: nls.localize('filterSortOrder', "Controls sorting order of editor history in quick open when filtering.")
 		},
 		'search.followSymlinks': {
 			type: 'boolean',
@@ -329,10 +330,10 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('search.searchEditor.defaultNumberOfContextLines', "The default number of surrounding context lines to use when creating new Search Editors. If using `#search.searchEditor.reusePriorSearchConfiguration#`, this can be set to `null` (empty) to use the prior Search Editor's configuration.")
 		},
 		'search.sortOrder': {
-			'type': 'string',
-			'enum': [SearchSortOrder.Default, SearchSortOrder.FileNames, SearchSortOrder.Type, SearchSortOrder.Modified, SearchSortOrder.CountDescending, SearchSortOrder.CountAscending],
-			'default': SearchSortOrder.Default,
-			'enumDescriptions': [
+			type: 'string',
+			enum: [SearchSortOrder.Default, SearchSortOrder.FileNames, SearchSortOrder.Type, SearchSortOrder.Modified, SearchSortOrder.CountDescending, SearchSortOrder.CountAscending],
+			default: SearchSortOrder.Default,
+			enumDescriptions: [
 				nls.localize('searchSortOrder.default', "Results are sorted by folder and file names, in alphabetical order."),
 				nls.localize('searchSortOrder.filesOnly', "Results are sorted by file names ignoring folder order, in alphabetical order."),
 				nls.localize('searchSortOrder.type', "Results are sorted by file extensions, in alphabetical order."),
@@ -340,7 +341,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('searchSortOrder.countDescending', "Results are sorted by count per file, in descending order."),
 				nls.localize('searchSortOrder.countAscending', "Results are sorted by count per file, in ascending order.")
 			],
-			'description': nls.localize('search.sortOrder', "Controls sorting order of search results.")
+			description: nls.localize('search.sortOrder', "Controls sorting order of search results.")
 		},
 		'search.decorations.colors': {
 			type: 'boolean',
@@ -353,25 +354,26 @@ configurationRegistry.registerConfiguration({
 			default: true
 		},
 		'search.defaultViewMode': {
-			'type': 'string',
-			'enum': [ViewMode.Tree, ViewMode.List],
-			'default': ViewMode.List,
-			'enumDescriptions': [
+			type: 'string',
+			enum: [ViewMode.Tree, ViewMode.List],
+			default: ViewMode.List,
+			enumDescriptions: [
 				nls.localize('scm.defaultViewMode.tree', "Shows search results as a tree."),
 				nls.localize('scm.defaultViewMode.list', "Shows search results as a list.")
 			],
-			'description': nls.localize('search.defaultViewMode', "Controls the default search result view mode.")
+			description: nls.localize('search.defaultViewMode', "Controls the default search result view mode.")
+		},
+		'search.quickAccess.preserveInput': {
+			type: 'boolean',
+			description: nls.localize('search.quickAccess.preserveInput', "Controls whether the last typed input to Quick Search should be restored when opening it the next time."),
+			default: false
 		},
 		'search.experimental.closedNotebookRichContentResults': {
 			type: 'boolean',
 			description: nls.localize('search.experimental.closedNotebookResults', "Show notebook editor rich content results for closed notebooks. Please refresh your search results after changing this setting."),
 			default: false
 		},
-		'search.experimental.quickAccess.preserveInput': {
-			'type': 'boolean',
-			'description': nls.localize('search.experimental.quickAccess.preserveInput', "Controls whether the last typed input to Quick Search should be restored when opening it the next time."),
-			'default': false
-		},
+
 	}
 });
 
@@ -381,3 +383,13 @@ CommandsRegistry.registerCommand('_executeWorkspaceSymbolProvider', async functi
 	const result = await getWorkspaceSymbols(query);
 	return result.map(item => item.symbol);
 });
+
+// todo: @andreamah get rid of this after a few iterations
+Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
+	.registerConfigurationMigrations([{
+		key: 'search.experimental.quickAccess.preserveInput',
+		migrateFn: (value, _accessor) => ([
+			['search.quickAccess.preserveInput', { value }],
+			['search.experimental.quickAccess.preserveInput', { value: undefined }]
+		])
+	}]);

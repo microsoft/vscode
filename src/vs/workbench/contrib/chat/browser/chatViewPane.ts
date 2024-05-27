@@ -105,7 +105,7 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 
 		model = model ?? (this.chatService.transferredSessionData?.sessionId
 			? this.chatService.getOrRestoreSession(this.chatService.transferredSessionData.sessionId)
-			: this.chatService.startSession(CancellationToken.None));
+			: this.chatService.startSession(ChatAgentLocation.Panel, CancellationToken.None));
 		if (!model) {
 			throw new Error('Could not start chat session');
 		}
