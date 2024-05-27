@@ -117,6 +117,11 @@ export interface IColorRegistry {
 	 */
 	getColorReferenceSchema(): IJSONSchema;
 
+	/**
+	 * Notify when the color theme or settings change.
+	 */
+	notifyThemeUpdate(theme: IColorTheme): void
+
 }
 
 class ColorRegistry implements IColorRegistry {
@@ -132,7 +137,7 @@ class ColorRegistry implements IColorRegistry {
 		this.colorsById = {};
 	}
 
-	public setTheme(colorThemeData: IColorTheme) {
+	public notifyThemeUpdate(colorThemeData: IColorTheme) {
 		for (const key of Object.keys(this.colorsById)) {
 			const color = colorThemeData.getColor(key)
 			if (!color) {
@@ -222,10 +227,6 @@ export function registerColor(id: string, defaults: ColorDefaults | null, descri
 
 export function getColorRegistry(): IColorRegistry {
 	return colorRegistry;
-}
-
-export const setTheme = (theme: IColorTheme) => {
-	colorRegistry.setTheme(theme)
 }
 
 // ----- color functions
