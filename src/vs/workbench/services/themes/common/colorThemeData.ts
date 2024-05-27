@@ -376,7 +376,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 				this.customColorMap[id] = Color.fromHex(colorVal);
 			}
 			if (colorVal === null) {
-				this.customColorMap[id] = undefined
+				delete this.customColorMap[id];
 			}
 		}
 	}
