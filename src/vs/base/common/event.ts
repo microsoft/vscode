@@ -835,6 +835,7 @@ class LeakageMonitor {
 	private _warnCountdown: number = 0;
 
 	constructor(
+		private readonly _errorHandler: (err: Error) => void,
 		readonly threshold: number,
 		readonly name: string = Math.random().toString(18).slice(2, 5),
 	) { }
@@ -862,18 +863,13 @@ class LeakageMonitor {
 			// is exceeded by 50% again
 			this._warnCountdown = threshold * 0.5;
 
-			// find most frequent listener and print warning
-			let topStack: string | undefined;
-			let topCount: number = 0;
-			for (const [stack, count] of this._stacks) {
-				if (!topStack || topCount < count) {
-					topStack = stack;
-					topCount = count;
-				}
-			}
-
-			console.warn(`[${this.name}] potential listener LEAK detected, having ${listenerCount} listeners already. MOST frequent listener (${topCount}):`);
+			const [topStack, topCount] = this.getMostFrequentStack()!;
+			const message = `[${this.name}] potential listener LEAK detected, having ${listenerCount} listeners already. MOST frequent listener (${topCount}):`;
+			console.warn(message);
 			console.warn(topStack!);
+
+			const error = new ListenerLeakError(message, topStack);
+			this._errorHandler(error);
 		}
 
 		return () => {
@@ -881,18 +877,53 @@ class LeakageMonitor {
 			this._stacks!.set(stack.value, count - 1);
 		};
 	}
+
+	getMostFrequentStack(): [string, number] | undefined {
+		if (!this._stacks) {
+			return undefined;
+		}
+		let topStack: [string, number] | undefined;
+		let topCount: number = 0;
+		for (const [stack, count] of this._stacks) {
+			if (!topStack || topCount < count) {
+				topStack = [stack, count];
+				topCount = count;
+			}
+		}
+		return topStack;
+	}
 }
 
 class Stacktrace {
 
 	static create() {
-		return new Stacktrace(new Error().stack ?? '');
+		const err = new Error();
+		return new Stacktrace(err.stack ?? '');
 	}
 
 	private constructor(readonly value: string) { }
 
 	print() {
 		console.warn(this.value.split('\n').slice(2).join('\n'));
+	}
+}
+
+// error that is logged when going over the configured listener threshold
+export class ListenerLeakError extends Error {
+	constructor(message: string, stack: string) {
+		super(message);
+		this.name = 'ListenerLeakError';
+		this.stack = stack;
+	}
+}
+
+// SEVERE error that is logged when having gone way over the configured listener
+// threshold so that the emitter refuses to accept more listeners
+export class ListenerRefusalError extends Error {
+	constructor(message: string, stack: string) {
+		super(message);
+		this.name = 'ListenerRefusalError';
+		this.stack = stack;
 	}
 }
 
@@ -988,7 +1019,9 @@ export class Emitter<T> {
 
 	constructor(options?: EmitterOptions) {
 		this._options = options;
-		this._leakageMon = _globalLeakWarningThreshold > 0 || this._options?.leakWarningThreshold ? new LeakageMonitor(this._options?.leakWarningThreshold ?? _globalLeakWarningThreshold) : undefined;
+		this._leakageMon = (_globalLeakWarningThreshold > 0 || this._options?.leakWarningThreshold)
+			? new LeakageMonitor(options?.onListenerError ?? onUnexpectedError, this._options?.leakWarningThreshold ?? _globalLeakWarningThreshold) :
+			undefined;
 		this._perfMon = this._options?._profName ? new EventProfiling(this._options._profName) : undefined;
 		this._deliveryQueue = this._options?.deliveryQueue as EventDeliveryQueuePrivate | undefined;
 	}
@@ -1032,8 +1065,15 @@ export class Emitter<T> {
 	 */
 	get event(): Event<T> {
 		this._event ??= (callback: (e: T) => any, thisArgs?: any, disposables?: IDisposable[] | DisposableStore) => {
-			if (this._leakageMon && this._size > this._leakageMon.threshold * 3) {
-				console.warn(`[${this._leakageMon.name}] REFUSES to accept new listeners because it exceeded its threshold by far`);
+			if (this._leakageMon && this._size > this._leakageMon.threshold ** 2) {
+				const message = `[${this._leakageMon.name}] REFUSES to accept new listeners because it exceeded its threshold by far (${this._size} vs ${this._leakageMon.threshold})`;
+				console.warn(message);
+
+				const tuple = this._leakageMon.getMostFrequentStack() ?? ['UNKNOWN stack', -1];
+				const error = new ListenerRefusalError(`${message}. HINT: Stack shows most frequent listener (${tuple[1]}-times)`, tuple[0]);
+				const errorHandler = this._options?.onListenerError || onUnexpectedError;
+				errorHandler(error);
+
 				return Disposable.None;
 			}
 
@@ -1565,28 +1605,70 @@ export class DynamicListEventMultiplexer<TItem, TEventType> implements IDynamicL
  */
 export class EventBufferer {
 
-	private buffers: Function[][] = [];
+	private data: { buffers: Function[] }[] = [];
 
-	wrapEvent<T>(event: Event<T>): Event<T> {
+	wrapEvent<T>(event: Event<T>): Event<T>;
+	wrapEvent<T>(event: Event<T>, reduce: (last: T | undefined, event: T) => T): Event<T>;
+	wrapEvent<T, O>(event: Event<T>, reduce: (last: O | undefined, event: T) => O, initial: O): Event<O>;
+	wrapEvent<T, O>(event: Event<T>, reduce?: (last: T | O | undefined, event: T) => T | O, initial?: O): Event<O | T> {
 		return (listener, thisArgs?, disposables?) => {
 			return event(i => {
-				const buffer = this.buffers[this.buffers.length - 1];
+				const data = this.data[this.data.length - 1];
 
-				if (buffer) {
-					buffer.push(() => listener.call(thisArgs, i));
-				} else {
-					listener.call(thisArgs, i);
+				// Non-reduce scenario
+				if (!reduce) {
+					// Buffering case
+					if (data) {
+						data.buffers.push(() => listener.call(thisArgs, i));
+					} else {
+						// Not buffering case
+						listener.call(thisArgs, i);
+					}
+					return;
+				}
+
+				// Reduce scenario
+				const reduceData = data as typeof data & {
+					/**
+					 * The accumulated items that will be reduced.
+					 */
+					items?: T[];
+					/**
+					 * The reduced result cached to be shared with other listeners.
+					 */
+					reducedResult?: T | O;
+				};
+
+				// Not buffering case
+				if (!reduceData) {
+					// TODO: Is there a way to cache this reduce call for all listeners?
+					listener.call(thisArgs, reduce(initial, i));
+					return;
+				}
+
+				// Buffering case
+				reduceData.items ??= [];
+				reduceData.items.push(i);
+				if (reduceData.buffers.length === 0) {
+					// Include a single buffered function that will reduce all events when we're done buffering events
+					data.buffers.push(() => {
+						// cache the reduced result so that the value can be shared across all listeners
+						reduceData.reducedResult ??= initial
+							? reduceData.items!.reduce(reduce as (last: O | undefined, event: T) => O, initial)
+							: reduceData.items!.reduce(reduce as (last: T | undefined, event: T) => T);
+						listener.call(thisArgs, reduceData.reducedResult);
+					});
 				}
 			}, undefined, disposables);
 		};
 	}
 
 	bufferEvents<R = void>(fn: () => R): R {
-		const buffer: Array<() => R> = [];
-		this.buffers.push(buffer);
+		const data = { buffers: new Array<Function>() };
+		this.data.push(data);
 		const r = fn();
-		this.buffers.pop();
-		buffer.forEach(flush => flush());
+		this.data.pop();
+		data.buffers.forEach(flush => flush());
 		return r;
 	}
 }

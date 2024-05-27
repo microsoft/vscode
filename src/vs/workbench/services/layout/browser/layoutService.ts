@@ -311,9 +311,13 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	getVisibleNeighborPart(part: Parts, direction: Direction): Parts | undefined;
 }
 
-export function shouldShowCustomTitleBar(configurationService: IConfigurationService, window: Window, menuBarToggled?: boolean): boolean {
+export function shouldShowCustomTitleBar(configurationService: IConfigurationService, window: Window, menuBarToggled?: boolean, zenModeActive?: boolean): boolean {
 
 	if (!hasCustomTitlebar(configurationService)) {
+		return false;
+	}
+
+	if (zenModeActive) {
 		return false;
 	}
 

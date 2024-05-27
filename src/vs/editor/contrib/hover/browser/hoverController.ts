@@ -194,22 +194,22 @@ export class HoverController extends Disposable implements IEditorContribution {
 		const isMouseOnStickyMarginHoverWidget = (mouseEvent: IEditorMouseEvent, isHoverSticky: boolean) => {
 			const isMouseOnMarginHoverWidget = this._isMouseOnMarginHoverWidget(mouseEvent);
 			return isHoverSticky && isMouseOnMarginHoverWidget;
-		}
+		};
 		const isMouseOnStickyContentHoverWidget = (mouseEvent: IEditorMouseEvent, isHoverSticky: boolean) => {
 			const isMouseOnContentHoverWidget = this._isMouseOnContentHoverWidget(mouseEvent);
 			return isHoverSticky && isMouseOnContentHoverWidget;
-		}
+		};
 		const isMouseOnColorPicker = (mouseEvent: IEditorMouseEvent) => {
 			const isMouseOnContentHoverWidget = this._isMouseOnContentHoverWidget(mouseEvent);
 			const isColorPickerVisible = this._contentWidget?.isColorPickerVisible;
 			return isMouseOnContentHoverWidget && isColorPickerVisible;
-		}
+		};
 		// TODO@aiday-mar verify if the following is necessary code
 		const isTextSelectedWithinContentHoverWidget = (mouseEvent: IEditorMouseEvent, sticky: boolean) => {
 			return sticky
 				&& this._contentWidget?.containsNode(mouseEvent.event.browserEvent.view?.document.activeElement)
-				&& !mouseEvent.event.browserEvent.view?.getSelection()?.isCollapsed
-		}
+				&& !mouseEvent.event.browserEvent.view?.getSelection()?.isCollapsed;
+		};
 
 		if (
 			isMouseOnStickyMarginHoverWidget(mouseEvent, isHoverSticky)
@@ -312,7 +312,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 				otherWidget = contentWidget;
 				break;
 			default:
-				throw new Error(`HoverWidgetType ${hoverWidgetType} is unrecognized`)
+				throw new Error(`HoverWidgetType ${hoverWidgetType} is unrecognized`);
 		}
 
 		const showsOrWillShow = currentWidget.showsOrWillShow(mouseEvent);

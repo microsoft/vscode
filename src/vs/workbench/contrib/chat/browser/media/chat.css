@@ -39,18 +39,23 @@
 .interactive-item-container .header .user {
 	display: flex;
 	align-items: center;
-	gap: 6px;
+	gap: 8px;
 }
 
 .interactive-item-container .header .username {
 	margin: 0;
-	font-size: 12px;
+	font-size: 13px;
 	font-weight: 600;
 }
 
 .interactive-item-container .header .detail-container {
-	font-size: 0.9em;
-	opacity: 0.7;
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.interactive-item-container .header .detail-container .detail .agentOrSlashCommandDetected A {
+	cursor: pointer;
+	color: var(--vscode-textLink-foreground);
 }
 
 .interactive-item-container .chat-animated-ellipsis {
@@ -124,23 +129,6 @@
 	font-size: 14px;
 }
 
-.interactive-item-container .header .agent-avatar-container {
-	margin-left: -30px;
-	transition: margin 0.15s ease-out;
-	transition-delay: 0.5s;
-	z-index: -1;
-}
-
-.interactive-item-container .header .agent-avatar-container.loading {
-	margin-left: 0px;
-	z-index: 1;
-}
-
-.interactive-item-container .header .agent-avatar-container.complete {
-	margin-left: -12px;
-	z-index: 1;
-}
-
 .monaco-list-row:not(.focused) .interactive-item-container:not(:hover) .header .monaco-toolbar,
 .monaco-list:not(:focus-within) .monaco-list-row .interactive-item-container:not(:hover) .header .monaco-toolbar,
 .monaco-list-row:not(.focused) .interactive-item-container:not(:hover) .header .monaco-toolbar .action-label,
@@ -182,6 +170,10 @@
 	width: 100%;
 }
 
+.interactive-item-container .chat-progress-task {
+	padding-bottom: 8px;
+}
+
 .interactive-item-container .value .rendered-markdown table {
 	width: 100%;
 	text-align: left;
@@ -219,7 +211,6 @@
 .interactive-request {
 	border-bottom: 1px solid var(--vscode-chat-requestBorder);
 	border-top: 1px solid var(--vscode-chat-requestBorder);
-	background-color: var(--vscode-chat-requestBackground);
 }
 
 .hc-black .interactive-request,
@@ -230,7 +221,7 @@
 
 .interactive-item-container .value {
 	white-space: normal;
-	word-wrap: break-word;
+	overflow-wrap: anywhere;
 }
 
 .interactive-item-container .value > :last-child.rendered-markdown > :last-child {
@@ -257,8 +248,15 @@
 }
 
 .interactive-item-container .value .rendered-markdown p {
-	margin: 0 0 16px 0;
 	line-height: 1.5em;
+}
+
+.interactive-item-container .value > .rendered-markdown p {
+	margin: 0 0 16px 0;
+}
+
+.interactive-item-container .value > .rendered-markdown li > p {
+	margin: 0;
 }
 
 .interactive-item-container .value .rendered-markdown ul {
@@ -271,6 +269,10 @@
 
 .interactive-item-container .value .rendered-markdown li {
 	line-height: 1.3rem;
+}
+
+.interactive-item-container .value .rendered-markdown img {
+	max-width: 100%;
 }
 
 .interactive-item-container .monaco-tokenized-source,
@@ -318,8 +320,12 @@
 	min-height: 0;
 }
 
-.interactive-item-container.interactive-item-compact .value .rendered-markdown p {
+.interactive-item-container.interactive-item-compact .value > .rendered-markdown p {
 	margin: 0 0 8px 0;
+}
+
+.interactive-item-container.interactive-item-compact .value > .rendered-markdown li > p {
+	margin: 0;
 }
 
 .interactive-item-container.interactive-item-compact .value .rendered-markdown h1 {
@@ -333,10 +339,6 @@
 
 .interactive-item-container.interactive-item-compact .value .rendered-markdown h3 {
 	margin: 8px 0;
-}
-
-.interactive-item-container.interactive-item-compact .value .rendered-markdown p {
-	margin: 0 0 8px 0;
 }
 
 .interactive-session .interactive-input-and-execute-toolbar {
@@ -355,6 +357,7 @@
 
 .interactive-session .interactive-input-part.compact .interactive-input-and-execute-toolbar {
 	margin-bottom: 0;
+	border-radius: 2px;
 }
 
 .interactive-session .interactive-input-and-side-toolbar {
@@ -410,6 +413,18 @@
 	padding-inline-start: unset;
 }
 
+.chat-notification-widget .chat-info-codicon,
+.chat-notification-widget .chat-error-codicon,
+.chat-notification-widget .chat-warning-codicon {
+	display: flex;
+	align-items: start;
+	gap: 8px;
+}
+
+.interactive-item-container .value .chat-notification-widget .rendered-markdown p {
+	margin: 0;
+}
+
 .interactive-response .interactive-response-error-details {
 	display: flex;
 	align-items: start;
@@ -420,14 +435,34 @@
 	margin-bottom: 0px;
 }
 
+.chat-notification-widget .chat-info-codicon .codicon,
+.chat-notification-widget .chat-error-codicon .codicon,
+.chat-notification-widget .chat-warning-codicon .codicon {
+	margin-top: 2px;
+}
+
 .interactive-response .interactive-response-error-details .codicon {
 	margin-top: 1px;
 }
 
+.chat-used-context-list .codicon-warning {
+	color: var(--vscode-notificationsWarningIcon-foreground); /* Have to override default styles which apply to all lists */
+}
+
+.chat-used-context-list .monaco-icon-label-container {
+	color: var(--vscode-interactive-session-foreground);
+}
+
+.chat-notification-widget .chat-warning-codicon .codicon-warning {
+	color: var(--vscode-notificationsWarningIcon-foreground) !important; /* Have to override default styles which apply to all lists */
+}
+
+.chat-notification-widget .chat-error-codicon .codicon-error,
 .interactive-response .interactive-response-error-details .codicon-error {
 	color: var(--vscode-errorForeground) !important; /* Have to override default styles which apply to all lists */
 }
 
+.chat-notification-widget .chat-info-codicon .codicon-info,
 .interactive-response .interactive-response-error-details .codicon-info {
 	color: var(--vscode-notificationsInfoIcon-foreground) !important; /* Have to override default styles which apply to all lists */
 }
@@ -441,14 +476,54 @@
 
 .interactive-session .interactive-input-part.compact {
 	margin: 0;
-	padding: 6px 0px;
+	padding: 8px 0 0 0
 }
 
-.interactive-session .chat-implicit-context {
-	padding: 8px 8px 13px;
-	margin-bottom: -5px;
-	border: 1px solid var(--vscode-input-border, var(--vscode-input-background, transparent));
-	border-radius: 6px 6px 0px 0px;
+.interactive-session .chat-attached-context .chat-attached-context-attachment {
+	display: flex;
+	gap: 4px;
+}
+
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button:hover {
+	cursor: pointer;
+}
+
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button {
+	display: flex;
+	align-items: center;
+}
+
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label-container {
+	display: flex;
+}
+
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label-container .monaco-highlighted-label {
+	display: flex !important;
+	align-items: center !important;
+}
+
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label .monaco-button.codicon.codicon-close,
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button.codicon.codicon-close {
+	color: var(--vscode-descriptionForeground);
+}
+
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label .codicon {
+	padding-left: 4px;
+}
+
+.interactive-session .chat-attached-context {
+	padding: 0 0 8px 0;
+	display: flex;
+	gap: 4px;
+	flex-wrap: wrap;
+}
+
+.interactive-session .chat-attached-context .chat-attached-context-attachment {
+	padding: 2px;
+	border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
+	border-radius: 4px;
+	height: 18px;
+	max-width: 100%;
 }
 
 .interactive-session-followups {
@@ -580,9 +655,17 @@
 .interactive-item-container .chat-resource-widget {
 	background-color: var(--vscode-chat-slashCommandBackground);
 	color: var(--vscode-chat-slashCommandForeground);
+}
+
+.interactive-item-container .chat-resource-widget,
+.interactive-item-container .chat-agent-widget .monaco-button {
 	border-radius: 4px;
-	white-space: nowrap;
 	padding: 1px 3px;
+}
+
+.interactive-item-container .chat-agent-widget .monaco-text-button {
+	display: inline;
+	border: none;
 }
 
 .interactive-session .chat-used-context.chat-used-context-collapsed .chat-used-context-list {
@@ -592,15 +675,20 @@
 .interactive-session .chat-used-context {
 	display: flex;
 	flex-direction: column;
-	gap: 6px;
+	gap: 2px;
 }
 
 .interactive-response-progress-tree,
+.interactive-item-container .chat-notification-widget,
 .interactive-session .chat-used-context-list {
 	border: 1px solid var(--vscode-chat-requestBorder);
 	border-radius: 4px;
 	margin-bottom: 8px;
-	padding: 4px;
+	padding: 6px 8px;
+}
+
+.interactive-item-container .chat-notification-widget {
+	padding: 8px 12px;
 }
 
 .interactive-session .chat-used-context-list .monaco-list .monaco-list-row {
@@ -609,8 +697,7 @@
 
 .interactive-session .chat-used-context-label {
 	font-size: 12px;
-	color: var(--vscode-foreground);
-	opacity: 0.8;
+	color: var(--vscode-descriptionForeground);
 	user-select: none;
 }
 
@@ -621,11 +708,19 @@
 .interactive-session .chat-used-context-label .monaco-button {
 	/* unset Button styles */
 	display: inline-flex;
+	gap: 4px;
 	width: 100%;
 	border: none;
-	padding: 0;
+	border-radius: 4px;
+	padding: 4px 8px 4px 0;
 	text-align: initial;
 	justify-content: initial;
+}
+
+.interactive-session .chat-used-context-label .monaco-button:hover {
+	background-color: var(--vscode-list-hoverBackground);
+	color: var(--vscode-foreground);
+
 }
 
 .interactive-session .chat-used-context-label .monaco-text-button:focus {
@@ -650,9 +745,9 @@
 	color: var(--vscode-descriptionForeground);
 	font-size: 12px;
 	display: flex;
-	gap: 5px;
+	gap: 8px;
 	align-items: center;
-	margin-bottom: 4px;
+	margin-bottom: 6px;
 }
 
 .interactive-item-container .rendered-markdown.progress-step > p .codicon {
@@ -661,7 +756,6 @@
 }
 
 .interactive-item-container .rendered-markdown.progress-step > p .codicon.codicon-check {
-	font-size: 14px;
 	color: var(--vscode-debugIcon-startForeground) !important;
 }
 
@@ -670,7 +764,14 @@
 	margin-bottom: 16px;
 }
 
-.interactive-item-container .chat-command-button .monaco-button {
+.interactive-item-container .chat-notification-widget {
+	display: flex;
+	flex-direction: row;
+	gap: 6px;
+}
+
+.interactive-item-container .chat-command-button .monaco-button,
+.chat-confirmation-widget .chat-confirmation-buttons-container .monaco-button {
 	text-align: left;
 	width: initial;
 	padding: 4px 8px;

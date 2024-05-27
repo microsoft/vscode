@@ -89,6 +89,7 @@ suite('ChatRequestParser', () => {
 
 	test('variables', async () => {
 		varService.hasVariable.returns(true);
+		varService.getVariable.returns({ id: 'copilot.selection' });
 
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const text = 'What does #selection mean?';
@@ -98,6 +99,7 @@ suite('ChatRequestParser', () => {
 
 	test('variable with question mark', async () => {
 		varService.hasVariable.returns(true);
+		varService.getVariable.returns({ id: 'copilot.selection' });
 
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const text = 'What is #selection?';
@@ -115,7 +117,7 @@ suite('ChatRequestParser', () => {
 	});
 
 	const getAgentWithSlashCommands = (slashCommands: IChatAgentCommand[]) => {
-		return { id: 'agent', name: 'agent', extensionId: nullExtensionDescription.identifier, extensionPublisherDisplayName: '', extensionDisplayName: '', extensionPublisherId: '', locations: [ChatAgentLocation.Panel], metadata: {}, slashCommands } satisfies IChatAgentData;
+		return { id: 'agent', name: 'agent', extensionId: nullExtensionDescription.identifier, publisherDisplayName: '', extensionDisplayName: '', extensionPublisherId: '', locations: [ChatAgentLocation.Panel], metadata: {}, slashCommands } satisfies IChatAgentData;
 	};
 
 	test('agent with subcommand after text', async () => {
@@ -184,6 +186,8 @@ suite('ChatRequestParser', () => {
 		instantiationService.stub(IChatAgentService, agentsService as any);
 
 		varService.hasVariable.returns(true);
+		varService.getVariable.onCall(0).returns({ id: 'copilot.selection' });
+		varService.getVariable.onCall(1).returns({ id: 'copilot.debugConsole' });
 
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const result = parser.parseChatRequest('1', '@agent /subCommand \nPlease do with #selection\nand #debugConsole');
@@ -196,6 +200,8 @@ suite('ChatRequestParser', () => {
 		instantiationService.stub(IChatAgentService, agentsService as any);
 
 		varService.hasVariable.returns(true);
+		varService.getVariable.onCall(0).returns({ id: 'copilot.selection' });
+		varService.getVariable.onCall(1).returns({ id: 'copilot.debugConsole' });
 
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const result = parser.parseChatRequest('1', '@agent Please \ndo /subCommand with #selection\nand #debugConsole');

@@ -15,6 +15,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { ILogService } from 'vs/platform/log/common/log';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IActiveLanguagePackService } from 'vs/workbench/services/localization/common/locale';
+import { IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 
 class RemoteExtensionsScannerService implements IRemoteExtensionsScannerService {
 
@@ -25,8 +26,9 @@ class RemoteExtensionsScannerService implements IRemoteExtensionsScannerService 
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IRemoteUserDataProfilesService private readonly remoteUserDataProfilesService: IRemoteUserDataProfilesService,
+		@IActiveLanguagePackService private readonly activeLanguagePackService: IActiveLanguagePackService,
+		@IWorkbenchExtensionManagementService private readonly extensionManagementService: IWorkbenchExtensionManagementService,
 		@ILogService private readonly logService: ILogService,
-		@IActiveLanguagePackService private readonly activeLanguagePackService: IActiveLanguagePackService
 	) { }
 
 	whenExtensionsReady(): Promise<void> {
@@ -42,7 +44,13 @@ class RemoteExtensionsScannerService implements IRemoteExtensionsScannerService 
 			return await this.withChannel(
 				async (channel) => {
 					const profileLocation = this.userDataProfileService.currentProfile.isDefault ? undefined : (await this.remoteUserDataProfilesService.getRemoteProfile(this.userDataProfileService.currentProfile)).extensionsResource;
-					const scannedExtensions = await channel.call<IRelaxedExtensionDescription[]>('scanExtensions', [platform.language, profileLocation, this.environmentService.extensionDevelopmentLocationURI, languagePack]);
+					const scannedExtensions = await channel.call<IRelaxedExtensionDescription[]>('scanExtensions', [
+						platform.language,
+						profileLocation,
+						this.extensionManagementService.getInstalledWorkspaceExtensionLocations(),
+						this.environmentService.extensionDevelopmentLocationURI,
+						languagePack
+					]);
 					scannedExtensions.forEach((extension) => {
 						extension.extensionLocation = URI.revive(extension.extensionLocation);
 					});

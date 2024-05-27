@@ -418,7 +418,7 @@ export class TimelinePane extends ViewPane {
 	}
 
 	private onTimelineChanged(e: TimelineChangeEvent) {
-		if (e?.uri === undefined || this.uriIdentityService.extUri.isEqual(e.uri, this.uri)) {
+		if (e?.uri === undefined || this.uriIdentityService.extUri.isEqual(URI.revive(e.uri), this.uri)) {
 			const timeline = this.timelinesBySource.get(e.id);
 			if (timeline === undefined) {
 				return;
@@ -1207,7 +1207,7 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 		template.timestamp.ariaLabel = item.relativeTimeFullWord ?? '';
 		template.timestamp.parentElement!.classList.toggle('timeline-timestamp--duplicate', isTimelineItem(item) && item.hideRelativeTime);
 
-		template.actionBar.context = { uri: this.uri, item } as TimelineActionContext;
+		template.actionBar.context = { uri: this.uri, item } satisfies TimelineActionContext;
 		template.actionBar.actionRunner = new TimelineActionRunner();
 		template.actionBar.push(this.commands.getItemActions(item), { icon: true, label: false });
 

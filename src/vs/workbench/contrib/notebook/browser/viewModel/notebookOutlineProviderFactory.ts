@@ -24,7 +24,7 @@ class NotebookCellOutlineProviderReferenceCollection extends ReferenceCollection
 export const INotebookCellOutlineProviderFactory = createDecorator<INotebookCellOutlineProviderFactory>('INotebookCellOutlineProviderFactory');
 
 export interface INotebookCellOutlineProviderFactory {
-	getOrCreate(editor: INotebookEditor, target: OutlineTarget): IReference<NotebookCellOutlineProvider>
+	getOrCreate(editor: INotebookEditor, target: OutlineTarget): IReference<NotebookCellOutlineProvider>;
 }
 
 export class NotebookCellOutlineProviderFactory implements INotebookCellOutlineProviderFactory {

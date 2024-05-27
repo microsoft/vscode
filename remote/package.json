@@ -13,7 +13,6 @@
     "@vscode/vscode-languagedetection": "1.0.21",
     "@vscode/windows-process-tree": "^0.6.0",
     "@vscode/windows-registry": "^1.1.0",
-    "@xterm/addon-canvas": "0.8.0-beta.17",
     "@xterm/addon-image": "0.9.0-beta.17",
     "@xterm/addon-search": "0.16.0-beta.17",
     "@xterm/addon-serialize": "0.14.0-beta.17",
@@ -30,11 +29,14 @@
     "minimist": "^1.2.6",
     "native-watchdog": "^1.4.1",
     "node-pty": "1.1.0-beta11",
-    "tas-client-umd": "0.1.8",
+    "tas-client-umd": "0.2.0",
     "vscode-oniguruma": "1.7.0",
     "vscode-regexpp": "^3.1.0",
     "vscode-textmate": "9.0.0",
     "yauzl": "^3.0.0",
     "yazl": "^2.4.3"
+  },
+  "resolutions": {
+    "node-gyp-build": "4.8.1"
   }
 }

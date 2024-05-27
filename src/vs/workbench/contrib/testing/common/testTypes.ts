@@ -474,6 +474,20 @@ export const applyTestItemUpdate = (internal: InternalTestItem | ITestItemUpdate
 	}
 };
 
+/** Request to an ext host to get followup messages for a test failure. */
+export interface TestMessageFollowupRequest {
+	resultId: string;
+	extId: string;
+	taskIndex: number;
+	messageIndex: number;
+}
+
+/** Request to an ext host to get followup messages for a test failure. */
+export interface TestMessageFollowupResponse {
+	id: number;
+	title: string;
+}
+
 /**
  * Test result item used in the main thread.
  */
@@ -559,6 +573,7 @@ export namespace ICoverageCount {
 export interface IFileCoverage {
 	id: string;
 	uri: URI;
+	testId?: TestId;
 	statement: ICoverageCount;
 	branch?: ICoverageCount;
 	declaration?: ICoverageCount;
@@ -568,6 +583,7 @@ export namespace IFileCoverage {
 	export interface Serialized {
 		id: string;
 		uri: UriComponents;
+		testId: string | undefined;
 		statement: ICoverageCount;
 		branch?: ICoverageCount;
 		declaration?: ICoverageCount;
@@ -578,6 +594,7 @@ export namespace IFileCoverage {
 		statement: original.statement,
 		branch: original.branch,
 		declaration: original.declaration,
+		testId: original.testId?.toString(),
 		uri: original.uri.toJSON(),
 	});
 
@@ -586,7 +603,15 @@ export namespace IFileCoverage {
 		statement: serialized.statement,
 		branch: serialized.branch,
 		declaration: serialized.declaration,
+		testId: serialized.testId ? TestId.fromString(serialized.testId) : undefined,
 		uri: uriIdentity.asCanonicalUri(URI.revive(serialized.uri)),
+	});
+
+	export const empty = (id: string, uri: URI): IFileCoverage => ({
+		id,
+		uri,
+		testId: undefined,
+		statement: ICoverageCount.empty(),
 	});
 }
 
