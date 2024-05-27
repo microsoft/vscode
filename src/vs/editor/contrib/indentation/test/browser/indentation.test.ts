@@ -115,7 +115,7 @@ export interface StandardTokenTypeData {
 	standardTokenType: StandardTokenType;
 }
 
-export function registerTokenizationSupport(instantiationService: TestInstantiationService, tokens: StandardTokenTypeData[][], languageId: string): IDisposable {
+export function registerTokenizationSupport(instantiationService: TestInstantiationService, tokens: StandardTokenTypeData[][], languageId: Language): IDisposable {
 	let lineIndex = 0;
 	const languageService = instantiationService.get(ILanguageService);
 	const tokenizationSupport: ITokenizationSupport = {
@@ -553,6 +553,43 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
 			autoIndentOnPasteController.trigger(new Range(1, 1, 4, 22));
 			assert.strictEqual(model.getValue(), text);
+		});
+	});
+
+	test('issue #209859: do not do change indentation when pasted inside of a string', () => {
+
+		// issue: https://github.com/microsoft/vscode/issues/209859
+		// issue: https://github.com/microsoft/vscode/issues/209418
+
+		const initialText = [
+			'const foo = "some text',
+			'         which is strangely',
+			'    indented"'
+		].join('\n');
+		const model = createTextModel(initialText, languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: 'full' }, (editor, viewModel, instantiationService) => {
+			const tokens: StandardTokenTypeData[][] = [
+				[
+					{ startIndex: 0, standardTokenType: StandardTokenType.Other },
+					{ startIndex: 12, standardTokenType: StandardTokenType.String },
+				],
+				[
+					{ startIndex: 0, standardTokenType: StandardTokenType.String },
+				],
+				[
+					{ startIndex: 0, standardTokenType: StandardTokenType.String },
+				]
+			];
+			disposables.add(registerLanguage(instantiationService, languageId));
+			disposables.add(registerTokenizationSupport(instantiationService, tokens, languageId));
+
+			editor.setSelection(new Selection(2, 10, 2, 15));
+			viewModel.paste('which', true, undefined, 'keyboard');
+			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
+			autoIndentOnPasteController.trigger(new Range(2, 1, 2, 28));
+			assert.strictEqual(model.getValue(), initialText);
 		});
 	});
 

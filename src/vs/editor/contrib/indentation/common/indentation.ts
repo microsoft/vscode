@@ -8,6 +8,7 @@ import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
 import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { normalizeIndentation } from 'vs/editor/common/core/indentation';
 import { Selection } from 'vs/editor/common/core/selection';
+import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ProcessedIndentRulesSupport } from 'vs/editor/common/languages/supports/indentationLineProcessor';
 import { ITextModel } from 'vs/editor/common/model';
@@ -71,6 +72,9 @@ export function getReindentEditOperations(model: ITextModel, languageConfigurati
 
 	// Calculate indentation adjustment for all following lines
 	for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
+		if (doesLineStartWithString(model, lineNumber)) {
+			continue;
+		}
 		const text = model.getLineContent(lineNumber);
 		const oldIndentation = strings.getLeadingWhitespace(text);
 		const currentIdealIndent = idealIndentForNextLine;
@@ -100,4 +104,9 @@ export function getReindentEditOperations(model: ITextModel, languageConfigurati
 	}
 
 	return indentEdits;
+}
+
+function doesLineStartWithString(model: ITextModel, lineNumber: number): boolean {
+	const lineTokens = model.tokenization.getLineTokens(lineNumber);
+	return lineTokens.getStandardTokenType(0) === StandardTokenType.String;
 }
