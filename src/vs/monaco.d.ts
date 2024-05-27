@@ -4318,6 +4318,10 @@ declare namespace monaco.editor {
 		 * Font size of section headers. Defaults to 9.
 		 */
 		sectionHeaderFontSize?: number;
+		/**
+		 * Spacing between the section header characters (in CSS px). Defaults to 1.
+		 */
+		sectionHeaderLetterSpacing?: number;
 	}
 
 	/**
