@@ -56,7 +56,7 @@ export interface IDiffCodeEditorWidgetOptions {
 export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 	public static ENTIRE_DIFF_OVERVIEW_WIDTH = OverviewRulerFeature.ENTIRE_DIFF_OVERVIEW_WIDTH;
 
-	private readonly elements = h('div.monaco-diff-editor.side-by-side', { style: { position: 'relative', height: '100%' } }, [
+	private readonly elements = h('div.monaco-diff-editor.side-by-side', { style: { position: 'relative' } }, [
 		h('div.editor.original@original', { style: { position: 'absolute', height: '100%', } }),
 		h('div.editor.modified@modified', { style: { position: 'absolute', height: '100%', } }),
 		h('div.accessibleDiffViewer@accessibleDiffViewer', { style: { position: 'absolute', height: '100%' } }),
@@ -344,6 +344,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 	private readonly _layoutInfo = derived(this, reader => {
 		const fullWidth = this._rootSizeObserver.width.read(reader);
 		const fullHeight = this._rootSizeObserver.height.read(reader);
+		this.elements.root.style.height = fullHeight + 'px';
 
 		const sash = this._sash.read(reader);
 
