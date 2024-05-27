@@ -570,14 +570,10 @@ export class AutoIndentOnPaste implements IEditorContribution {
 }
 
 function isStartOrEndInString(model: ITextModel, range: Range): boolean {
-
-	// Utility function
 	const isPositionInString = (position: Position): boolean => {
 		const tokenType = getStandardTokenTypeAtPosition(model, position);
 		return tokenType === StandardTokenType.String;
 	};
-
-	// Main code
 	return isPositionInString(range.getStartPosition()) || isPositionInString(range.getEndPosition());
 }
 
