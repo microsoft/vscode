@@ -616,6 +616,7 @@ export class CodeCompareBlockPart extends Disposable {
 			isInEmbeddedEditor: true,
 			useInlineViewWhenSpaceIsLimited: false,
 			hideUnchangedRegions: { enabled: true, contextLineCount: 1 },
+			renderGutterMenu: false,
 			...options
 		}, { originalEditor: widgetOptions, modifiedEditor: widgetOptions }));
 	}
