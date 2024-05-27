@@ -24,7 +24,7 @@ import { TypeOperations } from 'vs/editor/common/cursor/cursorTypeOperations';
 import { cppBracketRules, goBracketRules, htmlBracketRules, latexBracketRules, luaBracketRules, phpBracketRules, rubyBracketRules, typescriptBracketRules, vbBracketRules } from 'vs/editor/test/common/modes/supports/bracketRules';
 import { latexAutoClosingPairsRules } from 'vs/editor/test/common/modes/supports/autoClosingPairsRules';
 
-enum Language {
+export enum Language {
 	TypeScript = 'ts-test',
 	Ruby = 'ruby-test',
 	PHP = 'php-test',
@@ -44,7 +44,7 @@ function testIndentationToTabsCommand(lines: string[], selection: Selection, tab
 	testCommand(lines, null, selection, (accessor, sel) => new IndentationToTabsCommand(sel, tabSize), expectedLines, expectedSelection);
 }
 
-function registerLanguage(instantiationService: TestInstantiationService, language: Language): IDisposable {
+export function registerLanguage(instantiationService: TestInstantiationService, language: Language): IDisposable {
 	const disposables = new DisposableStore();
 	const languageService = instantiationService.get(ILanguageService);
 	disposables.add(registerLanguageConfiguration(instantiationService, language));
@@ -52,7 +52,7 @@ function registerLanguage(instantiationService: TestInstantiationService, langua
 	return disposables;
 }
 
-function registerLanguageConfiguration(instantiationService: TestInstantiationService, language: Language): IDisposable {
+export function registerLanguageConfiguration(instantiationService: TestInstantiationService, language: Language): IDisposable {
 	const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
 	switch (language) {
 		case Language.TypeScript:
@@ -110,12 +110,12 @@ function registerLanguageConfiguration(instantiationService: TestInstantiationSe
 	}
 }
 
-interface StandardTokenTypeData {
+export interface StandardTokenTypeData {
 	startIndex: number;
 	standardTokenType: StandardTokenType;
 }
 
-function registerTokenizationSupport(instantiationService: TestInstantiationService, tokens: StandardTokenTypeData[][], languageId: string): IDisposable {
+export function registerTokenizationSupport(instantiationService: TestInstantiationService, tokens: StandardTokenTypeData[][], languageId: string): IDisposable {
 	let lineIndex = 0;
 	const languageService = instantiationService.get(ILanguageService);
 	const tokenizationSupport: ITokenizationSupport = {
@@ -1007,9 +1007,7 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 		});
 	});
 
-	// Failing tests...
-
-	test.skip('issue #208232: incorrect indentation inside of comments', () => {
+	test('issue #208232: incorrect indentation inside of comments', () => {
 
 		// https://github.com/microsoft/vscode/issues/208232
 
@@ -1023,6 +1021,12 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
 
 			disposables.add(registerLanguage(instantiationService, languageId));
+			const tokens: StandardTokenTypeData[][] = [
+				[{ startIndex: 0, standardTokenType: StandardTokenType.Comment }],
+				[{ startIndex: 0, standardTokenType: StandardTokenType.Comment }],
+				[{ startIndex: 0, standardTokenType: StandardTokenType.Comment }]
+			];
+			disposables.add(registerTokenizationSupport(instantiationService, tokens, languageId));
 			editor.setSelection(new Selection(2, 23, 2, 23));
 			viewModel.type("\n", 'keyboard');
 			assert.strictEqual(model.getValue(), [
@@ -1033,6 +1037,8 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 			].join('\n'));
 		});
 	});
+
+	// Failing tests...
 
 	test.skip('issue #43244: indent after equal sign is detected', () => {
 
@@ -1398,24 +1404,28 @@ suite('Auto Indent On Type - PHP', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('temp issue because there should be at least one passing test in a suite', () => {
-		assert.ok(true);
-	});
-
-	test.skip('issue #199050: should not indent after { detected in a string', () => {
+	test('issue #199050: should not indent after { detected in a string', () => {
 
 		// https://github.com/microsoft/vscode/issues/199050
 
-		const model = createTextModel("$phrase = preg_replace('#(\{1|%s).*#su', '', $phrase);", languageId, {});
+		const model = createTextModel("preg_replace('{');", languageId, {});
 		disposables.add(model);
 
 		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
 
 			disposables.add(registerLanguage(instantiationService, languageId));
+			const tokens: StandardTokenTypeData[][] = [
+				[
+					{ startIndex: 0, standardTokenType: StandardTokenType.Other },
+					{ startIndex: 13, standardTokenType: StandardTokenType.String },
+					{ startIndex: 16, standardTokenType: StandardTokenType.Other },
+				]
+			];
+			disposables.add(registerTokenizationSupport(instantiationService, tokens, languageId));
 			editor.setSelection(new Selection(1, 54, 1, 54));
 			viewModel.type("\n", 'keyboard');
 			assert.strictEqual(model.getValue(), [
-				"$phrase = preg_replace('#(\{1|%s).*#su', '', $phrase);",
+				"preg_replace('{');",
 				""
 			].join('\n'));
 		});
