@@ -240,7 +240,7 @@ export class QueryBuilder {
 		const extraFileResources = options.extraFileResources && options.extraFileResources.filter(extraFile => pathIncludedInQuery(queryProps, extraFile.fsPath));
 		queryProps.extraFileResources = extraFileResources && extraFileResources.length ? extraFileResources : undefined;
 
-		const threads = this.configurationService.getValue<number>('search.threads') ?? 0;
+		const threads = this.configurationService.getValue<number>('search.threads') ?? undefined;
 		queryProps.threads = threads;
 
 		return queryProps;
