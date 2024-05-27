@@ -336,6 +336,14 @@
 		"fullLicenseTextUri": "https://raw.githubusercontent.com/toml-rs/toml/main/crates/toml/LICENSE-MIT"
 	},
 	{ // License is MIT/Apache and tool doesn't look in subfolders
+		"name": "toml_edit",
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/toml-rs/toml/main/crates/toml_edit/LICENSE-MIT"
+	},
+	{ // License is MIT/Apache and tool doesn't look in subfolders
+		"name": "toml_datetime",
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/toml-rs/toml/main/crates/toml_datetime/LICENSE-MIT"
+	},
+	{ // License is MIT/Apache and tool doesn't look in subfolders
 		"name": "dirs-sys-next",
 		"fullLicenseTextUri": "https://raw.githubusercontent.com/xdg-rs/dirs/master/dirs-sys/LICENSE-MIT"
 	},
