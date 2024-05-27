@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ConfigurationChangedEvent, EditorAutoClosingEditStrategy, EditorAutoClosingStrategy, EditorAutoIndentStrategy, EditorAutoSurroundStrategy, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { ConfigurationChangedEvent, EditorAutoClosingEditStrategy, EditorAutoClosingStrategy, EditorAutoIndentStrategy, EditorAutoSurroundStrategy, EditorOption, TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
 import { LineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -80,6 +80,20 @@ export class CursorConfiguration {
 
 	private readonly _languageId: string;
 	private _electricChars: { [key: string]: boolean } | null;
+	public readonly cursorStyle: TextEditorCursorStyle;
+
+	public get cursorStyleKind(): 'beforeCharacter' | 'onCharacter' {
+		switch (this.cursorStyle) {
+			case TextEditorCursorStyle.Line:
+			case TextEditorCursorStyle.LineThin:
+				return 'beforeCharacter';
+			case TextEditorCursorStyle.Block:
+			case TextEditorCursorStyle.Underline:
+			case TextEditorCursorStyle.BlockOutline:
+			case TextEditorCursorStyle.UnderlineThin:
+				return 'onCharacter';
+		}
+	}
 
 	public static shouldRecreate(e: ConfigurationChangedEvent): boolean {
 		return (
@@ -99,6 +113,7 @@ export class CursorConfiguration {
 			|| e.hasChanged(EditorOption.fontInfo)
 			|| e.hasChanged(EditorOption.readOnly)
 			|| e.hasChanged(EditorOption.wordSegmenterLocales)
+			|| e.hasChanged(EditorOption.cursorStyle)
 		);
 	}
 
@@ -137,6 +152,7 @@ export class CursorConfiguration {
 		this.autoSurround = options.get(EditorOption.autoSurround);
 		this.autoIndent = options.get(EditorOption.autoIndent);
 		this.wordSegmenterLocales = options.get(EditorOption.wordSegmenterLocales);
+		this.cursorStyle = options.get(EditorOption.cursorStyle);
 
 		this.surroundingPairs = {};
 		this._electricChars = null;
