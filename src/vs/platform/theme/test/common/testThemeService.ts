@@ -7,8 +7,7 @@ import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IconContribution } from 'vs/platform/theme/common/iconRegistry';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { IColorTheme, IFileIconTheme, IProductIconTheme, ITextMateThemingRule, IThemeService, ITokenStyle, ProbeScope } from 'vs/platform/theme/common/themeService';
-import { TokenStyle } from 'vs/platform/theme/common/tokenClassificationRegistry';
+import { IColorTheme, IFileIconTheme, IProductIconTheme, IThemeService, ITokenStyle } from 'vs/platform/theme/common/themeService';
 
 export class TestColorTheme implements IColorTheme {
 
@@ -19,10 +18,6 @@ export class TestColorTheme implements IColorTheme {
 		public type = ColorScheme.DARK,
 		public readonly semanticHighlighting = false
 	) { }
-
-	resolveScopes(scopes: ProbeScope[], definitions?: ITextMateThemingRule): TokenStyle | undefined {
-		throw new Error('Method not implemented.');
-	}
 
 	getColor(color: string, useDefault?: boolean): Color | undefined {
 		const value = this.colors[color];
