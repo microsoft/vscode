@@ -549,11 +549,9 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 	}
 
 	toStorage(storageService: IStorageService) {
-		const colorMapData: { [key: string]: string | null } = {};
+		const colorMapData: { [key: string]: string } = {};
 		for (const key in this.colorMap) {
-			const value = this.colorMap[key]
-			const serialized = value ? Color.Format.CSS.formatHexA(value, true) : null;
-			colorMapData[key] = serialized;
+			colorMapData[key] = Color.Format.CSS.formatHexA(this.colorMap[key], true);
 		}
 		// no need to persist custom colors, they will be taken from the settings
 		const value = JSON.stringify({

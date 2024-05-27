@@ -124,7 +124,7 @@ export interface IWorkbenchColorTheme extends IWorkbenchTheme, IColorTheme {
 }
 
 export interface IColorMap {
-	[id: string]: Color | undefined;
+	[id: string]: Color;
 }
 
 export interface IWorkbenchFileIconTheme extends IWorkbenchTheme, IFileIconTheme {
