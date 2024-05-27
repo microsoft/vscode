@@ -37,6 +37,7 @@ import { ViewOverlayWidgets } from 'vs/editor/browser/viewParts/overlayWidgets/o
 import { DecorationsOverviewRuler } from 'vs/editor/browser/viewParts/overviewRuler/decorationsOverviewRuler';
 import { OverviewRuler } from 'vs/editor/browser/viewParts/overviewRuler/overviewRuler';
 import { Rulers } from 'vs/editor/browser/viewParts/rulers/rulers';
+import { RulersInfo } from 'vs/editor/browser/viewParts/rulersInfo/rulersInfo';
 import { ScrollDecorationViewPart } from 'vs/editor/browser/viewParts/scrollDecoration/scrollDecoration';
 import { SelectionsOverlay } from 'vs/editor/browser/viewParts/selections/selections';
 import { ViewCursors } from 'vs/editor/browser/viewParts/viewCursors/viewCursors';
@@ -197,6 +198,9 @@ export class View extends ViewEventHandler {
 		this._overlayWidgets = new ViewOverlayWidgets(this._context, this.domNode);
 		this._viewParts.push(this._overlayWidgets);
 
+		const rulersInfo = new RulersInfo(this._context);
+		this._viewParts.push(rulersInfo);
+
 		const rulers = new Rulers(this._context);
 		this._viewParts.push(rulers);
 
@@ -227,6 +231,7 @@ export class View extends ViewEventHandler {
 		this._overflowGuardContainer.appendChild(this._overlayWidgets.getDomNode());
 		this._overflowGuardContainer.appendChild(minimap.getDomNode());
 		this._overflowGuardContainer.appendChild(blockOutline.domNode);
+		this.domNode.appendChild(rulersInfo.domNode);
 		this.domNode.appendChild(this._overflowGuardContainer);
 
 		if (overflowWidgetsDomNode) {

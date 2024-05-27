@@ -3119,6 +3119,11 @@ declare namespace monaco.editor {
 		 */
 		rulers?: (number | IRulerOption)[];
 		/**
+		 * Display additional information on the editor rulers.
+		 * Defaults to false
+		 */
+		rulersInfo?: boolean;
+		/**
 		 * Locales used for segmenting lines into words when doing word related navigations or operations.
 		 *
 		 * Specify the BCP 47 language tag of the word you wish to recognize (e.g., ja, zh-CN, zh-Hant-TW, etc.).
@@ -4940,53 +4945,54 @@ declare namespace monaco.editor {
 		revealHorizontalRightPadding = 100,
 		roundedSelection = 101,
 		rulers = 102,
-		scrollbar = 103,
-		scrollBeyondLastColumn = 104,
-		scrollBeyondLastLine = 105,
-		scrollPredominantAxis = 106,
-		selectionClipboard = 107,
-		selectionHighlight = 108,
-		selectOnLineNumbers = 109,
-		showFoldingControls = 110,
-		showUnused = 111,
-		snippetSuggestions = 112,
-		smartSelect = 113,
-		smoothScrolling = 114,
-		stickyScroll = 115,
-		stickyTabStops = 116,
-		stopRenderingLineAfter = 117,
-		suggest = 118,
-		suggestFontSize = 119,
-		suggestLineHeight = 120,
-		suggestOnTriggerCharacters = 121,
-		suggestSelection = 122,
-		tabCompletion = 123,
-		tabIndex = 124,
-		unicodeHighlighting = 125,
-		unusualLineTerminators = 126,
-		useShadowDOM = 127,
-		useTabStops = 128,
-		wordBreak = 129,
-		wordSegmenterLocales = 130,
-		wordSeparators = 131,
-		wordWrap = 132,
-		wordWrapBreakAfterCharacters = 133,
-		wordWrapBreakBeforeCharacters = 134,
-		wordWrapColumn = 135,
-		wordWrapOverride1 = 136,
-		wordWrapOverride2 = 137,
-		wrappingIndent = 138,
-		wrappingStrategy = 139,
-		showDeprecated = 140,
-		inlayHints = 141,
-		editorClassName = 142,
-		pixelRatio = 143,
-		tabFocusMode = 144,
-		layoutInfo = 145,
-		wrappingInfo = 146,
-		defaultColorDecorators = 147,
-		colorDecoratorsActivatedOn = 148,
-		inlineCompletionsAccessibilityVerbose = 149
+		rulersInfo = 103,
+		scrollbar = 104,
+		scrollBeyondLastColumn = 105,
+		scrollBeyondLastLine = 106,
+		scrollPredominantAxis = 107,
+		selectionClipboard = 108,
+		selectionHighlight = 109,
+		selectOnLineNumbers = 110,
+		showFoldingControls = 111,
+		showUnused = 112,
+		snippetSuggestions = 113,
+		smartSelect = 114,
+		smoothScrolling = 115,
+		stickyScroll = 116,
+		stickyTabStops = 117,
+		stopRenderingLineAfter = 118,
+		suggest = 119,
+		suggestFontSize = 120,
+		suggestLineHeight = 121,
+		suggestOnTriggerCharacters = 122,
+		suggestSelection = 123,
+		tabCompletion = 124,
+		tabIndex = 125,
+		unicodeHighlighting = 126,
+		unusualLineTerminators = 127,
+		useShadowDOM = 128,
+		useTabStops = 129,
+		wordBreak = 130,
+		wordSegmenterLocales = 131,
+		wordSeparators = 132,
+		wordWrap = 133,
+		wordWrapBreakAfterCharacters = 134,
+		wordWrapBreakBeforeCharacters = 135,
+		wordWrapColumn = 136,
+		wordWrapOverride1 = 137,
+		wordWrapOverride2 = 138,
+		wrappingIndent = 139,
+		wrappingStrategy = 140,
+		showDeprecated = 141,
+		inlayHints = 142,
+		editorClassName = 143,
+		pixelRatio = 144,
+		tabFocusMode = 145,
+		layoutInfo = 146,
+		wrappingInfo = 147,
+		defaultColorDecorators = 148,
+		colorDecoratorsActivatedOn = 149,
+		inlineCompletionsAccessibilityVerbose = 150
 	}
 
 	export const EditorOptions: {
@@ -5094,6 +5100,7 @@ declare namespace monaco.editor {
 		revealHorizontalRightPadding: IEditorOption<EditorOption.revealHorizontalRightPadding, number>;
 		roundedSelection: IEditorOption<EditorOption.roundedSelection, boolean>;
 		rulers: IEditorOption<EditorOption.rulers, {}>;
+		rulersInfo: IEditorOption<EditorOption.rulersInfo, boolean>;
 		scrollbar: IEditorOption<EditorOption.scrollbar, InternalEditorScrollbarOptions>;
 		scrollBeyondLastColumn: IEditorOption<EditorOption.scrollBeyondLastColumn, number>;
 		scrollBeyondLastLine: IEditorOption<EditorOption.scrollBeyondLastLine, boolean>;

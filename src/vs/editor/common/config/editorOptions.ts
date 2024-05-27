@@ -76,6 +76,11 @@ export interface IEditorOptions {
 	 */
 	rulers?: (number | IRulerOption)[];
 	/**
+	 * Display additional information on the editor rulers.
+	 * Defaults to false
+	 */
+	rulersInfo?: boolean;
+	/**
 	 * Locales used for segmenting lines into words when doing word related navigations or operations.
 	 *
 	 * Specify the BCP 47 language tag of the word you wish to recognize (e.g., ja, zh-CN, zh-Hant-TW, etc.).
@@ -5358,6 +5363,7 @@ export const enum EditorOption {
 	revealHorizontalRightPadding,
 	roundedSelection,
 	rulers,
+	rulersInfo,
 	scrollbar,
 	scrollBeyondLastColumn,
 	scrollBeyondLastLine,
@@ -5948,6 +5954,10 @@ export const EditorOptions = {
 		{ description: nls.localize('roundedSelection', "Controls whether selections should have rounded corners.") }
 	)),
 	rulers: register(new EditorRulers()),
+	rulersInfo: register(new EditorBooleanOption(
+		EditorOption.rulersInfo, 'rulersInfo', false,
+		{ description: nls.localize('rulersInfo', "Controls whether the column and label of the editor rulers should be displayed.") }
+	)),
 	scrollbar: register(new EditorScrollbar()),
 	scrollBeyondLastColumn: register(new EditorIntOption(
 		EditorOption.scrollBeyondLastColumn, 'scrollBeyondLastColumn',
