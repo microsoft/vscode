@@ -55,9 +55,8 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ICopyOperation, ICreateFileOperation, ICreateOperation, IDeleteOperation, IMoveOperation, IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
-import { TestEditorGroupsService, TestEditorService, TestEnvironmentService, TestLifecycleService, TestWorkingCopyService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestEditorGroupsService, TestEditorService, TestEnvironmentService, TestFileService, TestLifecycleService, TestWorkingCopyService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestContextService, TestTextResourcePropertiesService } from 'vs/workbench/test/common/workbenchTestServices';
-import { TestFileService } from 'vs/platform/files/test/browser/workbenchTestServices';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 
 suite('MainThreadEditors', () => {

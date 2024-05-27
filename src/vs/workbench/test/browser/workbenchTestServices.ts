@@ -23,11 +23,11 @@ import { IUntitledTextEditorService, UntitledTextEditorService } from 'vs/workbe
 import { IWorkspaceContextService, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { ILifecycleService, ShutdownReason, StartupKind, LifecyclePhase, WillShutdownEvent, BeforeShutdownErrorEvent, InternalBeforeShutdownEvent, IWillShutdownEventJoiner } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IFileService, IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, IFileDeleteOptions, IFileOverwriteOptions, IFileWriteOptions, IFileOpenOptions, IFileStatWithMetadata, FileOperationError, IFileSystemProviderWithFileReadStreamCapability, IFileReadStreamOptions } from 'vs/platform/files/common/files';
+import { FileOperationEvent, IFileService, IFileStat, IFileStatResult, FileChangesEvent, IResolveFileOptions, ICreateFileOptions, IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, IFileDeleteOptions, IFileOverwriteOptions, IFileWriteOptions, IFileOpenOptions, IFileStatWithMetadata, IResolveMetadataFileOptions, IWriteFileOptions, IReadFileOptions, IFileContent, IFileStreamContent, FileOperationError, IFileSystemProviderWithFileReadStreamCapability, IFileReadStreamOptions, IReadFileStreamOptions, IFileSystemProviderCapabilitiesChangeEvent, IFileStatWithPartialMetadata, IFileSystemWatcher, IWatchOptionsWithCorrelation, IFileSystemProviderActivationEvent } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/model';
 import { LanguageService } from 'vs/editor/common/services/languageService';
 import { ModelService } from 'vs/editor/common/services/modelService';
-import { ITextFileService, IReadTextFileOptions, ITextFileStreamContent, IWriteTextFileOptions, ITextFileEditorModel, ITextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textfiles';
+import { IResourceEncoding, ITextFileService, IReadTextFileOptions, ITextFileStreamContent, IWriteTextFileOptions, ITextFileEditorModel, ITextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textfiles';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
@@ -51,7 +51,7 @@ import { TestNotificationService } from 'vs/platform/notification/test/common/te
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IDecorationsService, IResourceDecorationChangeEvent, IDecoration, IDecorationData, IDecorationsProvider } from 'vs/workbench/services/decorations/common/decorations';
-import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, GroupsArrangement, GroupDirection, IMergeGroupOptions, IEditorReplacement, IFindGroupScope, EditorGroupLayout, ICloseEditorOptions, GroupOrientation, ICloseAllEditorsOptions, ICloseEditorsFilter, IEditorDropTargetDelegate, IEditorPart, IAuxiliaryEditorPart, IEditorGroupsContainer, IAuxiliaryEditorPartCreateEvent, IEditorWorkingSet, IEditorGroupContextKeyProvider, IEditorWorkingSetOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, ISaveEditorsOptions, IRevertAllEditorsOptions, PreferredGroup, IEditorsChangeEvent, ISaveEditorsResult } from 'vs/workbench/services/editor/common/editorService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -62,10 +62,10 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { DeferredPromise, timeout } from 'vs/base/common/async';
 import { PaneComposite, PaneCompositeDescriptor } from 'vs/workbench/browser/panecomposite';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IProcessEnvironment, isWindows, OperatingSystem } from 'vs/base/common/platform';
+import { IProcessEnvironment, isLinux, isWindows, OperatingSystem } from 'vs/base/common/platform';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { Part } from 'vs/workbench/browser/part';
-import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
+import { bufferToStream, VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { Schemas } from 'vs/base/common/network';
 import { IProductService } from 'vs/platform/product/common/productService';
 import product from 'vs/platform/product/common/product';
@@ -98,7 +98,7 @@ import { IInputBox, IInputOptions, IPickOptions, IQuickInputButton, IQuickInputS
 import { QuickInputService } from 'vs/workbench/services/quickinput/browser/quickInputService';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { win32, posix } from 'vs/base/common/path';
-import { TestContextService, TestStorageService, TestTextResourcePropertiesService, TestExtensionService, TestProductService, TestLoggerService, TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService, TestMarkerService, TestHistoryService } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestContextService, TestStorageService, TestTextResourcePropertiesService, TestExtensionService, TestProductService, createFileStat, TestLoggerService, TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService, TestMarkerService, TestHistoryService } from 'vs/workbench/test/common/workbenchTestServices';
 import { IView, ViewContainer, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
@@ -109,6 +109,7 @@ import { newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream'
 import { EncodingOracle, IEncodingOverride } from 'vs/workbench/services/textfile/browser/textFileService';
 import { UTF16le, UTF16be, UTF8_with_bom } from 'vs/workbench/services/textfile/common/encoding';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { Iterable } from 'vs/base/common/iterator';
 import { InMemoryWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackupService';
 import { BrowserWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/browser/workingCopyBackupService';
 import { FileService } from 'vs/platform/files/common/fileService';
@@ -131,6 +132,7 @@ import { IWorkingCopyEditorService, WorkingCopyEditorService } from 'vs/workbenc
 import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
 import { BrowserElevatedFileService } from 'vs/workbench/services/files/browser/elevatedFileService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
+import { ResourceMap } from 'vs/base/common/map';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { ITextEditorService, TextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
@@ -177,7 +179,6 @@ import { TerminalLogService } from 'vs/platform/terminal/common/terminalLogServi
 import { IEnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { EnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariableService';
 import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
-import { TestFileService } from 'vs/platform/files/test/browser/workbenchTestServices';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined);
@@ -1046,6 +1047,164 @@ export class TestEditorService extends Disposable implements EditorServiceImpl {
 	saveAll(options?: ISaveEditorsOptions): Promise<ISaveEditorsResult> { throw new Error('Method not implemented.'); }
 	revert(editors: IEditorIdentifier[], options?: IRevertOptions): Promise<boolean> { throw new Error('Method not implemented.'); }
 	revertAll(options?: IRevertAllEditorsOptions): Promise<boolean> { throw new Error('Method not implemented.'); }
+}
+
+export class TestFileService implements IFileService {
+
+	declare readonly _serviceBrand: undefined;
+
+	private readonly _onDidFilesChange = new Emitter<FileChangesEvent>();
+	get onDidFilesChange(): Event<FileChangesEvent> { return this._onDidFilesChange.event; }
+	fireFileChanges(event: FileChangesEvent): void { this._onDidFilesChange.fire(event); }
+
+	private readonly _onDidRunOperation = new Emitter<FileOperationEvent>();
+	get onDidRunOperation(): Event<FileOperationEvent> { return this._onDidRunOperation.event; }
+	fireAfterOperation(event: FileOperationEvent): void { this._onDidRunOperation.fire(event); }
+
+	private readonly _onDidChangeFileSystemProviderCapabilities = new Emitter<IFileSystemProviderCapabilitiesChangeEvent>();
+	get onDidChangeFileSystemProviderCapabilities(): Event<IFileSystemProviderCapabilitiesChangeEvent> { return this._onDidChangeFileSystemProviderCapabilities.event; }
+	fireFileSystemProviderCapabilitiesChangeEvent(event: IFileSystemProviderCapabilitiesChangeEvent): void { this._onDidChangeFileSystemProviderCapabilities.fire(event); }
+
+	private _onWillActivateFileSystemProvider = new Emitter<IFileSystemProviderActivationEvent>();
+	readonly onWillActivateFileSystemProvider = this._onWillActivateFileSystemProvider.event;
+	readonly onDidWatchError = Event.None;
+
+	private content = 'Hello Html';
+	private lastReadFileUri!: URI;
+
+	readonly = false;
+
+	setContent(content: string): void { this.content = content; }
+	getContent(): string { return this.content; }
+	getLastReadFileUri(): URI { return this.lastReadFileUri; }
+
+	resolve(resource: URI, _options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
+	resolve(resource: URI, _options?: IResolveFileOptions): Promise<IFileStat>;
+	async resolve(resource: URI, _options?: IResolveFileOptions): Promise<IFileStat> {
+		return createFileStat(resource, this.readonly);
+	}
+
+	stat(resource: URI): Promise<IFileStatWithPartialMetadata> {
+		return this.resolve(resource, { resolveMetadata: true });
+	}
+
+	async resolveAll(toResolve: { resource: URI; options?: IResolveFileOptions }[]): Promise<IFileStatResult[]> {
+		const stats = await Promise.all(toResolve.map(resourceAndOption => this.resolve(resourceAndOption.resource, resourceAndOption.options)));
+
+		return stats.map(stat => ({ stat, success: true }));
+	}
+
+	readonly notExistsSet = new ResourceMap<boolean>();
+
+	async exists(_resource: URI): Promise<boolean> { return !this.notExistsSet.has(_resource); }
+
+	readShouldThrowError: Error | undefined = undefined;
+
+	async readFile(resource: URI, options?: IReadFileOptions | undefined): Promise<IFileContent> {
+		if (this.readShouldThrowError) {
+			throw this.readShouldThrowError;
+		}
+
+		this.lastReadFileUri = resource;
+
+		return {
+			...createFileStat(resource, this.readonly),
+			value: VSBuffer.fromString(this.content)
+		};
+	}
+
+	async readFileStream(resource: URI, options?: IReadFileStreamOptions | undefined): Promise<IFileStreamContent> {
+		if (this.readShouldThrowError) {
+			throw this.readShouldThrowError;
+		}
+
+		this.lastReadFileUri = resource;
+
+		return {
+			...createFileStat(resource, this.readonly),
+			value: bufferToStream(VSBuffer.fromString(this.content))
+		};
+	}
+
+	writeShouldThrowError: Error | undefined = undefined;
+
+	async writeFile(resource: URI, bufferOrReadable: VSBuffer | VSBufferReadable, options?: IWriteFileOptions): Promise<IFileStatWithMetadata> {
+		await timeout(0);
+
+		if (this.writeShouldThrowError) {
+			throw this.writeShouldThrowError;
+		}
+
+		return createFileStat(resource, this.readonly);
+	}
+
+	move(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStatWithMetadata> { return Promise.resolve(null!); }
+	copy(_source: URI, _target: URI, _overwrite?: boolean): Promise<IFileStatWithMetadata> { return Promise.resolve(null!); }
+	async cloneFile(_source: URI, _target: URI): Promise<void> { }
+	createFile(_resource: URI, _content?: VSBuffer | VSBufferReadable, _options?: ICreateFileOptions): Promise<IFileStatWithMetadata> { return Promise.resolve(null!); }
+	createFolder(_resource: URI): Promise<IFileStatWithMetadata> { return Promise.resolve(null!); }
+
+	onDidChangeFileSystemProviderRegistrations = Event.None;
+
+	private providers = new Map<string, IFileSystemProvider>();
+
+	registerProvider(scheme: string, provider: IFileSystemProvider) {
+		this.providers.set(scheme, provider);
+
+		return toDisposable(() => this.providers.delete(scheme));
+	}
+
+	getProvider(scheme: string) {
+		return this.providers.get(scheme);
+	}
+
+	async activateProvider(_scheme: string): Promise<void> {
+		this._onWillActivateFileSystemProvider.fire({ scheme: _scheme, join: () => { } });
+	}
+	async canHandleResource(resource: URI): Promise<boolean> { return this.hasProvider(resource); }
+	hasProvider(resource: URI): boolean { return resource.scheme === Schemas.file || this.providers.has(resource.scheme); }
+	listCapabilities() {
+		return [
+			{ scheme: Schemas.file, capabilities: FileSystemProviderCapabilities.FileOpenReadWriteClose },
+			...Iterable.map(this.providers, ([scheme, p]) => { return { scheme, capabilities: p.capabilities }; })
+		];
+	}
+	hasCapability(resource: URI, capability: FileSystemProviderCapabilities): boolean {
+		if (capability === FileSystemProviderCapabilities.PathCaseSensitive && isLinux) {
+			return true;
+		}
+
+		const provider = this.getProvider(resource.scheme);
+
+		return !!(provider && (provider.capabilities & capability));
+	}
+
+	async del(_resource: URI, _options?: { useTrash?: boolean; recursive?: boolean }): Promise<void> { }
+
+	createWatcher(resource: URI, options: IWatchOptions): IFileSystemWatcher {
+		return {
+			onDidChange: Event.None,
+			dispose: () => { }
+		};
+	}
+
+
+	readonly watches: URI[] = [];
+	watch(_resource: URI, options: IWatchOptionsWithCorrelation): IFileSystemWatcher;
+	watch(_resource: URI): IDisposable;
+	watch(_resource: URI): IDisposable {
+		this.watches.push(_resource);
+
+		return toDisposable(() => this.watches.splice(this.watches.indexOf(_resource), 1));
+	}
+
+	getWriteEncoding(_resource: URI): IResourceEncoding { return { encoding: 'utf8', hasBOM: false }; }
+	dispose(): void { }
+
+	async canCreateFile(source: URI, options?: ICreateFileOptions): Promise<Error | true> { return true; }
+	async canMove(source: URI, target: URI, overwrite?: boolean | undefined): Promise<Error | true> { return true; }
+	async canCopy(source: URI, target: URI, overwrite?: boolean | undefined): Promise<Error | true> { return true; }
+	async canDelete(resource: URI, options?: { useTrash?: boolean | undefined; recursive?: boolean | undefined } | undefined): Promise<Error | true> { return true; }
 }
 
 export class TestWorkingCopyBackupService extends InMemoryWorkingCopyBackupService {
