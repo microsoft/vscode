@@ -24,6 +24,7 @@ import 'vs/css!./button';
 import { localize } from 'vs/nls';
 import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
 import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
+import { IActionProvider } from 'vs/base/browser/ui/dropdown/dropdown';
 
 export interface IButtonOptions extends Partial<IButtonStyles> {
 	readonly title?: boolean | string;
@@ -303,7 +304,7 @@ export class Button extends Disposable implements IButton {
 		return !this._element.classList.contains('disabled');
 	}
 
-	private setTitle(title: string) {
+	setTitle(title: string) {
 		if (!this._hover && title !== '') {
 			this._hover = this._register(getBaseLayerHoverDelegate().setupUpdatableHover(this.options.hoverDelegate ?? getDefaultHoverDelegate('mouse'), this._element, title));
 		} else if (this._hover) {
@@ -322,7 +323,7 @@ export class Button extends Disposable implements IButton {
 
 export interface IButtonWithDropdownOptions extends IButtonOptions {
 	readonly contextMenuProvider: IContextMenuProvider;
-	readonly actions: readonly IAction[];
+	readonly actions: readonly IAction[] | IActionProvider;
 	readonly actionRunner?: IActionRunner;
 	readonly addPrimaryActionToDropdown?: boolean;
 }
@@ -375,9 +376,10 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 		this.dropdownButton.element.classList.add('monaco-dropdown-button');
 		this.dropdownButton.icon = Codicon.dropDownButton;
 		this._register(this.dropdownButton.onDidClick(e => {
+			const actions = Array.isArray(options.actions) ? options.actions : (options.actions as IActionProvider).getActions();
 			options.contextMenuProvider.showContextMenu({
 				getAnchor: () => this.dropdownButton.element,
-				getActions: () => options.addPrimaryActionToDropdown === false ? [...options.actions] : [this.action, ...options.actions],
+				getActions: () => options.addPrimaryActionToDropdown === false ? [...actions] : [this.action, ...actions],
 				actionRunner: options.actionRunner,
 				onHide: () => this.dropdownButton.element.setAttribute('aria-expanded', 'false')
 			});

@@ -22,6 +22,10 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { EncodedTokenizationResult, IState, ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/languages';
 import { NullState } from 'vs/editor/common/languages/nullTokenize';
 import { MetadataConsts, StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { EncodedTokenizationResult, IState, ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/languages';
+import { NullState } from 'vs/editor/common/languages/nullTokenize';
+import { MetadataConsts, StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 
 function getIRange(range: IRange): IRange {
 	return {
@@ -101,7 +105,9 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 		disposables = new DisposableStore();
 		instantiationService = createModelServices(disposables);
 		languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
+		disposables.add(instantiationService);
 		disposables.add(registerLanguage(instantiationService, languageId));
+		disposables.add(registerLanguageConfiguration(instantiationService, languageId));
 	});
 
 	teardown(() => {
@@ -202,7 +208,28 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 			'const foo = `{`;',
 			'    ',
 		].join('\n');
+		const tokens: StandardTokenTypeData[][] = [
+			[
+				{ startIndex: 0, standardTokenType: StandardTokenType.Other },
+				{ startIndex: 5, standardTokenType: StandardTokenType.Other },
+				{ startIndex: 6, standardTokenType: StandardTokenType.Other },
+				{ startIndex: 9, standardTokenType: StandardTokenType.Other },
+				{ startIndex: 10, standardTokenType: StandardTokenType.Other },
+				{ startIndex: 11, standardTokenType: StandardTokenType.Other },
+				{ startIndex: 12, standardTokenType: StandardTokenType.String },
+				{ startIndex: 13, standardTokenType: StandardTokenType.String },
+				{ startIndex: 14, standardTokenType: StandardTokenType.String },
+				{ startIndex: 15, standardTokenType: StandardTokenType.Other },
+				{ startIndex: 16, standardTokenType: StandardTokenType.Other }
+			],
+			[
+				{ startIndex: 0, standardTokenType: StandardTokenType.Other },
+				{ startIndex: 4, standardTokenType: StandardTokenType.Other }]
+		];
+		disposables.add(registerTokenizationSupport(instantiationService, tokens, languageId));
 		const model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
+		model.tokenization.forceTokenization(1);
+		model.tokenization.forceTokenization(2);
 		const editOperations = getReindentEditOperations(model, languageConfigurationService, 1, model.getLineCount());
 		assert.deepStrictEqual(editOperations.length, 1);
 		const operation = editOperations[0];
@@ -300,7 +327,29 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 			'const r = /{/;',
 			'   ',
 		].join('\n');
+		const tokens: StandardTokenTypeData[][] = [
+			[
+				{ startIndex: 0, standardTokenType: StandardTokenType.Other },
+				{ startIndex: 5, standardTokenType: StandardTokenType.Other },
+				{ startIndex: 6, standardTokenType: StandardTokenType.Other },
+				{ startIndex: 7, standardTokenType: StandardTokenType.Other },
+				{ startIndex: 8, standardTokenType: StandardTokenType.Other },
+				{ startIndex: 9, standardTokenType: StandardTokenType.RegEx },
+				{ startIndex: 10, standardTokenType: StandardTokenType.RegEx },
+				{ startIndex: 11, standardTokenType: StandardTokenType.RegEx },
+				{ startIndex: 12, standardTokenType: StandardTokenType.RegEx },
+				{ startIndex: 13, standardTokenType: StandardTokenType.Other },
+				{ startIndex: 14, standardTokenType: StandardTokenType.Other }
+			],
+			[
+				{ startIndex: 0, standardTokenType: StandardTokenType.Other },
+				{ startIndex: 4, standardTokenType: StandardTokenType.Other }
+			]
+		];
+		disposables.add(registerTokenizationSupport(instantiationService, tokens, languageId));
 		const model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
+		model.tokenization.forceTokenization(1);
+		model.tokenization.forceTokenization(2);
 		const editOperations = getReindentEditOperations(model, languageConfigurationService, 1, model.getLineCount());
 		assert.deepStrictEqual(editOperations.length, 1);
 		const operation = editOperations[0];

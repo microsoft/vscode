@@ -60,7 +60,7 @@ class LanguageModelResponse {
 		const that = this;
 		this.apiObject = {
 			// result: promise,
-			stream: that._defaultStream.asyncIterable,
+			text: that._defaultStream.asyncIterable,
 			// streams: AsyncIterable<string>[] // FUTURE responses per N
 		};
 	}
@@ -159,7 +159,8 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			name: metadata.name ?? '',
 			family: metadata.family ?? '',
 			version: metadata.version,
-			tokens: metadata.tokens,
+			maxInputTokens: metadata.maxInputTokens,
+			maxOutputTokens: metadata.maxOutputTokens,
 			auth,
 			targetExtensions: metadata.extensions
 		});
@@ -261,7 +262,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 					family: data.metadata.family,
 					version: data.metadata.version,
 					name: data.metadata.name,
-					contextSize: data.metadata.tokens,
+					maxInputTokens: data.metadata.maxInputTokens,
 					countTokens(text, token) {
 						if (!that._allLanguageModelData.has(identifier)) {
 							throw extHostTypes.LanguageModelError.NotFound(identifier);
@@ -281,10 +282,6 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			}
 
 			result.push(apiObject);
-		}
-
-		if (result.length === 0) {
-			return undefined;
 		}
 
 		return result;
@@ -385,8 +382,8 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 
 		try {
 			const detail = justification
-				? localize('chatAccessWithJustification', "To allow access to the language models provided by {0}. Justification:\n\n{1}", to.displayName, justification)
-				: localize('chatAccess', "To allow access to the language models provided by {0}", to.displayName);
+				? localize('chatAccessWithJustification', "Justification: {1}", to.displayName, justification)
+				: undefined;
 			await this._extHostAuthentication.getSession(from, providerId, [], { forceNewSession: { detail } });
 			this.$updateModelAccesslist([{ from: from.identifier, to: to.identifier, enabled: true }]);
 			return true;
@@ -465,13 +462,22 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			get onDidChange() {
 				return Event.any(_onDidChangeAccess, _onDidAddRemove);
 			},
-			canSendRequest(languageModelId: string): boolean | undefined {
+			canSendRequest(chat: vscode.LanguageModelChat): boolean | undefined {
 
-				const data = that._allLanguageModelData.get(languageModelId);
-				if (!data) {
+				let metadata: ILanguageModelChatMetadata | undefined;
+
+				out: for (const [_, value] of that._allLanguageModelData) {
+					for (const candidate of value.apiObjects.values()) {
+						if (candidate === chat) {
+							metadata = value.metadata;
+							break out;
+						}
+					}
+				}
+				if (!metadata) {
 					return undefined;
 				}
-				if (!that._isUsingAuth(from.identifier, data.metadata)) {
+				if (!that._isUsingAuth(from.identifier, metadata)) {
 					return true;
 				}
 
@@ -479,7 +485,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				if (!list) {
 					return undefined;
 				}
-				return list.has(data.metadata.extension);
+				return list.has(metadata.extension);
 			}
 		};
 	}

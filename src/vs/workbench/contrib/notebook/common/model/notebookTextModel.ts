@@ -77,32 +77,38 @@ class StackOperation implements IWorkspaceUndoRedoElement {
 
 	async undo(): Promise<void> {
 		this._pauseableEmitter.pause();
-		for (let i = this._operations.length - 1; i >= 0; i--) {
-			await this._operations[i].undo();
+		try {
+			for (let i = this._operations.length - 1; i >= 0; i--) {
+				await this._operations[i].undo();
+			}
+			this._postUndoRedo(this._beginAlternativeVersionId);
+			this._pauseableEmitter.fire({
+				rawEvents: [],
+				synchronous: undefined,
+				versionId: this.textModel.versionId,
+				endSelectionState: this._beginSelectionState
+			});
+		} finally {
+			this._pauseableEmitter.resume();
 		}
-		this._postUndoRedo(this._beginAlternativeVersionId);
-		this._pauseableEmitter.fire({
-			rawEvents: [],
-			synchronous: undefined,
-			versionId: this.textModel.versionId,
-			endSelectionState: this._beginSelectionState
-		});
-		this._pauseableEmitter.resume();
 	}
 
 	async redo(): Promise<void> {
 		this._pauseableEmitter.pause();
-		for (let i = 0; i < this._operations.length; i++) {
-			await this._operations[i].redo();
+		try {
+			for (let i = 0; i < this._operations.length; i++) {
+				await this._operations[i].redo();
+			}
+			this._postUndoRedo(this._resultAlternativeVersionId);
+			this._pauseableEmitter.fire({
+				rawEvents: [],
+				synchronous: undefined,
+				versionId: this.textModel.versionId,
+				endSelectionState: this._resultSelectionState
+			});
+		} finally {
+			this._pauseableEmitter.resume();
 		}
-		this._postUndoRedo(this._resultAlternativeVersionId);
-		this._pauseableEmitter.fire({
-			rawEvents: [],
-			synchronous: undefined,
-			versionId: this.textModel.versionId,
-			endSelectionState: this._resultSelectionState
-		});
-		this._pauseableEmitter.resume();
 
 	}
 }
@@ -527,8 +533,8 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 				// Broadcast changes
 				this._pauseableEmitter.fire({ rawEvents: [], versionId: this.versionId, synchronous: synchronous, endSelectionState: endSelections });
-				this._pauseableEmitter.resume();
 			}
+			this._pauseableEmitter.resume();
 		}
 	}
 

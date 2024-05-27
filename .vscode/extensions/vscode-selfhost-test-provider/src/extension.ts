@@ -25,7 +25,7 @@ const TEST_FILE_PATTERN = 'src/vs/**/*.{test,integrationTest}.ts';
 
 const getWorkspaceFolderForTestFile = (uri: vscode.Uri) =>
 	(uri.path.endsWith('.test.ts') || uri.path.endsWith('.integrationTest.ts')) &&
-	uri.path.includes('/src/vs/')
+		uri.path.includes('/src/vs/')
 		? vscode.workspace.getWorkspaceFolder(uri)
 		: undefined;
 
@@ -41,6 +41,17 @@ export async function activate(context: vscode.ExtensionContext) {
 	const ctrl = vscode.tests.createTestController('selfhost-test-controller', 'VS Code Tests');
 	const fileChangedEmitter = new vscode.EventEmitter<FileChangeEvent>();
 
+	context.subscriptions.push(vscode.tests.registerTestFollowupProvider({
+		async provideFollowup(_result, test, taskIndex, messageIndex, _token) {
+			return [{
+				title: '$(sparkle) Ask copilot for help',
+				command: 'github.copilot.tests.fixTestFailure',
+				arguments: [{ source: 'peekFollowup', test, message: test.taskStates[taskIndex].messages[messageIndex] }]
+			}];
+		},
+	}));
+
+
 	ctrl.resolveHandler = async test => {
 		if (!test) {
 			context.subscriptions.push(await startWatchingWorkspace(ctrl, fileChangedEmitter));
@@ -55,10 +66,14 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 	};
 
-	let startedTrackingFailures = false;
+	guessWorkspaceFolder().then(folder => {
+		if (folder) {
+			context.subscriptions.push(new FailureTracker(context, folder.uri.fsPath));
+		}
+	});
 
 	const createRunHandler = (
-		runnerCtor: { new (folder: vscode.WorkspaceFolder): VSCodeTestRunner },
+		runnerCtor: { new(folder: vscode.WorkspaceFolder): VSCodeTestRunner },
 		kind: vscode.TestRunProfileKind,
 		args: string[] = []
 	) => {
@@ -69,11 +84,6 @@ export async function activate(context: vscode.ExtensionContext) {
 			const folder = await guessWorkspaceFolder();
 			if (!folder) {
 				return;
-			}
-
-			if (!startedTrackingFailures) {
-				startedTrackingFailures = true;
-				context.subscriptions.push(new FailureTracker(folder.uri.fsPath));
 			}
 
 			const runner = new runnerCtor(folder);

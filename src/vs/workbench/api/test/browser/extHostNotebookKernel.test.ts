@@ -105,7 +105,7 @@ suite('NotebookKernel', function () {
 		});
 		extHostConsumerFileSystem = new ExtHostConsumerFileSystem(rpcProtocol, new ExtHostFileSystemInfo());
 		extHostSearch = new ExtHostSearch(rpcProtocol, new URITransformerService(null), new NullLogService());
-		extHostNotebooks = new ExtHostNotebookController(rpcProtocol, extHostCommands, extHostDocumentsAndEditors, extHostDocuments, extHostConsumerFileSystem, extHostSearch);
+		extHostNotebooks = new ExtHostNotebookController(rpcProtocol, extHostCommands, extHostDocumentsAndEditors, extHostDocuments, extHostConsumerFileSystem, extHostSearch, new NullLogService());
 
 		extHostNotebookDocuments = new ExtHostNotebookDocuments(extHostNotebooks);
 
