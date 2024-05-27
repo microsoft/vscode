@@ -332,10 +332,6 @@
 		"fullLicenseTextUri": "https://raw.githubusercontent.com/rodrimati1992/const_format_crates/b2207af46bfbd9f1a6bd12dbffd10feeea3d9fd7/LICENSE-ZLIB.md"
 	},
 	{ // License is MIT/Apache and tool doesn't look in subfolders
-		"name": "toml",
-		"fullLicenseTextUri": "https://raw.githubusercontent.com/toml-rs/toml/main/crates/toml/LICENSE-MIT"
-	},
-	{ // License is MIT/Apache and tool doesn't look in subfolders
 		"name": "toml_edit",
 		"fullLicenseTextUri": "https://raw.githubusercontent.com/toml-rs/toml/main/crates/toml_edit/LICENSE-MIT"
 	},
@@ -346,6 +342,10 @@
 	{ // License is MIT/Apache and tool doesn't look in subfolders
 		"name": "dirs-sys-next",
 		"fullLicenseTextUri": "https://raw.githubusercontent.com/xdg-rs/dirs/master/dirs-sys/LICENSE-MIT"
+	},
+	{ // License is MIT/Apache and gitlab API doesn't find the project
+		"name": "libredox",
+		"fullLicenseTextUri": "https://gitlab.redox-os.org/redox-os/libredox/-/raw/master/LICENSE"
 	},
 	{
 		"name": "https-proxy-agent",
