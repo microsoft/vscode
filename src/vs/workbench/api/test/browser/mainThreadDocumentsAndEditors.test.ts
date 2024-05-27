@@ -14,7 +14,6 @@ import { ExtHostDocumentsAndEditorsShape, IDocumentsAndEditorsDelta } from 'vs/w
 import { createTestCodeEditor, ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { mock } from 'vs/base/test/common/mock';
 import { TestEditorService, TestEditorGroupsService, TestEnvironmentService, TestPathService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestFileService } from 'vs/platform/files/test/browser/workbenchTestServices';
 import { Event } from 'vs/base/common/event';
 import { ITextModel } from 'vs/editor/common/model';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -33,7 +32,7 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import { LanguageService } from 'vs/editor/common/services/languageService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { TestTreeSitterTokenizationService } from 'vs/editor/test/browser/services/testTreeSitterService';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 
 suite('MainThreadDocumentsAndEditors', () => {
 
@@ -69,9 +68,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 			undoRedoService,
 			disposables.add(new LanguageService()),
 			new TestLanguageConfigurationService(),
-			new TestFileService(),
-			new TestThemeService(),
-			new TestTreeSitterTokenizationService()
+			new TestInstantiationService()
 		);
 		codeEditorService = new TestCodeEditorService(themeService);
 		textFileService = new class extends mock<ITextFileService>() {

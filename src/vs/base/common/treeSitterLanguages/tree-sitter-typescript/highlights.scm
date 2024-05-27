@@ -1,4 +1,3 @@
-; Variables
-
 (identifier) @variable
 
+(comment) @comment

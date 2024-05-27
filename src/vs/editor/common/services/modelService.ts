@@ -24,9 +24,7 @@ import { isEditStackElement } from 'vs/editor/common/model/editStack';
 import { Schemas } from 'vs/base/common/network';
 import { equals } from 'vs/base/common/objects';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { IFileService } from 'vs/platform/files/common/files';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ITreeSitterTokenizationService } from 'vs/editor/common/services/treeSitterTokenizationFeature';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -112,9 +110,7 @@ export class ModelService extends Disposable implements IModelService {
 		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
-		@IFileService private readonly _fileService: IFileService,
-		@IThemeService private readonly _themeService: IThemeService,
-		@ITreeSitterTokenizationService private readonly _treeSitterService: ITreeSitterTokenizationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
 		this._modelCreationOptionsByLanguageAndResource = Object.create(null);
@@ -328,10 +324,7 @@ export class ModelService extends Disposable implements IModelService {
 			this._undoRedoService,
 			this._languageService,
 			this._languageConfigurationService,
-			this._configurationService,
-			this._fileService,
-			this._themeService,
-			this._treeSitterService
+			this._instantiationService
 		);
 		if (resource && this._disposedModels.has(MODEL_ID(resource))) {
 			const disposedModelData = this._removeDisposedModel(resource)!;

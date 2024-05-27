@@ -22,7 +22,7 @@ import { TextModelPart } from 'vs/editor/common/model/textModelPart';
 import { DefaultBackgroundTokenizer, TokenizerWithStateStoreAndTextModel, TrackingTokenizationStateStore } from 'vs/editor/common/model/textModelTokens';
 import { AbstractTokens, AttachedViews } from 'vs/editor/common/model/tokens';
 import { TreeSitterTokens } from 'vs/editor/common/model/treeSitterTokens';
-import { ITreeSitterTokenizationService } from 'vs/editor/common/services/treeSitterTokenizationFeature';
+import { ITreeSitterParserService } from 'vs/editor/common/services/treeSitterParserService';
 import { IModelContentChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
 import { BackgroundTokenizationState, ITokenizationTextModelPart } from 'vs/editor/common/tokenizationTextModelPart';
 import { ContiguousMultilineTokens } from 'vs/editor/common/tokens/contiguousMultilineTokens';
@@ -59,10 +59,10 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		private readonly _bracketPairsTextModelPart: BracketPairsTextModelPart,
 		private _languageId: string,
 		private readonly _attachedViews: AttachedViews,
-		private readonly _configurationService: IConfigurationService,
-		private readonly _fileService: IFileService,
-		private readonly _themeService: IThemeService,
-		private readonly _treeSitterService: ITreeSitterTokenizationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IFileService private readonly _fileService: IFileService,
+		@IThemeService private readonly _themeService: IThemeService,
+		@ITreeSitterParserService private readonly _treeSitterService: ITreeSitterParserService,
 	) {
 		super();
 

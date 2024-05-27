@@ -58,7 +58,7 @@ import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/wo
 import { TestEditorGroupsService, TestEditorService, TestEnvironmentService, TestLifecycleService, TestWorkingCopyService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestContextService, TestTextResourcePropertiesService } from 'vs/workbench/test/common/workbenchTestServices';
 import { TestFileService } from 'vs/platform/files/test/browser/workbenchTestServices';
-import { TestTreeSitterTokenizationService } from 'vs/editor/test/browser/services/testTreeSitterService';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 
 suite('MainThreadEditors', () => {
 
@@ -94,9 +94,7 @@ suite('MainThreadEditors', () => {
 			undoRedoService,
 			disposables.add(new LanguageService()),
 			new TestLanguageConfigurationService(),
-			new TestFileService(),
-			new TestThemeService(),
-			new TestTreeSitterTokenizationService()
+			new TestInstantiationService()
 		);
 
 		const services = new ServiceCollection();
