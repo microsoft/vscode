@@ -575,7 +575,7 @@ function isStartOrEndInString(model: ITextModel, range: Range): boolean {
 	const isPositionInString = (position: Position): boolean => {
 		const tokenType = getStandardTokenTypeAtPosition(model, position);
 		return tokenType === StandardTokenType.String;
-	}
+	};
 
 	// Main code
 	return isPositionInString(range.getStartPosition()) || isPositionInString(range.getEndPosition());

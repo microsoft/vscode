@@ -18,6 +18,10 @@ import { IRange } from 'vs/editor/common/core/range';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { trimTrailingWhitespace } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
 import { execSync } from 'child_process';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { EncodedTokenizationResult, IState, ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/languages';
+import { NullState } from 'vs/editor/common/languages/nullTokenize';
+import { MetadataConsts, StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 
 function getIRange(range: IRange): IRange {
 	return {
@@ -32,7 +36,16 @@ const enum LanguageId {
 	TypeScript = 'ts-test'
 }
 
-function registerLanguage(languageConfigurationService: ILanguageConfigurationService, languageId: LanguageId): IDisposable {
+function registerLanguage(instantiationService: TestInstantiationService, languageId: LanguageId): IDisposable {
+	const disposables = new DisposableStore();
+	const languageService = instantiationService.get(ILanguageService);
+	disposables.add(registerLanguageConfiguration(instantiationService, languageId));
+	disposables.add(languageService.registerLanguage({ id: languageId }));
+	return disposables;
+}
+
+function registerLanguageConfiguration(instantiationService: TestInstantiationService, languageId: LanguageId): IDisposable {
+	const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
 	let configPath: string;
 	switch (languageId) {
 		case LanguageId.TypeScript:
@@ -47,6 +60,35 @@ function registerLanguage(languageConfigurationService: ILanguageConfigurationSe
 	return languageConfigurationService.register(languageId, languageConfig);
 }
 
+interface StandardTokenTypeData {
+	startIndex: number;
+	standardTokenType: StandardTokenType;
+}
+
+function registerTokenizationSupport(instantiationService: TestInstantiationService, tokens: StandardTokenTypeData[][], languageId: LanguageId): IDisposable {
+	let lineIndex = 0;
+	const languageService = instantiationService.get(ILanguageService);
+	const tokenizationSupport: ITokenizationSupport = {
+		getInitialState: () => NullState,
+		tokenize: undefined!,
+		tokenizeEncoded: (line: string, hasEOL: boolean, state: IState): EncodedTokenizationResult => {
+			const tokensOnLine = tokens[lineIndex++];
+			const encodedLanguageId = languageService.languageIdCodec.encodeLanguageId(languageId);
+			const result = new Uint32Array(2 * tokensOnLine.length);
+			for (let i = 0; i < tokensOnLine.length; i++) {
+				result[2 * i] = tokensOnLine[i].startIndex;
+				result[2 * i + 1] =
+					(
+						(encodedLanguageId << MetadataConsts.LANGUAGEID_OFFSET)
+						| (tokensOnLine[i].standardTokenType << MetadataConsts.TOKEN_TYPE_OFFSET)
+					);
+			}
+			return new EncodedTokenizationResult(result, state);
+		}
+	};
+	return TokenizationRegistry.register(languageId, tokenizationSupport);
+}
+
 suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 
 	const languageId = LanguageId.TypeScript;
@@ -59,7 +101,7 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 		disposables = new DisposableStore();
 		instantiationService = createModelServices(disposables);
 		languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
-		disposables.add(registerLanguage(languageConfigurationService, languageId));
+		disposables.add(registerLanguage(instantiationService, languageId));
 	});
 
 	teardown(() => {
@@ -288,6 +330,42 @@ suite('Auto-Reindentation - TypeScript/JavaScript', () => {
 			'};',
 		].join('\n');
 		const model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
+		const editOperations = getReindentEditOperations(model, languageConfigurationService, 1, model.getLineCount());
+		assert.deepStrictEqual(editOperations.length, 0);
+	});
+
+	test('Issue #209859: do not do reindentation for tokens inside of a string', () => {
+
+		// issue: https://github.com/microsoft/vscode/issues/209859
+
+		const tokens: StandardTokenTypeData[][] = [
+			[
+				{ startIndex: 0, standardTokenType: StandardTokenType.Other },
+				{ startIndex: 12, standardTokenType: StandardTokenType.String },
+			],
+			[
+				{ startIndex: 0, standardTokenType: StandardTokenType.String },
+			],
+			[
+				{ startIndex: 0, standardTokenType: StandardTokenType.String },
+			],
+			[
+				{ startIndex: 0, standardTokenType: StandardTokenType.String },
+			]
+		];
+		disposables.add(registerTokenizationSupport(instantiationService, tokens, languageId));
+		const fileContents = [
+			'const foo = `some text',
+			'         which is strangely',
+			'    indented. It should',
+			'   not be reindented.`'
+		].join('\n');
+		const model = disposables.add(instantiateTextModel(instantiationService, fileContents, languageId, options));
+		model.tokenization.forceTokenization(1);
+		model.tokenization.forceTokenization(2);
+		model.tokenization.forceTokenization(3);
+		model.tokenization.forceTokenization(4);
+
 		const editOperations = getReindentEditOperations(model, languageConfigurationService, 1, model.getLineCount());
 		assert.deepStrictEqual(editOperations.length, 0);
 	});
