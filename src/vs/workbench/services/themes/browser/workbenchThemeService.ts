@@ -39,7 +39,7 @@ import { IHostColorSchemeService } from 'vs/workbench/services/themes/common/hos
 import { RunOnceScheduler, Sequencer } from 'vs/base/common/async';
 import { IUserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
 import { getIconsStyleSheet } from 'vs/platform/theme/browser/iconsStyleSheet';
-import { asCssVariableName, getColorRegistry, setTheme } from 'vs/platform/theme/common/colorRegistry';
+import { asCssVariableName, getColorRegistry } from 'vs/platform/theme/common/colorRegistry';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { mainWindow } from 'vs/base/browser/window';
 
@@ -135,6 +135,9 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		this.onProductIconThemeChange = new Emitter<IWorkbenchProductIconTheme>();
 		this.currentProductIconTheme = ProductIconThemeData.createUnloadedTheme('');
 		this.productIconThemeSequencer = new Sequencer();
+
+		this.onColorThemeChange.event
+		this._register(this.onDidColorThemeChange(this.handleColorThemeChange, this));
 
 		// In order to avoid paint flashing for tokens, because
 		// themes are loaded asynchronously, we need to initialize
@@ -243,6 +246,10 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 
 
 		return Promise.all([initializeColorTheme(), initializeFileIconTheme(), initializeProductIconTheme()]);
+	}
+
+	private handleColorThemeChange(theme: IColorTheme) {
+		getColorRegistry().notifyThemeUpdate(theme)
 	}
 
 	private installConfigurationListener() {
@@ -486,7 +493,6 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 	}
 
 	private applyTheme(newTheme: ColorThemeData, settingsTarget: ThemeSettingTarget, silent = false): Promise<IWorkbenchColorTheme | null> {
-		setTheme(newTheme)
 		this.updateDynamicCSSRules(newTheme);
 
 		if (this.currentColorTheme.id) {
