@@ -559,6 +559,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 	test('issue #209859: do not do change indentation when pasted inside of a string', () => {
 
 		// issue: https://github.com/microsoft/vscode/issues/209859
+		// issue: https://github.com/microsoft/vscode/issues/209418
 
 		const initialText = [
 			'const foo = "some text',
