@@ -3074,7 +3074,7 @@ export interface IEditorMinimapOptions {
 	/**
 	 * Spacing between the section header characters (in CSS px). Defaults to 1.
 	 */
-	sectionHeaderLetterSpacing?: number
+	sectionHeaderLetterSpacing?: number;
 }
 
 /**
@@ -3170,9 +3170,6 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 				},
 				'editor.minimap.sectionHeaderLetterSpacing': {
 					type: 'number',
-					minimum: 0,
-					maximum: 5,
-					enum: [0, 1, 2, 3, 4, 5],
 					default: defaults.sectionHeaderLetterSpacing,
 					description: nls.localize('minimap.sectionHeaderLetterSpacing', "Controls the amount of space (in pixels) between characters of section header. This helps the readability of the header in small font sizes.")
 				}
@@ -3197,7 +3194,7 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 			showRegionSectionHeaders: boolean(input.showRegionSectionHeaders, this.defaultValue.showRegionSectionHeaders),
 			showMarkSectionHeaders: boolean(input.showMarkSectionHeaders, this.defaultValue.showMarkSectionHeaders),
 			sectionHeaderFontSize: EditorFloatOption.clamp(input.sectionHeaderFontSize ?? this.defaultValue.sectionHeaderFontSize, 4, 32),
-			sectionHeaderLetterSpacing: EditorIntOption.clampedInt(input.sectionHeaderLetterSpacing, this.defaultValue.sectionHeaderLetterSpacing, 0, 5),
+			sectionHeaderLetterSpacing: EditorFloatOption.clamp(input.sectionHeaderLetterSpacing ?? this.defaultValue.sectionHeaderLetterSpacing, 0, 5),
 		};
 	}
 }

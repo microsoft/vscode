@@ -143,7 +143,7 @@ class MinimapOptions {
 		this.minimapCharWidth = Constants.BASE_CHAR_WIDTH * this.fontScale;
 		this.sectionHeaderFontFamily = DEFAULT_FONT_FAMILY;
 		this.sectionHeaderFontSize = minimapOpts.sectionHeaderFontSize * pixelRatio;
-		this.sectionHeaderLetterSpacing = minimapOpts.sectionHeaderLetterSpacing * pixelRatio;
+		this.sectionHeaderLetterSpacing = minimapOpts.sectionHeaderLetterSpacing; // intentionally not multiplying by pixelRatio
 		this.sectionHeaderFontColor = MinimapOptions._getSectionHeaderColor(theme, tokensColorTracker.getColor(ColorId.DefaultForeground));
 
 		this.charRenderer = createSingleCallFunction(() => MinimapCharRendererFactory.create(this.fontScale, fontInfo.fontFamily));
@@ -201,6 +201,7 @@ class MinimapOptions {
 			&& this.minimapLineHeight === other.minimapLineHeight
 			&& this.minimapCharWidth === other.minimapCharWidth
 			&& this.sectionHeaderFontSize === other.sectionHeaderFontSize
+			&& this.sectionHeaderLetterSpacing === other.sectionHeaderLetterSpacing
 			&& this.defaultBackgroundColor && this.defaultBackgroundColor.equals(other.defaultBackgroundColor)
 			&& this.backgroundColor && this.backgroundColor.equals(other.backgroundColor)
 			&& this.foregroundAlpha === other.foregroundAlpha
@@ -1827,13 +1828,11 @@ class InnerMinimap extends Disposable {
 				decoration.options.minimap?.sectionHeaderStyle === MinimapSectionHeaderStyle.Underlined,
 				backgroundFill,
 				foregroundFill,
-				sectionHeaderLetterSpacing,
 				canvasInnerWidth,
 				backgroundFillY,
 				backgroundFillHeight,
 				y,
-				separatorY,
-			);
+				separatorY);
 		}
 	}
 
@@ -1875,14 +1874,12 @@ class InnerMinimap extends Disposable {
 		hasSeparatorLine: boolean,
 		backgroundFill: string,
 		foregroundFill: string,
-		letterSpacing: number,
 		minimapWidth: number,
 		backgroundFillY: number,
 		backgroundFillHeight: number,
 		textY: number,
 		separatorY: number
 	): void {
-
 		if (headerText) {
 			target.fillStyle = backgroundFill;
 			target.fillRect(0, backgroundFillY, minimapWidth, backgroundFillHeight);
