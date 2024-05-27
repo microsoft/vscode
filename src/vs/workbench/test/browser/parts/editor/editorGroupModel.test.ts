@@ -108,6 +108,7 @@ suite('EditorGroupModel', () => {
 		unpinned: IGroupEditorChangeEvent[];
 		sticky: IGroupEditorChangeEvent[];
 		unsticky: IGroupEditorChangeEvent[];
+		transient: IGroupEditorChangeEvent[];
 		moved: IGroupEditorMoveEvent[];
 		disposed: IGroupEditorChangeEvent[];
 	}
@@ -125,6 +126,7 @@ suite('EditorGroupModel', () => {
 			unpinned: [],
 			sticky: [],
 			unsticky: [],
+			transient: [],
 			moved: [],
 			disposed: []
 		};
@@ -170,6 +172,11 @@ suite('EditorGroupModel', () => {
 				case GroupModelChangeKind.EDITOR_STICKY:
 					if (isGroupEditorChangeEvent(e)) {
 						group.isSticky(e.editor) ? groupEvents.sticky.push(e) : groupEvents.unsticky.push(e);
+					}
+					break;
+				case GroupModelChangeKind.EDITOR_TRANSIENT:
+					if (isGroupEditorChangeEvent(e)) {
+						groupEvents.transient.push(e);
 					}
 					break;
 				case GroupModelChangeKind.EDITOR_MOVE:
@@ -2033,6 +2040,8 @@ suite('EditorGroupModel', () => {
 		// Stick last editor should move it first and pin
 		group.stick(input3);
 		assert.strictEqual(group.stickyCount, 1);
+		assert.strictEqual(group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE, { excludeSticky: true }).length, 2);
+		assert.strictEqual(group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE, { excludeSticky: false }).length, 3);
 		assert.strictEqual(group.isSticky(input1), false);
 		assert.strictEqual(group.isSticky(input2), false);
 		assert.strictEqual(group.isSticky(input3), true);
@@ -2565,6 +2574,31 @@ suite('EditorGroupModel', () => {
 		assert.strictEqual(group.isSelected(input1), true);
 		assert.strictEqual(group.isSelected(input1), true);
 		assert.strictEqual(group.isSelected(input2), false);
+	});
+
+	test('editor transient: basics', () => {
+		const group = createEditorGroupModel();
+		const events = groupListener(group);
+
+		const input1 = input();
+		const input2 = input();
+		group.openEditor(input1, { pinned: true, active: true });
+
+		assert.strictEqual(group.isTransient(input1), false);
+		assert.strictEqual(events.transient.length, 0);
+
+		group.openEditor(input2, { pinned: true, active: true, transient: true });
+		assert.strictEqual(events.transient[0].editor, input2);
+
+		assert.strictEqual(group.isTransient(input2), true);
+
+		group.setTransient(input1, true);
+		assert.strictEqual(group.isTransient(input1), true);
+		assert.strictEqual(events.transient[1].editor, input1);
+
+		group.setTransient(input2, false);
+		assert.strictEqual(group.isTransient(input2), false);
+		assert.strictEqual(events.transient[2].editor, input2);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
