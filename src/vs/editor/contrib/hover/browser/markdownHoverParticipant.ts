@@ -191,8 +191,20 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		return this._renderedHoverParts;
 	}
 
-	public updateFocusedMarkdownHoverPartVerbosityLevel(action: HoverVerbosityAction) {
-		this._renderedHoverParts?.updateFocusedHoverPartVerbosityLevel(action);
+	public markdownHoverContentAtIndex(index: number): string {
+		return this._renderedHoverParts?.markdownHoverContentAtIndex(index) ?? '';
+	}
+
+	public focusedMarkdownHoverIndex(): number {
+		return this._renderedHoverParts?.focusedMarkdownHoverIndex() ?? 1;
+	}
+
+	public doesMarkdownHoverAtIndexSupportVerbosityAction(index: number, action: HoverVerbosityAction): boolean {
+		return this._renderedHoverParts?.doesMarkdownHoverAtIndexSupportVerbosityAction(index, action) ?? false;
+	}
+
+	public updateMarkdownHoverVerbosityLevel(action: HoverVerbosityAction, index?: number, focus?: boolean) {
+		this._renderedHoverParts?.updateMarkdownHoverPartVerbosityLevel(action, index, focus);
 	}
 }
 
@@ -202,16 +214,10 @@ interface RenderedHoverPart {
 	hoverSource?: HoverSource;
 }
 
-interface FocusedHoverInfo {
-	hoverPartIndex: number;
-	// TODO@aiday-mar is this needed?
-	focusRemains: boolean;
-}
-
 class MarkdownRenderedHoverParts extends Disposable {
 
 	private _renderedHoverParts: RenderedHoverPart[];
-	private _hoverFocusInfo: FocusedHoverInfo = { hoverPartIndex: -1, focusRemains: false };
+	private _focusedHoverPartIndex: number = -1;
 	private _ongoingHoverOperations: Map<HoverProvider, { verbosityDelta: number; tokenSource: CancellationTokenSource }> = new Map();
 
 	constructor(
@@ -281,18 +287,13 @@ class MarkdownRenderedHoverParts extends Disposable {
 		disposables.add(this._renderHoverExpansionAction(actionsContainer, HoverVerbosityAction.Increase, canIncreaseVerbosity));
 		disposables.add(this._renderHoverExpansionAction(actionsContainer, HoverVerbosityAction.Decrease, canDecreaseVerbosity));
 
-		const focusTracker = disposables.add(dom.trackFocus(renderedMarkdown));
-		disposables.add(focusTracker.onDidFocus(() => {
-			this._hoverFocusInfo = {
-				hoverPartIndex,
-				focusRemains: true
-			};
+		this._register(dom.addDisposableListener(renderedMarkdown, dom.EventType.FOCUS_IN, (event: Event) => {
+			event.stopPropagation();
+			this._focusedHoverPartIndex = hoverPartIndex;
 		}));
-		disposables.add(focusTracker.onDidBlur(() => {
-			if (this._hoverFocusInfo?.focusRemains) {
-				this._hoverFocusInfo.focusRemains = false;
-				return;
-			}
+		this._register(dom.addDisposableListener(renderedMarkdown, dom.EventType.FOCUS_OUT, (event: Event) => {
+			event.stopPropagation();
+			this._focusedHoverPartIndex = -1;
 		}));
 		return { renderedMarkdown, disposables, hoverSource };
 	}
@@ -339,19 +340,19 @@ class MarkdownRenderedHoverParts extends Disposable {
 			return store;
 		}
 		actionElement.classList.add('enabled');
-		const actionFunction = () => this.updateFocusedHoverPartVerbosityLevel(action);
+		const actionFunction = () => this.updateMarkdownHoverPartVerbosityLevel(action);
 		store.add(new ClickAction(actionElement, actionFunction));
 		store.add(new KeyDownAction(actionElement, actionFunction, [KeyCode.Enter, KeyCode.Space]));
 		return store;
 	}
 
-	public async updateFocusedHoverPartVerbosityLevel(action: HoverVerbosityAction): Promise<void> {
+	public async updateMarkdownHoverPartVerbosityLevel(action: HoverVerbosityAction, index: number = -1, focus: boolean = true): Promise<void> {
 		const model = this._editor.getModel();
 		if (!model) {
 			return;
 		}
-		const hoverFocusedPartIndex = this._hoverFocusInfo.hoverPartIndex;
-		const hoverRenderedPart = this._getRenderedHoverPartAtIndex(hoverFocusedPartIndex);
+		const indexOfInterest = index !== -1 ? index : this._focusedHoverPartIndex;
+		const hoverRenderedPart = this._getRenderedHoverPartAtIndex(indexOfInterest);
 		if (!hoverRenderedPart || !hoverRenderedPart.hoverSource?.supportsVerbosityAction(action)) {
 			return;
 		}
@@ -362,14 +363,33 @@ class MarkdownRenderedHoverParts extends Disposable {
 		}
 		const newHoverSource = new HoverSource(newHover, hoverSource.hoverProvider, hoverSource.hoverPosition);
 		const newHoverRenderedPart = this._renderHoverPart(
-			hoverFocusedPartIndex,
+			indexOfInterest,
 			newHover.contents,
 			newHoverSource,
 			this._onFinishedRendering
 		);
-		this._replaceRenderedHoverPartAtIndex(hoverFocusedPartIndex, newHoverRenderedPart);
-		this._focusOnHoverPartWithIndex(hoverFocusedPartIndex);
+		this._replaceRenderedHoverPartAtIndex(indexOfInterest, newHoverRenderedPart);
+		if (focus) {
+			this._focusOnHoverPartWithIndex(indexOfInterest);
+		}
 		this._onFinishedRendering();
+	}
+
+	public markdownHoverContentAtIndex(index: number): string {
+		const hoverRenderedPart = this._getRenderedHoverPartAtIndex(index);
+		return hoverRenderedPart?.renderedMarkdown.innerText ?? '';
+	}
+
+	public focusedMarkdownHoverIndex(): number {
+		return this._focusedHoverPartIndex;
+	}
+
+	public doesMarkdownHoverAtIndexSupportVerbosityAction(index: number, action: HoverVerbosityAction): boolean {
+		const hoverRenderedPart = this._getRenderedHoverPartAtIndex(index);
+		if (!hoverRenderedPart || !hoverRenderedPart.hoverSource?.supportsVerbosityAction(action)) {
+			return false;
+		}
+		return true;
 	}
 
 	private async _fetchHover(hoverSource: HoverSource, model: ITextModel, action: HoverVerbosityAction): Promise<Hover | null | undefined> {
@@ -407,7 +427,6 @@ class MarkdownRenderedHoverParts extends Disposable {
 
 	private _focusOnHoverPartWithIndex(index: number): void {
 		this._renderedHoverParts[index].renderedMarkdown.focus();
-		this._hoverFocusInfo.focusRemains = true;
 	}
 
 	private _getRenderedHoverPartAtIndex(index: number): RenderedHoverPart | undefined {
