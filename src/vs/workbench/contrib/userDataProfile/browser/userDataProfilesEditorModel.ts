@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Action, IAction, Separator } from 'vs/base/common/actions';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -36,15 +36,6 @@ export type ChangeEvent = {
 	readonly copyFrom?: boolean;
 	readonly copyFlags?: boolean;
 };
-
-export interface IProfileElement {
-	readonly onDidChange?: Event<ChangeEvent>;
-	readonly name: string;
-	readonly icon?: string;
-	readonly flags?: UseDefaultProfileFlags;
-	readonly active?: boolean;
-	readonly message?: string;
-}
 
 export abstract class AbstractUserDataProfileElement extends Disposable {
 
@@ -177,15 +168,17 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 	}
 
 	abstract readonly primaryAction?: Action;
+	abstract readonly secondaryAction?: Action;
 	abstract readonly titleActions: [IAction[], IAction[]];
 	abstract readonly contextMenuActions: IAction[];
 }
 
-export class UserDataProfileElement extends AbstractUserDataProfileElement implements IProfileElement {
+export class UserDataProfileElement extends AbstractUserDataProfileElement {
 
 	get profile(): IUserDataProfile { return this._profile; }
 
 	readonly primaryAction = undefined;
+	readonly secondaryAction = undefined;
 
 	private readonly saveScheduler = this._register(new RunOnceScheduler(() => this.doSave(), 500));
 
@@ -269,12 +262,13 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement imple
 
 const USER_DATA_PROFILE_TEMPLATE_PREVIEW_SCHEME = 'userdataprofiletemplatepreview';
 
-export class NewProfileElement extends AbstractUserDataProfileElement implements IProfileElement {
+export class NewProfileElement extends AbstractUserDataProfileElement {
 
 	constructor(
 		name: string,
 		copyFrom: URI | IUserDataProfile | undefined,
 		readonly primaryAction: Action,
+		readonly secondaryAction: Action,
 		readonly titleActions: [IAction[], IAction[]],
 		readonly contextMenuActions: Action[],
 		@IFileService private readonly fileService: IFileService,
@@ -492,19 +486,20 @@ export class UserDataProfilesEditorModel extends EditorModel {
 		return [profileElement, disposables];
 	}
 
-	createNewProfile(copyFrom?: URI | IUserDataProfile): IProfileElement {
+	createNewProfile(copyFrom?: URI | IUserDataProfile): AbstractUserDataProfileElement {
 		if (!this.newProfileElement) {
 			const disposables = new DisposableStore();
-			const discardAction = disposables.add(new Action('userDataProfile.discard', localize('discard', "Discard"), ThemeIcon.asClassName(Codicon.close), true, () => {
+			const cancelAction = disposables.add(new Action('userDataProfile.cancel', localize('cancel', "Cancel"), ThemeIcon.asClassName(Codicon.close), true, () => {
 				this.removeNewProfile();
 				this._onDidChange.fire(undefined);
 			}));
 			this.newProfileElement = disposables.add(this.instantiationService.createInstance(NewProfileElement,
 				localize('untitled', "Untitled"),
 				copyFrom,
-				disposables.add(new Action('userDataProfile.create', localize('create', "Create & Apply"), undefined, true, () => this.saveNewProfile())),
-				[[discardAction], []],
-				[discardAction],
+				disposables.add(new Action('userDataProfile.create', localize('create', "Create"), undefined, true, () => this.saveNewProfile())),
+				cancelAction,
+				[[], []],
+				[],
 			));
 			this._profiles.push([this.newProfileElement, disposables]);
 			this._onDidChange.fire(this.newProfileElement);
