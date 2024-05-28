@@ -26,9 +26,9 @@ import { Button, ButtonWithDropdown } from 'vs/base/browser/ui/button/button';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { PANEL_BORDER } from 'vs/workbench/common/theme';
-import { WorkbenchAsyncDataTree, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IAsyncDataSource, IObjectTreeElement, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
+import { WorkbenchAsyncDataTree, WorkbenchList } from 'vs/platform/list/browser/listService';
+import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { IAsyncDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
@@ -68,7 +68,7 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 
 	private container: HTMLElement | undefined;
 	private splitView: SplitView<number> | undefined;
-	private profilesTree: WorkbenchObjectTree<AbstractUserDataProfileElement> | undefined;
+	private profilesList: WorkbenchList<AbstractUserDataProfileElement> | undefined;
 	private profileWidget: ProfileWidget | undefined;
 
 	private model: UserDataProfilesEditorModel | undefined;
@@ -120,10 +120,10 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 			maximumSize: 350,
 			layout: (width, _, height) => {
 				sidebarView.style.width = `${width}px`;
-				if (height && this.profilesTree) {
-					const treeHeight = height - 40 /* new profile button */ - 10 /* padding */;
-					this.profilesTree.getHTMLElement().style.height = `${treeHeight}px`;
-					this.profilesTree.layout(treeHeight, width);
+				if (height && this.profilesList) {
+					const listHeight = height - 40 /* new profile button */ - 10 /* padding */;
+					this.profilesList.getHTMLElement().style.height = `${listHeight}px`;
+					this.profilesList.layout(listHeight, width);
 				}
 			}
 		}, 300, undefined, true);
@@ -155,11 +155,11 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 		// render New Profile Button
 		this.renderNewProfileButton(append(parent, $('.new-profile-button')));
 
-		// render profiles and templates tree
-		const renderer = this.instantiationService.createInstance(ProfileTreeElementRenderer);
-		const delegate = new ProfileTreeElementDelegate();
-		this.profilesTree = this._register(this.instantiationService.createInstance(WorkbenchObjectTree<AbstractUserDataProfileElement>, 'ProfilesTree',
-			append(parent, $('.profiles-tree')),
+		// render profiles list
+		const renderer = this.instantiationService.createInstance(ProfileElementRenderer);
+		const delegate = new ProfileElementDelegate();
+		this.profilesList = this._register(this.instantiationService.createInstance(WorkbenchList<AbstractUserDataProfileElement>, 'ProfilesList',
+			append(parent, $('.profiles-list')),
 			delegate,
 			[renderer],
 			{
@@ -175,7 +175,6 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 					}
 				},
 				openOnSingleClick: true,
-				enableStickyScroll: false,
 				identityProvider: {
 					getId(e) {
 						if (e instanceof UserDataProfileElement) {
@@ -213,15 +212,15 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 	}
 
 	private registerListeners(): void {
-		if (this.profilesTree) {
-			this._register(this.profilesTree.onDidChangeSelection(e => {
+		if (this.profilesList) {
+			this._register(this.profilesList.onDidChangeSelection(e => {
 				const [element] = e.elements;
 				if (element instanceof AbstractUserDataProfileElement) {
 					this.profileWidget?.render(element);
 				}
 			}));
 
-			this._register(this.profilesTree.onContextMenu(e => {
+			this._register(this.profilesList.onContextMenu(e => {
 				if (e.element instanceof AbstractUserDataProfileElement) {
 					this.contextMenuService.showContextMenu({
 						getAnchor: () => e.anchor,
@@ -301,74 +300,73 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 	override async setInput(input: UserDataProfilesEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
 		this.model = await input.resolve();
-		this.updateProfilesTree();
+		this.updateProfilesList();
 		this._register(this.model.onDidChange((element) => {
-			this.updateProfilesTree(element);
+			this.updateProfilesList(element);
 		}));
 	}
 
 	override focus(): void {
 		super.focus();
-		this.profilesTree?.domFocus();
+		this.profilesList?.domFocus();
 	}
 
-	private updateProfilesTree(elementToSelect?: AbstractUserDataProfileElement): void {
+	private updateProfilesList(elementToSelect?: AbstractUserDataProfileElement): void {
 		if (!this.model) {
 			return;
 		}
-		const profileElements: IObjectTreeElement<AbstractUserDataProfileElement>[] = this.model.profiles.map(element => ({ element }));
-		const currentSelection = this.profilesTree?.getSelection()?.[0];
-		this.profilesTree?.setChildren(null, profileElements);
+		const currentSelectionIndex = this.profilesList?.getSelection()?.[0];
+		const currentSelection = currentSelectionIndex !== undefined ? this.profilesList?.element(currentSelectionIndex) : undefined;
+		this.profilesList?.splice(0, this.profilesList.length, this.model.profiles);
+
 		if (elementToSelect) {
-			this.profilesTree?.setSelection([elementToSelect]);
+			this.profilesList?.setSelection([this.model.profiles.indexOf(elementToSelect)]);
 		} else if (currentSelection) {
-			if (currentSelection instanceof AbstractUserDataProfileElement) {
-				if (!this.model.profiles.includes(currentSelection)) {
-					const elementToSelect = this.model.profiles.find(profile => profile.name === currentSelection.name) ?? this.model.profiles[0];
-					if (elementToSelect) {
-						this.profilesTree?.setSelection([elementToSelect]);
-					}
+			if (!this.model.profiles.includes(currentSelection)) {
+				const elementToSelect = this.model.profiles.find(profile => profile.name === currentSelection.name) ?? this.model.profiles[0];
+				if (elementToSelect) {
+					this.profilesList?.setSelection([this.model.profiles.indexOf(elementToSelect)]);
 				}
 			}
 		} else {
 			const elementToSelect = this.model.profiles.find(profile => profile.active) ?? this.model.profiles[0];
 			if (elementToSelect) {
-				this.profilesTree?.setSelection([elementToSelect]);
+				this.profilesList?.setSelection([this.model.profiles.indexOf(elementToSelect)]);
 			}
 		}
 	}
 
 }
 
-interface IProfileTreeElementTemplateData {
+interface IProfileElementTemplateData {
 	readonly icon: HTMLElement;
 	readonly label: HTMLElement;
 	readonly description: HTMLElement;
 	readonly disposables: DisposableStore;
 }
 
-class ProfileTreeElementDelegate implements IListVirtualDelegate<AbstractUserDataProfileElement> {
+class ProfileElementDelegate implements IListVirtualDelegate<AbstractUserDataProfileElement> {
 	getHeight(element: AbstractUserDataProfileElement) {
 		return 30;
 	}
-	getTemplateId() { return 'profileTreeElement'; }
+	getTemplateId() { return 'profileListElement'; }
 }
 
-class ProfileTreeElementRenderer implements ITreeRenderer<AbstractUserDataProfileElement, void, IProfileTreeElementTemplateData> {
+class ProfileElementRenderer implements IListRenderer<AbstractUserDataProfileElement, IProfileElementTemplateData> {
 
-	readonly templateId = 'profileTreeElement';
+	readonly templateId = 'profileListElement';
 
-	renderTemplate(container: HTMLElement): IProfileTreeElementTemplateData {
-		container.classList.add('profile-tree-item');
-		const icon = append(container, $('.profile-tree-item-icon'));
-		const label = append(container, $('.profile-tree-item-label'));
-		const description = append(container, $('.profile-tree-item-description'));
+	renderTemplate(container: HTMLElement): IProfileElementTemplateData {
+		container.classList.add('profile-list-item');
+		const icon = append(container, $('.profile-list-item-icon'));
+		const label = append(container, $('.profile-list-item-label'));
+		const description = append(container, $('.profile-list-item-description'));
 		append(description, $(`span${ThemeIcon.asCSSSelector(Codicon.check)}`));
 		append(description, $('span', undefined, localize('activeProfile', "Active")));
 		return { label, icon, description, disposables: new DisposableStore() };
 	}
 
-	renderElement({ element }: ITreeNode<AbstractUserDataProfileElement, void>, index: number, templateData: IProfileTreeElementTemplateData, height: number | undefined): void {
+	renderElement(element: AbstractUserDataProfileElement, index: number, templateData: IProfileElementTemplateData, height: number | undefined) {
 		templateData.disposables.clear();
 		templateData.label.textContent = element.name;
 		templateData.label.classList.toggle('new-profile', element instanceof NewProfileElement);
@@ -397,7 +395,7 @@ class ProfileTreeElementRenderer implements ITreeRenderer<AbstractUserDataProfil
 		}
 	}
 
-	disposeTemplate(templateData: IProfileTreeElementTemplateData): void {
+	disposeTemplate(templateData: IProfileElementTemplateData): void {
 		templateData.disposables.dispose();
 	}
 }

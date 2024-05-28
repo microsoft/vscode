@@ -42,24 +42,25 @@
 	padding: 0 4px;
 }
 
-.profiles-editor .sidebar-container .profiles-tree {
+.profiles-editor .sidebar-container .profiles-list {
 	margin-top: 10px;
 }
 
-.profiles-editor .sidebar-container .profiles-tree .profile-tree-item {
+.profiles-editor .sidebar-container .profiles-list .profile-list-item {
+	padding-left: 20px;
 	display: flex;
 	align-items: center;
 }
 
-.profiles-editor .sidebar-container .profiles-tree .profile-tree-item > * {
+.profiles-editor .sidebar-container .profiles-list .profile-list-item > * {
 	margin-right: 5px;
 }
 
-.profiles-editor .sidebar-container .profiles-tree .profile-tree-item > .profile-tree-item-label.new-profile {
+.profiles-editor .sidebar-container .profiles-list .profile-list-item > .profile-list-item-label.new-profile {
 	font-style: italic;
 }
 
-.profiles-editor .sidebar-container .profiles-tree .profile-tree-item > .profile-tree-item-description {
+.profiles-editor .sidebar-container .profiles-list .profile-list-item > .profile-list-item-description {
 	margin-left: 2px;
 	display: flex;
 	align-items: center;
@@ -87,8 +88,8 @@
 .profiles-editor .contents-container .profile-title-container .codicon {
 	cursor: pointer;
 	font-size: x-large;
-	padding: 2px;
-	margin-right: 10px;
+	padding: 7px;
+	margin-right: 4px;
 }
 
 .profiles-editor .contents-container .profile-title-container .monaco-inputbox {
