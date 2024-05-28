@@ -136,7 +136,6 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		this.currentProductIconTheme = ProductIconThemeData.createUnloadedTheme('');
 		this.productIconThemeSequencer = new Sequencer();
 
-		this.onColorThemeChange.event
 		this._register(this.onDidColorThemeChange(this.handleColorThemeChange, this));
 
 		// In order to avoid paint flashing for tokens, because
