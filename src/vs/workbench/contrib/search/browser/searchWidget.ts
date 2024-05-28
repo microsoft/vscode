@@ -204,7 +204,9 @@ export class SearchWidget extends Widget {
 				notebookOptions.isInNotebookMarkdownInput,
 				notebookOptions.isInNotebookMarkdownPreview,
 				notebookOptions.isInNotebookCellInput,
-				notebookOptions.isInNotebookCellOutput
+				notebookOptions.isInNotebookCellOutput,
+				false,
+				[]
 			));
 
 		this._register(
