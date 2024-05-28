@@ -1411,7 +1411,7 @@ registerThemingParticipant((theme, collector) => {
 	}
 	const findMatchForeground = theme.getColor(editorFindMatchForeground);
 	if (findMatchForeground) {
-		collector.addRule(`.monaco-editor .findMatchInline { color: ${editorFindMatchForeground}; }`);
+		collector.addRule(`.monaco-editor .findMatchInline { color: ${findMatchForeground}; }`);
 	}
 	const findMatchHighlightForeground = theme.getColor(editorFindMatchHighlightForeground);
 	if (findMatchHighlightForeground) {
