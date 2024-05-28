@@ -143,17 +143,10 @@ class ColorRegistry implements IColorRegistry {
 			propertySchema.pattern = '^#(?:(?<rgba>[0-9a-fA-f]{3}[0-9a-eA-E])|(?:[0-9a-fA-F]{6}(?:(?![fF]{2})(?:[0-9a-fA-F]{2}))))?$';
 			propertySchema.patternErrorMessage = 'This color must be transparent or it will obscure content';
 		}
-		const nullablePropertySchema: IJSONSchema = {
-			description,
-			oneOf: [
-				propertySchema,
-				{ type: 'null' }
-			]
-		}
 		if (deprecationMessage) {
-			nullablePropertySchema.deprecationMessage = deprecationMessage;
+			propertySchema.deprecationMessage = deprecationMessage;
 		}
-		this.colorSchema.properties[id] = nullablePropertySchema;
+		this.colorSchema.properties[id] = propertySchema;
 		this.colorReferenceSchema.enum.push(id);
 		this.colorReferenceSchema.enumDescriptions.push(description);
 
@@ -188,6 +181,26 @@ class ColorRegistry implements IColorRegistry {
 
 	public getColorSchema(): IJSONSchema {
 		return this.colorSchema;
+	}
+
+	public getNullableColorSchema(): IJSONSchema {
+		const nullableColorSchema: IJSONSchema & {
+			properties: IJSONSchemaMap;
+		} = {
+			...this.colorSchema,
+			properties: Object.fromEntries(Object.entries(this.colorSchema.properties).map(([key, value]) => {
+				return [key, {
+					...value,
+					oneOf: [
+						value,
+						{
+							type: 'null'
+						}
+					]
+				}]
+			}))
+		}
+		return nullableColorSchema;
 	}
 
 	public getColorReferenceSchema(): IJSONSchema {
@@ -327,6 +340,11 @@ export const workbenchColorsSchemaId = 'vscode://schemas/workbench-colors';
 
 const schemaRegistry = platform.Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 schemaRegistry.registerSchema(workbenchColorsSchemaId, colorRegistry.getColorSchema());
+
+export const nullableWorkbenchColorsSchemaId = 'vscode://schemas/nullable-workbench-colors';
+
+schemaRegistry.registerSchemaFunction(nullableWorkbenchColorsSchemaId, () => colorRegistry.getNullableColorSchema());
+
 
 const delayer = new RunOnceScheduler(() => schemaRegistry.notifySchemaChanged(workbenchColorsSchemaId), 200);
 colorRegistry.onDidChangeSchema(() => {
