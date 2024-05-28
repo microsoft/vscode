@@ -1415,6 +1415,6 @@ registerThemingParticipant((theme, collector) => {
 	}
 	const findMatchHighlightForeground = theme.getColor(editorFindMatchHighlightForeground);
 	if (findMatchHighlightForeground) {
-		collector.addRule(`.monaco-editor .findMatchInline { color: var(--vscode-editor-findMatchHighlightForeground); }`);
+		collector.addRule(`.monaco-editor .currentFindMatchInline { color: var(--vscode-editor-findMatchHighlightForeground); }`);
 	}
 });
