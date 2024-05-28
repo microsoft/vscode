@@ -136,7 +136,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		this.currentProductIconTheme = ProductIconThemeData.createUnloadedTheme('');
 		this.productIconThemeSequencer = new Sequencer();
 
-		this._register(this.onDidColorThemeChange(this.handleColorThemeChange, this));
+		this._register(this.onDidColorThemeChange(theme => getColorRegistry().notifyThemeUpdate(theme)));
 
 		// In order to avoid paint flashing for tokens, because
 		// themes are loaded asynchronously, we need to initialize
@@ -245,10 +245,6 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 
 
 		return Promise.all([initializeColorTheme(), initializeFileIconTheme(), initializeProductIconTheme()]);
-	}
-
-	private handleColorThemeChange(theme: IColorTheme) {
-		getColorRegistry().notifyThemeUpdate(theme)
 	}
 
 	private installConfigurationListener() {
