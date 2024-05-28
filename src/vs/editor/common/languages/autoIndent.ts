@@ -77,9 +77,6 @@ export function getInheritIndentForLine(
 	honorIntentialIndent: boolean = true,
 	languageConfigurationService: ILanguageConfigurationService
 ): { indentation: string; action: IndentAction | null; line?: number } | null {
-
-	console.log('getInheritedIndentForLine');
-
 	if (autoIndent < EditorAutoIndentStrategy.Full) {
 		return null;
 	}
@@ -401,8 +398,6 @@ export function getIndentActionForType(
 	indentConverter: IIndentConverter,
 	languageConfigurationService: ILanguageConfigurationService
 ): string | null {
-	console.log('getIndentActionForType ');
-
 	if (autoIndent < EditorAutoIndentStrategy.Full) {
 		return null;
 	}
@@ -448,26 +443,23 @@ export function getIndentActionForType(
 		return indentation;
 	}
 
-	console.log('beforeTypeText : ', beforeTypeText);
-	console.log('afterTypeText : ', afterTypeText);
-	console.log('ch : ', ch);
-
 	const previousLineNumber = range.startLineNumber - 1;
 	const previousLine = model.getLineContent(previousLineNumber);
 	const lineWithCharacter = beforeTypeText + ch + afterTypeText;
-	console.log('fullNewLine : ', lineWithCharacter);
+
+	console.log('getIndentActionForType ');
+	console.log('beforeTypeText : ', beforeTypeText);
+	console.log('afterTypeText : ', afterTypeText);
+	console.log('lineWithCharacter : ', lineWithCharacter);
+	console.log('ch : ', ch);
 
 	if (indentRulesSupport.shouldIndentNextLine(previousLine) && indentRulesSupport.shouldIncrease(lineWithCharacter)) {
 		const r = getInheritIndentForLine(autoIndent, model, range.startLineNumber, false, languageConfigurationService);
 		if (!r) {
 			return null;
 		}
-		console.log('r : ', r);
-		const indentation = r.indentation;
-		// first indents, then we want to outdent, hence we just return the initial indentation
-		return indentation;
+		return r.indentation;
 	}
-
 	return null;
 }
 
