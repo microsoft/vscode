@@ -405,7 +405,7 @@ export class WebClientServer {
 	private _getScriptCspHashes(content: string): string[] {
 		// Compute the CSP hashes for line scripts. Uses regex
 		// which means it isn't 100% good.
-		const regex = /<script>([\s\S]+?)<\/script>/img;
+		const regex = /<script.*>([\s\S]+?)<\/script>/img;
 		const result: string[] = [];
 		let match: RegExpExecArray | null;
 		while (match = regex.exec(content)) {
