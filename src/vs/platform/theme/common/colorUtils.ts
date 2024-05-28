@@ -136,15 +136,13 @@ class ColorRegistry implements IColorRegistry {
 	public registerColor(id: string, defaults: ColorDefaults | null, description: string, needsTransparency = false, deprecationMessage?: string): ColorIdentifier {
 		const colorContribution: ColorContribution = { id, description, defaults, needsTransparency, deprecationMessage };
 		this.colorsById[id] = colorContribution;
-		const propertySchema: IJSONSchema = {
-			type: 'string', description, format: 'color-hex', defaultSnippets: [{ body: '${1:#ff0000}' }]
+		const propertySchema: IJSONSchema = { type: 'string', description, format: 'color-hex', defaultSnippets: [{ body: '${1:#ff0000}' }] };
+		if (deprecationMessage) {
+			propertySchema.deprecationMessage = deprecationMessage;
 		}
 		if (needsTransparency) {
 			propertySchema.pattern = '^#(?:(?<rgba>[0-9a-fA-f]{3}[0-9a-eA-E])|(?:[0-9a-fA-F]{6}(?:(?![fF]{2})(?:[0-9a-fA-F]{2}))))?$';
 			propertySchema.patternErrorMessage = 'This color must be transparent or it will obscure content';
-		}
-		if (deprecationMessage) {
-			propertySchema.deprecationMessage = deprecationMessage;
 		}
 		this.colorSchema.properties[id] = propertySchema;
 		this.colorReferenceSchema.enum.push(id);
