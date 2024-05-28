@@ -107,6 +107,9 @@ export function getReindentEditOperations(model: ITextModel, languageConfigurati
 }
 
 function doesLineStartWithString(model: ITextModel, lineNumber: number): boolean {
+	if (!model.tokenization.isCheapToTokenize(lineNumber)) {
+		return false;
+	}
 	const lineTokens = model.tokenization.getLineTokens(lineNumber);
 	return lineTokens.getStandardTokenType(0) === StandardTokenType.String;
 }
