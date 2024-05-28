@@ -188,7 +188,9 @@ class ColorRegistry implements IColorRegistry {
 			...this.colorSchema,
 			properties: Object.fromEntries(Object.entries(this.colorSchema.properties).map(([key, value]) => {
 				return [key, {
-					...value,
+					defaultSnippets: value.defaultSnippets,
+					description: value.description,
+					deprecationMessage: value.deprecationMessage,
 					oneOf: [
 						value,
 						{
