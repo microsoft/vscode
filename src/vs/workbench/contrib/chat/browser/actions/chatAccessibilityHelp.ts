@@ -57,7 +57,7 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat'): stri
 
 export function getChatAccessibilityHelpProvider(accessor: ServicesAccessor, editor: ICodeEditor | undefined, type: 'panelChat' | 'inlineChat') {
 	const widgetService = accessor.get(IChatWidgetService);
-	const inputEditor: ICodeEditor | undefined = type === 'panelChat' ? widgetService.lastFocusedWidget?.inputEditor : editor;
+	const inputEditor: ICodeEditor | undefined = type === 'panelChat' ? widgetService.lastFocusedWidget?.inputEditor : undefined;
 
 	if (!inputEditor) {
 		return;

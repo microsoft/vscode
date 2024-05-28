@@ -73,6 +73,7 @@ export class AccessibleView extends Disposable {
 	private _accessibleViewInCodeBlock: IContextKey<boolean>;
 	private _accessibleViewContainsCodeBlocks: IContextKey<boolean>;
 	private _codeBlocks?: ICodeBlock[];
+	private _inQuickPick: boolean = false;
 
 	get editorWidget() { return this._editorWidget; }
 	private _container: HTMLElement;
@@ -379,8 +380,9 @@ export class AccessibleView extends Disposable {
 	}
 
 	configureKeybindings(): void {
-		const items = this._currentProvider?.options?.configureKeybindingItems;
-		const provider = this._currentProvider;
+		this._inQuickPick = true;
+		const provider = this._updateLastProvider();
+		const items = provider?.options?.configureKeybindingItems;
 		if (!items) {
 			return;
 		}
@@ -402,6 +404,7 @@ export class AccessibleView extends Disposable {
 				this.show(provider);
 			}
 			quickPick.dispose();
+			this._inQuickPick = false;
 		});
 	}
 
@@ -568,7 +571,9 @@ export class AccessibleView extends Disposable {
 		this._updateToolbar(this._currentProvider.actions, provider.options.type);
 
 		const hide = (e?: KeyboardEvent | IKeyboardEvent): void => {
-			provider.onClose();
+			if (!this._inQuickPick) {
+				provider.onClose();
+			}
 			e?.stopPropagation();
 			this._contextViewService.hideContextView();
 			this._updateContextKeys(provider, false);
