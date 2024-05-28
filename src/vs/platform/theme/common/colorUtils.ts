@@ -194,7 +194,8 @@ class ColorRegistry implements IColorRegistry {
 					oneOf: [
 						value,
 						{
-							type: 'null'
+							type: 'string',
+							const: 'default'
 						}
 					]
 				}]

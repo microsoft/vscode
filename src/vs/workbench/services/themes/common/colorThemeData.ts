@@ -372,11 +372,10 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 	private overwriteCustomColors(colors: IColorCustomizations) {
 		for (const id in colors) {
 			const colorVal = colors[id];
-			if (typeof colorVal === 'string') {
-				this.customColorMap[id] = Color.fromHex(colorVal);
-			}
-			if (colorVal === null) {
+			if (colorVal === 'default') {
 				delete this.colorMap[id];
+			} else if (typeof colorVal === 'string') {
+				this.customColorMap[id] = Color.fromHex(colorVal);
 			}
 		}
 	}
