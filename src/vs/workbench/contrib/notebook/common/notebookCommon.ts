@@ -827,6 +827,8 @@ export interface INotebookSearchOptions {
 	includeMarkupPreview?: boolean;
 	includeCodeInput?: boolean;
 	includeOutput?: boolean;
+	searchInRanges?: boolean;
+	selectedRanges?: ICellRange[];
 }
 
 export interface INotebookExclusiveDocumentFilter {
@@ -951,7 +953,8 @@ export const NotebookSetting = {
 	outputFontSize: 'notebook.output.fontSize',
 	outputFontFamilyDeprecated: 'notebook.outputFontFamily',
 	outputFontFamily: 'notebook.output.fontFamily',
-	findScope: 'notebook.find.scope',
+	findFilters: 'notebook.find.filters',
+	findScope: 'notebook.experimental.find.scope.enabled',
 	logging: 'notebook.logging',
 	confirmDeleteRunningCell: 'notebook.confirmDeleteRunningCell',
 	remoteSaving: 'notebook.experimental.remoteSave',
