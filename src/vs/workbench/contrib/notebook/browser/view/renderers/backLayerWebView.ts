@@ -401,6 +401,14 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 						background-color: var(--theme-notebook-symbol-highlight-background);
 					}
 
+					#container .markup > div.nb-multiCellHighlight {
+						background-color: var(--theme-notebook-symbol-highlight-background);
+					}
+
+					#container .nb-multiCellHighlight .output_container .output {
+						background-color: var(--theme-notebook-symbol-highlight-background);
+					}
+
 					#container .nb-chatGenerationHighlight .output_container .output {
 						background-color: var(--vscode-notebook-selectedCellBackground);
 					}
@@ -1772,7 +1780,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		});
 	}
 
-	async find(query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean; shouldGetSearchPreviewInfo: boolean; ownerID: string }): Promise<IFindMatch[]> {
+	async find(query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean; shouldGetSearchPreviewInfo: boolean; ownerID: string; findIds: string[] }): Promise<IFindMatch[]> {
 		if (query === '') {
 			this._sendMessageToWebview({
 				type: 'findStop',

@@ -1026,8 +1026,8 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: true
 		},
-		[NotebookSetting.findScope]: {
-			markdownDescription: nls.localize('notebook.findScope', "Customize the Find Widget behavior for searching within notebook cells. When both markup source and markup preview are enabled, the Find Widget will search either the source code or preview based on the current state of the cell."),
+		[NotebookSetting.findFilters]: {
+			markdownDescription: nls.localize('notebook.findFilters', "Customize the Find Widget behavior for searching within notebook cells. When both markup source and markup preview are enabled, the Find Widget will search either the source code or preview based on the current state of the cell."),
 			type: 'object',
 			properties: {
 				markupSource: {
@@ -1054,6 +1054,11 @@ configurationRegistry.registerConfiguration({
 				codeOutput: true
 			},
 			tags: ['notebookLayout']
+		},
+		[NotebookSetting.findScope]: {
+			markdownDescription: nls.localize('notebook.experimental.find.scope.enabled', "Enables the user to search within a selection of cells in the notebook. When enabled, the user will see a \"Find in Cell Selection\" icon in the notebook find widget."),
+			type: 'boolean',
+			default: false,
 		},
 		[NotebookSetting.remoteSaving]: {
 			markdownDescription: nls.localize('notebook.remoteSaving', "Enables the incremental saving of notebooks between processes and across Remote connections. When enabled, only the changes to the notebook are sent to the extension host, improving performance for large notebooks and slow network connections."),

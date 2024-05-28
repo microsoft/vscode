@@ -141,9 +141,17 @@ export const editorFindMatch = registerColor('editor.findMatchBackground',
 	{ light: '#A8AC94', dark: '#515C6A', hcDark: null, hcLight: null },
 	nls.localize('editorFindMatch', "Color of the current search match."));
 
+export const editorFindMatchForeground = registerColor('editor.findMatchForeground',
+	{ light: null, dark: null, hcDark: null, hcLight: null },
+	nls.localize('editorFindMatchForeground', "Text color of the current search match."));
+
 export const editorFindMatchHighlight = registerColor('editor.findMatchHighlightBackground',
 	{ light: '#EA5C0055', dark: '#EA5C0055', hcDark: null, hcLight: null },
 	nls.localize('findMatchHighlight', "Color of the other search matches. The color must not be opaque so as not to hide underlying decorations."), true);
+
+export const editorFindMatchHighlightForeground = registerColor('editor.findMatchHighlightForeground',
+	{ light: null, dark: null, hcDark: null, hcLight: null },
+	nls.localize('findMatchHighlightForeground', "Foreground color of the other search matches."), true);
 
 export const editorFindRangeHighlight = registerColor('editor.findRangeHighlightBackground',
 	{ dark: '#3a3d4166', light: '#b4b4b44d', hcDark: null, hcLight: null },

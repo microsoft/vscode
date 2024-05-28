@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DECREASE_HOVER_VERBOSITY_ACTION_ID, GO_TO_BOTTOM_HOVER_ACTION_ID, GO_TO_TOP_HOVER_ACTION_ID, INCREASE_HOVER_VERBOSITY_ACTION_ID, PAGE_DOWN_HOVER_ACTION_ID, PAGE_UP_HOVER_ACTION_ID, SCROLL_DOWN_HOVER_ACTION_ID, SCROLL_LEFT_HOVER_ACTION_ID, SCROLL_RIGHT_HOVER_ACTION_ID, SCROLL_UP_HOVER_ACTION_ID, SHOW_DEFINITION_PREVIEW_HOVER_ACTION_ID, SHOW_OR_FOCUS_HOVER_ACTION_ID } from 'vs/editor/contrib/hover/browser/hoverActionIds';
+import { DECREASE_HOVER_VERBOSITY_ACTION_ID, DECREASE_HOVER_VERBOSITY_ACTION_LABEL, GO_TO_BOTTOM_HOVER_ACTION_ID, GO_TO_TOP_HOVER_ACTION_ID, INCREASE_HOVER_VERBOSITY_ACTION_ID, INCREASE_HOVER_VERBOSITY_ACTION_LABEL, PAGE_DOWN_HOVER_ACTION_ID, PAGE_UP_HOVER_ACTION_ID, SCROLL_DOWN_HOVER_ACTION_ID, SCROLL_LEFT_HOVER_ACTION_ID, SCROLL_RIGHT_HOVER_ACTION_ID, SCROLL_UP_HOVER_ACTION_ID, SHOW_DEFINITION_PREVIEW_HOVER_ACTION_ID, SHOW_OR_FOCUS_HOVER_ACTION_ID } from 'vs/editor/contrib/hover/browser/hoverActionIds';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
@@ -425,17 +425,14 @@ export class IncreaseHoverVerbosityLevel extends EditorAction {
 	constructor() {
 		super({
 			id: INCREASE_HOVER_VERBOSITY_ACTION_ID,
-			label: nls.localize({
-				key: 'increaseHoverVerbosityLevel',
-				comment: ['Label for action that will increase the hover verbosity level.']
-			}, "Increase Hover Verbosity Level"),
+			label: INCREASE_HOVER_VERBOSITY_ACTION_LABEL,
 			alias: 'Increase Hover Verbosity Level',
-			precondition: EditorContextKeys.hoverFocused
+			precondition: EditorContextKeys.hoverVisible
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		HoverController.get(editor)?.updateFocusedMarkdownHoverVerbosityLevel(HoverVerbosityAction.Increase);
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args?: { index: number; focus: boolean }): void {
+		HoverController.get(editor)?.updateMarkdownHoverVerbosityLevel(HoverVerbosityAction.Increase, args?.index, args?.focus);
 	}
 }
 
@@ -444,16 +441,13 @@ export class DecreaseHoverVerbosityLevel extends EditorAction {
 	constructor() {
 		super({
 			id: DECREASE_HOVER_VERBOSITY_ACTION_ID,
-			label: nls.localize({
-				key: 'decreaseHoverVerbosityLevel',
-				comment: ['Label for action that will decrease the hover verbosity level.']
-			}, "Decrease Hover Verbosity Level"),
+			label: DECREASE_HOVER_VERBOSITY_ACTION_LABEL,
 			alias: 'Decrease Hover Verbosity Level',
-			precondition: EditorContextKeys.hoverFocused
+			precondition: EditorContextKeys.hoverVisible
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-		HoverController.get(editor)?.updateFocusedMarkdownHoverVerbosityLevel(HoverVerbosityAction.Decrease);
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args?: { index: number; focus: boolean }): void {
+		HoverController.get(editor)?.updateMarkdownHoverVerbosityLevel(HoverVerbosityAction.Decrease, args?.index, args?.focus);
 	}
 }
