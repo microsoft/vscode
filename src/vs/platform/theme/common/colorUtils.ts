@@ -347,7 +347,11 @@ export const nullableWorkbenchColorsSchemaId = 'vscode://schemas/nullable-workbe
 schemaRegistry.registerSchemaFunction(nullableWorkbenchColorsSchemaId, () => colorRegistry.getNullableColorSchema());
 
 
-const delayer = new RunOnceScheduler(() => schemaRegistry.notifySchemaChanged(workbenchColorsSchemaId), 200);
+const delayer = new RunOnceScheduler(() => {
+	schemaRegistry.notifySchemaChanged(workbenchColorsSchemaId)
+	schemaRegistry.notifySchemaChanged(nullableWorkbenchColorsSchemaId)
+}, 200);
+
 colorRegistry.onDidChangeSchema(() => {
 	if (!delayer.isScheduled()) {
 		delayer.schedule();
