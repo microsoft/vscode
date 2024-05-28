@@ -82,13 +82,13 @@
 	flex: 1;
 	display: flex;
 	align-items: center;
-	font-size: x-large;
+	font-size: large;
 }
 
 .profiles-editor .contents-container .profile-title-container .codicon {
 	cursor: pointer;
 	font-size: x-large;
-	padding: 7px;
+	padding: 4px;
 	margin-right: 4px;
 }
 
