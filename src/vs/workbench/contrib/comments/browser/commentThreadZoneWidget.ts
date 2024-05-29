@@ -139,9 +139,9 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		super(editor, { keepEditorSelection: true, isAccessible: true });
 		this._contextKeyService = contextKeyService.createScoped(this.domNode);
 
-		this._scopedInstantiationService = instantiationService.createChild(new ServiceCollection(
+		this._scopedInstantiationService = this._globalToDispose.add(instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, this._contextKeyService]
-		));
+		)));
 
 		const controller = this.commentService.getCommentController(this._uniqueOwner);
 		if (controller) {
