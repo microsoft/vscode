@@ -732,11 +732,12 @@ export class CodeCompareBlockPart extends Disposable {
 			const uriLabel = this.labelService.getUriLabel(data.edit.uri, { relative: true, noPrefix: true });
 
 			const template = data.edit.state.applied > 1
-				? localize('chat.edits.N', "Made {0} changes in [[{1}]]", data.edit.state.applied, uriLabel)
-				: localize('chat.edits.1', "Made 1 change in [[{0}]]", uriLabel);
+				? localize('chat.edits.N', "Made {0} changes in [[``{1}``]]", data.edit.state.applied, uriLabel)
+				: localize('chat.edits.1', "Made 1 change in [[``{0}``]]", uriLabel);
 
 
 			const message = renderFormattedText(template, {
+				renderCodeSegments: true,
 				actionHandler: {
 					callback: () => {
 						this.openerService.open(data.edit.uri, { fromUserGesture: true, allowCommands: false });
