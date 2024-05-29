@@ -173,8 +173,13 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		let effectiveLineNumber = lineNumber;
 		let effectiveColumnNumber = 1;
 		if (!lineHasSpace) {
-			if (lineNumber > 1 && !isFolded(lineNumber - 1)) {
-				effectiveLineNumber -= 1;
+			const currentContentEmpty = model.getLineContent(lineNumber).length <= effectiveColumnNumber;
+			if (lineNumber > 1 && !isFolded(lineNumber - 1) && !currentContentEmpty) {
+				if (model.getLineContent(lineNumber - 1).length <= effectiveColumnNumber) {
+					effectiveLineNumber -= 1;
+				} else if (model.getLineContent(lineNumber + 1).length <= effectiveColumnNumber) {
+					effectiveLineNumber += 1;
+				}
 			} else if ((lineNumber < model.getLineCount()) && !isFolded(lineNumber + 1)) {
 				effectiveLineNumber += 1;
 			} else if (column * fontInfo.spaceWidth < 22) {
