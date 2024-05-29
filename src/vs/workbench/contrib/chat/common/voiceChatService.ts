@@ -228,7 +228,7 @@ export class VoiceChatService extends Disposable implements IVoiceChatService {
 					onSessionStoppedOrCanceled(false);
 					emitter.fire(e);
 					break;
-				default:
+				case SpeechToTextStatus.Error:
 					emitter.fire(e);
 					break;
 			}
