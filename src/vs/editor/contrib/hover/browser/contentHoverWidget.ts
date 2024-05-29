@@ -107,6 +107,11 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		container.style.height = transformedHeight;
 	}
 
+	private _setScrollableDomNodeDimensions(width: number | string, height: number | string): void {
+		const scrollableDomNode = this._hover.scrollableDomNode;
+		return ContentHoverWidget._applyDimensions(scrollableDomNode, width, height);
+	}
+
 	private _setContentsDomNodeDimensions(width: number | string, height: number | string): void {
 		const contentsDomNode = this._hover.contentsDomNode;
 		return ContentHoverWidget._applyDimensions(contentsDomNode, width, height);
@@ -118,8 +123,11 @@ export class ContentHoverWidget extends ResizableContentWidget {
 	}
 
 	private _setHoverWidgetDimensions(width: number | string, height: number | string): void {
+		const modifiedWidth = typeof width === 'number' ? width : width; // + 2
+		const modifiedHeight = typeof height === 'number' ? height : height; // + 2
 		this._setContentsDomNodeDimensions(width, height);
-		this._setContainerDomNodeDimensions(width, height);
+		this._setScrollableDomNodeDimensions(modifiedWidth, modifiedHeight);
+		this._setContainerDomNodeDimensions(modifiedWidth, modifiedHeight);
 		this._layoutContentWidget();
 	}
 
@@ -133,6 +141,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 	private _setHoverWidgetMaxDimensions(width: number | string, height: number | string): void {
 		ContentHoverWidget._applyMaxDimensions(this._hover.contentsDomNode, width, height);
 		ContentHoverWidget._applyMaxDimensions(this._hover.containerDomNode, width, height);
+		ContentHoverWidget._applyMaxDimensions(this._hover.scrollableDomNode, width, height);
 		this._hover.containerDomNode.style.setProperty('--vscode-hover-maxWidth', typeof width === 'number' ? `${width}px` : width);
 		this._layoutContentWidget();
 	}
@@ -209,7 +218,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		const initialWidth = (
 			typeof this._contentWidth === 'undefined'
 				? 0
-				: this._contentWidth - 2 // - 2 for the borders
+				: this._contentWidth // remove maybe
 		);
 
 		if (overflowing || this._hover.containerDomNode.clientWidth < initialWidth) {
@@ -217,7 +226,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 			const horizontalPadding = 14;
 			return bodyBoxWidth - horizontalPadding;
 		} else {
-			return this._hover.containerDomNode.clientWidth + 2;
+			return this._hover.containerDomNode.clientWidth; // remove maybe
 		}
 	}
 

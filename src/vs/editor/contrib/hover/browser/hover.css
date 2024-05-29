@@ -10,8 +10,16 @@
 .monaco-editor .monaco-hover {
 	color: var(--vscode-editorHoverWidget-foreground);
 	background-color: var(--vscode-editorHoverWidget-background);
-	border: 1px solid var(--vscode-editorHoverWidget-border);
-	border-radius: 3px;
+	outline: 1px solid var(--vscode-editorHoverWidget-border);
+}
+
+.monaco-editor .monaco-hover .monaco-scrollable-element {
+	/* box-sizing: border-box; */
+}
+
+.monaco-editor .monaco-hover-content {
+	/* box-sizing: border-box; */
+	/* padding: 1px 1px 1px 1px; */
 }
 
 .monaco-editor .monaco-hover a {
@@ -24,6 +32,13 @@
 
 .monaco-editor .monaco-hover .hover-row {
 	display: flex;
+	box-sizing: border-box;
+	border: 1px solid transparent;
+	/* margin: 1px 1px 1px 1px; */
+}
+
+.monaco-editor .monaco-hover .hover-row:focus {
+	border: 1px solid var(--vscode-focusBorder);
 }
 
 .monaco-editor .monaco-hover .hover-row .hover-row-contents {

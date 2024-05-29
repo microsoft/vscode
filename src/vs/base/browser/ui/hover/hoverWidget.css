@@ -171,11 +171,6 @@
 	display: inline-block;
 }
 
-.monaco-hover-content {
-	padding-right: 2px;
-	box-sizing: border-box;
-}
-
 .monaco-hover-content .action-container a {
 	-webkit-user-select: none;
 	user-select: none;

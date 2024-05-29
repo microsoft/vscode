@@ -21,6 +21,7 @@ export class HoverWidget extends Disposable {
 
 	public readonly containerDomNode: HTMLElement;
 	public readonly contentsDomNode: HTMLElement;
+	public readonly scrollableDomNode: HTMLElement;
 	public readonly scrollbar: DomScrollableElement;
 
 	constructor() {
@@ -37,7 +38,8 @@ export class HoverWidget extends Disposable {
 		this.scrollbar = this._register(new DomScrollableElement(this.contentsDomNode, {
 			consumeMouseWheelIfScrollbarIsNeeded: true
 		}));
-		this.containerDomNode.appendChild(this.scrollbar.getDomNode());
+		this.scrollableDomNode = this.scrollbar.getDomNode();
+		this.containerDomNode.appendChild(this.scrollableDomNode);
 	}
 
 	public onContentsChanged(): void {
