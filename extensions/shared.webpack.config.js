@@ -113,11 +113,16 @@ function withBrowserDefaults(/**@type WebpackConfig & { context: string }*/extCo
 		mode: 'none', // this leaves the source code as close as possible to the original (when packaging we set this to 'production')
 		target: 'webworker', // extensions run in a webworker context
 		resolve: {
+			alias: {
+				'./platform/vscode': path.resolve(__dirname, 'membrane-ts-plugin/src/platform/browser.ts'),
+			},
 			mainFields: ['browser', 'module', 'main'],
 			extensions: ['.ts', '.js'], // support ts-files and js-files
 			fallback: {
+				'os': require.resolve('os-browserify'),
+				"events": require.resolve("events"),
 				'path': require.resolve('path-browserify'),
-				'util': require.resolve('util')
+				'util': require.resolve('util/'),
 			}
 		},
 		module: {
@@ -211,4 +216,3 @@ module.exports.node = withNodeDefaults;
 module.exports.browser = withBrowserDefaults;
 module.exports.nodePlugins = nodePlugins;
 module.exports.browserPlugins = browserPlugins;
-
