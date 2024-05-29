@@ -310,7 +310,7 @@
 					},
 					{
 						"selector": "BinaryExpression[operator='instanceof'][right.name=/^HTML\\w+/]",
-						"message": "Use DOM.isHTMLElement() to support multi-window scenarios."
+						"message": "Use DOM.isHTMLElement() and related methods to support multi-window scenarios."
 					},
 					{
 						"selector": "BinaryExpression[operator='instanceof'][right.name='KeyboardEvent']",
