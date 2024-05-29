@@ -247,7 +247,7 @@ class TerminalInitialHintWidget extends Disposable {
 			}
 		};
 
-		const hintElement = $('terminal-initial-hint');
+		const hintElement = $('div.terminal-initial-hint');
 		hintElement.style.display = 'block';
 
 		const keybindingHint = this.keybindingService.lookupKeybinding(TerminalChatCommandId.Start);
