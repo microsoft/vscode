@@ -2571,7 +2571,6 @@ export class ExtensionStatusAction extends ExtensionAction {
 				}
 			}
 			if (this.extension.enablementState === EnablementState.EnabledGlobally) {
-				this.updateStatus({ message: new MarkdownString(localize('globally enabled', "This extension is enabled globally.")) }, true);
 				return;
 			}
 		}
