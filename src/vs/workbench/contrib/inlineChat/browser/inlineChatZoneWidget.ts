@@ -147,6 +147,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 
 		super.show(position, this._computeHeightInLines());
 		this._setWidgetMargins(position);
+		this.widget.chatWidget.setVisible(true);
 		this.widget.focus();
 
 		scrollState.restore(this.editor);
@@ -209,6 +210,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		this.container!.classList.remove('inside-selection');
 		this._ctxCursorPosition.reset();
 		this.widget.reset();
+		this.widget.chatWidget.setVisible(false);
 		super.hide();
 		aria.status(localize('inlineChatClosed', 'Closed inline chat widget'));
 	}
