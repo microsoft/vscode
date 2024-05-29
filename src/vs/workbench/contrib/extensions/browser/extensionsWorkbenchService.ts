@@ -2150,7 +2150,27 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (!extension.local || isApplicationScopedExtension(extension.local.manifest) || extension.isBuiltin) {
 			return;
 		}
-		await this.extensionManagementService.toggleAppliationScope(extension.local, this.userDataProfileService.currentProfile.extensionsResource);
+		const isApplicationScoped = extension.local.isApplicationScoped;
+		await Promise.all(this.getAllExtensions().map(async extensions => {
+			const local = extensions.local.find(e => areSameExtensions(e.identifier, extension.identifier))?.local;
+			if (local && local.isApplicationScoped === isApplicationScoped) {
+				await this.extensionManagementService.toggleAppliationScope(local, this.userDataProfileService.currentProfile.extensionsResource);
+			}
+		}));
+	}
+
+	private getAllExtensions(): Extensions[] {
+		const extensions: Extensions[] = [];
+		if (this.localExtensions) {
+			extensions.push(this.localExtensions);
+		}
+		if (this.remoteExtensions) {
+			extensions.push(this.remoteExtensions);
+		}
+		if (this.webExtensions) {
+			extensions.push(this.webExtensions);
+		}
+		return extensions;
 	}
 
 	private isInstalledExtensionSynced(extension: ILocalExtension): boolean {
