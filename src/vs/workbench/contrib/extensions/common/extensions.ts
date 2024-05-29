@@ -230,3 +230,9 @@ export const INSTALL_ACTIONS_GROUP = '0_install';
 export const UPDATE_ACTIONS_GROUP = '0_update';
 
 export const extensionsSearchActionsMenu = new MenuId('extensionsSearchActionsMenu');
+
+export interface IExtensionArg {
+	id: string;
+	version: string;
+	location: URI | undefined;
+}
