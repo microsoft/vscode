@@ -1294,7 +1294,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 	private getRuntimeState(extension: IExtension): ExtensionRuntimeState | undefined {
 		const isUninstalled = extension.state === ExtensionState.Uninstalled;
-		const runningExtension = this.extensionService.extensions.find(e => areSameExtensions({ id: e.identifier.value, uuid: e.uuid }, extension.identifier));
+		const runningExtension = this.extensionService.extensions.find(e => areSameExtensions({ id: e.identifier.value }, extension.identifier));
 		const reloadAction = this.extensionManagementServerService.remoteExtensionManagementServer ? ExtensionRuntimeActionType.ReloadWindow : ExtensionRuntimeActionType.RestartExtensions;
 		const reloadActionLabel = reloadAction === ExtensionRuntimeActionType.ReloadWindow ? nls.localize('reload', "reload window") : nls.localize('restart extensions', "restart extensions");
 
@@ -1827,6 +1827,9 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 						autoUpdateExtensions.push(extensionId);
 						update = true;
 					}
+				}
+				if (extensionOrPublisher.local?.pinned) {
+					await this.extensionManagementService.updateMetadata(extensionOrPublisher.local, { pinned: false });
 				}
 			}
 			// Disable Auto Updates

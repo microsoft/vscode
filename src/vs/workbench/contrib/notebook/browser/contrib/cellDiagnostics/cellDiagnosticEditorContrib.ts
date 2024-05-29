@@ -7,7 +7,6 @@ import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle'
 import { IMarkerData, IMarkerService } from 'vs/platform/markers/common/markers';
 import { IRange } from 'vs/editor/common/core/range';
 import { ICellExecutionError, ICellExecutionStateChangedEvent, IExecutionStateChangedEvent, INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { IInlineChatService } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CellKind, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -16,6 +15,7 @@ import { Iterable } from 'vs/base/common/iterator';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
+import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 
 type CellDiagnostic = {
 	cellUri: URI;
@@ -35,14 +35,14 @@ export class CellDiagnostics extends Disposable implements INotebookEditorContri
 		private readonly notebookEditor: INotebookEditor,
 		@INotebookExecutionStateService private readonly notebookExecutionStateService: INotebookExecutionStateService,
 		@IMarkerService private readonly markerService: IMarkerService,
-		@IInlineChatService private readonly inlineChatService: IInlineChatService,
+		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
 		this.updateEnabled();
 
-		this._register(inlineChatService.onDidChangeProviders(() => this.updateEnabled()));
+		this._register(chatAgentService.onDidChangeAgents(() => this.updateEnabled()));
 		this._register(configurationService.onDidChangeConfiguration((e) => {
 			if (e.affectsConfiguration(NotebookSetting.cellFailureDiagnostics)) {
 				this.updateEnabled();
@@ -52,10 +52,10 @@ export class CellDiagnostics extends Disposable implements INotebookEditorContri
 
 	private updateEnabled() {
 		const settingEnabled = this.configurationService.getValue(NotebookSetting.cellFailureDiagnostics);
-		if (this.enabled && (!settingEnabled || Iterable.isEmpty(this.inlineChatService.getAllProvider()))) {
+		if (this.enabled && (!settingEnabled || Iterable.isEmpty(this.chatAgentService.getAgents()))) {
 			this.enabled = false;
 			this.clearAll();
-		} else if (!this.enabled && settingEnabled && !Iterable.isEmpty(this.inlineChatService.getAllProvider())) {
+		} else if (!this.enabled && settingEnabled && !Iterable.isEmpty(this.chatAgentService.getAgents())) {
 			this.enabled = true;
 			if (!this.listening) {
 				this.listening = true;

@@ -6,13 +6,13 @@ import { MarkdownString } from 'vs/base/common/htmlContent';
 import { basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IRange } from 'vs/editor/common/core/range';
-import { IChatProgressRenderableResponseContent, IChatProgressResponseContent, canMergeMarkdownStrings } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChatAgentMarkdownContentWithVulnerability, IChatAgentVulnerabilityDetails, IChatContentInlineReference, IChatMarkdownContent } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatProgressRenderableResponseContent, IChatProgressResponseContent, appendMarkdownString, canMergeMarkdownStrings } from 'vs/workbench/contrib/chat/common/chatModel';
+import { IChatAgentVulnerabilityDetails, IChatMarkdownContent } from 'vs/workbench/contrib/chat/common/chatService';
 
 export const contentRefUrl = 'http://_vscodecontentref_'; // must be lowercase for URI
 
 export function annotateSpecialMarkdownContent(response: ReadonlyArray<IChatProgressResponseContent>): ReadonlyArray<IChatProgressRenderableResponseContent> {
-	const result: Exclude<IChatProgressResponseContent, IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability>[] = [];
+	const result: IChatProgressRenderableResponseContent[] = [];
 	for (const item of response) {
 		const previousItem = result[result.length - 1];
 		if (item.kind === 'inlineReference') {
@@ -20,18 +20,21 @@ export function annotateSpecialMarkdownContent(response: ReadonlyArray<IChatProg
 			const printUri = URI.parse(contentRefUrl).with({ fragment: JSON.stringify(location) });
 			const markdownText = `[${item.name || basename(location.uri)}](${printUri.toString()})`;
 			if (previousItem?.kind === 'markdownContent') {
-				result[result.length - 1] = { content: new MarkdownString(previousItem.content.value + markdownText), kind: 'markdownContent' };
+				const merged = appendMarkdownString(previousItem.content, new MarkdownString(markdownText));
+				result[result.length - 1] = { content: merged, kind: 'markdownContent' };
 			} else {
 				result.push({ content: new MarkdownString(markdownText), kind: 'markdownContent' });
 			}
 		} else if (item.kind === 'markdownContent' && previousItem?.kind === 'markdownContent' && canMergeMarkdownStrings(previousItem.content, item.content)) {
-			result[result.length - 1] = { content: new MarkdownString(previousItem.content.value + item.content.value), kind: 'markdownContent' };
+			const merged = appendMarkdownString(previousItem.content, item.content);
+			result[result.length - 1] = { content: merged, kind: 'markdownContent' };
 		} else if (item.kind === 'markdownVuln') {
 			const vulnText = encodeURIComponent(JSON.stringify(item.vulnerabilities));
 			const markdownText = `<vscode_annotation details='${vulnText}'>${item.content.value}</vscode_annotation>`;
 			if (previousItem?.kind === 'markdownContent') {
 				// Since this is inside a codeblock, it needs to be merged into the previous markdown content.
-				result[result.length - 1] = { content: new MarkdownString(previousItem.content.value + markdownText, { isTrusted: previousItem.content.isTrusted }), kind: 'markdownContent' };
+				const merged = appendMarkdownString(previousItem.content, new MarkdownString(markdownText));
+				result[result.length - 1] = { content: merged, kind: 'markdownContent' };
 			} else {
 				result.push({ content: new MarkdownString(markdownText), kind: 'markdownContent' });
 			}
