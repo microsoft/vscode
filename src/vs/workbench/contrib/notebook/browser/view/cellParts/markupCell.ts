@@ -228,12 +228,14 @@ export class MarkupCell extends Disposable {
 			e.added.forEach(options => {
 				if (options.className) {
 					this.notebookEditor.deltaCellContainerClassNames(this.viewCell.id, [options.className], []);
+					this.templateData.rootContainer.classList.add(options.className);
 				}
 			});
 
 			e.removed.forEach(options => {
 				if (options.className) {
 					this.notebookEditor.deltaCellContainerClassNames(this.viewCell.id, [], [options.className]);
+					this.templateData.rootContainer.classList.remove(options.className);
 				}
 			});
 		}));
@@ -241,6 +243,7 @@ export class MarkupCell extends Disposable {
 		this.viewCell.getCellDecorations().forEach(options => {
 			if (options.className) {
 				this.notebookEditor.deltaCellContainerClassNames(this.viewCell.id, [options.className], []);
+				this.templateData.rootContainer.classList.add(options.className);
 			}
 		});
 	}

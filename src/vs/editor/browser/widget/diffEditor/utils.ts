@@ -96,6 +96,9 @@ export class ObservableElementSizeObserver extends Disposable {
 	private readonly _height: ISettableObservable<number>;
 	public get height(): IObservable<number> { return this._height; }
 
+	private _automaticLayout: boolean = false;
+	public get automaticLayout(): boolean { return this._automaticLayout; }
+
 	constructor(element: HTMLElement | null, dimension: IDimension | undefined) {
 		super();
 
@@ -115,6 +118,7 @@ export class ObservableElementSizeObserver extends Disposable {
 	}
 
 	public setAutomaticLayout(automaticLayout: boolean): void {
+		this._automaticLayout = automaticLayout;
 		if (automaticLayout) {
 			this.elementSizeObserver.startObserving();
 		} else {

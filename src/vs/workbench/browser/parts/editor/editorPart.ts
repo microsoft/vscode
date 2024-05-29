@@ -14,7 +14,7 @@ import { IView, orthogonal, LayoutPriority, IViewSize, Direction, SerializableGr
 import { GroupIdentifier, EditorInputWithOptions, IEditorPartOptions, IEditorPartOptionsChangeEvent, GroupModelChangeKind } from 'vs/workbench/common/editor';
 import { EDITOR_GROUP_BORDER, EDITOR_PANE_BACKGROUND } from 'vs/workbench/common/theme';
 import { distinct, coalesce } from 'vs/base/common/arrays';
-import { IEditorGroupView, getEditorPartOptions, impactsEditorPartOptions, IEditorPartCreationOptions, IEditorPartsView, IEditorGroupsView } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupView, getEditorPartOptions, impactsEditorPartOptions, IEditorPartCreationOptions, IEditorPartsView, IEditorGroupsView, IEditorGroupViewOptions } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorGroupView } from 'vs/workbench/browser/parts/editor/editorGroupView';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -615,16 +615,16 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		}
 	}
 
-	private doCreateGroupView(from?: IEditorGroupView | ISerializedEditorGroupModel | null): IEditorGroupView {
+	private doCreateGroupView(from?: IEditorGroupView | ISerializedEditorGroupModel | null, options?: IEditorGroupViewOptions): IEditorGroupView {
 
 		// Create group view
 		let groupView: IEditorGroupView;
 		if (from instanceof EditorGroupView) {
-			groupView = EditorGroupView.createCopy(from, this.editorPartsView, this, this.groupsLabel, this.count, this.scopedInstantiationService,);
+			groupView = EditorGroupView.createCopy(from, this.editorPartsView, this, this.groupsLabel, this.count, this.scopedInstantiationService, options);
 		} else if (isSerializedEditorGroupModel(from)) {
-			groupView = EditorGroupView.createFromSerialized(from, this.editorPartsView, this, this.groupsLabel, this.count, this.scopedInstantiationService);
+			groupView = EditorGroupView.createFromSerialized(from, this.editorPartsView, this, this.groupsLabel, this.count, this.scopedInstantiationService, options);
 		} else {
-			groupView = EditorGroupView.createNew(this.editorPartsView, this, this.groupsLabel, this.count, this.scopedInstantiationService);
+			groupView = EditorGroupView.createNew(this.editorPartsView, this, this.groupsLabel, this.count, this.scopedInstantiationService, options);
 		}
 
 		// Keep in map
@@ -1192,7 +1192,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		return true; // success
 	}
 
-	private doCreateGridControlWithState(serializedGrid: ISerializedGrid, activeGroupId: GroupIdentifier, editorGroupViewsToReuse?: IEditorGroupView[]): void {
+	private doCreateGridControlWithState(serializedGrid: ISerializedGrid, activeGroupId: GroupIdentifier, editorGroupViewsToReuse?: IEditorGroupView[], options?: IEditorGroupViewOptions): void {
 
 		// Determine group views to reuse if any
 		let reuseGroupViews: IEditorGroupView[];
@@ -1210,7 +1210,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 				if (reuseGroupViews.length > 0) {
 					groupView = reuseGroupViews.shift()!;
 				} else {
-					groupView = this.doCreateGroupView(serializedEditorGroup);
+					groupView = this.doCreateGroupView(serializedEditorGroup, options);
 				}
 
 				groupViews.push(groupView);
@@ -1342,15 +1342,15 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		};
 	}
 
-	applyState(state: IEditorPartUIState | 'empty'): Promise<void> {
+	applyState(state: IEditorPartUIState | 'empty', options?: IEditorGroupViewOptions): Promise<void> {
 		if (state === 'empty') {
 			return this.doApplyEmptyState();
 		} else {
-			return this.doApplyState(state);
+			return this.doApplyState(state, options);
 		}
 	}
 
-	private async doApplyState(state: IEditorPartUIState): Promise<void> {
+	private async doApplyState(state: IEditorPartUIState, options?: IEditorGroupViewOptions): Promise<void> {
 		const groups = await this.doPrepareApplyState();
 		const resumeEvents = this.disposeGroups(true /* suspress events for the duration of applying state */);
 
@@ -1359,7 +1359,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 
 		// Grid Widget
 		try {
-			this.doApplyGridState(state.serializedGrid, state.activeGroup);
+			this.doApplyGridState(state.serializedGrid, state.activeGroup, undefined, options);
 		} finally {
 			resumeEvents();
 		}
@@ -1396,10 +1396,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		return groups;
 	}
 
-	private doApplyGridState(gridState: ISerializedGrid, activeGroupId: GroupIdentifier, editorGroupViewsToReuse?: IEditorGroupView[]): void {
+	private doApplyGridState(gridState: ISerializedGrid, activeGroupId: GroupIdentifier, editorGroupViewsToReuse?: IEditorGroupView[], options?: IEditorGroupViewOptions): void {
 
 		// Recreate grid widget from state
-		this.doCreateGridControlWithState(gridState, activeGroupId, editorGroupViewsToReuse);
+		this.doCreateGridControlWithState(gridState, activeGroupId, editorGroupViewsToReuse, options);
 
 		// Layout
 		this.doLayout(this._contentDimension);

@@ -131,6 +131,7 @@ export interface IChatWidget {
 	readonly onDidHide: Event<void>;
 	readonly onDidSubmitAgent: Event<{ agent: IChatAgentData; slashCommand?: IChatAgentCommand }>;
 	readonly onDidChangeParsedInput: Event<void>;
+	readonly onDidDeleteContext: Event<IChatRequestVariableEntry>;
 	readonly location: ChatAgentLocation;
 	readonly viewContext: IChatWidgetViewContext;
 	readonly viewModel: IChatViewModel | undefined;
@@ -158,7 +159,7 @@ export interface IChatWidget {
 	getCodeBlockInfosForResponse(response: IChatResponseViewModel): IChatCodeBlockInfo[];
 	getFileTreeInfosForResponse(response: IChatResponseViewModel): IChatFileTreeInfo[];
 	getLastFocusedFileTreeForResponse(response: IChatResponseViewModel): IChatFileTreeInfo | undefined;
-	attachContext(...context: IChatRequestVariableEntry[]): void;
+	setContext(overwrite: boolean, ...context: IChatRequestVariableEntry[]): void;
 	clear(): void;
 }
 

@@ -242,6 +242,15 @@ export interface IEditorGroupTitleHeight {
 	readonly offset: number;
 }
 
+export interface IEditorGroupViewOptions {
+
+	/**
+	 * Whether the editor group should receive keyboard focus
+	 * after creation or not.
+	 */
+	readonly preserveFocus?: boolean;
+}
+
 /**
  * A helper to access and mutate an editor group within an editor part.
  */
@@ -340,9 +349,9 @@ export interface IInternalEditorOpenOptions extends IInternalEditorTitleControlO
 	readonly preserveWindowOrder?: boolean;
 
 	/**
-	 * Whether to add the editor to the selection or not.
+	 * Inactive editors to select after opening the active selected editor.
 	 */
-	readonly selected?: boolean;
+	readonly inactiveSelection?: EditorInput[];
 }
 
 export interface IInternalEditorCloseOptions extends IInternalEditorTitleControlOptions {
