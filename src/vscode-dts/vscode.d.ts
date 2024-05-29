@@ -18504,12 +18504,12 @@ declare module 'vscode' {
 	 */
 	export enum ChatResultFeedbackKind {
 		/**
-		 * The user marked the result as helpful.
+		 * The user marked the result as unhelpful.
 		 */
 		Unhelpful = 0,
 
 		/**
-		 * The user marked the result as unhelpful.
+		 * The user marked the result as helpful.
 		 */
 		Helpful = 1,
 	}
