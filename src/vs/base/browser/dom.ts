@@ -795,7 +795,7 @@ export function isAncestorUsingFlowTo(testChild: Node, testAncestor: Node): bool
 			return true;
 		}
 
-		if (node instanceof HTMLElement) {
+		if (isHTMLElement(node)) {
 			const flowToParentElement = getParentFlowToElement(node);
 			if (flowToParentElement) {
 				node = flowToParentElement;
@@ -1148,6 +1148,11 @@ function isCSSStyleRule(rule: CSSRule): rule is CSSStyleRule {
 	return typeof (rule as CSSStyleRule).selectorText === 'string';
 }
 
+export function isHTMLElement(e: unknown): e is HTMLElement {
+	// eslint-disable-next-line no-restricted-syntax
+	return e instanceof HTMLElement || e instanceof getWindow(e as Node).HTMLElement;
+}
+
 export function isMouseEvent(e: unknown): e is MouseEvent {
 	// eslint-disable-next-line no-restricted-syntax
 	return e instanceof MouseEvent || e instanceof getWindow(e as UIEvent).MouseEvent;
@@ -1286,7 +1291,7 @@ class FocusTracker extends Disposable implements IFocusTracker {
 	private _refreshStateHandler: () => void;
 
 	private static hasFocusWithin(element: HTMLElement | Window): boolean {
-		if (element instanceof HTMLElement) {
+		if (isHTMLElement(element)) {
 			const shadowRoot = getShadowRoot(element);
 			const activeElement = (shadowRoot ? shadowRoot.activeElement : element.ownerDocument.activeElement);
 			return isAncestor(activeElement, element);
@@ -1312,7 +1317,7 @@ class FocusTracker extends Disposable implements IFocusTracker {
 		const onBlur = () => {
 			if (hasFocus) {
 				loosingFocus = true;
-				(element instanceof HTMLElement ? getWindow(element) : element).setTimeout(() => {
+				(isHTMLElement(element) ? getWindow(element) : element).setTimeout(() => {
 					if (loosingFocus) {
 						loosingFocus = false;
 						hasFocus = false;
@@ -1335,7 +1340,7 @@ class FocusTracker extends Disposable implements IFocusTracker {
 
 		this._register(addDisposableListener(element, EventType.FOCUS, onFocus, true));
 		this._register(addDisposableListener(element, EventType.BLUR, onBlur, true));
-		if (element instanceof HTMLElement) {
+		if (isHTMLElement(element)) {
 			this._register(addDisposableListener(element, EventType.FOCUS_IN, () => this._refreshStateHandler()));
 			this._register(addDisposableListener(element, EventType.FOCUS_OUT, () => this._refreshStateHandler()));
 		}
@@ -1488,7 +1493,7 @@ export function hide(...elements: HTMLElement[]): void {
 
 function findParentWithAttribute(node: Node | null, attribute: string): HTMLElement | null {
 	while (node && node.nodeType === node.ELEMENT_NODE) {
-		if (node instanceof HTMLElement && node.hasAttribute(attribute)) {
+		if (isHTMLElement(node) && node.hasAttribute(attribute)) {
 			return node;
 		}
 
@@ -2304,7 +2309,7 @@ export function h(tag: string, ...args: [] | [attributes: { $: string } & Partia
 
 	if (children) {
 		for (const c of children) {
-			if (c instanceof HTMLElement) {
+			if (isHTMLElement(c)) {
 				el.appendChild(c);
 			} else if (typeof c === 'string') {
 				el.append(c);

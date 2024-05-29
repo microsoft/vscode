@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { mark } from 'vs/base/common/performance';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Dimension, EventHelper, EventType, ModifierKeyEmitter, addDisposableListener, cloneGlobalStylesheets, copyAttributes, createLinkElement, createMetaElement, getActiveWindow, getClientArea, getWindowId, isGlobalStylesheet, position, registerWindow, sharedMutationObserver, trackAttributes } from 'vs/base/browser/dom';
+import { Dimension, EventHelper, EventType, ModifierKeyEmitter, addDisposableListener, cloneGlobalStylesheets, copyAttributes, createLinkElement, createMetaElement, getActiveWindow, getClientArea, getWindowId, isGlobalStylesheet, isHTMLElement, position, registerWindow, sharedMutationObserver, trackAttributes } from 'vs/base/browser/dom';
 import { CodeWindow, ensureCodeWindow, mainWindow } from 'vs/base/browser/window';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -332,7 +332,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 			options?.mode === AuxiliaryWindowMode.Fullscreen ? 'window-fullscreen=yes' : undefined 	// non-standard property
 		]);
 
-		const auxiliaryWindow = mainWindow.open('about:blank', undefined, features.join(','));
+		const auxiliaryWindow = mainWindow.open('' /* not using about:blank to support Firefox */, undefined, features.join(','));
 		if (!auxiliaryWindow && isWeb) {
 			return (await this.dialogService.prompt({
 				type: Severity.Warning,
@@ -461,7 +461,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 				for (const node of mutation.addedNodes) {
 
 					// <style>/<link> element was added
-					if (node instanceof HTMLElement && (node.tagName.toLowerCase() === 'style' || node.tagName.toLowerCase() === 'link')) {
+					if (isHTMLElement(node) && (node.tagName.toLowerCase() === 'style' || node.tagName.toLowerCase() === 'link')) {
 						cloneNode(node);
 					}
 
