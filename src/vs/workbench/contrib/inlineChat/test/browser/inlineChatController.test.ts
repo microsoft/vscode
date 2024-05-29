@@ -35,8 +35,7 @@ import { ChatAgentLocation, ChatAgentService, IChatAgentService } from 'vs/workb
 import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { InlineChatController, InlineChatRunOptions, State } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 import { Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
-import { CTX_INLINE_CHAT_USER_DID_EDIT, EditMode, IInlineChatService, InlineChatConfigKeys } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { InlineChatServiceImpl } from 'vs/workbench/contrib/inlineChat/common/inlineChatServiceImpl';
+import { CTX_INLINE_CHAT_USER_DID_EDIT, EditMode, InlineChatConfigKeys } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { IInlineChatSavingService } from '../../browser/inlineChatSavingService';
 import { IInlineChatSessionService } from '../../browser/inlineChatSessionService';
@@ -60,6 +59,8 @@ import { NullHoverService } from 'vs/platform/hover/test/browser/nullHoverServic
 import { ChatVariablesService } from 'vs/workbench/contrib/chat/browser/chatVariables';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { TestCommandService } from 'vs/editor/test/browser/editorTestServices';
+import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
+import { RerunAction } from 'vs/workbench/contrib/inlineChat/browser/inlineChatActions';
 
 suite('InteractiveChatController', function () {
 
@@ -149,7 +150,6 @@ suite('InteractiveChatController', function () {
 			[IEditorWorkerService, new SyncDescriptor(TestWorkerService)],
 			[IContextKeyService, contextKeyService],
 			[IChatAgentService, new SyncDescriptor(ChatAgentService)],
-			[IInlineChatService, new SyncDescriptor(InlineChatServiceImpl)],
 			[IDiffProviderFactoryService, new SyncDescriptor(TestDiffProviderFactoryService)],
 			[IInlineChatSessionService, new SyncDescriptor(InlineChatSessionServiceImpl)],
 			[ICommandService, new SyncDescriptor(TestCommandService)],
@@ -179,6 +179,9 @@ suite('InteractiveChatController', function () {
 			[IConfigurationService, configurationService],
 			[IViewDescriptorService, new class extends mock<IViewDescriptorService>() {
 				override onDidChangeLocation = Event.None;
+			}],
+			[INotebookEditorService, new class extends mock<INotebookEditorService>() {
+				override listNotebookEditors() { return []; }
 			}]
 		);
 
@@ -455,5 +458,40 @@ suite('InteractiveChatController', function () {
 		assert.ok(model.getValue().includes('GENERATED'));
 		assert.ok(model.getValue().includes('MANUAL'));
 
+	});
+
+	test('re-run should discard pending edits', async function () {
+
+		let count = 1;
+
+		store.add(chatAgentService.registerDynamicAgent({
+			id: 'testEditorAgent2',
+			...agentData
+		}, {
+			async invoke(request, progress, history, token) {
+				progress({ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(1, 1, 1, 1), text: request.message + (count++) }] });
+				return {};
+			},
+		}));
+
+		ctrl = instaService.createInstance(TestController, editor);
+		const rerun = new RerunAction();
+
+		model.setValue('');
+
+		const p = ctrl.waitFor([...TestController.INIT_SEQUENCE, State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
+		const r = ctrl.run({ message: 'PROMPT_', autoSend: true });
+		await p;
+
+		assert.strictEqual(model.getValue(), 'PROMPT_1');
+
+		const p2 = ctrl.waitFor([State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
+		await instaService.invokeFunction(rerun.runInlineChatCommand, ctrl, editor);
+
+		await p2;
+
+		assert.strictEqual(model.getValue(), 'PROMPT_2');
+		ctrl.finishExistingSession();
+		await r;
 	});
 });

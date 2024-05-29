@@ -49,11 +49,6 @@ declare module 'vscode' {
 		readonly maxOutputTokens: number;
 
 		/**
-		 * @deprecated
-		 */
-		tokens: number;
-
-		/**
 		 * When present, this gates the use of `requestLanguageModelAccess` behind an authorization flow where
 		 * the user must approve of another extension accessing the models contributed by this extension.
 		 * Additionally, the extension can provide a label that will be shown in the UI.

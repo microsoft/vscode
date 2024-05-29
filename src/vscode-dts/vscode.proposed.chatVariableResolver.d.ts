@@ -66,5 +66,71 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 */
 		resolve(name: string, context: ChatVariableContext, token: CancellationToken): ProviderResult<ChatVariableValue[]>;
+
+		/**
+		 * A callback to resolve the value of a chat variable.
+		 * @param name The name of the variable.
+		 * @param context Contextual information about this chat request.
+		 * @param token A cancellation token.
+		*/
+		resolve2?(name: string, context: ChatVariableContext, stream: ChatVariableResolverResponseStream, token: CancellationToken): ProviderResult<ChatVariableValue[]>;
 	}
+
+
+	/**
+	 * The detail level of this chat variable value.
+	 */
+	export enum ChatVariableLevel {
+		Short = 1,
+		Medium = 2,
+		Full = 3
+	}
+
+	export interface ChatVariableValue {
+		/**
+		 * The detail level of this chat variable value. If possible, variable resolvers should try to offer shorter values that will consume fewer tokens in an LLM prompt.
+		 */
+		level: ChatVariableLevel;
+
+		/**
+		 * The variable's value, which can be included in an LLM prompt as-is, or the chat participant may decide to read the value and do something else with it.
+		 */
+		value: string | Uri;
+
+		/**
+		 * A description of this value, which could be provided to the LLM as a hint.
+		 */
+		description?: string;
+	}
+
+	export interface ChatVariableResolverResponseStream {
+		/**
+		 * Push a progress part to this stream. Short-hand for
+		 * `push(new ChatResponseProgressPart(value))`.
+		 *
+		 * @param value
+		 * @returns This stream.
+		 */
+		progress(value: string): ChatVariableResolverResponseStream;
+
+		/**
+		 * Push a reference to this stream. Short-hand for
+		 * `push(new ChatResponseReferencePart(value))`.
+		 *
+		 * *Note* that the reference is not rendered inline with the response.
+		 *
+		 * @param value A uri or location
+		 * @returns This stream.
+		 */
+		reference(value: Uri | Location): ChatVariableResolverResponseStream;
+
+		/**
+		 * Pushes a part to this stream.
+		 *
+		 * @param part A response part, rendered or metadata
+		 */
+		push(part: ChatVariableResolverResponsePart): ChatVariableResolverResponseStream;
+	}
+
+	export type ChatVariableResolverResponsePart = ChatResponseProgressPart | ChatResponseReferencePart;
 }

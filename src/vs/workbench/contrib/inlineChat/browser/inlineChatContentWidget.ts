@@ -46,6 +46,7 @@ export class InlineChatContentWidget implements IContentWidget {
 	private readonly _widget: ChatWidget;
 
 	constructor(
+		location: ChatAgentLocation,
 		private readonly _editor: ICodeEditor,
 		@IInstantiationService instaService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -63,7 +64,7 @@ export class InlineChatContentWidget implements IContentWidget {
 
 		this._widget = scopedInstaService.createInstance(
 			ChatWidget,
-			ChatAgentLocation.Editor,
+			location,
 			{ resource: true },
 			{
 				defaultElementHeight: 32,

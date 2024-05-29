@@ -7,9 +7,8 @@ import { EditorContributionInstantiation, registerEditorContribution } from 'vs/
 import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 import * as InlineChatActions from 'vs/workbench/contrib/inlineChat/browser/inlineChatActions';
-import { IInlineChatService, INLINE_CHAT_ID } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { INLINE_CHAT_ID } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { InlineChatServiceImpl } from 'vs/workbench/contrib/inlineChat/common/inlineChatServiceImpl';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { InlineChatNotebookContribution } from 'vs/workbench/contrib/inlineChat/browser/inlineChatNotebook';
@@ -24,7 +23,6 @@ import { AccessibleViewRegistry } from 'vs/platform/accessibility/browser/access
 
 // --- browser
 
-registerSingleton(IInlineChatService, InlineChatServiceImpl, InstantiationType.Delayed);
 registerSingleton(IInlineChatSessionService, InlineChatSessionServiceImpl, InstantiationType.Delayed);
 registerSingleton(IInlineChatSavingService, InlineChatSavingServiceImpl, InstantiationType.Delayed);
 
@@ -37,8 +35,6 @@ registerAction2(InlineChatActions.ConfigureInlineChatAction);
 registerAction2(InlineChatActions.UnstashSessionAction);
 registerAction2(InlineChatActions.DiscardHunkAction);
 registerAction2(InlineChatActions.DiscardAction);
-registerAction2(InlineChatActions.DiscardToClipboardAction);
-registerAction2(InlineChatActions.DiscardUndoToNewFileAction);
 registerAction2(InlineChatActions.RerunAction);
 registerAction2(InlineChatActions.CancelSessionAction);
 registerAction2(InlineChatActions.MoveToNextHunk);

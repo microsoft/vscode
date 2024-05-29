@@ -65,7 +65,7 @@ import { InputValidationType } from 'vs/workbench/contrib/scm/common/scm';
 import { IWorkspaceSymbol, NotebookPriorityInfo } from 'vs/workbench/contrib/search/common/search';
 import { IRawClosedNotebookFileMatch } from 'vs/workbench/contrib/search/common/searchNotebookHelpers';
 import { IKeywordRecognitionEvent, ISpeechProviderMetadata, ISpeechToTextEvent, ITextToSpeechEvent } from 'vs/workbench/contrib/speech/common/speechService';
-import { CoverageDetails, ExtensionRunTestsRequest, ICallProfileRunHandler, IFileCoverage, ISerializedTestResults, IStartControllerTests, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, TestResultState, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testTypes';
+import { CoverageDetails, ExtensionRunTestsRequest, ICallProfileRunHandler, IFileCoverage, ISerializedTestResults, IStartControllerTests, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, TestMessageFollowupRequest, TestMessageFollowupResponse, TestResultState, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testTypes';
 import { Timeline, TimelineChangeEvent, TimelineOptions, TimelineProviderDescriptor } from 'vs/workbench/contrib/timeline/common/timeline';
 import { TypeHierarchyItem } from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
 import { RelatedInformationResult, RelatedInformationType } from 'vs/workbench/services/aiRelatedInformation/common/aiRelatedInformation';
@@ -2703,8 +2703,6 @@ export interface ExtHostTestingShape {
 	$cancelExtensionTestRun(runId: string | undefined): void;
 	/** Handles a diff of tests, as a result of a subscribeToDiffs() call */
 	$acceptDiff(diff: TestsDiffOp.Serialized[]): void;
-	/** Publishes that a test run finished. */
-	$publishTestResults(results: ISerializedTestResults[]): void;
 	/** Expands a test item's children, by the given number of levels. */
 	$expandTest(testId: string, levels: number): Promise<void>;
 	/** Requests coverage details for a test run. Errors if not available. */
@@ -2719,6 +2717,17 @@ export interface ExtHostTestingShape {
 	$syncTests(): Promise<void>;
 	/** Sets the active test run profiles */
 	$setDefaultRunProfiles(profiles: Record</* controller id */string, /* profile id */ number[]>): void;
+
+	// --- test results:
+
+	/** Publishes that a test run finished. */
+	$publishTestResults(results: ISerializedTestResults[]): void;
+	/** Requests followup actions for a test (failure) message */
+	$provideTestFollowups(req: TestMessageFollowupRequest, token: CancellationToken): Promise<TestMessageFollowupResponse[]>;
+	/** Actions a followup actions for a test (failure) message */
+	$executeTestFollowup(id: number): Promise<void>;
+	/** Disposes followup actions for a test (failure) message */
+	$disposeTestFollowups(id: number[]): void;
 }
 
 export interface ExtHostLocalizationShape {

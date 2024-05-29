@@ -90,7 +90,7 @@ declare function __import(path: string): Promise<any>;
 
 async function webviewPreloads(ctx: PreloadContext) {
 
-	/* eslint-disable no-restricted-globals */
+	/* eslint-disable no-restricted-globals, no-restricted-syntax */
 
 	// The use of global `window` should be fine in this context, even
 	// with aux windows. This code is running from within an `iframe`
@@ -1425,9 +1425,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 		return offset + getSelectionOffsetRelativeTo(parentElement, currentNode.parentNode);
 	}
 
-	const find = (query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean; shouldGetSearchPreviewInfo: boolean; ownerID: string }) => {
+	const find = (query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean; shouldGetSearchPreviewInfo: boolean; ownerID: string; findIds: string[] }) => {
 		let find = true;
-		const matches: IFindMatch[] = [];
+		let matches: IFindMatch[] = [];
 
 		const range = document.createRange();
 		range.selectNodeContents(window.document.getElementById('findStart')!);
@@ -1553,6 +1553,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 			console.log(e);
 		}
 
+
+		matches = matches.filter(match => options.findIds.length ? options.findIds.includes(match.cellId) : true);
 		_highlighter.addHighlights(matches, options.ownerID);
 		window.document.getSelection()?.removeAllRanges();
 

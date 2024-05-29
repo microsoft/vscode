@@ -345,7 +345,26 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		let picks = new Array<IAnythingQuickPickItem | IQuickPickSeparator>();
 		if (options.additionPicks) {
-			picks.push(...options.additionPicks);
+			for (const pick of options.additionPicks) {
+				if (pick.type === 'separator') {
+					picks.push(pick);
+					continue;
+				}
+				if (!query.original) {
+					pick.highlights = undefined;
+					picks.push(pick);
+					continue;
+				}
+				const { score, labelMatch, descriptionMatch } = scoreItemFuzzy(pick, query, true, quickPickItemScorerAccessor, this.pickState.scorerCache);
+				if (!score) {
+					continue;
+				}
+				pick.highlights = {
+					label: labelMatch,
+					description: descriptionMatch
+				};
+				picks.push(pick);
+			}
 		}
 		if (this.pickState.isQuickNavigating) {
 			if (picks.length > 0) {

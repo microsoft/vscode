@@ -8,15 +8,30 @@
 	position: relative;
 }
 
-.interactive-result-code-block .monaco-toolbar {
+.interactive-result-code-block .interactive-result-code-block-toolbar {
 	display: none;
+}
+
+.interactive-result-code-block .interactive-result-code-block-toolbar > .monaco-action-bar,
+.interactive-result-code-block .interactive-result-code-block-toolbar > .monaco-toolbar {
 	position: absolute;
 	top: -13px;
-	right: 10px;
 	height: 26px;
+	line-height: 26px;
 	background-color: var(--vscode-interactive-result-editor-background-color, var(--vscode-editor-background));
 	border: 1px solid var(--vscode-chat-requestBorder);
 	z-index: 100;
+	max-width: 70%;
+	text-overflow: ellipsis;
+	overflow: hidden;
+}
+
+.interactive-result-code-block .interactive-result-code-block-toolbar > .monaco-action-bar {
+	left: 0px
+}
+
+.interactive-result-code-block .interactive-result-code-block-toolbar > .monaco-toolbar {
+	right: 10px;
 }
 
 .interactive-result-code-block .monaco-toolbar .action-item {
@@ -29,9 +44,9 @@
 	margin: 1px;
 }
 
-.interactive-result-code-block:hover .monaco-toolbar,
-.interactive-result-code-block .monaco-toolbar:focus-within,
-.interactive-result-code-block.focused .monaco-toolbar {
+.interactive-result-code-block:hover .interactive-result-code-block-toolbar,
+.interactive-result-code-block .interactive-result-code-block-toolbar:focus-within,
+.interactive-result-code-block.focused .interactive-result-code-block-toolbar {
 	display: initial;
 	border-radius: 2px;
 }
@@ -127,4 +142,8 @@
 .interactive-result-code-block.compare .message A {
 	color: var(--vscode-textLink-foreground);
 	cursor: pointer;
+}
+
+.interactive-result-code-block.compare .message A > CODE {
+	color: var(--vscode-textLink-foreground);
 }

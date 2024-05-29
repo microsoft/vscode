@@ -151,21 +151,13 @@
 					{
 						// Files should (only) be removed from the list they adopt the leak detector
 						"exclude": [
-							"src/vs/base/test/browser/browser.test.ts",
-							"src/vs/base/test/browser/ui/scrollbar/scrollableElement.test.ts",
-							"src/vs/base/test/browser/ui/scrollbar/scrollbarState.test.ts",
 							"src/vs/editor/contrib/codeAction/test/browser/codeActionModel.test.ts",
-							"src/vs/editor/test/common/services/languageService.test.ts",
-							"src/vs/editor/test/node/classification/typescript.test.ts",
 							"src/vs/platform/configuration/test/common/configuration.test.ts",
-							"src/vs/platform/extensions/test/common/extensionValidator.test.ts",
 							"src/vs/platform/opener/test/common/opener.test.ts",
 							"src/vs/platform/registry/test/common/platform.test.ts",
-							"src/vs/platform/remote/test/common/remoteHosts.test.ts",
 							"src/vs/platform/workspace/test/common/workspace.test.ts",
 							"src/vs/platform/workspaces/test/electron-main/workspaces.test.ts",
 							"src/vs/workbench/api/test/browser/mainThreadConfiguration.test.ts",
-							"src/vs/workbench/api/test/common/extHostExtensionActivator.test.ts",
 							"src/vs/workbench/api/test/node/extHostTunnelService.test.ts",
 							"src/vs/workbench/contrib/bulkEdit/test/browser/bulkCellEdits.test.ts",
 							"src/vs/workbench/contrib/chat/test/common/chatWordCounter.test.ts",
@@ -176,7 +168,6 @@
 							"src/vs/workbench/contrib/tasks/test/common/problemMatcher.test.ts",
 							"src/vs/workbench/contrib/tasks/test/common/taskConfiguration.test.ts",
 							"src/vs/workbench/services/commands/test/common/commandService.test.ts",
-							"src/vs/workbench/services/extensions/test/common/extensionDescriptionRegistry.test.ts",
 							"src/vs/workbench/services/userActivity/test/browser/domActivityTracker.test.ts",
 							"src/vs/workbench/test/browser/quickAccess.test.ts"
 						]
@@ -316,6 +307,10 @@
 					{
 						"selector": "BinaryExpression[operator='instanceof'][right.name='MouseEvent']",
 						"message": "Use DOM.isMouseEvent() to support multi-window scenarios."
+					},
+					{
+						"selector": "BinaryExpression[operator='instanceof'][right.name=/^HTML\\w+/]",
+						"message": "Use DOM.isHTMLElement() and related methods to support multi-window scenarios."
 					},
 					{
 						"selector": "BinaryExpression[operator='instanceof'][right.name='KeyboardEvent']",

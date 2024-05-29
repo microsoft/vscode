@@ -18,6 +18,7 @@ import { IChatModel, IChatRequestVariableData, IChatRequestVariableEntry } from 
 import { ChatRequestDynamicVariablePart, ChatRequestVariablePart, IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatContentReference } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestVariableValue, IChatVariableData, IChatVariableResolver, IChatVariableResolverProgress, IChatVariablesService, IDynamicVariable } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { ChatContextAttachments } from 'vs/workbench/contrib/chat/browser/contrib/chatContextAttachments';
 
 interface IChatData {
 	data: IChatVariableData;
@@ -62,9 +63,10 @@ export class ChatVariablesService implements IChatVariablesService {
 				}
 			});
 
+		const resolvedAttachedContext: IChatRequestVariableEntry[] = [];
 		attachedContextVariables
 			?.forEach((attachment, i) => {
-				const data = this._resolver.get(attachment.name.toLowerCase());
+				const data = this._resolver.get(attachment.name?.toLowerCase());
 				if (data) {
 					const references: IChatContentReference[] = [];
 					const variableProgressCallback = (item: IChatVariableResolverProgress) => {
@@ -76,11 +78,11 @@ export class ChatVariablesService implements IChatVariablesService {
 					};
 					jobs.push(data.resolver(prompt.text, '', model, variableProgressCallback, token).then(value => {
 						if (value) {
-							resolvedVariables[i] = { id: data.data.id, modelDescription: data.data.modelDescription, name: attachment.name, range: attachment.range, value, references };
+							resolvedAttachedContext[i] = { id: data.data.id, modelDescription: data.data.modelDescription, name: attachment.name, range: attachment.range, value, references };
 						}
 					}).catch(onUnexpectedExternalError));
 				} else if (attachment.isDynamic) {
-					resolvedVariables[i] = { id: attachment.id, name: attachment.name, value: attachment.value };
+					resolvedAttachedContext[i] = { id: attachment.id, name: attachment.name, value: attachment.value };
 				}
 			});
 
@@ -90,6 +92,7 @@ export class ChatVariablesService implements IChatVariablesService {
 
 		// "reverse", high index first so that replacement is simple
 		resolvedVariables.sort((a, b) => b.range!.start - a.range!.start);
+		resolvedVariables.push(...resolvedAttachedContext);
 
 		return {
 			variables: resolvedVariables,
@@ -161,7 +164,7 @@ export class ChatVariablesService implements IChatVariablesService {
 		if (key === 'file' && typeof value !== 'string') {
 			const uri = URI.isUri(value) ? value : value.uri;
 			const range = 'range' in value ? value.range : undefined;
-			widget.attachContext({ value, id: uri.toString() + (range?.toString() ?? ''), name: basename(uri.path), isDynamic: true });
+			widget.getContrib<ChatContextAttachments>(ChatContextAttachments.ID)?.setContext(false, { value, id: uri.toString() + (range?.toString() ?? ''), name: basename(uri.path), isFile: true, isDynamic: true });
 			return;
 		}
 
@@ -170,6 +173,6 @@ export class ChatVariablesService implements IChatVariablesService {
 			return;
 		}
 
-		widget.attachContext({ ...resolved.data, value });
+		widget.getContrib<ChatContextAttachments>(ChatContextAttachments.ID)?.setContext(false, { ...resolved.data, value });
 	}
 }

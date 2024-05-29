@@ -42,4 +42,5 @@ export class InlineChatAccessibleView implements IAccessibleViewImplentation {
 			options: { type: AccessibleViewType.View }
 		};
 	}
+	dispose() { }
 }

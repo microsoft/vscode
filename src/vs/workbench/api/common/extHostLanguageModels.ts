@@ -159,8 +159,8 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			name: metadata.name ?? '',
 			family: metadata.family ?? '',
 			version: metadata.version,
-			maxInputTokens: metadata.maxInputTokens ?? metadata.tokens,
-			maxOutputTokens: metadata.maxOutputTokens ?? metadata.tokens,
+			maxInputTokens: metadata.maxInputTokens,
+			maxOutputTokens: metadata.maxOutputTokens,
 			auth,
 			targetExtensions: metadata.extensions
 		});
@@ -251,6 +251,11 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			if (!data) {
 				// model gone? is this an error on us?
 				continue;
+			}
+
+			// make sure auth information is correct
+			if (this._isUsingAuth(extension.identifier, data.metadata)) {
+				await this._fakeAuthPopulate(data.metadata);
 			}
 
 			let apiObject = data.apiObjects.get(extension.identifier);
@@ -402,6 +407,10 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 	}
 
 	private async _fakeAuthPopulate(metadata: ILanguageModelChatMetadata): Promise<void> {
+
+		if (!metadata.auth) {
+			return;
+		}
 
 		for (const from of this._languageAccessInformationExtensions) {
 			try {

@@ -18,11 +18,18 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { URI } from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceTagsService } from 'vs/workbench/contrib/tags/common/workspaceTags';
 import { getErrorMessage } from 'vs/base/common/errors';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
+import { EditorExtensions, IEditorFactoryRegistry } from 'vs/workbench/common/editor';
+import { UserDataProfilesEditor, UserDataProfilesEditorInput, UserDataProfilesEditorInputSerializer } from 'vs/workbench/contrib/userDataProfile/browser/userDataProfilesEditor';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 type IProfileTemplateQuickPickItem = IQuickPickItem & IProfileTemplateInfo;
 
@@ -33,6 +40,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 	private readonly currentProfileContext: IContextKey<string>;
 	private readonly isCurrentProfileTransientContext: IContextKey<boolean>;
 	private readonly hasProfilesContext: IContextKey<boolean>;
+	private readonly startTime: number = Date.now();
 
 	constructor(
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
@@ -62,6 +70,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		this.hasProfilesContext.set(this.userDataProfilesService.profiles.length > 1);
 		this._register(this.userDataProfilesService.onDidChangeProfiles(e => this.hasProfilesContext.set(this.userDataProfilesService.profiles.length > 1)));
 
+		this.registerEditor();
 		this.registerActions();
 
 		if (isWeb) {
@@ -71,8 +80,23 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		this.reportWorkspaceProfileInfo();
 	}
 
+	private registerEditor(): void {
+		Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+			EditorPaneDescriptor.create(
+				UserDataProfilesEditor,
+				UserDataProfilesEditor.ID,
+				localize('userdataprofilesEditor', "Profiles Editor")
+			),
+			[
+				new SyncDescriptor(UserDataProfilesEditorInput)
+			]
+		);
+		Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(UserDataProfilesEditorInput.ID, UserDataProfilesEditorInputSerializer);
+	}
+
 	private registerActions(): void {
 		this.registerProfileSubMenu();
+		this._register(this.registerManageProfilesAction());
 		this._register(this.registerSwitchProfileAction());
 
 		this.registerProfilesActions();
@@ -90,7 +114,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 
 	private registerProfileSubMenu(): void {
 		const getProfilesTitle = () => {
-			return localize('profiles', "Profiles ({0})", this.userDataProfileService.currentProfile.name);
+			return localize('profiles', "Profile ({0})", this.userDataProfileService.currentProfile.name);
 		};
 		MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 			get title() {
@@ -109,6 +133,51 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			order: 1,
 			when: PROFILES_ENABLEMENT_CONTEXT,
 		});
+	}
+
+	private registerManageProfilesAction(): IDisposable {
+		const disposables = new DisposableStore();
+		const when = ContextKeyExpr.equals('config.workbench.experimental.enableNewProfilesUI', true);
+		disposables.add(registerAction2(class ManageProfilesAction extends Action2 {
+			constructor() {
+				super({
+					id: `workbench.profiles.actions.manageProfiles`,
+					title: {
+						...localize2('manage profiles', "Profiles"),
+						mnemonicTitle: localize({ key: 'miOpenProfiles', comment: ['&& denotes a mnemonic'] }, "&&Profiles"),
+					},
+					menu: [
+						{
+							id: MenuId.GlobalActivity,
+							group: '2_configuration',
+							when,
+							order: 1
+						},
+						{
+							id: MenuId.MenubarPreferencesMenu,
+							group: '2_configuration',
+							when,
+							order: 1
+						}
+					]
+				});
+			}
+			run(accessor: ServicesAccessor) {
+				const editorGroupsService = accessor.get(IEditorGroupsService);
+				const instantiationService = accessor.get(IInstantiationService);
+				return editorGroupsService.activeGroup.openEditor(new UserDataProfilesEditorInput(instantiationService));
+			}
+		}));
+		disposables.add(MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+			command: {
+				id: 'workbench.profiles.actions.manageProfiles',
+				category: Categories.Preferences,
+				title: localize2('open profiles', "Open Profiles (UI)"),
+				precondition: when,
+			},
+		}));
+
+		return disposables;
 	}
 
 	private readonly profilesDisposable = this._register(new MutableDisposable<DisposableStore>());
@@ -138,6 +207,19 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			}
 			async run(accessor: ServicesAccessor) {
 				if (that.userDataProfileService.currentProfile.id !== profile.id) {
+					if (profile.isDefault && Date.now() - that.startTime < (1000 * 20 /* 20 seconds */)) {
+						type SwitchToDefaultProfileInfoClassification = {
+							owner: 'sandy081';
+							comment: 'Report if the user switches to the default profile.';
+							emptyWindow: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'If the current window is empty window or not' };
+						};
+						type SwitchToDefaultProfileInfoEvent = {
+							emptyWindow: boolean;
+						};
+						that.telemetryService.publicLog2<SwitchToDefaultProfileInfoEvent, SwitchToDefaultProfileInfoClassification>('profiles:newwindowprofile', {
+							emptyWindow: that.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY
+						});
+					}
 					return that.userDataProfileManagementService.switchProfile(profile);
 				}
 			}
