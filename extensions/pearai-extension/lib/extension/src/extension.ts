@@ -97,6 +97,9 @@ export const activate = async (context: vscode.ExtensionContext) => {
 		vscode.commands.registerCommand("pearai.startChat", () => {
 			chatController.createConversation("chat-en");
 		}),
+		vscode.commands.registerCommand("pearai.openChat", () => {
+			chatController.showLastSelectedConversationOrCreateNew();
+		}),
 		vscode.commands.registerCommand("pearai.editCode", () => {
 			chatController.createConversation("edit-code");
 		}),

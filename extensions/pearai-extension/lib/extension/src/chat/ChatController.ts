@@ -50,11 +50,15 @@ export class ChatController {
 		await this.chatPanel.update(this.chatModel);
 	}
 
-	private async addAndShowConversation<T extends Conversation>(
+	/**
+	 * Opens and displays the specified conversation.
+	 * @param conversation The conversation to show.
+	 * @returns The specified conversation.
+	 */
+	private async showConversation<T extends Conversation>(
 		conversation: T
 	): Promise<T> {
-		this.chatModel.addAndSelectConversation(conversation);
-
+		this.chatModel.selectConversation(conversation);
 		await this.showChatPanel();
 		await this.updateChatPanel();
 
@@ -75,8 +79,13 @@ export class ChatController {
 				break;
 			}
 			case "clickCollapsedConversation": {
-				this.chatModel.selectedConversationId = message.data.id;
-				await this.updateChatPanel();
+				const conversation = this.chatModel.getConversationById(
+					message.data.id
+				);
+				if (conversation) {
+					this.chatModel.selectConversation(conversation);
+					await this.updateChatPanel();
+				}
 				break;
 			}
 			case "sendMessage": {
@@ -87,6 +96,10 @@ export class ChatController {
 			}
 			case "startChat": {
 				await this.createConversation(this.basicChatTemplateId);
+				break;
+			}
+			case "openChat": {
+				await this.showLastSelectedConversationOrCreateNew();
 				break;
 			}
 			case "deleteConversation": {
@@ -162,7 +175,8 @@ export class ChatController {
 				return;
 			}
 
-			await this.addAndShowConversation(result.conversation);
+			await this.chatModel.addAndSelectConversation(result.conversation);
+			await this.showConversation(result.conversation);
 
 			if (result.shouldImmediatelyAnswer) {
 				await result.conversation.answer();
@@ -172,5 +186,22 @@ export class ChatController {
 			console.log(error);
 			await vscode.window.showErrorMessage(error?.message ?? error);
 		}
+	}
+
+	private getLastSelectedConversation() {
+		return this.chatModel.getLastSelectedConversation();
+	}
+
+	/**
+	 * Opens and displays the last selected conversation, if one exists.
+	 * If there is no last selected conversation, creates a new one first.
+	 */
+	async showLastSelectedConversationOrCreateNew() {
+		const lastSelectedConversation = this.getLastSelectedConversation();
+		if (!lastSelectedConversation) {
+			await this.createConversation("chat-en");
+			return;
+		}
+		await this.showConversation(lastSelectedConversation);
 	}
 }

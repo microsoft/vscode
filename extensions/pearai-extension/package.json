@@ -61,6 +61,11 @@
         "icon": "$(comment-discussion)"
       },
       {
+        "command": "pearai.openChat",
+        "title": "Open Chat",
+        "category": "PearAI"
+      },
+      {
         "command": "pearai.editCode",
         "title": "Edit Code 🖊️",
         "category": "PearAI",
@@ -243,10 +248,20 @@
       {
         "command": "pearai.startChat",
         "when": "isMac",
-        "key": "Cmd+l"
+        "key": "Shift+Cmd+l"
       },
       {
         "command": "pearai.startChat",
+        "when": "!isMac",
+        "key": "Shift+Alt+l"
+      },
+      {
+        "command": "pearai.openChat",
+        "when": "isMac",
+        "key": "Cmd+l"
+      },
+      {
+        "command": "pearai.openChat",
         "when": "!isMac",
         "key": "Alt+l"
       },
