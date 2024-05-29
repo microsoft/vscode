@@ -99,10 +99,10 @@ export class CachedExtensionScanner {
 			}
 
 			const system = scannedSystemExtensions.map(e => toExtensionDescriptionFromScannedExtension(e, false));
-			const userGlobal = scannedUserExtensions.map(e => toExtensionDescriptionFromScannedExtension(e, false));
-			const userWorkspace = workspaceExtensions.map(e => toExtensionDescription(e, false));
+			const user = scannedUserExtensions.map(e => toExtensionDescriptionFromScannedExtension(e, false));
+			const workspace = workspaceExtensions.map(e => toExtensionDescription(e, false));
 			const development = scannedDevelopedExtensions.map(e => toExtensionDescriptionFromScannedExtension(e, true));
-			const r = dedupExtensions(system, [...userGlobal, ...userWorkspace], development, this._logService);
+			const r = dedupExtensions(system, user, workspace, development, this._logService);
 
 			if (!hasErrors) {
 				const disposable = this._extensionsScannerService.onDidChangeCache(() => {

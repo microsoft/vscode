@@ -690,11 +690,28 @@ class Extensions extends Disposable {
 			all.push(...await this.workbenchExtensionManagementService.getInstalledWorkspaceExtensions(true));
 		}
 
-		// dedup user and system extensions by giving priority to user extensions.
+		// dedup workspace, user and system extensions by giving priority to workspace first and then to user extension.
 		const installed = groupByExtension(all, r => r.identifier).reduce((result, extensions) => {
-			const extension = extensions.length === 1 ? extensions[0]
-				: extensions.find(e => e.type === ExtensionType.User) || extensions.find(e => e.type === ExtensionType.System);
-			result.push(extension!);
+			if (extensions.length === 1) {
+				result.push(extensions[0]);
+			} else {
+				let workspaceExtension: ILocalExtension | undefined,
+					userExtension: ILocalExtension | undefined,
+					systemExtension: ILocalExtension | undefined;
+				for (const extension of extensions) {
+					if (extension.isWorkspaceScoped) {
+						workspaceExtension = extension;
+					} else if (extension.type === ExtensionType.User) {
+						userExtension = extension;
+					} else {
+						systemExtension = extension;
+					}
+				}
+				const extension = workspaceExtension ?? userExtension ?? systemExtension;
+				if (extension) {
+					result.push(extension);
+				}
+			}
 			return result;
 		}, []);
 
@@ -1300,7 +1317,9 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 		if (isUninstalled) {
 			const canRemoveRunningExtension = runningExtension && this.extensionService.canRemoveExtension(runningExtension);
-			const isSameExtensionRunning = runningExtension && (!extension.server || extension.server === this.extensionManagementServerService.getExtensionManagementServer(toExtension(runningExtension)));
+			const isSameExtensionRunning = runningExtension
+				&& (!extension.server || extension.server === this.extensionManagementServerService.getExtensionManagementServer(toExtension(runningExtension)))
+				&& (!extension.resourceExtension || this.uriIdentityService.extUri.isEqual(extension.resourceExtension.location, runningExtension.extensionLocation));
 			if (!canRemoveRunningExtension && isSameExtensionRunning && !runningExtension.isUnderDevelopment) {
 				return { action: reloadAction, reason: nls.localize('postUninstallTooltip', "Please {0} to complete the uninstallation of this extension.", reloadActionLabel) };
 			}
