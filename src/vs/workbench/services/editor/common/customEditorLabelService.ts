@@ -166,7 +166,7 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 			if (variable === 'filename') {
 				return parsedPath.name;
 			} else if (variable === 'extname') {
-				return parsedPath.ext.slice(1);
+				return parsedPath.base.split('.').slice(1).join('.');
 			} else if (variable.startsWith('extname')) {
 				const n = parseInt(extnameN);
 				const extensionName = parsedPath.base;
