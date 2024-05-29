@@ -562,7 +562,7 @@ async fn serve_with_csa(
 		match acquire_singleton(&paths.tunnel_lockfile()).await {
 			Ok(SingletonConnection::Client(stream)) => {
 				debug!(log, "starting as client to singleton");
-				if gateway_args.name.is_none()
+				if gateway_args.name.is_some()
 					|| !gateway_args.install_extension.is_empty()
 					|| gateway_args.tunnel.tunnel_id.is_some()
 				{
