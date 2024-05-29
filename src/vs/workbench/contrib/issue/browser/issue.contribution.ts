@@ -40,7 +40,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 		properties: {
 			'issueReporter.experimental.webReporter': {
 				type: 'boolean',
-				default: true,
+				default: false,
 				description: 'Enable experimental issue reporter for web.',
 			},
 		}
