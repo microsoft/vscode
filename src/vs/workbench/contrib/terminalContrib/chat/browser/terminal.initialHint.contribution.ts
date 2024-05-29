@@ -247,7 +247,7 @@ class TerminalInitialHintWidget extends Disposable {
 			}
 		};
 
-		const hintElement = $('terminal-initial-hint');
+		const hintElement = $('div.terminal-initial-hint');
 		hintElement.style.display = 'block';
 
 		const keybindingHint = this.keybindingService.lookupKeybinding(TerminalChatCommandId.Start);
@@ -275,8 +275,7 @@ class TerminalInitialHintWidget extends Disposable {
 			hintElement.appendChild(after);
 
 			const typeToDismiss = localize('hintTextDismiss', 'Start typing to dismiss.');
-			const textHint2 = $('span', undefined, typeToDismiss);
-			textHint2.style.fontStyle = 'italic';
+			const textHint2 = $('span.detail', undefined, typeToDismiss);
 			hintElement.appendChild(textHint2);
 
 			ariaLabel = actionPart.concat(typeToDismiss);

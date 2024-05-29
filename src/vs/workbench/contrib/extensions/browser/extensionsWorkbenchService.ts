@@ -690,11 +690,28 @@ class Extensions extends Disposable {
 			all.push(...await this.workbenchExtensionManagementService.getInstalledWorkspaceExtensions(true));
 		}
 
-		// dedup user and system extensions by giving priority to user extensions.
+		// dedup workspace, user and system extensions by giving priority to workspace first and then to user extension.
 		const installed = groupByExtension(all, r => r.identifier).reduce((result, extensions) => {
-			const extension = extensions.length === 1 ? extensions[0]
-				: extensions.find(e => e.type === ExtensionType.User) || extensions.find(e => e.type === ExtensionType.System);
-			result.push(extension!);
+			if (extensions.length === 1) {
+				result.push(extensions[0]);
+			} else {
+				let workspaceExtension: ILocalExtension | undefined,
+					userExtension: ILocalExtension | undefined,
+					systemExtension: ILocalExtension | undefined;
+				for (const extension of extensions) {
+					if (extension.isWorkspaceScoped) {
+						workspaceExtension = extension;
+					} else if (extension.type === ExtensionType.User) {
+						userExtension = extension;
+					} else {
+						systemExtension = extension;
+					}
+				}
+				const extension = workspaceExtension ?? userExtension ?? systemExtension;
+				if (extension) {
+					result.push(extension);
+				}
+			}
 			return result;
 		}, []);
 
@@ -1300,7 +1317,9 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 		if (isUninstalled) {
 			const canRemoveRunningExtension = runningExtension && this.extensionService.canRemoveExtension(runningExtension);
-			const isSameExtensionRunning = runningExtension && (!extension.server || extension.server === this.extensionManagementServerService.getExtensionManagementServer(toExtension(runningExtension)));
+			const isSameExtensionRunning = runningExtension
+				&& (!extension.server || extension.server === this.extensionManagementServerService.getExtensionManagementServer(toExtension(runningExtension)))
+				&& (!extension.resourceExtension || this.uriIdentityService.extUri.isEqual(extension.resourceExtension.location, runningExtension.extensionLocation));
 			if (!canRemoveRunningExtension && isSameExtensionRunning && !runningExtension.isUnderDevelopment) {
 				return { action: reloadAction, reason: nls.localize('postUninstallTooltip', "Please {0} to complete the uninstallation of this extension.", reloadActionLabel) };
 			}
@@ -2150,7 +2169,27 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (!extension.local || isApplicationScopedExtension(extension.local.manifest) || extension.isBuiltin) {
 			return;
 		}
-		await this.extensionManagementService.toggleAppliationScope(extension.local, this.userDataProfileService.currentProfile.extensionsResource);
+		const isApplicationScoped = extension.local.isApplicationScoped;
+		await Promise.all(this.getAllExtensions().map(async extensions => {
+			const local = extensions.local.find(e => areSameExtensions(e.identifier, extension.identifier))?.local;
+			if (local && local.isApplicationScoped === isApplicationScoped) {
+				await this.extensionManagementService.toggleAppliationScope(local, this.userDataProfileService.currentProfile.extensionsResource);
+			}
+		}));
+	}
+
+	private getAllExtensions(): Extensions[] {
+		const extensions: Extensions[] = [];
+		if (this.localExtensions) {
+			extensions.push(this.localExtensions);
+		}
+		if (this.remoteExtensions) {
+			extensions.push(this.remoteExtensions);
+		}
+		if (this.webExtensions) {
+			extensions.push(this.webExtensions);
+		}
+		return extensions;
 	}
 
 	private isInstalledExtensionSynced(extension: ILocalExtension): boolean {

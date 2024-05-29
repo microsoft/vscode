@@ -141,7 +141,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		} catch (error) {
 			this._logService.error(error);
 		}
-		return dedupExtensions(system, user, development, this._logService);
+		return dedupExtensions(system, user, [], development, this._logService);
 	}
 
 	protected async _resolveExtensionsDefault() {
