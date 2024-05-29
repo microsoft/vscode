@@ -155,30 +155,28 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 		return undefined;
 	}
 
-	private readonly _parsedTemplateExpression = /\$\{(dirname|filename|extname|dirname\((?<dirnameN>[-+]?\d+)\)|filenamePart\((?<filenamePartN>[-+]?\d+)\))\}/g;
+	private readonly _parsedTemplateExpression = /\$\{(dirname|filename|extname\((?<extnameN>[-+]?\d+)\)|dirname\((?<dirnameN>[-+]?\d+)\))\}/g;
 	private applyTemplate(template: string, resource: URI, relevantPath: string): string {
 		let parsedPath: undefined | ParsedPath;
 		return template.replace(this._parsedTemplateExpression, (match: string, variable: string, ...args: any[]) => {
 			parsedPath = parsedPath ?? parsePath(resource.path);
 			// named group matches
-			const { dirnameN = '0', filenamePartN = '0' }: { dirnameN?: string; filenamePartN?: string } = args.pop();
+			const { dirnameN = '0', extnameN = '0' }: { dirnameN?: string; extnameN?: string } = args.pop();
 
 			if (variable === 'filename') {
 				return parsedPath.name;
 			} else if (variable === 'extname') {
 				return parsedPath.ext.slice(1);
+			} else if (variable.startsWith('extname')) {
+				const n = parseInt(extnameN);
+				const extensionName = parsedPath.base;
+				const nthExtname = this.getNthExtname(extensionName, n);
+				return nthExtname ?? variable;
 			} else if (variable.startsWith('dirname')) {
 				const n = parseInt(dirnameN);
 				const nthDir = this.getNthDirname(dirname(relevantPath), n);
 				if (nthDir) {
 					return nthDir;
-				}
-			} else if (variable.startsWith('filenamePart')) {
-				const n = parseInt(filenamePartN);
-				const fullFilename = parsedPath.name + parsedPath.ext;
-				const nthPart = this.getNthFilenamePart(fullFilename, n);
-				if (nthPart) {
-					return nthPart;
 				}
 			}
 
@@ -191,26 +189,25 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 		path = path.startsWith('/') ? path.slice(1) : path;
 		const pathFragments = path.split('/');
 
-		return this.getNthFragment(pathFragments, n, true);
+		return this.getNthFragment(pathFragments, n);
 	}
 
-	private getNthFilenamePart(fullFilename: string, n: number): string | undefined {
-		// filename.ext1.ext2 -> [filename, ext1, ext2]
-		const filenameFragments = fullFilename.split('.');
+	private getNthExtname(fullFileName: string, n: number): string | undefined {
+		// file.ext1.ext2.ext3 -> [file, ext1, ext2, ext3]
+		const extensionNameFragments = fullFileName.split('.');
+		extensionNameFragments.shift(); // remove the first element which is the file name
 
-		return this.getNthFragment(filenameFragments, n);
+		return this.getNthFragment(extensionNameFragments, n);
 	}
 
-	// in directories we count from the end, in filenames we count from the beginning
-	private getNthFragment(fragments: string[], n: number, reverse = false): string | undefined {
+	private getNthFragment(fragments: string[], n: number): string | undefined {
 		const length = fragments.length;
 
 		let nth;
 		if (n < 0) {
-			const absoluteN = Math.abs(n);
-			nth = reverse ? absoluteN - 1 : length - absoluteN - 1;
+			nth = Math.abs(n) - 1;
 		} else {
-			nth = reverse ? length - n - 1 : (n || 1) - 1;
+			nth = length - n - 1;
 		}
 
 		const nthFragment = fragments[nth];
