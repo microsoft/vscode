@@ -55,6 +55,7 @@ import { IChatHistoryEntry, IChatWidgetHistoryService } from 'vs/workbench/contr
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { basename, dirname } from 'vs/base/common/path';
 
 const $ = dom.$;
 
@@ -448,14 +449,26 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const widget = dom.append(container, $('.chat-attached-context-attachment.show-file-icons'));
 			const label = this._contextResourceLabels.create(widget, { supportIcons: true });
 			const file = URI.isUri(attachment.value) ? attachment.value : attachment.value && typeof attachment.value === 'object' && 'uri' in attachment.value && URI.isUri(attachment.value.uri) ? attachment.value.uri : undefined;
+			const range = attachment.value && typeof attachment.value === 'object' && 'range' in attachment.value && Range.isIRange(attachment.value.range) ? attachment.value.range : undefined;
 			if (file && attachment.isFile) {
+				const fileBasename = basename(file.path);
+				const fileDirname = dirname(file.path);
+				const friendlyName = `${fileBasename} ${fileDirname}`;
+				const ariaLabel = range ? localize('chat.fileAttachmentWithRange', "Attached file, {0}, line {1} to line {2}", friendlyName, range.startLineNumber, range.endLineNumber) : localize('chat.fileAttachment', "Attached file, {0}", friendlyName);
+
 				label.setFile(file, {
 					fileKind: FileKind.FILE,
 					hidePath: true,
-					range: attachment.value && typeof attachment.value === 'object' && 'range' in attachment.value && Range.isIRange(attachment.value.range) ? attachment.value.range : undefined,
+					range,
 				});
+				widget.ariaLabel = ariaLabel;
+				widget.tabIndex = 0;
 			} else {
-				label.setLabel(attachment.fullName ?? attachment.name);
+				const attachmentLabel = attachment.fullName ?? attachment.name;
+				label.setLabel(attachmentLabel, undefined);
+
+				widget.ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
+				widget.tabIndex = 0;
 			}
 
 			const clearButton = new Button(widget, { supportIcons: true });
