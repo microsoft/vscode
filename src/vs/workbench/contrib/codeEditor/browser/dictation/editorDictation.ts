@@ -29,6 +29,7 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { toAction } from 'vs/base/common/actions';
 import { ThemeIcon } from 'vs/base/common/themables';
+import { isWindows } from 'vs/base/common/platform';
 
 const EDITOR_DICTATION_IN_PROGRESS = new RawContextKey<boolean>('editorDictation.inProgress', false);
 const VOICE_CATEGORY = localize2('voiceCategory', "Voice");
@@ -48,7 +49,10 @@ export class EditorDictationStartAction extends EditorAction2 {
 			f1: true,
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyV,
-				weight: KeybindingWeight.WorkbenchContrib
+				weight: KeybindingWeight.WorkbenchContrib,
+				secondary: isWindows ? [
+					KeyMod.Alt | KeyCode.Backquote
+				] : undefined
 			}
 		});
 	}
