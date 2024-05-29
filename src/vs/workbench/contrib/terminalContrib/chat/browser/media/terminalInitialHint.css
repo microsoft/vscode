@@ -7,5 +7,10 @@
 	color: var(--vscode-input-placeholderForeground);
 }
 .monaco-workbench .pane-body.integrated-terminal .terminal-initial-hint a {
-	color: var(--vscode-textLink-foreground)
+	color: var(--vscode-textLink-foreground);
+}
+
+.monaco-workbench .pane-body.integrated-terminal .terminal-initial-hint a,
+.monaco-workbench .pane-body.integrated-terminal .terminal-initial-hint .detail {
+	font-style: italic;
 }
