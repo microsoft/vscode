@@ -16,7 +16,7 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-
+import { mainWindow } from 'vs/base/browser/window';
 
 const auxiliaryBarRightIcon = registerIcon('auxiliarybar-right-layout-icon', Codicon.layoutSidebarRight, localize('toggleAuxiliaryIconRight', 'Icon to toggle the auxiliary bar off in its right position.'));
 const auxiliaryBarRightOffIcon = registerIcon('auxiliarybar-right-off-layout-icon', Codicon.layoutSidebarRightOff, localize('toggleAuxiliaryIconRightOn', 'Icon to toggle the auxiliary bar on in its right position.'));
@@ -145,3 +145,85 @@ MenuRegistry.appendMenuItems([
 		}
 	}
 ]);
+
+export class ResizeAuxiliaryBarWidthAction extends Action2 {
+	static readonly ID = 'workbench.action.resizeAuxiliaryBarWidth';
+	static readonly LABEL = localize2('resizeAuxiliaryBarWidth', "Resize Auxiliary Bar Width");
+
+	// Tracking the previous width of the aux bar and visibility of the left side bar
+	static _previousAuxiliaryBarWidth: number | null = null;
+	static _previousSideBarVisibility: boolean | null = null;
+
+	constructor() {
+		super({
+			id: ResizeAuxiliaryBarWidthAction.ID,
+			title: ResizeAuxiliaryBarWidthAction.LABEL,
+			category: Categories.View,
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyCode.BracketLeft,
+				linux: {
+					primary: KeyMod.CtrlCmd | KeyCode.BracketLeft
+				},
+				win: {
+					primary: KeyMod.Alt | KeyCode.BracketLeft
+				},
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyCode.BracketLeft
+				}
+			},
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const layoutService = accessor.get(IWorkbenchLayoutService);
+		// Check if the main window is available
+		if (!mainWindow) {
+			return;
+		}
+
+		const auxBarPart = layoutService.getContainer(mainWindow, Parts.AUXILIARYBAR_PART);
+		const auxBarDimensions = auxBarPart?.getBoundingClientRect();
+		const isAuxiliaryBarVisible = layoutService.isVisible(Parts.AUXILIARYBAR_PART);
+
+		// If the auxiliary bar is not visible, or the dimensions are null, return
+		if (!auxBarDimensions || !isAuxiliaryBarVisible) {
+			return;
+		}
+
+		// Save the current width as the previous width if it has not been saved yet
+		if (ResizeAuxiliaryBarWidthAction._previousAuxiliaryBarWidth === null) {
+			ResizeAuxiliaryBarWidthAction._previousAuxiliaryBarWidth = auxBarDimensions.width;
+			ResizeAuxiliaryBarWidthAction._previousSideBarVisibility = layoutService.isVisible(Parts.SIDEBAR_PART);
+		}
+
+		// Set a minimum width for the auxiliary bar, unless its greater than a % of the window width
+		const PSEUDO_MINIMUM_AUX_BAR_WIDTH = 600;
+
+		// Calculate the minimum width for the auxiliary bar
+		// 70% of the window width is the maximum width
+		const maxWidth = (0.7 * mainWindow.innerWidth);
+		// The minimum width is the maximum width, unless it is less than the max of (previous width * 2) or the predetermined minimum width
+		const minWidth = Math.min(maxWidth, Math.max(ResizeAuxiliaryBarWidthAction._previousAuxiliaryBarWidth * 2, PSEUDO_MINIMUM_AUX_BAR_WIDTH));
+
+		// If the current width is less than or equal to the previous width, expand the auxiliary bar
+		if (auxBarDimensions.width <= ResizeAuxiliaryBarWidthAction._previousAuxiliaryBarWidth) {
+			// Expand to the calculated minWidth
+			layoutService.resizePart(Parts.AUXILIARYBAR_PART, (minWidth - auxBarDimensions.width), 0);
+			// Hide the left side bar if it was previously visible
+			layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
+		} else {
+			// If the current width is greater than the previous width, collapse the auxiliary bar back to the previous width (initial width)
+			layoutService.resizePart(Parts.AUXILIARYBAR_PART, (auxBarDimensions.width - ResizeAuxiliaryBarWidthAction._previousAuxiliaryBarWidth) * -1, 0);
+			// Restore the left side bar to the user's previous state
+			ResizeAuxiliaryBarWidthAction._previousSideBarVisibility ? layoutService.setPartHidden(false, Parts.SIDEBAR_PART) : layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
+			// Reset the previous width to null after collapsing
+			ResizeAuxiliaryBarWidthAction._previousAuxiliaryBarWidth = null;
+		}
+
+		return;
+	}
+}
+
+registerAction2(ResizeAuxiliaryBarWidthAction);
