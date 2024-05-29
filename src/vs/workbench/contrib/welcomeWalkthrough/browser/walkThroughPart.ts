@@ -32,7 +32,7 @@ import { UILabelProvider } from 'vs/base/common/keybindingLabels';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { deepClone } from 'vs/base/common/objects';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { addDisposableListener, Dimension, isHTMLElement, safeInnerHtml, size } from 'vs/base/browser/dom';
+import { addDisposableListener, Dimension, isHTMLAnchorElement, isHTMLButtonElement, isHTMLElement, safeInnerHtml, size } from 'vs/base/browser/dom';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -156,7 +156,7 @@ export class WalkThroughPart extends EditorPane {
 	private registerClickHandler() {
 		this.content.addEventListener('click', event => {
 			for (let node = event.target as HTMLElement; node; node = node.parentNode as HTMLElement) {
-				if (node instanceof HTMLAnchorElement && node.href) {
+				if (isHTMLAnchorElement(node) && node.href) {
 					const baseElement = node.ownerDocument.getElementsByTagName('base')[0] || this.window.location;
 					if (baseElement && node.href.indexOf(baseElement.href) >= 0 && node.hash) {
 						const scrollTarget = this.content.querySelector(node.hash);
@@ -171,7 +171,7 @@ export class WalkThroughPart extends EditorPane {
 					}
 					event.preventDefault();
 					break;
-				} else if (node instanceof HTMLButtonElement) {
+				} else if (isHTMLButtonElement(node)) {
 					const href = node.getAttribute('data-href');
 					if (href) {
 						this.open(URI.parse(href));

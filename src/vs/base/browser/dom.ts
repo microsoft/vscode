@@ -1153,6 +1153,36 @@ export function isHTMLElement(e: unknown): e is HTMLElement {
 	return e instanceof HTMLElement || e instanceof getWindow(e as Node).HTMLElement;
 }
 
+export function isHTMLAnchorElement(e: unknown): e is HTMLAnchorElement {
+	// eslint-disable-next-line no-restricted-syntax
+	return e instanceof HTMLAnchorElement || e instanceof getWindow(e as Node).HTMLAnchorElement;
+}
+
+export function isHTMLSpanElement(e: unknown): e is HTMLSpanElement {
+	// eslint-disable-next-line no-restricted-syntax
+	return e instanceof HTMLSpanElement || e instanceof getWindow(e as Node).HTMLSpanElement;
+}
+
+export function isHTMLTextAreaElement(e: unknown): e is HTMLTextAreaElement {
+	// eslint-disable-next-line no-restricted-syntax
+	return e instanceof HTMLTextAreaElement || e instanceof getWindow(e as Node).HTMLTextAreaElement;
+}
+
+export function isHTMLInputElement(e: unknown): e is HTMLInputElement {
+	// eslint-disable-next-line no-restricted-syntax
+	return e instanceof HTMLInputElement || e instanceof getWindow(e as Node).HTMLInputElement;
+}
+
+export function isHTMLButtonElement(e: unknown): e is HTMLButtonElement {
+	// eslint-disable-next-line no-restricted-syntax
+	return e instanceof HTMLButtonElement || e instanceof getWindow(e as Node).HTMLButtonElement;
+}
+
+export function isHTMLDivElement(e: unknown): e is HTMLDivElement {
+	// eslint-disable-next-line no-restricted-syntax
+	return e instanceof HTMLDivElement || e instanceof getWindow(e as Node).HTMLDivElement;
+}
+
 export function isMouseEvent(e: unknown): e is MouseEvent {
 	// eslint-disable-next-line no-restricted-syntax
 	return e instanceof MouseEvent || e instanceof getWindow(e as UIEvent).MouseEvent;

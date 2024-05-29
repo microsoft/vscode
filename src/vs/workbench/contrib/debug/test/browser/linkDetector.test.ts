@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { isHTMLAnchorElement } from 'vs/base/browser/dom';
 import { isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
@@ -33,7 +34,7 @@ suite('Debug - Link Detector', () => {
 	 * @param element The Element to verify.
 	 */
 	function assertElementIsLink(element: Element) {
-		assert(element instanceof HTMLAnchorElement);
+		assert(isHTMLAnchorElement(element));
 	}
 
 	test('noLinks', () => {

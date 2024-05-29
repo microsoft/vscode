@@ -42,7 +42,7 @@ suite('Debug - Base Debug View', () => {
 		assert.strictEqual(treeContainer.className, 'debug-view-content');
 		assert.strictEqual(container.childElementCount, 1);
 		assert.strictEqual(container.firstChild, treeContainer);
-		assert.strictEqual(treeContainer instanceof HTMLDivElement, true);
+		assert.strictEqual(dom.isHTMLDivElement(treeContainer), true);
 	});
 
 	test('render expression value', () => {
