@@ -21,15 +21,26 @@ import { TerminalSuggestCommandId } from 'vs/workbench/contrib/terminalContrib/s
 import type { ITerminalSuggestConfiguration } from 'vs/workbench/contrib/terminalContrib/suggest/common/terminalSuggestConfiguration';
 import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 
-import { isWindows } from 'vs/base/common/platform';
+import { events as macos_bash_echo_simple } from 'vs/workbench/contrib/terminalContrib/suggest/test/browser/recordings/macos_bash_echo_simple';
+import { events as macos_bash_echo_multiline } from 'vs/workbench/contrib/terminalContrib/suggest/test/browser/recordings/macos_bash_echo_multiline';
+import { events as windows11_pwsh_getcontent_delete_ghost } from 'vs/workbench/contrib/terminalContrib/suggest/test/browser/recordings/windows11_pwsh_getcontent_delete_ghost';
 import { events as windows11_pwsh_getcontent_file } from 'vs/workbench/contrib/terminalContrib/suggest/test/browser/recordings/windows11_pwsh_getcontent_file';
 import { events as windows11_pwsh_input_ls_complete_ls } from 'vs/workbench/contrib/terminalContrib/suggest/test/browser/recordings/windows11_pwsh_input_ls_complete_ls';
 import { events as windows11_pwsh_namespace_completion } from 'vs/workbench/contrib/terminalContrib/suggest/test/browser/recordings/windows11_pwsh_namespace_completion';
+import { events as windows11_pwsh_type_before_prompt } from 'vs/workbench/contrib/terminalContrib/suggest/test/browser/recordings/windows11_pwsh_type_before_prompt';
+import { events as windows11_pwsh_writehost_multiline_nav_up } from 'vs/workbench/contrib/terminalContrib/suggest/test/browser/recordings/windows11_pwsh_writehost_multiline_nav_up';
+import { events as windows11_pwsh_writehost_multiline } from 'vs/workbench/contrib/terminalContrib/suggest/test/browser/recordings/windows11_pwsh_writehost_multiline';
 
 const recordedTestCases: { name: string; events: RecordedSessionEvent[] }[] = [
+	{ name: 'macos_bash_echo_simple', events: macos_bash_echo_simple as any as RecordedSessionEvent[] },
+	{ name: 'macos_bash_echo_multiline', events: macos_bash_echo_multiline as any as RecordedSessionEvent[] },
+	{ name: 'windows11_pwsh_getcontent_delete_ghost', events: windows11_pwsh_getcontent_delete_ghost as any as RecordedSessionEvent[] },
 	{ name: 'windows11_pwsh_getcontent_file', events: windows11_pwsh_getcontent_file as any as RecordedSessionEvent[] },
 	{ name: 'windows11_pwsh_input_ls_complete_ls', events: windows11_pwsh_input_ls_complete_ls as any as RecordedSessionEvent[] },
-	{ name: 'windows11_pwsh_namespace_completion', events: windows11_pwsh_namespace_completion as any as RecordedSessionEvent[] }
+	{ name: 'windows11_pwsh_namespace_completion', events: windows11_pwsh_namespace_completion as any as RecordedSessionEvent[] },
+	{ name: 'windows11_pwsh_type_before_prompt', events: windows11_pwsh_type_before_prompt as any as RecordedSessionEvent[] },
+	{ name: 'windows11_pwsh_writehost_multiline_nav_up', events: windows11_pwsh_writehost_multiline_nav_up as any as RecordedSessionEvent[] },
+	{ name: 'windows11_pwsh_writehost_multiline', events: windows11_pwsh_writehost_multiline as any as RecordedSessionEvent[] }
 ];
 
 type RecordedSessionEvent = IRecordedSessionTerminalEvent | IRecordedSessionCommandEvent | IRecordedSessionResizeEvent;
@@ -50,8 +61,7 @@ interface IRecordedSessionResizeEvent {
 	rows: number;
 }
 
-// DEBT: It's not clear why this doesn't play nicely on Linux
-(isWindows ? suite : suite.skip)('Terminal Contrib Suggest Recordings', () => {
+suite('Terminal Contrib Suggest Recordings', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let xterm: Terminal;
@@ -95,6 +105,7 @@ interface IRecordedSessionResizeEvent {
 			const suggestDataEvents: string[] = [];
 			store.add(suggestAddon.onAcceptedCompletion(e => suggestDataEvents.push(e)));
 			for (const event of testCase.events) {
+				// DEBUG: Uncomment to see the events as they are played
 				// console.log(
 				// 	event.type,
 				// 	event.type === 'command'
@@ -103,26 +114,29 @@ interface IRecordedSessionResizeEvent {
 				// 			? `${event.cols}x${event.rows}`
 				// 			: (event.data.length > 50 ? event.data.slice(0, 50) + '...' : event.data).replaceAll('\x1b', '\\x1b').replace(/(\n|\r).+$/, '...')
 				// );
+				// console.log('promptInputModel', capabilities.get(TerminalCapability.CommandDetection)?.promptInputModel.getCombinedString());
 				switch (event.type) {
 					case 'resize': {
 						xterm.resize(event.cols, event.rows);
 						break;
 					}
 					case 'output': {
-						await new Promise<void>(r => xterm.write(event.data, () => r()));
-						// HACK: On Windows if the output contains the command start sequence, allow time for the
-						//       prompt to get adjusted. Eventually we should be able to remove this, but right now
-						//       a pause is required.
-						if (isWindows && event.data.includes('\x1b]633;B')) {
-							const commandDetection = capabilities.get(TerminalCapability.CommandDetection);
-							if (commandDetection) {
-								await new Promise<void>(r => {
-									const d = commandDetection.onCommandStarted(() => {
-										d.dispose();
-										r();
-									});
-								});
-							}
+						// If the output contains the command start sequence, allow time for the prompt to get adjusted.
+						if (event.data.includes('\x1b]633;B')) {
+							await Promise.all([
+								new Promise<void>(r => xterm.write(event.data, () => r())),
+								new Promise<void>(r => {
+									const commandDetection = capabilities.get(TerminalCapability.CommandDetection);
+									if (commandDetection) {
+										const d = commandDetection.onCommandStarted(() => {
+											d.dispose();
+											r();
+										});
+									}
+								})
+							]);
+						} else {
+							await new Promise<void>(r => xterm.write(event.data, () => r()));
 						}
 						break;
 					}

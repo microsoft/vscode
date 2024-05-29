@@ -11,7 +11,7 @@ import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynami
 import { IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IChatVariablesService, IDynamicVariable } from 'vs/workbench/contrib/chat/common/chatVariables';
 
-const agentReg = /^@([\w_\-]+)(?=(\s|$|\b))/i; // An @-agent
+const agentReg = /^@([\w_\-\.]+)(?=(\s|$|\b))/i; // An @-agent
 const variableReg = /^#([\w_\-]+)(:\d+)?(?=(\s|$|\b))/i; // A #-variable with an optional numeric : arg (@response:2)
 const slashReg = /\/([\w_\-]+)(?=(\s|$|\b))/i; // A / command
 
@@ -100,7 +100,13 @@ export class ChatRequestParser {
 		const agentRange = new OffsetRange(offset, offset + full.length);
 		const agentEditorRange = new Range(position.lineNumber, position.column, position.lineNumber, position.column + full.length);
 
-		const agents = this.agentService.getAgentsByName(name);
+		let agents = this.agentService.getAgentsByName(name);
+		if (!agents.length) {
+			const fqAgent = this.agentService.getAgentByFullyQualifiedId(name);
+			if (fqAgent) {
+				agents = [fqAgent];
+			}
+		}
 
 		// If there is more than one agent with this name, and the user picked it from the suggest widget, then the selected agent should be in the
 		// context and we use that one. Otherwise just pick the first.
@@ -141,9 +147,13 @@ export class ChatRequestParser {
 		const variableArg = nextVariableMatch[2] ?? '';
 		const varRange = new OffsetRange(offset, offset + full.length);
 		const varEditorRange = new Range(position.lineNumber, position.column, position.lineNumber, position.column + full.length);
+		const usedAgent = parts.find((p): p is ChatRequestAgentPart => p instanceof ChatRequestAgentPart);
+		const allowSlow = !usedAgent || usedAgent.agent.metadata.supportsSlowVariables;
 
-		if (this.variableService.hasVariable(name)) {
-			return new ChatRequestVariablePart(varRange, varEditorRange, name, variableArg);
+		// TODO - not really handling duplicate variables names yet
+		const variable = this.variableService.getVariable(name);
+		if (variable && (!variable.isSlow || allowSlow)) {
+			return new ChatRequestVariablePart(varRange, varEditorRange, name, variableArg, variable.id);
 		}
 
 		return;
@@ -203,7 +213,7 @@ export class ChatRequestParser {
 			const length = refAtThisPosition.range.endColumn - refAtThisPosition.range.startColumn;
 			const text = message.substring(0, length);
 			const range = new OffsetRange(offset, offset + length);
-			return new ChatRequestDynamicVariablePart(range, refAtThisPosition.range, text, refAtThisPosition.data);
+			return new ChatRequestDynamicVariablePart(range, refAtThisPosition.range, text, refAtThisPosition.id, refAtThisPosition.modelDescription, refAtThisPosition.data);
 		}
 
 		return;

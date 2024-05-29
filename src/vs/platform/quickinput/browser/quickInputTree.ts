@@ -7,7 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import { Emitter, Event, IValueWithChangeEvent } from 'vs/base/common/event';
 import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IObjectTreeElement, ITreeEvent, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
+import { IObjectTreeElement, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
@@ -20,7 +20,7 @@ import { IListAccessibilityProvider, IListStyles } from 'vs/base/browser/ui/list
 import { AriaRole } from 'vs/base/browser/ui/aria/aria';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { OS, isMacintosh } from 'vs/base/common/platform';
+import { OS } from 'vs/base/common/platform';
 import { memoize } from 'vs/base/common/decorators';
 import { IIconLabelValueOptions, IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
@@ -37,20 +37,10 @@ import { RenderIndentGuides } from 'vs/base/browser/ui/tree/abstractTree';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { isCancellationError } from 'vs/base/common/errors';
 import type { IHoverWidget, IUpdatableHoverTooltipMarkdownString } from 'vs/base/browser/ui/hover/hover';
+import { QuickPickFocus } from '../common/quickInput';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 const $ = dom.$;
-
-export enum QuickInputListFocus {
-	First = 1,
-	Second,
-	Last,
-	Next,
-	Previous,
-	NextPage,
-	PreviousPage,
-	NextSeparator,
-	PreviousSeparator
-}
 
 interface IQuickInputItemLazyParts {
 	readonly saneLabel: string;
@@ -696,8 +686,6 @@ export class QuickInputTree extends Disposable {
 	private readonly _onSeparatorButtonTriggered = new Emitter<IQuickPickSeparatorButtonEvent>();
 	onSeparatorButtonTriggered = this._onSeparatorButtonTriggered.event;
 
-	private readonly _onTriggerEmptySelectionOrFocus = new Emitter<ITreeEvent<IQuickPickElement | null>>();
-
 	private readonly _container: HTMLElement;
 	private readonly _tree: WorkbenchObjectTree<IQuickPickElement, void>;
 	private readonly _separatorRenderer: QuickPickSeparatorElementRenderer;
@@ -719,7 +707,8 @@ export class QuickInputTree extends Disposable {
 		private hoverDelegate: IHoverDelegate,
 		private linkOpenerDelegate: (content: string) => void,
 		id: string,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
 		super();
 		this._container = dom.append(this.parent, $('.quick-input-list'));
@@ -741,25 +730,6 @@ export class QuickInputTree extends Disposable {
 				indent: 0,
 				horizontalScrolling: false,
 				allowNonCollapsibleParents: true,
-				identityProvider: {
-					getId: element => {
-						// always prefer item over separator because if item is defined, it must be the main item type
-						const mainItem = element.item || element.separator;
-						if (mainItem === undefined) {
-							return '';
-						}
-						// always prefer a defined id if one was specified and use "label + description + detail" as a fallback
-						if (mainItem.id !== undefined) {
-							return mainItem.id;
-						}
-						let id = `label:${mainItem.label}`;
-						id += `$$description:${mainItem.description}`;
-						if (mainItem.type !== 'separator') {
-							id += `$$detail:${mainItem.detail}`;
-						}
-						return id;
-					},
-				},
 				alwaysConsumeMouseWheel: true
 			}
 		));
@@ -772,7 +742,7 @@ export class QuickInputTree extends Disposable {
 	@memoize
 	get onDidChangeFocus() {
 		return Event.map(
-			Event.any(this._tree.onDidChangeFocus, this._onTriggerEmptySelectionOrFocus.event),
+			this._tree.onDidChangeFocus,
 			e => e.elements.filter((e): e is QuickPickItemElement => e instanceof QuickPickItemElement).map(e => e.item)
 		);
 	}
@@ -780,11 +750,12 @@ export class QuickInputTree extends Disposable {
 	@memoize
 	get onDidChangeSelection() {
 		return Event.map(
-			Event.any(this._tree.onDidChangeSelection, this._onTriggerEmptySelectionOrFocus.event),
+			this._tree.onDidChangeSelection,
 			e => ({
 				items: e.elements.filter((e): e is QuickPickItemElement => e instanceof QuickPickItemElement).map(e => e.item),
 				event: e.browserEvent
-			}));
+			})
+		);
 	}
 
 	get scrollTop() {
@@ -855,6 +826,14 @@ export class QuickInputTree extends Disposable {
 		this._sortByLabel = value;
 	}
 
+	private _shouldLoop = true;
+	get shouldLoop() {
+		return this._shouldLoop;
+	}
+	set shouldLoop(value: boolean) {
+		this._shouldLoop = value;
+	}
+
 	//#endregion
 
 	//#region register listeners
@@ -878,27 +857,6 @@ export class QuickInputTree extends Disposable {
 				case KeyCode.Space:
 					this.toggleCheckbox();
 					break;
-				case KeyCode.KeyA:
-					if (isMacintosh ? e.metaKey : e.ctrlKey) {
-						this._tree.setFocus(this._itemElements);
-					}
-					break;
-				// When we hit the top of the tree, we fire the onLeave event.
-				case KeyCode.UpArrow: {
-					const focus1 = this._tree.getFocus();
-					if (focus1.length === 1 && focus1[0] === this._itemElements[0]) {
-						this._onLeave.fire();
-					}
-					break;
-				}
-				// When we hit the bottom of the tree, we fire the onLeave event.
-				case KeyCode.DownArrow: {
-					const focus2 = this._tree.getFocus();
-					if (focus2.length === 1 && focus2[0] === this._itemElements[this._itemElements.length - 1]) {
-						this._onLeave.fire();
-					}
-					break;
-				}
 			}
 
 			this._onKeyDown.fire(event);
@@ -945,13 +903,13 @@ export class QuickInputTree extends Disposable {
 		this._register(this._tree.onMouseOver(async e => {
 			// If we hover over an anchor element, we don't want to show the hover because
 			// the anchor may have a tooltip that we want to show instead.
-			if (e.browserEvent.target instanceof HTMLAnchorElement) {
+			if (dom.isHTMLAnchorElement(e.browserEvent.target)) {
 				delayer.cancel();
 				return;
 			}
 			if (
 				// anchors are an exception as called out above so we skip them here
-				!(e.browserEvent.relatedTarget instanceof HTMLAnchorElement) &&
+				!(dom.isHTMLAnchorElement(e.browserEvent.relatedTarget)) &&
 				// check if the mouse is still over the same element
 				dom.isAncestor(e.browserEvent.relatedTarget as Node, e.element?.element as Node)
 			) {
@@ -1158,6 +1116,20 @@ export class QuickInputTree extends Disposable {
 		}
 		this._tree.setChildren(null, elements);
 		this._onChangedVisibleCount.fire(visibleCount);
+
+		// Accessibility hack, unfortunately on next tick
+		// https://github.com/microsoft/vscode/issues/211976
+		if (this.accessibilityService.isScreenReaderOptimized()) {
+			setTimeout(() => {
+				const focusedElement = this._tree.getHTMLElement().querySelector(`.monaco-list-row.focused`);
+				const parent = focusedElement?.parentNode;
+				if (focusedElement && parent) {
+					const nextSibling = focusedElement.nextSibling;
+					parent.removeChild(focusedElement);
+					parent.insertBefore(focusedElement, nextSibling);
+				}
+			}, 0);
+		}
 	}
 
 	getElementsCount(): number {
@@ -1221,39 +1193,46 @@ export class QuickInputTree extends Disposable {
 		}
 	}
 
-	focus(what: QuickInputListFocus): void {
+	focus(what: QuickPickFocus): void {
 		if (!this._itemElements.length) {
 			return;
 		}
 
-		if (what === QuickInputListFocus.Second && this._itemElements.length < 2) {
-			what = QuickInputListFocus.First;
+		if (what === QuickPickFocus.Second && this._itemElements.length < 2) {
+			what = QuickPickFocus.First;
 		}
 
 		switch (what) {
-			case QuickInputListFocus.First:
+			case QuickPickFocus.First:
 				this._tree.scrollTop = 0;
 				this._tree.focusFirst(undefined, (e) => e.element instanceof QuickPickItemElement);
 				break;
-			case QuickInputListFocus.Second:
+			case QuickPickFocus.Second:
 				this._tree.scrollTop = 0;
 				this._tree.setFocus([this._itemElements[1]]);
 				break;
-			case QuickInputListFocus.Last:
+			case QuickPickFocus.Last:
 				this._tree.scrollTop = this._tree.scrollHeight;
 				this._tree.setFocus([this._itemElements[this._itemElements.length - 1]]);
 				break;
-			case QuickInputListFocus.Next:
-				this._tree.focusNext(undefined, true, undefined, (e) => {
+			case QuickPickFocus.Next: {
+				const prevFocus = this._tree.getFocus();
+				this._tree.focusNext(undefined, this._shouldLoop, undefined, (e) => {
 					if (!(e.element instanceof QuickPickItemElement)) {
 						return false;
 					}
 					this._tree.reveal(e.element);
 					return true;
 				});
+				const currentFocus = this._tree.getFocus();
+				if (prevFocus.length && prevFocus[0] === currentFocus[0] && prevFocus[0] === this._itemElements[this._itemElements.length - 1]) {
+					this._onLeave.fire();
+				}
 				break;
-			case QuickInputListFocus.Previous:
-				this._tree.focusPrevious(undefined, true, undefined, (e) => {
+			}
+			case QuickPickFocus.Previous: {
+				const prevFocus = this._tree.getFocus();
+				this._tree.focusPrevious(undefined, this._shouldLoop, undefined, (e) => {
 					if (!(e.element instanceof QuickPickItemElement)) {
 						return false;
 					}
@@ -1266,8 +1245,13 @@ export class QuickInputTree extends Disposable {
 					}
 					return true;
 				});
+				const currentFocus = this._tree.getFocus();
+				if (prevFocus.length && prevFocus[0] === currentFocus[0] && prevFocus[0] === this._itemElements[0]) {
+					this._onLeave.fire();
+				}
 				break;
-			case QuickInputListFocus.NextPage:
+			}
+			case QuickPickFocus.NextPage:
 				this._tree.focusNextPage(undefined, (e) => {
 					if (!(e.element instanceof QuickPickItemElement)) {
 						return false;
@@ -1276,7 +1260,7 @@ export class QuickInputTree extends Disposable {
 					return true;
 				});
 				break;
-			case QuickInputListFocus.PreviousPage:
+			case QuickPickFocus.PreviousPage:
 				this._tree.focusPreviousPage(undefined, (e) => {
 					if (!(e.element instanceof QuickPickItemElement)) {
 						return false;
@@ -1290,7 +1274,7 @@ export class QuickInputTree extends Disposable {
 					return true;
 				});
 				break;
-			case QuickInputListFocus.NextSeparator: {
+			case QuickPickFocus.NextSeparator: {
 				let foundSeparatorAsItem = false;
 				const before = this._tree.getFocus()[0];
 				this._tree.focusNext(undefined, true, undefined, (e) => {
@@ -1335,7 +1319,7 @@ export class QuickInputTree extends Disposable {
 				}
 				break;
 			}
-			case QuickInputListFocus.PreviousSeparator: {
+			case QuickPickFocus.PreviousSeparator: {
 				let focusElement: IQuickPickElement | undefined;
 				// If we are already sitting on an inline separator, then we
 				// have already found the _current_ separator and need to
@@ -1514,15 +1498,7 @@ export class QuickInputTree extends Disposable {
 				});
 			}
 		}
-		const before = this._tree.getFocus().length;
 		this._tree.setChildren(null, elements);
-		// Temporary fix until we figure out why the tree doesn't fire an event when focus & selection
-		// get changed to empty arrays.
-		if (before > 0 && elements.length === 0) {
-			this._onTriggerEmptySelectionOrFocus.fire({
-				elements: []
-			});
-		}
 		this._tree.layout();
 
 		this._onChangedAllVisibleChecked.fire(this.getAllVisibleChecked());

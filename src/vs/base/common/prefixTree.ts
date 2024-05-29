@@ -46,6 +46,11 @@ export class WellDefinedPrefixTree<V> {
 		this.opNode(key, n => n._value = mutate(n._value === unset ? undefined : n._value));
 	}
 
+	/** Mutates nodes along the path in the prefix tree. */
+	mutatePath(key: Iterable<string>, mutate: (node: IPrefixTreeNode<V>) => void): void {
+		this.opNode(key, () => { }, n => mutate(n));
+	}
+
 	/** Deletes a node from the prefix tree, returning the value it contained. */
 	delete(key: Iterable<string>): V | undefined {
 		const path = this.getPathToKey(key);

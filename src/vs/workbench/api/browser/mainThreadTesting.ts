@@ -18,13 +18,13 @@ import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
 import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { IMainThreadTestController, ITestRootProvider, ITestService } from 'vs/workbench/contrib/testing/common/testService';
+import { IMainThreadTestController, ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { CoverageDetails, ExtensionRunTestsRequest, IFileCoverage, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, TestResultState, TestRunProfileBitset, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testTypes';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { ExtHostContext, ExtHostTestingShape, ILocationDto, ITestControllerPatch, MainContext, MainThreadTestingShape } from '../common/extHost.protocol';
 
 @extHostNamedCustomer(MainContext.MainThreadTesting)
-export class MainThreadTesting extends Disposable implements MainThreadTestingShape, ITestRootProvider {
+export class MainThreadTesting extends Disposable implements MainThreadTestingShape {
 	private readonly proxy: ExtHostTestingShape;
 	private readonly diffListener = this._register(new MutableDisposable());
 	private readonly testProviderRegistrations = new Map<string, {
@@ -43,6 +43,12 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 	) {
 		super();
 		this.proxy = extHostContext.getProxy(ExtHostContext.ExtHostTesting);
+
+		this._register(this.testService.registerExtHost({
+			provideTestFollowups: (req, token) => this.proxy.$provideTestFollowups(req, token),
+			executeTestFollowup: id => this.proxy.$executeTestFollowup(id),
+			disposeTestFollowups: ids => this.proxy.$disposeTestFollowups(ids),
+		}));
 
 		this._register(this.testService.onDidCancelTestRun(({ runId }) => {
 			this.proxy.$cancelExtensionTestRun(runId);
@@ -143,7 +149,7 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 			transaction(tx => {
 				let value = task.coverage.read(undefined);
 				if (!value) {
-					value = new TestCoverage(taskId, this.uriIdentityService, {
+					value = new TestCoverage(run, taskId, this.uriIdentityService, {
 						getCoverageDetails: (id, token) => this.proxy.$getCoverageDetails(id, token)
 							.then(r => r.map(CoverageDetails.deserialize)),
 					});

@@ -39,7 +39,9 @@ import { assertNoRpc } from '../utils';
 					});
 				}
 			}));
-			const terminal = window.createTerminal();
+			const terminal = platform() === 'win32'
+				? window.createTerminal()
+				: window.createTerminal({ shellPath: '/bin/bash' });
 			terminal.show();
 		});
 	}

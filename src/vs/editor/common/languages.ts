@@ -202,9 +202,9 @@ export interface HoverContext<THover = Hover> {
 
 export interface HoverVerbosityRequest<THover = Hover> {
 	/**
-	 * Whether to increase or decrease the hover's verbosity
+	 * The delta by which to increase/decrease the hover verbosity level
 	 */
-	action: HoverVerbosityAction;
+	verbosityDelta: number;
 	/**
 	 * The previous hover for the same position
 	 */
@@ -833,6 +833,8 @@ export interface CodeActionList extends IDisposable {
 export interface CodeActionProvider {
 
 	displayName?: string;
+
+	extensionId?: string;
 
 	/**
 	 * Provide commands for the given document and range.
@@ -1782,9 +1784,9 @@ export interface CommentThreadTemplate {
 /**
  * @internal
  */
-export interface CommentInfo {
+export interface CommentInfo<T = IRange> {
 	extensionId?: string;
-	threads: CommentThread[];
+	threads: CommentThread<T>[];
 	pendingCommentThreads?: PendingCommentThread[];
 	commentingRanges: CommentingRanges;
 }
@@ -1875,6 +1877,13 @@ export interface CommentThread<T = IRange> {
 	onDidChangeCanReply: Event<boolean>;
 	isDisposed: boolean;
 	isTemplate: boolean;
+}
+
+/**
+ * @internal
+ */
+export interface AddedCommentThread<T = IRange> extends CommentThread<T> {
+	editorId?: string;
 }
 
 /**
@@ -1971,7 +1980,7 @@ export interface CommentThreadChangedEvent<T> {
 	/**
 	 * Added comment threads.
 	 */
-	readonly added: CommentThread<T>[];
+	readonly added: AddedCommentThread<T>[];
 
 	/**
 	 * Removed comment threads.
