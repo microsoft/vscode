@@ -72,7 +72,7 @@ function getRgArgs(config: IFileQuery, folderQuery: IFolderQuery, includePattern
 	}
 
 	if (config.threads) {
-		args.push('--threads', `${config.threads}`)
+		args.push('--threads', `${config.threads}`);
 	}
 
 	args.push('--no-config');
