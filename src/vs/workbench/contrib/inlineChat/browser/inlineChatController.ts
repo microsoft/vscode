@@ -439,9 +439,18 @@ export class InlineChatController implements IEditorContribution {
 					}
 				});
 			} else if (e.kind === 'removeRequest') {
-				// TODO@jrieken this is buggy/weird when having code changes from multiple turns because
-				// logically they are all the same hunks
-				this._strategy?.cancel();
+				// TODO@jrieken there is still some work left for when a request "in the middle"
+				// is removed. We will undo all changes till that point but not remove those
+				// later request
+				const exchange = this._session!.exchanges.find(candidate => candidate.prompt.request.id === e.requestId);
+				if (exchange && this._editor.hasModel()) {
+					// undo till this point
+					const model = this._editor.getModel();
+					const targetAltVersion = exchange.prompt.modelAltVersionId;
+					while (targetAltVersion < model.getAlternativeVersionId() && model.canUndo()) {
+						await model.undo();
+					}
+				}
 			}
 		}));
 
@@ -601,7 +610,7 @@ export class InlineChatController implements IEditorContribution {
 		const input = request.message.text;
 		this._ui.value.zone.widget.value = input;
 
-		this._session.addInput(new SessionPrompt(request));
+		this._session.addInput(new SessionPrompt(request, this._editor.getModel()!.getAlternativeVersionId()));
 
 		return State.SHOW_REQUEST;
 	}
