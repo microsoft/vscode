@@ -42,6 +42,10 @@ export class ChatContextAttachments extends Disposable implements IChatWidgetCon
 		this.widget.setContext(true, ...s);
 	}
 
+	getContext() {
+		return new Set([...this._attachedContext.values()].map((v) => v.id));
+	}
+
 	setContext(overwrite: boolean, ...attachments: IChatRequestVariableEntry[]) {
 		if (overwrite) {
 			this._attachedContext.clear();

@@ -4318,6 +4318,10 @@ declare namespace monaco.editor {
 		 * Font size of section headers. Defaults to 9.
 		 */
 		sectionHeaderFontSize?: number;
+		/**
+		 * Spacing between the section header characters (in CSS px). Defaults to 1.
+		 */
+		sectionHeaderLetterSpacing?: number;
 	}
 
 	/**
@@ -6885,9 +6889,9 @@ declare namespace monaco.languages {
 
 	export interface HoverVerbosityRequest<THover = Hover> {
 		/**
-		 * Whether to increase or decrease the hover's verbosity
+		 * The delta by which to increase/decrease the hover verbosity level
 		 */
-		action: HoverVerbosityAction;
+		verbosityDelta: number;
 		/**
 		 * The previous hover for the same position
 		 */

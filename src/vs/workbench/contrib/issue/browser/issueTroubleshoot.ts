@@ -7,7 +7,7 @@ import { localize, localize2 } from 'vs/nls';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
+import { IWorkbenchIssueService } from 'vs/workbench/contrib/issue/common/issue';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IUserDataProfileImportExportService, IUserDataProfileManagementService, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';

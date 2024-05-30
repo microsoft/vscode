@@ -1,0 +1,458 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.web.issue-reporter-body {
+	position: absolute;
+	overflow-y: scroll;
+}
+
+.web.issue-reporter-body .monaco-workbench select{
+	-webkit-appearance: auto;
+	appearance: auto;
+}
+
+/**
+ * Table
+ */
+
+.issue-reporter table {
+	width: 100%;
+	max-width: 100%;
+	background-color: transparent;
+	border-collapse: collapse;
+}
+
+.issue-reporter th {
+	vertical-align: bottom;
+	border-bottom: 1px solid;
+	padding: 5px;
+	text-align: inherit;
+}
+
+.issue-reporter td {
+	padding: 5px;
+	vertical-align: top;
+}
+
+.issue-reporter tr td:first-child {
+	width: 30%;
+}
+
+.issue-reporter label {
+	user-select: none;
+}
+
+.issue-reporter .block-settingsSearchResults-details {
+	padding-bottom: .5rem;
+}
+
+.issue-reporter .block-settingsSearchResults-details > div {
+	padding: .5rem .75rem;
+}
+
+.issue-reporter .section {
+	margin-bottom: .5em;
+}
+
+/**
+ * Forms
+ */
+.issue-reporter input[type="text"],
+.issue-reporter textarea {
+	display: block;
+	width: 100%;
+	padding: .375rem .75rem;
+	font-size: 1rem;
+	line-height: 1.5;
+	color: #495057;
+	background-color: #fff;
+	border: 1px solid #ced4da;
+}
+
+.issue-reporter textarea {
+	overflow: auto;
+	resize: vertical;
+}
+
+/**
+ * Button
+ */
+
+.issue-reporter .monaco-text-button {
+	display: block;
+	width: auto;
+	padding: 4px 10px;
+	align-self: flex-end;
+	margin-bottom: 1em;
+	font-size: 13px;
+}
+
+.issue-reporter select {
+	height: calc(2.25rem + 2px);
+	display: inline-block;
+	padding: 3px 3px;
+	font-size: 14px;
+	line-height: 1.5;
+	color: #495057;
+	background-color: #fff;
+	border: none;
+}
+
+.issue-reporter * {
+	box-sizing: border-box;
+}
+
+.issue-reporter textarea,
+.issue-reporter input,
+.issue-reporter select {
+	font-family: inherit;
+}
+
+.issue-reporter html {
+	color: #CCCCCC;
+	height: 100%;
+}
+
+.issue-reporter .extension-caption .codicon-modifier-spin {
+	padding-bottom: 3px;
+	margin-left: 2px;
+}
+
+/* Font Families (with CJK support) */
+
+.issue-reporter .mac.web {
+	font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.issue-reporter .mac.web:lang(zh-Hans) {
+	font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", sans-serif;
+}
+
+.issue-reporter .mac.web:lang(zh-Hant) {
+	font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", sans-serif;
+}
+
+.issue-reporter .mac.web:lang(ja) {
+	font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic Pro", sans-serif;
+}
+
+.issue-reporter .mac.web:lang(ko) {
+	font-family: -apple-system, BlinkMacSystemFont, "Nanum Gothic", "Apple SD Gothic Neo", "AppleGothic", sans-serif;
+}
+
+.issue-reporter .windows.web {
+	font-family: "Segoe WPC", "Segoe UI", sans-serif;
+}
+
+.issue-reporter .windows.web:lang(zh-Hans) {
+	font-family: "Segoe WPC", "Segoe UI", "Microsoft YaHei", sans-serif;
+}
+
+.issue-reporter .windows.web:lang(zh-Hant) {
+	font-family: "Segoe WPC", "Segoe UI", "Microsoft Jhenghei", sans-serif;
+}
+
+.issue-reporter .windows.web:lang(ja) {
+	font-family: "Segoe WPC", "Segoe UI", "Yu Gothic UI", "Meiryo UI", sans-serif;
+}
+
+.issue-reporter .windows.web:lang(ko) {
+	font-family: "Segoe WPC", "Segoe UI", "Malgun Gothic", "Dotom", sans-serif;
+}
+
+.issue-reporter .linux.web {
+	font-family: system-ui, "Ubuntu", "Droid Sans", sans-serif;
+}
+
+.issue-reporter .linux.web:lang(zh-Hans) {
+	font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans SC", "Source Han Sans CN", "Source Han Sans", sans-serif;
+}
+
+.issue-reporter .linux.web:lang(zh-Hant) {
+	font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans TC", "Source Han Sans TW", "Source Han Sans", sans-serif;
+}
+
+.issue-reporter .linux.web:lang(ja) {
+	font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans J", "Source Han Sans JP", "Source Han Sans", sans-serif;
+}
+
+.issue-reporter .linux.web:lang(ko) {
+	font-family: system-ui, "Ubuntu", "Droid Sans", "Source Han Sans K", "Source Han Sans JR", "Source Han Sans", "UnDotum", "FBaekmuk Gulim", sans-serif;
+}
+
+.issue-reporter body {
+	margin: 0;
+	overflow-y: scroll;
+	height: 100%;
+}
+
+.issue-reporter .hidden {
+	display: none;
+}
+
+.issue-reporter .block {
+	font-size: 12px;
+}
+
+.issue-reporter .block .block-info {
+	width: 100%;
+	font-size: 12px;
+	overflow: auto;
+	overflow-wrap: break-word;
+	margin: 5px;
+	padding: 10px;
+}
+
+.issue-reporter {
+	max-width: 85vw;
+	margin-left: auto;
+	margin-right: auto;
+	padding-top: 2em;
+	padding-bottom: 2em;
+	display: flex;
+	flex-direction: column;
+	min-height: 100%;
+	overflow: visible;
+}
+
+.issue-reporter .description-section {
+	flex-grow: 1;
+	display: flex;
+	flex-direction: column;
+	flex-shrink: 0;
+}
+
+.issue-reporter textarea {
+	flex-grow: 1;
+	min-height: 150px;
+}
+
+.issue-reporter .block-info-text {
+	display: flex;
+	flex-grow: 1;
+}
+
+.issue-reporter #github-submit-btn {
+	flex-shrink: 0;
+	margin-left: auto;
+	margin-top: 10px;
+	margin-bottom: 10px;
+}
+
+.issue-reporter .two-col {
+	display: inline-block;
+	width: 49%;
+}
+
+.issue-reporter #vscode-version {
+	width: 90%;
+}
+
+.issue-reporter .input-group {
+	margin-bottom: 1em;
+	font-size: 16px;
+}
+
+.issue-reporter #extension-selection {
+	margin-top: 1em;
+}
+
+.issue-reporter select,
+.issue-reporter input,
+.issue-reporter textarea {
+	border: 1px solid transparent;
+	margin-top: 10px;
+}
+
+
+.issue-reporter .validation-error {
+	font-size: 12px;
+	padding: 10px;
+	border-top: 0px !important;
+}
+
+.issue-reporter .system-info {
+	margin-bottom: 10px;
+}
+
+
+.issue-reporter input[type="checkbox"] {
+	width: auto;
+	display: inline-block;
+	margin-top: 0;
+	vertical-align: middle;
+	cursor: pointer;
+}
+
+.issue-reporter input:disabled {
+	opacity: 0.6;
+}
+
+.issue-reporter .list-title {
+	margin-top: 1em;
+	margin-left: 1em;
+}
+
+.issue-reporter .instructions {
+	font-size: 12px;
+	margin-top: .5em;
+}
+
+.issue-reporter a,
+.issue-reporter .workbenchCommand {
+	cursor: pointer;
+	border: 1px solid transparent;
+}
+
+.issue-reporter .workbenchCommand:disabled {
+	color: #868e96;
+	cursor: default
+}
+
+.issue-reporter .block-extensions .block-info {
+	margin-bottom: 1.5em;
+}
+
+/* Default styles, overwritten if a theme is provided */
+.issue-reporter input,
+.issue-reporter select,
+.issue-reporter textarea {
+	background-color: #3c3c3c;
+	border: none;
+	color: #cccccc;
+}
+
+.issue-reporter .section .input-group .validation-error {
+	margin-left: 100px;
+}
+
+.issue-reporter .section .inline-form-control,
+.issue-reporter .section .inline-label {
+	display: inline-block;
+}
+
+.issue-reporter .section .inline-label {
+	width: 95px;
+}
+
+.issue-reporter .section .inline-form-control,
+.issue-reporter .section .input-group .validation-error {
+	width: calc(100% - 100px);
+}
+
+.issue-reporter #issue-type {
+	cursor: pointer;
+}
+
+.issue-reporter #similar-issues {
+	margin-left: 15%;
+	display: block;
+}
+
+.issue-reporter #problem-source-help-text {
+	margin-left: calc(15% + 1em);
+}
+
+@media (max-width: 950px) {
+	.issue-reporter .section .inline-label {
+		width: 15%;
+		font-size: 16px;
+	}
+
+	.issue-reporter #problem-source-help-text {
+		margin-left: calc(15% + 1em);
+	}
+
+	.issue-reporter .section .inline-form-control,
+	.issue-reporter .section .input-group .validation-error {
+		width: calc(85% - 5px);
+	}
+
+	.issue-reporter .section .input-group .validation-error {
+		margin-left: calc(15% + 4px);
+	}
+}
+
+@media (max-width: 620px) {
+	.issue-reporter .section .inline-label {
+		display: none !important;
+	}
+
+	.issue-reporter #problem-source-help-text {
+		margin-left: 1em;
+	}
+
+	.issue-reporter .section .inline-form-control,
+	.issue-reporter .section .input-group .validation-error {
+		width: 100%;
+	}
+
+	.issue-reporter #similar-issues,
+	.issue-reporter .section .input-group .validation-error {
+		margin-left: 0;
+	}
+}
+
+.issue-reporter ::-webkit-scrollbar {
+	width: 14px;
+}
+
+.issue-reporter ::-webkit-scrollbar-thumb {
+	min-height: 20px;
+}
+
+.issue-reporter ::-webkit-scrollbar-corner {
+	display: none;
+}
+
+.issue-reporter .issues-container {
+	margin-left: 1.5em;
+	margin-top: .5em;
+	max-height: 92px;
+	overflow-y: auto;
+}
+
+.issue-reporter .issues-container > .issue {
+	padding: 4px 0;
+	display: flex;
+}
+
+.issue-reporter .issues-container > .issue > .issue-link {
+	width: calc(100% - 82px);
+	overflow: hidden;
+	padding-top: 3px;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.issue-reporter .issues-container > .issue > .issue-state .codicon {
+	width: 16px;
+}
+
+.issue-reporter .issues-container > .issue > .issue-state {
+	display: flex;
+	width: 77px;
+	padding: 3px 6px;
+	margin-right: 5px;
+	color: #CCCCCC;
+	background-color: #3c3c3c;
+	border-radius: .25rem;
+}
+
+.issue-reporter .issues-container > .issue .label {
+	padding-top: 2px;
+	margin-left: 5px;
+	width: 44px;
+	text-overflow: ellipsis;
+	overflow: hidden;
+}
+
+.issue-reporter .issues-container > .issue .issue-icon {
+	padding-top: 2px;
+}
+
+.issue-reporter a {
+	color: var(--vscode-textLink-foreground);
+}
