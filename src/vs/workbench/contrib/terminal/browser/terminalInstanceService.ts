@@ -17,13 +17,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { promiseWithResolvers } from 'vs/base/common/async';
 
-interface WithPathForFile {
-	getPathForFile?(file: File): string
-}
-
-export class TerminalInstanceService extends Disposable implements ITerminalInstanceService, WithPathForFile {
-	getPathForFile?(file: File): string;
-
+export class TerminalInstanceService extends Disposable implements ITerminalInstanceService {
 	declare _serviceBrand: undefined;
 	private _terminalShellTypeContextKey: IContextKey<string>;
 	private _terminalInRunCommandPicker: IContextKey<boolean>;
@@ -54,8 +48,7 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 		const instance = this._instantiationService.createInstance(TerminalInstance,
 			this._terminalShellTypeContextKey,
 			this._terminalInRunCommandPicker,
-			shellLaunchConfig,
-			this.getPathForFile?.bind(this)
+			shellLaunchConfig
 		);
 		instance.target = target;
 		this._onDidCreateInstance.fire(instance);
