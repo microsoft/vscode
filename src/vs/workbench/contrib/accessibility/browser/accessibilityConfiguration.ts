@@ -193,6 +193,7 @@ const configuration: IConfigurationNode = {
 					'properties': {
 						'general': {
 							'type': 'object',
+							'description': 'Delays for all signals besides error and warning at position',
 							'additionalProperties': false,
 							'properties': {
 								'announcement': {
