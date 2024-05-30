@@ -51,7 +51,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	private readonly _sessionStore: DisposableStore = new DisposableStore();
 
 	private _widgetState: StickyScrollWidgetState;
-	private _foldingModel: FoldingModel | null = null;
+	private _foldingModel: FoldingModel | undefined;
 	private _maxStickyLines: number = Number.MAX_SAFE_INTEGER;
 
 	private _stickyRangeProjectedOnEditor: IRange | undefined;
@@ -67,7 +67,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	private _positionRevealed = false;
 	private _onMouseDown = false;
 	private _endLineNumbers: number[] = [];
-	private _showEndForLine: number | null = null;
+	private _showEndForLine: number | undefined;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -291,14 +291,14 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 				this._renderStickyScroll();
 				return;
 			}
-			if (this._showEndForLine !== null) {
-				this._showEndForLine = null;
+			if (this._showEndForLine !== undefined) {
+				this._showEndForLine = undefined;
 				this._renderStickyScroll();
 			}
 		}));
 		this._register(dom.addDisposableListener(stickyScrollWidgetDomNode, dom.EventType.MOUSE_LEAVE, (e) => {
-			if (this._showEndForLine !== null) {
-				this._showEndForLine = null;
+			if (this._showEndForLine !== undefined) {
+				this._showEndForLine = undefined;
 				this._renderStickyScroll();
 			}
 		}));
@@ -415,14 +415,14 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			this._editor.addOverlayWidget(this._stickyScrollWidget);
 			this._sessionStore.add(this._editor.onDidScrollChange((e) => {
 				if (e.scrollTopChanged) {
-					this._showEndForLine = null;
+					this._showEndForLine = undefined;
 					this._renderStickyScroll();
 				}
 			}));
 			this._sessionStore.add(this._editor.onDidLayoutChange(() => this._onDidResize()));
 			this._sessionStore.add(this._editor.onDidChangeModelTokens((e) => this._onTokensChange(e)));
 			this._sessionStore.add(this._stickyLineCandidateProvider.onDidChangeStickyScroll(() => {
-				this._showEndForLine = null;
+				this._showEndForLine = undefined;
 				this._renderStickyScroll();
 			}));
 			this._enabled = true;
@@ -431,7 +431,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		const lineNumberOption = this._editor.getOption(EditorOption.lineNumbers);
 		if (lineNumberOption.renderType === RenderLineNumbersType.Relative) {
 			this._sessionStore.add(this._editor.onDidChangeCursorPosition(() => {
-				this._showEndForLine = null;
+				this._showEndForLine = undefined;
 				this._renderStickyScroll(0);
 			}));
 		}
@@ -485,10 +485,8 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			this._resetState();
 			return;
 		}
-
 		const stickyWidgetVersion = this._stickyLineCandidateProvider.getVersionId();
 		const shouldUpdateState = stickyWidgetVersion === undefined || stickyWidgetVersion === model.getVersionId();
-
 		if (shouldUpdateState) {
 			if (!this._focused) {
 				await this._updateState(rebuildFromLine);
@@ -521,8 +519,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		}
 	}
 	private async _updateState(rebuildFromLine?: number): Promise<void> {
-		this._minRebuildFromLine = undefined;
-		this._foldingModel = await FoldingController.get(this._editor)?.getFoldingModel() ?? null;
+		this._foldingModel = await FoldingController.get(this._editor)?.getFoldingModel() ?? undefined;
 		this._widgetState = this.findScrollWidgetState();
 		const stickyWidgetHasLines = this._widgetState.startLineNumbers.length > 0;
 		this._stickyScrollVisibleContextKey.set(stickyWidgetHasLines);
@@ -530,11 +527,10 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	}
 
 	private async _resetState(): Promise<void> {
-		this._minRebuildFromLine = undefined;
-		this._foldingModel = null;
+		this._foldingModel = undefined;
 		this._widgetState = StickyScrollWidgetState.Empty;
 		this._stickyScrollVisibleContextKey.set(false);
-		this._stickyScrollWidget.setState(undefined, null);
+		this._stickyScrollWidget.setState(undefined, undefined);
 	}
 
 	findScrollWidgetState(): StickyScrollWidgetState {
