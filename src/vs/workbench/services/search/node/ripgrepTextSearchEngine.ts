@@ -423,7 +423,7 @@ export function getRgArgs(query: TextSearchQuery, options: TextSearchOptions): s
 	}
 
 	if (options.threads) {
-		args.push('--threads', `${options.threads}`)
+		args.push('--threads', `${options.threads}`);
 	}
 
 	// Ripgrep handles -- as a -- arg separator. Only --.
