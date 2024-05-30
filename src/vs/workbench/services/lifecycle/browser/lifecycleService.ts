@@ -103,10 +103,10 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 		await this.storageService.flush(WillSaveStateReason.SHUTDOWN);
 
 		// Handle shutdown without veto support
-		await this.doShutdown();
+		this.doShutdown();
 	}
 
-	private async doShutdown(vetoShutdown?: () => void): Promise<void> {
+	private doShutdown(vetoShutdown?: () => void): void {
 		const logService = this.logService;
 
 		let storageServiceVeto = true;
