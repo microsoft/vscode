@@ -92,7 +92,7 @@ import { TerminalIconPicker } from 'vs/workbench/contrib/terminal/browser/termin
 // HACK: This file should not depend on terminalContrib
 // eslint-disable-next-line local/code-import-patterns
 import { TerminalAccessibilityCommandId } from 'vs/workbench/contrib/terminalContrib/accessibility/common/terminal.accessibility';
-import { IHostService } from 'vs/workbench/services/host/browser/host.js';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 const enum Constants {
 	/**

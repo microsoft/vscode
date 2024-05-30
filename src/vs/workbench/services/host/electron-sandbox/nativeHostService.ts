@@ -17,7 +17,7 @@ import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
 import { disposableWindowInterval, getActiveDocument, getWindowId, getWindowsCount, hasWindow, onDidRegisterWindow } from 'vs/base/browser/dom';
 import { memoize } from 'vs/base/common/decorators';
 import { isAuxiliaryWindow } from 'vs/base/browser/window';
-import { webUtils } from 'vs/base/parts/sandbox/electron-sandbox/globals.js';
+import { webUtils } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 
 class WorkbenchNativeHostService extends NativeHostService {
 
