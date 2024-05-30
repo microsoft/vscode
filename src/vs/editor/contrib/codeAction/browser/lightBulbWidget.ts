@@ -176,10 +176,6 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 
 			// Checks if line is empty or starts with any amount of whitespace
 			const isLineEmptyOrIndented = (lineNumber: number): boolean => {
-				const model = this._editor.getModel();
-				if (!model) {
-					return false;
-				}
 				const lineContent = model.getLineContent(lineNumber);
 				return /^\s*$|^\s+/.test(lineContent) || lineContent.length <= effectiveColumnNumber;
 			};
