@@ -173,10 +173,21 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		let effectiveLineNumber = lineNumber;
 		let effectiveColumnNumber = 1;
 		if (!lineHasSpace) {
+
+			// Checks if line is empty or starts with any amount of whitespace
+			const isLineEmptyOrIndented = (lineNumber: number): boolean => {
+				const model = this._editor.getModel();
+				if (!model) {
+					return false;
+				}
+				const lineContent = model.getLineContent(lineNumber);
+				return /^\s*$|^\s+/.test(lineContent) || lineContent.length <= effectiveColumnNumber;
+			};
+
 			if (lineNumber > 1 && !isFolded(lineNumber - 1)) {
-				if (model.getLineContent(lineNumber - 1).length <= effectiveColumnNumber || lineNumber === model.getLineCount()) {
+				if (isLineEmptyOrIndented(lineNumber - 1) || lineNumber === model.getLineCount()) {
 					effectiveLineNumber -= 1;
-				} else if (model.getLineContent(lineNumber + 1).length <= effectiveColumnNumber) {
+				} else if (isLineEmptyOrIndented(lineNumber + 1)) {
 					effectiveLineNumber += 1;
 				}
 			} else if ((lineNumber < model.getLineCount()) && !isFolded(lineNumber + 1)) {
