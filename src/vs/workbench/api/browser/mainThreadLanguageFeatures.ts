@@ -67,7 +67,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 				}
 				this._proxy.$setWordDefinitions(wordDefinitionDtos);
 			};
-			this._languageConfigurationService.onDidChange((e) => {
+			this._register(this._languageConfigurationService.onDidChange((e) => {
 				if (!e.languageId) {
 					updateAllWordDefinitions();
 				} else {
@@ -78,7 +78,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 						regexFlags: wordDefinition.flags
 					}]);
 				}
-			});
+			}));
 			updateAllWordDefinitions();
 		}
 	}

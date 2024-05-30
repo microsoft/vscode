@@ -73,6 +73,7 @@ export class AccessibleView extends Disposable {
 	private _accessibleViewInCodeBlock: IContextKey<boolean>;
 	private _accessibleViewContainsCodeBlocks: IContextKey<boolean>;
 	private _codeBlocks?: ICodeBlock[];
+	private _inQuickPick: boolean = false;
 
 	get editorWidget() { return this._editorWidget; }
 	private _container: HTMLElement;
@@ -245,10 +246,13 @@ export class AccessibleView extends Disposable {
 		if (!provider) {
 			return;
 		}
+		provider.onOpen?.();
+		let viewContainer: HTMLElement | undefined;
 		const delegate: IContextViewDelegate = {
 			getAnchor: () => { return { x: (getActiveWindow().innerWidth / 2) - ((Math.min(this._layoutService.activeContainerDimension.width * 0.62 /* golden cut */, DIMENSIONS.MAX_WIDTH)) / 2), y: this._layoutService.activeContainerOffset.quickPickTop }; },
 			render: (container) => {
-				container.classList.add('accessible-view-container');
+				viewContainer = container;
+				viewContainer.classList.add('accessible-view-container');
 				return this._render(provider, container, showAccessibleViewHelp);
 			},
 			onHide: () => {
@@ -288,6 +292,11 @@ export class AccessibleView extends Disposable {
 		}
 		if (provider instanceof ExtensionContentProvider) {
 			this._storageService.store(`${ACCESSIBLE_VIEW_SHOWN_STORAGE_PREFIX}${provider.id}`, true, StorageScope.APPLICATION, StorageTarget.USER);
+		}
+		if (provider.onDidChangeContent) {
+			this._register(provider.onDidChangeContent(() => {
+				if (viewContainer) { this._render(provider, viewContainer, showAccessibleViewHelp); }
+			}));
 		}
 	}
 
@@ -371,8 +380,9 @@ export class AccessibleView extends Disposable {
 	}
 
 	configureKeybindings(): void {
-		const items = this._currentProvider?.options?.configureKeybindingItems;
-		const provider = this._currentProvider;
+		this._inQuickPick = true;
+		const provider = this._updateLastProvider();
+		const items = provider?.options?.configureKeybindingItems;
 		if (!items) {
 			return;
 		}
@@ -394,6 +404,7 @@ export class AccessibleView extends Disposable {
 				this.show(provider);
 			}
 			quickPick.dispose();
+			this._inQuickPick = false;
 		});
 	}
 
@@ -559,9 +570,11 @@ export class AccessibleView extends Disposable {
 		});
 		this._updateToolbar(this._currentProvider.actions, provider.options.type);
 
-		const hide = (e: KeyboardEvent | IKeyboardEvent): void => {
-			provider.onClose();
-			e.stopPropagation();
+		const hide = (e?: KeyboardEvent | IKeyboardEvent): void => {
+			if (!this._inQuickPick) {
+				provider.onClose();
+			}
+			e?.stopPropagation();
 			this._contextViewService.hideContextView();
 			this._updateContextKeys(provider, false);
 			this._lastProvider = undefined;
@@ -592,7 +605,7 @@ export class AccessibleView extends Disposable {
 		}));
 		disposableStore.add(this._editorWidget.onDidBlurEditorWidget(() => {
 			if (!isActiveElement(this._toolbar.getElement())) {
-				this._contextViewService.hideContextView();
+				hide();
 			}
 		}));
 		disposableStore.add(this._editorWidget.onDidContentSizeChange(() => this._layout()));
@@ -648,21 +661,25 @@ export class AccessibleView extends Disposable {
 			provider.id,
 			provider.options,
 			provider.provideContent.bind(provider),
-			provider.onClose,
+			provider.onClose.bind(provider),
 			provider.verbositySettingKey,
+			provider.onOpen?.bind(provider),
 			provider.actions,
-			provider.next,
-			provider.previous,
-			provider.onKeyDown,
-			provider.getSymbols,
+			provider.next?.bind(provider),
+			provider.previous?.bind(provider),
+			provider.onDidChangeContent?.bind(provider),
+			provider.onKeyDown?.bind(provider),
+			provider.getSymbols?.bind(provider),
 		) : new ExtensionContentProvider(
 			provider.id,
 			provider.options,
 			provider.provideContent.bind(provider),
-			provider.onClose,
-			provider.next,
-			provider.previous,
-			provider.actions
+			provider.onClose.bind(provider),
+			provider.onOpen?.bind(provider),
+			provider.next?.bind(provider),
+			provider.previous?.bind(provider),
+			provider.actions,
+			provider.onDidChangeContent?.bind(provider),
 		);
 		return lastProvider;
 	}

@@ -158,7 +158,7 @@ export class IconLabel extends Disposable {
 		const existingIconNode = this.domNode.element.querySelector('.monaco-icon-label-iconpath');
 		if (options?.iconPath) {
 			let iconNode;
-			if (!existingIconNode || !(existingIconNode instanceof HTMLElement)) {
+			if (!existingIconNode || !(dom.isHTMLElement(existingIconNode))) {
 				iconNode = dom.$('.monaco-icon-label-iconpath');
 				this.domNode.element.prepend(iconNode);
 			} else {

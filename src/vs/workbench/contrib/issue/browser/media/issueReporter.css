@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
-.mac.web.issue-reporter-body {
+.web.issue-reporter-body {
 	position: absolute;
 	overflow-y: scroll;
 }
