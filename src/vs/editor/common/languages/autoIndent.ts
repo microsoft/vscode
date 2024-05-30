@@ -406,8 +406,7 @@ export function getIndentActionForType(
 
 	const previousLineNumber = range.startLineNumber - 1;
 	const previousLine = model.getLineContent(previousLineNumber);
-	const lineWithCharacter = beforeTypeText + ch + afterTypeText;
-	if (indentRulesSupport.shouldIndentNextLine(previousLine) && indentRulesSupport.shouldIncrease(lineWithCharacter)) {
+	if (indentRulesSupport.shouldIndentNextLine(previousLine) && indentRulesSupport.shouldIncrease(textAroundRangeWithCharacter)) {
 		const r = getInheritIndentForLine(autoIndent, model, range.startLineNumber, false, languageConfigurationService);
 		return r?.indentation ?? null;
 	}
