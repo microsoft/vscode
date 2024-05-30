@@ -9,9 +9,9 @@
   },
   "main": "./out/node/htmlServerMain",
   "dependencies": {
-    "@volar/language-server": "~2.3.0-alpha.1",
-    "@volar/language-service": "~2.3.0-alpha.1",
-    "@volar/typescript": "~2.3.0-alpha.1",
+    "@volar/language-server": "~2.3.0-alpha.2",
+    "@volar/language-service": "~2.3.0-alpha.2",
+    "@volar/typescript": "~2.3.0-alpha.2",
     "@vscode/l10n": "^0.0.18",
     "volar-service-css": "0.0.49",
     "volar-service-html": "0.0.49",
