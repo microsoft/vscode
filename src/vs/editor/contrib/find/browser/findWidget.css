@@ -232,19 +232,11 @@
 	background-color: var(--vscode-editor-findMatchHighlightBackground);
 }
 
-.monaco-editor .findMatchInline {
-	color: var(--vscode-editor-findMatchHighlightForeground);
-}
-
 .monaco-editor .currentFindMatch {
 	background-color: var(--vscode-editor-findMatchBackground);
 	border: 2px solid var(--vscode-editor-findMatchBorder);
 	padding: 1px;
 	box-sizing: border-box;
-}
-
-.monaco-editor .currentFindMatchInline {
-	color: var(--vscode-editor-findMatchForeground);
 }
 
 .monaco-editor .findScope {
