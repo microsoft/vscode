@@ -444,7 +444,7 @@ export interface ISearchConfigurationProperties {
 	experimental: {
 		closedNotebookRichContentResults: boolean;
 	};
-	threads?: number
+	threads?: number;
 }
 
 export interface ISearchConfiguration extends IFilesConfiguration {
