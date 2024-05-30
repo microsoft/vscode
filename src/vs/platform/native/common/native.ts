@@ -152,6 +152,7 @@ export interface ICommonNativeHostService {
 	writeClipboardBuffer(format: string, buffer: VSBuffer, type?: 'selection' | 'clipboard'): Promise<void>;
 	readClipboardBuffer(format: string): Promise<VSBuffer>;
 	hasClipboard(format: string, type?: 'selection' | 'clipboard'): Promise<boolean>;
+	getPathForFile(file: File): string;
 
 	// macOS Touchbar
 	newWindowTab(): Promise<void>;
