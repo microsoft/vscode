@@ -50,22 +50,29 @@ You'll need the following tools:
 
 The first time you clone the repo, please run:
 
-##### Mac
+##### macOS and Linux
 
 ```
-./scripts/init.sh
+ ./scripts/pearai/setup-environment.sh
 ```
 
 ##### Windows
 
-Open `Command Palette` and type `Run Task`. Then, select `setup-environment`.
-
+```bat
+.\scripts\pearai/setup-environment.ps1
+```
 ### Build
 
 Install and build all of the dependencies using `Yarn`:
 
+##### macOS and Linux
+
+```bash
+./scripts/pearai/build.sh
 ```
-cd vscode
+
+##### Windows
+```
 yarn
 ```
 
@@ -77,14 +84,12 @@ Running on Electron with extensions run in NodeJS:
 
 ```bash
 ./scripts/code.sh
-./scripts/code-cli.sh # for running CLI commands (eg --version)
 ```
 
 ##### Windows
 
 ```bat
 .\scripts\code.bat
-.\scripts\code-cli.bat
 ```
 
 👉 **Tip!** If you receive an error stating that the app is not a valid Electron app, it probably means you didn't run `yarn watch` first.

@@ -2,10 +2,6 @@
 
 set -e
 
-cd extensions/pearai-submodule
-./scripts/build-extension.sh
-cd ../../
-
 if [[ "$OSTYPE" == "darwin"* ]]; then
 	realpath() { [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"; }
 	ROOT=$(dirname "$(dirname "$(realpath "$0")")")
