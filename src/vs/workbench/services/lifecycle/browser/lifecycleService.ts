@@ -109,12 +109,14 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 	private async doShutdown(vetoShutdown?: () => void): Promise<void> {
 		const logService = this.logService;
 
+		let storageServiceVeto = true;
 		// Optimistically trigger a UI state flush
 		// without waiting for it. The browser does
 		// not guarantee that this is being executed
 		// but if a dialog opens, we have a chance
 		// to succeed.
-		const p = this.storageService.flush(WillSaveStateReason.SHUTDOWN);
+		// If the refresh is not completed, it needs to be regarded as a veto to try to evoke the dialog.
+		this.storageService.flush(WillSaveStateReason.SHUTDOWN).finally(() => storageServiceVeto = false);
 
 		let veto = false;
 
@@ -147,10 +149,8 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 			}
 		});
 
-		// Ensure UI state is persisted
-		await p;
 		// Veto: handle if provided
-		if (veto && typeof vetoShutdown === 'function') {
+		if ((veto || storageServiceVeto) && typeof vetoShutdown === 'function') {
 			return vetoShutdown();
 		}
 
