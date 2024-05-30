@@ -69,7 +69,6 @@ export class TerminalTabbedView extends Disposable {
 
 	constructor(
 		parentElement: HTMLElement,
-		getPathForFile: undefined | ((file: File) => string),
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
@@ -94,7 +93,7 @@ export class TerminalTabbedView extends Disposable {
 		this._tabsListMenu = this._register(menuService.createMenu(MenuId.TerminalTabContext, contextKeyService));
 		this._tabsListEmptyMenu = this._register(menuService.createMenu(MenuId.TerminalTabEmptyAreaContext, contextKeyService));
 
-		this._tabList = this._register(this._instantiationService.createInstance(TerminalTabList, this._tabListElement, getPathForFile));
+		this._tabList = this._register(this._instantiationService.createInstance(TerminalTabList, this._tabListElement));
 
 		const terminalOuterContainer = $('.terminal-outer-container');
 		this._terminalContainer = $('.terminal-groups-container');
