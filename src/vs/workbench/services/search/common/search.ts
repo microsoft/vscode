@@ -93,6 +93,7 @@ export interface ICommonQueryProps<U extends UriComponents> {
 
 	maxResults?: number;
 	usingSearchPaths?: boolean;
+	threads?: boolean;
 }
 
 export interface IFileQueryProps<U extends UriComponents> extends ICommonQueryProps<U> {
