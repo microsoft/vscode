@@ -68,6 +68,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	private _onMouseDown = false;
 	private _endLineNumbers: number[] = [];
 	private _showEndForLine: number | null = null;
+	private _minRebuildFromLine: number | undefined = undefined;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -486,6 +487,8 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			return;
 		}
 
+		const nextRebuildFromLine = this._updateAndGetMinRebuildFromLine(rebuildFromLine);
+
 		const stickyWidgetVersion = this._stickyLineCandidateProvider.getVersionId();
 		const shouldUpdateState = stickyWidgetVersion === undefined || stickyWidgetVersion === model.getVersionId();
 
@@ -520,6 +523,15 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			}
 		}
 	}
+
+	private _updateAndGetMinRebuildFromLine(rebuildFromLine: number | undefined): number | undefined {
+		if (rebuildFromLine !== undefined) {
+			const minRebuildFromLineOrInfinity = this._minRebuildFromLine !== undefined ? this._minRebuildFromLine : Infinity;
+			this._minRebuildFromLine = Math.min(rebuildFromLine, minRebuildFromLineOrInfinity);
+		}
+		return this._minRebuildFromLine;
+	}
+
 	private async _updateState(rebuildFromLine?: number): Promise<void> {
 		this._minRebuildFromLine = undefined;
 		this._foldingModel = await FoldingController.get(this._editor)?.getFoldingModel() ?? null;
