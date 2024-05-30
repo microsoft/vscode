@@ -1546,7 +1546,7 @@ export class TestHostService implements IHostService {
 	onDidChangeColorScheme = Event.None;
 
 	getPathForFile(file: File): string {
-		return ''
+		return '';
 	}
 }
 
