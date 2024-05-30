@@ -121,7 +121,6 @@ export class QueryBuilder {
 			beforeContext: options.beforeContext,
 			afterContext: options.afterContext,
 			userDisabledExcludesAndIgnoreFiles: options.disregardExcludeSettings && options.disregardIgnoreFiles,
-
 		};
 	}
 
@@ -190,7 +189,7 @@ export class QueryBuilder {
 			exists: options.exists,
 			sortByScore: options.sortByScore,
 			cacheKey: options.cacheKey,
-			shouldGlobMatchFilePattern: options.shouldGlobSearch
+			shouldGlobMatchFilePattern: options.shouldGlobSearch,
 		};
 	}
 
@@ -208,6 +207,7 @@ export class QueryBuilder {
 	private commonQuery(folderResources: (IWorkspaceFolderData | URI)[] = [], options: ICommonQueryBuilderOptions = {}): ICommonQueryProps<uri> {
 		const includeSearchPathsInfo: ISearchPathsInfo = this.handleIncludeExclude(options.includePattern, options.expandPatterns);
 		const excludeSearchPathsInfo: ISearchPathsInfo = this.handleIncludeExclude(options.excludePattern, options.expandPatterns);
+		const searchConfig = this.configurationService.getValue<ISearchConfiguration>();
 
 		// Build folderQueries from searchPaths, if given, otherwise folderResources
 		const includeFolderName = folderResources.length > 1;
@@ -221,11 +221,11 @@ export class QueryBuilder {
 			folderQueries,
 			usingSearchPaths: !!(includeSearchPathsInfo.searchPaths && includeSearchPathsInfo.searchPaths.length),
 			extraFileResources: options.extraFileResources,
-
 			excludePattern: excludeSearchPathsInfo.pattern,
 			includePattern: includeSearchPathsInfo.pattern,
 			onlyOpenEditors: options.onlyOpenEditors,
-			maxResults: options.maxResults
+			maxResults: options.maxResults,
+			threads: searchConfig.search.threads,
 		};
 
 		if (options.onlyOpenEditors) {
@@ -241,8 +241,6 @@ export class QueryBuilder {
 		const extraFileResources = options.extraFileResources && options.extraFileResources.filter(extraFile => pathIncludedInQuery(queryProps, extraFile.fsPath));
 		queryProps.extraFileResources = extraFileResources && extraFileResources.length ? extraFileResources : undefined;
 
-		const threads = this.configurationService.getValue<number>('search.threads') ?? undefined;
-		queryProps.threads = threads;
 
 		return queryProps;
 	}
