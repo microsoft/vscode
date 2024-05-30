@@ -394,7 +394,7 @@ export class ChatService extends Disposable implements IChatService {
 			return model;
 		}
 
-		const sessionData = this._persistedSessions[sessionId];
+		const sessionData = revive<ISerializableChatData>(this._persistedSessions[sessionId]);
 		if (!sessionData) {
 			return undefined;
 		}
