@@ -213,7 +213,8 @@ export class TextSearchManager {
 			maxResults: this.query.maxResults ?? Number.MAX_SAFE_INTEGER,
 			previewOptions: this.query.previewOptions,
 			afterContext: this.query.afterContext,
-			beforeContext: this.query.beforeContext
+			beforeContext: this.query.beforeContext,
+			threads: this.query.threads,
 		};
 		if ('usePCRE2' in this.query) {
 			(<IExtendedExtensionSearchOptions>options).usePCRE2 = this.query.usePCRE2;
