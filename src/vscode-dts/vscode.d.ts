@@ -7851,7 +7851,7 @@ declare module 'vscode' {
 		/**
 		 * An object that keeps information about how this extension can use language models.
 		 *
-		 * @see {@link lm.sendChatRequest}
+		 * @see {@link LanguageModelChat.sendRequest}
 		 */
 		readonly languageModelAccessInformation: LanguageModelAccessInformation;
 	}
