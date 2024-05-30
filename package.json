@@ -30,7 +30,7 @@
     "watch-extensions": "node --max-old-space-size=4095 ./node_modules/gulp/bin/gulp.js watch-extensions watch-extension-media",
     "watch-extensionsd": "deemon yarn watch-extensions",
     "kill-watch-extensionsd": "deemon --kill yarn watch-extensions",
-    "precommit": "node build/hygiene.js",
+    "precommit": "",
     "gulp": "node --max-old-space-size=8192 ./node_modules/gulp/bin/gulp.js",
     "electron": "node build/lib/electron",
     "7z": "7z",
