@@ -269,11 +269,3 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		this._domNode.title = value;
 	}
 }
-
-
-
-
-console.log("");
-
-
-console.log();
