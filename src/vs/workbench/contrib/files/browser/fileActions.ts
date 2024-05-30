@@ -1110,6 +1110,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: Fi
 	const configurationService = accessor.get(IConfigurationService);
 	const uriIdentityService = accessor.get(IUriIdentityService);
 	const dialogService = accessor.get(IDialogService);
+	const hostService = accessor.get(IHostService);
 
 	const context = explorerService.getContext(false);
 	const hasNativeFilesToPaste = fileList && fileList.length > 0;
@@ -1121,7 +1122,18 @@ export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: Fi
 		const message = toPaste.files.length > 1 ?
 			nls.localize('confirmMultiPasteNative', "Are you sure you want to paste the following {0} items?", toPaste.files.length) :
 			nls.localize('confirmPasteNative', "Are you sure you want to paste '{0}'?", basename(toPaste.type === 'paths' ? toPaste.files[0].fsPath : toPaste.files[0].name));
-		const detail = toPaste.files.length > 1 ? getFileNamesMessage(toPaste.files.map(item => toPaste.type === 'paths' ? item.path : (item as File).name)) : undefined;
+		const detail = toPaste.files.length > 1 ? getFileNamesMessage(toPaste.files.map(item => {
+			if (toPaste.type === 'paths' && item instanceof URI) {
+				return item.path
+			}
+			if (toPaste.type === 'paths' && item instanceof File && hostService.getPathForFile(item)) {
+				return hostService.getPathForFile(item)
+			}
+			if (item instanceof File) {
+				return item.name
+			}
+			throw new Error('unreachable')
+		})) : undefined;
 		const confirmation = await dialogService.confirm({
 			message,
 			detail,
