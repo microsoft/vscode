@@ -85,8 +85,6 @@ export interface ITerminalInstanceService {
 
 	getRegisteredBackends(): IterableIterator<ITerminalBackend>;
 	didRegisterBackend(remoteAuthority?: string): void;
-
-	getPathForFile?: (file: File) => string
 }
 
 export const enum Direction {
