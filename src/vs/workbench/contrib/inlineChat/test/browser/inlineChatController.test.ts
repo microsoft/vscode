@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { equals } from 'vs/base/common/arrays';
-import { timeout } from 'vs/base/common/async';
+import { raceCancellation, timeout } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { mock } from 'vs/base/test/common/mock';
@@ -62,6 +62,7 @@ import { TestCommandService } from 'vs/editor/test/browser/editorTestServices';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { RerunAction } from 'vs/workbench/contrib/inlineChat/browser/inlineChatActions';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { assertType } from 'vs/base/common/types';
 
 suite('InteractiveChatController', function () {
 
@@ -641,5 +642,85 @@ suite('InteractiveChatController', function () {
 		assert.strictEqual(model.getValue(), 'Hello\nWorld\nHello Again\nHello World\n');
 
 		await r;
+	});
+
+	test('Clicking "re-run without /doc" while a request is in progress closes the widget #5997', async function () {
+
+		model.setValue('');
+
+		let count = 0;
+		const commandDetection: (boolean | undefined)[] = [];
+
+		store.add(chatAgentService.registerDynamicAgent({
+			id: 'testEditorAgent2',
+			...agentData
+		}, {
+			async invoke(request, progress, history, token) {
+				commandDetection.push(request.enableCommandDetection);
+				progress({ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(1, 1, 1, 1), text: request.message + (count++) }] });
+
+				if (count === 1) {
+					// FIRST call waits for cancellation
+					await raceCancellation(new Promise<never>(() => { }), token);
+				} else {
+					await timeout(10);
+				}
+
+				return {};
+			},
+		}));
+		ctrl = instaService.createInstance(TestController, editor);
+
+		// REQUEST 1
+		const p = ctrl.waitFor([...TestController.INIT_SEQUENCE, State.SHOW_REQUEST]);
+		ctrl.run({ message: 'Hello-', autoSend: true });
+		await p;
+
+		// resend pending request without command detection
+		const request = ctrl.chatWidget.viewModel?.model.getRequests().at(-1);
+		assertType(request);
+		const p2 = ctrl.waitFor([State.SHOW_REQUEST, State.SHOW_RESPONSE]);
+		chatService.resendRequest(request, { noCommandDetection: true, attempt: request.attempt + 1, location: ChatAgentLocation.Editor });
+
+		await p2;
+
+		assert.deepStrictEqual(commandDetection, [true, false]);
+		assert.strictEqual(model.getValue(), 'Hello-1');
+	});
+
+	test('Re-run without after request is done', async function () {
+
+		model.setValue('');
+
+		let count = 0;
+		const commandDetection: (boolean | undefined)[] = [];
+
+		store.add(chatAgentService.registerDynamicAgent({
+			id: 'testEditorAgent2',
+			...agentData
+		}, {
+			async invoke(request, progress, history, token) {
+				commandDetection.push(request.enableCommandDetection);
+				progress({ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(1, 1, 1, 1), text: request.message + (count++) }] });
+				return {};
+			},
+		}));
+		ctrl = instaService.createInstance(TestController, editor);
+
+		// REQUEST 1
+		const p = ctrl.waitFor([...TestController.INIT_SEQUENCE, State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
+		ctrl.run({ message: 'Hello-', autoSend: true });
+		await p;
+
+		// resend pending request without command detection
+		const request = ctrl.chatWidget.viewModel?.model.getRequests().at(-1);
+		assertType(request);
+		const p2 = ctrl.waitFor([State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
+		chatService.resendRequest(request, { noCommandDetection: true, attempt: request.attempt + 1, location: ChatAgentLocation.Editor });
+
+		await p2;
+
+		assert.deepStrictEqual(commandDetection, [true, false]);
+		assert.strictEqual(model.getValue(), 'Hello-1');
 	});
 });
