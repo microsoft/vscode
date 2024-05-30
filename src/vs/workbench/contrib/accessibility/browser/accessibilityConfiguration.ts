@@ -172,6 +172,7 @@ const configuration: IConfigurationNode = {
 			default: true
 		},
 		'accessibility.signalOptions': {
+			description: 'Configures the behavior of signals (audio cues and announcements) in the workbench. Includes volume, debounce position changes, and delays for different types of signals.',
 			type: 'object',
 			additionalProperties: false,
 			properties: {
