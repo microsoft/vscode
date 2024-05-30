@@ -21,7 +21,7 @@ import { isEqual } from 'vs/base/common/resources';
 import { StableEditorBottomScrollState } from 'vs/editor/browser/stableEditorScroll';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-
+import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
 
 export class InlineChatZoneWidget extends ZoneWidget {
 
@@ -32,6 +32,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 	private _indentationWidth: number | undefined;
 
 	constructor(
+		location: ChatAgentLocation,
 		editor: ICodeEditor,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -45,7 +46,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 			this._ctxCursorPosition.reset();
 		}));
 
-		this.widget = this._instaService.createInstance(EditorBasedInlineChatWidget, this.editor, {
+		this.widget = this._instaService.createInstance(EditorBasedInlineChatWidget, location, this.editor, {
 			telemetrySource: 'interactiveEditorWidget-toolbar',
 			inputMenuId: MenuId.ChatExecute,
 			widgetMenuId: MENU_INLINE_CHAT_WIDGET,
@@ -146,6 +147,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 
 		super.show(position, this._computeHeightInLines());
 		this._setWidgetMargins(position);
+		this.widget.chatWidget.setVisible(true);
 		this.widget.focus();
 
 		scrollState.restore(this.editor);
@@ -208,6 +210,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		this.container!.classList.remove('inside-selection');
 		this._ctxCursorPosition.reset();
 		this.widget.reset();
+		this.widget.chatWidget.setVisible(false);
 		super.hide();
 		aria.status(localize('inlineChatClosed', 'Closed inline chat widget'));
 	}

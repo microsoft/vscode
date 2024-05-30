@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { $, createStyleSheet, reset, windowOpenNoOpener } from 'vs/base/browser/dom';
+import { $, createStyleSheet, isHTMLInputElement, isHTMLTextAreaElement, reset, windowOpenNoOpener } from 'vs/base/browser/dom';
 import { Button, unthemedButtonStyles } from 'vs/base/browser/ui/button/button';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { mainWindow } from 'vs/base/browser/window';
@@ -16,7 +16,7 @@ import { isLinuxSnap, isMacintosh } from 'vs/base/common/platform';
 import { escape } from 'vs/base/common/strings';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
-import { IssueReporterModel, IssueReporterData as IssueReporterModelData } from 'vs/code/browser/issue/issueReporterModel';
+import { IssueReporterModel, IssueReporterData as IssueReporterModelData } from 'vs/workbench/contrib/issue/browser/issueReporterModel';
 import { localize } from 'vs/nls';
 import { isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 import { IIssueMainService, IssueReporterData, IssueReporterExtensionData, IssueReporterStyles, IssueReporterWindowConfiguration, IssueType } from 'vs/platform/issue/common/issue';
@@ -458,7 +458,7 @@ export class IssueReporter extends Disposable {
 			// Manually perform the selection
 			if (isMacintosh) {
 				if (cmdOrCtrlKey && e.keyCode === 65 && e.target) {
-					if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+					if (isHTMLInputElement(e.target) || isHTMLTextAreaElement(e.target)) {
 						(<HTMLInputElement>e.target).select();
 					}
 				}

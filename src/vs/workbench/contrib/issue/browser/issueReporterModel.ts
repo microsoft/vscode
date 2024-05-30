@@ -3,16 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { mainWindow } from 'vs/base/browser/window';
 import { isRemoteDiagnosticError, SystemInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { ISettingSearchResult, IssueReporterExtensionData, IssueType } from 'vs/platform/issue/common/issue';
 
 export interface IssueReporterData {
 	issueType: IssueType;
 	issueDescription?: string;
+	issueTitle?: string;
 	extensionData?: string;
 
 	versionInfo?: any;
 	systemInfo?: SystemInfo;
+	systemInfoWeb?: string;
 	processInfo?: string;
 	workspaceInfo?: string;
 
@@ -55,6 +58,15 @@ export class IssueReporterModel {
 		};
 
 		this._data = initialData ? Object.assign(defaultData, initialData) : defaultData;
+
+		mainWindow.addEventListener('message', async (event) => {
+			if (event.data && event.data.sendChannel === 'vscode:triggerIssueData') {
+				mainWindow.postMessage({
+					data: { issueBody: this._data.issueDescription, issueTitle: this._data.issueTitle },
+					replyChannel: 'vscode:triggerIssueDataResponse'
+				}, '*');
+			}
+		});
 	}
 
 	getData(): IssueReporterData {
@@ -137,6 +149,10 @@ ${this.getInfos()}
 
 			if (this._data.includeSystemInfo && this._data.systemInfo) {
 				info += this.generateSystemInfoMd();
+			}
+
+			if (this._data.includeSystemInfo && this._data.systemInfoWeb) {
+				info += 'System Info: ' + this._data.systemInfoWeb;
 			}
 		}
 

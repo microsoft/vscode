@@ -602,6 +602,7 @@ export class ExtensionsScanner extends Disposable {
 				} catch (error) {
 					if (error.code === 'ENOTEMPTY') {
 						this.logService.info(`Rename failed because extension was installed by another source. So ignoring renaming.`, extensionKey.id);
+						try { await this.fileService.del(tempLocation, { recursive: true }); } catch (e) { /* ignore */ }
 					} else {
 						this.logService.info(`Rename failed because of ${getErrorMessage(error)}. Deleted from extracted location`, tempLocation);
 						throw error;

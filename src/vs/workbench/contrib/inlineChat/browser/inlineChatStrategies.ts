@@ -99,7 +99,7 @@ export abstract class EditModeStrategy {
 					continue;
 				}
 
-				await editor.apply(request.response, item);
+				await editor.apply(request.response, item, undefined);
 
 				if (item.uri.scheme === Schemas.untitled) {
 					const untitled = this._textFileService.untitled.get(item.uri);

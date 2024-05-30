@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import { asArray, firstOrDefault } from 'vs/base/common/arrays';
 import { DeferredPromise } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -33,6 +34,7 @@ export interface IChatRequestVariableEntry {
 	value: IChatRequestVariableValue;
 	references?: IChatContentReference[];
 	isDynamic?: boolean;
+	isFile?: boolean;
 }
 
 export interface IChatRequestVariableData {
@@ -50,13 +52,15 @@ export interface IChatRequestModel {
 	readonly response?: IChatResponseModel;
 }
 
+export interface IChatTextEditGroupState {
+	sha1: string;
+	applied: number;
+}
+
 export interface IChatTextEditGroup {
 	uri: URI;
 	edits: TextEdit[][];
-	state?: {
-		sha1: string;
-		applied: number;
-	};
+	state?: IChatTextEditGroupState;
 	kind: 'textEditGroup';
 }
 
@@ -248,7 +252,7 @@ export class Response implements IResponse {
 			} else if (part.kind === 'command') {
 				return part.command.title;
 			} else if (part.kind === 'textEditGroup') {
-				return '';
+				return localize('editsSummary', "Made changes.");
 			} else if (part.kind === 'progressMessage') {
 				return '';
 			} else if (part.kind === 'confirmation') {

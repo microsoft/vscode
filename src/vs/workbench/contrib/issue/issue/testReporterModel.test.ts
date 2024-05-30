@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { IssueReporterModel } from 'vs/code/browser/issue/issueReporterModel';
+import { IssueReporterModel } from 'vs/workbench/contrib/issue/browser/issueReporterModel';
 import { IssueType } from 'vs/platform/issue/common/issue';
 import { normalizeGitHubUrl } from 'vs/platform/issue/common/issueReporterUtil';
 

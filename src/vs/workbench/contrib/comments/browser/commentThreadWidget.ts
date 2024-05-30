@@ -88,7 +88,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 
 		this._commentMenus = this.commentService.getCommentMenus(this._owner);
 
-		this._header = new CommentThreadHeader<T>(
+		this._register(this._header = new CommentThreadHeader<T>(
 			container,
 			{
 				collapse: this.collapse.bind(this)
@@ -98,7 +98,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 			this._contextKeyService,
 			this._scopedInstantiationService,
 			contextMenuService
-		);
+		));
 
 		this._header.updateCommentThread(this._commentThread);
 
