@@ -217,18 +217,16 @@ export class HoverAccessibleViewProvider extends BaseHoverAccessibleViewProvider
 		let accessibleActionId: string;
 		let actionCodicon: ThemeIcon;
 		switch (action) {
-			case HoverVerbosityAction.Increase: {
+			case HoverVerbosityAction.Increase:
 				actionId = INCREASE_HOVER_VERBOSITY_ACTION_ID;
 				accessibleActionId = INCREASE_HOVER_VERBOSITY_ACCESSIBLE_ACTION_ID;
 				actionCodicon = Codicon.add;
 				break;
-			}
-			case HoverVerbosityAction.Decrease: {
+			case HoverVerbosityAction.Decrease:
 				actionId = DECREASE_HOVER_VERBOSITY_ACTION_ID;
 				accessibleActionId = DECREASE_HOVER_VERBOSITY_ACCESSIBLE_ACTION_ID;
 				actionCodicon = Codicon.remove;
 				break;
-			}
 		}
 		const actionLabel = labelForHoverVerbosityAction(this._keybindingService, action);
 		const actionEnabled = this._hoverController.doesMarkdownHoverAtIndexSupportVerbosityAction(this._markdownHoverFocusedIndex, action);
