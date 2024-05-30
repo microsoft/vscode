@@ -76,7 +76,6 @@ export interface IFolderQuery<U extends UriComponents = URI> {
 	disregardGlobalIgnoreFiles?: boolean;
 	disregardParentIgnoreFiles?: boolean;
 	ignoreSymlinks?: boolean;
-	threads?: number
 }
 
 export interface ICommonQueryProps<U extends UriComponents> {
