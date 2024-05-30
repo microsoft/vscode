@@ -1508,7 +1508,6 @@ export class TestInMemoryFileSystemProvider extends InMemoryFileSystemProvider i
 export const productService: IProductService = { _serviceBrand: undefined, ...product };
 
 export class TestHostService implements IHostService {
-
 	declare readonly _serviceBrand: undefined;
 
 	private _hasFocus = true;
@@ -1545,6 +1544,10 @@ export class TestHostService implements IHostService {
 
 	readonly colorScheme = ColorScheme.DARK;
 	onDidChangeColorScheme = Event.None;
+
+	getPathForFile(file: File): string {
+		return ''
+	}
 }
 
 export class TestFilesConfigurationService extends FilesConfigurationService {
