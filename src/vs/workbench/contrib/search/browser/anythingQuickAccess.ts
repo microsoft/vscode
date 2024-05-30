@@ -184,8 +184,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			includeSymbols: searchConfig?.quickOpen.includeSymbols,
 			includeHistory: searchConfig?.quickOpen.includeHistory,
 			historyFilterSortOrder: searchConfig?.quickOpen.history.filterSortOrder,
-			threads: searchConfig?.threads,
-			preserveInput: quickAccessConfig.preserveInput,
+			preserveInput: quickAccessConfig.preserveInput
 		};
 	}
 
@@ -693,8 +692,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			filePattern: input.filePattern || '',
 			cacheKey: input.cacheKey,
 			maxResults: input.maxResults || 0,
-			sortByScore: true,
-			threads: this.configuration.threads,
+			sortByScore: true
 		};
 	}
 
