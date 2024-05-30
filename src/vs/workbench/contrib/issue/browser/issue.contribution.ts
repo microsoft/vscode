@@ -43,6 +43,3 @@ registerSingleton(IIssueMainService, IssueFormService, InstantiationType.Delayed
 CommandsRegistry.registerCommand('_issues.getSystemStatus', (accessor) => {
 	return nls.localize('statusUnsupported', "The --status argument is not yet supported in browsers.");
 });
-
-
-
