@@ -27,16 +27,16 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { IEditorProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { IView, IViewDescriptorService } from 'vs/workbench/common/views';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IAccessibleViewService } from 'vs/platform/accessibility/browser/accessibleView';
-import { IChatAccessibilityService, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
+import { IChatAccessibilityService, IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatAgentLocation, ChatAgentService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { InlineChatController, InlineChatRunOptions, State } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 import { Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { CTX_INLINE_CHAT_USER_DID_EDIT, EditMode, InlineChatConfigKeys } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestViewsService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { IInlineChatSavingService } from '../../browser/inlineChatSavingService';
 import { IInlineChatSessionService } from '../../browser/inlineChatSessionService';
 import { InlineChatSessionServiceImpl } from '../../browser/inlineChatSessionServiceImpl';
@@ -61,6 +61,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { TestCommandService } from 'vs/editor/test/browser/editorTestServices';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { RerunAction } from 'vs/workbench/contrib/inlineChat/browser/inlineChatActions';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 suite('InteractiveChatController', function () {
 
@@ -127,9 +128,12 @@ suite('InteractiveChatController', function () {
 	let model: ITextModel;
 	let ctrl: TestController;
 	let contextKeyService: MockContextKeyService;
+	let chatService: IChatService;
 	let chatAgentService: IChatAgentService;
 	let inlineChatSessionService: IInlineChatSessionService;
 	let instaService: TestInstantiationService;
+
+	let chatWidget: IChatWidget;
 
 	setup(function () {
 
@@ -141,7 +145,11 @@ suite('InteractiveChatController', function () {
 			[IHoverService, NullHoverService],
 			[IExtensionService, new TestExtensionService()],
 			[IContextKeyService, new MockContextKeyService()],
-			[IViewsService, new TestExtensionService()],
+			[IViewsService, new class extends TestViewsService {
+				override async openView<T extends IView>(id: string, focus?: boolean | undefined): Promise<T | null> {
+					return { widget: chatWidget ?? null } as any;
+				}
+			}()],
 			[IWorkspaceContextService, new TestContextService()],
 			[IChatWidgetHistoryService, new SyncDescriptor(ChatWidgetHistoryService)],
 			[IChatWidgetService, new SyncDescriptor(ChatWidgetService)],
@@ -193,7 +201,7 @@ suite('InteractiveChatController', function () {
 		configurationService.setUserConfiguration('editor', {});
 
 		contextKeyService = instaService.get(IContextKeyService) as MockContextKeyService;
-
+		chatService = instaService.get(IChatService);
 		chatAgentService = instaService.get(IChatAgentService);
 
 		inlineChatSessionService = store.add(instaService.get(IInlineChatSessionService));
@@ -492,6 +500,145 @@ suite('InteractiveChatController', function () {
 
 		assert.strictEqual(model.getValue(), 'PROMPT_2');
 		ctrl.finishExistingSession();
+		await r;
+	});
+
+	test('Retry undoes all changes, not just those from the request#5736', async function () {
+
+		const text = [
+			'eins\n',
+			'zwei\n',
+			'drei\n'
+		];
+
+		store.add(chatAgentService.registerDynamicAgent({
+			id: 'testEditorAgent2',
+			...agentData
+		}, {
+			async invoke(request, progress, history, token) {
+				progress({ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(1, 1, 1, 1), text: text.shift() ?? '' }] });
+				return {};
+			},
+		}));
+
+		ctrl = instaService.createInstance(TestController, editor);
+		const rerun = new RerunAction();
+
+		model.setValue('');
+
+		// REQUEST 1
+		const p = ctrl.waitFor([...TestController.INIT_SEQUENCE, State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
+		const r = ctrl.run({ message: '1', autoSend: true });
+		await p;
+
+		assert.strictEqual(model.getValue(), 'eins\n');
+
+		// REQUEST 2
+		const p2 = ctrl.waitFor([State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
+		await ctrl.acceptInput();
+		await p2;
+
+		assert.strictEqual(model.getValue(), 'zwei\neins\n');
+
+		// REQUEST 2 - RERUN
+		const p3 = ctrl.waitFor([State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
+		await instaService.invokeFunction(rerun.runInlineChatCommand, ctrl, editor);
+		await p3;
+
+		assert.strictEqual(model.getValue(), 'drei\neins\n');
+
+		ctrl.finishExistingSession();
+		await r;
+
+	});
+
+	test('moving inline chat to another model undoes changes', async function () {
+		const text = [
+			'eins\n',
+			'zwei\n'
+		];
+
+		store.add(chatAgentService.registerDynamicAgent({
+			id: 'testEditorAgent2',
+			...agentData
+		}, {
+			async invoke(request, progress, history, token) {
+				progress({ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(1, 1, 1, 1), text: text.shift() ?? '' }] });
+				return {};
+			},
+		}));
+		ctrl = instaService.createInstance(TestController, editor);
+
+		// REQUEST 1
+		const p = ctrl.waitFor([...TestController.INIT_SEQUENCE, State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
+		ctrl.run({ message: '1', autoSend: true });
+		await p;
+
+
+		assert.strictEqual(model.getValue(), 'eins\nHello\nWorld\nHello Again\nHello World\n');
+
+		const targetModel = chatService.startSession(ChatAgentLocation.Editor, CancellationToken.None)!;
+		store.add(targetModel);
+		chatWidget = new class extends mock<IChatWidget>() {
+			override get viewModel() {
+				return { model: targetModel } as any;
+			}
+			override focusLastMessage() { }
+		};
+
+		const r = ctrl.joinCurrentRun();
+		await ctrl.viewInChat();
+
+		assert.strictEqual(model.getValue(), 'Hello\nWorld\nHello Again\nHello World\n');
+		await r;
+	});
+
+	test('moving inline chat to another model undoes changes (2 requests)', async function () {
+		const text = [
+			'eins\n',
+			'zwei\n'
+		];
+
+		store.add(chatAgentService.registerDynamicAgent({
+			id: 'testEditorAgent2',
+			...agentData
+		}, {
+			async invoke(request, progress, history, token) {
+				progress({ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(1, 1, 1, 1), text: text.shift() ?? '' }] });
+				return {};
+			},
+		}));
+		ctrl = instaService.createInstance(TestController, editor);
+
+		// REQUEST 1
+		const p = ctrl.waitFor([...TestController.INIT_SEQUENCE, State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
+		ctrl.run({ message: '1', autoSend: true });
+		await p;
+
+		assert.strictEqual(model.getValue(), 'eins\nHello\nWorld\nHello Again\nHello World\n');
+
+		// REQUEST 2
+		const p2 = ctrl.waitFor([State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
+		await ctrl.acceptInput();
+		await p2;
+
+		assert.strictEqual(model.getValue(), 'zwei\neins\nHello\nWorld\nHello Again\nHello World\n');
+
+		const targetModel = chatService.startSession(ChatAgentLocation.Editor, CancellationToken.None)!;
+		store.add(targetModel);
+		chatWidget = new class extends mock<IChatWidget>() {
+			override get viewModel() {
+				return { model: targetModel } as any;
+			}
+			override focusLastMessage() { }
+		};
+
+		const r = ctrl.joinCurrentRun();
+
+		await ctrl.viewInChat();
+
+		assert.strictEqual(model.getValue(), 'Hello\nWorld\nHello Again\nHello World\n');
+
 		await r;
 	});
 });
