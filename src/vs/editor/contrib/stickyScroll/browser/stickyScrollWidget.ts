@@ -35,6 +35,10 @@ export class StickyScrollWidgetState {
 			&& equals(this.startLineNumbers, other.startLineNumbers)
 			&& equals(this.endLineNumbers, other.endLineNumbers);
 	}
+
+	static get Empty() {
+		return new StickyScrollWidgetState([], [], 0);
+	}
 }
 
 const _ttPolicy = createTrustedTypesPolicy('stickyScrollViewLayer', { createHTML: value => value });
