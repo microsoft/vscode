@@ -446,20 +446,11 @@ export function getIndentActionForType(
 	const previousLineNumber = range.startLineNumber - 1;
 	const previousLine = model.getLineContent(previousLineNumber);
 	const lineWithCharacter = beforeTypeText + ch + afterTypeText;
-
-	console.log('getIndentActionForType ');
-	console.log('beforeTypeText : ', beforeTypeText);
-	console.log('afterTypeText : ', afterTypeText);
-	console.log('lineWithCharacter : ', lineWithCharacter);
-	console.log('ch : ', ch);
-
 	if (indentRulesSupport.shouldIndentNextLine(previousLine) && indentRulesSupport.shouldIncrease(lineWithCharacter)) {
 		const r = getInheritIndentForLine(autoIndent, model, range.startLineNumber, false, languageConfigurationService);
-		if (!r) {
-			return null;
-		}
-		return r.indentation;
+		return r?.indentation ?? null;
 	}
+
 	return null;
 }
 
