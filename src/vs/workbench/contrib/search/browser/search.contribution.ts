@@ -200,7 +200,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'search.threads': {
 			type: 'number',
-			description: nls.localize('search.threads', "Number of threads to use for searching."),
+			description: nls.localize('search.threads', "Number of threads to use for searching. Use 0 to let the engine automatically determine the number of threads to be used."),
 			default: 0
 		},
 		'search.quickOpen.includeHistory': {
