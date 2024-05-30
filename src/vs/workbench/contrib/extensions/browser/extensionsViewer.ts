@@ -23,7 +23,7 @@ import { listFocusForeground, listFocusBackground, foreground, editorBackground 
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { IListAccessibilityProvider, IListStyles } from 'vs/base/browser/ui/list/listWidget';
+import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { IStyleOverride } from 'vs/platform/theme/browser/defaultStyles';
 import { getAriaLabelForExtension } from 'vs/workbench/contrib/extensions/browser/extensionsViews';
@@ -264,7 +264,7 @@ export class ExtensionsTree extends WorkbenchAsyncDataTree<IExtensionData, IExte
 				identityProvider,
 				multipleSelectionSupport: false,
 				overrideStyles,
-				accessibilityProvider: <IListAccessibilityProvider<IExtensionData>>{
+				accessibilityProvider: {
 					getAriaLabel(extensionData: IExtensionData): string {
 						return getAriaLabelForExtension(extensionData.extension);
 					},

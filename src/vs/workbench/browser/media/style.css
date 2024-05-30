@@ -166,10 +166,13 @@ body.web {
 }
 
 .monaco-workbench .predefined-file-icon[class*='codicon-']::before {
-	font-family: 'codicon';
 	width: 16px;
 	padding-left: 3px; /* width (16px) - font-size (13px) = padding-left (3px) */
 	padding-right: 3px;
+}
+
+.predefined-file-icon::before { /* do add additional specificity to this selector, so it can be overridden by product themes */
+	font-family: 'codicon';
 }
 
 .monaco-workbench:not(.file-icons-enabled) .predefined-file-icon[class*='codicon-']::before {
@@ -198,7 +201,6 @@ body.web {
 .monaco-workbench .select-container:after {
 	content: var(--vscode-icon-chevron-down-content);
 	font-family: var(--vscode-icon-chevron-down-font-family);
-	font-family: codicon;
 	font-size: 16px;
 	width: 16px;
 	height: 16px;

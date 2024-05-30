@@ -78,8 +78,6 @@ steps:
 
   - script: |
       set -e
-      export npm_config_arch=$(VSCODE_ARCH)
-      npm i -g node-gyp@9.4.0
       python3 -m pip install setuptools
 
       for i in {1..5}; do # try 5 times
@@ -91,6 +89,7 @@ steps:
         echo "Yarn failed $i, trying again..."
       done
     env:
+      npm_config_arch: $(VSCODE_ARCH)
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
       GITHUB_TOKEN: "$(github-distro-mixin-password)"

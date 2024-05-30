@@ -128,6 +128,27 @@ export class TestId {
 		return TestPosition.Disconnected;
 	}
 
+	public static getLengthOfCommonPrefix(length: number, getId: (i: number) => TestId): number {
+		if (length === 0) {
+			return 0;
+		}
+
+		let commonPrefix = 0;
+		while (commonPrefix < length - 1) {
+			for (let i = 1; i < length; i++) {
+				const a = getId(i - 1);
+				const b = getId(i);
+				if (a.path[commonPrefix] !== b.path[commonPrefix]) {
+					return commonPrefix;
+				}
+			}
+
+			commonPrefix++;
+		}
+
+		return commonPrefix;
+	}
+
 	constructor(
 		public readonly path: readonly string[],
 		private readonly viewEnd = path.length,

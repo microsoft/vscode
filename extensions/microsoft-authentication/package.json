@@ -109,7 +109,7 @@
     "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
   },
   "devDependencies": {
-    "@types/node": "18.x",
+    "@types/node": "20.x",
     "@types/node-fetch": "^2.5.7",
     "@types/randombytes": "^2.0.0",
     "@types/sha.js": "^2.4.0",

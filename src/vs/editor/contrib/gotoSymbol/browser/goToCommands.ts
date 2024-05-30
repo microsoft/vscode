@@ -41,12 +41,12 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { Iterable } from 'vs/base/common/iterator';
 import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 
-MenuRegistry.appendMenuItem(MenuId.EditorContext, <ISubmenuItem>{
+MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 	submenu: MenuId.EditorContextPeek,
 	title: nls.localize('peek.submenu', "Peek"),
 	group: 'navigation',
 	order: 100
-});
+} satisfies ISubmenuItem);
 
 export interface SymbolNavigationActionConfig {
 	openToSide: boolean;

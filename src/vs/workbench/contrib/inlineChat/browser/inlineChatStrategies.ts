@@ -17,7 +17,7 @@ import { LineRange } from 'vs/editor/common/core/lineRange';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
-import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel, IValidEditOperation, MinimapPosition, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, IValidEditOperation, MinimapPosition, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewModel';
@@ -60,7 +60,6 @@ export abstract class EditModeStrategy {
 	protected readonly _onDidAccept = this._store.add(new Emitter<void>());
 	protected readonly _onDidDiscard = this._store.add(new Emitter<void>());
 
-	protected _editCount: number = 0;
 
 	readonly onDidAccept: Event<void> = this._onDidAccept.event;
 	readonly onDidDiscard: Event<void> = this._onDidDiscard.event;
@@ -100,7 +99,7 @@ export abstract class EditModeStrategy {
 					continue;
 				}
 
-				await editor.apply(request.response, item);
+				await editor.apply(request.response, item, undefined);
 
 				if (item.uri.scheme === Schemas.untitled) {
 					const untitled = this._textFileService.untitled.get(item.uri);
@@ -133,40 +132,9 @@ export abstract class EditModeStrategy {
 		this._onDidDiscard.fire();
 	}
 
-	abstract makeProgressiveChanges(edits: ISingleEditOperation[], obs: IEditObserver, timings: ProgressingEditsOptions): Promise<void>;
+	abstract makeProgressiveChanges(edits: ISingleEditOperation[], obs: IEditObserver, timings: ProgressingEditsOptions, undoStopBefore: boolean): Promise<void>;
 
-	abstract makeChanges(edits: ISingleEditOperation[], obs: IEditObserver): Promise<void>;
-
-	protected async _makeChanges(edits: ISingleEditOperation[], obs: IEditObserver, opts: ProgressingEditsOptions | undefined, progress: Progress<IValidEditOperation[]> | undefined): Promise<void> {
-
-		// push undo stop before first edit
-		if (++this._editCount === 1) {
-			this._editor.pushUndoStop();
-		}
-
-		if (opts) {
-			// ASYNC
-			const durationInSec = opts.duration / 1000;
-			for (const edit of edits) {
-				const wordCount = countWords(edit.text ?? '');
-				const speed = wordCount / durationInSec;
-				// console.log({ durationInSec, wordCount, speed: wordCount / durationInSec });
-				const asyncEdit = asProgressiveEdit(new WindowIntervalTimer(this._zone.domNode), edit, speed, opts.token);
-				await performAsyncTextEdit(this._session.textModelN, asyncEdit, progress, obs);
-			}
-
-		} else {
-			// SYNC
-			obs.start();
-			this._session.textModelN.pushEditOperations(null, edits, (undoEdits) => {
-				progress?.report(undoEdits);
-				return null;
-			});
-			obs.stop();
-		}
-	}
-
-	abstract undoChanges(altVersionId: number): Promise<void>;
+	abstract makeChanges(edits: ISingleEditOperation[], obs: IEditObserver, undoStopBefore: boolean): Promise<void>;
 
 	abstract renderChanges(response: ReplyResponse): Promise<Position | undefined>;
 
@@ -216,20 +184,13 @@ export class PreviewStrategy extends EditModeStrategy {
 		await super._doApplyChanges(false);
 	}
 
-	override async makeChanges(edits: ISingleEditOperation[], obs: IEditObserver): Promise<void> {
+	override async makeChanges(): Promise<void> {
 	}
 
-	override async makeProgressiveChanges(edits: ISingleEditOperation[], obs: IEditObserver, opts: ProgressingEditsOptions): Promise<void> {
+	override async makeProgressiveChanges(): Promise<void> {
 	}
 
-	override async undoChanges(altVersionId: number): Promise<void> {
-		const { textModelN } = this._session;
-		await undoModelUntil(textModelN, altVersionId);
-	}
-
-	override async renderChanges(response: ReplyResponse): Promise<undefined> {
-
-	}
+	override async renderChanges(response: ReplyResponse): Promise<undefined> { }
 
 	hasFocus(): boolean {
 		return this._zone.widget.hasFocus();
@@ -289,6 +250,7 @@ export class LiveStrategy extends EditModeStrategy {
 	private readonly _ctxCurrentChangeShowsDiff: IContextKey<boolean>;
 
 	private readonly _progressiveEditingDecorations: IEditorDecorationsCollection;
+	private _editCount: number = 0;
 
 	override acceptHunk: () => Promise<void> = () => super.acceptHunk();
 	override discardHunk: () => Promise<void> = () => super.discardHunk();
@@ -342,16 +304,11 @@ export class LiveStrategy extends EditModeStrategy {
 		return super.cancel();
 	}
 
-	override async undoChanges(altVersionId: number): Promise<void> {
-		const { textModelN } = this._session;
-		await undoModelUntil(textModelN, altVersionId);
+	override async makeChanges(edits: ISingleEditOperation[], obs: IEditObserver, undoStopBefore: boolean): Promise<void> {
+		return this._makeChanges(edits, obs, undefined, undefined, undoStopBefore);
 	}
 
-	override async makeChanges(edits: ISingleEditOperation[], obs: IEditObserver): Promise<void> {
-		return this._makeChanges(edits, obs, undefined, undefined);
-	}
-
-	override async makeProgressiveChanges(edits: ISingleEditOperation[], obs: IEditObserver, opts: ProgressingEditsOptions): Promise<void> {
+	override async makeProgressiveChanges(edits: ISingleEditOperation[], obs: IEditObserver, opts: ProgressingEditsOptions, undoStopBefore: boolean): Promise<void> {
 
 		// add decorations once per line that got edited
 		const progress = new Progress<IValidEditOperation[]>(edits => {
@@ -371,7 +328,38 @@ export class LiveStrategy extends EditModeStrategy {
 
 			this._progressiveEditingDecorations.append(newDecorations);
 		});
-		return this._makeChanges(edits, obs, opts, progress);
+		return this._makeChanges(edits, obs, opts, progress, undoStopBefore);
+	}
+
+	private async _makeChanges(edits: ISingleEditOperation[], obs: IEditObserver, opts: ProgressingEditsOptions | undefined, progress: Progress<IValidEditOperation[]> | undefined, undoStopBefore: boolean): Promise<void> {
+
+		// push undo stop before first edit
+		if (undoStopBefore) {
+			this._editor.pushUndoStop();
+		}
+
+		this._editCount++;
+
+		if (opts) {
+			// ASYNC
+			const durationInSec = opts.duration / 1000;
+			for (const edit of edits) {
+				const wordCount = countWords(edit.text ?? '');
+				const speed = wordCount / durationInSec;
+				// console.log({ durationInSec, wordCount, speed: wordCount / durationInSec });
+				const asyncEdit = asProgressiveEdit(new WindowIntervalTimer(this._zone.domNode), edit, speed, opts.token);
+				await performAsyncTextEdit(this._session.textModelN, asyncEdit, progress, obs);
+			}
+
+		} else {
+			// SYNC
+			obs.start();
+			this._session.textModelN.pushEditOperations(null, edits, (undoEdits) => {
+				progress?.report(undoEdits);
+				return null;
+			});
+			obs.stop();
+		}
 	}
 
 	private readonly _hunkDisplayData = new Map<HunkInformation, HunkDisplayData>();
@@ -590,17 +578,17 @@ export class LiveStrategy extends EditModeStrategy {
 			message = localize('change.0', "Nothing changed.");
 		} else if (remaining === 1) {
 			message = needsReview
-				? localize('review.1', "$(info) Accept or Discard 1 change.")
+				? localize('review.1', "$(info) Accept or discard 1 change")
 				: localize('change.1', "1 change");
 		} else {
 			message = needsReview
-				? localize('review.N', "$(info) Accept or Discard {0} changes.", remaining)
+				? localize('review.N', "$(info) Accept or Discard {0} changes", remaining)
 				: localize('change.N', "{0} changes", total);
 		}
 
 		let title: string | undefined;
 		if (needsReview) {
-			title = localize('review', "Review (accept or discard) all changes before continuing.");
+			title = localize('review', "Review (accept or discard) all changes before continuing");
 		}
 
 		this._zone.widget.updateStatus(message, { title });
@@ -615,14 +603,6 @@ export class LiveStrategy extends EditModeStrategy {
 		return [];
 	}
 }
-
-
-async function undoModelUntil(model: ITextModel, targetAltVersion: number): Promise<void> {
-	while (targetAltVersion < model.getAlternativeVersionId() && model.canUndo()) {
-		await model.undo();
-	}
-}
-
 
 function changeDecorationsAndViewZones(editor: ICodeEditor, callback: (accessor: IModelDecorationsChangeAccessor, viewZoneAccessor: IViewZoneChangeAccessor) => void): void {
 	editor.changeDecorations(decorationsAccessor => {

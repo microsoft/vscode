@@ -64,7 +64,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 			// clear state from last invocation
 			this._onDidSelectItem = undefined;
 
-			const itemsPromise = <Promise<Item[]>>Promise.resolve(itemsOrItemsPromise);
+			const itemsPromise = Promise.resolve(itemsOrItemsPromise);
 
 			const instance = ++this._instances;
 

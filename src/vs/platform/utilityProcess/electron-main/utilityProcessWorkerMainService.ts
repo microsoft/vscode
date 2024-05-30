@@ -89,6 +89,7 @@ export class UtilityProcessWorkerMainService extends Disposable implements IUtil
 		this.logService.trace(`[UtilityProcessWorker]: disposeWorker(window: ${configuration.reply.windowId}, moduleId: ${configuration.process.moduleId})`);
 
 		worker.kill();
+		worker.dispose();
 		this.workers.delete(workerId);
 	}
 }
@@ -98,7 +99,7 @@ class UtilityProcessWorker extends Disposable {
 	private readonly _onDidTerminate = this._register(new Emitter<IUtilityProcessWorkerProcessExit>());
 	readonly onDidTerminate = this._onDidTerminate.event;
 
-	private readonly utilityProcess = new WindowUtilityProcess(this.logService, this.windowsMainService, this.telemetryService, this.lifecycleMainService);
+	private readonly utilityProcess = this._register(new WindowUtilityProcess(this.logService, this.windowsMainService, this.telemetryService, this.lifecycleMainService));
 
 	constructor(
 		@ILogService private readonly logService: ILogService,

@@ -5,44 +5,42 @@
 
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_FOCUSED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { AccessibilityVerbositySettingId, AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
-import { Disposable } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
+import { AccessibleViewProviderId, AccessibleViewType } from 'vs/platform/accessibility/browser/accessibleView';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
 
-export class InlineChatAccessibleViewContribution extends Disposable {
-	static ID: 'inlineChatAccessibleViewContribution';
-	constructor() {
-		super();
-		this._register(AccessibleViewAction.addImplementation(100, 'inlineChat', accessor => {
-			const accessibleViewService = accessor.get(IAccessibleViewService);
-			const codeEditorService = accessor.get(ICodeEditorService);
+export class InlineChatAccessibleView implements IAccessibleViewImplentation {
+	readonly priority = 100;
+	readonly name = 'inlineChat';
+	readonly when = ContextKeyExpr.or(CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_FOCUSED);
+	readonly type = AccessibleViewType.View;
+	getProvider(accessor: ServicesAccessor) {
+		const codeEditorService = accessor.get(ICodeEditorService);
 
-			const editor = (codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor());
-			if (!editor) {
-				return false;
-			}
-			const controller = InlineChatController.get(editor);
-			if (!controller) {
-				return false;
-			}
-			const responseContent = controller?.getMessage();
-			if (!responseContent) {
-				return false;
-			}
-			accessibleViewService.show({
-				id: AccessibleViewProviderId.InlineChat,
-				verbositySettingKey: AccessibilityVerbositySettingId.InlineChat,
-				provideContent(): string { return responseContent; },
-				onClose() {
-					controller.focus();
-				},
-
-				options: { type: AccessibleViewType.View }
-			});
-			return true;
-		}, ContextKeyExpr.or(CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_FOCUSED)));
+		const editor = (codeEditorService.getActiveCodeEditor() || codeEditorService.getFocusedCodeEditor());
+		if (!editor) {
+			return;
+		}
+		const controller = InlineChatController.get(editor);
+		if (!controller) {
+			return;
+		}
+		const responseContent = controller?.getMessage();
+		if (!responseContent) {
+			return;
+		}
+		return {
+			id: AccessibleViewProviderId.InlineChat,
+			verbositySettingKey: AccessibilityVerbositySettingId.InlineChat,
+			provideContent(): string { return responseContent; },
+			onClose() {
+				controller.focus();
+			},
+			options: { type: AccessibleViewType.View }
+		};
 	}
+	dispose() { }
 }

@@ -11,7 +11,7 @@ import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { HasSpeechProvider, ISpeechService, SpeechToTextStatus } from 'vs/workbench/contrib/speech/common/speechService';
+import { HasSpeechProvider, ISpeechService, SpeechToTextInProgress, SpeechToTextStatus } from 'vs/workbench/contrib/speech/common/speechService';
 import { Codicon } from 'vs/base/common/codicons';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { EditorAction2, EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
@@ -29,6 +29,7 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { toAction } from 'vs/base/common/actions';
 import { ThemeIcon } from 'vs/base/common/themables';
+import { isWindows } from 'vs/base/common/platform';
 
 const EDITOR_DICTATION_IN_PROGRESS = new RawContextKey<boolean>('editorDictation.inProgress', false);
 const VOICE_CATEGORY = localize2('voiceCategory', "Voice");
@@ -40,11 +41,18 @@ export class EditorDictationStartAction extends EditorAction2 {
 			id: 'workbench.action.editorDictation.start',
 			title: localize2('startDictation', "Start Dictation in Editor"),
 			category: VOICE_CATEGORY,
-			precondition: ContextKeyExpr.and(HasSpeechProvider, EDITOR_DICTATION_IN_PROGRESS.toNegated(), EditorContextKeys.readOnly.toNegated()),
+			precondition: ContextKeyExpr.and(
+				HasSpeechProvider,
+				SpeechToTextInProgress.toNegated(),		// disable when any speech-to-text is in progress
+				EditorContextKeys.readOnly.toNegated()	// disable in read-only editors
+			),
 			f1: true,
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyV,
-				weight: KeybindingWeight.WorkbenchContrib
+				weight: KeybindingWeight.WorkbenchContrib,
+				secondary: isWindows ? [
+					KeyMod.Alt | KeyCode.Backquote
+				] : undefined
 			}
 		});
 	}

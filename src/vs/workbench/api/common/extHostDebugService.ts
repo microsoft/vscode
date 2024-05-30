@@ -29,6 +29,7 @@ import { toDisposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon as ThemeIconUtils } from 'vs/base/common/themables';
 import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import * as Convert from 'vs/workbench/api/common/extHostTypeConverters';
+import { coalesce } from 'vs/base/common/arrays';
 
 export const IExtHostDebugService = createDecorator<IExtHostDebugService>('IExtHostDebugService');
 
@@ -412,11 +413,11 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 			if (bp instanceof SourceBreakpoint) {
 				let dto = map.get(bp.location.uri.toString());
 				if (!dto) {
-					dto = <ISourceMultiBreakpointDto>{
+					dto = {
 						type: 'sourceMulti',
 						uri: bp.location.uri,
 						lines: []
-					};
+					} satisfies ISourceMultiBreakpointDto;
 					map.set(bp.location.uri.toString(), dto);
 					dtos.push(dto);
 				}
@@ -882,28 +883,28 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 	private convertToDto(x: vscode.DebugAdapterDescriptor): Dto<IAdapterDescriptor> {
 
 		if (x instanceof DebugAdapterExecutable) {
-			return <IDebugAdapterExecutable>{
+			return {
 				type: 'executable',
 				command: x.command,
 				args: x.args,
 				options: x.options
-			};
+			} satisfies IDebugAdapterExecutable;
 		} else if (x instanceof DebugAdapterServer) {
-			return <IDebugAdapterServer>{
+			return {
 				type: 'server',
 				port: x.port,
 				host: x.host
-			};
+			} satisfies IDebugAdapterServer;
 		} else if (x instanceof DebugAdapterNamedPipeServer) {
-			return <IDebugAdapterNamedPipeServer>{
+			return {
 				type: 'pipeServer',
 				path: x.path
-			};
+			} satisfies IDebugAdapterNamedPipeServer;
 		} else if (x instanceof DebugAdapterInlineImplementation) {
-			return <Dto<IAdapterDescriptor>>{
+			return {
 				type: 'implementation',
 				implementation: x.implementation
-			};
+			} as Dto<IAdapterDescriptor>;
 		} else {
 			throw new Error('convertToDto unexpected type');
 		}
@@ -935,7 +936,7 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 
 	private definesDebugType(ed: IExtensionDescription, type: string) {
 		if (ed.contributes) {
-			const debuggers = <IDebuggerContribution[]>ed.contributes['debuggers'];
+			const debuggers = ed.contributes['debuggers'];
 			if (debuggers && debuggers.length > 0) {
 				for (const dbg of debuggers) {
 					// only debugger contributions with a "label" are considered a "defining" debugger contribution
@@ -961,7 +962,7 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 
 		return Promise.race([
 			Promise.all(promises).then(result => {
-				const trackers = <vscode.DebugAdapterTracker[]>result.filter(t => !!t);	// filter null
+				const trackers = coalesce(result);	// filter null
 				if (trackers.length > 0) {
 					return new MultiTracker(trackers);
 				}

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { distinct, flatten } from 'vs/base/common/arrays';
+import { distinct } from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
 import { JSONPath, parse } from 'vs/base/common/json';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -81,12 +81,12 @@ export class WorkspaceExtensionsConfigService extends Disposable implements IWor
 
 	async getRecommendations(): Promise<string[]> {
 		const configs = await this.getExtensionsConfigs();
-		return distinct(flatten(configs.map(c => c.recommendations ? c.recommendations.map(c => c.toLowerCase()) : [])));
+		return distinct(configs.flatMap(c => c.recommendations ? c.recommendations.map(c => c.toLowerCase()) : []));
 	}
 
 	async getUnwantedRecommendations(): Promise<string[]> {
 		const configs = await this.getExtensionsConfigs();
-		return distinct(flatten(configs.map(c => c.unwantedRecommendations ? c.unwantedRecommendations.map(c => c.toLowerCase()) : [])));
+		return distinct(configs.flatMap(c => c.unwantedRecommendations ? c.unwantedRecommendations.map(c => c.toLowerCase()) : []));
 	}
 
 	async toggleRecommendation(extensionId: string): Promise<void> {

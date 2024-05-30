@@ -149,7 +149,7 @@ export const tocData: ITOCEntry<string> = {
 				{
 					id: 'features/accessibilitySignals',
 					label: localize('accessibility.signals', 'Accessibility Signals'),
-					settings: ['accessibility.signals.*', 'audioCues.*']
+					settings: ['accessibility.signal*']
 				},
 				{
 					id: 'features/accessibility',

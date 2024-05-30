@@ -146,7 +146,7 @@ export class CellDragAndDropController extends Disposable {
 		const dragPosInElement = dragOffset - cellTop;
 		const dragPosRatio = dragPosInElement / cellHeight;
 
-		return <CellDragEvent>{
+		return {
 			browserEvent: event,
 			draggedOverCell,
 			cellTop,

@@ -1237,6 +1237,38 @@ suite('observables', () => {
 			]);
 		});
 	});
+
+	test('observableValue', () => {
+		const log = new Log();
+		const myObservable1 = observableValue<number>('myObservable1', 0);
+		const myObservable2 = observableValue<number, { message: string }>('myObservable2', 0);
+
+		const d = autorun(reader => {
+			/** @description update */
+			const v1 = myObservable1.read(reader);
+			const v2 = myObservable2.read(reader);
+			log.log('autorun, myObservable1:' + v1 + ', myObservable2:' + v2);
+		});
+
+		assert.deepStrictEqual(log.getAndClearEntries(), [
+			'autorun, myObservable1:0, myObservable2:0'
+		]);
+
+		// Doesn't trigger the autorun, because no delta was provided and the value did not change
+		myObservable1.set(0, undefined);
+
+		assert.deepStrictEqual(log.getAndClearEntries(), [
+		]);
+
+		// Triggers the autorun. The value did not change, but a delta value was provided
+		myObservable2.set(0, undefined, { message: 'change1' });
+
+		assert.deepStrictEqual(log.getAndClearEntries(), [
+			'autorun, myObservable1:0, myObservable2:0'
+		]);
+
+		d.dispose();
+	});
 });
 
 export class LoggingObserver implements IObserver {

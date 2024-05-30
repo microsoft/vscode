@@ -65,7 +65,7 @@ export const textSeparatorForeground = registerColor('textSeparator.foreground',
 // ------ text preformat
 
 export const textPreformatForeground = registerColor('textPreformat.foreground',
-	{ light: '#A31515', dark: '#D7BA7D', hcDark: '#000000', hcLight: '#FFFFFF' },
+	{ light: '#A31515', dark: '#D7BA7D', hcDark: '#FFFFFF', hcLight: '#000000' },
 	nls.localize('textPreformatForeground', "Foreground color for preformatted text segments."));
 
 export const textPreformatBackground = registerColor('textPreformat.background',

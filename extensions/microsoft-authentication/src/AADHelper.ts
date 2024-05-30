@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { isSupportedEnvironment } from './common/uri';
-import { IntervalTimer, SequencerByKey } from './common/async';
+import { IntervalTimer, raceCancellationAndTimeoutError, SequencerByKey } from './common/async';
 import { generateCodeChallenge, generateCodeVerifier, randomUUID } from './cryptoUtils';
 import { BetterTokenStorage, IDidChangeInOtherWindowEvent } from './betterSecretStorage';
 import { LoopbackAuthServer } from './node/authServer';
@@ -314,25 +314,27 @@ export class AzureActiveDirectoryService {
 			throw new Error('Sign in to non-public clouds is not supported on the web.');
 		}
 
-		if (runsRemote || runsServerless) {
-			return this.createSessionWithoutLocalServer(scopeData);
-		}
-
-		try {
-			return await this.createSessionWithLocalServer(scopeData);
-		} catch (e) {
-			this._logger.error(`[${scopeData.scopeStr}] Error creating session: ${e}`);
-
-			// If the error was about starting the server, try directly hitting the login endpoint instead
-			if (e.message === 'Error listening to server' || e.message === 'Closed' || e.message === 'Timeout waiting for port') {
-				return this.createSessionWithoutLocalServer(scopeData);
+		return await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: vscode.l10n.t('Signing in to your account...'), cancellable: true }, async (_progress, token) => {
+			if (runsRemote || runsServerless) {
+				return await this.createSessionWithoutLocalServer(scopeData, token);
 			}
 
-			throw e;
-		}
+			try {
+				return await this.createSessionWithLocalServer(scopeData, token);
+			} catch (e) {
+				this._logger.error(`[${scopeData.scopeStr}] Error creating session: ${e}`);
+
+				// If the error was about starting the server, try directly hitting the login endpoint instead
+				if (e.message === 'Error listening to server' || e.message === 'Closed' || e.message === 'Timeout waiting for port') {
+					return this.createSessionWithoutLocalServer(scopeData, token);
+				}
+
+				throw e;
+			}
+		});
 	}
 
-	private async createSessionWithLocalServer(scopeData: IScopeData) {
+	private async createSessionWithLocalServer(scopeData: IScopeData, token: vscode.CancellationToken): Promise<vscode.AuthenticationSession> {
 		this._logger.trace(`[${scopeData.scopeStr}] Starting login flow with local server`);
 		const codeVerifier = generateCodeVerifier();
 		const codeChallenge = await generateCodeChallenge(codeVerifier);
@@ -353,7 +355,7 @@ export class AzureActiveDirectoryService {
 		let codeToExchange;
 		try {
 			vscode.env.openExternal(vscode.Uri.parse(`http://127.0.0.1:${server.port}/signin?nonce=${encodeURIComponent(server.nonce)}`));
-			const { code } = await server.waitForOAuthResponse();
+			const { code } = await raceCancellationAndTimeoutError(server.waitForOAuthResponse(), token, 1000 * 60 * 5); // 5 minutes
 			codeToExchange = code;
 		} finally {
 			setTimeout(() => {
@@ -368,7 +370,7 @@ export class AzureActiveDirectoryService {
 		return session;
 	}
 
-	private async createSessionWithoutLocalServer(scopeData: IScopeData): Promise<vscode.AuthenticationSession> {
+	private async createSessionWithoutLocalServer(scopeData: IScopeData, token: vscode.CancellationToken): Promise<vscode.AuthenticationSession> {
 		this._logger.trace(`[${scopeData.scopeStr}] Starting login flow without local server`);
 		let callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.microsoft-authentication`));
 		const nonce = generateCodeVerifier();
@@ -395,14 +397,6 @@ export class AzureActiveDirectoryService {
 		const uri = vscode.Uri.parse(signInUrl.toString());
 		vscode.env.openExternal(uri);
 
-		let inputBox: vscode.InputBox | undefined;
-		const timeoutPromise = new Promise((_: (value: vscode.AuthenticationSession) => void, reject) => {
-			const wait = setTimeout(() => {
-				clearTimeout(wait);
-				inputBox?.dispose();
-				reject('Login timed out.');
-			}, 1000 * 60 * 5);
-		});
 
 		const existingNonces = this._pendingNonces.get(scopeData.scopeStr) || [];
 		this._pendingNonces.set(scopeData.scopeStr, [...existingNonces, nonce]);
@@ -410,6 +404,7 @@ export class AzureActiveDirectoryService {
 		// Register a single listener for the URI callback, in case the user starts the login process multiple times
 		// before completing it.
 		let existingPromise = this._codeExchangePromises.get(scopeData.scopeStr);
+		let inputBox: vscode.InputBox | undefined;
 		if (!existingPromise) {
 			if (isSupportedEnvironment(callbackUri)) {
 				existingPromise = this.handleCodeResponse(scopeData);
@@ -422,11 +417,12 @@ export class AzureActiveDirectoryService {
 
 		this._codeVerfifiers.set(nonce, codeVerifier);
 
-		return Promise.race([existingPromise, timeoutPromise])
+		return await raceCancellationAndTimeoutError(existingPromise, token, 1000 * 60 * 5) // 5 minutes
 			.finally(() => {
 				this._pendingNonces.delete(scopeData.scopeStr);
 				this._codeExchangePromises.delete(scopeData.scopeStr);
 				this._codeVerfifiers.delete(nonce);
+				inputBox?.dispose();
 			});
 	}
 

@@ -35,6 +35,7 @@ export const enum ProfileResourceType {
  * Flags to indicate whether to use the default profile or not.
  */
 export type UseDefaultProfileFlags = { [key in ProfileResourceType]?: boolean };
+export type ProfileResourceTypeFlags = UseDefaultProfileFlags;
 
 export interface IUserDataProfile {
 	readonly id: string;

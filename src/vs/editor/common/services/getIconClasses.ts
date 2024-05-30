@@ -5,7 +5,7 @@
 
 import { Schemas } from 'vs/base/common/network';
 import { DataUri } from 'vs/base/common/resources';
-import { URI as uri } from 'vs/base/common/uri';
+import { URI, URI as uri } from 'vs/base/common/uri';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IModelService } from 'vs/editor/common/services/model';
@@ -14,9 +14,13 @@ import { ThemeIcon } from 'vs/base/common/themables';
 
 const fileIconDirectoryRegex = /(?:\/|^)(?:([^\/]+)\/)?([^\/]+)$/;
 
-export function getIconClasses(modelService: IModelService, languageService: ILanguageService, resource: uri | undefined, fileKind?: FileKind, icon?: ThemeIcon): string[] {
-	if (icon) {
+export function getIconClasses(modelService: IModelService, languageService: ILanguageService, resource: uri | undefined, fileKind?: FileKind, icon?: ThemeIcon | URI): string[] {
+	if (ThemeIcon.isThemeIcon(icon)) {
 		return [`codicon-${icon.id}`, 'predefined-file-icon'];
+	}
+
+	if (URI.isUri(icon)) {
+		return [];
 	}
 
 	// we always set these base classes even if we do not have a path

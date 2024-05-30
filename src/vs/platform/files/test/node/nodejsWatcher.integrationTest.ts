@@ -701,7 +701,7 @@ import { TestParcelWatcher } from 'vs/platform/files/test/node/parcelWatcher.int
 
 		recursiveWatcher.onDidError(e => {
 			if (loggingEnabled) {
-				console.log(`[recursive watcher test error] ${e}`);
+				console.log(`[recursive watcher test error] ${e.error}`);
 			}
 		});
 

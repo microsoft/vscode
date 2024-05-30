@@ -11,7 +11,7 @@ import { CommandsRegistry, ICommandMetadata } from 'vs/platform/commands/common/
 import { IssueReporterData } from 'vs/platform/issue/common/issue';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
+import { IWorkbenchIssueService } from 'vs/workbench/contrib/issue/common/issue';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable } from 'vs/base/common/lifecycle';
 

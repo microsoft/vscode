@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isHTMLElement } from 'vs/base/browser/dom';
 import type { IHoverWidget, IUpdatableHoverContent, IUpdatableHoverOptions } from 'vs/base/browser/ui/hover/hover';
 import type { IHoverDelegate, IHoverDelegateOptions, IHoverDelegateTarget } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
@@ -33,7 +34,7 @@ export class UpdatableHoverWidget implements IDisposable {
 		}
 
 		let resolvedContent;
-		if (content === undefined || isString(content) || content instanceof HTMLElement) {
+		if (content === undefined || isString(content) || isHTMLElement(content)) {
 			resolvedContent = content;
 		} else if (!isFunction(content.markdown)) {
 			resolvedContent = content.markdown ?? content.markdownNotSupportedFallback;
@@ -42,7 +43,7 @@ export class UpdatableHoverWidget implements IDisposable {
 
 			// show 'Loading' if no hover is up yet
 			if (!this._hoverWidget) {
-				this.show(localize('iconLabel.loading', "Loading..."), focus);
+				this.show(localize('iconLabel.loading', "Loading..."), focus, options);
 			}
 
 			// compute the content

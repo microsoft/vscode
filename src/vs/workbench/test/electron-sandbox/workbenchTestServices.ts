@@ -93,6 +93,7 @@ export class TestNativeHostService implements INativeHostService {
 	async toggleFullScreen(): Promise<void> { }
 	async handleTitleDoubleClick(): Promise<void> { }
 	async isMaximized(): Promise<boolean> { return true; }
+	async isFullScreen(): Promise<boolean> { return true; }
 	async maximizeWindow(): Promise<void> { }
 	async unmaximizeWindow(): Promise<void> { }
 	async minimizeWindow(): Promise<void> { }
@@ -120,6 +121,7 @@ export class TestNativeHostService implements INativeHostService {
 	async getOSVirtualMachineHint(): Promise<number> { return 0; }
 	async getOSColorScheme(): Promise<IColorScheme> { return { dark: true, highContrast: false }; }
 	async hasWSLFeatureInstalled(): Promise<boolean> { return false; }
+	async getProcessId(): Promise<number> { throw new Error('Method not implemented.'); }
 	async killProcess(): Promise<void> { }
 	async setDocumentEdited(edited: boolean): Promise<void> { }
 	async openExternal(url: string): Promise<boolean> { return false; }

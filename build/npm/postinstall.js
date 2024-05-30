@@ -36,6 +36,7 @@ function yarnInstall(dir, opts) {
 		...(opts ?? {}),
 		cwd: dir,
 		stdio: 'inherit',
+		shell: true
 	};
 
 	const raw = process.env['npm_config_argv'] || '{}';

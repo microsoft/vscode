@@ -25,6 +25,7 @@ import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INTERACTIVE_WINDOW_IS_ACTIVE_EDITOR, KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { INotebookCommandContext, NotebookMultiCellAction } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 
 registerNotebookContribution(NotebookFindContrib.id, NotebookFindContrib);
 
@@ -55,7 +56,7 @@ registerAction2(class extends Action2 {
 	}
 });
 
-registerAction2(class extends Action2 {
+registerAction2(class extends NotebookMultiCellAction {
 	constructor() {
 		super({
 			id: 'notebook.find',
@@ -68,7 +69,7 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCommandContext): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
 
@@ -77,7 +78,12 @@ registerAction2(class extends Action2 {
 		}
 
 		const controller = editor.getContribution<NotebookFindContrib>(NotebookFindContrib.id);
-		controller.show();
+
+		if (context.selectedCells.length > 1) {
+			controller.show(undefined, { searchInRanges: true, selectedRanges: editor.getSelections() });
+		} else {
+			controller.show(undefined, { searchInRanges: false, selectedRanges: [] });
+		}
 	}
 });
 
@@ -200,4 +206,3 @@ StartFindReplaceAction.addImplementation(100, (accessor: ServicesAccessor, codeE
 
 	return false;
 });
-

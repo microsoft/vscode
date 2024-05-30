@@ -22,6 +22,7 @@ import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
 import { appendToCommandPalette, appendEditorTitleContextMenuItem } from 'vs/workbench/contrib/files/browser/fileActions.contribution';
 import { SideBySideEditor, EditorResourceAccessor } from 'vs/workbench/common/editor';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 const REVEAL_IN_OS_COMMAND_ID = 'revealFileInOS';
 const REVEAL_IN_OS_LABEL = isWindows ? nls.localize2('revealInWindows', "Reveal in File Explorer") : isMacintosh ? nls.localize2('revealInMac', "Reveal in Finder") : nls.localize2('openContainer', "Open Containing Folder");
@@ -36,7 +37,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KeyR
 	},
 	handler: (accessor: ServicesAccessor, resource: URI | object) => {
-		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IExplorerService));
+		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IExplorerService));
 		revealResourcesInOS(resources, accessor.get(INativeHostService), accessor.get(IWorkspaceContextService));
 	}
 });
@@ -57,7 +58,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
-appendEditorTitleContextMenuItem(REVEAL_IN_OS_COMMAND_ID, REVEAL_IN_OS_LABEL.value, REVEAL_IN_OS_WHEN_CONTEXT, '2_files', 0);
+appendEditorTitleContextMenuItem(REVEAL_IN_OS_COMMAND_ID, REVEAL_IN_OS_LABEL.value, REVEAL_IN_OS_WHEN_CONTEXT, '2_files', false, 0);
 
 // Menu registration - open editors
 

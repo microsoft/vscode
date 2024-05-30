@@ -446,6 +446,12 @@ export interface ITimerService {
 	 * @param to to mark name
 	 */
 	getDuration(from: string, to: string): number;
+
+	/**
+	 * Return the timestamp of a mark.
+	 * @param mark mark name
+	 */
+	getStartTime(mark: string): number;
 }
 
 export const ITimerService = createDecorator<ITimerService>('timerService');
@@ -469,6 +475,11 @@ class PerfMarks {
 			return 0;
 		}
 		return toEntry.startTime - fromEntry.startTime;
+	}
+
+	getStartTime(mark: string): number {
+		const entry = this._findEntry(mark);
+		return entry ? entry.startTime : -1;
 	}
 
 	private _findEntry(name: string): perf.PerformanceMark | void {
@@ -599,6 +610,10 @@ export abstract class AbstractTimerService implements ITimerService {
 
 	getDuration(from: string, to: string): number {
 		return this._marks.getDuration(from, to);
+	}
+
+	getStartTime(mark: string): number {
+		return this._marks.getStartTime(mark);
 	}
 
 	private _reportStartupTimes(metrics: IStartupMetrics): void {

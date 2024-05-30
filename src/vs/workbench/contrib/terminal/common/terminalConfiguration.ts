@@ -5,14 +5,22 @@
 
 import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { localize } from 'vs/nls';
-import { DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, DEFAULT_COMMANDS_TO_SKIP_SHELL, SUGGESTIONS_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT, DEFAULT_LOCAL_ECHO_EXCLUDE } from 'vs/workbench/contrib/terminal/common/terminal';
+import { DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, DEFAULT_COMMANDS_TO_SKIP_SHELL, SUGGESTIONS_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalLocationString, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Codicon } from 'vs/base/common/codicons';
 import { terminalColorSchema, terminalIconSchema } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
-import product from 'vs/platform/product/common/product';
 import { Extensions as WorkbenchExtensions, IConfigurationMigrationRegistry, ConfigurationKeyValuePairs } from 'vs/workbench/common/configuration';
+
+// Import configuration schemes from terminalContrib - this is an exception to the eslint rule since
+// they need to be declared at part of the rest of the terminal configuration
+import { terminalAccessibilityConfiguration } from 'vs/workbench/contrib/terminalContrib/accessibility/common/terminalAccessibilityConfiguration'; // eslint-disable-line local/code-import-patterns
+import { terminalStickyScrollConfiguration } from 'vs/workbench/contrib/terminalContrib/stickyScroll/common/terminalStickyScrollConfiguration'; // eslint-disable-line local/code-import-patterns
+import { terminalTypeAheadConfiguration } from 'vs/workbench/contrib/terminalContrib/typeAhead/common/terminalTypeAheadConfiguration'; // eslint-disable-line local/code-import-patterns
+import { terminalZoomConfiguration } from 'vs/workbench/contrib/terminalContrib/zoom/common/terminal.zoom'; // eslint-disable-line local/code-import-patterns
+import { terminalSuggestConfiguration } from 'vs/workbench/contrib/terminalContrib/suggest/common/terminalSuggestConfiguration'; // eslint-disable-line local/code-import-patterns
+import { terminalInitialHintConfiguration } from 'vs/workbench/contrib/terminalContrib/chat/common/terminalInitialHintConfiguration';  // eslint-disable-line local/code-import-patterns
 
 const terminalDescriptors = '\n- ' + [
 	'`\${cwd}`: ' + localize("cwd", "the terminal's current working directory"),
@@ -296,12 +304,11 @@ const terminalConfiguration: IConfigurationNode = {
 		},
 		[TerminalSettingId.GpuAcceleration]: {
 			type: 'string',
-			enum: ['auto', 'on', 'off', 'canvas'],
+			enum: ['auto', 'on', 'off'],
 			markdownEnumDescriptions: [
 				localize('terminal.integrated.gpuAcceleration.auto', "Let VS Code detect which renderer will give the best experience."),
 				localize('terminal.integrated.gpuAcceleration.on', "Enable GPU acceleration within the terminal."),
 				localize('terminal.integrated.gpuAcceleration.off', "Disable GPU acceleration within the terminal. The terminal will render much slower when GPU acceleration is off but it should reliably work on all systems."),
-				localize('terminal.integrated.gpuAcceleration.canvas', "Use the terminal's fallback canvas renderer which uses a 2d context instead of webgl which may perform better on some systems. Note that some features are limited in the canvas renderer like opaque selection.")
 			],
 			default: 'auto',
 			description: localize('terminal.integrated.gpuAcceleration', "Controls whether the terminal will leverage the GPU to do its rendering.")
@@ -514,45 +521,6 @@ const terminalConfiguration: IConfigurationNode = {
 			default: '11',
 			description: localize('terminal.integrated.unicodeVersion', "Controls what version of Unicode to use when evaluating the width of characters in the terminal. If you experience emoji or other wide characters not taking up the right amount of space or backspace either deleting too much or too little then you may want to try tweaking this setting.")
 		},
-		[TerminalSettingId.LocalEchoLatencyThreshold]: {
-			description: localize('terminal.integrated.localEchoLatencyThreshold', "Length of network delay, in milliseconds, where local edits will be echoed on the terminal without waiting for server acknowledgement. If '0', local echo will always be on, and if '-1' it will be disabled."),
-			type: 'integer',
-			minimum: -1,
-			default: 30,
-		},
-		[TerminalSettingId.LocalEchoEnabled]: {
-			markdownDescription: localize('terminal.integrated.localEchoEnabled', "When local echo should be enabled. This will override {0}", '`#terminal.integrated.localEchoLatencyThreshold#`'),
-			type: 'string',
-			enum: ['on', 'off', 'auto'],
-			enumDescriptions: [
-				localize('terminal.integrated.localEchoEnabled.on', "Always enabled"),
-				localize('terminal.integrated.localEchoEnabled.off', "Always disabled"),
-				localize('terminal.integrated.localEchoEnabled.auto', "Enabled only for remote workspaces")
-			],
-			default: 'auto'
-		},
-		[TerminalSettingId.LocalEchoExcludePrograms]: {
-			description: localize('terminal.integrated.localEchoExcludePrograms', "Local echo will be disabled when any of these program names are found in the terminal title."),
-			type: 'array',
-			items: {
-				type: 'string',
-				uniqueItems: true
-			},
-			default: DEFAULT_LOCAL_ECHO_EXCLUDE,
-		},
-		[TerminalSettingId.LocalEchoStyle]: {
-			description: localize('terminal.integrated.localEchoStyle', "Terminal style of locally echoed text; either a font style or an RGB color."),
-			default: 'dim',
-			anyOf: [
-				{
-					enum: ['bold', 'dim', 'italic', 'underlined', 'inverted', '#ff0000'],
-				},
-				{
-					type: 'string',
-					format: 'color-hex',
-				}
-			]
-		},
 		[TerminalSettingId.EnablePersistentSessions]: {
 			description: localize('terminal.integrated.enablePersistentSessions', "Persist terminal sessions/history for the workspace across window reloads."),
 			type: 'boolean',
@@ -588,7 +556,7 @@ const terminalConfiguration: IConfigurationNode = {
 		[TerminalSettingId.RescaleOverlappingGlyphs]: {
 			markdownDescription: localize('terminal.integrated.rescaleOverlappingGlyphs', "Whether to rescale glyphs horizontally that are a single cell wide but have glyphs that would overlap following cell(s). This typically happens for ambiguous width characters (eg. the roman numeral characters U+2160+) which aren't featured in monospace fonts. Emoji glyphs are never rescaled."),
 			type: 'boolean',
-			default: product.quality !== 'stable'
+			default: true
 		},
 		[TerminalSettingId.AutoReplies]: {
 			markdownDescription: localize('terminal.integrated.autoReplies', "A set of messages that, when encountered in the terminal, will be automatically responded to. Provided the message is specific enough, this can help automate away common responses.\n\nRemarks:\n\n- Use {0} to automatically respond to the terminate batch job prompt on Windows.\n- The message includes escape sequences so the reply might not happen with styled text.\n- Each reply can only happen once every second.\n- Use {1} in the reply to mean the enter key.\n- To unset a default key, set the value to null.\n- Restart VS Code if new don't apply.", '`"Terminate batch job (Y/N)": "Y\\r"`', '`"\\r"`'),
@@ -627,13 +595,6 @@ const terminalConfiguration: IConfigurationNode = {
 			type: 'number',
 			default: 100
 		},
-		[TerminalSettingId.ShellIntegrationSuggestEnabled]: {
-			restricted: true,
-			markdownDescription: localize('terminal.integrated.shellIntegration.suggestEnabled', "Enables experimental terminal Intellisense suggestions for supported shells when {0} is set to {1}. If shell integration is installed manually, {2} needs to be set to {3} before calling the script.", '`#terminal.integrated.shellIntegration.enabled#`', '`true`', '`VSCODE_SUGGEST`', '`1`'),
-			type: 'boolean',
-			default: false,
-			markdownDeprecationMessage: localize('suggestEnabled.deprecated', 'This is an experimental setting and may break the terminal! Use at your own risk.')
-		},
 		[TerminalSettingId.SmoothScrolling]: {
 			markdownDescription: localize('terminal.integrated.smoothScrolling', "Controls whether the terminal will scroll using an animation."),
 			type: 'boolean',
@@ -661,35 +622,12 @@ const terminalConfiguration: IConfigurationNode = {
 				localize('terminal.integrated.focusAfterRun.none', "Do nothing."),
 			]
 		},
-		[TerminalSettingId.AccessibleViewPreserveCursorPosition]: {
-			markdownDescription: localize('terminal.integrated.accessibleViewPreserveCursorPosition', "Preserve the cursor position on reopen of the terminal's accessible view rather than setting it to the bottom of the buffer."),
-			type: 'boolean',
-			default: false
-		},
-		[TerminalSettingId.AccessibleViewFocusOnCommandExecution]: {
-			markdownDescription: localize('terminal.integrated.accessibleViewFocusOnCommandExecution', "Focus the terminal accessible view when a command is executed."),
-			type: 'boolean',
-			default: false
-		},
-		[TerminalSettingId.StickyScrollEnabled]: {
-			markdownDescription: localize('terminal.integrated.stickyScroll.enabled', "Shows the current command at the top of the terminal."),
-			type: 'boolean',
-			default: product.quality !== 'stable'
-		},
-		[TerminalSettingId.StickyScrollMaxLineCount]: {
-			markdownDescription: localize('terminal.integrated.stickyScroll.maxLineCount', "Defines the maximum number of sticky lines to show. Sticky scroll lines will never exceed 40% of the viewport regardless of this setting."),
-			type: 'number',
-			default: 5,
-			minimum: 1,
-			maximum: 10
-		},
-		[TerminalSettingId.MouseWheelZoom]: {
-			markdownDescription: isMacintosh
-				? localize('terminal.integrated.mouseWheelZoom.mac', "Zoom the font of the terminal when using mouse wheel and holding `Cmd`.")
-				: localize('terminal.integrated.mouseWheelZoom', "Zoom the font of the terminal when using mouse wheel and holding `Ctrl`."),
-			type: 'boolean',
-			default: false
-		},
+		...terminalAccessibilityConfiguration,
+		...terminalInitialHintConfiguration,
+		...terminalStickyScrollConfiguration,
+		...terminalSuggestConfiguration,
+		...terminalTypeAheadConfiguration,
+		...terminalZoomConfiguration,
 	}
 };
 

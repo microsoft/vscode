@@ -66,7 +66,7 @@ suite('NotebookCell#Document', function () {
 			override onExtensionError(): boolean {
 				return true;
 			}
-		}), extHostDocumentsAndEditors, extHostDocuments, extHostConsumerFileSystem, extHostSearch);
+		}), extHostDocumentsAndEditors, extHostDocuments, extHostConsumerFileSystem, extHostSearch, new NullLogService());
 		extHostNotebookDocuments = new ExtHostNotebookDocuments(extHostNotebooks);
 
 		const reg = extHostNotebooks.registerNotebookSerializer(nullExtensionDescription, 'test', new class extends mock<vscode.NotebookSerializer>() { });

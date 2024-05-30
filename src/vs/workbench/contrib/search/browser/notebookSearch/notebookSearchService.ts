@@ -83,7 +83,7 @@ export class NotebookSearchService implements INotebookSearchService {
 
 			const promise = Promise.all([localResultPromise, closedResultsPromise]);
 			return {
-				completeData: promise.then((resolvedPromise) => {
+				completeData: promise.then((resolvedPromise): ISearchComplete => {
 					const openNotebookResult = resolvedPromise[0];
 					const closedNotebookResult = resolvedPromise[1];
 
@@ -94,7 +94,7 @@ export class NotebookSearchService implements INotebookSearchService {
 						results.forEach(onProgress);
 					}
 					this.logService.trace(`local notebook search time | ${searchLocalEnd - searchStart}ms`);
-					return <ISearchComplete>{
+					return {
 						messages: [],
 						limitHit: resolved.reduce((prev, cur) => prev || cur.limitHit, false),
 						results,
@@ -152,7 +152,7 @@ export class NotebookSearchService implements INotebookSearchService {
 				return;
 			}
 
-			const info = <NotebookPriorityInfo>{
+			const info: NotebookPriorityInfo = {
 				isFromSettings: true,
 				filenamePatterns: [association.filenamePattern]
 			};

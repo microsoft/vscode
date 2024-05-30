@@ -446,6 +446,12 @@
 	background-color: var(--vscode-notebook-symbolHighlightBackground) !important;
 }
 
+/** Cell Search Range selection highlight */
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.code-cell-row.nb-multiCellHighlight .cell-focus-indicator,
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.markdown-cell-row.nb-multiCellHighlight {
+	background-color: var(--vscode-notebook-symbolHighlightBackground) !important;
+}
+
 /** Cell focused editor border */
 .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-editor-focus .cell-editor-part:before {
 	outline: solid 1px var(--vscode-notebook-focusedEditorBorder);

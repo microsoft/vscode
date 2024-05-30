@@ -189,7 +189,7 @@ export class NotebookCellsLayout implements IRangeMap {
 		const index = afterPosition - 1;
 		const previousItemPosition = this._prefixSumComputer.getPrefixSum(index);
 		const previousItemSize = this._items[index].size;
-		const previousWhitespace = this._whitespace.filter(ws => ws.afterPosition === afterPosition - 1);
+		const previousWhitespace = this._whitespace.filter(ws => (ws.afterPosition <= afterPosition - 1 && ws.afterPosition > 0));
 		const whitespaceBefore = previousWhitespace.reduce((acc, ws) => acc + ws.size, 0);
 		return previousItemPosition + previousItemSize + whitespaceBeforeFirstItem + this.paddingTop + whitespaceBefore;
 	}
@@ -290,8 +290,19 @@ export class NotebookCellListView<T> extends ListView<T> {
 	}
 
 	changeOneWhitespace(id: string, newAfterPosition: number, newSize: number) {
-		this.notebookRangeMap.changeOneWhitespace(id, newAfterPosition, newSize);
-		this.eventuallyUpdateScrollDimensions();
+		const scrollTop = this.scrollTop;
+		const previousRenderRange = this.getRenderRange(this.lastRenderTop, this.lastRenderHeight);
+		const currentPosition = this.notebookRangeMap.getWhitespacePosition(id);
+
+		if (currentPosition > scrollTop) {
+			this.notebookRangeMap.changeOneWhitespace(id, newAfterPosition, newSize);
+			this.render(previousRenderRange, scrollTop, this.lastRenderHeight, undefined, undefined, false);
+			this._rerender(scrollTop, this.renderHeight, false);
+			this.eventuallyUpdateScrollDimensions();
+		} else {
+			this.notebookRangeMap.changeOneWhitespace(id, newAfterPosition, newSize);
+			this.eventuallyUpdateScrollDimensions();
+		}
 	}
 
 	removeWhitespace(id: string): void {

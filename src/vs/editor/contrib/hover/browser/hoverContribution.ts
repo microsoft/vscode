@@ -12,6 +12,8 @@ import { MarkdownHoverParticipant } from 'vs/editor/contrib/hover/browser/markdo
 import { MarkerHoverParticipant } from 'vs/editor/contrib/hover/browser/markerHoverParticipant';
 import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
 import 'vs/css!./hover';
+import { AccessibleViewRegistry } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
+import { ExtHoverAccessibleView, HoverAccessibilityHelp, HoverAccessibleView } from 'vs/editor/contrib/hover/browser/hoverAccessibleViews';
 
 registerEditorContribution(HoverController.ID, HoverController, EditorContributionInstantiation.BeforeFirstInteraction);
 registerEditorAction(ShowOrFocusHoverAction);
@@ -38,3 +40,6 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-editor .monaco-hover hr { border-bottom: 0px solid ${hoverBorder.transparent(0.5)}; }`);
 	}
 });
+AccessibleViewRegistry.register(new HoverAccessibleView());
+AccessibleViewRegistry.register(new HoverAccessibilityHelp());
+AccessibleViewRegistry.register(new ExtHoverAccessibleView());

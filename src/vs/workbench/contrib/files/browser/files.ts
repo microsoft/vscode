@@ -105,7 +105,7 @@ export function getResourceForCommand(resource: URI | object | undefined, listSe
 	return EditorResourceAccessor.getOriginalUri(editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 }
 
-export function getMultiSelectedResources(resource: URI | object | undefined, listService: IListService, editorService: IEditorService, explorerService: IExplorerService): Array<URI> {
+export function getMultiSelectedResources(resource: URI | object | undefined, listService: IListService, editorService: IEditorService, editorGroupService: IEditorGroupsService, explorerService: IExplorerService): Array<URI> {
 	const list = listService.lastFocusedList;
 	const element = list?.getHTMLElement();
 	if (element && isActiveElement(element)) {
@@ -134,6 +134,17 @@ export function getMultiSelectedResources(resource: URI | object | undefined, li
 			if (selection.some(s => s.toString() === mainUriStr)) {
 				return selection;
 			}
+		}
+	}
+
+	// Check for tabs multiselect.
+	const activeGroup = editorGroupService.activeGroup;
+	const selection = activeGroup.selectedEditors;
+	if (selection.length > 1 && URI.isUri(resource)) {
+		// If the resource is part of the tabs selection, return all selected tabs/resources.
+		// It's possible that multiple tabs are selected but the action was applied to a resource that is not part of the selection.
+		if (selection.some(e => e.matches({ resource }))) {
+			return selection.map(editor => EditorResourceAccessor.getOriginalUri(editor)).filter(uri => !!uri);
 		}
 	}
 

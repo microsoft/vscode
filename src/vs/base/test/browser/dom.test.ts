@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { $, asCssValueWithDefault, h, multibyteAwareBtoa, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument } from 'vs/base/browser/dom';
+import { $, asCssValueWithDefault, h, multibyteAwareBtoa, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, isHTMLElement } from 'vs/base/browser/dom';
 import { ensureCodeWindow, isAuxiliaryWindow, mainWindow } from 'vs/base/browser/window';
 import { DeferredPromise, timeout } from 'vs/base/common/async';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
@@ -85,7 +85,7 @@ suite('dom', () => {
 		test('should build simple nodes', () => {
 			const div = $('div');
 			assert(div);
-			assert(div instanceof HTMLElement);
+			assert(isHTMLElement(div));
 			assert.strictEqual(div.tagName, 'DIV');
 			assert(!div.firstChild);
 		});
@@ -93,7 +93,7 @@ suite('dom', () => {
 		test('should build nodes with id', () => {
 			const div = $('div#foo');
 			assert(div);
-			assert(div instanceof HTMLElement);
+			assert(isHTMLElement(div));
 			assert.strictEqual(div.tagName, 'DIV');
 			assert.strictEqual(div.id, 'foo');
 		});
@@ -101,7 +101,7 @@ suite('dom', () => {
 		test('should build nodes with class-name', () => {
 			const div = $('div.foo');
 			assert(div);
-			assert(div instanceof HTMLElement);
+			assert(isHTMLElement(div));
 			assert.strictEqual(div.tagName, 'DIV');
 			assert.strictEqual(div.className, 'foo');
 		});
@@ -136,15 +136,15 @@ suite('dom', () => {
 	suite('h', () => {
 		test('should build simple nodes', () => {
 			const div = h('div');
-			assert(div.root instanceof HTMLElement);
+			assert(isHTMLElement(div.root));
 			assert.strictEqual(div.root.tagName, 'DIV');
 
 			const span = h('span');
-			assert(span.root instanceof HTMLElement);
+			assert(isHTMLElement(span.root));
 			assert.strictEqual(span.root.tagName, 'SPAN');
 
 			const img = h('img');
-			assert(img.root instanceof HTMLElement);
+			assert(isHTMLElement(img.root));
 			assert.strictEqual(img.root.tagName, 'IMG');
 		});
 

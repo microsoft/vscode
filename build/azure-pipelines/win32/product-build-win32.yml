@@ -93,16 +93,10 @@ steps:
       . build/azure-pipelines/win32/exec.ps1
       . build/azure-pipelines/win32/retry.ps1
       $ErrorActionPreference = "Stop"
-      # TODO: remove custom node-gyp when updating to Node v20,
-      # refs https://github.com/npm/cli/releases/tag/v10.2.3 which is available with Node >= 20.10.0
-      $nodeGypDir = "$(Agent.TempDirectory)/custom-packages"
-      mkdir "$nodeGypDir"
-      npm install node-gyp@10.0.1 -g --prefix "$nodeGypDir"
-      $env:npm_config_node_gyp = "${nodeGypDir}/node_modules/node-gyp/bin/node-gyp.js"
-      $env:npm_config_arch = "$(VSCODE_ARCH)"
-      $env:CHILD_CONCURRENCY="1"
       retry { exec { yarn --frozen-lockfile --check-files } }
     env:
+      npm_config_arch: $(VSCODE_ARCH)
+      CHILD_CONCURRENCY: 1
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
       GITHUB_TOKEN: "$(github-distro-mixin-password)"

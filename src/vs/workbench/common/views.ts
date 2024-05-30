@@ -15,7 +15,6 @@ import { getOrSet, SetMap } from 'vs/base/common/map';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { flatten } from 'vs/base/common/arrays';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IProgressIndicator } from 'vs/platform/progress/common/progress';
 import Severity from 'vs/base/common/severity';
@@ -204,7 +203,7 @@ class ViewContainersRegistryImpl extends Disposable implements IViewContainersRe
 	private readonly defaultViewContainers: ViewContainer[] = [];
 
 	get all(): ViewContainer[] {
-		return flatten([...this.viewContainers.values()]);
+		return [...this.viewContainers.values()].flat();
 	}
 
 	registerViewContainer(viewContainerDescriptor: IViewContainerDescriptor, viewContainerLocation: ViewContainerLocation, options?: { isDefault?: boolean; doNotRegisterOpenCommand?: boolean }): ViewContainer {

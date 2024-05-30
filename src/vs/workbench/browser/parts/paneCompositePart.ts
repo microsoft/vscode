@@ -526,7 +526,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		this.hideActiveComposite();
 	}
 
-	protected focusComositeBar(): void {
+	protected focusCompositeBar(): void {
 		this.paneCompositeBar.value?.focus();
 	}
 

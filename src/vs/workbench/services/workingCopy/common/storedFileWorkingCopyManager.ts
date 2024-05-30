@@ -411,12 +411,17 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 
 						await Promises.settled(workingCopiesToRestore.map(async workingCopyToRestore => {
 
+							// From this moment on, only operate on the canonical resource
+							// to fix a potential data loss issue:
+							// https://github.com/microsoft/vscode/issues/211374
+							const target = this.uriIdentityService.asCanonicalUri(workingCopyToRestore.target);
+
 							// Restore the working copy at the target. if we have previous dirty content, we pass it
 							// over to be used, otherwise we force a reload from disk. this is important
 							// because we know the file has changed on disk after the move and the working copy might
 							// have still existed with the previous state. this ensures that the working copy is not
 							// tracking a stale state.
-							await this.resolve(workingCopyToRestore.target, {
+							await this.resolve(target, {
 								reload: { async: false }, // enforce a reload
 								contents: workingCopyToRestore.snapshot
 							});

@@ -244,6 +244,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 				sessionId: this._telemetryService.sessionId,
 				machineId: this._telemetryService.machineId,
 				sqmId: this._telemetryService.sqmId,
+				devDeviceId: this._telemetryService.devDeviceId,
 				firstSessionDate: this._telemetryService.firstSessionDate,
 				msftInternal: this._telemetryService.msftInternal
 			},

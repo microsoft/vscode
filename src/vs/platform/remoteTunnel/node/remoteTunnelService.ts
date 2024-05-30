@@ -306,7 +306,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 				a = a.replaceAll(token, '*'.repeat(4));
 				onOutput(a, isErr);
 			};
-			const loginProcess = this.runCodeTunnelCommand('login', ['user', 'login', '--provider', session.providerId, '--access-token', token, '--log', LogLevelToString(this._logger.getLevel())], onLoginOutput);
+			const loginProcess = this.runCodeTunnelCommand('login', ['user', 'login', '--provider', session.providerId, '--log', LogLevelToString(this._logger.getLevel())], onLoginOutput, { VSCODE_CLI_ACCESS_TOKEN: token });
 			this._tunnelProcess = loginProcess;
 			try {
 				await loginProcess;
@@ -408,7 +408,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 		});
 	}
 
-	private runCodeTunnelCommand(logLabel: string, commandArgs: string[], onOutput: (message: string, isError: boolean) => void = this.defaultOnOutput): CancelablePromise<number> {
+	private runCodeTunnelCommand(logLabel: string, commandArgs: string[], onOutput: (message: string, isError: boolean) => void = this.defaultOnOutput, env?: Record<string, string>): CancelablePromise<number> {
 		return createCancelablePromise<number>(token => {
 			return new Promise((resolve, reject) => {
 				if (token.isCancellationRequested) {
@@ -426,12 +426,12 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 				if (!this.environmentService.isBuilt) {
 					onOutput('Building tunnel CLI from sources and run\n', false);
 					onOutput(`${logLabel} Spawning: cargo run -- tunnel ${commandArgs.join(' ')}\n`, false);
-					tunnelProcess = spawn('cargo', ['run', '--', 'tunnel', ...commandArgs], { cwd: join(this.environmentService.appRoot, 'cli'), stdio });
+					tunnelProcess = spawn('cargo', ['run', '--', 'tunnel', ...commandArgs], { cwd: join(this.environmentService.appRoot, 'cli'), stdio, env: { ...process.env, RUST_BACKTRACE: '1', ...env } });
 				} else {
 					onOutput('Running tunnel CLI\n', false);
 					const tunnelCommand = this.getTunnelCommandLocation();
 					onOutput(`${logLabel} Spawning: ${tunnelCommand} tunnel ${commandArgs.join(' ')}\n`, false);
-					tunnelProcess = spawn(tunnelCommand, ['tunnel', ...commandArgs], { cwd: homedir(), stdio });
+					tunnelProcess = spawn(tunnelCommand, ['tunnel', ...commandArgs], { cwd: homedir(), stdio, env: { ...process.env, ...env } });
 				}
 
 				tunnelProcess.stdout!.pipe(new StreamSplitter('\n')).on('data', data => {

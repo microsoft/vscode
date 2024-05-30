@@ -50,9 +50,9 @@ suite('Paths', () => {
 		assert.ok(!extpath.isValidBasename(''));
 		assert.ok(extpath.isValidBasename('test.txt'));
 		assert.ok(!extpath.isValidBasename('/test.txt'));
-		assert.ok(!extpath.isValidBasename('\\test.txt'));
 
 		if (isWindows) {
+			assert.ok(!extpath.isValidBasename('\\test.txt'));
 			assert.ok(!extpath.isValidBasename('aux'));
 			assert.ok(!extpath.isValidBasename('Aux'));
 			assert.ok(!extpath.isValidBasename('LPT0'));
@@ -69,6 +69,8 @@ suite('Paths', () => {
 			assert.ok(!extpath.isValidBasename('test.txt\t'));
 			assert.ok(!extpath.isValidBasename('tes:t.txt'));
 			assert.ok(!extpath.isValidBasename('tes"t.txt'));
+		} else {
+			assert.ok(extpath.isValidBasename('\\test.txt'));
 		}
 	});
 

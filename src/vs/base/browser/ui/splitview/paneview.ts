@@ -5,7 +5,7 @@
 
 import { isFirefox } from 'vs/base/browser/browser';
 import { DataTransfers } from 'vs/base/browser/dnd';
-import { $, addDisposableListener, append, clearNode, EventHelper, EventType, getWindow, trackFocus } from 'vs/base/browser/dom';
+import { $, addDisposableListener, append, clearNode, EventHelper, EventType, getWindow, isHTMLElement, trackFocus } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Gesture, EventType as TouchEventType } from 'vs/base/browser/touch';
@@ -513,7 +513,7 @@ export class PaneView extends Disposable {
 
 		const eventDisposables = this._register(new DisposableStore());
 		const onKeyDown = this._register(new DomEmitter(this.element, 'keydown'));
-		const onHeaderKeyDown = Event.map(Event.filter(onKeyDown.event, e => e.target instanceof HTMLElement && e.target.classList.contains('pane-header'), eventDisposables), e => new StandardKeyboardEvent(e), eventDisposables);
+		const onHeaderKeyDown = Event.map(Event.filter(onKeyDown.event, e => isHTMLElement(e.target) && e.target.classList.contains('pane-header'), eventDisposables), e => new StandardKeyboardEvent(e), eventDisposables);
 
 		this._register(Event.filter(onHeaderKeyDown, e => e.keyCode === KeyCode.UpArrow, eventDisposables)(() => this.focusPrevious()));
 		this._register(Event.filter(onHeaderKeyDown, e => e.keyCode === KeyCode.DownArrow, eventDisposables)(() => this.focusNext()));

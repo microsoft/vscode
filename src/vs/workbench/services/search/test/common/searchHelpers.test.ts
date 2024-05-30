@@ -7,17 +7,17 @@ import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Range } from 'vs/editor/common/core/range';
 import { FindMatch, ITextModel } from 'vs/editor/common/model';
-import { ISearchRange, ITextQuery, ITextSearchContext, QueryType } from 'vs/workbench/services/search/common/search';
+import { ISearchRange, ITextQuery, ITextSearchContext, ITextSearchResult, QueryType } from 'vs/workbench/services/search/common/search';
 import { getTextSearchMatchWithModelContext, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
 
 suite('SearchHelpers', () => {
 	suite('editorMatchesToTextSearchResults', () => {
 		ensureNoDisposablesAreLeakedInTestSuite();
-		const mockTextModel: ITextModel = <ITextModel>{
+		const mockTextModel = {
 			getLineContent(lineNumber: number): string {
 				return '' + lineNumber;
 			}
-		};
+		} as ITextModel;
 
 		function assertRangesEqual(actual: ISearchRange | ISearchRange[], expected: ISearchRange[]) {
 			if (!Array.isArray(actual)) {
@@ -77,7 +77,7 @@ suite('SearchHelpers', () => {
 		ensureNoDisposablesAreLeakedInTestSuite();
 		const MOCK_LINE_COUNT = 100;
 
-		const mockTextModel: ITextModel = <ITextModel>{
+		const mockTextModel = {
 			getLineContent(lineNumber: number): string {
 				if (lineNumber < 1 || lineNumber > MOCK_LINE_COUNT) {
 					throw new Error(`invalid line count: ${lineNumber}`);
@@ -89,7 +89,7 @@ suite('SearchHelpers', () => {
 			getLineCount(): number {
 				return MOCK_LINE_COUNT;
 			}
-		};
+		} as ITextModel;
 
 		function getQuery(beforeContext?: number, afterContext?: number): ITextQuery {
 			return {
@@ -123,20 +123,20 @@ suite('SearchHelpers', () => {
 			}];
 
 			assert.deepStrictEqual(getTextSearchMatchWithModelContext(matches, mockTextModel, getQuery(1, 2)), [
-				<ITextSearchContext>{
+				{
 					text: '1',
 					lineNumber: 1
 				},
 				...matches,
-				<ITextSearchContext>{
+				{
 					text: '3',
 					lineNumber: 3
 				},
-				<ITextSearchContext>{
+				{
 					text: '4',
 					lineNumber: 4
 				},
-			]);
+			] satisfies ITextSearchResult[]);
 		});
 
 		test('multiple matches next to each other', () => {

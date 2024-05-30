@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { isHTMLSpanElement } from 'vs/base/browser/dom';
 import { Color, RGBA } from 'vs/base/common/color';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -66,7 +67,7 @@ suite('Debug - ANSI Handling', () => {
 		assert.strictEqual(2, root.children.length);
 
 		child = root.firstChild!;
-		if (child instanceof HTMLSpanElement) {
+		if (isHTMLSpanElement(child)) {
 			assert.strictEqual('content1', child.textContent);
 			assert(child.classList.contains('class1'));
 			assert(child.classList.contains('class2'));
@@ -75,7 +76,7 @@ suite('Debug - ANSI Handling', () => {
 		}
 
 		child = root.lastChild!;
-		if (child instanceof HTMLSpanElement) {
+		if (isHTMLSpanElement(child)) {
 			assert.strictEqual('content2', child.textContent);
 			assert(child.classList.contains('class2'));
 			assert(child.classList.contains('class3'));
@@ -94,7 +95,7 @@ suite('Debug - ANSI Handling', () => {
 		const root: HTMLSpanElement = handleANSIOutput(sequence, linkDetector, themeService, session.root);
 		assert.strictEqual(1, root.children.length);
 		const child: Node = root.lastChild!;
-		if (child instanceof HTMLSpanElement) {
+		if (isHTMLSpanElement(child)) {
 			return child;
 		} else {
 			assert.fail('Unexpected assertion error');
@@ -408,7 +409,7 @@ suite('Debug - ANSI Handling', () => {
 		assert.strictEqual(elementsExpected, root.children.length);
 		for (let i = 0; i < elementsExpected; i++) {
 			const child: Node = root.children[i];
-			if (child instanceof HTMLSpanElement) {
+			if (isHTMLSpanElement(child)) {
 				assertions[i](child);
 			} else {
 				assert.fail('Unexpected assertion error');

@@ -65,6 +65,7 @@ export class CommentThreadHeader<T = IRange> extends Disposable {
 		this._collapseAction = new Action('review.expand', nls.localize('label.collapse', "Collapse"), COLLAPSE_ACTION_CLASS, true, () => this._delegate.collapse());
 
 		const menu = this._commentMenus.getCommentThreadTitleActions(this._contextKeyService);
+		this._register(menu);
 		this.setActionBarActions(menu);
 
 		this._register(menu);

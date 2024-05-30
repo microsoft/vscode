@@ -22,7 +22,7 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 import { IKeybindings, KeybindingWeight, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ITerminalLogService, TerminalSettingId, WindowsShellType } from 'vs/platform/terminal/common/terminal';
+import { ITerminalLogService, WindowsShellType } from 'vs/platform/terminal/common/terminal';
 import { TerminalLogService } from 'vs/platform/terminal/common/terminalLogService';
 import { registerTerminalPlatformConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
@@ -55,6 +55,10 @@ import { registerColors } from 'vs/workbench/contrib/terminal/common/terminalCol
 import { registerTerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminalConfiguration';
 import { TerminalContextKeyStrings, TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
+
+// HACK: This file should not depend on terminalContrib
+// eslint-disable-next-line local/code-import-patterns
+import { TerminalSuggestSettingId } from 'vs/workbench/contrib/terminalContrib/suggest/common/terminalSuggestConfiguration';
 
 // Register services
 registerSingleton(ITerminalLogService, TerminalLogService, InstantiationType.Delayed);
@@ -206,7 +210,7 @@ registerSendSequenceKeybinding('\x1b[24~d', { // F12,d -> shift+end (SelectLine)
 	mac: { primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.RightArrow }
 });
 registerSendSequenceKeybinding('\x1b[24~e', { // F12,e -> ctrl+space (Native suggest)
-	when: ContextKeyExpr.and(TerminalContextKeys.focus, ContextKeyExpr.equals(TerminalContextKeyStrings.ShellType, WindowsShellType.PowerShell), TerminalContextKeys.terminalShellIntegrationEnabled, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate(), ContextKeyExpr.equals(`config.${TerminalSettingId.ShellIntegrationSuggestEnabled}`, true)),
+	when: ContextKeyExpr.and(TerminalContextKeys.focus, ContextKeyExpr.equals(TerminalContextKeyStrings.ShellType, WindowsShellType.PowerShell), TerminalContextKeys.terminalShellIntegrationEnabled, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate(), ContextKeyExpr.or(ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.Enabled}`, true), ContextKeyExpr.equals(`config.${TerminalSuggestSettingId.EnabledLegacy}`, true))),
 	primary: KeyMod.CtrlCmd | KeyCode.Space,
 	mac: { primary: KeyMod.WinCtrl | KeyCode.Space }
 });

@@ -70,7 +70,7 @@ function watch(root: string): Stream {
 
 const cache: { [cwd: string]: Stream } = Object.create(null);
 
-module.exports = function (pattern: string | string[] | filter.FileFunction, options?: { cwd?: string; base?: string }) {
+module.exports = function (pattern: string | string[] | filter.FileFunction, options?: { cwd?: string; base?: string; dot?: boolean }) {
 	options = options || {};
 
 	const cwd = path.normalize(options.cwd || process.cwd());
@@ -86,8 +86,8 @@ module.exports = function (pattern: string | string[] | filter.FileFunction, opt
 	});
 
 	return watcher
-		.pipe(filter(['**', '!.git{,/**}'])) // ignore all things git
-		.pipe(filter(pattern))
+		.pipe(filter(['**', '!.git{,/**}'], { dot: options.dot })) // ignore all things git
+		.pipe(filter(pattern, { dot: options.dot }))
 		.pipe(es.map(function (file: File, cb) {
 			fs.stat(file.path, function (err, stat) {
 				if (err && err.code === 'ENOENT') { return cb(undefined, file); }

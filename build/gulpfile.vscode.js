@@ -73,6 +73,8 @@ const vscodeResources = [
 	'out-build/vs/workbench/contrib/terminal/browser/media/*.sh',
 	'out-build/vs/workbench/contrib/terminal/browser/media/*.zsh',
 	'out-build/vs/workbench/contrib/webview/browser/pre/*.js',
+	'!out-build/vs/workbench/contrib/issue/browser/*.html',
+	'!out-build/vs/workbench/contrib/issue/**/*-dev.html',
 	'out-build/vs/**/markdown.css',
 	'out-build/vs/workbench/contrib/tasks/**/*.json',
 	'!**/test/**'
@@ -122,7 +124,8 @@ const optimizeVSCodeTask = task.define('optimize-vscode', task.series(
 			},
 			manual: [
 				{ src: [...windowBootstrapFiles, 'out-build/vs/code/electron-sandbox/workbench/workbench.js'], out: 'vs/code/electron-sandbox/workbench/workbench.js' },
-				{ src: [...windowBootstrapFiles, 'out-build/vs/code/electron-sandbox/issue/issueReporter.js'], out: 'vs/code/electron-sandbox/issue/issueReporter.js' },
+				// TODO: @justchen https://github.com/microsoft/vscode/issues/213332 make sure to remove when we use window.open on desktop.
+				{ src: [...windowBootstrapFiles, 'out-build/vs/workbench/contrib/issue/electron-sandbox/issueReporter.js'], out: 'vs/workbench/contrib/issue/electron-sandbox/issueReporter.js' },
 				{ src: [...windowBootstrapFiles, 'out-build/vs/code/electron-sandbox/processExplorer/processExplorer.js'], out: 'vs/code/electron-sandbox/processExplorer/processExplorer.js' }
 			]
 		}

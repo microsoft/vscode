@@ -92,7 +92,7 @@ export class UserDataSyncConflictsViewPane extends TreeViewPane implements IUser
 					label: { label: basename(resource.remoteResource), strikethrough: resource.mergeState === MergeState.Accepted && (resource.localChange === Change.Deleted || resource.remoteChange === Change.Deleted) },
 					description: getSyncAreaLabel(resource.syncResource),
 					collapsibleState: TreeItemCollapsibleState.None,
-					command: { id: `workbench.actions.sync.openConflicts`, title: '', arguments: [<TreeViewItemHandleArg>{ $treeViewId: '', $treeItemHandle: handle }] },
+					command: { id: `workbench.actions.sync.openConflicts`, title: '', arguments: [{ $treeViewId: '', $treeItemHandle: handle } satisfies TreeViewItemHandleArg] },
 					contextValue: `sync-conflict-resource`
 				};
 				children.push(treeItem);

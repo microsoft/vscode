@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
-import { $, addDisposableListener, EventType, getActiveElement, getWindow, isAncestor } from 'vs/base/browser/dom';
+import { $, addDisposableListener, EventType, getActiveElement, getWindow, isAncestor, isHTMLElement } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Menu } from 'vs/base/browser/ui/menu/menu';
 import { ActionRunner, IRunEvent, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
@@ -49,7 +49,7 @@ export class ContextMenuHandler {
 
 		let menu: Menu | undefined;
 
-		const shadowRootElement = delegate.domForShadowRoot instanceof HTMLElement ? delegate.domForShadowRoot : undefined;
+		const shadowRootElement = isHTMLElement(delegate.domForShadowRoot) ? delegate.domForShadowRoot : undefined;
 		this.contextViewService.showContextView({
 			getAnchor: () => delegate.getAnchor(),
 			canRelayout: false,

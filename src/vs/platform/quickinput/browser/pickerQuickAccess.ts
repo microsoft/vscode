@@ -326,6 +326,14 @@ export abstract class PickerQuickAccessProvider<T extends IPickerQuickAccessItem
 
 		// Accept the pick on accept and hide picker
 		disposables.add(picker.onDidAccept(event => {
+			if (runOptions?.handleAccept) {
+				if (!event.inBackground) {
+					picker.hide(); // hide picker unless we accept in background
+				}
+				runOptions.handleAccept?.(picker.activeItems[0]);
+				return;
+			}
+
 			const [item] = picker.selectedItems;
 			if (typeof item?.accept === 'function') {
 				if (!event.inBackground) {

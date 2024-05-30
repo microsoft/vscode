@@ -8,7 +8,7 @@ import { localize, localize2 } from 'vs/nls';
 import { MultiWindowParts, Part } from 'vs/workbench/browser/part';
 import { ITitleService } from 'vs/workbench/services/title/browser/titleService';
 import { getZoomFactor, isWCOEnabled } from 'vs/base/browser/browser';
-import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility, TitlebarStyle, hasCustomTitlebar, hasNativeTitlebar } from 'vs/platform/window/common/window';
+import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility, TitlebarStyle, hasCustomTitlebar, hasNativeTitlebar, DEFAULT_CUSTOM_TITLEBAR_HEIGHT } from 'vs/platform/window/common/window';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
@@ -19,7 +19,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND, TITLE_BAR_BORDER, WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
 import { isMacintosh, isWindows, isLinux, isWeb, isNative, platformLocale } from 'vs/base/common/platform';
 import { Color } from 'vs/base/common/color';
-import { EventType, EventHelper, Dimension, append, $, addDisposableListener, prepend, reset, getWindow, getWindowId, isAncestor, getActiveDocument } from 'vs/base/browser/dom';
+import { EventType, EventHelper, Dimension, append, $, addDisposableListener, prepend, reset, getWindow, getWindowId, isAncestor, getActiveDocument, isHTMLElement } from 'vs/base/browser/dom';
 import { CustomMenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -200,7 +200,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 	readonly maximumWidth: number = Number.POSITIVE_INFINITY;
 
 	get minimumHeight(): number {
-		const value = this.isCommandCenterVisible || (isWeb && isWCOEnabled()) ? 35 : 30;
+		const value = this.isCommandCenterVisible || (isWeb && isWCOEnabled()) ? DEFAULT_CUSTOM_TITLEBAR_HEIGHT : 30;
 
 		return value / (this.preventZoom ? getZoomFactor(getWindow(this.element)) : 1);
 	}
@@ -474,7 +474,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				EventHelper.stop(e);
 
 				let targetMenu: MenuId;
-				if (isMacintosh && e.target instanceof HTMLElement && isAncestor(e.target, this.title)) {
+				if (isMacintosh && isHTMLElement(e.target) && isAncestor(e.target, this.title)) {
 					targetMenu = MenuId.TitleBarTitleContext;
 				} else {
 					targetMenu = MenuId.TitleBarContext;

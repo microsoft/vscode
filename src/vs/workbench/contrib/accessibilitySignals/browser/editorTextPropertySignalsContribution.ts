@@ -53,7 +53,7 @@ export class EditorTextPropertySignalsContribution extends Disposable implements
 	constructor(
 		@IEditorService private readonly _editorService: IEditorService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
+		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService
 	) {
 		super();
 
@@ -103,8 +103,8 @@ export class EditorTextPropertySignalsContribution extends Disposable implements
 				}
 
 				for (const modality of ['sound', 'announcement'] as AccessibilityModality[]) {
-					if (this._accessibilitySignalService.getEnabledState(signal, false, modality)) {
-						const delay = this._getDelay(signal, modality) + (didType.get() ? 1000 : 0);
+					if (this._accessibilitySignalService.getEnabledState(signal, false, modality).value) {
+						const delay = this._accessibilitySignalService.getDelayMs(signal, modality) + (didType.get() ? 1000 : 0);
 
 						timeouts.add(disposableTimeout(() => {
 							if (source.isPresent(position, mode, undefined)) {
@@ -161,23 +161,6 @@ export class EditorTextPropertySignalsContribution extends Disposable implements
 				}));
 			}
 		}));
-	}
-
-	private _getDelay(signal: AccessibilitySignal, modality: AccessibilityModality): number {
-		// TODO make these delays configurable!
-		if (signal === AccessibilitySignal.errorAtPosition || signal === AccessibilitySignal.warningAtPosition) {
-			if (modality === 'sound') {
-				return 100;
-			} else {
-				return 1000;
-			}
-		}
-
-		if (modality === 'sound') {
-			return 400;
-		} else {
-			return 3000;
-		}
 	}
 }
 

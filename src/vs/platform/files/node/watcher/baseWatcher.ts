@@ -5,7 +5,7 @@
 
 import { watchFile, unwatchFile, Stats } from 'fs';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { ILogMessage, IRecursiveWatcherWithSubscribe, IUniversalWatchRequest, IWatchRequestWithCorrelation, IWatcher, isWatchRequestWithCorrelation, requestFilterToString } from 'vs/platform/files/common/watcher';
+import { ILogMessage, IRecursiveWatcherWithSubscribe, IUniversalWatchRequest, IWatchRequestWithCorrelation, IWatcher, IWatcherErrorEvent, isWatchRequestWithCorrelation, requestFilterToString } from 'vs/platform/files/common/watcher';
 import { Emitter, Event } from 'vs/base/common/event';
 import { FileChangeType, IFileChange } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
@@ -254,7 +254,7 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 	protected abstract trace(message: string): void;
 	protected abstract warn(message: string): void;
 
-	abstract onDidError: Event<string>;
+	abstract onDidError: Event<IWatcherErrorEvent>;
 
 	protected verboseLogging = false;
 

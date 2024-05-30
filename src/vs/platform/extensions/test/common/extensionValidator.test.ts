@@ -3,10 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { INormalizedVersion, IParsedVersion, isValidExtensionVersion, isValidVersion, isValidVersionStr, normalizeVersion, parseVersion } from 'vs/platform/extensions/common/extensionValidator';
 
 suite('Extension Version Validator', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	const productVersion = '2021-05-11T21:54:30.577Z';
 
 	test('isValidVersionStr', () => {

@@ -38,8 +38,6 @@ import 'vs/workbench/services/textfile/electron-sandbox/nativeTextFileService';
 import 'vs/workbench/services/dialogs/electron-sandbox/fileDialogService';
 import 'vs/workbench/services/workspaces/electron-sandbox/workspacesService';
 import 'vs/workbench/services/menubar/electron-sandbox/menubarService';
-import 'vs/workbench/services/issue/electron-sandbox/issueMainService';
-import 'vs/workbench/services/issue/electron-sandbox/issueService';
 import 'vs/workbench/services/update/electron-sandbox/updateService';
 import 'vs/workbench/services/url/electron-sandbox/urlService';
 import 'vs/workbench/services/lifecycle/electron-sandbox/lifecycleService';

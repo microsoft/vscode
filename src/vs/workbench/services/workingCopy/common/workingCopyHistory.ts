@@ -48,6 +48,12 @@ export interface IWorkingCopyHistoryEntry {
 	 * Associated source with the history entry.
 	 */
 	source: SaveSource;
+
+	/**
+	 * Optional additional metadata associated with the
+	 * source that can help to describe the source.
+	 */
+	sourceDescription: string | undefined;
 }
 
 export interface IWorkingCopyHistoryEntryDescriptor {

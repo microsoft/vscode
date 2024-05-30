@@ -107,7 +107,7 @@ function safeStringifyArgumentsToArray(args: IArguments, includeStack: boolean):
 	if (includeStack) {
 		const stack = new Error().stack;
 		if (stack) {
-			argsArray.push({ __$stack: stack.split('\n').slice(3).join('\n') } as IStackArgument);
+			argsArray.push({ __$stack: stack.split('\n').slice(3).join('\n') } satisfies IStackArgument);
 		}
 	}
 

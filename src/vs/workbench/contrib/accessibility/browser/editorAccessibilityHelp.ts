@@ -7,28 +7,24 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { AccessibilityHelpNLS } from 'vs/editor/common/standaloneStrings';
-import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/browser/toggleTabFocusMode';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { AccessibleViewProviderId, AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { descriptionForCommand } from 'vs/workbench/contrib/accessibility/browser/accessibleViewContributions';
-import { IAccessibleViewService, IAccessibleViewContentProvider, IAccessibleViewOptions, AccessibleViewType } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 import { CONTEXT_CHAT_ENABLED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { CommentAccessibilityHelpNLS } from 'vs/workbench/contrib/comments/browser/commentsAccessibility';
-import { CommentCommandId } from 'vs/workbench/contrib/comments/common/commentCommandIds';
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
 import { NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileConstants';
+import { IAccessibleViewService, IAccessibleViewContentProvider, AccessibleViewProviderId, IAccessibleViewOptions, AccessibleViewType } from 'vs/platform/accessibility/browser/accessibleView';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 
 export class EditorAccessibilityHelpContribution extends Disposable {
 	static ID: 'editorAccessibilityHelpContribution';
 	constructor() {
 		super();
-		this._register(AccessibilityHelpAction.addImplementation(95, 'editor', async accessor => {
+		this._register(AccessibilityHelpAction.addImplementation(90, 'editor', async accessor => {
 			const codeEditorService = accessor.get(ICodeEditorService);
 			const accessibleViewService = accessor.get(IAccessibleViewService);
 			const instantiationService = accessor.get(IInstantiationService);
@@ -39,7 +35,7 @@ export class EditorAccessibilityHelpContribution extends Disposable {
 				codeEditor = codeEditorService.getActiveCodeEditor()!;
 			}
 			accessibleViewService.show(instantiationService.createInstance(EditorAccessibilityHelpProvider, codeEditor));
-		}, EditorContextKeys.focus));
+		}));
 	}
 }
 
@@ -89,13 +85,13 @@ class EditorAccessibilityHelpProvider implements IAccessibleViewContentProvider 
 		}
 
 		if (options.get(EditorOption.stickyScroll).enabled) {
-			content.push(descriptionForCommand('editor.action.focusStickyScroll', AccessibilityHelpNLS.stickScrollKb, AccessibilityHelpNLS.stickScrollNoKb, this._keybindingService));
+			content.push(AccessibilityHelpNLS.stickScroll);
 		}
 
 		if (options.get(EditorOption.tabFocusMode)) {
-			content.push(descriptionForCommand(ToggleTabFocusModeAction.ID, AccessibilityHelpNLS.tabFocusModeOnMsg, AccessibilityHelpNLS.tabFocusModeOnMsgNoKb, this._keybindingService));
+			content.push(AccessibilityHelpNLS.tabFocusModeOnMsg);
 		} else {
-			content.push(descriptionForCommand(ToggleTabFocusModeAction.ID, AccessibilityHelpNLS.tabFocusModeOffMsg, AccessibilityHelpNLS.tabFocusModeOffMsgNoKb, this._keybindingService));
+			content.push(AccessibilityHelpNLS.tabFocusModeOffMsg);
 		}
 		return content.join('\n\n');
 	}
@@ -104,24 +100,14 @@ class EditorAccessibilityHelpProvider implements IAccessibleViewContentProvider 
 export function getCommentCommandInfo(keybindingService: IKeybindingService, contextKeyService: IContextKeyService, editor: ICodeEditor): string | undefined {
 	const editorContext = contextKeyService.getContext(editor.getDomNode()!);
 	if (editorContext.getValue<boolean>(CommentContextKeys.activeEditorHasCommentingRange.key)) {
-		const commentCommandInfo: string[] = [];
-		commentCommandInfo.push(CommentAccessibilityHelpNLS.intro);
-		commentCommandInfo.push(descriptionForCommand(CommentCommandId.Add, CommentAccessibilityHelpNLS.addComment, CommentAccessibilityHelpNLS.addCommentNoKb, keybindingService));
-		commentCommandInfo.push(descriptionForCommand(CommentCommandId.NextThread, CommentAccessibilityHelpNLS.nextCommentThreadKb, CommentAccessibilityHelpNLS.nextCommentThreadNoKb, keybindingService));
-		commentCommandInfo.push(descriptionForCommand(CommentCommandId.PreviousThread, CommentAccessibilityHelpNLS.previousCommentThreadKb, CommentAccessibilityHelpNLS.previousCommentThreadNoKb, keybindingService));
-		commentCommandInfo.push(descriptionForCommand(CommentCommandId.NextRange, CommentAccessibilityHelpNLS.nextRange, CommentAccessibilityHelpNLS.nextRangeNoKb, keybindingService));
-		commentCommandInfo.push(descriptionForCommand(CommentCommandId.PreviousRange, CommentAccessibilityHelpNLS.previousRange, CommentAccessibilityHelpNLS.previousRangeNoKb, keybindingService));
-		return commentCommandInfo.join('\n');
+		return [CommentAccessibilityHelpNLS.intro, CommentAccessibilityHelpNLS.addComment, CommentAccessibilityHelpNLS.nextCommentThread, CommentAccessibilityHelpNLS.previousCommentThread, CommentAccessibilityHelpNLS.nextRange, CommentAccessibilityHelpNLS.previousRange].join('\n');
 	}
 	return;
 }
 
 export function getChatCommandInfo(keybindingService: IKeybindingService, contextKeyService: IContextKeyService): string | undefined {
 	if (CONTEXT_CHAT_ENABLED.getValue(contextKeyService)) {
-		const commentCommandInfo: string[] = [];
-		commentCommandInfo.push(descriptionForCommand('workbench.action.quickchat.toggle', AccessibilityHelpNLS.quickChat, AccessibilityHelpNLS.quickChatNoKb, keybindingService));
-		commentCommandInfo.push(descriptionForCommand('inlineChat.start', AccessibilityHelpNLS.startInlineChat, AccessibilityHelpNLS.startInlineChatNoKb, keybindingService));
-		return commentCommandInfo.join('\n');
+		return [AccessibilityHelpNLS.quickChat, AccessibilityHelpNLS.startInlineChat].join('\n');
 	}
 	return;
 }

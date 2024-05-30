@@ -258,14 +258,14 @@ export class EmptySubmenuAction extends Action {
 	}
 }
 
-export function toAction(props: { id: string; label: string; enabled?: boolean; checked?: boolean; class?: string; run: Function }): IAction {
+export function toAction(props: { id: string; label: string; tooltip?: string; enabled?: boolean; checked?: boolean; class?: string; run: Function }): IAction {
 	return {
 		id: props.id,
 		label: props.label,
+		tooltip: props.tooltip ?? props.label,
 		class: props.class,
 		enabled: props.enabled ?? true,
 		checked: props.checked,
 		run: async (...args: unknown[]) => props.run(...args),
-		tooltip: props.label
 	};
 }

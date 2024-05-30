@@ -25,7 +25,8 @@ export function getSimpleEditorOptions(configurationService: IConfigurationServi
 		hideCursorInOverviewRuler: true,
 		selectionHighlight: false,
 		scrollbar: {
-			horizontal: 'hidden'
+			horizontal: 'hidden',
+			alwaysConsumeMouseWheel: false
 		},
 		lineDecorationsWidth: 0,
 		overviewRulerBorder: false,

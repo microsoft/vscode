@@ -89,6 +89,10 @@ import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalSt
 import { shouldPasteTerminalText } from 'vs/workbench/contrib/terminal/common/terminalClipboard';
 import { TerminalIconPicker } from 'vs/workbench/contrib/terminal/browser/terminalIconPicker';
 
+// HACK: This file should not depend on terminalContrib
+// eslint-disable-next-line local/code-import-patterns
+import { TerminalAccessibilityCommandId } from 'vs/workbench/contrib/terminalContrib/accessibility/common/terminal.accessibility';
+
 const enum Constants {
 	/**
 	 * The maximum amount of milliseconds to wait for a container before starting to create the
@@ -301,6 +305,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	readonly onTitleChanged = this._onTitleChanged.event;
 	private readonly _onIconChanged = this._register(new Emitter<{ instance: ITerminalInstance; userInitiated: boolean }>());
 	readonly onIconChanged = this._onIconChanged.event;
+	private readonly _onWillData = this._register(new Emitter<string>());
+	readonly onWillData = this._onWillData.event;
 	private readonly _onData = this._register(new Emitter<string>());
 	readonly onData = this._onData.event;
 	private readonly _onBinary = this._register(new Emitter<string>());
@@ -321,7 +327,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	readonly onDidRequestFocus = this._onDidRequestFocus.event;
 	private readonly _onDidBlur = this._register(new Emitter<ITerminalInstance>());
 	readonly onDidBlur = this._onDidBlur.event;
-	private readonly _onDidInputData = this._register(new Emitter<ITerminalInstance>());
+	private readonly _onDidInputData = this._register(new Emitter<string>());
 	readonly onDidInputData = this._onDidInputData.event;
 	private readonly _onDidChangeSelection = this._register(new Emitter<ITerminalInstance>());
 	readonly onDidChangeSelection = this._onDidChangeSelection.event;
@@ -335,6 +341,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	readonly onDidChangeTarget = this._onDidChangeTarget.event;
 	private readonly _onDidSendText = this._register(new Emitter<string>());
 	readonly onDidSendText = this._onDidSendText.event;
+	private readonly _onDidChangeShellType = this._register(new Emitter<TerminalShellType>());
+	readonly onDidChangeShellType = this._onDidChangeShellType.event;
 
 	constructor(
 		private readonly _terminalShellTypeContextKey: IContextKey<string>,
@@ -576,7 +584,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._xtermReadyPromise.then(xterm => {
 				contribution.xtermReady?.(xterm);
 			});
-			this.onDisposed(() => {
+			this._register(this.onDisposed(() => {
 				contribution.dispose();
 				this._contributions.delete(desc.id);
 				// Just in case to prevent potential future memory leaks due to cyclic dependency.
@@ -586,7 +594,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				if ('_instance' in contribution) {
 					delete contribution._instance;
 				}
-			});
+			}));
 		}
 	}
 
@@ -702,7 +710,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get shouldPersist(): boolean { return this._processManager.shouldPersist && !this.shellLaunchConfig.isTransient && (!this.reconnectionProperties || this._configurationService.getValue('task.reconnection') === true); }
 
 	public static getXtermConstructor(keybindingService: IKeybindingService, contextKeyService: IContextKeyService) {
-		const keybinding = keybindingService.lookupKeybinding(TerminalCommandId.FocusAccessibleBuffer, contextKeyService);
+		const keybinding = keybindingService.lookupKeybinding(TerminalAccessibilityCommandId.FocusAccessibleBuffer, contextKeyService);
 		if (xtermConstructor) {
 			return xtermConstructor;
 		}
@@ -774,7 +782,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._register(this._processManager.onProcessData(e => this._onProcessData(e)));
 		this._register(xterm.raw.onData(async data => {
 			await this._processManager.write(data);
-			this._onDidInputData.fire(this);
+			this._onDidInputData.fire(data);
 		}));
 		this._register(xterm.raw.onBinary(data => this._processManager.processBinary(data)));
 		// Init winpty compat and link handler after process creation as they rely on the
@@ -987,7 +995,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 								run: () => {
 									this._preferencesService.openSettings({ jsonEditor: false, query: `@id:${TerminalSettingId.CommandsToSkipShell},${TerminalSettingId.SendKeybindingsToShell},${TerminalSettingId.AllowChords}` });
 								}
-							} as IPromptChoice
+							} satisfies IPromptChoice
 						]
 					);
 					this._storageService.store(SHOW_TERMINAL_CONFIG_PROMPT_KEY, false, StorageScope.APPLICATION, StorageTarget.USER);
@@ -1242,8 +1250,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		// Send it to the process
+		this._logService.debug('sending data (vscode)', text);
 		await this._processManager.write(text);
-		this._onDidInputData.fire(this);
+		this._onDidInputData.fire(text);
 		this._onDidSendText.fire(text);
 		this.xterm?.scrollToBottom();
 		if (shouldExecute) {
@@ -1452,6 +1461,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				}
 			}
 		});
+		if (this.isDisposed) {
+			return;
+		}
 		if (this.xterm?.shellIntegration) {
 			this.capabilities.add(this.xterm.shellIntegration.capabilities);
 		}
@@ -1502,6 +1514,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _writeProcessData(data: string, cb?: () => void) {
+		this._onWillData.fire(data);
 		const messageId = ++this._latestXtermWriteData;
 		this.xterm?.raw.write(data, () => {
 			this._latestXtermParseData = messageId;
@@ -1885,9 +1898,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	setShellType(shellType: TerminalShellType | undefined) {
-		this._shellType = shellType;
+		if (this._shellType === shellType) {
+			return;
+		}
 		if (shellType) {
+			this._shellType = shellType;
 			this._terminalShellTypeContextKey.set(shellType?.toString());
+			this._onDidChangeShellType.fire(shellType);
 		}
 	}
 

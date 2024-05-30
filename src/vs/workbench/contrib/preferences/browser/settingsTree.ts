@@ -1711,12 +1711,12 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 
 		// Use String constructor in case of null or undefined values
 		const stringifiedDefaultValue = escapeInvisibleChars(String(dataElement.defaultValue));
-		const displayOptions = settingEnum
+		const displayOptions: ISelectOptionItem[] = settingEnum
 			.map(String)
 			.map(escapeInvisibleChars)
 			.map((data, index) => {
 				const description = (enumDescriptions[index] && (enumDescriptionsAreMarkdown ? fixSettingLinks(enumDescriptions[index], false) : enumDescriptions[index]));
-				return <ISelectOptionItem>{
+				return {
 					text: enumItemLabels[index] ? enumItemLabels[index] : data,
 					detail: enumItemLabels[index] ? data : '',
 					description,
@@ -1728,7 +1728,7 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 						disposables: disposables
 					},
 					decoratorRight: (((data === stringifiedDefaultValue) || (createdDefault && index === 0)) ? localize('settings.Default', "default") : '')
-				};
+				} satisfies ISelectOptionItem;
 			});
 
 		template.selectBox.setOptions(displayOptions);

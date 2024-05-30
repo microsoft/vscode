@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { distinct, flatten } from 'vs/base/common/arrays';
+import { distinct } from 'vs/base/common/arrays';
 import { sequence } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -258,7 +258,7 @@ export class ConfigurationManager implements IConfigurationManager {
 					});
 
 					const nestedPicks = await Promise.all(picks);
-					const items = flatten(nestedPicks);
+					const items = nestedPicks.flat();
 
 					input.items = items;
 					input.busy = false;

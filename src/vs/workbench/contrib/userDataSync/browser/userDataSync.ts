@@ -50,7 +50,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ctxIsMergeResultEditor, ctxMergeBaseUri } from 'vs/workbench/contrib/mergeEditor/common/mergeEditor';
-import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
+import { IWorkbenchIssueService } from 'vs/workbench/contrib/issue/common/issue';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { isWeb } from 'vs/base/common/platform';
@@ -730,15 +730,15 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					f1: true,
 					precondition: when,
 					menu: [{
-						group: '3_settings_sync',
+						group: '3_configuration',
 						id: MenuId.GlobalActivity,
 						when,
-						order: 1
+						order: 2
 					}, {
-						group: '3_settings_sync',
+						group: '3_configuration',
 						id: MenuId.MenubarPreferencesMenu,
 						when,
-						order: 1
+						order: 2
 					}, {
 						group: '1_settings',
 						id: MenuId.AccountsContext,
@@ -762,7 +762,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					title: localize('turnin on sync', "Turning on Settings Sync..."),
 					precondition: ContextKeyExpr.false(),
 					menu: [{
-						group: '3_settings_sync',
+						group: '3_configuration',
 						id: MenuId.GlobalActivity,
 						when,
 						order: 2
@@ -809,7 +809,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					id: 'workbench.userData.actions.signin',
 					title: localize('sign in global', "Sign in to Sync Settings"),
 					menu: {
-						group: '3_settings_sync',
+						group: '3_configuration',
 						id: MenuId.GlobalActivity,
 						when,
 						order: 2
@@ -851,12 +851,12 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					f1: true,
 					precondition: CONTEXT_HAS_CONFLICTS,
 					menu: [{
-						group: '3_settings_sync',
+						group: '3_configuration',
 						id: MenuId.GlobalActivity,
 						when: CONTEXT_HAS_CONFLICTS,
 						order: 2
 					}, {
-						group: '3_settings_sync',
+						group: '3_configuration',
 						id: MenuId.MenubarPreferencesMenu,
 						when: CONTEXT_HAS_CONFLICTS,
 						order: 2
@@ -881,13 +881,13 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					menu: [
 						{
 							id: MenuId.GlobalActivity,
-							group: '3_settings_sync',
+							group: '3_configuration',
 							when,
 							order: 2
 						},
 						{
 							id: MenuId.MenubarPreferencesMenu,
-							group: '3_settings_sync',
+							group: '3_configuration',
 							when,
 							order: 2,
 						},

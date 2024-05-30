@@ -84,7 +84,7 @@ export class CellComments extends CellContentPart {
 
 		const layoutInfo = this.notebookEditor.getLayoutInfo();
 
-		await this._commentThreadWidget.display(layoutInfo.fontInfo.lineHeight);
+		await this._commentThreadWidget.display(layoutInfo.fontInfo.lineHeight, true);
 		this._applyTheme();
 
 		this.commentTheadDisposables.add(this._commentThreadWidget.onDidResize(() => {

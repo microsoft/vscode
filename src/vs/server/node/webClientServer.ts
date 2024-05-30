@@ -30,13 +30,13 @@ import { isString } from 'vs/base/common/types';
 import { CharCode } from 'vs/base/common/charCode';
 import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 
-const textMimeType = {
+const textMimeType: { [ext: string]: string | undefined } = {
 	'.html': 'text/html',
 	'.js': 'text/javascript',
 	'.json': 'application/json',
 	'.css': 'text/css',
 	'.svg': 'image/svg+xml',
-} as { [ext: string]: string | undefined };
+};
 
 /**
  * Return an error to the client.
@@ -306,17 +306,17 @@ export class WebClientServer {
 			scopes: [['user:email'], ['repo']]
 		} : undefined;
 
-		const productConfiguration = <Partial<IProductConfiguration>>{
+		const productConfiguration = {
 			embedderIdentifier: 'server-distro',
-			extensionsGallery: this._webExtensionResourceUrlTemplate ? {
+			extensionsGallery: this._webExtensionResourceUrlTemplate && this._productService.extensionsGallery ? {
 				...this._productService.extensionsGallery,
-				'resourceUrlTemplate': this._webExtensionResourceUrlTemplate.with({
+				resourceUrlTemplate: this._webExtensionResourceUrlTemplate.with({
 					scheme: 'http',
 					authority: remoteAuthority,
 					path: `${this._webExtensionRoute}/${this._webExtensionResourceUrlTemplate.authority}${this._webExtensionResourceUrlTemplate.path}`
 				}).toString(true)
 			} : undefined
-		};
+		} satisfies Partial<IProductConfiguration>;
 
 		if (!this._environmentService.isBuilt) {
 			try {

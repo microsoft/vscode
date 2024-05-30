@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { EventHelper, addDisposableListener, getActiveDocument, getWindow } from 'vs/base/browser/dom';
+import { EventHelper, addDisposableListener, getActiveDocument, getWindow, isHTMLElement, isHTMLInputElement, isHTMLTextAreaElement } from 'vs/base/browser/dom';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { isNative } from 'vs/base/common/platform';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
@@ -54,8 +54,8 @@ export class TextInputActionsProvider extends Disposable implements IWorkbenchCo
 				else {
 					const clipboardText = await this.clipboardService.readText();
 					if (
-						element instanceof HTMLTextAreaElement ||
-						element instanceof HTMLInputElement
+						isHTMLTextAreaElement(element) ||
+						isHTMLInputElement(element)
 					) {
 						const selectionStart = element.selectionStart || 0;
 						const selectionEnd = element.selectionEnd || 0;
@@ -88,7 +88,7 @@ export class TextInputActionsProvider extends Disposable implements IWorkbenchCo
 		}
 
 		const target = e.target;
-		if (!(target instanceof HTMLElement) || (target.nodeName.toLowerCase() !== 'input' && target.nodeName.toLowerCase() !== 'textarea')) {
+		if (!(isHTMLElement(target)) || (target.nodeName.toLowerCase() !== 'input' && target.nodeName.toLowerCase() !== 'textarea')) {
 			return; // only for inputs or textareas
 		}
 

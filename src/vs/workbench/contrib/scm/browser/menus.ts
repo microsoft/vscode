@@ -199,7 +199,7 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 		]);
 
 		const serviceCollection = new ServiceCollection([IContextKeyService, this.contextKeyService]);
-		instantiationService = instantiationService.createChild(serviceCollection);
+		instantiationService = instantiationService.createChild(serviceCollection, this.disposables);
 		this.titleMenu = instantiationService.createInstance(SCMTitleMenu);
 		this.disposables.add(this.titleMenu);
 

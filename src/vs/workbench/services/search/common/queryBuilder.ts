@@ -110,7 +110,7 @@ export class QueryBuilder {
 		});
 
 		const commonQuery = this.commonQuery(folderResources?.map(toWorkspaceFolder), options);
-		return <ITextQuery>{
+		return {
 			...commonQuery,
 			type: QueryType.Text,
 			contentPattern,
@@ -180,7 +180,7 @@ export class QueryBuilder {
 
 	file(folders: (IWorkspaceFolderData | URI)[], options: IFileQueryBuilderOptions = {}): IFileQuery {
 		const commonQuery = this.commonQuery(folders, options);
-		return <IFileQuery>{
+		return {
 			...commonQuery,
 			type: QueryType.File,
 			filePattern: options.filePattern
@@ -228,7 +228,7 @@ export class QueryBuilder {
 		};
 
 		if (options.onlyOpenEditors) {
-			const openEditors = arrays.coalesce(arrays.flatten(this.editorGroupsService.groups.map(group => group.editors.map(editor => editor.resource))));
+			const openEditors = arrays.coalesce(this.editorGroupsService.groups.flatMap(group => group.editors.map(editor => editor.resource)));
 			this.logService.trace('QueryBuilder#commonQuery - openEditor URIs', JSON.stringify(openEditors));
 			const openEditorsInQuery = openEditors.filter(editor => pathIncludedInQuery(queryProps, editor.fsPath));
 			const openEditorsQueryProps = this.commonQueryFromFileList(openEditorsInQuery);
@@ -358,7 +358,7 @@ export class QueryBuilder {
 			result.searchPaths = searchPaths;
 		}
 
-		const exprSegments = arrays.flatten(expandedExprSegments);
+		const exprSegments = expandedExprSegments.flat();
 		const includePattern = patternListToIExpression(...exprSegments);
 		if (includePattern) {
 			result.pattern = includePattern;
@@ -540,7 +540,7 @@ export class QueryBuilder {
 		};
 
 		const folderName = URI.isUri(folder) ? basename(folder) : folder.name;
-		return <IFolderQuery>{
+		return {
 			folder: folderUri,
 			folderName: includeFolderName ? folderName : undefined,
 			excludePattern: Object.keys(excludePattern).length > 0 ? excludePattern : undefined,

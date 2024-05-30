@@ -5,32 +5,32 @@
 
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { ServiceConfigurationProvider, SyntaxServerConfiguration, TsServerLogLevel, TypeScriptServiceConfiguration, areServiceConfigurationsEqual } from './configuration/configuration';
+import * as fileSchemes from './configuration/fileSchemes';
+import { Schemes } from './configuration/schemes';
 import { IExperimentationTelemetryReporter } from './experimentTelemetryReporter';
 import { DiagnosticKind, DiagnosticsManager } from './languageFeatures/diagnostics';
-import * as Proto from './tsServer/protocol/protocol';
-import { EventName } from './tsServer/protocol/protocol.const';
+import { Logger } from './logging/logger';
+import { TelemetryProperties, TelemetryReporter, VSCodeTelemetryReporter } from './logging/telemetry';
+import Tracer from './logging/tracer';
+import { ProjectType, inferredProjectCompilerOptions } from './tsconfig';
 import { API } from './tsServer/api';
 import BufferSyncSupport from './tsServer/bufferSyncSupport';
 import { OngoingRequestCancellerFactory } from './tsServer/cancellation';
 import { ILogDirectoryProvider } from './tsServer/logDirectoryProvider';
+import { NodeVersionManager } from './tsServer/nodeManager';
 import { TypeScriptPluginPathsProvider } from './tsServer/pluginPathsProvider';
+import { PluginManager, TypeScriptServerPlugin } from './tsServer/plugins';
+import * as Proto from './tsServer/protocol/protocol';
+import { EventName } from './tsServer/protocol/protocol.const';
 import { ITypeScriptServer, TsServerLog, TsServerProcessFactory, TypeScriptServerExitEvent } from './tsServer/server';
 import { TypeScriptServerError } from './tsServer/serverError';
 import { TypeScriptServerSpawner } from './tsServer/spawner';
 import { TypeScriptVersionManager } from './tsServer/versionManager';
 import { ITypeScriptVersionProvider, TypeScriptVersion } from './tsServer/versionProvider';
 import { ClientCapabilities, ClientCapability, ExecConfig, ITypeScriptServiceClient, ServerResponse, TypeScriptRequests } from './typescriptService';
-import { ServiceConfigurationProvider, SyntaxServerConfiguration, TsServerLogLevel, TypeScriptServiceConfiguration, areServiceConfigurationsEqual } from './configuration/configuration';
 import { Disposable, DisposableStore, disposeAll } from './utils/dispose';
-import * as fileSchemes from './configuration/fileSchemes';
-import { Logger } from './logging/logger';
 import { isWeb, isWebAndHasSharedArrayBuffers } from './utils/platform';
-import { PluginManager, TypeScriptServerPlugin } from './tsServer/plugins';
-import { TelemetryProperties, TelemetryReporter, VSCodeTelemetryReporter } from './logging/telemetry';
-import Tracer from './logging/tracer';
-import { ProjectType, inferredProjectCompilerOptions } from './tsconfig';
-import { Schemes } from './configuration/schemes';
-import { NodeVersionManager } from './tsServer/nodeManager';
 
 
 export interface TsDiagnostics {
@@ -463,7 +463,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				}
 			*/
 			this.logTelemetry('tsserver.error');
-			this.serviceExited(false);
+			this.serviceExited(false, apiVersion);
 		});
 
 		handle.onExit((data: TypeScriptServerExitEvent) => {
@@ -484,7 +484,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			*/
 			this.logTelemetry('tsserver.exitWithCode', { code: code ?? undefined, signal: signal ?? undefined });
 
-
 			if (this.token !== mytoken) {
 				// this is coming from an old process
 				return;
@@ -493,7 +492,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			if (handle.tsServerLog?.type === 'file') {
 				this.info(`TSServer log file: ${handle.tsServerLog.uri.fsPath}`);
 			}
-			this.serviceExited(!this.isRestarting);
+			this.serviceExited(!this.isRestarting, apiVersion);
 			this.isRestarting = false;
 		});
 
@@ -612,7 +611,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		};
 	}
 
-	private serviceExited(restart: boolean): void {
+	private serviceExited(restart: boolean, tsVersion: API): void {
 		this.resetWatchers();
 		this.loadingIndicator.reset();
 
@@ -686,17 +685,34 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				this._isPromptingAfterCrash = true;
 			}
 
-			prompt?.then(item => {
+			prompt?.then(async item => {
 				this._isPromptingAfterCrash = false;
 
 				if (item === reportIssueItem) {
+
 					const minModernTsVersion = this.versionProvider.bundledVersion.apiVersion;
 
-					if (
+					// Don't allow reporting issues using the PnP patched version of TS Server
+					if (tsVersion.isYarnPnp()) {
+						const reportIssue: vscode.MessageItem = {
+							title: vscode.l10n.t("Report issue against Yarn PnP"),
+						};
+						const response = await vscode.window.showWarningMessage(
+							vscode.l10n.t("Please report an issue against Yarn PnP"),
+							{
+								modal: true,
+								detail: vscode.l10n.t("The workspace is using a version of the TypeScript Server that has been patched by Yarn PnP. This patching is a common source of bugs."),
+							},
+							reportIssue);
+
+						if (response === reportIssue) {
+							vscode.env.openExternal(vscode.Uri.parse('https://github.com/yarnpkg/berry/issues'));
+						}
+					}
+					// Don't allow reporting issues with old TS versions
+					else if (
 						minModernTsVersion &&
-						previousState.type === ServerState.Type.Errored &&
-						previousState.error instanceof TypeScriptServerError &&
-						previousState.error.version.apiVersion?.lt(minModernTsVersion)
+						tsVersion.lt(minModernTsVersion)
 					) {
 						vscode.window.showWarningMessage(
 							vscode.l10n.t("Please update your TypeScript version"),
@@ -704,7 +720,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 								modal: true,
 								detail: vscode.l10n.t(
 									"The workspace is using an old version of TypeScript ({0}).\n\nBefore reporting an issue, please update the workspace to use TypeScript {1} or newer to make sure the bug has not already been fixed.",
-									previousState.error.version.apiVersion.displayName,
+									tsVersion.displayName,
 									minModernTsVersion.displayName),
 							});
 					} else {

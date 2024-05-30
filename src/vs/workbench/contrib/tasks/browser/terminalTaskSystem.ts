@@ -435,6 +435,9 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 	public terminate(task: Task): Promise<ITaskTerminateResponse> {
 		const activeTerminal = this._activeTasks[task.getMapKey()];
+		if (!activeTerminal) {
+			return Promise.resolve<ITaskTerminateResponse>({ success: false, task: undefined });
+		}
 		const terminal = activeTerminal.terminal;
 		if (!terminal) {
 			return Promise.resolve<ITaskTerminateResponse>({ success: false, task: undefined });
@@ -460,7 +463,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	public terminateAll(): Promise<ITaskTerminateResponse[]> {
 		const promises: Promise<ITaskTerminateResponse>[] = [];
 		for (const [key, terminalData] of Object.entries(this._activeTasks)) {
-			const terminal = terminalData.terminal;
+			const terminal = terminalData?.terminal;
 			if (terminal) {
 				promises.push(new Promise<ITaskTerminateResponse>((resolve, reject) => {
 					const onExit = terminal.onExit(() => {

@@ -277,7 +277,7 @@ class HoverAdapter {
 			if (!previousHover) {
 				throw new Error(`Hover with id ${previousHoverId} not found`);
 			}
-			const hoverContext: vscode.HoverContext = { action: context.verbosityRequest.action, previousHover };
+			const hoverContext: vscode.HoverContext = { verbosityDelta: context.verbosityRequest.verbosityDelta, previousHover };
 			value = await this._provider.provideHover(doc, pos, token, hoverContext);
 		} else {
 			value = await this._provider.provideHover(doc, pos, token);
@@ -792,7 +792,7 @@ class RenameAdapter {
 		private readonly _logService: ILogService
 	) { }
 
-	async provideRenameEdits(resource: URI, position: IPosition, newName: string, token: CancellationToken): Promise<extHostProtocol.IWorkspaceEditDto | undefined> {
+	async provideRenameEdits(resource: URI, position: IPosition, newName: string, token: CancellationToken): Promise<extHostProtocol.IWorkspaceEditDto & languages.Rejection | undefined> {
 
 		const doc = this._documents.getDocument(resource);
 		const pos = typeConvert.Position.to(position);
@@ -807,7 +807,7 @@ class RenameAdapter {
 		} catch (err) {
 			const rejectReason = RenameAdapter._asMessage(err);
 			if (rejectReason) {
-				return <extHostProtocol.IWorkspaceEditDto>{ rejectReason, edits: undefined! };
+				return { rejectReason, edits: undefined! };
 			} else {
 				// generic error
 				return Promise.reject<extHostProtocol.IWorkspaceEditDto>(err);
@@ -849,7 +849,7 @@ class RenameAdapter {
 		} catch (err) {
 			const rejectReason = RenameAdapter._asMessage(err);
 			if (rejectReason) {
-				return <languages.RenameLocation & languages.Rejection>{ rejectReason, range: undefined!, text: undefined! };
+				return { rejectReason, range: undefined!, text: undefined! };
 			} else {
 				return Promise.reject<any>(err);
 			}
@@ -2196,6 +2196,10 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return ext.displayName || ext.name;
 	}
 
+	private static _extId(ext: IExtensionDescription): string {
+		return ext.identifier.value;
+	}
+
 	// --- outline
 
 	registerDocumentSymbolProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentSymbolProvider, metadata?: vscode.DocumentSymbolProviderMetadata): vscode.Disposable {
@@ -2385,18 +2389,18 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return this._withAdapter(handle, ReferenceAdapter, adapter => adapter.provideReferences(URI.revive(resource), position, context, token), undefined, token);
 	}
 
-	// --- quick fix
+	// --- code actions
 
 	registerCodeActionProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.CodeActionProvider, metadata?: vscode.CodeActionProviderMetadata): vscode.Disposable {
 		const store = new DisposableStore();
 		const handle = this._addNewAdapter(new CodeActionAdapter(this._documents, this._commands.converter, this._diagnostics, provider, this._logService, extension, this._apiDeprecation), extension);
-		this._proxy.$registerQuickFixSupport(handle, this._transformDocumentSelector(selector, extension), {
+		this._proxy.$registerCodeActionSupport(handle, this._transformDocumentSelector(selector, extension), {
 			providedKinds: metadata?.providedCodeActionKinds?.map(kind => kind.value),
 			documentation: metadata?.documentation?.map(x => ({
 				kind: x.kind.value,
 				command: this._commands.converter.toInternal(x.command, store),
 			}))
-		}, ExtHostLanguageFeatures._extLabel(extension), Boolean(provider.resolveCodeAction));
+		}, ExtHostLanguageFeatures._extLabel(extension), ExtHostLanguageFeatures._extId(extension), Boolean(provider.resolveCodeAction));
 		store.add(this._createDisposable(handle));
 		return store;
 	}

@@ -10,6 +10,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { AccessibilityProgressSignalScheduler } from 'vs/platform/accessibilitySignal/browser/progressAccessibilitySignalScheduler';
 import { IChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { renderStringAsPlaintext } from 'vs/base/browser/markdownRenderer';
 
 const CHAT_RESPONSE_PENDING_ALLOWANCE_MS = 4000;
 export class ChatAccessibilityService extends Disposable implements IChatAccessibilityService {
@@ -34,11 +35,11 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 		const isPanelChat = typeof response !== 'string';
 		const responseContent = typeof response === 'string' ? response : response?.response.asString();
 		this._accessibilitySignalService.playSignal(AccessibilitySignal.chatResponseReceived, { allowManyInParallel: true });
-		if (!response) {
+		if (!response || !responseContent) {
 			return;
 		}
 		const errorDetails = isPanelChat && response.errorDetails ? ` ${response.errorDetails.message}` : '';
-		status(responseContent + errorDetails);
+		status(renderStringAsPlaintext(responseContent) + errorDetails);
 	}
 }
 

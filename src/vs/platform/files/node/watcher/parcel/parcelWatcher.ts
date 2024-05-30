@@ -21,7 +21,7 @@ import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { realcaseSync, realpathSync } from 'vs/base/node/extpath';
 import { NodeJSFileWatcherLibrary } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
 import { FileChangeType, IFileChange } from 'vs/platform/files/common/files';
-import { coalesceEvents, IRecursiveWatchRequest, parseWatcherPatterns, IRecursiveWatcherWithSubscribe, isFiltered } from 'vs/platform/files/common/watcher';
+import { coalesceEvents, IRecursiveWatchRequest, parseWatcherPatterns, IRecursiveWatcherWithSubscribe, isFiltered, IWatcherErrorEvent } from 'vs/platform/files/common/watcher';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 
 export class ParcelWatcherInstance extends Disposable {
@@ -147,7 +147,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 
 	private static readonly PARCEL_WATCHER_BACKEND = isWindows ? 'windows' : isLinux ? 'inotify' : 'fs-events';
 
-	private readonly _onDidError = this._register(new Emitter<string>());
+	private readonly _onDidError = this._register(new Emitter<IWatcherErrorEvent>());
 	readonly onDidError = this._onDidError.event;
 
 	readonly watchers = new Set<ParcelWatcherInstance>();
@@ -359,7 +359,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 			// the state of parcel at this point and as such will try to restart
 			// up to our maximum of restarts.
 			if (error) {
-				this.onUnexpectedError(error, watcher);
+				this.onUnexpectedError(error, request);
 			}
 
 			// Handle & emit events
@@ -372,7 +372,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 
 			instance.complete(parcelWatcher);
 		}).catch(error => {
-			this.onUnexpectedError(error, watcher);
+			this.onUnexpectedError(error, request);
 
 			instance.complete(undefined);
 
@@ -607,7 +607,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		return false;
 	}
 
-	private onUnexpectedError(error: unknown, watcher?: ParcelWatcherInstance): void {
+	private onUnexpectedError(error: unknown, request?: IRecursiveWatchRequest): void {
 		const msg = toErrorMessage(error);
 
 		// Specially handle ENOSPC errors that can happen when
@@ -617,7 +617,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		// See https://github.com/microsoft/vscode/issues/7950
 		if (msg.indexOf('No space left on device') !== -1) {
 			if (!this.enospcErrorLogged) {
-				this.error('Inotify limit reached (ENOSPC)', watcher);
+				this.error('Inotify limit reached (ENOSPC)', request);
 
 				this.enospcErrorLogged = true;
 			}
@@ -627,9 +627,9 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		// restart the watcher as a result to get into healthy
 		// state again if possible and if not attempted too much
 		else {
-			this.error(`Unexpected error: ${msg} (EUNKNOWN)`, watcher);
+			this.error(`Unexpected error: ${msg} (EUNKNOWN)`, request);
 
-			this._onDidError.fire(msg);
+			this._onDidError.fire({ request, error: msg });
 		}
 	}
 
@@ -681,7 +681,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		try {
 			await watcher.stop(joinRestart);
 		} catch (error) {
-			this.error(`Unexpected error stopping watcher: ${toErrorMessage(error)}`, watcher);
+			this.error(`Unexpected error stopping watcher: ${toErrorMessage(error)}`, watcher.request);
 		}
 	}
 
@@ -820,20 +820,20 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 
 	protected trace(message: string, watcher?: ParcelWatcherInstance): void {
 		if (this.verboseLogging) {
-			this._onDidLogMessage.fire({ type: 'trace', message: this.toMessage(message, watcher) });
+			this._onDidLogMessage.fire({ type: 'trace', message: this.toMessage(message, watcher?.request) });
 		}
 	}
 
 	protected warn(message: string, watcher?: ParcelWatcherInstance) {
-		this._onDidLogMessage.fire({ type: 'warn', message: this.toMessage(message, watcher) });
+		this._onDidLogMessage.fire({ type: 'warn', message: this.toMessage(message, watcher?.request) });
 	}
 
-	private error(message: string, watcher?: ParcelWatcherInstance) {
-		this._onDidLogMessage.fire({ type: 'error', message: this.toMessage(message, watcher) });
+	private error(message: string, request?: IRecursiveWatchRequest) {
+		this._onDidLogMessage.fire({ type: 'error', message: this.toMessage(message, request) });
 	}
 
-	private toMessage(message: string, watcher?: ParcelWatcherInstance): string {
-		return watcher ? `[File Watcher (parcel)] ${message} (path: ${watcher.request.path})` : `[File Watcher (parcel)] ${message}`;
+	private toMessage(message: string, request?: IRecursiveWatchRequest): string {
+		return request ? `[File Watcher (parcel)] ${message} (path: ${request.path})` : `[File Watcher (parcel)] ${message}`;
 	}
 
 	protected get recursiveWatcher() { return this; }

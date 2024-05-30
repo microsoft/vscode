@@ -77,6 +77,7 @@ export interface ICommonNativeHostService {
 	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
 	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
 
+	isFullScreen(options?: INativeHostOptions): Promise<boolean>;
 	toggleFullScreen(options?: INativeHostOptions): Promise<void>;
 
 	handleTitleDoubleClick(options?: INativeHostOptions): Promise<void>;
@@ -141,6 +142,7 @@ export interface ICommonNativeHostService {
 	hasWSLFeatureInstalled(): Promise<boolean>;
 
 	// Process
+	getProcessId(): Promise<number | undefined>;
 	killProcess(pid: number, code: string): Promise<void>;
 
 	// Clipboard

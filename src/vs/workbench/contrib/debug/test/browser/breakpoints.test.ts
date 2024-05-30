@@ -161,8 +161,8 @@ suite('Debug - Breakpoints', () => {
 	});
 
 	test('function breakpoints', () => {
-		model.addFunctionBreakpoint('foo', '1');
-		model.addFunctionBreakpoint('bar', '2');
+		model.addFunctionBreakpoint({ name: 'foo' }, '1');
+		model.addFunctionBreakpoint({ name: 'bar' }, '2');
 		model.updateFunctionBreakpoint('1', { name: 'fooUpdated' });
 		model.updateFunctionBreakpoint('2', { name: 'barUpdated' });
 
@@ -380,7 +380,7 @@ suite('Debug - Breakpoints', () => {
 		assert.strictEqual(result.message, 'Data Breakpoint');
 		assert.strictEqual(result.icon.id, 'debug-breakpoint-data');
 
-		const functionBreakpoint = model.addFunctionBreakpoint('foo', '1');
+		const functionBreakpoint = model.addFunctionBreakpoint({ name: 'foo' }, '1');
 		result = getBreakpointMessageAndIcon(State.Stopped, true, functionBreakpoint, ls, model);
 		assert.strictEqual(result.message, 'Function Breakpoint');
 		assert.strictEqual(result.icon.id, 'debug-breakpoint-function');

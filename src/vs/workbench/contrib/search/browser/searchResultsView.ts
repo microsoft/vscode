@@ -196,7 +196,7 @@ export class FolderMatchRenderer extends Disposable implements ICompressibleTree
 		templateData.badge.setCount(count);
 		templateData.badge.setTitleFormat(count > 1 ? nls.localize('searchFileMatches', "{0} files found", count) : nls.localize('searchFileMatch', "{0} file found", count));
 
-		templateData.actions.context = <ISearchActionContext>{ viewer: this.searchView.getControl(), element: folder };
+		templateData.actions.context = { viewer: this.searchView.getControl(), element: folder } satisfies ISearchActionContext;
 	}
 }
 
@@ -267,7 +267,7 @@ export class FileMatchRenderer extends Disposable implements ICompressibleTreeRe
 		templateData.badge.setCount(count);
 		templateData.badge.setTitleFormat(count > 1 ? nls.localize('searchMatches', "{0} matches found", count) : nls.localize('searchMatch', "{0} match found", count));
 
-		templateData.actions.context = <ISearchActionContext>{ viewer: this.searchView.getControl(), element: fileMatch };
+		templateData.actions.context = { viewer: this.searchView.getControl(), element: fileMatch } satisfies ISearchActionContext;
 
 		SearchContext.IsEditableItemKey.bindTo(templateData.contextKeyService).set(!fileMatch.hasOnlyReadOnlyMatches());
 
@@ -379,7 +379,7 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 		templateData.lineNumber.textContent = lineNumberStr + extraLinesStr;
 		templateData.disposables.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), templateData.lineNumber, this.getMatchTitle(match, showLineNumbers)));
 
-		templateData.actions.context = <ISearchActionContext>{ viewer: this.searchView.getControl(), element: match };
+		templateData.actions.context = { viewer: this.searchView.getControl(), element: match } satisfies ISearchActionContext;
 
 	}
 

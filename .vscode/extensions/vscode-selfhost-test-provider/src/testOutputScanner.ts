@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import {
+	decodedMappings,
 	GREATEST_LOWER_BOUND,
 	LEAST_UPPER_BOUND,
 	originalPositionFor,
@@ -12,11 +13,12 @@ import {
 import * as styles from 'ansi-styles';
 import { ChildProcessWithoutNullStreams } from 'child_process';
 import * as vscode from 'vscode';
-import { coverageContext } from './coverageProvider';
+import { istanbulCoverageContext, PerTestCoverageTracker } from './coverageProvider';
 import { attachTestMessageMetadata } from './metadata';
 import { snapshotComment } from './snapshot';
-import { getContentFromFilesystem } from './testTree';
 import { StreamSplitter } from './streamSplitter';
+import { getContentFromFilesystem } from './testTree';
+import { IScriptCoverage } from './v8CoverageWrangling';
 
 export const enum MochaEvent {
 	Start = 'start',
@@ -24,6 +26,10 @@ export const enum MochaEvent {
 	Pass = 'pass',
 	Fail = 'fail',
 	End = 'end',
+
+	// custom events:
+	CoverageInit = 'coverageInit',
+	CoverageIncrement = 'coverageIncrement',
 }
 
 export interface IStartEvent {
@@ -62,12 +68,20 @@ export interface IEndEvent {
 	end: string /* ISO date */;
 }
 
+export interface ITestCoverageCoverage {
+	file: string;
+	fullTitle: string;
+	coverage: { result: IScriptCoverage[] };
+}
+
 export type MochaEventTuple =
 	| [MochaEvent.Start, IStartEvent]
 	| [MochaEvent.TestStart, ITestStartEvent]
 	| [MochaEvent.Pass, IPassEvent]
 	| [MochaEvent.Fail, IFailEvent]
-	| [MochaEvent.End, IEndEvent];
+	| [MochaEvent.End, IEndEvent]
+	| [MochaEvent.CoverageInit, { result: IScriptCoverage[] }]
+	| [MochaEvent.CoverageIncrement, ITestCoverageCoverage];
 
 const LF = '\n'.charCodeAt(0);
 
@@ -160,6 +174,7 @@ export async function scanTestOutput(
 		return prom;
 	};
 
+	let perTestCoverage: PerTestCoverageTracker | undefined;
 	let lastTest: vscode.TestItem | undefined;
 	let ranAnyTest = false;
 
@@ -189,7 +204,7 @@ export async function scanTestOutput(
 					return;
 				}
 
-				const logLocation = store.getSourceLocation(match[2], Number(match[3]));
+				const logLocation = store.getSourceLocation(match[2], Number(match[3]) - 1);
 				const logContents = replaceAllLocations(store, match[1]);
 				const test = currentTest;
 
@@ -224,7 +239,6 @@ export async function scanTestOutput(
 							if (tcase) {
 								lastTest = tcase;
 								task.passed(tcase, evt[1].duration);
-								tests.delete(title);
 							}
 						}
 						break;
@@ -257,8 +271,6 @@ export async function scanTestOutput(
 							if (!tcase) {
 								return;
 							}
-
-							tests.delete(id);
 
 							const hasDiff =
 								actual !== undefined &&
@@ -307,15 +319,36 @@ export async function scanTestOutput(
 					case MochaEvent.End:
 						// no-op, we wait until the process exits to ensure coverage is written out
 						break;
+					case MochaEvent.CoverageInit:
+						perTestCoverage ??= new PerTestCoverageTracker(store);
+						for (const result of evt[1].result) {
+							perTestCoverage.add(result);
+						}
+						break;
+					case MochaEvent.CoverageIncrement: {
+						const { fullTitle, coverage } = evt[1];
+						const tcase = tests.get(fullTitle);
+						if (tcase) {
+							perTestCoverage ??= new PerTestCoverageTracker(store);
+							for (const result of coverage.result) {
+								perTestCoverage.add(result, tcase);
+							}
+						}
+						break;
+					}
 				}
 			});
 		});
+
+		if (perTestCoverage) {
+			enqueueExitBlocker(perTestCoverage.report(task));
+		}
 
 		await Promise.all([...exitBlockers]);
 
 		if (coverageDir) {
 			try {
-				await coverageContext.apply(task, coverageDir, {
+				await istanbulCoverageContext.apply(task, coverageDir, {
 					mapFileUri: uri => store.getSourceFile(uri.toString()),
 					mapLocation: (uri, position) =>
 						store.getSourceLocation(uri.toString(), position.line, position.character),
@@ -391,26 +424,44 @@ const tryMakeMarkdown = (message: string) => {
 const inlineSourcemapRe = /^\/\/# sourceMappingURL=data:application\/json;base64,(.+)/m;
 const sourceMapBiases = [GREATEST_LOWER_BOUND, LEAST_UPPER_BOUND] as const;
 
+export type SourceLocationMapper = (line: number, col: number) => vscode.Location | undefined;
+
 export class SourceMapStore {
 	private readonly cache = new Map</* file uri */ string, Promise<TraceMap | undefined>>();
 
-	async getSourceLocation(fileUri: string, line: number, col = 1) {
+	async getSourceLocationMapper(fileUri: string) {
 		const sourceMap = await this.loadSourceMap(fileUri);
-		if (!sourceMap) {
-			return undefined;
-		}
-
-		for (const bias of sourceMapBiases) {
-			const position = originalPositionFor(sourceMap, { column: col, line: line + 1, bias });
-			if (position.line !== null && position.column !== null && position.source !== null) {
-				return new vscode.Location(
-					this.completeSourceMapUrl(sourceMap, position.source),
-					new vscode.Position(position.line - 1, position.column)
-				);
+		return (line: number, col: number) => {
+			if (!sourceMap) {
+				return undefined;
 			}
-		}
 
-		return undefined;
+			let smLine = line + 1;
+
+			// if the range is after the end of mappings, adjust it to the last mapped line
+			const decoded = decodedMappings(sourceMap);
+			if (decoded.length <= line) {
+				smLine = decoded.length; // base 1, no -1 needed
+				col = Number.MAX_SAFE_INTEGER;
+			}
+
+			for (const bias of sourceMapBiases) {
+				const position = originalPositionFor(sourceMap, { column: col, line: smLine, bias });
+				if (position.line !== null && position.column !== null && position.source !== null) {
+					return new vscode.Location(
+						this.completeSourceMapUrl(sourceMap, position.source),
+						new vscode.Position(position.line - 1, position.column)
+					);
+				}
+			}
+
+			return undefined;
+		};
+	}
+
+	/** Gets an original location from a base 0 line and column */
+	async getSourceLocation(fileUri: string, line: number, col = 0) {
+		return this.getSourceLocationMapper(fileUri).then(m => m(line, col));
 	}
 
 	async getSourceFile(compiledUri: string) {
@@ -549,5 +600,5 @@ async function tryDeriveStackLocation(
 
 async function deriveSourceLocation(store: SourceMapStore, parts: RegExpMatchArray) {
 	const [, fileUri, line, col] = parts;
-	return store.getSourceLocation(fileUri, Number(line), Number(col));
+	return store.getSourceLocation(fileUri, Number(line) - 1, Number(col));
 }

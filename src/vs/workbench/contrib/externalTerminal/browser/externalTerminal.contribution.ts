@@ -26,6 +26,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IExternalTerminalConfiguration, IExternalTerminalService } from 'vs/platform/externalTerminal/common/externalTerminal';
 import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 const OPEN_IN_TERMINAL_COMMAND_ID = 'openInTerminal';
 const OPEN_IN_INTEGRATED_TERMINAL_COMMAND_ID = 'openInIntegratedTerminal';
@@ -47,7 +48,7 @@ function registerOpenTerminalCommand(id: string, explorerKind: 'integrated' | 'e
 			} catch {
 			}
 
-			const resources = getMultiSelectedResources(resource, accessor.get(IListService), editorService, accessor.get(IExplorerService));
+			const resources = getMultiSelectedResources(resource, accessor.get(IListService), editorService, accessor.get(IEditorGroupsService), accessor.get(IExplorerService));
 			return fileService.resolveAll(resources.map(r => ({ resource: r }))).then(async stats => {
 				// Always use integrated terminal when using a remote
 				const config = configurationService.getValue<IExternalTerminalConfiguration>();

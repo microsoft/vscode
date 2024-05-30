@@ -395,25 +395,31 @@ class EditSettingRenderer extends Disposable {
 
 	private getActions(setting: IIndexedSetting, jsonSchema: IJSONSchema): IAction[] {
 		if (jsonSchema.type === 'boolean') {
-			return [<IAction>{
+			return [{
 				id: 'truthyValue',
 				label: 'true',
+				tooltip: 'true',
 				enabled: true,
-				run: () => this.updateSetting(setting.key, true, setting)
-			}, <IAction>{
+				run: () => this.updateSetting(setting.key, true, setting),
+				class: undefined
+			}, {
 				id: 'falsyValue',
 				label: 'false',
+				tooltip: 'false',
 				enabled: true,
-				run: () => this.updateSetting(setting.key, false, setting)
+				run: () => this.updateSetting(setting.key, false, setting),
+				class: undefined
 			}];
 		}
 		if (jsonSchema.enum) {
 			return jsonSchema.enum.map(value => {
-				return <IAction>{
+				return {
 					id: value,
 					label: JSON.stringify(value),
+					tooltip: JSON.stringify(value),
 					enabled: true,
-					run: () => this.updateSetting(setting.key, value, setting)
+					run: () => this.updateSetting(setting.key, value, setting),
+					class: undefined
 				};
 			});
 		}
@@ -423,11 +429,13 @@ class EditSettingRenderer extends Disposable {
 	private getDefaultActions(setting: IIndexedSetting): IAction[] {
 		if (this.isDefaultSettings()) {
 			const settingInOtherModel = this.associatedPreferencesModel.getPreference(setting.key);
-			return [<IAction>{
+			return [{
 				id: 'setDefaultValue',
 				label: settingInOtherModel ? nls.localize('replaceDefaultValue', "Replace in Settings") : nls.localize('copyDefaultValue', "Copy to Settings"),
+				tooltip: settingInOtherModel ? nls.localize('replaceDefaultValue', "Replace in Settings") : nls.localize('copyDefaultValue', "Copy to Settings"),
 				enabled: true,
-				run: () => this.updateSetting(setting.key, setting.value, setting)
+				run: () => this.updateSetting(setting.key, setting.value, setting),
+				class: undefined
 			}];
 		}
 		return [];

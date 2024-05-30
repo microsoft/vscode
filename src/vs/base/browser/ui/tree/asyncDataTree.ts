@@ -524,7 +524,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 		this.root.element = input!;
 
-		const viewStateContext = viewState && { viewState, focus: [], selection: [] } as IAsyncDataTreeViewStateContext<TInput, T>;
+		const viewStateContext: IAsyncDataTreeViewStateContext<TInput, T> | undefined = viewState && { viewState, focus: [], selection: [] };
 
 		await this._updateChildren(input, true, false, viewStateContext);
 

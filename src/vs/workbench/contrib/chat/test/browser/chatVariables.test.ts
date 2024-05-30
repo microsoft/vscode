@@ -41,14 +41,14 @@ suite('ChatVariables', function () {
 
 	test('ChatVariables - resolveVariables', async function () {
 
-		const v1 = service.registerVariable({ name: 'foo', description: 'bar' }, async () => ([{ level: 'full', value: 'farboo' }]));
-		const v2 = service.registerVariable({ name: 'far', description: 'boo' }, async () => ([{ level: 'full', value: 'farboo' }]));
+		const v1 = service.registerVariable({ id: 'id', name: 'foo', description: 'bar' }, async () => 'farboo');
+		const v2 = service.registerVariable({ id: 'id', name: 'far', description: 'boo' }, async () => 'farboo');
 
 		const parser = instantiationService.createInstance(ChatRequestParser);
 
 		const resolveVariables = async (text: string) => {
 			const result = parser.parseChatRequest('1', text);
-			return await service.resolveVariables(result, null!, () => { }, CancellationToken.None);
+			return await service.resolveVariables(result, undefined, null!, () => { }, CancellationToken.None);
 		};
 
 		{

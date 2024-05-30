@@ -4,8 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Browsers', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('all', () => {
 		assert(!(isWindows && isMacintosh));
 	});

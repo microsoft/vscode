@@ -420,7 +420,7 @@ export class ObservableValue<T, TChange = void>
 	}
 
 	public set(value: T, tx: ITransaction | undefined, change: TChange): void {
-		if (this._equalityComparator(this._value, value)) {
+		if (change === undefined && this._equalityComparator(this._value, value)) {
 			return;
 		}
 

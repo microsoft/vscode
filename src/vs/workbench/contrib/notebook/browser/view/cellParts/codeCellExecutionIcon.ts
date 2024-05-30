@@ -64,23 +64,23 @@ export class CollapsedCodeCellExecutionIcon extends Disposable {
 		const state = runState?.state;
 		const { lastRunSuccess } = internalMetadata;
 		if (!state && lastRunSuccess) {
-			return <IExecutionItem>{
+			return {
 				text: `$(${successStateIcon.id})`,
 				tooltip: localize('notebook.cell.status.success', "Success"),
 			};
 		} else if (!state && lastRunSuccess === false) {
-			return <IExecutionItem>{
+			return {
 				text: `$(${errorStateIcon.id})`,
 				tooltip: localize('notebook.cell.status.failure', "Failure"),
 			};
 		} else if (state === NotebookCellExecutionState.Pending || state === NotebookCellExecutionState.Unconfirmed) {
-			return <IExecutionItem>{
+			return {
 				text: `$(${pendingStateIcon.id})`,
 				tooltip: localize('notebook.cell.status.pending', "Pending"),
 			};
 		} else if (state === NotebookCellExecutionState.Executing) {
 			const icon = ThemeIcon.modify(executingStateIcon, 'spin');
-			return <IExecutionItem>{
+			return {
 				text: `$(${icon.id})`,
 				tooltip: localize('notebook.cell.status.executing', "Executing"),
 			};

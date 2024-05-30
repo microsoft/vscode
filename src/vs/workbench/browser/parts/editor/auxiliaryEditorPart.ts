@@ -121,11 +121,11 @@ export class AuxiliaryEditorPart {
 		const useCustomTitle = isNative && hasCustomTitlebar(this.configurationService); // custom title in aux windows only enabled in native
 		if (useCustomTitle) {
 			titlebarPart = disposables.add(this.titleService.createAuxiliaryTitlebarPart(auxiliaryWindow.container, editorPart));
-			titlebarVisible = shouldShowCustomTitleBar(this.configurationService, auxiliaryWindow.window);
+			titlebarVisible = shouldShowCustomTitleBar(this.configurationService, auxiliaryWindow.window, undefined, false);
 
 			const handleTitleBarVisibilityEvent = () => {
 				const oldTitlebarPartVisible = titlebarVisible;
-				titlebarVisible = shouldShowCustomTitleBar(this.configurationService, auxiliaryWindow.window);
+				titlebarVisible = shouldShowCustomTitleBar(this.configurationService, auxiliaryWindow.window, undefined, false);
 				if (oldTitlebarPartVisible !== titlebarVisible) {
 					updateTitlebarVisibility(true);
 				}
@@ -203,10 +203,10 @@ export class AuxiliaryEditorPart {
 		auxiliaryWindow.layout();
 
 		// Have a InstantiationService that is scoped to the auxiliary window
-		const instantiationService = this.instantiationService.createChild(new ServiceCollection(
+		const instantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection(
 			[IStatusbarService, this.statusbarService.createScoped(statusbarPart, disposables)],
 			[IEditorService, this.editorService.createScoped(editorPart, disposables)]
-		));
+		)));
 
 		return {
 			part: editorPart,

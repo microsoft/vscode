@@ -21,3 +21,5 @@ vscode.db
 product.overrides.json
 *.snap.actual
 .vscode-test
+extensions/pearai-submodule/
+extensions/pearai-ref

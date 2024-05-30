@@ -88,6 +88,11 @@ export function isRecursiveWatchRequest(request: IWatchRequest): request is IRec
 
 export type IUniversalWatchRequest = IRecursiveWatchRequest | INonRecursiveWatchRequest;
 
+export interface IWatcherErrorEvent {
+	readonly error: string;
+	readonly request?: IUniversalWatchRequest;
+}
+
 export interface IWatcher {
 
 	/**
@@ -106,7 +111,7 @@ export interface IWatcher {
 	 * that is unrecoverable. Listeners should restart the
 	 * watcher if possible.
 	 */
-	readonly onDidError: Event<string>;
+	readonly onDidError: Event<IWatcherErrorEvent>;
 
 	/**
 	 * Configures the watcher to watch according to the
@@ -176,22 +181,24 @@ export interface IUniversalWatcher extends IWatcher {
 
 export abstract class AbstractWatcherClient extends Disposable {
 
-	private static readonly MAX_RESTARTS = 5;
+	private static readonly MAX_RESTARTS_PER_REQUEST_ERROR = 3;  // how often we give a request a chance to restart on error
+	private static readonly MAX_RESTARTS_PER_UNKNOWN_ERROR = 10; // how often we give the watcher a chance to restart on unknown errors (like crash)
 
 	private watcher: IWatcher | undefined;
 	private readonly watcherDisposables = this._register(new MutableDisposable());
 
 	private requests: IWatchRequest[] | undefined = undefined;
 
-	private restartCounter = 0;
+	private restartsPerRequestError = new Map<string /* request path */, number /* restarts */>();
+	private restartsPerUnknownError = 0;
 
 	constructor(
 		private readonly onFileChanges: (changes: IFileChange[]) => void,
 		private readonly onLogMessage: (msg: ILogMessage) => void,
 		private verboseLogging: boolean,
 		private options: {
-			type: string;
-			restartOnError: boolean;
+			readonly type: string;
+			readonly restartOnError: boolean;
 		}
 	) {
 		super();
@@ -212,18 +219,36 @@ export abstract class AbstractWatcherClient extends Disposable {
 		// Wire in event handlers
 		disposables.add(this.watcher.onDidChangeFile(changes => this.onFileChanges(changes)));
 		disposables.add(this.watcher.onDidLogMessage(msg => this.onLogMessage(msg)));
-		disposables.add(this.watcher.onDidError(error => this.onError(error)));
+		disposables.add(this.watcher.onDidError(e => this.onError(e.error, e.request)));
 	}
 
-	protected onError(error: string): void {
+	protected onError(error: string, failedRequest?: IUniversalWatchRequest): void {
 
 		// Restart on error (up to N times, if enabled)
-		if (this.options.restartOnError) {
-			if (this.restartCounter < AbstractWatcherClient.MAX_RESTARTS && this.requests) {
-				this.error(`restarting watcher after error: ${error}`);
-				this.restart(this.requests);
-			} else {
-				this.error(`gave up attempting to restart watcher after error: ${error}`);
+		if (this.options.restartOnError && this.requests?.length) {
+
+			// A request failed
+			if (failedRequest) {
+				const restartsPerRequestError = this.restartsPerRequestError.get(failedRequest.path) ?? 0;
+				if (restartsPerRequestError < AbstractWatcherClient.MAX_RESTARTS_PER_REQUEST_ERROR) {
+					this.error(`restarting watcher from error in watch request (retrying request): ${error} (${JSON.stringify(failedRequest)})`);
+					this.restartsPerRequestError.set(failedRequest.path, restartsPerRequestError + 1);
+					this.restart(this.requests);
+				} else {
+					this.error(`restarting watcher from error in watch request (skipping request): ${error} (${JSON.stringify(failedRequest)})`);
+					this.restart(this.requests.filter(request => request.path !== failedRequest.path));
+				}
+			}
+
+			// Any request failed or process crashed
+			else {
+				if (this.restartsPerUnknownError < AbstractWatcherClient.MAX_RESTARTS_PER_UNKNOWN_ERROR) {
+					this.error(`restarting watcher after unknown global error: ${error}`);
+					this.restartsPerUnknownError++;
+					this.restart(this.requests);
+				} else {
+					this.error(`giving up attempting to restart watcher after error: ${error}`);
+				}
 			}
 		}
 
@@ -234,8 +259,6 @@ export abstract class AbstractWatcherClient extends Disposable {
 	}
 
 	private restart(requests: IUniversalWatchRequest[]): void {
-		this.restartCounter++;
-
 		this.init();
 		this.watch(requests);
 	}

@@ -163,18 +163,40 @@ export abstract class VSCodeTestRunner {
 				path.relative(data.workspaceFolder.uri.fsPath, data.uri.fsPath).replace(/\\/g, '/')
 			);
 
+		const itemDatas = filter.map(f => itemData.get(f));
+		/** If true, we have to be careful with greps, as a grep for one test file affects the run of the other test file. */
+		const hasBothTestCaseOrTestSuiteAndTestFileFilters =
+			itemDatas.some(d => (d instanceof TestCase) || (d instanceof TestSuite)) &&
+			itemDatas.some(d => d instanceof TestFile);
+
+		function addTestCaseOrSuite(data: TestCase | TestSuite, test: vscode.TestItem): void {
+			grepRe.push(escapeRe(data.fullName) + (data instanceof TestCase ? '$' : ' '));
+			for (let p = test.parent; p; p = p.parent) {
+				const parentData = itemData.get(p);
+				if (parentData instanceof TestFile) {
+					addTestFileRunPath(parentData);
+				}
+			}
+		}
+
 		for (const test of filter) {
 			const data = itemData.get(test);
 			if (data instanceof TestCase || data instanceof TestSuite) {
-				grepRe.push(escapeRe(data.fullName) + (data instanceof TestCase ? '$' : ' '));
-				for (let p = test.parent; p; p = p.parent) {
-					const parentData = itemData.get(p);
-					if (parentData instanceof TestFile) {
-						addTestFileRunPath(parentData);
+				addTestCaseOrSuite(data, test);
+			} else if (data instanceof TestFile) {
+				if (!hasBothTestCaseOrTestSuiteAndTestFileFilters) {
+					addTestFileRunPath(data);
+				} else {
+					// We add all the items individually so they get their own grep expressions.
+					for (const [_id, nestedTest] of test.children) {
+						const childData = itemData.get(nestedTest);
+						if (childData instanceof TestCase || childData instanceof TestSuite) {
+							addTestCaseOrSuite(childData, nestedTest);
+						} else {
+							console.error('Unexpected test item in test file', nestedTest.id, nestedTest.label);
+						}
 					}
 				}
-			} else if (data instanceof TestFile) {
-				addTestFileRunPath(data);
 			}
 		}
 

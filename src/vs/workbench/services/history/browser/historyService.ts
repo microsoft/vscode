@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { IResourceEditorInput, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorPane, IEditorCloseEvent, EditorResourceAccessor, IEditorIdentifier, GroupIdentifier, EditorsOrder, SideBySideEditor, IUntypedEditorInput, isResourceEditorInput, isEditorInput, isSideBySideEditorInput, EditorCloseContext, IEditorPaneSelection, EditorPaneSelectionCompareResult, EditorPaneSelectionChangeReason, isEditorPaneWithSelection, IEditorPaneSelectionChangeEvent, IEditorPaneWithSelection, IEditorWillMoveEvent } from 'vs/workbench/common/editor';
+import { IEditorPane, IEditorCloseEvent, EditorResourceAccessor, IEditorIdentifier, GroupIdentifier, EditorsOrder, SideBySideEditor, IUntypedEditorInput, isResourceEditorInput, isEditorInput, isSideBySideEditorInput, EditorCloseContext, IEditorPaneSelection, EditorPaneSelectionCompareResult, EditorPaneSelectionChangeReason, isEditorPaneWithSelection, IEditorPaneSelectionChangeEvent, IEditorPaneWithSelection, IEditorWillMoveEvent, GroupModelChangeKind } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { GoFilter, GoScope, IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -177,6 +177,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private onDidActiveEditorChange(): void {
 		const activeEditorGroup = this.editorGroupService.activeGroup;
 		const activeEditorPane = activeEditorGroup.activeEditorPane;
+
 		if (this.lastActiveEditor && this.editorHelper.matchesEditorIdentifier(this.lastActiveEditor, activeEditorPane)) {
 			return; // return if the active editor is still the same
 		}
@@ -187,11 +188,23 @@ export class HistoryService extends Disposable implements IHistoryService {
 		// Dispose old listeners
 		this.activeEditorListeners.clear();
 
-		// Handle editor change unless the editor is transient
+		// Handle editor change unless the editor is transient. In that case
+		// setup a listener to see if the transient editor becomes non-transient
+		// (https://github.com/microsoft/vscode/issues/211769)
 		if (!activeEditorPane?.group.isTransient(activeEditorPane.input)) {
 			this.handleActiveEditorChange(activeEditorGroup, activeEditorPane);
 		} else {
-			this.logService.trace(`[History]: ignoring transient editor change (editor: ${activeEditorPane.input?.resource?.toString()}})`);
+			this.logService.trace(`[History]: ignoring transient editor change until becoming non-transient (editor: ${activeEditorPane.input?.resource?.toString()}})`);
+
+			const transientListener = activeEditorGroup.onDidModelChange(e => {
+				if (e.kind === GroupModelChangeKind.EDITOR_TRANSIENT && e.editor === activeEditorPane.input && !activeEditorPane.group.isTransient(activeEditorPane.input)) {
+					transientListener.dispose();
+
+					this.handleActiveEditorChange(activeEditorGroup, activeEditorPane);
+				}
+			});
+
+			this.activeEditorListeners.add(transientListener);
 		}
 
 		// Listen to selection changes unless the editor is transient
@@ -835,13 +848,14 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 			// Side-by-side editors get special treatment: we try to distill the
 			// possibly untyped resource inputs from both sides to be able to
-			// offer these entries from the history to the user still.
+			// offer these entries from the history to the user still unless
+			// they are excluded.
 			else {
 				const resourceInputs: IResourceEditorInput[] = [];
 				const sideInputs = editor.primary.matches(editor.secondary) ? [editor.primary] : [editor.primary, editor.secondary];
 				for (const sideInput of sideInputs) {
 					const candidateResourceInput = this.editorHelper.preferResourceEditorInput(sideInput);
-					if (isResourceEditorInput(candidateResourceInput)) {
+					if (isResourceEditorInput(candidateResourceInput) && this.includeInHistory(candidateResourceInput)) {
 						resourceInputs.push(candidateResourceInput);
 					}
 				}

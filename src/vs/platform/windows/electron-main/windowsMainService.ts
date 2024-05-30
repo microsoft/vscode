@@ -211,6 +211,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	constructor(
 		private readonly machineId: string,
 		private readonly sqmId: string,
+		private readonly devDeviceId: string,
 		private readonly initialUserEnv: IProcessEnvironment,
 		@ILogService private readonly logService: ILogService,
 		@ILoggerMainService private readonly loggerService: ILoggerMainService,
@@ -1389,7 +1390,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
 
 		const lastActiveWindow = this.getLastActiveWindow();
-		const defaultProfile = lastActiveWindow?.profile ?? this.userDataProfilesMainService.defaultProfile;
+		const newWindowProfile = windowConfig?.newWindowProfile
+			? this.userDataProfilesMainService.profiles.find(profile => profile.name === windowConfig.newWindowProfile) : undefined;
+		const defaultProfile = newWindowProfile ?? lastActiveWindow?.profile ?? this.userDataProfilesMainService.defaultProfile;
 
 		let window: ICodeWindow | undefined;
 		if (!options.forceNewWindow && !options.forceNewTabbedWindow) {
@@ -1409,6 +1412,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 			machineId: this.machineId,
 			sqmId: this.sqmId,
+			devDeviceId: this.devDeviceId,
 
 			windowId: -1,	// Will be filled in by the window once loaded later
 

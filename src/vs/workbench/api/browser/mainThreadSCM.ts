@@ -5,7 +5,7 @@
 
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable, DisposableStore, combinedDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore, combinedDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, IInputValidation, ISCMViewService, InputValidationType, ISCMActionButtonDescriptor } from 'vs/workbench/contrib/scm/common/scm';
 import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceSplices, SCMGroupFeatures, MainContext, SCMHistoryItemGroupDto } from '../common/extHost.protocol';
 import { Command } from 'vs/editor/common/languages';
@@ -20,6 +20,11 @@ import { ResourceTree } from 'vs/base/common/resourceTree';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { basename } from 'vs/base/common/resources';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { IModelService } from 'vs/editor/common/services/model';
+import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
+import { Schemas } from 'vs/base/common/network';
+import { ITextModel } from 'vs/editor/common/model';
 
 function getIconFromIconDto(iconDto?: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon): URI | { light: URI; dark: URI } | ThemeIcon | undefined {
 	if (iconDto === undefined) {
@@ -31,6 +36,25 @@ function getIconFromIconDto(iconDto?: UriComponents | { light: UriComponents; da
 	} else {
 		const icon = iconDto as { light: UriComponents; dark: UriComponents };
 		return { light: URI.revive(icon.light), dark: URI.revive(icon.dark) };
+	}
+}
+
+class SCMInputBoxContentProvider extends Disposable implements ITextModelContentProvider {
+	constructor(
+		textModelService: ITextModelService,
+		private readonly modelService: IModelService,
+		private readonly languageService: ILanguageService,
+	) {
+		super();
+		this._register(textModelService.registerTextModelContentProvider(Schemas.vscodeSourceControl, this));
+	}
+
+	async provideTextContent(resource: URI): Promise<ITextModel | null> {
+		const existing = this.modelService.getModel(resource);
+		if (existing) {
+			return existing;
+		}
+		return this.modelService.createModel('', this.languageService.createById('scminput'), resource);
 	}
 }
 
@@ -197,7 +221,7 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 	get handle(): number { return this._handle; }
 	get label(): string { return this._label; }
 	get rootUri(): URI | undefined { return this._rootUri; }
-	get inputBoxDocumentUri(): URI { return this._inputBoxDocumentUri; }
+	get inputBoxTextModel(): ITextModel { return this._inputBoxTextModel; }
 	get contextValue(): string { return this._providerId; }
 
 	get commitTemplate(): string { return this.features.commitTemplate || ''; }
@@ -233,7 +257,7 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 		private readonly _providerId: string,
 		private readonly _label: string,
 		private readonly _rootUri: URI | undefined,
-		private readonly _inputBoxDocumentUri: URI,
+		private readonly _inputBoxTextModel: ITextModel,
 		private readonly _quickDiffService: IQuickDiffService,
 		private readonly _uriIdentService: IUriIdentityService,
 		private readonly _workspaceContextService: IWorkspaceContextService
@@ -425,11 +449,16 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		extHostContext: IExtHostContext,
 		@ISCMService private readonly scmService: ISCMService,
 		@ISCMViewService private readonly scmViewService: ISCMViewService,
+		@ILanguageService private readonly languageService: ILanguageService,
+		@IModelService private readonly modelService: IModelService,
+		@ITextModelService private readonly textModelService: ITextModelService,
 		@IQuickDiffService private readonly quickDiffService: IQuickDiffService,
 		@IUriIdentityService private readonly _uriIdentService: IUriIdentityService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostSCM);
+
+		this._disposables.add(new SCMInputBoxContentProvider(this.textModelService, this.modelService, this.languageService));
 	}
 
 	dispose(): void {
@@ -442,12 +471,16 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		this._disposables.dispose();
 	}
 
-	$registerSourceControl(handle: number, id: string, label: string, rootUri: UriComponents | undefined, inputBoxDocumentUri: UriComponents): void {
-		const provider = new MainThreadSCMProvider(this._proxy, handle, id, label, rootUri ? URI.revive(rootUri) : undefined, URI.revive(inputBoxDocumentUri), this.quickDiffService, this._uriIdentService, this.workspaceContextService);
+	async $registerSourceControl(handle: number, id: string, label: string, rootUri: UriComponents | undefined, inputBoxDocumentUri: UriComponents): Promise<void> {
+		// Eagerly create the text model for the input box
+		const inputBoxTextModelRef = await this.textModelService.createModelReference(URI.revive(inputBoxDocumentUri));
+
+		const provider = new MainThreadSCMProvider(this._proxy, handle, id, label, rootUri ? URI.revive(rootUri) : undefined, inputBoxTextModelRef.object.textEditorModel, this.quickDiffService, this._uriIdentService, this.workspaceContextService);
 		const repository = this.scmService.registerSCMProvider(provider);
 		this._repositories.set(handle, repository);
 
 		const disposable = combinedDisposable(
+			inputBoxTextModelRef,
 			Event.filter(this.scmViewService.onDidFocusRepository, r => r === repository)(_ => this._proxy.$setSelectedSourceControl(handle)),
 			repository.input.onDidChange(({ value }) => this._proxy.$onInputBoxValueChange(handle, value))
 		);

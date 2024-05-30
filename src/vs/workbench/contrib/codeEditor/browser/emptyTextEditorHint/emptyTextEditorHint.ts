@@ -22,7 +22,6 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IContentActionHandler, renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
 import { ApplyFileSnippetAction } from 'vs/workbench/contrib/snippets/browser/commands/fileTemplateSnippets';
 import { IInlineChatSessionService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSessionService';
-import { IInlineChatService, IInlineChatSessionProvider } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -36,6 +35,7 @@ import { LOG_MODE_ID, OUTPUT_MODE_ID } from 'vs/workbench/services/output/common
 import { SEARCH_RESULT_LANGUAGE_ID } from 'vs/workbench/services/search/common/search';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { ChatAgentLocation, IChatAgent, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 
 const $ = dom.$;
 
@@ -76,7 +76,7 @@ export class EmptyTextEditorHintContribution implements IEditorContribution {
 		@IHoverService protected readonly hoverService: IHoverService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IInlineChatSessionService private readonly inlineChatSessionService: IInlineChatSessionService,
-		@IInlineChatService protected readonly inlineChatService: IInlineChatService,
+		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IProductService protected readonly productService: IProductService,
 	) {
@@ -84,7 +84,7 @@ export class EmptyTextEditorHintContribution implements IEditorContribution {
 		this.toDispose.push(this.editor.onDidChangeModel(() => this.update()));
 		this.toDispose.push(this.editor.onDidChangeModelLanguage(() => this.update()));
 		this.toDispose.push(this.editor.onDidChangeModelContent(() => this.update()));
-		this.toDispose.push(this.inlineChatService.onDidChangeProviders(() => this.update()));
+		this.toDispose.push(this.chatAgentService.onDidChangeAgents(() => this.update()));
 		this.toDispose.push(this.editor.onDidChangeModelDecorations(() => this.update()));
 		this.toDispose.push(this.editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
 			if (e.hasChanged(EditorOption.readOnly)) {
@@ -146,9 +146,9 @@ export class EmptyTextEditorHintContribution implements IEditorContribution {
 			return false;
 		}
 
-		const inlineChatProviders = [...this.inlineChatService.getAllProvider()];
-		const shouldRenderDefaultHint = model?.uri.scheme === Schemas.untitled && languageId === PLAINTEXT_LANGUAGE_ID && !inlineChatProviders.length;
-		return inlineChatProviders.length > 0 || shouldRenderDefaultHint;
+		const hasEditorAgents = Boolean(this.chatAgentService.getDefaultAgent(ChatAgentLocation.Editor));
+		const shouldRenderDefaultHint = model?.uri.scheme === Schemas.untitled && languageId === PLAINTEXT_LANGUAGE_ID && hasEditorAgents;
+		return hasEditorAgents || shouldRenderDefaultHint;
 	}
 
 	protected update(): void {
@@ -162,7 +162,7 @@ export class EmptyTextEditorHintContribution implements IEditorContribution {
 				this.configurationService,
 				this.hoverService,
 				this.keybindingService,
-				this.inlineChatService,
+				this.chatAgentService,
 				this.telemetryService,
 				this.productService
 			);
@@ -195,7 +195,7 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 		private readonly configurationService: IConfigurationService,
 		private readonly hoverService: IHoverService,
 		private readonly keybindingService: IKeybindingService,
-		private readonly inlineChatService: IInlineChatService,
+		private readonly chatAgentService: IChatAgentService,
 		private readonly telemetryService: ITelemetryService,
 		private readonly productService: IProductService
 	) {
@@ -218,8 +218,8 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 		return EmptyTextEditorHintContentWidget.ID;
 	}
 
-	private _getHintInlineChat(providers: IInlineChatSessionProvider[]) {
-		const providerName = (providers.length === 1 ? providers[0].label : undefined) ?? this.productService.nameShort;
+	private _getHintInlineChat(providers: IChatAgent[]) {
+		const providerName = (providers.length === 1 ? providers[0].fullName : undefined) ?? this.productService.nameShort;
 
 		const inlineChatId = 'inlineChat.start';
 		let ariaLabel = `Ask ${providerName} something or start typing to dismiss.`;
@@ -399,7 +399,7 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 			this.domNode.style.width = 'max-content';
 			this.domNode.style.paddingLeft = '4px';
 
-			const inlineChatProviders = [...this.inlineChatService.getAllProvider()];
+			const inlineChatProviders = this.chatAgentService.getActivatedAgents().filter(candidate => candidate.locations.includes(ChatAgentLocation.Editor));
 			const { hintElement, ariaLabel } = !inlineChatProviders.length ? this._getHintDefault() : this._getHintInlineChat(inlineChatProviders);
 			this.domNode.append(hintElement);
 			this.ariaLabel = ariaLabel.concat(localize('disableHint', ' Toggle {0} in settings to disable this hint.', AccessibilityVerbositySettingId.EmptyEditorHint));

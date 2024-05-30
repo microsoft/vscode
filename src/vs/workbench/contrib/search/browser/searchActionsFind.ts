@@ -33,6 +33,7 @@ import { category, getElementsToOperateOn, getSearchView, openSearchView } from 
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { Schemas } from 'vs/base/common/network';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 
 //#region Interfaces
@@ -88,7 +89,7 @@ registerAction2(class ExpandSelectedTreeCommandAction extends Action2 {
 			menu: [{
 				id: MenuId.SearchContext,
 				when: ContextKeyExpr.and(
-					ContextKeyExpr.or(Constants.SearchContext.FileFocusKey, Constants.SearchContext.FolderFocusKey),
+					Constants.SearchContext.FolderFocusKey,
 					Constants.SearchContext.HasSearchResults
 				),
 				group: 'search',
@@ -97,8 +98,8 @@ registerAction2(class ExpandSelectedTreeCommandAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: any): Promise<any> {
-		await expandSelectSubtree(accessor);
+	override run(accessor: any) {
+		expandSelectSubtree(accessor);
 	}
 });
 
@@ -317,7 +318,7 @@ async function searchWithFolderCommand(accessor: ServicesAccessor, isFromExplore
 	let resources: URI[];
 
 	if (isFromExplorer) {
-		resources = getMultiSelectedResources(resource, listService, accessor.get(IEditorService), accessor.get(IExplorerService));
+		resources = getMultiSelectedResources(resource, listService, accessor.get(IEditorService), accessor.get(IEditorGroupsService), accessor.get(IExplorerService));
 	} else {
 		const searchView = getSearchView(accessor.get(IViewsService));
 		if (!searchView) {

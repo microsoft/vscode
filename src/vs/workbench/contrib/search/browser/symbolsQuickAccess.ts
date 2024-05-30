@@ -25,7 +25,7 @@ import { IMatch } from 'vs/base/common/filters';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 
-interface ISymbolQuickPickItem extends IPickerQuickAccessItem, IQuickPickItemWithResource {
+export interface ISymbolQuickPickItem extends IPickerQuickAccessItem, IQuickPickItemWithResource {
 	score?: number;
 	symbol?: IWorkspaceSymbol;
 }

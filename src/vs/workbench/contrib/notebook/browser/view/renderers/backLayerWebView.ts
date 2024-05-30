@@ -114,6 +114,7 @@ interface BacklayerWebviewOptions {
 	readonly fontFamily: string;
 	readonly outputFontFamily: string;
 	readonly markupFontSize: number;
+	readonly markdownLineHeight: number;
 	readonly outputLineHeight: number;
 	readonly outputScrolling: boolean;
 	readonly outputWordWrap: boolean;
@@ -266,6 +267,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 			'notebook-output-node-left-padding': `${this.options.outputNodeLeftPadding}px`,
 			'notebook-markdown-min-height': `${this.options.previewNodePadding * 2}px`,
 			'notebook-markup-font-size': typeof this.options.markupFontSize === 'number' && this.options.markupFontSize > 0 ? `${this.options.markupFontSize}px` : `calc(${this.options.fontSize}px * 1.2)`,
+			'notebook-markdown-line-height': typeof this.options.markdownLineHeight === 'number' && this.options.markdownLineHeight > 0 ? `${this.options.markdownLineHeight}px` : `normal`,
 			'notebook-cell-output-font-size': `${this.options.outputFontSize || this.options.fontSize}px`,
 			'notebook-cell-output-line-height': `${this.options.outputLineHeight}px`,
 			'notebook-cell-output-max-height': `${this.options.outputLineHeight * this.options.outputLineLimit}px`,
@@ -366,6 +368,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 						white-space: initial;
 
 						font-size: var(--notebook-markup-font-size);
+						line-height: var(--notebook-markdown-line-height);
 						color: var(--theme-ui-foreground);
 					}
 
@@ -395,6 +398,14 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 					}
 
 					#container .nb-symbolHighlight .output_container .output {
+						background-color: var(--theme-notebook-symbol-highlight-background);
+					}
+
+					#container .markup > div.nb-multiCellHighlight {
+						background-color: var(--theme-notebook-symbol-highlight-background);
+					}
+
+					#container .nb-multiCellHighlight .output_container .output {
 						background-color: var(--theme-notebook-symbol-highlight-background);
 					}
 
@@ -1769,7 +1780,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		});
 	}
 
-	async find(query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean; shouldGetSearchPreviewInfo: boolean; ownerID: string }): Promise<IFindMatch[]> {
+	async find(query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean; shouldGetSearchPreviewInfo: boolean; ownerID: string; findIds: string[] }): Promise<IFindMatch[]> {
 		if (query === '') {
 			this._sendMessageToWebview({
 				type: 'findStop',

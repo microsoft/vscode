@@ -77,32 +77,38 @@ class StackOperation implements IWorkspaceUndoRedoElement {
 
 	async undo(): Promise<void> {
 		this._pauseableEmitter.pause();
-		for (let i = this._operations.length - 1; i >= 0; i--) {
-			await this._operations[i].undo();
+		try {
+			for (let i = this._operations.length - 1; i >= 0; i--) {
+				await this._operations[i].undo();
+			}
+			this._postUndoRedo(this._beginAlternativeVersionId);
+			this._pauseableEmitter.fire({
+				rawEvents: [],
+				synchronous: undefined,
+				versionId: this.textModel.versionId,
+				endSelectionState: this._beginSelectionState
+			});
+		} finally {
+			this._pauseableEmitter.resume();
 		}
-		this._postUndoRedo(this._beginAlternativeVersionId);
-		this._pauseableEmitter.fire({
-			rawEvents: [],
-			synchronous: undefined,
-			versionId: this.textModel.versionId,
-			endSelectionState: this._beginSelectionState
-		});
-		this._pauseableEmitter.resume();
 	}
 
 	async redo(): Promise<void> {
 		this._pauseableEmitter.pause();
-		for (let i = 0; i < this._operations.length; i++) {
-			await this._operations[i].redo();
+		try {
+			for (let i = 0; i < this._operations.length; i++) {
+				await this._operations[i].redo();
+			}
+			this._postUndoRedo(this._resultAlternativeVersionId);
+			this._pauseableEmitter.fire({
+				rawEvents: [],
+				synchronous: undefined,
+				versionId: this.textModel.versionId,
+				endSelectionState: this._resultSelectionState
+			});
+		} finally {
+			this._pauseableEmitter.resume();
 		}
-		this._postUndoRedo(this._resultAlternativeVersionId);
-		this._pauseableEmitter.fire({
-			rawEvents: [],
-			synchronous: undefined,
-			versionId: this.textModel.versionId,
-			endSelectionState: this._resultSelectionState
-		});
-		this._pauseableEmitter.resume();
 
 	}
 }
@@ -146,6 +152,10 @@ type TransformedEdit = {
 };
 
 class NotebookEventEmitter extends PauseableEmitter<NotebookTextModelChangedEvent> {
+	get isEmpty() {
+		return this._eventQueue.isEmpty();
+	}
+
 	isDirtyEvent() {
 		for (const e of this._eventQueue) {
 			for (let i = 0; i < e.rawEvents.length; i++) {
@@ -513,15 +523,17 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			this._doApplyEdits(rawEdits, synchronous, computeUndoRedo, beginSelectionState, undoRedoGroup);
 			return true;
 		} finally {
-			// Update selection and versionId after applying edits.
-			const endSelections = endSelectionsComputer();
-			this._increaseVersionId(this._operationManager.isUndoStackEmpty() && !this._pauseableEmitter.isDirtyEvent());
+			if (!this._pauseableEmitter.isEmpty) {
+				// Update selection and versionId after applying edits.
+				const endSelections = endSelectionsComputer();
+				this._increaseVersionId(this._operationManager.isUndoStackEmpty() && !this._pauseableEmitter.isDirtyEvent());
 
-			// Finalize undo element
-			this._operationManager.pushStackElement(this._alternativeVersionId, endSelections);
+				// Finalize undo element
+				this._operationManager.pushStackElement(this._alternativeVersionId, endSelections);
 
-			// Broadcast changes
-			this._pauseableEmitter.fire({ rawEvents: [], versionId: this.versionId, synchronous: synchronous, endSelectionState: endSelections });
+				// Broadcast changes
+				this._pauseableEmitter.fire({ rawEvents: [], versionId: this.versionId, synchronous: synchronous, endSelectionState: endSelections });
+			}
 			this._pauseableEmitter.resume();
 		}
 	}

@@ -9,7 +9,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import * as semver from 'vs/base/common/semver/semver';
 
 // TODO: @sandy081 merge this with deduping in extensionsScannerService.ts
-export function dedupExtensions(system: IExtensionDescription[], user: IExtensionDescription[], development: IExtensionDescription[], logService: ILogService): IExtensionDescription[] {
+export function dedupExtensions(system: IExtensionDescription[], user: IExtensionDescription[], workspace: IExtensionDescription[], development: IExtensionDescription[], logService: ILogService): IExtensionDescription[] {
 	const result = new ExtensionIdentifierMap<IExtensionDescription>();
 	system.forEach((systemExtension) => {
 		const extension = result.get(systemExtension.identifier);
@@ -36,6 +36,13 @@ export function dedupExtensions(system: IExtensionDescription[], user: IExtensio
 			return;
 		}
 		result.set(userExtension.identifier, userExtension);
+	});
+	workspace.forEach(workspaceExtension => {
+		const extension = result.get(workspaceExtension.identifier);
+		if (extension) {
+			logService.warn(localize('overwritingWithWorkspaceExtension', "Overwriting {0} with Workspace Extension {1}.", extension.extensionLocation.fsPath, workspaceExtension.extensionLocation.fsPath));
+		}
+		result.set(workspaceExtension.identifier, workspaceExtension);
 	});
 	development.forEach(developedExtension => {
 		logService.info(localize('extensionUnderDevelopment', "Loading development extension at {0}", developedExtension.extensionLocation.fsPath));

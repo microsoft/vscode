@@ -22,6 +22,7 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFileReadLimits } from 'vs/platform/files/common/files';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IResolvedNotebookEditorModel>> {
 
@@ -43,6 +44,7 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 		@INotebookService private readonly _notebookService: INotebookService,
 		@ILogService private readonly _logService: ILogService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
 		super();
 	}
@@ -68,7 +70,7 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 		const workingCopyTypeId = NotebookWorkingCopyTypeIdentifier.create(viewType);
 		let workingCopyManager = this._workingCopyManagers.get(workingCopyTypeId);
 		if (!workingCopyManager) {
-			const factory = new NotebookFileWorkingCopyModelFactory(viewType, this._notebookService, this._configurationService);
+			const factory = new NotebookFileWorkingCopyModelFactory(viewType, this._notebookService, this._configurationService, this._telemetryService);
 			workingCopyManager = <IFileWorkingCopyManager<NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel>><any>this._instantiationService.createInstance(
 				FileWorkingCopyManager,
 				workingCopyTypeId,

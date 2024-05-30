@@ -104,11 +104,13 @@ steps:
     - script: yarn npm-run-all -lp core-ci-pr extensions-ci-pr hygiene eslint valid-layers-check vscode-dts-compile-check tsec-compile-check
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
+        DISABLE_V8_COMPILE_CACHE: 1 # Disable v8 cache used by yarn v1.x, refs https://github.com/nodejs/node/issues/51555
       displayName: Compile & Hygiene (OSS)
   - ${{ else }}:
     - script: yarn npm-run-all -lp core-ci extensions-ci hygiene eslint valid-layers-check vscode-dts-compile-check tsec-compile-check
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
+        DISABLE_V8_COMPILE_CACHE: 1 # Disable v8 cache used by yarn v1.x, refs https://github.com/nodejs/node/issues/51555
       displayName: Compile & Hygiene (non-OSS)
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:

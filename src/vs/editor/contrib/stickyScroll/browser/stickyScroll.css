@@ -64,6 +64,7 @@
 	box-shadow: var(--vscode-editorStickyScroll-shadow) 0 3px 2px -2px;
 	z-index: 4;
 	background-color: var(--vscode-editorStickyScroll-background);
+	right: initial !important;
 }
 
 .monaco-editor .sticky-widget.peek {

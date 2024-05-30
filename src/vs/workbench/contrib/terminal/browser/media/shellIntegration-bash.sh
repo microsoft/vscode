@@ -117,13 +117,13 @@ __vsc_escape_value() {
 	for (( i=0; i < "${#str}"; ++i )); do
 		byte="${str:$i:1}"
 
-		# Escape backslashes, semi-colons and newlines
+		# Escape backslashes, semi-colons specially, then special ASCII chars below space (0x20)
 		if [ "$byte" = "\\" ]; then
 			token="\\\\"
 		elif [ "$byte" = ";" ]; then
 			token="\\x3b"
-		elif [ "$byte" = $'\n' ]; then
-			token="\x0a"
+		elif (( $(builtin printf '%d' "'$byte") < 31 )); then
+			token=$(builtin printf '\\x%02x' "'$byte")
 		else
 			token="$byte"
 		fi
@@ -165,6 +165,19 @@ unset VSCODE_NONCE
 # Report continuation prompt
 builtin printf "\e]633;P;ContinuationPrompt=$(echo "$PS2" | sed 's/\x1b/\\\\x1b/g')\a"
 
+__vsc_report_prompt() {
+	# Expand the original PS1 similarly to how bash would normally
+	# See https://stackoverflow.com/a/37137981 for technique
+	if ((BASH_VERSINFO[0] >= 4)); then
+		__vsc_prompt=${__vsc_original_PS1@P}
+	else
+		__vsc_prompt=${__vsc_original_PS1}
+	fi
+
+	__vsc_prompt="$(builtin printf "%s" "${__vsc_prompt//[$'\001'$'\002']}")"
+	builtin printf "\e]633;P;Prompt=%s\a" "$(__vsc_escape_value "${__vsc_prompt}")"
+}
+
 __vsc_prompt_start() {
 	builtin printf '\e]633;A\a'
 }
@@ -183,6 +196,9 @@ __vsc_update_cwd() {
 }
 
 __vsc_command_output_start() {
+	if [[ -z "$__vsc_first_prompt" ]]; then
+		builtin return
+	fi
 	builtin printf '\e]633;E;%s;%s\a' "$(__vsc_escape_value "${__vsc_current_command}")" $__vsc_nonce
 	builtin printf '\e]633;C\a'
 }
@@ -228,8 +244,9 @@ __vsc_update_prompt() {
 __vsc_precmd() {
 	__vsc_command_complete "$__vsc_status"
 	__vsc_current_command=""
-	__vsc_update_prompt
+	__vsc_report_prompt
 	__vsc_first_prompt=1
+	__vsc_update_prompt
 }
 
 __vsc_preexec() {

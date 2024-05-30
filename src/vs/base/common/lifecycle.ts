@@ -777,6 +777,16 @@ export class DisposableMap<K, V extends IDisposable = IDisposable> implements ID
 		this._store.delete(key);
 	}
 
+	/**
+	 * Delete the value stored for `key` from this map but return it. The caller is
+	 * responsible for disposing of the value.
+	 */
+	deleteAndLeak(key: K): V | undefined {
+		const value = this._store.get(key);
+		this._store.delete(key);
+		return value;
+	}
+
 	keys(): IterableIterator<K> {
 		return this._store.keys();
 	}

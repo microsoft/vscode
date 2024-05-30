@@ -150,7 +150,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 			contentsElement.textContent = options.content;
 			contentsElement.style.whiteSpace = 'pre-wrap';
 
-		} else if (options.content instanceof HTMLElement) {
+		} else if (dom.isHTMLElement(options.content)) {
 			contentsElement.appendChild(options.content);
 			contentsElement.classList.add('html-hover-contents');
 

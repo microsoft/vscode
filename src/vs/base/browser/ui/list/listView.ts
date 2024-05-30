@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DataTransfers, IDragAndDropData } from 'vs/base/browser/dnd';
-import { $, addDisposableListener, animate, Dimension, getContentHeight, getContentWidth, getTopLeftOffset, getWindow, isAncestor, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
+import { $, addDisposableListener, animate, Dimension, getContentHeight, getContentWidth, getTopLeftOffset, getWindow, isAncestor, isHTMLElement, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { EventType as TouchEventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
@@ -1384,7 +1384,7 @@ export class ListView<T> implements IListView<T> {
 		const scrollableElement = this.scrollableElement.getDomNode();
 		let element: HTMLElement | null = target as (HTMLElement | null);
 
-		while (element instanceof HTMLElement && element !== this.rowsContainer && scrollableElement.contains(element)) {
+		while (isHTMLElement(element) && element !== this.rowsContainer && scrollableElement.contains(element)) {
 			const rawIndex = element.getAttribute('data-index');
 
 			if (rawIndex) {

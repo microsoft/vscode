@@ -10,7 +10,7 @@ import { EditorTabsControl } from 'vs/workbench/browser/parts/editor/editorTabsC
 import { ResourceLabel, IResourceLabel } from 'vs/workbench/browser/labels';
 import { TAB_ACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
-import { addDisposableListener, EventType, EventHelper, Dimension, isAncestor, DragAndDropObserver } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType, EventHelper, Dimension, isAncestor, DragAndDropObserver, isHTMLElement } from 'vs/base/browser/dom';
 import { CLOSE_EDITOR_COMMAND_ID, UNLOCK_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { Color } from 'vs/base/common/color';
 import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
@@ -130,7 +130,7 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 		// to check on the target
 		// (https://github.com/microsoft/vscode/issues/107543)
 		const target = e.initialTarget;
-		if (!(target instanceof HTMLElement) || !this.editorLabel || !isAncestor(target, this.editorLabel.element)) {
+		if (!(isHTMLElement(target)) || !this.editorLabel || !isAncestor(target, this.editorLabel.element)) {
 			return;
 		}
 
@@ -179,17 +179,15 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 		this.ifEditorIsActive(editor, () => this.redraw());
 	}
 
-	stickEditor(editor: EditorInput): void {
-		// Sticky editors are not presented any different with tabs disabled
-	}
+	stickEditor(editor: EditorInput): void { }
 
-	unstickEditor(editor: EditorInput): void {
-		// Sticky editors are not presented any different with tabs disabled
-	}
+	unstickEditor(editor: EditorInput): void { }
 
 	setActive(isActive: boolean): void {
 		this.redraw();
 	}
+
+	updateEditorSelections(): void { }
 
 	updateEditorLabel(editor: EditorInput): void {
 		this.ifEditorIsActive(editor, () => this.redraw());
@@ -353,7 +351,7 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 		// Inactive: only show "Close, "Unlock" and secondary actions
 		else {
 			return {
-				primary: editorActions.primary.filter(action => action.id === CLOSE_EDITOR_COMMAND_ID || action.id === UNLOCK_GROUP_COMMAND_ID),
+				primary: this.groupsView.partOptions.alwaysShowEditorActions ? editorActions.primary : editorActions.primary.filter(action => action.id === CLOSE_EDITOR_COMMAND_ID || action.id === UNLOCK_GROUP_COMMAND_ID),
 				secondary: editorActions.secondary
 			};
 		}

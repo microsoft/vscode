@@ -328,6 +328,10 @@
 	flex-shrink: 0;
 	flex-grow: 0;
 
+	& > div {
+		position: absolute;
+	}
+
 	.gutterItem {
 		opacity: 0;
 		transition: opacity 0.7s;
@@ -374,8 +378,7 @@
 					.actions-container {
 						width: fit-content;
 						border-radius: 4px;
-						border: 1px var(--vscode-menu-border) solid;
-						background: var(--vscode-editor-background);
+						background: var(--vscode-editorGutter-commentRangeForeground);
 
 						.action-item {
 							&:hover {
@@ -383,7 +386,7 @@
 							}
 
 							.action-label {
-								padding: 0.5px 1px;
+								padding: 1px 2px;
 							}
 						}
 					}

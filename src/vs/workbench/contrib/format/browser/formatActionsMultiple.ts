@@ -37,7 +37,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 
 type FormattingEditProvider = DocumentFormattingEditProvider | DocumentRangeFormattingEditProvider;
 
-class DefaultFormatter extends Disposable implements IWorkbenchContribution {
+export class DefaultFormatter extends Disposable implements IWorkbenchContribution {
 
 	static readonly configName = 'editor.defaultFormatter';
 

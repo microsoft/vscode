@@ -6,6 +6,7 @@
 /*eslint-env mocha*/
 
 const fs = require('fs');
+const inspector = require('inspector');
 
 (function () {
 	const originals = {};
@@ -169,9 +170,10 @@ function loadTestModules(opts) {
 	}).then(loadModules);
 }
 
-let currentTestTitle;
+/** @type Mocha.Test */
+let currentTest;
 
-function loadTests(opts) {
+async function loadTests(opts) {
 
 	//#region Unexpected Output
 
@@ -185,6 +187,8 @@ function loadTests(opts) {
 		_allowedTestOutput.push(/Deleting [0-9]+ old snapshots/);
 	}
 
+	const perTestCoverage = opts['per-test-coverage'] ? await PerTestCoverage.init() : undefined;
+
 	const _allowedTestsWithOutput = new Set([
 		'creates a snapshot', // self-testing
 		'validates a snapshot', // self-testing
@@ -195,14 +199,15 @@ function loadTests(opts) {
 		'issue #149130: vscode freezes because of Bracket Pair Colorization', // https://github.com/microsoft/vscode/issues/192440
 		'property limits', // https://github.com/microsoft/vscode/issues/192443
 		'Error events', // https://github.com/microsoft/vscode/issues/192443
-		'fetch returns keybinding with user first if title and id matches' //
+		'fetch returns keybinding with user first if title and id matches', //
+		'throw ListenerLeakError'
 	]);
 
 	let _testsWithUnexpectedOutput = false;
 
 	for (const consoleFn of [console.log, console.error, console.info, console.warn, console.trace, console.debug]) {
 		console[consoleFn.name] = function (msg) {
-			if (!_allowedTestOutput.some(a => a.test(msg)) && !_allowedTestsWithOutput.has(currentTestTitle)) {
+			if (!_allowedTestOutput.some(a => a.test(msg)) && !_allowedTestsWithOutput.has(currentTest.title)) {
 				_testsWithUnexpectedOutput = true;
 				consoleFn.apply(console, arguments);
 			}
@@ -256,7 +261,7 @@ function loadTests(opts) {
 			event.preventDefault(); // Do not log to test output, we show an error later when test ends
 			event.stopPropagation();
 
-			if (!_allowedTestsWithUnhandledRejections.has(currentTestTitle)) {
+			if (!_allowedTestsWithUnhandledRejections.has(currentTest.title)) {
 				onUnexpectedError(event.reason);
 			}
 		});
@@ -275,7 +280,12 @@ function loadTests(opts) {
 			});
 		});
 
-		teardown(() => {
+		setup(async () => {
+			await perTestCoverage?.startTest();
+		});
+
+		teardown(async () => {
+			await perTestCoverage?.finishTest(currentTest.file, currentTest.fullTitle());
 
 			// should not have unexpected output
 			if (_testsWithUnexpectedOutput && !opts.dev) {
@@ -410,7 +420,7 @@ function runTests(opts) {
 			});
 		});
 
-		runner.on('test', test => currentTestTitle = test.title);
+		runner.on('test', test => currentTest = test);
 
 		if (opts.dev) {
 			runner.on('fail', (test, err) => {
@@ -432,3 +442,21 @@ ipcRenderer.on('run', (e, opts) => {
 		ipcRenderer.send('error', err);
 	});
 });
+
+class PerTestCoverage {
+	static async init() {
+		await ipcRenderer.invoke('startCoverage');
+		return new PerTestCoverage();
+	}
+
+	async startTest() {
+		if (!this.didInit) {
+			this.didInit = true;
+			await ipcRenderer.invoke('snapshotCoverage');
+		}
+	}
+
+	async finishTest(file, fullTitle) {
+		await ipcRenderer.invoke('snapshotCoverage', { file, fullTitle });
+	}
+}

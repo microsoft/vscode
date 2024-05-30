@@ -3,63 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { compareBy, numberComparator, tieBreakComparators } from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { setTimeout0, setTimeout0IsFaster } from 'vs/base/common/platform';
-
-interface PriorityQueue<T> {
-	length: number;
-	add(value: T): void;
-	remove(value: T): void;
-
-	removeMin(): T | undefined;
-	toSortedArray(): T[];
-}
-
-class SimplePriorityQueue<T> implements PriorityQueue<T> {
-	private isSorted = false;
-	private items: T[];
-
-	constructor(items: T[], private readonly compare: (a: T, b: T) => number) {
-		this.items = items;
-	}
-
-	get length(): number {
-		return this.items.length;
-	}
-
-	add(value: T): void {
-		this.items.push(value);
-		this.isSorted = false;
-	}
-
-	remove(value: T): void {
-		this.items.splice(this.items.indexOf(value), 1);
-		this.isSorted = false;
-	}
-
-	removeMin(): T | undefined {
-		this.ensureSorted();
-		return this.items.shift();
-	}
-
-	getMin(): T | undefined {
-		this.ensureSorted();
-		return this.items[0];
-	}
-
-	toSortedArray(): T[] {
-		this.ensureSorted();
-		return [...this.items];
-	}
-
-	private ensureSorted() {
-		if (!this.isSorted) {
-			this.items.sort(this.compare);
-			this.isSorted = true;
-		}
-	}
-}
 
 export type TimeOffset = number;
 
@@ -84,24 +31,15 @@ interface ExtendedScheduledTask extends ScheduledTask {
 	id: number;
 }
 
-function compareScheduledTasks(a: ExtendedScheduledTask, b: ExtendedScheduledTask): number {
-	if (a.time !== b.time) {
-		// Prefer lower time
-		return a.time - b.time;
-	}
-
-	if (a.id !== b.id) {
-		// Prefer lower id
-		return a.id - b.id;
-	}
-
-	return 0;
-}
+const scheduledTaskComparator = tieBreakComparators<ExtendedScheduledTask>(
+	compareBy(i => i.time, numberComparator),
+	compareBy(i => i.id, numberComparator),
+);
 
 export class TimeTravelScheduler implements Scheduler {
 	private taskCounter = 0;
 	private _now: TimeOffset = 0;
-	private readonly queue: PriorityQueue<ExtendedScheduledTask> = new SimplePriorityQueue([], compareScheduledTasks);
+	private readonly queue: PriorityQueue<ExtendedScheduledTask> = new SimplePriorityQueue<ExtendedScheduledTask>([], scheduledTaskComparator);
 
 	private readonly taskScheduledEmitter = new Emitter<{ task: ScheduledTask }>();
 	public readonly onTaskScheduled = this.taskScheduledEmitter.event;
@@ -389,4 +327,58 @@ function createDateClass(scheduler: Scheduler): DateConstructor {
 	SchedulerDate.prototype.toUTCString = OriginalDate.prototype.toUTCString;
 
 	return SchedulerDate as any;
+}
+
+interface PriorityQueue<T> {
+	length: number;
+	add(value: T): void;
+	remove(value: T): void;
+
+	removeMin(): T | undefined;
+	toSortedArray(): T[];
+}
+
+class SimplePriorityQueue<T> implements PriorityQueue<T> {
+	private isSorted = false;
+	private items: T[];
+
+	constructor(items: T[], private readonly compare: (a: T, b: T) => number) {
+		this.items = items;
+	}
+
+	get length(): number {
+		return this.items.length;
+	}
+
+	add(value: T): void {
+		this.items.push(value);
+		this.isSorted = false;
+	}
+
+	remove(value: T): void {
+		this.items.splice(this.items.indexOf(value), 1);
+		this.isSorted = false;
+	}
+
+	removeMin(): T | undefined {
+		this.ensureSorted();
+		return this.items.shift();
+	}
+
+	getMin(): T | undefined {
+		this.ensureSorted();
+		return this.items[0];
+	}
+
+	toSortedArray(): T[] {
+		this.ensureSorted();
+		return [...this.items];
+	}
+
+	private ensureSorted() {
+		if (!this.isSorted) {
+			this.items.sort(this.compare);
+			this.isSorted = true;
+		}
+	}
 }

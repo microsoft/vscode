@@ -16,6 +16,11 @@ declare module 'vscode' {
 		export function runTests(run: TestRunRequest, token?: CancellationToken): Thenable<void>;
 
 		/**
+		 * Registers a provider that can provide follow-up actions for a test failure.
+		 */
+		export function registerTestFollowupProvider(provider: TestFollowupProvider): Disposable;
+
+		/**
 		 * Returns an observer that watches and can request tests.
 		 */
 		export function createTestObserver(): TestObserver;
@@ -29,6 +34,10 @@ declare module 'vscode' {
 		 * Event that fires when the {@link testResults} array is updated.
 		 */
 		export const onDidChangeTestResults: Event<void>;
+	}
+
+	export interface TestFollowupProvider {
+		provideFollowup(result: TestRunResult, test: TestResultSnapshot, taskIndex: number, messageIndex: number, token: CancellationToken): ProviderResult<Command[]>;
 	}
 
 	export interface TestObserver {

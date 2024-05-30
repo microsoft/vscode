@@ -536,6 +536,42 @@ suite('Strings', () => {
 				`expect to forAnsiStringParts ${JSON.stringify(sequence)}`
 			);
 		}
+
+		// #209937
+		assert.strictEqual(
+			strings.removeAnsiEscapeCodes(`localhost:\x1b[31m1234`),
+			'localhost:1234',);
+	});
+
+	test('removeAnsiEscapeCodesFromPrompt', () => {
+		assert.strictEqual(strings.removeAnsiEscapeCodesFromPrompt('\u001b[31m$ \u001b[0m'), '$ ');
+		assert.strictEqual(strings.removeAnsiEscapeCodesFromPrompt('\n\\[\u001b[01;34m\\]\\w\\[\u001b[00m\\]\n\\[\u001b[1;32m\\]> \\[\u001b[0m\\]'), '\n\\w\n> ');
+	});
+
+	test('count', () => {
+		assert.strictEqual(strings.count('hello world', 'o'), 2);
+		assert.strictEqual(strings.count('hello world', 'l'), 3);
+		assert.strictEqual(strings.count('hello world', 'z'), 0);
+		assert.strictEqual(strings.count('hello world', 'hello'), 1);
+		assert.strictEqual(strings.count('hello world', 'world'), 1);
+		assert.strictEqual(strings.count('hello world', 'hello world'), 1);
+		assert.strictEqual(strings.count('hello world', 'foo'), 0);
+	});
+
+	test('containsAmbiguousCharacter', () => {
+		assert.strictEqual(strings.AmbiguousCharacters.getInstance(new Set()).containsAmbiguousCharacter('abcd'), false);
+		assert.strictEqual(strings.AmbiguousCharacters.getInstance(new Set()).containsAmbiguousCharacter('üå'), false);
+		assert.strictEqual(strings.AmbiguousCharacters.getInstance(new Set()).containsAmbiguousCharacter('(*&^)'), false);
+
+		assert.strictEqual(strings.AmbiguousCharacters.getInstance(new Set()).containsAmbiguousCharacter('ο'), true);
+		assert.strictEqual(strings.AmbiguousCharacters.getInstance(new Set()).containsAmbiguousCharacter('abɡc'), true);
+	});
+
+	test('containsInvisibleCharacter', () => {
+		assert.strictEqual(strings.InvisibleCharacters.containsInvisibleCharacter('abcd'), false);
+		assert.strictEqual(strings.InvisibleCharacters.containsInvisibleCharacter(' '), true);
+		assert.strictEqual(strings.InvisibleCharacters.containsInvisibleCharacter('a\u{e004e}b'), true);
+		assert.strictEqual(strings.InvisibleCharacters.containsInvisibleCharacter('a\u{e015a}\u000bb'), true);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

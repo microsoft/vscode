@@ -60,6 +60,7 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		private _commentOptions: languages.CommentOptions | undefined,
 		private _pendingComment: string | undefined,
 		private _parentThread: ICommentThreadWidget,
+		focus: boolean,
 		private _actionRunDelegate: (() => void) | null,
 		@ICommentService private commentService: ICommentService,
 		@IThemeService private themeService: IThemeService,
@@ -75,10 +76,10 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		this.commentEditorIsEmpty = CommentContextKeys.commentIsEmpty.bindTo(this._contextKeyService);
 		this.commentEditorIsEmpty.set(!this._pendingComment);
 
-		this.initialize();
+		this.initialize(focus);
 	}
 
-	async initialize() {
+	async initialize(focus: boolean) {
 		const hasExistingComments = this._commentThread.comments && this._commentThread.comments.length > 0;
 		const modeId = generateUuid() + '-' + (hasExistingComments ? this._commentThread.threadId : ++INMEM_MODEL_ID);
 		const params = JSON.stringify({
@@ -116,9 +117,11 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		this.setCommentEditorDecorations();
 
 		// Only add the additional step of clicking a reply button to expand the textarea when there are existing comments
-		if (hasExistingComments) {
+		if (this._pendingComment) {
+			this.expandReplyArea();
+		} else if (hasExistingComments) {
 			this.createReplyButton(this.commentEditor, this.form);
-		} else if ((this._commentThread.comments && this._commentThread.comments.length === 0) || this._pendingComment) {
+		} else if (focus && (this._commentThread.comments && this._commentThread.comments.length === 0)) {
 			this.expandReplyArea();
 		}
 		this._error = dom.append(this.form, dom.$('.validation-error.hidden'));
@@ -140,12 +143,13 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 
 	public updateCommentThread(commentThread: languages.CommentThread<IRange | ICellRange>) {
 		const isReplying = this.commentEditor.hasTextFocus();
+		const oldAndNewBothEmpty = !this._commentThread.comments?.length && !commentThread.comments?.length;
 
 		if (!this._reviewThreadReplyButton) {
 			this.createReplyButton(this.commentEditor, this.form);
 		}
 
-		if (this._commentThread.comments && this._commentThread.comments.length === 0) {
+		if (this._commentThread.comments && this._commentThread.comments.length === 0 && !oldAndNewBothEmpty) {
 			this.expandReplyArea();
 		}
 
@@ -351,7 +355,10 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 	}
 
 	private hideReplyArea() {
-		this.commentEditor.getDomNode()!.style.outline = '';
+		const domNode = this.commentEditor.getDomNode();
+		if (domNode) {
+			domNode.style.outline = '';
+		}
 		this.commentEditor.setValue('');
 		this._pendingComment = '';
 		this.form.classList.remove('expand');

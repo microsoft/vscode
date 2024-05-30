@@ -207,6 +207,9 @@ export interface IEditorService {
 	/**
 	 * All text editor widgets that are currently visible across all editor groups. A text editor
 	 * widget is either a text or a diff editor.
+	 *
+	 * This property supports side-by-side editors as well, by returning both sides if they are
+	 * text editor widgets.
 	 */
 	readonly visibleTextEditorControls: readonly (IEditor | IDiffEditor)[];
 

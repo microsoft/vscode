@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-const wordSeparatorCharPattern = /[\s\|\-]/;
-
 export interface IWordCountResult {
 	value: string;
 	actualWordCount: number;
@@ -12,27 +10,20 @@ export interface IWordCountResult {
 }
 
 export function getNWords(str: string, numWordsToCount: number): IWordCountResult {
-	let wordCount = numWordsToCount;
-	let i = 0;
-	while (i < str.length && wordCount > 0) {
-		// Consume word separator chars
-		while (i < str.length && str[i].match(wordSeparatorCharPattern)) {
-			i++;
-		}
+	// Match words and markdown style links
+	const allWordMatches = Array.from(str.matchAll(/\[([^\]]+)\]\(([^)]+)\)|[^\s\|\-]+/g));
 
-		// Consume word chars
-		while (i < str.length && !str[i].match(wordSeparatorCharPattern)) {
-			i++;
-		}
+	const targetWords = allWordMatches.slice(0, numWordsToCount);
 
-		wordCount--;
-	}
+	const endIndex = numWordsToCount > allWordMatches.length
+		? str.length // Reached end of string
+		: targetWords.length ? targetWords.at(-1)!.index + targetWords.at(-1)![0].length : 0;
 
-	const value = str.substring(0, i);
+	const value = str.substring(0, endIndex);
 	return {
 		value,
-		actualWordCount: numWordsToCount - wordCount,
-		isFullString: i >= str.length
+		actualWordCount: targetWords.length === 0 ? (value.length ? 1 : 0) : targetWords.length,
+		isFullString: endIndex >= str.length
 	};
 }
 

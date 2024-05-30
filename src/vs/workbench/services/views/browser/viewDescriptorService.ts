@@ -21,6 +21,7 @@ import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/act
 import { localize, localize2 } from 'vs/nls';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { ILogger, ILoggerService } from 'vs/platform/log/common/log';
+import { Lazy } from 'vs/base/common/lazy';
 
 interface IViewsCustomizations {
 	viewContainerLocations: IStringDictionary<ViewContainerLocation>;
@@ -65,7 +66,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	readonly onDidChangeViewContainers = this._onDidChangeViewContainers.event;
 	get viewContainers(): ReadonlyArray<ViewContainer> { return this.viewContainersRegistry.all; }
 
-	private readonly logger: ILogger;
+	private readonly logger: Lazy<ILogger>;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -77,7 +78,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	) {
 		super();
 
-		this.logger = loggerService.createLogger(VIEWS_LOG_ID, { name: VIEWS_LOG_NAME, hidden: true });
+		this.logger = new Lazy(() => loggerService.createLogger(VIEWS_LOG_ID, { name: VIEWS_LOG_NAME, hidden: true }));
 
 		this.activeViewContextKeys = new Map<string, IContextKey<boolean>>();
 		this.movableViewContextKeys = new Map<string, IContextKey<boolean>>();
@@ -309,7 +310,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	moveViewContainerToLocation(viewContainer: ViewContainer, location: ViewContainerLocation, requestedIndex?: number, reason?: string): void {
-		this.logger.info(`moveViewContainerToLocation: viewContainer:${viewContainer.id} location:${location} reason:${reason}`);
+		this.logger.value.info(`moveViewContainerToLocation: viewContainer:${viewContainer.id} location:${location} reason:${reason}`);
 		this.moveViewContainerToLocationWithoutSaving(viewContainer, location, requestedIndex);
 		this.saveViewCustomizations();
 	}
@@ -324,7 +325,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 	}
 
 	moveViewToLocation(view: IViewDescriptor, location: ViewContainerLocation, reason?: string): void {
-		this.logger.info(`moveViewToLocation: view:${view.id} location:${location} reason:${reason}`);
+		this.logger.value.info(`moveViewToLocation: view:${view.id} location:${location} reason:${reason}`);
 		const container = this.registerGeneratedViewContainer(location);
 		this.moveViewsToContainer([view], container);
 	}
@@ -334,7 +335,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 			return;
 		}
 
-		this.logger.info(`moveViewsToContainer: views:${views.map(view => view.id).join(',')} viewContainer:${viewContainer.id} reason:${reason}`);
+		this.logger.value.info(`moveViewsToContainer: views:${views.map(view => view.id).join(',')} viewContainer:${viewContainer.id} reason:${reason}`);
 
 		const from = this.getViewContainerByViewId(views[0].id);
 		const to = viewContainer;

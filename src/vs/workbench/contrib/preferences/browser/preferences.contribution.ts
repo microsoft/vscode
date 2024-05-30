@@ -46,6 +46,7 @@ import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/p
 import { IUserDataProfileService, CURRENT_PROFILE_CONTEXT } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 
 const SETTINGS_EDITOR_COMMAND_SEARCH = 'settings.action.search';
 
@@ -121,7 +122,7 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEdit
 const OPEN_USER_SETTINGS_UI_TITLE = nls.localize2('openSettings2', "Open Settings (UI)");
 const OPEN_USER_SETTINGS_JSON_TITLE = nls.localize2('openUserSettingsJson', "Open User Settings (JSON)");
 const OPEN_APPLICATION_SETTINGS_JSON_TITLE = nls.localize2('openApplicationSettingsJson', "Open Application Settings (JSON)");
-const category = nls.localize2('preferences', "Preferences");
+const category = Categories.Preferences;
 
 interface IOpenSettingsActionOptions {
 	openToSide?: boolean;

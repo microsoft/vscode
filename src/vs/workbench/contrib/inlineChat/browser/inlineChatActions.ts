@@ -11,27 +11,25 @@ import { EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/em
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/embeddedCodeEditorWidget';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { InlineChatController, InlineChatRunOptions } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
-import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_HAS_PROVIDER, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, CTX_INLINE_CHAT_VISIBLE, MENU_INLINE_CHAT_WIDGET_DISCARD, MENU_INLINE_CHAT_WIDGET_STATUS, CTX_INLINE_CHAT_EDIT_MODE, EditMode, CTX_INLINE_CHAT_DOCUMENT_CHANGED, CTX_INLINE_CHAT_DID_EDIT, CTX_INLINE_CHAT_HAS_STASHED_SESSION, ACTION_ACCEPT_CHANGES, CTX_INLINE_CHAT_RESPONSE_TYPES, InlineChatResponseTypes, ACTION_VIEW_IN_CHAT, CTX_INLINE_CHAT_USER_DID_EDIT, CTX_INLINE_CHAT_RESPONSE_FOCUSED, CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF, CTX_INLINE_CHAT_CHANGE_HAS_DIFF, MENU_INLINE_CHAT_WIDGET, ACTION_TOGGLE_DIFF } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, CTX_INLINE_CHAT_VISIBLE, MENU_INLINE_CHAT_WIDGET_STATUS, CTX_INLINE_CHAT_EDIT_MODE, EditMode, CTX_INLINE_CHAT_DOCUMENT_CHANGED, CTX_INLINE_CHAT_HAS_STASHED_SESSION, ACTION_ACCEPT_CHANGES, CTX_INLINE_CHAT_RESPONSE_TYPES, InlineChatResponseTypes, ACTION_VIEW_IN_CHAT, CTX_INLINE_CHAT_USER_DID_EDIT, CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF, CTX_INLINE_CHAT_CHANGE_HAS_DIFF, MENU_INLINE_CHAT_WIDGET, ACTION_TOGGLE_DIFF, ACTION_REGENERATE_RESPONSE } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { localize, localize2 } from 'vs/nls';
-import { Action2, IAction2Options, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { Action2, IAction2Options } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { fromNow } from 'vs/base/common/date';
 import { IInlineChatSessionService, Recording } from './inlineChatSessionService';
-import { runAccessibilityHelpAction } from 'vs/workbench/contrib/chat/browser/actions/chatAccessibilityHelp';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
-import { Disposable } from 'vs/base/common/lifecycle';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { CONTEXT_CHAT_REQUEST_IN_PROGRESS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 
 CommandsRegistry.registerCommandAlias('interactiveEditor.start', 'inlineChat.start');
 CommandsRegistry.registerCommandAlias('interactive.acceptChanges', ACTION_ACCEPT_CHANGES);
@@ -57,7 +55,7 @@ export class StartSessionAction extends EditorAction2 {
 			title: LOCALIZED_START_INLINE_CHAT_STRING,
 			category: AbstractInlineChatAction.category,
 			f1: true,
-			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_HAS_PROVIDER, EditorContextKeys.writable),
+			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_HAS_AGENT, EditorContextKeys.writable),
 			keybinding: {
 				when: EditorContextKeys.focus,
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -125,7 +123,7 @@ export abstract class AbstractInlineChatAction extends EditorAction2 {
 		super({
 			...desc,
 			category: AbstractInlineChatAction.category,
-			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_HAS_PROVIDER, desc.precondition)
+			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_HAS_AGENT, desc.precondition)
 		});
 	}
 
@@ -252,18 +250,6 @@ export class DiscardHunkAction extends AbstractInlineChatAction {
 	}
 }
 
-
-MenuRegistry.appendMenuItem(MENU_INLINE_CHAT_WIDGET_STATUS, {
-	submenu: MENU_INLINE_CHAT_WIDGET_DISCARD,
-	title: localize('discardMenu', "Discard..."),
-	icon: Codicon.discard,
-	group: '0_main',
-	order: 2,
-	when: ContextKeyExpr.and(CTX_INLINE_CHAT_EDIT_MODE.notEqualsTo(EditMode.Preview), CTX_INLINE_CHAT_EDIT_MODE.notEqualsTo(EditMode.Live), CTX_INLINE_CHAT_RESPONSE_TYPES.notEqualsTo(InlineChatResponseTypes.OnlyMessages)),
-	rememberDefaultAction: true
-});
-
-
 export class DiscardAction extends AbstractInlineChatAction {
 
 	constructor() {
@@ -276,71 +262,12 @@ export class DiscardAction extends AbstractInlineChatAction {
 				weight: KeybindingWeight.EditorContrib - 1,
 				primary: KeyCode.Escape,
 				when: CTX_INLINE_CHAT_USER_DID_EDIT.negate()
-			},
-			menu: {
-				id: MENU_INLINE_CHAT_WIDGET_DISCARD,
-				group: '0_main',
-				order: 0
 			}
 		});
 	}
 
 	async runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController, _editor: ICodeEditor, ..._args: any[]): Promise<void> {
 		await ctrl.cancelSession();
-	}
-}
-
-export class DiscardToClipboardAction extends AbstractInlineChatAction {
-
-	constructor() {
-		super({
-			id: 'inlineChat.discardToClipboard',
-			title: localize('undo.clipboard', 'Discard to Clipboard'),
-			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_DID_EDIT),
-			// keybinding: {
-			// 	weight: KeybindingWeight.EditorContrib + 10,
-			// 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyZ,
-			// 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyZ },
-			// },
-			menu: {
-				id: MENU_INLINE_CHAT_WIDGET_DISCARD,
-				group: '0_main',
-				order: 1
-			}
-		});
-	}
-
-	override async runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController): Promise<void> {
-		const clipboardService = accessor.get(IClipboardService);
-		const changedText = await ctrl.cancelSession();
-		if (changedText !== undefined) {
-			clipboardService.writeText(changedText);
-		}
-	}
-}
-
-export class DiscardUndoToNewFileAction extends AbstractInlineChatAction {
-
-	constructor() {
-		super({
-			id: 'inlineChat.discardToFile',
-			title: localize('undo.newfile', 'Discard to New File'),
-			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_DID_EDIT),
-			menu: {
-				id: MENU_INLINE_CHAT_WIDGET_DISCARD,
-				group: '0_main',
-				order: 2
-			}
-		});
-	}
-
-	override async runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController, editor: ICodeEditor, ..._args: any[]): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const changedText = await ctrl.cancelSession();
-		if (changedText !== undefined) {
-			const input: IUntitledTextResourceEditorInput = { forceUntitled: true, resource: undefined, contents: changedText, languageId: editor.getModel()?.getLanguageId() };
-			editorService.openEditor(input, SIDE_GROUP);
-		}
 	}
 }
 
@@ -359,7 +286,8 @@ export class ToggleDiffForChange extends AbstractInlineChatAction {
 				{
 					id: MENU_INLINE_CHAT_WIDGET_STATUS,
 					group: '1_main',
-					when: ContextKeyExpr.and(CTX_INLINE_CHAT_EDIT_MODE.isEqualTo(EditMode.Live), CTX_INLINE_CHAT_CHANGE_HAS_DIFF)
+					when: ContextKeyExpr.and(CTX_INLINE_CHAT_EDIT_MODE.isEqualTo(EditMode.Live), CTX_INLINE_CHAT_CHANGE_HAS_DIFF),
+					order: 10,
 				}
 			]
 		});
@@ -455,14 +383,10 @@ export class ConfigureInlineChatAction extends AbstractInlineChatAction {
 	constructor() {
 		super({
 			id: 'inlineChat.configure',
-			title: localize('configure', 'Configure '),
+			title: localize2('configure', 'Configure Inline Chat'),
 			icon: Codicon.settingsGear,
 			precondition: CTX_INLINE_CHAT_VISIBLE,
-			menu: {
-				id: MENU_INLINE_CHAT_WIDGET,
-				group: 'config',
-				order: 1,
-			}
+			f1: true,
 		});
 	}
 
@@ -555,27 +479,40 @@ export class ViewInChatAction extends AbstractInlineChatAction {
 			icon: Codicon.commentDiscussion,
 			precondition: CTX_INLINE_CHAT_VISIBLE,
 			menu: {
-				id: MENU_INLINE_CHAT_WIDGET_STATUS,
-				when: CTX_INLINE_CHAT_RESPONSE_TYPES.isEqualTo(InlineChatResponseTypes.OnlyMessages),
-				group: '0_main',
-				order: 1
+				id: MENU_INLINE_CHAT_WIDGET,
+				group: 'navigation',
+				order: 5
 			}
 		});
 	}
-	override runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController, _editor: ICodeEditor, ..._args: any[]): void {
-		ctrl.viewInChat();
+	override runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController, _editor: ICodeEditor, ..._args: any[]) {
+		return ctrl.viewInChat();
 	}
 }
 
-export class InlineAccessibilityHelpContribution extends Disposable {
+export class RerunAction extends AbstractInlineChatAction {
 	constructor() {
-		super();
-		this._register(AccessibilityHelpAction.addImplementation(106, 'inlineChat', async accessor => {
-			const codeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor() || accessor.get(ICodeEditorService).getFocusedCodeEditor();
-			if (!codeEditor) {
-				return;
+		super({
+			id: ACTION_REGENERATE_RESPONSE,
+			title: localize2('chat.rerun.label', "Rerun Request"),
+			f1: false,
+			icon: Codicon.refresh,
+			precondition: CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate(),
+			menu: {
+				id: MENU_INLINE_CHAT_WIDGET_STATUS,
+				group: '0_main',
+				order: 5,
 			}
-			runAccessibilityHelpAction(accessor, codeEditor, 'inlineChat');
-		}, ContextKeyExpr.or(CTX_INLINE_CHAT_RESPONSE_FOCUSED, CTX_INLINE_CHAT_FOCUSED)));
+		});
+	}
+
+	override async runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController, _editor: ICodeEditor, ..._args: any[]): Promise<void> {
+		const chatService = accessor.get(IChatService);
+		const model = ctrl.chatWidget.viewModel?.model;
+
+		const lastRequest = model?.getRequests().at(-1);
+		if (lastRequest) {
+			await chatService.resendRequest(lastRequest, { noCommandDetection: false, attempt: lastRequest.attempt + 1, location: ctrl.chatWidget.location });
+		}
 	}
 }

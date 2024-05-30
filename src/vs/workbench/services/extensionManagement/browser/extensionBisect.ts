@@ -20,7 +20,6 @@ import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
@@ -271,7 +270,7 @@ registerAction2(class extends Action2 {
 		const bisectService = accessor.get(IExtensionBisectService);
 		const productService = accessor.get(IProductService);
 		const extensionEnablementService = accessor.get(IGlobalExtensionEnablementService);
-		const issueService = accessor.get(IWorkbenchIssueService);
+		const commandService = accessor.get(ICommandService);
 
 		if (!bisectService.isActive) {
 			return;
@@ -315,7 +314,7 @@ registerAction2(class extends Action2 {
 				await extensionEnablementService.disableExtension({ id: done.id }, undefined);
 			}
 			if (res.confirmed) {
-				await issueService.openReporter({ extensionId: done.id });
+				await commandService.executeCommand('workbench.action.openIssueReporter', done.id);
 			}
 		}
 		await bisectService.reset();

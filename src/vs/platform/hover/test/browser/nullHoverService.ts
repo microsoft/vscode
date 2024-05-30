@@ -12,4 +12,5 @@ export const NullHoverService: IHoverService = {
 	showHover: () => undefined,
 	setupUpdatableHover: () => Disposable.None as any,
 	showAndFocusLastHover: () => undefined,
+	triggerUpdatableHover: () => undefined
 };

@@ -6,7 +6,7 @@
 import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
 import * as nls from 'vs/nls';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { IAuthenticationCreateSessionOptions, AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationService, IAuthenticationExtensionsService } from 'vs/workbench/services/authentication/common/authentication';
+import { IAuthenticationCreateSessionOptions, AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationService, IAuthenticationExtensionsService, INTERNAL_AUTH_PROVIDER_PREFIX as INTERNAL_MODEL_AUTH_PROVIDER_PREFIX } from 'vs/workbench/services/authentication/common/authentication';
 import { ExtHostAuthenticationShape, ExtHostContext, MainContext, MainThreadAuthenticationShape } from '../common/extHost.protocol';
 import { IDialogService, IPromptButton } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
@@ -117,10 +117,17 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	$removeSession(providerId: string, sessionId: string): Promise<void> {
 		return this.authenticationService.removeSession(providerId, sessionId);
 	}
-	private async loginPrompt(providerName: string, extensionName: string, recreatingSession: boolean, options?: AuthenticationForceNewSessionOptions): Promise<boolean> {
-		const message = recreatingSession
-			? nls.localize('confirmRelogin', "The extension '{0}' wants you to sign in again using {1}.", extensionName, providerName)
-			: nls.localize('confirmLogin', "The extension '{0}' wants to sign in using {1}.", extensionName, providerName);
+	private async loginPrompt(provider: IAuthenticationProvider, extensionName: string, recreatingSession: boolean, options?: AuthenticationForceNewSessionOptions): Promise<boolean> {
+		let message: string;
+
+		// An internal provider is a special case which is for model access only.
+		if (provider.id.startsWith(INTERNAL_MODEL_AUTH_PROVIDER_PREFIX)) {
+			message = nls.localize('confirmModelAccess', "The extension '{0}' wants to access the language models provided by {1}.", extensionName, provider.label);
+		} else {
+			message = recreatingSession
+				? nls.localize('confirmRelogin', "The extension '{0}' wants you to sign in again using {1}.", extensionName, provider.label)
+				: nls.localize('confirmLogin', "The extension '{0}' wants to sign in using {1}.", extensionName, provider.label);
+		}
 
 		const buttons: IPromptButton<boolean | undefined>[] = [
 			{
@@ -134,7 +141,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 			buttons.push({
 				label: nls.localize('learnMore', "Learn more"),
 				run: async () => {
-					const result = this.loginPrompt(providerName, extensionName, recreatingSession, options);
+					const result = this.loginPrompt(provider, extensionName, recreatingSession, options);
 					await this.openerService.open(URI.revive(options.learnMore!), { allowCommands: true });
 					return await result;
 				}
@@ -199,7 +206,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 			// We only want to show the "recreating session" prompt if we are using forceNewSession & there are sessions
 			// that we will be "forcing through".
 			const recreatingSession = !!(options.forceNewSession && sessions.length);
-			const isAllowed = await this.loginPrompt(provider.label, extensionName, recreatingSession, uiOptions);
+			const isAllowed = await this.loginPrompt(provider, extensionName, recreatingSession, uiOptions);
 			if (!isAllowed) {
 				throw new Error('User did not consent to login.');
 			}

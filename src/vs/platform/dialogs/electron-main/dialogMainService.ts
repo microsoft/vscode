@@ -155,7 +155,7 @@ export class DialogMainService implements IDialogMainService {
 		if (!fileDialogLock) {
 			this.logService.error('[DialogMainService]: file save dialog is already or will be showing for the window with the same configuration');
 
-			return { canceled: true };
+			return { canceled: true, filePath: '' };
 		}
 
 		try {

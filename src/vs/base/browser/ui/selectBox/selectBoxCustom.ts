@@ -299,6 +299,9 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		}
 	}
 
+	public setEnabled(enable: boolean): void {
+		this.selectElement.disabled = !enable;
+	}
 
 	private setOptionsList() {
 

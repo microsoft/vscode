@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { isHTMLElement } from 'vs/base/browser/dom';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
@@ -47,7 +48,7 @@ suite('renderLabelWithIcons', () => {
 
 	const elementsToString = (elements: Array<HTMLElement | string>): string => {
 		return elements
-			.map(elem => elem instanceof HTMLElement ? elem.outerHTML : elem)
+			.map(elem => isHTMLElement(elem) ? elem.outerHTML : elem)
 			.reduce((a, b) => a + b, '');
 	};
 

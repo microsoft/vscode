@@ -1019,7 +1019,15 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 
 					// Delegate to working copy model save method if any
 					if (typeof resolvedFileWorkingCopy.model.save === 'function') {
-						stat = await resolvedFileWorkingCopy.model.save(writeFileOptions, saveCancellation.token);
+						try {
+							stat = await resolvedFileWorkingCopy.model.save(writeFileOptions, saveCancellation.token);
+						} catch (error) {
+							if (saveCancellation.token.isCancellationRequested) {
+								return undefined; // save was cancelled
+							}
+
+							throw error;
+						}
 					}
 
 					// Otherwise ask for a snapshot and save via file services

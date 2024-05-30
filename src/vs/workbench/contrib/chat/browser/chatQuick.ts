@@ -206,14 +206,15 @@ class QuickChat extends Disposable {
 
 	render(parent: HTMLElement): void {
 		if (this.widget) {
+			// NOTE: if this changes, we need to make sure disposables in this function are tracked differently.
 			throw new Error('Cannot render quick chat twice');
 		}
-		const scopedInstantiationService = this.instantiationService.createChild(
+		const scopedInstantiationService = this._register(this.instantiationService.createChild(
 			new ServiceCollection([
 				IContextKeyService,
 				this._register(this.contextKeyService.createScoped(parent))
 			])
-		);
+		));
 		this.widget = this._register(
 			scopedInstantiationService.createInstance(
 				ChatWidget,
@@ -271,7 +272,7 @@ class QuickChat extends Disposable {
 		}));
 	}
 
-	async acceptInput(): Promise<void> {
+	async acceptInput() {
 		return this.widget.acceptInput();
 	}
 

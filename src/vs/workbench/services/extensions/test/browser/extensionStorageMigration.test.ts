@@ -33,7 +33,7 @@ suite('ExtensionStorageMigration', () => {
 	let instantiationService: TestInstantiationService;
 
 	setup(() => {
-		instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
+		instantiationService = workbenchInstantiationService(undefined, disposables);
 
 		const fileService = disposables.add(new FileService(new NullLogService()));
 		disposables.add(fileService.registerProvider(ROOT.scheme, disposables.add(new InMemoryFileSystemProvider())));

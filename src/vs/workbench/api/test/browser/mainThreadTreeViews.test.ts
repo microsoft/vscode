@@ -54,7 +54,7 @@ suite('MainThreadHostTreeView', function () {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(async () => {
-		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
+		const instantiationService: TestInstantiationService = workbenchInstantiationService(undefined, disposables);
 		const viewDescriptorService = disposables.add(instantiationService.createInstance(ViewDescriptorService));
 		instantiationService.stub(IViewDescriptorService, viewDescriptorService);
 		container = Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer({ id: 'testContainer', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);

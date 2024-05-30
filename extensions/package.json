@@ -13,5 +13,8 @@
     "@parcel/watcher": "2.1.0",
     "esbuild": "0.20.0",
     "vscode-grammar-updater": "^1.1.0"
+  },
+  "resolutions": {
+    "node-gyp-build": "4.8.1"
   }
 }

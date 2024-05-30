@@ -688,7 +688,9 @@ export abstract class ViewPane extends Pane implements IView {
 				override get trapsArrowNavigation(): boolean { return true; }
 				override render(container: HTMLElement): void {
 					container.classList.add('viewpane-filter-container');
-					append(container, that.getFilterWidget()!.element);
+					const filter = that.getFilterWidget()!;
+					append(container, filter.element);
+					filter.relayout();
 				}
 			};
 		}

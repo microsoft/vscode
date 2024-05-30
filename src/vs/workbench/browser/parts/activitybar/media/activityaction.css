@@ -26,26 +26,6 @@
 	display: block;
 }
 
-.monaco-workbench .activitybar > .content > .composite-bar > .monaco-action-bar .action-item::before {
-	top: 1px;
-	margin-top: -2px;
-}
-
-.monaco-workbench .activitybar > .content > .composite-bar > .monaco-action-bar .action-item::after {
-	bottom: 1px;
-	margin-bottom: -2px;
-}
-
-.monaco-workbench .activitybar > .content > .composite-bar > .monaco-action-bar .action-item:first-of-type::before {
-	top: 2px;
-	margin-top: -2px;
-}
-
-.monaco-workbench .activitybar > .content > .composite-bar > .monaco-action-bar .action-item:last-of-type::after {
-	bottom: 2px;
-	margin-bottom: -2px;
-}
-
 .monaco-workbench .activitybar > .content > .composite-bar > .monaco-action-bar .action-item.top::before,
 .monaco-workbench .activitybar > .content > .composite-bar > .monaco-action-bar .action-item.top::after,
 .monaco-workbench .activitybar > .content > .composite-bar > .monaco-action-bar .action-item.bottom::before,
@@ -109,7 +89,7 @@
 
 .monaco-workbench.hc-black .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator:before,
 .monaco-workbench.hc-black .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus .active-item-indicator:before {
-	border-color: var(--vscode-focusBorder);
+	border-color: var(--vscode-activityBar-activeBorder);
 }
 
 .monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.checked .active-item-indicator:before {

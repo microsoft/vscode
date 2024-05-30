@@ -11,7 +11,7 @@ import * as process from 'vs/base/common/process';
 import { CommandOptions, ForkOptions, Source, SuccessData, TerminateResponse, TerminateResponseCode } from 'vs/base/common/processes';
 import * as Types from 'vs/base/common/types';
 import * as pfs from 'vs/base/node/pfs';
-export { CommandOptions, ForkOptions, SuccessData, Source, TerminateResponse, TerminateResponseCode };
+export { type CommandOptions, type ForkOptions, type SuccessData, Source, type TerminateResponse, TerminateResponseCode };
 
 export type ValueCallback<T> = (value: T | Promise<T>) => void;
 export type ErrorCallback = (error?: any) => void;

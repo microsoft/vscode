@@ -14,7 +14,7 @@
     "@types/fancy-log": "^1.3.0",
     "@types/fs-extra": "^9.0.12",
     "@types/glob": "^7.1.1",
-    "@types/gulp": "^4.0.5",
+    "@types/gulp": "^4.0.17",
     "@types/gulp-concat": "^0.0.32",
     "@types/gulp-filter": "^3.0.32",
     "@types/gulp-gzip": "^0.0.31",
@@ -26,7 +26,7 @@
     "@types/minimist": "^1.2.1",
     "@types/mkdirp": "^1.0.1",
     "@types/mocha": "^9.1.1",
-    "@types/node": "18.x",
+    "@types/node": "20.x",
     "@types/pump": "^1.0.1",
     "@types/rimraf": "^2.0.4",
     "@types/through": "^0.0.29",
@@ -63,7 +63,7 @@
   },
   "optionalDependencies": {
     "tree-sitter": "^0.20.5",
-    "tree-sitter-typescript": "^0.20.3",
+    "tree-sitter-typescript": "^0.20.5",
     "vscode-gulp-watch": "^5.0.3"
   }
 }

@@ -18,19 +18,14 @@ export namespace AccessibilityHelpNLS {
 	export const auto_off = nls.localize("auto_off", "The application is configured to never be optimized for usage with a Screen Reader.");
 	export const screenReaderModeEnabled = nls.localize("screenReaderModeEnabled", "Screen Reader Optimized Mode enabled.");
 	export const screenReaderModeDisabled = nls.localize("screenReaderModeDisabled", "Screen Reader Optimized Mode disabled.");
-	export const tabFocusModeOnMsg = nls.localize("tabFocusModeOnMsg", "Pressing Tab in the current editor will move focus to the next focusable element. Toggle this behavior {0}.");
-	export const tabFocusModeOnMsgNoKb = nls.localize("tabFocusModeOnMsgNoKb", "Pressing Tab in the current editor will move focus to the next focusable element. The command {0} is currently not triggerable by a keybinding.");
-	export const stickScrollKb = nls.localize("stickScrollKb", "Focus Sticky Scroll ({0}) to focus the currently nested scopes.");
-	export const stickScrollNoKb = nls.localize("stickScrollNoKb", "Focus Sticky Scroll to focus the currently nested scopes. It is currently not triggerable by a keybinding.");
-	export const tabFocusModeOffMsg = nls.localize("tabFocusModeOffMsg", "Pressing Tab in the current editor will insert the tab character. Toggle this behavior {0}.");
-	export const tabFocusModeOffMsgNoKb = nls.localize("tabFocusModeOffMsgNoKb", "Pressing Tab in the current editor will insert the tab character. The command {0} is currently not triggerable by a keybinding.");
+	export const tabFocusModeOnMsg = nls.localize("tabFocusModeOnMsg", "Pressing Tab in the current editor will move focus to the next focusable element. Toggle this behavior<keybinding:editor.action.toggleTabFocusMode>");
+	export const tabFocusModeOffMsg = nls.localize("tabFocusModeOffMsg", "Pressing Tab in the current editor will insert the tab character. Toggle this behavior<keybinding:editor.action.toggleTabFocusMode>");
+	export const stickScroll = nls.localize("stickScrollKb", "Focus Sticky Scroll<keybinding:editor.action.focusStickyScroll> to focus the currently nested scopes.");
 	export const showAccessibilityHelpAction = nls.localize("showAccessibilityHelpAction", "Show Accessibility Help");
 	export const listSignalSounds = nls.localize("listSignalSoundsCommand", "Run the command: List Signal Sounds for an overview of all sounds and their current status.");
 	export const listAlerts = nls.localize("listAnnouncementsCommand", "Run the command: List Signal Announcements for an overview of announcements and their current status.");
-	export const quickChat = nls.localize("quickChatCommand", "Toggle quick chat ({0}) to open or close a chat session.");
-	export const quickChatNoKb = nls.localize("quickChatCommandNoKb", "Toggle quick chat is not currently triggerable by a keybinding.");
-	export const startInlineChat = nls.localize("startInlineChatCommand", "Start inline chat ({0}) to create an in editor chat session.");
-	export const startInlineChatNoKb = nls.localize("startInlineChatCommandNoKb", "The command: Start inline chat is not currentlyt riggerable by a keybinding.");
+	export const quickChat = nls.localize("quickChatCommand", "Toggle quick chat<keybinding:workbench.action.quickchat.toggle> to open or close a chat session.",);
+	export const startInlineChat = nls.localize("startInlineChatCommand", "Start inline chat<keybinding:inlineChat.start> to create an in editor chat session.");
 }
 
 export namespace InspectTokensNLS {

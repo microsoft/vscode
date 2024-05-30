@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getErrorMessage } from 'vs/base/common/errors';
+import { IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -26,7 +28,7 @@ export interface IExtensionSignatureVerificationService {
 	 * @throws { ExtensionSignatureVerificationError } An error with a code indicating the validity, integrity, or trust issue
 	 * found during verification or a more fundamental issue (e.g.:  a required dependency was not found).
 	 */
-	verify(extensionId: string, vsixFilePath: string, signatureArchiveFilePath: string): Promise<boolean>;
+	verify(extension: IGalleryExtension, vsixFilePath: string, signatureArchiveFilePath: string, clientTargetPlatform?: TargetPlatform): Promise<boolean>;
 }
 
 declare module vsceSign {
@@ -70,6 +72,7 @@ export const enum ExtensionSignatureVerificationCode {
 export interface ExtensionSignatureVerificationResult {
 	readonly code: ExtensionSignatureVerificationCode;
 	readonly didExecute: boolean;
+	readonly internalCode?: number;
 	readonly output?: string;
 }
 
@@ -106,8 +109,9 @@ export class ExtensionSignatureVerificationService implements IExtensionSignatur
 		return this.moduleLoadingPromise;
 	}
 
-	public async verify(extensionId: string, vsixFilePath: string, signatureArchiveFilePath: string): Promise<boolean> {
+	public async verify(extension: IGalleryExtension, vsixFilePath: string, signatureArchiveFilePath: string, clientTargetPlatform?: TargetPlatform): Promise<boolean> {
 		let module: typeof vsceSign;
+		const extensionId = extension.identifier.id;
 
 		try {
 			module = await this.vsceSign();
@@ -121,6 +125,7 @@ export class ExtensionSignatureVerificationService implements IExtensionSignatur
 		let result: ExtensionSignatureVerificationResult;
 
 		try {
+			this.logService.trace(`Verifying extension signature for ${extensionId}...`);
 			result = await module.verify(vsixFilePath, signatureArchiveFilePath, this.logService.getLevel() === LogLevel.Trace);
 		} catch (e) {
 			result = {
@@ -132,28 +137,37 @@ export class ExtensionSignatureVerificationService implements IExtensionSignatur
 
 		const duration = new Date().getTime() - startTime;
 
-		this.logService.info(`Extension signature verification result for ${extensionId}: ${result.code}. Duration: ${duration}ms.`);
+		this.logService.info(`Extension signature verification result for ${extensionId}: ${result.code}. Executed: ${result.didExecute}. Duration: ${duration}ms.`);
 		this.logService.trace(`Extension signature verification output for ${extensionId}:\n${result.output}`);
 
 		type ExtensionSignatureVerificationClassification = {
 			owner: 'sandy081';
 			comment: 'Extension signature verification event';
 			extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'extension identifier' };
+			extensionVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'extension version' };
 			code: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'result code of the verification' };
+			internalCode?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; 'isMeasurement': true; comment: 'internal code of the verification' };
 			duration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; 'isMeasurement': true; comment: 'amount of time taken to verify the signature' };
 			didExecute: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'whether the verification was executed' };
+			clientTargetPlatform?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'target platform of the client' };
 		};
 		type ExtensionSignatureVerificationEvent = {
 			extensionId: string;
+			extensionVersion: string;
 			code: string;
+			internalCode?: number;
 			duration: number;
 			didExecute: boolean;
+			clientTargetPlatform?: string;
 		};
 		this.telemetryService.publicLog2<ExtensionSignatureVerificationEvent, ExtensionSignatureVerificationClassification>('extensionsignature:verification', {
 			extensionId,
+			extensionVersion: extension.version,
 			code: result.code,
+			internalCode: result.internalCode,
 			duration,
-			didExecute: result.didExecute
+			didExecute: result.didExecute,
+			clientTargetPlatform,
 		});
 
 		if (result.code === ExtensionSignatureVerificationCode.Success) {

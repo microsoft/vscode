@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dart-lang/dart-syntax-highlight/commit/272e2f89f85073c04b7e15b582257f76d2489970",
+	"version": "https://github.com/dart-lang/dart-syntax-highlight/commit/bb8f7eebf5a1028e70dbebcf35cfef738dddc7fe",
 	"name": "Dart",
 	"scopeName": "source.dart",
 	"patterns": [
@@ -14,7 +14,7 @@
 		},
 		{
 			"name": "meta.declaration.dart",
-			"begin": "^\\w*\\b(library|import|part of|part|export)\\b",
+			"begin": "^\\w*\\b(augment\\s+library|library|import\\s+augment|import|part\\s+of|part|export)\\b",
 			"beginCaptures": {
 				"0": {
 					"name": "keyword.other.import.dart"
@@ -208,7 +208,7 @@
 				},
 				{
 					"name": "variable.language.dart",
-					"match": "(?<!\\$)\\b(this|super)\\b(?!\\$)"
+					"match": "(?<!\\$)\\b(this|super|augmented)\\b(?!\\$)"
 				},
 				{
 					"name": "constant.numeric.dart",
@@ -328,11 +328,11 @@
 				},
 				{
 					"name": "keyword.declaration.dart",
-					"match": "(?<!\\$)\\b(abstract|sealed|base|interface|class|enum|extends|extension type|extension|external|factory|implements|get(?![(<])|mixin|native|operator|set(?![(<])|typedef|with|covariant)\\b(?!\\$)"
+					"match": "(?<!\\$)\\b(abstract|sealed|base|interface|class|enum|extends|extension\\s+type|extension|external|factory|implements|get(?![(<])|mixin|native|operator|set(?![(<])|typedef|with|covariant)\\b(?!\\$)"
 				},
 				{
 					"name": "storage.modifier.dart",
-					"match": "(?<!\\$)\\b(static|final|const|required|late)\\b(?!\\$)"
+					"match": "(?<!\\$)\\b(macro|augment|static|final|const|required|late)\\b(?!\\$)"
 				},
 				{
 					"name": "storage.type.primitive.dart",
@@ -388,10 +388,33 @@
 				}
 			]
 		},
+		"expression": {
+			"patterns": [
+				{
+					"include": "#constants-and-special-vars"
+				},
+				{
+					"include": "#strings"
+				},
+				{
+					"name": "variable.parameter.dart",
+					"match": "[a-zA-Z0-9_]+"
+				},
+				{
+					"begin": "\\{",
+					"end": "\\}",
+					"patterns": [
+						{
+							"include": "#expression"
+						}
+					]
+				}
+			]
+		},
 		"string-interp": {
 			"patterns": [
 				{
-					"name": "string.interpolated.expression.dart",
+					"name": "meta.embedded.expression.dart",
 					"match": "\\$([a-zA-Z0-9_]+)",
 					"captures": {
 						"1": {
@@ -400,19 +423,12 @@
 					}
 				},
 				{
-					"name": "string.interpolated.expression.dart",
+					"name": "meta.embedded.expression.dart",
 					"begin": "\\$\\{",
 					"end": "\\}",
 					"patterns": [
 						{
-							"include": "#constants-and-special-vars"
-						},
-						{
-							"include": "#strings"
-						},
-						{
-							"name": "variable.parameter.dart",
-							"match": "[a-zA-Z0-9_]+"
+							"include": "#expression"
 						}
 					]
 				},

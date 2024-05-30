@@ -2,6 +2,13 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
+			"label": "setup-environment",
+			"type": "shell",
+			"windows": { "command": "powershell ./scripts/pearai/setup-environment.ps1" },
+			"command": "./scripts/pearai/setup-environment.sh",
+			"problemMatcher": [] // Empty so users are not prompted to select progress reporting
+        },
+		{
 			"type": "npm",
 			"script": "watch-clientd",
 			"label": "Core - Build",

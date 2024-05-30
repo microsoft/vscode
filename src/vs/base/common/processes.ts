@@ -102,10 +102,10 @@ export interface ProcessItem {
  * Sanitizes a VS Code process environment by removing all Electron/VS Code-related values.
  */
 export function sanitizeProcessEnvironment(env: IProcessEnvironment, ...preserve: string[]): void {
-	const set = preserve.reduce((set, key) => {
+	const set = preserve.reduce<Record<string, boolean>>((set, key) => {
 		set[key] = true;
 		return set;
-	}, {} as Record<string, boolean>);
+	}, {});
 	const keysToRemove = [
 		/^ELECTRON_.+$/,
 		/^VSCODE_(?!(PORTABLE|SHELL_LOGIN|ENV_REPLACE|ENV_APPEND|ENV_PREPEND)).+$/,

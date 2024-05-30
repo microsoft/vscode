@@ -7,9 +7,9 @@ import { ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/termin
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IDebugService, IDebugSession, IReplElement } from 'vs/workbench/contrib/debug/common/debug';
+import { removeAnsiEscapeCodes } from 'vs/base/common/strings';
 
 export class UrlFinder extends Disposable {
-	private static readonly terminalCodesRegex = /(?:\u001B|\u009B)[\[\]()#;?]*(?:(?:(?:[a-zA-Z0-9]*(?:;[a-zA-Z0-9]*)*)?\u0007)|(?:(?:\d{1,4}(?:;\d{0,4})*)?[0-9A-PR-TZcf-ntqry=><~]))/g;
 	/**
 	 * Local server url pattern matching following urls:
 	 * http://localhost:3000/ - commonly used across multiple frameworks
@@ -99,7 +99,7 @@ export class UrlFinder extends Disposable {
 
 	private processData(data: string) {
 		// strip ANSI terminal codes
-		data = data.replace(UrlFinder.terminalCodesRegex, '');
+		data = removeAnsiEscapeCodes(data);
 		const urlMatches = data.match(UrlFinder.localUrlRegex) || [];
 		if (urlMatches && urlMatches.length > 0) {
 			urlMatches.forEach((match) => {

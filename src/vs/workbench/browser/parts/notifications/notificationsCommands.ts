@@ -311,7 +311,7 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 		}));
 
 		picker.canSelectMany = true;
-		picker.placeholder = localize('selectSources', "Select sources to enable notifications for");
+		picker.placeholder = localize('selectSources', "Select sources to enable all notifications from");
 		picker.selectedItems = picker.items.filter(item => (item as INotificationSourceFilter).filter === NotificationsFilter.OFF) as (IQuickPickItem & INotificationSourceFilter)[];
 
 		picker.show();

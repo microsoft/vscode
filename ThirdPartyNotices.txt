@@ -517,7 +517,7 @@ to the base-name name of the original file, and an extension of txt, html, or si
 
 ---------------------------------------------------------
 
-go-syntax 0.6.5 - MIT
+go-syntax 0.6.6 - MIT
 https://github.com/worlpaker/go-syntax
 
 MIT License
@@ -777,7 +777,7 @@ SOFTWARE.
 
 ---------------------------------------------------------
 
-jeff-hykin/better-shell-syntax 1.8.3 - MIT
+jeff-hykin/better-shell-syntax 1.8.7 - MIT
 https://github.com/jeff-hykin/better-shell-syntax
 
 MIT License

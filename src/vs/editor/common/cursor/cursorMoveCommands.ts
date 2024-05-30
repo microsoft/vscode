@@ -596,7 +596,7 @@ export namespace CursorMove {
 		return true;
 	};
 
-	export const metadata = <ICommandMetadata>{
+	export const metadata: ICommandMetadata = {
 		description: 'Move cursor to a logical position in the view',
 		args: [
 			{

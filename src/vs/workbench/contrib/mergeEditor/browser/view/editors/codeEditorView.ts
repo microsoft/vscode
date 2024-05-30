@@ -20,7 +20,8 @@ import { MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DEFAULT_EDITOR_MAX_DIMENSIONS, DEFAULT_EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
-import { observableConfigValue, setStyle } from 'vs/workbench/contrib/mergeEditor/browser/utils';
+import { setStyle } from 'vs/workbench/contrib/mergeEditor/browser/utils';
+import { observableConfigValue } from 'vs/platform/observable/common/platformObservableUtils';
 import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
 
 export abstract class CodeEditorView extends Disposable {

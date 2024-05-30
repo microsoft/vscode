@@ -446,7 +446,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 	override async onClick(event: MouseEvent): Promise<void> {
 		this._terminalGroupService.lastAccessedMenu = 'inline-tab';
 		if (event.altKey && this._menuItemAction.alt) {
-			this._commandService.executeCommand(this._menuItemAction.alt.id, { target: TerminalLocation.Panel } as ICreateTerminalOptions);
+			this._commandService.executeCommand(this._menuItemAction.alt.id, { location: TerminalLocation.Panel } satisfies ICreateTerminalOptions);
 		} else {
 			this._openContextMenu();
 		}

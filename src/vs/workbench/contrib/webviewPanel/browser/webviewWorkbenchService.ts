@@ -10,7 +10,6 @@ import { isCancellationError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { combinedDisposable, Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { EditorActivation } from 'vs/platform/editor/common/editor';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
@@ -19,7 +18,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IOverlayWebview, IWebviewService, WebviewInitInfo } from 'vs/workbench/contrib/webview/browser/webview';
 import { CONTEXT_ACTIVE_WEBVIEW_PANEL_ID } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditor';
 import { WebviewIconManager, WebviewIcons } from 'vs/workbench/contrib/webviewPanel/browser/webviewIconManager';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 import { WebviewInput, WebviewInputInitInfo } from './webviewEditorInput';
 
@@ -213,19 +212,20 @@ export class WebviewEditorService extends Disposable implements IWebviewWorkbenc
 
 	private readonly _iconManager: WebviewIconManager;
 
-	private readonly _activeWebviewPanelIdContext: IContextKey<string>;
-
 	constructor(
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IWebviewService private readonly _webviewService: IWebviewService,
 	) {
 		super();
 
-		this._activeWebviewPanelIdContext = CONTEXT_ACTIVE_WEBVIEW_PANEL_ID.bindTo(contextKeyService);
-
 		this._iconManager = this._register(this._instantiationService.createInstance(WebviewIconManager));
+
+		this._register(editorGroupsService.registerContextKeyProvider({
+			contextKey: CONTEXT_ACTIVE_WEBVIEW_PANEL_ID,
+			getGroupContextKeyValue: (group) => this.getWebviewId(group.activeEditor),
+		}));
 
 		this._register(_editorService.onDidActiveEditorChange(() => {
 			this.updateActiveWebview();
@@ -248,6 +248,21 @@ export class WebviewEditorService extends Disposable implements IWebviewWorkbenc
 	private readonly _onDidChangeActiveWebviewEditor = this._register(new Emitter<WebviewInput | undefined>());
 	public readonly onDidChangeActiveWebviewEditor = this._onDidChangeActiveWebviewEditor.event;
 
+	private getWebviewId(input: EditorInput | null): string {
+		let webviewInput: WebviewInput | undefined;
+		if (input instanceof WebviewInput) {
+			webviewInput = input;
+		} else if (input instanceof DiffEditorInput) {
+			if (input.primary instanceof WebviewInput) {
+				webviewInput = input.primary;
+			} else if (input.secondary instanceof WebviewInput) {
+				webviewInput = input.secondary;
+			}
+		}
+
+		return webviewInput?.webview.providedViewType ?? '';
+	}
+
 	private updateActiveWebview() {
 		const activeInput = this._editorService.activeEditor;
 
@@ -261,13 +276,6 @@ export class WebviewEditorService extends Disposable implements IWebviewWorkbenc
 				newActiveWebview = activeInput.secondary;
 			}
 		}
-
-		if (newActiveWebview) {
-			this._activeWebviewPanelIdContext.set(newActiveWebview.webview.providedViewType ?? '');
-		} else {
-			this._activeWebviewPanelIdContext.reset();
-		}
-
 		if (newActiveWebview !== this._activeWebview) {
 			this._activeWebview = newActiveWebview;
 			this._onDidChangeActiveWebviewEditor.fire(newActiveWebview);

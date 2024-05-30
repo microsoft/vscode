@@ -24,7 +24,7 @@ import { ITelemetryEndpoint } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IEditorPane } from 'vs/workbench/common/editor';
 import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
-import { IDataBreakpointOptions, IInstructionBreakpointOptions } from 'vs/workbench/contrib/debug/common/debugModel';
+import { IDataBreakpointOptions, IFunctionBreakpointOptions, IInstructionBreakpointOptions } from 'vs/workbench/contrib/debug/common/debugModel';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { ITaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -1150,7 +1150,7 @@ export interface IDebugService {
 	/**
 	 * Adds a new function breakpoint for the given name.
 	 */
-	addFunctionBreakpoint(name?: string, id?: string, mode?: string): void;
+	addFunctionBreakpoint(opts?: IFunctionBreakpointOptions, id?: string): void;
 
 	/**
 	 * Updates an already existing function breakpoint.

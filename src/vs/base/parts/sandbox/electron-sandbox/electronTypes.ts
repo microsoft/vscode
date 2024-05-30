@@ -7,7 +7,7 @@
 // #######################################################################
 // ###                                                                 ###
 // ###      electron.d.ts types we expose from electron-sandbox        ###
-// ###                    (copied from Electron 25.x)                  ###
+// ###                    (copied from Electron 29.x)                  ###
 // ###                                                                 ###
 // #######################################################################
 
@@ -30,20 +30,6 @@ export interface IpcRendererEvent extends Event {
 	 * The `IpcRenderer` instance that emitted the event originally
 	 */
 	sender: IpcRenderer;
-	/**
-	 * The `webContents.id` that sent the message, you can call
-	 * `event.sender.sendTo(event.senderId, ...)` to reply to the message, see
-	 * ipcRenderer.sendTo for more information. This only applies to messages sent from
-	 * a different renderer. Messages sent directly from the main process set
-	 * `event.senderId` to `0`.
-	 */
-	senderId: number;
-	/**
-	 * Whether the message sent via ipcRenderer.sendTo was sent by the main frame. This
-	 * is relevant when `nodeIntegrationInSubFrames` is enabled in the originating
-	 * `webContents`.
-	 */
-	senderIsMainFrame?: boolean;
 }
 
 export interface IpcRenderer {
@@ -91,10 +77,6 @@ export interface IpcRenderer {
 	 * only the next time a message is sent to `channel`, after which it is removed.
 	 */
 	once(channel: string, listener: (event: IpcRendererEvent, ...args: any[]) => void): this;
-	/**
-	 * Removes the specified `listener` from the listener array for the specified
-	 * `channel`.
-	 */
 	// Note: API with `Transferable` intentionally commented out because you
 	// cannot transfer these when `contextIsolation: true`.
 	// /**
@@ -111,7 +93,11 @@ export interface IpcRenderer {
 	//  * documentation.
 	//  */
 	// postMessage(channel: string, message: any, transfer?: MessagePort[]): void;
-	removeListener(channel: string, listener: (...args: any[]) => void): this;
+	/**
+	 * Removes the specified `listener` from the listener array for the specified
+	 * `channel`.
+	 */
+	removeListener(channel: string, listener: (event: IpcRendererEvent, ...args: any[]) => void): this;
 	/**
 	 * Send an asynchronous message to the main process via `channel`, along with
 	 * arguments. Arguments will be serialized with the Structured Clone Algorithm,

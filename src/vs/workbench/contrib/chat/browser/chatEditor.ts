@@ -75,6 +75,12 @@ export class ChatEditor extends EditorPane {
 		this.widget.setVisible(true);
 	}
 
+	protected override  setEditorVisible(visible: boolean): void {
+		super.setEditorVisible(visible);
+
+		this.widget?.setVisible(visible);
+	}
+
 	public override focus(): void {
 		super.focus();
 

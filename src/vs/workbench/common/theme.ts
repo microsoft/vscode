@@ -166,6 +166,28 @@ export const TAB_UNFOCUSED_ACTIVE_BORDER_TOP = registerColor('tab.unfocusedActiv
 	hcLight: '#B5200D'
 }, localize('tabActiveUnfocusedBorderTop', "Border to the top of an active tab in an unfocused group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
+export const TAB_SELECTED_BORDER_TOP = registerColor('tab.selectedBorderTop', {
+	dark: TAB_ACTIVE_BORDER_TOP,
+	light: TAB_ACTIVE_BORDER_TOP,
+	hcDark: TAB_ACTIVE_BORDER_TOP,
+	hcLight: TAB_ACTIVE_BORDER_TOP
+}, localize('tabSelectedBorderTop', "Border to the top of a selected tab. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+
+export const TAB_SELECTED_BACKGROUND = registerColor('tab.selectedBackground', {
+	dark: TAB_ACTIVE_BACKGROUND,
+	light: TAB_ACTIVE_BACKGROUND,
+	hcDark: TAB_ACTIVE_BACKGROUND,
+	hcLight: TAB_ACTIVE_BACKGROUND
+}, localize('tabSelectedBackground', "Background of a selected tab. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+
+export const TAB_SELECTED_FOREGROUND = registerColor('tab.selectedForeground', {
+	dark: TAB_ACTIVE_FOREGROUND,
+	light: TAB_ACTIVE_FOREGROUND,
+	hcDark: TAB_ACTIVE_FOREGROUND,
+	hcLight: TAB_ACTIVE_FOREGROUND
+}, localize('tabSelectedForeground', "Foreground of a selected tab. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+
+
 export const TAB_HOVER_BORDER = registerColor('tab.hoverBorder', {
 	dark: null,
 	light: null,
@@ -677,7 +699,7 @@ export const ACTIVITY_BAR_BORDER = registerColor('activityBar.border', {
 export const ACTIVITY_BAR_ACTIVE_BORDER = registerColor('activityBar.activeBorder', {
 	dark: ACTIVITY_BAR_FOREGROUND,
 	light: ACTIVITY_BAR_FOREGROUND,
-	hcDark: null,
+	hcDark: contrastBorder,
 	hcLight: contrastBorder
 }, localize('activityBarActiveBorder', "Activity bar border color for the active item. The activity bar is showing on the far left or right and allows to switch between views of the side bar."));
 

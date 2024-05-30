@@ -58,10 +58,6 @@ import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/ac
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IQuickDiffService, QuickDiff } from 'vs/workbench/contrib/scm/common/quickDiff';
 import { IQuickDiffSelectItem, SwitchQuickDiffBaseAction, SwitchQuickDiffViewItem } from 'vs/workbench/contrib/scm/browser/dirtyDiffSwitcher';
-import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
-import { IEditorControl } from 'vs/workbench/common/editor';
-import { TextFileEditor } from 'vs/workbench/contrib/files/browser/editors/textFileEditor';
-import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
 
 class DiffActionRunner extends ActionRunner {
 
@@ -1653,28 +1649,8 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 		this.enabled = false;
 	}
 
-	private getVisibleEditorControls(): IEditorControl[] {
-		const controls: IEditorControl[] = [];
-		const addControl = (control: IEditorControl | undefined) => {
-			if (control) {
-				controls.push(control);
-			}
-		};
-
-		for (const editorPane of this.editorService.visibleEditorPanes) {
-			if (editorPane instanceof TextDiffEditor || editorPane instanceof TextFileEditor) {
-				addControl(editorPane.getControl());
-			} else if (editorPane instanceof SideBySideEditor) {
-				addControl(editorPane.getPrimaryEditorPane()?.getControl());
-				addControl(editorPane.getSecondaryEditorPane()?.getControl());
-			}
-		}
-		return controls;
-	}
-
 	private onEditorsChanged(): void {
-		const visibleControls = this.getVisibleEditorControls();
-		for (const editor of visibleControls) {
+		for (const editor of this.editorService.visibleTextEditorControls) {
 			if (isCodeEditor(editor)) {
 				const textModel = editor.getModel();
 				const controller = DirtyDiffController.get(editor);
@@ -1700,7 +1676,7 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 
 		for (const [uri, item] of this.items) {
 			for (const editorId of item.keys()) {
-				if (!this.getVisibleEditorControls().find(editor => isCodeEditor(editor) && editor.getModel()?.uri.toString() === uri.toString() && editor.getId() === editorId)) {
+				if (!this.editorService.visibleTextEditorControls.find(editor => isCodeEditor(editor) && editor.getModel()?.uri.toString() === uri.toString() && editor.getId() === editorId)) {
 					if (item.has(editorId)) {
 						const dirtyDiffItem = item.get(editorId);
 						dirtyDiffItem?.dispose();

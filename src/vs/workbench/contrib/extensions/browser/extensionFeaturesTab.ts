@@ -13,7 +13,6 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { localize } from 'vs/nls';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { getExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { Button } from 'vs/base/browser/ui/button/button';
@@ -240,7 +239,7 @@ export class ExtensionFeaturesTab extends Themable {
 			multipleSelectionSupport: false,
 			setRowLineHeight: false,
 			horizontalScrolling: false,
-			accessibilityProvider: <IListAccessibilityProvider<IExtensionFeatureDescriptor | null>>{
+			accessibilityProvider: {
 				getAriaLabel(extensionFeature: IExtensionFeatureDescriptor | null): string {
 					return extensionFeature?.label ?? '';
 				},

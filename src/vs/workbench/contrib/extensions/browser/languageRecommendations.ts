@@ -20,7 +20,7 @@ export class LanguageRecommendations extends ExtensionRecommendations {
 
 	protected async doActivate(): Promise<void> {
 		if (this.productService.languageExtensionTips) {
-			this._recommendations = this.productService.languageExtensionTips.map(extensionId => (<ExtensionRecommendation>{
+			this._recommendations = this.productService.languageExtensionTips.map((extensionId): ExtensionRecommendation => ({
 				extension: extensionId.toLowerCase(),
 				reason: {
 					reasonId: ExtensionRecommendationReason.Application,
@@ -29,6 +29,4 @@ export class LanguageRecommendations extends ExtensionRecommendations {
 			}));
 		}
 	}
-
 }
-

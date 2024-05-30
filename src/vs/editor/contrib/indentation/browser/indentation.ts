@@ -25,6 +25,8 @@ import * as nls from 'vs/nls';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { getGoodIndentForLine, getIndentMetadata } from 'vs/editor/common/languages/autoIndent';
 import { getReindentEditOperations } from '../common/indentation';
+import { getStandardTokenTypeAtPosition } from 'vs/editor/common/tokens/lineTokens';
+import { Position } from 'vs/editor/common/core/position';
 
 export class IndentationToSpacesAction extends EditorAction {
 	public static readonly ID = 'editor.action.indentationToSpaces';
@@ -416,7 +418,9 @@ export class AutoIndentOnPaste implements IEditorContribution {
 		if (!model) {
 			return;
 		}
-
+		if (isStartOrEndInString(model, range)) {
+			return;
+		}
 		if (!model.tokenization.isCheapToTokenize(range.getStartPosition().lineNumber)) {
 			return;
 		}
@@ -563,6 +567,14 @@ export class AutoIndentOnPaste implements IEditorContribution {
 		this.callOnDispose.dispose();
 		this.callOnModel.dispose();
 	}
+}
+
+function isStartOrEndInString(model: ITextModel, range: Range): boolean {
+	const isPositionInString = (position: Position): boolean => {
+		const tokenType = getStandardTokenTypeAtPosition(model, position);
+		return tokenType === StandardTokenType.String;
+	};
+	return isPositionInString(range.getStartPosition()) || isPositionInString(range.getEndPosition());
 }
 
 function getIndentationEditOperations(model: ITextModel, builder: IEditOperationBuilder, tabSize: number, tabsToSpaces: boolean): void {

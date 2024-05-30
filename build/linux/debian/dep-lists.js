@@ -57,8 +57,7 @@ exports.referenceGeneratedDepsByArch = {
         'libxkbcommon0 (>= 0.5.0)',
         'libxkbfile1 (>= 1:1.1.0)',
         'libxrandr2',
-        'xdg-utils (>= 1.0.2)',
-        'zlib1g (>= 1:1.2.3.4)'
+        'xdg-utils (>= 1.0.2)'
     ],
     'armhf': [
         'ca-certificates',

@@ -106,11 +106,11 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 	}
 
 	private getHoverForReference(ref: IDynamicVariable): string | IMarkdownString {
-		const value = ref.data[0];
-		if (URI.isUri(value.value)) {
-			return new MarkdownString(this.labelService.getUriLabel(value.value, { relative: true }));
+		const value = ref.data;
+		if (URI.isUri(value)) {
+			return new MarkdownString(this.labelService.getUriLabel(value, { relative: true }));
 		} else {
-			return value.value.toString();
+			return (value as any).toString();
 		}
 	}
 }
@@ -127,6 +127,11 @@ function isSelectAndInsertFileActionContext(context: any): context is SelectAndI
 }
 
 export class SelectAndInsertFileAction extends Action2 {
+	static readonly Name = 'files';
+	static readonly Item = {
+		label: localize('allFiles', 'All Files'),
+		description: localize('allFilesDescription', 'Search for relevant files in the workspace and provide context from them'),
+	};
 	static readonly ID = 'workbench.action.chat.selectAndInsertFile';
 
 	constructor() {
@@ -153,18 +158,13 @@ export class SelectAndInsertFileAction extends Action2 {
 		};
 
 		let options: IQuickAccessOptions | undefined;
-		const filesVariableName = 'files';
-		const filesItem = {
-			label: localize('allFiles', 'All Files'),
-			description: localize('allFilesDescription', 'Search for relevant files in the workspace and provide context from them'),
-		};
 		// If we have a `files` variable, add an option to select all files in the picker.
 		// This of course assumes that the `files` variable has the behavior that it searches
 		// through files in the workspace.
-		if (chatVariablesService.hasVariable(filesVariableName)) {
+		if (chatVariablesService.hasVariable(SelectAndInsertFileAction.Name)) {
 			options = {
 				providerOptions: <AnythingQuickAccessProviderRunOptions>{
-					additionPicks: [filesItem, { type: 'separator' }]
+					additionPicks: [SelectAndInsertFileAction.Item, { type: 'separator' }]
 				},
 			};
 		}
@@ -180,8 +180,8 @@ export class SelectAndInsertFileAction extends Action2 {
 		const range = context.range;
 
 		// Handle the special case of selecting all files
-		if (picks[0] === filesItem) {
-			const text = `#${filesVariableName}`;
+		if (picks[0] === SelectAndInsertFileAction.Item) {
+			const text = `#${SelectAndInsertFileAction.Name}`;
 			const success = editor.executeEdits('chatInsertFile', [{ range, text: text + ' ' }]);
 			if (!success) {
 				logService.trace(`SelectAndInsertFileAction: failed to insert "${text}"`);
@@ -208,17 +208,19 @@ export class SelectAndInsertFileAction extends Action2 {
 		}
 
 		context.widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.addReference({
+			id: 'vscode.file',
 			range: { startLineNumber: range.startLineNumber, startColumn: range.startColumn, endLineNumber: range.endLineNumber, endColumn: range.startColumn + text.length },
-			data: [{ level: 'full', value: resource }]
+			data: resource
 		});
 	}
 }
 registerAction2(SelectAndInsertFileAction);
 
 export interface IAddDynamicVariableContext {
+	id: string;
 	widget: IChatWidget;
 	range: IRange;
-	variableData: IChatRequestVariableValue[];
+	variableData: IChatRequestVariableValue;
 	command?: Command;
 }
 
@@ -275,6 +277,7 @@ export class AddDynamicVariableAction extends Action2 {
 		}
 
 		context.widget.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.addReference({
+			id: context.id,
 			range: range,
 			data: variableData
 		});

@@ -230,6 +230,8 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 			this.registerCommandDecoration(command);
 			if (command.exitCode) {
 				this._accessibilitySignalService.playSignal(AccessibilitySignal.terminalCommandFailed);
+			} else {
+				this._accessibilitySignalService.playSignal(AccessibilitySignal.terminalCommandSucceeded);
 			}
 		}));
 		// Command invalidated

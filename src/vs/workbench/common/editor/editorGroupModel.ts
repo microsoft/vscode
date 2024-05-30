@@ -25,6 +25,7 @@ export interface IEditorOpenOptions {
 	readonly sticky?: boolean;
 	readonly transient?: boolean;
 	active?: boolean;
+	readonly inactiveSelection?: EditorInput[];
 	readonly index?: number;
 	readonly supportSideBySide?: SideBySideEditor.ANY | SideBySideEditor.BOTH;
 }
@@ -174,6 +175,7 @@ export interface IReadonlyEditorGroupModel {
 	readonly isLocked: boolean;
 	readonly activeEditor: EditorInput | null;
 	readonly previewEditor: EditorInput | null;
+	readonly selectedEditors: EditorInput[];
 
 	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): EditorInput[];
 	getEditorByIndex(index: number): EditorInput | undefined;
@@ -181,6 +183,7 @@ export interface IReadonlyEditorGroupModel {
 	isActive(editor: EditorInput | IUntypedEditorInput): boolean;
 	isPinned(editorOrIndex: EditorInput | number): boolean;
 	isSticky(editorOrIndex: EditorInput | number): boolean;
+	isSelected(editorOrIndex: EditorInput | number): boolean;
 	isTransient(editorOrIndex: EditorInput | number): boolean;
 	isFirst(editor: EditorInput, editors?: EditorInput[]): boolean;
 	isLast(editor: EditorInput, editors?: EditorInput[]): boolean;
@@ -193,6 +196,7 @@ interface IEditorGroupModel extends IReadonlyEditorGroupModel {
 	closeEditor(editor: EditorInput, context?: EditorCloseContext, openNext?: boolean): IEditorCloseResult | undefined;
 	moveEditor(editor: EditorInput, toIndex: number): EditorInput | undefined;
 	setActive(editor: EditorInput | undefined): EditorInput | undefined;
+	setSelection(activeSelectedEditor: EditorInput, inactiveSelectedEditors: EditorInput[]): void;
 }
 
 export class EditorGroupModel extends Disposable implements IEditorGroupModel {
@@ -201,7 +205,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 
 	//#region events
 
-	private readonly _onDidModelChange = this._register(new Emitter<IGroupModelChangeEvent>());
+	private readonly _onDidModelChange = this._register(new Emitter<IGroupModelChangeEvent>({ leakWarningThreshold: 500 /* increased for users with hundreds of inputs opened */ }));
 	readonly onDidModelChange = this._onDidModelChange.event;
 
 	//#endregion
@@ -216,10 +220,15 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 
 	private locked = false;
 
-	private preview: EditorInput | null = null; // editor in preview state
-	private active: EditorInput | null = null;  // editor in active state
-	private sticky = -1; 						// index of first editor in sticky state
-	private transient = new Set<EditorInput>(); // editors in transient state
+	private selection: EditorInput[] = [];					// editors in selected state, first one is active
+
+	private get active(): EditorInput | null {
+		return this.selection[0] ?? null;
+	}
+
+	private preview: EditorInput | null = null; 			// editor in preview state
+	private sticky = -1;									// index of first editor in sticky state
+	private readonly transient = new Set<EditorInput>(); 	// editors in transient state
 
 	private editorOpenPositioning: ('left' | 'right' | 'first' | 'last') | undefined;
 	private focusRecentEditorAfterClose: boolean | undefined;
@@ -287,8 +296,8 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		return this.active;
 	}
 
-	isActive(editor: EditorInput | IUntypedEditorInput): boolean {
-		return this.matches(this.active, editor);
+	isActive(candidate: EditorInput | IUntypedEditorInput): boolean {
+		return this.matches(this.active, candidate);
 	}
 
 	get previewEditor(): EditorInput | null {
@@ -299,7 +308,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		const makeSticky = options?.sticky || (typeof options?.index === 'number' && this.isSticky(options.index));
 		const makePinned = options?.pinned || options?.sticky;
 		const makeTransient = !!options?.transient;
-		const makeActive = options?.active || !this.activeEditor || (!makePinned && this.matches(this.preview, this.activeEditor));
+		const makeActive = options?.active || !this.activeEditor || (!makePinned && this.preview === this.activeEditor);
 
 		const existingEditorAndIndex = this.findEditor(candidate, options);
 
@@ -401,10 +410,8 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 			};
 			this._onDidModelChange.fire(event);
 
-			// Handle active
-			if (makeActive) {
-				this.doSetActive(newEditor, targetIndex);
-			}
+			// Handle active editor / selected editors
+			this.setSelection(makeActive ? newEditor : this.activeEditor, options?.inactiveSelection ?? []);
 
 			return {
 				editor: newEditor,
@@ -424,10 +431,8 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 				this.doPin(existingEditor, existingEditorIndex);
 			}
 
-			// Activate it
-			if (makeActive) {
-				this.doSetActive(existingEditor, existingEditorIndex);
-			}
+			// Handle active editor / selected editors
+			this.setSelection(makeActive ? existingEditor : this.activeEditor, options?.inactiveSelection ?? []);
 
 			// Respect index
 			if (options && typeof options.index === 'number') {
@@ -545,8 +550,9 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		const editor = this.editors[index];
 		const sticky = this.isSticky(index);
 
-		// Active Editor closed
-		if (openNext && this.matches(this.active, editor)) {
+		// Active editor closed
+		const isActiveEditor = this.active === editor;
+		if (openNext && isActiveEditor) {
 
 			// More than one editor
 			if (this.mru.length > 1) {
@@ -561,17 +567,29 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 					}
 				}
 
-				this.doSetActive(newActive, this.editors.indexOf(newActive));
+				// Select editor as active
+				const newInactiveSelectedEditors = this.selection.filter(selected => selected !== editor && selected !== newActive);
+				this.doSetSelection(newActive, this.editors.indexOf(newActive), newInactiveSelectedEditors);
 			}
 
-			// One Editor
+			// Last editor closed: clear selection
 			else {
-				this.active = null;
+				this.doSetSelection(null, undefined, []);
+			}
+		}
+
+		// Inactive editor closed
+		else if (!isActiveEditor) {
+
+			// Remove editor from inactive selection
+			if (this.doIsSelected(editor)) {
+				const newInactiveSelectedEditors = this.selection.filter(selected => selected !== editor && selected !== this.activeEditor);
+				this.doSetSelection(this.activeEditor, this.indexOf(this.activeEditor), newInactiveSelectedEditors);
 			}
 		}
 
 		// Preview Editor closed
-		if (this.matches(this.preview, editor)) {
+		if (this.preview === editor) {
 			this.preview = null;
 		}
 
@@ -666,30 +684,99 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 
 		const [editor, editorIndex] = res;
 
-		this.doSetActive(editor, editorIndex);
+		this.doSetSelection(editor, editorIndex, []);
 
 		return editor;
 	}
 
-	private doSetActive(editor: EditorInput, editorIndex: number): void {
-		if (this.matches(this.active, editor)) {
-			return; // already active
+	get selectedEditors(): EditorInput[] {
+		return this.editors.filter(editor => this.doIsSelected(editor)); // return in sequential order
+	}
+
+	isSelected(editorCandidateOrIndex: EditorInput | number): boolean {
+		let editor: EditorInput | undefined;
+		if (typeof editorCandidateOrIndex === 'number') {
+			editor = this.editors[editorCandidateOrIndex];
+		} else {
+			editor = this.findEditor(editorCandidateOrIndex)?.[0];
 		}
 
-		this.active = editor;
+		return !!editor && this.doIsSelected(editor);
+	}
 
-		// Bring to front in MRU list
-		const mruIndex = this.indexOf(editor, this.mru);
-		this.mru.splice(mruIndex, 1);
-		this.mru.unshift(editor);
+	private doIsSelected(editor: EditorInput): boolean {
+		return this.selection.includes(editor);
+	}
 
-		// Event
-		const event: IGroupEditorChangeEvent = {
-			kind: GroupModelChangeKind.EDITOR_ACTIVE,
-			editor,
-			editorIndex
-		};
-		this._onDidModelChange.fire(event);
+	setSelection(activeSelectedEditorCandidate: EditorInput, inactiveSelectedEditorCandidates: EditorInput[]): void {
+		const res = this.findEditor(activeSelectedEditorCandidate);
+		if (!res) {
+			return; // not found
+		}
+
+		const [activeSelectedEditor, activeSelectedEditorIndex] = res;
+
+		const inactiveSelectedEditors = new Set<EditorInput>();
+		for (const inactiveSelectedEditorCandidate of inactiveSelectedEditorCandidates) {
+			const res = this.findEditor(inactiveSelectedEditorCandidate);
+			if (!res) {
+				return; // not found
+			}
+
+			const [inactiveSelectedEditor] = res;
+			if (inactiveSelectedEditor === activeSelectedEditor) {
+				continue; // already selected
+			}
+
+			inactiveSelectedEditors.add(inactiveSelectedEditor);
+		}
+
+		this.doSetSelection(activeSelectedEditor, activeSelectedEditorIndex, Array.from(inactiveSelectedEditors));
+	}
+
+	private doSetSelection(activeSelectedEditor: EditorInput | null, activeSelectedEditorIndex: number | undefined, inactiveSelectedEditors: EditorInput[]): void {
+		const previousActiveEditor = this.activeEditor;
+		const previousSelection = this.selection;
+
+		let newSelection: EditorInput[];
+		if (activeSelectedEditor) {
+			newSelection = [activeSelectedEditor, ...inactiveSelectedEditors];
+		} else {
+			newSelection = [];
+		}
+
+		// Update selection
+		this.selection = newSelection;
+
+		// Update active editor if it has changed
+		const activeEditorChanged = activeSelectedEditor && typeof activeSelectedEditorIndex === 'number' && previousActiveEditor !== activeSelectedEditor;
+		if (activeEditorChanged) {
+
+			// Bring to front in MRU list
+			const mruIndex = this.indexOf(activeSelectedEditor, this.mru);
+			this.mru.splice(mruIndex, 1);
+			this.mru.unshift(activeSelectedEditor);
+
+			// Event
+			const event: IGroupEditorChangeEvent = {
+				kind: GroupModelChangeKind.EDITOR_ACTIVE,
+				editor: activeSelectedEditor,
+				editorIndex: activeSelectedEditorIndex
+			};
+			this._onDidModelChange.fire(event);
+		}
+
+		// Fire event if the selection has changed
+		if (
+			activeEditorChanged ||
+			previousSelection.length !== newSelection.length ||
+			previousSelection.some(editor => !newSelection.includes(editor))
+		) {
+			const event: IGroupModelChangeEvent = {
+				kind: GroupModelChangeKind.EDITORS_SELECTION
+			};
+			this._onDidModelChange.fire(event);
+		}
 	}
 
 	setIndex(index: number) {
@@ -777,12 +864,12 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		}
 	}
 
-	isPinned(editorOrIndex: EditorInput | number): boolean {
+	isPinned(editorCandidateOrIndex: EditorInput | number): boolean {
 		let editor: EditorInput;
-		if (typeof editorOrIndex === 'number') {
-			editor = this.editors[editorOrIndex];
+		if (typeof editorCandidateOrIndex === 'number') {
+			editor = this.editors[editorCandidateOrIndex];
 		} else {
-			editor = editorOrIndex;
+			editor = editorCandidateOrIndex;
 		}
 
 		return !this.matches(this.preview, editor);
@@ -919,16 +1006,16 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		this._onDidModelChange.fire(event);
 	}
 
-	isTransient(editorOrIndex: EditorInput | number): boolean {
+	isTransient(editorCandidateOrIndex: EditorInput | number): boolean {
 		if (this.transient.size === 0) {
 			return false; // no transient editor
 		}
 
 		let editor: EditorInput | undefined;
-		if (typeof editorOrIndex === 'number') {
-			editor = this.editors[editorOrIndex];
+		if (typeof editorCandidateOrIndex === 'number') {
+			editor = this.editors[editorCandidateOrIndex];
 		} else {
-			editor = this.findEditor(editorOrIndex)?.[0];
+			editor = this.findEditor(editorCandidateOrIndex)?.[0];
 		}
 
 		return !!editor && this.transient.has(editor);
@@ -1079,7 +1166,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		clone.editors = this.editors.slice(0);
 		clone.mru = this.mru.slice(0);
 		clone.preview = this.preview;
-		clone.active = this.active;
+		clone.selection = this.selection.slice(0);
 		clone.sticky = this.sticky;
 
 		// Ensure to register listeners for each editor
@@ -1181,7 +1268,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 
 		this.mru = coalesce(data.mru.map(i => this.editors[i]));
 
-		this.active = this.mru[0];
+		this.selection = this.mru.length > 0 ? [this.mru[0]] : [];
 
 		if (typeof data.preview === 'number') {
 			this.preview = this.editors[data.preview];

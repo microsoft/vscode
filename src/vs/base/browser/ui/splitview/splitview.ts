@@ -622,7 +622,7 @@ export class SplitView<TLayoutContext = undefined, TView extends IView<TLayoutCo
 		if (options.descriptor) {
 			this.size = options.descriptor.size;
 			options.descriptor.views.forEach((viewDescriptor, index) => {
-				const sizing = types.isUndefined(viewDescriptor.visible) || viewDescriptor.visible ? viewDescriptor.size : { type: 'invisible', cachedVisibleSize: viewDescriptor.size } as InvisibleSizing;
+				const sizing = types.isUndefined(viewDescriptor.visible) || viewDescriptor.visible ? viewDescriptor.size : { type: 'invisible', cachedVisibleSize: viewDescriptor.size } satisfies InvisibleSizing;
 
 				const view = viewDescriptor.view;
 				this.doAddView(view, sizing, index, true);

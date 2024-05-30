@@ -5,7 +5,7 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import * as pfs from 'vs/base/node/pfs';
-import { IFileMatch, IProgressMessage, ITextQuery, ITextSearchStats, ITextSearchMatch, ISerializedFileMatch, ISerializedSearchSuccess } from 'vs/workbench/services/search/common/search';
+import { IFileMatch, IProgressMessage, ITextQuery, ITextSearchMatch, ISerializedFileMatch, ISerializedSearchSuccess } from 'vs/workbench/services/search/common/search';
 import { RipgrepTextSearchEngine } from 'vs/workbench/services/search/node/ripgrepTextSearchEngine';
 import { NativeTextSearchManager } from 'vs/workbench/services/search/node/textSearchManager';
 
@@ -15,12 +15,13 @@ export class TextSearchEngineAdapter {
 
 	search(token: CancellationToken, onResult: (matches: ISerializedFileMatch[]) => void, onMessage: (message: IProgressMessage) => void): Promise<ISerializedSearchSuccess> {
 		if ((!this.query.folderQueries || !this.query.folderQueries.length) && (!this.query.extraFileResources || !this.query.extraFileResources.length)) {
-			return Promise.resolve(<ISerializedSearchSuccess>{
+			return Promise.resolve({
 				type: 'success',
 				limitHit: false,
-				stats: <ITextSearchStats>{
+				stats: {
 					type: 'searchProcess'
-				}
+				},
+				messages: []
 			});
 		}
 
@@ -38,7 +39,7 @@ export class TextSearchEngineAdapter {
 					},
 					token)
 				.then(
-					c => resolve({ limitHit: c.limitHit, type: 'success', stats: c.stats } as ISerializedSearchSuccess),
+					c => resolve({ limitHit: c.limitHit ?? false, type: 'success', stats: c.stats, messages: [] }),
 					reject);
 		});
 	}

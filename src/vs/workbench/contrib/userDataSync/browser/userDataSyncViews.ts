@@ -61,7 +61,7 @@ export class UserDataSyncDataViews extends Disposable {
 	private registerConflictsView(container: ViewContainer): void {
 		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 		const viewName = localize2('conflicts', "Conflicts");
-		viewsRegistry.registerViews([<ITreeViewDescriptor>{
+		const viewDescriptor: ITreeViewDescriptor = {
 			id: SYNC_CONFLICTS_VIEW_ID,
 			name: viewName,
 			ctorDescriptor: new SyncDescriptor(UserDataSyncConflictsViewPane),
@@ -71,7 +71,8 @@ export class UserDataSyncDataViews extends Disposable {
 			treeView: this.instantiationService.createInstance(TreeView, SYNC_CONFLICTS_VIEW_ID, viewName.value),
 			collapsed: false,
 			order: 100,
-		}], container);
+		};
+		viewsRegistry.registerViews([viewDescriptor], container);
 	}
 
 	private registerMachinesView(container: ViewContainer): void {
@@ -85,7 +86,7 @@ export class UserDataSyncDataViews extends Disposable {
 
 		this._register(Event.any(this.userDataSyncMachinesService.onDidChange, this.userDataSyncService.onDidResetRemote)(() => treeView.refresh()));
 		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
-		viewsRegistry.registerViews([<ITreeViewDescriptor>{
+		const viewDescriptor: ITreeViewDescriptor = {
 			id,
 			name,
 			ctorDescriptor: new SyncDescriptor(TreeViewPane),
@@ -95,7 +96,8 @@ export class UserDataSyncDataViews extends Disposable {
 			treeView,
 			collapsed: false,
 			order: 300,
-		}], container);
+		};
+		viewsRegistry.registerViews([viewDescriptor], container);
 
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
@@ -152,7 +154,7 @@ export class UserDataSyncDataViews extends Disposable {
 			this.userDataSyncService.onDidResetLocal,
 			this.userDataSyncService.onDidResetRemote)(() => treeView.refresh()));
 		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
-		viewsRegistry.registerViews([<ITreeViewDescriptor>{
+		const viewDescriptor: ITreeViewDescriptor = {
 			id,
 			name,
 			ctorDescriptor: new SyncDescriptor(TreeViewPane),
@@ -163,7 +165,8 @@ export class UserDataSyncDataViews extends Disposable {
 			collapsed: false,
 			order: remote ? 200 : 400,
 			hideByDefault: !remote,
-		}], container);
+		};
+		viewsRegistry.registerViews([viewDescriptor], container);
 
 		this.registerDataViewActions(id);
 	}
@@ -178,7 +181,7 @@ export class UserDataSyncDataViews extends Disposable {
 		treeView.dataProvider = dataProvider;
 
 		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
-		viewsRegistry.registerViews([<ITreeViewDescriptor>{
+		const viewDescriptor: ITreeViewDescriptor = {
 			id,
 			name,
 			ctorDescriptor: new SyncDescriptor(TreeViewPane),
@@ -188,7 +191,8 @@ export class UserDataSyncDataViews extends Disposable {
 			treeView,
 			collapsed: false,
 			hideByDefault: false,
-		}], container);
+		};
+		viewsRegistry.registerViews([viewDescriptor], container);
 
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
@@ -303,7 +307,7 @@ export class UserDataSyncDataViews extends Disposable {
 		treeView.dataProvider = dataProvider;
 
 		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
-		viewsRegistry.registerViews([<ITreeViewDescriptor>{
+		const viewDescriptor: ITreeViewDescriptor = {
 			id,
 			name,
 			ctorDescriptor: new SyncDescriptor(TreeViewPane),
@@ -314,7 +318,8 @@ export class UserDataSyncDataViews extends Disposable {
 			collapsed: false,
 			order: 500,
 			hideByDefault: true
-		}], container);
+		};
+		viewsRegistry.registerViews([viewDescriptor], container);
 
 	}
 

@@ -124,7 +124,6 @@
 			'vscode-oniguruma': `${baseNodeModulesPath}/vscode-oniguruma/release/main.js`,
 			'vsda': `${baseNodeModulesPath}/vsda/index.js`,
 			'@xterm/xterm': `${baseNodeModulesPath}/@xterm/xterm/lib/xterm.js`,
-			'@xterm/addon-canvas': `${baseNodeModulesPath}/@xterm/addon-canvas/lib/addon-canvas.js`,
 			'@xterm/addon-image': `${baseNodeModulesPath}/@xterm/addon-image/lib/addon-image.js`,
 			'@xterm/addon-search': `${baseNodeModulesPath}/@xterm/addon-search/lib/addon-search.js`,
 			'@xterm/addon-serialize': `${baseNodeModulesPath}/@xterm/addon-serialize/lib/addon-serialize.js`,

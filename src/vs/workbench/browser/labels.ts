@@ -66,7 +66,7 @@ export interface IResourceLabelOptions extends IIconLabelValueOptions {
 	/**
 	 * Uses the provided icon instead of deriving a resource icon.
 	 */
-	readonly icon?: ThemeIcon;
+	readonly icon?: ThemeIcon | URI;
 }
 
 export interface IFileLabelOptions extends IResourceLabelOptions {
@@ -610,6 +610,10 @@ class ResourceLabelWidget extends IconLabel {
 		if (this.options && !this.options.hideIcon) {
 			if (!this.computedIconClasses) {
 				this.computedIconClasses = getIconClasses(this.modelService, this.languageService, resource, this.options.fileKind, this.options.icon);
+			}
+
+			if (URI.isUri(this.options.icon)) {
+				iconLabelOptions.iconPath = this.options.icon;
 			}
 
 			iconLabelOptions.extraClasses = this.computedIconClasses.slice(0);

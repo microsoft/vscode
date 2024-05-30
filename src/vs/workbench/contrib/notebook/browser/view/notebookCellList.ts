@@ -306,6 +306,13 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		return listView;
 	}
 
+	/**
+	 * Test Only
+	 */
+	_getView() {
+		return this.view;
+	}
+
 	attachWebview(element: HTMLElement) {
 		element.style.top = `-${NOTEBOOK_WEBVIEW_BOUNDARY}px`;
 		this.rowsContainer.insertAdjacentElement('afterbegin', element);

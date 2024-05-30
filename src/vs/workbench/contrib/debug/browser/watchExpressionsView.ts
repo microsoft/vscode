@@ -421,7 +421,7 @@ class WatchExpressionsDragAndDrop implements ITreeDragAndDrop<IExpression> {
 			}
 		}
 
-		return { accept: true, effect: { type: ListDragOverEffectType.Move, position: dropEffectPosition }, feedback: [targetIndex] } as ITreeDragOverReaction;
+		return { accept: true, effect: { type: ListDragOverEffectType.Move, position: dropEffectPosition }, feedback: [targetIndex] } satisfies ITreeDragOverReaction;
 	}
 
 	getDragURI(element: IExpression): string | null {

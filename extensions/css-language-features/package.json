@@ -998,7 +998,7 @@
     "vscode-uri": "^3.0.8"
   },
   "devDependencies": {
-    "@types/node": "18.x"
+    "@types/node": "20.x"
   },
   "repository": {
     "type": "git",

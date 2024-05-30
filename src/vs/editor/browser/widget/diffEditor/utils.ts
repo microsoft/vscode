@@ -8,7 +8,7 @@ import { findLast } from 'vs/base/common/arraysFind';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isHotReloadEnabled, registerHotReloadHandler } from 'vs/base/common/hotReload';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, IReader, ISettableObservable, autorun, autorunHandleChanges, autorunOpts, autorunWithStore, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from 'vs/base/common/observable';
+import { IObservable, IReader, ISettableObservable, autorun, autorunHandleChanges, autorunOpts, autorunWithStore, observableSignalFromEvent, observableValue, transaction } from 'vs/base/common/observable';
 import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
 import { ICodeEditor, IOverlayWidget, IViewZone } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
@@ -16,8 +16,6 @@ import { Range } from 'vs/editor/common/core/range';
 import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { TextLength } from 'vs/editor/common/core/textLength';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyValue, RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export function joinCombine<T>(arr1: readonly T[], arr2: readonly T[], keySelector: (val: T) => number, combine: (v1: T, v2: T) => T): readonly T[] {
 	if (arr1.length === 0) {
@@ -89,17 +87,6 @@ export function prependRemoveOnDispose(parent: HTMLElement, child: HTMLElement) 
 	});
 }
 
-export function observableConfigValue<T>(key: string, defaultValue: T, configurationService: IConfigurationService): IObservable<T> {
-	return observableFromEvent(
-		(handleChange) => configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(key)) {
-				handleChange(e);
-			}
-		}),
-		() => configurationService.getValue<T>(key) ?? defaultValue,
-	);
-}
-
 export class ObservableElementSizeObserver extends Disposable {
 	private readonly elementSizeObserver: ElementSizeObserver;
 
@@ -108,6 +95,9 @@ export class ObservableElementSizeObserver extends Disposable {
 
 	private readonly _height: ISettableObservable<number>;
 	public get height(): IObservable<number> { return this._height; }
+
+	private _automaticLayout: boolean = false;
+	public get automaticLayout(): boolean { return this._automaticLayout; }
 
 	constructor(element: HTMLElement | null, dimension: IDimension | undefined) {
 		super();
@@ -128,6 +118,7 @@ export class ObservableElementSizeObserver extends Disposable {
 	}
 
 	public setAutomaticLayout(automaticLayout: boolean): void {
+		this._automaticLayout = automaticLayout;
 		if (automaticLayout) {
 			this.elementSizeObserver.startObserving();
 		} else {
@@ -438,13 +429,6 @@ function lengthBetweenPositions(position1: Position, position2: Position): TextL
 	} else {
 		return new TextLength(position2.lineNumber - position1.lineNumber, position2.column - 1);
 	}
-}
-
-export function bindContextKey<T extends ContextKeyValue>(key: RawContextKey<T>, service: IContextKeyService, computeValue: (reader: IReader) => T): IDisposable {
-	const boundKey = key.bindTo(service);
-	return autorunOpts({ debugName: () => `Set Context Key "${key.key}"` }, reader => {
-		boundKey.set(computeValue(reader));
-	});
 }
 
 export function filterWithPrevious<T>(arr: T[], filter: (cur: T, prev: T | undefined) => boolean): T[] {

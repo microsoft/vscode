@@ -18,6 +18,7 @@ import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IWindowsConfiguration } from 'vs/platform/window/common/window';
 import { BooleanVerifier, EnumVerifier, NumberVerifier, ObjectVerifier, SetVerifier, verifyObject } from 'vs/base/common/verifier';
 import { IAuxiliaryWindowOpenOptions } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
+import { ContextKeyValue, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export interface IEditorPartCreationOptions {
 	readonly restorePreviousState: boolean;
@@ -32,6 +33,7 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	tabActionLocation: 'right',
 	tabActionCloseVisibility: true,
 	tabActionUnpinVisibility: true,
+	alwaysShowEditorActions: false,
 	tabSizing: 'fit',
 	tabSizingFixedMinWidth: 50,
 	tabSizingFixedMaxWidth: 160,
@@ -121,6 +123,7 @@ function validateEditorPartOptions(options: IEditorPartOptions): IEditorPartOpti
 		'highlightModifiedTabs': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['highlightModifiedTabs']),
 		'tabActionCloseVisibility': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['tabActionCloseVisibility']),
 		'tabActionUnpinVisibility': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['tabActionUnpinVisibility']),
+		'alwaysShowEditorActions': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['alwaysShowEditorActions']),
 		'pinnedTabsOnSeparateRow': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['pinnedTabsOnSeparateRow']),
 		'focusRecentEditorAfterClose': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['focusRecentEditorAfterClose']),
 		'showIcons': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['showIcons']),
@@ -185,6 +188,8 @@ export interface IEditorPartsView {
 	readonly count: number;
 
 	createAuxiliaryEditorPart(options?: IAuxiliaryWindowOpenOptions): Promise<IAuxiliaryEditorPart>;
+
+	bind<T extends ContextKeyValue>(contextKey: RawContextKey<T>, group: IEditorGroupView): IContextKey<T>;
 }
 
 /**
@@ -235,6 +240,15 @@ export interface IEditorGroupTitleHeight {
 	 * (e.g. when breadcrumbs are enabled).
 	 */
 	readonly offset: number;
+}
+
+export interface IEditorGroupViewOptions {
+
+	/**
+	 * Whether the editor group should receive keyboard focus
+	 * after creation or not.
+	 */
+	readonly preserveFocus?: boolean;
 }
 
 /**
@@ -333,6 +347,11 @@ export interface IInternalEditorOpenOptions extends IInternalEditorTitleControlO
 	 * the top that the editor opens in.
 	 */
 	readonly preserveWindowOrder?: boolean;
+
+	/**
+	 * Inactive editors to select after opening the active selected editor.
+	 */
+	readonly inactiveSelection?: EditorInput[];
 }
 
 export interface IInternalEditorCloseOptions extends IInternalEditorTitleControlOptions {

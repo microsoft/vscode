@@ -158,6 +158,7 @@ export interface IWindowSettings {
 	readonly enableMenuBarMnemonics: boolean;
 	readonly closeWhenEmpty: boolean;
 	readonly clickThroughInactive: boolean;
+	readonly newWindowProfile: string;
 	readonly density: IDensitySettings;
 }
 
@@ -220,6 +221,8 @@ export function getTitleBarStyle(configurationService: IConfigurationService): T
 
 	return isLinux ? TitlebarStyle.NATIVE : TitlebarStyle.CUSTOM; // default to custom on all macOS and Windows
 }
+
+export const DEFAULT_CUSTOM_TITLEBAR_HEIGHT = 35; // includes space for command center
 
 export function useWindowControlsOverlay(configurationService: IConfigurationService): boolean {
 	if (!isWindows || isWeb) {
@@ -346,6 +349,7 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 
 	machineId: string;
 	sqmId: string;
+	devDeviceId: string;
 
 	execPath: string;
 	backupPath?: string;

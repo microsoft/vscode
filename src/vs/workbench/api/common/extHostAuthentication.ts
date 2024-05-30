@@ -89,28 +89,28 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		});
 	}
 
-	$createSession(providerId: string, scopes: string[], options: vscode.AuthenticationProviderCreateSessionOptions): Promise<vscode.AuthenticationSession> {
+	async $createSession(providerId: string, scopes: string[], options: vscode.AuthenticationProviderCreateSessionOptions): Promise<vscode.AuthenticationSession> {
 		const providerData = this._authenticationProviders.get(providerId);
 		if (providerData) {
-			return Promise.resolve(providerData.provider.createSession(scopes, options));
+			return await providerData.provider.createSession(scopes, options);
 		}
 
 		throw new Error(`Unable to find authentication provider with handle: ${providerId}`);
 	}
 
-	$removeSession(providerId: string, sessionId: string): Promise<void> {
+	async $removeSession(providerId: string, sessionId: string): Promise<void> {
 		const providerData = this._authenticationProviders.get(providerId);
 		if (providerData) {
-			return Promise.resolve(providerData.provider.removeSession(sessionId));
+			return await providerData.provider.removeSession(sessionId);
 		}
 
 		throw new Error(`Unable to find authentication provider with handle: ${providerId}`);
 	}
 
-	$getSessions(providerId: string, scopes?: string[]): Promise<ReadonlyArray<vscode.AuthenticationSession>> {
+	async $getSessions(providerId: string, scopes?: string[]): Promise<ReadonlyArray<vscode.AuthenticationSession>> {
 		const providerData = this._authenticationProviders.get(providerId);
 		if (providerData) {
-			return Promise.resolve(providerData.provider.getSessions(scopes));
+			return await providerData.provider.getSessions(scopes);
 		}
 
 		throw new Error(`Unable to find authentication provider with handle: ${providerId}`);

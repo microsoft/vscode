@@ -20,9 +20,6 @@ vscode-textmate/webpack.config.js
 
 @xterm/xterm/src/**
 
-@xterm/addon-canvas/src/**
-@xterm/addon-canvas/out/**
-
 @xterm/addon-image/src/**
 @xterm/addon-image/out/**
 

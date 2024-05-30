@@ -5,10 +5,14 @@
 
 import { ILanguageIdCodec } from 'vs/editor/common/languages';
 import { FontStyle, ColorId, StandardTokenType, MetadataConsts, TokenMetadata, ITokenPresentation } from 'vs/editor/common/encodedTokenAttributes';
+import { IPosition } from 'vs/editor/common/core/position';
+import { ITextModel } from 'vs/editor/common/model';
 
 export interface IViewLineTokens {
+	languageIdCodec: ILanguageIdCodec;
 	equals(other: IViewLineTokens): boolean;
 	getCount(): number;
+	getStandardTokenType(tokenIndex: number): StandardTokenType;
 	getForeground(tokenIndex: number): ColorId;
 	getEndOffset(tokenIndex: number): number;
 	getClassName(tokenIndex: number): string;
@@ -18,6 +22,8 @@ export interface IViewLineTokens {
 	getLineContent(): string;
 	getMetadata(tokenIndex: number): number;
 	getLanguageId(tokenIndex: number): string;
+	getTokenText(tokenIndex: number): string;
+	forEach(callback: (tokenIndex: number) => void): void;
 }
 
 export class LineTokens implements IViewLineTokens {
@@ -26,7 +32,8 @@ export class LineTokens implements IViewLineTokens {
 	private readonly _tokens: Uint32Array;
 	private readonly _tokensCount: number;
 	private readonly _text: string;
-	private readonly _languageIdCodec: ILanguageIdCodec;
+
+	public readonly languageIdCodec: ILanguageIdCodec;
 
 	public static defaultTokenMetadata = (
 		(FontStyle.None << MetadataConsts.FONT_STYLE_OFFSET)
@@ -44,11 +51,23 @@ export class LineTokens implements IViewLineTokens {
 		return new LineTokens(tokens, lineContent, decoder);
 	}
 
+	public static createFromTextAndMetadata(data: { text: string; metadata: number }[], decoder: ILanguageIdCodec): LineTokens {
+		let offset: number = 0;
+		let fullText: string = '';
+		const tokens = new Array<number>();
+		for (const { text, metadata } of data) {
+			tokens.push(offset + text.length, metadata);
+			offset += text.length;
+			fullText += text;
+		}
+		return new LineTokens(new Uint32Array(tokens), fullText, decoder);
+	}
+
 	constructor(tokens: Uint32Array, text: string, decoder: ILanguageIdCodec) {
 		this._tokens = tokens;
 		this._tokensCount = (this._tokens.length >>> 1);
 		this._text = text;
-		this._languageIdCodec = decoder;
+		this.languageIdCodec = decoder;
 	}
 
 	public equals(other: IViewLineTokens): boolean {
@@ -98,7 +117,7 @@ export class LineTokens implements IViewLineTokens {
 	public getLanguageId(tokenIndex: number): string {
 		const metadata = this._tokens[(tokenIndex << 1) + 1];
 		const languageId = TokenMetadata.getLanguageId(metadata);
-		return this._languageIdCodec.decodeLanguageId(languageId);
+		return this.languageIdCodec.decodeLanguageId(languageId);
 	}
 
 	public getStandardTokenType(tokenIndex: number): StandardTokenType {
@@ -225,7 +244,21 @@ export class LineTokens implements IViewLineTokens {
 			}
 		}
 
-		return new LineTokens(new Uint32Array(newTokens), text, this._languageIdCodec);
+		return new LineTokens(new Uint32Array(newTokens), text, this.languageIdCodec);
+	}
+
+	public getTokenText(tokenIndex: number): string {
+		const startOffset = this.getStartOffset(tokenIndex);
+		const endOffset = this.getEndOffset(tokenIndex);
+		const text = this._text.substring(startOffset, endOffset);
+		return text;
+	}
+
+	public forEach(callback: (tokenIndex: number) => void): void {
+		const tokenCount = this.getCount();
+		for (let tokenIndex = 0; tokenIndex < tokenCount; tokenIndex++) {
+			callback(tokenIndex);
+		}
 	}
 }
 
@@ -239,12 +272,15 @@ class SliceLineTokens implements IViewLineTokens {
 	private readonly _firstTokenIndex: number;
 	private readonly _tokensCount: number;
 
+	public readonly languageIdCodec: ILanguageIdCodec;
+
 	constructor(source: LineTokens, startOffset: number, endOffset: number, deltaOffset: number) {
 		this._source = source;
 		this._startOffset = startOffset;
 		this._endOffset = endOffset;
 		this._deltaOffset = deltaOffset;
 		this._firstTokenIndex = source.findTokenIndexAtOffset(startOffset);
+		this.languageIdCodec = source.languageIdCodec;
 
 		this._tokensCount = 0;
 		for (let i = this._firstTokenIndex, len = source.getCount(); i < len; i++) {
@@ -284,6 +320,10 @@ class SliceLineTokens implements IViewLineTokens {
 		return this._tokensCount;
 	}
 
+	public getStandardTokenType(tokenIndex: number): StandardTokenType {
+		return this._source.getStandardTokenType(this._firstTokenIndex + tokenIndex);
+	}
+
 	public getForeground(tokenIndex: number): ColorId {
 		return this._source.getForeground(this._firstTokenIndex + tokenIndex);
 	}
@@ -308,4 +348,36 @@ class SliceLineTokens implements IViewLineTokens {
 	public findTokenIndexAtOffset(offset: number): number {
 		return this._source.findTokenIndexAtOffset(offset + this._startOffset - this._deltaOffset) - this._firstTokenIndex;
 	}
+
+	public getTokenText(tokenIndex: number): string {
+		const adjustedTokenIndex = this._firstTokenIndex + tokenIndex;
+		const tokenStartOffset = this._source.getStartOffset(adjustedTokenIndex);
+		const tokenEndOffset = this._source.getEndOffset(adjustedTokenIndex);
+		let text = this._source.getTokenText(adjustedTokenIndex);
+		if (tokenStartOffset < this._startOffset) {
+			text = text.substring(this._startOffset - tokenStartOffset);
+		}
+		if (tokenEndOffset > this._endOffset) {
+			text = text.substring(0, text.length - (tokenEndOffset - this._endOffset));
+		}
+		return text;
+	}
+
+	public forEach(callback: (tokenIndex: number) => void): void {
+		for (let tokenIndex = 0; tokenIndex < this.getCount(); tokenIndex++) {
+			callback(tokenIndex);
+		}
+	}
+}
+
+export function getStandardTokenTypeAtPosition(model: ITextModel, position: IPosition): StandardTokenType | undefined {
+	const lineNumber = position.lineNumber;
+	if (!model.tokenization.isCheapToTokenize(lineNumber)) {
+		return undefined;
+	}
+	model.tokenization.forceTokenization(lineNumber);
+	const lineTokens = model.tokenization.getLineTokens(lineNumber);
+	const tokenIndex = lineTokens.findTokenIndexAtOffset(position.column - 1);
+	const tokenType = lineTokens.getStandardTokenType(tokenIndex);
+	return tokenType;
 }

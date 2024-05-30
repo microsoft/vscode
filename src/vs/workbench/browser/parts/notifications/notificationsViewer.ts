@@ -249,7 +249,7 @@ export class NotificationRenderer implements IListRenderer<INotificationViewItem
 									const isSourceFiltered = that.notificationService.getFilter(source) === NotificationsFilter.ERROR;
 									actions.push(toAction({
 										id: source.id,
-										label: isSourceFiltered ? localize('turnOnNotifications', "Turn On Notifications from '{0}'", source.label) : localize('turnOffNotifications', "Turn Off Notifications from '{0}'", source.label),
+										label: isSourceFiltered ? localize('turnOnNotifications', "Turn On All Notifications from '{0}'", source.label) : localize('turnOffNotifications', "Turn Off Info and Warning Notifications from '{0}'", source.label),
 										run: () => that.notificationService.setFilter({ ...source, filter: isSourceFiltered ? NotificationsFilter.OFF : NotificationsFilter.ERROR })
 									}));
 

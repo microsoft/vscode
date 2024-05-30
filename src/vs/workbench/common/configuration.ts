@@ -16,6 +16,7 @@ import { OperatingSystem, isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { equals } from 'vs/base/common/objects';
 import { DeferredPromise } from 'vs/base/common/async';
+import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 export const applicationConfigurationNodeBase = Object.freeze<IConfigurationNode>({
 	'id': 'application',
@@ -44,6 +45,13 @@ export const problemsConfigurationNodeBase = Object.freeze<IConfigurationNode>({
 	'title': localize('problemsConfigurationTitle', "Problems"),
 	'type': 'object',
 	'order': 101
+});
+
+export const windowConfigurationNodeBase = Object.freeze<IConfigurationNode>({
+	'id': 'window',
+	'order': 8,
+	'title': localize('windowConfigurationTitle', "Window"),
+	'type': 'object',
 });
 
 export const Extensions = {
@@ -223,5 +231,74 @@ export class DynamicWorkbenchSecurityConfiguration extends Disposable implements
 				}
 			}
 		});
+	}
+}
+
+const CONFIG_NEW_WINDOW_PROFILE = 'window.newWindowProfile';
+
+export class DynamicWindowConfiguration extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.dynamicWindowConfiguration';
+
+	private configurationNode: IConfigurationNode | undefined;
+	private newWindowProfile: IUserDataProfile | undefined;
+
+	constructor(
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+	) {
+		super();
+		this.registerNewWindowProfileConfiguration();
+		this._register(this.userDataProfilesService.onDidChangeProfiles((e) => this.registerNewWindowProfileConfiguration()));
+
+		this.setNewWindowProfile();
+		this.checkAndResetNewWindowProfileConfig();
+
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.source !== ConfigurationTarget.DEFAULT && e.affectsConfiguration(CONFIG_NEW_WINDOW_PROFILE)) {
+				this.setNewWindowProfile();
+			}
+		}));
+		this._register(this.userDataProfilesService.onDidChangeProfiles(() => this.checkAndResetNewWindowProfileConfig()));
+	}
+
+	private registerNewWindowProfileConfiguration(): void {
+		const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+		const configurationNode: IConfigurationNode = {
+			...windowConfigurationNodeBase,
+			'properties': {
+				[CONFIG_NEW_WINDOW_PROFILE]: {
+					'type': ['string', 'null'],
+					'default': null,
+					'enum': [...this.userDataProfilesService.profiles.map(profile => profile.name), null],
+					'enumItemLabels': [...this.userDataProfilesService.profiles.map(p => ''), localize('active window', "Active Window")],
+					'description': localize('newWindowProfile', "Specifies the profile to use when opening a new window. If a profile name is provided, the new window will use that profile. If no profile name is provided, the new window will use the profile of the active window or the default profile if no active window exists."),
+					'scope': ConfigurationScope.APPLICATION,
+				}
+			}
+		};
+		if (this.configurationNode) {
+			registry.updateConfigurations({ add: [configurationNode], remove: [this.configurationNode] });
+		} else {
+			registry.registerConfiguration(configurationNode);
+		}
+		this.configurationNode = configurationNode;
+	}
+
+	private setNewWindowProfile(): void {
+		const newWindowProfileName = this.configurationService.getValue(CONFIG_NEW_WINDOW_PROFILE);
+		this.newWindowProfile = newWindowProfileName ? this.userDataProfilesService.profiles.find(profile => profile.name === newWindowProfileName) : undefined;
+	}
+
+	private checkAndResetNewWindowProfileConfig(): void {
+		const newWindowProfileName = this.configurationService.getValue(CONFIG_NEW_WINDOW_PROFILE);
+		if (!newWindowProfileName) {
+			return;
+		}
+		const profile = this.newWindowProfile ? this.userDataProfilesService.profiles.find(profile => profile.id === this.newWindowProfile!.id) : undefined;
+		if (newWindowProfileName === profile?.name) {
+			return;
+		}
+		this.configurationService.updateValue(CONFIG_NEW_WINDOW_PROFILE, profile?.name);
 	}
 }

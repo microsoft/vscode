@@ -50,8 +50,8 @@
 		},
 		{
 			"name": "ms-vscode.js-debug",
-			"version": "1.88.0",
-			"sha256": "3a048d87c0fac116fce9190ff6042ec7691e66fc17211a058faf0db91bb6605e",
+			"version": "1.90.0",
+			"sha256": "1317dd7d1ac50641c1534a3e957ecbc94349f4fbd897acb916da11eea3208a66",
 			"repo": "https://github.com/microsoft/vscode-js-debug",
 			"metadata": {
 				"id": "25629058-ddac-4e17-abba-74678e126c5d",

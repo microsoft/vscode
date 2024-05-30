@@ -43,6 +43,11 @@ export interface IHoverDelegate2 {
 
 	// TODO: Change hoverDelegate arg to exclude the actual delegate and instead use the new options
 	setupUpdatableHover(hoverDelegate: IHoverDelegate, htmlElement: HTMLElement, content: IUpdatableHoverContentOrFactory, options?: IUpdatableHoverOptions): IUpdatableHover;
+
+	/**
+	 * Shows the hover for the given element if one has been setup.
+	 */
+	triggerUpdatableHover(htmlElement: HTMLElement): void;
 }
 
 export interface IHoverWidget extends IDisposable {
@@ -246,6 +251,7 @@ export type IUpdatableHoverContentOrFactory = IUpdatableHoverContent | (() => IU
 export interface IUpdatableHoverOptions {
 	actions?: IHoverAction[];
 	linkHandler?(url: string): void;
+	trapFocus?: boolean;
 }
 
 export interface IUpdatableHover extends IDisposable {

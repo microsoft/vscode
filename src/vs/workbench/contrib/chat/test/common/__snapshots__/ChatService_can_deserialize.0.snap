@@ -1,7 +1,7 @@
 {
   requesterUsername: "test",
   requesterAvatarIconUri: undefined,
-  responderUsername: "test",
+  responderUsername: "",
   responderAvatarIconUri: undefined,
   initialLocation: "panel",
   welcomeMessage: undefined,
@@ -29,7 +29,7 @@
                 _lower: "nullextensiondescription"
               },
               extensionPublisherId: "",
-              extensionPublisherDisplayName: "",
+              publisherDisplayName: "",
               extensionDisplayName: "",
               locations: [ "panel" ],
               metadata: {  },
@@ -67,7 +67,7 @@
           _lower: "nullextensiondescription"
         },
         extensionPublisherId: "",
-        extensionPublisherDisplayName: "",
+        publisherDisplayName: "",
         extensionDisplayName: "",
         locations: [ "panel" ],
         metadata: {  },

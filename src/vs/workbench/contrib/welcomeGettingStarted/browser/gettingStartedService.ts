@@ -26,7 +26,7 @@ import { ILink, LinkedText, parseLinkedText } from 'vs/base/common/linkedText';
 import { walkthroughsExtensionPoint } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedExtensionPoint';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { dirname } from 'vs/base/common/path';
-import { coalesce, flatten } from 'vs/base/common/arrays';
+import { coalesce } from 'vs/base/common/arrays';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { localize, localize2 } from 'vs/nls';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -567,10 +567,10 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 		}
 
 		if (!step.completionEvents.length) {
-			step.completionEvents = coalesce(flatten(
+			step.completionEvents = coalesce(
 				step.description
 					.filter(linkedText => linkedText.nodes.length === 1) // only buttons
-					.map(linkedText =>
+					.flatMap(linkedText =>
 						linkedText.nodes
 							.filter(((node): node is ILink => typeof node !== 'string'))
 							.map(({ href }) => {
@@ -581,7 +581,7 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 									return 'onLink:' + href;
 								}
 								return undefined;
-							}))));
+							})));
 		}
 
 		if (!step.completionEvents.length) {

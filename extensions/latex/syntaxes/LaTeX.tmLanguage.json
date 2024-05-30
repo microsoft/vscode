@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jlelong/vscode-latex-basics/commit/4f8b49bca02b0bfde6e46252c209396ba6c567f9",
+	"version": "https://github.com/jlelong/vscode-latex-basics/commit/3d141a124a16558958e95c54267f7ca37986de6f",
 	"name": "LaTeX",
 	"scopeName": "text.tex.latex",
 	"patterns": [
@@ -2904,6 +2904,32 @@
 			"name": "meta.function.verb.latex"
 		},
 		{
+			"begin": "((\\\\)(?:directlua|luadirect))(\\{)",
+			"beginCaptures": {
+				"1": {
+					"name": "support.function.verb.latex"
+				},
+				"2": {
+					"name": "punctuation.definition.function.latex"
+				},
+				"3": {
+					"name": "punctuation.definition.arguments.begin.latex"
+				}
+			},
+			"end": "\\}",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.arguments.end.latex"
+				}
+			},
+			"contentName": "source.lua",
+			"patterns": [
+				{
+					"include": "source.lua"
+				}
+			]
+		},
+		{
 			"match": "\\\\(?:newline|pagebreak|clearpage|linebreak|pause)(?:\\b)",
 			"name": "keyword.control.layout.latex"
 		},
@@ -3015,6 +3041,15 @@
 			},
 			"match": "(\\\\)(text(s(terling|ixoldstyle|urd|e(ction|venoldstyle|rvicemark))|yen|n(ineoldstyle|umero|aira)|c(ircledP|o(py(left|right)|lonmonetary)|urrency|e(nt(oldstyle)?|lsius))|t(hree(superior|oldstyle|quarters(emdash)?)|i(ldelow|mes)|w(o(superior|oldstyle)|elveudash)|rademark)|interrobang(down)?|zerooldstyle|o(hm|ne(superior|half|oldstyle|quarter)|penbullet|rd(feminine|masculine))|d(i(scount|ed|v(orced)?)|o(ng|wnarrow|llar(oldstyle)?)|egree|agger(dbl)?|blhyphen(char)?)|uparrow|p(ilcrow|e(so|r(t(housand|enthousand)|iodcentered))|aragraph|m)|e(stimated|ightoldstyle|uro)|quotes(traight(dblbase|base)|ingle)|f(iveoldstyle|ouroldstyle|lorin|ractionsolidus)|won|l(not|ira|e(ftarrow|af)|quill|angle|brackdbl)|a(s(cii(caron|dieresis|acute|grave|macron|breve)|teriskcentered)|cutedbl)|r(ightarrow|e(cipe|ferencemark|gistered)|quill|angle|brackdbl)|g(uarani|ravedbl)|m(ho|inus|u(sicalnote)?|arried)|b(igcircle|orn|ullet|lank|a(ht|rdbl)|rokenbar)))\\b",
 			"name": "constant.character.latex"
+		},
+		{
+			"captures": {
+				"1": {
+					"name": "punctuation.definition.variable.latex"
+				}
+			},
+			"match": "(\\\\)[cgl](?:[_\\p{Alphabetic}@]+)+_(?:bitset|clist|dim|fp|int|muskip|str|tl|bool|box|coffin|flag|fparray|intarray|ior|iow|prop|regex|seq)",
+			"name": "variable.other.latex3.latex"
 		},
 		{
 			"captures": {

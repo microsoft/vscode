@@ -40,8 +40,6 @@ export class FileWatcherManager {
 			return FileWatcherManager.noopWatcher;
 		}
 
-		console.log('watching file:', path);
-
 		this.logger.logVerbose('fs.watchFile', { path });
 
 		let uri: URI;

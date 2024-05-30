@@ -744,7 +744,7 @@ class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGro
 				return false;
 			} else {
 				// Allow droping files to open them
-				return { accept: true, effect: { type: ListDragOverEffectType.Move }, feedback: [-1] } as IListDragOverReaction;
+				return { accept: true, effect: { type: ListDragOverEffectType.Move }, feedback: [-1] };
 			}
 		}
 
@@ -758,7 +758,7 @@ class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGro
 				dropEffectPosition = ListDragOverEffectPosition.After; break;
 		}
 
-		return { accept: true, effect: { type: ListDragOverEffectType.Move, position: dropEffectPosition }, feedback: [_targetIndex] } as IListDragOverReaction;
+		return { accept: true, effect: { type: ListDragOverEffectType.Move, position: dropEffectPosition }, feedback: [_targetIndex] };
 	}
 
 	drop(data: IDragAndDropData, targetElement: OpenEditor | IEditorGroup | undefined, _targetIndex: number, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): void {

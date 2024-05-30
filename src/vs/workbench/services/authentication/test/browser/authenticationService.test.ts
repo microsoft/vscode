@@ -9,6 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/uti
 import { AuthenticationAccessService } from 'vs/workbench/services/authentication/browser/authenticationAccessService';
 import { AuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { AuthenticationProviderInformation, AuthenticationSessionsChangeEvent, IAuthenticationProvider } from 'vs/workbench/services/authentication/common/authentication';
+import { TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestExtensionService, TestProductService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
 function createSession() {
@@ -36,7 +37,7 @@ suite('AuthenticationService', () => {
 	setup(() => {
 		const storageService = disposables.add(new TestStorageService());
 		const authenticationAccessService = disposables.add(new AuthenticationAccessService(storageService, TestProductService));
-		authenticationService = disposables.add(new AuthenticationService(new TestExtensionService(), authenticationAccessService));
+		authenticationService = disposables.add(new AuthenticationService(new TestExtensionService(), authenticationAccessService, TestEnvironmentService));
 	});
 
 	teardown(() => {

@@ -27,3 +27,4 @@ export const CONTEXT_CHAT_ENABLED = new RawContextKey<boolean>('chatIsEnabled', 
 export const CONTEXT_CHAT_INPUT_CURSOR_AT_TOP = new RawContextKey<boolean>('chatCursorAtTop', false);
 export const CONTEXT_CHAT_INPUT_HAS_AGENT = new RawContextKey<boolean>('chatInputHasAgent', false);
 export const CONTEXT_CHAT_LOCATION = new RawContextKey<ChatAgentLocation>('chatLocation', undefined);
+export const CONTEXT_IN_QUICK_CHAT = new RawContextKey<boolean>('quickChatHasFocus', false, { type: 'boolean', description: localize('inQuickChat', "True when the quick chat UI has focus, false otherwise.") });

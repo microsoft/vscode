@@ -7,7 +7,7 @@ import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/capabili
 import { ReplayEntry } from 'vs/platform/terminal/common/terminalProcess';
 
 const enum Constants {
-	MaxRecorderDataSize = 1024 * 1024 // 1MB
+	MaxRecorderDataSize = 10 * 1024 * 1024 // 10MB
 }
 
 interface RecorderEntry {

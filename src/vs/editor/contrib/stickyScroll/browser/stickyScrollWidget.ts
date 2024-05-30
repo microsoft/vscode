@@ -9,7 +9,7 @@ import { equals } from 'vs/base/common/arrays';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
 import 'vs/css!./stickyScroll';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { getColumnOfNodeOffset } from 'vs/editor/browser/viewParts/lines/viewLine';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/embeddedCodeEditorWidget';
 import { EditorLayoutInfo, EditorOption, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
@@ -387,7 +387,8 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 
 	getPosition(): IOverlayWidgetPosition | null {
 		return {
-			preference: null
+			preference: OverlayWidgetPositionPreference.TOP_CENTER,
+			stackOridinal: 10,
 		};
 	}
 

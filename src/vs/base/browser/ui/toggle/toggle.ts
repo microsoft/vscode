@@ -235,6 +235,8 @@ export class Toggle extends Widget {
 
 export class Checkbox extends Widget {
 
+	static readonly CLASS_NAME = 'monaco-checkbox';
+
 	private readonly _onChange = this._register(new Emitter<boolean>());
 	readonly onChange: Event<boolean /* via keyboard */> = this._onChange.event;
 
@@ -246,7 +248,7 @@ export class Checkbox extends Widget {
 	constructor(private title: string, private isChecked: boolean, styles: ICheckboxStyles) {
 		super();
 
-		this.checkbox = this._register(new Toggle({ title: this.title, isChecked: this.isChecked, icon: Codicon.check, actionClassName: 'monaco-checkbox', ...unthemedToggleStyles }));
+		this.checkbox = this._register(new Toggle({ title: this.title, isChecked: this.isChecked, icon: Codicon.check, actionClassName: Checkbox.CLASS_NAME, ...unthemedToggleStyles }));
 
 		this.domNode = this.checkbox.domNode;
 

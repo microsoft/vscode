@@ -78,7 +78,7 @@ suite('FileDialogService', function () {
 	const testFile: URI = URI.file('/test/file');
 
 	setup(async function () {
-		disposables.add(instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables));
+		disposables.add(instantiationService = workbenchInstantiationService(undefined, disposables));
 		const configurationService = new TestConfigurationService();
 		await configurationService.setUserConfiguration('files', { simpleDialog: { enable: true } });
 		instantiationService.stub(IConfigurationService, configurationService);

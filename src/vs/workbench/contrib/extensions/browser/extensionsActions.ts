@@ -12,7 +12,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import * as json from 'vs/base/common/json';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { disposeIfDisposable } from 'vs/base/common/lifecycle';
-import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewPaneContainer, IExtensionContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP, UPDATE_ACTIONS_GROUP, AutoUpdateConfigurationKey, AutoUpdateConfigurationValue, ExtensionEditorTab, ExtensionRuntimeActionType } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewPaneContainer, IExtensionContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP, UPDATE_ACTIONS_GROUP, AutoUpdateConfigurationKey, AutoUpdateConfigurationValue, ExtensionEditorTab, ExtensionRuntimeActionType, IExtensionArg } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ExtensionsConfigurationInitialContent } from 'vs/workbench/contrib/extensions/common/extensionsFileTemplate';
 import { IGalleryExtension, IExtensionGalleryService, ILocalExtension, InstallOptions, InstallOperation, TargetPlatformToString, ExtensionManagementErrorCode } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
@@ -39,7 +39,7 @@ import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/w
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IQuickPickItem, IQuickInputService, IQuickPickSeparator, QuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickPickItem, IQuickInputService, QuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { IWorkbenchThemeService, IWorkbenchTheme, IWorkbenchColorTheme, IWorkbenchFileIconTheme, IWorkbenchProductIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
@@ -63,7 +63,6 @@ import { isVirtualWorkspace } from 'vs/platform/workspace/common/virtualWorkspac
 import { escapeMarkdownSyntaxTokens, IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
-import { flatten } from 'vs/base/common/arrays';
 import { fromNow } from 'vs/base/common/date';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { getLocale } from 'vs/platform/languagePacks/common/languagePacks';
@@ -251,7 +250,7 @@ export class ActionWithDropDownAction extends ExtensionAction {
 		private readonly actionsGroups: ExtensionAction[][],
 	) {
 		super(id, label);
-		this.extensionActions = flatten(actionsGroups);
+		this.extensionActions = actionsGroups.flat();
 		this.update();
 		this._register(Event.any(...this.extensionActions.map(a => a.onDidChange))(() => this.update(true)));
 		this.extensionActions.forEach(a => this._register(a));
@@ -1273,9 +1272,15 @@ export class MenuItemExtensionAction extends ExtensionAction {
 
 	override async run(): Promise<void> {
 		if (this.extension) {
-			await this.action.run(this.extension.local ? getExtensionId(this.extension.local.manifest.publisher, this.extension.local.manifest.name)
+			const id = this.extension.local ? getExtensionId(this.extension.local.manifest.publisher, this.extension.local.manifest.name)
 				: this.extension.gallery ? getExtensionId(this.extension.gallery.publisher, this.extension.gallery.name)
-					: this.extension.identifier.id);
+					: this.extension.identifier.id;
+			const extensionArg: IExtensionArg = {
+				id: this.extension.identifier.id,
+				version: this.extension.version,
+				location: this.extension.local?.location
+			};
+			await this.action.run(id, extensionArg);
 		}
 	}
 }
@@ -1667,8 +1672,8 @@ function getQuickPickEntries(themes: IWorkbenchTheme[], currentTheme: IWorkbench
 		}
 	}
 	if (showCurrentTheme) {
-		picks.push(<IQuickPickSeparator>{ type: 'separator', label: localize('current', "current") });
-		picks.push(<IQuickPickItem>{ label: currentTheme.label, id: currentTheme.id });
+		picks.push({ type: 'separator', label: localize('current', "current") });
+		picks.push({ label: currentTheme.label, id: currentTheme.id });
 	}
 	return picks;
 }
@@ -2087,7 +2092,7 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 				.then(reference => {
 					const position = reference.object.textEditorModel.getPositionAt(offset);
 					reference.dispose();
-					return <ITextEditorSelection>{
+					return {
 						startLineNumber: position.lineNumber,
 						startColumn: position.column,
 						endLineNumber: position.lineNumber,
@@ -2572,7 +2577,6 @@ export class ExtensionStatusAction extends ExtensionAction {
 				}
 			}
 			if (this.extension.enablementState === EnablementState.EnabledGlobally) {
-				this.updateStatus({ message: new MarkdownString(localize('globally enabled', "This extension is enabled globally.")) }, true);
 				return;
 			}
 		}
@@ -2668,7 +2672,7 @@ export class ReinstallAction extends Action {
 							label: extension.displayName,
 							description: extension.identifier.id,
 							extension,
-						} as (IQuickPickItem & { extension: IExtension });
+						};
 					});
 				return entries;
 			});
