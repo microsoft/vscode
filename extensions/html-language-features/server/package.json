@@ -9,13 +9,15 @@
   },
   "main": "./out/node/htmlServerMain",
   "dependencies": {
-    "@volar/language-server": "~2.1.0",
-    "@volar/typescript": "~2.1.0",
+    "@volar/language-server": "~2.3.0-alpha.1",
+    "@volar/language-service": "~2.3.0-alpha.1",
+    "@volar/typescript": "~2.3.0-alpha.1",
     "@vscode/l10n": "^0.0.18",
-    "volar-service-css": "0.0.31",
-    "volar-service-html": "0.0.31",
-    "volar-service-typescript": "0.0.31",
-    "vscode-html-languageservice": "^5.1.2"
+    "volar-service-css": "0.0.49",
+    "volar-service-html": "0.0.49",
+    "volar-service-typescript": "0.0.49",
+    "vscode-html-languageservice": "^5.2.0",
+    "vscode-uri": "^3.0.8"
   },
   "devDependencies": {
     "@types/mocha": "^9.1.1",

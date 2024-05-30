@@ -3,31 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ExtraServiceScript, LanguagePlugin, VirtualCode } from '@volar/language-server';
 import { forEachEmbeddedCode } from '@volar/language-core';
+import type { LanguagePlugin, TypeScriptExtraServiceScript, VirtualCode } from '@volar/language-server';
 import type * as ts from 'typescript';
 import { getLanguageService } from 'vscode-html-languageservice';
+import { URI } from 'vscode-uri';
 import { getDocumentRegions } from './embeddedSupport';
 
 const htmlLanguageService = getLanguageService();
 
-export const htmlLanguagePlugin: LanguagePlugin = {
-	createVirtualCode(_fileId, languageId, snapshot) {
+export const htmlLanguagePlugin: LanguagePlugin<URI> = {
+	getLanguageId(uri) {
+		if (uri.toString().endsWith('.html')) {
+			return 'html';
+		}
+		return undefined;
+	},
+	createVirtualCode(_uri, languageId, snapshot) {
 		if (languageId === 'html') {
 			return createHtmlVirtualCode(snapshot);
 		}
 		return undefined;
 	},
-	updateVirtualCode(_fileId, _virtualCode, newSnapshot) {
+	updateVirtualCode(_uri, _virtualCode, newSnapshot) {
 		return createHtmlVirtualCode(newSnapshot);
 	},
 	typescript: {
 		extraFileExtensions: [],
-		getScript() {
+		getServiceScript() {
 			return undefined;
 		},
-		getExtraScripts(fileName, rootCode) {
-			const extraScripts: ExtraServiceScript[] = [];
+		getExtraServiceScripts(fileName, rootCode) {
+			const extraScripts: TypeScriptExtraServiceScript[] = [];
 			for (const code of forEachEmbeddedCode(rootCode)) {
 				if (code.id.startsWith('javascript_') && !code.id.endsWith('_format')) {
 					extraScripts.push({
@@ -91,7 +98,7 @@ function createHtmlVirtualCode(snapshot: ts.IScriptSnapshot): VirtualCode {
 				generatedOffsets: [documentRegion.generatedStart],
 				lengths: [documentRegion.length],
 				data: documentRegion.attributeValue
-					? { verification: false, completion: true, semantic: true, navigation: true, structure: true, format: false }
+					? { completion: true, semantic: true, navigation: true, structure: true }
 					: { verification: true, completion: true, semantic: true, navigation: true, structure: true, format: !isJsOrTs },
 			}],
 		});
@@ -128,7 +135,7 @@ function createHtmlVirtualCode(snapshot: ts.IScriptSnapshot): VirtualCode {
 					sourceOffsets: [documentRegion.start],
 					generatedOffsets: [generatedStart],
 					lengths: [documentRegion.length],
-					data: { verification: false, completion: false, semantic: false, navigation: false, structure: false, format: true },
+					data: { format: true },
 				}],
 			});
 		}

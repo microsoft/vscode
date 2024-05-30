@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { getTestService } from './shared';
 import { TextDocument } from '@volar/language-server';
+import * as assert from 'assert';
+import { URI } from 'vscode-uri';
+import { getTestService } from './shared';
 
 async function testRename(value: string, newName: string, expectedDocContent: string): Promise<void> {
 	const offset = value.indexOf('|');
@@ -13,7 +14,7 @@ async function testRename(value: string, newName: string, expectedDocContent: st
 
 	const { languageService, document } = await getTestService({ content: value });
 	const position = document.positionAt(offset);
-	const workspaceEdit = await languageService.doRename(document.uri, position, newName);
+	const workspaceEdit = await languageService.doRename(URI.parse(document.uri), position, newName);
 
 	if (!workspaceEdit || !workspaceEdit.changes) {
 		assert.fail('No workspace edits');
@@ -34,7 +35,7 @@ async function testNoRename(value: string, newName: string): Promise<void> {
 
 	const { languageService, document } = await getTestService({ content: value });
 	const position = document.positionAt(offset);
-	const workspaceEdit = await languageService.doRename(document.uri, position, newName);
+	const workspaceEdit = await languageService.doRename(URI.parse(document.uri), position, newName);
 
 	assert.ok(workspaceEdit?.changes === undefined, 'Should not rename but rename happened');
 }

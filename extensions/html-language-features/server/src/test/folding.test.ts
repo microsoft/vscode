@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import 'mocha';
+import { URI } from 'vscode-uri';
 import { getTestService } from './shared';
 
 interface ExpectedIndentRange {
@@ -24,7 +25,7 @@ async function assertRanges(lines: string[], expected: ExpectedIndentRange[], me
 			},
 		} : undefined,
 	});
-	const actual = await languageService.getFoldingRanges(document.uri);
+	const actual = await languageService.getFoldingRanges(URI.parse(document.uri));
 	assert(!!actual);
 
 	let actualRanges = [];

@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'mocha';
+import { Position, Range, SemanticTokensLegend } from '@volar/language-server';
 import * as assert from 'assert';
-import { getTestService } from './shared';
-import { standardSemanticTokensLegend } from '@volar/language-service';
-import { Range, Position, SemanticTokensLegend } from '@volar/language-server';
+import 'mocha';
+import { URI } from 'vscode-uri';
+import { getTestService, languageServicePlugins } from './shared';
 
 interface ExpectedToken {
 	startLine: number;
@@ -16,12 +16,15 @@ interface ExpectedToken {
 	tokenClassifiction: string;
 }
 
-const legend: SemanticTokensLegend = JSON.parse(JSON.stringify(standardSemanticTokensLegend));
+const legend: SemanticTokensLegend = {
+	tokenTypes: languageServicePlugins.map(plugin => plugin.capabilities.semanticTokensProvider?.legend.tokenTypes ?? []).flat(),
+	tokenModifiers: languageServicePlugins.map(plugin => plugin.capabilities.semanticTokensProvider?.legend.tokenModifiers ?? []).flat(),
+};
 legend.tokenModifiers.push('local');
 
 async function assertTokens(lines: string[], expected: ExpectedToken[], range?: Range, message?: string): Promise<void> {
 	const { document, languageService } = await getTestService({ content: lines.join('\n') });
-	const actual = await languageService.getSemanticTokens(document.uri, range, legend);
+	const actual = await languageService.getSemanticTokens(URI.parse(document.uri), range, legend);
 	assert(!!actual);
 
 	const actualRanges = [];

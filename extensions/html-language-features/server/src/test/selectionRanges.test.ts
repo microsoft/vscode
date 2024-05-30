@@ -6,6 +6,7 @@
 import type { SelectionRange } from '@volar/language-server';
 import * as assert from 'assert';
 import 'mocha';
+import { URI } from 'vscode-uri';
 import { getTestService } from './shared';
 
 async function assertRanges(content: string, expected: (number | string)[][]): Promise<void> {
@@ -15,7 +16,7 @@ async function assertRanges(content: string, expected: (number | string)[][]): P
 	content = content.substr(0, offset) + content.substr(offset + 1);
 
 	const { document, languageService } = await getTestService({ content });
-	const actualRanges = await languageService.getSelectionRanges(document.uri, [document.positionAt(offset)]);
+	const actualRanges = await languageService.getSelectionRanges(URI.parse(document.uri), [document.positionAt(offset)]);
 	assert(!!actualRanges);
 
 	assert.strictEqual(actualRanges.length, 1);

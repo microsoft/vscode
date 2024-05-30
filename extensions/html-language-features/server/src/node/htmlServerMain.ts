@@ -5,21 +5,14 @@
 
 import { createServer, createConnection } from '@volar/language-server/node';
 import { htmlLanguagePlugin } from '../modes/languagePlugin';
-import { serverProjectProviderFactory } from '../modes/projectProvider';
-import { getServicePlugins } from '../modes/servicePlugins';
+import { createHtmlProject } from '../modes/project';
+import { getLanguageServicePlugins } from '../modes/servicePlugins';
 
 const connection = createConnection();
 const server = createServer(connection);
 
 connection.onInitialize(params => {
-	return server.initialize(params, serverProjectProviderFactory, {
-		getLanguagePlugins() {
-			return [htmlLanguagePlugin];
-		},
-		getServicePlugins() {
-			return getServicePlugins();
-		},
-	});
+	return server.initialize(params, getLanguageServicePlugins(), createHtmlProject([htmlLanguagePlugin]));
 });
 
 connection.onInitialized(server.initialized);

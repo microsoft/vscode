@@ -2,12 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import { FormattingOptions, Range, TextDocument } from '@volar/language-server';
+import * as assert from 'assert';
+import * as fs from 'fs';
 import 'mocha';
 import * as path from 'path';
-import * as fs from 'fs';
-import * as assert from 'assert';
+import { URI } from 'vscode-uri';
 import { getTestService } from './shared';
-import { FormattingOptions, Range, TextDocument } from '@volar/language-server';
 
 suite('HTML Embedded Formatting', () => {
 
@@ -30,7 +31,7 @@ suite('HTML Embedded Formatting', () => {
 			formatOptions = FormattingOptions.create(2, true);
 		}
 
-		const result = await languageService.format(document.uri, formatOptions, range, undefined);
+		const result = await languageService.format(URI.parse(document.uri), formatOptions, range, undefined);
 		const actual = TextDocument.applyEdits(document, result ?? []);
 		assert.strictEqual(actual, expected, message);
 	}

@@ -2,12 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import 'mocha';
-import * as assert from 'assert';
-import * as embeddedSupport from '../modes/embeddedSupport';
 import { forEachEmbeddedCode, SourceMap, VirtualCode } from '@volar/language-core';
-import { htmlLanguagePlugin } from '../modes/languagePlugin';
+import * as assert from 'assert';
+import 'mocha';
 import { getLanguageService } from 'vscode-html-languageservice';
+import { URI } from 'vscode-uri';
+import * as embeddedSupport from '../modes/embeddedSupport';
+import { htmlLanguagePlugin } from '../modes/languagePlugin';
 
 suite('HTML Embedded Support', () => {
 
@@ -17,7 +18,7 @@ suite('HTML Embedded Support', () => {
 		const offset = value.indexOf('|');
 		value = value.substr(0, offset) + value.substr(offset + 1);
 
-		const virtualCode = htmlLanguagePlugin.createVirtualCode('', 'html', {
+		const virtualCode = htmlLanguagePlugin.createVirtualCode?.(URI.file(''), 'html', {
 			getText: (start, end) => value.substring(start, end),
 			getLength: () => value.length,
 			getChangeRange: () => undefined,
@@ -28,9 +29,11 @@ suite('HTML Embedded Support', () => {
 
 		for (const embeddedCode of [...forEachEmbeddedCode(virtualCode)].reverse()) {
 			const map = new SourceMap(embeddedCode.mappings);
-			const mapped = map.getGeneratedOffset(offset);
-			if (mapped) {
+			for (const _mapped of map.getGeneratedOffsets(offset)) {
 				mappedCode = embeddedCode;
+				break;
+			}
+			if (mappedCode) {
 				break;
 			}
 		}

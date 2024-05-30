@@ -3,68 +3,80 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ServerProject } from '@volar/language-server';
-import { ServerOptions } from '@volar/language-server/lib/server';
-import { LanguageService, ServiceEnvironment, ServicePlugin, createLanguageService, TextDocument } from '@volar/language-service';
-import { createLanguage, createSys } from '@volar/typescript';
-import { createProjectHost } from './projectHost';
+import { LanguagePlugin, Project } from '@volar/language-server';
+import { createLanguageServiceEnvironment, createUriConverter } from '@volar/language-server/node';
+import { createLanguage, createLanguageService, createUriMap, LanguageService } from '@volar/language-service';
+import { createLanguageServiceHost, resolveFileLanguageId } from '@volar/typescript';
 import * as ts from 'typescript';
+import { TextDocument } from 'vscode-html-languageservice';
+import { URI } from 'vscode-uri';
+import { createProjectHost } from './projectHost';
 
-export async function createProject(
-	serviceEnv: ServiceEnvironment,
-	servicePlugins: ServicePlugin[],
-	getLanguagePlugins: ServerOptions['getLanguagePlugins'],
-	getCurrentTextDocument: () => TextDocument,
-	getCurrentSnapshot: () => ts.IScriptSnapshot,
-): Promise<ServerProject> {
-
+export function createHtmlProject(languagePlugins: LanguagePlugin<URI>[]): Project {
 	let languageService: LanguageService | undefined;
+	let currentDocument: [URI, string, TextDocument, ts.IScriptSnapshot] | undefined;
 
-	const sys = createSys(ts, serviceEnv, '');
-	const host = createProjectHost(
-		serviceEnv.typescript!,
-		fileName => sys.readFile(fileName),
-		getCurrentTextDocument,
-		getCurrentSnapshot,
-	);
-	const languagePlugins = await getLanguagePlugins(serviceEnv, {
-		typescript: {
-			configFileName: undefined,
-			host,
-			sys,
-		},
-	});
+	const { asFileName, asUri } = createUriConverter();
 
 	return {
-		getLanguageService,
-		getLanguageServiceDontCreate: () => languageService,
-		dispose,
+		getLanguageService(server, uri) {
+			const document = server.documents.get(server.getSyncedDocumentKey(uri) ?? uri.toString())!;
+			currentDocument = [uri, asFileName(uri), document, document.getSnapshot()];
+			if (!languageService) {
+				const language = createLanguage(
+					[
+						...languagePlugins,
+						{
+							getLanguageId(uri) {
+								const key = server.getSyncedDocumentKey(uri);
+								const document = !!key && server.documents.get(key);
+								if (document) {
+									return document.languageId;
+								}
+								const tsLanguageId = resolveFileLanguageId(uri.toString());
+								if (tsLanguageId) {
+									return tsLanguageId;
+								}
+								return undefined;
+							},
+						}
+					],
+					createUriMap(),
+					uri => {
+						const key = server.getSyncedDocumentKey(uri);
+						const document = !!key && server.documents.get(key);
+						if (document) {
+							language.scripts.set(uri, document.getSnapshot());
+						}
+						else {
+							language.scripts.delete(uri);
+						}
+					}
+				);
+				language.typescript = {
+					configFileName: undefined,
+					sys: ts.sys,
+					asFileName: asFileName,
+					asScriptId: asUri,
+					...createLanguageServiceHost(ts, ts.sys, language, asUri, createProjectHost(() => currentDocument!)),
+				};
+				languageService = createLanguageService(
+					language,
+					server.languageServicePlugins,
+					createLanguageServiceEnvironment(server, [...server.workspaceFolders.keys()])
+				);
+			}
+			return languageService;
+		},
+		getExistingLanguageServices() {
+			if (languageService) {
+				return [languageService];
+			}
+			return [];
+		},
+		reload() {
+			languageService?.dispose();
+			languageService = undefined;
+		},
 	};
-
-	function getLanguageService() {
-		if (!languageService) {
-			const language = createLanguage(
-				ts,
-				sys,
-				languagePlugins,
-				undefined,
-				host,
-				{
-					fileNameToFileId: serviceEnv.typescript!.fileNameToUri,
-					fileIdToFileName: serviceEnv.typescript!.uriToFileName,
-				},
-			);
-			languageService = createLanguageService(
-				language,
-				servicePlugins,
-				serviceEnv,
-			);
-		}
-		return languageService;
-	}
-
-	function dispose() {
-		sys.dispose();
-		languageService?.dispose();
-	}
 }

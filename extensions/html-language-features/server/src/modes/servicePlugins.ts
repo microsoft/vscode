@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ServicePlugin } from '@volar/language-service';
+import type { LanguageServicePlugin } from '@volar/language-service';
 import { create as createCssServicePlugin } from 'volar-service-css';
 import { create as createHtmlServicePlugin } from 'volar-service-html';
-import { create as createTypeScriptServicePlugin } from 'volar-service-typescript';
+import { create as createTypeScriptServicePlugins } from 'volar-service-typescript';
 import * as ts from 'typescript';
 
-export function getServicePlugins() {
-	const html1ServicePlugins: ServicePlugin[] = [
+export function getLanguageServicePlugins() {
+	const html1ServicePlugins: LanguageServicePlugin[] = [
 		createCssServicePlugin({
 			async isFormattingEnabled(_document, context) {
 				return await context.env.getConfiguration?.('html.format.enable') ?? true;
@@ -22,16 +22,17 @@ export function getServicePlugins() {
 				return await context.env.getConfiguration?.('html.format.enable') ?? true;
 			},
 		}),
-		createTypeScriptServicePlugin(ts, {
+		...createTypeScriptServicePlugins(ts, {
 			async isFormattingEnabled(_document, context) {
 				return await context.env.getConfiguration?.('html.format.enable') ?? true;
 			},
 		}),
 		{
+			capabilities: {},
 			create() {
 				return {
-					resolveEmbeddedCodeFormattingOptions(code, options) {
-						if (code.id.startsWith('css_')) {
+					resolveEmbeddedCodeFormattingOptions(_sourceScript, embeddedCode, options) {
+						if (embeddedCode.id.startsWith('css_')) {
 							options.initialIndentLevel++;
 						}
 						return options;

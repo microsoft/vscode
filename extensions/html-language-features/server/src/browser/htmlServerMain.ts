@@ -3,22 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createServer, createConnection, createSimpleProjectProviderFactory } from '@volar/language-server/node';
+import { createServer, createConnection, createSimpleProject } from '@volar/language-server/node';
 import { htmlLanguagePlugin } from '../modes/languagePlugin';
-import { getServicePlugins } from '../modes/servicePlugins';
+import { getLanguageServicePlugins } from '../modes/servicePlugins';
 
 const connection = createConnection();
 const server = createServer(connection);
 
 connection.onInitialize(params => {
-	return server.initialize(params, createSimpleProjectProviderFactory(), {
-		getLanguagePlugins() {
-			return [htmlLanguagePlugin];
-		},
-		getServicePlugins() {
-			return getServicePlugins();
-		},
-	});
+	return server.initialize(params, getLanguageServicePlugins(), createSimpleProject([htmlLanguagePlugin]));
 });
 
 connection.onInitialized(server.initialized);
