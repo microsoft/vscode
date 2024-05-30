@@ -566,8 +566,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 				includeMarkupPreview: config.notebookSearchConfig.includeMarkupPreview,
 				includeCodeInput: config.notebookSearchConfig.includeCodeInput,
 				includeOutput: config.notebookSearchConfig.includeOutput,
-			},
-			threads: this.searchConfig.threads,
+			}
 		};
 
 		const folderResources = this.contextService.getWorkspace().folders;
