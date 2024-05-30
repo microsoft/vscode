@@ -23,16 +23,10 @@ import { appendToCommandPalette, appendEditorTitleContextMenuItem } from 'vs/wor
 import { SideBySideEditor, EditorResourceAccessor } from 'vs/workbench/common/editor';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { createPasteFileHandler } from 'vs/workbench/contrib/files/browser/fileActions';
-import { webUtils } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 
 const REVEAL_IN_OS_COMMAND_ID = 'revealFileInOS';
 const REVEAL_IN_OS_LABEL = isWindows ? nls.localize2('revealInWindows', "Reveal in File Explorer") : isMacintosh ? nls.localize2('revealInMac', "Reveal in Finder") : nls.localize2('openContainer', "Open Containing Folder");
 const REVEAL_IN_OS_WHEN_CONTEXT = ContextKeyExpr.or(ResourceContextKey.Scheme.isEqualTo(Schemas.file), ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeUserData));
-
-const PASTE_FILE_ID = 'filesExplorer.paste';
-CommandsRegistry.registerCommand(PASTE_FILE_ID, createPasteFileHandler(webUtils.getPathForFile));
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: REVEAL_IN_OS_COMMAND_ID,
