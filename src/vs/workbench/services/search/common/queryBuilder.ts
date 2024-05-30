@@ -65,6 +65,7 @@ interface ICommonQueryBuilderOptions {
 	disregardSearchExcludeSettings?: boolean;
 	ignoreSymlinks?: boolean;
 	onlyOpenEditors?: boolean;
+	threads?: number;
 }
 
 export interface IFileQueryBuilderOptions extends ICommonQueryBuilderOptions {
