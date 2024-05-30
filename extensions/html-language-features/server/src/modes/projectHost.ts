@@ -38,7 +38,6 @@ export function createProjectHost(
 					}
 					libSnapshots.set(fileName, snapshot);
 				}
-				// console.log('getScriptSnapshot', fileName, snapshot?.getLength());
 				return snapshot;
 			}
 		},
