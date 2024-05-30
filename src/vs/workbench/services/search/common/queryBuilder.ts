@@ -189,7 +189,7 @@ export class QueryBuilder {
 			exists: options.exists,
 			sortByScore: options.sortByScore,
 			cacheKey: options.cacheKey,
-			shouldGlobMatchFilePattern: options.shouldGlobSearch,
+			shouldGlobMatchFilePattern: options.shouldGlobSearch
 		};
 	}
 
@@ -221,6 +221,7 @@ export class QueryBuilder {
 			folderQueries,
 			usingSearchPaths: !!(includeSearchPathsInfo.searchPaths && includeSearchPathsInfo.searchPaths.length),
 			extraFileResources: options.extraFileResources,
+
 			excludePattern: excludeSearchPathsInfo.pattern,
 			includePattern: includeSearchPathsInfo.pattern,
 			onlyOpenEditors: options.onlyOpenEditors,
@@ -240,7 +241,6 @@ export class QueryBuilder {
 		// Filter extraFileResources against global include/exclude patterns - they are already expected to not belong to a workspace
 		const extraFileResources = options.extraFileResources && options.extraFileResources.filter(extraFile => pathIncludedInQuery(queryProps, extraFile.fsPath));
 		queryProps.extraFileResources = extraFileResources && extraFileResources.length ? extraFileResources : undefined;
-
 
 		return queryProps;
 	}
