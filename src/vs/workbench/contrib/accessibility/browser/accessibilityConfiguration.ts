@@ -187,7 +187,7 @@ const configuration: IConfigurationNode = {
 					'type': 'boolean',
 					'default': false,
 				},
-				'delays': {
+				'experimental.delays': {
 					'type': 'object',
 					'additionalProperties': false,
 					'properties': {
@@ -823,6 +823,21 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 			];
 		}
 	}]);
+
+Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
+	.registerConfigurationMigrations([{
+		key: 'accessibility.signalOptions',
+		migrateFn: (value, accessor) => {
+			const delays = value.delays;
+			if (!delays) {
+				return [];
+			}
+			return [
+				['accessibility.signalOptions', { value: { ...value, 'experimental.delays': delays, 'delays': undefined } }],
+			];
+		}
+	}]);
+
 
 Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
 	.registerConfigurationMigrations([{
