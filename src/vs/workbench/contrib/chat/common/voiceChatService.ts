@@ -126,7 +126,7 @@ export class VoiceChatService extends Disposable implements IVoiceChatService {
 		const disposables = new DisposableStore();
 
 		const onSessionStoppedOrCanceled = (dispose: boolean) => {
-			this.activeVoiceChatSessions--;
+			this.activeVoiceChatSessions = Math.max(0, this.activeVoiceChatSessions - 1);
 			if (this.activeVoiceChatSessions === 0) {
 				this.voiceChatInProgress.reset();
 			}
