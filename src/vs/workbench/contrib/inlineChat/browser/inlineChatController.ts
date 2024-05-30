@@ -40,7 +40,7 @@ import { StashedSession } from './inlineChatSession';
 import { IModelDeltaDecoration, ITextModel, IValidEditOperation } from 'vs/editor/common/model';
 import { InlineChatContentWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatContentWidget';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
-import { ChatModel, IChatRequestModel, IChatTextEditGroup, IChatTextEditGroupState, IResponse } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatModel, ChatRequestRemovalReason, IChatRequestModel, IChatTextEditGroup, IChatTextEditGroupState, IResponse } from 'vs/workbench/contrib/chat/common/chatModel';
 import { InlineChatError } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSessionServiceImpl';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
@@ -445,10 +445,16 @@ export class InlineChatController implements IEditorContribution {
 				const exchange = this._session!.exchanges.find(candidate => candidate.prompt.request.id === e.requestId);
 				if (exchange && this._editor.hasModel()) {
 					// undo till this point
-					const model = this._editor.getModel();
-					const targetAltVersion = exchange.prompt.modelAltVersionId;
-					while (targetAltVersion < model.getAlternativeVersionId() && model.canUndo()) {
-						await model.undo();
+					this._session!.hunkData.ignoreTextModelNChanges = true;
+					try {
+
+						const model = this._editor.getModel();
+						const targetAltVersion = exchange.prompt.modelAltVersionId;
+						while (targetAltVersion < model.getAlternativeVersionId() && model.canUndo()) {
+							await model.undo();
+						}
+					} finally {
+						this._session!.hunkData.ignoreTextModelNChanges = false;
 					}
 				}
 			}
@@ -641,7 +647,7 @@ export class InlineChatController implements IEditorContribution {
 		const progressiveEditsClock = StopWatch.create();
 		const progressiveEditsQueue = new Queue();
 
-		let next: State.SHOW_RESPONSE | State.CANCEL | State.PAUSE | State.ACCEPT | State.WAIT_FOR_INPUT = State.SHOW_RESPONSE;
+		let next: State.SHOW_RESPONSE | State.SHOW_REQUEST | State.CANCEL | State.PAUSE | State.ACCEPT | State.WAIT_FOR_INPUT = State.SHOW_RESPONSE;
 		store.add(Event.once(this._messages.event)(message => {
 			this._log('state=_makeRequest) message received', message);
 			this._chatService.cancelCurrentRequestForSession(chatModel.sessionId);
@@ -658,7 +664,11 @@ export class InlineChatController implements IEditorContribution {
 			if (e.kind === 'removeRequest' && e.requestId === request.id) {
 				progressiveEditsCts.cancel();
 				responsePromise.complete();
-				next = State.CANCEL;
+				if (e.reason === ChatRequestRemovalReason.Resend) {
+					next = State.SHOW_REQUEST;
+				} else {
+					next = State.CANCEL;
+				}
 			}
 		}));
 
@@ -678,61 +688,59 @@ export class InlineChatController implements IEditorContribution {
 		let localEditGroup: IChatTextEditGroup | undefined;
 
 		// apply edits
-		store.add(response.onDidChange(() => {
+		const handleResponse = () => {
+
+			if (!localEditGroup) {
+				localEditGroup = <IChatTextEditGroup | undefined>response.response.value.find(part => part.kind === 'textEditGroup' && isEqual(part.uri, this._session?.textModelN.uri));
+			}
+
+			if (localEditGroup) {
+
+				localEditGroup.state ??= editState;
+
+				const edits = localEditGroup.edits;
+				const newEdits = edits.slice(lastLength);
+				if (newEdits.length > 0) {
+					// NEW changes
+					lastLength = edits.length;
+					progressiveEditsAvgDuration.update(progressiveEditsClock.elapsed());
+					progressiveEditsClock.reset();
+
+					progressiveEditsQueue.queue(async () => {
+
+						const startThen = this._session!.wholeRange.value.getStartPosition();
+
+						// making changes goes into a queue because otherwise the async-progress time will
+						// influence the time it takes to receive the changes and progressive typing will
+						// become infinitely fast
+						for (const edits of newEdits) {
+							await this._makeChanges(edits, {
+								duration: progressiveEditsAvgDuration.value,
+								token: progressiveEditsCts.token
+							}, isFirstChange);
+
+							isFirstChange = false;
+						}
+
+						// reshow the widget if the start position changed or shows at the wrong position
+						const startNow = this._session!.wholeRange.value.getStartPosition();
+						if (!startNow.equals(startThen) || !this._ui.value.zone.position?.equals(startNow)) {
+							this._showWidget(false, startNow.delta(-1));
+						}
+					});
+				}
+			}
 
 			if (response.isCanceled) {
 				progressiveEditsCts.cancel();
 				responsePromise.complete();
-				return;
-			}
 
-			if (response.isComplete) {
+			} else if (response.isComplete) {
 				responsePromise.complete();
-				return;
 			}
-
-			if (!localEditGroup) {
-				localEditGroup = <IChatTextEditGroup>response.response.value.find(part => part.kind === 'textEditGroup' && isEqual(part.uri, this._session?.textModelN.uri));
-			}
-
-			if (!localEditGroup) {
-				return;
-			}
-
-			localEditGroup.state ??= editState;
-
-			const edits = localEditGroup.edits;
-			const newEdits = edits.slice(lastLength);
-			if (newEdits.length === 0) {
-				return; // NO change
-			}
-			lastLength = edits.length;
-			progressiveEditsAvgDuration.update(progressiveEditsClock.elapsed());
-			progressiveEditsClock.reset();
-
-			progressiveEditsQueue.queue(async () => {
-
-				const startThen = this._session!.wholeRange.value.getStartPosition();
-
-				// making changes goes into a queue because otherwise the async-progress time will
-				// influence the time it takes to receive the changes and progressive typing will
-				// become infinitely fast
-				for (const edits of newEdits) {
-					await this._makeChanges(edits, {
-						duration: progressiveEditsAvgDuration.value,
-						token: progressiveEditsCts.token
-					}, isFirstChange);
-
-					isFirstChange = false;
-				}
-
-				// reshow the widget if the start position changed or shows at the wrong position
-				const startNow = this._session!.wholeRange.value.getStartPosition();
-				if (!startNow.equals(startThen) || !this._ui.value.zone.position?.equals(startNow)) {
-					this._showWidget(false, startNow.delta(-1));
-				}
-			});
-		}));
+		};
+		store.add(response.onDidChange(handleResponse));
+		handleResponse();
 
 		// (1) we must wait for the request to finish
 		// (2) we must wait for all edits that came in via progress to complete
