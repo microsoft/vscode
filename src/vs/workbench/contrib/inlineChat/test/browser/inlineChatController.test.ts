@@ -507,9 +507,9 @@ suite('InteractiveChatController', function () {
 	test('Retry undoes all changes, not just those from the request#5736', async function () {
 
 		const text = [
-			'eins\n',
-			'zwei\n',
-			'drei\n'
+			'eins-',
+			'zwei-',
+			'drei-'
 		];
 
 		store.add(chatAgentService.registerDynamicAgent({
@@ -532,21 +532,21 @@ suite('InteractiveChatController', function () {
 		const r = ctrl.run({ message: '1', autoSend: true });
 		await p;
 
-		assert.strictEqual(model.getValue(), 'eins\n');
+		assert.strictEqual(model.getValue(), 'eins-');
 
 		// REQUEST 2
 		const p2 = ctrl.waitFor([State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
 		await ctrl.acceptInput();
 		await p2;
 
-		assert.strictEqual(model.getValue(), 'zwei\neins\n');
+		assert.strictEqual(model.getValue(), 'zwei-eins-');
 
 		// REQUEST 2 - RERUN
 		const p3 = ctrl.waitFor([State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
 		await instaService.invokeFunction(rerun.runInlineChatCommand, ctrl, editor);
 		await p3;
 
-		assert.strictEqual(model.getValue(), 'drei\neins\n');
+		assert.strictEqual(model.getValue(), 'drei-eins-');
 
 		ctrl.finishExistingSession();
 		await r;
