@@ -76,7 +76,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		this._disposables.add(this.widget.onDidChangeHeight(() => {
 			if (this.position) {
 				// only relayout when visible
-				this._relayout(this._computeHeightInLines());
+				this._relayout(this._computeHeight().linesValue);
 			}
 		}));
 		this._disposables.add(this.widget);
@@ -122,13 +122,13 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		return info.contentWidth - (info.glyphMarginWidth + info.decorationsWidth + (indentationWidth ?? 0));
 	}
 
-	private _computeHeightInLines(): number {
+	private _computeHeight(): { linesValue: number; pixelsValue: number } {
 		const chatContentHeight = this.widget.contentHeight;
 		const editorHeight = this.editor.getLayoutInfo().height;
 
 		const contentHeight = Math.min(chatContentHeight, Math.max(this.widget.minHeight, editorHeight * 0.42));
 		const heightInLines = contentHeight / this.editor.getOption(EditorOption.lineHeight);
-		return heightInLines;
+		return { linesValue: heightInLines, pixelsValue: contentHeight };
 	}
 
 	protected override _onWidth(_widthInPixel: number): void {
@@ -145,17 +145,32 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		const marginWithoutIndentation = info.glyphMarginWidth + info.decorationsWidth + info.lineNumbersWidth;
 		this.container.style.marginLeft = `${marginWithoutIndentation}px`;
 
-		super.show(position, this._computeHeightInLines());
+		const height = this._computeHeight();
+		super.show(position, height.linesValue);
 		this._setWidgetMargins(position);
 		this.widget.chatWidget.setVisible(true);
 		this.widget.focus();
 
 		scrollState.restore(this.editor);
-		this.editor.revealRangeNearTopIfOutsideViewport(Range.fromPositions(position.delta(-1)), ScrollType.Immediate);
+
+		if (position.lineNumber > 1) {
+			this.editor.revealRangeNearTopIfOutsideViewport(Range.fromPositions(position.delta(-1)), ScrollType.Immediate);
+		} else {
+			// reveal top of zone widget
+			const lineTop = this.editor.getTopForLineNumber(position.lineNumber);
+			const zoneTop = lineTop - height.pixelsValue;
+			const spaceBelowLine = this.editor.getScrollHeight() - this.editor.getBottomForLineNumber(position.lineNumber);
+			const minTop = this.editor.getScrollTop() - spaceBelowLine;
+			const newTop = Math.max(zoneTop, minTop);
+
+			if (newTop < this.editor.getScrollTop()) {
+				this.editor.setScrollTop(newTop, ScrollType.Immediate);
+			}
+		}
 	}
 
 	override updatePositionAndHeight(position: Position): void {
-		super.updatePositionAndHeight(position, this._computeHeightInLines());
+		super.updatePositionAndHeight(position, this._computeHeight().linesValue);
 		this._setWidgetMargins(position);
 	}
 
