@@ -206,6 +206,10 @@ export class Session {
 		// this._teldata.responseTypes += `${exchange.response instanceof ReplyResponse ? exchange.response.responseType : InlineChatResponseTypes.Empty}|`;
 	}
 
+	get exchanges(): readonly SessionExchange[] {
+		return this._exchange;
+	}
+
 	get lastExchange(): SessionExchange | undefined {
 		return this._exchange[this._exchange.length - 1];
 	}
@@ -273,7 +277,8 @@ export class SessionPrompt {
 	readonly value: string;
 
 	constructor(
-		readonly request: IChatRequestModel
+		readonly request: IChatRequestModel,
+		readonly modelAltVersionId: number,
 	) {
 		this.value = request.message.text;
 	}
