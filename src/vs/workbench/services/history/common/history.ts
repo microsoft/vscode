@@ -8,7 +8,6 @@ import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { URI } from 'vs/base/common/uri';
-import { IDisposable } from 'vs/base/common/lifecycle';
 
 export const IHistoryService = createDecorator<IHistoryService>('historyService');
 
@@ -138,9 +137,4 @@ export interface IHistoryService {
 	 * Clear list of recently opened editors.
 	 */
 	clearRecentlyOpened(): void;
-
-	/**
-	 * Temporarily suspend tracking of editor events for the history.
-	 */
-	suspendTracking(): IDisposable;
 }

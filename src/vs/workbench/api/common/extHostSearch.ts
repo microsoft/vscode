@@ -11,13 +11,14 @@ import { FileSearchManager } from 'vs/workbench/services/search/common/fileSearc
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IURITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IRawFileQuery, ISearchCompleteStats, IFileQuery, IRawTextQuery, IRawQuery, ITextQuery, IFolderQuery } from 'vs/workbench/services/search/common/search';
+import { IRawFileQuery, ISearchCompleteStats, IFileQuery, IRawTextQuery, IRawQuery, ITextQuery, IFolderQuery, IRawAITextQuery, IAITextQuery } from 'vs/workbench/services/search/common/search';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { TextSearchManager } from 'vs/workbench/services/search/common/textSearchManager';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
 export interface IExtHostSearch extends ExtHostSearchShape {
 	registerTextSearchProvider(scheme: string, provider: vscode.TextSearchProvider): IDisposable;
+	registerAITextSearchProvider(scheme: string, provider: vscode.AITextSearchProvider): IDisposable;
 	registerFileSearchProvider(scheme: string, provider: vscode.FileSearchProvider): IDisposable;
 	doInternalFileSearchWithCustomCallback(query: IFileQuery, token: CancellationToken, handleFileMatch: (data: URI[]) => void): Promise<ISearchCompleteStats>;
 }
@@ -31,6 +32,10 @@ export class ExtHostSearch implements ExtHostSearchShape {
 
 	private readonly _textSearchProvider = new Map<number, vscode.TextSearchProvider>();
 	private readonly _textSearchUsedSchemes = new Set<string>();
+
+	private readonly _aiTextSearchProvider = new Map<number, vscode.AITextSearchProvider>();
+	private readonly _aiTextSearchUsedSchemes = new Set<string>();
+
 	private readonly _fileSearchProvider = new Map<number, vscode.FileSearchProvider>();
 	private readonly _fileSearchUsedSchemes = new Set<string>();
 
@@ -62,6 +67,22 @@ export class ExtHostSearch implements ExtHostSearchShape {
 		});
 	}
 
+	registerAITextSearchProvider(scheme: string, provider: vscode.AITextSearchProvider): IDisposable {
+		if (this._aiTextSearchUsedSchemes.has(scheme)) {
+			throw new Error(`an AI text search provider for the scheme '${scheme}'is already registered`);
+		}
+
+		this._aiTextSearchUsedSchemes.add(scheme);
+		const handle = this._handlePool++;
+		this._aiTextSearchProvider.set(handle, provider);
+		this._proxy.$registerAITextSearchProvider(handle, this._transformScheme(scheme));
+		return toDisposable(() => {
+			this._aiTextSearchUsedSchemes.delete(scheme);
+			this._aiTextSearchProvider.delete(handle);
+			this._proxy.$unregisterProvider(handle);
+		});
+	}
+
 	registerFileSearchProvider(scheme: string, provider: vscode.FileSearchProvider): IDisposable {
 		if (this._fileSearchUsedSchemes.has(scheme)) {
 			throw new Error(`a file search provider for the scheme '${scheme}' is already registered`);
@@ -86,7 +107,7 @@ export class ExtHostSearch implements ExtHostSearchShape {
 				this._proxy.$handleFileMatch(handle, session, batch.map(p => p.resource));
 			}, token);
 		} else {
-			throw new Error('unknown provider: ' + handle);
+			throw new Error('3 unknown provider: ' + handle);
 		}
 	}
 
@@ -103,7 +124,7 @@ export class ExtHostSearch implements ExtHostSearchShape {
 	$provideTextSearchResults(handle: number, session: number, rawQuery: IRawTextQuery, token: vscode.CancellationToken): Promise<ISearchCompleteStats> {
 		const provider = this._textSearchProvider.get(handle);
 		if (!provider || !provider.provideTextSearchResults) {
-			throw new Error(`Unknown provider ${handle}`);
+			throw new Error(`2 Unknown provider ${handle}`);
 		}
 
 		const query = reviveQuery(rawQuery);
@@ -111,17 +132,35 @@ export class ExtHostSearch implements ExtHostSearchShape {
 		return engine.search(progress => this._proxy.$handleTextMatch(handle, session, progress), token);
 	}
 
+	$provideAITextSearchResults(handle: number, session: number, rawQuery: IRawAITextQuery, token: vscode.CancellationToken): Promise<ISearchCompleteStats> {
+		const provider = this._aiTextSearchProvider.get(handle);
+		if (!provider || !provider.provideAITextSearchResults) {
+			throw new Error(`1 Unknown provider ${handle}`);
+		}
+
+		const query = reviveQuery(rawQuery);
+		const engine = this.createAITextSearchManager(query, provider);
+		return engine.search(progress => this._proxy.$handleTextMatch(handle, session, progress), token);
+	}
+
 	$enableExtensionHostSearch(): void { }
 
 	protected createTextSearchManager(query: ITextQuery, provider: vscode.TextSearchProvider): TextSearchManager {
-		return new TextSearchManager(query, provider, {
-			readdir: resource => Promise.resolve([]), // TODO@rob implement
+		return new TextSearchManager({ query, provider }, {
+			readdir: resource => Promise.resolve([]),
 			toCanonicalName: encoding => encoding
 		}, 'textSearchProvider');
 	}
+
+	protected createAITextSearchManager(query: IAITextQuery, provider: vscode.AITextSearchProvider): TextSearchManager {
+		return new TextSearchManager({ query, provider }, {
+			readdir: resource => Promise.resolve([]),
+			toCanonicalName: encoding => encoding
+		}, 'aiTextSearchProvider');
+	}
 }
 
-export function reviveQuery<U extends IRawQuery>(rawQuery: U): U extends IRawTextQuery ? ITextQuery : IFileQuery {
+export function reviveQuery<U extends IRawQuery>(rawQuery: U): U extends IRawTextQuery ? ITextQuery : U extends IRawAITextQuery ? IAITextQuery : IFileQuery {
 	return {
 		...<any>rawQuery, // TODO@rob ???
 		...{

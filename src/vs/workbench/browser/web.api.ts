@@ -103,9 +103,23 @@ export interface IWorkbench {
 		 * `ExtensionTerminalOptions` in the extension API.
 		 */
 		createTerminal(options: IEmbedderTerminalOptions): Promise<void>;
+
+		/**
+		 * Show an information message to users. Optionally provide an array of items which will be presented as
+		 * clickable buttons.
+		 *
+		 * @param message The message to show.
+		 * @param items A set of items that will be rendered as actions in the message.
+		 * @returns A thenable that resolves to the selected item or `undefined` when being dismissed.
+		 */
+		showInformationMessage<T extends string>(message: string, ...items: T[]): Promise<T | undefined>;
 	};
 
 	workspace: {
+		/**
+		 * Resolves once the remote authority has been resolved.
+		 */
+		didResolveRemoteAuthority(): Promise<void>;
 
 		/**
 		 * Forwards a port. If the current embedder implements a tunnelFactory then that will be used to make the tunnel.
@@ -141,6 +155,13 @@ export interface IWorkbenchConstructionOptions {
 	 * from. It is for example being used for the websocket connections as address.
 	 */
 	readonly remoteAuthority?: string;
+
+	/**
+	 * The server base path is the path where the workbench is served from.
+	 * The path must be absolute (start with a slash).
+	 * Corresponds to option `server-base-path` on the server side.
+	 */
+	readonly serverBasePath?: string;
 
 	/**
 	 * The connection token to send to the server.

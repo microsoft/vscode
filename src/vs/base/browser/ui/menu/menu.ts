@@ -14,7 +14,8 @@ import { AnchorAlignment, layout, LayoutAnchorPosition } from 'vs/base/browser/u
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { EmptySubmenuAction, IAction, IActionRunner, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { Codicon, getCodiconFontCharacters } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
+import { getCodiconFontCharacters } from 'vs/base/common/codiconsUtil';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { Event } from 'vs/base/common/event';
 import { stripIcons } from 'vs/base/common/iconLabels';
@@ -30,9 +31,19 @@ export const MENU_ESCAPED_MNEMONIC_REGEX = /(&amp;)?(&amp;)([^\s&])/g;
 
 
 
-export enum Direction {
+export enum HorizontalDirection {
 	Right,
 	Left
+}
+
+export enum VerticalDirection {
+	Above,
+	Below
+}
+
+export interface IMenuDirection {
+	horizontal: HorizontalDirection;
+	vertical: VerticalDirection;
 }
 
 export interface IMenuOptions {
@@ -43,7 +54,7 @@ export interface IMenuOptions {
 	ariaLabel?: string;
 	enableMnemonics?: boolean;
 	anchorAlignment?: AnchorAlignment;
-	expandDirection?: Direction;
+	expandDirection?: IMenuDirection;
 	useEventAsContext?: boolean;
 	submenuIds?: Set<string>;
 }
@@ -724,7 +735,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 	private mouseOver: boolean = false;
 	private showScheduler: RunOnceScheduler;
 	private hideScheduler: RunOnceScheduler;
-	private expandDirection: Direction;
+	private expandDirection: IMenuDirection;
 
 	constructor(
 		action: IAction,
@@ -735,7 +746,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 	) {
 		super(action, action, submenuOptions, menuStyles);
 
-		this.expandDirection = submenuOptions && submenuOptions.expandDirection !== undefined ? submenuOptions.expandDirection : Direction.Right;
+		this.expandDirection = submenuOptions && submenuOptions.expandDirection !== undefined ? submenuOptions.expandDirection : { horizontal: HorizontalDirection.Right, vertical: VerticalDirection.Below };
 
 		this.showScheduler = new RunOnceScheduler(() => {
 			if (this.mouseOver) {
@@ -849,11 +860,11 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 		}
 	}
 
-	private calculateSubmenuMenuLayout(windowDimensions: Dimension, submenu: Dimension, entry: IDomNodePagePosition, expandDirection: Direction): { top: number; left: number } {
+	private calculateSubmenuMenuLayout(windowDimensions: Dimension, submenu: Dimension, entry: IDomNodePagePosition, expandDirection: IMenuDirection): { top: number; left: number } {
 		const ret = { top: 0, left: 0 };
 
 		// Start with horizontal
-		ret.left = layout(windowDimensions.width, submenu.width, { position: expandDirection === Direction.Right ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After, offset: entry.left, size: entry.width });
+		ret.left = layout(windowDimensions.width, submenu.width, { position: expandDirection.horizontal === HorizontalDirection.Right ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After, offset: entry.left, size: entry.width });
 
 		// We don't have enough room to layout the menu fully, so we are overlapping the menu
 		if (ret.left >= entry.left && ret.left < entry.left + entry.width) {
@@ -1054,10 +1065,6 @@ ${formatRule(Codicon.menuSubmenu)}
 
 .monaco-menu .monaco-action-bar .action-item.disabled {
 	cursor: default;
-}
-
-.monaco-menu .monaco-action-bar.animated .action-item.active {
-	transform: scale(1.272019649, 1.272019649); /* 1.272019649 = √φ */
 }
 
 .monaco-menu .monaco-action-bar .action-item .icon,
@@ -1274,6 +1281,7 @@ ${formatRule(Codicon.menuSubmenu)}
 .monaco-menu .monaco-action-bar.vertical .keybinding {
 	font-size: inherit;
 	padding: 0 2em;
+	max-height: 100%;
 }
 
 .monaco-menu .monaco-action-bar.vertical .menu-item-check {

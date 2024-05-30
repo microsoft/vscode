@@ -38,6 +38,7 @@
 .monaco-workbench .part.panel > .content .monaco-editor,
 .monaco-workbench .part.panel > .content .monaco-editor .margin,
 .monaco-workbench .part.panel > .content .monaco-editor .monaco-editor-background {
+	/* THIS DOESN'T WORK ANYMORE */
 	background-color: var(--vscode-panel-background);
 }
 

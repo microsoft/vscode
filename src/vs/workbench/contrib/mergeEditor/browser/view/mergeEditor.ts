@@ -39,7 +39,8 @@ import { readTransientState, writeTransientState } from 'vs/workbench/contrib/co
 import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { IMergeEditorInputModel } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInputModel';
 import { MergeEditorModel } from 'vs/workbench/contrib/mergeEditor/browser/model/mergeEditorModel';
-import { deepMerge, observableConfigValue, PersistentStore, thenIfNotDisposed } from 'vs/workbench/contrib/mergeEditor/browser/utils';
+import { deepMerge, PersistentStore, thenIfNotDisposed } from 'vs/workbench/contrib/mergeEditor/browser/utils';
+import { observableConfigValue } from 'vs/platform/observable/common/platformObservableUtils';
 import { BaseCodeEditorView } from 'vs/workbench/contrib/mergeEditor/browser/view/editors/baseCodeEditorView';
 import { ScrollSynchronizer } from 'vs/workbench/contrib/mergeEditor/browser/view/scrollSynchronizer';
 import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
@@ -108,6 +109,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 	private readonly scrollSynchronizer = this._register(new ScrollSynchronizer(this._viewModel, this.input1View, this.input2View, this.baseView, this.inputResultView, this._layoutModeObs));
 
 	constructor(
+		group: IEditorGroup,
 		@IInstantiationService instantiation: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -121,7 +123,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
-		super(MergeEditor.ID, telemetryService, instantiation, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService, fileService);
+		super(MergeEditor.ID, group, telemetryService, instantiation, storageService, textResourceConfigurationService, themeService, editorService, editorGroupService, fileService);
 	}
 
 	override dispose(): void {
@@ -354,7 +356,7 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 				// all empty -> replace this editor with a normal editor for result
 				that.editorService.replaceEditors(
 					[{ editor: input, replacement: { resource: input.result, options: { preserveFocus: true } }, forceReplaceDirty: true }],
-					that.group ?? that.editorGroupService.activeGroup
+					that.group
 				);
 			}
 		});
@@ -467,8 +469,8 @@ export class MergeEditor extends AbstractTextEditor<IMergeEditorViewState> {
 		return super.hasFocus();
 	}
 
-	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
-		super.setEditorVisible(visible, group);
+	protected override setEditorVisible(visible: boolean): void {
+		super.setEditorVisible(visible);
 
 		for (const { editor } of [this.input1View, this.input2View, this.inputResultView]) {
 			if (visible) {

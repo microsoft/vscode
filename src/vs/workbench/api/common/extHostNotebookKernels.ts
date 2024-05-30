@@ -96,13 +96,18 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			'_executeNotebookVariableProvider',
 			'Execute notebook variable provider',
 			[ApiCommandArgument.Uri],
-			new ApiCommandResult<VariablesResult[], vscode.Variable[]>('A promise that resolves to an array of variables', (value, apiArgs) => {
+			new ApiCommandResult<VariablesResult[], vscode.VariablesResult[]>('A promise that resolves to an array of variables', (value, apiArgs) => {
 				return value.map(variable => {
 					return {
-						name: variable.name,
-						value: variable.value,
-						type: variable.type,
-						editable: false
+						variable: {
+							name: variable.name,
+							value: variable.value,
+							expression: variable.expression,
+							type: variable.type,
+							language: variable.language
+						},
+						hasNamedChildren: variable.hasNamedChildren,
+						indexedChildrenCount: variable.indexedChildrenCount
 					};
 				});
 			})
@@ -428,6 +433,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		if (obj.controller.interruptHandler) {
 			// If we're interrupting all cells, we also need to cancel the notebook level execution.
 			const items = this._activeNotebookExecutions.get(document.uri);
+			this._activeNotebookExecutions.delete(document.uri);
 			if (handles.length && Array.isArray(items) && items.length) {
 				items.forEach(d => d.dispose());
 			}
@@ -475,6 +481,9 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				name: result.variable.name,
 				value: result.variable.value,
 				type: result.variable.type,
+				interfaces: result.variable.interfaces,
+				language: result.variable.language,
+				expression: result.variable.expression,
 				hasNamedChildren: result.hasNamedChildren,
 				indexedChildrenCount: result.indexedChildrenCount,
 				extensionId: obj.extensionId.value,
@@ -700,7 +709,7 @@ class NotebookCellExecutionTask extends Disposable {
 				});
 			},
 
-			end(success: boolean | undefined, endTime?: number): void {
+			end(success: boolean | undefined, endTime?: number, executionError?: vscode.CellExecutionError): void {
 				if (that._state === NotebookCellExecutionTaskState.Resolved) {
 					throw new Error('Cannot call resolve twice');
 				}
@@ -712,9 +721,22 @@ class NotebookCellExecutionTask extends Disposable {
 				// so we use updateSoon and immediately flush.
 				that._collector.flush();
 
+				const error = executionError ? {
+					message: executionError.message,
+					stack: executionError.stack,
+					location: executionError?.location ? {
+						startLineNumber: executionError.location.start.line,
+						startColumn: executionError.location.start.character,
+						endLineNumber: executionError.location.end.line,
+						endColumn: executionError.location.end.character
+					} : undefined,
+					uri: executionError.uri
+				} : undefined;
+
 				that._proxy.$completeExecution(that._handle, new SerializableObjectWithBuffers({
 					runEndTime: endTime,
-					lastRunSuccess: success
+					lastRunSuccess: success,
+					error
 				}));
 			},
 

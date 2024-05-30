@@ -29,7 +29,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { rot } from 'vs/base/common/numbers';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
+import { EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/embeddedDiffEditorWidget';
 import { IDiffEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Action, IAction, ActionRunner } from 'vs/base/common/actions';
 import { IActionBarOptions } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -1568,12 +1568,12 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 		this.onDidChangeConfiguration();
 
 		const onDidChangeDiffWidthConfiguration = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.diffDecorationsGutterWidth'));
-		onDidChangeDiffWidthConfiguration(this.onDidChangeDiffWidthConfiguration, this);
+		this._register(onDidChangeDiffWidthConfiguration(this.onDidChangeDiffWidthConfiguration, this));
 		this.onDidChangeDiffWidthConfiguration();
 
 		const onDidChangeDiffVisibilityConfiguration = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.diffDecorationsGutterVisibility'));
-		onDidChangeDiffVisibilityConfiguration(this.onDidChangeDiffVisibiltiyConfiguration, this);
-		this.onDidChangeDiffVisibiltiyConfiguration();
+		this._register(onDidChangeDiffVisibilityConfiguration(this.onDidChangeDiffVisibilityConfiguration, this));
+		this.onDidChangeDiffVisibilityConfiguration();
 	}
 
 	private onDidChangeConfiguration(): void {
@@ -1596,7 +1596,7 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 		this.setViewState({ ...this.viewState, width });
 	}
 
-	private onDidChangeDiffVisibiltiyConfiguration(): void {
+	private onDidChangeDiffVisibilityConfiguration(): void {
 		const visibility = this.configurationService.getValue<'always' | 'hover'>('scm.diffDecorationsGutterVisibility');
 		this.setViewState({ ...this.viewState, visibility });
 	}

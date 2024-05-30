@@ -100,7 +100,7 @@ registerAction2(class CollapseDeepestExpandedLevelAction extends Action2 {
 			menu: [{
 				id: MenuId.ViewTitle,
 				group: 'navigation',
-				order: 3,
+				order: 4,
 				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_ID), ContextKeyExpr.or(Constants.SearchContext.HasSearchResults.negate(), Constants.SearchContext.ViewHasSomeCollapsibleKey)),
 			}]
 		});
@@ -122,7 +122,7 @@ registerAction2(class ExpandAllAction extends Action2 {
 			menu: [{
 				id: MenuId.ViewTitle,
 				group: 'navigation',
-				order: 3,
+				order: 4,
 				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_ID), Constants.SearchContext.HasSearchResults, Constants.SearchContext.ViewHasSomeCollapsibleKey.toNegated()),
 			}]
 		});
@@ -204,6 +204,7 @@ registerAction2(class ViewAsListAction extends Action2 {
 		}
 	}
 });
+
 
 //#endregion
 

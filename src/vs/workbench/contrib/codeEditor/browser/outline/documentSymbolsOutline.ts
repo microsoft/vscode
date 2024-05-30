@@ -219,7 +219,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 		return this._outlineModel?.uri;
 	}
 
-	async reveal(entry: DocumentSymbolItem, options: IEditorOptions, sideBySide: boolean): Promise<void> {
+	async reveal(entry: DocumentSymbolItem, options: IEditorOptions, sideBySide: boolean, select: boolean): Promise<void> {
 		const model = OutlineModel.get(entry);
 		if (!model || !(entry instanceof OutlineElement)) {
 			return;
@@ -228,7 +228,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 			resource: model.uri,
 			options: {
 				...options,
-				selection: Range.collapseToStart(entry.symbol.selectionRange),
+				selection: select ? entry.symbol.range : Range.collapseToStart(entry.symbol.selectionRange),
 				selectionRevealType: TextEditorSelectionRevealType.NearTopIfOutsideViewport,
 			}
 		}, this._editor, sideBySide);

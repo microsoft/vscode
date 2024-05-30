@@ -10,8 +10,8 @@ import { isLinux, isWindows } from 'vs/base/common/platform';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { FileChangesEvent, FileChangeType, IFileChange } from 'vs/platform/files/common/files';
-import { coalesceEvents, reviveFileChanges, parseWatcherPatterns } from 'vs/platform/files/common/watcher';
+import { FileChangeFilter, FileChangesEvent, FileChangeType, IFileChange } from 'vs/platform/files/common/files';
+import { coalesceEvents, reviveFileChanges, parseWatcherPatterns, isFiltered } from 'vs/platform/files/common/watcher';
 
 class TestFileWatcher extends Disposable {
 	private readonly _onDidFilesChange: Emitter<{ raw: IFileChange[]; event: FileChangesEvent }>;
@@ -323,6 +323,35 @@ suite('Watcher Events Normalizer', () => {
 		}));
 
 		watch.report(raw);
+	});
+
+	test('event type filter', () => {
+		const resource = URI.file('/users/data/src/related');
+
+		assert.strictEqual(isFiltered({ resource, type: FileChangeType.ADDED }, undefined), false);
+		assert.strictEqual(isFiltered({ resource, type: FileChangeType.UPDATED }, undefined), false);
+		assert.strictEqual(isFiltered({ resource, type: FileChangeType.DELETED }, undefined), false);
+
+		assert.strictEqual(isFiltered({ resource, type: FileChangeType.ADDED }, FileChangeFilter.UPDATED), true);
+		assert.strictEqual(isFiltered({ resource, type: FileChangeType.ADDED }, FileChangeFilter.UPDATED | FileChangeFilter.DELETED), true);
+
+		assert.strictEqual(isFiltered({ resource, type: FileChangeType.ADDED }, FileChangeFilter.ADDED), false);
+		assert.strictEqual(isFiltered({ resource, type: FileChangeType.ADDED }, FileChangeFilter.ADDED | FileChangeFilter.UPDATED), false);
+		assert.strictEqual(isFiltered({ resource, type: FileChangeType.ADDED }, FileChangeFilter.ADDED | FileChangeFilter.UPDATED | FileChangeFilter.DELETED), false);
+
+		assert.strictEqual(isFiltered({ resource, type: FileChangeType.DELETED }, FileChangeFilter.UPDATED), true);
+		assert.strictEqual(isFiltered({ resource, type: FileChangeType.DELETED }, FileChangeFilter.UPDATED | FileChangeFilter.ADDED), true);
+
+		assert.strictEqual(isFiltered({ resource, type: FileChangeType.DELETED }, FileChangeFilter.DELETED), false);
+		assert.strictEqual(isFiltered({ resource, type: FileChangeType.DELETED }, FileChangeFilter.DELETED | FileChangeFilter.UPDATED), false);
+		assert.strictEqual(isFiltered({ resource, type: FileChangeType.DELETED }, FileChangeFilter.ADDED | FileChangeFilter.DELETED | FileChangeFilter.UPDATED), false);
+
+		assert.strictEqual(isFiltered({ resource, type: FileChangeType.UPDATED }, FileChangeFilter.ADDED), true);
+		assert.strictEqual(isFiltered({ resource, type: FileChangeType.UPDATED }, FileChangeFilter.DELETED | FileChangeFilter.ADDED), true);
+
+		assert.strictEqual(isFiltered({ resource, type: FileChangeType.UPDATED }, FileChangeFilter.UPDATED), false);
+		assert.strictEqual(isFiltered({ resource, type: FileChangeType.UPDATED }, FileChangeFilter.DELETED | FileChangeFilter.UPDATED), false);
+		assert.strictEqual(isFiltered({ resource, type: FileChangeType.UPDATED }, FileChangeFilter.ADDED | FileChangeFilter.DELETED | FileChangeFilter.UPDATED), false);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as ts from 'typescript/lib/tsserverlibrary';
+import type ts from '../../../../node_modules/typescript/lib/typescript';
 export = ts.server.protocol;
 
 
@@ -11,7 +11,7 @@ declare enum ServerType {
 	Semantic = 'semantic',
 }
 
-declare module 'typescript/lib/tsserverlibrary' {
+declare module '../../../../node_modules/typescript/lib/typescript' {
 	namespace server.protocol {
 		type TextInsertion = ts.TextInsertion;
 		type ScriptElementKind = ts.ScriptElementKind;
@@ -20,41 +20,68 @@ declare module 'typescript/lib/tsserverlibrary' {
 			readonly _serverType?: ServerType;
 		}
 
-		export interface MapCodeRequestArgs {
-			/// The files and changes to try and apply/map.
-			mappings: MapCodeRequestDocumentMapping[];
-
-			/// Edits to apply to the current workspace before performing the mapping.
-			updates?: FileCodeEdits[]
+		//#region MapCode
+		export interface MapCodeRequestArgs extends FileRequestArgs {
+			/**
+			 * The files and changes to try and apply/map.
+			 */
+			mapping: MapCodeRequestDocumentMapping;
 		}
 
 		export interface MapCodeRequestDocumentMapping {
-			/// The file for the request (absolute pathname required). Null/undefined
-			/// if specific file is unknown.
-			file?: string;
-
-			/// Optional name of project that contains file
-			projectFileName?: string;
-
-			/// The specific code to map/insert/replace in the file.
+			/**
+			 * The specific code to map/insert/replace in the file.
+			 */
 			contents: string[];
 
-			/// Areas of "focus" to inform the code mapper with. For example, cursor
-			/// location, current selection, viewport, etc. Nested arrays denote
-			/// priority: toplevel arrays are more important than inner arrays, and
-			/// inner array priorities are based on items within that array. Items
-			/// earlier in the arrays have higher priority.
-			focusLocations?: FileSpan[][];
+			/**
+			 * Areas of "focus" to inform the code mapper with. For example, cursor
+			 * location, current selection, viewport, etc. Nested arrays denote
+			 * priority: toplevel arrays are more important than inner arrays, and
+			 * inner array priorities are based on items within that array. Items
+			 * earlier in the arrays have higher priority.
+			 */
+			focusLocations?: TextSpan[][];
 		}
 
-		export interface MapCodeRequest extends Request {
-			command: 'mapCode',
+		export interface MapCodeRequest extends FileRequest {
+			command: 'mapCode';
 			arguments: MapCodeRequestArgs;
 		}
 
 		export interface MapCodeResponse extends Response {
 			body: FileCodeEdits[]
 		}
+		//#endregion
+
+		//#region Paste
+		export interface GetPasteEditsRequest extends Request {
+			command: 'getPasteEdits';
+			arguments: GetPasteEditsRequestArgs;
+		}
+
+		export interface GetPasteEditsRequestArgs extends FileRequestArgs {
+			/** The text that gets pasted in a file.  */
+			pastedText: string[];
+			/** Locations of where the `pastedText` gets added in a file. If the length of the `pastedText` and `pastedLocations` are not the same,
+			 *  then the `pastedText` is combined into one and added at all the `pastedLocations`.
+			 */
+			pasteLocations: TextSpan[];
+			/** The source location of each `pastedText`. If present, the length of `spans` must be equal to the length of `pastedText`. */
+			copiedFrom?: {
+				file: string;
+				spans: TextSpan[];
+			};
+		}
+
+		export interface GetPasteEditsResponse extends Response {
+			body: PasteEditsAction;
+		}
+		export interface PasteEditsAction {
+			edits: FileCodeEdits[];
+			fixId?: {};
+		}
+		//#endregion
 	}
 }
 

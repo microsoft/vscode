@@ -137,6 +137,11 @@ export class ViewsService extends Disposable implements IViewsService {
 	private onDidChangeContainerLocation(viewContainer: ViewContainer, from: ViewContainerLocation, to: ViewContainerLocation): void {
 		this.deregisterPaneComposite(viewContainer, from);
 		this.registerPaneComposite(viewContainer, to);
+
+		// Open view container if part is visible and there is only one view container in location
+		if (this.layoutService.isVisible(getPartByLocation(to)) && this.viewDescriptorService.getViewContainersByLocation(to).length === 1) {
+			this.openViewContainer(viewContainer.id);
+		}
 	}
 
 	private onViewDescriptorsAdded(views: ReadonlyArray<IViewDescriptor>, container: ViewContainer): void {

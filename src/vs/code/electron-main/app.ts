@@ -105,7 +105,7 @@ import { ExtensionsScannerService } from 'vs/platform/extensionManagement/node/e
 import { UserDataProfilesHandler } from 'vs/platform/userDataProfile/electron-main/userDataProfilesHandler';
 import { ProfileStorageChangesListenerChannel } from 'vs/platform/userDataProfile/electron-main/userDataProfileStorageIpc';
 import { Promises, RunOnceScheduler, runWhenGlobalIdle } from 'vs/base/common/async';
-import { resolveMachineId, resolveSqmId } from 'vs/platform/telemetry/electron-main/telemetryUtils';
+import { resolveMachineId, resolveSqmId, resolvedevDeviceId } from 'vs/platform/telemetry/electron-main/telemetryUtils';
 import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/node/extensionsProfileScannerService';
 import { LoggerChannel } from 'vs/platform/log/electron-main/logIpc';
 import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService';
@@ -120,6 +120,7 @@ import { NODE_REMOTE_RESOURCE_CHANNEL_NAME, NODE_REMOTE_RESOURCE_IPC_METHOD_NAME
 import { Lazy } from 'vs/base/common/lazy';
 import { IAuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindows';
 import { AuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindowsMainService';
+import { normalizeNFC } from 'vs/base/common/normalization';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -193,7 +194,7 @@ export class CodeApplication extends Disposable {
 		// Block all SVG requests from unsupported origins
 		const supportedSvgSchemes = new Set([Schemas.file, Schemas.vscodeFileResource, Schemas.vscodeRemoteResource, Schemas.vscodeManagedRemoteResource, 'devtools']);
 
-		// But allow them if the are made from inside an webview
+		// But allow them if they are made from inside an webview
 		const isSafeFrame = (requestFrame: WebFrameMain | undefined): boolean => {
 			for (let frame: WebFrameMain | null | undefined = requestFrame; frame; frame = frame.parent) {
 				if (frame.url.startsWith(`${Schemas.vscodeWebview}://`)) {
@@ -435,6 +436,8 @@ export class CodeApplication extends Disposable {
 		let macOpenFileURIs: IWindowOpenable[] = [];
 		let runningTimeout: NodeJS.Timeout | undefined = undefined;
 		app.on('open-file', (event, path) => {
+			path = normalizeNFC(path); // macOS only: normalize paths to NFC form
+
 			this.logService.trace('app#open-file: ', path);
 			event.preventDefault();
 
@@ -517,7 +520,7 @@ export class CodeApplication extends Disposable {
 		validatedIpcMain.on('vscode:reloadWindow', event => event.sender.reload());
 
 		validatedIpcMain.handle('vscode:notifyZoomLevel', async (event, zoomLevel: number | undefined) => {
-			const window = this.windowsMainService?.getWindowById(event.sender.id);
+			const window = this.windowsMainService?.getWindowByWebContents(event.sender);
 			if (window) {
 				window.notifyZoomLevel(zoomLevel);
 			}
@@ -608,17 +611,18 @@ export class CodeApplication extends Disposable {
 
 		// Resolve unique machine ID
 		this.logService.trace('Resolving machine identifier...');
-		const [machineId, sqmId] = await Promise.all([
+		const [machineId, sqmId, devDeviceId] = await Promise.all([
 			resolveMachineId(this.stateService, this.logService),
-			resolveSqmId(this.stateService, this.logService)
+			resolveSqmId(this.stateService, this.logService),
+			resolvedevDeviceId(this.stateService, this.logService)
 		]);
 		this.logService.trace(`Resolved machine identifier: ${machineId}`);
 
 		// Shared process
-		const { sharedProcessReady, sharedProcessClient } = this.setupSharedProcess(machineId, sqmId);
+		const { sharedProcessReady, sharedProcessClient } = this.setupSharedProcess(machineId, sqmId, devDeviceId);
 
 		// Services
-		const appInstantiationService = await this.initServices(machineId, sqmId, sharedProcessReady);
+		const appInstantiationService = await this.initServices(machineId, sqmId, devDeviceId, sharedProcessReady);
 
 		// Auth Handler
 		this._register(appInstantiationService.createInstance(ProxyAuthHandler));
@@ -983,8 +987,10 @@ export class CodeApplication extends Disposable {
 		return false;
 	}
 
-	private setupSharedProcess(machineId: string, sqmId: string): { sharedProcessReady: Promise<MessagePortClient>; sharedProcessClient: Promise<MessagePortClient> } {
-		const sharedProcess = this._register(this.mainInstantiationService.createInstance(SharedProcess, machineId, sqmId));
+	private setupSharedProcess(machineId: string, sqmId: string, devDeviceId: string): { sharedProcessReady: Promise<MessagePortClient>; sharedProcessClient: Promise<MessagePortClient> } {
+		const sharedProcess = this._register(this.mainInstantiationService.createInstance(SharedProcess, machineId, sqmId, devDeviceId));
+
+		this._register(sharedProcess.onDidCrash(() => this.windowsMainService?.sendToFocused('vscode:reportSharedProcessCrash')));
 
 		const sharedProcessClient = (async () => {
 			this.logService.trace('Main->SharedProcess#connect');
@@ -1005,7 +1011,7 @@ export class CodeApplication extends Disposable {
 		return { sharedProcessReady, sharedProcessClient };
 	}
 
-	private async initServices(machineId: string, sqmId: string, sharedProcessReady: Promise<MessagePortClient>): Promise<IInstantiationService> {
+	private async initServices(machineId: string, sqmId: string, devDeviceId: string, sharedProcessReady: Promise<MessagePortClient>): Promise<IInstantiationService> {
 		const services = new ServiceCollection();
 
 		// Update
@@ -1028,7 +1034,7 @@ export class CodeApplication extends Disposable {
 		}
 
 		// Windows
-		services.set(IWindowsMainService, new SyncDescriptor(WindowsMainService, [machineId, sqmId, this.userEnv], false));
+		services.set(IWindowsMainService, new SyncDescriptor(WindowsMainService, [machineId, sqmId, devDeviceId, this.userEnv], false));
 		services.set(IAuxiliaryWindowsMainService, new SyncDescriptor(AuxiliaryWindowsMainService, undefined, false));
 
 		// Dialogs
@@ -1108,7 +1114,7 @@ export class CodeApplication extends Disposable {
 			const isInternal = isInternalTelemetry(this.productService, this.configurationService);
 			const channel = getDelayedChannel(sharedProcessReady.then(client => client.getChannel('telemetryAppender')));
 			const appender = new TelemetryAppenderClient(channel);
-			const commonProperties = resolveCommonProperties(release(), hostname(), process.arch, this.productService.commit, this.productService.version, machineId, sqmId, isInternal);
+			const commonProperties = resolveCommonProperties(release(), hostname(), process.arch, this.productService.commit, this.productService.version, machineId, sqmId, devDeviceId, isInternal);
 			const piiPaths = getPiiPathsFromEnvironment(this.environmentMainService);
 			const config: ITelemetryServiceConfig = { appenders: [appender], commonProperties, piiPaths, sendErrorTelemetry: true };
 
@@ -1149,14 +1155,14 @@ export class CodeApplication extends Disposable {
 		this.mainProcessNodeIpcServer.registerChannel('diagnostics', diagnosticsChannel);
 
 		// Policies (main & shared process)
-		const policyChannel = new PolicyChannel(accessor.get(IPolicyService));
+		const policyChannel = disposables.add(new PolicyChannel(accessor.get(IPolicyService)));
 		mainProcessElectronServer.registerChannel('policy', policyChannel);
 		sharedProcessClient.then(client => client.registerChannel('policy', policyChannel));
 
 		// Local Files
 		const diskFileSystemProvider = this.fileService.getProvider(Schemas.file);
 		assertType(diskFileSystemProvider instanceof DiskFileSystemProvider);
-		const fileSystemProviderChannel = new DiskFileSystemProviderChannel(diskFileSystemProvider, this.logService, this.environmentMainService);
+		const fileSystemProviderChannel = disposables.add(new DiskFileSystemProviderChannel(diskFileSystemProvider, this.logService, this.environmentMainService));
 		mainProcessElectronServer.registerChannel(LOCAL_FILE_SYSTEM_CHANNEL_NAME, fileSystemProviderChannel);
 		sharedProcessClient.then(client => client.registerChannel(LOCAL_FILE_SYSTEM_CHANNEL_NAME, fileSystemProviderChannel));
 
@@ -1212,12 +1218,12 @@ export class CodeApplication extends Disposable {
 		mainProcessElectronServer.registerChannel('webview', webviewChannel);
 
 		// Storage (main & shared process)
-		const storageChannel = this._register(new StorageDatabaseChannel(this.logService, accessor.get(IStorageMainService)));
+		const storageChannel = disposables.add((new StorageDatabaseChannel(this.logService, accessor.get(IStorageMainService))));
 		mainProcessElectronServer.registerChannel('storage', storageChannel);
 		sharedProcessClient.then(client => client.registerChannel('storage', storageChannel));
 
 		// Profile Storage Changes Listener (shared process)
-		const profileStorageListener = this._register(new ProfileStorageChangesListenerChannel(accessor.get(IStorageMainService), accessor.get(IUserDataProfilesMainService), this.logService));
+		const profileStorageListener = disposables.add((new ProfileStorageChangesListenerChannel(accessor.get(IStorageMainService), accessor.get(IUserDataProfilesMainService), this.logService)));
 		sharedProcessClient.then(client => client.registerChannel('profileStorageListener', profileStorageListener));
 
 		// Terminal
@@ -1336,7 +1342,11 @@ export class CodeApplication extends Disposable {
 				return windowsMainService.open({
 					context: OpenContext.DOCK,
 					cli: args,
-					urisToOpen: macOpenFiles.map(path => (hasWorkspaceFileExtension(path) ? { workspaceUri: URI.file(path) } : { fileUri: URI.file(path) })),
+					urisToOpen: macOpenFiles.map(path => {
+						path = normalizeNFC(path); // macOS only: normalize paths to NFC form
+
+						return (hasWorkspaceFileExtension(path) ? { workspaceUri: URI.file(path) } : { fileUri: URI.file(path) });
+					}),
 					noRecentEntry,
 					waitMarkerFileURI,
 					initialStartup: true,
@@ -1349,7 +1359,7 @@ export class CodeApplication extends Disposable {
 		return windowsMainService.open({
 			context,
 			cli: args,
-			forceNewWindow: args['new-window'] || (!hasCliArgs && args['unity-launch']),
+			forceNewWindow: args['new-window'],
 			diffMode: args.diff,
 			mergeMode: args.merge,
 			noRecentEntry,

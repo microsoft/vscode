@@ -397,7 +397,7 @@ export namespace CoreNavigationCommands {
 				]
 			);
 			if (cursorStateChanged && args.revealType !== NavigationCommandRevealType.None) {
-				viewModel.revealPrimaryCursor(args.source, true, true);
+				viewModel.revealAllCursors(args.source, true, true);
 			}
 		}
 	}
@@ -609,7 +609,7 @@ export namespace CoreNavigationCommands {
 				CursorChangeReason.Explicit,
 				CursorMoveImpl._move(viewModel, viewModel.getCursorStates(), args)
 			);
-			viewModel.revealPrimaryCursor(source, true);
+			viewModel.revealAllCursors(source, true);
 		}
 
 		private static _move(viewModel: IViewModel, cursors: CursorState[], args: CursorMove_.ParsedArguments): PartialCursorState[] | null {
@@ -678,7 +678,7 @@ export namespace CoreNavigationCommands {
 				CursorChangeReason.Explicit,
 				CursorMoveCommands.simpleMove(viewModel, viewModel.getCursorStates(), args.direction, args.select, args.value, args.unit)
 			);
-			viewModel.revealPrimaryCursor(dynamicArgs.source, true);
+			viewModel.revealAllCursors(dynamicArgs.source, true);
 		}
 	}
 
@@ -993,7 +993,7 @@ export namespace CoreNavigationCommands {
 				CursorChangeReason.Explicit,
 				CursorMoveCommands.moveToBeginningOfLine(viewModel, viewModel.getCursorStates(), this._inSelectionMode)
 			);
-			viewModel.revealPrimaryCursor(args.source, true);
+			viewModel.revealAllCursors(args.source, true);
 		}
 	}
 
@@ -1037,7 +1037,7 @@ export namespace CoreNavigationCommands {
 				CursorChangeReason.Explicit,
 				this._exec(viewModel.getCursorStates())
 			);
-			viewModel.revealPrimaryCursor(args.source, true);
+			viewModel.revealAllCursors(args.source, true);
 		}
 
 		private _exec(cursors: CursorState[]): PartialCursorState[] {
@@ -1095,7 +1095,7 @@ export namespace CoreNavigationCommands {
 				CursorChangeReason.Explicit,
 				CursorMoveCommands.moveToEndOfLine(viewModel, viewModel.getCursorStates(), this._inSelectionMode, args.sticky || false)
 			);
-			viewModel.revealPrimaryCursor(args.source, true);
+			viewModel.revealAllCursors(args.source, true);
 		}
 	}
 
@@ -1173,7 +1173,7 @@ export namespace CoreNavigationCommands {
 				CursorChangeReason.Explicit,
 				this._exec(viewModel, viewModel.getCursorStates())
 			);
-			viewModel.revealPrimaryCursor(args.source, true);
+			viewModel.revealAllCursors(args.source, true);
 		}
 
 		private _exec(viewModel: IViewModel, cursors: CursorState[]): PartialCursorState[] {
@@ -1228,7 +1228,7 @@ export namespace CoreNavigationCommands {
 				CursorChangeReason.Explicit,
 				CursorMoveCommands.moveToBeginningOfBuffer(viewModel, viewModel.getCursorStates(), this._inSelectionMode)
 			);
-			viewModel.revealPrimaryCursor(args.source, true);
+			viewModel.revealAllCursors(args.source, true);
 		}
 	}
 
@@ -1272,7 +1272,7 @@ export namespace CoreNavigationCommands {
 				CursorChangeReason.Explicit,
 				CursorMoveCommands.moveToEndOfBuffer(viewModel, viewModel.getCursorStates(), this._inSelectionMode)
 			);
-			viewModel.revealPrimaryCursor(args.source, true);
+			viewModel.revealAllCursors(args.source, true);
 		}
 	}
 
@@ -1644,7 +1644,7 @@ export namespace CoreNavigationCommands {
 				]
 			);
 			if (args.revealType !== NavigationCommandRevealType.None) {
-				viewModel.revealPrimaryCursor(args.source, true, true);
+				viewModel.revealAllCursors(args.source, true, true);
 			}
 		}
 	}
@@ -1710,7 +1710,7 @@ export namespace CoreNavigationCommands {
 				]
 			);
 			if (args.revealType !== NavigationCommandRevealType.None) {
-				viewModel.revealPrimaryCursor(args.source, false, true);
+				viewModel.revealAllCursors(args.source, false, true);
 			}
 		}
 	}
@@ -1789,7 +1789,7 @@ export namespace CoreNavigationCommands {
 					CursorMoveCommands.cancelSelection(viewModel, viewModel.getPrimaryCursorState())
 				]
 			);
-			viewModel.revealPrimaryCursor(args.source, true);
+			viewModel.revealAllCursors(args.source, true);
 		}
 	});
 
@@ -1816,7 +1816,7 @@ export namespace CoreNavigationCommands {
 					viewModel.getPrimaryCursorState()
 				]
 			);
-			viewModel.revealPrimaryCursor(args.source, true);
+			viewModel.revealAllCursors(args.source, true);
 			status(nls.localize('removedCursor', "Removed secondary cursors"));
 		}
 	});

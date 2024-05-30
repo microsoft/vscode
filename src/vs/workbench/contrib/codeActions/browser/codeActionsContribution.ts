@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from 'vs/base/common/event';
+import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { editorConfigurationBaseNode } from 'vs/editor/common/config/editorConfigurationSchema';
@@ -103,11 +104,11 @@ export class CodeActionsContribution extends Disposable implements IWorkbenchCon
 	}
 
 	private getSourceActions(contributions: readonly CodeActionsExtensionPoint[]) {
-		const defaultKinds = Object.keys(codeActionsOnSaveDefaultProperties).map(value => new CodeActionKind(value));
+		const defaultKinds = Object.keys(codeActionsOnSaveDefaultProperties).map(value => new HierarchicalKind(value));
 		const sourceActions = new Map<string, { readonly title: string }>();
 		for (const contribution of contributions) {
 			for (const action of contribution.actions) {
-				const kind = new CodeActionKind(action.kind);
+				const kind = new HierarchicalKind(action.kind);
 				if (CodeActionKind.Source.contains(kind)
 					// Exclude any we already included by default
 					&& !defaultKinds.some(defaultKind => defaultKind.contains(kind))
@@ -149,12 +150,12 @@ export class CodeActionsContribution extends Disposable implements IWorkbenchCon
 			};
 		};
 
-		const getActions = (ofKind: CodeActionKind): ContributedCodeAction[] => {
+		const getActions = (ofKind: HierarchicalKind): ContributedCodeAction[] => {
 			const allActions = this._contributedCodeActions.flatMap(desc => desc.actions);
 
 			const out = new Map<string, ContributedCodeAction>();
 			for (const action of allActions) {
-				if (!out.has(action.kind) && ofKind.contains(new CodeActionKind(action.kind))) {
+				if (!out.has(action.kind) && ofKind.contains(new HierarchicalKind(action.kind))) {
 					out.set(action.kind, action);
 				}
 			}
@@ -162,7 +163,7 @@ export class CodeActionsContribution extends Disposable implements IWorkbenchCon
 		};
 
 		return [
-			conditionalSchema(codeActionCommandId, getActions(CodeActionKind.Empty)),
+			conditionalSchema(codeActionCommandId, getActions(HierarchicalKind.Empty)),
 			conditionalSchema(refactorCommandId, getActions(CodeActionKind.Refactor)),
 			conditionalSchema(sourceActionCommandId, getActions(CodeActionKind.Source)),
 		];

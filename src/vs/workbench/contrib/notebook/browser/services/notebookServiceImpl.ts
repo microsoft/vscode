@@ -13,7 +13,7 @@ import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
-import { isEqual } from 'vs/base/common/resources';
+import { basename, isEqual } from 'vs/base/common/resources';
 import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
@@ -34,12 +34,14 @@ import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebo
 import { NotebookOutputRendererInfo, NotebookStaticPreloadInfo as NotebookStaticPreloadInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
 import { NotebookEditorDescriptor, NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { DiffEditorInputFactoryFunction, EditorInputFactoryFunction, EditorInputFactoryObject, IEditorResolverService, IEditorType, RegisteredEditorInfo, RegisteredEditorPriority, UntitledEditorInputFactoryFunction } from 'vs/workbench/services/editor/common/editorResolverService';
+import { DiffEditorInputFactoryFunction, EditorInputFactoryFunction, EditorInputFactoryObject, IEditorResolverService, IEditorType, RegisteredEditorInfo, RegisteredEditorPriority, UntitledEditorInputFactoryFunction, type MergeEditorInputFactoryFunction } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IExtensionService, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { InstallRecommendedExtensionAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { INotebookDocument, INotebookDocumentService } from 'vs/workbench/services/notebook/common/notebookDocumentService';
+import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
+import type { EditorInputWithOptions, IResourceMergeEditorInput } from 'vs/workbench/common/editor';
 
 export class NotebookProviderInfoStore extends Disposable {
 
@@ -71,7 +73,7 @@ export class NotebookProviderInfoStore extends Disposable {
 		// Process the notebook contributions but buffer changes from the resolver
 		this._editorResolverService.bufferChangeEvents(() => {
 			for (const info of (mementoObject[NotebookProviderInfoStore.CUSTOM_EDITORS_ENTRY_ID] || []) as NotebookEditorDescriptor[]) {
-				this.add(new NotebookProviderInfo(info));
+				this.add(new NotebookProviderInfo(info), false);
 			}
 		});
 
@@ -214,11 +216,33 @@ export class NotebookProviderInfoStore extends Disposable {
 			const notebookDiffEditorInputFactory: DiffEditorInputFactoryFunction = ({ modified, original, label, description }) => {
 				return { editor: NotebookDiffEditorInput.create(this._instantiationService, modified.resource!, label, description, original.resource!, notebookProviderInfo.id) };
 			};
+			const mergeEditorInputFactory: MergeEditorInputFactoryFunction = (mergeEditor: IResourceMergeEditorInput): EditorInputWithOptions => {
+				return {
+					editor: this._instantiationService.createInstance(
+						MergeEditorInput,
+						mergeEditor.base.resource,
+						{
+							uri: mergeEditor.input1.resource,
+							title: mergeEditor.input1.label ?? basename(mergeEditor.input1.resource),
+							description: mergeEditor.input1.description ?? '',
+							detail: mergeEditor.input1.detail
+						},
+						{
+							uri: mergeEditor.input2.resource,
+							title: mergeEditor.input2.label ?? basename(mergeEditor.input2.resource),
+							description: mergeEditor.input2.description ?? '',
+							detail: mergeEditor.input2.detail
+						},
+						mergeEditor.result.resource
+					)
+				};
+			};
 
 			const notebookFactoryObject: EditorInputFactoryObject = {
 				createEditorInput: notebookEditorInputFactory,
 				createDiffEditorInput: notebookDiffEditorInputFactory,
 				createUntitledEditorInput: notebookUntitledEditorFactory,
+				createMergeEditorInput: mergeEditorInputFactory
 			};
 			const notebookCellFactoryObject: EditorInputFactoryObject = {
 				createEditorInput: notebookEditorInputFactory,
@@ -280,7 +304,7 @@ export class NotebookProviderInfoStore extends Disposable {
 		return this._contributedEditors.get(viewType);
 	}
 
-	add(info: NotebookProviderInfo): IDisposable {
+	add(info: NotebookProviderInfo, saveMemento = true): IDisposable {
 		if (this._contributedEditors.has(info.id)) {
 			throw new Error(`notebook type '${info.id}' ALREADY EXISTS`);
 		}
@@ -293,9 +317,11 @@ export class NotebookProviderInfoStore extends Disposable {
 			this._contributedEditorDisposables.add(editorRegistration);
 		}
 
-		const mementoObject = this._memento.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
-		mementoObject[NotebookProviderInfoStore.CUSTOM_EDITORS_ENTRY_ID] = Array.from(this._contributedEditors.values());
-		this._memento.saveMemento();
+		if (saveMemento) {
+			const mementoObject = this._memento.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
+			mementoObject[NotebookProviderInfoStore.CUSTOM_EDITORS_ENTRY_ID] = Array.from(this._contributedEditors.values());
+			this._memento.saveMemento();
+		}
 
 		return this._register(toDisposable(() => {
 			const mementoObject = this._memento.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);

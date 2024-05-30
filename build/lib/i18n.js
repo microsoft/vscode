@@ -4,7 +4,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.prepareIslFiles = exports.prepareI18nPackFiles = exports.createXlfFilesForIsl = exports.createXlfFilesForExtensions = exports.EXTERNAL_EXTENSIONS = exports.createXlfFilesForCoreBundle = exports.getResource = exports.processNlsFiles = exports.XLF = exports.Line = exports.extraLanguages = exports.defaultLanguages = void 0;
+exports.EXTERNAL_EXTENSIONS = exports.XLF = exports.Line = exports.extraLanguages = exports.defaultLanguages = void 0;
+exports.processNlsFiles = processNlsFiles;
+exports.getResource = getResource;
+exports.createXlfFilesForCoreBundle = createXlfFilesForCoreBundle;
+exports.createXlfFilesForExtensions = createXlfFilesForExtensions;
+exports.createXlfFilesForIsl = createXlfFilesForIsl;
+exports.prepareI18nPackFiles = prepareI18nPackFiles;
+exports.prepareIslFiles = prepareIslFiles;
 const path = require("path");
 const fs = require("fs");
 const event_stream_1 = require("event-stream");
@@ -423,7 +430,6 @@ function processNlsFiles(opts) {
         this.queue(file);
     });
 }
-exports.processNlsFiles = processNlsFiles;
 const editorProject = 'vscode-editor', workbenchProject = 'vscode-workbench', extensionsProject = 'vscode-extensions', setupProject = 'vscode-setup', serverProject = 'vscode-server';
 function getResource(sourceFile) {
     let resource;
@@ -458,7 +464,6 @@ function getResource(sourceFile) {
     }
     throw new Error(`Could not identify the XLF bundle for ${sourceFile}`);
 }
-exports.getResource = getResource;
 function createXlfFilesForCoreBundle() {
     return (0, event_stream_1.through)(function (file) {
         const basename = path.basename(file.path);
@@ -506,7 +511,6 @@ function createXlfFilesForCoreBundle() {
         }
     });
 }
-exports.createXlfFilesForCoreBundle = createXlfFilesForCoreBundle;
 function createL10nBundleForExtension(extensionFolderName, prefixWithBuildFolder) {
     const prefix = prefixWithBuildFolder ? '.build/' : '';
     return gulp
@@ -653,7 +657,6 @@ function createXlfFilesForExtensions() {
         }
     });
 }
-exports.createXlfFilesForExtensions = createXlfFilesForExtensions;
 function createXlfFilesForIsl() {
     return (0, event_stream_1.through)(function (file) {
         let projectName, resourceFile;
@@ -704,7 +707,6 @@ function createXlfFilesForIsl() {
         this.queue(xlfFile);
     });
 }
-exports.createXlfFilesForIsl = createXlfFilesForIsl;
 function createI18nFile(name, messages) {
     const result = Object.create(null);
     result[''] = [
@@ -793,7 +795,6 @@ function prepareI18nPackFiles(resultingTranslationPaths) {
         });
     });
 }
-exports.prepareI18nPackFiles = prepareI18nPackFiles;
 function prepareIslFiles(language, innoSetupConfig) {
     const parsePromises = [];
     return (0, event_stream_1.through)(function (xlf) {
@@ -816,7 +817,6 @@ function prepareIslFiles(language, innoSetupConfig) {
         });
     });
 }
-exports.prepareIslFiles = prepareIslFiles;
 function createIslFile(name, messages, language, innoSetup) {
     const content = [];
     let originalContent;

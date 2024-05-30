@@ -339,8 +339,9 @@ export class View extends ViewEventHandler {
 		this._overflowGuardContainer.setWidth(layoutInfo.width);
 		this._overflowGuardContainer.setHeight(layoutInfo.height);
 
-		this._linesContent.setWidth(1000000);
-		this._linesContent.setHeight(1000000);
+		// https://stackoverflow.com/questions/38905916/content-in-google-chrome-larger-than-16777216-px-not-being-rendered
+		this._linesContent.setWidth(16777216);
+		this._linesContent.setHeight(16777216);
 	}
 
 	private _getEditorClassName() {
@@ -633,8 +634,7 @@ export class View extends ViewEventHandler {
 	}
 
 	public layoutOverlayWidget(widgetData: IOverlayWidgetData): void {
-		const newPreference = widgetData.position ? widgetData.position.preference : null;
-		const shouldRender = this._overlayWidgets.setWidgetPosition(widgetData.widget, newPreference);
+		const shouldRender = this._overlayWidgets.setWidgetPosition(widgetData.widget, widgetData.position);
 		if (shouldRender) {
 			this._scheduleRender();
 		}

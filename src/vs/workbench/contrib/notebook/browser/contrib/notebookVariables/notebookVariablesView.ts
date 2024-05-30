@@ -15,6 +15,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -25,7 +26,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { CONTEXT_VARIABLE_EXTENSIONID, CONTEXT_VARIABLE_LANGUAGE, CONTEXT_VARIABLE_NAME, CONTEXT_VARIABLE_TYPE, CONTEXT_VARIABLE_VALUE } from 'vs/workbench/contrib/debug/common/debug';
+import { CONTEXT_VARIABLE_EXTENSIONID, CONTEXT_VARIABLE_INTERFACES, CONTEXT_VARIABLE_LANGUAGE, CONTEXT_VARIABLE_NAME, CONTEXT_VARIABLE_TYPE, CONTEXT_VARIABLE_VALUE } from 'vs/workbench/contrib/debug/common/debug';
 import { INotebookScope, INotebookVariableElement, NotebookVariableDataSource } from 'vs/workbench/contrib/notebook/browser/contrib/notebookVariables/notebookVariablesDataSource';
 import { NotebookVariableAccessibilityProvider, NotebookVariableRenderer, NotebookVariablesDelegate } from 'vs/workbench/contrib/notebook/browser/contrib/notebookVariables/notebookVariablesTree';
 import { getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -34,7 +35,7 @@ import { ICellExecutionStateChangedEvent, IExecutionStateChangedEvent, INotebook
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
-export type contextMenuArg = { source?: string; type?: string; value?: string; expression?: string; language?: string; extensionId?: string };
+export type contextMenuArg = { source: string; name: string; type?: string; value?: string; expression?: string; language?: string; extensionId?: string };
 
 export class NotebookVariablesView extends ViewPane {
 
@@ -63,9 +64,10 @@ export class NotebookVariablesView extends ViewPane {
 		@ICommandService protected commandService: ICommandService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService,
 		@IMenuService private readonly menuService: IMenuService
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 
 		this._register(this.editorService.onDidActiveEditorChange(this.handleActiveEditorChange.bind(this)));
 		this._register(this.notebookKernelService.onDidNotebookVariablesUpdate(this.handleVariablesChanged.bind(this)));
@@ -86,7 +88,7 @@ export class NotebookVariablesView extends ViewPane {
 			'notebookVariablesTree',
 			container,
 			new NotebookVariablesDelegate(),
-			[new NotebookVariableRenderer()],
+			[new NotebookVariableRenderer(this.hoverService)],
 			this.dataSource,
 			{
 				accessibilityProvider: new NotebookVariableAccessibilityProvider(),
@@ -109,6 +111,7 @@ export class NotebookVariablesView extends ViewPane {
 
 		const arg: contextMenuArg = {
 			source: element.notebook.uri.toString(),
+			name: element.name,
 			value: element.value,
 			type: element.type,
 			expression: element.expression,
@@ -121,6 +124,7 @@ export class NotebookVariablesView extends ViewPane {
 			[CONTEXT_VARIABLE_NAME.key, element.name],
 			[CONTEXT_VARIABLE_VALUE.key, element.value],
 			[CONTEXT_VARIABLE_TYPE.key, element.type],
+			[CONTEXT_VARIABLE_INTERFACES.key, element.interfaces],
 			[CONTEXT_VARIABLE_LANGUAGE.key, element.language],
 			[CONTEXT_VARIABLE_EXTENSIONID.key, element.extensionId]
 		]);

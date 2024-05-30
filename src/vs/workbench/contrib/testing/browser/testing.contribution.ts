@@ -19,11 +19,9 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IViewContainersRegistry, IViewsRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation } from 'vs/workbench/common/views';
-import { ExplorerExtensions, IExplorerFileContributionRegistry } from 'vs/workbench/contrib/files/browser/explorerFileContrib';
 import { REVEAL_IN_EXPLORER_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileConstants';
 import { CodeCoverageDecorations } from 'vs/workbench/contrib/testing/browser/codeCoverageDecorations';
 import { testingResultsIcon, testingViewIcon } from 'vs/workbench/contrib/testing/browser/icons';
-import { ExplorerTestCoverageBars } from 'vs/workbench/contrib/testing/browser/testCoverageBars';
 import { TestCoverageView } from 'vs/workbench/contrib/testing/browser/testCoverageView';
 import { TestingDecorationService, TestingDecorations } from 'vs/workbench/contrib/testing/browser/testingDecorations';
 import { TestingExplorerView } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
@@ -238,11 +236,3 @@ CommandsRegistry.registerCommand({
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration(testingConfiguration);
 
-Registry.as<IExplorerFileContributionRegistry>(ExplorerExtensions.FileContributionRegistry).register({
-	create(insta, container) {
-		return insta.createInstance(
-			ExplorerTestCoverageBars,
-			{ compact: true, container }
-		);
-	},
-});

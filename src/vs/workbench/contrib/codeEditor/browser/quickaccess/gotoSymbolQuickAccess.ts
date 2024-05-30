@@ -118,7 +118,7 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 			return [];
 		}
 
-		return this.doGetSymbolPicks(this.getDocumentSymbols(model, token), prepareQuery(filter), options, token);
+		return this.doGetSymbolPicks(this.getDocumentSymbols(model, token), prepareQuery(filter), options, token, model);
 	}
 
 	//#endregion
@@ -183,7 +183,7 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 				picker.hide();
 				const [entry] = picker.selectedItems;
 				if (entry && entries[entry.index]) {
-					outline.reveal(entries[entry.index].element, {}, false);
+					outline.reveal(entries[entry.index].element, {}, false, false);
 				}
 			}));
 

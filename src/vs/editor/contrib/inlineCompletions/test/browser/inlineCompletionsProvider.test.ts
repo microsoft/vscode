@@ -15,13 +15,14 @@ import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeatu
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
 import { InlineCompletionsModel } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsModel';
-import { SingleTextEdit } from 'vs/editor/contrib/inlineCompletions/browser/singleTextEdit';
+import { SingleTextEdit } from 'vs/editor/common/core/textEdit';
 import { GhostTextContext, MockInlineCompletionsProvider } from 'vs/editor/contrib/inlineCompletions/test/browser/utils';
 import { ITestCodeEditor, TestCodeEditorInstantiationOptions, withAsyncTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { Selection } from 'vs/editor/common/core/selection';
+import { computeGhostText } from 'vs/editor/contrib/inlineCompletions/browser/singleTextEdit';
 
 suite('Inline Completions', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -37,7 +38,7 @@ suite('Inline Completions', () => {
 			const options = ['prefix', 'subword'] as const;
 			const result = {} as any;
 			for (const option of options) {
-				result[option] = new SingleTextEdit(range, suggestion).computeGhostText(tempModel, option)?.render(cleanedText, true);
+				result[option] = computeGhostText(new SingleTextEdit(range, suggestion), tempModel, option)?.render(cleanedText, true);
 			}
 
 			tempModel.dispose();

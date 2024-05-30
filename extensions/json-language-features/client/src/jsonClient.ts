@@ -6,12 +6,12 @@
 export type JSONLanguageStatus = { schemas: string[] };
 
 import {
-	workspace, window, languages, commands, OutputChannel, ExtensionContext, extensions, Uri, ColorInformation,
+	workspace, window, languages, commands, LogOutputChannel, ExtensionContext, extensions, Uri, ColorInformation,
 	Diagnostic, StatusBarAlignment, TextEditor, TextDocument, FormattingOptions, CancellationToken, FoldingRange,
 	ProviderResult, TextEdit, Range, Position, Disposable, CompletionItem, CompletionList, CompletionContext, Hover, MarkdownString, FoldingContext, DocumentSymbol, SymbolInformation, l10n
 } from 'vscode';
 import {
-	LanguageClientOptions, RequestType, NotificationType, FormattingOptions as LSPFormattingOptions,
+	LanguageClientOptions, RequestType, NotificationType, FormattingOptions as LSPFormattingOptions, DocumentDiagnosticReportKind,
 	DidChangeConfigurationNotification, HandleDiagnosticsSignature, ResponseError, DocumentRangeFormattingParams,
 	DocumentRangeFormattingRequest, ProvideCompletionItemsSignature, ProvideHoverSignature, BaseLanguageClient, ProvideFoldingRangeSignature, ProvideDocumentSymbolsSignature, ProvideDocumentColorsSignature
 } from 'vscode-languageclient';
@@ -130,6 +130,7 @@ export interface Runtime {
 	readonly timer: {
 		setTimeout(callback: (...args: any[]) => void, ms: number, ...args: any[]): Disposable;
 	};
+	logOutputChannel: LogOutputChannel;
 }
 
 export interface SchemaRequestService {
@@ -150,12 +151,10 @@ export interface AsyncDisposable {
 }
 
 export async function startClient(context: ExtensionContext, newLanguageClient: LanguageClientConstructor, runtime: Runtime): Promise<AsyncDisposable> {
-	const outputChannel = window.createOutputChannel(languageServerDescription);
-
 	const languageParticipants = getLanguageParticipants();
 	context.subscriptions.push(languageParticipants);
 
-	let client: Disposable | undefined = await startClientWithParticipants(context, languageParticipants, newLanguageClient, outputChannel, runtime);
+	let client: Disposable | undefined = await startClientWithParticipants(context, languageParticipants, newLanguageClient, runtime);
 
 	let restartTrigger: Disposable | undefined;
 	languageParticipants.onDidChange(() => {
@@ -164,12 +163,12 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 		}
 		restartTrigger = runtime.timer.setTimeout(async () => {
 			if (client) {
-				outputChannel.appendLine('Extensions have changed, restarting JSON server...');
-				outputChannel.appendLine('');
+				runtime.logOutputChannel.info('Extensions have changed, restarting JSON server...');
+				runtime.logOutputChannel.info('');
 				const oldClient = client;
 				client = undefined;
 				await oldClient.dispose();
-				client = await startClientWithParticipants(context, languageParticipants, newLanguageClient, outputChannel, runtime);
+				client = await startClientWithParticipants(context, languageParticipants, newLanguageClient, runtime);
 			}
 		}, 2000);
 	});
@@ -178,12 +177,11 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 		dispose: async () => {
 			restartTrigger?.dispose();
 			await client?.dispose();
-			outputChannel.dispose();
 		}
 	};
 }
 
-async function startClientWithParticipants(context: ExtensionContext, languageParticipants: LanguageParticipants, newLanguageClient: LanguageClientConstructor, outputChannel: OutputChannel, runtime: Runtime): Promise<AsyncDisposable> {
+async function startClientWithParticipants(context: ExtensionContext, languageParticipants: LanguageParticipants, newLanguageClient: LanguageClientConstructor, runtime: Runtime): Promise<AsyncDisposable> {
 
 	const toDispose: Disposable[] = [];
 
@@ -232,6 +230,21 @@ async function startClientWithParticipants(context: ExtensionContext, languagePa
 		}
 	}));
 
+	function filterSchemaErrorDiagnostics(uri: Uri, diagnostics: Diagnostic[]): Diagnostic[] {
+		const schemaErrorIndex = diagnostics.findIndex(isSchemaResolveError);
+		if (schemaErrorIndex !== -1) {
+			const schemaResolveDiagnostic = diagnostics[schemaErrorIndex];
+			fileSchemaErrors.set(uri.toString(), schemaResolveDiagnostic.message);
+			if (!schemaDownloadEnabled) {
+				diagnostics = diagnostics.filter(d => !isSchemaResolveError(d));
+			}
+			if (window.activeTextEditor && window.activeTextEditor.document.uri.toString() === uri.toString()) {
+				schemaResolutionErrorStatusBarItem.show();
+			}
+		}
+		return diagnostics;
+	}
+
 	// Options to control the language client
 	const clientOptions: LanguageClientOptions = {
 		// Register the server for json documents
@@ -250,25 +263,16 @@ async function startClientWithParticipants(context: ExtensionContext, languagePa
 			workspace: {
 				didChangeConfiguration: () => client.sendNotification(DidChangeConfigurationNotification.type, { settings: getSettings() })
 			},
+			provideDiagnostics: async (uriOrDoc, previousResolutId, token, next) => {
+				const diagnostics = await next(uriOrDoc, previousResolutId, token);
+				if (diagnostics && diagnostics.kind === DocumentDiagnosticReportKind.Full) {
+					const uri = uriOrDoc instanceof Uri ? uriOrDoc : uriOrDoc.uri;
+					diagnostics.items = filterSchemaErrorDiagnostics(uri, diagnostics.items);
+				}
+				return diagnostics;
+			},
 			handleDiagnostics: (uri: Uri, diagnostics: Diagnostic[], next: HandleDiagnosticsSignature) => {
-				const schemaErrorIndex = diagnostics.findIndex(isSchemaResolveError);
-
-				if (schemaErrorIndex === -1) {
-					fileSchemaErrors.delete(uri.toString());
-					return next(uri, diagnostics);
-				}
-
-				const schemaResolveDiagnostic = diagnostics[schemaErrorIndex];
-				fileSchemaErrors.set(uri.toString(), schemaResolveDiagnostic.message);
-
-				if (!schemaDownloadEnabled) {
-					diagnostics = diagnostics.filter(d => !isSchemaResolveError(d));
-				}
-
-				if (window.activeTextEditor && window.activeTextEditor.document.uri.toString() === uri.toString()) {
-					schemaResolutionErrorStatusBarItem.show();
-				}
-
+				diagnostics = filterSchemaErrorDiagnostics(uri, diagnostics);
 				next(uri, diagnostics);
 			},
 			// testing the replace / insert mode
@@ -348,7 +352,7 @@ async function startClientWithParticipants(context: ExtensionContext, languagePa
 		}
 	};
 
-	clientOptions.outputChannel = outputChannel;
+	clientOptions.outputChannel = runtime.logOutputChannel;
 	// Create the language client and start the client.
 	const client = newLanguageClient('json', languageServerDescription, clientOptions);
 	client.registerProposedFeatures();

@@ -176,7 +176,7 @@ export class GhostTextWidget extends Disposable {
 			}
 			else {
 				const lines = uiState.range.endLineNumber - uiState.range.startLineNumber;
-				for (let i = 0; i <= lines; i++) {
+				for (let i = 0; i < lines; i++) {
 					const line = uiState.range.startLineNumber + i;
 					const firstNonWhitespace = uiState.targetTextModel.getLineFirstNonWhitespaceColumn(line);
 					const lastNonWhitespace = uiState.targetTextModel.getLineLastNonWhitespaceColumn(line);

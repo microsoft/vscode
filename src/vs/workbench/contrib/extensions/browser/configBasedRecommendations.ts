@@ -73,7 +73,7 @@ export class ConfigBasedRecommendations extends ExtensionRecommendations {
 
 	private toExtensionRecommendation(tip: IConfigBasedExtensionTip): ConfigBasedExtensionRecommendation {
 		return {
-			extensionId: tip.extensionId,
+			extension: tip.extensionId,
 			reason: {
 				reasonId: ExtensionRecommendationReason.WorkspaceConfig,
 				reasonText: localize('exeBasedRecommendation', "This extension is recommended because of the current workspace configuration")

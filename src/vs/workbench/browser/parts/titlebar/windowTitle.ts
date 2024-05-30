@@ -27,6 +27,8 @@ import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/c
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { getWindowById } from 'vs/base/browser/dom';
+import { CodeWindow } from 'vs/base/browser/window';
 
 const enum WindowSettingNames {
 	titleSeparator = 'window.titleSeparator',
@@ -79,8 +81,10 @@ export class WindowTitle extends Disposable {
 
 	private readonly editorService: IEditorService;
 
+	private readonly windowId: number;
+
 	constructor(
-		private readonly targetWindow: Window,
+		targetWindow: CodeWindow,
 		editorGroupsContainer: IEditorGroupsContainer | 'main',
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -95,6 +99,7 @@ export class WindowTitle extends Disposable {
 		super();
 
 		this.editorService = editorService.createScoped(editorGroupsContainer, this._store);
+		this.windowId = targetWindow.vscodeWindowId;
 
 		this.updateTitleIncludesFocusedView();
 		this.registerListeners();
@@ -177,7 +182,8 @@ export class WindowTitle extends Disposable {
 				nativeTitle = this.productService.nameLong;
 			}
 
-			if (!this.targetWindow.document.title && isMacintosh && nativeTitle === this.productService.nameLong) {
+			const window = getWindowById(this.windowId, true).window;
+			if (!window.document.title && isMacintosh && nativeTitle === this.productService.nameLong) {
 				// TODO@electron macOS: if we set a window title for
 				// the first time and it matches the one we set in
 				// `windowImpl.ts` somehow the window does not appear
@@ -185,10 +191,10 @@ export class WindowTitle extends Disposable {
 				// briefly to something different to ensure macOS
 				// recognizes we have a window.
 				// See: https://github.com/microsoft/vscode/issues/191288
-				this.targetWindow.document.title = `${this.productService.nameLong} ${WindowTitle.TITLE_DIRTY}`;
+				window.document.title = `${this.productService.nameLong} ${WindowTitle.TITLE_DIRTY}`;
 			}
 
-			this.targetWindow.document.title = nativeTitle;
+			window.document.title = nativeTitle;
 			this.title = title;
 
 			this.onDidChangeEmitter.fire();

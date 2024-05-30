@@ -13,7 +13,7 @@ import { CodeEditorStateFlag, EditorStateCancellationTokenSource } from 'vs/edit
 import { IActiveCodeEditor, ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction2, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
+import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/embeddedCodeEditorWidget';
 import { EditorOption, GoToLocationValues } from 'vs/editor/common/config/editorOptions';
 import * as corePosition from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -41,12 +41,12 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { Iterable } from 'vs/base/common/iterator';
 import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 
-MenuRegistry.appendMenuItem(MenuId.EditorContext, <ISubmenuItem>{
+MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 	submenu: MenuId.EditorContextPeek,
 	title: nls.localize('peek.submenu', "Peek"),
 	group: 'navigation',
 	order: 100
-});
+} satisfies ISubmenuItem);
 
 export interface SymbolNavigationActionConfig {
 	openToSide: boolean;

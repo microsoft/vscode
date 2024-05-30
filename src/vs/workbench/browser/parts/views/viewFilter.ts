@@ -25,6 +25,7 @@ import { SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntr
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Emitter } from 'vs/base/common/event';
 import { defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 const viewFilterMenu = new MenuId('menu.view.filter');
 export const viewFilterSubmenu = new MenuId('submenu.view.filter');
@@ -80,6 +81,7 @@ export class FilterWidget extends Widget {
 
 	private moreFiltersActionViewItem: MoreFiltersActionViewItem | undefined;
 	private isMoreFiltersChecked: boolean = false;
+	private lastWidth?: number;
 
 	private focusTracker: DOM.IFocusTracker;
 	public get onDidFocus() { return this.focusTracker.onDidFocus; }
@@ -146,6 +148,13 @@ export class FilterWidget extends Widget {
 		this.element.parentElement?.classList.toggle('grow', width > 700);
 		this.element.classList.toggle('small', width < 400);
 		this.adjustInputBox();
+		this.lastWidth = width;
+	}
+
+	relayout() {
+		if (this.lastWidth) {
+			this.layout(this.lastWidth);
+		}
 	}
 
 	checkMoreFilters(checked: boolean): void {
@@ -196,9 +205,9 @@ export class FilterWidget extends Widget {
 		return this.instantiationService.createInstance(MenuWorkbenchToolBar, container, viewFilterMenu,
 			{
 				hiddenItemStrategy: HiddenItemStrategy.NoHide,
-				actionViewItemProvider: (action: IAction) => {
+				actionViewItemProvider: (action: IAction, options: IActionViewItemOptions) => {
 					if (action instanceof SubmenuItemAction && action.item.submenu.id === viewFilterSubmenu.id) {
-						this.moreFiltersActionViewItem = this.instantiationService.createInstance(MoreFiltersActionViewItem, action, undefined);
+						this.moreFiltersActionViewItem = this.instantiationService.createInstance(MoreFiltersActionViewItem, action, options);
 						this.moreFiltersActionViewItem.checked = this.isMoreFiltersChecked;
 						return this.moreFiltersActionViewItem;
 					}

@@ -44,8 +44,8 @@ import { IAuxiliaryEditorPart, MergeGroupMode } from 'vs/workbench/services/edit
 import { isMacintosh } from 'vs/base/common/platform';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 export class EditorCommandsContextActionRunner extends ActionRunner {
@@ -86,6 +86,7 @@ export interface IEditorTabsControl extends IDisposable {
 	stickEditor(editor: EditorInput): void;
 	unstickEditor(editor: EditorInput): void;
 	setActive(isActive: boolean): void;
+	updateEditorSelections(): void;
 	updateEditorLabel(editor: EditorInput): void;
 	updateEditorDirty(editor: EditorInput): void;
 	layout(dimensions: IEditorTitleControlDimensions): Dimension;
@@ -145,9 +146,9 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		super(themeService);
 
 		this.contextMenuContextKeyService = this._register(this.contextKeyService.createScoped(parent));
-		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
+		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, this.contextMenuContextKeyService],
-		));
+		)));
 
 		this.resourceContext = this._register(scopedInstantiationService.createInstance(ResourceContextKey));
 
@@ -501,6 +502,8 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	abstract unstickEditor(editor: EditorInput): void;
 
 	abstract setActive(isActive: boolean): void;
+
+	abstract updateEditorSelections(): void;
 
 	abstract updateEditorLabel(editor: EditorInput): void;
 

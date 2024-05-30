@@ -15,8 +15,8 @@ import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import 'vs/css!./toolbar';
 import * as nls from 'vs/nls';
-import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { createInstantHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
 
 
@@ -55,12 +55,12 @@ export class ToolBar extends Disposable {
 
 	private _onDidChangeDropdownVisibility = this._register(new EventMultiplexer<boolean>());
 	readonly onDidChangeDropdownVisibility = this._onDidChangeDropdownVisibility.event;
-	private disposables = this._register(new DisposableStore());
+	private readonly disposables = this._register(new DisposableStore());
 
 	constructor(container: HTMLElement, contextMenuProvider: IContextMenuProvider, options: IToolBarOptions = { orientation: ActionsOrientation.HORIZONTAL }) {
 		super();
 
-		options.hoverDelegate = options.hoverDelegate ?? this._register(getDefaultHoverDelegate('element', true));
+		options.hoverDelegate = options.hoverDelegate ?? this._register(createInstantHoverDelegate());
 		this.options = options;
 		this.lookupKeybindings = typeof this.options.getKeyBinding === 'function';
 

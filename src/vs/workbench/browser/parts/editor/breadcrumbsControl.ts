@@ -40,8 +40,8 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Codicon } from 'vs/base/common/codicons';
 import { defaultBreadcrumbsWidgetStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { Emitter } from 'vs/base/common/event';
-import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
-import { nativeHoverDelegate } from 'vs/platform/hover/browser/hover';
+import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
 class OutlineItem extends BreadcrumbsItem {
 
@@ -229,7 +229,7 @@ export class BreadcrumbsControl {
 		this._ckBreadcrumbsVisible = BreadcrumbsControl.CK_BreadcrumbsVisible.bindTo(this._contextKeyService);
 		this._ckBreadcrumbsActive = BreadcrumbsControl.CK_BreadcrumbsActive.bindTo(this._contextKeyService);
 
-		this._hoverDelegate = nativeHoverDelegate;
+		this._hoverDelegate = getDefaultHoverDelegate('mouse');
 
 		this._disposables.add(breadcrumbsService.register(this._editorGroup.id, this._widget));
 		this.hide();
@@ -517,7 +517,7 @@ export class BreadcrumbsControl {
 				this._widget.setSelection(items[idx + 1], BreadcrumbsControl.Payload_Pick);
 			}
 		} else {
-			element.outline.reveal(element, { pinned }, group === SIDE_GROUP);
+			element.outline.reveal(element, { pinned }, group === SIDE_GROUP, false);
 		}
 	}
 
@@ -611,14 +611,15 @@ registerAction2(class ToggleBreadcrumb extends Action2 {
 			category: Categories.View,
 			toggled: {
 				condition: ContextKeyExpr.equals('config.breadcrumbs.enabled', true),
-				title: localize('cmd.toggle2', "Breadcrumbs"),
-				mnemonicTitle: localize({ key: 'miBreadcrumbs2', comment: ['&& denotes a mnemonic'] }, "&&Breadcrumbs")
+				title: localize('cmd.toggle2', "Toggle Breadcrumbs"),
+				mnemonicTitle: localize({ key: 'miBreadcrumbs2', comment: ['&& denotes a mnemonic'] }, "Toggle &&Breadcrumbs")
 			},
 			menu: [
 				{ id: MenuId.CommandPalette },
 				{ id: MenuId.MenubarAppearanceMenu, group: '4_editor', order: 2 },
 				{ id: MenuId.NotebookToolbar, group: 'notebookLayout', order: 2 },
-				{ id: MenuId.StickyScrollContext }
+				{ id: MenuId.StickyScrollContext },
+				{ id: MenuId.NotebookStickyScrollContext, group: 'notebookView', order: 2 }
 			]
 		});
 	}
@@ -859,7 +860,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			return (<IOutline<any>>input).reveal(element, {
 				pinned: true,
 				preserveFocus: false
-			}, true);
+			}, true, false);
 		}
 	}
 });

@@ -4,7 +4,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.nls = void 0;
+exports.nls = nls;
 const lazy = require("lazy.js");
 const event_stream_1 = require("event-stream");
 const File = require("vinyl");
@@ -74,7 +74,6 @@ function nls() {
     }));
     return (0, event_stream_1.duplex)(input, output);
 }
-exports.nls = nls;
 function isImportNode(ts, node) {
     return node.kind === ts.SyntaxKind.ImportDeclaration || node.kind === ts.SyntaxKind.ImportEqualsDeclaration;
 }

@@ -22,7 +22,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { LRUCache, ResourceMap } from 'vs/base/common/map';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, SaveReason, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IStringDictionary } from 'vs/base/common/collections';
@@ -88,7 +88,7 @@ export interface IFilesConfigurationService {
 
 	hasShortAutoSaveDelay(resourceOrEditor: EditorInput | URI | undefined): boolean;
 
-	getAutoSaveMode(resourceOrEditor: EditorInput | URI | undefined): IAutoSaveMode;
+	getAutoSaveMode(resourceOrEditor: EditorInput | URI | undefined, saveReason?: SaveReason): IAutoSaveMode;
 
 	toggleAutoSave(): Promise<void>;
 
@@ -384,7 +384,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		return false;
 	}
 
-	getAutoSaveMode(resourceOrEditor: EditorInput | URI | undefined): IAutoSaveMode {
+	getAutoSaveMode(resourceOrEditor: EditorInput | URI | undefined, saveReason?: SaveReason): IAutoSaveMode {
 		const resource = this.toResource(resourceOrEditor);
 		if (resource && this.autoSaveDisabledOverrides.has(resource)) {
 			return { mode: AutoSaveMode.OFF, reason: AutoSaveDisabledReason.DISABLED };
@@ -393,6 +393,16 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		const autoSaveConfiguration = this.getAutoSaveConfiguration(resource);
 		if (typeof autoSaveConfiguration.autoSave === 'undefined') {
 			return { mode: AutoSaveMode.OFF, reason: AutoSaveDisabledReason.SETTINGS };
+		}
+
+		if (typeof saveReason === 'number') {
+			if (
+				(autoSaveConfiguration.autoSave === 'afterDelay' && saveReason !== SaveReason.AUTO) ||
+				(autoSaveConfiguration.autoSave === 'onFocusChange' && saveReason !== SaveReason.FOCUS_CHANGE && saveReason !== SaveReason.WINDOW_CHANGE) ||
+				(autoSaveConfiguration.autoSave === 'onWindowChange' && saveReason !== SaveReason.WINDOW_CHANGE)
+			) {
+				return { mode: AutoSaveMode.OFF, reason: AutoSaveDisabledReason.SETTINGS };
+			}
 		}
 
 		if (resource) {

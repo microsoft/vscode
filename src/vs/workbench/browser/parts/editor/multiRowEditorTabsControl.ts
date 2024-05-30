@@ -36,19 +36,23 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 		this.stickyEditorTabsControl = this._register(this.instantiationService.createInstance(MultiEditorTabsControl, this.parent, editorPartsView, this.groupsView, this.groupView, stickyModel));
 		this.unstickyEditorTabsControl = this._register(this.instantiationService.createInstance(MultiEditorTabsControl, this.parent, editorPartsView, this.groupsView, this.groupView, unstickyModel));
 
-		this.handlePinnedTabsSeparateRowToolbars();
+		this.handlePinnedTabsLayoutChange();
 	}
 
-	private handlePinnedTabsSeparateRowToolbars(): void {
+	private handlePinnedTabsLayoutChange(): void {
 		if (this.groupView.count === 0) {
 			// Do nothing as no tab bar is visible
 			return;
 		}
+
+		const hadTwoTabBars = this.parent.classList.contains('two-tab-bars');
+		const hasTwoTabBars = this.groupView.count !== this.groupView.stickyCount && this.groupView.stickyCount > 0;
+
 		// Ensure action toolbar is only visible once
-		if (this.groupView.count === this.groupView.stickyCount) {
-			this.parent.classList.toggle('two-tab-bars', false);
-		} else {
-			this.parent.classList.toggle('two-tab-bars', true);
+		this.parent.classList.toggle('two-tab-bars', hasTwoTabBars);
+
+		if (hadTwoTabBars !== hasTwoTabBars) {
+			this.groupView.relayout();
 		}
 	}
 
@@ -85,7 +89,7 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 	}
 
 	private handleOpenedEditors(): void {
-		this.handlePinnedTabsSeparateRowToolbars();
+		this.handlePinnedTabsLayoutChange();
 	}
 
 	beforeCloseEditor(editor: EditorInput): void {
@@ -111,7 +115,7 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 	}
 
 	private handleClosedEditors(): void {
-		this.handlePinnedTabsSeparateRowToolbars();
+		this.handlePinnedTabsLayoutChange();
 	}
 
 	moveEditor(editor: EditorInput, fromIndex: number, targetIndex: number, stickyStateChange: boolean): void {
@@ -125,7 +129,7 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 				this.unstickyEditorTabsControl.openEditor(editor);
 			}
 
-			this.handlePinnedTabsSeparateRowToolbars();
+			this.handlePinnedTabsLayoutChange();
 
 		} else {
 			if (this.model.isSticky(editor)) {
@@ -144,19 +148,24 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 		this.unstickyEditorTabsControl.closeEditor(editor);
 		this.stickyEditorTabsControl.openEditor(editor);
 
-		this.handlePinnedTabsSeparateRowToolbars();
+		this.handlePinnedTabsLayoutChange();
 	}
 
 	unstickEditor(editor: EditorInput): void {
 		this.stickyEditorTabsControl.closeEditor(editor);
 		this.unstickyEditorTabsControl.openEditor(editor);
 
-		this.handlePinnedTabsSeparateRowToolbars();
+		this.handlePinnedTabsLayoutChange();
 	}
 
 	setActive(isActive: boolean): void {
 		this.stickyEditorTabsControl.setActive(isActive);
 		this.unstickyEditorTabsControl.setActive(isActive);
+	}
+
+	updateEditorSelections(): void {
+		this.stickyEditorTabsControl.updateEditorSelections();
+		this.unstickyEditorTabsControl.updateEditorSelections();
 	}
 
 	updateEditorLabel(editor: EditorInput): void {
@@ -190,7 +199,7 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 		return this.stickyEditorTabsControl.getHeight() + this.unstickyEditorTabsControl.getHeight();
 	}
 
-	public override dispose(): void {
+	override dispose(): void {
 		this.parent.classList.toggle('two-tab-bars', false);
 
 		super.dispose();

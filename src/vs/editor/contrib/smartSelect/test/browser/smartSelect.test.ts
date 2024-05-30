@@ -16,7 +16,7 @@ import { BracketSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/bro
 import { provideSelectionRanges } from 'vs/editor/contrib/smartSelect/browser/smartSelect';
 import { WordSelectionRangeProvider } from 'vs/editor/contrib/smartSelect/browser/wordSelections';
 import { createModelServices } from 'vs/editor/test/common/testTextModel';
-import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
+import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/onEnterRules';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { ILanguageSelection, ILanguageService } from 'vs/editor/common/languages/language';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';

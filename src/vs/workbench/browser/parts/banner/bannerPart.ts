@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/bannerpart';
 import { localize2 } from 'vs/nls';
-import { $, addDisposableListener, append, asCSSUrl, clearNode, EventType } from 'vs/base/browser/dom';
+import { $, addDisposableListener, append, asCSSUrl, clearNode, EventType, isHTMLElement } from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -86,7 +86,7 @@ export class BannerPart extends Part implements IBannerService {
 		}));
 
 		// Track focus
-		const scopedContextKeyService = this.contextKeyService.createScoped(this.element);
+		const scopedContextKeyService = this._register(this.contextKeyService.createScoped(this.element));
 		BannerFocused.bindTo(scopedContextKeyService).set(true);
 
 		return this.element;
@@ -112,7 +112,7 @@ export class BannerPart extends Part implements IBannerService {
 
 		if (this.focusedActionIndex < length) {
 			const actionLink = this.messageActionsContainer?.children[this.focusedActionIndex];
-			if (actionLink instanceof HTMLElement) {
+			if (isHTMLElement(actionLink)) {
 				this.actionBar?.setFocusable(false);
 				actionLink.focus();
 			}
@@ -222,13 +222,12 @@ export class BannerPart extends Part implements IBannerService {
 		}
 
 		// Action
-		if (!item.disableCloseAction) {
-			const actionBarContainer = append(this.element, $('div.action-container'));
-			this.actionBar = this._register(new ActionBar(actionBarContainer));
-			const closeAction = this._register(new Action('banner.close', 'Close Banner', ThemeIcon.asClassName(widgetClose), true, () => this.close(item)));
-			this.actionBar.push(closeAction, { icon: true, label: false });
-			this.actionBar.setFocusable(false);
-		}
+		const actionBarContainer = append(this.element, $('div.action-container'));
+		this.actionBar = this._register(new ActionBar(actionBarContainer));
+		const label = item.closeLabel ?? 'Close Banner';
+		const closeAction = this._register(new Action('banner.close', label, ThemeIcon.asClassName(widgetClose), true, () => this.close(item)));
+		this.actionBar.push(closeAction, { icon: true, label: false });
+		this.actionBar.setFocusable(false);
 
 		this.setVisibility(true);
 		this.item = item;

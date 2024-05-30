@@ -36,6 +36,7 @@ import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IExtHostTunnelService } from 'vs/workbench/api/common/extHostTunnelService';
 import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
+import { IExtHostLanguageModels } from 'vs/workbench/api/common/extHostLanguageModels';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IExtensionActivationHost, checkActivateWorkspaceContainsExtension } from 'vs/workbench/services/extensions/common/workspaceContains';
 import { ExtHostSecretState, IExtHostSecretState } from 'vs/workbench/api/common/extHostSecretState';
@@ -74,7 +75,7 @@ type TelemetryActivationEventFragment = {
 	extensionVersion: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The version of the extension' };
 	publisherDisplayName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The publisher of the extension' };
 	activationEvents: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'All activation events of the extension' };
-	isBuiltin: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'If the extension is builtin or git installed' };
+	isBuiltin: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'If the extension is builtin or git installed' };
 	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The activation event' };
 	reasonId: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The identifier of the activation event' };
 };
@@ -116,6 +117,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	private readonly _storagePath: IExtensionStoragePaths;
 	private readonly _activator: ExtensionsActivator;
 	private _extensionPathIndex: Promise<ExtensionPaths> | null;
+	private _realPathCache = new Map<string, Promise<string>>();
 
 	private readonly _resolvers: { [authorityPrefix: string]: vscode.RemoteAuthorityResolver };
 
@@ -136,6 +138,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		@IExtHostTerminalService extHostTerminalService: IExtHostTerminalService,
 		@IExtHostLocalizationService extHostLocalizationService: IExtHostLocalizationService,
 		@IExtHostManagedSockets private readonly _extHostManagedSockets: IExtHostManagedSockets,
+		@IExtHostLanguageModels private readonly _extHostLanguageModels: IExtHostLanguageModels,
 	) {
 		super();
 		this._hostUtils = hostUtils;
@@ -330,11 +333,16 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	}
 
 	/**
-	 * Applies realpath to file-uris and returns all others uris unmodified
+	 * Applies realpath to file-uris and returns all others uris unmodified.
+	 * The real path is cached for the lifetime of the extension host.
 	 */
 	private async _realPathExtensionUri(uri: URI): Promise<URI> {
 		if (uri.scheme === Schemas.file && this._hostUtils.fsRealpath) {
-			const realpathValue = await this._hostUtils.fsRealpath(uri.fsPath);
+			const fsPath = uri.fsPath;
+			if (!this._realPathCache.has(fsPath)) {
+				this._realPathCache.set(fsPath, this._hostUtils.fsRealpath(fsPath));
+			}
+			const realpathValue = await this._realPathCache.get(fsPath)!;
 			return URI.file(realpathValue);
 		}
 		return uri;
@@ -489,6 +497,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 
 	private _loadExtensionContext(extensionDescription: IExtensionDescription): Promise<vscode.ExtensionContext> {
 
+		const lanuageModelAccessInformation = this._extHostLanguageModels.createLanguageModelAccessInformation(extensionDescription);
 		const globalState = new ExtensionGlobalMemento(extensionDescription, this._storage);
 		const workspaceState = new ExtensionMemento(extensionDescription.identifier.value, false, this._storage);
 		const secrets = new ExtensionSecrets(extensionDescription, this._secretState);
@@ -517,6 +526,7 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 				workspaceState,
 				secrets,
 				subscriptions: [],
+				get languageModelAccessInformation() { return lanuageModelAccessInformation; },
 				get extensionUri() { return extensionDescription.extensionLocation; },
 				get extensionPath() { return extensionDescription.extensionLocation.fsPath; },
 				asAbsolutePath(relativePath: string) { return path.join(extensionDescription.extensionLocation.fsPath, relativePath); },
@@ -982,10 +992,13 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 		return result;
 	}
 
-	public $startExtensionHost(extensionsDelta: IExtensionDescriptionDelta): Promise<void> {
+	public async $startExtensionHost(extensionsDelta: IExtensionDescriptionDelta): Promise<void> {
 		extensionsDelta.toAdd.forEach((extension) => (<any>extension).extensionLocation = URI.revive(extension.extensionLocation));
 
 		const { globalRegistry, myExtensions } = applyExtensionsDelta(this._activationEventsReader, this._globalRegistry, this._myRegistry, extensionsDelta);
+		const newSearchTree = await this._createExtensionPathIndex(myExtensions);
+		const extensionsPaths = await this.getExtensionPathIndex();
+		extensionsPaths.setSearchTree(newSearchTree);
 		this._globalRegistry.set(globalRegistry.getAllExtensionDescriptions());
 		this._myRegistry.set(myExtensions);
 

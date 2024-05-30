@@ -813,11 +813,22 @@ declare module DebugProtocol {
 		/** Reference to the variable container if the data breakpoint is requested for a child of the container. The `variablesReference` must have been obtained in the current suspended state. See 'Lifetime of Object References' in the Overview section for details. */
 		variablesReference?: number;
 		/** The name of the variable's child to obtain data breakpoint information for.
-			If `variablesReference` isn't specified, this can be an expression.
+			If `variablesReference` isn't specified, this can be an expression, or an address if `asAddress` is also true.
 		*/
 		name: string;
 		/** When `name` is an expression, evaluate it in the scope of this stack frame. If not specified, the expression is evaluated in the global scope. When `variablesReference` is specified, this property has no effect. */
 		frameId?: number;
+		/** If specified, a debug adapter should return information for the range of memory extending `bytes` number of bytes from the address or variable specified by `name`. Breakpoints set using the resulting data ID should pause on data access anywhere within that range.
+
+			Clients may set this property only if the `supportsDataBreakpointBytes` capability is true.
+		*/
+		bytes?: number;
+		/** If `true`, the `name` is a memory address and the debugger should interpret it as a decimal value, or hex value if it is prefixed with `0x`.
+
+			Clients may set this property only if the `supportsDataBreakpointBytes`
+			capability is true.
+		*/
+		asAddress?: boolean;
 		/** The mode of the desired breakpoint. If defined, this must be one of the `breakpointModes` the debug adapter advertised in its `Capabilities`. */
 		mode?: string;
 	}
@@ -1680,42 +1691,6 @@ declare module DebugProtocol {
 		};
 	}
 
-	/** DataAddressBreakpointInfo request; value of command field is 'DataAddressBreakpointInfo'.
-		Obtains information on a possible data breakpoint that could be set on a memory address or memory address range.
-
-		Clients should only call this request if the corresponding capability `supportsDataAddressInfo` is true.
-	*/
-	interface DataAddressBreakpointInfoRequest extends Request {
-		// command: 'DataAddressBreakpointInfo';
-		arguments: DataAddressBreakpointInfoArguments;
-	}
-
-	/** Arguments for `dataAddressBreakpointInfo` request. */
-	interface DataAddressBreakpointInfoArguments {
-		/** The address of the data for which to obtain breakpoint information.
-			Treated as a hex value if prefixed with `0x`, or as a decimal value otherwise.
-		*/
-		address?: string;
-		/** If passed, requests breakpoint information for an exclusive byte range rather than a single address. The range extends the given number of `bytes` from the start `address`.
-			Treated as a hex value if prefixed with `0x`, or as a decimal value otherwise.
-		*/
-		bytes?: string;
-	}
-
-	/** Response to `dataAddressBreakpointInfo` request. */
-	interface DataAddressBreakpointInfoResponse extends Response {
-		body: {
-			/** An identifier for the data on which a data breakpoint can be registered with the `setDataBreakpoints` request or null if no data breakpoint is available. If a `variablesReference` or `frameId` is passed, the `dataId` is valid in the current suspended state, otherwise it's valid indefinitely. See 'Lifetime of Object References' in the Overview section for details. Breakpoints set using the `dataId` in the `setDataBreakpoints` request may outlive the lifetime of the associated `dataId`. */
-			dataId: string | null;
-			/** UI string that describes on what data the breakpoint is set on or why a data breakpoint is not available. */
-			description: string;
-			/** Attribute lists the available access types for a potential data breakpoint. A UI client could surface this information. */
-			accessTypes?: DataBreakpointAccessType[];
-			/** Attribute indicates that a potential data breakpoint could be persisted across sessions. */
-			canPersist?: boolean;
-		};
-	}
-
 	/** Information about the capabilities of a debug adapter. */
 	interface Capabilities {
 		/** The debug adapter supports the `configurationDone` request. */
@@ -1788,8 +1763,6 @@ declare module DebugProtocol {
 		supportsBreakpointLocationsRequest?: boolean;
 		/** The debug adapter supports the `clipboard` context value in the `evaluate` request. */
 		supportsClipboardContext?: boolean;
-		/** The debug adapter supports the `dataAddressBreakpointInfo` request. */
-		supportsDataAddressInfo?: boolean;
 		/** The debug adapter supports stepping granularities (argument `granularity`) for the stepping requests. */
 		supportsSteppingGranularity?: boolean;
 		/** The debug adapter supports adding breakpoints based on instruction references. */
@@ -1798,6 +1771,8 @@ declare module DebugProtocol {
 		supportsExceptionFilterOptions?: boolean;
 		/** The debug adapter supports the `singleThread` property on the execution requests (`continue`, `next`, `stepIn`, `stepOut`, `reverseContinue`, `stepBack`). */
 		supportsSingleThreadExecutionRequests?: boolean;
+		/** The debug adapter supports the `asAddress` and `bytes` fields in the `dataBreakpointInfo` request. */
+		supportsDataBreakpointBytes?: boolean;
 		/** Modes of breakpoints supported by the debug adapter, such as 'hardware' or 'software'. If present, the client may allow the user to select a mode and include it in its `setBreakpoints` request.
 
 			Clients may present the first applicable mode in this array as the 'default' mode in gestures that set breakpoints.

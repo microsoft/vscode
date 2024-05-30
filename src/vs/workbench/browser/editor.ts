@@ -59,23 +59,23 @@ export class EditorPaneDescriptor implements IEditorPaneDescriptor {
 	static readonly onWillInstantiateEditorPane = EditorPaneDescriptor._onWillInstantiateEditorPane.event;
 
 	static create<Services extends BrandedService[]>(
-		ctor: { new(...services: Services): EditorPane },
+		ctor: { new(group: IEditorGroup, ...services: Services): EditorPane },
 		typeId: string,
 		name: string
 	): EditorPaneDescriptor {
-		return new EditorPaneDescriptor(ctor as IConstructorSignature<EditorPane>, typeId, name);
+		return new EditorPaneDescriptor(ctor as IConstructorSignature<EditorPane, [IEditorGroup]>, typeId, name);
 	}
 
 	private constructor(
-		private readonly ctor: IConstructorSignature<EditorPane>,
+		private readonly ctor: IConstructorSignature<EditorPane, [IEditorGroup]>,
 		readonly typeId: string,
 		readonly name: string
 	) { }
 
-	instantiate(instantiationService: IInstantiationService): EditorPane {
+	instantiate(instantiationService: IInstantiationService, group: IEditorGroup): EditorPane {
 		EditorPaneDescriptor._onWillInstantiateEditorPane.fire({ typeId: this.typeId });
 
-		const pane = instantiationService.createInstance(this.ctor);
+		const pane = instantiationService.createInstance(this.ctor, group);
 		EditorPaneDescriptor.instantiatedEditorPanes.add(this.typeId);
 
 		return pane;

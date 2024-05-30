@@ -16,13 +16,6 @@
 	max-width: var(--vscode-editor-dictation-widget-width);
 }
 
-.monaco-editor .editor-dictation-widget .codicon.codicon-mic-filled {
-	display: flex;
-	align-items: center;
-	width: 16px;
-	height: 16px;
-}
-
 .monaco-editor .editor-dictation-widget.recording .codicon.codicon-mic-filled {
 	color: var(--vscode-activityBarBadge-background);
 	animation: editor-dictation-animation 1s infinite;

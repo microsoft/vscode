@@ -21,6 +21,7 @@ export interface INotebookVariableElement {
 	readonly name: string;
 	readonly value: string;
 	readonly type?: string;
+	readonly interfaces?: string[];
 	readonly expression?: string;
 	readonly language?: string;
 	readonly indexedChildrenCount: number;
@@ -82,13 +83,16 @@ export class NotebookVariableDataSource implements IAsyncDataSource<INotebookSco
 		const childNodes: INotebookVariableElement[] = [];
 
 		if (parent.indexedChildrenCount > variablePageSize) {
-			// TODO: improve handling of large number of children
-			const indexedChildCountLimit = 100000;
-			const limit = Math.min(parent.indexedChildrenCount, indexedChildCountLimit);
-			for (let start = 0; start < limit; start += variablePageSize) {
-				let end = start + variablePageSize;
-				if (end > limit) {
-					end = limit;
+
+			const nestedPageSize = Math.floor(Math.max(parent.indexedChildrenCount / variablePageSize, 100));
+
+			const indexedChildCountLimit = 1_000_000;
+			let start = parent.indexStart ?? 0;
+			const last = start + Math.min(parent.indexedChildrenCount, indexedChildCountLimit);
+			for (; start < last; start += nestedPageSize) {
+				let end = start + nestedPageSize;
+				if (end > last) {
+					end = last;
 				}
 
 				childNodes.push({
@@ -108,7 +112,7 @@ export class NotebookVariableDataSource implements IAsyncDataSource<INotebookSco
 				childNodes.push({
 					kind: 'variable',
 					notebook: parent.notebook,
-					id: parent.id + `${limit + 1}`,
+					id: parent.id + `${last + 1}`,
 					extHostId: parent.extHostId,
 					name: localize('notebook.indexedChildrenLimitReached', "Display limit reached"),
 					value: '',

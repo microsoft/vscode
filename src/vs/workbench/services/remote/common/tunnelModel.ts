@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { flatten } from 'vs/base/common/arrays';
 import { debounce } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { hash } from 'vs/base/common/hash';
@@ -20,7 +19,7 @@ import { RemoteTunnel, ITunnelService, TunnelProtocol, TunnelPrivacyId, LOCALHOS
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { isNumber, isObject, isString } from 'vs/base/common/types';
 import { deepClone } from 'vs/base/common/objects';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -988,14 +987,14 @@ export class TunnelModel extends Disposable {
 		}
 
 		// Group calls to provide attributes by pid.
-		const allProviderResults = await Promise.all(flatten(this.portAttributesProviders.map(provider => {
+		const allProviderResults = await Promise.all(this.portAttributesProviders.flatMap(provider => {
 			return Array.from(pidToPortsMapping.entries()).map(entry => {
 				const portGroup = entry[1];
 				const matchingCandidate = matchingCandidates.get(portGroup[0]);
 				return provider.providePortAttributes(portGroup,
-					matchingCandidate?.pid, matchingCandidate?.detail, new CancellationTokenSource().token);
+					matchingCandidate?.pid, matchingCandidate?.detail, CancellationToken.None);
 			});
-		})));
+		}));
 		const providedAttributes: Map<number, ProvidedPortAttributes> = new Map();
 		allProviderResults.forEach(attributes => attributes.forEach(attribute => {
 			if (attribute) {

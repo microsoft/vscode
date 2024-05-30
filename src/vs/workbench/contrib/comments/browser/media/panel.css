@@ -36,6 +36,11 @@
 	overflow: hidden;
 }
 
+.comments-panel .comments-panel-container .tree-container .comment-thread-container .comment-metadata {
+	flex: 1;
+	display: flex;
+}
+
 .comments-panel .count,
 .comments-panel .user {
 	padding-right: 5px;
@@ -48,8 +53,21 @@
 }
 
 .comments-panel .comments-panel-container .tree-container .comment-thread-container .comment-snippet-container .count,
+.comments-panel .comments-panel-container .tree-container .comment-thread-container .comment-metadata-container .relevance,
 .comments-panel .comments-panel-container .tree-container .comment-thread-container .comment-metadata-container .user {
 	min-width: fit-content;
+}
+
+.comments-panel .comments-panel-container .tree-container .comment-thread-container .comment-metadata-container .relevance {
+	border-radius: 2px;
+	background-color: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	padding: 0px 4px 1px 4px;
+	font-size: 0.9em;
+	margin-right: 4px;
+	margin-top: 4px;
+	margin-bottom: 3px;
+	line-height: 14px;
 }
 
 .comments-panel .comments-panel-container .tree-container .comment-thread-container .comment-snippet-container .text {
@@ -116,4 +134,35 @@
 
 .comments-panel .hide {
 	display: none;
+}
+
+.comments-panel .comments-panel-container .text a {
+	color: var(--vscode-textLink-foreground);
+}
+
+.comments-panel .comments-panel-container .text a:hover,
+.comments-panel .comments-panel-container a:active {
+	color: var(--vscode-textLink-activeForeground);
+}
+
+.comments-panel .comments-panel-container .text a:focus {
+	outline-color: var(--vscode-focusBorder);
+}
+
+.comments-panel .comments-panel-container .text code {
+	color: var(--vscode-textPreformat-foreground);
+}
+
+.comments-panel .comments-panel-container .actions {
+	display: none;
+}
+
+.comments-panel .comments-panel-container .actions .action-label {
+	padding: 2px;
+}
+
+.comments-panel .monaco-list .monaco-list-row:hover .comment-metadata-container .actions,
+.comments-panel .monaco-list .monaco-list-row.selected .comment-metadata-container .actions,
+.comments-panel .monaco-list .monaco-list-row.focused .comment-metadata-container .actions {
+	display: block;
 }

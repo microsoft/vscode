@@ -5,7 +5,6 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { firstOrDefault } from 'vs/base/common/arrays';
 import { EditorInputCapabilities, Verbosity, GroupIdentifier, ISaveOptions, IRevertOptions, IMoveResult, IEditorDescriptor, IEditorPane, IUntypedEditorInput, EditorResourceAccessor, AbstractEditorInput, isEditorInput, IEditorIdentifier } from 'vs/workbench/common/editor';
 import { isEqual } from 'vs/base/common/resources';
@@ -235,7 +234,7 @@ export abstract class EditorInput extends AbstractEditorInput {
 	 * The `options` parameter are passed down from the editor when the
 	 * input is resolved as part of it.
 	 */
-	async resolve(options?: IEditorOptions): Promise<IDisposable | null> {
+	async resolve(): Promise<IDisposable | null> {
 		return null;
 	}
 
@@ -287,6 +286,19 @@ export abstract class EditorInput extends AbstractEditorInput {
 	 */
 	copy(): EditorInput {
 		return this;
+	}
+
+	/**
+	 * Indicates if this editor can be moved to another group. By default
+	 * editors can freely be moved around groups. If an editor cannot be
+	 * moved, a message should be returned to show to the user.
+	 *
+	 * @returns `true` if the editor can be moved to the target group, or
+	 * a string with a message to show to the user if the editor cannot be
+	 * moved.
+	 */
+	canMove(sourceGroup: GroupIdentifier, targetGroup: GroupIdentifier): true | string {
+		return true;
 	}
 
 	/**

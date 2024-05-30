@@ -31,8 +31,6 @@ import { IOutline, IOutlineComparator } from 'vs/workbench/services/outline/brow
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
-import { nativeHoverDelegate } from 'vs/platform/hover/browser/hover';
 
 interface ILayoutInfo {
 	maxHeight: number;
@@ -215,13 +213,12 @@ class FileRenderer implements ITreeRenderer<IFileStat | IWorkspaceFolder, FuzzyS
 
 	constructor(
 		private readonly _labels: ResourceLabels,
-		private readonly _hoverDelegate: IHoverDelegate,
 		@IConfigurationService private readonly _configService: IConfigurationService,
 	) { }
 
 
 	renderTemplate(container: HTMLElement): IResourceLabel {
-		return this._labels.create(container, { supportHighlights: true, hoverDelegate: this._hoverDelegate });
+		return this._labels.create(container, { supportHighlights: true });
 	}
 
 	renderElement(node: ITreeNode<IWorkspaceFolder | IFileStat, [number, number, number]>, index: number, templateData: IResourceLabel): void {
@@ -377,7 +374,7 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 			'BreadcrumbsFilePicker',
 			container,
 			new FileVirtualDelegate(),
-			[this._instantiationService.createInstance(FileRenderer, labels, nativeHoverDelegate)],
+			[this._instantiationService.createInstance(FileRenderer, labels)],
 			this._instantiationService.createInstance(FileDataSource),
 			{
 				multipleSelectionSupport: false,
@@ -510,7 +507,7 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 	protected async _revealElement(element: any, options: IEditorOptions, sideBySide: boolean): Promise<boolean> {
 		this._onWillPickElement.fire();
 		const outline: IOutline<any> = this._tree.getInput();
-		await outline.reveal(element, options, sideBySide);
+		await outline.reveal(element, options, sideBySide, false);
 		return true;
 	}
 }

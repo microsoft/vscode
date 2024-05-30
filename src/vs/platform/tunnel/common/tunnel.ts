@@ -155,6 +155,23 @@ export function extractLocalHostUriMetaDataForPortMapping(uri: URI): { address: 
 	};
 }
 
+export function extractQueryLocalHostUriMetaDataForPortMapping(uri: URI): { address: string; port: number } | undefined {
+	if (uri.scheme !== 'http' && uri.scheme !== 'https' || !uri.query) {
+		return undefined;
+	}
+	const keyvalues = uri.query.split('&');
+	for (const keyvalue of keyvalues) {
+		const value = keyvalue.split('=')[1];
+		if (/^https?:/.exec(value)) {
+			const result = extractLocalHostUriMetaDataForPortMapping(URI.parse(value));
+			if (result) {
+				return result;
+			}
+		}
+	}
+	return undefined;
+}
+
 export const LOCALHOST_ADDRESSES = ['localhost', '127.0.0.1', '0:0:0:0:0:0:0:1', '::1'];
 export function isLocalhost(host: string): boolean {
 	return LOCALHOST_ADDRESSES.indexOf(host) >= 0;

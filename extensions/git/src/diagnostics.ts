@@ -190,7 +190,7 @@ export class GitCommitInputBoxCodeActionsProvider implements CodeActionProvider 
 		const lineLengthThreshold = line === 0 ? inputValidationSubjectLength ?? inputValidationLength : inputValidationLength;
 
 		const lineSegments: string[] = [];
-		const lineText = document.lineAt(line).text;
+		const lineText = document.lineAt(line).text.trim();
 
 		let position = 0;
 		while (lineText.length - position > lineLengthThreshold) {

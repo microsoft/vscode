@@ -205,7 +205,7 @@ export async function renderMarkdownDocument(
 		}
 
 		if (typeof lang !== 'string') {
-			callback(null, `<code>${escape(code)}</code>`);
+			callback(null, escape(code));
 			return '';
 		}
 
@@ -217,7 +217,7 @@ export async function renderMarkdownDocument(
 
 			const languageId = languageService.getLanguageIdByLanguageName(lang) ?? languageService.getLanguageIdByLanguageName(lang.split(/\s+|:|,|(?!^)\{|\?]/, 1)[0]);
 			const html = await tokenizeToString(languageService, code, languageId);
-			callback(null, `<code>${html}</code>`);
+			callback(null, html);
 		});
 		return '';
 	};

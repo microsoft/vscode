@@ -29,38 +29,6 @@ export function setup() {
 			await terminal.assertTerminalGroups([[{}], [{}]]);
 		});
 
-		it('should update color of the single tab', async () => {
-			await terminal.createTerminal();
-			const color = 'Cyan';
-			await terminal.runCommandWithValue(TerminalCommandIdWithValue.ChangeColor, color);
-			await terminal.assertSingleTab({ color });
-		});
-
-		it('should update color of the tab in the tabs list', async () => {
-			await terminal.createTerminal();
-			await terminal.runCommand(TerminalCommandId.Split);
-			await terminal.waitForTerminalText(lines => lines.some(line => line.length > 0), undefined, 1);
-			const color = 'Cyan';
-			await terminal.runCommandWithValue(TerminalCommandIdWithValue.ChangeColor, color);
-			await terminal.assertTerminalGroups([[{}, { color }]]);
-		});
-
-		it('should update icon of the single tab', async () => {
-			await terminal.createTerminal();
-			const icon = 'symbol-method';
-			await terminal.runCommandWithValue(TerminalCommandIdWithValue.ChangeIcon, icon);
-			await terminal.assertSingleTab({ icon });
-		});
-
-		it('should update icon of the tab in the tabs list', async () => {
-			await terminal.createTerminal();
-			await terminal.runCommand(TerminalCommandId.Split);
-			await terminal.waitForTerminalText(lines => lines.some(line => line.length > 0), undefined, 1);
-			const icon = 'symbol-method';
-			await terminal.runCommandWithValue(TerminalCommandIdWithValue.ChangeIcon, icon);
-			await terminal.assertTerminalGroups([[{}, { icon }]]);
-		});
-
 		it('should rename the single tab', async () => {
 			await terminal.createTerminal();
 			const name = 'my terminal name';

@@ -29,7 +29,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { RawDebugSession } from 'vs/workbench/contrib/debug/browser/rawDebugSession';
-import { AdapterEndEvent, IBreakpoint, IConfig, IDataBreakpoint, IDebugConfiguration, IDebugService, IDebugSession, IDebugSessionOptions, IDebugger, IExceptionBreakpoint, IExceptionInfo, IFunctionBreakpoint, IInstructionBreakpoint, IMemoryRegion, IRawModelUpdate, IRawStoppedDetails, IReplElement, IStackFrame, IThread, LoadedSourceEvent, State, VIEWLET_ID } from 'vs/workbench/contrib/debug/common/debug';
+import { AdapterEndEvent, IBreakpoint, IConfig, IDataBreakpoint, IDataBreakpointInfoResponse, IDebugConfiguration, IDebugService, IDebugSession, IDebugSessionOptions, IDebugger, IExceptionBreakpoint, IExceptionInfo, IFunctionBreakpoint, IInstructionBreakpoint, IMemoryRegion, IRawModelUpdate, IRawStoppedDetails, IReplElement, IStackFrame, IThread, LoadedSourceEvent, State, VIEWLET_ID, isFrameDeemphasized } from 'vs/workbench/contrib/debug/common/debug';
 import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
 import { DebugModel, ExpressionContainer, MemoryRegion, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
@@ -41,6 +41,7 @@ import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecy
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { getActiveWindow } from 'vs/base/browser/dom';
 import { mainWindow } from 'vs/base/browser/window';
+import { isDefined } from 'vs/base/common/types';
 
 const TRIGGERED_BREAKPOINT_MAX_DELAY = 1500;
 
@@ -461,7 +462,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 			breakpoints: breakpointsToSend.map(bp => bp.toDAP()),
 			sourceModified
 		});
-		if (response && response.body) {
+		if (response?.body) {
 			const data = new Map<string, DebugProtocol.Breakpoint>();
 			for (let i = 0; i < breakpointsToSend.length; i++) {
 				data.set(breakpointsToSend[i].getId(), response.body.breakpoints[i]);
@@ -478,7 +479,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 
 		if (this.raw.readyForBreakpoints) {
 			const response = await this.raw.setFunctionBreakpoints({ breakpoints: fbpts.map(bp => bp.toDAP()) });
-			if (response && response.body) {
+			if (response?.body) {
 				const data = new Map<string, DebugProtocol.Breakpoint>();
 				for (let i = 0; i < fbpts.length; i++) {
 					data.set(fbpts[i].getId(), response.body.breakpoints[i]);
@@ -506,7 +507,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 			} : { filters: exbpts.map(exb => exb.filter) };
 
 			const response = await this.raw.setExceptionBreakpoints(args);
-			if (response && response.body && response.body.breakpoints) {
+			if (response?.body && response.body.breakpoints) {
 				const data = new Map<string, DebugProtocol.Breakpoint>();
 				for (let i = 0; i < exbpts.length; i++) {
 					data.set(exbpts[i].getId(), response.body.breakpoints[i]);
@@ -517,7 +518,19 @@ export class DebugSession implements IDebugSession, IDisposable {
 		}
 	}
 
-	async dataBreakpointInfo(name: string, variablesReference?: number): Promise<{ dataId: string | null; description: string; canPersist?: boolean } | undefined> {
+	dataBytesBreakpointInfo(address: string, bytes: number): Promise<IDataBreakpointInfoResponse | undefined> {
+		if (this.raw?.capabilities.supportsDataBreakpointBytes === false) {
+			throw new Error(localize('sessionDoesNotSupporBytesBreakpoints', "Session does not support breakpoints with bytes"));
+		}
+
+		return this._dataBreakpointInfo({ name: address, bytes, asAddress: true });
+	}
+
+	dataBreakpointInfo(name: string, variablesReference?: number): Promise<{ dataId: string | null; description: string; canPersist?: boolean } | undefined> {
+		return this._dataBreakpointInfo({ name, variablesReference });
+	}
+
+	private async _dataBreakpointInfo(args: DebugProtocol.DataBreakpointInfoArguments): Promise<{ dataId: string | null; description: string; canPersist?: boolean } | undefined> {
 		if (!this.raw) {
 			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'data breakpoints info'));
 		}
@@ -525,7 +538,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 			throw new Error(localize('sessionNotReadyForBreakpoints', "Session is not ready for breakpoints"));
 		}
 
-		const response = await this.raw.dataBreakpointInfo({ name, variablesReference });
+		const response = await this.raw.dataBreakpointInfo(args);
 		return response?.body;
 	}
 
@@ -535,11 +548,24 @@ export class DebugSession implements IDebugSession, IDisposable {
 		}
 
 		if (this.raw.readyForBreakpoints) {
-			const response = await this.raw.setDataBreakpoints({ breakpoints: dataBreakpoints.map(bp => bp.toDAP()) });
-			if (response && response.body) {
+			const converted = await Promise.all(dataBreakpoints.map(async bp => {
+				try {
+					const dap = await bp.toDAP(this);
+					return { dap, bp };
+				} catch (e) {
+					return { bp, message: e.message };
+				}
+			}));
+			const response = await this.raw.setDataBreakpoints({ breakpoints: converted.map(d => d.dap).filter(isDefined) });
+			if (response?.body) {
 				const data = new Map<string, DebugProtocol.Breakpoint>();
-				for (let i = 0; i < dataBreakpoints.length; i++) {
-					data.set(dataBreakpoints[i].getId(), response.body.breakpoints[i]);
+				let i = 0;
+				for (const dap of converted) {
+					if (!dap.dap) {
+						data.set(dap.bp.getId(), dap.message);
+					} else if (i < response.body.breakpoints.length) {
+						data.set(dap.bp.getId(), response.body.breakpoints[i++]);
+					}
 				}
 				this.model.setBreakpointSessionData(this.getId(), this.capabilities, data);
 			}
@@ -553,7 +579,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 
 		if (this.raw.readyForBreakpoints) {
 			const response = await this.raw.setInstructionBreakpoints({ breakpoints: instructionBreakpoints.map(ib => ib.toDAP()) });
-			if (response && response.body) {
+			if (response?.body) {
 				const data = new Map<string, DebugProtocol.Breakpoint>();
 				for (let i = 0; i < instructionBreakpoints.length; i++) {
 					data.set(instructionBreakpoints[i].getId(), response.body.breakpoints[i]);
@@ -790,7 +816,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 		}
 
 		const response = await this.raw.loadedSources({});
-		if (response && response.body && response.body.sources) {
+		if (response?.body && response.body.sources) {
 			return response.body.sources.map(src => this.getSource(src));
 		} else {
 			return [];
@@ -959,7 +985,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 	private async fetchThreads(stoppedDetails?: IRawStoppedDetails): Promise<void> {
 		if (this.raw) {
 			const response = await this.raw.threads();
-			if (response && response.body && response.body.threads) {
+			if (response?.body && response.body.threads) {
 				this.model.rawUpdate({
 					sessionId: this.getId(),
 					threads: response.body.threads,
@@ -1321,7 +1347,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 					}
 
 					const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
-					if (!focusedStackFrame || !focusedStackFrame.source || focusedStackFrame.source.presentationHint === 'deemphasize' || focusedStackFrame.presentationHint === 'deemphasize') {
+					if (!focusedStackFrame || !isFrameDeemphasized(focusedStackFrame)) {
 						// The top stack frame can be deemphesized so try to focus again #68616
 						focus();
 					}

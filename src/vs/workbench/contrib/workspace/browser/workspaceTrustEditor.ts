@@ -59,6 +59,7 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { basename, dirname } from 'vs/base/common/resources';
+import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export const shieldIcon = registerIcon('workspace-trust-banner', Codicon.shield, localize('shieldIcon', 'Icon for workspace trust ion the banner.'));
 
@@ -406,7 +407,7 @@ class TrustedUriActionsColumnRenderer implements ITableRenderer<ITrustedUriItem,
 
 	renderTemplate(container: HTMLElement): IActionsColumnTemplateData {
 		const element = container.appendChild($('.actions'));
-		const actionBar = new ActionBar(element, { animated: false });
+		const actionBar = new ActionBar(element);
 		return { actionBar };
 	}
 
@@ -430,7 +431,8 @@ class TrustedUriActionsColumnRenderer implements ITableRenderer<ITrustedUriItem,
 	}
 
 	private createEditAction(item: ITrustedUriItem): IAction {
-		return <IAction>{
+		return {
+			label: '',
 			class: ThemeIcon.asClassName(editIcon),
 			enabled: true,
 			id: 'editTrustedUri',
@@ -442,7 +444,8 @@ class TrustedUriActionsColumnRenderer implements ITableRenderer<ITrustedUriItem,
 	}
 
 	private createPickerAction(item: ITrustedUriItem): IAction {
-		return <IAction>{
+		return {
+			label: '',
 			class: ThemeIcon.asClassName(folderPickerIcon),
 			enabled: true,
 			id: 'pickerTrustedUri',
@@ -454,7 +457,8 @@ class TrustedUriActionsColumnRenderer implements ITableRenderer<ITrustedUriItem,
 	}
 
 	private createDeleteAction(item: ITrustedUriItem): IAction {
-		return <IAction>{
+		return {
+			label: '',
 			class: ThemeIcon.asClassName(removeIcon),
 			enabled: true,
 			id: 'deleteTrustedUri',
@@ -685,6 +689,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 	private workspaceTrustedUrisTable!: WorkspaceTrustedUrisTable;
 
 	constructor(
+		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
@@ -697,7 +702,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IProductService private readonly productService: IProductService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-	) { super(WorkspaceTrustEditor.ID, telemetryService, themeService, storageService); }
+	) { super(WorkspaceTrustEditor.ID, group, telemetryService, themeService, storageService); }
 
 	protected createEditor(parent: HTMLElement): void {
 		this.rootElement = append(parent, $('.workspace-trust-editor', { tabindex: '0' }));
@@ -839,7 +844,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 	}
 
 	private rendering = false;
-	private rerenderDisposables: DisposableStore = this._register(new DisposableStore());
+	private readonly rerenderDisposables: DisposableStore = this._register(new DisposableStore());
 	@debounce(100)
 	private async render() {
 		if (this.rendering) {

@@ -250,7 +250,7 @@ suite('ExtensionService', () => {
 			[IUserDataProfileService, TestUserDataProfileService],
 			[IUriIdentityService, UriIdentityService],
 			[IRemoteExtensionsScannerService, TestRemoteExtensionsScannerService],
-			[IRemoteAuthorityResolverService, new RemoteAuthorityResolverService(false, undefined, undefined, testProductService, new NullLogService())]
+			[IRemoteAuthorityResolverService, new RemoteAuthorityResolverService(false, undefined, undefined, undefined, testProductService, new NullLogService())]
 		]));
 		extService = <MyTestExtensionService>instantiationService.get(IExtensionService);
 	});

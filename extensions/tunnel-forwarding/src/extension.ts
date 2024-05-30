@@ -82,6 +82,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			{
 				tunnelFeatures: {
 					elevation: false,
+					protocol: false,
 					privacyOptions: [
 						{ themeIcon: 'globe', id: TunnelPrivacyId.Public, label: vscode.l10n.t('Public') },
 						{ themeIcon: 'lock', id: TunnelPrivacyId.Private, label: vscode.l10n.t('Private') },
@@ -259,12 +260,10 @@ class TunnelProvider implements vscode.TunnelProvider {
 			'forward-internal',
 			'--provider',
 			'github',
-			'--access-token',
-			session.accessToken,
 		];
 
 		this.logger.log('info', '[forwarding] starting CLI');
-		const child = spawn(cliPath, args, { stdio: 'pipe', env: { ...process.env, NO_COLOR: '1' } });
+		const child = spawn(cliPath, args, { stdio: 'pipe', env: { ...process.env, NO_COLOR: '1', VSCODE_CLI_ACCESS_TOKEN: session.accessToken } });
 		this.state = { state: State.Starting, process: child };
 
 		const progressP = new DeferredPromise<void>();

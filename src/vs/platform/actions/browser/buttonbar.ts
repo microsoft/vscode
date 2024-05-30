@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ButtonBar, IButton } from 'vs/base/browser/ui/button/button';
+import { createInstantHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { ActionRunner, IAction, IActionRunner, SubmenuAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -12,6 +13,7 @@ import { localize } from 'vs/nls';
 import { MenuId, IMenuService, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
@@ -29,6 +31,7 @@ export interface IWorkbenchButtonBarOptions {
 export class WorkbenchButtonBar extends ButtonBar {
 
 	protected readonly _store = new DisposableStore();
+	protected readonly _updateStore = new DisposableStore();
 
 	private readonly _actionRunner: IActionRunner;
 	private readonly _onDidChange = new Emitter<this>();
@@ -41,6 +44,7 @@ export class WorkbenchButtonBar extends ButtonBar {
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService private readonly _hoverService: IHoverService,
 	) {
 		super(container);
 
@@ -57,6 +61,7 @@ export class WorkbenchButtonBar extends ButtonBar {
 
 	override dispose() {
 		this._onDidChange.dispose();
+		this._updateStore.dispose();
 		this._store.dispose();
 		super.dispose();
 	}
@@ -65,7 +70,11 @@ export class WorkbenchButtonBar extends ButtonBar {
 
 		const conifgProvider: IButtonConfigProvider = this._options?.buttonConfigProvider ?? (() => ({ showLabel: true }));
 
+		this._updateStore.clear();
 		this.clear();
+
+		// Support instamt hover between buttons
+		const hoverDelegate = this._updateStore.add(createInstantHoverDelegate());
 
 		for (let i = 0; i < actions.length; i++) {
 
@@ -107,15 +116,16 @@ export class WorkbenchButtonBar extends ButtonBar {
 				}
 			}
 			const kb = this._keybindingService.lookupKeybinding(action.id);
+			let tooltip: string;
 			if (kb) {
-				btn.element.title = localize('labelWithKeybinding', "{0} ({1})", action.label, kb.getLabel());
+				tooltip = localize('labelWithKeybinding', "{0} ({1})", action.label, kb.getLabel());
 			} else {
-				btn.element.title = action.label;
-
+				tooltip = action.label;
 			}
-			btn.onDidClick(async () => {
+			this._updateStore.add(this._hoverService.setupUpdatableHover(hoverDelegate, btn.element, tooltip));
+			this._updateStore.add(btn.onDidClick(async () => {
 				this._actionRunner.run(action);
-			});
+			}));
 		}
 		this._onDidChange.fire(this);
 	}
@@ -132,8 +142,9 @@ export class MenuWorkbenchButtonBar extends WorkbenchButtonBar {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService,
 	) {
-		super(container, options, contextMenuService, keybindingService, telemetryService);
+		super(container, options, contextMenuService, keybindingService, telemetryService, hoverService);
 
 		const menu = menuService.createMenu(menuId, contextKeyService);
 		this._store.add(menu);

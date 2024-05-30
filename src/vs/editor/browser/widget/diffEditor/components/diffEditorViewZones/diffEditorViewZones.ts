@@ -12,7 +12,7 @@ import { IObservable, autorun, derived, derivedWithStore, observableFromEvent, o
 import { ThemeIcon } from 'vs/base/common/themables';
 import { assertIsDefined } from 'vs/base/common/types';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import { diffDeleteDecoration, diffRemoveIcon } from 'vs/editor/browser/widget/diffEditor/registrations.contribution';
 import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditor/components/diffEditorEditors';
 import { DiffEditorViewModel, DiffMapping } from 'vs/editor/browser/widget/diffEditor/diffEditorViewModel';
@@ -312,7 +312,7 @@ export class DiffEditorViewZones extends Disposable {
 						}
 
 						let marginDomNode: HTMLElement | undefined = undefined;
-						if (a.diff && a.diff.modified.isEmpty && this._options.shouldRenderRevertArrows.read(reader)) {
+						if (a.diff && a.diff.modified.isEmpty && this._options.shouldRenderOldRevertArrows.read(reader)) {
 							marginDomNode = createViewZoneMarginArrow();
 						}
 

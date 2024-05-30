@@ -6,7 +6,7 @@
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { Action, IAction } from 'vs/base/common/actions';
 import { distinct } from 'vs/base/common/arrays';
-import { raceTimeout, RunOnceScheduler } from 'vs/base/common/async';
+import { RunOnceScheduler, raceTimeout } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isErrorWithActions } from 'vs/base/common/errorMessage';
 import * as errors from 'vs/base/common/errors';
@@ -24,7 +24,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
+import { FileChangeType, FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
@@ -34,22 +34,21 @@ import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/work
 import { EditorsOrder } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { AdapterManager } from 'vs/workbench/contrib/debug/browser/debugAdapterManager';
 import { DEBUG_CONFIGURE_COMMAND_ID, DEBUG_CONFIGURE_LABEL } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import { ConfigurationManager } from 'vs/workbench/contrib/debug/browser/debugConfigurationManager';
 import { DebugMemoryFileSystemProvider } from 'vs/workbench/contrib/debug/browser/debugMemory';
 import { DebugSession } from 'vs/workbench/contrib/debug/browser/debugSession';
 import { DebugTaskRunner, TaskRunResult } from 'vs/workbench/contrib/debug/browser/debugTaskRunner';
-import { CALLSTACK_VIEW_ID, CONTEXT_BREAKPOINTS_EXIST, CONTEXT_HAS_DEBUGGED, CONTEXT_DEBUG_STATE, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_UX, CONTEXT_DISASSEMBLY_VIEW_FOCUS, CONTEXT_IN_DEBUG_MODE, debuggerDisabledMessage, DEBUG_MEMORY_SCHEME, getStateLabel, IAdapterManager, IBreakpoint, IBreakpointData, ICompound, IConfig, IConfigurationManager, IDebugConfiguration, IDebugModel, IDebugService, IDebugSession, IDebugSessionOptions, IEnablement, IExceptionBreakpoint, IGlobalConfig, ILaunch, IStackFrame, IThread, IViewModel, REPL_VIEW_ID, State, VIEWLET_ID, DEBUG_SCHEME, IBreakpointUpdateData } from 'vs/workbench/contrib/debug/common/debug';
+import { CALLSTACK_VIEW_ID, CONTEXT_BREAKPOINTS_EXIST, CONTEXT_DEBUG_STATE, CONTEXT_DEBUG_TYPE, CONTEXT_DEBUG_UX, CONTEXT_DISASSEMBLY_VIEW_FOCUS, CONTEXT_HAS_DEBUGGED, CONTEXT_IN_DEBUG_MODE, DEBUG_MEMORY_SCHEME, DEBUG_SCHEME, IAdapterManager, IBreakpoint, IBreakpointData, IBreakpointUpdateData, ICompound, IConfig, IConfigurationManager, IDebugConfiguration, IDebugModel, IDebugService, IDebugSession, IDebugSessionOptions, IEnablement, IExceptionBreakpoint, IGlobalConfig, ILaunch, IStackFrame, IThread, IViewModel, REPL_VIEW_ID, State, VIEWLET_ID, debuggerDisabledMessage, getStateLabel } from 'vs/workbench/contrib/debug/common/debug';
 import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
-import { Debugger } from 'vs/workbench/contrib/debug/common/debugger';
-import { Breakpoint, DataBreakpoint, DebugModel, FunctionBreakpoint, IInstructionBreakpointOptions, InstructionBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
+import { Breakpoint, DataBreakpoint, DebugModel, FunctionBreakpoint, IDataBreakpointOptions, IFunctionBreakpointOptions, IInstructionBreakpointOptions, InstructionBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { DebugStorage } from 'vs/workbench/contrib/debug/common/debugStorage';
 import { DebugTelemetry } from 'vs/workbench/contrib/debug/common/debugTelemetry';
 import { getExtensionHostDebugSession, saveAllBeforeDebugStart } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { ViewModel } from 'vs/workbench/contrib/debug/common/debugViewModel';
+import { Debugger } from 'vs/workbench/contrib/debug/common/debugger';
 import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
 import { VIEWLET_ID as EXPLORER_VIEWLET_ID } from 'vs/workbench/contrib/files/common/files';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
@@ -58,6 +57,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 
 export class DebugService implements IDebugService {
 	declare readonly _serviceBrand: undefined;
@@ -111,7 +111,7 @@ export class DebugService implements IDebugService {
 		@ICommandService private readonly commandService: ICommandService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 	) {
 		this.breakpointsToSendOnResourceSaved = new Set<URI>();
 
@@ -198,6 +198,13 @@ export class DebugService implements IDebugService {
 					editor.dispose();
 				}
 			}
+		}));
+
+		this.disposables.add(extensionService.onWillStop(evt => {
+			evt.veto(
+				this.stopSession(undefined).then(() => false),
+				nls.localize('stoppingDebug', 'Stopping debug sessions...'),
+			);
 		}));
 
 		this.initContextKeys(contextKeyService);
@@ -581,8 +588,6 @@ export class DebugService implements IDebugService {
 		}
 
 		this.model.addSession(session);
-		// register listeners as the very first thing!
-		this.registerSessionListeners(session);
 
 		// since the Session is now properly registered under its ID and hooked, we can announce it
 		// this event doesn't go to extensions
@@ -641,6 +646,9 @@ export class DebugService implements IDebugService {
 	}
 
 	private async launchOrAttachToSession(session: IDebugSession, forceFocus = false): Promise<void> {
+		// register listeners as the very first thing!
+		this.registerSessionListeners(session);
+
 		const dbgr = this.adapterManager.getDebugger(session.configuration.type);
 		try {
 			await session.initialize(dbgr!);
@@ -659,7 +667,7 @@ export class DebugService implements IDebugService {
 		}
 	}
 
-	private registerSessionListeners(session: DebugSession): void {
+	private registerSessionListeners(session: IDebugSession): void {
 		const listenerDisposables = new DisposableStore();
 		this.disposables.add(listenerDisposables);
 
@@ -678,7 +686,7 @@ export class DebugService implements IDebugService {
 			}
 		}));
 		listenerDisposables.add(this.onDidEndSession(e => {
-			if (e.session === session && !e.restart) {
+			if (e.session === session) {
 				this.disposables.delete(listenerDisposables);
 			}
 		}));
@@ -788,8 +796,6 @@ export class DebugService implements IDebugService {
 		if (launch) {
 			unresolved = launch.getConfiguration(session.configuration.name);
 			if (unresolved && !equals(unresolved, session.unresolvedConfiguration)) {
-				// Take the type from the session since the debug extension might overwrite it #21316
-				unresolved.type = session.configuration.type;
 				unresolved.noDebug = session.configuration.noDebug;
 				needsToSubstitute = true;
 			}
@@ -803,7 +809,7 @@ export class DebugService implements IDebugService {
 			if (resolvedByProviders) {
 				resolved = await this.substituteVariables(launch, resolvedByProviders);
 				if (resolved && !initCancellationToken.token.isCancellationRequested) {
-					resolved = await this.configurationManager.resolveDebugConfigurationWithSubstitutedVariables(launch && launch.workspace ? launch.workspace.uri : undefined, unresolved.type, resolved, initCancellationToken.token);
+					resolved = await this.configurationManager.resolveDebugConfigurationWithSubstitutedVariables(launch && launch.workspace ? launch.workspace.uri : undefined, resolved.type, resolved, initCancellationToken.token);
 				}
 			} else {
 				resolved = resolvedByProviders;
@@ -1065,8 +1071,14 @@ export class DebugService implements IDebugService {
 		return this.sendAllBreakpoints();
 	}
 
-	addFunctionBreakpoint(name?: string, id?: string, mode?: string): void {
-		this.model.addFunctionBreakpoint(name || '', id, mode);
+	async addFunctionBreakpoint(opts?: IFunctionBreakpointOptions, id?: string): Promise<void> {
+		this.model.addFunctionBreakpoint(opts ?? { name: '' }, id);
+		// If opts not provided, sending the breakpoint is handled by a later to call to `updateFunctionBreakpoint`
+		if (opts) {
+			this.debugStorage.storeBreakpoints(this.model);
+			await this.sendFunctionBreakpoints();
+			this.debugStorage.storeBreakpoints(this.model);
+		}
 	}
 
 	async updateFunctionBreakpoint(id: string, update: { name?: string; hitCondition?: string; condition?: string }): Promise<void> {
@@ -1081,8 +1093,8 @@ export class DebugService implements IDebugService {
 		await this.sendFunctionBreakpoints();
 	}
 
-	async addDataBreakpoint(description: string, dataId: string, canPersist: boolean, accessTypes: DebugProtocol.DataBreakpointAccessType[] | undefined, accessType: DebugProtocol.DataBreakpointAccessType, mode: string | undefined): Promise<void> {
-		this.model.addDataBreakpoint({ description, dataId, canPersist, accessTypes, accessType, mode });
+	async addDataBreakpoint(opts: IDataBreakpointOptions): Promise<void> {
+		this.model.addDataBreakpoint(opts);
 		this.debugStorage.storeBreakpoints(this.model);
 		await this.sendDataBreakpoints();
 		this.debugStorage.storeBreakpoints(this.model);
