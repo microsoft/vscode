@@ -570,6 +570,14 @@ export class BrowserHostService extends Disposable implements IHostService {
 	}
 
 	//#endregion
+
+	//#region File
+
+	getPathForFile() {
+		return ''
+	};
+
+	//#endregion
 }
 
 registerSingleton(IHostService, BrowserHostService, InstantiationType.Delayed);

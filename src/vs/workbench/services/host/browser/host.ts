@@ -123,4 +123,10 @@ export interface IHostService {
 	withExpectedShutdown<T>(expectedShutdownTask: () => Promise<T>): Promise<T>;
 
 	//#endregion
+
+	//#region File
+
+	getPathForFile(file: File): string;
+
+	//#endregion
 }
