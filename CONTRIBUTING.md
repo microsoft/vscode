@@ -10,7 +10,7 @@ RECOMMENDED: Internally within the main PearAI application (which is a VSCode fo
 
 Standalone as an extension. For running it standalone, you will want to `cd` into `extensions/pearai-extension` and visit [Contributing to pearai-extension](extensions/pearai-extension/CONTRIBUTING.md)
 
-After cloning and building the repo, check out the [issues list](https://github.com/Microsoft/vscode/issues?utf8=%E2%9C%93&q=is%3Aopen+is%3Aissue). Issues labeled [`help wanted`](https://github.com/Microsoft/vscode/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22) are good issues to submit a PR for. Issues labeled [`good first issue`](https://github.com/Microsoft/vscode/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) are great candidates to pick up if you are in the code for the first time. If you are contributing significant changes, or if the issue is already assigned to a specific month milestone, please discuss with the assignee of the issue first before starting to work on the issue.
+After cloning and building the repo, check out the [issues list](https://github.com/trypear/pearai-app/issues). Issues labeled [`good first issue`](https://github.com/trypear/pearai-app/issues?q=is%3Aissue+is%3Aopen+label%3A%22Good+First+Issue%22) are great candidates to pick up if you are in the code for the first time. If you are contributing significant changes, or if the issue is already assigned to a specific month milestone, please discuss with the assignee of the issue first before starting to work on the issue.
 
 ## Prerequisites
 
@@ -46,32 +46,19 @@ You'll need the following tools:
       * [GCC](https://gcc.gnu.org) or another compile toolchain
     * Building deb and rpm packages requires `fakeroot` and `rpm`; run: `sudo apt-get install fakeroot rpm`
 
-
 ## Build and Run
 
-If you want to understand how VS Code works or want to debug an issue, you'll want to get the source, build it, and run the tool locally.
+The first time you clone the repo, please run:
 
-> NOTE: If you need to debug the 32bit version of VS Code on 64bit Windows, follow [the guide on how to do that](https://github.com/microsoft/vscode/wiki/Build-and-run-32bit-Code---OSS-on-Windows).
-
-### Getting the sources
-
-First, fork the VS Code repository so that you can make a pull request. Then, clone your fork locally:
+##### Mac
 
 ```
-git clone https://github.com/<<<your-github-account>>>/vscode.git
+./scripts/init.sh
 ```
 
-Occasionally you will want to merge changes in the upstream repository (the official code repo) with your fork.
+##### Windows
 
-```
-cd vscode
-git checkout main
-git pull https://github.com/microsoft/vscode.git main
-```
-
-Manage any merge conflicts, commit them, and then push them to your fork.
-
-**Note**: The `microsoft/vscode` repository contains a collection of GitHub Actions that help us with triaging issues. As you probably don't want these running on your fork, you can disable Actions for your fork via `https://github.com/<<Your Username>>/vscode/settings/actions`.
+Open `Command Palette` and type `Run Task`. Then, select `setup-environment`.
 
 ### Build
 
@@ -82,20 +69,7 @@ cd vscode
 yarn
 ```
 
-Then you have two options:
-
-- If you want to build from inside VS Code, you can open the `vscode` folder and start the build task with <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd> (<kbd>CMD</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd> on macOS). The build task will stay running in the background even if you close VS Code. If you happen to close VS Code and open it again, just resume the build by pressing <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd> (<kbd>CMD</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd>) again. You can kill it by running the `Kill Build VS Code` task or pressing <kbd>Ctrl</kbd>+<kbd>D</kbd> in the task terminal.
-- If you want to build from a terminal, run `yarn watch`. This will run both the core watch task and watch-extension tasks in a single terminal.
-
-The incremental builder will do an initial full build and will display a message that includes the phrase "Finished compilation" once the initial build is complete. The builder will watch for file changes and compile those changes incrementally, giving you a fast, iterative coding experience.
-
 ### Run
-
-To test the changes, you launch a development version of VS Code on the workspace `vscode`, which you are currently editing.
-
-To test changes with a remote, use the "TestResolver" in your Code - OSS window which creates a fake remote window. Search Command Palette for `TestResolver`. More information is at https://github.com/microsoft/vscode/issues/162874#issuecomment-1271774905.
-
-#### Desktop
 
 Running on Electron with extensions run in NodeJS:
 
@@ -114,43 +88,6 @@ Running on Electron with extensions run in NodeJS:
 ```
 
 👉 **Tip!** If you receive an error stating that the app is not a valid Electron app, it probably means you didn't run `yarn watch` first.
-
-#### VS Code for the Web
-
-Extensions and UI run in the browser.
-
-👉 Besides `yarn watch` also run `yarn watch-web` to build the web bits for the built-in extensions.
-
-##### macOS and Linux
-
-```bash
-./scripts/code-web.sh
-```
-
-##### Windows
-
-```bat
-.\scripts\code-web.bat
-```
-#### Code Server Web
-
-UI in the browser, extensions run in code server (NodeJS):
-
-##### macOS and Linux
-
-```bash
-./scripts/code-server.sh --launch
-```
-
-##### Windows
-
-```bat
-.\scripts\code-server.bat --launch
-```
-
-You can identify the development version of VS Code ("Code - OSS") by the following icon in the Dock or Taskbar:
-
-[![VS Code default icon](https://i.imgur.com/D2CeX0y.png)](https://i.imgur.com/D2CeX0y.png)
 
 **Troubleshooting:**
 
