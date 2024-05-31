@@ -25,21 +25,9 @@ export function createHtmlProject(languagePlugins: LanguagePlugin<URI>[]): Proje
 			if (!languageService) {
 				const language = createLanguage(
 					[
+						{ getLanguageId: uri => server.documents.get(server.getSyncedDocumentKey(uri) ?? uri.toString())?.languageId },
 						...languagePlugins,
-						{
-							getLanguageId(uri) {
-								const key = server.getSyncedDocumentKey(uri);
-								const document = !!key && server.documents.get(key);
-								if (document) {
-									return document.languageId;
-								}
-								const tsLanguageId = resolveFileLanguageId(uri.toString());
-								if (tsLanguageId) {
-									return tsLanguageId;
-								}
-								return undefined;
-							},
-						}
+						{ getLanguageId: uri => resolveFileLanguageId(uri.path) },
 					],
 					createUriMap(),
 					uri => {

@@ -6,17 +6,16 @@
 
 import {
 	languages, ExtensionContext, Position, TextDocument, Range, CompletionItem, CompletionItemKind, SnippetString, workspace, extensions,
-	Disposable, FormattingOptions, CancellationToken, ProviderResult, TextEdit, CompletionContext, CompletionList, SemanticTokensLegend,
-	DocumentSemanticTokensProvider, DocumentRangeSemanticTokensProvider, SemanticTokens, window, commands, OutputChannel, l10n
+	Disposable, FormattingOptions, CancellationToken, ProviderResult, TextEdit, CompletionContext, CompletionList,
+	window, commands, OutputChannel, l10n
 } from 'vscode';
 import {
 	LanguageClientOptions, RequestType, DocumentRangeFormattingParams,
-	DocumentRangeFormattingRequest, ProvideCompletionItemsSignature, TextDocumentIdentifier, RequestType0, Range as LspRange, NotificationType, BaseLanguageClient
+	DocumentRangeFormattingRequest, ProvideCompletionItemsSignature, NotificationType, BaseLanguageClient
 } from 'vscode-languageclient';
 import { getCustomDataSource } from './customData';
 import { activateAutoInsertion, activateServerSys as serveFileSystemRequests } from '@volar/vscode';
 import { getLanguageParticipants, LanguageParticipants } from './languageParticipants';
-import { DiagnosticModel, type InitializationOptions } from '@volar/language-server';
 
 namespace CustomDataChangedNotification {
 	export const type: NotificationType<string[]> = new NotificationType('html/customDataChanged');
@@ -24,18 +23,6 @@ namespace CustomDataChangedNotification {
 
 namespace CustomDataContent {
 	export const type: RequestType<string, string, any> = new RequestType('html/customDataContent');
-}
-
-// experimental: semantic tokens
-interface SemanticTokenParams {
-	textDocument: TextDocumentIdentifier;
-	ranges?: LspRange[];
-}
-namespace SemanticTokenRequest {
-	export const type: RequestType<SemanticTokenParams, number[] | null, any> = new RequestType('html/semanticTokens');
-}
-namespace SemanticTokenLegendRequest {
-	export const type: RequestType0<{ types: string[]; modifiers: string[] } | null, any> = new RequestType0('html/semanticTokenLegend');
 }
 
 namespace SettingIds {
@@ -138,19 +125,11 @@ async function startClientWithParticipants(languageParticipants: LanguagePartici
 			configurationSection: ['html', 'css', 'javascript', 'js/ts'], // the settings to synchronize
 		},
 		initializationOptions: {
-			// volar options
-			diagnosticModel: DiagnosticModel.Pull,
-			semanticTokensLegend: {
-				// fill missing modifiers from standard modifiers
-				tokenModifiers: ['local'],
-				tokenTypes: [],
-			},
-
-			// html options
 			embeddedLanguages,
 			handledSchemas: ['file'],
+			provideFormatter: false, // tell the server to not provide formatting capability and ignore the `html.format.enable` setting.
 			customCapabilities: { rangeFormatting: { editLimit: 10000 } }
-		} satisfies InitializationOptions & Record<string, any>,
+		},
 		middleware: {
 			// testing the replace / insert mode
 			provideCompletionItem(document: TextDocument, position: Position, context: CompletionContext, token: CancellationToken, next: ProvideCompletionItemsSignature): ProviderResult<CompletionItem[] | CompletionList> {
@@ -207,31 +186,6 @@ async function startClientWithParticipants(languageParticipants: LanguagePartici
 	updateFormatterRegistration();
 	toDispose.push({ dispose: () => rangeFormatting && rangeFormatting.dispose() });
 	toDispose.push(workspace.onDidChangeConfiguration(e => e.affectsConfiguration(SettingIds.formatEnable) && updateFormatterRegistration()));
-
-	client.sendRequest(SemanticTokenLegendRequest.type).then(legend => {
-		if (legend) {
-			const provider: DocumentSemanticTokensProvider & DocumentRangeSemanticTokensProvider = {
-				provideDocumentSemanticTokens(doc) {
-					const params: SemanticTokenParams = {
-						textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(doc),
-					};
-					return client.sendRequest(SemanticTokenRequest.type, params).then(data => {
-						return data && new SemanticTokens(new Uint32Array(data));
-					});
-				},
-				provideDocumentRangeSemanticTokens(doc, range) {
-					const params: SemanticTokenParams = {
-						textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(doc),
-						ranges: [client.code2ProtocolConverter.asRange(range)]
-					};
-					return client.sendRequest(SemanticTokenRequest.type, params).then(data => {
-						return data && new SemanticTokens(new Uint32Array(data));
-					});
-				}
-			};
-			toDispose.push(languages.registerDocumentSemanticTokensProvider(documentSelector, provider, new SemanticTokensLegend(legend.types, legend.modifiers)));
-		}
-	});
 
 	function updateFormatterRegistration() {
 		const formatEnabled = workspace.getConfiguration().get(SettingIds.formatEnable);

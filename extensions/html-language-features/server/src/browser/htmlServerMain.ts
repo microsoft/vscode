@@ -11,7 +11,12 @@ const connection = createConnection();
 const server = createServer(connection);
 
 connection.onInitialize(params => {
-	return server.initialize(params, getLanguageServicePlugins(), createSimpleProject([htmlLanguagePlugin]));
+	return server.initialize(
+		params,
+		getLanguageServicePlugins(),
+		createSimpleProject([htmlLanguagePlugin]),
+		{ pullModelDiagnostics: !!params.capabilities.textDocument?.diagnostic }
+	);
 });
 
 connection.onInitialized(server.initialized);

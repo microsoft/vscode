@@ -28,7 +28,15 @@ export function getLanguageServicePlugins() {
 			},
 		}),
 		{
-			capabilities: {},
+			capabilities: {
+				semanticTokensProvider: {
+					legend: {
+						tokenTypes: [],
+						// fill missing modifiers from standard modifiers
+						tokenModifiers: ['local'],
+					},
+				},
+			},
 			create() {
 				return {
 					resolveEmbeddedCodeFormattingOptions(_sourceScript, embeddedCode, options) {
