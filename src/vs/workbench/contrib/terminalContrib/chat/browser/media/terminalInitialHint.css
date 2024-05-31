@@ -3,9 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .pane-body.integrated-terminal .contentWidgets .terminal-initial-hint {
+.monaco-workbench .pane-body.integrated-terminal .terminal-initial-hint {
 	color: var(--vscode-input-placeholderForeground);
 }
 .monaco-workbench .pane-body.integrated-terminal .terminal-initial-hint a {
-	color: var(--vscode-textLink-foreground)
+	cursor: pointer;
+	color: var(--vscode-textLink-foreground);
+}
+
+.monaco-workbench .pane-body.integrated-terminal .terminal-initial-hint a,
+.monaco-workbench .pane-body.integrated-terminal .terminal-initial-hint .detail {
+	font-style: italic;
 }

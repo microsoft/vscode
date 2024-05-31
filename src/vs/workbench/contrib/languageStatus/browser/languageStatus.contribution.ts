@@ -72,9 +72,9 @@ class LanguageStatusContribution extends Disposable implements IWorkbenchContrib
 		super();
 
 		// --- main language status
-		const mainInstantiationService = instantiationService.createChild(new ServiceCollection(
+		const mainInstantiationService = this._register(instantiationService.createChild(new ServiceCollection(
 			[IEditorService, editorService.createScoped('main', this._store)]
-		));
+		)));
 		this._register(mainInstantiationService.createInstance(LanguageStatus));
 
 		// --- auxiliary language status
@@ -231,7 +231,7 @@ class LanguageStatus {
 			const targetWindow = dom.getWindow(editor?.getContainerDomNode());
 			const node = targetWindow.document.querySelector('.monaco-workbench .statusbar DIV#status\\.languageStatus A>SPAN.codicon');
 			const container = targetWindow.document.querySelector('.monaco-workbench .statusbar DIV#status\\.languageStatus');
-			if (node instanceof HTMLElement && container) {
+			if (dom.isHTMLElement(node) && container) {
 				const _wiggle = 'wiggle';
 				const _flash = 'flash';
 				if (!isOneBusy) {
@@ -251,7 +251,7 @@ class LanguageStatus {
 			//  use that as signal that the user has interacted/learned language status items work
 			if (!userHasInteractedWithStatus) {
 				const hoverTarget = targetWindow.document.querySelector('.monaco-workbench .context-view');
-				if (hoverTarget instanceof HTMLElement) {
+				if (dom.isHTMLElement(hoverTarget)) {
 					const observer = new MutationObserver(() => {
 						if (targetWindow.document.contains(element)) {
 							this._interactionCounter.increment();

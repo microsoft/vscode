@@ -44,7 +44,9 @@ declare module 'vscode' {
 		 */
 		readonly version: string;
 
-		tokens: number;
+		readonly maxInputTokens: number;
+
+		readonly maxOutputTokens: number;
 
 		/**
 		 * When present, this gates the use of `requestLanguageModelAccess` behind an authorization flow where
@@ -56,7 +58,7 @@ declare module 'vscode' {
 
 	export interface ChatResponseProviderMetadata {
 		// limit this provider to some extensions
-		extensions: string[];
+		extensions?: string[];
 	}
 
 	export namespace chat {

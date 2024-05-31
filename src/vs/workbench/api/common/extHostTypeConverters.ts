@@ -1330,7 +1330,9 @@ export namespace DocumentLink {
 				// ignore
 			}
 		}
-		return new types.DocumentLink(Range.to(link.range), target);
+		const result = new types.DocumentLink(Range.to(link.range), target);
+		result.tooltip = link.tooltip;
+		return result;
 	}
 }
 
@@ -2351,10 +2353,13 @@ export namespace ChatResponseFilesPart {
 
 export namespace ChatResponseAnchorPart {
 	export function from(part: vscode.ChatResponseAnchorPart): Dto<IChatContentInlineReference> {
+		// Work around type-narrowing confusion between vscode.Uri and URI
+		const isUri = (thing: unknown): thing is vscode.Uri => URI.isUri(thing);
+
 		return {
 			kind: 'inlineReference',
 			name: part.title,
-			inlineReference: !URI.isUri(part.value) ? Location.from(<vscode.Location>part.value) : part.value
+			inlineReference: isUri(part.value) ? part.value : Location.from(part.value)
 		};
 	}
 
@@ -2439,10 +2444,11 @@ export namespace ChatResponseTextEditPart {
 }
 
 export namespace ChatResponseReferencePart {
-	export function from(part: vscode.ChatResponseReferencePart): Dto<IChatContentReference> {
+	export function from(part: types.ChatResponseReferencePart): Dto<IChatContentReference> {
 		const iconPath = ThemeIcon.isThemeIcon(part.iconPath) ? part.iconPath
-			: (part.iconPath && 'light' in part.iconPath && 'dark' in part.iconPath && URI.isUri(part.iconPath.light) && URI.isUri(part.iconPath.dark) ? { light: URI.revive(part.iconPath.light), dark: URI.revive(part.iconPath.dark) }
-				: undefined);
+			: URI.isUri(part.iconPath) ? { light: URI.revive(part.iconPath) }
+				: (part.iconPath && 'light' in part.iconPath && 'dark' in part.iconPath && URI.isUri(part.iconPath.light) && URI.isUri(part.iconPath.dark) ? { light: URI.revive(part.iconPath.light), dark: URI.revive(part.iconPath.dark) }
+					: undefined);
 		if ('variableName' in part.value) {
 			return {
 				kind: 'reference',
@@ -2477,7 +2483,7 @@ export namespace ChatResponseReferencePart {
 				value: value.reference.value && mapValue(value.reference.value)
 			} :
 				mapValue(value.reference)
-		);
+		) as vscode.ChatResponseReferencePart; // 'value' is extended with variableName
 	}
 }
 
@@ -2545,7 +2551,7 @@ export namespace ChatAgentRequest {
 			command: request.command,
 			attempt: request.attempt ?? 0,
 			enableCommandDetection: request.enableCommandDetection ?? true,
-			variables: request.variables.variables.map(ChatAgentValueReference.to),
+			references: request.variables.variables.map(ChatAgentValueReference.to),
 			location: ChatLocation.to(request.location),
 			acceptedConfirmationData: request.acceptedConfirmationData,
 			rejectedConfirmationData: request.rejectedConfirmationData
@@ -2562,19 +2568,32 @@ export namespace ChatLocation {
 			case ChatAgentLocation.Editor: return types.ChatLocation.Editor;
 		}
 	}
+
+	export function from(loc: types.ChatLocation): ChatAgentLocation {
+		switch (loc) {
+			case types.ChatLocation.Notebook: return ChatAgentLocation.Notebook;
+			case types.ChatLocation.Terminal: return ChatAgentLocation.Terminal;
+			case types.ChatLocation.Panel: return ChatAgentLocation.Panel;
+			case types.ChatLocation.Editor: return ChatAgentLocation.Editor;
+		}
+	}
 }
 
 export namespace ChatAgentValueReference {
-	export function to(request: IChatRequestVariableEntry): vscode.ChatValueReference {
-		const value = request.value;
+	export function to(variable: IChatRequestVariableEntry): vscode.ChatPromptReference {
+		const value = variable.value;
 		if (!value) {
 			throw new Error('Invalid value reference');
 		}
 
 		return {
-			name: request.name,
-			range: (request.range && [request.range.start, request.range.endExclusive])!, // TODO
-			value: isUriComponents(value) ? URI.revive(value) : value,
+			id: variable.id,
+			name: variable.name,
+			range: variable.range && [variable.range.start, variable.range.endExclusive],
+			value: isUriComponents(value) ? URI.revive(value) :
+				value && typeof value === 'object' && 'uri' in value && 'range' in value && isUriComponents(value.uri) ?
+					Location.to(revive(value)) : value,
+			modelDescription: variable.modelDescription
 		};
 	}
 }
@@ -2582,7 +2601,10 @@ export namespace ChatAgentValueReference {
 export namespace ChatAgentCompletionItem {
 	export function from(item: vscode.ChatCompletionItem, commandsConverter: CommandsConverter, disposables: DisposableStore): extHostProtocol.IChatAgentCompletionItem {
 		return {
+			id: item.id,
 			label: item.label,
+			fullName: item.fullName,
+			icon: item.icon?.id,
 			value: item.values[0].value,
 			insertText: item.insertText,
 			detail: item.detail,

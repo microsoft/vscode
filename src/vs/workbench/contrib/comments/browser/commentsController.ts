@@ -1128,7 +1128,7 @@ export class CommentController implements IEditorContribution {
 		if (!newCommentInfos.length || !this.editor?.hasModel()) {
 			this._addInProgress = false;
 			if (!newCommentInfos.length) {
-				throw new Error('There are no commenting ranges at the current position.');
+				throw new Error(`There are no commenting ranges at the current position (${range ? 'with range' : 'without range'}).`);
 			}
 			return Promise.resolve();
 		}

@@ -23,6 +23,7 @@ import { ContentHoverWidget } from 'vs/editor/contrib/hover/browser/contentHover
 import { ContentHoverComputer } from 'vs/editor/contrib/hover/browser/contentHoverComputer';
 import { ContentHoverVisibleData, HoverResult } from 'vs/editor/contrib/hover/browser/contentHoverTypes';
 import { EditorHoverStatusBar } from 'vs/editor/contrib/hover/browser/contentHoverStatusBar';
+import { Emitter } from 'vs/base/common/event';
 
 export class ContentHoverController extends Disposable implements IHoverWidget {
 
@@ -34,6 +35,9 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 	// TODO@aiday-mar make array of participants, dispatch between them
 	private readonly _markdownHoverParticipant: MarkdownHoverParticipant | undefined;
 	private readonly _hoverOperation: HoverOperation<IHoverPart>;
+
+	private readonly _onContentsChanged = this._register(new Emitter<void>());
+	public readonly onContentsChanged = this._onContentsChanged.event;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -214,7 +218,7 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 			fragment,
 			statusBar,
 			setColorPicker: (widget) => colorPicker = widget,
-			onContentsChanged: () => this._widget.onContentsChanged(),
+			onContentsChanged: () => this._doOnContentsChanged(),
 			setMinimumDimensions: (dimensions: dom.Dimension) => this._widget.setMinimumDimensions(dimensions),
 			hide: () => this.hide()
 		};
@@ -259,6 +263,11 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		} else {
 			disposables.dispose();
 		}
+	}
+
+	private _doOnContentsChanged(): void {
+		this._onContentsChanged.fire();
+		this._widget.onContentsChanged();
 	}
 
 	private static readonly _DECORATION_OPTIONS = ModelDecorationOptions.register({
@@ -351,8 +360,20 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		this._startShowingOrUpdateHover(new HoverRangeAnchor(0, range, undefined, undefined), mode, source, focus, null);
 	}
 
-	public async updateFocusedMarkdownHoverVerbosityLevel(action: HoverVerbosityAction): Promise<void> {
-		this._markdownHoverParticipant?.updateFocusedMarkdownHoverPartVerbosityLevel(action);
+	public async updateMarkdownHoverVerbosityLevel(action: HoverVerbosityAction, index?: number, focus?: boolean): Promise<void> {
+		this._markdownHoverParticipant?.updateMarkdownHoverVerbosityLevel(action, index, focus);
+	}
+
+	public focusedMarkdownHoverIndex(): number {
+		return this._markdownHoverParticipant?.focusedMarkdownHoverIndex() ?? -1;
+	}
+
+	public markdownHoverContentAtIndex(index: number): string {
+		return this._markdownHoverParticipant?.markdownHoverContentAtIndex(index) ?? '';
+	}
+
+	public doesMarkdownHoverAtIndexSupportVerbosityAction(index: number, action: HoverVerbosityAction): boolean {
+		return this._markdownHoverParticipant?.doesMarkdownHoverAtIndexSupportVerbosityAction(index, action) ?? false;
 	}
 
 	public getWidgetContent(): string | undefined {

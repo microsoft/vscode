@@ -39,7 +39,7 @@ class SlashCommandCompletions extends Disposable {
 			triggerCharacters: ['/'],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
-				if (!widget || !widget.viewModel || widget.location !== ChatAgentLocation.Panel /* TODO@jrieken - enable when agents are adopted*/) {
+				if (!widget || !widget.viewModel || (widget.location !== ChatAgentLocation.Panel && widget.location !== ChatAgentLocation.Notebook) /* TODO@jrieken - enable when agents are adopted*/) {
 					return null;
 				}
 
@@ -95,7 +95,7 @@ class AgentCompletions extends Disposable {
 			triggerCharacters: ['@'],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
-				if (!widget || !widget.viewModel || widget.location !== ChatAgentLocation.Panel /* TODO@jrieken - enable when agents are adopted*/) {
+				if (!widget || !widget.viewModel || (widget.location !== ChatAgentLocation.Panel && widget.location !== ChatAgentLocation.Notebook) /* TODO@jrieken - enable when agents are adopted*/) {
 					return null;
 				}
 
@@ -203,6 +203,16 @@ class AgentCompletions extends Disposable {
 				const agents = this.chatAgentService.getAgents()
 					.filter(a => a.locations.includes(widget.location));
 
+				// When the input is only `/`, items are sorted by sortText.
+				// When typing, filterText is used to score and sort.
+				// The same list is refiltered/ranked while typing.
+				const getFilterText = (agent: IChatAgentData, command: string) => {
+					// This is hacking the filter algorithm to make @terminal /explain match worse than @workspace /explain by making its match index later in the string.
+					// When I type `/exp`, the workspace one should be sorted over the terminal one.
+					const dummyPrefix = agent.id === 'github.copilot.terminal' ? `0000` : ``;
+					return `${chatSubcommandLeader}${dummyPrefix}${agent.name}.${command}`;
+				};
+
 				const justAgents: CompletionItem[] = agents
 					.filter(a => !a.isDefault)
 					.map(agent => {
@@ -218,7 +228,7 @@ class AgentCompletions extends Disposable {
 							insertText: `${agentLabel} `,
 							range: new Range(1, 1, 1, 1),
 							kind: CompletionItemKind.Text,
-							sortText: `${chatSubcommandLeader}${agent.id}`,
+							sortText: `${chatSubcommandLeader}${agent.name}`,
 							command: { id: AssignSelectedAgentAction.ID, title: AssignSelectedAgentAction.ID, arguments: [{ agent, widget } satisfies AssignSelectedAgentActionArgs] },
 						};
 					});
@@ -230,13 +240,13 @@ class AgentCompletions extends Disposable {
 							const withSlash = `${chatSubcommandLeader}${c.name}`;
 							return {
 								label: { label: withSlash, description: agentLabel, detail: isDupe ? ` (${agent.publisherDisplayName})` : undefined },
-								filterText: `${chatSubcommandLeader}${agent.name}${c.name}`,
+								filterText: getFilterText(agent, c.name),
 								commitCharacters: [' '],
 								insertText: `${agentLabel} ${withSlash} `,
 								detail: `(${agentLabel}) ${c.description ?? ''}`,
 								range: new Range(1, 1, 1, 1),
 								kind: CompletionItemKind.Text, // The icons are disabled here anyway
-								sortText: `${chatSubcommandLeader}${agent.id}${c.name}`,
+								sortText: `${chatSubcommandLeader}${agent.name}${c.name}`,
 								command: { id: AssignSelectedAgentAction.ID, title: AssignSelectedAgentAction.ID, arguments: [{ agent, widget } satisfies AssignSelectedAgentActionArgs] },
 							} satisfies CompletionItem;
 						})))
@@ -362,10 +372,14 @@ class VariableCompletions extends Disposable {
 					return null;
 				}
 
+				const usedAgent = widget.parsedInput.parts.find(p => p instanceof ChatRequestAgentPart);
+				const slowSupported = usedAgent ? usedAgent.agent.metadata.supportsSlowVariables : true;
+
 				const usedVariables = widget.parsedInput.parts.filter((p): p is ChatRequestVariablePart => p instanceof ChatRequestVariablePart);
 				const variableItems = Array.from(this.chatVariablesService.getVariables())
 					// This doesn't look at dynamic variables like `file`, where multiple makes sense.
 					.filter(v => !usedVariables.some(usedVar => usedVar.variableName === v.name))
+					.filter(v => !v.isSlow || slowSupported)
 					.map((v): CompletionItem => {
 						const withLeader = `${chatVariableLeader}${v.name}`;
 						return {
@@ -389,7 +403,7 @@ class VariableCompletions extends Disposable {
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(VariableCompletions, LifecyclePhase.Eventually);
 
 function getAgentCompletionDetails(agent: IChatAgentData, otherAgents: IChatAgentData[], chatAgentNameService: IChatAgentNameService): { label: string; isDupe: boolean } {
-	const isAllowed = chatAgentNameService.getAgentNameRestriction(agent).get();
+	const isAllowed = chatAgentNameService.getAgentNameRestriction(agent);
 	const agentLabel = `${chatAgentLeader}${isAllowed ? agent.name : getFullyQualifiedId(agent)}`;
 	const isDupe = isAllowed && !!otherAgents.find(other => other.name === agent.name && other.id !== agent.id);
 

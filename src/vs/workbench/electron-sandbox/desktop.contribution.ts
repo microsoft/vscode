@@ -172,15 +172,15 @@ import { MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL } from 'vs/platform/window/electron-sand
 				'type': 'string',
 				'enum': ['preserve', 'all', 'folders', 'one', 'none'],
 				'enumDescriptions': [
-					localize('window.reopenFolders.preserve', "Always reopen all windows. If a folder or workspace is opened (e.g. from the command line) it opens as a new window unless it was opened before. If files are opened they will open in one of the restored windows."),
-					localize('window.reopenFolders.all', "Reopen all windows unless a folder, workspace or file is opened (e.g. from the command line)."),
-					localize('window.reopenFolders.folders', "Reopen all windows that had folders or workspaces opened unless a folder, workspace or file is opened (e.g. from the command line)."),
-					localize('window.reopenFolders.one', "Reopen the last active window unless a folder, workspace or file is opened (e.g. from the command line)."),
+					localize('window.reopenFolders.preserve', "Always reopen all windows. If a folder or workspace is opened (e.g. from the command line) it opens as a new window unless it was opened before. If files are opened they will open in one of the restored windows together with editors that were previously opened."),
+					localize('window.reopenFolders.all', "Reopen all windows unless a folder, workspace or file is opened (e.g. from the command line). If a file is opened, it will replace any of the editors that were previously opened in a window."),
+					localize('window.reopenFolders.folders', "Reopen all windows that had folders or workspaces opened unless a folder, workspace or file is opened (e.g. from the command line). If a file is opened, it will replace any of the editors that were previously opened in a window."),
+					localize('window.reopenFolders.one', "Reopen the last active window unless a folder, workspace or file is opened (e.g. from the command line). If a file is opened, it will replace any of the editors that were previously opened in a window."),
 					localize('window.reopenFolders.none', "Never reopen a window. Unless a folder or workspace is opened (e.g. from the command line), an empty window will appear.")
 				],
 				'default': 'all',
 				'scope': ConfigurationScope.APPLICATION,
-				'description': localize('restoreWindows', "Controls how windows are being reopened after starting for the first time. This setting has no effect when the application is already running.")
+				'description': localize('restoreWindows', "Controls how windows and editors within are being restored when opening.")
 			},
 			'window.restoreFullscreen': {
 				'type': 'boolean',
