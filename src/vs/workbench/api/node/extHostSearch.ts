@@ -7,7 +7,7 @@ import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifec
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration.js';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
