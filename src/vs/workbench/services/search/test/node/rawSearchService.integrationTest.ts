@@ -31,6 +31,8 @@ const stats: ISearchEngineStats = {
 	filesWalked: 3
 };
 
+const numThreads = undefined;
+
 class TestSearchEngine implements ISearchEngine<IRawFileMatch> {
 
 	static last: TestSearchEngine;
@@ -109,7 +111,7 @@ flakySuite('RawSearchService', () => {
 			}
 		};
 
-		await service.doFileSearchWithEngine(Engine, rawSearch, cb, null!, 0);
+		await service.doFileSearchWithEngine(Engine, rawSearch, numThreads, cb, null!, 0);
 		return assert.strictEqual(results, 5);
 	});
 
@@ -133,7 +135,7 @@ flakySuite('RawSearchService', () => {
 			}
 		};
 
-		await service.doFileSearchWithEngine(Engine, rawSearch, cb, undefined, 10);
+		await service.doFileSearchWithEngine(Engine, rawSearch, numThreads, cb, undefined, 10);
 		assert.deepStrictEqual(results, [10, 10, 5]);
 	});
 
@@ -148,7 +150,7 @@ flakySuite('RawSearchService', () => {
 
 			const emitter = new Emitter<ISerializedSearchProgressItem | ISerializedSearchComplete>({
 				onWillAddFirstListener: () => {
-					promise = createCancelablePromise(token => service.doFileSearchWithEngine(Engine, config, p => emitter.fire(p), token, batchSize)
+					promise = createCancelablePromise(token => service.doFileSearchWithEngine(Engine, config, numThreads, p => emitter.fire(p), token, batchSize)
 						.then(c => emitter.fire(c), err => emitter.fire({ type: 'error', error: err })));
 				},
 				onDidRemoveLastListener: () => {
@@ -249,7 +251,7 @@ flakySuite('RawSearchService', () => {
 			filePattern: 'bb',
 			sortByScore: true,
 			maxResults: 2
-		}, cb, undefined, 1);
+		}, numThreads, cb, undefined, 1);
 		assert.notStrictEqual(typeof TestSearchEngine.last.config!.maxResults, 'number');
 		assert.deepStrictEqual(results, [path.normalize('/some/where/bbc'), path.normalize('/some/where/bab')]);
 	});
@@ -279,7 +281,7 @@ flakySuite('RawSearchService', () => {
 			filePattern: 'a',
 			sortByScore: true,
 			maxResults: 23
-		}, cb, undefined, 10);
+		}, numThreads, cb, undefined, 10);
 		assert.deepStrictEqual(results, [10, 10, 3]);
 	});
 
@@ -312,7 +314,7 @@ flakySuite('RawSearchService', () => {
 			filePattern: 'b',
 			sortByScore: true,
 			cacheKey: 'x'
-		}, cb, undefined, -1).then(complete => {
+		}, numThreads, cb, undefined, -1).then(complete => {
 			assert.strictEqual((<IFileSearchStats>complete.stats).fromCache, false);
 			assert.deepStrictEqual(results, [path.normalize('/some/where/bcb'), path.normalize('/some/where/bbc'), path.normalize('/some/where/aab')]);
 		}).then(async () => {
@@ -331,7 +333,7 @@ flakySuite('RawSearchService', () => {
 					filePattern: 'bc',
 					sortByScore: true,
 					cacheKey: 'x'
-				}, cb, undefined, -1);
+				}, numThreads, cb, undefined, -1);
 				assert.ok((<IFileSearchStats>complete.stats).fromCache);
 				assert.deepStrictEqual(results, [path.normalize('/some/where/bcb'), path.normalize('/some/where/bbc')]);
 			}
@@ -361,7 +363,7 @@ flakySuite('RawSearchService', () => {
 				filePattern: 'bc',
 				sortByScore: true,
 				cacheKey: 'x'
-			}, cb, undefined, -1);
+			}, numThreads, cb, undefined, -1);
 			assert.strictEqual((<IFileSearchStats>complete.stats).fromCache, false);
 			assert.deepStrictEqual(results, [path.normalize('/some/where/bc')]);
 		});
