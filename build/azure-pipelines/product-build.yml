@@ -181,9 +181,6 @@ extends:
           notificationAliases: ['monacotools@microsoft.com']
           validateToolOutput: None
           allTools: true
-      binskim:
-        analyzeTargetGlob: '$(agent.builddirectory)/scanbin/**.dll;$(agent.builddirectory)/scanbin/**.exe;$(agent.builddirectory)/scanbin/**.node'
-        symbolsPath: '$(agent.builddirectory)/scanbin/VSCode-win32-x64/pdb'
       codeql:
         compiled:
           enabled: true
