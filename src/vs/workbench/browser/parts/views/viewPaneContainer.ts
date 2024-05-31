@@ -1100,6 +1100,10 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		if (!(this.options.mergeViewWithContainerWhenSingleView && this.paneItems.length === 1)) {
 			return false;
 		}
+		if (this.paneItems[0].pane.titleDescription) {
+			// Don't merge a view with a titleDescription. See #166000
+			return false;
+		}
 		if (!this.areExtensionsReady) {
 			if (this.visibleViewsCountFromCache === undefined) {
 				return this.paneItems[0].pane.isExpanded();
