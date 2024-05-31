@@ -210,15 +210,9 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		});
 	}
 
-	// --- should be treated more generally
-	public markdownHoverContentAtIndex(index: number): string {
-		return this._renderedHoverParts?.markdownHoverContentAtIndex(index) ?? '';
-	}
-
 	public focusedMarkdownHoverIndex(): number {
 		return this._renderedHoverParts?.focusedMarkdownHoverIndex() ?? 1;
 	}
-	// --- should be treated more generally
 
 	public doesMarkdownHoverAtIndexSupportVerbosityAction(index: number, action: HoverVerbosityAction): boolean {
 		return this._renderedHoverParts?.doesMarkdownHoverAtIndexSupportVerbosityAction(index, action) ?? false;

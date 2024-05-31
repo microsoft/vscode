@@ -29,7 +29,7 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 
 	private _formattedContent: string[] = [];
 	private _currentResult: HoverResult | null = null;
-	private _focusedGeneralHoverIndex: number = -1;
+	private _focusedHoverPartIndex: number = -1;
 
 	private readonly _computer: ContentHoverComputer;
 	private readonly _widget: ContentHoverWidget;
@@ -234,7 +234,6 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 				disposableStore.add(disposables);
 				this._formattedContent.push(...participant.getFormattedContent(hoverParts));
 				renderedElements.push(...elements);
-
 			}
 		}
 
@@ -247,17 +246,15 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 			renderedElements.push(statusBarElement);
 		}
 
-		console.log('this._formattedContent : ', this._formattedContent);
-
 		renderedElements.map((element, index) => {
 			element.tabIndex = 0;
 			this._register(dom.addDisposableListener(element, dom.EventType.FOCUS_IN, (event: Event) => {
 				event.stopPropagation();
-				this._focusedGeneralHoverIndex = index;
+				this._focusedHoverPartIndex = index;
 			}));
 			this._register(dom.addDisposableListener(element, dom.EventType.FOCUS_OUT, (event: Event) => {
 				event.stopPropagation();
-				this._focusedGeneralHoverIndex = -1;
+				this._focusedHoverPartIndex = -1;
 			}));
 		});
 
@@ -385,20 +382,16 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		this._startShowingOrUpdateHover(new HoverRangeAnchor(0, range, undefined, undefined), mode, source, focus, null);
 	}
 
+	public async updateMarkdownHoverVerbosityLevel(action: HoverVerbosityAction, index?: number, focus?: boolean): Promise<void> {
+		this._markdownHoverParticipant?.updateMarkdownHoverVerbosityLevel(action, index, focus);
+	}
+
 	public focusedMarkdownHoverIndex(): number {
 		return this._markdownHoverParticipant?.focusedMarkdownHoverIndex() ?? -1;
 	}
 
-	public focusedGeneralHoverIndex(): number {
-		return this._focusedGeneralHoverIndex;
-	}
-
-	public markdownHoverContentAtIndex(index: number): string {
-		return this._markdownHoverParticipant?.markdownHoverContentAtIndex(index) ?? '';
-	}
-
-	public async updateMarkdownHoverVerbosityLevel(action: HoverVerbosityAction, index?: number, focus?: boolean): Promise<void> {
-		this._markdownHoverParticipant?.updateMarkdownHoverVerbosityLevel(action, index, focus);
+	public focusedHoverPartIndex(): number {
+		return this._focusedHoverPartIndex;
 	}
 
 	public doesMarkdownHoverAtIndexSupportVerbosityAction(index: number, action: HoverVerbosityAction): boolean {

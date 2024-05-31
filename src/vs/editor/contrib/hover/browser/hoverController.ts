@@ -422,11 +422,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 	}
 
 	public focusedGeneralHoverIndex(): number {
-		return this._getOrCreateContentWidget().focusedGeneralHoverIndex();
-	}
-
-	public markdownHoverContentAtIndex(index: number): string {
-		return this._getOrCreateContentWidget().markdownHoverContentAtIndex(index);
+		return this._getOrCreateContentWidget().focusedHoverPartIndex();
 	}
 
 	public doesMarkdownHoverAtIndexSupportVerbosityAction(index: number, action: HoverVerbosityAction): boolean {
