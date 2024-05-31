@@ -65,7 +65,6 @@ interface ICommonQueryBuilderOptions {
 	disregardSearchExcludeSettings?: boolean;
 	ignoreSymlinks?: boolean;
 	onlyOpenEditors?: boolean;
-	threads?: number;
 }
 
 export interface IFileQueryBuilderOptions extends ICommonQueryBuilderOptions {
@@ -121,6 +120,7 @@ export class QueryBuilder {
 			beforeContext: options.beforeContext,
 			afterContext: options.afterContext,
 			userDisabledExcludesAndIgnoreFiles: options.disregardExcludeSettings && options.disregardIgnoreFiles,
+
 		};
 	}
 
@@ -207,7 +207,6 @@ export class QueryBuilder {
 	private commonQuery(folderResources: (IWorkspaceFolderData | URI)[] = [], options: ICommonQueryBuilderOptions = {}): ICommonQueryProps<uri> {
 		const includeSearchPathsInfo: ISearchPathsInfo = this.handleIncludeExclude(options.includePattern, options.expandPatterns);
 		const excludeSearchPathsInfo: ISearchPathsInfo = this.handleIncludeExclude(options.excludePattern, options.expandPatterns);
-		const searchConfig = this.configurationService.getValue<ISearchConfiguration>();
 
 		// Build folderQueries from searchPaths, if given, otherwise folderResources
 		const includeFolderName = folderResources.length > 1;
@@ -225,8 +224,7 @@ export class QueryBuilder {
 			excludePattern: excludeSearchPathsInfo.pattern,
 			includePattern: includeSearchPathsInfo.pattern,
 			onlyOpenEditors: options.onlyOpenEditors,
-			maxResults: options.maxResults,
-			threads: searchConfig.search.threads,
+			maxResults: options.maxResults
 		};
 
 		if (options.onlyOpenEditors) {
