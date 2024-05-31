@@ -193,6 +193,7 @@ class TerminalInitialHintWidget extends Disposable {
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
+		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
@@ -219,7 +220,11 @@ class TerminalInitialHintWidget extends Disposable {
 	}
 
 	private _getHintInlineChat(agents: IChatAgent[]) {
-		const providerName = (agents.length === 1 ? agents[0].fullName : undefined) ?? this.productService.nameShort;
+		let providerName = (agents.length === 1 ? agents[0].fullName : undefined) ?? this.productService.nameShort;
+		const defaultAgent = this._chatAgentService.getDefaultAgent(ChatAgentLocation.Panel);
+		if (defaultAgent?.extensionId.value === agents[0].extensionId.value) {
+			providerName = defaultAgent.fullName ?? providerName;
+		}
 
 		let ariaLabel = `Ask ${providerName} something or start typing to dismiss.`;
 
