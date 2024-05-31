@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { equals } from 'vs/base/common/arrays';
-import { raceCancellation, timeout } from 'vs/base/common/async';
+import { DeferredPromise, raceCancellation, timeout } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { mock } from 'vs/base/test/common/mock';
@@ -103,7 +103,7 @@ suite('InteractiveChatController', function () {
 
 				setTimeout(() => {
 					d.dispose();
-					resolve(`EXPECTED: ${states.join('>')}, \nACTUAL  : ${actual.join('>')}`);
+					resolve(`[${states.join(',')}] <> [${actual.join(',')}]`);
 				}, 1000);
 			});
 		}
@@ -724,5 +724,50 @@ suite('InteractiveChatController', function () {
 
 		assert.deepStrictEqual(commandDetection, [true, false]);
 		assert.strictEqual(model.getValue(), 'Hello-1');
+	});
+
+
+	test('Inline: Pressing Rerun request while the response streams breaks the response #5442', async function () {
+
+		model.setValue('two\none\n');
+
+		const attempts: (number | undefined)[] = [];
+
+		const deferred = new DeferredPromise<void>();
+
+		store.add(chatAgentService.registerDynamicAgent({
+			id: 'testEditorAgent2',
+			...agentData
+		}, {
+			async invoke(request, progress, history, token) {
+
+				attempts.push(request.attempt);
+
+				progress({ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(1, 1, 1, 1), text: `TRY:${request.attempt}\n` }] });
+				await raceCancellation(deferred.p, token);
+				deferred.complete();
+				await timeout(10);
+				return {};
+			},
+		}));
+
+		ctrl = instaService.createInstance(TestController, editor);
+
+		// REQUEST 1
+		const p = ctrl.awaitStates([...TestController.INIT_SEQUENCE, State.SHOW_REQUEST]);
+		ctrl.run({ message: 'Hello-', autoSend: true });
+		assert.strictEqual(await p, undefined);
+		assert.deepStrictEqual(attempts, [0]);
+
+		// RERUN (cancel, undo, redo)
+		const p2 = ctrl.awaitStates([State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
+		const rerun = new RerunAction();
+		await instaService.invokeFunction(rerun.runInlineChatCommand, ctrl, editor);
+		assert.strictEqual(await p2, undefined);
+
+		assert.deepStrictEqual(attempts, [0, 1]);
+
+		assert.strictEqual(model.getValue(), 'TRY:1\ntwo\none\n');
+
 	});
 });
