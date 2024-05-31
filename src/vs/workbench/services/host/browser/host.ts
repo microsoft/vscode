@@ -19,7 +19,6 @@ export interface IHostService {
 
 	readonly _serviceBrand: undefined;
 
-
 	//#region Focus
 
 	/**
@@ -55,7 +54,6 @@ export interface IHostService {
 	focus(targetWindow: Window, options?: { force: boolean }): Promise<void>;
 
 	//#endregion
-
 
 	//#region Window
 
@@ -126,7 +124,7 @@ export interface IHostService {
 
 	//#region File
 
-	getPathForFile(file: File): string;
+	getPathForFile(file: File): string | undefined;
 
 	//#endregion
 }

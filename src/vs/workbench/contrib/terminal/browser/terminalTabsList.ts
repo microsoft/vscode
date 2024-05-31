@@ -735,9 +735,9 @@ class TerminalTabsDragAndDrop extends Disposable implements IListDragAndDrop<ITe
 			resource = URI.file(JSON.parse(rawCodeFiles)[0]);
 		}
 
-		if (!resource && e.dataTransfer.files.length > 0 && this._hostService.getPathForFile(e.dataTransfer.files[0]) /* Electron only */) {
+		if (!resource && e.dataTransfer.files.length > 0 && this._hostService.getPathForFile(e.dataTransfer.files[0])) {
 			// Check if the file was dragged from the filesystem
-			resource = URI.file(this._hostService.getPathForFile(e.dataTransfer.files[0]));
+			resource = URI.file(this._hostService.getPathForFile(e.dataTransfer.files[0])!);
 		}
 
 		if (!resource) {

@@ -67,7 +67,6 @@ class WorkbenchHostService extends Disposable implements IHostService {
 
 	//#endregion
 
-
 	//#region Window
 
 	@memoize
@@ -159,10 +158,7 @@ class WorkbenchHostService extends Disposable implements IHostService {
 		return this.nativeHostService.getCursorScreenPoint();
 	}
 
-
-
 	//#endregion
-
 
 	//#region Lifecycle
 
@@ -193,8 +189,8 @@ class WorkbenchHostService extends Disposable implements IHostService {
 
 	//#region File
 
-	getPathForFile(file: File) {
-		return webUtils.getPathForFile(file)
+	getPathForFile(file: File): string {
+		return webUtils.getPathForFile(file);
 	}
 
 	//#endregion

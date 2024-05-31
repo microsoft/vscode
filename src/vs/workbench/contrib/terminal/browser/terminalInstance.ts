@@ -88,11 +88,11 @@ import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/commo
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { shouldPasteTerminalText } from 'vs/workbench/contrib/terminal/common/terminalClipboard';
 import { TerminalIconPicker } from 'vs/workbench/contrib/terminal/browser/terminalIconPicker';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 // HACK: This file should not depend on terminalContrib
 // eslint-disable-next-line local/code-import-patterns
 import { TerminalAccessibilityCommandId } from 'vs/workbench/contrib/terminalContrib/accessibility/common/terminal.accessibility';
-import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 const enum Constants {
 	/**
@@ -2374,9 +2374,9 @@ class TerminalInstanceDragAndDropController extends Disposable implements dom.ID
 			path = URI.file(JSON.parse(rawCodeFiles)[0]);
 		}
 
-		if (!path && e.dataTransfer.files.length > 0 && this._hostService.getPathForFile(e.dataTransfer.files[0]) /* Electron only */) {
+		if (!path && e.dataTransfer.files.length > 0 && this._hostService.getPathForFile(e.dataTransfer.files[0])) {
 			// Check if the file was dragged from the filesystem
-			path = URI.file(this._hostService.getPathForFile(e.dataTransfer.files[0]));
+			path = URI.file(this._hostService.getPathForFile(e.dataTransfer.files[0])!);
 		}
 
 		if (!path) {

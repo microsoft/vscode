@@ -579,9 +579,9 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 	//#region File
 
-	getPathForFile() {
-		return ''
-	};
+	getPathForFile(): undefined {
+		return undefined; // unsupported in browser environments
+	}
 
 	//#endregion
 }

@@ -241,11 +241,12 @@
 		 * Support for subset of Electron's `webUtils` type.
 		 */
 		webUtils: {
+
 			/**
 			 * @param {File} file
 			 */
 			getPathForFile(file) {
-				return webUtils.getPathForFile(file)
+				return webUtils.getPathForFile(file);
 			}
 		},
 
