@@ -523,7 +523,7 @@ export class SearchWidget extends Widget {
 			}
 		}));
 
-		this.replaceInput.onKeyDown((keyboardEvent) => this.onReplaceInputKeyDown(keyboardEvent));
+		this._register(this.replaceInput.onKeyDown((keyboardEvent) => this.onReplaceInputKeyDown(keyboardEvent)));
 		this.replaceInput.setValue(options.replaceValue || '');
 		this._register(this.replaceInput.inputBox.onDidChange(() => this._onReplaceValueChanged.fire()));
 		this._register(this.replaceInput.inputBox.onDidHeightChange(() => this._onDidHeightChange.fire()));
