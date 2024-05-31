@@ -79,8 +79,9 @@ export interface WorkspaceStats {
 	configFiles: WorkspaceStatItem[];
 	fileCount: number;
 	maxFilesReached: boolean;
-	totalScanTime: number;
 	launchConfigFiles: WorkspaceStatItem[];
+	totalScanTime: number;
+	totalReaddirCount: number;
 }
 
 export interface PerformanceInfo {
