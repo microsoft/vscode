@@ -7,7 +7,7 @@ import { URI } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
 import { TextEdit } from 'vs/editor/common/languages';
 import { IIdentifiedSingleEditOperation, IModelDecorationOptions, IModelDeltaDecoration, ITextModel, IValidEditOperation, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { EditMode, IInlineChatSession, CTX_INLINE_CHAT_HAS_STASHED_SESSION } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { EditMode, CTX_INLINE_CHAT_HAS_STASHED_SESSION } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -159,7 +159,6 @@ export class Session {
 		 */
 		readonly textModelN: ITextModel,
 		readonly agent: IChatAgent,
-		readonly session: IInlineChatSession,
 		readonly wholeRange: SessionWholeRange,
 		readonly hunkData: HunkData,
 		readonly chatModel: ChatModel,
@@ -256,7 +255,7 @@ export class Session {
 
 	asRecording(): Recording {
 		const result: Recording = {
-			session: this.session,
+			session: this.chatModel.sessionId,
 			when: this._startTime,
 			exchanges: []
 		};

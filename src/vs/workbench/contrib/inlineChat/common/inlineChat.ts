@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRange } from 'vs/editor/common/core/range';
 import { localize } from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
@@ -11,16 +10,7 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { diffInserted, diffRemoved, editorHoverHighlight, editorWidgetBackground, editorWidgetBorder, focusBorder, inputBackground, inputPlaceholderForeground, registerColor, transparent, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { Extensions as ExtensionsMigration, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
-import { IChatAgentCommand } from 'vs/workbench/contrib/chat/common/chatAgents';
 
-export interface IInlineChatSession {
-	id: number;
-	placeholder?: string;
-	input?: string;
-	message?: string;
-	slashCommands?: IChatAgentCommand[];
-	wholeRange?: IRange;
-}
 
 export const enum InlineChatResponseTypes {
 	Empty = 'empty',
