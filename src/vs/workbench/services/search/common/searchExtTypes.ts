@@ -220,11 +220,6 @@ export interface TextSearchOptions extends SearchOptions {
 	 * Number of lines of context to include after each match.
 	 */
 	afterContext?: number;
-
-	/**
-	 * Number of threads to use for searching.
-	 */
-	threads?: number;
 }
 /**
  * Options that apply to AI text search.

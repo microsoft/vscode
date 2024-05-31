@@ -85,11 +85,11 @@ export class SearchService implements IRawSearchService {
 		};
 	}
 
-	doFileSearch(config: IFileQuery, progressCallback: IProgressCallback, token?: CancellationToken): Promise<ISerializedSearchSuccess> {
-		return this.doFileSearchWithEngine(FileSearchEngine, config, progressCallback, token);
+	doFileSearch(config: IFileQuery, threads: number | undefined, progressCallback: IProgressCallback, token?: CancellationToken): Promise<ISerializedSearchSuccess> {
+		return this.doFileSearchWithEngine(FileSearchEngine, config, threads, progressCallback, token);
 	}
 
-	doFileSearchWithEngine(EngineClass: { new(config: IFileQuery): ISearchEngine<IRawFileMatch> }, config: IFileQuery, progressCallback: IProgressCallback, token?: CancellationToken, batchSize = SearchService.BATCH_SIZE): Promise<ISerializedSearchSuccess> {
+	doFileSearchWithEngine(EngineClass: { new(config: IFileQuery, threads: number | undefined): ISearchEngine<IRawFileMatch> }, config: IFileQuery, threads: number | undefined, progressCallback: IProgressCallback, token?: CancellationToken, batchSize = SearchService.BATCH_SIZE): Promise<ISerializedSearchSuccess> {
 		let resultCount = 0;
 		const fileProgressCallback: IFileProgressCallback = progress => {
 			if (Array.isArray(progress)) {
@@ -107,7 +107,7 @@ export class SearchService implements IRawSearchService {
 			let sortedSearch = this.trySortedSearchFromCache(config, fileProgressCallback, token);
 			if (!sortedSearch) {
 				const walkerConfig = config.maxResults ? Object.assign({}, config, { maxResults: null }) : config;
-				const engine = new EngineClass(walkerConfig);
+				const engine = new EngineClass(walkerConfig, threads);
 				sortedSearch = this.doSortedSearch(engine, config, progressCallback, fileProgressCallback, token);
 			}
 

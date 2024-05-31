@@ -7,6 +7,7 @@ import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifec
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration.js';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
@@ -28,6 +29,7 @@ export class NativeExtHostSearch extends ExtHostSearch implements IDisposable {
 	private _internalFileSearchProvider: SearchService | null = null;
 
 	private _registeredEHSearchProvider = false;
+	private _numThreads: number | undefined = undefined;
 
 	private readonly _disposables = new DisposableStore();
 
@@ -35,12 +37,14 @@ export class NativeExtHostSearch extends ExtHostSearch implements IDisposable {
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
 		@IExtHostInitDataService initData: IExtHostInitDataService,
 		@IURITransformerService _uriTransformer: IURITransformerService,
+		@IConfigurationService _configurationService: IConfigurationService,
 		@ILogService _logService: ILogService,
 	) {
 		super(extHostRpc, _uriTransformer, _logService);
 
 		const outputChannel = new OutputChannel('RipgrepSearchUD', this._logService);
-		this._disposables.add(this.registerTextSearchProvider(Schemas.vscodeUserData, new RipgrepSearchProvider(outputChannel)));
+		this._numThreads = _configurationService.getValue<number>('search.ripgrep.numThreads');
+		this._disposables.add(this.registerTextSearchProvider(Schemas.vscodeUserData, new RipgrepSearchProvider(outputChannel, this._numThreads)));
 		if (initData.remote.isRemote && initData.remote.authority) {
 			this._registerEHSearchProviders();
 		}
@@ -61,7 +65,7 @@ export class NativeExtHostSearch extends ExtHostSearch implements IDisposable {
 
 		this._registeredEHSearchProvider = true;
 		const outputChannel = new OutputChannel('RipgrepSearchEH', this._logService);
-		this._disposables.add(this.registerTextSearchProvider(Schemas.file, new RipgrepSearchProvider(outputChannel)));
+		this._disposables.add(this.registerTextSearchProvider(Schemas.file, new RipgrepSearchProvider(outputChannel, this._numThreads)));
 		this._disposables.add(this.registerInternalFileSearchProvider(Schemas.file, new SearchService('fileSearchProvider')));
 	}
 
@@ -110,7 +114,7 @@ export class NativeExtHostSearch extends ExtHostSearch implements IDisposable {
 			throw new Error('No internal file search handler');
 		}
 
-		return <Promise<ISearchCompleteStats>>this._internalFileSearchProvider.doFileSearch(rawQuery, onResult, token);
+		return <Promise<ISearchCompleteStats>>this._internalFileSearchProvider.doFileSearch(rawQuery, this._numThreads, onResult, token);
 	}
 
 	private async doInternalFileSearch(handle: number, session: number, rawQuery: IFileQuery, token: vscode.CancellationToken): Promise<ISearchCompleteStats> {
