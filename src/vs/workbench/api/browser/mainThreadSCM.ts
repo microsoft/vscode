@@ -441,7 +441,7 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 export class MainThreadSCM implements MainThreadSCMShape {
 
 	private readonly _proxy: ExtHostSCMShape;
-	private _repositories = new Map<number, ISCMRepository>();
+	private _repositories = new Map<number, Promise<ISCMRepository>>();
 	private _repositoryDisposables = new Map<number, IDisposable>();
 	private readonly _disposables = new DisposableStore();
 
@@ -461,8 +461,10 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		this._disposables.add(new SCMInputBoxContentProvider(this.textModelService, this.modelService, this.languageService));
 	}
 
-	dispose(): void {
-		dispose(this._repositories.values());
+	async dispose(): Promise<void> {
+		for (const repository of this._repositories.values()) {
+			(await repository).dispose();
+		}
 		this._repositories.clear();
 
 		dispose(this._repositoryDisposables.values());
@@ -471,43 +473,46 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		this._disposables.dispose();
 	}
 
-	async $registerSourceControl(handle: number, id: string, label: string, rootUri: UriComponents | undefined, inputBoxDocumentUri: UriComponents): Promise<void> {
-		// Eagerly create the text model for the input box
-		const inputBoxTextModelRef = await this.textModelService.createModelReference(URI.revive(inputBoxDocumentUri));
+	$registerSourceControl(handle: number, id: string, label: string, rootUri: UriComponents | undefined, inputBoxDocumentUri: UriComponents): void {
+		const createSCMRepository = async (): Promise<ISCMRepository> => {
+			const inputBoxTextModelRef = await this.textModelService.createModelReference(URI.revive(inputBoxDocumentUri));
+			const provider = new MainThreadSCMProvider(this._proxy, handle, id, label, rootUri ? URI.revive(rootUri) : undefined, inputBoxTextModelRef.object.textEditorModel, this.quickDiffService, this._uriIdentService, this.workspaceContextService);
+			const repository = this.scmService.registerSCMProvider(provider);
 
-		const provider = new MainThreadSCMProvider(this._proxy, handle, id, label, rootUri ? URI.revive(rootUri) : undefined, inputBoxTextModelRef.object.textEditorModel, this.quickDiffService, this._uriIdentService, this.workspaceContextService);
-		const repository = this.scmService.registerSCMProvider(provider);
-		this._repositories.set(handle, repository);
+			const disposable = combinedDisposable(
+				inputBoxTextModelRef,
+				Event.filter(this.scmViewService.onDidFocusRepository, r => r === repository)(_ => this._proxy.$setSelectedSourceControl(handle)),
+				repository.input.onDidChange(({ value }) => this._proxy.$onInputBoxValueChange(handle, value))
+			);
 
-		const disposable = combinedDisposable(
-			inputBoxTextModelRef,
-			Event.filter(this.scmViewService.onDidFocusRepository, r => r === repository)(_ => this._proxy.$setSelectedSourceControl(handle)),
-			repository.input.onDidChange(({ value }) => this._proxy.$onInputBoxValueChange(handle, value))
-		);
+			if (this.scmViewService.focusedRepository === repository) {
+				setTimeout(() => this._proxy.$setSelectedSourceControl(handle), 0);
+			}
 
-		if (this.scmViewService.focusedRepository === repository) {
-			setTimeout(() => this._proxy.$setSelectedSourceControl(handle), 0);
-		}
+			if (repository.input.value) {
+				setTimeout(() => this._proxy.$onInputBoxValueChange(handle, repository.input.value), 0);
+			}
 
-		if (repository.input.value) {
-			setTimeout(() => this._proxy.$onInputBoxValueChange(handle, repository.input.value), 0);
-		}
+			this._repositoryDisposables.set(handle, disposable);
 
-		this._repositoryDisposables.set(handle, disposable);
+			return repository;
+		};
+
+		this._repositories.set(handle, createSCMRepository());
 	}
 
-	$updateSourceControl(handle: number, features: SCMProviderFeatures): void {
+	async $updateSourceControl(handle: number, features: SCMProviderFeatures): Promise<void> {
 		const repository = this._repositories.get(handle);
 
 		if (!repository) {
 			return;
 		}
 
-		const provider = repository.provider as MainThreadSCMProvider;
+		const provider = (await repository).provider as MainThreadSCMProvider;
 		provider.$updateSourceControl(features);
 	}
 
-	$unregisterSourceControl(handle: number): void {
+	async $unregisterSourceControl(handle: number): Promise<void> {
 		const repository = this._repositories.get(handle);
 
 		if (!repository) {
@@ -517,116 +522,116 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		this._repositoryDisposables.get(handle)!.dispose();
 		this._repositoryDisposables.delete(handle);
 
-		repository.dispose();
+		(await repository).dispose();
 		this._repositories.delete(handle);
 	}
 
-	$registerGroups(sourceControlHandle: number, groups: [number /*handle*/, string /*id*/, string /*label*/, SCMGroupFeatures, /* multiDiffEditorEnableViewChanges */ boolean][], splices: SCMRawResourceSplices[]): void {
+	async $registerGroups(sourceControlHandle: number, groups: [number /*handle*/, string /*id*/, string /*label*/, SCMGroupFeatures, /* multiDiffEditorEnableViewChanges */ boolean][], splices: SCMRawResourceSplices[]): Promise<void> {
 		const repository = this._repositories.get(sourceControlHandle);
 
 		if (!repository) {
 			return;
 		}
 
-		const provider = repository.provider as MainThreadSCMProvider;
+		const provider = (await repository).provider as MainThreadSCMProvider;
 		provider.$registerGroups(groups);
 		provider.$spliceGroupResourceStates(splices);
 	}
 
-	$updateGroup(sourceControlHandle: number, groupHandle: number, features: SCMGroupFeatures): void {
+	async $updateGroup(sourceControlHandle: number, groupHandle: number, features: SCMGroupFeatures): Promise<void> {
 		const repository = this._repositories.get(sourceControlHandle);
 
 		if (!repository) {
 			return;
 		}
 
-		const provider = repository.provider as MainThreadSCMProvider;
+		const provider = (await repository).provider as MainThreadSCMProvider;
 		provider.$updateGroup(groupHandle, features);
 	}
 
-	$updateGroupLabel(sourceControlHandle: number, groupHandle: number, label: string): void {
+	async $updateGroupLabel(sourceControlHandle: number, groupHandle: number, label: string): Promise<void> {
 		const repository = this._repositories.get(sourceControlHandle);
 
 		if (!repository) {
 			return;
 		}
 
-		const provider = repository.provider as MainThreadSCMProvider;
+		const provider = (await repository).provider as MainThreadSCMProvider;
 		provider.$updateGroupLabel(groupHandle, label);
 	}
 
-	$spliceResourceStates(sourceControlHandle: number, splices: SCMRawResourceSplices[]): void {
+	async $spliceResourceStates(sourceControlHandle: number, splices: SCMRawResourceSplices[]): Promise<void> {
 		const repository = this._repositories.get(sourceControlHandle);
 
 		if (!repository) {
 			return;
 		}
 
-		const provider = repository.provider as MainThreadSCMProvider;
+		const provider = (await repository).provider as MainThreadSCMProvider;
 		provider.$spliceGroupResourceStates(splices);
 	}
 
-	$unregisterGroup(sourceControlHandle: number, handle: number): void {
+	async $unregisterGroup(sourceControlHandle: number, handle: number): Promise<void> {
 		const repository = this._repositories.get(sourceControlHandle);
 
 		if (!repository) {
 			return;
 		}
 
-		const provider = repository.provider as MainThreadSCMProvider;
+		const provider = (await repository).provider as MainThreadSCMProvider;
 		provider.$unregisterGroup(handle);
 	}
 
-	$setInputBoxValue(sourceControlHandle: number, value: string): void {
+	async $setInputBoxValue(sourceControlHandle: number, value: string): Promise<void> {
 		const repository = this._repositories.get(sourceControlHandle);
 
 		if (!repository) {
 			return;
 		}
 
-		repository.input.setValue(value, false);
+		(await repository).input.setValue(value, false);
 	}
 
-	$setInputBoxPlaceholder(sourceControlHandle: number, placeholder: string): void {
+	async $setInputBoxPlaceholder(sourceControlHandle: number, placeholder: string): Promise<void> {
 		const repository = this._repositories.get(sourceControlHandle);
 
 		if (!repository) {
 			return;
 		}
 
-		repository.input.placeholder = placeholder;
+		(await repository).input.placeholder = placeholder;
 	}
 
-	$setInputBoxEnablement(sourceControlHandle: number, enabled: boolean): void {
+	async $setInputBoxEnablement(sourceControlHandle: number, enabled: boolean): Promise<void> {
 		const repository = this._repositories.get(sourceControlHandle);
 
 		if (!repository) {
 			return;
 		}
 
-		repository.input.enabled = enabled;
+		(await repository).input.enabled = enabled;
 	}
 
-	$setInputBoxVisibility(sourceControlHandle: number, visible: boolean): void {
+	async $setInputBoxVisibility(sourceControlHandle: number, visible: boolean): Promise<void> {
 		const repository = this._repositories.get(sourceControlHandle);
 
 		if (!repository) {
 			return;
 		}
 
-		repository.input.visible = visible;
+		(await repository).input.visible = visible;
 	}
 
-	$showValidationMessage(sourceControlHandle: number, message: string | IMarkdownString, type: InputValidationType) {
+	async $showValidationMessage(sourceControlHandle: number, message: string | IMarkdownString, type: InputValidationType): Promise<void> {
 		const repository = this._repositories.get(sourceControlHandle);
 		if (!repository) {
 			return;
 		}
 
-		repository.input.showValidationMessage(message, type);
+		(await repository).input.showValidationMessage(message, type);
 	}
 
-	$setValidationProviderIsEnabled(sourceControlHandle: number, enabled: boolean): void {
+	async $setValidationProviderIsEnabled(sourceControlHandle: number, enabled: boolean): Promise<void> {
 		const repository = this._repositories.get(sourceControlHandle);
 
 		if (!repository) {
@@ -634,23 +639,23 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		}
 
 		if (enabled) {
-			repository.input.validateInput = async (value, pos): Promise<IInputValidation | undefined> => {
+			(await repository).input.validateInput = async (value, pos): Promise<IInputValidation | undefined> => {
 				const result = await this._proxy.$validateInput(sourceControlHandle, value, pos);
 				return result && { message: result[0], type: result[1] };
 			};
 		} else {
-			repository.input.validateInput = async () => undefined;
+			(await repository).input.validateInput = async () => undefined;
 		}
 	}
 
-	$onDidChangeHistoryProviderCurrentHistoryItemGroup(sourceControlHandle: number, historyItemGroup: SCMHistoryItemGroupDto | undefined): void {
+	async $onDidChangeHistoryProviderCurrentHistoryItemGroup(sourceControlHandle: number, historyItemGroup: SCMHistoryItemGroupDto | undefined): Promise<void> {
 		const repository = this._repositories.get(sourceControlHandle);
 
 		if (!repository) {
 			return;
 		}
 
-		const provider = repository.provider as MainThreadSCMProvider;
+		const provider = (await repository).provider as MainThreadSCMProvider;
 		provider.$onDidChangeHistoryProviderCurrentHistoryItemGroup(historyItemGroup);
 	}
 }
