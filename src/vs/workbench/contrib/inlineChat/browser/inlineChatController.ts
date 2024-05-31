@@ -384,10 +384,6 @@ export class InlineChatController implements IEditorContribution {
 		this._ui.value.content.setSession(this._session);
 		// this._ui.value.zone.widget.updateSlashCommands(this._session.session.slashCommands ?? []);
 		this._updatePlaceholder();
-		const message = this._session.session.message ?? localize('welcome.1', "AI-generated code may be incorrect");
-
-
-		this._ui.value.zone.widget.updateInfo(message);
 
 		this._showWidget(!this._session.chatModel.hasRequests);
 
@@ -470,7 +466,7 @@ export class InlineChatController implements IEditorContribution {
 				if (position.lineNumber !== 1) {
 					return undefined;
 				}
-				if (!this._session || !this._session.session.slashCommands) {
+				if (!this._session || !this._session.agent.slashCommands) {
 					return undefined;
 				}
 				const widget = this._chatWidgetService.getWidgetByInputUri(model.uri);
@@ -479,7 +475,7 @@ export class InlineChatController implements IEditorContribution {
 				}
 
 				const result: CompletionList = { suggestions: [], incomplete: false };
-				for (const command of this._session.session.slashCommands) {
+				for (const command of this._session.agent.slashCommands) {
 					const withSlash = `/${command.name}`;
 					result.suggestions.push({
 						label: { label: withSlash, description: command.description ?? '' },
@@ -496,7 +492,7 @@ export class InlineChatController implements IEditorContribution {
 		const updateSlashDecorations = (collection: IEditorDecorationsCollection, model: ITextModel) => {
 
 			const newDecorations: IModelDeltaDecoration[] = [];
-			for (const command of (this._session?.session.slashCommands ?? []).sort((a, b) => b.name.length - a.name.length)) {
+			for (const command of (this._session?.agent.slashCommands ?? []).sort((a, b) => b.name.length - a.name.length)) {
 				const withSlash = `/${command.name}`;
 				const firstLine = model.getLineContent(1);
 				if (firstLine.startsWith(withSlash)) {
@@ -977,7 +973,7 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	private _getPlaceholderText(): string {
-		return this._forcedPlaceholder ?? this._session?.session.placeholder ?? '';
+		return this._forcedPlaceholder ?? this._session?.agent.description ?? '';
 	}
 
 	// ---- controller API
