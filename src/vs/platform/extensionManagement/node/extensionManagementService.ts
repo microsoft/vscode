@@ -186,7 +186,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		return extensionsToInstall;
 	}
 
-	async updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>, profileLocation: URI = this.userDataProfilesService.defaultProfile.extensionsResource): Promise<ILocalExtension> {
+	async updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>, profileLocation: URI): Promise<ILocalExtension> {
 		this.logService.trace('ExtensionManagementService#updateMetadata', local.identifier.id);
 		if (metadata.isPreReleaseVersion) {
 			metadata.preRelease = true;
@@ -204,7 +204,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		}
 		local = await this.extensionsScanner.updateMetadata(local, metadata, profileLocation);
 		this.manifestCache.invalidate(profileLocation);
-		this._onDidUpdateExtensionMetadata.fire(local);
+		this._onDidUpdateExtensionMetadata.fire({ local, profileLocation });
 		return local;
 	}
 
