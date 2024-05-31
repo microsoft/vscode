@@ -16,7 +16,7 @@ import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { autorun, derived, observableFromEvent, observableValue } from 'vs/base/common/observable';
+import { autorun, derived, observableFromEvent } from 'vs/base/common/observable';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { isUriComponents, URI } from 'vs/base/common/uri';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, MouseTargetType, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
@@ -59,7 +59,6 @@ const TOGGLE_INLINE_COMMAND_ID = 'testing.toggleInlineCoverage';
 const BRANCH_MISS_INDICATOR_CHARS = 4;
 
 export class CodeCoverageDecorations extends Disposable implements IEditorContribution {
-	public static showInline = observableValue('inlineCoverage', false);
 	private static readonly fileCoverageDecorations = new WeakMap<FileCoverage, CoverageDetailsModel>();
 
 	private loadingCancellation?: CancellationTokenSource;
@@ -77,7 +76,7 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 	constructor(
 		private readonly editor: ICodeEditor,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ITestCoverageService coverage: ITestCoverageService,
+		@ITestCoverageService private readonly coverage: ITestCoverageService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ILogService private readonly log: ILogService,
 	) {
@@ -116,7 +115,7 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 		this._register(autorun(reader => {
 			const c = fileCoverage.read(reader);
 			if (c) {
-				this.apply(editor.getModel()!, c, CodeCoverageDecorations.showInline.read(reader));
+				this.apply(editor.getModel()!, c, coverage.showInline.read(reader));
 			} else {
 				this.clear();
 			}
@@ -146,7 +145,7 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 			const model = editor.getModel();
 			if (e.target.type === MouseTargetType.GUTTER_LINE_NUMBERS && model) {
 				this.hoverLineNumber(editor.getModel()!, e.target.position.lineNumber);
-			} else if (CodeCoverageDecorations.showInline.get() && e.target.type === MouseTargetType.CONTENT_TEXT && model) {
+			} else if (coverage.showInline.get() && e.target.type === MouseTargetType.CONTENT_TEXT && model) {
 				this.hoverInlineDecoration(model, e.target.position);
 			} else {
 				this.hoveredStore.clear();
@@ -214,7 +213,7 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 
 		const todo = [{ line: lineNumber, dir: 0 }];
 		const toEnable = new Set<string>();
-		if (!CodeCoverageDecorations.showInline.get()) {
+		if (!this.coverage.showInline.get()) {
 			for (let i = 0; i < todo.length && i < MAX_HOVERED_LINES; i++) {
 				const { line, dir } = todo[i];
 				let found = false;
@@ -556,6 +555,7 @@ class CoverageToolbarWidget extends Disposable implements IOverlayWidget {
 		@ITestService private readonly testService: ITestService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@ICommandService private readonly commandService: ICommandService,
+		@ITestCoverageService private readonly coverage: ITestCoverageService,
 		@IInstantiationService instaService: IInstantiationService,
 	) {
 		super();
@@ -579,7 +579,7 @@ class CoverageToolbarWidget extends Disposable implements IOverlayWidget {
 
 
 		this._register(autorun(reader => {
-			CodeCoverageDecorations.showInline.read(reader);
+			coverage.showInline.read(reader);
 			this.setActions();
 		}));
 
@@ -630,12 +630,12 @@ class CoverageToolbarWidget extends Disposable implements IOverlayWidget {
 
 		const toggleAction = new ActionWithIcon(
 			'toggleInline',
-			CodeCoverageDecorations.showInline.get()
+			this.coverage.showInline.get()
 				? localize('testing.hideInlineCoverage', 'Hide Inline Coverage')
 				: localize('testing.showInlineCoverage', 'Show Inline Coverage'),
 			testingCoverageReport,
 			undefined,
-			() => CodeCoverageDecorations.showInline.set(!CodeCoverageDecorations.showInline.get(), undefined),
+			() => this.coverage.showInline.set(!this.coverage.showInline.get(), undefined),
 		);
 
 		const kb = this.keybindingService.lookupKeybinding(TOGGLE_INLINE_COMMAND_ID);
@@ -728,11 +728,17 @@ registerAction2(class ToggleInlineCoverage extends Action2 {
 	constructor() {
 		super({
 			id: TOGGLE_INLINE_COMMAND_ID,
-			title: localize2('coverage.toggleInline', "Show Inline Coverage"),
+			// note: ideally this would be "show inline", but the command palette does
+			// not use the 'toggled' titles, so we need to make this generic.
+			title: localize2('coverage.toggleInline', "Toggle Inline Coverage"),
 			category: Categories.Test,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyI),
+			},
+			toggled: {
+				condition: TestingContextKeys.inlineCoverageEnabled,
+				title: localize('coverage.hideInline', "Hide Inline Coverage"),
 			},
 			icon: testingCoverageReport,
 			menu: [
@@ -742,8 +748,9 @@ registerAction2(class ToggleInlineCoverage extends Action2 {
 		});
 	}
 
-	public run() {
-		CodeCoverageDecorations.showInline.set(!CodeCoverageDecorations.showInline.get(), undefined);
+	public run(accessor: ServicesAccessor): void {
+		const coverage = accessor.get(ITestCoverageService);
+		coverage.showInline.set(!coverage.showInline.get(), undefined);
 	}
 });
 
