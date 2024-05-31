@@ -23,12 +23,13 @@ import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatAct
 import { IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatContextAttachments } from 'vs/workbench/contrib/chat/browser/contrib/chatContextAttachments';
 import { ChatAgentLocation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { CONTEXT_CHAT_LOCATION, CONTEXT_IN_CHAT_INPUT } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { CONTEXT_CHAT_LOCATION, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_QUICK_CHAT } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatRequestVariableEntry } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ChatRequestAgentPart } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { AnythingQuickAccessProvider } from 'vs/workbench/contrib/search/browser/anythingQuickAccess';
 import { ISymbolQuickPickItem, SymbolsQuickAccessProvider } from 'vs/workbench/contrib/search/browser/symbolsQuickAccess';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 export function registerChatContextActions() {
 	registerAction2(AttachContextAction);
@@ -93,12 +94,7 @@ class AttachContextAction extends Action2 {
 			},
 			menu: [
 				{
-					when: CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel),
-					id: MenuId.ChatExecuteSecondary,
-					group: 'group_1',
-				},
-				{
-					when: CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel),
+					when: ContextKeyExpr.and(CONTEXT_CHAT_LOCATION.isEqualTo(ChatAgentLocation.Panel), CONTEXT_IN_QUICK_CHAT.isEqualTo(false)),
 					id: MenuId.ChatExecute,
 					group: 'navigation',
 				},

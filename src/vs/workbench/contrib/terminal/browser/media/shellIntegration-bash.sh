@@ -168,7 +168,7 @@ builtin printf "\e]633;P;ContinuationPrompt=$(echo "$PS2" | sed 's/\x1b/\\\\x1b/
 __vsc_report_prompt() {
 	# Expand the original PS1 similarly to how bash would normally
 	# See https://stackoverflow.com/a/37137981 for technique
-	if ((BASH_VERSINFO[0] >= 4)); then
+	if ((BASH_VERSINFO[0] >= 5 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 4))); then
 		__vsc_prompt=${__vsc_original_PS1@P}
 	else
 		__vsc_prompt=${__vsc_original_PS1}

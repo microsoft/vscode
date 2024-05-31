@@ -23,9 +23,9 @@ import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocum
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { ExtHostTestItemCollection, TestItemImpl, TestItemRootImpl, toItemFromContext } from 'vs/workbench/api/common/extHostTestItem';
 import * as Convert from 'vs/workbench/api/common/extHostTypeConverters';
-import { TestRunProfileKind, TestRunRequest, FileCoverage } from 'vs/workbench/api/common/extHostTypes';
+import { FileCoverage, TestRunProfileKind, TestRunRequest } from 'vs/workbench/api/common/extHostTypes';
 import { TestCommandId } from 'vs/workbench/contrib/testing/common/constants';
-import { TestId, TestIdPathParts, TestPosition } from 'vs/workbench/contrib/testing/common/testId';
+import { TestId, TestPosition } from 'vs/workbench/contrib/testing/common/testId';
 import { InvalidTestItemError } from 'vs/workbench/contrib/testing/common/testItemCollection';
 import { AbstractIncrementalTestCollection, CoverageDetails, ICallProfileRunHandler, ISerializedTestResults, IStartControllerTests, IStartControllerTestsResult, ITestErrorMessage, ITestItem, ITestItemContext, ITestMessageMenuArgs, ITestRunProfile, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, TestMessageFollowupRequest, TestMessageFollowupResponse, TestResultState, TestRunProfileBitset, TestsDiff, TestsDiffOp, isStartControllerTests } from 'vs/workbench/contrib/testing/common/testTypes';
 import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
@@ -582,10 +582,6 @@ class TestRunTracker extends Disposable {
 					return;
 				}
 
-				if (!this.dto.isIncluded(test)) {
-					return;
-				}
-
 				this.ensureTestIsKnown(test);
 				fn(test, ...args);
 			};
@@ -625,10 +621,6 @@ class TestRunTracker extends Disposable {
 				let testItemIdPart: undefined | number;
 				if (testItem) {
 					checkProposedApiEnabled(this.extension, 'attributableCoverage');
-					if (!this.dto.isIncluded(testItem)) {
-						throw new Error('Attempted to `addCoverage` for a test item not included in the run');
-					}
-
 					this.ensureTestIsKnown(testItem);
 					testItemIdPart = testItemCoverageId.get(testItem);
 					if (testItemIdPart === undefined) {
@@ -673,11 +665,7 @@ class TestRunTracker extends Disposable {
 				}
 
 				if (test) {
-					if (this.dto.isIncluded(test)) {
-						this.ensureTestIsKnown(test);
-					} else {
-						test = undefined;
-					}
+					this.ensureTestIsKnown(test);
 				}
 
 				this.proxy.$appendOutputToRun(
@@ -875,15 +863,10 @@ const tryGetProfileFromTestRunReq = (request: vscode.TestRunRequest) => {
 };
 
 export class TestRunDto {
-	private readonly includePrefix: string[];
-	private readonly excludePrefix: string[];
-
 	public static fromPublic(controllerId: string, collection: ExtHostTestItemCollection, request: vscode.TestRunRequest, persist: boolean) {
 		return new TestRunDto(
 			controllerId,
 			generateUuid(),
-			request.include?.map(t => TestId.fromExtHostTestItem(t, controllerId).toString()) ?? [controllerId],
-			request.exclude?.map(t => TestId.fromExtHostTestItem(t, controllerId).toString()) ?? [],
 			persist,
 			collection,
 		);
@@ -893,8 +876,6 @@ export class TestRunDto {
 		return new TestRunDto(
 			request.controllerId,
 			request.runId,
-			request.testIds,
-			request.excludeExtIds,
 			true,
 			collection,
 		);
@@ -903,30 +884,9 @@ export class TestRunDto {
 	constructor(
 		public readonly controllerId: string,
 		public readonly id: string,
-		include: string[],
-		exclude: string[],
 		public readonly isPersisted: boolean,
 		public readonly colllection: ExtHostTestItemCollection,
 	) {
-		this.includePrefix = include.map(id => id + TestIdPathParts.Delimiter);
-		this.excludePrefix = exclude.map(id => id + TestIdPathParts.Delimiter);
-	}
-
-	public isIncluded(test: vscode.TestItem) {
-		const id = TestId.fromExtHostTestItem(test, this.controllerId).toString() + TestIdPathParts.Delimiter;
-		for (const prefix of this.excludePrefix) {
-			if (id === prefix || id.startsWith(prefix)) {
-				return false;
-			}
-		}
-
-		for (const prefix of this.includePrefix) {
-			if (id === prefix || id.startsWith(prefix)) {
-				return true;
-			}
-		}
-
-		return false;
 	}
 }
 

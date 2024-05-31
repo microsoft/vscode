@@ -64,6 +64,9 @@ export function asProgressiveEdit(interval: IntervalTimer, edit: IIdentifiedSing
 	let newText = edit.text ?? '';
 
 	interval.cancelAndSet(() => {
+		if (token.isCancellationRequested) {
+			return;
+		}
 		const r = getNWords(newText, 1);
 		stream.emitOne(r.value);
 		newText = newText.substring(r.value.length);
