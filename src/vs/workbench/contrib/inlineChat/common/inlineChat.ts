@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IRange } from 'vs/editor/common/core/range';
-import { WorkspaceEdit } from 'vs/editor/common/languages';
 import { localize } from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
@@ -30,14 +28,6 @@ export const enum InlineChatResponseTypes {
 	OnlyMessages = 'onlyMessages',
 	Mixed = 'mixed'
 }
-
-export interface IInlineChatResponse {
-	edits: WorkspaceEdit;
-	message?: IMarkdownString;
-	placeholder?: string;
-	wholeRange?: IRange;
-}
-
 
 export const INLINE_CHAT_ID = 'interactiveEditor';
 export const INTERACTIVE_EDITOR_ACCESSIBILITY_HELP_ID = 'interactiveEditorAccessiblityHelp';

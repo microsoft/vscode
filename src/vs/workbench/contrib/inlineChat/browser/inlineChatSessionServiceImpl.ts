@@ -22,7 +22,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { ChatAgentLocation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
-import { CTX_INLINE_CHAT_HAS_AGENT, EditMode, IInlineChatResponse, IInlineChatSession } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_HAS_AGENT, EditMode, IInlineChatSession } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { EmptyResponse, ErrorResponse, HunkData, ReplyResponse, Session, SessionExchange, SessionWholeRange, StashedSession, TelemetryData, TelemetryDataClassification } from './inlineChatSession';
@@ -172,8 +172,6 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 				return;
 			}
 
-			const modelAltVersionIdNow = textModel.getAlternativeVersionId();
-
 			const { response } = e.request;
 
 			lastResponseListener.value = response.onDidChange(() => {
@@ -197,29 +195,9 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 					// epmty response
 					inlineResponse = new EmptyResponse();
 				} else {
-					// replay response
-					const raw: IInlineChatResponse = {
-						edits: { edits: [] },
-					};
-					for (const item of response.response.value) {
-						if (item.kind === 'textEditGroup') {
-							for (const group of item.edits) {
-								for (const edit of group) {
-									raw.edits.edits.push({
-										resource: item.uri,
-										textEdit: edit,
-										versionId: undefined
-									});
-								}
-							}
-						}
-					}
-
 					inlineResponse = this._instaService.createInstance(
 						ReplyResponse,
-						raw,
 						session.textModelN.uri,
-						modelAltVersionIdNow,
 						e.request,
 						response
 					);
