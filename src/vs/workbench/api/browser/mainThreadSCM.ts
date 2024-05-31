@@ -462,7 +462,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		this._disposables.add(new SCMInputBoxContentProvider(this.textModelService, this.modelService, this.languageService));
 	}
 
-	async dispose(): Promise<void> {
+	dispose(): void {
 		dispose(this._repositories.values());
 		this._repositories.clear();
 
