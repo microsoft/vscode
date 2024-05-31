@@ -25,7 +25,7 @@ const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.u
 
 export class RipgrepTextSearchEngine {
 
-	constructor(private outputChannel: IOutputChannel, private readonly _numThreads: number | undefined) { }
+	constructor(private outputChannel: IOutputChannel, private readonly _numThreads?: number | undefined) { }
 
 	provideTextSearchResults(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): Promise<TextSearchComplete> {
 		this.outputChannel.appendLine(`provideTextSearchResults ${query.pattern}, ${JSON.stringify({
