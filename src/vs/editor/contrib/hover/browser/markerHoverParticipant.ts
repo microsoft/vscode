@@ -91,30 +91,26 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 	}
 
 	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: MarkerHover[]): { disposables: IDisposable; elements: HTMLElement[] } {
+		console.log('renderHoverParts of MarkerHoverParticipant');
 		if (!hoverParts.length) {
 			return { disposables: Disposable.None, elements: [] };
 		}
 		const disposables = new DisposableStore();
 		const renderedMarkerHovers = hoverParts.map(msg => this.renderMarkerHover(msg, disposables));
-		// Making it focusable so that it can be focused for keyboard navigation
-		renderedMarkerHovers.map(renderedMarkerHover => renderedMarkerHover.tabIndex = 0);
 		renderedMarkerHovers.map(renderedMarkerHover => context.fragment.appendChild(renderedMarkerHover));
-		// TODO: not sure how to handle the following
 		const markerHoverForStatusbar = hoverParts.length === 1 ? hoverParts[0] : hoverParts.sort((a, b) => MarkerSeverity.compare(a.marker.severity, b.marker.severity))[0];
 		this.renderMarkerStatusbar(context, markerHoverForStatusbar, disposables);
 		return { disposables, elements: renderedMarkerHovers };
 	}
 
 	public getFormattedContent(hoverParts: MarkerHover[]): string[] {
-		return [
-			'There are marker messages :',
-			...hoverParts.map(markerHover => markerHover.marker.message)
-		];
+		console.log('Marker Hover Participant');
+		console.log('hoverParts', hoverParts);
+		return hoverParts.map(markerHover => markerHover.marker.message);
 	}
 
 	private renderMarkerHover(markerHover: MarkerHover, disposables: DisposableStore): HTMLElement {
 		const hoverElement = $('div.hover-row');
-		hoverElement.tabIndex = 0;
 		const markerElement = dom.append(hoverElement, $('div.marker.hover-contents'));
 		const { source, message, code, relatedInformation } = markerHover.marker;
 

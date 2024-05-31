@@ -91,11 +91,9 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 	}
 
 	public getFormattedContent(hoverParts: ColorHover[]): string[] {
-		const formattedContent: string[] = [];
-		for (const _ of hoverParts) {
-			formattedContent.push('There is a color picker here.');
-		}
-		return formattedContent;
+		console.log('Color Hover Participant');
+		console.log('hoverParts : ', hoverParts);
+		return hoverParts.map(_ => 'There is a color picker here.');
 	}
 }
 

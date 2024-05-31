@@ -105,8 +105,8 @@ export class InlineEditHoverParticipant implements IEditorHoverParticipant<Inlin
 	}
 
 	getFormattedContent(hoverParts: InlineEditHover[]): string[] {
-		return [
-			...hoverParts.map(_ => 'There are inline edits here')
-		];
+		console.log('Inline Edit Hover Participant');
+		console.log('hoverParts:', hoverParts);
+		return hoverParts.map(_ => 'There are inline edits here');
 	}
 }

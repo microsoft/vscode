@@ -511,6 +511,8 @@ export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipa
 	}
 
 	public getFormattedContent(hoverParts: MarkdownHover[]): string[] {
+		console.log('Unicode Highlighter Hover Participant');
+		console.log('hoverParts:', hoverParts);
 		return hoverParts.map(hoverPart => hoverPart.contents.map(content => content.value).join(''));
 	}
 }

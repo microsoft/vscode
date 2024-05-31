@@ -127,9 +127,9 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 	}
 
 	getFormattedContent(hoverParts: InlineCompletionsHover[]): string[] {
-		return [
-			...hoverParts.map(_ => 'There are inline completions here')
-		];
+		console.log('Inline Completions Hover Participant');
+		console.log('hoverParts:', hoverParts);
+		return hoverParts.map(_ => 'There are inline completions here');
 	}
 
 	private renderScreenReaderText(context: IEditorHoverRenderContext, part: InlineCompletionsHover, disposableStore: DisposableStore) {

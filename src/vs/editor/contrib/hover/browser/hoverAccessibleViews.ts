@@ -23,7 +23,8 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { labelForHoverVerbosityAction } from 'vs/editor/contrib/hover/browser/markdownHoverParticipant';
 
 namespace HoverAccessibilityHelpNLS {
-	export const intro = localize('intro', "Focus on the hover widget and cycle through the hover parts with the Tab key.");
+	export const introHoverPart = localize('introHoverPart', "The focused hover part content is the following.");
+	export const introHoverFull = localize('introHoverFull', "The full focused hover content is the following.");
 	export const increaseVerbosity = localize('increaseVerbosity', "- The focused hover part verbosity level can be increased with the Increase Hover Verbosity command<keybinding:{0}>.", INCREASE_HOVER_VERBOSITY_ACTION_ID);
 	export const decreaseVerbosity = localize('decreaseVerbosity', "- The focused hover part verbosity level can be decreased with the Decrease Hover Verbosity command<keybinding:{0}>.", DECREASE_HOVER_VERBOSITY_ACTION_ID);
 	export const hoverContent = localize('contentHover', "The last focused hover content is the following.");
@@ -142,12 +143,11 @@ export class HoverAccessibilityHelpProvider extends BaseHoverAccessibleViewProvi
 	}
 
 	provideContent(): string {
-		return this.provideContentAtIndex(this._generalHoverFocusedIndex);
+		return this.provideContentAtIndex(this._markdownHoverFocusedIndex);
 	}
 
 	provideContentAtIndex(index: number): string {
 		const content: string[] = [];
-		content.push(HoverAccessibilityHelpNLS.intro);
 		content.push(...this._descriptionsOfVerbosityActionsForIndex(index));
 		content.push(...this._descriptionOfFocusedMarkdownHoverAtIndex(index));
 		return content.join('\n');
@@ -204,11 +204,18 @@ export class HoverAccessibleViewProvider extends BaseHoverAccessibleViewProvider
 	}
 
 	public provideContent(): string {
-		const hoverContent = this._hoverController.markdownHoverContentAtIndex(this._generalHoverFocusedIndex);
-		return [
-			HoverAccessibilityHelpNLS.intro,
-			hoverContent.length > 0 ? hoverContent : this._hoverController.getFormattedWidgetContent()
-		].join('\n');
+		console.log('this._generalHoverFocusedIndex : ', this._generalHoverFocusedIndex);
+		if (this._generalHoverFocusedIndex !== -1) {
+			return [
+				HoverAccessibilityHelpNLS.introHoverPart,
+				this._hoverController.getFormattedWidgetContentAtIndex(this._generalHoverFocusedIndex)
+			].join('\n\n');
+		} else {
+			return [
+				HoverAccessibilityHelpNLS.introHoverFull,
+				this._hoverController.getFormattedWidgetContent()
+			].join('\n\n');
+		}
 	}
 
 	public get actions(): IAction[] {

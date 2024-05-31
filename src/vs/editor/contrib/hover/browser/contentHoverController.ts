@@ -27,6 +27,7 @@ import { Emitter } from 'vs/base/common/event';
 
 export class ContentHoverController extends Disposable implements IHoverWidget {
 
+	private _formattedContent: string[] = [];
 	private _currentResult: HoverResult | null = null;
 	private _focusedGeneralHoverIndex: number = -1;
 
@@ -36,7 +37,6 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 	// TODO@aiday-mar make array of participants, dispatch between them
 	private readonly _markdownHoverParticipant: MarkdownHoverParticipant | undefined;
 	private readonly _hoverOperation: HoverOperation<IHoverPart>;
-	private readonly _formattedContent: string[] = [];
 
 	private readonly _onContentsChanged = this._register(new Emitter<void>());
 	public readonly onContentsChanged = this._onContentsChanged.event;
@@ -225,6 +225,7 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 			hide: () => this.hide()
 		};
 
+		this._formattedContent = [];
 		const renderedElements: HTMLElement[] = [];
 		for (const participant of this._participants) {
 			const hoverParts = messages.filter(msg => msg.owner === participant);
@@ -237,6 +238,17 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 			}
 		}
 
+		const isBeforeContent = messages.some(m => m.isBeforeContent);
+
+		if (statusBar.hasContent) {
+			const statusBarElement = statusBar.hoverElement;
+			fragment.appendChild(statusBarElement);
+			this._formattedContent.push('There is a status bar.');
+			renderedElements.push(statusBarElement);
+		}
+
+		console.log('this._formattedContent : ', this._formattedContent);
+
 		renderedElements.map((element, index) => {
 			element.tabIndex = 0;
 			this._register(dom.addDisposableListener(element, dom.EventType.FOCUS_IN, (event: Event) => {
@@ -248,12 +260,6 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 				this._focusedGeneralHoverIndex = -1;
 			}));
 		});
-
-		const isBeforeContent = messages.some(m => m.isBeforeContent);
-
-		if (statusBar.hasContent) {
-			fragment.appendChild(statusBar.hoverElement);
-		}
 
 		if (fragment.hasChildNodes()) {
 			if (highlightRange) {
@@ -408,7 +414,7 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 	}
 
 	public getFormattedWidgetContent(): string | undefined {
-		return this._formattedContent.join('');
+		return this._formattedContent.join('\n\n');
 	}
 
 	public getFormattedWidgetContentAtIndex(index: number): string | undefined {

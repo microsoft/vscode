@@ -33,6 +33,7 @@ import { IHoverService, WorkbenchHoverDelegate } from 'vs/platform/hover/browser
 import { AsyncIterableObject } from 'vs/base/common/async';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { getHoverProviderResultsAsAsyncIterable } from 'vs/editor/contrib/hover/browser/getHover';
+import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 
 const $ = dom.$;
 const increaseHoverVerbosityIcon = registerIcon('hover-increase-verbosity', Codicon.add, nls.localize('increaseHoverVerbosity', 'Icon for increaseing hover verbosity.'));
@@ -193,7 +194,20 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 	}
 
 	public getFormattedContent(hoverParts: MarkdownHover[]): string[] {
-		return hoverParts.map(hoverPart => hoverPart.contents.map(content => content.value).join(''));
+		console.log('Markdown Hover Participant');
+		console.log('hoverParts:', hoverParts);
+
+		return hoverParts.map(hoverPart => {
+			const formattedHoverPart: string[] = [];
+			hoverPart.contents.map(content => {
+				const rendered = renderMarkdown(content);
+				const innerTextTrimmed = rendered.element.innerText.trim();
+				if (innerTextTrimmed) {
+					formattedHoverPart.push(innerTextTrimmed);
+				}
+			});
+			return formattedHoverPart.join('\n');
+		});
 	}
 
 	// --- should be treated more generally
@@ -310,7 +324,6 @@ class MarkdownRenderedHoverParts extends Disposable {
 		onFinishedRendering: () => void
 	): RenderedHoverPart {
 		const renderedMarkdown = $('div.hover-row');
-		renderedMarkdown.tabIndex = 0;
 		const renderedMarkdownContents = $('div.hover-row-contents');
 		renderedMarkdown.appendChild(renderedMarkdownContents);
 		const disposables = new DisposableStore();
@@ -472,7 +485,7 @@ function renderMarkdownInContainer(
 	onFinishedRendering: () => void,
 ): { disposables: IDisposable; elements: HTMLElement[] } {
 	const store = new DisposableStore();
-	const containerChild = new HTMLDivElement();
+	const containerChild = $('div.hover-child');
 	container.appendChild(containerChild);
 	for (const contents of markdownStrings) {
 		if (isEmptyMarkdownString(contents)) {
