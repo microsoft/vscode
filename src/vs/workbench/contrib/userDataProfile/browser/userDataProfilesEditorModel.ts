@@ -330,6 +330,9 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 	}
 
 	override async getChildren(resourceType: ProfileResourceType): Promise<IProfileResourceChildTreeItem[]> {
+		if (this.getFlag(resourceType)) {
+			return this.getChildrenFromProfile(this.userDataProfilesService.defaultProfile, resourceType);
+		}
 		if (!this.getCopyFlag(resourceType)) {
 			return [];
 		}
@@ -342,9 +345,6 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 		}
 		if (this.copyFrom) {
 			return this.getChildrenFromProfile(this.copyFrom, resourceType);
-		}
-		if (this.getFlag(resourceType)) {
-			return this.getChildrenFromProfile(this.userDataProfilesService.defaultProfile, resourceType);
 		}
 		return [];
 	}

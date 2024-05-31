@@ -167,8 +167,8 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 				setRowLineHeight: false,
 				horizontalScrolling: false,
 				accessibilityProvider: {
-					getAriaLabel(extensionFeature: AbstractUserDataProfileElement | null): string {
-						return extensionFeature?.name ?? '';
+					getAriaLabel(profileElement: AbstractUserDataProfileElement | null): string {
+						return profileElement?.name ?? '';
 					},
 					getWidgetAriaLabel(): string {
 						return localize('profiles', "Profiles");
@@ -660,7 +660,7 @@ class ProfileWidget extends Disposable {
 
 		this.resourcesTree.setInput(profileElement);
 		disposables.add(profileElement.onDidChange(e => {
-			if (e.flags || e.copyFrom) {
+			if (e.flags || e.copyFrom || e.copyFlags) {
 				const viewState = this.resourcesTree.getViewState();
 				this.resourcesTree.setInput(profileElement, {
 					...viewState,
@@ -779,11 +779,16 @@ class ProfileResourceTreeDataSource implements IAsyncDataSource<AbstractUserData
 			return true;
 		}
 		if (isString(element.element)) {
-			if (element.root.getFlag(element.element)) {
-				return false;
-			}
 			if (element.root instanceof NewProfileElement) {
-				return element.root.copyFrom !== undefined;
+				if (element.root.getFlag(element.element)) {
+					return true;
+				}
+				if (element.root.copyFrom === undefined) {
+					return false;
+				}
+				if (!element.root.getCopyFlag(element.element)) {
+					return false;
+				}
 			}
 			return true;
 		}
@@ -820,9 +825,9 @@ interface IProfileResourceTemplateData {
 }
 
 interface IExistingProfileResourceTemplateData extends IProfileResourceTemplateData {
-	readonly checkbox: Checkbox;
 	readonly label: HTMLElement;
-	readonly description: HTMLElement;
+	readonly inheritContainer: HTMLElement;
+	readonly checkbox: Checkbox;
 }
 
 interface INewProfileResourceTemplateData extends IProfileResourceTemplateData {
@@ -873,11 +878,13 @@ class ExistingProfileResourceTreeRenderer extends AbstractProfileResourceTreeRen
 	renderTemplate(parent: HTMLElement): IExistingProfileResourceTemplateData {
 		const disposables = new DisposableStore();
 		const container = append(parent, $('.profile-tree-item-container.existing-profile-resource-type-container'));
-		const checkbox = disposables.add(new Checkbox('', false, defaultCheckboxStyles));
-		append(container, checkbox.domNode);
 		const label = append(container, $('.profile-resource-type-label'));
-		const description = append(container, $('.profile-resource-type-description', undefined, localize('using defaults', "Using Default Profile")));
-		return { checkbox, label, description, disposables, elementDisposables: disposables.add(new DisposableStore()) };
+
+		const inheritContainer = append(container, $('.inherit-container'));
+		const checkbox = disposables.add(new Checkbox('', false, defaultCheckboxStyles));
+		append(inheritContainer, checkbox.domNode);
+		append(inheritContainer, $('.inherit-label', undefined, localize('default profile', "Use Default Profile")));
+		return { checkbox, label, inheritContainer, disposables, elementDisposables: disposables.add(new DisposableStore()) };
 	}
 
 	renderElement({ element: profileResourceTreeElement }: ITreeNode<ProfileResourceTreeElement, void>, index: number, templateData: IExistingProfileResourceTemplateData, height: number | undefined): void {
@@ -892,20 +899,11 @@ class ExistingProfileResourceTreeRenderer extends AbstractProfileResourceTreeRen
 
 		templateData.label.textContent = this.getResourceTypeTitle(element);
 		if (root instanceof UserDataProfileElement && root.profile.isDefault) {
-			templateData.checkbox.checked = true;
-			templateData.checkbox.disable();
-			templateData.description.classList.add('hide');
+			templateData.inheritContainer.classList.add('hide');
 		} else {
-			templateData.checkbox.enable();
-			const checked = !root.getFlag(element);
-			templateData.checkbox.checked = checked;
-			templateData.description.classList.toggle('hide', checked);
-			templateData.elementDisposables.add(templateData.checkbox.onChange(() => root.setFlag(element, !templateData.checkbox.checked)));
-			templateData.elementDisposables.add(root.onDidChange(e => {
-				if (e.flags) {
-					templateData.description.classList.toggle('hide', !root.getFlag(element));
-				}
-			}));
+			templateData.inheritContainer.classList.remove('hide');
+			templateData.checkbox.checked = root.getFlag(element);
+			templateData.elementDisposables.add(templateData.checkbox.onChange(() => root.setFlag(element, templateData.checkbox.checked)));
 		}
 	}
 
@@ -930,11 +928,7 @@ class NewProfileResourceTreeRenderer extends AbstractProfileResourceTreeRenderer
 		const labelContainer = append(container, $('.profile-resource-type-label-container'));
 		const label = append(labelContainer, $('span.profile-resource-type-label'));
 		const selectBox = this._register(this.instantiationService.createInstance(SelectBox,
-			[
-				{ text: localize('empty', "Empty") },
-				{ text: localize('copy', "Copy") },
-				{ text: localize('default', "Use Default Profile") }
-			],
+			[],
 			0,
 			this.contextViewService,
 			defaultSelectBoxStyles,
@@ -958,11 +952,27 @@ class NewProfileResourceTreeRenderer extends AbstractProfileResourceTreeRenderer
 			throw new Error('NewProfileResourceTreeRenderer can only profile resoyrce types');
 		}
 		templateData.label.textContent = this.getResourceTypeTitle(element);
-		templateData.selectBox.select(root.getCopyFlag(element) ? 1 : root.getFlag(element) ? 2 : 0);
-		templateData.elementDisposables.add(templateData.selectBox.onDidSelect(option => {
-			root.setFlag(element, option.index === 2);
-			root.setCopyFlag(element, option.index === 1);
-		}));
+		if (root.copyFrom) {
+			templateData.selectBox.setOptions([
+				{ text: localize('empty', "Empty") },
+				{ text: localize('copy', "Copy") },
+				{ text: localize('default', "Use Default Profile") }
+			]);
+			templateData.selectBox.select(root.getCopyFlag(element) ? 1 : root.getFlag(element) ? 2 : 0);
+			templateData.elementDisposables.add(templateData.selectBox.onDidSelect(option => {
+				root.setFlag(element, option.index === 2);
+				root.setCopyFlag(element, option.index === 1);
+			}));
+		} else {
+			templateData.selectBox.setOptions([
+				{ text: localize('empty', "Empty") },
+				{ text: localize('default', "Use Default Profile") }
+			]);
+			templateData.selectBox.select(root.getFlag(element) ? 1 : 0);
+			templateData.elementDisposables.add(templateData.selectBox.onDidSelect(option => {
+				root.setFlag(element, option.index === 1);
+			}));
+		}
 	}
 }
 

@@ -26,7 +26,7 @@
 }
 
 .profiles-editor .sidebar-container .new-profile-button {
-	padding-right: 20px;
+	padding: 0px 20px 0px 18px;
 	display: flex;
 	align-items: center;
 	height: 40px;
@@ -89,7 +89,7 @@
 	cursor: pointer;
 	font-size: x-large;
 	padding: 4px;
-	margin-right: 4px;
+	margin-right: 8px;
 }
 
 .profiles-editor .contents-container .profile-title-container .monaco-inputbox {
@@ -170,6 +170,20 @@
 .profiles-editor .contents-container .profile-tree-item-container {
 	display: flex;
 	align-items: center;
+}
+
+.profiles-editor .contents-container .profile-tree-item-container > .profile-resource-type-label {
+	width: 200px;
+}
+
+.profiles-editor .contents-container .profile-tree-item-container > .inherit-container {
+	display: flex;
+	align-items: center;
+}
+
+.profiles-editor .contents-container .profile-tree-item-container > .inherit-container > .inherit-label {
+	/* font-size: 0.9em; */
+	opacity: 0.8;
 }
 
 .profiles-editor .contents-container .profile-tree-item-container.new-profile-resource-type-container > .profile-resource-type-label-container {
