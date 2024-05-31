@@ -86,8 +86,16 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 		return [];
 	}
 
-	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: ColorHover[]): IDisposable {
+	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: ColorHover[]): { disposables: IDisposable; elements: HTMLElement[] } {
 		return renderHoverParts(this, this._editor, this._themeService, hoverParts, context);
+	}
+
+	public getFormattedContent(hoverParts: ColorHover[]): string[] {
+		const formattedContent: string[] = [];
+		for (const _ of hoverParts) {
+			formattedContent.push('There is a color picker here.');
+		}
+		return formattedContent;
 	}
 }
 
@@ -147,7 +155,7 @@ export class StandaloneColorPickerParticipant {
 	}
 
 	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: ColorHover[] | StandaloneColorPickerHover[]): IDisposable {
-		return renderHoverParts(this, this._editor, this._themeService, hoverParts, context);
+		return renderHoverParts(this, this._editor, this._themeService, hoverParts, context).disposables;
 	}
 
 	public set color(color: Color | null) {
@@ -178,9 +186,9 @@ async function _createColorHover(participant: ColorHoverParticipant | Standalone
 	}
 }
 
-function renderHoverParts(participant: ColorHoverParticipant | StandaloneColorPickerParticipant, editor: ICodeEditor, themeService: IThemeService, hoverParts: ColorHover[] | StandaloneColorPickerHover[], context: IEditorHoverRenderContext) {
+function renderHoverParts(participant: ColorHoverParticipant | StandaloneColorPickerParticipant, editor: ICodeEditor, themeService: IThemeService, hoverParts: ColorHover[] | StandaloneColorPickerHover[], context: IEditorHoverRenderContext): { disposables: IDisposable; elements: HTMLElement[] } {
 	if (hoverParts.length === 0 || !editor.hasModel()) {
-		return Disposable.None;
+		return { disposables: Disposable.None, elements: [] };
 	}
 	if (context.setMinimumDimensions) {
 		const minimumHeight = editor.getOption(EditorOption.lineHeight) + 8;
@@ -221,7 +229,7 @@ function renderHoverParts(participant: ColorHoverParticipant | StandaloneColorPi
 			editor.focus();
 		}
 	}));
-	return disposables;
+	return { disposables, elements: [widget.getDomNode()] };
 }
 
 function _updateEditorModel(editor: IActiveCodeEditor, range: Range, model: ColorPickerModel): Range {

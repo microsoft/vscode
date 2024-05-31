@@ -90,15 +90,26 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 		return result;
 	}
 
-	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: MarkerHover[]): IDisposable {
+	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: MarkerHover[]): { disposables: IDisposable; elements: HTMLElement[] } {
 		if (!hoverParts.length) {
-			return Disposable.None;
+			return { disposables: Disposable.None, elements: [] };
 		}
 		const disposables = new DisposableStore();
-		hoverParts.forEach(msg => context.fragment.appendChild(this.renderMarkerHover(msg, disposables)));
+		const renderedMarkerHovers = hoverParts.map(msg => this.renderMarkerHover(msg, disposables));
+		// Making it focusable so that it can be focused for keyboard navigation
+		renderedMarkerHovers.map(renderedMarkerHover => renderedMarkerHover.tabIndex = 0);
+		renderedMarkerHovers.map(renderedMarkerHover => context.fragment.appendChild(renderedMarkerHover));
+		// TODO: not sure how to handle the following
 		const markerHoverForStatusbar = hoverParts.length === 1 ? hoverParts[0] : hoverParts.sort((a, b) => MarkerSeverity.compare(a.marker.severity, b.marker.severity))[0];
 		this.renderMarkerStatusbar(context, markerHoverForStatusbar, disposables);
-		return disposables;
+		return { disposables, elements: renderedMarkerHovers };
+	}
+
+	public getFormattedContent(hoverParts: MarkerHover[]): string[] {
+		return [
+			'There are marker messages :',
+			...hoverParts.map(markerHover => markerHover.marker.message)
+		];
 	}
 
 	private renderMarkerHover(markerHover: MarkerHover, disposables: DisposableStore): HTMLElement {

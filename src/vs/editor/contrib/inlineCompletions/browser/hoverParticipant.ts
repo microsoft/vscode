@@ -94,7 +94,7 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 		return [];
 	}
 
-	renderHoverParts(context: IEditorHoverRenderContext, hoverParts: InlineCompletionsHover[]): IDisposable {
+	renderHoverParts(context: IEditorHoverRenderContext, hoverParts: InlineCompletionsHover[]): { disposables: IDisposable; elements: HTMLElement[] } {
 		const disposableStore = new DisposableStore();
 		const part = hoverParts[0];
 
@@ -115,13 +115,21 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 			model.inlineCompletionsCount,
 			model.activeCommands,
 		);
-		context.fragment.appendChild(w.getDomNode());
+
+		const domNode = w.getDomNode();
+		context.fragment.appendChild(domNode);
 
 		model.triggerExplicitly();
 
 		disposableStore.add(w);
 
-		return disposableStore;
+		return { disposables: disposableStore, elements: [domNode] };
+	}
+
+	getFormattedContent(hoverParts: InlineCompletionsHover[]): string[] {
+		return [
+			...hoverParts.map(_ => 'There are inline completions here')
+		];
 	}
 
 	private renderScreenReaderText(context: IEditorHoverRenderContext, part: InlineCompletionsHover, disposableStore: DisposableStore) {

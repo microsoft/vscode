@@ -421,6 +421,10 @@ export class HoverController extends Disposable implements IEditorContribution {
 		return this._getOrCreateContentWidget().focusedMarkdownHoverIndex();
 	}
 
+	public focusedGeneralHoverIndex(): number {
+		return this._getOrCreateContentWidget().focusedGeneralHoverIndex();
+	}
+
 	public markdownHoverContentAtIndex(index: number): string {
 		return this._getOrCreateContentWidget().markdownHoverContentAtIndex(index);
 	}
@@ -471,6 +475,10 @@ export class HoverController extends Disposable implements IEditorContribution {
 
 	public getWidgetContent(): string | undefined {
 		return this._contentWidget?.getWidgetContent();
+	}
+
+	public getFormattedWidgetContent(): string | undefined {
+		return this._contentWidget?.getFormattedWidgetContent();
 	}
 
 	public get isColorPickerVisible(): boolean | undefined {

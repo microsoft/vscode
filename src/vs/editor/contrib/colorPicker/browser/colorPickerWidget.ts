@@ -469,6 +469,8 @@ export class ColorPickerWidget extends Widget implements IEditorHoverColorPicker
 
 	private static readonly ID = 'editor.contrib.colorPickerWidget';
 
+	private domNode: HTMLElement;
+
 	body: ColorPickerBody;
 	header: ColorPickerHeader;
 
@@ -477,11 +479,11 @@ export class ColorPickerWidget extends Widget implements IEditorHoverColorPicker
 
 		this._register(PixelRatio.getInstance(dom.getWindow(container)).onDidChange(() => this.layout()));
 
-		const element = $('.colorpicker-widget');
-		container.appendChild(element);
+		this.domNode = $('.colorpicker-widget');
+		container.appendChild(this.domNode);
 
-		this.header = this._register(new ColorPickerHeader(element, this.model, themeService, standaloneColorPicker));
-		this.body = this._register(new ColorPickerBody(element, this.model, this.pixelRatio, standaloneColorPicker));
+		this.header = this._register(new ColorPickerHeader(this.domNode, this.model, themeService, standaloneColorPicker));
+		this.body = this._register(new ColorPickerBody(this.domNode, this.model, this.pixelRatio, standaloneColorPicker));
 	}
 
 	getId(): string {
@@ -490,5 +492,9 @@ export class ColorPickerWidget extends Widget implements IEditorHoverColorPicker
 
 	layout(): void {
 		this.body.layout();
+	}
+
+	getDomNode(): HTMLElement {
+		return this.domNode;
 	}
 }

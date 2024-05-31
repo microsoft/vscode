@@ -506,8 +506,12 @@ export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipa
 		return result;
 	}
 
-	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: MarkdownHover[]): IDisposable {
+	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: MarkdownHover[]): { disposables: IDisposable; elements: HTMLElement[] } {
 		return renderMarkdownHovers(context, hoverParts, this._editor, this._languageService, this._openerService);
+	}
+
+	public getFormattedContent(hoverParts: MarkdownHover[]): string[] {
+		return hoverParts.map(hoverPart => hoverPart.contents.map(content => content.value).join(''));
 	}
 }
 

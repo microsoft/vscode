@@ -127,7 +127,8 @@ export interface IEditorHoverParticipant<T extends IHoverPart = IHoverPart> {
 	computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): T[];
 	computeAsync?(anchor: HoverAnchor, lineDecorations: IModelDecoration[], token: CancellationToken): AsyncIterableObject<T>;
 	createLoadingMessage?(anchor: HoverAnchor): T | null;
-	renderHoverParts(context: IEditorHoverRenderContext, hoverParts: T[]): IDisposable;
+	renderHoverParts(context: IEditorHoverRenderContext, hoverParts: T[]): { disposables: IDisposable; elements: HTMLElement[] };
+	getFormattedContent(hoverParts: T[]): string[];
 }
 
 export type IEditorHoverParticipantCtor = IConstructorSignature<IEditorHoverParticipant, [ICodeEditor]>;
