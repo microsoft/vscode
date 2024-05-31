@@ -38,13 +38,6 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A file glob pattern to match file paths against.
-	 * TODO@roblourens merge this with the GlobPattern docs/definition in vscode.d.ts.
-	 * @see {@link GlobPattern}
-	 */
-	export type GlobString = string;
-
-	/**
 	 * Options common to file and text search
 	 */
 	export interface SearchOptions {
@@ -56,12 +49,12 @@ declare module 'vscode' {
 		/**
 		 * Files that match an `includes` glob pattern should be included in the search.
 		 */
-		includes: GlobString[];
+		includes: string[];
 
 		/**
 		 * Files that match an `excludes` glob pattern should be excluded from the search.
 		 */
-		excludes: GlobString[];
+		excludes: string[];
 
 		/**
 		 * Whether external files that exclude files, like .gitignore, should be respected.
@@ -193,50 +186,25 @@ declare module 'vscode' {
 		message?: TextSearchCompleteMessage | TextSearchCompleteMessage[];
 	}
 
-	/**
-	 * A preview of the text result.
-	 */
-	export interface TextSearchMatchPreview {
-		/**
-		 * The matching lines of text, or a portion of the matching line that contains the match.
-		 */
-		text: string;
-
-		/**
-		 * The Range within `text` corresponding to the text of the match.
-		 * The number of matches must match the TextSearchMatch's range property.
-		 */
-		matches: Range | Range[];
-	}
-
-	/**
-	 * A match from a text search
-	 */
 	export interface TextSearchMatch {
-		/**
-		 * The uri for the matching document.
-		 */
-		uri: Uri;
+		ranges: {
+			/**
+			 * The range of the match within the document, or multiple ranges for multiple matches.
+			 */
+			sourceRange: Range;
+			/**
+			 * The Range within `previewText` corresponding to the text of the match.
+			 */
+			previewRange: Range;
+		}[];
 
-		/**
-		 * The range of the match within the document, or multiple ranges for multiple matches.
-		 */
-		ranges: Range | Range[];
-
-		/**
-		 * A preview of the text match.
-		 */
-		preview: TextSearchMatchPreview;
+		previewText: string;
 	}
 
 	/**
 	 * A line of context surrounding a TextSearchMatch.
 	 */
 	export interface TextSearchContext {
-		/**
-		 * The uri for the matching document.
-		 */
-		uri: Uri;
 
 		/**
 		 * One line of text.
@@ -250,7 +218,21 @@ declare module 'vscode' {
 		lineNumber: number;
 	}
 
-	export type TextSearchResult = TextSearchMatch | TextSearchContext;
+	interface TextSearchResult {
+		/**
+		 * The uri for the matching document.
+		 */
+		uri: Uri;
+		/**
+		 * The match corresponding to this result
+		 */
+		match: TextSearchMatch;
+		/**
+		 * Any applicable context lines
+		 */
+		beforeContext?: TextSearchContext[];
+		afterContext?: TextSearchContext[];
+	}
 
 	/**
 	 * A TextSearchProvider provides search results for text results inside files in the workspace.
