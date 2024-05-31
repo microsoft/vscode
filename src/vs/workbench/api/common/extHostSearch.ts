@@ -25,7 +25,7 @@ export interface IExtHostSearch extends ExtHostSearchShape {
 
 export const IExtHostSearch = createDecorator<IExtHostSearch>('IExtHostSearch');
 
-export class ExtHostSearch implements ExtHostSearchShape {
+export class ExtHostSearch implements IExtHostSearch {
 
 	protected readonly _proxy: MainThreadSearchShape = this.extHostRpc.getProxy(MainContext.MainThreadSearch);
 	protected _handlePool: number = 0;
