@@ -29,7 +29,9 @@ suite('NotebookFileWorkingCopyModel', function () {
 	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
 	const configurationService = new TestConfigurationService();
-	const telemetryService = new class extends mock<ITelemetryService>() { };
+	const telemetryService = new class extends mock<ITelemetryService>() {
+		override publicLogError2() { }
+	};
 	const logservice = new class extends mock<ILogService>() { };
 
 	teardown(() => disposables.dispose());
@@ -309,11 +311,25 @@ suite('NotebookFileWorkingCopyModel', function () {
 
 function mockNotebookService(notebook: NotebookTextModel, notebookSerializer: Promise<INotebookSerializer> | INotebookSerializer) {
 	return new class extends mock<INotebookService>() {
+		private serializer: INotebookSerializer | undefined = undefined;
 		override async withNotebookDataProvider(viewType: string): Promise<SimpleNotebookProviderInfo> {
-			const serializer = await notebookSerializer;
+			this.serializer = await notebookSerializer;
 			return new SimpleNotebookProviderInfo(
 				notebook.viewType,
-				serializer,
+				this.serializer,
+				{
+					id: new ExtensionIdentifier('test'),
+					location: undefined
+				}
+			);
+		}
+		override tryGetDataProviderSync(viewType: string): SimpleNotebookProviderInfo | undefined {
+			if (!this.serializer) {
+				return undefined;
+			}
+			return new SimpleNotebookProviderInfo(
+				notebook.viewType,
+				this.serializer,
 				{
 					id: new ExtensionIdentifier('test'),
 					location: undefined
