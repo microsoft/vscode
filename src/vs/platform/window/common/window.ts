@@ -158,6 +158,7 @@ export interface IWindowSettings {
 	readonly enableMenuBarMnemonics: boolean;
 	readonly closeWhenEmpty: boolean;
 	readonly clickThroughInactive: boolean;
+	readonly newWindowProfile: string;
 	readonly density: IDensitySettings;
 }
 
@@ -348,6 +349,7 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 
 	machineId: string;
 	sqmId: string;
+	devDeviceId: string;
 
 	execPath: string;
 	backupPath?: string;

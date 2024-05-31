@@ -578,4 +578,5 @@ export const codiconsLibrary = {
 	goToSearch: register('go-to-search', 0xec32),
 	percentage: register('percentage', 0xec33),
 	sortPercentage: register('sort-percentage', 0xec33),
+	attach: register('attach', 0xec34),
 } as const;
