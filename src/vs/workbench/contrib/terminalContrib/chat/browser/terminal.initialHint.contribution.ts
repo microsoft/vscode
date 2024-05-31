@@ -98,6 +98,13 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super();
+
+		// Reset hint state when config changes
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(TerminalInitialHintSettingId.Enabled)) {
+				this._storageService.remove(Constants.InitialHintHideStorageKey, StorageScope.APPLICATION);
+			}
+		}));
 	}
 
 	xtermOpen(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
@@ -222,12 +229,8 @@ class TerminalInitialHintWidget extends Disposable {
 			}
 		}));
 		this.toDispose.add(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(TerminalInitialHintSettingId.Enabled)) {
-				// Reset hint state when config changes
-				this._storageService.remove(Constants.InitialHintHideStorageKey, StorageScope.APPLICATION);
-				if (!this.configurationService.getValue(TerminalInitialHintSettingId.Enabled)) {
-					this.dispose();
-				}
+			if (e.affectsConfiguration(TerminalInitialHintSettingId.Enabled) && !this.configurationService.getValue(TerminalInitialHintSettingId.Enabled)) {
+				this.dispose();
 			}
 		}));
 	}
