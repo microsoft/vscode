@@ -270,13 +270,13 @@ configurationRegistry.registerConfiguration({
 		'files.autoSaveWorkspaceFilesOnly': {
 			'type': 'boolean',
 			'default': false,
-			'markdownDescription': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'autoSaveWorkspaceFilesOnly' }, "When enabled, will limit [auto save](https://code.visualstudio.com/docs/editor/codebasics#_save-auto-save) of editors to files that are inside the opened workspace. Only applies when `#files.autoSave#` is enabled."),
+			'markdownDescription': nls.localize('autoSaveWorkspaceFilesOnly', "When enabled, will limit [auto save](https://code.visualstudio.com/docs/editor/codebasics#_save-auto-save) of editors to files that are inside the opened workspace. Only applies when {0} is enabled.", '`#files.autoSave#`'),
 			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE
 		},
 		'files.autoSaveWhenNoErrors': {
 			'type': 'boolean',
 			'default': false,
-			'markdownDescription': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'autoSaveWhenNoErrors' }, "When enabled, will limit [auto save](https://code.visualstudio.com/docs/editor/codebasics#_save-auto-save) of editors to files that have no errors reported in them at the time the auto save is triggered. Only applies when `#files.autoSave#` is enabled."),
+			'markdownDescription': nls.localize('autoSaveWhenNoErrors', "When enabled, will limit [auto save](https://code.visualstudio.com/docs/editor/codebasics#_save-auto-save) of editors to files that have no errors reported in them at the time the auto save is triggered. Only applies when {0} is enabled.", '`#files.autoSave#`'),
 			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE
 		},
 		'files.watcherExclude': {
