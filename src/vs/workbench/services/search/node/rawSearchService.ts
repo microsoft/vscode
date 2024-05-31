@@ -26,7 +26,7 @@ export class SearchService implements IRawSearchService {
 
 	private caches: { [cacheKey: string]: Cache } = Object.create(null);
 
-	constructor(private readonly processType: IFileSearchStats['type'] = 'searchProcess') { }
+	constructor(private readonly processType: IFileSearchStats['type'] = 'searchProcess', private readonly numThreads?: number) { }
 
 	fileSearch(config: IRawFileQuery): Event<ISerializedSearchProgressItem | ISerializedSearchComplete> {
 		let promise: CancelablePromise<ISerializedSearchSuccess>;
@@ -35,7 +35,7 @@ export class SearchService implements IRawSearchService {
 		const emitter = new Emitter<ISerializedSearchProgressItem | ISerializedSearchComplete>({
 			onDidAddFirstListener: () => {
 				promise = createCancelablePromise(token => {
-					return this.doFileSearchWithEngine(FileSearchEngine, query, p => emitter.fire(p), token);
+					return this.doFileSearchWithEngine(FileSearchEngine, query, this.numThreads, p => emitter.fire(p), token);
 				});
 
 				promise.then(
