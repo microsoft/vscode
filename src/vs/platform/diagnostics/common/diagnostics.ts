@@ -79,6 +79,7 @@ export interface WorkspaceStats {
 	configFiles: WorkspaceStatItem[];
 	fileCount: number;
 	maxFilesReached: boolean;
+	totalScanTime: number;
 	launchConfigFiles: WorkspaceStatItem[];
 }
 

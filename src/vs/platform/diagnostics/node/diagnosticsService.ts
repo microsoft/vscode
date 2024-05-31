@@ -9,6 +9,7 @@ import { Schemas } from 'vs/base/common/network';
 import { basename, join } from 'vs/base/common/path';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { ProcessItem } from 'vs/base/common/processes';
+import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI } from 'vs/base/common/uri';
 import { virtualMachineHint } from 'vs/base/node/id';
 import { IDirent, Promises as pfs } from 'vs/base/node/pfs';
@@ -131,7 +132,7 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 
 	const statsPromise = Promises.withAsyncBody<WorkspaceStats>(async (resolve) => {
 		const token: { count: number; maxReached: boolean } = { count: 0, maxReached: false };
-
+		const sw = new StopWatch(true);
 		await collect(folder, folder, filter, token);
 		const launchConfigs = await collectLaunchConfigs(folder);
 		resolve({
@@ -139,6 +140,7 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 			fileTypes: asSortedItems(fileTypes),
 			fileCount: token.count,
 			maxFilesReached: token.maxReached,
+			totalScanTime: sw.elapsed(),
 			launchConfigFiles: launchConfigs
 		});
 	});
@@ -568,6 +570,21 @@ export class DiagnosticsService implements IDiagnosticsService {
 						count: e.count
 					});
 				});
+
+				// Workspace stats metadata
+				type WorkspaceStatsMetadataClassification = {
+					owner: 'jrieken';
+					comment: 'Metadata about workspace metadata collection';
+					duration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'How did it take to make workspace stats' };
+					reachedLimit: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Did making workspace stats reach its limits' };
+					fileCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'How many files did workspace stats discover' };
+				};
+				type WorkspaceStatsMetadata = {
+					duration: number;
+					reachedLimit: boolean;
+					fileCount: number;
+				};
+				this.telemetryService.publicLog2<WorkspaceStatsMetadata, WorkspaceStatsMetadataClassification>('workspace.stats.metadata', { duration: stats.totalScanTime, reachedLimit: stats.maxFilesReached, fileCount: stats.fileCount });
 			} catch {
 				// Report nothing if collecting metadata fails.
 			}
