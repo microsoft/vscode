@@ -7,7 +7,6 @@ import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifec
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
@@ -95,7 +94,7 @@ export class NativeExtHostSearch extends ExtHostSearch implements IDisposable {
 		return super.$provideFileSearchResults(handle, session, rawQuery, token);
 	}
 
-	override doInternalFileSearchWithCustomCallback(rawQuery: IFileQuery, token: vscode.CancellationToken, handleFileMatch: (data: URI[]) => void): Promise<ISearchCompleteStats> {
+	override async doInternalFileSearchWithCustomCallback(rawQuery: IFileQuery, token: vscode.CancellationToken, handleFileMatch: (data: URI[]) => void): Promise<ISearchCompleteStats> {
 		const onResult = (ev: ISerializedSearchProgressItem) => {
 			if (isSerializedFileMatch(ev)) {
 				ev = [ev];
@@ -114,8 +113,8 @@ export class NativeExtHostSearch extends ExtHostSearch implements IDisposable {
 		if (!this._internalFileSearchProvider) {
 			throw new Error('No internal file search handler');
 		}
-
-		return <Promise<ISearchCompleteStats>>this._internalFileSearchProvider.doFileSearch(rawQuery, this._numThreadsPromise, onResult, token);
+		const numThreads = await this._numThreadsPromise;
+		return <Promise<ISearchCompleteStats>>this._internalFileSearchProvider.doFileSearch(rawQuery, numThreads, onResult, token);
 	}
 
 	private async doInternalFileSearch(handle: number, session: number, rawQuery: IFileQuery, token: vscode.CancellationToken): Promise<ISearchCompleteStats> {
