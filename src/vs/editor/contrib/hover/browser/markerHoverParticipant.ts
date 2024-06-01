@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { CancelablePromise, createCancelablePromise, disposableTimeout } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -15,6 +14,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { CodeActionTriggerType } from 'vs/editor/common/languages';
+import { ILanguageService } from 'vs/editor/common/languages/language.js';
 import { IModelDecoration } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markerDecorations';
@@ -23,6 +23,7 @@ import { CodeActionController } from 'vs/editor/contrib/codeAction/browser/codeA
 import { CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
 import { MarkerController, NextMarkerAction } from 'vs/editor/contrib/gotoError/browser/gotoError';
 import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
+import { renderMarkdownInContainer } from 'vs/editor/contrib/hover/browser/markdownHoverParticipant';
 import * as nls from 'vs/nls';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IMarker, IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
@@ -64,6 +65,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 		private readonly _editor: ICodeEditor,
 		@IMarkerDecorationsService private readonly _markerDecorationsService: IMarkerDecorationsService,
 		@IOpenerService private readonly _openerService: IOpenerService,
+		@ILanguageService private readonly _languageService: ILanguageService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 	) { }
 
@@ -113,10 +115,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 		const messageElement = dom.append(markerElement, $('span'));
 		messageElement.style.whiteSpace = 'pre-wrap';
 		if (isMarkdownString(message)) {
-			// renderMarkdownHovers(context, [message], editor, languageService, openerService)
-			const markdown = renderMarkdown(message)
-			// @ts-ignore
-			messageElement.append(markdown.element);
+			disposables.add(renderMarkdownInContainer(this._editor, messageElement, [message], this._languageService, this._openerService, context.onContentsChanged))
 		} else {
 			messageElement.innerText = message;
 		}

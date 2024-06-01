@@ -449,7 +449,7 @@ export function renderMarkdownHovers(
 	return disposables;
 }
 
-function renderMarkdownInContainer(
+export function renderMarkdownInContainer(
 	editor: ICodeEditor,
 	container: DocumentFragment | HTMLElement,
 	markdownStrings: IMarkdownString[],
