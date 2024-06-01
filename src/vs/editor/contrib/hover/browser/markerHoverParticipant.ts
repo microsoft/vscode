@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { CancelablePromise, createCancelablePromise, disposableTimeout } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -96,13 +97,13 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 			return Disposable.None;
 		}
 		const disposables = new DisposableStore();
-		hoverParts.forEach(msg => context.fragment.appendChild(this.renderMarkerHover(msg, disposables)));
+		hoverParts.forEach(msg => context.fragment.appendChild(this.renderMarkerHover(msg, context, disposables)));
 		const markerHoverForStatusbar = hoverParts.length === 1 ? hoverParts[0] : hoverParts.sort((a, b) => MarkerSeverity.compare(a.marker.severity, b.marker.severity))[0];
 		this.renderMarkerStatusbar(context, markerHoverForStatusbar, disposables);
 		return disposables;
 	}
 
-	private renderMarkerHover(markerHover: MarkerHover, disposables: DisposableStore): HTMLElement {
+	private renderMarkerHover(markerHover: MarkerHover, context: IEditorHoverRenderContext, disposables: DisposableStore): HTMLElement {
 		const hoverElement = $('div.hover-row');
 		hoverElement.tabIndex = 0;
 		const markerElement = dom.append(hoverElement, $('div.marker.hover-contents'));
@@ -111,6 +112,13 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 		this._editor.applyFontInfo(markerElement);
 		const messageElement = dom.append(markerElement, $('span'));
 		messageElement.style.whiteSpace = 'pre-wrap';
+		if (isMarkdownString(message)) {
+			// renderMarkdownHovers(context, [message], editor, languageService, openerService)
+			const markdown = renderMarkdown(message)
+			// @ts-ignore
+			messageElement.textContent = markdown
+		}
+		// TODO render markdown here
 		const text = isMarkdownString(message) ? message.value : message;
 		messageElement.innerText = text;
 
