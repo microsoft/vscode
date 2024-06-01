@@ -208,11 +208,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	private getContainerDimension(container: HTMLElement): IDimension {
 		if (container === this.mainContainer) {
-			// main window
-			return this.mainContainerDimension;
+			return this.mainContainerDimension; // main window
 		} else {
-			// auxiliary window
-			return getClientArea(container);
+			return getClientArea(container); 	// auxiliary window
 		}
 	}
 
@@ -1934,12 +1932,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				height: panelPosition === Position.BOTTOM ? this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_LAST_NON_MAXIMIZED_HEIGHT) : size.height
 			});
 		}
+
 		this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_WAS_LAST_MAXIMIZED, !isMaximized);
 	}
 
-	/**
-	 * Returns whether or not the panel opens maximized
-	 */
 	private panelOpensMaximized(): boolean {
 
 		// The workbench grid currently prevents us from supporting panel maximization with non-center panel alignment
@@ -2715,6 +2711,7 @@ class LayoutStateModel extends Disposable {
 		if (oldValue !== undefined) {
 			return !oldValue;
 		}
+
 		return this.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) !== ActivityBarPosition.DEFAULT;
 	}
 
