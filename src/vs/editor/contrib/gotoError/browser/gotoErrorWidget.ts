@@ -9,7 +9,7 @@ import { IAction } from 'vs/base/common/actions';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
-import { isMarkdownString } from 'vs/base/common/htmlContent.js';
+import { isMarkdownString } from 'vs/base/common/htmlContent';
 import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { basename } from 'vs/base/common/resources';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
