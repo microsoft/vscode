@@ -7,6 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { CancelablePromise, createCancelablePromise, disposableTimeout } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { isMarkdownString } from 'vs/base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { basename } from 'vs/base/common/resources';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -110,7 +111,8 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 		this._editor.applyFontInfo(markerElement);
 		const messageElement = dom.append(markerElement, $('span'));
 		messageElement.style.whiteSpace = 'pre-wrap';
-		messageElement.innerText = message;
+		const text = isMarkdownString(message) ? message.value : message;
+		messageElement.innerText = text;
 
 		if (source || code) {
 			// Code has link
