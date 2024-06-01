@@ -1071,7 +1071,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					URI.from({ scheme: Schemas.vscodeChatCodeBlock, path: original.uri.path, query: generateUuid() }),
 					false
 				);
-				store.add(modified);
+				const modRef = await this.textModelService.createModelReference(modified.uri);
+				store.add(modRef);
 
 				const editGroups: ISingleEditOperation[][] = [];
 				if (isResponseVM(element)) {
@@ -1113,6 +1114,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			element: ref.object.element,
 			dispose() {
 				store.dispose();
+				ref.dispose();
 			},
 		};
 	}

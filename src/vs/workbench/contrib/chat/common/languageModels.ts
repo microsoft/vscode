@@ -7,7 +7,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { localize } from 'vs/nls';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
@@ -133,10 +133,12 @@ export class LanguageModelsService implements ILanguageModelsService {
 
 	readonly _serviceBrand: undefined;
 
+	private readonly _store = new DisposableStore();
+
 	private readonly _providers = new Map<string, ILanguageModelChat>();
 	private readonly _vendors = new Set<string>();
 
-	private readonly _onDidChangeProviders = new Emitter<ILanguageModelsChangeEvent>();
+	private readonly _onDidChangeProviders = this._store.add(new Emitter<ILanguageModelsChangeEvent>());
 	readonly onDidChangeLanguageModels: Event<ILanguageModelsChangeEvent> = this._onDidChangeProviders.event;
 
 	constructor(
@@ -144,7 +146,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 		@ILogService private readonly _logService: ILogService,
 	) {
 
-		languageModelExtensionPoint.setHandler((extensions) => {
+		this._store.add(languageModelExtensionPoint.setHandler((extensions) => {
 
 			this._vendors.clear();
 
@@ -182,11 +184,11 @@ export class LanguageModelsService implements ILanguageModelsService {
 			if (removed.length > 0) {
 				this._onDidChangeProviders.fire({ removed });
 			}
-		});
+		}));
 	}
 
 	dispose() {
-		this._onDidChangeProviders.dispose();
+		this._store.dispose();
 		this._providers.clear();
 	}
 
@@ -213,22 +215,12 @@ export class LanguageModelsService implements ILanguageModelsService {
 
 		for (const [identifier, model] of this._providers) {
 
-			if (selector.vendor !== undefined && model.metadata.vendor === selector.vendor
-				|| selector.family !== undefined && model.metadata.family === selector.family
-				|| selector.version !== undefined && model.metadata.version === selector.version
-				|| selector.identifier !== undefined && model.metadata.id === selector.identifier
-				|| selector.extension !== undefined && model.metadata.targetExtensions?.some(candidate => ExtensionIdentifier.equals(candidate, selector.extension))
+			if ((selector.vendor === undefined || model.metadata.vendor === selector.vendor)
+				&& (selector.family === undefined || model.metadata.family === selector.family)
+				&& (selector.version === undefined || model.metadata.version === selector.version)
+				&& (selector.identifier === undefined || model.metadata.id === selector.identifier)
+				&& (!model.metadata.targetExtensions || model.metadata.targetExtensions.some(candidate => ExtensionIdentifier.equals(candidate, selector.extension)))
 			) {
-				// true selection
-				result.push(identifier);
-
-			} else if (!selector || (
-				selector.vendor === undefined
-				&& selector.family === undefined
-				&& selector.version === undefined
-				&& selector.identifier === undefined)
-			) {
-				// no selection
 				result.push(identifier);
 			}
 		}

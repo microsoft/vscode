@@ -613,6 +613,16 @@ export class EditorBasedInlineChatWidget extends InlineChatWidget {
 
 	// --- layout
 
+	override get contentHeight(): number {
+		let result = super.contentHeight;
+
+		if (this._accessibleViewer.value) {
+			result += this._accessibleViewer.value.height;
+		}
+
+		return result;
+	}
+
 	protected override _doLayout(dimension: Dimension): void {
 
 		let newHeight = dimension.height;

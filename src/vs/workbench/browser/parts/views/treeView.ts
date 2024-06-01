@@ -877,7 +877,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		const container = document.createElement('div');
 		container.classList.add('rendered-message');
 		for (const child of result) {
-			if (child instanceof HTMLElement) {
+			if (DOM.isHTMLElement(child)) {
 				container.appendChild(child);
 			} else {
 				container.appendChild(child.element);
