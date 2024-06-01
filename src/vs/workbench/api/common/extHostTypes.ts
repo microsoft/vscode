@@ -8,7 +8,7 @@
 import { asArray, coalesceInPlace, equals } from 'vs/base/common/arrays';
 import { illegalArgument } from 'vs/base/common/errors';
 import { IRelativePattern } from 'vs/base/common/glob';
-import { MarkdownString as BaseMarkdownString, MarkdownStringTrustedOptions } from 'vs/base/common/htmlContent';
+import { MarkdownString as BaseMarkdownString, isMarkdownString, MarkdownStringTrustedOptions } from 'vs/base/common/htmlContent';
 import { ResourceMap } from 'vs/base/common/map';
 import { Mimes, normalizeMimeType } from 'vs/base/common/mime';
 import { nextCharLength } from 'vs/base/common/strings';
@@ -1133,14 +1133,14 @@ export class DiagnosticRelatedInformation {
 export class Diagnostic {
 
 	range: Range;
-	message: string;
+	message: string | vscode.MarkdownString;
 	severity: DiagnosticSeverity;
 	source?: string;
 	code?: string | number;
 	relatedInformation?: DiagnosticRelatedInformation[];
 	tags?: DiagnosticTag[];
 
-	constructor(range: Range, message: string, severity: DiagnosticSeverity = DiagnosticSeverity.Error) {
+	constructor(range: Range, message: string | vscode.MarkdownString, severity: DiagnosticSeverity = DiagnosticSeverity.Error) {
 		if (!Range.isRange(range)) {
 			throw new TypeError('range must be set');
 		}
