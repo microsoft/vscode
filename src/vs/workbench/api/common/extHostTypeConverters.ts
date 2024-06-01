@@ -356,7 +356,7 @@ export namespace MarkdownString {
 			const { language, value } = markup;
 			res = { value: '```' + language + '\n' + value + '\n```\n' };
 		} else if (types.MarkdownString.isMarkdownString(markup)) {
-			res = { value: markup.value, isTrusted: markup.isTrusted, supportThemeIcons: markup.supportThemeIcons, supportHtml: markup.supportHtml, baseUri: markup.baseUri };
+			res = { value: markup.value, isTrusted: markup.isTrusted, supportThemeIcons: markup.supportThemeIcons, supportHtml: markup.supportHtml, baseUri: markup.baseUri, plainTextValue: markup.plainTextValue };
 		} else if (typeof markup === 'string') {
 			res = { value: markup };
 		} else {
@@ -433,6 +433,7 @@ export namespace MarkdownString {
 		result.isTrusted = value.isTrusted;
 		result.supportHtml = value.supportHtml;
 		result.baseUri = value.baseUri ? URI.from(value.baseUri) : undefined;
+		result.plainTextValue = value.plainTextValue;
 		return result;
 	}
 
