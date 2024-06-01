@@ -34,8 +34,9 @@ export class SearchService implements IRawSearchService {
 		const query = reviveQuery(config);
 		const emitter = new Emitter<ISerializedSearchProgressItem | ISerializedSearchComplete>({
 			onDidAddFirstListener: () => {
-				promise = createCancelablePromise(token => {
-					return this.doFileSearchWithEngine(FileSearchEngine, query, this.numThreadsPromise, p => emitter.fire(p), token);
+				promise = createCancelablePromise(async token => {
+					const numThreads = await this.numThreadsPromise;
+					return this.doFileSearchWithEngine(FileSearchEngine, query, numThreads, p => emitter.fire(p), token);
 				});
 
 				promise.then(
