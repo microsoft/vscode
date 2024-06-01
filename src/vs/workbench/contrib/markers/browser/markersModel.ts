@@ -14,6 +14,7 @@ import { Hasher } from 'vs/base/common/hash';
 import { splitLines } from 'vs/base/common/strings';
 import { IMatch } from 'vs/base/common/filters';
 import { unsupportedSchemas } from 'vs/platform/markers/common/markerService';
+import { isMarkdownString } from 'vs/base/common/htmlContent';
 
 export type MarkerElement = ResourceMarkers | Marker | RelatedInformation;
 
@@ -98,7 +99,8 @@ export class Marker {
 	private _lines: string[] | undefined;
 	get lines(): string[] {
 		if (!this._lines) {
-			this._lines = splitLines(this.marker.message);
+			const plainTextMessage = isMarkdownString(this.marker.message) ? (this.marker.message.plainTextValue || '') : this.marker.message
+			this._lines = splitLines(plainTextMessage);
 		}
 		return this._lines;
 	}
