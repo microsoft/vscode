@@ -23,6 +23,15 @@ function updateDiagnostics(
 		const message = new vscode.MarkdownString(
 			'cannot assign twice to immutable variable `x`',
 		);
+		message.appendMarkdown(`**This is bold text**
+
+__This is bold text__
+
+*This is italic text*
+
+_This is italic text_
+
+~~Strikethrough~~`)
 		message.plainTextValue = 'cannot assign x';
 		collection.set(document.uri, [
 			{
