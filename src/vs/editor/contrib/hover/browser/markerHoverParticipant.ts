@@ -116,11 +116,10 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 			// renderMarkdownHovers(context, [message], editor, languageService, openerService)
 			const markdown = renderMarkdown(message)
 			// @ts-ignore
-			messageElement.textContent = markdown
+			messageElement.append(markdown.element);
+		} else {
+			messageElement.innerText = message;
 		}
-		// TODO render markdown here
-		const text = isMarkdownString(message) ? message.value : message;
-		messageElement.innerText = text;
 
 		if (source || code) {
 			// Code has link
