@@ -14,7 +14,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { CodeActionTriggerType } from 'vs/editor/common/languages';
-import { ILanguageService } from 'vs/editor/common/languages/language.js';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IModelDecoration } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markerDecorations';
