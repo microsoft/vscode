@@ -18,11 +18,10 @@ submodule_dir="extensions/pearai-submodule"
 # Change to the submodule directory and install dependencies
 execute "cd $submodule_dir" "Failed to change directory to $submodule_dir"
 execute "./scripts/install-dependencies.sh" "Failed to install dependencies for the submodule"
-execute "./scripts/build-extension.sh" "Failed to build the extension"
 execute "cd ../../" "Failed to change back to the root directory"
 
 # Install dependencies using yarn
 execute "yarn" "Failed to install dependencies using yarn"
 
 # Success message
-echo "Dependencies Installed and Build Completed Successfully! ⭐"
+echo "Dependencies Installed Completed Successfully! ⭐"
