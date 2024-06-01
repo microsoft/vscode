@@ -115,7 +115,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 		const messageElement = dom.append(markerElement, $('span'));
 		messageElement.style.whiteSpace = 'pre-wrap';
 		if (isMarkdownString(message)) {
-			disposables.add(renderMarkdownInContainer(this._editor, messageElement, [message], this._languageService, this._openerService, context.onContentsChanged))
+			disposables.add(renderMarkdownInContainer(this._editor, messageElement, [message], this._languageService, this._openerService, context.onContentsChanged));
 		} else {
 			messageElement.innerText = message;
 		}
