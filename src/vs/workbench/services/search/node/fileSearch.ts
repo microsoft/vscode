@@ -630,10 +630,10 @@ export class Engine implements ISearchEngine<IRawFileMatch> {
 	private walker: FileWalker;
 	private numThreads?: number;
 
-	constructor(config: IFileQuery, numThreads?: number) {
+	constructor(config: IFileQuery, numThreadsPromise?: number) {
 		this.folderQueries = config.folderQueries;
 		this.extraFiles = config.extraFileResources || [];
-		this.numThreads = numThreads;
+		this.numThreads = numThreadsPromise;
 
 		this.walker = new FileWalker(config);
 	}

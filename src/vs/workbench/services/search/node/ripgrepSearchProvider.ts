@@ -14,15 +14,16 @@ import type { TextSearchOptionsExtended } from 'vs/workbench/services/search/com
 export class RipgrepSearchProvider implements TextSearchProvider {
 	private inProgress: Set<CancellationTokenSource> = new Set();
 
-	constructor(private outputChannel: OutputChannel, private numThreads: number | undefined) {
+	constructor(private outputChannel: OutputChannel, private numThreadsPromise: Promise<number | undefined>) {
 		process.once('exit', () => this.dispose());
 	}
 
-	provideTextSearchResults(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): Promise<TextSearchComplete> {
-		const engine = new RipgrepTextSearchEngine(this.outputChannel, this.numThreads);
+	async provideTextSearchResults(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): Promise<TextSearchComplete> {
+		const numThreads = await this.numThreadsPromise;
+		const engine = new RipgrepTextSearchEngine(this.outputChannel, numThreads);
 		const extendedOptions: TextSearchOptionsExtended = {
 			...options,
-			numThreads: this.numThreads
+			numThreads,
 		};
 		if (options.folder.scheme === Schemas.vscodeUserData) {
 			// Ripgrep search engine can only provide file-scheme results, but we want to use it to search some schemes that are backed by the filesystem, but with some other provider as the frontend,
