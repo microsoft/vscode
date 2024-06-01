@@ -1558,6 +1558,14 @@ export class MarkdownString implements vscode.MarkdownString {
 		this.#delegate.value = value;
 	}
 
+	get plainTextValue(): string | undefined {
+		return this.#delegate.plainTextValue;
+	}
+
+	set plainTextValue(value: string | undefined) {
+		this.#delegate.plainTextValue = value;
+	}
+
 	get isTrusted(): boolean | MarkdownStringTrustedOptions | undefined {
 		return this.#delegate.isTrusted;
 	}
