@@ -6730,7 +6730,7 @@ declare module 'vscode' {
 		/**
 		 * The human-readable message.
 		 */
-		message: string;
+		message: string | MarkdownString;
 
 		/**
 		 * The severity, default is {@link DiagnosticSeverity.Error error}.
