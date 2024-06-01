@@ -111,7 +111,7 @@ export interface IMarker {
 	resource: URI;
 	severity: MarkerSeverity;
 	code?: string | { value: string; target: URI };
-	message: string;
+	message: string | IMarkdownString;
 	source?: string;
 	startLineNumber: number;
 	startColumn: number;
