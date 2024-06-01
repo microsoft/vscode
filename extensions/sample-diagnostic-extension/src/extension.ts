@@ -1,5 +1,10 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
 import * as vscode from 'vscode';
-import *as path from 'path';
+import * as path from 'path';
 
 export const activate = (context: vscode.ExtensionContext) => {
 	const collection = vscode.languages.createDiagnosticCollection('test');
@@ -39,7 +44,7 @@ _This is italic text_
 
 
 `)
-		message.plainTextValue = 'cannot assign x';
+		message.plainTextValue = 'cannot assign twice to immutable variable `x`';
 		collection.set(document.uri, [
 			{
 				code: '',
