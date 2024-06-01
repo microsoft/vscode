@@ -121,7 +121,7 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 		}));
 
 		this._register(DOM.addDisposableListener(this.getDomNode(), DOM.EventType.FOCUS, e => {
-			this._previousFocusElement = e.relatedTarget instanceof HTMLElement ? e.relatedTarget : undefined;
+			this._previousFocusElement = DOM.isHTMLElement(e.relatedTarget) ? e.relatedTarget : undefined;
 		}, true));
 	}
 

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ISCMService, ISCMProvider, ISCMInput, ISCMRepository, IInputValidator, ISCMInputChangeEvent, SCMInputChangeReason, InputValidationType, IInputValidation } from './scm';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -16,7 +16,7 @@ import { URI } from 'vs/base/common/uri';
 import { Iterable } from 'vs/base/common/iterator';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
-class SCMInput implements ISCMInput {
+class SCMInput extends Disposable implements ISCMInput {
 
 	private _value = '';
 
@@ -104,9 +104,11 @@ class SCMInput implements ISCMInput {
 		readonly repository: ISCMRepository,
 		private readonly history: SCMInputHistory
 	) {
+		super();
+
 		if (this.repository.provider.rootUri) {
 			this.historyNavigator = history.getHistory(this.repository.provider.label, this.repository.provider.rootUri);
-			this.history.onWillSaveHistory(event => {
+			this._register(this.history.onWillSaveHistory(event => {
 				if (this.historyNavigator.isAtEnd()) {
 					this.saveValue();
 				}
@@ -116,7 +118,7 @@ class SCMInput implements ISCMInput {
 				}
 
 				this.didChangeHistory = false;
-			});
+			}));
 		} else { // in memory only
 			this.historyNavigator = new HistoryNavigator2([''], 100);
 		}

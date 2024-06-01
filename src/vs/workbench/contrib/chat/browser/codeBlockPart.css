@@ -143,3 +143,7 @@
 	color: var(--vscode-textLink-foreground);
 	cursor: pointer;
 }
+
+.interactive-result-code-block.compare .message A > CODE {
+	color: var(--vscode-textLink-foreground);
+}

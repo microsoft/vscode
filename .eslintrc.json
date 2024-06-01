@@ -309,6 +309,10 @@
 						"message": "Use DOM.isMouseEvent() to support multi-window scenarios."
 					},
 					{
+						"selector": "BinaryExpression[operator='instanceof'][right.name=/^HTML\\w+/]",
+						"message": "Use DOM.isHTMLElement() and related methods to support multi-window scenarios."
+					},
+					{
 						"selector": "BinaryExpression[operator='instanceof'][right.name='KeyboardEvent']",
 						"message": "Use DOM.isKeyboardEvent() to support multi-window scenarios."
 					},

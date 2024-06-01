@@ -11,7 +11,7 @@ import { Iterable } from 'vs/base/common/iterator';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { Location } from 'vs/editor/common/languages';
-import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
+import { IChatWidgetService, showChatView } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatDynamicVariableModel } from 'vs/workbench/contrib/chat/browser/contrib/chatDynamicVariables';
 import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatModel, IChatRequestVariableData, IChatRequestVariableEntry } from 'vs/workbench/contrib/chat/common/chatModel';
@@ -19,6 +19,7 @@ import { ChatRequestDynamicVariablePart, ChatRequestVariablePart, IParsedChatReq
 import { IChatContentReference } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestVariableValue, IChatVariableData, IChatVariableResolver, IChatVariableResolverProgress, IChatVariablesService, IDynamicVariable } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { ChatContextAttachments } from 'vs/workbench/contrib/chat/browser/contrib/chatContextAttachments';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 
 interface IChatData {
 	data: IChatVariableData;
@@ -31,7 +32,8 @@ export class ChatVariablesService implements IChatVariablesService {
 	private _resolver = new Map<string, IChatData>();
 
 	constructor(
-		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IViewsService private readonly viewsService: IViewsService,
 	) {
 	}
 
@@ -155,6 +157,7 @@ export class ChatVariablesService implements IChatVariablesService {
 			return;
 		}
 
+		await showChatView(this.viewsService);
 		const widget = this.chatWidgetService.lastFocusedWidget;
 		if (!widget || !widget.viewModel) {
 			return;
