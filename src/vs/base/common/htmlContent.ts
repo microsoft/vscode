@@ -15,6 +15,7 @@ export interface MarkdownStringTrustedOptions {
 
 export interface IMarkdownString {
 	readonly value: string;
+	readonly plainTextValue?: string;
 	readonly isTrusted?: boolean | MarkdownStringTrustedOptions;
 	readonly supportThemeIcons?: boolean;
 	readonly supportHtml?: boolean;
