@@ -124,10 +124,15 @@
     "@vscode/sync-api-common" "0.7.2"
     vscode-uri "3.0.3"
 
-"@vscode/sync-api-common@0.7.2", "@vscode/sync-api-common@^0.7.2":
+"@vscode/sync-api-common@0.7.2":
   version "0.7.2"
   resolved "https://registry.yarnpkg.com/@vscode/sync-api-common/-/sync-api-common-0.7.2.tgz#705060ee6a0108c24e145e687613becdb4292b33"
   integrity sha512-ne1XEeDIYA3mp4oo1QoF1fqFedd0Vf4ybMmLb9HixbTyXy/qwMNL2p6OjXjOsmx6w2q9eqzGA5W/OPRSJxTTIQ==
+
+"@vscode/sync-api-common@^0.8.1":
+  version "0.8.1"
+  resolved "https://registry.yarnpkg.com/@vscode/sync-api-common/-/sync-api-common-0.8.1.tgz#3a74b5ee2c89e913bc1d5d8149d5f585fb60b3b7"
+  integrity sha512-XfanQNxkUlCpAsQ2+1SzNEdoY7jtcu48jYBR0n864ZWAWrH7m2QBK32YoNlrDN2V0eh8tdF0WH1NuHOm3Y021A==
 
 "@vscode/sync-api-service@^0.7.3":
   version "0.7.3"

@@ -42,7 +42,7 @@
   "dependencies": {
     "@vscode/extension-telemetry": "^0.9.0",
     "@vscode/sync-api-client": "^0.7.2",
-    "@vscode/sync-api-common": "^0.7.2",
+    "@vscode/sync-api-common": "^0.8.1",
     "@vscode/sync-api-service": "^0.7.3",
     "@vscode/ts-package-manager": "^0.0.2",
     "jsonc-parser": "^3.2.0",
