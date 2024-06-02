@@ -42,10 +42,11 @@ export const IUserDataProfileManagementService = createDecorator<IUserDataProfil
 export interface IUserDataProfileManagementService {
 	readonly _serviceBrand: undefined;
 
+	createProfile(name: string, options?: IUserDataProfileOptions): Promise<IUserDataProfile>;
 	createAndEnterProfile(name: string, options?: IUserDataProfileOptions): Promise<IUserDataProfile>;
 	createAndEnterTransientProfile(): Promise<IUserDataProfile>;
 	removeProfile(profile: IUserDataProfile): Promise<void>;
-	updateProfile(profile: IUserDataProfile, updateOptions: IUserDataProfileUpdateOptions): Promise<void>;
+	updateProfile(profile: IUserDataProfile, updateOptions: IUserDataProfileUpdateOptions): Promise<IUserDataProfile>;
 	switchProfile(profile: IUserDataProfile): Promise<void>;
 	getBuiltinProfileTemplates(): Promise<IProfileTemplateInfo[]>;
 
@@ -78,15 +79,15 @@ export function toUserDataProfileUri(path: string, productService: IProductServi
 	});
 }
 
-export interface IProfileImportOptions extends IUserDataProfileOptions {
+export interface IUserDataProfileCreateOptions extends IUserDataProfileOptions {
+	readonly resourceTypeFlags?: ProfileResourceTypeFlags;
+	readonly donotSwitch?: boolean;
+}
+
+export interface IProfileImportOptions extends IUserDataProfileCreateOptions {
 	readonly name?: string;
 	readonly icon?: string;
 	readonly mode?: 'preview' | 'apply' | 'both';
-	readonly resourceTypeFlags?: ProfileResourceTypeFlags;
-}
-
-export interface IUserDataProfileCreateOptions extends IUserDataProfileOptions {
-	readonly resourceTypeFlags?: ProfileResourceTypeFlags;
 }
 
 export const IUserDataProfileImportExportService = createDecorator<IUserDataProfileImportExportService>('IUserDataProfileImportExportService');

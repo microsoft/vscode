@@ -225,7 +225,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			if (mode === 'preview') {
 				await this.previewProfile(profileTemplate, options);
 			} else if (mode === 'apply') {
-				await this.createAndSwitch(profileTemplate, false, true, options, localize('create profile', "Create Profile"));
+				await this.createAndSwitch(profileTemplate, !!options?.transient, true, options, localize('create profile', "Create Profile"), !options?.donotSwitch);
 			} else if (mode === 'both') {
 				await this.importAndPreviewProfile(uri, profileTemplate, options);
 			}
@@ -531,7 +531,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 				} else if (isUserDataProfileTemplate(source)) {
 					source.name = result.name;
 					this.telemetryService.publicLog2<CreateProfileInfoEvent, CreateProfileInfoClassification>('userDataProfile.createFromExternalTemplate', createProfileTelemetryData);
-					await this.createAndSwitch(source, false, true, { useDefaultFlags, icon: result.icon ? result.icon : undefined }, localize('create profile', "Create Profile"));
+					await this.createAndSwitch(source, false, true, { useDefaultFlags, icon: result.icon ? result.icon : undefined }, localize('create profile', "Create Profile"), true);
 				} else {
 					this.telemetryService.publicLog2<CreateProfileInfoEvent, CreateProfileInfoClassification>('userDataProfile.createEmptyProfile', createProfileTelemetryData);
 					await this.userDataProfileManagementService.createAndEnterProfile(result.name, { useDefaultFlags, icon: result.icon ? result.icon : undefined });
@@ -592,15 +592,17 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 				sticky: true,
 			}, async progress => {
 				const reportProgress = (message: string) => progress.report({ message: localize('create from profile', "Create Profile: {0}", message) });
-				const createdProfile = await this.doCreateProfile(profileTemplate, false, false, { useDefaultFlags: options?.useDefaultFlags, icon: options?.icon }, reportProgress);
+				const createdProfile = await this.doCreateProfile(profileTemplate, false, false, { useDefaultFlags: options?.useDefaultFlags, icon: options?.icon, transient: options?.transient }, reportProgress);
 				if (createdProfile) {
 					if (options?.resourceTypeFlags?.extensions ?? true) {
 						reportProgress(localize('progress extensions', "Applying Extensions..."));
 						await this.instantiationService.createInstance(ExtensionsResource).copy(profile, createdProfile, false);
 					}
 
-					reportProgress(localize('switching profile', "Switching Profile..."));
-					await this.userDataProfileManagementService.switchProfile(createdProfile);
+					if (!options?.donotSwitch) {
+						reportProgress(localize('switching profile', "Switching Profile..."));
+						await this.userDataProfileManagementService.switchProfile(createdProfile);
+					}
 				}
 			});
 		} finally {
@@ -750,7 +752,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			const userDataProfileImportState = disposables.add(this.instantiationService.createInstance(UserDataProfileImportState, profileTemplate));
 			profileTemplate = await userDataProfileImportState.getProfileTemplateToImport();
 
-			const importedProfile = await this.createAndSwitch(profileTemplate, true, false, options, localize('preview profile', "Preview Profile"));
+			const importedProfile = await this.createAndSwitch(profileTemplate, true, false, options, localize('preview profile', "Preview Profile"), true);
 
 			if (!importedProfile) {
 				return;
@@ -821,7 +823,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		try {
 			const userDataProfileImportState = disposables.add(this.instantiationService.createInstance(UserDataProfileImportState, profileTemplate));
 			if (userDataProfileImportState.isEmpty()) {
-				await this.createAndSwitch(profileTemplate, false, true, options, localize('create profile', "Create Profile"));
+				await this.createAndSwitch(profileTemplate, false, true, options, localize('create profile', "Create Profile"), true);
 			} else {
 				const barrier = new Barrier();
 				const cancelAction = new BarrierAction(barrier, new Action('cancel', localize('cancel', "Cancel")), this.notificationService);
@@ -847,7 +849,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		return importAction;
 	}
 
-	private async createAndSwitch(profileTemplate: IUserDataProfileTemplate, temporaryProfile: boolean, extensions: boolean, options: IUserDataProfileOptions | undefined, title: string): Promise<IUserDataProfile | undefined> {
+	private async createAndSwitch(profileTemplate: IUserDataProfileTemplate, temporaryProfile: boolean, extensions: boolean, options: IUserDataProfileOptions | undefined, title: string, switchProfile: boolean): Promise<IUserDataProfile | undefined> {
 		return this.progressService.withProgress({
 			location: ProgressLocation.Notification,
 			delay: 500,
@@ -857,7 +859,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			progress.report({ message: title });
 			const reportProgress = (message: string) => progress.report({ message: `${title}: ${message}` });
 			const profile = await this.doCreateProfile(profileTemplate, temporaryProfile, extensions, options, reportProgress);
-			if (profile) {
+			if (profile && switchProfile) {
 				reportProgress(localize('switching profile', "Switching Profile..."));
 				await this.userDataProfileManagementService.switchProfile(profile);
 			}

@@ -116,10 +116,11 @@
 
 .profiles-editor .contents-container .profile-header .profile-actions-container .actions-container .codicon {
 	font-size: 18px;
+	padding: 6px;
 }
 
 .profiles-editor .contents-container .profile-header .profile-actions-container .profile-button-container {
-	margin-right: 5px;
+	margin-left:6px;
 	min-width: 120px;
 }
 
@@ -153,7 +154,7 @@
 }
 
 .profiles-editor .contents-container .profile-copy-from-container > .profile-copy-from-label {
-	margin-right: 10px;
+	margin-right: 33px;
 	display: inline-flex;
 	align-items: center;
 }
@@ -187,7 +188,7 @@
 }
 
 .profiles-editor .contents-container .profile-tree-item-container.new-profile-resource-type-container > .profile-resource-type-label-container {
-	width: 150px;
+	width: 170px;
 }
 
 .profiles-editor .contents-container .profile-tree-item-container.new-profile-resource-type-container > .profile-select-container {

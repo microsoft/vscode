@@ -116,7 +116,7 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 		this.splitView.addView({
 			onDidChange: Event.None,
 			element: sidebarView,
-			minimumSize: 175,
+			minimumSize: 200,
 			maximumSize: 350,
 			layout: (width, _, height) => {
 				sidebarView.style.width = `${width}px`;
@@ -130,7 +130,7 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 		this.splitView.addView({
 			onDidChange: Event.None,
 			element: contentsView,
-			minimumSize: 500,
+			minimumSize: 550,
 			maximumSize: Number.POSITIVE_INFINITY,
 			layout: (width, _, height) => {
 				contentsView.style.width = `${width}px`;
@@ -478,13 +478,14 @@ class ProfileWidget extends Disposable {
 		}));
 
 		const actionsContainer = append(header, $('.profile-actions-container'));
-		this.buttonContainer = append(actionsContainer, $('.profile-button-container'));
 		this.toolbar = this._register(instantiationService.createInstance(WorkbenchToolBar,
 			actionsContainer,
 			{
 				hoverDelegate: this._register(createInstantHoverDelegate()),
+				highlightToggledItems: true
 			}
 		));
+		this.buttonContainer = append(actionsContainer, $('.profile-button-container'));
 
 		const body = append(parent, $('.profile-body'));
 
@@ -735,7 +736,7 @@ class ProfileWidget extends Disposable {
 				: 0;
 			if (index !== -1) {
 				this.copyFromSelectBox.setOptions(this.copyFromOptions);
-				this.copyFromSelectBox.setEnabled(true);
+				this.copyFromSelectBox.setEnabled(!profileElement.previewProfile);
 				this.copyFromSelectBox.select(index);
 			} else {
 				this.copyFromSelectBox.setOptions([{ text: basename(profileElement.copyFrom as URI) }]);
@@ -779,6 +780,9 @@ class ProfileResourceTreeDataSource implements IAsyncDataSource<AbstractUserData
 			return true;
 		}
 		if (isString(element.element)) {
+			if (element.element !== ProfileResourceType.Extensions && element.element !== ProfileResourceType.Snippets) {
+				return false;
+			}
 			if (element.root instanceof NewProfileElement) {
 				if (element.root.getFlag(element.element)) {
 					return true;
@@ -800,8 +804,8 @@ class ProfileResourceTreeDataSource implements IAsyncDataSource<AbstractUserData
 			const resourceTypes = [
 				ProfileResourceType.Settings,
 				ProfileResourceType.Keybindings,
-				ProfileResourceType.Snippets,
 				ProfileResourceType.Tasks,
+				ProfileResourceType.Snippets,
 				ProfileResourceType.Extensions
 			];
 			return resourceTypes.map(resourceType => ({ element: resourceType, root: element }));

@@ -26,6 +26,7 @@ import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFil
 import { IFileService } from 'vs/platform/files/common/files';
 import { generateUuid } from 'vs/base/common/uuid';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 export type ChangeEvent = {
 	readonly name?: boolean;
@@ -35,6 +36,7 @@ export type ChangeEvent = {
 	readonly message?: boolean;
 	readonly copyFrom?: boolean;
 	readonly copyFlags?: boolean;
+	readonly preview?: boolean;
 };
 
 export abstract class AbstractUserDataProfileElement extends Disposable {
@@ -42,11 +44,14 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 	protected readonly _onDidChange = this._register(new Emitter<ChangeEvent>());
 	readonly onDidChange = this._onDidChange.event;
 
+	private readonly saveScheduler = this._register(new RunOnceScheduler(() => this.doSave(), 500));
+
 	constructor(
 		name: string,
 		icon: string | undefined,
 		flags: UseDefaultProfileFlags | undefined,
 		isActive: boolean,
+		@IUserDataProfileManagementService protected readonly userDataProfileManagementService: IUserDataProfileManagementService,
 		@IUserDataProfilesService protected readonly userDataProfilesService: IUserDataProfilesService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 	) {
@@ -59,9 +64,7 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 			if (!e.message) {
 				this.validate();
 			}
-			if (this.primaryAction) {
-				this.primaryAction.enabled = !this.message;
-			}
+			this.save();
 		}));
 	}
 
@@ -167,10 +170,48 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 		return '';
 	}
 
+	save(): void {
+		this.saveScheduler.schedule();
+	}
+
+	private hasUnsavedChanges(profile: IUserDataProfile): boolean {
+		if (this.name !== profile.name) {
+			return true;
+		}
+		if (this.icon !== profile.icon) {
+			return true;
+		}
+		if (!equals(this.flags ?? {}, profile.useDefaultFlags ?? {})) {
+			return true;
+		}
+		return false;
+	}
+
+	protected async saveProfile(profile: IUserDataProfile): Promise<IUserDataProfile | undefined> {
+		if (!this.hasUnsavedChanges(profile)) {
+			return;
+		}
+		this.validate();
+		if (this.message) {
+			return;
+		}
+		const useDefaultFlags: UseDefaultProfileFlags | undefined = this.flags
+			? this.flags.settings && this.flags.keybindings && this.flags.tasks && this.flags.globalState && this.flags.extensions ? undefined : this.flags
+			: undefined;
+
+		return await this.userDataProfileManagementService.updateProfile(profile, {
+			name: this.name,
+			icon: this.icon,
+			useDefaultFlags: profile.useDefaultFlags && !useDefaultFlags ? {} : useDefaultFlags
+		});
+	}
+
 	abstract readonly primaryAction?: Action;
 	abstract readonly secondaryAction?: Action;
 	abstract readonly titleActions: [IAction[], IAction[]];
 	abstract readonly contextMenuActions: IAction[];
+
+	protected abstract doSave(): Promise<void>;
 }
 
 export class UserDataProfileElement extends AbstractUserDataProfileElement {
@@ -180,14 +221,12 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement {
 	readonly primaryAction = undefined;
 	readonly secondaryAction = undefined;
 
-	private readonly saveScheduler = this._register(new RunOnceScheduler(() => this.doSave(), 500));
-
 	constructor(
 		private _profile: IUserDataProfile,
 		readonly titleActions: [IAction[], IAction[]],
 		readonly contextMenuActions: IAction[],
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
-		@IUserDataProfileManagementService private readonly userDataProfileManagementService: IUserDataProfileManagementService,
+		@IUserDataProfileManagementService userDataProfileManagementService: IUserDataProfileManagementService,
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
@@ -196,6 +235,7 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement {
 			_profile.icon,
 			_profile.useDefaultFlags,
 			userDataProfileService.currentProfile.id === _profile.id,
+			userDataProfileManagementService,
 			userDataProfilesService,
 			instantiationService,
 		);
@@ -209,45 +249,10 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement {
 				this.flags = profile.useDefaultFlags;
 			}
 		}));
-		this._register(this.onDidChange(e => {
-			this.save();
-		}));
 	}
 
-	private hasUnsavedChanges(): boolean {
-		if (this.name !== this.profile.name) {
-			return true;
-		}
-		if (this.icon !== this.profile.icon) {
-			return true;
-		}
-		if (!equals(this.flags ?? {}, this.profile.useDefaultFlags ?? {})) {
-			return true;
-		}
-		return false;
-	}
-
-	save(): void {
-		this.saveScheduler.schedule();
-	}
-
-	private async doSave(): Promise<void> {
-		if (!this.hasUnsavedChanges()) {
-			return;
-		}
-		this.validate();
-		if (this.message) {
-			return;
-		}
-		const useDefaultFlags: UseDefaultProfileFlags | undefined = this.flags
-			? this.flags.settings && this.flags.keybindings && this.flags.tasks && this.flags.globalState && this.flags.extensions ? undefined : this.flags
-			: undefined;
-
-		await this.userDataProfileManagementService.updateProfile(this.profile, {
-			name: this.name,
-			icon: this.icon,
-			useDefaultFlags: this.profile.useDefaultFlags && !useDefaultFlags ? {} : useDefaultFlags
-		});
+	protected override async doSave(): Promise<void> {
+		await this.saveProfile(this.profile);
 	}
 
 	override async getChildren(resourceType: ProfileResourceType): Promise<IProfileResourceChildTreeItem[]> {
@@ -273,6 +278,7 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 		readonly contextMenuActions: Action[],
 		@IFileService private readonly fileService: IFileService,
 		@IUserDataProfileImportExportService private readonly userDataProfileImportExportService: IUserDataProfileImportExportService,
+		@IUserDataProfileManagementService userDataProfileManagementService: IUserDataProfileManagementService,
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
@@ -281,6 +287,7 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 			undefined,
 			undefined,
 			false,
+			userDataProfileManagementService,
 			userDataProfilesService,
 			instantiationService,
 		);
@@ -306,6 +313,15 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 		if (!equals(this._copyFlags, flags)) {
 			this._copyFlags = flags;
 			this._onDidChange.fire({ copyFlags: true });
+		}
+	}
+
+	private _previewProfile: IUserDataProfile | undefined;
+	get previewProfile(): IUserDataProfile | undefined { return this._previewProfile; }
+	set previewProfile(profile: IUserDataProfile | undefined) {
+		if (this._previewProfile !== profile) {
+			this._previewProfile = profile;
+			this._onDidChange.fire({ preview: true });
 		}
 	}
 
@@ -379,6 +395,19 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 		}
 		return [];
 	}
+
+	protected override getInitialName(): string {
+		return this.previewProfile?.name ?? '';
+	}
+
+	protected override async doSave(): Promise<void> {
+		if (this.previewProfile) {
+			const profile = await this.saveProfile(this.previewProfile);
+			if (profile) {
+				this.previewProfile = profile;
+			}
+		}
+	}
 }
 
 export class UserDataProfilesEditorModel extends EditorModel {
@@ -424,11 +453,14 @@ export class UserDataProfilesEditorModel extends EditorModel {
 		@IUserDataProfileImportExportService private readonly userDataProfileImportExportService: IUserDataProfileImportExportService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IHostService private readonly hostService: IHostService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 		for (const profile of userDataProfilesService.profiles) {
-			this._profiles.push(this.createProfileElement(profile));
+			if (!profile.isTransient) {
+				this._profiles.push(this.createProfileElement(profile));
+			}
 		}
 		this._register(toDisposable(() => this._profiles.splice(0, this._profiles.length).map(([, disposables]) => disposables.dispose())));
 		this._register(userDataProfilesService.onDidChangeProfiles(e => this.onDidChangeProfiles(e)));
@@ -436,11 +468,14 @@ export class UserDataProfilesEditorModel extends EditorModel {
 
 	private onDidChangeProfiles(e: DidChangeProfilesEvent): void {
 		for (const profile of e.added) {
-			if (profile.name !== this.newProfileElement?.name) {
+			if (!profile.isTransient && profile.name !== this.newProfileElement?.name) {
 				this._profiles.push(this.createProfileElement(profile));
 			}
 		}
 		for (const profile of e.removed) {
+			if (profile.id === this.newProfileElement?.previewProfile?.id) {
+				this.newProfileElement.previewProfile = undefined;
+			}
 			const index = this._profiles.findIndex(([p]) => p instanceof UserDataProfileElement && p.profile.id === profile.id);
 			if (index !== -1) {
 				this._profiles.splice(index, 1).map(([, disposables]) => disposables.dispose());
@@ -460,7 +495,9 @@ export class UserDataProfilesEditorModel extends EditorModel {
 		const deleteAction = disposables.add(new Action('userDataProfile.delete', localize('delete', "Delete"), ThemeIcon.asClassName(Codicon.trash), true, () => this.removeProfile(profile)));
 
 		const titlePrimaryActions: IAction[] = [];
-		titlePrimaryActions.push(activateAction);
+		if (!profile.isTransient) {
+			titlePrimaryActions.push(activateAction);
+		}
 		titlePrimaryActions.push(exportAction);
 		if (!profile.isDefault) {
 			titlePrimaryActions.push(deleteAction);
@@ -489,18 +526,23 @@ export class UserDataProfilesEditorModel extends EditorModel {
 	createNewProfile(copyFrom?: URI | IUserDataProfile): AbstractUserDataProfileElement {
 		if (!this.newProfileElement) {
 			const disposables = new DisposableStore();
-			const cancelAction = disposables.add(new Action('userDataProfile.cancel', localize('cancel', "Cancel"), ThemeIcon.asClassName(Codicon.close), true, () => {
-				this.removeNewProfile();
-				this._onDidChange.fire(undefined);
-			}));
+			const cancelAction = disposables.add(new Action('userDataProfile.cancel', localize('cancel', "Cancel"), ThemeIcon.asClassName(Codicon.close), true, () => this.discardNewProfile()));
+			const previewProfileAction = disposables.add(new Action('userDataProfile.preview', localize('preview', "Open Preview"), ThemeIcon.asClassName(Codicon.openPreview), true, () => this.previewNewProfile()));
 			this.newProfileElement = disposables.add(this.instantiationService.createInstance(NewProfileElement,
 				localize('untitled', "Untitled"),
 				copyFrom,
 				disposables.add(new Action('userDataProfile.create', localize('create', "Create"), undefined, true, () => this.saveNewProfile())),
 				cancelAction,
-				[[], []],
+				[[
+					previewProfileAction
+				], []],
 				[],
 			));
+			disposables.add(this.newProfileElement.onDidChange(e => {
+				if (e.preview) {
+					previewProfileAction.checked = !!this.newProfileElement?.previewProfile;
+				}
+			}));
 			this._profiles.push([this.newProfileElement, disposables]);
 			this._onDidChange.fire(this.newProfileElement);
 		}
@@ -522,45 +564,82 @@ export class UserDataProfilesEditorModel extends EditorModel {
 		}
 	}
 
-	async saveNewProfile(): Promise<void> {
+	private async previewNewProfile(): Promise<void> {
 		if (!this.newProfileElement) {
 			return;
 		}
-		this.newProfileElement.validate();
-		if (this.newProfileElement.message) {
+		if (this.newProfileElement.previewProfile) {
 			return;
 		}
-		const { flags, icon, name, copyFrom } = this.newProfileElement;
-		const useDefaultFlags: UseDefaultProfileFlags | undefined = flags
-			? flags.settings && flags.keybindings && flags.tasks && flags.globalState && flags.extensions ? undefined : flags
-			: undefined;
+		const profile = await this.saveNewProfile(true);
+		this.newProfileElement.previewProfile = profile;
+		if (profile) {
+			await this.hostService.openWindow({ forceProfile: profile.name });
+		}
+	}
 
-		type CreateProfileInfoClassification = {
-			owner: 'sandy081';
-			comment: 'Report when profile is about to be created';
-			source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Type of profile source' };
-		};
-		type CreateProfileInfoEvent = {
-			source: string | undefined;
-		};
-		const createProfileTelemetryData: CreateProfileInfoEvent = { source: copyFrom instanceof URI ? 'template' : isUserDataProfile(copyFrom) ? 'profile' : copyFrom ? 'external' : undefined };
-
-		if (copyFrom instanceof URI) {
-			this.telemetryService.publicLog2<CreateProfileInfoEvent, CreateProfileInfoClassification>('userDataProfile.createFromTemplate', createProfileTelemetryData);
-			await this.userDataProfileImportExportService.importProfile(copyFrom, { mode: 'apply', name: name, useDefaultFlags, icon: icon ? icon : undefined, resourceTypeFlags: this.newProfileElement.copyFlags });
-		} else if (isUserDataProfile(copyFrom)) {
-			this.telemetryService.publicLog2<CreateProfileInfoEvent, CreateProfileInfoClassification>('userDataProfile.createFromProfile', createProfileTelemetryData);
-			await this.userDataProfileImportExportService.createFromProfile(copyFrom, name, { useDefaultFlags, icon: icon ? icon : undefined, resourceTypeFlags: this.newProfileElement.copyFlags });
-		} else {
-			this.telemetryService.publicLog2<CreateProfileInfoEvent, CreateProfileInfoClassification>('userDataProfile.createEmptyProfile', createProfileTelemetryData);
-			await this.userDataProfileManagementService.createAndEnterProfile(name, { useDefaultFlags, icon: icon ? icon : undefined });
+	async saveNewProfile(transient?: boolean): Promise<IUserDataProfile | undefined> {
+		if (!this.newProfileElement) {
+			return undefined;
+		}
+		this.newProfileElement.validate();
+		if (this.newProfileElement.message) {
+			return undefined;
 		}
 
-		this.removeNewProfile();
-		const profile = this.userDataProfilesService.profiles.find(p => p.name === name);
-		if (profile) {
+		let profile: IUserDataProfile | undefined;
+
+		if (this.newProfileElement.previewProfile) {
+			profile = await this.userDataProfileManagementService.updateProfile(this.newProfileElement.previewProfile, { transient: false });
+		}
+
+		else {
+			const { flags, icon, name, copyFrom } = this.newProfileElement;
+			const useDefaultFlags: UseDefaultProfileFlags | undefined = flags
+				? flags.settings && flags.keybindings && flags.tasks && flags.globalState && flags.extensions ? undefined : flags
+				: undefined;
+
+			type CreateProfileInfoClassification = {
+				owner: 'sandy081';
+				comment: 'Report when profile is about to be created';
+				source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Type of profile source' };
+			};
+			type CreateProfileInfoEvent = {
+				source: string | undefined;
+			};
+			const createProfileTelemetryData: CreateProfileInfoEvent = { source: copyFrom instanceof URI ? 'template' : isUserDataProfile(copyFrom) ? 'profile' : copyFrom ? 'external' : undefined };
+
+			if (copyFrom instanceof URI) {
+				this.telemetryService.publicLog2<CreateProfileInfoEvent, CreateProfileInfoClassification>('userDataProfile.createFromTemplate', createProfileTelemetryData);
+				await this.userDataProfileImportExportService.importProfile(copyFrom, { mode: 'apply', name: name, useDefaultFlags, icon: icon ? icon : undefined, resourceTypeFlags: this.newProfileElement.copyFlags, donotSwitch: true, transient });
+			} else if (isUserDataProfile(copyFrom)) {
+				this.telemetryService.publicLog2<CreateProfileInfoEvent, CreateProfileInfoClassification>('userDataProfile.createFromProfile', createProfileTelemetryData);
+				await this.userDataProfileImportExportService.createFromProfile(copyFrom, name, { useDefaultFlags, icon: icon ? icon : undefined, resourceTypeFlags: this.newProfileElement.copyFlags, donotSwitch: true, transient });
+			} else {
+				this.telemetryService.publicLog2<CreateProfileInfoEvent, CreateProfileInfoClassification>('userDataProfile.createEmptyProfile', createProfileTelemetryData);
+				await this.userDataProfileManagementService.createProfile(name, { useDefaultFlags, icon: icon ? icon : undefined, transient });
+			}
+
+			profile = this.userDataProfilesService.profiles.find(p => p.name === name);
+		}
+
+		if (profile && !profile.isTransient) {
+			this.removeNewProfile();
 			this.onDidChangeProfiles({ added: [profile], removed: [], updated: [], all: this.userDataProfilesService.profiles });
 		}
+
+		return profile;
+	}
+
+	private async discardNewProfile(): Promise<void> {
+		if (!this.newProfileElement) {
+			return;
+		}
+		if (this.newProfileElement.previewProfile) {
+			await this.userDataProfileManagementService.removeProfile(this.newProfileElement.previewProfile);
+		}
+		this.removeNewProfile();
+		this._onDidChange.fire(undefined);
 	}
 
 	private async removeProfile(profile: IUserDataProfile): Promise<void> {
