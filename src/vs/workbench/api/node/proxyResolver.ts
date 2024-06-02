@@ -35,6 +35,7 @@ export function connectProxyResolver(
 		lookupProxyAuthorization: lookupProxyAuthorization.bind(undefined, extHostLogService, mainThreadTelemetry, configProvider, {}, initData.remote.isRemote),
 		getProxyURL: () => configProvider.getConfiguration('http').get('proxy'),
 		getProxySupport: () => configProvider.getConfiguration('http').get<ProxySupportSetting>('proxySupport') || 'off',
+		getNoProxyConfig: () => configProvider.getConfiguration('http').get<string[]>('noProxy') || [],
 		addCertificatesV1: () => certSettingV1(configProvider),
 		addCertificatesV2: () => certSettingV2(configProvider),
 		log: extHostLogService,

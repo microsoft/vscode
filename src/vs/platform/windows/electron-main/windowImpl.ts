@@ -966,8 +966,8 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				newHttpProxy = newHttpProxy.substr(0, newHttpProxy.length - 1);
 			}
 
-			process.env['no_proxy'] = process.env['no_proxy'] || (this.configurationService.getValue<string[]>('http.noProxy') || ['']).map((item) => item.trim()).join(',')
-			const newNoProxy = (process.env['no_proxy'] || process.env['NO_PROXY'] || '').trim() || undefined; // Not standardized.
+			const newNoProxy = (this.configurationService.getValue<string[]>('http.noProxy') || []).map((item) => item.trim()).join(",")
+				|| (process.env['no_proxy'] || process.env['NO_PROXY'] || '').trim() || undefined; // Not standardized.
 			if ((newHttpProxy || '').indexOf('@') === -1 && (newHttpProxy !== this.currentHttpProxy || newNoProxy !== this.currentNoProxy)) {
 				this.currentHttpProxy = newHttpProxy;
 				this.currentNoProxy = newNoProxy;
