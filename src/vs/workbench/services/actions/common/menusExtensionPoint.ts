@@ -664,6 +664,7 @@ namespace schema {
 		title: string | ILocalizedString;
 		shortTitle?: string | ILocalizedString;
 		enablement?: string;
+		checked?: string;
 		category?: string | ILocalizedString;
 		icon?: IUserFriendlyIcon;
 	}
@@ -687,6 +688,10 @@ namespace schema {
 		}
 		if (command.enablement && typeof command.enablement !== 'string') {
 			collector.error(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'precondition'));
+			return false;
+		}
+		if (command.checked && typeof command.checked !== 'string') {
+			collector.error(localize('optstring', "property `{0}` can be omitted or must be of type `string`", 'toggled'));
 			return false;
 		}
 		if (command.category && !isValidLocalizedString(command.category, collector, 'category')) {
@@ -750,6 +755,10 @@ namespace schema {
 				description: localize('vscode.extension.contributes.commandType.precondition', '(Optional) Condition which must be true to enable the command in the UI (menu and keybindings). Does not prevent executing the command by other means, like the `executeCommand`-api.'),
 				type: 'string'
 			},
+			checked: {
+				description: localize('vscode.extension.contributes.commandType.toggled', '(Optional) Condition which must be true to check the command in the UI (menu and keybindings)'),
+				type: 'string'
+			},
 			icon: {
 				description: localize({ key: 'vscode.extension.contributes.commandType.icon', comment: ['do not translate or change `\\$(zap)`, \\ in front of $ is important.'] }, '(Optional) Icon which is used to represent the command in the UI. Either a file path, an object with file paths for dark and light themes, or a theme icon references, like `\\$(zap)`'),
 				anyOf: [{
@@ -806,7 +815,7 @@ commandsExtensionPoint.setHandler(extensions => {
 			return;
 		}
 
-		const { icon, enablement, category, title, shortTitle, command } = userFriendlyCommand;
+		let { icon, enablement, checked, category, title, shortTitle, command } = userFriendlyCommand;
 
 		let absoluteIcon: { dark: URI; light?: URI } | ThemeIcon | undefined;
 		if (icon) {
@@ -829,6 +838,12 @@ commandsExtensionPoint.setHandler(extensions => {
 				extension.collector.info(localize('dup0', "Command `{0}` already registered", userFriendlyCommand.command));
 			}
 		}
+
+		if (checked && !isProposedApiEnabled(extension.description, 'commandChecked')) {
+			extension.collector.warn('The checked property is a proposed API and is only supported when \'enabledApiProposals: [\"commandChecked\"]\' is set');
+			checked = undefined;
+		}
+
 		_commandRegistrations.add(MenuRegistry.addCommand({
 			id: command,
 			title,
@@ -837,6 +852,7 @@ commandsExtensionPoint.setHandler(extensions => {
 			tooltip: title,
 			category,
 			precondition: ContextKeyExpr.deserialize(enablement),
+			toggled: ContextKeyExpr.deserialize(checked),
 			icon: absoluteIcon
 		}));
 	}
