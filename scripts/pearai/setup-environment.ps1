@@ -21,10 +21,6 @@ function Initialize-BaseFunctionality {
 
     Set-Location .\extensions\pearai-submodule
 
-    Invoke-CMD -Command "git fetch origin" -ErrorMessage "Failed to fetch latest changes from origin"
-    Invoke-CMD -Command "git pull origin main" -ErrorMessage "Failed to pull latest changes from origin/main"
-    Invoke-CMD -Command "git checkout main" -ErrorMessage "Failed to checkout main branch"
-
 	$script = Join-Path -Path $modulePath -ChildPath 'scripts\install-dependencies.ps1'
     Invoke-CMD -Command "powershell.exe -File $script" -ErrorMessage "Failed to install dependencies for the submodule"
 
