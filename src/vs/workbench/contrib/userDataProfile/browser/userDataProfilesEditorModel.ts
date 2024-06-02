@@ -487,7 +487,7 @@ export class UserDataProfilesEditorModel extends EditorModel {
 	private createProfileElement(profile: IUserDataProfile): [UserDataProfileElement, DisposableStore] {
 		const disposables = new DisposableStore();
 
-		const activateAction = disposables.add(new Action('userDataProfile.activate', localize('active', "Activate"), ThemeIcon.asClassName(Codicon.check), true, () => this.userDataProfileManagementService.switchProfile(profile)));
+		const activateAction = disposables.add(new Action('userDataProfile.activate', localize('active', "Active"), ThemeIcon.asClassName(Codicon.check), true, () => this.userDataProfileManagementService.switchProfile(profile)));
 		activateAction.checked = this.userDataProfileService.currentProfile.id === profile.id;
 		disposables.add(this.userDataProfileService.onDidChangeCurrentProfile(() => activateAction.checked = this.userDataProfileService.currentProfile.id === profile.id));
 		const copyFromProfileAction = disposables.add(new Action('userDataProfile.copyFromProfile', localize('copyFromProfile', "Save As..."), ThemeIcon.asClassName(Codicon.copy), true, () => this.createNewProfile(profile)));
