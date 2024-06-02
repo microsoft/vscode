@@ -68,9 +68,9 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 	public get onDidContentSizeChange() { return this._editors.onDidContentSizeChange; }
 
 	private readonly _contextKeyService = this._register(this._parentContextKeyService.createScoped(this._domElement));
-	private readonly _instantiationService = this._parentInstantiationService.createChild(
+	private readonly _instantiationService = this._register(this._parentInstantiationService.createChild(
 		new ServiceCollection([IContextKeyService, this._contextKeyService])
-	);
+	));
 	private readonly _rootSizeObserver: ObservableElementSizeObserver;
 
 
@@ -344,6 +344,12 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 	private readonly _layoutInfo = derived(this, reader => {
 		const fullWidth = this._rootSizeObserver.width.read(reader);
 		const fullHeight = this._rootSizeObserver.height.read(reader);
+
+		if (this._rootSizeObserver.automaticLayout) {
+			this.elements.root.style.height = '100%';
+		} else {
+			this.elements.root.style.height = fullHeight + 'px';
+		}
 
 		const sash = this._sash.read(reader);
 

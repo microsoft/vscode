@@ -239,7 +239,7 @@ export class ExtensionsResource implements IProfileResource {
 		return this.userDataProfileStorageService.withProfileScopedStorageService(profile,
 			async storageService => {
 				const disposables = new DisposableStore();
-				const instantiationService = this.instantiationService.createChild(new ServiceCollection([IStorageService, storageService]));
+				const instantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection([IStorageService, storageService])));
 				const extensionEnablementService = disposables.add(instantiationService.createInstance(GlobalExtensionEnablementService));
 				try {
 					return await fn(extensionEnablementService);

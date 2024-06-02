@@ -109,8 +109,10 @@ export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 	}
 
 	set collapsibleState(newState: languages.CommentThreadCollapsibleState | undefined) {
-		this._collapsibleState = newState;
-		this._onDidChangeCollapsibleState.fire(this._collapsibleState);
+		if (newState !== this._collapsibleState) {
+			this._collapsibleState = newState;
+			this._onDidChangeCollapsibleState.fire(this._collapsibleState);
+		}
 	}
 
 	private _initialCollapsibleState: languages.CommentThreadCollapsibleState | undefined;

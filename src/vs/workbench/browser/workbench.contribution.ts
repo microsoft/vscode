@@ -7,7 +7,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { localize } from 'vs/nls';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform';
-import { ConfigurationMigrationWorkbenchContribution, DynamicWorkbenchSecurityConfiguration, IConfigurationMigrationRegistry, workbenchConfigurationNodeBase, Extensions, ConfigurationKeyValuePairs, problemsConfigurationNodeBase } from 'vs/workbench/common/configuration';
+import { ConfigurationMigrationWorkbenchContribution, DynamicWorkbenchSecurityConfiguration, IConfigurationMigrationRegistry, workbenchConfigurationNodeBase, Extensions, ConfigurationKeyValuePairs, problemsConfigurationNodeBase, windowConfigurationNodeBase, DynamicWindowConfiguration } from 'vs/workbench/common/configuration';
 import { isStandalone } from 'vs/base/browser/browser';
 import { WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { ActivityBarPosition, EditorActionsLocation, EditorTabsMode, LayoutSettings } from 'vs/workbench/services/layout/browser/layoutService';
@@ -60,6 +60,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				],
 				'markdownDescription': localize('editorActionsLocation', "Controls where the editor actions are shown."),
 				'default': 'default'
+			},
+			'workbench.editor.alwaysShowEditorActions': {
+				'type': 'boolean',
+				'markdownDescription': localize('alwaysShowEditorActions', "Controls whether to always show the editor actions, even when the editor group is not active."),
+				'default': false
 			},
 			'workbench.editor.wrapTabs': {
 				'type': 'boolean',
@@ -648,10 +653,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 	].join('\n- '); // intentionally concatenated to not produce a string that is too long for translations
 
 	registry.registerConfiguration({
-		'id': 'window',
-		'order': 8,
-		'title': localize('windowConfigurationTitle', "Window"),
-		'type': 'object',
+		...windowConfigurationNodeBase,
 		'properties': {
 			'window.title': {
 				'type': 'string',
@@ -756,6 +758,9 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			}
 		}
 	});
+
+	// Dynamic Window Configuration
+	registerWorkbenchContribution2(DynamicWindowConfiguration.ID, DynamicWindowConfiguration, WorkbenchPhase.Eventually);
 
 	// Problems
 	registry.registerConfiguration({

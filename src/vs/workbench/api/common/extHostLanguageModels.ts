@@ -60,7 +60,7 @@ class LanguageModelResponse {
 		const that = this;
 		this.apiObject = {
 			// result: promise,
-			stream: that._defaultStream.asyncIterable,
+			text: that._defaultStream.asyncIterable,
 			// streams: AsyncIterable<string>[] // FUTURE responses per N
 		};
 	}
@@ -159,8 +159,8 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			name: metadata.name ?? '',
 			family: metadata.family ?? '',
 			version: metadata.version,
-			maxInputTokens: metadata.maxInputTokens ?? metadata.tokens,
-			maxOutputTokens: metadata.maxOutputTokens ?? metadata.tokens,
+			maxInputTokens: metadata.maxInputTokens,
+			maxOutputTokens: metadata.maxOutputTokens,
 			auth,
 			targetExtensions: metadata.extensions
 		});
@@ -253,6 +253,11 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				continue;
 			}
 
+			// make sure auth information is correct
+			if (this._isUsingAuth(extension.identifier, data.metadata)) {
+				await this._fakeAuthPopulate(data.metadata);
+			}
+
 			let apiObject = data.apiObjects.get(extension.identifier);
 
 			if (!apiObject) {
@@ -263,7 +268,6 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 					version: data.metadata.version,
 					name: data.metadata.name,
 					maxInputTokens: data.metadata.maxInputTokens,
-					maxOutputTokens: data.metadata.maxOutputTokens,
 					countTokens(text, token) {
 						if (!that._allLanguageModelData.has(identifier)) {
 							throw extHostTypes.LanguageModelError.NotFound(identifier);
@@ -383,8 +387,8 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 
 		try {
 			const detail = justification
-				? localize('chatAccessWithJustification', "To allow access to the language models provided by {0}. Justification:\n\n{1}", to.displayName, justification)
-				: localize('chatAccess', "To allow access to the language models provided by {0}", to.displayName);
+				? localize('chatAccessWithJustification', "Justification: {1}", to.displayName, justification)
+				: undefined;
 			await this._extHostAuthentication.getSession(from, providerId, [], { forceNewSession: { detail } });
 			this.$updateModelAccesslist([{ from: from.identifier, to: to.identifier, enabled: true }]);
 			return true;
@@ -403,6 +407,10 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 	}
 
 	private async _fakeAuthPopulate(metadata: ILanguageModelChatMetadata): Promise<void> {
+
+		if (!metadata.auth) {
+			return;
+		}
 
 		for (const from of this._languageAccessInformationExtensions) {
 			try {

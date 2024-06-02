@@ -8,7 +8,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { basename, dirname } from 'vs/base/common/resources';
 import { IDisposable, Disposable, DisposableStore, combinedDisposable, dispose, toDisposable, MutableDisposable, DisposableMap } from 'vs/base/common/lifecycle';
 import { ViewPane, IViewPaneOptions, ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
-import { append, $, Dimension, asCSSUrl, trackFocus, clearNode, prepend, isPointerEvent } from 'vs/base/browser/dom';
+import { append, $, Dimension, asCSSUrl, trackFocus, clearNode, prepend, isPointerEvent, isActiveElement } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryProviderCacheEntry, SCMHistoryItemChangeTreeElement, SCMHistoryItemGroupTreeElement, SCMHistoryItemTreeElement, SCMViewSeparatorElement } from 'vs/workbench/contrib/scm/common/history';
 import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, SCMInputChangeReason, VIEW_PANE_ID, ISCMActionButton, ISCMActionButtonDescriptor, ISCMRepositorySortKey, ISCMInputValueProviderContext, ISCMProvider } from 'vs/workbench/contrib/scm/common/scm';
@@ -100,7 +100,7 @@ import { foreground, listActiveSelectionForeground, registerColor, transparent }
 import { IMenuWorkbenchToolBarOptions, MenuWorkbenchToolBar, WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
-import { clamp } from 'vs/base/common/numbers';
+import { clamp, rot } from 'vs/base/common/numbers';
 import { ILogService } from 'vs/platform/log/common/log';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { MarkdownString } from 'vs/base/common/htmlContent';
@@ -109,6 +109,7 @@ import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { OpenScmGroupAction } from 'vs/workbench/contrib/multiDiffEditor/browser/scmMultiDiffSourceResolver';
 import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
 import { ITextModel } from 'vs/editor/common/model';
+import { autorun } from 'vs/base/common/observable';
 
 // type SCMResourceTreeNode = IResourceNode<ISCMResource, ISCMResourceGroup>;
 // type SCMHistoryItemChangeResourceTreeNode = IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement>;
@@ -1461,7 +1462,7 @@ const Menus = {
 	ChangesSettings: new MenuId('SCMChangesSettings'),
 };
 
-const ContextKeys = {
+export const ContextKeys = {
 	SCMViewMode: new RawContextKey<ViewMode>('scmViewMode', ViewMode.List),
 	SCMViewSortKey: new RawContextKey<ViewSortKey>('scmViewSortKey', ViewSortKey.Path),
 	SCMViewAreAllRepositoriesCollapsed: new RawContextKey<boolean>('scmViewAreAllRepositoriesCollapsed', false),
@@ -2352,24 +2353,21 @@ class SCMInputWidget {
 
 		// Update input template
 		let commitTemplate = '';
-		const updateTemplate = () => {
-			if (typeof input.repository.provider.commitTemplate === 'undefined' || !input.visible) {
+		this.repositoryDisposables.add(autorun(reader => {
+			if (!input.visible) {
 				return;
 			}
 
 			const oldCommitTemplate = commitTemplate;
-			commitTemplate = input.repository.provider.commitTemplate;
+			commitTemplate = input.repository.provider.commitTemplate.read(reader);
 
 			const value = textModel.getValue();
-
 			if (value && value !== oldCommitTemplate) {
 				return;
 			}
 
 			textModel.setValue(commitTemplate);
-		};
-		this.repositoryDisposables.add(input.repository.provider.onDidChangeCommitTemplate(updateTemplate, this));
-		updateTemplate();
+		}));
 
 		// Update input enablement
 		const updateEnablement = (enabled: boolean) => {
@@ -2464,7 +2462,7 @@ class SCMInputWidget {
 		};
 
 		const services = new ServiceCollection([IContextKeyService, this.contextKeyService]);
-		const instantiationService2 = instantiationService.createChild(services);
+		const instantiationService2 = instantiationService.createChild(services, this.disposables);
 		this.inputEditor = instantiationService2.createInstance(CodeEditorWidget, this.editorContainer, editorConstructionOptions, codeEditorWidgetOptions);
 		this.disposables.add(this.inputEditor);
 
@@ -3149,6 +3147,8 @@ export class SCMViewPane extends ViewPane {
 
 							if (resource) {
 								await this.tree.expandTo(resource);
+								this.tree.reveal(resource);
+
 								this.tree.setSelection([resource]);
 								this.tree.setFocus([resource]);
 								return;
@@ -3429,6 +3429,92 @@ export class SCMViewPane extends ViewPane {
 			if (this.tree.isCollapsible(repository)) {
 				this.tree.expand(repository);
 			}
+		}
+	}
+
+	focusPreviousInput(): void {
+		this.treeOperationSequencer.queue(() => this.focusInput(-1));
+	}
+
+	focusNextInput(): void {
+		this.treeOperationSequencer.queue(() => this.focusInput(1));
+	}
+
+	private async focusInput(delta: number): Promise<void> {
+		if (!this.scmViewService.focusedRepository ||
+			this.scmViewService.visibleRepositories.length === 0) {
+			return;
+		}
+
+		let input = this.scmViewService.focusedRepository.input;
+		const repositories = this.scmViewService.visibleRepositories;
+
+		// One visible repository and the input is already focused
+		if (repositories.length === 1 && this.inputRenderer.getRenderedInputWidget(input)?.hasFocus() === true) {
+			return;
+		}
+
+		// Multiple visible repositories and the input already focused
+		if (repositories.length > 1 && this.inputRenderer.getRenderedInputWidget(input)?.hasFocus() === true) {
+			const focusedRepositoryIndex = repositories.indexOf(this.scmViewService.focusedRepository);
+			const newFocusedRepositoryIndex = rot(focusedRepositoryIndex + delta, repositories.length);
+			input = repositories[newFocusedRepositoryIndex].input;
+		}
+
+		await this.tree.expandTo(input);
+
+		this.tree.reveal(input);
+		this.inputRenderer.getRenderedInputWidget(input)?.focus();
+	}
+
+	focusPreviousResourceGroup(): void {
+		this.treeOperationSequencer.queue(() => this.focusResourceGroup(-1));
+	}
+
+	focusNextResourceGroup(): void {
+		this.treeOperationSequencer.queue(() => this.focusResourceGroup(1));
+	}
+
+	private async focusResourceGroup(delta: number): Promise<void> {
+		if (!this.scmViewService.focusedRepository ||
+			this.scmViewService.visibleRepositories.length === 0) {
+			return;
+		}
+
+		const treeHasDomFocus = isActiveElement(this.tree.getHTMLElement());
+		const resourceGroups = this.scmViewService.focusedRepository.provider.groups;
+		const focusedResourceGroup = this.tree.getFocus().find(e => isSCMResourceGroup(e));
+		const focusedResourceGroupIndex = treeHasDomFocus && focusedResourceGroup ? resourceGroups.indexOf(focusedResourceGroup) : -1;
+
+		let resourceGroupNext: ISCMResourceGroup | undefined;
+
+		if (focusedResourceGroupIndex === -1) {
+			// First visible resource group
+			for (const resourceGroup of resourceGroups) {
+				if (this.tree.hasNode(resourceGroup)) {
+					resourceGroupNext = resourceGroup;
+					break;
+				}
+			}
+		} else {
+			// Next/Previous visible resource group
+			let index = rot(focusedResourceGroupIndex + delta, resourceGroups.length);
+			while (index !== focusedResourceGroupIndex) {
+				if (this.tree.hasNode(resourceGroups[index])) {
+					resourceGroupNext = resourceGroups[index];
+					break;
+				}
+				index = rot(index + delta, resourceGroups.length);
+			}
+		}
+
+		if (resourceGroupNext) {
+			await this.tree.expandTo(resourceGroupNext);
+			this.tree.reveal(resourceGroupNext);
+
+			this.tree.setSelection([resourceGroupNext]);
+			this.tree.setFocus([resourceGroupNext]);
+			this.tree.domFocus();
 		}
 	}
 
@@ -3813,6 +3899,15 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			}
 
 			return result;
+		} else if (isSCMInput(element)) {
+			return element.repository;
+		} else if (isSCMResourceGroup(element)) {
+			const repository = this.scmViewService.visibleRepositories.find(r => r.provider === element.provider);
+			if (!repository) {
+				throw new Error('Invalid element passed to getParent');
+			}
+
+			return repository;
 		} else {
 			throw new Error('Unexpected call to getParent');
 		}

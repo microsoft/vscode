@@ -14,7 +14,7 @@ import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
 import { Position, Parts, PanelOpensMaximizedOptions, IWorkbenchLayoutService, positionFromString, positionToString, panelOpensMaximizedFromString, PanelAlignment, ActivityBarPosition, LayoutSettings, MULTI_WINDOW_PARTS, SINGLE_WINDOW_PARTS, ZenModeSettings, EditorTabsMode, EditorActionsLocation, shouldShowCustomTitleBar } from 'vs/workbench/services/layout/browser/layoutService';
 import { isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITitleService } from 'vs/workbench/services/title/browser/titleService';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -208,11 +208,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	private getContainerDimension(container: HTMLElement): IDimension {
 		if (container === this.mainContainer) {
-			// main window
-			return this.mainContainerDimension;
+			return this.mainContainerDimension; // main window
 		} else {
-			// auxiliary window
-			return getClientArea(container);
+			return getClientArea(container); 	// auxiliary window
 		}
 	}
 
@@ -1533,28 +1531,27 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}));
 		}
 
-		this._register(this.storageService.onWillSaveState(willSaveState => {
-			if (willSaveState.reason === WillSaveStateReason.SHUTDOWN) {
-				// Side Bar Size
-				const sideBarSize = this.stateModel.getRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN)
-					? this.workbenchGrid.getViewCachedVisibleSize(this.sideBarPartView)
-					: this.workbenchGrid.getViewSize(this.sideBarPartView).width;
-				this.stateModel.setInitializationValue(LayoutStateKeys.SIDEBAR_SIZE, sideBarSize as number);
+		this._register(this.storageService.onWillSaveState(e => {
 
-				// Panel Size
-				const panelSize = this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_HIDDEN)
-					? this.workbenchGrid.getViewCachedVisibleSize(this.panelPartView)
-					: (this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_POSITION) === Position.BOTTOM ? this.workbenchGrid.getViewSize(this.panelPartView).height : this.workbenchGrid.getViewSize(this.panelPartView).width);
-				this.stateModel.setInitializationValue(LayoutStateKeys.PANEL_SIZE, panelSize as number);
+			// Side Bar Size
+			const sideBarSize = this.stateModel.getRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN)
+				? this.workbenchGrid.getViewCachedVisibleSize(this.sideBarPartView)
+				: this.workbenchGrid.getViewSize(this.sideBarPartView).width;
+			this.stateModel.setInitializationValue(LayoutStateKeys.SIDEBAR_SIZE, sideBarSize as number);
 
-				// Auxiliary Bar Size
-				const auxiliaryBarSize = this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN)
-					? this.workbenchGrid.getViewCachedVisibleSize(this.auxiliaryBarPartView)
-					: this.workbenchGrid.getViewSize(this.auxiliaryBarPartView).width;
-				this.stateModel.setInitializationValue(LayoutStateKeys.AUXILIARYBAR_SIZE, auxiliaryBarSize as number);
+			// Panel Size
+			const panelSize = this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_HIDDEN)
+				? this.workbenchGrid.getViewCachedVisibleSize(this.panelPartView)
+				: (this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_POSITION) === Position.BOTTOM ? this.workbenchGrid.getViewSize(this.panelPartView).height : this.workbenchGrid.getViewSize(this.panelPartView).width);
+			this.stateModel.setInitializationValue(LayoutStateKeys.PANEL_SIZE, panelSize as number);
 
-				this.stateModel.save(true, true);
-			}
+			// Auxiliary Bar Size
+			const auxiliaryBarSize = this.stateModel.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN)
+				? this.workbenchGrid.getViewCachedVisibleSize(this.auxiliaryBarPartView)
+				: this.workbenchGrid.getViewSize(this.auxiliaryBarPartView).width;
+			this.stateModel.setInitializationValue(LayoutStateKeys.AUXILIARYBAR_SIZE, auxiliaryBarSize as number);
+
+			this.stateModel.save(true, true);
 		}));
 	}
 
@@ -1935,12 +1932,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				height: panelPosition === Position.BOTTOM ? this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_LAST_NON_MAXIMIZED_HEIGHT) : size.height
 			});
 		}
+
 		this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_WAS_LAST_MAXIMIZED, !isMaximized);
 	}
 
-	/**
-	 * Returns whether or not the panel opens maximized
-	 */
 	private panelOpensMaximized(): boolean {
 
 		// The workbench grid currently prevents us from supporting panel maximization with non-center panel alignment
@@ -2367,7 +2362,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			visible: !this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_HIDDEN)
 		};
 
-
 		const middleSection: ISerializedNode[] = this.arrangeMiddleSectionNodes({
 			activityBar: activityBarNode,
 			auxiliaryBar: auxiliaryBarNode,
@@ -2717,6 +2711,7 @@ class LayoutStateModel extends Disposable {
 		if (oldValue !== undefined) {
 			return !oldValue;
 		}
+
 		return this.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) !== ActivityBarPosition.DEFAULT;
 	}
 
