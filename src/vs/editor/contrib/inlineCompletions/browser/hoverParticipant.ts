@@ -115,14 +115,13 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 			model.inlineCompletionsCount,
 			model.activeCommands,
 		);
-		const domNode: HTMLElement = w.getDomNode();
-		const elements: HTMLElement[] = [domNode];
-		context.fragment.appendChild(domNode);
+		const widgetNode: HTMLElement = w.getDomNode();
+		const elements: HTMLElement[] = [widgetNode];
+		context.fragment.appendChild(widgetNode);
 
 		model.triggerExplicitly();
 
 		disposables.add(w);
-
 		return { disposables, elements };
 	}
 

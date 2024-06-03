@@ -195,7 +195,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 	}
 
 	public getAccessibleContent(hoverPart: MarkdownHover): string {
-		return this._renderedHoverParts?.getFormattedContent(hoverPart) ?? '';
+		return this._renderedHoverParts?.getAccessibleContent(hoverPart) ?? '';
 	}
 
 	public focusedMarkdownHoverIndex(): number {
@@ -213,7 +213,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 
 interface RenderedHoverPart {
 	renderedMarkdown: HTMLElement;
-	disposables: DisposableStore;
+	disposables: IDisposable;
 	hoverSource?: HoverSource;
 }
 
@@ -272,7 +272,10 @@ class MarkdownRenderedHoverParts extends Disposable {
 		onFinishedRendering: () => void
 	): RenderedHoverPart {
 
-		const { renderedMarkdown, disposables } = this._renderMarkdownContent(hoverContents, onFinishedRendering);
+		const renderedMarkdownPart = this._renderMarkdownContent(hoverContents, onFinishedRendering);
+		const renderedMarkdown = renderedMarkdownPart.renderedMarkdown;
+		const disposables = new DisposableStore();
+		disposables.add(renderedMarkdownPart.disposables);
 
 		if (!hoverSource) {
 			return { renderedMarkdown, disposables };
@@ -309,8 +312,7 @@ class MarkdownRenderedHoverParts extends Disposable {
 		const renderedMarkdown = $('div.hover-row');
 		const renderedMarkdownContents = $('div.hover-row-contents');
 		renderedMarkdown.appendChild(renderedMarkdownContents);
-		const disposables = new DisposableStore();
-		const { disposables: store } = renderMarkdownInContainer(
+		const { disposables } = renderMarkdownInContainer(
 			this._editor,
 			renderedMarkdownContents,
 			markdownContent,
@@ -318,7 +320,6 @@ class MarkdownRenderedHoverParts extends Disposable {
 			this._openerService,
 			onFinishedRendering,
 		);
-		disposables.add(store);
 		return { renderedMarkdown, disposables };
 	}
 
@@ -369,7 +370,7 @@ class MarkdownRenderedHoverParts extends Disposable {
 		this._onFinishedRendering();
 	}
 
-	public getFormattedContent(hoverPart: MarkdownHover): string {
+	public getAccessibleContent(hoverPart: MarkdownHover): string {
 		const index = this._hoverParts.indexOf(hoverPart);
 		if (index === -1) {
 			return '';
@@ -460,7 +461,7 @@ export function renderMarkdownHovers(
 
 	// Sort hover parts to keep them stable since they might come in async, out-of-order
 	hoverParts.sort(compareBy(hover => hover.ordinal, numberComparator));
-	const elements: HTMLElement[] = [];
+	const domElements: HTMLElement[] = [];
 	const store = new DisposableStore();
 	for (const hoverPart of hoverParts) {
 		const { disposables, elements } = renderMarkdownInContainer(
@@ -472,9 +473,9 @@ export function renderMarkdownHovers(
 			context.onContentsChanged,
 		);
 		store.add(disposables);
-		elements.push(...elements);
+		domElements.push(...elements);
 	}
-	return { disposables: store, elements };
+	return { disposables: store, elements: domElements };
 }
 
 function renderMarkdownInContainer(

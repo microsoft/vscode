@@ -97,9 +97,9 @@ export class InlineEditHoverParticipant implements IEditorHoverParticipant<Inlin
 		const w = this._instantiationService.createInstance(InlineEditHintsContentWidget, this._editor, false,
 			constObservable(null),
 		);
-		const domNode: HTMLElement = w.getDomNode();
-		const elements: HTMLElement[] = [domNode];
-		context.fragment.appendChild(domNode);
+		const widgetNode: HTMLElement = w.getDomNode();
+		const elements: HTMLElement[] = [widgetNode];
+		context.fragment.appendChild(widgetNode);
 		disposables.add(w);
 
 		return { disposables, elements };
