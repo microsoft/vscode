@@ -267,7 +267,7 @@ const configuration: IConfigurationNode = {
 			'default': {
 				'volume': 70,
 				'debouncePositionChanges': false,
-				'delays': {
+				'experimental.delays': {
 					'general': {
 						'announcement': 3000,
 						'sound': 400
