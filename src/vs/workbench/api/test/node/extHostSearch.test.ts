@@ -146,14 +146,21 @@ suite('ExtHostSearch', () => {
 					new class extends mock<IExtHostInitDataService>() { override remote = { isRemote: false, authority: undefined, connectionData: null }; },
 					new URITransformerService(null),
 					new class extends mock<IExtHostConfiguration>() {
-						override async getConfigProvider() {
+						override async getConfigProvider(): Promise<ExtHostConfigProvider> {
 							return {
-								getConfiguration() {
+								getConfiguration(): vscode.WorkspaceConfiguration {
 									return {
-										get() { }
+										get() { },
+										has() {
+											return false;
+										},
+										inspect() {
+											return undefined;
+										},
+										async update() { }
 									};
-								}
-							} as unknown as ExtHostConfigProvider;
+								},
+							} as ExtHostConfigProvider;
 						}
 					},
 					logService
