@@ -200,7 +200,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'search.ripgrep.numThreads': {
 			type: 'number',
-			description: nls.localize('search.ripgrep.numThreads', "Number of threads to use for searching. Use 0 to let the engine automatically determine the number of threads to be used."),
+			description: nls.localize('search.ripgrep.numThreads', "Number of threads to use for searching. When set to 0, the engine automatically determines this value."),
 			default: 0
 		},
 		'search.quickOpen.includeHistory': {
