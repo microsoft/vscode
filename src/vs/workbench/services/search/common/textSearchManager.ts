@@ -12,8 +12,7 @@ import * as path from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { hasSiblingPromiseFn, IAITextQuery, IExtendedExtensionSearchOptions, IFileMatch, IFolderQuery, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchResult, ITextSearchStats, QueryGlobTester, QueryType, resolvePatternsForProvider } from 'vs/workbench/services/search/common/search';
-import { AITextSearchProvider, Range, TextSearchComplete, TextSearchMatch, TextSearchProvider, TextSearchQuery, TextSearchResult } from 'vs/workbench/services/search/common/searchExtTypes';
-import type { RipgrepTextSearchOptions } from 'vs/workbench/services/search/common/searchExtTypesInternal';
+import { AITextSearchProvider, Range, TextSearchComplete, TextSearchMatch, TextSearchOptions, TextSearchProvider, TextSearchQuery, TextSearchResult } from 'vs/workbench/services/search/common/searchExtTypes';
 
 export interface IFileUtils {
 	readdir: (resource: URI) => Promise<string[]>;
@@ -197,7 +196,7 @@ export class TextSearchManager {
 		return true;
 	}
 
-	private getSearchOptionsForFolder(fq: IFolderQuery<URI>): RipgrepTextSearchOptions {
+	private getSearchOptionsForFolder(fq: IFolderQuery<URI>): TextSearchOptions {
 		const includes = resolvePatternsForProvider(this.query.includePattern, fq.includePattern);
 		const excludes = resolvePatternsForProvider(this.query.excludePattern, fq.excludePattern);
 
@@ -215,7 +214,6 @@ export class TextSearchManager {
 			previewOptions: this.query.previewOptions,
 			afterContext: this.query.afterContext,
 			beforeContext: this.query.beforeContext,
-			threads: 123// TODO,
 		};
 		if ('usePCRE2' in this.query) {
 			(<IExtendedExtensionSearchOptions>options).usePCRE2 = this.query.usePCRE2;
