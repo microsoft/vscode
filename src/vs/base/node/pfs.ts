@@ -660,20 +660,16 @@ async function doCopySymlink(source: string, target: string, payload: ICopyPaylo
 //#region Promise based fs methods
 
 /**
- * Prefer this helper class over the `fs.promises` API to
- * enable `graceful-fs` to function properly. Given issue
- * https://github.com/isaacs/node-graceful-fs/issues/160 it
- * is evident that the module only takes care of the non-promise
- * based fs methods.
+ * Provides promise based 'fs' methods by wrapping around the
+ * original callback based methods.
  *
- * Another reason is `realpath` being entirely different in
- * the promise based implementation compared to the other
- * one (https://github.com/microsoft/vscode/issues/118562)
+ * At least `realpath` is implemented differently in the promise
+ * based implementation compared to the callback based one.
+ * (https://github.com/microsoft/vscode/issues/118562)
  *
- * Note: using getters for a reason, since `graceful-fs`
- * patching might kick in later after modules have been
- * loaded we need to defer access to fs methods.
- * (https://github.com/microsoft/vscode/issues/124176)
+ * TODO@bpasero we should move away from this towards `fs.promises`
+ * eventually and only keep those methods around where we explicitly
+ * want the callback based behaviour.
  */
 export const Promises = new class {
 
