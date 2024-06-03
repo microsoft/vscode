@@ -276,6 +276,7 @@ export const IMenuService = createDecorator<IMenuService>('menuService');
 export interface IMenuCreateOptions {
 	emitEventsForSubmenuChanges?: boolean;
 	eventDebounceDelay?: number;
+	ignoreHiddenStates?: boolean;
 }
 
 export interface IMenuService {

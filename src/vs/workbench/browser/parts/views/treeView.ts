@@ -1651,7 +1651,7 @@ class TreeMenus implements IDisposable {
 				['viewItem', element.contextValue]
 			]);
 
-			const menu = this.menuService.createMenu(menuId, contextKeyService);
+			const menu = this.menuService.createMenu(menuId, contextKeyService, { ignoreHiddenStates: true });
 			const primary: IAction[] = [];
 			const secondary: IAction[] = [];
 			const result = { primary, secondary, menu };
