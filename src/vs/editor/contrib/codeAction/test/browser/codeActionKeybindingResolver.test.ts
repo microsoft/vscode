@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { KeyCodeChord } from 'vs/base/common/keybindings';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { OperatingSystem } from 'vs/base/common/platform';
@@ -101,4 +101,3 @@ function createCodeActionKeybinding(keycode: KeyCode, command: string, commandAr
 		null,
 		false);
 }
-
