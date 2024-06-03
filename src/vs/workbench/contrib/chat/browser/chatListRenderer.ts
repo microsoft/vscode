@@ -105,6 +105,10 @@ interface IItemHeightChangeParams {
 	height: number;
 }
 
+interface IChatMarkdownRenderResult extends IMarkdownRenderResult {
+	codeBlockCount: number;
+}
+
 const forceVerboseLayoutTracing = false;
 
 export interface IChatRendererDelegate {
@@ -481,11 +485,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this.renderContentReferencesIfNeeded(element, templateData, templateData.elementDisposables);
 
 		let fileTreeIndex = 0;
+		let codeBlockIndex = 0;
 		value.forEach((data, index) => {
 			const result = data.kind === 'treeData'
 				? this.renderTreeData(data.treeData, element, templateData, fileTreeIndex++)
 				: data.kind === 'markdownContent'
-					? this.renderMarkdown(data.content, element, templateData, fillInIncompleteTokens)
+					? this.renderMarkdown(data.content, element, templateData, fillInIncompleteTokens, codeBlockIndex)
 					: data.kind === 'progressMessage' && onlyProgressMessagesAfterI(value, index) ? this.renderProgressMessage(data, false) // TODO render command
 						: data.kind === 'progressTask' ? this.renderProgressTask(data, false, element, templateData)
 							: data.kind === 'command' ? this.renderCommandButton(element, data)
@@ -497,6 +502,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			if (result) {
 				templateData.value.appendChild(result.element);
 				templateData.elementDisposables.add(result);
+
+				if ('codeBlockCount' in result) {
+					codeBlockIndex += (result as IChatMarkdownRenderResult).codeBlockCount;
+				}
 			}
 		});
 
@@ -1119,13 +1128,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		};
 	}
 
-	private renderMarkdown(markdown: IMarkdownString, element: ChatTreeItem, templateData: IChatListItemTemplate, fillInIncompleteTokens = false): IMarkdownRenderResult {
+	private renderMarkdown(markdown: IMarkdownString, element: ChatTreeItem, templateData: IChatListItemTemplate, fillInIncompleteTokens = false, codeBlockStartIndex = 0): IChatMarkdownRenderResult {
 		const disposables = new DisposableStore();
 
 		// We release editors in order so that it's more likely that the same editor will be assigned if this element is re-rendered right away, like it often is during progressive rendering
 		const orderedDisposablesList: IDisposable[] = [];
 		const codeblocks: IChatCodeBlockInfo[] = [];
-		let codeBlockIndex = 0;
+		let codeBlockIndex = codeBlockStartIndex;
 		const result = this.renderer.render(markdown, {
 			fillInIncompleteTokens,
 			codeBlockRendererSync: (languageId, text) => {
@@ -1193,6 +1202,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		orderedDisposablesList.reverse().forEach(d => disposables.add(d));
 		return {
+			codeBlockCount: codeBlockIndex - codeBlockStartIndex,
 			element: result.element,
 			dispose() {
 				result.dispose();
