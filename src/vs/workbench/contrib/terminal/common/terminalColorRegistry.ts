@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Color } from 'vs/base/common/color';
 import * as nls from 'vs/nls';
 
 import { registerColor, ColorIdentifier, ColorDefaults, editorFindMatch, editorFindMatchHighlight, overviewRulerFindMatchForeground, editorSelectionBackground, transparent, editorHoverHighlight } from 'vs/platform/theme/common/colorRegistry';
@@ -122,10 +121,10 @@ export const TERMINAL_TAB_ACTIVE_BORDER = registerColor('terminal.tab.activeBord
 	hcLight: TAB_ACTIVE_BORDER
 }, nls.localize('terminal.tab.activeBorder', 'Border on the side of the terminal tab in the panel. This defaults to tab.activeBorder.'));
 export const TERMINAL_INITIAL_HINT_FOREGROUND = registerColor('terminal.initialHint.foreground', {
-	dark: Color.fromHex('#ffffff56'),
-	light: Color.fromHex('#0007'),
-	hcDark: Color.fromHex('#ffffff56'),
-	hcLight: Color.fromHex('#0007')
+	dark: '#ffffff56',
+	light: '#0007',
+	hcDark: '#ffffff56',
+	hcLight: '#0007'
 }, nls.localize('terminalInitialHintForeground', 'Foreground color of the terminal initial hint.'));
 
 export const ansiColorMap: { [key: string]: { index: number; defaults: ColorDefaults } } = {
