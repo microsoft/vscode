@@ -1,0 +1,14 @@
+body {
+	background: #EBEBE4 url(sch_bg.gif) repeat-x;
+    font-family: 62.5%;
+	font-family: "Lucida Grande", "Lucida Sans", Arial, sans-serif;
+	color: #000000;
+	font-weight: normal;
+	font-style: normal;
+}
+h3 {
+	background-color: #333333;
+}
+img {
+	filter: grayscale(1) hue-rotate(45deg) saturate(3);
+}
