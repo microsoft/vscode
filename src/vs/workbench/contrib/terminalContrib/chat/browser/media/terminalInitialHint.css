@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-workbench .pane-body.integrated-terminal .terminal-initial-hint {
-	color: var(--vscode-editorGhostText-foreground);
+	color: var(--vscode-terminal-initialHint-foreground);
 }
 .monaco-workbench .pane-body.integrated-terminal .terminal-initial-hint a {
 	cursor: pointer;
