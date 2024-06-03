@@ -146,6 +146,9 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 				marker,
 				x: this._xterm.raw.buffer.active.cursorX + 1,
 			});
+			if (this._decoration) {
+				this._register(this._decoration);
+			}
 		}
 
 		this._register(this._xterm.raw.onKey(() => this.dispose()));
@@ -196,12 +199,7 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 			}
 		}));
 	}
-	override dispose(): void {
-		this._decoration?.dispose();
-		this._decoration = undefined;
-		this._addon?.dispose();
-		super.dispose();
-	}
+
 }
 registerTerminalContribution(TerminalInitialHintContribution.ID, TerminalInitialHintContribution, false);
 
