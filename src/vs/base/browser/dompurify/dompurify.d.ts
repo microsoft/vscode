@@ -9,8 +9,14 @@
 // Definitions: https://github.com/DefinitelyTyped/DefinitelyTyped
 // Minimum TypeScript Version: 4.5
 
+// ESM-comment-begin
 export as namespace DOMPurify;
 export = DOMPurify;
+// ESM-comment-end
+
+// ESM-uncomment-begin
+// export default DOMPurify;
+// ESM-uncomment-end
 
 declare const DOMPurify: createDOMPurifyI;
 

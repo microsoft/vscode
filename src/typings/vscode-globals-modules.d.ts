@@ -37,9 +37,9 @@ declare global {
 		['graceful-fs']: typeof import('graceful-fs'),
 		minimist: typeof import('minimist'),
 		https: typeof import('https'),
-		['xterm-headless']: typeof import('xterm-headless'),
+		['xterm-headless']: typeof import('@xterm/headless'),
 		console: typeof import('console'),
-		xterm: typeof import('xterm'),
+		xterm: typeof import('@xterm/xterm'),
 	}
 }
 

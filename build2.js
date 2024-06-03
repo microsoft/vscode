@@ -28,7 +28,7 @@ const allEntryPointFromTheAmdWorld = (function () {
 		buildfile.workerExtensionHost,
 		buildfile.workerNotebook,
 		buildfile.workerLanguageDetection,
-		buildfile.workerSharedProcess,
+		// buildfile.workerSharedProcess,
 		buildfile.workerLocalFileSearch,
 		buildfile.workerProfileAnalysis,
 		buildfile.workbenchDesktop,

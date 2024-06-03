@@ -59,6 +59,6 @@ export async function getProxyAgent(rawRequestURL: string, env: typeof process.e
 		// ESM-uncomment-begin
 		// const mod = (await import('https-proxy-agent')).default;
 		// ESM-uncomment-end
-		return new mod.HttpProxyAgent(proxyURL, opts);
+		return new mod.HttpsProxyAgent(proxyURL, opts);
 	}
 }
