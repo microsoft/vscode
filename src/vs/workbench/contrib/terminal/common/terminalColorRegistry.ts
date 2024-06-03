@@ -123,8 +123,8 @@ export const TERMINAL_TAB_ACTIVE_BORDER = registerColor('terminal.tab.activeBord
 export const TERMINAL_INITIAL_HINT_FOREGROUND = registerColor('terminal.initialHint.foreground', {
 	dark: '#ffffff56',
 	light: '#0007',
-	hcDark: '#ffffff56',
-	hcLight: '#0007'
+	hcDark: null,
+	hcLight: null
 }, nls.localize('terminalInitialHintForeground', 'Foreground color of the terminal initial hint.'));
 
 export const ansiColorMap: { [key: string]: { index: number; defaults: ColorDefaults } } = {
