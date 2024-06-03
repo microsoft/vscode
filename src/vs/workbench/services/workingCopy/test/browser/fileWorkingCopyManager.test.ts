@@ -40,7 +40,7 @@ suite('FileWorkingCopyManager', () => {
 			accessor.workingCopyFileService, accessor.workingCopyBackupService, accessor.uriIdentityService, accessor.fileDialogService,
 			accessor.filesConfigurationService, accessor.workingCopyService, accessor.notificationService,
 			accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService, accessor.pathService,
-			accessor.environmentService, accessor.dialogService, accessor.decorationsService
+			accessor.environmentService, accessor.dialogService, accessor.decorationsService, accessor.progressService,
 		));
 	});
 
