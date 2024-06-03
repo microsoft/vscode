@@ -1,7 +1,7 @@
 {
 	"nameShort": "pear-ai",
 	"nameLong": "PearAI",
-	"applicationName": "pear-ai",
+	"applicationName": "PearAI",
 	"dataFolderName": ".vscode-oss",
 	"win32MutexName": "vscodeoss",
 	"licenseName": "MIT",

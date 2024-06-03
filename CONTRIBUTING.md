@@ -6,7 +6,7 @@ PearAI is a fork of VSCode (and Continue), so simply follow VSCode's guide for r
 
 The extension can be run in two ways:
 
-RECOMMENDED: Internally within the main PearAI application (which is a VSCode fork): https://github.com/trypear/pearai/. This guide is for running it internally.
+RECOMMENDED: Internally within the main PearAI application: https://github.com/trypear/pearai/. This guide is for running it internally.
 
 Standalone as an extension. For running it standalone, you will want to `cd` into `extensions/pearai-extension` and visit [Contributing to pearai-extension](extensions/pearai-extension/CONTRIBUTING.md)
 
@@ -19,7 +19,7 @@ In order to download necessary tools, clone the repository, and install dependen
 You'll need the following tools:
 
 - [Git](https://git-scm.com)
-- [Node.JS](https://nodejs.org/en/), **x64**, version `>=20.x`
+- [Node.JS](https://nodejs.org/en/), **x64**, version `>=20`
 - [Yarn 1](https://classic.yarnpkg.com/en/), version `>=1.10.1 and <2`, follow the [installation guide](https://classic.yarnpkg.com/en/docs/install)
 - [Python](https://www.python.org/downloads/) (required for node-gyp; check the [node-gyp readme](https://github.com/nodejs/node-gyp#installation) for the currently supported Python versions)
   - **Note:** Python will be automatically installed for Windows users through installing `windows-build-tools` npm module (see below)
@@ -124,30 +124,8 @@ Errors and warnings will show in the console while developing VS Code. If you us
 
 👉 **Tip!** You don't need to stop and restart the development version of VS Code after each change. You can just execute `Reload Window` from the command palette. We like to assign the keyboard shortcut <kbd>Ctrl</kbd>+<kbd>R</kbd> (<kbd>CMD</kbd>+<kbd>R</kbd> on macOS) to this command.
 
-
-### Debugging
-VS Code has a multi-process architecture and your code is executed in different processes.
-
-The **render** process runs the UI code inside the Shell window. To debug code running in the **render** you can either use VS Code or the Chrome Developer Tools.
-
-#### Using VS Code
-* Open the `vscode` repository folder
-* Choose the `VS Code` launch configuration from the launch dropdown in the Debug viewlet and press <kbd>F5</kbd>.
-
-
-#### Using the Chrome Developer Tools
-
-* Run the `Developer: Toggle Developer Tools` command from the Command Palette in your development instance of VS Code to launch the Chrome tools.
-* It's also possible to debug the released versions of VS Code, since the sources link to sourcemaps hosted online.
-
-[![sourcemaps](http://i.imgur.com/KU3TdjO.png)](http://i.imgur.com/KU3TdjO.png)
-
-The **extension host** process runs code implemented by a plugin. To debug extensions (including those packaged with VS Code) which run in the extension host process, you can use VS Code itself. Switch to the Debug viewlet, choose the `Attach to Extension Host` configuration, and press <kbd>F5</kbd>.
-
-The **search** process can be debugged, but must first be started. Before attempting to attach, start a search by pressing <kbd>Ctrl</kbd>+<kbd>P</kbd> (<kbd>CMD</kbd>+<kbd>P</kbd> on macOS), otherwise, attaching will fail and time out.
-
 ### Automated Testing
-Run the unit tests directly from a terminal by running `./scripts/test.sh` from the `vscode` folder (`scripts\test` on Windows). The [test README](https://github.com/Microsoft/vscode/blob/main/test/README.md) has complete details on how to run and debug tests, as well as how to produce coverage reports.
+Run the unit tests directly from a terminal by running `./scripts/test.sh` from the `pearai-app` folder (`scripts\test` on Windows).
 
 We also have automated UI tests. The [smoke test README](https://github.com/Microsoft/vscode/blob/main/test/smoke/README.md) has all the details.
 
@@ -169,49 +147,6 @@ Even if you have push rights on the Microsoft/vscode repository, you should crea
 Before we can accept a pull request from you, you'll need to sign a [[Contributor License Agreement (CLA)|Contributor-License-Agreement]]. It is an automated process and you only need to do it once.
 
 To enable us to quickly review and accept your pull requests, always create one pull request per issue and [link the issue in the pull request](https://github.com/blog/957-introducing-issue-mentions). Never merge multiple requests in one unless they have the same root cause. Be sure to follow our [[Coding Guidelines|Coding-Guidelines]] and keep code changes as small as possible. Avoid pure formatting changes to code that has not been modified otherwise. Pull requests should contain tests whenever possible.
-
-### Introducing usage of new Electron API with a PR
-A pull request that depends on Electron API that VS Code is currently not using comes with a certain risk and may be rejected. Whenever we update Electron, there is a chance that less popular Electron APIs break and it is very hard to find out upfront. Once a PR lands in VS Code, the role of maintaining the feature moves to the team and as such we have to follow up with upstream components to ensure the feature is still supported. As such, as a rule of thumb:
-* avoid Electron APIs and use web standards instead (this also ensures that your feature is supported in our web client)
-* if you must use Electron APIs, we require a unit test at https://github.com/electron/electron so that we protect against future breakage.
-
-### Where to Contribute
-Check out the [full issues list](https://github.com/Microsoft/vscode/issues?utf8=%E2%9C%93&q=is%3Aopen+is%3Aissue) for a list of all potential areas for contributions. Note that just because an issue exists in the repository does not mean we will accept a contribution to the core editor for it. There are several reasons we may not accept a pull request like:
-
-* Performance - One of Visual Studio Code's core values is to deliver a *lightweight* code editor, that means it should perform well in both real and perceived performance.
-* User experience - Since we want to deliver a *lightweight* code editor, the UX should feel lightweight as well and not be cluttered. Most changes to the UI should go through the issue owner and/or the UX team.
-* Architectural - The team and/or feature owner needs to agree with any architectural impact a change may make. Things like new extension APIs *must* be discussed with and agreed upon by the feature owner.
-
-To improve the chances to get a pull request merged you should select an issue that is labelled with the [`help-wanted`](https://github.com/Microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3A%22help+wanted%22) or [`bug`](https://github.com/Microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3A%22bug%22) labels. If the issue you want to work on is not labelled with `help-wanted` or `bug`, you can start a conversation with the issue owner asking whether an external contribution will be considered.
-
-To avoid multiple pull requests resolving the same issue, let others know you are working on it by saying so in a comment.
-
-### Spell check errors
-
-Pull requests that fix spell check errors in **translatable strings** (strings in `nls.localize(...)` calls) are welcomed but please make sure it doesn't touch multiple [feature areas](https://github.com/microsoft/vscode/wiki/Feature-Areas), otherwise it will be difficult to review. Pull requests only fixing spell check errors in source code are **not** recommended.
-
-## Packaging
-
-VS Code can be packaged for the following platforms: `win32-ia32 | win32-x64 | darwin-x64 | darwin-arm64 | linux-ia32 | linux-x64 | linux-arm`
-
-These `gulp` tasks are available:
-
-* `vscode-[platform]`: Builds a packaged version for `[platform]`.
-* `vscode-[platform]-min`: Builds a packaged and minified version for `[platform]`.
-
-👉 **Tip!** Run `gulp` via `yarn` to avoid potential out of memory issues, for example `yarn gulp vscode-linux-x64`
-
-See also: [Cross-Compiling for Debian-based Linux](https://github.com/Microsoft/vscode/wiki/Cross-Compiling-for-Debian-Based-Linux)
-
-## Suggestions
-We're also interested in your feedback for the future of VS Code. You can submit a suggestion or feature request through the issue tracker. To make this process more effective, we're asking that these include more information to help define them more clearly.
-
-## Translations
-We accept feedback on translations in language packs via GitHub issues in our [localization repo](https://github.com/Microsoft/vscode-loc/issues) that contains our currently supported language packs.
-
-## Discussion Etiquette
-
-In order to keep the conversation clear and transparent, please limit discussion to English and keep things on topic with the issue. Be considerate to others and try to be courteous and professional at all times.
 
 ## Creating Issues
 
@@ -243,6 +178,48 @@ Please ensure your code adheres to the coding standards used throughout the proj
 
 Please be respectful and considerate of others. We're all here to learn and grow, so constructive, respectful communication is encouraged.
 
+## Packaging
+
+This section outlines how to package the app for a new release / distribution. This process is a bit manual currently.
+
+PearAI can be packaged for the following platforms: `win32-ia32 | win32-x64 | darwin-x64 | darwin-arm64 | linux-ia32 | linux-x64 | linux-arm`
+
+These `gulp` tasks are available:
+
+* `vscode-[platform]`: Builds a packaged version for `[platform]`.
+* `vscode-[platform]-min`: Builds a packaged and minified version for `[platform]`.
+
+👉 **Tip!** Run `gulp` via `yarn` to avoid potential out of memory issues, for example `yarn gulp vscode-linux-x64`
+
+This will generate the new PearAI app and takes around 1 hour.
+
+Then, `pearai-submodule` also needs to be packaged and integrated into the overall PearAI app.
+
+To do this, follow these steps. Some are manual.
+
+1. `cd` into `extensions/pearai-submodule/extensions/vscode`
+2. Run `npm run package'.
+3. This will create the `.vsix` extension within `extensions/pearai-submodule/extensions/vscode/build`
+4. Right-click the .vsix in VSCode or PearAI and select `Install vsix as Extension`. ![select](assets/pearai-install-vsix.png)
+
+5. This will install the extension as a compatible dist for your system:
+
+If you are using VSCode it will be:
+- Windows %USERPROFILE%\.vscode\extensions
+- macOS ~/.vscode/extensions
+- Linux ~/.vscode/extensions
+
+If you are using PearAI it will be:
+- Windows %USERPROFILE%\.pearai\extensions
+- macOS ~/.pearai/extensions
+- Linux ~/.pearai/extensions
+
+6. Copy the contents of the generated `extensions` folder into the `extensions/pearai` folder of the packaged PearAI App. For example, on MacOS, it is:
+
+`cp -r ~/.vscode/extensions/pearai.pearai-0.9.156 {path_to_PearAI.app}/Contents/Resources/app/extensions`
+
+7. Double-click your overall PearAI app, and the extension should be built-in.
+8. Distribute application.
 
 ## Known or Common Errors
 Below describes a set of known or common errors that can occur when developing with PearAI and the steps that can resolve such issues.
