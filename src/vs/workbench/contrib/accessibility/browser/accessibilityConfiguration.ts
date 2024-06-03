@@ -9,11 +9,12 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { workbenchConfigurationNodeBase, Extensions as WorkbenchExtensions, IConfigurationMigrationRegistry, ConfigurationKeyValuePairs, ConfigurationMigration } from 'vs/workbench/common/configuration';
 import { AccessibilitySignal } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
-import { ISpeechService, SPEECH_LANGUAGES, SPEECH_LANGUAGE_CONFIG } from 'vs/workbench/contrib/speech/common/speechService';
+import { AccessibilityVoiceSettingId, ISpeechService, SPEECH_LANGUAGES } from 'vs/workbench/contrib/speech/common/speechService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Event } from 'vs/base/common/event';
 import { isDefined } from 'vs/base/common/types';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 export const accessibilityHelpIsShown = new RawContextKey<boolean>('accessibilityHelpIsShown', false, true);
 export const accessibleViewIsShown = new RawContextKey<boolean>('accessibleViewIsShown', false, true);
@@ -57,23 +58,6 @@ export const enum AccessibilityVerbositySettingId {
 	EmptyEditorHint = 'accessibility.verbosity.emptyEditorHint',
 	Comments = 'accessibility.verbosity.comments',
 	DiffEditorActive = 'accessibility.verbosity.diffEditorActive'
-}
-
-export const enum AccessibleViewProviderId {
-	Terminal = 'terminal',
-	TerminalChat = 'terminal-chat',
-	TerminalHelp = 'terminal-help',
-	DiffEditor = 'diffEditor',
-	Chat = 'panelChat',
-	InlineChat = 'inlineChat',
-	InlineCompletions = 'inlineCompletions',
-	KeybindingsEditor = 'keybindingsEditor',
-	Notebook = 'notebook',
-	Editor = 'editor',
-	Hover = 'hover',
-	Notification = 'notification',
-	EmptyEditorHint = 'emptyEditorHint',
-	Comments = 'comments'
 }
 
 const baseVerbosityProperty: IConfigurationPropertySchema = {
@@ -188,6 +172,7 @@ const configuration: IConfigurationNode = {
 			default: true
 		},
 		'accessibility.signalOptions': {
+			description: 'Configures the behavior of signals (audio cues and announcements) in the workbench. Includes volume, debounce position changes, and delays for different types of signals.',
 			type: 'object',
 			additionalProperties: false,
 			properties: {
@@ -203,10 +188,99 @@ const configuration: IConfigurationNode = {
 					'type': 'boolean',
 					'default': false,
 				},
+				'experimental.delays': {
+					'type': 'object',
+					'additionalProperties': false,
+					'properties': {
+						'general': {
+							'type': 'object',
+							'description': 'Delays for all signals besides error and warning at position',
+							'additionalProperties': false,
+							'properties': {
+								'announcement': {
+									'description': localize('accessibility.signalOptions.delays.general.announcement', "The delay in milliseconds before an announcement is made."),
+									'type': 'number',
+									'minimum': 0,
+									'default': 3000
+								},
+								'sound': {
+									'description': localize('accessibility.signalOptions.delays.general.sound', "The delay in milliseconds before a sound is played."),
+									'type': 'number',
+									'minimum': 0,
+									'default': 400
+								}
+							},
+						},
+						'warningAtPosition': {
+							'type': 'object',
+							'additionalProperties': false,
+							'properties': {
+								'announcement': {
+									'description': localize('accessibility.signalOptions.delays.warningAtPosition.announcement', "The delay in milliseconds before an announcement is made when there's a warning at the position."),
+									'type': 'number',
+									'minimum': 0,
+									'default': 3000
+								},
+								'sound': {
+									'description': localize('accessibility.signalOptions.delays.warningAtPosition.sound', "The delay in milliseconds before a sound is played when there's a warning at the position."),
+									'type': 'number',
+									'minimum': 0,
+									'default': 1000
+								}
+							},
+						},
+						'errorAtPosition': {
+							'type': 'object',
+							'additionalProperties': false,
+							'properties': {
+								'announcement': {
+									'description': localize('accessibility.signalOptions.delays.errorAtPosition.announcement', "The delay in milliseconds before an announcement is made when there's an error at the position."),
+									'type': 'number',
+									'minimum': 0,
+									'default': 3000
+								},
+								'sound': {
+									'description': localize('accessibility.signalOptions.delays.errorAtPosition.sound', "The delay in milliseconds before a sound is played when there's an error at the position."),
+									'type': 'number',
+									'minimum': 0,
+									'default': 1000
+								}
+							},
+						},
+					},
+					'default': {
+						'general': {
+							'announcement': 3000,
+							'sound': 400
+						},
+						'warningAtPosition': {
+							'announcement': 3000,
+							'sound': 1000
+						},
+						'errorAtPosition': {
+							'announcement': 3000,
+							'sound': 1000
+						}
+					}
+				},
 			},
-			default: {
+			'default': {
 				'volume': 70,
-				'debouncePositionChanges': false
+				'debouncePositionChanges': false,
+				'experimental.delays': {
+					'general': {
+						'announcement': 3000,
+						'sound': 400
+					},
+					'warningAtPosition': {
+						'announcement': 3000,
+						'sound': 1000
+					},
+					'errorAtPosition': {
+						'announcement': 3000,
+						'sound': 1000
+					}
+				}
 			},
 			tags: ['accessibility']
 		},
@@ -376,6 +450,20 @@ const configuration: IConfigurationNode = {
 				},
 				'announcement': {
 					'description': localize('accessibility.signals.terminalCommandFailed.announcement', "Announces when a terminal command fails (non-zero exit code) or when a command with such an exit code is navigated to in the accessible view."),
+					...announcementFeatureBase
+				},
+			}
+		},
+		'accessibility.signals.terminalCommandSucceeded': {
+			...signalFeatureBase,
+			'description': localize('accessibility.signals.terminalCommandSucceeded', "Plays a signal - sound (audio cue) and/or announcement (alert) - when a terminal command succeeds (zero exit code) or when a command with such an exit code is navigated to in the accessible view."),
+			'properties': {
+				'sound': {
+					'description': localize('accessibility.signals.terminalCommandSucceeded.sound', "Plays a sound when a terminal command succeeds (zero exit code) or when a command with such an exit code is navigated to in the accessible view."),
+					...soundFeatureBase
+				},
+				'announcement': {
+					'description': localize('accessibility.signals.terminalCommandSucceeded.announcement', "Announces when a terminal command succeeds (zero exit code) or when a command with such an exit code is navigated to in the accessible view."),
 					...announcementFeatureBase
 				},
 			}
@@ -646,10 +734,8 @@ export function registerAccessibilityConfiguration() {
 	});
 }
 
-export const enum AccessibilityVoiceSettingId {
-	SpeechTimeout = 'accessibility.voice.speechTimeout',
-	SpeechLanguage = SPEECH_LANGUAGE_CONFIG
-}
+export { AccessibilityVoiceSettingId };
+
 export const SpeechTimeoutDefault = 1200;
 
 export class DynamicSpeechAccessibilityConfiguration extends Disposable implements IWorkbenchContribution {
@@ -657,7 +743,8 @@ export class DynamicSpeechAccessibilityConfiguration extends Disposable implemen
 	static readonly ID = 'workbench.contrib.dynamicSpeechAccessibilityConfiguration';
 
 	constructor(
-		@ISpeechService private readonly speechService: ISpeechService
+		@ISpeechService private readonly speechService: ISpeechService,
+		@IProductService private readonly productService: IProductService
 	) {
 		super();
 
@@ -686,13 +773,19 @@ export class DynamicSpeechAccessibilityConfiguration extends Disposable implemen
 					'tags': ['accessibility']
 				},
 				[AccessibilityVoiceSettingId.SpeechLanguage]: {
-					'markdownDescription': localize('voice.speechLanguage', "The language that voice speech recognition should recognize. Select `auto` to use the configured display language if possible. Note that not all display languages maybe supported by speech recognition"),
+					'markdownDescription': localize('voice.speechLanguage', "The language that text-to-speech and speech-to-text should use. Select `auto` to use the configured display language if possible. Note that not all display languages maybe supported by speech recognition and synthesizers."),
 					'type': 'string',
 					'enum': languagesSorted,
 					'default': 'auto',
 					'tags': ['accessibility'],
 					'enumDescriptions': languagesSorted.map(key => languages[key].name),
 					'enumItemLabels': languagesSorted.map(key => languages[key].name)
+				},
+				[AccessibilityVoiceSettingId.AutoSynthesize]: {
+					'type': 'boolean',
+					'markdownDescription': localize('autoSynthesize', "Whether a textual response should automatically be read out aloud when speech was used as input. For example in a chat session, a response is automatically synthesized when voice was used as chat request."),
+					'default': this.productService.quality !== 'stable', // TODO@bpasero decide on a default
+					'tags': ['accessibility']
 				}
 			}
 		});
@@ -731,6 +824,21 @@ Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMi
 			];
 		}
 	}]);
+
+Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
+	.registerConfigurationMigrations([{
+		key: 'accessibility.signalOptions',
+		migrateFn: (value, accessor) => {
+			const delays = value.delays;
+			if (!delays) {
+				return [];
+			}
+			return [
+				['accessibility.signalOptions', { value: { ...value, 'experimental.delays': delays, 'delays': undefined } }],
+			];
+		}
+	}]);
+
 
 Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
 	.registerConfigurationMigrations([{

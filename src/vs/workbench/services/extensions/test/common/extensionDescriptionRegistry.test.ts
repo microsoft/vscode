@@ -5,10 +5,14 @@
 
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ExtensionIdentifier, IExtensionDescription, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { ExtensionDescriptionRegistry, IActivationEventsReader } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 
 suite('ExtensionDescriptionRegistry', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('allow removing and adding the same extension at a different version', () => {
 		const idA = new ExtensionIdentifier('a');
 		const extensionA1 = desc(idA, '1.0.0');

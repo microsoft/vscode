@@ -14,6 +14,8 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { ResourceTree } from 'vs/base/common/resourceTree';
 import { ISCMHistoryProvider, ISCMHistoryProviderMenus } from 'vs/workbench/contrib/scm/common/history';
+import { ITextModel } from 'vs/editor/common/model';
+import { IObservable } from 'vs/base/common/observable';
 
 export const VIEWLET_ID = 'workbench.view.scm';
 export const VIEW_PANE_ID = 'workbench.scm';
@@ -70,11 +72,10 @@ export interface ISCMProvider extends IDisposable {
 	readonly onDidChangeResources: Event<void>;
 
 	readonly rootUri?: URI;
-	readonly inputBoxDocumentUri: URI;
+	readonly inputBoxTextModel: ITextModel;
 	readonly count?: number;
-	readonly commitTemplate: string;
+	readonly commitTemplate: IObservable<string>;
 	readonly historyProvider?: ISCMHistoryProvider;
-	readonly onDidChangeCommitTemplate: Event<string>;
 	readonly onDidChangeHistoryProvider: Event<void>;
 	readonly onDidChangeStatusBarCommands?: Event<readonly Command[]>;
 	readonly acceptInputCommand?: Command;

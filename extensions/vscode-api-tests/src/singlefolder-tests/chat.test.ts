@@ -71,7 +71,7 @@ suite('chat', () => {
 	});
 
 	test('participant and variable', async () => {
-		disposables.push(chat.registerChatVariableResolver('myVar', 'My variable', {
+		disposables.push(chat.registerChatVariableResolver('myVarId', 'myVar', 'My variable', 'My variable', false, {
 			resolve(_name, _context, _token) {
 				return [{ level: ChatVariableLevel.Full, value: 'myValue' }];
 			}
@@ -81,7 +81,7 @@ suite('chat', () => {
 		commands.executeCommand('workbench.action.chat.open', { query: '@participant hi #myVar' });
 		const request = await deferred.p;
 		assert.strictEqual(request.prompt, 'hi #myVar');
-		assert.strictEqual(request.variables[0].value, 'myValue');
+		assert.strictEqual(request.references[0].value, 'myValue');
 	});
 
 	test('result metadata is returned to the followup provider', async () => {

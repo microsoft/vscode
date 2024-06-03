@@ -7847,6 +7847,13 @@ declare module 'vscode' {
 		 * The current `Extension` instance.
 		 */
 		readonly extension: Extension<any>;
+
+		/**
+		 * An object that keeps information about how this extension can use language models.
+		 *
+		 * @see {@link LanguageModelChat.sendRequest}
+		 */
+		readonly languageModelAccessInformation: LanguageModelAccessInformation;
 	}
 
 	/**
@@ -16196,6 +16203,50 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Represents a thread in a debug session.
+	 */
+	export class DebugThread {
+		/**
+		 * Debug session for thread.
+		 */
+		readonly session: DebugSession;
+
+		/**
+		 * ID of the associated thread in the debug protocol.
+		 */
+		readonly threadId: number;
+
+		/**
+		 * @hidden
+		 */
+		private constructor(session: DebugSession, threadId: number);
+	}
+
+	/**
+	 * Represents a stack frame in a debug session.
+	 */
+	export class DebugStackFrame {
+		/**
+		 * Debug session for thread.
+		 */
+		readonly session: DebugSession;
+
+		/**
+		 * ID of the associated thread in the debug protocol.
+		 */
+		readonly threadId: number;
+		/**
+		 * ID of the stack frame in the debug protocol.
+		 */
+		readonly frameId: number;
+
+		/**
+		 * @hidden
+		 */
+		private constructor(session: DebugSession, threadId: number, frameId: number);
+	}
+
+	/**
 	 * Namespace for debug functionality.
 	 */
 	export namespace debug {
@@ -16244,6 +16295,19 @@ declare module 'vscode' {
 		 * An {@link Event} that is emitted when the set of breakpoints is added, removed, or changed.
 		 */
 		export const onDidChangeBreakpoints: Event<BreakpointsChangeEvent>;
+
+		/**
+		 * The currently focused thread or stack frame, or `undefined` if no
+		 * thread or stack is focused. A thread can be focused any time there is
+		 * an active debug session, while a stack frame can only be focused when
+		 * a session is paused and the call stack has been retrieved.
+		 */
+		export const activeStackItem: DebugThread | DebugStackFrame | undefined;
+
+		/**
+		 * An event which fires when the {@link debug.activeStackItem} has changed.
+		 */
+		export const onDidChangeActiveStackItem: Event<DebugThread | DebugStackFrame | undefined>;
 
 		/**
 		 * Register a {@link DebugConfigurationProvider debug configuration provider} for a specific debug type.
@@ -17401,12 +17465,21 @@ declare module 'vscode' {
 		readonly continuous?: boolean;
 
 		/**
+		 * Controls how test Test Results view is focused.  If true, the editor
+		 * will keep the maintain the user's focus. If false, the editor will
+		 * prefer to move focus into the Test Results view, although
+		 * this may be configured by users.
+		 */
+		readonly preserveFocus: boolean;
+
+		/**
 		 * @param include Array of specific tests to run, or undefined to run all tests
 		 * @param exclude An array of tests to exclude from the run.
 		 * @param profile The run profile used for this request.
 		 * @param continuous Whether to run tests continuously as source changes.
+		 * @param preserveFocus Whether to preserve the user's focus when the run is started
 		 */
-		constructor(include?: readonly TestItem[], exclude?: readonly TestItem[], profile?: TestRunProfile, continuous?: boolean);
+		constructor(include?: readonly TestItem[], exclude?: readonly TestItem[], profile?: TestRunProfile, continuous?: boolean, preserveFocus?: boolean);
 	}
 
 	/**
@@ -18319,6 +18392,856 @@ declare module 'vscode' {
 		 * Any additional common properties which should be injected into the data object.
 		 */
 		readonly additionalCommonProperties?: Record<string, any>;
+	}
+
+	/**
+	 * Represents a user request in chat history.
+	 */
+	export class ChatRequestTurn {
+		/**
+		 * The prompt as entered by the user.
+		 *
+		 * Information about references used in this request is stored in {@link ChatRequestTurn.references}.
+		 *
+		 * *Note* that the {@link ChatParticipant.name name} of the participant and the {@link ChatCommand.name command}
+		 * are not part of the prompt.
+		 */
+		readonly prompt: string;
+
+		/**
+		 * The id of the chat participant to which this request was directed.
+		 */
+		readonly participant: string;
+
+		/**
+		 * The name of the {@link ChatCommand command} that was selected for this request.
+		 */
+		readonly command?: string;
+
+		/**
+		 * The references that were used in this message.
+		 */
+		readonly references: ChatPromptReference[];
+
+		/**
+		 * @hidden
+		 */
+		private constructor(prompt: string, command: string | undefined, references: ChatPromptReference[], participant: string);
+	}
+
+	/**
+	 * Represents a chat participant's response in chat history.
+	 */
+	export class ChatResponseTurn {
+		/**
+		 * The content that was received from the chat participant. Only the stream parts that represent actual content (not metadata) are represented.
+		 */
+		readonly response: ReadonlyArray<ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart>;
+
+		/**
+		 * The result that was received from the chat participant.
+		 */
+		readonly result: ChatResult;
+
+		/**
+		 * The id of the chat participant that this response came from.
+		 */
+		readonly participant: string;
+
+		/**
+		 * The name of the command that this response came from.
+		 */
+		readonly command?: string;
+
+		/**
+		 * @hidden
+		 */
+		private constructor(response: ReadonlyArray<ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart>, result: ChatResult, participant: string);
+	}
+
+	/**
+	 * Extra context passed to a participant.
+	 */
+	export interface ChatContext {
+		/**
+		 * All of the chat messages so far in the current chat session. Currently, only chat messages for the current participant are included.
+		 */
+		readonly history: ReadonlyArray<ChatRequestTurn | ChatResponseTurn>;
+	}
+
+	/**
+	 * Represents an error result from a chat request.
+	 */
+	export interface ChatErrorDetails {
+		/**
+		 * An error message that is shown to the user.
+		 */
+		message: string;
+
+		/**
+		 * If set to true, the response will be partly blurred out.
+		 */
+		responseIsFiltered?: boolean;
+	}
+
+	/**
+	 * The result of a chat request.
+	 */
+	export interface ChatResult {
+		/**
+		 * If the request resulted in an error, this property defines the error details.
+		 */
+		errorDetails?: ChatErrorDetails;
+
+		/**
+		 * Arbitrary metadata for this result. Can be anything, but must be JSON-stringifyable.
+		 */
+		readonly metadata?: { readonly [key: string]: any };
+	}
+
+	/**
+	 * Represents the type of user feedback received.
+	 */
+	export enum ChatResultFeedbackKind {
+		/**
+		 * The user marked the result as unhelpful.
+		 */
+		Unhelpful = 0,
+
+		/**
+		 * The user marked the result as helpful.
+		 */
+		Helpful = 1,
+	}
+
+	/**
+	 * Represents user feedback for a result.
+	 */
+	export interface ChatResultFeedback {
+		/**
+		 * The ChatResult for which the user is providing feedback.
+		 * This object has the same properties as the result returned from the participant callback, including `metadata`, but is not the same instance.
+		 */
+		readonly result: ChatResult;
+
+		/**
+		 * The kind of feedback that was received.
+		 */
+		readonly kind: ChatResultFeedbackKind;
+	}
+
+	/**
+	 * A followup question suggested by the participant.
+	 */
+	export interface ChatFollowup {
+		/**
+		 * The message to send to the chat.
+		 */
+		prompt: string;
+
+		/**
+		 * A title to show the user. The prompt will be shown by default, when this is unspecified.
+		 */
+		label?: string;
+
+		/**
+		 * By default, the followup goes to the same participant/command. But this property can be set to invoke a different participant by ID.
+		 * Followups can only invoke a participant that was contributed by the same extension.
+		 */
+		participant?: string;
+
+		/**
+		 * By default, the followup goes to the same participant/command. But this property can be set to invoke a different command.
+		 */
+		command?: string;
+	}
+
+	/**
+	 * Will be invoked once after each request to get suggested followup questions to show the user. The user can click the followup to send it to the chat.
+	 */
+	export interface ChatFollowupProvider {
+		/**
+		 * Provide followups for the given result.
+		 * @param result This object has the same properties as the result returned from the participant callback, including `metadata`, but is not the same instance.
+		 * @param token A cancellation token.
+		 */
+		provideFollowups(result: ChatResult, context: ChatContext, token: CancellationToken): ProviderResult<ChatFollowup[]>;
+	}
+
+	/**
+	 * A chat request handler is a callback that will be invoked when a request is made to a chat participant.
+	 */
+	export type ChatRequestHandler = (request: ChatRequest, context: ChatContext, response: ChatResponseStream, token: CancellationToken) => ProviderResult<ChatResult | void>;
+
+	/**
+	 * A chat participant can be invoked by the user in a chat session, using the `@` prefix. When it is invoked, it handles the chat request and is solely
+	 * responsible for providing a response to the user. A ChatParticipant is created using {@link chat.createChatParticipant}.
+	 */
+	export interface ChatParticipant {
+		/**
+		 * A unique ID for this participant.
+		 */
+		readonly id: string;
+
+		/**
+		 * An icon for the participant shown in UI.
+		 */
+		iconPath?: Uri | {
+			/**
+			 * The icon path for the light theme.
+			 */
+			light: Uri;
+			/**
+			 * The icon path for the dark theme.
+			 */
+			dark: Uri;
+		} | ThemeIcon;
+
+		/**
+		 * The handler for requests to this participant.
+		 */
+		requestHandler: ChatRequestHandler;
+
+		/**
+		 * This provider will be called once after each request to retrieve suggested followup questions.
+		 */
+		followupProvider?: ChatFollowupProvider;
+
+		/**
+		 * An event that fires whenever feedback for a result is received, e.g. when a user up- or down-votes
+		 * a result.
+		 *
+		 * The passed {@link ChatResultFeedback.result result} is guaranteed to be the same instance that was
+		 * previously returned from this chat participant.
+		 */
+		onDidReceiveFeedback: Event<ChatResultFeedback>;
+
+		/**
+		 * Dispose this participant and free resources.
+		 */
+		dispose(): void;
+	}
+
+	/**
+	 * A reference to a value that the user added to their chat request.
+	 */
+	export interface ChatPromptReference {
+		/**
+		 * A unique identifier for this kind of reference.
+		 */
+		readonly id: string;
+
+		/**
+		 * The start and end index of the reference in the {@link ChatRequest.prompt prompt}. When undefined, the reference was not part of the prompt text.
+		 *
+		 * *Note* that the indices take the leading `#`-character into account which means they can
+		 * used to modify the prompt as-is.
+		 */
+		readonly range?: [start: number, end: number];
+
+		/**
+		 * A description of this value that could be used in an LLM prompt.
+		 */
+		readonly modelDescription?: string;
+
+		/**
+		 * The value of this reference. The `string | Uri | Location` types are used today, but this could expand in the future.
+		 */
+		readonly value: string | Uri | Location | unknown;
+	}
+
+	/**
+	 * A request to a chat participant.
+	 */
+	export interface ChatRequest {
+		/**
+		 * The prompt as entered by the user.
+		 *
+		 * Information about references used in this request is stored in {@link ChatRequest.references}.
+		 *
+		 * *Note* that the {@link ChatParticipant.name name} of the participant and the {@link ChatCommand.name command}
+		 * are not part of the prompt.
+		 */
+		readonly prompt: string;
+
+		/**
+		 * The name of the {@link ChatCommand command} that was selected for this request.
+		 */
+		readonly command: string | undefined;
+
+		/**
+		 * The list of references and their values that are referenced in the prompt.
+		 *
+		 * *Note* that the prompt contains references as authored and that it is up to the participant
+		 * to further modify the prompt, for instance by inlining reference values or creating links to
+		 * headings which contain the resolved values. References are sorted in reverse by their range
+		 * in the prompt. That means the last reference in the prompt is the first in this list. This simplifies
+		 * string-manipulation of the prompt.
+		 */
+		readonly references: readonly ChatPromptReference[];
+	}
+
+	/**
+	 * The ChatResponseStream is how a participant is able to return content to the chat view. It provides several methods for streaming different types of content
+	 * which will be rendered in an appropriate way in the chat view. A participant can use the helper method for the type of content it wants to return, or it
+	 * can instantiate a {@link ChatResponsePart} and use the generic {@link ChatResponseStream.push} method to return it.
+	 */
+	export interface ChatResponseStream {
+		/**
+		 * Push a markdown part to this stream. Short-hand for
+		 * `push(new ChatResponseMarkdownPart(value))`.
+		 *
+		 * @see {@link ChatResponseStream.push}
+		 * @param value A markdown string or a string that should be interpreted as markdown. The boolean form of {@link MarkdownString.isTrusted} is NOT supported.
+		 */
+		markdown(value: string | MarkdownString): void;
+
+		/**
+		 * Push an anchor part to this stream. Short-hand for
+		 * `push(new ChatResponseAnchorPart(value, title))`.
+		 * An anchor is an inline reference to some type of resource.
+		 *
+		 * @param value A uri, location, or symbol information.
+		 * @param title An optional title that is rendered with value.
+		 */
+		anchor(value: Uri | Location, title?: string): void;
+
+		/**
+		 * Push a command button part to this stream. Short-hand for
+		 * `push(new ChatResponseCommandButtonPart(value, title))`.
+		 *
+		 * @param command A Command that will be executed when the button is clicked.
+		 */
+		button(command: Command): void;
+
+		/**
+		 * Push a filetree part to this stream. Short-hand for
+		 * `push(new ChatResponseFileTreePart(value))`.
+		 *
+		 * @param value File tree data.
+		 * @param baseUri The base uri to which this file tree is relative.
+		 */
+		filetree(value: ChatResponseFileTree[], baseUri: Uri): void;
+
+		/**
+		 * Push a progress part to this stream. Short-hand for
+		 * `push(new ChatResponseProgressPart(value))`.
+		 *
+		 * @param value A progress message
+		 */
+		progress(value: string): void;
+
+		/**
+		 * Push a reference to this stream. Short-hand for
+		 * `push(new ChatResponseReferencePart(value))`.
+		 *
+		 * *Note* that the reference is not rendered inline with the response.
+		 *
+		 * @param value A uri or location
+		 * @param iconPath Icon for the reference shown in UI
+		 */
+		reference(value: Uri | Location, iconPath?: Uri | ThemeIcon | {
+			/**
+			 * The icon path for the light theme.
+			 */
+			light: Uri;
+			/**
+			 * The icon path for the dark theme.
+			 */
+			dark: Uri;
+		}): void;
+
+		/**
+		 * Pushes a part to this stream.
+		 *
+		 * @param part A response part, rendered or metadata
+		 */
+		push(part: ChatResponsePart): void;
+	}
+
+	/**
+	 * Represents a part of a chat response that is formatted as Markdown.
+	 */
+	export class ChatResponseMarkdownPart {
+		/**
+		 * A markdown string or a string that should be interpreted as markdown.
+		 */
+		value: MarkdownString;
+
+		/**
+		 * Create a new ChatResponseMarkdownPart.
+		 *
+		 * @param value A markdown string or a string that should be interpreted as markdown. The boolean form of {@link MarkdownString.isTrusted} is NOT supported.
+		 */
+		constructor(value: string | MarkdownString);
+	}
+
+	/**
+	 * Represents a file tree structure in a chat response.
+	 */
+	export interface ChatResponseFileTree {
+		/**
+		 * The name of the file or directory.
+		 */
+		name: string;
+
+		/**
+		 * An array of child file trees, if the current file tree is a directory.
+		 */
+		children?: ChatResponseFileTree[];
+	}
+
+	/**
+	 * Represents a part of a chat response that is a file tree.
+	 */
+	export class ChatResponseFileTreePart {
+		/**
+		 * File tree data.
+		 */
+		value: ChatResponseFileTree[];
+
+		/**
+		 * The base uri to which this file tree is relative
+		 */
+		baseUri: Uri;
+
+		/**
+		 * Create a new ChatResponseFileTreePart.
+		 * @param value File tree data.
+		 * @param baseUri The base uri to which this file tree is relative.
+		 */
+		constructor(value: ChatResponseFileTree[], baseUri: Uri);
+	}
+
+	/**
+	 * Represents a part of a chat response that is an anchor, that is rendered as a link to a target.
+	 */
+	export class ChatResponseAnchorPart {
+		/**
+		 * The target of this anchor.
+		 */
+		value: Uri | Location;
+
+		/**
+		 * An optional title that is rendered with value.
+		 */
+		title?: string;
+
+		/**
+		 * Create a new ChatResponseAnchorPart.
+		 * @param value A uri or location.
+		 * @param title An optional title that is rendered with value.
+		 */
+		constructor(value: Uri | Location, title?: string);
+	}
+
+	/**
+	 * Represents a part of a chat response that is a progress message.
+	 */
+	export class ChatResponseProgressPart {
+		/**
+		 * The progress message
+		 */
+		value: string;
+
+		/**
+		 * Create a new ChatResponseProgressPart.
+		 * @param value A progress message
+		 */
+		constructor(value: string);
+	}
+
+	/**
+	 * Represents a part of a chat response that is a reference, rendered separately from the content.
+	 */
+	export class ChatResponseReferencePart {
+		/**
+		 * The reference target.
+		 */
+		value: Uri | Location;
+
+		/**
+		 * The icon for the reference.
+		 */
+		iconPath?: Uri | ThemeIcon | {
+			/**
+			 * The icon path for the light theme.
+			 */
+			light: Uri;
+			/**
+			 * The icon path for the dark theme.
+			 */
+			dark: Uri;
+		};
+
+		/**
+		 * Create a new ChatResponseReferencePart.
+		 * @param value A uri or location
+		 * @param iconPath Icon for the reference shown in UI
+		 */
+		constructor(value: Uri | Location, iconPath?: Uri | ThemeIcon | {
+			/**
+			 * The icon path for the light theme.
+			 */
+			light: Uri;
+			/**
+			 * The icon path for the dark theme.
+			 */
+			dark: Uri;
+		});
+	}
+
+	/**
+	 * Represents a part of a chat response that is a button that executes a command.
+	 */
+	export class ChatResponseCommandButtonPart {
+		/**
+		 * The command that will be executed when the button is clicked.
+		 */
+		value: Command;
+
+		/**
+		 * Create a new ChatResponseCommandButtonPart.
+		 * @param value A Command that will be executed when the button is clicked.
+		 */
+		constructor(value: Command);
+	}
+
+	/**
+	 * Represents the different chat response types.
+	 */
+	export type ChatResponsePart = ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart
+		| ChatResponseProgressPart | ChatResponseReferencePart | ChatResponseCommandButtonPart;
+
+
+	/**
+	 * Namespace for chat functionality. Users interact with chat participants by sending messages
+	 * to them in the chat view. Chat participants can respond with markdown or other types of content
+	 * via the {@link ChatResponseStream}.
+	 */
+	export namespace chat {
+		/**
+		 * Create a new {@link ChatParticipant chat participant} instance.
+		 *
+		 * @param id A unique identifier for the participant.
+		 * @param handler A request handler for the participant.
+		 * @returns A new chat participant
+		 */
+		export function createChatParticipant(id: string, handler: ChatRequestHandler): ChatParticipant;
+	}
+
+	/**
+	 * Represents the role of a chat message. This is either the user or the assistant.
+	 */
+	export enum LanguageModelChatMessageRole {
+		/**
+		 * The user role, e.g the human interacting with a language model.
+		 */
+		User = 1,
+
+		/**
+		 * The assistant role, e.g. the language model generating responses.
+		 */
+		Assistant = 2
+	}
+
+	/**
+	 * Represents a message in a chat. Can assume different roles, like user or assistant.
+	 */
+	export class LanguageModelChatMessage {
+
+		/**
+		 * Utility to create a new user message.
+		 *
+		 * @param content The content of the message.
+		 * @param name The optional name of a user for the message.
+		 */
+		static User(content: string, name?: string): LanguageModelChatMessage;
+
+		/**
+		 * Utility to create a new assistant message.
+		 *
+		 * @param content The content of the message.
+		 * @param name The optional name of a user for the message.
+		 */
+		static Assistant(content: string, name?: string): LanguageModelChatMessage;
+
+		/**
+		 * The role of this message.
+		 */
+		role: LanguageModelChatMessageRole;
+
+		/**
+		 * The content of this message.
+		 */
+		content: string;
+
+		/**
+		 * The optional name of a user for this message.
+		 */
+		name: string | undefined;
+
+		/**
+		 * Create a new user message.
+		 *
+		 * @param role The role of the message.
+		 * @param content The content of the message.
+		 * @param name The optional name of a user for the message.
+		 */
+		constructor(role: LanguageModelChatMessageRole, content: string, name?: string);
+	}
+
+	/**
+	 * Represents a language model response.
+	 *
+	 * @see {@link LanguageModelAccess.chatRequest}
+	*/
+	export interface LanguageModelChatResponse {
+
+		/**
+		 * An async iterable that is a stream of text chunks forming the overall response.
+		 *
+		 * *Note* that this stream will error when during data receiving an error occurs. Consumers of
+		 * the stream should handle the errors accordingly.
+		 *
+		 * To cancel the stream, the consumer can {@link CancellationTokenSource.cancel cancel} the token that was used to make the request
+		 * or break from the for-loop.
+		 *
+		 * @example
+		 * ```ts
+		 * try {
+		 *   // consume stream
+		 *   for await (const chunk of response.text) {
+		 *    console.log(chunk);
+		 *   }
+		 *
+		 * } catch(e) {
+		 *   // stream ended with an error
+		 *   console.error(e);
+		 * }
+		 * ```
+		 */
+		text: AsyncIterable<string>;
+	}
+
+	/**
+	 * Represents a language model for making chat requests.
+	 *
+	 * @see {@link lm.selectChatModels}
+	 */
+	export interface LanguageModelChat {
+
+		/**
+		 * Human-readable name of the language model.
+		 */
+		readonly name: string;
+
+		/**
+		 * Opaque identifier of the language model.
+		 */
+		readonly id: string;
+
+		/**
+		 * A well-known identifier of the vendor of the language model. An example is `copilot`, but
+		 * values are defined by extensions contributing chat models and need to be looked up with them.
+		 */
+		readonly vendor: string;
+
+		/**
+		 * Opaque family-name of the language model. Values might be `gpt-3.5-turbo`, `gpt4`, `phi2`, or `llama`
+		 * but they are defined by extensions contributing languages and subject to change.
+		 */
+		readonly family: string;
+
+		/**
+		 * Opaque version string of the model. This is defined by the extension contributing the language model
+		 * and subject to change.
+		 */
+		readonly version: string;
+
+		/**
+		 * The maximum number of tokens that can be sent to the model in a single request.
+		 */
+		readonly maxInputTokens: number;
+
+		/**
+		 * Make a chat request using a language model.
+		 *
+		 * *Note* that language model use may be subject to access restrictions and user consent. Calling this function
+		 * for the first time (for a extension) will show a consent dialog to the user and because of that this function
+		 * must _only be called in response to a user action!_ Extension can use {@link LanguageModelAccessInformation.canSendRequest}
+		 * to check if they have the necessary permissions to make a request.
+		 *
+		 * This function will return a rejected promise if making a request to the language model is not
+		 * possible. Reasons for this can be:
+		 *
+		 * - user consent not given, see {@link LanguageModelError.NoPermissions `NoPermissions`}
+		 * - model does not exist anymore, see {@link LanguageModelError.NotFound `NotFound`}
+		 * - quota limits exceeded, see {@link LanguageModelError.Blocked `Blocked`}
+		 * - other issues in which case extension must check {@link LanguageModelError.cause `LanguageModelError.cause`}
+		 *
+		 * @param messages An array of message instances.
+		 * @param options Options that control the request.
+		 * @param token A cancellation token which controls the request. See {@link CancellationTokenSource} for how to create one.
+		 * @returns A thenable that resolves to a {@link LanguageModelChatResponse}. The promise will reject when the request couldn't be made.
+		 */
+		sendRequest(messages: LanguageModelChatMessage[], options?: LanguageModelChatRequestOptions, token?: CancellationToken): Thenable<LanguageModelChatResponse>;
+
+		/**
+		 * Count the number of tokens in a message using the model specific tokenizer-logic.
+
+		 * @param text A string or a message instance.
+		 * @param token Optional cancellation token.  See {@link CancellationTokenSource} for how to create one.
+		 * @returns A thenable that resolves to the number of tokens.
+		 */
+		countTokens(text: string | LanguageModelChatMessage, token?: CancellationToken): Thenable<number>;
+	}
+
+	/**
+	 * Describes how to select language models for chat requests.
+	 *
+	 * @see {@link lm.selectChatModels}
+	 */
+	export interface LanguageModelChatSelector {
+
+		/**
+		 * A vendor of language models.
+		 * @see {@link LanguageModelChat.vendor}
+		 */
+		vendor?: string;
+
+		/**
+		 * A family of language models.
+		 * @see {@link LanguageModelChat.family}
+		 */
+		family?: string;
+
+		/**
+		 * The version of a language model.
+		 * @see {@link LanguageModelChat.version}
+		 */
+		version?: string;
+
+		/**
+		 * The identifier of a language model.
+		 * @see {@link LanguageModelChat.id}
+		 */
+		id?: string;
+	}
+
+	/**
+	 * An error type for language model specific errors.
+	 *
+	 * Consumers of language models should check the code property to determine specific
+	 * failure causes, like `if(someError.code === vscode.LanguageModelError.NotFound.name) {...}`
+	 * for the case of referring to an unknown language model. For unspecified errors the `cause`-property
+	 * will contain the actual error.
+	 */
+	export class LanguageModelError extends Error {
+
+		/**
+		 * The requestor does not have permissions to use this
+		 * language model
+		 */
+		static NoPermissions(message?: string): LanguageModelError;
+
+		/**
+		 * The requestor is blocked from using this language model.
+		 */
+		static Blocked(message?: string): LanguageModelError;
+
+		/**
+		 * The language model does not exist.
+		 */
+		static NotFound(message?: string): LanguageModelError;
+
+		/**
+		 * A code that identifies this error.
+		 *
+		 * Possible values are names of errors, like {@linkcode LanguageModelError.NotFound NotFound},
+		 * or `Unknown` for unspecified errors from the language model itself. In the latter case the
+		 * `cause`-property will contain the actual error.
+		 */
+		readonly code: string;
+	}
+
+	/**
+	 * Options for making a chat request using a language model.
+	 *
+	 * @see {@link LanguageModelChat.sendRequest}
+	 */
+	export interface LanguageModelChatRequestOptions {
+
+		/**
+		 * A human-readable message that explains why access to a language model is needed and what feature is enabled by it.
+		 */
+		justification?: string;
+
+		/**
+		 * A set of options that control the behavior of the language model. These options are specific to the language model
+		 * and need to be lookup in the respective documentation.
+		 */
+		modelOptions?: { [name: string]: any };
+	}
+
+	/**
+	 * Namespace for language model related functionality.
+	 */
+	export namespace lm {
+
+		/**
+		 * An event that is fired when the set of available chat models changes.
+		 */
+		export const onDidChangeChatModels: Event<void>;
+
+		/**
+		 * Select chat models by a {@link LanguageModelChatSelector selector}. This can yield multiple or no chat models and
+		 * extensions must handle these cases, esp. when no chat model exists, gracefully.
+		 *
+		 * ```ts
+		 * const models = await vscode.lm.selectChatModels({ family: 'gpt-3.5-turbo' });
+		 * if (models.length > 0) {
+		 * 	const [first] = models;
+		 * 	const response = await first.sendRequest(...)
+		 * 	// ...
+		 * } else {
+		 * 	// NO chat models available
+		 * }
+		 * ```
+		 *
+		 * A selector can be written to broadly match all models of a given vendor or family, or it can narrowly select one model by ID.
+		 * Keep in mind that the available set of models will change over time, but also that prompts may perform differently in
+		 * different models.
+		 *
+		 * *Note* that extensions can hold on to the results returned by this function and use them later. However, when the
+		 * {@link onDidChangeChatModels}-event is fired the list of chat models might have changed and extensions should re-query.
+		 *
+		 * @param selector A chat model selector. When omitted all chat models are returned.
+		 * @returns An array of chat models, can be empty!
+		 */
+		export function selectChatModels(selector?: LanguageModelChatSelector): Thenable<LanguageModelChat[]>;
+	}
+
+	/**
+	 * Represents extension specific information about the access to language models.
+	 */
+	export interface LanguageModelAccessInformation {
+
+		/**
+		 * An event that fires when access information changes.
+		 */
+		onDidChange: Event<void>;
+
+		/**
+		 * Checks if a request can be made to a language model.
+		 *
+		 * *Note* that calling this function will not trigger a consent UI but just checks for a persisted state.
+		 *
+		 * @param chat A language model chat object.
+		 * @return `true` if a request can be made, `false` if not, `undefined` if the language
+		 * model does not exist or consent hasn't been asked for.
+		 */
+		canSendRequest(chat: LanguageModelChat): boolean | undefined;
 	}
 }
 
