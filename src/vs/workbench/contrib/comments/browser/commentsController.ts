@@ -728,7 +728,7 @@ export class CommentController implements IEditorContribution {
 			return;
 		}
 
-		const after = this.editor.getSelection().getEndPosition();
+		const after = reverse ? this.editor.getSelection().getStartPosition() : this.editor.getSelection().getEndPosition();
 		const sortedWidgets = this._commentWidgets.sort((a, b) => {
 			if (reverse) {
 				const temp = a;

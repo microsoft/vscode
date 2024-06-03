@@ -136,7 +136,7 @@ export class InlineChatContentWidget implements IContentWidget {
 		const maxHeight = this._widget.input.inputEditor.getOption(EditorOption.lineHeight) * 5;
 		const inputEditorHeight = this._widget.contentHeight;
 
-		this._widget.layout(Math.min(maxHeight, inputEditorHeight), 360);
+		this._widget.layout(Math.min(maxHeight, inputEditorHeight), 390);
 
 		// const actualHeight = this._widget.inputPartHeight;
 		// return new dom.Dimension(width, actualHeight);
