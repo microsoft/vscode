@@ -664,7 +664,8 @@ async function doCopySymlink(source: string, target: string, payload: ICopyPaylo
  * original callback based methods.
  *
  * At least `realpath` is implemented differently in the promise
- * based implementation compared to the callback based one.
+ * based implementation compared to the callback based one. The
+ * promise based implementation actually calls `fs.realpath.native`.
  * (https://github.com/microsoft/vscode/issues/118562)
  *
  * TODO@bpasero we should move away from this towards `fs.promises`
