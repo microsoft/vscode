@@ -198,6 +198,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				default: true,
 				description: localize('workbench.editor.tabActionUnpinVisibility', "Controls the visibility of the tab unpin action button.")
 			},
+			'workbench.editor.showTabIndex': {
+				'type': 'boolean',
+				'default': false,
+				'description': localize('workbench.editor.showTabIndex', "When enabled, will show the tab index.")
+			},
 			'workbench.editor.tabSizing': {
 				'type': 'string',
 				'enum': ['fit', 'shrink', 'fixed'],
@@ -623,11 +628,6 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'boolean',
 				'default': true,
 				'description': localize('tips.enabled', "When enabled, will show the watermark tips when no editor is open.")
-			},
-			'workbench.tabIndex.enabled': {
-				'type': 'boolean',
-				'default': false,
-				'description': localize('tabIndex.enabled', "When enabled, will show the tab index.")
 			},
 		}
 	});
