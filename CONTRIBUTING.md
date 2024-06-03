@@ -70,7 +70,7 @@ You can also:
 .\scripts\pearai/setup-environment.ps1
 ```
 
-### Install dependencies (If not first time running)
+### (If not first time running) Update dependencies 
 
 ##### macOS and Linux
 
@@ -78,7 +78,7 @@ You can also:
 ./scripts/pearai/install-dependencies.sh
 ```
 
-##### Windows (Todo)
+##### Windows
 ```
 yarn
 ```
@@ -93,11 +93,14 @@ Running on Electron with extensions run in NodeJS:
 ./scripts/code.sh
 ```
 
-##### Windows (Todo)
-
-```bat
+##### Windows
+- If first time installing, run
+```
 .\scripts\code.bat
 ```
+- On consecutive runs, we recommned downloading Git Bash, and running the same command as linux/mac to run the app (`./scripts/code.sh`), because it is faster.
+
+*Info: the reason is because the symlinking must be performed within the `code.bat` file on Windows on the first run. But on consecutive runs the symlink will already be created, so you can use the faster script which is `code.sh`
 
 👉 **Tip!** If you receive an error stating that the app is not a valid Electron app, it probably means you didn't run `yarn watch` first.
 
