@@ -13,7 +13,7 @@ const $ = dom.$;
 const h = dom.h;
 
 /**
- * This implements some of HoverWidget so that a chat editor hover can be rendered in the same way as a workbench hover.
+ * This borrows some of HoverWidget so that a chat editor hover can be rendered in the same way as a workbench hover.
  * Maybe it can be reusable in a generic way.
  */
 export class ChatEditorHoverWrapper {
