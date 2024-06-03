@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
-import { ColorId, TokenMetadata, ITokenPresentation } from 'vs/editor/common/encodedTokenAttributes';
+import { ColorId, TokenMetadata, ITokenPresentation, StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
+import { ILanguageIdCodec } from 'vs/editor/common/languages';
 
 /**
  * A token on a line.
@@ -20,6 +21,10 @@ export class TestLineToken {
 	constructor(endIndex: number, metadata: number) {
 		this.endIndex = endIndex;
 		this._metadata = metadata;
+	}
+
+	public getStandardTokenType(): StandardTokenType {
+		return TokenMetadata.getTokenType(this._metadata);
 	}
 
 	public getForeground(): ColorId {
@@ -79,6 +84,10 @@ export class TestLineTokens implements IViewLineTokens {
 		return this._actual.length;
 	}
 
+	public getStandardTokenType(tokenIndex: number): StandardTokenType {
+		return this._actual[tokenIndex].getStandardTokenType();
+	}
+
 	public getForeground(tokenIndex: number): ColorId {
 		return this._actual[tokenIndex].getForeground();
 	}
@@ -113,6 +122,18 @@ export class TestLineTokens implements IViewLineTokens {
 
 	public getLanguageId(tokenIndex: number): string {
 		throw new Error('Method not implemented.');
+	}
+
+	public getTokenText(tokenIndex: number): string {
+		throw new Error('Method not implemented.');
+	}
+
+	public forEach(callback: (tokenIndex: number) => void): void {
+		throw new Error('Not implemented');
+	}
+
+	public get languageIdCodec(): ILanguageIdCodec {
+		throw new Error('Not implemented');
 	}
 }
 

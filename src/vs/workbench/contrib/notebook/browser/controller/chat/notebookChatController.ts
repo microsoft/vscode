@@ -31,9 +31,8 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatModel, IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
-import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { ProgressingEditsOptions } from 'vs/workbench/contrib/inlineChat/browser/inlineChatStrategies';
 import { InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
@@ -279,8 +278,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@INotebookExecutionStateService private _executionStateService: INotebookExecutionStateService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@IChatService private readonly _chatService: IChatService,
-		@IChatVariablesService private readonly _chatVariableService: IChatVariablesService,
+		@IChatService private readonly _chatService: IChatService
 	) {
 		super();
 		this._ctxHasActiveRequest = CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST.bindTo(this._contextKeyService);
@@ -301,13 +299,6 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 			this._historyCandidate = '';
 			this._storageService.store(NotebookChatController._storageKey, JSON.stringify(NotebookChatController._promptHistory), StorageScope.PROFILE, StorageTarget.USER);
 		};
-
-		this._register(this._chatVariableService.registerVariable(
-			{ id: '_notebookChatInput', name: '_notebookChatInput', description: '', hidden: true },
-			async (_message, _arg, model) => {
-				return this._widget?.parentEditor.getModel()?.uri;
-			}
-		));
 	}
 
 	private _registerFocusTracker() {
@@ -539,6 +530,14 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		}
 
 		this._widget.updateNotebookEditorFocusNSelections();
+	}
+
+	hasSession(chatModel: IChatModel) {
+		return this._model.value === chatModel;
+	}
+
+	getSessionInputUri() {
+		return this._widget?.parentEditor.getModel()?.uri;
 	}
 
 	async acceptInput() {

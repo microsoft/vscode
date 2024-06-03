@@ -728,7 +728,7 @@ export class CommentController implements IEditorContribution {
 			return;
 		}
 
-		const after = this.editor.getSelection().getEndPosition();
+		const after = reverse ? this.editor.getSelection().getStartPosition() : this.editor.getSelection().getEndPosition();
 		const sortedWidgets = this._commentWidgets.sort((a, b) => {
 			if (reverse) {
 				const temp = a;
@@ -1128,7 +1128,7 @@ export class CommentController implements IEditorContribution {
 		if (!newCommentInfos.length || !this.editor?.hasModel()) {
 			this._addInProgress = false;
 			if (!newCommentInfos.length) {
-				throw new Error('There are no commenting ranges at the current position.');
+				throw new Error(`There are no commenting ranges at the current position (${range ? 'with range' : 'without range'}).`);
 			}
 			return Promise.resolve();
 		}

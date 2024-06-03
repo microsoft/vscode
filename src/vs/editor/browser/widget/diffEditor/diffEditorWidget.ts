@@ -345,6 +345,12 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		const fullWidth = this._rootSizeObserver.width.read(reader);
 		const fullHeight = this._rootSizeObserver.height.read(reader);
 
+		if (this._rootSizeObserver.automaticLayout) {
+			this.elements.root.style.height = '100%';
+		} else {
+			this.elements.root.style.height = fullHeight + 'px';
+		}
+
 		const sash = this._sash.read(reader);
 
 		const gutter = this._gutter.read(reader);

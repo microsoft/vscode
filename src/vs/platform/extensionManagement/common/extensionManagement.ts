@@ -381,7 +381,7 @@ export interface IExtensionGalleryService {
 export interface InstallExtensionEvent {
 	readonly identifier: IExtensionIdentifier;
 	readonly source: URI | IGalleryExtension;
-	readonly profileLocation?: URI;
+	readonly profileLocation: URI;
 	readonly applicationScoped?: boolean;
 	readonly workspaceScoped?: boolean;
 }
@@ -393,14 +393,14 @@ export interface InstallExtensionResult {
 	readonly local?: ILocalExtension;
 	readonly error?: Error;
 	readonly context?: IStringDictionary<any>;
-	readonly profileLocation?: URI;
+	readonly profileLocation: URI;
 	readonly applicationScoped?: boolean;
 	readonly workspaceScoped?: boolean;
 }
 
 export interface UninstallExtensionEvent {
 	readonly identifier: IExtensionIdentifier;
-	readonly profileLocation?: URI;
+	readonly profileLocation: URI;
 	readonly applicationScoped?: boolean;
 	readonly workspaceScoped?: boolean;
 }
@@ -408,9 +408,14 @@ export interface UninstallExtensionEvent {
 export interface DidUninstallExtensionEvent {
 	readonly identifier: IExtensionIdentifier;
 	readonly error?: string;
-	readonly profileLocation?: URI;
+	readonly profileLocation: URI;
 	readonly applicationScoped?: boolean;
 	readonly workspaceScoped?: boolean;
+}
+
+export interface DidUpdateExtensionMetadata {
+	readonly profileLocation: URI;
+	readonly local: ILocalExtension;
 }
 
 export const enum ExtensionGalleryErrorCode {
@@ -487,7 +492,14 @@ export type InstallOptions = {
 	 */
 	context?: IStringDictionary<any>;
 };
-export type UninstallOptions = { readonly donotIncludePack?: boolean; readonly donotCheckDependents?: boolean; readonly versionOnly?: boolean; readonly remove?: boolean; readonly profileLocation?: URI };
+
+export type UninstallOptions = {
+	readonly profileLocation?: URI;
+	readonly donotIncludePack?: boolean;
+	readonly donotCheckDependents?: boolean;
+	readonly versionOnly?: boolean;
+	readonly remove?: boolean;
+};
 
 export interface IExtensionManagementParticipant {
 	postInstall(local: ILocalExtension, source: URI | IGalleryExtension, options: InstallOptions, token: CancellationToken): Promise<void>;
@@ -504,7 +516,7 @@ export interface IExtensionManagementService {
 	onDidInstallExtensions: Event<readonly InstallExtensionResult[]>;
 	onUninstallExtension: Event<UninstallExtensionEvent>;
 	onDidUninstallExtension: Event<DidUninstallExtensionEvent>;
-	onDidUpdateExtensionMetadata: Event<ILocalExtension>;
+	onDidUpdateExtensionMetadata: Event<DidUpdateExtensionMetadata>;
 
 	zip(extension: ILocalExtension): Promise<URI>;
 	unzip(zipLocation: URI): Promise<IExtensionIdentifier>;
@@ -521,7 +533,7 @@ export interface IExtensionManagementService {
 	getInstalled(type?: ExtensionType, profileLocation?: URI, productVersion?: IProductVersion): Promise<ILocalExtension[]>;
 	getExtensionsControlManifest(): Promise<IExtensionsControlManifest>;
 	copyExtensions(fromProfileLocation: URI, toProfileLocation: URI): Promise<void>;
-	updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>, profileLocation?: URI): Promise<ILocalExtension>;
+	updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>, profileLocation: URI): Promise<ILocalExtension>;
 
 	download(extension: IGalleryExtension, operation: InstallOperation, donotVerifySignature: boolean): Promise<URI>;
 

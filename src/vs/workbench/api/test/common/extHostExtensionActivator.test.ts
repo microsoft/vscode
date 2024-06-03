@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import { promiseWithResolvers, timeout } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ExtensionIdentifier, IExtensionDescription, IRelaxedExtensionDescription, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { ActivatedExtension, EmptyExtension, ExtensionActivationTimes, ExtensionsActivator, IExtensionsActivatorHost } from 'vs/workbench/api/common/extHostExtensionActivator';
@@ -13,6 +14,8 @@ import { ExtensionDescriptionRegistry, IActivationEventsReader } from 'vs/workbe
 import { ExtensionActivationReason, MissingExtensionDependency } from 'vs/workbench/services/extensions/common/extensions';
 
 suite('ExtensionsActivator', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const idA = new ExtensionIdentifier(`a`);
 	const idB = new ExtensionIdentifier(`b`);
