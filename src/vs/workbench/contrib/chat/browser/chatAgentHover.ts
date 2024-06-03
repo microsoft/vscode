@@ -119,10 +119,6 @@ export class ChatAgentHover extends Disposable {
 			});
 		}
 	}
-
-	public override dispose(): void {
-		super.dispose();
-	}
 }
 
 export function getChatAgentHoverOptions(getAgent: () => IChatAgentData | undefined, commandService: ICommandService): IUpdatableHoverOptions {
