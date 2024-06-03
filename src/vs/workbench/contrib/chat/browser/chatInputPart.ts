@@ -6,14 +6,16 @@
 import * as dom from 'vs/base/browser/dom';
 import { DEFAULT_FONT_FAMILY } from 'vs/base/browser/fonts';
 import { IHistoryNavigationWidget } from 'vs/base/browser/history';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import * as aria from 'vs/base/browser/ui/aria/aria';
-import { Range } from 'vs/editor/common/core/range';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { IAction } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter } from 'vs/base/common/event';
-import { HistoryNavigator } from 'vs/base/common/history';
+import { HistoryNavigator2 } from 'vs/base/common/history';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { basename, dirname } from 'vs/base/common/path';
 import { isMacintosh } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
@@ -21,6 +23,7 @@ import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import { IDimension } from 'vs/editor/common/core/dimension';
 import { IPosition } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
 import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
@@ -53,9 +56,6 @@ import { IChatFollowup } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IChatHistoryEntry, IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { basename, dirname } from 'vs/base/common/path';
 
 const $ = dom.$;
 
@@ -130,7 +130,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._inputEditor;
 	}
 
-	private history: HistoryNavigator<IChatHistoryEntry>;
+	private history: HistoryNavigator2<IChatHistoryEntry>;
 	private historyNavigationBackwardsEnablement!: IContextKey<boolean>;
 	private historyNavigationForewardsEnablement!: IContextKey<boolean>;
 	private onHistoryEntry = false;
@@ -167,8 +167,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.inputEditorHasFocus = CONTEXT_CHAT_INPUT_HAS_FOCUS.bindTo(contextKeyService);
 
 		const history = this.historyService.getHistory(this.location);
-		this.history = new HistoryNavigator(history, 50);
-		this._register(this.historyService.onDidClearHistory(() => this.history.clear()));
+		if (history.length === 0) {
+			history.push({ text: '' });
+		}
+		this.history = new HistoryNavigator2(history, 50);
+		this._register(this.historyService.onDidClearHistory(() => this.history = new HistoryNavigator2([{ text: '' }], 50)));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AccessibilityVerbositySettingId.Chat)) {
@@ -188,6 +191,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	setState(inputValue: string | undefined, inputState: Object): void {
 		if (!this.inHistoryNavigation) {
+			// This is to prevent chat input contribs from triggering state updates due to input history navigation.
+			// There's probably a better way to avoid this.
 			this.currentInputState = inputState;
 		}
 
@@ -205,25 +210,38 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	showPreviousValue(): void {
+		const newEntry = { text: this._inputEditor.getValue(), state: this.currentInputState };
+		if (this.history.isAtEnd()) {
+			this.history.replaceLast(newEntry);
+		} else {
+			const existingEntry = [...this.history].find(candidate => candidate.text === newEntry.text);
+			if (!existingEntry) {
+				this.history.replaceLast(newEntry);
+				this.history.resetCursor();
+			}
+		}
+
 		this.navigateHistory(true);
 	}
 
 	showNextValue(): void {
+		const newEntry = { text: this._inputEditor.getValue(), state: this.currentInputState };
+		if (this.history.isAtEnd()) {
+			return;
+		} else {
+			const existingEntry = [...this.history].find(candidate => candidate.text === newEntry.text);
+			if (!existingEntry) {
+				this.history.replaceLast(newEntry);
+				this.history.resetCursor();
+			}
+		}
+
 		this.navigateHistory(false);
 	}
 
 	private navigateHistory(previous: boolean): void {
-		const historyEntry = (previous ?
-			(this.history.previous() ?? this.history.first()) : this.history.next())
-			?? { text: '' };
-
-		const currentValue = this._inputEditor.getValue();
-		const isInHistory = this.history.getHistory().find(candidate => candidate.text === currentValue);
-		if (currentValue && (!isInHistory || this.history.isLast())) {
-			this.addToHistory(currentValue);
-		}
-
-		// this.onHistoryEntry = previous || this.history.current() !== null;
+		const historyEntry = previous ?
+			this.history.previous() : this.history.next();
 
 		aria.status(historyEntry.text);
 
@@ -260,7 +278,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	private addToHistory(query: string): void {
-		let element = this.history.getHistory().find(candidate => candidate.text === query);
+		// TODO also consider state
+		let element = [...this.history].find(candidate => candidate.text === query);
 		if (!element) {
 			element = { text: query, state: this.currentInputState };
 		} else {
@@ -274,10 +293,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * Reset the input and update history.
 	 * @param userQuery If provided, this will be added to the history. Followups and programmatic queries should not be passed.
 	 */
-	async acceptInput(userQuery?: string): Promise<void> {
+	async acceptInput(isUserQuery?: boolean): Promise<void> {
 		// TODO pass boolean, not string
-		if (userQuery) {
+		if (isUserQuery) {
+			const userQuery = this._inputEditor.getValue();
 			this.addToHistory(userQuery);
+			this.addToHistory('');
 		}
 
 		this.currentInputState = {};
@@ -585,7 +606,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	saveState(): void {
-		const inputHistory = this.history.getHistory();
+		const inputHistory = [...this.history];
 		this.historyService.saveHistory(this.location, inputHistory);
 	}
 }
