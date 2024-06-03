@@ -148,17 +148,19 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 			});
 		}
 
-		this._register(this._xterm.raw.onKey(() => {
-			this._decoration?.dispose();
-			this._addon?.dispose();
+		this._register(this._xterm.raw.onKey(() => this.dispose()));
+
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(TerminalInitialHintSettingId.Enabled) && !this._configurationService.getValue(TerminalInitialHintSettingId.Enabled)) {
+				this.dispose();
+			}
 		}));
 
 		const inputModel = commandDetectionCapability.promptInputModel;
 		if (inputModel) {
 			this._register(inputModel.onDidChangeInput(() => {
 				if (inputModel.value) {
-					this._decoration?.dispose();
-					this._addon?.dispose();
+					this.dispose();
 				}
 			}));
 		}
@@ -193,6 +195,12 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 				}
 			}
 		}));
+	}
+	override dispose(): void {
+		this._decoration?.dispose();
+		this._decoration = undefined;
+		this._addon?.dispose();
+		super.dispose();
 	}
 }
 registerTerminalContribution(TerminalInitialHintContribution.ID, TerminalInitialHintContribution, false);
