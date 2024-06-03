@@ -27,7 +27,6 @@ namespace HoverAccessibilityHelpNLS {
 	export const introHoverFull = localize('introHoverFull', "The full focused hover content is the following:");
 	export const increaseVerbosity = localize('increaseVerbosity', "- The focused hover part verbosity level can be increased with the Increase Hover Verbosity command<keybinding:{0}>.", INCREASE_HOVER_VERBOSITY_ACTION_ID);
 	export const decreaseVerbosity = localize('decreaseVerbosity', "- The focused hover part verbosity level can be decreased with the Decrease Hover Verbosity command<keybinding:{0}>.", DECREASE_HOVER_VERBOSITY_ACTION_ID);
-	export const hoverContent = localize('contentHover', "The last focused hover content is the following.");
 }
 
 export class HoverAccessibleView implements IAccessibleViewImplentation {
@@ -143,14 +142,33 @@ export class HoverAccessibilityHelpProvider extends BaseHoverAccessibleViewProvi
 	}
 
 	provideContent(): string {
-		return this.provideContentAtIndex(this._markdownHoverFocusedIndex);
+		return this.provideContentAtIndex(this._focusedHoverPartIndex, this._markdownHoverFocusedIndex);
 	}
 
-	provideContentAtIndex(index: number): string {
-		const content: string[] = [];
-		content.push(...this._descriptionsOfVerbosityActionsForIndex(index));
-		content.push(...this._descriptionOfHoverPartAtIndex(index));
-		return content.join('\n');
+	provideContentAtIndex(focusedHoverIndex: number, markdownFocusedHoverIndex: number): string {
+		if (focusedHoverIndex !== -1) {
+			const accessibleContent = this._hoverController.getAccessibleWidgetContentAtIndex(focusedHoverIndex);
+			if (accessibleContent === undefined) {
+				return '';
+			}
+			const contents: string[] = [];
+			if (markdownFocusedHoverIndex !== -1) {
+				const actionsDescriptions = this._descriptionsOfVerbosityActionsForIndex(markdownFocusedHoverIndex);
+				contents.push(...actionsDescriptions);
+			}
+			contents.push(HoverAccessibilityHelpNLS.introHoverPart);
+			contents.push(accessibleContent);
+			return contents.join('\n\n');
+		} else {
+			const accessibleContent = this._hoverController.getAccessibleWidgetContent();
+			if (accessibleContent === undefined) {
+				return '';
+			}
+			return [
+				HoverAccessibilityHelpNLS.introHoverFull,
+				accessibleContent
+			].join('\n\n');
+		}
 	}
 
 	private _descriptionsOfVerbosityActionsForIndex(index: number): string[] {
@@ -177,16 +195,6 @@ export class HoverAccessibilityHelpProvider extends BaseHoverAccessibleViewProvi
 			case HoverVerbosityAction.Decrease:
 				return HoverAccessibilityHelpNLS.decreaseVerbosity;
 		}
-	}
-
-	protected _descriptionOfHoverPartAtIndex(index: number): string[] {
-		const content: string[] = [];
-		const hoverContent = this._hoverController.getAccessibleWidgetContentAtIndex(index);
-		if (hoverContent) {
-			content.push('\n' + HoverAccessibilityHelpNLS.hoverContent);
-			content.push('\n' + hoverContent);
-		}
-		return content;
 	}
 }
 
@@ -250,7 +258,7 @@ export class HoverAccessibleViewProvider extends BaseHoverAccessibleViewProvider
 	private _initializeOptions(editor: ICodeEditor, hoverController: HoverController): void {
 		const helpProvider = this._register(new HoverAccessibilityHelpProvider(hoverController));
 		this.options.language = editor.getModel()?.getLanguageId();
-		this.options.customHelp = () => { return helpProvider.provideContentAtIndex(this._focusedHoverPartIndex); };
+		this.options.customHelp = () => { return helpProvider.provideContentAtIndex(this._focusedHoverPartIndex, this._markdownHoverFocusedIndex); };
 	}
 }
 
