@@ -199,7 +199,6 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 			}
 		}));
 	}
-
 }
 registerTerminalContribution(TerminalInitialHintContribution.ID, TerminalInitialHintContribution, false);
 
