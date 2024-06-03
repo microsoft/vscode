@@ -110,7 +110,7 @@ export interface IEditorHoverRenderContext {
 	/**
 	 * The contents rendered inside the fragment have been changed, which means that the hover should relayout.
 	 */
-	onContentsChanged(): void;
+	onContentsChanged(update?: { hoverPart: IHoverPart; newHoverPart: IHoverPart }): void;
 	/**
 	 * Set the minimum dimensions of the resizable hover
 	 */
@@ -128,7 +128,7 @@ export interface IEditorHoverParticipant<T extends IHoverPart = IHoverPart> {
 	computeAsync?(anchor: HoverAnchor, lineDecorations: IModelDecoration[], token: CancellationToken): AsyncIterableObject<T>;
 	createLoadingMessage?(anchor: HoverAnchor): T | null;
 	renderHoverParts(context: IEditorHoverRenderContext, hoverParts: T[]): { disposables: IDisposable; elements: HTMLElement[] };
-	getFormattedContent(hoverParts: T[]): string[];
+	getFormattedContent(hoverParts: T): string;
 }
 
 export type IEditorHoverParticipantCtor = IConstructorSignature<IEditorHoverParticipant, [ICodeEditor]>;

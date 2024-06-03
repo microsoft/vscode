@@ -98,7 +98,7 @@ abstract class BaseHoverAccessibleViewProvider extends Disposable implements IAc
 	private readonly _onDidChangeContent: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 
-	protected _generalHoverFocusedIndex: number = -1;
+	protected _focusedHoverPartIndex: number = -1;
 	protected _markdownHoverFocusedIndex: number = -1;
 	private _onHoverContentsChanged: IDisposable | undefined;
 
@@ -113,7 +113,7 @@ abstract class BaseHoverAccessibleViewProvider extends Disposable implements IAc
 			return;
 		}
 		this._hoverController.shouldKeepOpenOnEditorMouseMoveOrLeave = true;
-		this._generalHoverFocusedIndex = this._hoverController.focusedGeneralHoverIndex();
+		this._focusedHoverPartIndex = this._hoverController.focusedHoverPartIndex();
 		this._markdownHoverFocusedIndex = this._hoverController.focusedMarkdownHoverIndex();
 		this._onHoverContentsChanged = this._register(this._hoverController.onHoverContentsChanged(() => {
 			this._onDidChangeContent.fire();
@@ -124,7 +124,7 @@ abstract class BaseHoverAccessibleViewProvider extends Disposable implements IAc
 		if (!this._hoverController) {
 			return;
 		}
-		this._generalHoverFocusedIndex = -1;
+		this._focusedHoverPartIndex = -1;
 		this._markdownHoverFocusedIndex = -1;
 		this._hoverController.focus();
 		this._hoverController.shouldKeepOpenOnEditorMouseMoveOrLeave = false;
@@ -205,11 +205,11 @@ export class HoverAccessibleViewProvider extends BaseHoverAccessibleViewProvider
 	}
 
 	public provideContent(): string {
-		console.log('this._generalHoverFocusedIndex : ', this._generalHoverFocusedIndex);
-		if (this._generalHoverFocusedIndex !== -1) {
+		console.log('this._focusedHoverPartIndex : ', this._focusedHoverPartIndex);
+		if (this._focusedHoverPartIndex !== -1) {
 			return [
 				HoverAccessibilityHelpNLS.introHoverPart,
-				this._hoverController.getFormattedWidgetContentAtIndex(this._generalHoverFocusedIndex)
+				this._hoverController.getFormattedWidgetContentAtIndex(this._focusedHoverPartIndex)
 			].join('\n\n');
 		} else {
 			return [
@@ -252,7 +252,7 @@ export class HoverAccessibleViewProvider extends BaseHoverAccessibleViewProvider
 	private _initializeOptions(editor: ICodeEditor, hoverController: HoverController): void {
 		const helpProvider = this._register(new HoverAccessibilityHelpProvider(hoverController));
 		this.options.language = editor.getModel()?.getLanguageId();
-		this.options.customHelp = () => { return helpProvider.provideContentAtIndex(this._generalHoverFocusedIndex); };
+		this.options.customHelp = () => { return helpProvider.provideContentAtIndex(this._focusedHoverPartIndex); };
 	}
 }
 

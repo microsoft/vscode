@@ -421,7 +421,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 		return this._getOrCreateContentWidget().focusedMarkdownHoverIndex();
 	}
 
-	public focusedGeneralHoverIndex(): number {
+	public focusedHoverPartIndex(): number {
 		return this._getOrCreateContentWidget().focusedHoverPartIndex();
 	}
 

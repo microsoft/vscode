@@ -90,10 +90,10 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 		return renderHoverParts(this, this._editor, this._themeService, hoverParts, context);
 	}
 
-	public getFormattedContent(hoverParts: ColorHover[]): string[] {
+	public getFormattedContent(hoverPart: ColorHover): string {
 		console.log('Color Hover Participant');
-		console.log('hoverParts : ', hoverParts);
-		return hoverParts.map(_ => 'There is a color picker here.');
+		console.log('hoverPart : ', hoverPart);
+		return 'There is a color picker here.';
 	}
 }
 

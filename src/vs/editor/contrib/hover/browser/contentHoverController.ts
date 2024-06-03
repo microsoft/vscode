@@ -27,8 +27,11 @@ import { Emitter } from 'vs/base/common/event';
 
 export class ContentHoverController extends Disposable implements IHoverWidget {
 
-	private _formattedContent: string[] = [];
 	private _currentResult: HoverResult | null = null;
+	private _renderedHoverParts: {
+		participant: IEditorHoverParticipant<IHoverPart>;
+		part: IHoverPart;
+	}[] = [];
 	private _focusedHoverPartIndex: number = -1;
 
 	private readonly _computer: ContentHoverComputer;
@@ -211,8 +214,8 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 	private _renderMessages(anchor: HoverAnchor, messages: IHoverPart[]): void {
 		const { showAtPosition, showAtSecondaryPosition, highlightRange } = ContentHoverController.computeHoverRanges(this._editor, anchor.range, messages);
 
-		const disposableStore = new DisposableStore();
-		const statusBar = disposableStore.add(new EditorHoverStatusBar(this._keybindingService));
+		const disposables = new DisposableStore();
+		const statusBar = disposables.add(new EditorHoverStatusBar(this._keybindingService));
 		const fragment = document.createDocumentFragment();
 
 		let colorPicker: IEditorHoverColorPickerWidget | null = null;
@@ -225,15 +228,19 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 			hide: () => this.hide()
 		};
 
-		this._formattedContent = [];
+		this._renderedHoverParts = [];
 		const renderedElements: HTMLElement[] = [];
 		for (const participant of this._participants) {
 			const hoverParts = messages.filter(msg => msg.owner === participant);
 			if (hoverParts.length > 0) {
-				const { disposables, elements } = participant.renderHoverParts(context, hoverParts);
-				disposableStore.add(disposables);
-				this._formattedContent.push(...participant.getFormattedContent(hoverParts));
+				const { disposables: localDisposables, elements } = participant.renderHoverParts(context, hoverParts);
+				const renderedHoverParts: {
+					participant: IEditorHoverParticipant<IHoverPart>;
+					part: IHoverPart;
+				}[] = hoverParts.map((part: IHoverPart) => { return { participant, part }; });
+				this._renderedHoverParts.push(...renderedHoverParts);
 				renderedElements.push(...elements);
+				disposables.add(localDisposables);
 			}
 		}
 
@@ -242,11 +249,10 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		if (statusBar.hasContent) {
 			const statusBarElement = statusBar.hoverElement;
 			fragment.appendChild(statusBarElement);
-			this._formattedContent.push('There is a status bar.');
 			renderedElements.push(statusBarElement);
 		}
 
-		renderedElements.map((element, index) => {
+		renderedElements.map((element: HTMLElement, index: number) => {
 			element.tabIndex = 0;
 			this._register(dom.addDisposableListener(element, dom.EventType.FOCUS_IN, (event: Event) => {
 				event.stopPropagation();
@@ -265,7 +271,7 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 					range: highlightRange,
 					options: ContentHoverController._DECORATION_OPTIONS
 				}]);
-				disposableStore.add(toDisposable(() => {
+				disposables.add(toDisposable(() => {
 					highlightDecoration.clear();
 				}));
 			}
@@ -280,10 +286,10 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 				this._computer.shouldFocus,
 				this._computer.source,
 				isBeforeContent,
-				disposableStore
+				disposables
 			));
 		} else {
-			disposableStore.dispose();
+			disposables.dispose();
 		}
 	}
 
@@ -407,11 +413,18 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 	}
 
 	public getFormattedWidgetContent(): string | undefined {
-		return this._formattedContent.join('\n\n');
+		const formattedContent: string[] = [];
+		for (let i = 0; i < this._renderedHoverParts.length; i++) {
+			const { participant, part } = this._renderedHoverParts[i];
+			formattedContent.push(participant.getFormattedContent(part));
+		}
+		return formattedContent.join('\n\n');
 	}
 
 	public getFormattedWidgetContentAtIndex(index: number): string | undefined {
-		return this._formattedContent[index];
+		console.log('getFormattedWidgetContentAtIndex, index : ', index);
+		const { participant, part } = this._renderedHoverParts[index];
+		return participant.getFormattedContent(part);
 	}
 
 	public containsNode(node: Node | null | undefined): boolean {

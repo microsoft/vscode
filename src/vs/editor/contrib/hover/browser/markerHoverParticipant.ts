@@ -103,10 +103,10 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 		return { disposables, elements: renderedMarkerHovers };
 	}
 
-	public getFormattedContent(hoverParts: MarkerHover[]): string[] {
+	public getFormattedContent(hoverPart: MarkerHover): string {
 		console.log('Marker Hover Participant');
-		console.log('hoverParts', hoverParts);
-		return hoverParts.map(markerHover => markerHover.marker.message);
+		console.log('hoverPart : ', hoverPart);
+		return hoverPart.marker.message;
 	}
 
 	private renderMarkerHover(markerHover: MarkerHover, disposables: DisposableStore): HTMLElement {

@@ -33,7 +33,6 @@ import { IHoverService, WorkbenchHoverDelegate } from 'vs/platform/hover/browser
 import { AsyncIterableObject } from 'vs/base/common/async';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { getHoverProviderResultsAsAsyncIterable } from 'vs/editor/contrib/hover/browser/getHover';
-import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 
 const $ = dom.$;
 const increaseHoverVerbosityIcon = registerIcon('hover-increase-verbosity', Codicon.add, nls.localize('increaseHoverVerbosity', 'Icon for increaseing hover verbosity.'));
@@ -193,21 +192,11 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		return { disposables: this._renderedHoverParts, elements };
 	}
 
-	public getFormattedContent(hoverParts: MarkdownHover[]): string[] {
+	public getFormattedContent(hoverPart: MarkdownHover): string {
 		console.log('Markdown Hover Participant');
-		console.log('hoverParts:', hoverParts);
+		console.log('hoverPart:', hoverPart);
 
-		return hoverParts.map(hoverPart => {
-			const formattedHoverPart: string[] = [];
-			hoverPart.contents.map(content => {
-				const rendered = renderMarkdown(content);
-				const innerTextTrimmed = rendered.element.innerText.trim();
-				if (innerTextTrimmed) {
-					formattedHoverPart.push(innerTextTrimmed);
-				}
-			});
-			return formattedHoverPart.join('\n');
-		});
+		return this._renderedHoverParts?.getFormattedContent(hoverPart) ?? '';
 	}
 
 	public focusedMarkdownHoverIndex(): number {
@@ -231,6 +220,7 @@ interface RenderedHoverPart {
 
 class MarkdownRenderedHoverParts extends Disposable {
 
+	private _hoverParts: MarkdownHover[] = [];
 	private _renderedHoverParts: RenderedHoverPart[];
 	private _focusedHoverPartIndex: number = -1;
 	private _ongoingHoverOperations: Map<HoverProvider, { verbosityDelta: number; tokenSource: CancellationTokenSource }> = new Map();
@@ -263,8 +253,8 @@ class MarkdownRenderedHoverParts extends Disposable {
 		hoverPartsContainer: DocumentFragment,
 		onFinishedRendering: () => void,
 	): RenderedHoverPart[] {
-		hoverParts.sort(compareBy(hover => hover.ordinal, numberComparator));
-		return hoverParts.map((hoverPart, hoverIndex) => {
+		this._hoverParts = hoverParts.sort(compareBy(hover => hover.ordinal, numberComparator));
+		return this._hoverParts.map((hoverPart, hoverIndex) => {
 			const renderedHoverPart = this._renderHoverPart(
 				hoverIndex,
 				hoverPart.contents,
@@ -321,7 +311,7 @@ class MarkdownRenderedHoverParts extends Disposable {
 		const renderedMarkdownContents = $('div.hover-row-contents');
 		renderedMarkdown.appendChild(renderedMarkdownContents);
 		const disposables = new DisposableStore();
-		const { disposables: store } = renderMarkdownInContainer(
+		const { disposables: disposablesLocal } = renderMarkdownInContainer(
 			this._editor,
 			renderedMarkdownContents,
 			markdownContent,
@@ -329,7 +319,7 @@ class MarkdownRenderedHoverParts extends Disposable {
 			this._openerService,
 			onFinishedRendering,
 		);
-		disposables.add(store);
+		disposables.add(disposablesLocal);
 		return { renderedMarkdown, disposables };
 	}
 
@@ -378,6 +368,22 @@ class MarkdownRenderedHoverParts extends Disposable {
 			this._focusOnHoverPartWithIndex(indexOfInterest);
 		}
 		this._onFinishedRendering();
+	}
+
+	public getFormattedContent(hoverPart: MarkdownHover): string {
+		console.log('getFormattedContent');
+		const index = this._hoverParts.indexOf(hoverPart);
+		console.log('index : ', index);
+		if (index === -1) {
+			return '';
+		}
+		const renderedHoverPart = this._getRenderedHoverPartAtIndex(index);
+		if (!renderedHoverPart) {
+			return '';
+		}
+		const element = renderedHoverPart.renderedMarkdown;
+		const innerTextTrimmed = element.innerText.trim();
+		return innerTextTrimmed;
 	}
 
 	public markdownHoverContentAtIndex(index: number): string {
@@ -429,9 +435,13 @@ class MarkdownRenderedHoverParts extends Disposable {
 		}
 		const currentRenderedHoverPart = this._renderedHoverParts[index];
 		const currentRenderedMarkdown = currentRenderedHoverPart.renderedMarkdown;
-		currentRenderedMarkdown.replaceWith(renderedHoverPart.renderedMarkdown);
+		const renderedMarkdown = renderedHoverPart.renderedMarkdown;
+		const children = Array.from(renderedMarkdown.children);
+		currentRenderedMarkdown.replaceChildren(...children);
+		currentRenderedMarkdown.focus();
 		currentRenderedHoverPart.disposables.dispose();
-		this._renderedHoverParts[index] = renderedHoverPart;
+		currentRenderedHoverPart.disposables = renderedHoverPart.disposables;
+		currentRenderedHoverPart.hoverSource = renderedHoverPart.hoverSource;
 	}
 
 	private _focusOnHoverPartWithIndex(index: number): void {
@@ -478,7 +488,7 @@ function renderMarkdownInContainer(
 	openerService: IOpenerService,
 	onFinishedRendering: () => void,
 ): { disposables: IDisposable; elements: HTMLElement[] } {
-	const store = new DisposableStore();
+	const disposables = new DisposableStore();
 	const containerChild = $('div.hover-child');
 	container.appendChild(containerChild);
 	for (const contents of markdownStrings) {
@@ -487,16 +497,17 @@ function renderMarkdownInContainer(
 		}
 		const markdownHoverElement = $('div.markdown-hover');
 		const hoverContentsElement = dom.append(markdownHoverElement, $('div.hover-contents'));
-		const renderer = store.add(new MarkdownRenderer({ editor }, languageService, openerService));
-		store.add(renderer.onDidRenderAsync(() => {
+		const renderer = disposables.add(new MarkdownRenderer({ editor }, languageService, openerService));
+		disposables.add(renderer.onDidRenderAsync(() => {
 			hoverContentsElement.className = 'hover-contents code-hover-contents';
 			onFinishedRendering();
 		}));
-		const renderedContents = store.add(renderer.render(contents));
+		const renderedContents = disposables.add(renderer.render(contents));
 		hoverContentsElement.appendChild(renderedContents.element);
 		containerChild.appendChild(markdownHoverElement);
 	}
-	return { disposables: store, elements: [containerChild] };
+	const elements = [containerChild];
+	return { disposables, elements };
 }
 
 export function labelForHoverVerbosityAction(keybindingService: IKeybindingService, action: HoverVerbosityAction): string {
