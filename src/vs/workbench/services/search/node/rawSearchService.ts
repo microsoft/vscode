@@ -36,7 +36,7 @@ export class SearchService implements IRawSearchService {
 			onDidAddFirstListener: () => {
 				promise = createCancelablePromise(async token => {
 					const numThreads = await this.numThreadsPromise;
-					return this.doFileSearchWithEngine(FileSearchEngine, query, numThreads, p => emitter.fire(p), token);
+					return this.doFileSearchWithEngine(FileSearchEngine, query, p => emitter.fire(p), token, SearchService.BATCH_SIZE, numThreads);
 				});
 
 				promise.then(
@@ -88,10 +88,10 @@ export class SearchService implements IRawSearchService {
 	}
 
 	doFileSearch(config: IFileQuery, numThreads: number | undefined, progressCallback: IProgressCallback, token?: CancellationToken): Promise<ISerializedSearchSuccess> {
-		return this.doFileSearchWithEngine(FileSearchEngine, config, numThreads, progressCallback, token);
+		return this.doFileSearchWithEngine(FileSearchEngine, config, progressCallback, token, SearchService.BATCH_SIZE, numThreads);
 	}
 
-	doFileSearchWithEngine(EngineClass: { new(config: IFileQuery, numThreads?: number | undefined): ISearchEngine<IRawFileMatch> }, config: IFileQuery, threads: number | undefined, progressCallback: IProgressCallback, token?: CancellationToken, batchSize = SearchService.BATCH_SIZE): Promise<ISerializedSearchSuccess> {
+	doFileSearchWithEngine(EngineClass: { new(config: IFileQuery, numThreads?: number | undefined): ISearchEngine<IRawFileMatch> }, config: IFileQuery, progressCallback: IProgressCallback, token?: CancellationToken, batchSize = SearchService.BATCH_SIZE, threads?: number): Promise<ISerializedSearchSuccess> {
 		let resultCount = 0;
 		const fileProgressCallback: IFileProgressCallback = progress => {
 			if (Array.isArray(progress)) {
