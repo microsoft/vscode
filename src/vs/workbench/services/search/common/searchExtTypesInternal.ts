@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 import type { FileSearchOptions, TextSearchOptions } from './searchExtTypes';
 
-interface SearchOptionsExtendedCommon {
+interface RipGrepSearchOptionsCommon {
 	numThreads?: number;
 }
 
-export interface TextSearchOptionsExtended extends TextSearchOptions, SearchOptionsExtendedCommon { }
+export interface RipgrepTextSearchOptions extends TextSearchOptions, RipGrepSearchOptionsCommon { }
 
-export interface FileSearchOpionsExtended extends FileSearchOptions, SearchOptionsExtendedCommon { }
+export interface RipGrepFileSearchOpions extends FileSearchOptions, RipGrepSearchOptionsCommon { }

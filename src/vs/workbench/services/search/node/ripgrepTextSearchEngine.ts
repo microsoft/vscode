@@ -18,7 +18,7 @@ import { Range, TextSearchComplete, TextSearchContext, TextSearchMatch, TextSear
 import { AST as ReAST, RegExpParser, RegExpVisitor } from 'vscode-regexpp';
 import { rgPath } from '@vscode/ripgrep';
 import { anchorGlob, createTextSearchResult, IOutputChannel, Maybe } from './ripgrepSearchUtils';
-import { TextSearchOptionsExtended } from 'vs/workbench/services/search/common/searchExtTypesInternal';
+import { RipgrepTextSearchOptions } from 'vs/workbench/services/search/common/searchExtTypesInternal';
 
 // If @vscode/ripgrep is in an .asar file, then the binary is unpacked.
 const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
@@ -38,7 +38,7 @@ export class RipgrepTextSearchEngine {
 		return new Promise((resolve, reject) => {
 			token.onCancellationRequested(() => cancel());
 
-			const extendedOptions: TextSearchOptionsExtended = {
+			const extendedOptions: RipgrepTextSearchOptions = {
 				...options,
 				numThreads: this._numThreads
 			};
@@ -373,7 +373,7 @@ function getNumLinesAndLastNewlineLength(text: string): { numLines: number; last
 }
 
 // exported for testing
-export function getRgArgs(query: TextSearchQuery, options: TextSearchOptionsExtended): string[] {
+export function getRgArgs(query: TextSearchQuery, options: RipgrepTextSearchOptions): string[] {
 	const args = ['--hidden', '--no-require-git'];
 	args.push(query.isCaseSensitive ? '--case-sensitive' : '--ignore-case');
 

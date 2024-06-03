@@ -9,7 +9,7 @@ import { RipgrepTextSearchEngine } from 'vs/workbench/services/search/node/ripgr
 import { TextSearchProvider, TextSearchComplete, TextSearchResult, TextSearchQuery, TextSearchOptions, } from 'vs/workbench/services/search/common/searchExtTypes';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { Schemas } from 'vs/base/common/network';
-import type { TextSearchOptionsExtended } from 'vs/workbench/services/search/common/searchExtTypesInternal';
+import type { RipgrepTextSearchOptions } from 'vs/workbench/services/search/common/searchExtTypesInternal';
 
 export class RipgrepSearchProvider implements TextSearchProvider {
 	private inProgress: Set<CancellationTokenSource> = new Set();
@@ -21,7 +21,7 @@ export class RipgrepSearchProvider implements TextSearchProvider {
 	async provideTextSearchResults(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): Promise<TextSearchComplete> {
 		const numThreads = await this.numThreadsPromise;
 		const engine = new RipgrepTextSearchEngine(this.outputChannel, numThreads);
-		const extendedOptions: TextSearchOptionsExtended = {
+		const extendedOptions: RipgrepTextSearchOptions = {
 			...options,
 			numThreads,
 		};
