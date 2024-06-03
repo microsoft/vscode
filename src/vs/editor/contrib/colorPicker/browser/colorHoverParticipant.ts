@@ -91,9 +91,7 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 	}
 
 	public getFormattedContent(hoverPart: ColorHover): string {
-		console.log('Color Hover Participant');
-		console.log('hoverPart : ', hoverPart);
-		return 'There is a color picker here.';
+		return `There is a color picker here.`;
 	}
 }
 
@@ -185,8 +183,9 @@ async function _createColorHover(participant: ColorHoverParticipant | Standalone
 }
 
 function renderHoverParts(participant: ColorHoverParticipant | StandaloneColorPickerParticipant, editor: ICodeEditor, themeService: IThemeService, hoverParts: ColorHover[] | StandaloneColorPickerHover[], context: IEditorHoverRenderContext): { disposables: IDisposable; elements: HTMLElement[] } {
+	const elements: HTMLElement[] = [];
 	if (hoverParts.length === 0 || !editor.hasModel()) {
-		return { disposables: Disposable.None, elements: [] };
+		return { disposables: Disposable.None, elements };
 	}
 	if (context.setMinimumDimensions) {
 		const minimumHeight = editor.getOption(EditorOption.lineHeight) + 8;
@@ -198,6 +197,7 @@ function renderHoverParts(participant: ColorHoverParticipant | StandaloneColorPi
 	const editorModel = editor.getModel();
 	const model = colorHover.model;
 	const widget = disposables.add(new ColorPickerWidget(context.fragment, model, editor.getOption(EditorOption.pixelRatio), themeService, participant instanceof StandaloneColorPickerParticipant));
+	elements.push(widget.getDomNode());
 	context.setColorPicker(widget);
 
 	let editorUpdatedByColorPicker = false;
@@ -227,7 +227,7 @@ function renderHoverParts(participant: ColorHoverParticipant | StandaloneColorPi
 			editor.focus();
 		}
 	}));
-	return { disposables, elements: [widget.getDomNode()] };
+	return { disposables, elements };
 }
 
 function _updateEditorModel(editor: IActiveCodeEditor, range: Range, model: ColorPickerModel): Range {

@@ -147,7 +147,6 @@ export class HoverAccessibilityHelpProvider extends BaseHoverAccessibleViewProvi
 	}
 
 	provideContentAtIndex(index: number): string {
-		console.log('index : ', index);
 		const content: string[] = [];
 		content.push(...this._descriptionsOfVerbosityActionsForIndex(index));
 		content.push(...this._descriptionOfHoverPartAtIndex(index));
@@ -205,7 +204,6 @@ export class HoverAccessibleViewProvider extends BaseHoverAccessibleViewProvider
 	}
 
 	public provideContent(): string {
-		console.log('this._focusedHoverPartIndex : ', this._focusedHoverPartIndex);
 		if (this._focusedHoverPartIndex !== -1) {
 			return [
 				HoverAccessibilityHelpNLS.introHoverPart,

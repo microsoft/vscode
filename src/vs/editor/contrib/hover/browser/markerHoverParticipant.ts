@@ -91,21 +91,18 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 	}
 
 	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: MarkerHover[]): { disposables: IDisposable; elements: HTMLElement[] } {
-		console.log('renderHoverParts of MarkerHoverParticipant');
 		if (!hoverParts.length) {
 			return { disposables: Disposable.None, elements: [] };
 		}
 		const disposables = new DisposableStore();
-		const renderedMarkerHovers = hoverParts.map(msg => this.renderMarkerHover(msg, disposables));
-		renderedMarkerHovers.map(renderedMarkerHover => context.fragment.appendChild(renderedMarkerHover));
+		const renderedMarkerHoverElements = hoverParts.map(msg => this.renderMarkerHover(msg, disposables));
+		renderedMarkerHoverElements.map(renderedMarkerHover => context.fragment.appendChild(renderedMarkerHover));
 		const markerHoverForStatusbar = hoverParts.length === 1 ? hoverParts[0] : hoverParts.sort((a, b) => MarkerSeverity.compare(a.marker.severity, b.marker.severity))[0];
 		this.renderMarkerStatusbar(context, markerHoverForStatusbar, disposables);
-		return { disposables, elements: renderedMarkerHovers };
+		return { disposables, elements: renderedMarkerHoverElements };
 	}
 
 	public getFormattedContent(hoverPart: MarkerHover): string {
-		console.log('Marker Hover Participant');
-		console.log('hoverPart : ', hoverPart);
 		return hoverPart.marker.message;
 	}
 

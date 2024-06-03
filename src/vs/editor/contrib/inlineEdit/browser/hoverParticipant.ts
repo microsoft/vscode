@@ -87,7 +87,7 @@ export class InlineEditHoverParticipant implements IEditorHoverParticipant<Inlin
 	}
 
 	renderHoverParts(context: IEditorHoverRenderContext, hoverParts: InlineEditHover[]): { disposables: IDisposable; elements: HTMLElement[] } {
-		const disposableStore = new DisposableStore();
+		const disposables = new DisposableStore();
 
 		this._telemetryService.publicLog2<{}, {
 			owner: 'hediet';
@@ -97,16 +97,15 @@ export class InlineEditHoverParticipant implements IEditorHoverParticipant<Inlin
 		const w = this._instantiationService.createInstance(InlineEditHintsContentWidget, this._editor, false,
 			constObservable(null),
 		);
-		const domNode = w.getDomNode();
+		const domNode: HTMLElement = w.getDomNode();
+		const elements: HTMLElement[] = [domNode];
 		context.fragment.appendChild(domNode);
-		disposableStore.add(w);
+		disposables.add(w);
 
-		return { disposables: disposableStore, elements: [domNode] };
+		return { disposables, elements };
 	}
 
 	getFormattedContent(hoverPart: InlineEditHover): string {
-		console.log('Inline Edit Hover Participant');
-		console.log('hoverPart:', hoverPart);
 		return 'There are inline edits here';
 	}
 }

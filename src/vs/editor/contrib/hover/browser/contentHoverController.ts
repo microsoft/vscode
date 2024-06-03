@@ -27,20 +27,20 @@ import { Emitter } from 'vs/base/common/event';
 
 interface RenderedHoverPart {
 	brand: 'renderedHoverPart';
-	participant: IEditorHoverParticipant<IHoverPart>;
-	part: IHoverPart;
 	element: HTMLElement;
+	part: IHoverPart;
+	participant: IEditorHoverParticipant<IHoverPart>;
 }
 
-interface StatusBar {
-	brand: 'statusBar';
+interface StatusBarPart {
+	brand: 'statusBarPart';
 	element: HTMLElement;
 }
 
 export class ContentHoverController extends Disposable implements IHoverWidget {
 
 	private _currentResult: HoverResult | null = null;
-	private _renderedHoverParts: (RenderedHoverPart | StatusBar)[] = [];
+	private _renderedParts: (RenderedHoverPart | StatusBarPart)[] = [];
 	private _focusedHoverPartIndex: number = -1;
 
 	private readonly _computer: ContentHoverComputer;
@@ -237,15 +237,15 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 			hide: () => this.hide()
 		};
 
-		this._renderedHoverParts = [];
+		this._renderedParts = [];
 		for (const participant of this._participants) {
 			const hoverParts = messages.filter(msg => msg.owner === participant);
 			if (hoverParts.length > 0) {
 				const { disposables: store, elements } = participant.renderHoverParts(context, hoverParts);
-				const renderedHoverParts: RenderedHoverPart[] = hoverParts.map((part: IHoverPart, index: number) => {
-					return { brand: 'renderedHoverPart', participant, part, element: elements[index] };
+				hoverParts.forEach((part: IHoverPart, index: number) => {
+					const renderedHoverPart: RenderedHoverPart = { brand: 'renderedHoverPart', participant, part, element: elements[index] };
+					this._renderedParts.push(renderedHoverPart);
 				});
-				this._renderedHoverParts.push(...renderedHoverParts);
 				disposables.add(store);
 			}
 		}
@@ -255,10 +255,11 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		if (statusBar.hasContent) {
 			const statusBarElement = statusBar.hoverElement;
 			fragment.appendChild(statusBarElement);
-			this._renderedHoverParts.push({ brand: 'statusBar', element: statusBarElement });
+			const statusBarPart: StatusBarPart = { brand: 'statusBarPart', element: statusBarElement };
+			this._renderedParts.push(statusBarPart);
 		}
 
-		this._renderedHoverParts.map((renderedHoverPart: RenderedHoverPart | StatusBar, index: number) => {
+		this._renderedParts.map((renderedHoverPart: RenderedHoverPart | StatusBarPart, index: number) => {
 			const element = renderedHoverPart.element;
 			element.tabIndex = 0;
 			this._register(dom.addDisposableListener(element, dom.EventType.FOCUS_IN, (event: Event) => {
@@ -421,20 +422,22 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 
 	public getFormattedWidgetContent(): string | undefined {
 		const formattedContent: string[] = [];
-		for (let i = 0; i < this._renderedHoverParts.length; i++) {
+		for (let i = 0; i < this._renderedParts.length; i++) {
 			formattedContent.push(this.getFormattedWidgetContentAtIndex(i));
 		}
 		return formattedContent.join('\n\n');
 	}
 
 	public getFormattedWidgetContentAtIndex(index: number): string {
-		const renderedHoverPart = this._renderedHoverParts[index];
-		if (renderedHoverPart.brand === 'statusBar') {
+		const renderedHoverPart = this._renderedParts[index];
+		if (renderedHoverPart.brand === 'statusBarPart') {
 			return `There is a status bar here`;
-		} else {
+		}
+		if (renderedHoverPart.brand === 'renderedHoverPart') {
 			const { participant, part } = renderedHoverPart;
 			return participant.getFormattedContent(part);
 		}
+		return '';
 	}
 
 	public containsNode(node: Node | null | undefined): boolean {

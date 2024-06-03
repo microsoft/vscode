@@ -188,14 +188,13 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 			this._configurationService,
 			context.onContentsChanged
 		);
-		const elements = this._renderedHoverParts.elements();
-		return { disposables: this._renderedHoverParts, elements };
+		return {
+			disposables: this._renderedHoverParts,
+			elements: this._renderedHoverParts.elements()
+		};
 	}
 
 	public getFormattedContent(hoverPart: MarkdownHover): string {
-		console.log('Markdown Hover Participant');
-		console.log('hoverPart:', hoverPart);
-
 		return this._renderedHoverParts?.getFormattedContent(hoverPart) ?? '';
 	}
 
@@ -311,7 +310,7 @@ class MarkdownRenderedHoverParts extends Disposable {
 		const renderedMarkdownContents = $('div.hover-row-contents');
 		renderedMarkdown.appendChild(renderedMarkdownContents);
 		const disposables = new DisposableStore();
-		const { disposables: disposablesLocal } = renderMarkdownInContainer(
+		const { disposables: store } = renderMarkdownInContainer(
 			this._editor,
 			renderedMarkdownContents,
 			markdownContent,
@@ -319,7 +318,7 @@ class MarkdownRenderedHoverParts extends Disposable {
 			this._openerService,
 			onFinishedRendering,
 		);
-		disposables.add(disposablesLocal);
+		disposables.add(store);
 		return { renderedMarkdown, disposables };
 	}
 
@@ -371,9 +370,7 @@ class MarkdownRenderedHoverParts extends Disposable {
 	}
 
 	public getFormattedContent(hoverPart: MarkdownHover): string {
-		console.log('getFormattedContent');
 		const index = this._hoverParts.indexOf(hoverPart);
-		console.log('index : ', index);
 		if (index === -1) {
 			return '';
 		}
@@ -382,8 +379,8 @@ class MarkdownRenderedHoverParts extends Disposable {
 			return '';
 		}
 		const element = renderedHoverPart.renderedMarkdown;
-		const innerTextTrimmed = element.innerText.trim();
-		return innerTextTrimmed;
+		const formattedContent = element.innerText.trim();
+		return formattedContent;
 	}
 
 	public markdownHoverContentAtIndex(index: number): string {
@@ -464,7 +461,7 @@ export function renderMarkdownHovers(
 	// Sort hover parts to keep them stable since they might come in async, out-of-order
 	hoverParts.sort(compareBy(hover => hover.ordinal, numberComparator));
 	const elements: HTMLElement[] = [];
-	const disposableStore = new DisposableStore();
+	const store = new DisposableStore();
 	for (const hoverPart of hoverParts) {
 		const { disposables, elements } = renderMarkdownInContainer(
 			editor,
@@ -474,10 +471,10 @@ export function renderMarkdownHovers(
 			openerService,
 			context.onContentsChanged,
 		);
-		disposableStore.add(disposables);
+		store.add(disposables);
 		elements.push(...elements);
 	}
-	return { disposables: disposableStore, elements };
+	return { disposables: store, elements };
 }
 
 function renderMarkdownInContainer(
@@ -489,8 +486,8 @@ function renderMarkdownInContainer(
 	onFinishedRendering: () => void,
 ): { disposables: IDisposable; elements: HTMLElement[] } {
 	const disposables = new DisposableStore();
-	const containerChild = $('div.hover-child');
-	container.appendChild(containerChild);
+	const contentsWrapper = $('div.hover-contents-wrapper');
+	container.appendChild(contentsWrapper);
 	for (const contents of markdownStrings) {
 		if (isEmptyMarkdownString(contents)) {
 			continue;
@@ -504,10 +501,9 @@ function renderMarkdownInContainer(
 		}));
 		const renderedContents = disposables.add(renderer.render(contents));
 		hoverContentsElement.appendChild(renderedContents.element);
-		containerChild.appendChild(markdownHoverElement);
+		contentsWrapper.appendChild(markdownHoverElement);
 	}
-	const elements = [containerChild];
-	return { disposables, elements };
+	return { disposables, elements: [contentsWrapper] };
 }
 
 export function labelForHoverVerbosityAction(keybindingService: IKeybindingService, action: HoverVerbosityAction): string {

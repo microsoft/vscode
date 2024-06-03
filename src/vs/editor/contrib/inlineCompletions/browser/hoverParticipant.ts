@@ -95,7 +95,7 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 	}
 
 	renderHoverParts(context: IEditorHoverRenderContext, hoverParts: InlineCompletionsHover[]): { disposables: IDisposable; elements: HTMLElement[] } {
-		const disposableStore = new DisposableStore();
+		const disposables = new DisposableStore();
 		const part = hoverParts[0];
 
 		this._telemetryService.publicLog2<{}, {
@@ -104,7 +104,7 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 		}>('inlineCompletionHover.shown');
 
 		if (this.accessibilityService.isScreenReaderOptimized() && !this._editor.getOption(EditorOption.screenReaderAnnounceInlineSuggestion)) {
-			this.renderScreenReaderText(context, part, disposableStore);
+			this.renderScreenReaderText(context, part, disposables);
 		}
 
 		const model = part.controller.model.get()!;
@@ -115,20 +115,18 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 			model.inlineCompletionsCount,
 			model.activeCommands,
 		);
-
-		const domNode = w.getDomNode();
+		const domNode: HTMLElement = w.getDomNode();
+		const elements: HTMLElement[] = [domNode];
 		context.fragment.appendChild(domNode);
 
 		model.triggerExplicitly();
 
-		disposableStore.add(w);
+		disposables.add(w);
 
-		return { disposables: disposableStore, elements: [domNode] };
+		return { disposables, elements };
 	}
 
 	getFormattedContent(hoverPart: InlineCompletionsHover): string {
-		console.log('Inline Completions Hover Participant');
-		console.log('hoverPart:', hoverPart);
 		return 'There are inline completions here';
 	}
 
