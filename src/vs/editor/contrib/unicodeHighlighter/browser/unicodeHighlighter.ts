@@ -510,7 +510,7 @@ export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipa
 		return renderMarkdownHovers(context, hoverParts, this._editor, this._languageService, this._openerService);
 	}
 
-	public getFormattedContent(hoverPart: MarkdownHover): string {
+	public getAccessibleContent(hoverPart: MarkdownHover): string {
 		return hoverPart.contents.map(content => content.value).join('');
 	}
 }

@@ -473,12 +473,12 @@ export class HoverController extends Disposable implements IEditorContribution {
 		return this._contentWidget?.getWidgetContent();
 	}
 
-	public getFormattedWidgetContent(): string | undefined {
-		return this._contentWidget?.getFormattedWidgetContent();
+	public getAccessibleWidgetContent(): string | undefined {
+		return this._contentWidget?.getAccessibleWidgetContent();
 	}
 
-	public getFormattedWidgetContentAtIndex(index: number): string | undefined {
-		return this._contentWidget?.getFormattedWidgetContentAtIndex(index);
+	public getAccessibleWidgetContentAtIndex(index: number): string | undefined {
+		return this._contentWidget?.getAccessibleWidgetContentAtIndex(index);
 	}
 
 	public get isColorPickerVisible(): boolean | undefined {

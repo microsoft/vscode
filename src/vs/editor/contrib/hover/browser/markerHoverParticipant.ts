@@ -102,7 +102,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 		return { disposables, elements: renderedMarkerHoverElements };
 	}
 
-	public getFormattedContent(hoverPart: MarkerHover): string {
+	public getAccessibleContent(hoverPart: MarkerHover): string {
 		return hoverPart.marker.message;
 	}
 

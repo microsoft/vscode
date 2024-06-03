@@ -126,7 +126,7 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 		return { disposables, elements };
 	}
 
-	getFormattedContent(hoverPart: InlineCompletionsHover): string {
+	getAccessibleContent(hoverPart: InlineCompletionsHover): string {
 		return 'There are inline completions here';
 	}
 

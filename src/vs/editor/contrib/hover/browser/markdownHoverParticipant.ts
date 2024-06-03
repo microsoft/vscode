@@ -194,7 +194,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		};
 	}
 
-	public getFormattedContent(hoverPart: MarkdownHover): string {
+	public getAccessibleContent(hoverPart: MarkdownHover): string {
 		return this._renderedHoverParts?.getFormattedContent(hoverPart) ?? '';
 	}
 

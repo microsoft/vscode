@@ -105,7 +105,7 @@ export class InlineEditHoverParticipant implements IEditorHoverParticipant<Inlin
 		return { disposables, elements };
 	}
 
-	getFormattedContent(hoverPart: InlineEditHover): string {
+	getAccessibleContent(hoverPart: InlineEditHover): string {
 		return 'There are inline edits here';
 	}
 }

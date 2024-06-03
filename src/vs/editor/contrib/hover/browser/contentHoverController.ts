@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
@@ -26,21 +26,24 @@ import { EditorHoverStatusBar } from 'vs/editor/contrib/hover/browser/contentHov
 import { Emitter } from 'vs/base/common/event';
 
 interface RenderedHoverPart {
-	brand: 'renderedHoverPart';
+	brand: `renderedHoverPart`;
 	element: HTMLElement;
-	part: IHoverPart;
+	hoverPart: IHoverPart;
 	participant: IEditorHoverParticipant<IHoverPart>;
 }
 
-interface StatusBarPart {
-	brand: 'statusBarPart';
+interface RenderedHoverStatusBar {
+	brand: `renderedStatusBar`;
 	element: HTMLElement;
 }
+
+type RenderedPart = RenderedHoverPart | RenderedHoverStatusBar;
 
 export class ContentHoverController extends Disposable implements IHoverWidget {
 
 	private _currentResult: HoverResult | null = null;
-	private _renderedParts: (RenderedHoverPart | StatusBarPart)[] = [];
+	private _renderedParts: RenderedPart[] = [];
+	private _colorWidget: IEditorHoverColorPickerWidget | null = null;
 	private _focusedHoverPartIndex: number = -1;
 
 	private readonly _computer: ContentHoverComputer;
@@ -182,7 +185,7 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		}
 		this._currentResult = hoverResult;
 		if (this._currentResult) {
-			this._renderMessages(this._currentResult.anchor, this._currentResult.messages);
+			this._renderHoverParts(this._currentResult.anchor, this._currentResult.messages);
 		} else {
 			this._widget.hide();
 		}
@@ -220,59 +223,15 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		this._setCurrentResult(hoverResult);
 	}
 
-	private _renderMessages(anchor: HoverAnchor, messages: IHoverPart[]): void {
-		const { showAtPosition, showAtSecondaryPosition, highlightRange } = ContentHoverController.computeHoverRanges(this._editor, anchor.range, messages);
+	private _renderHoverParts(anchor: HoverAnchor, hoverParts: IHoverPart[]): void {
 
 		const disposables = new DisposableStore();
-		const statusBar = disposables.add(new EditorHoverStatusBar(this._keybindingService));
 		const fragment = document.createDocumentFragment();
-
-		let colorPicker: IEditorHoverColorPickerWidget | null = null;
-		const context: IEditorHoverRenderContext = {
-			fragment,
-			statusBar,
-			setColorPicker: (widget) => colorPicker = widget,
-			onContentsChanged: () => this._doOnContentsChanged(),
-			setMinimumDimensions: (dimensions: dom.Dimension) => this._widget.setMinimumDimensions(dimensions),
-			hide: () => this.hide()
-		};
-
-		this._renderedParts = [];
-		for (const participant of this._participants) {
-			const hoverParts = messages.filter(msg => msg.owner === participant);
-			if (hoverParts.length > 0) {
-				const { disposables: store, elements } = participant.renderHoverParts(context, hoverParts);
-				hoverParts.forEach((part: IHoverPart, index: number) => {
-					const renderedHoverPart: RenderedHoverPart = { brand: 'renderedHoverPart', participant, part, element: elements[index] };
-					this._renderedParts.push(renderedHoverPart);
-				});
-				disposables.add(store);
-			}
-		}
-
-		const isBeforeContent = messages.some(m => m.isBeforeContent);
-
-		if (statusBar.hasContent) {
-			const statusBarElement = statusBar.hoverElement;
-			fragment.appendChild(statusBarElement);
-			const statusBarPart: StatusBarPart = { brand: 'statusBarPart', element: statusBarElement };
-			this._renderedParts.push(statusBarPart);
-		}
-
-		this._renderedParts.map((renderedHoverPart: RenderedHoverPart | StatusBarPart, index: number) => {
-			const element = renderedHoverPart.element;
-			element.tabIndex = 0;
-			this._register(dom.addDisposableListener(element, dom.EventType.FOCUS_IN, (event: Event) => {
-				event.stopPropagation();
-				this._focusedHoverPartIndex = index;
-			}));
-			this._register(dom.addDisposableListener(element, dom.EventType.FOCUS_OUT, (event: Event) => {
-				event.stopPropagation();
-				this._focusedHoverPartIndex = -1;
-			}));
-		});
+		disposables.add(this._renderHoverPartsInFragment(fragment, hoverParts));
+		disposables.add(this._registerHoverListeners());
 
 		if (fragment.hasChildNodes()) {
+			const { showAtPosition, showAtSecondaryPosition, highlightRange } = ContentHoverController.computeHoverRanges(this._editor, anchor.range, hoverParts);
 			if (highlightRange) {
 				const highlightDecoration = this._editor.createDecorationsCollection();
 				highlightDecoration.set([{
@@ -284,10 +243,11 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 				}));
 			}
 
+			const isBeforeContent = hoverParts.some(m => m.isBeforeContent);
 			this._widget.showAt(fragment, new ContentHoverVisibleData(
 				anchor.initialMousePosX,
 				anchor.initialMousePosY,
-				colorPicker,
+				this._colorWidget,
 				showAtPosition,
 				showAtSecondaryPosition,
 				this._editor.getOption(EditorOption.hover).above,
@@ -299,6 +259,95 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		} else {
 			disposables.dispose();
 		}
+	}
+
+	private _renderHoverPartsInFragment(fragment: DocumentFragment, hoverParts: IHoverPart[]): IDisposable {
+		const disposables = new DisposableStore();
+		const hoverContextAndStatusBar = this._getHoverContextAndStatusBar(fragment);
+		const statusBar = hoverContextAndStatusBar.statusBar;
+		const hoverRenderContext = hoverContextAndStatusBar.context;
+		const renderedHoverParts = this._renderHoverPartsWithContext(hoverRenderContext, hoverParts);
+		const renderedStatusBar = this._renderStatusBar(fragment, statusBar);
+		this._renderedParts = [];
+		this._renderedParts.push(...renderedHoverParts.renderedHoverParts);
+		if (renderedStatusBar) { this._renderedParts.push(renderedStatusBar); }
+		disposables.add(renderedHoverParts.disposables);
+		disposables.add(statusBar);
+		return disposables;
+	}
+
+	private _getHoverContextAndStatusBar(fragment: DocumentFragment,): {
+		context: IEditorHoverRenderContext;
+		statusBar: EditorHoverStatusBar;
+	} {
+		const hide = () => this.hide();
+		const onContentsChanged = () => this._doOnContentsChanged();
+		const statusBar = new EditorHoverStatusBar(this._keybindingService);
+		const setColorPicker = (widget: IEditorHoverColorPickerWidget) => { this._colorWidget = widget; };
+		const setMinimumDimensions = (dimensions: dom.Dimension) => this._widget.setMinimumDimensions(dimensions);
+		const context: IEditorHoverRenderContext = {
+			hide,
+			fragment,
+			statusBar,
+			setColorPicker,
+			onContentsChanged,
+			setMinimumDimensions,
+		};
+		return { context, statusBar };
+	}
+
+	private _renderHoverPartsWithContext(context: IEditorHoverRenderContext, hoverParts: IHoverPart[]): {
+		disposables: DisposableStore;
+		renderedHoverParts: RenderedHoverPart[];
+	} {
+		const disposables = new DisposableStore();
+		const renderedHoverParts: RenderedHoverPart[] = [];
+		for (const participant of this._participants) {
+			const hoverPartsForParticipant = hoverParts.filter(msg => msg.owner === participant);
+			if (hoverPartsForParticipant.length === 0) {
+				continue;
+			}
+			const { disposables: store, elements } = participant.renderHoverParts(context, hoverPartsForParticipant);
+			hoverPartsForParticipant.forEach((hoverPart: IHoverPart, index: number) => {
+				const element = elements[index];
+				renderedHoverParts.push({
+					brand: `renderedHoverPart`,
+					participant,
+					hoverPart,
+					element
+				});
+			});
+			disposables.add(store);
+		}
+		return { disposables, renderedHoverParts };
+	}
+
+	private _renderStatusBar(fragment: DocumentFragment, statusBar: EditorHoverStatusBar): RenderedHoverStatusBar | undefined {
+		if (!statusBar.hasContent) {
+			return;
+		}
+		fragment.appendChild(statusBar.hoverElement);
+		return {
+			brand: `renderedStatusBar`,
+			element: statusBar.hoverElement
+		};
+	}
+
+	private _registerHoverListeners(): IDisposable {
+		const disposables = new DisposableStore();
+		this._renderedParts.map((renderedPart: RenderedPart, index: number) => {
+			const element = renderedPart.element;
+			element.tabIndex = 0;
+			disposables.add(dom.addDisposableListener(element, dom.EventType.FOCUS_IN, (event: Event) => {
+				event.stopPropagation();
+				this._focusedHoverPartIndex = index;
+			}));
+			disposables.add(dom.addDisposableListener(element, dom.EventType.FOCUS_OUT, (event: Event) => {
+				event.stopPropagation();
+				this._focusedHoverPartIndex = -1;
+			}));
+		});
+		return disposables;
 	}
 
 	private _doOnContentsChanged(): void {
@@ -420,22 +469,22 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		return node.textContent;
 	}
 
-	public getFormattedWidgetContent(): string | undefined {
+	public getAccessibleWidgetContent(): string | undefined {
 		const formattedContent: string[] = [];
 		for (let i = 0; i < this._renderedParts.length; i++) {
-			formattedContent.push(this.getFormattedWidgetContentAtIndex(i));
+			formattedContent.push(this.getAccessibleWidgetContentAtIndex(i));
 		}
 		return formattedContent.join('\n\n');
 	}
 
-	public getFormattedWidgetContentAtIndex(index: number): string {
+	public getAccessibleWidgetContentAtIndex(index: number): string {
 		const renderedHoverPart = this._renderedParts[index];
-		if (renderedHoverPart.brand === 'statusBarPart') {
+		if (renderedHoverPart.brand === `renderedStatusBar`) {
 			return `There is a status bar here`;
 		}
-		if (renderedHoverPart.brand === 'renderedHoverPart') {
-			const { participant, part } = renderedHoverPart;
-			return participant.getFormattedContent(part);
+		if (renderedHoverPart.brand === `renderedHoverPart`) {
+			const { participant, hoverPart } = renderedHoverPart;
+			return participant.getAccessibleContent(hoverPart);
 		}
 		return '';
 	}

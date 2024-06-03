@@ -181,7 +181,7 @@ export class HoverAccessibilityHelpProvider extends BaseHoverAccessibleViewProvi
 
 	protected _descriptionOfHoverPartAtIndex(index: number): string[] {
 		const content: string[] = [];
-		const hoverContent = this._hoverController.getFormattedWidgetContentAtIndex(index);
+		const hoverContent = this._hoverController.getAccessibleWidgetContentAtIndex(index);
 		if (hoverContent) {
 			content.push('\n' + HoverAccessibilityHelpNLS.hoverContent);
 			content.push('\n' + hoverContent);
@@ -207,12 +207,12 @@ export class HoverAccessibleViewProvider extends BaseHoverAccessibleViewProvider
 		if (this._focusedHoverPartIndex !== -1) {
 			return [
 				HoverAccessibilityHelpNLS.introHoverPart,
-				this._hoverController.getFormattedWidgetContentAtIndex(this._focusedHoverPartIndex)
+				this._hoverController.getAccessibleWidgetContentAtIndex(this._focusedHoverPartIndex)
 			].join('\n\n');
 		} else {
 			return [
 				HoverAccessibilityHelpNLS.introHoverFull,
-				this._hoverController.getFormattedWidgetContent()
+				this._hoverController.getAccessibleWidgetContent()
 			].join('\n\n');
 		}
 	}
