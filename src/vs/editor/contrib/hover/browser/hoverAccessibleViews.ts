@@ -129,30 +129,15 @@ abstract class BaseHoverAccessibleViewProvider extends Disposable implements IAc
 		this._hoverController.shouldKeepOpenOnEditorMouseMoveOrLeave = false;
 		this._onHoverContentsChanged?.dispose();
 	}
-}
 
-export class HoverAccessibilityHelpProvider extends BaseHoverAccessibleViewProvider implements IAccessibleViewContentProvider {
-
-	public readonly options: IAccessibleViewOptions = { type: AccessibleViewType.Help };
-
-	constructor(
-		hoverController: HoverController,
-	) {
-		super(hoverController);
-	}
-
-	provideContent(): string {
-		return this.provideContentAtIndex(this._focusedHoverPartIndex, this._markdownHoverFocusedIndex);
-	}
-
-	provideContentAtIndex(focusedHoverIndex: number, markdownFocusedHoverIndex: number): string {
+	provideContentAtIndex(focusedHoverIndex: number, markdownFocusedHoverIndex: number, includeVerbosityActions: boolean): string {
 		if (focusedHoverIndex !== -1) {
 			const accessibleContent = this._hoverController.getAccessibleWidgetContentAtIndex(focusedHoverIndex);
 			if (accessibleContent === undefined) {
 				return '';
 			}
 			const contents: string[] = [];
-			if (markdownFocusedHoverIndex !== -1) {
+			if (includeVerbosityActions && markdownFocusedHoverIndex !== -1) {
 				const actionsDescriptions = this._descriptionsOfVerbosityActionsForIndex(markdownFocusedHoverIndex);
 				contents.push(...actionsDescriptions);
 			}
@@ -198,6 +183,21 @@ export class HoverAccessibilityHelpProvider extends BaseHoverAccessibleViewProvi
 	}
 }
 
+export class HoverAccessibilityHelpProvider extends BaseHoverAccessibleViewProvider implements IAccessibleViewContentProvider {
+
+	public readonly options: IAccessibleViewOptions = { type: AccessibleViewType.Help };
+
+	constructor(
+		hoverController: HoverController,
+	) {
+		super(hoverController);
+	}
+
+	provideContent(): string {
+		return this.provideContentAtIndex(this._focusedHoverPartIndex, this._markdownHoverFocusedIndex, true);
+	}
+}
+
 export class HoverAccessibleViewProvider extends BaseHoverAccessibleViewProvider implements IAccessibleViewContentProvider {
 
 	public readonly options: IAccessibleViewOptions = { type: AccessibleViewType.View };
@@ -212,17 +212,7 @@ export class HoverAccessibleViewProvider extends BaseHoverAccessibleViewProvider
 	}
 
 	public provideContent(): string {
-		if (this._focusedHoverPartIndex !== -1) {
-			return [
-				HoverAccessibilityHelpNLS.introHoverPart,
-				this._hoverController.getAccessibleWidgetContentAtIndex(this._focusedHoverPartIndex)
-			].join('\n\n');
-		} else {
-			return [
-				HoverAccessibilityHelpNLS.introHoverFull,
-				this._hoverController.getAccessibleWidgetContent()
-			].join('\n\n');
-		}
+		return this.provideContentAtIndex(this._focusedHoverPartIndex, this._markdownHoverFocusedIndex, false);
 	}
 
 	public get actions(): IAction[] {
@@ -258,7 +248,7 @@ export class HoverAccessibleViewProvider extends BaseHoverAccessibleViewProvider
 	private _initializeOptions(editor: ICodeEditor, hoverController: HoverController): void {
 		const helpProvider = this._register(new HoverAccessibilityHelpProvider(hoverController));
 		this.options.language = editor.getModel()?.getLanguageId();
-		this.options.customHelp = () => { return helpProvider.provideContentAtIndex(this._focusedHoverPartIndex, this._markdownHoverFocusedIndex); };
+		this.options.customHelp = () => { return helpProvider.provideContentAtIndex(this._focusedHoverPartIndex, this._markdownHoverFocusedIndex, true); };
 	}
 }
 
