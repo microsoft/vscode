@@ -27,6 +27,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { generateUuid } from 'vs/base/common/uuid';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 
 export type ChangeEvent = {
 	readonly name?: boolean;
@@ -37,6 +38,7 @@ export type ChangeEvent = {
 	readonly copyFrom?: boolean;
 	readonly copyFlags?: boolean;
 	readonly preview?: boolean;
+	readonly disabled?: boolean;
 };
 
 export abstract class AbstractUserDataProfileElement extends Disposable {
@@ -110,6 +112,15 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 		if (this._message !== message) {
 			this._message = message;
 			this._onDidChange.fire({ message: true });
+		}
+	}
+
+	private _disabled: boolean = false;
+	get disabled(): boolean { return this._disabled; }
+	set disabled(saving: boolean) {
+		if (this._disabled !== saving) {
+			this._disabled = saving;
+			this._onDidChange.fire({ disabled: true });
 		}
 	}
 
@@ -526,12 +537,33 @@ export class UserDataProfilesEditorModel extends EditorModel {
 	createNewProfile(copyFrom?: URI | IUserDataProfile): AbstractUserDataProfileElement {
 		if (!this.newProfileElement) {
 			const disposables = new DisposableStore();
-			const cancelAction = disposables.add(new Action('userDataProfile.cancel', localize('cancel', "Cancel"), ThemeIcon.asClassName(Codicon.close), true, () => this.discardNewProfile()));
-			const previewProfileAction = disposables.add(new Action('userDataProfile.preview', localize('preview', "Open Preview"), ThemeIcon.asClassName(Codicon.openPreview), true, () => this.previewNewProfile()));
+			const cancellationTokenSource = new CancellationTokenSource();
+			disposables.add(toDisposable(() => cancellationTokenSource.dispose(true)));
+			const createAction = disposables.add(new Action(
+				'userDataProfile.create',
+				localize('create', "Create"),
+				undefined,
+				true,
+				() => this.saveNewProfile(false, cancellationTokenSource.token)
+			));
+			const cancelAction = disposables.add(new Action(
+				'userDataProfile.cancel',
+				localize('cancel', "Cancel"),
+				ThemeIcon.asClassName(Codicon.close),
+				true,
+				() => this.discardNewProfile()
+			));
+			const previewProfileAction = disposables.add(new Action(
+				'userDataProfile.preview',
+				localize('preview', "Open Preview"),
+				ThemeIcon.asClassName(Codicon.openPreview),
+				true,
+				() => this.previewNewProfile(cancellationTokenSource.token)
+			));
 			this.newProfileElement = disposables.add(this.instantiationService.createInstance(NewProfileElement,
 				localize('untitled', "Untitled"),
 				copyFrom,
-				disposables.add(new Action('userDataProfile.create', localize('create', "Create"), undefined, true, () => this.saveNewProfile())),
+				createAction,
 				cancelAction,
 				[[
 					previewProfileAction
@@ -541,6 +573,10 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			disposables.add(this.newProfileElement.onDidChange(e => {
 				if (e.preview) {
 					previewProfileAction.checked = !!this.newProfileElement?.previewProfile;
+				}
+				if (e.disabled) {
+					previewProfileAction.enabled = !this.newProfileElement?.disabled;
+					createAction.enabled = !this.newProfileElement?.disabled;
 				}
 			}));
 			this._profiles.push([this.newProfileElement, disposables]);
@@ -564,66 +600,86 @@ export class UserDataProfilesEditorModel extends EditorModel {
 		}
 	}
 
-	private async previewNewProfile(): Promise<void> {
+	private async previewNewProfile(token: CancellationToken): Promise<void> {
 		if (!this.newProfileElement) {
 			return;
 		}
 		if (this.newProfileElement.previewProfile) {
 			return;
 		}
-		const profile = await this.saveNewProfile(true);
-		this.newProfileElement.previewProfile = profile;
+		const profile = await this.saveNewProfile(true, token);
 		if (profile) {
+			this.newProfileElement.previewProfile = profile;
 			await this.hostService.openWindow({ forceProfile: profile.name });
 		}
 	}
 
-	async saveNewProfile(transient?: boolean): Promise<IUserDataProfile | undefined> {
+	async saveNewProfile(transient?: boolean, token?: CancellationToken): Promise<IUserDataProfile | undefined> {
 		if (!this.newProfileElement) {
 			return undefined;
 		}
+
 		this.newProfileElement.validate();
 		if (this.newProfileElement.message) {
 			return undefined;
 		}
 
+		this.newProfileElement.disabled = true;
 		let profile: IUserDataProfile | undefined;
 
-		if (this.newProfileElement.previewProfile) {
-			profile = await this.userDataProfileManagementService.updateProfile(this.newProfileElement.previewProfile, { transient: false });
-		}
-
-		else {
-			const { flags, icon, name, copyFrom } = this.newProfileElement;
-			const useDefaultFlags: UseDefaultProfileFlags | undefined = flags
-				? flags.settings && flags.keybindings && flags.tasks && flags.globalState && flags.extensions ? undefined : flags
-				: undefined;
-
-			type CreateProfileInfoClassification = {
-				owner: 'sandy081';
-				comment: 'Report when profile is about to be created';
-				source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Type of profile source' };
-			};
-			type CreateProfileInfoEvent = {
-				source: string | undefined;
-			};
-			const createProfileTelemetryData: CreateProfileInfoEvent = { source: copyFrom instanceof URI ? 'template' : isUserDataProfile(copyFrom) ? 'profile' : copyFrom ? 'external' : undefined };
-
-			if (copyFrom instanceof URI) {
-				this.telemetryService.publicLog2<CreateProfileInfoEvent, CreateProfileInfoClassification>('userDataProfile.createFromTemplate', createProfileTelemetryData);
-				await this.userDataProfileImportExportService.importProfile(copyFrom, { mode: 'apply', name: name, useDefaultFlags, icon: icon ? icon : undefined, resourceTypeFlags: this.newProfileElement.copyFlags, donotSwitch: true, transient });
-			} else if (isUserDataProfile(copyFrom)) {
-				this.telemetryService.publicLog2<CreateProfileInfoEvent, CreateProfileInfoClassification>('userDataProfile.createFromProfile', createProfileTelemetryData);
-				await this.userDataProfileImportExportService.createFromProfile(copyFrom, name, { useDefaultFlags, icon: icon ? icon : undefined, resourceTypeFlags: this.newProfileElement.copyFlags, donotSwitch: true, transient });
-			} else {
-				this.telemetryService.publicLog2<CreateProfileInfoEvent, CreateProfileInfoClassification>('userDataProfile.createEmptyProfile', createProfileTelemetryData);
-				await this.userDataProfileManagementService.createProfile(name, { useDefaultFlags, icon: icon ? icon : undefined, transient });
+		try {
+			if (this.newProfileElement.previewProfile) {
+				if (!transient) {
+					profile = await this.userDataProfileManagementService.updateProfile(this.newProfileElement.previewProfile, { transient: false });
+				}
 			}
+			else {
+				const { flags, icon, name, copyFrom } = this.newProfileElement;
+				const useDefaultFlags: UseDefaultProfileFlags | undefined = flags
+					? flags.settings && flags.keybindings && flags.tasks && flags.globalState && flags.extensions ? undefined : flags
+					: undefined;
 
-			profile = this.userDataProfilesService.profiles.find(p => p.name === name);
+				type CreateProfileInfoClassification = {
+					owner: 'sandy081';
+					comment: 'Report when profile is about to be created';
+					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Type of profile source' };
+				};
+				type CreateProfileInfoEvent = {
+					source: string | undefined;
+				};
+				const createProfileTelemetryData: CreateProfileInfoEvent = { source: copyFrom instanceof URI ? 'template' : isUserDataProfile(copyFrom) ? 'profile' : copyFrom ? 'external' : undefined };
+
+				if (copyFrom instanceof URI) {
+					this.telemetryService.publicLog2<CreateProfileInfoEvent, CreateProfileInfoClassification>('userDataProfile.createFromTemplate', createProfileTelemetryData);
+					await this.userDataProfileImportExportService.importProfile(copyFrom, { mode: 'apply', name: name, useDefaultFlags, icon: icon ? icon : undefined, resourceTypeFlags: this.newProfileElement.copyFlags, donotSwitch: true, transient });
+				} else if (isUserDataProfile(copyFrom)) {
+					this.telemetryService.publicLog2<CreateProfileInfoEvent, CreateProfileInfoClassification>('userDataProfile.createFromProfile', createProfileTelemetryData);
+					await this.userDataProfileImportExportService.createFromProfile(copyFrom, name, { useDefaultFlags, icon: icon ? icon : undefined, resourceTypeFlags: this.newProfileElement.copyFlags, donotSwitch: true, transient });
+				} else {
+					this.telemetryService.publicLog2<CreateProfileInfoEvent, CreateProfileInfoClassification>('userDataProfile.createEmptyProfile', createProfileTelemetryData);
+					await this.userDataProfileManagementService.createProfile(name, { useDefaultFlags, icon: icon ? icon : undefined, transient });
+				}
+
+				profile = this.userDataProfilesService.profiles.find(p => p.name === name);
+			}
+		} finally {
+			if (this.newProfileElement) {
+				this.newProfileElement.disabled = false;
+			}
 		}
 
-		if (profile && !profile.isTransient) {
+		if (token?.isCancellationRequested) {
+			if (profile) {
+				try {
+					await this.userDataProfileManagementService.removeProfile(profile);
+				} catch (error) {
+					// ignore
+				}
+			}
+			return;
+		}
+
+		if (profile && !profile.isTransient && this.newProfileElement) {
 			this.removeNewProfile();
 			this.onDidChangeProfiles({ added: [profile], removed: [], updated: [], all: this.userDataProfilesService.profiles });
 		}

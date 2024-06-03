@@ -574,6 +574,9 @@ class ProfileWidget extends Disposable {
 			if (this._profileElement.value?.element instanceof UserDataProfileElement && this._profileElement.value.element.profile.isDefault) {
 				return;
 			}
+			if (this._profileElement.value?.element.disabled) {
+				return;
+			}
 			iconSelectBox.clearInput();
 			hoverWidget = this.hoverService.showHover({
 				content: iconSelectBox.domNode,
@@ -723,6 +726,11 @@ class ProfileWidget extends Disposable {
 	private renderProfileElement(profileElement: AbstractUserDataProfileElement): void {
 		this.profileTitle.textContent = profileElement.name;
 		this.nameInput.value = profileElement.name;
+		if (profileElement.disabled) {
+			this.nameInput.disable();
+		} else {
+			this.nameInput.enable();
+		}
 		if (profileElement.icon) {
 			this.iconElement.className = ThemeIcon.asClassName(ThemeIcon.fromId(profileElement.icon));
 		} else {
@@ -736,7 +744,7 @@ class ProfileWidget extends Disposable {
 				: 0;
 			if (index !== -1) {
 				this.copyFromSelectBox.setOptions(this.copyFromOptions);
-				this.copyFromSelectBox.setEnabled(!profileElement.previewProfile);
+				this.copyFromSelectBox.setEnabled(!profileElement.previewProfile && !profileElement.disabled);
 				this.copyFromSelectBox.select(index);
 			} else {
 				this.copyFromSelectBox.setOptions([{ text: basename(profileElement.copyFrom as URI) }]);
@@ -977,6 +985,7 @@ class NewProfileResourceTreeRenderer extends AbstractProfileResourceTreeRenderer
 				root.setFlag(element, option.index === 1);
 			}));
 		}
+		templateData.selectBox.setEnabled(!root.disabled);
 	}
 }
 
