@@ -624,6 +624,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': true,
 				'description': localize('tips.enabled', "When enabled, will show the watermark tips when no editor is open.")
 			},
+			'workbench.tabIndex.enabled': {
+				'type': 'boolean',
+				'default': false,
+				'description': localize('tabIndex.enabled', "When enabled, will show the tab index.")
+			},
 		}
 	});
 

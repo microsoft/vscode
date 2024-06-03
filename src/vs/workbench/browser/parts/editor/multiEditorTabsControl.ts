@@ -58,6 +58,7 @@ import { IReadonlyEditorGroupModel } from 'vs/workbench/common/editor/editorGrou
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { applyDragImage } from 'vs/base/browser/dnd';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 interface IEditorInputLabel {
 	readonly editor: EditorInput;
@@ -151,6 +152,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		@IPathService private readonly pathService: IPathService,
 		@ITreeViewsDnDService private readonly treeViewsDragAndDropService: ITreeViewsDnDService,
 		@IEditorResolverService editorResolverService: IEditorResolverService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IHostService hostService: IHostService,
 	) {
 		super(parent, editorPartsView, groupsView, groupView, tabsModel, contextMenuService, instantiationService, contextKeyService, keybindingService, notificationService, quickInputService, themeService, editorResolverService, hostService);
@@ -162,6 +164,11 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 		// React to decorations changing for our resource labels
 		this._register(this.tabResourceLabels.onDidChangeDecorations(() => this.doHandleDecorationsChange()));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('workbench.tabIndex.enabled')) {
+				this.doUpdateEditorLabels();
+			}
+		}));
 	}
 
 	protected override create(parent: HTMLElement): void {
@@ -1600,7 +1607,14 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			forceLabel = true;
 			fileDecorationBadges = false; // not enough space when sticky tabs are compact
 		} else {
-			name = tabLabel.name;
+
+			const enabled = this.configurationService.getValue<boolean>('workbench.tabIndex.enabled');
+
+			if (enabled) {
+				name = (tabIndex + 1).toString() + '. ' + tabLabel.name;
+			} else {
+				name = tabLabel.name;
+			}
 			description = tabLabel.description || '';
 		}
 
