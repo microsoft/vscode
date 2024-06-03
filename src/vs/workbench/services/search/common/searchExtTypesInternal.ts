@@ -5,7 +5,7 @@
 import type { FileSearchOptions, TextSearchOptions } from './searchExtTypes';
 
 interface SearchOptionsExtendedCommon {
-	numThreads?: number | undefined;
+	numThreads?: number;
 }
 
 export interface TextSearchOptionsExtended extends TextSearchOptions, SearchOptionsExtendedCommon { }
