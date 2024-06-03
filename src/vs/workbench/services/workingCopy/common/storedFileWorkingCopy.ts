@@ -935,8 +935,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 			title: localize('saveParticipants', "Saving '{0}'", this.name),
 			location: ProgressLocation.Window,
 			cancellable: true,
-			delay: this.isDirty() ? 3000 : 5000,
-			type: 'loading'
+			delay: this.isDirty() ? 3000 : 5000
 		}, progress => {
 			return this.doSaveSequential(versionId, options, progress, saveCancellation);
 		}, () => {
