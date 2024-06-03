@@ -308,8 +308,8 @@ app.on('ready', () => {
 		win.webContents.send('run', args);
 	}
 
-	const target = url.pathToFileURL(path.join(__dirname, `renderer${argv.esm ? '-esm' : ''}.html`));
-	target.searchParams.set('argv', JSON.stringify(argv));
+	const target = url.pathToFileURL(path.join(__dirname, `renderer${args.esm ? '-esm' : ''}.html`));
+	target.searchParams.set('argv', JSON.stringify(args));
 	win.loadURL(target.href);
 
 	const runner = new IPCRunner(win);
