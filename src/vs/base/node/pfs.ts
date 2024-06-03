@@ -60,14 +60,6 @@ async function rimraf(path: string, mode = RimRafMode.UNLINK, moveToPath?: strin
 async function rimrafMove(path: string, moveToPath = randomPath(tmpdir())): Promise<void> {
 	try {
 		try {
-			// Intentionally using `fs.promises` here to skip
-			// the patched graceful-fs method that can result
-			// in very long running `rename` calls when the
-			// folder is locked by a file watcher. We do not
-			// really want to slow down this operation more
-			// than necessary and we have a fallback to delete
-			// via unlink.
-			// https://github.com/microsoft/vscode/issues/139908
 			await fs.promises.rename(path, moveToPath);
 		} catch (error) {
 			if (error.code === 'ENOENT') {
@@ -493,7 +485,7 @@ function ensureWriteOptions(options?: IWriteFileOptions): IEnsuredWriteFileOptio
  * - allows to move across multiple disks
  * - attempts to retry the operation for certain error codes on Windows
  */
-async function rename(source: string, target: string, windowsRetryTimeout: number | false = 60000 /* matches graceful-fs */): Promise<void> {
+async function rename(source: string, target: string, windowsRetryTimeout: number | false = 60000): Promise<void> {
 	if (source === target) {
 		return;  // simulate node.js behaviour here and do a no-op if paths match
 	}
@@ -501,9 +493,7 @@ async function rename(source: string, target: string, windowsRetryTimeout: numbe
 	try {
 		if (isWindows && typeof windowsRetryTimeout === 'number') {
 			// On Windows, a rename can fail when either source or target
-			// is locked by AV software. We do leverage graceful-fs to iron
-			// out these issues, however in case the target file exists,
-			// graceful-fs will immediately return without retry for fs.rename().
+			// is locked by AV software.
 			await renameWithRetry(source, target, Date.now(), windowsRetryTimeout);
 		} else {
 			await promisify(fs.rename)(source, target);
