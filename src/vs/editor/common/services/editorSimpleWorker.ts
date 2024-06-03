@@ -30,6 +30,7 @@ import { isESM } from 'vs/base/common/amd';
 import { AppResourcePath, FileAccess } from 'vs/base/common/network';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { IDocumentColorComputerTarget, computeDefaultDocumentColors } from 'vs/editor/common/languages/defaultDocumentColorsComputer';
+import { FindSectionHeaderOptions, SectionHeader, findSectionHeaders } from 'vs/editor/common/services/findSectionHeaders';
 
 export interface IMirrorModel extends IMirrorTextModel {
 	readonly uri: URI;
@@ -403,6 +404,14 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 		return UnicodeTextModelHighlighter.computeUnicodeHighlights(model, options, range);
 	}
 
+	public async findSectionHeaders(url: string, options: FindSectionHeaderOptions): Promise<SectionHeader[]> {
+		const model = this._getModel(url);
+		if (!model) {
+			return [];
+		}
+		return findSectionHeaders(model, options);
+	}
+
 	// ---- BEGIN diff --------------------------------------------------------------------------
 
 	public async computeDiff(originalUrl: string, modifiedUrl: string, options: IDocumentDiffProviderOptions, algorithm: DiffAlgorithmName): Promise<IDiffComputationResult | null> {
@@ -412,7 +421,8 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 			return null;
 		}
 
-		return EditorSimpleWorker.computeDiff(original, modified, options, algorithm);
+		const result = EditorSimpleWorker.computeDiff(original, modified, options, algorithm);
+		return result;
 	}
 
 	private static computeDiff(originalTextModel: ICommonModel | ITextModel, modifiedTextModel: ICommonModel | ITextModel, options: IDocumentDiffProviderOptions, algorithm: DiffAlgorithmName): IDiffComputationResult {
@@ -576,7 +586,7 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 		return result;
 	}
 
-	public async computeHumanReadableDiff(modelUrl: string, edits: TextEdit[], options: ILinesDiffComputerOptions): Promise<TextEdit[]> {
+	public computeHumanReadableDiff(modelUrl: string, edits: TextEdit[], options: ILinesDiffComputerOptions): TextEdit[] {
 		const model = this._getModel(modelUrl);
 		if (!model) {
 			return edits;

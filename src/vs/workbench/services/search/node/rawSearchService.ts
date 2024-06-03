@@ -81,7 +81,7 @@ export class SearchService implements IRawSearchService {
 
 	private getPlatformFileLimits(): { readonly maxFileSize: number } {
 		return {
-			maxFileSize: process.arch === 'ia32' ? 300 * ByteSize.MB : 16 * ByteSize.GB
+			maxFileSize: 16 * ByteSize.GB
 		};
 	}
 
@@ -112,7 +112,7 @@ export class SearchService implements IRawSearchService {
 			}
 
 			return new Promise<ISerializedSearchSuccess>((c, e) => {
-				sortedSearch!.then(([result, rawMatches]) => {
+				sortedSearch.then(([result, rawMatches]) => {
 					const serializedMatches = rawMatches.map(rawMatch => this.rawMatchToSearchItem(rawMatch));
 					this.sendProgress(serializedMatches, progressCallback, batchSize);
 					c(result);
@@ -123,7 +123,7 @@ export class SearchService implements IRawSearchService {
 		const engine = new EngineClass(config);
 
 		return this.doSearch(engine, fileProgressCallback, batchSize, token).then(complete => {
-			return <ISerializedSearchSuccess>{
+			return {
 				limitHit: complete.limitHit,
 				type: 'success',
 				stats: {
@@ -132,7 +132,8 @@ export class SearchService implements IRawSearchService {
 					fromCache: false,
 					resultCount,
 					sortingTime: undefined
-				}
+				},
+				messages: []
 			};
 		});
 	}
@@ -196,12 +197,11 @@ export class SearchService implements IRawSearchService {
 							sortingTime,
 							fromCache: false,
 							type: this.processType,
-							workspaceFolderCount: config.folderQueries.length,
 							resultCount: sortedResults.length
 						},
 						messages: result.messages,
 						limitHit: result.limitHit || typeof config.maxResults === 'number' && results.length > config.maxResults
-					} as ISerializedSearchSuccess, sortedResults];
+					}, sortedResults];
 				});
 		});
 	}
@@ -239,8 +239,9 @@ export class SearchService implements IRawSearchService {
 							{
 								type: 'success',
 								limitHit: result.limitHit || typeof config.maxResults === 'number' && results.length > config.maxResults,
-								stats
-							} as ISerializedSearchSuccess,
+								stats,
+								messages: [],
+							} satisfies ISerializedSearchSuccess,
 							sortedResults
 						];
 					});
@@ -327,7 +328,7 @@ export class SearchService implements IRawSearchService {
 			}
 
 			return [complete, results, {
-				cacheWasResolved: cachedRow!.resolved,
+				cacheWasResolved: cachedRow.resolved,
 				cacheLookupTime,
 				cacheFilterTime: cacheFilterSW.elapsed(),
 				cacheEntryCount: cachedEntries.length
@@ -362,8 +363,10 @@ export class SearchService implements IRawSearchService {
 				}
 
 				if (error) {
+					progressCallback({ message: 'Search finished. Error: ' + error.message });
 					e(error);
 				} else {
+					progressCallback({ message: 'Search finished. Stats: ' + JSON.stringify(complete.stats) });
 					c(complete);
 				}
 			});

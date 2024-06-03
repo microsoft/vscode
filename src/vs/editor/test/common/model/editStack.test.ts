@@ -4,12 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { EndOfLineSequence } from 'vs/editor/common/model';
-import { SingleModelEditStackData } from 'vs/editor/common/model/editStack';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Selection } from 'vs/editor/common/core/selection';
 import { TextChange } from 'vs/editor/common/core/textChange';
+import { EndOfLineSequence } from 'vs/editor/common/model';
+import { SingleModelEditStackData } from 'vs/editor/common/model/editStack';
 
 suite('EditStack', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('issue #118041: unicode character undo bug', () => {
 		const stackData = new SingleModelEditStackData(

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getActiveElement } from 'vs/base/browser/dom';
 import { MultiCommand, RedoCommand, SelectAllCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
 import { CopyAction, CutAction, PasteAction } from 'vs/editor/contrib/clipboard/browser/clipboard';
 import * as nls from 'vs/nls';
@@ -26,7 +27,7 @@ function overrideCommandForWebview(command: MultiCommand | undefined, f: (webvie
 
 		// When focused in a custom menu try to fallback to the active webview
 		// This is needed for context menu actions and the menubar
-		if (document.activeElement?.classList.contains('action-menu-item')) {
+		if (getActiveElement()?.classList.contains('action-menu-item')) {
 			const editorService = accessor.get(IEditorService);
 			if (editorService.activeEditor instanceof WebviewInput) {
 				f(editorService.activeEditor.webview);

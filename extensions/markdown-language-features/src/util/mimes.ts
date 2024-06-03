@@ -9,6 +9,7 @@ export const Mime = {
 } as const;
 
 export const mediaMimes = new Set([
+	'image/avif',
 	'image/bmp',
 	'image/gif',
 	'image/jpeg',

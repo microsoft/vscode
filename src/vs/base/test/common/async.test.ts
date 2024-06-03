@@ -11,14 +11,18 @@ import { isCancellationError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('Async', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('cancelablePromise', function () {
 		test('set token, don\'t wait for inner promise', function () {
 			let canceled = 0;
 			const promise = async.createCancelablePromise(token => {
-				token.onCancellationRequested(_ => { canceled += 1; });
+				store.add(token.onCancellationRequested(_ => { canceled += 1; }));
 				return new Promise(resolve => { /*never*/ });
 			});
 			const result = promise.then(_ => assert.ok(false), err => {
@@ -33,7 +37,7 @@ suite('Async', () => {
 		test('cancel despite inner promise being resolved', function () {
 			let canceled = 0;
 			const promise = async.createCancelablePromise(token => {
-				token.onCancellationRequested(_ => { canceled += 1; });
+				store.add(token.onCancellationRequested(_ => { canceled += 1; }));
 				return Promise.resolve(1234);
 			});
 			const result = promise.then(_ => assert.ok(false), err => {
@@ -51,7 +55,7 @@ suite('Async', () => {
 
 			const cancellablePromise = async.createCancelablePromise(token => {
 				order.push('in callback');
-				token.onCancellationRequested(_ => order.push('cancelled'));
+				store.add(token.onCancellationRequested(_ => order.push('cancelled')));
 				return Promise.resolve(1234);
 			});
 
@@ -73,7 +77,7 @@ suite('Async', () => {
 
 			const cancellablePromise = async.createCancelablePromise(token => {
 				order.push('in callback');
-				token.onCancellationRequested(_ => order.push('cancelled'));
+				store.add(token.onCancellationRequested(_ => order.push('cancelled')));
 				return new Promise(c => setTimeout(c.bind(1234), 0));
 			});
 
@@ -85,6 +89,27 @@ suite('Async', () => {
 
 			cancellablePromise.cancel();
 			order.push('afterCancel');
+
+			return promise.then(() => assert.deepStrictEqual(order, ['in callback', 'afterCreate', 'cancelled', 'afterCancel', 'finally']));
+		});
+
+		test('execution order (async with late listener)', async function () {
+			const order: string[] = [];
+
+			const cancellablePromise = async.createCancelablePromise(async token => {
+				order.push('in callback');
+
+				await async.timeout(0);
+				store.add(token.onCancellationRequested(_ => order.push('cancelled')));
+				cancellablePromise.cancel();
+				order.push('afterCancel');
+			});
+
+			order.push('afterCreate');
+
+			const promise = cancellablePromise
+				.then(undefined, err => null)
+				.then(() => order.push('finally'));
 
 			return promise.then(() => assert.deepStrictEqual(order, ['in callback', 'afterCreate', 'cancelled', 'afterCancel', 'finally']));
 		});
@@ -185,9 +210,14 @@ suite('Async', () => {
 			const promises: Promise<any>[] = [];
 
 			throttler.dispose();
-			assert.throws(() => promises.push(throttler.queue(factory)));
-			assert.strictEqual(factoryCalls, 0);
-			await Promise.all(promises);
+			promises.push(throttler.queue(factory));
+
+			try {
+				await Promise.all(promises);
+				assert.fail('should fail');
+			} catch (err) {
+				assert.strictEqual(factoryCalls, 0);
+			}
 		});
 	});
 
@@ -455,6 +485,7 @@ suite('Async', () => {
 		});
 	});
 
+
 	suite('Queue', () => {
 		test('simple', function () {
 			const queue = new async.Queue();
@@ -479,27 +510,169 @@ suite('Async', () => {
 			});
 		});
 
-		test('order is kept', function () {
+		test('stop processing on dispose', async function () {
 			const queue = new async.Queue();
 
-			const res: number[] = [];
+			let workCounter = 0;
+			const task = async () => {
+				await async.timeout(0);
+				workCounter++;
+				queue.dispose(); // DISPOSE HERE
+			};
 
-			const f1 = () => Promise.resolve(true).then(() => res.push(1));
-			const f2 = () => async.timeout(10).then(() => res.push(2));
-			const f3 = () => Promise.resolve(true).then(() => res.push(3));
-			const f4 = () => async.timeout(20).then(() => res.push(4));
-			const f5 = () => async.timeout(0).then(() => res.push(5));
+			const p1 = queue.queue(task);
+			queue.queue(task);
+			queue.queue(task);
+			assert.strictEqual(queue.size, 3);
 
-			queue.queue(f1);
-			queue.queue(f2);
-			queue.queue(f3);
-			queue.queue(f4);
-			return queue.queue(f5).then(() => {
-				assert.strictEqual(res[0], 1);
-				assert.strictEqual(res[1], 2);
-				assert.strictEqual(res[2], 3);
-				assert.strictEqual(res[3], 4);
-				assert.strictEqual(res[4], 5);
+
+			await p1;
+
+			assert.strictEqual(workCounter, 1);
+		});
+
+		test('stop on clear', async function () {
+			const queue = new async.Queue();
+
+			let workCounter = 0;
+			const task = async () => {
+				await async.timeout(0);
+				workCounter++;
+				queue.clear(); // CLEAR HERE
+				assert.strictEqual(queue.size, 1); // THIS task is still running
+			};
+
+			const p1 = queue.queue(task);
+			queue.queue(task);
+			queue.queue(task);
+			assert.strictEqual(queue.size, 3);
+
+			await p1;
+			assert.strictEqual(workCounter, 1);
+			assert.strictEqual(queue.size, 0); // has been cleared
+
+
+			const p2 = queue.queue(task);
+			await p2;
+			assert.strictEqual(workCounter, 2);
+		});
+
+		test('clear and drain (1)', async function () {
+			const queue = new async.Queue();
+
+			let workCounter = 0;
+			const task = async () => {
+				await async.timeout(0);
+				workCounter++;
+				queue.clear(); // CLEAR HERE
+			};
+
+			const p0 = Event.toPromise(queue.onDrained);
+			const p1 = queue.queue(task);
+
+			await p1;
+			await p0; // expect drain to fire because a task was running
+			assert.strictEqual(workCounter, 1);
+			queue.dispose();
+		});
+
+		test('clear and drain (2)', async function () {
+			const queue = new async.Queue();
+
+			let didFire = false;
+			const d = queue.onDrained(() => {
+				didFire = true;
+			});
+
+			queue.clear();
+
+			assert.strictEqual(didFire, false); // no work, no drain!
+			d.dispose();
+			queue.dispose();
+		});
+
+		test('drain timing', async function () {
+			const queue = new async.Queue();
+
+			const logicClock = new class {
+				private time = 0;
+				tick() {
+					return this.time++;
+				}
+			};
+
+			let didDrainTime = 0;
+			let didFinishTime1 = 0;
+			let didFinishTime2 = 0;
+			const d = queue.onDrained(() => {
+				didDrainTime = logicClock.tick();
+			});
+
+			const p1 = queue.queue(() => {
+				// await async.timeout(10);
+				didFinishTime1 = logicClock.tick();
+				return Promise.resolve();
+			});
+
+			const p2 = queue.queue(async () => {
+				await async.timeout(10);
+				didFinishTime2 = logicClock.tick();
+			});
+
+
+			await Promise.all([p1, p2]);
+
+			assert.strictEqual(didFinishTime1, 0);
+			assert.strictEqual(didFinishTime2, 1);
+			assert.strictEqual(didDrainTime, 2);
+
+			d.dispose();
+			queue.dispose();
+		});
+
+		test('drain event is send only once', async function () {
+			const queue = new async.Queue();
+
+			let drainCount = 0;
+			const d = queue.onDrained(() => { drainCount++; });
+			queue.queue(async () => { });
+			queue.queue(async () => { });
+			queue.queue(async () => { });
+			queue.queue(async () => { });
+			assert.strictEqual(drainCount, 0);
+			assert.strictEqual(queue.size, 4);
+
+			await queue.whenIdle();
+
+			assert.strictEqual(drainCount, 1);
+
+			d.dispose();
+			queue.dispose();
+		});
+
+		test('order is kept', function () {
+			return runWithFakedTimers({}, () => {
+				const queue = new async.Queue();
+
+				const res: number[] = [];
+
+				const f1 = () => Promise.resolve(true).then(() => res.push(1));
+				const f2 = () => async.timeout(10).then(() => res.push(2));
+				const f3 = () => Promise.resolve(true).then(() => res.push(3));
+				const f4 = () => async.timeout(20).then(() => res.push(4));
+				const f5 = () => async.timeout(0).then(() => res.push(5));
+
+				queue.queue(f1);
+				queue.queue(f2);
+				queue.queue(f3);
+				queue.queue(f4);
+				return queue.queue(f5).then(() => {
+					assert.strictEqual(res[0], 1);
+					assert.strictEqual(res[1], 2);
+					assert.strictEqual(res[2], 3);
+					assert.strictEqual(res[3], 4);
+					assert.strictEqual(res[4], 5);
+				});
 			});
 		});
 
@@ -590,21 +763,19 @@ suite('Async', () => {
 
 			await queue.whenDrained(); // returns immediately since empty
 
-			const r1Queue = queue.queueFor(URI.file('/some/path'));
+			let done1 = false;
+			queue.queueFor(URI.file('/some/path'), async () => { done1 = true; });
+			await queue.whenDrained(); // returns immediately since no work scheduled
+			assert.strictEqual(done1, true);
 
-			await queue.whenDrained(); // returns immediately since empty
-
-			const r2Queue = queue.queueFor(URI.file('/some/other/path'));
-
-			await queue.whenDrained(); // returns immediately since empty
-
-			assert.ok(r1Queue);
-			assert.ok(r2Queue);
-			assert.strictEqual(r1Queue, queue.queueFor(URI.file('/some/path'))); // same queue returned
+			let done2 = false;
+			queue.queueFor(URI.file('/some/other/path'), async () => { done2 = true; });
+			await queue.whenDrained(); // returns immediately since no work scheduled
+			assert.strictEqual(done2, true);
 
 			// schedule some work
 			const w1 = new async.DeferredPromise<void>();
-			r1Queue.queue(() => w1.p);
+			queue.queueFor(URI.file('/some/path'), () => w1.p);
 
 			let drained = false;
 			queue.whenDrained().then(() => drained = true);
@@ -613,14 +784,11 @@ suite('Async', () => {
 			await async.timeout(0);
 			assert.strictEqual(drained, true);
 
-			const r1Queue2 = queue.queueFor(URI.file('/some/path'));
-			assert.notStrictEqual(r1Queue, r1Queue2); // previous one got disposed after finishing
-
 			// schedule some work
 			const w2 = new async.DeferredPromise<void>();
 			const w3 = new async.DeferredPromise<void>();
-			r1Queue.queue(() => w2.p);
-			r2Queue.queue(() => w3.p);
+			queue.queueFor(URI.file('/some/path'), () => w2.p);
+			queue.queueFor(URI.file('/some/other/path'), () => w3.p);
 
 			drained = false;
 			queue.whenDrained().then(() => drained = true);
@@ -787,52 +955,123 @@ suite('Async', () => {
 
 		test('cancel executing', async function () {
 			const sequentializer = new async.TaskSequentializer();
+			const ctsTimeout = store.add(new CancellationTokenSource());
 
 			let pendingCancelled = false;
-			sequentializer.run(1, async.timeout(1), () => pendingCancelled = true);
+			const timeout = async.timeout(1, ctsTimeout.token);
+			sequentializer.run(1, timeout, () => pendingCancelled = true);
 			sequentializer.cancelRunning();
 
 			assert.ok(pendingCancelled);
+			ctsTimeout.cancel();
+		});
+	});
+
+	suite('disposableTimeout', () => {
+		test('handler only success', async () => {
+			let cb = false;
+			const t = async.disposableTimeout(() => cb = true);
+
+			await async.timeout(0);
+
+			assert.strictEqual(cb, true);
+
+			t.dispose();
+		});
+
+		test('handler only cancel', async () => {
+			let cb = false;
+			const t = async.disposableTimeout(() => cb = true);
+			t.dispose();
+
+			await async.timeout(0);
+
+			assert.strictEqual(cb, false);
+		});
+
+		test('store managed success', async () => {
+			let cb = false;
+			const s = new DisposableStore();
+			async.disposableTimeout(() => cb = true, 0, s);
+
+			await async.timeout(0);
+
+			assert.strictEqual(cb, true);
+
+			s.dispose();
+		});
+
+		test('store managed cancel via disposable', async () => {
+			let cb = false;
+			const s = new DisposableStore();
+			const t = async.disposableTimeout(() => cb = true, 0, s);
+			t.dispose();
+
+			await async.timeout(0);
+
+			assert.strictEqual(cb, false);
+
+			s.dispose();
+		});
+
+		test('store managed cancel via store', async () => {
+			let cb = false;
+			const s = new DisposableStore();
+			async.disposableTimeout(() => cb = true, 0, s);
+			s.dispose();
+
+			await async.timeout(0);
+
+			assert.strictEqual(cb, false);
 		});
 	});
 
 	test('raceCancellation', async () => {
-		const cts = new CancellationTokenSource();
+		const cts = store.add(new CancellationTokenSource());
+		const ctsTimeout = store.add(new CancellationTokenSource());
 
 		let triggered = false;
-		const p = async.raceCancellation(async.timeout(100).then(() => triggered = true), cts.token);
+		const timeout = async.timeout(100, ctsTimeout.token);
+		const p = async.raceCancellation(timeout.then(() => triggered = true), cts.token);
 		cts.cancel();
 
 		await p;
 
 		assert.ok(!triggered);
+		ctsTimeout.cancel();
 	});
 
 	test('raceTimeout', async () => {
-		const cts = new CancellationTokenSource();
+		const cts = store.add(new CancellationTokenSource());
 
 		// timeout wins
 		let timedout = false;
 		let triggered = false;
 
-		const p1 = async.raceTimeout(async.timeout(100).then(() => triggered = true), 1, () => timedout = true);
+		const ctsTimeout1 = store.add(new CancellationTokenSource());
+		const timeout1 = async.timeout(100, ctsTimeout1.token);
+		const p1 = async.raceTimeout(timeout1.then(() => triggered = true), 1, () => timedout = true);
 		cts.cancel();
 
 		await p1;
 
 		assert.ok(!triggered);
 		assert.strictEqual(timedout, true);
+		ctsTimeout1.cancel();
 
 		// promise wins
 		timedout = false;
 
-		const p2 = async.raceTimeout(async.timeout(1).then(() => triggered = true), 100, () => timedout = true);
+		const ctsTimeout2 = store.add(new CancellationTokenSource());
+		const timeout2 = async.timeout(1, ctsTimeout2.token);
+		const p2 = async.raceTimeout(timeout2.then(() => triggered = true), 100, () => timedout = true);
 		cts.cancel();
 
 		await p2;
 
 		assert.ok(triggered);
 		assert.strictEqual(timedout, false);
+		ctsTimeout2.cancel();
 	});
 
 	test('SequencerByKey', async () => {
@@ -1111,11 +1350,11 @@ suite('Async', () => {
 				}
 			};
 
-			const worker = new async.ThrottledWorker<number>({
+			const worker = store.add(new async.ThrottledWorker<number>({
 				maxWorkChunkSize: 5,
 				maxBufferedWork: undefined,
 				throttleDelay: 1
-			}, handler);
+			}, handler));
 
 			// Work less than chunk size
 
@@ -1223,11 +1462,11 @@ suite('Async', () => {
 			const handled: number[] = [];
 			const handler = (units: readonly number[]) => handled.push(...units);
 
-			const worker = new async.ThrottledWorker<number>({
+			const worker = store.add(new async.ThrottledWorker<number>({
 				maxWorkChunkSize: 5,
 				maxBufferedWork: 5,
 				throttleDelay: 1
-			}, handler);
+			}, handler));
 
 			let worked = worker.work([1, 2, 3]);
 			assert.strictEqual(worked, true);
@@ -1249,11 +1488,11 @@ suite('Async', () => {
 			const handled: number[] = [];
 			const handler = (units: readonly number[]) => handled.push(...units);
 
-			const worker = new async.ThrottledWorker<number>({
+			const worker = store.add(new async.ThrottledWorker<number>({
 				maxWorkChunkSize: 5,
 				maxBufferedWork: 5,
 				throttleDelay: 1
-			}, handler);
+			}, handler));
 
 			let worked = worker.work([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
 			assert.strictEqual(worked, false);
@@ -1268,11 +1507,11 @@ suite('Async', () => {
 			const handled: number[] = [];
 			const handler = (units: readonly number[]) => handled.push(...units);
 
-			const worker = new async.ThrottledWorker<number>({
+			const worker = store.add(new async.ThrottledWorker<number>({
 				maxWorkChunkSize: 5,
 				maxBufferedWork: undefined,
 				throttleDelay: 1
-			}, handler);
+			}, handler));
 			worker.dispose();
 			const worked = worker.work([1, 2, 3]);
 
@@ -1317,6 +1556,125 @@ suite('Async', () => {
 
 			// only the last task executed
 			assert.strictEqual(counter, 4);
+		});
+	});
+
+	suite('AsyncIterableObject', function () {
+
+
+		test('onReturn NOT called', async function () {
+
+			let calledOnReturn = false;
+			const iter = new async.AsyncIterableObject<number>(writer => {
+				writer.emitMany([1, 2, 3, 4, 5]);
+			}, () => {
+				calledOnReturn = true;
+			});
+
+			for await (const item of iter) {
+				assert.strictEqual(typeof item, 'number');
+			}
+
+			assert.strictEqual(calledOnReturn, false);
+
+		});
+
+		test('onReturn called on break', async function () {
+
+			let calledOnReturn = false;
+			const iter = new async.AsyncIterableObject<number>(writer => {
+				writer.emitMany([1, 2, 3, 4, 5]);
+			}, () => {
+				calledOnReturn = true;
+			});
+
+			for await (const item of iter) {
+				assert.strictEqual(item, 1);
+				break;
+			}
+
+			assert.strictEqual(calledOnReturn, true);
+
+		});
+
+		test('onReturn called on return', async function () {
+
+			let calledOnReturn = false;
+			const iter = new async.AsyncIterableObject<number>(writer => {
+				writer.emitMany([1, 2, 3, 4, 5]);
+			}, () => {
+				calledOnReturn = true;
+			});
+
+			await (async function test() {
+				for await (const item of iter) {
+					assert.strictEqual(item, 1);
+					return;
+				}
+			})();
+
+
+			assert.strictEqual(calledOnReturn, true);
+
+		});
+
+
+		test('onReturn called on throwing', async function () {
+
+			let calledOnReturn = false;
+			const iter = new async.AsyncIterableObject<number>(writer => {
+				writer.emitMany([1, 2, 3, 4, 5]);
+			}, () => {
+				calledOnReturn = true;
+			});
+
+			try {
+				for await (const item of iter) {
+					assert.strictEqual(item, 1);
+					throw new Error();
+				}
+			} catch (e) {
+
+			}
+
+			assert.strictEqual(calledOnReturn, true);
+		});
+	});
+
+	suite('AsyncIterableSource', function () {
+
+		test('onReturn is wired up', async function () {
+			let calledOnReturn = false;
+			const source = new async.AsyncIterableSource<number>(() => { calledOnReturn = true; });
+
+			source.emitOne(1);
+			source.emitOne(2);
+			source.emitOne(3);
+			source.resolve();
+
+			for await (const item of source.asyncIterable) {
+				assert.strictEqual(item, 1);
+				break;
+			}
+
+			assert.strictEqual(calledOnReturn, true);
+
+		});
+
+		test('onReturn is wired up 2', async function () {
+			let calledOnReturn = false;
+			const source = new async.AsyncIterableSource<number>(() => { calledOnReturn = true; });
+
+			source.emitOne(1);
+			source.emitOne(2);
+			source.emitOne(3);
+			source.resolve();
+
+			for await (const item of source.asyncIterable) {
+				assert.strictEqual(typeof item, 'number');
+			}
+
+			assert.strictEqual(calledOnReturn, false);
 		});
 	});
 });

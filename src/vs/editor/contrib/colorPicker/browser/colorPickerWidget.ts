@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PixelRatio } from 'vs/base/browser/browser';
+import { PixelRatio } from 'vs/base/browser/pixelRatio';
 import * as dom from 'vs/base/browser/dom';
 import { GlobalPointerMoveMonitor } from 'vs/base/browser/globalPointerMoveMonitor';
 import { Widget } from 'vs/base/browser/ui/widget';
@@ -117,9 +117,9 @@ class CloseButton extends Disposable {
 
 		const closeButton = dom.append(innerDiv, $('.button' + ThemeIcon.asCSSSelector(registerIcon('color-picker-close', Codicon.close, localize('closeIcon', 'Icon to close the color picker')))));
 		closeButton.classList.add('close-icon');
-		this._button.onclick = () => {
+		this._register(dom.addDisposableListener(this._button, dom.EventType.CLICK, () => {
 			this._onClicked.fire();
-		};
+		}));
 	}
 }
 
@@ -264,7 +264,7 @@ class SaturationBox extends Disposable {
 
 		this.monitor.startMonitoring(e.target, e.pointerId, e.buttons, event => this.onDidChangePosition(event.pageX - origin.left, event.pageY - origin.top), () => null);
 
-		const pointerUpListener = dom.addDisposableListener(document, dom.EventType.POINTER_UP, () => {
+		const pointerUpListener = dom.addDisposableListener(e.target.ownerDocument, dom.EventType.POINTER_UP, () => {
 			this._onColorFlushed.fire();
 			pointerUpListener.dispose();
 			if (this.monitor) {
@@ -387,7 +387,7 @@ abstract class Strip extends Disposable {
 
 		monitor.startMonitoring(e.target, e.pointerId, e.buttons, event => this.onDidChangeTop(event.pageY - origin.top), () => null);
 
-		const pointerUpListener = dom.addDisposableListener(document, dom.EventType.POINTER_UP, () => {
+		const pointerUpListener = dom.addDisposableListener(e.target.ownerDocument, dom.EventType.POINTER_UP, () => {
 			this._onColorFlushed.fire();
 			pointerUpListener.dispose();
 			monitor.stopMonitoring(true);
@@ -455,9 +455,9 @@ export class InsertButton extends Disposable {
 		this._button = dom.append(container, document.createElement('button'));
 		this._button.classList.add('insert-button');
 		this._button.textContent = 'Insert';
-		this._button.onclick = e => {
+		this._register(dom.addDisposableListener(this._button, dom.EventType.CLICK, () => {
 			this._onClicked.fire();
-		};
+		}));
 	}
 
 	public get button(): HTMLElement {
@@ -475,7 +475,7 @@ export class ColorPickerWidget extends Widget implements IEditorHoverColorPicker
 	constructor(container: Node, readonly model: ColorPickerModel, private pixelRatio: number, themeService: IThemeService, standaloneColorPicker: boolean = false) {
 		super();
 
-		this._register(PixelRatio.onDidChange(() => this.layout()));
+		this._register(PixelRatio.getInstance(dom.getWindow(container)).onDidChange(() => this.layout()));
 
 		const element = $('.colorpicker-widget');
 		container.appendChild(element);

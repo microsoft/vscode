@@ -9,8 +9,10 @@ import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { createUSLayoutResolvedKeybinding } from 'vs/platform/keybinding/test/common/keybindingsTestUtils';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('keybindingIO', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('serialize/deserialize', () => {
 

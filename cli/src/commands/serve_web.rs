@@ -5,8 +5,10 @@
 
 use std::collections::HashMap;
 use std::convert::Infallible;
+use std::fs;
+use std::io::{Read, Write};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -15,7 +17,6 @@ use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Request, Response, Server};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::pin;
-use tokio::process::Command;
 
 use crate::async_pipe::{
 	get_socket_name, get_socket_rw_stream, listen_socket_rw_stream, AsyncPipe,
@@ -29,6 +30,7 @@ use crate::tunnels::shutdown_signal::ShutdownRequest;
 use crate::update_service::{
 	unzip_downloaded_release, Platform, Release, TargetKind, UpdateService,
 };
+use crate::util::command::new_script_command;
 use crate::util::errors::AnyError;
 use crate::util::http::{self, ReqwestSimpleHttp};
 use crate::util::io::SilentCopyProgress;
@@ -76,15 +78,14 @@ pub async fn serve_web(ctx: CommandContext, mut args: ServeWebArgs) -> Result<i3
 	legal::require_consent(&ctx.paths, args.accept_server_license_terms)?;
 
 	let platform: crate::update_service::Platform = PreReqChecker::new().verify().await?;
-
 	if !args.without_connection_token {
 		// Ensure there's a defined connection token, since if multiple server versions
 		// are excuted, they will need to have a single shared token.
-		args.connection_token = Some(
-			args.connection_token
-				.clone()
-				.unwrap_or_else(|| uuid::Uuid::new_v4().to_string()),
-		);
+		let token_path = ctx.paths.root().join("serve-web-token");
+		let token = mint_connection_token(&token_path, args.connection_token.clone())
+			.map_err(CodeError::CouldNotCreateConnectionTokenFile)?;
+		args.connection_token = Some(token);
+		args.connection_token_file = Some(token_path.to_string_lossy().to_string());
 	}
 
 	let cm = ConnectionManager::new(&ctx, platform, args.clone());
@@ -120,14 +121,21 @@ pub async fn serve_web(ctx: CommandContext, mut args: ServeWebArgs) -> Result<i3
 			}
 			None => SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), args.port),
 		};
+		let builder = Server::try_bind(&addr).map_err(CodeError::CouldNotListenOnInterface)?;
 
 		let mut listening = format!("Web UI available at http://{}", addr);
+		if let Some(base) = args.server_base_path {
+			if !base.starts_with('/') {
+				listening.push('/');
+			}
+			listening.push_str(&base);
+		}
 		if let Some(ct) = args.connection_token {
 			listening.push_str(&format!("?tkn={}", ct));
 		}
 		ctx.log.result(listening);
 
-		Server::bind(&addr)
+		builder
 			.serve(make_service_fn(|_| make_svc()))
 			.with_graceful_shutdown(async {
 				let _ = shutdown.wait().await;
@@ -678,17 +686,7 @@ impl ConnectionManager {
 
 		let socket_path = get_socket_name();
 
-		#[cfg(not(windows))]
-		let mut cmd = Command::new(&executable);
-		#[cfg(windows)]
-		let mut cmd = {
-			let mut cmd = Command::new("cmd");
-			cmd.arg("/Q");
-			cmd.arg("/C");
-			cmd.arg(&executable);
-			cmd
-		};
-
+		let mut cmd = new_script_command(&executable);
 		cmd.stdin(std::process::Stdio::null());
 		cmd.stderr(std::process::Stdio::piped());
 		cmd.stdout(std::process::Stdio::piped());
@@ -698,6 +696,10 @@ impl ConnectionManager {
 		// License agreement already checked by the `server_web` function.
 		cmd.args(["--accept-server-license-terms"]);
 
+		if let Some(a) = &args.args.server_base_path {
+			cmd.arg("--server-base-path");
+			cmd.arg(a);
+		}
 		if let Some(a) = &args.args.server_data_dir {
 			cmd.arg("--server-data-dir");
 			cmd.arg(a);
@@ -713,8 +715,10 @@ impl ConnectionManager {
 		if args.args.without_connection_token {
 			cmd.arg("--without-connection-token");
 		}
-		if let Some(ct) = &args.args.connection_token {
-			cmd.arg("--connection-token");
+		// Note: intentional that we don't pass --connection-token here, we always
+		// convert it into the file variant.
+		if let Some(ct) = &args.args.connection_token_file {
+			cmd.arg("--connection-token-file");
 			cmd.arg(ct);
 		}
 
@@ -787,4 +791,31 @@ struct StartArgs {
 	args: ServeWebArgs,
 	release: Release,
 	opener: BarrierOpener<Result<StartData, String>>,
+}
+
+fn mint_connection_token(path: &Path, prefer_token: Option<String>) -> std::io::Result<String> {
+	#[cfg(not(windows))]
+	use std::os::unix::fs::OpenOptionsExt;
+
+	let mut f = fs::OpenOptions::new();
+	f.create(true);
+	f.write(true);
+	f.read(true);
+	#[cfg(not(windows))]
+	f.mode(0o600);
+	let mut f = f.open(path)?;
+
+	if prefer_token.is_none() {
+		let mut t = String::new();
+		f.read_to_string(&mut t)?;
+		let t = t.trim();
+		if !t.is_empty() {
+			return Ok(t.to_string());
+		}
+	}
+
+	f.set_len(0)?;
+	let prefer_token = prefer_token.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+	f.write_all(prefer_token.as_bytes())?;
+	Ok(prefer_token)
 }

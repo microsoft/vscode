@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/editorstatus';
-import { localize } from 'vs/nls';
-import { runAtThisOrScheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
+import { localize, localize2 } from 'vs/nls';
+import { getWindowById, runAtThisOrScheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { format, compare, splitLines } from 'vs/base/common/strings';
 import { extname, basename, isEqual } from 'vs/base/common/resources';
 import { areFunctions, assertIsDefined } from 'vs/base/common/types';
@@ -42,7 +42,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { getIconClassesForLanguageId } from 'vs/editor/common/services/getIconClasses';
 import { Promises, timeout } from 'vs/base/common/async';
-import { Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { IMarker, IMarkerService, MarkerSeverity, IMarkerData } from 'vs/platform/markers/common/markers';
@@ -54,7 +54,10 @@ import { Action2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { TabFocusMode } from 'vs/workbench/browser/parts/editor/tabFocus';
+import { TabFocus } from 'vs/editor/browser/config/tabFocus';
+import { mainWindow } from 'vs/base/browser/window';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private primary: IEncodingSupport, private secondary: IEncodingSupport) { }
@@ -278,6 +281,34 @@ class State {
 	}
 }
 
+class TabFocusMode extends Disposable {
+
+	private readonly _onDidChange = this._register(new Emitter<boolean>());
+	readonly onDidChange = this._onDidChange.event;
+
+	constructor(@IConfigurationService private readonly configurationService: IConfigurationService) {
+		super();
+
+		this.registerListeners();
+
+		const tabFocusModeConfig = configurationService.getValue<boolean>('editor.tabFocusMode') === true ? true : false;
+		TabFocus.setTabFocusMode(tabFocusModeConfig);
+	}
+
+	private registerListeners(): void {
+		this._register(TabFocus.onDidChangeTabFocus(tabFocusMode => this._onDidChange.fire(tabFocusMode)));
+
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('editor.tabFocusMode')) {
+				const tabFocusModeConfig = this.configurationService.getValue<boolean>('editor.tabFocusMode') === true ? true : false;
+				TabFocus.setTabFocusMode(tabFocusModeConfig);
+
+				this._onDidChange.fire(tabFocusModeConfig);
+			}
+		}));
+	}
+}
+
 const nlsSingleSelectionRange = localize('singleSelectionRange', "Ln {0}, Col {1} ({2} selected)");
 const nlsSingleSelection = localize('singleSelection', "Ln {0}, Col {1}");
 const nlsMultiSelectionRange = localize('multiSelectionRange', "{0} selections ({1} characters selected)");
@@ -285,8 +316,7 @@ const nlsMultiSelection = localize('multiSelection', "{0} selections");
 const nlsEOLLF = localize('endOfLineLineFeed', "LF");
 const nlsEOLCRLF = localize('endOfLineCarriageReturnLineFeed', "CRLF");
 
-
-export class EditorStatus extends Disposable implements IWorkbenchContribution {
+class EditorStatus extends Disposable {
 
 	private readonly tabFocusModeElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly columnSelectionModeElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
@@ -296,14 +326,18 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	private readonly eolElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly languageElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly metadataElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
-	private readonly currentProblemStatus: ShowCurrentMarkerInStatusbarContribution = this._register(this.instantiationService.createInstance(ShowCurrentMarkerInStatusbarContribution));
+
+	private readonly currentMarkerStatus = this._register(this.instantiationService.createInstance(ShowCurrentMarkerInStatusbarContribution));
+	private readonly tabFocusMode = this._register(this.instantiationService.createInstance(TabFocusMode));
+
 	private readonly state = new State();
+	private toRender: StateChange | undefined = undefined;
+
 	private readonly activeEditorListeners = this._register(new DisposableStore());
 	private readonly delayedRender = this._register(new MutableDisposable());
-	private toRender: StateChange | null = null;
-	private tabFocusMode: TabFocusMode;
 
 	constructor(
+		private readonly targetWindowId: number,
 		@IEditorService private readonly editorService: IEditorService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ILanguageService private readonly languageService: ILanguageService,
@@ -313,7 +347,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
-		this.tabFocusMode = instantiationService.createInstance(TabFocusMode);
+
 		this.registerCommands();
 		this.registerListeners();
 	}
@@ -332,9 +366,8 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	}
 
 	private registerCommands(): void {
-		CommandsRegistry.registerCommand({ id: 'changeEditorIndentation', handler: () => this.showIndentationPicker() });
+		this._register(CommandsRegistry.registerCommand({ id: `changeEditorIndentation${this.targetWindowId}`, handler: () => this.showIndentationPicker() }));
 	}
-
 
 	private async showIndentationPicker(): Promise<unknown> {
 		const activeTextEditorControl = getCodeEditor(this.editorService.activeTextEditorControl);
@@ -415,6 +448,12 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			return;
 		}
 
+		const editorURI = getCodeEditor(this.editorService.activeTextEditorControl)?.getModel()?.uri;
+		if (editorURI?.scheme === Schemas.vscodeNotebookCell) {
+			this.selectionElement.clear();
+			return;
+		}
+
 		const props: IStatusbarEntry = {
 			name: localize('status.editor.selection', "Editor Selection"),
 			text,
@@ -432,12 +471,18 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			return;
 		}
 
+		const editorURI = getCodeEditor(this.editorService.activeTextEditorControl)?.getModel()?.uri;
+		if (editorURI?.scheme === Schemas.vscodeNotebookCell) {
+			this.indentationElement.clear();
+			return;
+		}
+
 		const props: IStatusbarEntry = {
 			name: localize('status.editor.indentation', "Editor Indentation"),
 			text,
 			ariaLabel: text,
 			tooltip: localize('selectIndentation', "Select Indentation"),
-			command: 'changeEditorIndentation'
+			command: `changeEditorIndentation${this.targetWindowId}`
 		};
 
 		this.updateElement(this.indentationElement, props, 'status.editor.indentation', StatusbarAlignment.RIGHT, 100.4);
@@ -527,13 +572,13 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		if (!this.toRender) {
 			this.toRender = changed;
 
-			this.delayedRender.value = runAtThisOrScheduleAtNextAnimationFrame(() => {
+			this.delayedRender.value = runAtThisOrScheduleAtNextAnimationFrame(getWindowById(this.targetWindowId, true).window, () => {
 				this.delayedRender.clear();
 
 				const toRender = this.toRender;
-				this.toRender = null;
+				this.toRender = undefined;
 				if (toRender) {
-					this.doRenderNow(toRender);
+					this.doRenderNow();
 				}
 			});
 		} else {
@@ -541,7 +586,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		}
 	}
 
-	private doRenderNow(changed: StateChange): void {
+	private doRenderNow(): void {
 		this.updateTabFocusModeElement(!!this.state.tabFocusMode);
 		this.updateColumnSelectionModeElement(!!this.state.columnSelectionMode);
 		this.updateIndentationElement(this.state.indentation);
@@ -589,7 +634,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		this.onEncodingChange(activeEditorPane, activeCodeEditor);
 		this.onIndentationChange(activeCodeEditor);
 		this.onMetadataChange(activeEditorPane);
-		this.currentProblemStatus.update(activeCodeEditor);
+		this.currentMarkerStatus.update(activeCodeEditor);
 
 		// Dispose old active editor listeners
 		this.activeEditorListeners.clear();
@@ -617,7 +662,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			// Hook Listener for Selection changes
 			this.activeEditorListeners.add(Event.defer(activeCodeEditor.onDidChangeCursorPosition)(() => {
 				this.onSelectionChange(activeCodeEditor);
-				this.currentProblemStatus.update(activeCodeEditor);
+				this.currentMarkerStatus.update(activeCodeEditor);
 			}));
 
 			// Hook Listener for language changes
@@ -628,7 +673,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			// Hook Listener for content changes
 			this.activeEditorListeners.add(Event.accumulate(activeCodeEditor.onDidChangeModelContent)(e => {
 				this.onEOLChange(activeCodeEditor);
-				this.currentProblemStatus.update(activeCodeEditor);
+				this.currentMarkerStatus.update(activeCodeEditor);
 
 				const selections = activeCodeEditor.getSelections();
 				if (selections) {
@@ -836,6 +881,30 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	}
 }
 
+export class EditorStatusContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.editorStatus';
+
+	constructor(
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IEditorService editorService: IEditorService
+	) {
+		super();
+
+		// Main Editor Status
+		const mainInstantiationService = this._register(instantiationService.createChild(new ServiceCollection(
+			[IEditorService, editorService.createScoped('main', this._store)]
+		)));
+		this._register(mainInstantiationService.createInstance(EditorStatus, mainWindow.vscodeWindowId));
+
+		// Auxiliary Editor Status
+		this._register(editorGroupService.onDidCreateAuxiliaryEditorPart(({ part, instantiationService, disposables }) => {
+			disposables.add(instantiationService.createInstance(EditorStatus, part.windowId));
+		}));
+	}
+}
+
 class ShowCurrentMarkerInStatusbarContribution extends Disposable {
 
 	private readonly statusBarEntryAccessor: MutableDisposable<IStatusbarEntryAccessor>;
@@ -849,13 +918,16 @@ class ShowCurrentMarkerInStatusbarContribution extends Disposable {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
+
 		this.statusBarEntryAccessor = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
+
 		this._register(markerService.onMarkerChanged(changedResources => this.onMarkerChanged(changedResources)));
 		this._register(Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('problems.showCurrentInStatus'))(() => this.updateStatus()));
 	}
 
 	update(editor: ICodeEditor | undefined): void {
 		this.editor = editor;
+
 		this.updateMarkers();
 		this.updateStatus();
 	}
@@ -953,26 +1025,26 @@ class ShowCurrentMarkerInStatusbarContribution extends Disposable {
 				resource: model.uri,
 				severities: MarkerSeverity.Error | MarkerSeverity.Warning | MarkerSeverity.Info
 			});
-			this.markers.sort(compareMarker);
+			this.markers.sort(this.compareMarker);
 		} else {
 			this.markers = [];
 		}
 
 		this.updateStatus();
 	}
-}
 
-function compareMarker(a: IMarker, b: IMarker): number {
-	let res = compare(a.resource.toString(), b.resource.toString());
-	if (res === 0) {
-		res = MarkerSeverity.compare(a.severity, b.severity);
+	private compareMarker(a: IMarker, b: IMarker): number {
+		let res = compare(a.resource.toString(), b.resource.toString());
+		if (res === 0) {
+			res = MarkerSeverity.compare(a.severity, b.severity);
+		}
+
+		if (res === 0) {
+			res = Range.compareRangesUsingStarts(a, b);
+		}
+
+		return res;
 	}
-
-	if (res === 0) {
-		res = Range.compareRangesUsingStarts(a, b);
-	}
-
-	return res;
 }
 
 export class ShowLanguageExtensionsAction extends Action {
@@ -1001,17 +1073,26 @@ export class ChangeLanguageAction extends Action2 {
 	constructor() {
 		super({
 			id: ChangeLanguageAction.ID,
-			title: { value: localize('changeMode', "Change Language Mode"), original: 'Change Language Mode' },
+			title: localize2('changeMode', 'Change Language Mode'),
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyM)
 			},
-			precondition: ContextKeyExpr.not('notebookEditorFocused')
+			precondition: ContextKeyExpr.not('notebookEditorFocused'),
+			metadata: {
+				description: localize('changeLanguageMode.description', "Change the language mode of the active text editor."),
+				args: [
+					{
+						name: localize('changeLanguageMode.arg.name', "The name of the language mode to change to."),
+						constraint: (value: any) => typeof value === 'string',
+					}
+				]
+			}
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
+	override async run(accessor: ServicesAccessor, languageMode?: string): Promise<void> {
 		const quickInputService = accessor.get(IQuickInputService);
 		const editorService = accessor.get(IEditorService);
 		const languageService = accessor.get(ILanguageService);
@@ -1090,7 +1171,7 @@ export class ChangeLanguageAction extends Action2 {
 		};
 		picks.unshift(autoDetectLanguage);
 
-		const pick = await quickInputService.pick(picks, { placeHolder: localize('pickLanguage', "Select Language Mode"), matchOnDescription: true });
+		const pick = typeof languageMode === 'string' ? { label: languageMode } : await quickInputService.pick(picks, { placeHolder: localize('pickLanguage', "Select Language Mode"), matchOnDescription: true });
 		if (!pick) {
 			return;
 		}
@@ -1256,7 +1337,7 @@ export class ChangeEOLAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.editor.changeEOL',
-			title: { value: localize('changeEndOfLine', "Change End of Line Sequence"), original: 'Change End of Line Sequence' },
+			title: localize2('changeEndOfLine', 'Change End of Line Sequence'),
 			f1: true
 		});
 	}
@@ -1305,7 +1386,7 @@ export class ChangeEncodingAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.editor.changeEncoding',
-			title: { value: localize('changeEncoding', "Change File Encoding"), original: 'Change File Encoding' },
+			title: localize2('changeEncoding', 'Change File Encoding'),
 			f1: true
 		});
 	}

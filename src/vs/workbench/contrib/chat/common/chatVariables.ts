@@ -4,28 +4,37 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { Iterable } from 'vs/base/common/iterator';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { ThemeIcon } from 'vs/base/common/themables';
+import { URI } from 'vs/base/common/uri';
+import { IRange } from 'vs/editor/common/core/range';
+import { Location } from 'vs/editor/common/languages';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatModel, IChatRequestVariableData, IChatRequestVariableEntry } from 'vs/workbench/contrib/chat/common/chatModel';
+import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import { IChatContentReference, IChatProgressMessage } from 'vs/workbench/contrib/chat/common/chatService';
 
 export interface IChatVariableData {
+	id: string;
 	name: string;
+	icon?: ThemeIcon;
+	fullName?: string;
 	description: string;
+	modelDescription?: string;
+	isSlow?: boolean;
 	hidden?: boolean;
 	canTakeArgument?: boolean;
 }
 
-export interface IChatRequestVariableValue {
-	level: 'short' | 'medium' | 'full';
-	value: string;
-	description?: string;
-}
+export type IChatRequestVariableValue = string | URI | Location | unknown;
+
+export type IChatVariableResolverProgress =
+	| IChatContentReference
+	| IChatProgressMessage;
 
 export interface IChatVariableResolver {
-	// TODO should we spec "zoom level"
-	(messageText: string, arg: string | undefined, model: IChatModel, token: CancellationToken): Promise<IChatRequestVariableValue[] | undefined>;
+	(messageText: string, arg: string | undefined, model: IChatModel, progress: (part: IChatVariableResolverProgress) => void, token: CancellationToken): Promise<IChatRequestVariableValue | undefined>;
 }
 
 export const IChatVariablesService = createDecorator<IChatVariablesService>('IChatVariablesService');
@@ -33,88 +42,25 @@ export const IChatVariablesService = createDecorator<IChatVariablesService>('ICh
 export interface IChatVariablesService {
 	_serviceBrand: undefined;
 	registerVariable(data: IChatVariableData, resolver: IChatVariableResolver): IDisposable;
+	hasVariable(name: string): boolean;
+	getVariable(name: string): IChatVariableData | undefined;
 	getVariables(): Iterable<Readonly<IChatVariableData>>;
+	getDynamicVariables(sessionId: string): ReadonlyArray<IDynamicVariable>; // should be its own service?
+	attachContext(name: string, value: string | URI | Location | unknown, location: ChatAgentLocation): void;
 
 	/**
 	 * Resolves all variables that occur in `prompt`
 	 */
-	resolveVariables(prompt: string, model: IChatModel, token: CancellationToken): Promise<IChatVariableResolveResult>;
+	resolveVariables(prompt: IParsedChatRequest, attachedContextVariables: IChatRequestVariableEntry[] | undefined, model: IChatModel, progress: (part: IChatVariableResolverProgress) => void, token: CancellationToken): Promise<IChatRequestVariableData>;
+	resolveVariable(variableName: string, promptText: string, model: IChatModel, progress: (part: IChatVariableResolverProgress) => void, token: CancellationToken): Promise<IChatRequestVariableValue | undefined>;
 }
 
-interface IChatData {
-	data: IChatVariableData;
-	resolver: IChatVariableResolver;
-}
-
-interface IChatVariableResolveResult {
-	variables: Record<string, IChatRequestVariableValue[]>;
-	prompt: string;
-}
-
-export class ChatVariablesService implements IChatVariablesService {
-	declare _serviceBrand: undefined;
-
-	private _resolver = new Map<string, IChatData>();
-
-	constructor() {
-	}
-
-	async resolveVariables(prompt: string, model: IChatModel, token: CancellationToken): Promise<IChatVariableResolveResult> {
-		const resolvedVariables: Record<string, IChatRequestVariableValue[]> = {};
-		const jobs: Promise<any>[] = [];
-
-		// TODO have a separate parser that is also used for decorations
-		const regex = /(^|\s)@(\w+)(:\w+)?(?=\s|$|\b)/ig;
-
-		let lastMatch = 0;
-		const parsedPrompt: string[] = [];
-		let match: RegExpMatchArray | null;
-		while (match = regex.exec(prompt)) {
-			const [fullMatch, leading, varName, arg] = match;
-			const data = this._resolver.get(varName.toLowerCase());
-			if (data) {
-				if (!arg || data.data.canTakeArgument) {
-					parsedPrompt.push(prompt.substring(lastMatch, match.index!));
-					parsedPrompt.push('');
-					lastMatch = match.index! + fullMatch.length;
-					const varIndex = parsedPrompt.length - 1;
-					const argWithoutColon = arg?.slice(1);
-					const fullVarName = varName + (arg ?? '');
-					jobs.push(data.resolver(prompt, argWithoutColon, model, token).then(value => {
-						if (value) {
-							resolvedVariables[fullVarName] = value;
-							parsedPrompt[varIndex] = `${leading}[@${fullVarName}](values:${fullVarName})`;
-						} else {
-							parsedPrompt[varIndex] = fullMatch;
-						}
-					}).catch(onUnexpectedExternalError));
-				}
-			}
-		}
-
-		parsedPrompt.push(prompt.substring(lastMatch));
-
-		await Promise.allSettled(jobs);
-
-		return {
-			variables: resolvedVariables,
-			prompt: parsedPrompt.join('')
-		};
-	}
-
-	getVariables(): Iterable<Readonly<IChatVariableData>> {
-		const all = Iterable.map(this._resolver.values(), data => data.data);
-		return Iterable.filter(all, data => !data.hidden);
-	}
-
-	registerVariable(data: IChatVariableData, resolver: IChatVariableResolver): IDisposable {
-		const key = data.name.toLowerCase();
-		if (this._resolver.has(key)) {
-			throw new Error(`A chat variable with the name '${data.name}' already exists.`);
-		}
-		this._resolver.set(key, { data, resolver });
-		return toDisposable(() => {
-			this._resolver.delete(key);
-		});
-	}
+export interface IDynamicVariable {
+	range: IRange;
+	id: string;
+	fullName?: string;
+	icon?: ThemeIcon;
+	prefix?: string;
+	modelDescription?: string;
+	data: IChatRequestVariableValue;
 }

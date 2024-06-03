@@ -8,6 +8,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { COI } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { IWorker, IWorkerCallback, IWorkerFactory, logOnceWebWorkerWarning } from 'vs/base/common/worker/simpleWorker';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 
 const ttPolicy = createTrustedTypesPolicy('defaultWorkerFactory', { createScriptURL: value => value });
 
@@ -92,13 +93,14 @@ function isPromiseLike<T>(obj: any): obj is PromiseLike<T> {
  * A worker that uses HTML5 web workers so that is has
  * its own global scope and its own thread.
  */
-class WebWorker implements IWorker {
+class WebWorker extends Disposable implements IWorker {
 
 	private readonly id: number;
 	private readonly label: string;
 	private worker: Promise<Worker> | null;
 
 	constructor(workerMainLocation: URI | undefined, moduleId: string, id: number, label: string, onMessageCallback: IWorkerCallback, onErrorCallback: (err: any) => void) {
+		super();
 		this.id = id;
 		this.label = label;
 		const workerOrPromise = getWorker(workerMainLocation, label);
@@ -117,6 +119,15 @@ class WebWorker implements IWorker {
 				w.addEventListener('error', onErrorCallback);
 			}
 		});
+		this._register(toDisposable(() => {
+			this.worker?.then(w => {
+				w.onmessage = null;
+				w.onmessageerror = null;
+				w.removeEventListener('error', onErrorCallback);
+				w.terminate();
+			});
+			this.worker = null;
+		}));
 	}
 
 	public getId(): number {
@@ -134,10 +145,7 @@ class WebWorker implements IWorker {
 		});
 	}
 
-	public dispose(): void {
-		this.worker?.then(w => w.terminate());
-		this.worker = null;
-	}
+
 }
 
 export class DefaultWorkerFactory implements IWorkerFactory {

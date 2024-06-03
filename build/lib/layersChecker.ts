@@ -63,7 +63,13 @@ const CORE_TYPES = [
 	'EventTarget',
 	'BroadcastChannel',
 	'performance',
-	'Blob'
+	'Blob',
+	'crypto',
+	'File',
+	'fetch',
+	'RequestInit',
+	'Headers',
+	'Response'
 ];
 
 // Types that are defined in a common layer but are known to be only
@@ -94,6 +100,23 @@ const RULES: IRule[] = [
 
 			// Safe access to postMessage() and friends
 			'MessageEvent',
+		],
+		disallowedTypes: NATIVE_TYPES,
+		disallowedDefinitions: [
+			'lib.dom.d.ts', // no DOM
+			'@types/node'	// no node.js
+		]
+	},
+
+	// Common: vs/base/common/async.ts
+	{
+		target: '**/vs/base/common/async.ts',
+		allowedTypes: [
+			...CORE_TYPES,
+
+			// Safe access to requestIdleCallback & cancelIdleCallback
+			'requestIdleCallback',
+			'cancelIdleCallback'
 		],
 		disallowedTypes: NATIVE_TYPES,
 		disallowedDefinitions: [
@@ -135,6 +158,17 @@ const RULES: IRule[] = [
 		]
 	},
 
+	// Common: vs/platform/native/common/nativeHostService.ts
+	{
+		target: '**/vs/platform/native/common/nativeHostService.ts',
+		allowedTypes: CORE_TYPES,
+		disallowedTypes: [/* Ignore native types that are defined from here */],
+		disallowedDefinitions: [
+			'lib.dom.d.ts', // no DOM
+			'@types/node'	// no node.js
+		]
+	},
+
 	// Common: vs/workbench/api/common/extHostExtensionService.ts
 	{
 		target: '**/vs/workbench/api/common/extHostExtensionService.ts',
@@ -143,6 +177,70 @@ const RULES: IRule[] = [
 
 			// Safe access to global
 			'global'
+		],
+		disallowedTypes: NATIVE_TYPES,
+		disallowedDefinitions: [
+			'lib.dom.d.ts', // no DOM
+			'@types/node'	// no node.js
+		]
+	},
+
+	// Common: vs/workbench/api/common/extHostTypes.ts
+	{
+		target: '**/vs/workbench/api/common/extHostTypes.ts',
+		allowedTypes: [
+			...CORE_TYPES,
+
+			// Safe access to global
+			'__global'
+		],
+		disallowedTypes: NATIVE_TYPES,
+		disallowedDefinitions: [
+			'lib.dom.d.ts', // no DOM
+			'@types/node'	// no node.js
+		]
+	},
+
+	// Common: vs/workbench/api/common/extHostChatAgents2.ts
+	{
+		target: '**/vs/workbench/api/common/extHostChatAgents2.ts',
+		allowedTypes: [
+			...CORE_TYPES,
+
+			// Safe access to global
+			'__global'
+		],
+		disallowedTypes: NATIVE_TYPES,
+		disallowedDefinitions: [
+			'lib.dom.d.ts', // no DOM
+			'@types/node'	// no node.js
+		]
+	},
+
+	// Common: vs/workbench/api/common/extHostChatVariables.ts
+	{
+		target: '**/vs/workbench/api/common/extHostChatVariables.ts',
+		allowedTypes: [
+			...CORE_TYPES,
+
+			// Safe access to global
+			'__global'
+		],
+		disallowedTypes: NATIVE_TYPES,
+		disallowedDefinitions: [
+			'lib.dom.d.ts', // no DOM
+			'@types/node'	// no node.js
+		]
+	},
+
+	// Common: vs/workbench/api/common/extensionHostMain.ts
+	{
+		target: '**/vs/workbench/api/common/extensionHostMain.ts',
+		allowedTypes: [
+			...CORE_TYPES,
+
+			// Safe access to global
+			'__global'
 		],
 		disallowedTypes: NATIVE_TYPES,
 		disallowedDefinitions: [

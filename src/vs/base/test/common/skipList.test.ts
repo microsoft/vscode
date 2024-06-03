@@ -7,9 +7,12 @@ import * as assert from 'assert';
 import { binarySearch } from 'vs/base/common/arrays';
 import { SkipList } from 'vs/base/common/skipList';
 import { StopWatch } from 'vs/base/common/stopwatch';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 
 suite('SkipList', function () {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function assertValues<V>(list: SkipList<any, V>, expected: V[]) {
 		assert.strictEqual(list.size, expected.length);
@@ -89,6 +92,19 @@ suite('SkipList', function () {
 		list.set(17, true);
 		assert.deepStrictEqual(list.size, 9);
 		assertKeys(list, [3, 6, 7, 9, 12, 17, 19, 21, 25]);
+	});
+
+	test('clear ( CPU pegged after some builds #194853)', function () {
+		const list = new SkipList<number, boolean>((a, b) => a - b);
+		list.set(1, true);
+		list.set(2, true);
+		list.set(3, true);
+		assert.strictEqual(list.size, 3);
+		list.clear();
+		assert.strictEqual(list.size, 0);
+		assert.strictEqual(list.get(1), undefined);
+		assert.strictEqual(list.get(2), undefined);
+		assert.strictEqual(list.get(3), undefined);
 	});
 
 	test('capacity max', function () {

@@ -19,7 +19,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { IBulkEditService, ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
 import { UndoRedoSource } from 'vs/platform/undoRedo/common/undoRedo';
 import { IExplorerView, IExplorerService } from 'vs/workbench/contrib/files/browser/files';
-import { IProgressService, ProgressLocation, IProgressNotificationOptions, IProgressCompositeOptions } from 'vs/platform/progress/common/progress';
+import { IProgressService, ProgressLocation, IProgressCompositeOptions, IProgressOptions } from 'vs/platform/progress/common/progress';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -184,12 +184,23 @@ export class ExplorerService implements IExplorerService {
 
 	async applyBulkEdit(edit: ResourceFileEdit[], options: { undoLabel: string; progressLabel: string; confirmBeforeUndo?: boolean; progressLocation?: ProgressLocation.Explorer | ProgressLocation.Window }): Promise<void> {
 		const cancellationTokenSource = new CancellationTokenSource();
-		const promise = this.progressService.withProgress(<IProgressNotificationOptions | IProgressCompositeOptions>{
-			location: options.progressLocation || ProgressLocation.Window,
-			title: options.progressLabel,
-			cancellable: edit.length > 1, // Only allow cancellation when there is more than one edit. Since cancelling will not actually stop the current edit that is in progress.
-			delay: 500,
-		}, async progress => {
+		const location = options.progressLocation ?? ProgressLocation.Window;
+		let progressOptions;
+		if (location === ProgressLocation.Window) {
+			progressOptions = {
+				location: location,
+				title: options.progressLabel,
+				cancellable: edit.length > 1,
+			} satisfies IProgressOptions;
+		} else {
+			progressOptions = {
+				location: location,
+				title: options.progressLabel,
+				cancellable: edit.length > 1,
+				delay: 500,
+			} satisfies IProgressCompositeOptions;
+		}
+		const promise = this.progressService.withProgress(progressOptions, async progress => {
 			await this.bulkEditService.apply(edit, {
 				undoRedoSource: UNDO_REDO_SOURCE,
 				label: options.undoLabel,
@@ -249,16 +260,16 @@ export class ExplorerService implements IExplorerService {
 			type ExplorerViewEditableErrorClassification = {
 				owner: 'lramos15';
 				comment: 'Helps gain a broard understanding of why users are unable to edit files in the explorer';
-				parentIsDirectory: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the parent of the editable element is a directory' };
-				isDirectory: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the editable element is a directory' };
-				isReadonly: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the editable element is readonly' };
-				parentIsReadonly: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the parent of the editable element is readonly' };
-				parentIsExcluded: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the parent of the editable element is excluded from being shown in the explorer' };
-				isExcluded: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the editable element is excluded from being shown in the explorer' };
-				parentIsRoot: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the parent of the editable element is a root' };
-				isRoot: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the editable element is a root' };
-				parentHasNests: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the parent of the editable element has nested children' };
-				hasNests: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the editable element has nested children' };
+				parentIsDirectory: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the parent of the editable element is a directory' };
+				isDirectory: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the editable element is a directory' };
+				isReadonly: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the editable element is readonly' };
+				parentIsReadonly: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the parent of the editable element is readonly' };
+				parentIsExcluded: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the parent of the editable element is excluded from being shown in the explorer' };
+				isExcluded: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the editable element is excluded from being shown in the explorer' };
+				parentIsRoot: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the parent of the editable element is a root' };
+				isRoot: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the editable element is a root' };
+				parentHasNests: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the parent of the editable element has nested children' };
+				hasNests: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether the editable element has nested children' };
 			};
 			const errorData = {
 				parentIsDirectory: parent?.isDirectory,
@@ -448,6 +459,7 @@ export class ExplorerService implements IExplorerService {
 					// Remove Element from Parent (Model)
 					const parent = modelElement.parent;
 					parent.removeChild(modelElement);
+					this.view?.focusNext();
 
 					const oldNestedParent = modelElement.nestedParent;
 					if (oldNestedParent) {
@@ -456,6 +468,10 @@ export class ExplorerService implements IExplorerService {
 					}
 					// Refresh Parent (View)
 					await this.view?.refresh(shouldDeepRefresh, parent);
+
+					if (this.view?.getFocus().length === 0) {
+						this.view?.focusLast();
+					}
 				}
 			}));
 		}

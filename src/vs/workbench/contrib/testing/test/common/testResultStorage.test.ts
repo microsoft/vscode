@@ -8,6 +8,8 @@ import { range } from 'vs/base/common/arrays';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { NullLogService } from 'vs/platform/log/common/log';
+import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { ITestResult, LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { InMemoryResultStorage, RETAIN_MAX_RESULTS } from 'vs/workbench/contrib/testing/common/testResultStorage';
 import { testStubs } from 'vs/workbench/contrib/testing/test/common/testStubs';
@@ -21,7 +23,8 @@ suite('Workbench - Test Result Storage', () => {
 		const t = ds.add(new LiveTestResult(
 			'',
 			true,
-			{ targets: [] }
+			{ targets: [] },
+			NullTelemetryService,
 		));
 
 		t.addTask({ id: taskName, name: undefined, running: true });
@@ -42,7 +45,11 @@ suite('Workbench - Test Result Storage', () => {
 
 	setup(async () => {
 		ds = new DisposableStore();
-		storage = ds.add(new InMemoryResultStorage(ds.add(new TestStorageService()), new NullLogService()));
+		storage = ds.add(new InMemoryResultStorage({
+			asCanonicalUri(uri) {
+				return uri;
+			},
+		} as IUriIdentityService, ds.add(new TestStorageService()), new NullLogService()));
 	});
 
 	teardown(() => ds.dispose());

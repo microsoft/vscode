@@ -100,10 +100,10 @@ flakySuite('IndexedDBFileSystemProvider', function () {
 		assert.strictEqual((await userdataFileProvider.stat(newFolderResource)).type, FileType.Directory);
 
 		assert.ok(event);
-		assert.strictEqual(event!.resource.path, newFolderResource.path);
-		assert.strictEqual(event!.operation, FileOperation.CREATE);
-		assert.strictEqual(event!.target!.resource.path, newFolderResource.path);
-		assert.strictEqual(event!.target!.isDirectory, true);
+		assert.strictEqual(event.resource.path, newFolderResource.path);
+		assert.strictEqual(event.operation, FileOperation.CREATE);
+		assert.strictEqual(event.target!.resource.path, newFolderResource.path);
+		assert.strictEqual(event.target!.isDirectory, true);
 	});
 
 	test('createFolder: creating multiple folders at once', async () => {
@@ -162,17 +162,17 @@ flakySuite('IndexedDBFileSystemProvider', function () {
 		assert.strictEqual(result.resource.toString(), resource.toString());
 		assert.strictEqual(result.name, 'resolver');
 		assert.ok(result.children);
-		assert.ok(result.children!.length > 0);
-		assert.ok(result!.isDirectory);
-		assert.strictEqual(result.children!.length, testsElements.length);
+		assert.ok(result.children.length > 0);
+		assert.ok(result.isDirectory);
+		assert.strictEqual(result.children.length, testsElements.length);
 
-		assert.ok(result.children!.every(entry => {
+		assert.ok(result.children.every(entry => {
 			return testsElements.some(name => {
 				return basename(entry.resource) === name;
 			});
 		}));
 
-		result.children!.forEach(value => {
+		result.children.forEach(value => {
 			assert.ok(basename(value.resource));
 			if (['examples', 'other'].indexOf(basename(value.resource)) >= 0) {
 				assert.ok(value.isDirectory);

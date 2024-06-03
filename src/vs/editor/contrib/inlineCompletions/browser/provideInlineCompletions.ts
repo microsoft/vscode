@@ -6,7 +6,7 @@
 import { assertNever } from 'vs/base/common/assert';
 import { DeferredPromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { SetMap } from 'vs/base/common/collections';
+import { SetMap } from 'vs/base/common/map';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
@@ -17,7 +17,7 @@ import { Command, InlineCompletion, InlineCompletionContext, InlineCompletionPro
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ITextModel } from 'vs/editor/common/model';
 import { fixBracketsInLine } from 'vs/editor/common/model/bracketPairsTextModelPart/fixBrackets';
-import { SingleTextEdit } from 'vs/editor/contrib/inlineCompletions/browser/singleTextEdit';
+import { SingleTextEdit } from 'vs/editor/common/core/textEdit';
 import { getReadonlyEmptyArray } from 'vs/editor/contrib/inlineCompletions/browser/utils';
 import { SnippetParser, Text } from 'vs/editor/contrib/snippet/browser/snippetParser';
 

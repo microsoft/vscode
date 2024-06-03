@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { isObject } from 'vs/base/common/types';
 import { IJSONSchema, IJSONSchemaMap, IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IConfig, IDebuggerContribution, IDebugAdapter, IDebugger, IDebugSession, IAdapterManager, IDebugService, debuggerDisabledMessage, IDebuggerMetadata } from 'vs/workbench/contrib/debug/common/debug';
+import { IConfig, IDebuggerContribution, IDebugAdapter, IDebugger, IDebugSession, IAdapterManager, IDebugService, debuggerDisabledMessage, IDebuggerMetadata, DebugConfigurationProviderTriggerKind } from 'vs/workbench/contrib/debug/common/debug';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import * as ConfigurationResolverUtils from 'vs/workbench/services/configurationResolver/common/configurationResolverUtils';
@@ -29,6 +29,7 @@ export class Debugger implements IDebugger, IDebuggerMetadata {
 	private mainExtensionDescription: IExtensionDescription | undefined;
 
 	private debuggerWhen: ContextKeyExpression | undefined;
+	private debuggerHiddenWhen: ContextKeyExpression | undefined;
 
 	constructor(
 		private adapterManager: IAdapterManager,
@@ -45,6 +46,7 @@ export class Debugger implements IDebugger, IDebuggerMetadata {
 		this.merge(dbgContribution, extensionDescription);
 
 		this.debuggerWhen = typeof this.debuggerContribution.when === 'string' ? ContextKeyExpr.deserialize(this.debuggerContribution.when) : undefined;
+		this.debuggerHiddenWhen = typeof this.debuggerContribution.hiddenWhen === 'string' ? ContextKeyExpr.deserialize(this.debuggerContribution.hiddenWhen) : undefined;
 	}
 
 	merge(otherDebuggerContribution: IDebuggerContribution, extensionDescription: IExtensionDescription): void {
@@ -147,8 +149,19 @@ export class Debugger implements IDebugger, IDebuggerMetadata {
 		return this.debuggerWhen;
 	}
 
+	get hiddenWhen(): ContextKeyExpression | undefined {
+		return this.debuggerHiddenWhen;
+	}
+
 	get enabled() {
 		return !this.debuggerWhen || this.contextKeyService.contextMatchesRules(this.debuggerWhen);
+	}
+
+	get isHiddenFromDropdown() {
+		if (!this.debuggerHiddenWhen) {
+			return false;
+		}
+		return this.contextKeyService.contextMatchesRules(this.debuggerHiddenWhen);
 	}
 
 	get strings() {
@@ -161,6 +174,10 @@ export class Debugger implements IDebugger, IDebuggerMetadata {
 
 	hasInitialConfiguration(): boolean {
 		return !!this.debuggerContribution.initialConfigurations;
+	}
+
+	hasDynamicConfigurationProviders(): boolean {
+		return this.debugService.getConfigurationManager().hasDebugConfigurationProvider(this.type, DebugConfigurationProviderTriggerKind.Dynamic);
 	}
 
 	hasConfigurationProvider(): boolean {

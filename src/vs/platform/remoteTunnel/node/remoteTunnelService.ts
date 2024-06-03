@@ -21,12 +21,13 @@ import { hostname, homedir } from 'os';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { isString } from 'vs/base/common/types';
 import { StreamSplitter } from 'vs/base/node/nodeStreams';
+import { joinPath } from 'vs/base/common/resources';
 
 type RemoteTunnelEnablementClassification = {
 	owner: 'aeschli';
 	comment: 'Reporting when Remote Tunnel access is turned on or off';
-	enabled?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Flag indicating if Remote Tunnel Access is enabled or not' };
-	service?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Flag indicating if Remote Tunnel Access is installed as a service' };
+	enabled?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating if Remote Tunnel Access is enabled or not' };
+	service?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Flag indicating if Remote Tunnel Access is installed as a service' };
 };
 
 type RemoteTunnelEnablementEvent = {
@@ -93,7 +94,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 		@IStorageService private readonly storageService: IStorageService
 	) {
 		super();
-		this._logger = this._register(loggerService.createLogger(LOG_ID, { name: LOGGER_NAME }));
+		this._logger = this._register(loggerService.createLogger(joinPath(environmentService.logsHome, `${LOG_ID}.log`), { id: LOG_ID, name: LOGGER_NAME }));
 		this._startTunnelProcessDelayer = new Delayer(100);
 
 		this._register(this._logger.onDidChangeLogLevel(l => this._logger.info('Log level changed to ' + LogLevelToString(l))));
@@ -208,20 +209,18 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 			this._tunnelProcess = undefined;
 		}
 
-		if (!this._mode.active) {
-			return;
-		}
+		if (this._mode.active) {
+			// Be careful to only uninstall the service if we're the ones who installed it:
+			const needsServiceUninstall = this._mode.asService;
+			this.setMode(INACTIVE_TUNNEL_MODE);
 
-		// Be careful to only uninstall the service if we're the ones who installed it:
-		const needsServiceUninstall = this._mode.asService;
-		this.setMode(INACTIVE_TUNNEL_MODE);
-
-		try {
-			if (needsServiceUninstall) {
-				this.runCodeTunnelCommand('uninstallService', ['service', 'uninstall']);
+			try {
+				if (needsServiceUninstall) {
+					this.runCodeTunnelCommand('uninstallService', ['service', 'uninstall']);
+				}
+			} catch (e) {
+				this._logger.error(e);
 			}
-		} catch (e) {
-			this._logger.error(e);
 		}
 
 		try {
@@ -267,10 +266,18 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 
 			// split and find the line, since in dev builds additional noise is
 			// added by cargo to the output.
-			const status: {
+			let status: {
 				service_installed: boolean;
 				tunnel: object | null;
-			} = JSON.parse(output.trim().split('\n').find(l => l.startsWith('{'))!);
+			};
+
+			try {
+				status = JSON.parse(output.trim().split('\n').find(l => l.startsWith('{'))!);
+			} catch (e) {
+				this._logger.error(`Could not parse status output: ${JSON.stringify(output.trim())}`);
+				this.setTunnelStatus(TunnelStates.disconnected());
+				return;
+			}
 
 			isServiceInstalled = status.service_installed;
 			this._logger.info(status.tunnel ? 'Other tunnel running, attaching...' : 'No other tunnel running');
@@ -299,7 +306,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 				a = a.replaceAll(token, '*'.repeat(4));
 				onOutput(a, isErr);
 			};
-			const loginProcess = this.runCodeTunnelCommand('login', ['user', 'login', '--provider', session.providerId, '--access-token', token, '--log', LogLevelToString(this._logger.getLevel())], onLoginOutput);
+			const loginProcess = this.runCodeTunnelCommand('login', ['user', 'login', '--provider', session.providerId, '--log', LogLevelToString(this._logger.getLevel())], onLoginOutput, { VSCODE_CLI_ACCESS_TOKEN: token });
 			this._tunnelProcess = loginProcess;
 			try {
 				await loginProcess;
@@ -401,7 +408,7 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 		});
 	}
 
-	private runCodeTunnelCommand(logLabel: string, commandArgs: string[], onOutput: (message: string, isError: boolean) => void = this.defaultOnOutput): CancelablePromise<number> {
+	private runCodeTunnelCommand(logLabel: string, commandArgs: string[], onOutput: (message: string, isError: boolean) => void = this.defaultOnOutput, env?: Record<string, string>): CancelablePromise<number> {
 		return createCancelablePromise<number>(token => {
 			return new Promise((resolve, reject) => {
 				if (token.isCancellationRequested) {
@@ -419,12 +426,12 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 				if (!this.environmentService.isBuilt) {
 					onOutput('Building tunnel CLI from sources and run\n', false);
 					onOutput(`${logLabel} Spawning: cargo run -- tunnel ${commandArgs.join(' ')}\n`, false);
-					tunnelProcess = spawn('cargo', ['run', '--', 'tunnel', ...commandArgs], { cwd: join(this.environmentService.appRoot, 'cli'), stdio });
+					tunnelProcess = spawn('cargo', ['run', '--', 'tunnel', ...commandArgs], { cwd: join(this.environmentService.appRoot, 'cli'), stdio, env: { ...process.env, RUST_BACKTRACE: '1', ...env } });
 				} else {
 					onOutput('Running tunnel CLI\n', false);
 					const tunnelCommand = this.getTunnelCommandLocation();
 					onOutput(`${logLabel} Spawning: ${tunnelCommand} tunnel ${commandArgs.join(' ')}\n`, false);
-					tunnelProcess = spawn(tunnelCommand, ['tunnel', ...commandArgs], { cwd: homedir(), stdio });
+					tunnelProcess = spawn(tunnelCommand, ['tunnel', ...commandArgs], { cwd: homedir(), stdio, env: { ...process.env, ...env } });
 				}
 
 				tunnelProcess.stdout!.pipe(new StreamSplitter('\n')).on('data', data => {

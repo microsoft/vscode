@@ -62,7 +62,7 @@ export class SnippetController2 implements IEditorContribution {
 	private readonly _hasPrevTabstop: IContextKey<boolean>;
 
 	private _session?: SnippetSession;
-	private _snippetListener = new DisposableStore();
+	private readonly _snippetListener = new DisposableStore();
 	private _modelVersionId: number = -1;
 	private _currentChoice?: Choice;
 
@@ -331,7 +331,7 @@ registerEditorCommand(new CommandCtor({
 	handler: ctrl => ctrl.next(),
 	kbOpts: {
 		weight: KeybindingWeight.EditorContrib + 30,
-		kbExpr: EditorContextKeys.editorTextFocus,
+		kbExpr: EditorContextKeys.textInputFocus,
 		primary: KeyCode.Tab
 	}
 }));
@@ -341,7 +341,7 @@ registerEditorCommand(new CommandCtor({
 	handler: ctrl => ctrl.prev(),
 	kbOpts: {
 		weight: KeybindingWeight.EditorContrib + 30,
-		kbExpr: EditorContextKeys.editorTextFocus,
+		kbExpr: EditorContextKeys.textInputFocus,
 		primary: KeyMod.Shift | KeyCode.Tab
 	}
 }));
@@ -351,7 +351,7 @@ registerEditorCommand(new CommandCtor({
 	handler: ctrl => ctrl.cancel(true),
 	kbOpts: {
 		weight: KeybindingWeight.EditorContrib + 30,
-		kbExpr: EditorContextKeys.editorTextFocus,
+		kbExpr: EditorContextKeys.textInputFocus,
 		primary: KeyCode.Escape,
 		secondary: [KeyMod.Shift | KeyCode.Escape]
 	}

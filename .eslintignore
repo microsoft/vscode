@@ -41,3 +41,4 @@
 **/test/unit/assert-esm.js
 **/test/automation/out/**
 **/typings/**
+!.vscode

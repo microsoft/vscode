@@ -14,7 +14,7 @@ import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry'
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
+import { IUntitledTextEditorModel, UntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -22,8 +22,13 @@ import { isReadable, isReadableStream } from 'vs/base/common/stream';
 import { readableToBuffer, streamToBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { LanguageDetectionLanguageEventSource } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { timeout } from 'vs/base/common/async';
 
 suite('Untitled text editors', () => {
+
+	class TestUntitledTextEditorInput extends UntitledTextEditorInput {
+		getModel() { return this.model; }
+	}
 
 	const disposables = new DisposableStore();
 	let instantiationService: IInstantiationService;
@@ -43,10 +48,18 @@ suite('Untitled text editors', () => {
 		const service = accessor.untitledTextEditorService;
 		const workingCopyService = accessor.workingCopyService;
 
-		const input1 = instantiationService.createInstance(UntitledTextEditorInput, service.create());
+		const events: IUntitledTextEditorModel[] = [];
+		disposables.add(service.onDidCreate(model => {
+			events.push(model);
+		}));
+
+		const input1 = instantiationService.createInstance(TestUntitledTextEditorInput, service.create());
 		await input1.resolve();
-		assert.strictEqual(service.get(input1.resource), input1.model);
+		assert.strictEqual(service.get(input1.resource), input1.getModel());
 		assert.ok(!accessor.untitledTextEditorService.isUntitledWithAssociatedResource(input1.resource));
+
+		assert.strictEqual(events.length, 1);
+		assert.strictEqual(events[0].resource.toString(), input1.getModel().resource.toString());
 
 		assert.ok(service.get(input1.resource));
 		assert.ok(!service.get(URI.file('testing')));
@@ -58,16 +71,16 @@ suite('Untitled text editors', () => {
 		assert.ok(!input1.hasCapability(EditorInputCapabilities.RequiresTrust));
 		assert.ok(!input1.hasCapability(EditorInputCapabilities.Scratchpad));
 
-		const input2 = instantiationService.createInstance(UntitledTextEditorInput, service.create());
-		assert.strictEqual(service.get(input2.resource), input2.model);
+		const input2 = instantiationService.createInstance(TestUntitledTextEditorInput, service.create());
+		assert.strictEqual(service.get(input2.resource), input2.getModel());
 
 		// toUntyped()
 		const untypedInput = input1.toUntyped({ preserveViewState: 0 });
 		assert.strictEqual(untypedInput.forceUntitled, true);
 
 		// get()
-		assert.strictEqual(service.get(input1.resource), input1.model);
-		assert.strictEqual(service.get(input2.resource), input2.model);
+		assert.strictEqual(service.get(input1.resource), input1.getModel());
+		assert.strictEqual(service.get(input2.resource), input2.getModel());
 
 		// revert()
 		await input1.revert(0);
@@ -78,6 +91,9 @@ suite('Untitled text editors', () => {
 		const model = await input2.resolve();
 		assert.strictEqual(await service.resolve({ untitledResource: input2.resource }), model);
 		assert.ok(service.get(model.resource));
+
+		assert.strictEqual(events.length, 2);
+		assert.strictEqual(events[1].resource.toString(), input2.resource.toString());
 
 		assert.ok(!input2.isDirty());
 
@@ -94,6 +110,10 @@ suite('Untitled text editors', () => {
 		const dirtyUntypedInput = input2.toUntyped({ preserveViewState: 0 });
 		assert.strictEqual(dirtyUntypedInput.contents, 'foo bar');
 		assert.strictEqual(dirtyUntypedInput.resource, undefined);
+
+		const dirtyUntypedInputWithResource = input2.toUntyped({ preserveViewState: 0, preserveResource: true });
+		assert.strictEqual(dirtyUntypedInputWithResource.contents, 'foo bar');
+		assert.strictEqual(dirtyUntypedInputWithResource?.resource?.toString(), input2.resource.toString());
 
 		const dirtyUntypedInputWithoutContent = input2.toUntyped();
 		assert.strictEqual(dirtyUntypedInputWithoutContent.resource?.toString(), input2.resource.toString());
@@ -213,10 +233,10 @@ suite('Untitled text editors', () => {
 		const service = accessor.untitledTextEditorService;
 		const workingCopyService = accessor.workingCopyService;
 
-		const untitled = disposables.add(instantiationService.createInstance(UntitledTextEditorInput, service.create({ initialValue: 'Hello World' })));
+		const untitled = disposables.add(instantiationService.createInstance(TestUntitledTextEditorInput, service.create({ initialValue: 'Hello World' })));
 		assert.ok(untitled.isDirty());
 
-		const backup = (await untitled.model.backup(CancellationToken.None)).content;
+		const backup = (await untitled.getModel().backup(CancellationToken.None)).content;
 		if (isReadableStream(backup)) {
 			const value = await streamToBuffer(backup as VSBufferReadableStream);
 			assert.strictEqual(value.toString(), 'Hello World');
@@ -306,9 +326,9 @@ suite('Untitled text editors', () => {
 		const model = disposables.add(service.create());
 		const input = disposables.add(instantiationService.createInstance(UntitledTextEditorInput, model));
 
-		assert.ok(!input.model.hasLanguageSetExplicitly);
+		assert.ok(!input.hasLanguageSetExplicitly);
 		input.setLanguageId(PLAINTEXT_LANGUAGE_ID);
-		assert.ok(input.model.hasLanguageSetExplicitly);
+		assert.ok(input.hasLanguageSetExplicitly);
 
 		assert.strictEqual(input.getLanguageId(), PLAINTEXT_LANGUAGE_ID);
 	});
@@ -326,9 +346,9 @@ suite('Untitled text editors', () => {
 		const input = disposables.add(instantiationService.createInstance(UntitledTextEditorInput, model));
 		disposables.add(await input.resolve());
 
-		assert.ok(!input.model.hasLanguageSetExplicitly);
+		assert.ok(!input.hasLanguageSetExplicitly);
 		model.textEditorModel!.setLanguage(accessor.languageService.createById(language));
-		assert.ok(input.model.hasLanguageSetExplicitly);
+		assert.ok(input.hasLanguageSetExplicitly);
 
 		assert.strictEqual(model.getLanguageId(), language);
 	});
@@ -345,12 +365,12 @@ suite('Untitled text editors', () => {
 		const input = disposables.add(instantiationService.createInstance(UntitledTextEditorInput, model));
 		await input.resolve();
 
-		assert.ok(!input.model.hasLanguageSetExplicitly);
+		assert.ok(!input.hasLanguageSetExplicitly);
 		model.textEditorModel!.setLanguage(
 			accessor.languageService.createById(language),
 			// This is really what this is testing
 			LanguageDetectionLanguageEventSource);
-		assert.ok(!input.model.hasLanguageSetExplicitly);
+		assert.ok(!input.hasLanguageSetExplicitly);
 
 		assert.strictEqual(model.getLanguageId(), language);
 	});
@@ -571,6 +591,33 @@ suite('Untitled text editors', () => {
 		await model.setEncoding('utf16');
 
 		assert.strictEqual(counter, 1, 'Another change to same encoding does not fire event');
+	});
+
+	test('canDispose with dirty model', async function () {
+		const service = accessor.untitledTextEditorService;
+		const input = disposables.add(instantiationService.createInstance(UntitledTextEditorInput, service.create()));
+
+		const model = disposables.add(await input.resolve());
+
+		model.textEditorModel?.setValue('foo');
+
+		const canDisposePromise = service.canDispose(model as UntitledTextEditorModel);
+		assert.ok(canDisposePromise instanceof Promise);
+
+		let canDispose = false;
+		(async () => {
+			canDispose = await canDisposePromise;
+		})();
+
+		assert.strictEqual(canDispose, false);
+		model.revert({ soft: true });
+
+		await timeout(0);
+
+		assert.strictEqual(canDispose, true);
+
+		const canDispose2 = service.canDispose(model as UntitledTextEditorModel);
+		assert.strictEqual(canDispose2, true);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

@@ -68,10 +68,31 @@ suite('resolveCopyDestination', () => {
 		assert.strictEqual(dest.toString(), 'test://projects/project/sub/img.gif');
 	});
 
-	test('transforms should support capture groups', async () => {
+	test('Transforms should support capture groups', async () => {
 		const documentUri = vscode.Uri.parse('test://projects/project/sub/readme.md');
 		const dest = resolveCopyDestination(documentUri, 'img.png', '${fileName/(.+)\\.(.+)/$2.$1/}', () => undefined);
 
 		assert.strictEqual(dest.toString(), 'test://projects/project/sub/png.img');
+	});
+
+	test('Should support escaping snippet variables ', async () => {
+		const documentUri = vscode.Uri.parse('test://projects/project/sub/readme.md');
+
+		// Escape leading '$'
+		assert.strictEqual(
+			resolveCopyDestination(documentUri, 'img.png', '\\${fileName}', () => undefined).toString(true),
+			'test://projects/project/sub/${fileName}');
+
+		// Escape closing '}'
+		assert.strictEqual(
+			resolveCopyDestination(documentUri, 'img.png', '${fileName\\}', () => undefined).toString(true),
+			'test://projects/project/sub/${fileName\\}');
+	});
+
+	test('Transforms should support escaped slashes', async () => {
+		const documentUri = vscode.Uri.parse('test://projects/project/sub/readme.md');
+		const dest = resolveCopyDestination(documentUri, 'img.png', '${fileName/(.+)/x\\/y/}.${fileExtName}', () => undefined);
+
+		assert.strictEqual(dest.toString(), 'test://projects/project/sub/x/y.png');
 	});
 });

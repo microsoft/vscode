@@ -25,20 +25,18 @@ export class FileStorage extends Disposable {
 	private storage: StorageDatabase = Object.create(null);
 	private lastSavedStorageContents = '';
 
-	private readonly flushDelayer: ThrottledDelayer<void> | undefined;
+	private readonly flushDelayer = this._register(new ThrottledDelayer<void>(this.saveStrategy === SaveStrategy.IMMEDIATE ? 0 : 100 /* buffer saves over a short time */));
 
 	private initializing: Promise<void> | undefined = undefined;
 	private closing: Promise<void> | undefined = undefined;
 
 	constructor(
 		private readonly storagePath: URI,
-		saveStrategy: SaveStrategy,
+		private readonly saveStrategy: SaveStrategy,
 		private readonly logService: ILogService,
 		private readonly fileService: IFileService,
 	) {
 		super();
-
-		this.flushDelayer = saveStrategy === SaveStrategy.IMMEDIATE ? undefined : this._register(new ThrottledDelayer<void>(100 /* buffer saves over a short time */));
 	}
 
 	init(): Promise<void> {
@@ -119,11 +117,7 @@ export class FileStorage extends Disposable {
 			return; // already about to close
 		}
 
-		if (this.flushDelayer) {
-			return this.flushDelayer.trigger(() => this.doSave());
-		}
-
-		return this.doSave();
+		return this.flushDelayer.trigger(() => this.doSave());
 	}
 
 	private async doSave(): Promise<void> {
@@ -151,9 +145,7 @@ export class FileStorage extends Disposable {
 
 	async close(): Promise<void> {
 		if (!this.closing) {
-			this.closing = this.flushDelayer
-				? this.flushDelayer.trigger(() => this.doSave(), 0 /* as soon as possible */)
-				: this.doSave();
+			this.closing = this.flushDelayer.trigger(() => this.doSave(), 0 /* as soon as possible */);
 		}
 
 		return this.closing;

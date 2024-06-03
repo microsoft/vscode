@@ -16,12 +16,12 @@ export interface ICreateReadStreamOptions extends IFileReadStreamOptions {
 	/**
 	 * The size of the buffer to use before sending to the stream.
 	 */
-	bufferSize: number;
+	readonly bufferSize: number;
 
 	/**
 	 * Allows to massage any possibly error that happens during reading.
 	 */
-	errorTransformer?: IErrorTransformer;
+	readonly errorTransformer?: IErrorTransformer;
 }
 
 /**

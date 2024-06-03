@@ -59,10 +59,8 @@ declare module 'vscode' {
 		 */
 		label?: string;
 
-		/**
-		 * The optional state of a comment thread, which may affect how the comment is displayed.
-		 */
-		state?: CommentThreadState;
+		// from the commentThreadRelevance proposal
+		state?: CommentThreadState | { resolved?: CommentThreadState; applicability?: CommentThreadApplicability };
 
 		/**
 		 * Dispose this comment thread.

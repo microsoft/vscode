@@ -216,7 +216,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 		if (state.collapsedRegions && state.collapsedRegions.length > 0 && this.foldingModel) {
 			this._restoringViewState = true;
 			try {
-				this.foldingModel.applyMemento(state.collapsedRegions!);
+				this.foldingModel.applyMemento(state.collapsedRegions);
 			} finally {
 				this._restoringViewState = false;
 			}
@@ -476,7 +476,7 @@ export class FoldingController extends Disposable implements IEditorContribution
 				const surrounding = e.event.altKey;
 				let toToggle = [];
 				if (surrounding) {
-					const filter = (otherRegion: FoldingRegion) => !otherRegion.containedBy(region!) && !region!.containedBy(otherRegion);
+					const filter = (otherRegion: FoldingRegion) => !otherRegion.containedBy(region) && !region.containedBy(otherRegion);
 					const toMaybeToggle = foldingModel.getRegionsInside(null, filter);
 					for (const r of toMaybeToggle) {
 						if (r.isCollapsed) {
@@ -623,7 +623,7 @@ class UnfoldAction extends FoldingAction<FoldingArguments> {
 				},
 				weight: KeybindingWeight.EditorContrib
 			},
-			description: {
+			metadata: {
 				description: 'Unfold the content in the editor',
 				args: [
 					{
@@ -708,7 +708,7 @@ class FoldAction extends FoldingAction<FoldingArguments> {
 				},
 				weight: KeybindingWeight.EditorContrib
 			},
-			description: {
+			metadata: {
 				description: 'Fold the content in the editor',
 				args: [
 					{
@@ -1127,7 +1127,7 @@ class FoldRangeFromSelectionAction extends FoldingAction<void> {
 					--endLineNumber;
 				}
 				if (endLineNumber > selection.startLineNumber) {
-					collapseRanges.push(<FoldRange>{
+					collapseRanges.push({
 						startLineNumber: selection.startLineNumber,
 						endLineNumber: endLineNumber,
 						type: undefined,

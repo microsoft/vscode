@@ -8,6 +8,7 @@
 }
 
 .settings-editor {
+	height: 100%;
 	overflow: hidden;
 	max-width: 1200px;
 	margin: auto;
@@ -178,7 +179,6 @@
 	text-decoration: underline;
 }
 
-.settings-editor.no-toc-search > .settings-body .settings-tree-container .monaco-list-row .monaco-tl-contents,
 .settings-editor.narrow-width > .settings-body .settings-tree-container .monaco-list-row .monaco-tl-contents {
 	padding-left: 33px;
 }
@@ -196,6 +196,10 @@
 	background-color: var(--vscode-settings-focusedRowBackground);
 }
 
+.settings-editor > .settings-body .settings-tree-container .monaco-tree-sticky-container .monaco-list-row.focused .settings-row-inner-container {
+	background-color: unset; /* Remove Sticky Scroll focus */
+}
+
 .settings-editor > .settings-body .settings-tree-container .monaco-list-row:not(.focused) .settings-row-inner-container:hover {
 	background-color: var(--vscode-settings-rowHoverBackground);
 }
@@ -203,6 +207,10 @@
 .settings-editor > .settings-body .settings-tree-container .monaco-list:focus-within .monaco-list-row.focused .setting-item-contents,
 .settings-editor > .settings-body .settings-tree-container .monaco-list:focus-within .monaco-list-row.focused .settings-group-title-label {
 	outline: 1px solid var(--vscode-settings-focusedRowBorder);
+}
+
+.settings-editor > .settings-body .settings-tree-container .monaco-list:focus-within .monaco-tree-sticky-container .monaco-list-row.focused .settings-group-title-label {
+	outline: none; /* Remove Sticky Scroll focus */
 }
 
 .settings-editor > .settings-body .settings-tree-container .settings-editor-tree > .monaco-scrollable-element > .shadow.top {
@@ -247,7 +255,6 @@
 	pointer-events: initial;
 }
 
-.settings-editor.no-toc-search > .settings-body .settings-toc-container,
 .settings-editor.narrow-width > .settings-body .settings-toc-container {
 	display: none;
 }
@@ -307,7 +314,6 @@
 	margin: auto;
 }
 
-.settings-editor.no-toc-search > .settings-body .settings-tree-container,
 .settings-editor.narrow-width > .settings-body .settings-tree-container {
 	margin-left: 0px;
 }
@@ -533,7 +539,11 @@
 	line-height: 15px;
 	/** For some reason, this is needed, otherwise <code> will take up 20px height */
 	font-family: var(--monaco-monospace-font);
+	font-size: 11px;
 	color: var(--vscode-textPreformat-foreground);
+	background-color: var(--vscode-textPreformat-background);
+	padding: 1px 3px;
+	border-radius: 4px;
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown .monaco-tokenized-source {
@@ -599,7 +609,12 @@
 }
 
 .monaco-select-box-dropdown-container > .select-box-details-pane > .select-box-description-markdown code {
+	font-family: var(--monaco-monospace-font);
+	font-size: 12px;
 	color: var(--vscode-textPreformat-foreground);
+	background-color: var(--vscode-textPreformat-background);
+	padding: 2px 5px;
+	border-radius: 4px;
 }
 
 .monaco-select-box-dropdown-container > .select-box-details-pane > .select-box-description-markdown a,

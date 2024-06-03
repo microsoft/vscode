@@ -115,11 +115,7 @@ export class FindModel extends Disposable {
 	}
 
 	private _updateCellStates(e: FindReplaceStateChangedEvent) {
-		if (!this._state.filters?.markupInput) {
-			return;
-		}
-
-		if (!this._state.filters?.markupPreview) {
+		if (!this._state.filters?.markupInput || !this._state.filters?.markupPreview || !this._state.filters?.searchInRanges || !this._state.filters?.selectedRanges) {
 			return;
 		}
 
@@ -139,7 +135,9 @@ export class FindModel extends Disposable {
 				includeMarkupInput: true,
 				includeCodeInput: false,
 				includeMarkupPreview: false,
-				includeOutput: false
+				includeOutput: false,
+				searchInRanges: this._state.filters?.searchInRanges,
+				selectedRanges: this._state.filters?.selectedRanges
 			};
 
 			const contentMatches = viewModel.find(this._state.searchString, options);
@@ -281,7 +279,7 @@ export class FindModel extends Disposable {
 			const index = this._notebookEditor.getCellIndex(findMatch.cell);
 			if (index !== undefined) {
 				// const range: ICellRange = { start: index, end: index + 1 };
-				this._notebookEditor.revealCellOffsetInCenterAsync(findMatch.cell, outputOffset ?? 0);
+				this._notebookEditor.revealCellOffsetInCenter(findMatch.cell, outputOffset ?? 0);
 			}
 		} else {
 			const match = findMatch.getMatch(matchIndex) as FindMatch;
@@ -486,7 +484,9 @@ export class FindModel extends Disposable {
 			includeMarkupInput: this._state.filters?.markupInput ?? true,
 			includeCodeInput: this._state.filters?.codeInput ?? true,
 			includeMarkupPreview: !!this._state.filters?.markupPreview,
-			includeOutput: !!this._state.filters?.codeOutput
+			includeOutput: !!this._state.filters?.codeOutput,
+			searchInRanges: this._state.filters?.searchInRanges,
+			selectedRanges: this._state.filters?.selectedRanges
 		};
 
 		ret = await this._notebookEditor.find(val, options, token);
@@ -499,8 +499,8 @@ export class FindModel extends Disposable {
 	}
 
 	private _updateCurrentMatch(findMatches: CellFindMatchWithIndex[], currentMatchesPosition: number) {
-		this.set(findMatches, false);
 		this._currentMatch = currentMatchesPosition % findMatches.length;
+		this.set(findMatches, false);
 		const nextIndex = this._findMatchesStarts!.getIndexOf(this._currentMatch);
 		this.highlightCurrentFindMatchDecoration(nextIndex.index, nextIndex.remainder);
 

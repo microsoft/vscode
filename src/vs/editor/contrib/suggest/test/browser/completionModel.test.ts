@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { EditorOptions, InternalSuggestOptions } from 'vs/editor/common/config/editorOptions';
 import { IPosition } from 'vs/editor/common/core/position';
 import * as languages from 'vs/editor/common/languages';
@@ -82,6 +83,8 @@ suite('CompletionModel', function () {
 			characterCountDelta: 0
 		}, WordDistance.None, EditorOptions.suggest.defaultValue, EditorOptions.snippetSuggestions.defaultValue, undefined);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('filtering - cached', function () {
 

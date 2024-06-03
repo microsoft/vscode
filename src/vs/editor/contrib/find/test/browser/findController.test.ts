@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import { Delayer } from 'vs/base/common/async';
 import * as platform from 'vs/base/common/platform';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction } from 'vs/editor/browser/editorExtensions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
@@ -17,8 +18,10 @@ import { CONTEXT_FIND_INPUT_FOCUSED } from 'vs/editor/contrib/find/browser/findM
 import { withAsyncTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 class TestFindController extends CommonFindController {
@@ -32,9 +35,11 @@ class TestFindController extends CommonFindController {
 		editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IStorageService storageService: IStorageService,
-		@IClipboardService clipboardService: IClipboardService
+		@IClipboardService clipboardService: IClipboardService,
+		@INotificationService notificationService: INotificationService,
+		@IHoverService hoverService: IHoverService
 	) {
-		super(editor, contextKeyService, storageService, clipboardService);
+		super(editor, contextKeyService, storageService, clipboardService, notificationService, hoverService);
 		this._findInputFocused = CONTEXT_FIND_INPUT_FOCUSED.bindTo(contextKeyService);
 		this._updateHistoryDelayer = new Delayer<void>(50);
 		this.hasFocus = false;
@@ -63,6 +68,9 @@ function executeAction(instantiationService: IInstantiationService, editor: ICod
 }
 
 suite('FindController', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	let clipboardState = '';
 	const serviceCollection = new ServiceCollection();
 	serviceCollection.set(IStorageService, new InMemoryStorageService());
@@ -476,6 +484,9 @@ suite('FindController', () => {
 });
 
 suite('FindController query options persistence', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	const serviceCollection = new ServiceCollection();
 	const storageService = new InMemoryStorageService();
 	storageService.store('editor.isRegex', false, StorageScope.WORKSPACE, StorageTarget.USER);

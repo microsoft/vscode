@@ -17,7 +17,7 @@ import { IPickOptions, IQuickInputService, IQuickPickItem, QuickPickInput } from
 import { ExternalUriOpenerService, IExternalOpenerProvider, IExternalUriOpener } from 'vs/workbench/contrib/externalUriOpener/common/externalUriOpenerService';
 
 
-class MockQuickInputService implements Partial<IQuickInputService>{
+class MockQuickInputService implements Partial<IQuickInputService> {
 
 	constructor(
 		private readonly pickIndex: number

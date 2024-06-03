@@ -31,6 +31,7 @@ const { getUserDataPath } = require(`./vs/platform/environment/node/userDataPath
 const { stripComments } = require(`./vs/base/common/stripComments${requireExtension}`);
 const { getUNCHost, addUNCHostToAllowlist } = require(`./vs/base/node/unc${requireExtension}`);
 /** @type {Partial<IProductConfiguration>} */
+// @ts-ignore
 const product = require('../product.json');
 const { app, protocol, crashReporter, Menu } = require('electron');
 
@@ -103,11 +104,11 @@ if (portable && portable.isPortable) {
 protocol.registerSchemesAsPrivileged([
 	{
 		scheme: 'vscode-webview',
-		privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, allowServiceWorkers: true, }
+		privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, allowServiceWorkers: true, codeCache: true }
 	},
 	{
 		scheme: 'vscode-file',
-		privileges: { secure: true, standard: true, supportFetchAPI: true, corsEnabled: true }
+		privileges: { secure: true, standard: true, supportFetchAPI: true, corsEnabled: true, codeCache: true }
 	}
 ]);
 
@@ -210,14 +211,16 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		// override for the color profile to use
 		'force-color-profile',
 
-		// override which password-store is used
-		'password-store'
+		// disable LCD font rendering, a Chromium flag
+		'disable-lcd-text'
 	];
 
 	if (process.platform === 'linux') {
-
 		// Force enable screen readers on Linux via this flag
 		SUPPORTED_ELECTRON_SWITCHES.push('force-renderer-accessibility');
+
+		// override which password-store is used on Linux
+		SUPPORTED_ELECTRON_SWITCHES.push('password-store');
 	}
 
 	const SUPPORTED_MAIN_PROCESS_SWITCHES = [
@@ -226,7 +229,10 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		'enable-proposed-api',
 
 		// Log level to use. Default is 'info'. Allowed values are 'error', 'warn', 'info', 'debug', 'trace', 'off'.
-		'log-level'
+		'log-level',
+
+		// Use an in-memory storage for secrets
+		'use-inmemory-secretstorage'
 	];
 
 	// Read argv config
@@ -237,24 +243,24 @@ function configureCommandlineSwitchesSync(cliArgs) {
 
 		// Append Electron flags to Electron
 		if (SUPPORTED_ELECTRON_SWITCHES.indexOf(argvKey) !== -1) {
-
-			if (
-				// Color profile
-				argvKey === 'force-color-profile' ||
-				// Password store
-				argvKey === 'password-store'
-			) {
-				if (argvValue) {
-					app.commandLine.appendSwitch(argvKey, argvValue);
-				}
-			}
-
-			// Others
-			else if (argvValue === true || argvValue === 'true') {
+			if (argvValue === true || argvValue === 'true') {
 				if (argvKey === 'disable-hardware-acceleration') {
 					app.disableHardwareAcceleration(); // needs to be called explicitly
 				} else {
 					app.commandLine.appendSwitch(argvKey);
+				}
+			} else if (argvValue) {
+				if (argvKey === 'force-color-profile') {
+					// Color profile
+					app.commandLine.appendSwitch(argvKey, argvValue);
+				} else if (argvKey === 'password-store') {
+					// Password store
+					// TODO@TylerLeonhardt: Remove this migration in 3 months
+					let migratedArgvValue = argvValue;
+					if (argvValue === 'gnome' || argvValue === 'gnome-keyring') {
+						migratedArgvValue = 'gnome-libsecret';
+					}
+					app.commandLine.appendSwitch(argvKey, migratedArgvValue);
 				}
 			}
 		}
@@ -279,13 +285,21 @@ function configureCommandlineSwitchesSync(cliArgs) {
 						}
 					}
 					break;
+
+				case 'use-inmemory-secretstorage':
+					if (argvValue) {
+						process.argv.push('--use-inmemory-secretstorage');
+					}
+					break;
 			}
 		}
 	});
 
 	// Following features are disabled from the runtime:
 	// `CalculateNativeWinOcclusion` - Disable native window occlusion tracker (https://groups.google.com/a/chromium.org/g/embedder-dev/c/ZF3uHHyWLKw/m/VDN2hDXMAAAJ)
-	app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+	const featuresToDisable =
+		`CalculateNativeWinOcclusion,${app.commandLine.getSwitchValue('disable-features')}`;
+	app.commandLine.appendSwitch('disable-features', featuresToDisable);
 
 	// Support JS Flags
 	const jsFlags = getJSFlags(cliArgs);
@@ -408,9 +422,6 @@ function configureCrashReporter() {
 			if (uuidPattern.test(crashReporterId)) {
 				if (isWindows) {
 					switch (process.arch) {
-						case 'ia32':
-							submitURL = appCenter['win32-ia32'];
-							break;
 						case 'x64':
 							submitURL = appCenter['win32-x64'];
 							break;
@@ -513,6 +524,7 @@ function registerListeners() {
 	 * @type {string[]}
 	 */
 	const macOpenFiles = [];
+	// @ts-ignore
 	global['macOpenFiles'] = macOpenFiles;
 	app.on('open-file', function (event, path) {
 		macOpenFiles.push(path);
@@ -539,6 +551,7 @@ function registerListeners() {
 		app.on('open-url', onOpenUrl);
 	});
 
+	// @ts-ignore
 	global['getOpenUrls'] = function () {
 		app.removeListener('open-url', onOpenUrl);
 

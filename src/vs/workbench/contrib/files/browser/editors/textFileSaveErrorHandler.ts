@@ -9,7 +9,7 @@ import { basename, isEqual } from 'vs/base/common/resources';
 import { Action } from 'vs/base/common/actions';
 import { URI } from 'vs/base/common/uri';
 import { FileOperationError, FileOperationResult, IWriteFileOptions } from 'vs/platform/files/common/files';
-import { ITextFileService, ISaveErrorHandler, ITextFileEditorModel, ITextFileSaveAsOptions } from 'vs/workbench/services/textfile/common/textfiles';
+import { ITextFileService, ISaveErrorHandler, ITextFileEditorModel, ITextFileSaveAsOptions, ITextFileSaveOptions } from 'vs/workbench/services/textfile/common/textfiles';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -41,6 +41,8 @@ const conflictEditorHelp = localize('userGuide', "Use the actions in the editor 
 
 // A handler for text file save error happening with conflict resolution actions
 export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHandler, IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.textFileSaveErrorHandler';
 
 	private readonly messages = new ResourceMap<INotificationHandle>();
 	private readonly conflictResolutionContext = new RawContextKey<boolean>(CONFLICT_RESOLUTION_CONTEXT, false, true).bindTo(this.contextKeyService);
@@ -97,7 +99,7 @@ export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHa
 		}
 	}
 
-	onSaveError(error: unknown, model: ITextFileEditorModel): void {
+	onSaveError(error: unknown, model: ITextFileEditorModel, options: ITextFileSaveOptions): void {
 		const fileOperationError = error as FileOperationError;
 		const resource = model.resource;
 
@@ -125,7 +127,7 @@ export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHa
 				message = localize('staleSaveError', "Failed to save '{0}': The content of the file is newer. Please compare your version with the file contents or overwrite the content of the file with your changes.", basename(resource));
 
 				primaryActions.push(this.instantiationService.createInstance(ResolveSaveConflictAction, model));
-				primaryActions.push(this.instantiationService.createInstance(SaveModelIgnoreModifiedSinceAction, model));
+				primaryActions.push(this.instantiationService.createInstance(SaveModelIgnoreModifiedSinceAction, model, options));
 
 				secondaryActions.push(this.instantiationService.createInstance(ConfigureSaveConflictAction));
 			}
@@ -140,17 +142,17 @@ export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHa
 
 			// Save Elevated
 			if (canSaveElevated && (isPermissionDenied || triedToUnlock)) {
-				primaryActions.push(this.instantiationService.createInstance(SaveModelElevatedAction, model, !!triedToUnlock));
+				primaryActions.push(this.instantiationService.createInstance(SaveModelElevatedAction, model, options, !!triedToUnlock));
 			}
 
 			// Unlock
 			else if (isWriteLocked) {
-				primaryActions.push(this.instantiationService.createInstance(UnlockModelAction, model));
+				primaryActions.push(this.instantiationService.createInstance(UnlockModelAction, model, options));
 			}
 
 			// Retry
 			else {
-				primaryActions.push(this.instantiationService.createInstance(RetrySaveModelAction, model));
+				primaryActions.push(this.instantiationService.createInstance(RetrySaveModelAction, model, options));
 			}
 
 			// Save As
@@ -270,6 +272,7 @@ class SaveModelElevatedAction extends Action {
 
 	constructor(
 		private model: ITextFileEditorModel,
+		private options: ITextFileSaveOptions,
 		private triedToUnlock: boolean
 	) {
 		super('workbench.files.action.saveModelElevated', triedToUnlock ? isWindows ? localize('overwriteElevated', "Overwrite as Admin...") : localize('overwriteElevatedSudo', "Overwrite as Sudo...") : isWindows ? localize('saveElevated', "Retry as Admin...") : localize('saveElevatedSudo', "Retry as Sudo..."));
@@ -278,6 +281,7 @@ class SaveModelElevatedAction extends Action {
 	override async run(): Promise<void> {
 		if (!this.model.isDisposed()) {
 			await this.model.save({
+				...this.options,
 				writeElevated: true,
 				writeUnlock: this.triedToUnlock,
 				reason: SaveReason.EXPLICIT
@@ -289,14 +293,15 @@ class SaveModelElevatedAction extends Action {
 class RetrySaveModelAction extends Action {
 
 	constructor(
-		private model: ITextFileEditorModel
+		private model: ITextFileEditorModel,
+		private options: ITextFileSaveOptions
 	) {
 		super('workbench.files.action.saveModel', localize('retry', "Retry"));
 	}
 
 	override async run(): Promise<void> {
 		if (!this.model.isDisposed()) {
-			await this.model.save({ reason: SaveReason.EXPLICIT });
+			await this.model.save({ ...this.options, reason: SaveReason.EXPLICIT });
 		}
 	}
 }
@@ -322,7 +327,7 @@ class SaveModelAsAction extends Action {
 		private model: ITextFileEditorModel,
 		@IEditorService private editorService: IEditorService
 	) {
-		super('workbench.files.action.saveModelAs', SAVE_FILE_AS_LABEL);
+		super('workbench.files.action.saveModelAs', SAVE_FILE_AS_LABEL.value);
 	}
 
 	override async run(): Promise<void> {
@@ -358,14 +363,15 @@ class SaveModelAsAction extends Action {
 class UnlockModelAction extends Action {
 
 	constructor(
-		private model: ITextFileEditorModel
+		private model: ITextFileEditorModel,
+		private options: ITextFileSaveOptions
 	) {
 		super('workbench.files.action.unlock', localize('overwrite', "Overwrite"));
 	}
 
 	override async run(): Promise<void> {
 		if (!this.model.isDisposed()) {
-			await this.model.save({ writeUnlock: true, reason: SaveReason.EXPLICIT });
+			await this.model.save({ ...this.options, writeUnlock: true, reason: SaveReason.EXPLICIT });
 		}
 	}
 }
@@ -373,14 +379,15 @@ class UnlockModelAction extends Action {
 class SaveModelIgnoreModifiedSinceAction extends Action {
 
 	constructor(
-		private model: ITextFileEditorModel
+		private model: ITextFileEditorModel,
+		private options: ITextFileSaveOptions
 	) {
 		super('workbench.files.action.saveIgnoreModifiedSince', localize('overwrite', "Overwrite"));
 	}
 
 	override async run(): Promise<void> {
 		if (!this.model.isDisposed()) {
-			await this.model.save({ ignoreModifiedSince: true, reason: SaveReason.EXPLICIT });
+			await this.model.save({ ...this.options, ignoreModifiedSince: true, reason: SaveReason.EXPLICIT });
 		}
 	}
 }

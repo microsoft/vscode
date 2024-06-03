@@ -29,6 +29,30 @@ const schema: IJSONSchema = {
 			description: nls.localize('schema.file', 'The default file icon, shown for all files that don\'t match any extension, filename or language id.')
 
 		},
+		rootFolder: {
+			type: 'string',
+			description: nls.localize('schema.rootFolder', 'The folder icon for collapsed root folders, and if rootFolderExpanded is not set, also for expanded root folders.')
+		},
+		rootFolderExpanded: {
+			type: 'string',
+			description: nls.localize('schema.rootFolderExpanded', 'The folder icon for expanded root folders. The expanded root folder icon is optional. If not set, the icon defined for root folder will be shown.')
+		},
+		rootFolderNames: {
+			type: 'object',
+			description: nls.localize('schema.rootFolderNames', 'Associates root folder names to icons. The object key is the root folder name. No patterns or wildcards are allowed. Root folder name matching is case insensitive.'),
+			additionalProperties: {
+				type: 'string',
+				description: nls.localize('schema.folderName', 'The ID of the icon definition for the association.')
+			}
+		},
+		rootFolderNamesExpanded: {
+			type: 'object',
+			description: nls.localize('schema.rootFolderNamesExpanded', 'Associates root folder names to icons for expanded root folders. The object key is the root folder name. No patterns or wildcards are allowed. Root folder name matching is case insensitive.'),
+			additionalProperties: {
+				type: 'string',
+				description: nls.localize('schema.rootFolderNameExpanded', 'The ID of the icon definition for the association.')
+			}
+		},
 		folderNames: {
 			type: 'object',
 			description: nls.localize('schema.folderNames', 'Associates folder names to icons. The object key is the folder name, not including any path segments. No patterns or wildcards are allowed. Folder name matching is case insensitive.'),
@@ -89,6 +113,18 @@ const schema: IJSONSchema = {
 				},
 				folderNamesExpanded: {
 					$ref: '#/definitions/folderNamesExpanded'
+				},
+				rootFolder: {
+					$ref: '#/definitions/rootFolder'
+				},
+				rootFolderExpanded: {
+					$ref: '#/definitions/rootFolderExpanded'
+				},
+				rootFolderNames: {
+					$ref: '#/definitions/rootFolderNames'
+				},
+				rootFolderNamesExpanded: {
+					$ref: '#/definitions/rootFolderNamesExpanded'
 				},
 				fileExtensions: {
 					$ref: '#/definitions/fileExtensions'
@@ -205,6 +241,18 @@ const schema: IJSONSchema = {
 		},
 		folderNamesExpanded: {
 			$ref: '#/definitions/folderNamesExpanded'
+		},
+		rootFolder: {
+			$ref: '#/definitions/rootFolder'
+		},
+		rootFolderExpanded: {
+			$ref: '#/definitions/rootFolderExpanded'
+		},
+		rootFolderNames: {
+			$ref: '#/definitions/rootFolderNames'
+		},
+		rootFolderNamesExpanded: {
+			$ref: '#/definitions/rootFolderNamesExpanded'
 		},
 		fileExtensions: {
 			$ref: '#/definitions/fileExtensions'

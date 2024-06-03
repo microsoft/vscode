@@ -170,6 +170,8 @@ flakySuite('StateService', () => {
 		assert.strictEqual(service.getItem('some.setItems.key3'), undefined);
 		assert.strictEqual(service.getItem('some.setItems.key4'), undefined);
 		assert.strictEqual(service.getItem('some.setItems.key5'), undefined);
+
+		return service.close();
 	});
 
 	test('Multiple ops are buffered and applied', async function () {
@@ -199,6 +201,8 @@ flakySuite('StateService', () => {
 		assert.strictEqual(service.getItem('some.key2'), 'some.value2');
 		assert.strictEqual(service.getItem('some.key3'), 'some.value3');
 		assert.strictEqual(service.getItem('some.key4'), undefined);
+
+		return service.close();
 	});
 
 	test('Multiple ops (Immediate Strategy)', async function () {
@@ -228,6 +232,8 @@ flakySuite('StateService', () => {
 		assert.strictEqual(service.getItem('some.key2'), 'some.value2');
 		assert.strictEqual(service.getItem('some.key3'), 'some.value3');
 		assert.strictEqual(service.getItem('some.key4'), undefined);
+
+		return service.close();
 	});
 
 	test('Used before init', async function () {
@@ -253,6 +259,8 @@ flakySuite('StateService', () => {
 		assert.strictEqual(service.getItem('some.key2'), 'some.value2');
 		assert.strictEqual(service.getItem('some.key3'), 'some.value3');
 		assert.strictEqual(service.getItem('some.key4'), undefined);
+
+		return service.close();
 	});
 
 	test('Used after close', async function () {
@@ -276,7 +284,7 @@ flakySuite('StateService', () => {
 		assert.ok(contents.includes('some.value1'));
 		assert.ok(!contents.includes('some.marker'));
 
-		await service.close();
+		return service.close();
 	});
 
 	test('Closed before init', async function () {

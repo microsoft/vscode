@@ -29,7 +29,7 @@ export async function resolveElectronConfiguration(options: LaunchOptions): Prom
 		'--disable-telemetry',
 		'--no-cached-data',
 		'--disable-updates',
-		'--disable-keytar',
+		'--use-inmemory-secretstorage',
 		`--crash-reporter-directory=${crashesPath}`,
 		'--disable-workspace-trust',
 		`--extensions-dir=${extensionsPath}`,

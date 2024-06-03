@@ -157,7 +157,7 @@ export class LanguageDetectionSimpleWorker extends EditorSimpleWorker {
 			}
 		});
 
-		return this._modelOperations!;
+		return this._modelOperations;
 	}
 
 	// This adjusts the language confidence scores to be more accurate based on:

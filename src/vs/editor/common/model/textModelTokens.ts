@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IdleDeadline, runWhenIdle } from 'vs/base/common/async';
+import { IdleDeadline, runWhenGlobalIdle } from 'vs/base/common/async';
 import { BugIndicatingError, onUnexpectedError } from 'vs/base/common/errors';
 import { setTimeout0 } from 'vs/base/common/platform';
 import { StopWatch } from 'vs/base/common/stopwatch';
@@ -126,6 +126,11 @@ export class TokenizerWithStateStoreAndTextModel<TState extends IState = IState>
 
 		const lineTokens = new LineTokens(result.tokens, newLineContent, this._languageIdCodec);
 		return lineTokens;
+	}
+
+	public hasAccurateTokensForLine(lineNumber: number): boolean {
+		const firstInvalidLineNumber = this.store.getFirstInvalidEndStateLineNumberOrMax();
+		return (lineNumber < firstInvalidLineNumber);
 	}
 
 	public isCheapToTokenize(lineNumber: number): boolean {
@@ -462,7 +467,7 @@ export class DefaultBackgroundTokenizer implements IBackgroundTokenizer {
 		}
 
 		this._isScheduled = true;
-		runWhenIdle((deadline) => {
+		runWhenGlobalIdle((deadline) => {
 			this._isScheduled = false;
 
 			this._backgroundTokenizeWithDeadline(deadline);

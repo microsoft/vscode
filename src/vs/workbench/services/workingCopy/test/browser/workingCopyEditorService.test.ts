@@ -27,7 +27,7 @@ suite('WorkingCopyEditorService', () => {
 	});
 
 	test('registry - basics', () => {
-		const service = disposables.add(new WorkingCopyEditorService(new TestEditorService()));
+		const service = disposables.add(new WorkingCopyEditorService(disposables.add(new TestEditorService())));
 
 		let handlerEvent: IWorkingCopyEditorHandler | undefined = undefined;
 		disposables.add(service.onDidRegisterHandler(handler => {
@@ -52,7 +52,7 @@ suite('WorkingCopyEditorService', () => {
 		const part = await createEditorPart(instantiationService, disposables);
 		instantiationService.stub(IEditorGroupsService, part);
 
-		const editorService = disposables.add(instantiationService.createInstance(EditorService));
+		const editorService = disposables.add(instantiationService.createInstance(EditorService, undefined));
 		const accessor = instantiationService.createInstance(TestServiceAccessor);
 
 		const service = disposables.add(new WorkingCopyEditorService(editorService));

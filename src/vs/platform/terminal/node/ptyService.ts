@@ -15,8 +15,8 @@ import { RequestStore } from 'vs/platform/terminal/common/requestStore';
 import { IProcessDataEvent, IProcessReadyEvent, IPtyService, IRawTerminalInstanceLayoutInfo, IReconnectConstants, IShellLaunchConfig, ITerminalInstanceLayoutInfoById, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalTabLayoutInfoById, TerminalIcon, IProcessProperty, TitleEventSource, ProcessPropertyType, IProcessPropertyMap, IFixedTerminalDimensions, IPersistentTerminalProcessLaunchConfig, ICrossVersionSerializedTerminalState, ISerializedTerminalState, ITerminalProcessOptions, IPtyHostLatencyMeasurement } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
-import type { ISerializeOptions, SerializeAddon as XtermSerializeAddon } from 'xterm-addon-serialize';
-import type { Unicode11Addon as XtermUnicode11Addon } from 'xterm-addon-unicode11';
+import type { ISerializeOptions, SerializeAddon as XtermSerializeAddon } from '@xterm/addon-serialize';
+import type { Unicode11Addon as XtermUnicode11Addon } from '@xterm/addon-unicode11';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs, ITerminalTabLayoutInfoDto } from 'vs/platform/terminal/common/terminalProcess';
 import { getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
 import { TerminalProcess } from 'vs/platform/terminal/node/terminalProcess';
@@ -30,10 +30,10 @@ import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/capabili
 import { IProductService } from 'vs/platform/product/common/productService';
 import { join } from 'path';
 // ESM-comment-begin
-import { Terminal as XtermTerminal } from 'xterm-headless';
+import { Terminal as XtermTerminal } from '@xterm/headless';
 // ESM-comment-end
 // ESM-uncomment-begin
-// import pkg from 'xterm-headless';
+// import pkg from '@xterm/headless';
 // type XtermTerminal = pkg.Terminal;
 // const { Terminal: XtermTerminal } = pkg;
 // ESM-uncomment-end
@@ -1072,14 +1072,14 @@ class XtermSerializer implements ITerminalSerializer {
 
 	async _getUnicode11Constructor(): Promise<typeof Unicode11Addon> {
 		if (!Unicode11Addon) {
-			Unicode11Addon = (await import('xterm-addon-unicode11')).Unicode11Addon;
+			Unicode11Addon = (await import('@xterm/addon-unicode11')).Unicode11Addon;
 		}
 		return Unicode11Addon;
 	}
 
 	async _getSerializeConstructor(): Promise<typeof SerializeAddon> {
 		if (!SerializeAddon) {
-			SerializeAddon = (await import('xterm-addon-serialize')).SerializeAddon;
+			SerializeAddon = (await import('@xterm/addon-serialize')).SerializeAddon;
 		}
 		return SerializeAddon;
 	}

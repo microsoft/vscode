@@ -5,12 +5,16 @@
 
 import * as assert from 'assert';
 import { splitLines } from 'vs/base/common/strings';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { BeforeEditPositionMapper, TextEditInfo } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/beforeEditPositionMapper';
 import { Length, lengthOfString, lengthToObj, lengthToPosition, toLength } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/length';
 
 suite('Bracket Pair Colorizer - BeforeEditPositionMapper', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('Single-Line 1', () => {
 		assert.deepStrictEqual(
 			compute(

@@ -71,8 +71,8 @@
 					"modifiedRange": "[16,40 -> 16,47]"
 				},
 				{
-					"originalRange": "[14,196 -> 14,211]",
-					"modifiedRange": "[16,51 -> 17,1]"
+					"originalRange": "[14,196 -> 14,211 EOL]",
+					"modifiedRange": "[16,51 -> 17,1 EOL]"
 				}
 			]
 		},
@@ -101,8 +101,8 @@
 					"modifiedRange": "[21,39 -> 21,43]"
 				},
 				{
-					"originalRange": "[17,71 -> 17,72]",
-					"modifiedRange": "[21,74 -> 22,1]"
+					"originalRange": "[17,71 -> 17,72 EOL]",
+					"modifiedRange": "[21,74 -> 22,1 EOL]"
 				},
 				{
 					"originalRange": "[18,3 -> 19,26]",
@@ -152,8 +152,8 @@
 					"modifiedRange": "[34,12 -> 36,16]"
 				},
 				{
-					"originalRange": "[30,30 -> 30,31]",
-					"modifiedRange": "[36,20 -> 37,9]"
+					"originalRange": "[30,30 -> 30,31 EOL]",
+					"modifiedRange": "[36,20 -> 37,9 EOL]"
 				}
 			]
 		}

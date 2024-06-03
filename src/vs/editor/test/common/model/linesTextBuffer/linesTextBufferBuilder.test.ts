@@ -5,19 +5,22 @@
 
 import * as assert from 'assert';
 import * as strings from 'vs/base/common/strings';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { DefaultEndOfLine } from 'vs/editor/common/model';
-import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 
 function testTextBufferFactory(text: string, eol: string, mightContainNonBasicASCII: boolean, mightContainRTL: boolean): void {
-	const textBuffer = <PieceTreeTextBuffer>createTextBufferFactory(text).create(DefaultEndOfLine.LF).textBuffer;
+	const { disposable, textBuffer } = createTextBufferFactory(text).create(DefaultEndOfLine.LF);
 
 	assert.strictEqual(textBuffer.mightContainNonBasicASCII(), mightContainNonBasicASCII);
 	assert.strictEqual(textBuffer.mightContainRTL(), mightContainRTL);
 	assert.strictEqual(textBuffer.getEOL(), eol);
+	disposable.dispose();
 }
 
 suite('ModelBuilder', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('t1', () => {
 		testTextBufferFactory('', '\n', false, false);
@@ -45,10 +48,6 @@ suite('ModelBuilder', () => {
 
 	test('carriage return detection (3 \\r\\n 0 \\n)', () => {
 		testTextBufferFactory('Hello world\r\nHow are you?\r\nIs everything good today?\r\nDo you enjoy the weather?', '\r\n', false, false);
-	});
-
-	test('BOM handling', () => {
-		testTextBufferFactory(strings.UTF8_BOM_CHARACTER + 'Hello world!', '\n', false, false);
 	});
 
 	test('BOM handling', () => {

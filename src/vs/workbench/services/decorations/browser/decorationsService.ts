@@ -87,7 +87,7 @@ class DecorationRule {
 
 	private _appendForMany(data: IDecorationData[], element: HTMLStyleElement): void {
 		// label
-		const { color } = data[0];
+		const { color } = data.find(d => !!d.color) ?? data[0];
 		createCSSRule(`.${this.itemColorClassName}`, `color: ${getColor(color)};`, element);
 
 		// badge or icon
@@ -158,16 +158,15 @@ class DecorationRule {
 
 class DecorationStyles {
 
-	private readonly _styleElement = createStyleSheet();
-	private readonly _decorationRules = new Map<string, DecorationRule>();
 	private readonly _dispoables = new DisposableStore();
+	private readonly _styleElement = createStyleSheet(undefined, undefined, this._dispoables);
+	private readonly _decorationRules = new Map<string, DecorationRule>();
 
 	constructor(private readonly _themeService: IThemeService) {
 	}
 
 	dispose(): void {
 		this._dispoables.dispose();
-		this._styleElement.remove();
 	}
 
 	asDecoration(data: IDecorationData[], onlyChildren: boolean): IDecoration {

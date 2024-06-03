@@ -49,13 +49,10 @@ export class InsertSnippetAction extends SnippetEditorAction {
 	constructor() {
 		super({
 			id: 'editor.action.insertSnippet',
-			title: {
-				value: nls.localize('snippet.suggestions.label', "Insert Snippet"),
-				original: 'Insert Snippet'
-			},
+			title: nls.localize2('snippet.suggestions.label', "Insert Snippet"),
 			f1: true,
 			precondition: EditorContextKeys.writable,
-			description: {
+			metadata: {
 				description: `Insert Snippet`,
 				args: [{
 					name: 'args',

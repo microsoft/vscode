@@ -7,32 +7,32 @@ import * as assert from 'assert';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/browser/workbenchTestServices';
-import { toResource } from 'vs/base/test/common/utils';
+import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from 'vs/base/test/common/utils';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
 import { bufferToStream, VSBuffer } from 'vs/base/common/buffer';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 
 suite('Files - TextFileEditorModel (integration)', () => {
 
-	let disposables: DisposableStore;
+	const disposables = new DisposableStore();
+
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 	let content: string;
 
 	setup(() => {
-		disposables = new DisposableStore();
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 		content = accessor.fileService.getContent();
+		disposables.add(toDisposable(() => accessor.fileService.setContent(content)));
+		disposables.add(<TextFileEditorModelManager>accessor.textFileService.files);
 	});
 
 	teardown(() => {
-		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
-		accessor.fileService.setContent(content);
-		disposables.dispose();
+		disposables.clear();
 	});
 
 	test('backup and restore (simple)', async function () {
@@ -45,7 +45,7 @@ suite('Files - TextFileEditorModel (integration)', () => {
 	});
 
 	async function testBackupAndRestore(resourceA: URI, resourceB: URI, contents: string): Promise<void> {
-		const originalModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, resourceA, 'utf8', undefined);
+		const originalModel: TextFileEditorModel = disposables.add(instantiationService.createInstance(TextFileEditorModel, resourceA, 'utf8', undefined));
 		await originalModel.resolve({
 			contents: await createTextBufferFactoryFromStream(await accessor.textFileService.getDecodedStream(resourceA, bufferToStream(VSBuffer.fromString(contents))))
 		});
@@ -56,13 +56,12 @@ suite('Files - TextFileEditorModel (integration)', () => {
 		const modelRestoredIdentifier = { typeId: originalModel.typeId, resource: resourceB };
 		await accessor.workingCopyBackupService.backup(modelRestoredIdentifier, backup.content);
 
-		const modelRestored: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, modelRestoredIdentifier.resource, 'utf8', undefined);
+		const modelRestored: TextFileEditorModel = disposables.add(instantiationService.createInstance(TextFileEditorModel, modelRestoredIdentifier.resource, 'utf8', undefined));
 		await modelRestored.resolve();
 
 		assert.strictEqual(modelRestored.textEditorModel?.getValue(), contents);
 		assert.strictEqual(modelRestored.isDirty(), true);
-
-		originalModel.dispose();
-		modelRestored.dispose();
 	}
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

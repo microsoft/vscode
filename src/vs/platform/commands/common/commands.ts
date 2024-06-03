@@ -9,6 +9,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { TypeConstraint, validateConstraints } from 'vs/base/common/types';
+import { ILocalizedString } from 'vs/platform/action/common/action';
 import { createDecorator, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 export const ICommandService = createDecorator<ICommandService>('commandService');
@@ -34,12 +35,19 @@ export interface ICommandHandler {
 export interface ICommand {
 	id: string;
 	handler: ICommandHandler;
-	description?: ICommandHandlerDescription | null;
+	metadata?: ICommandMetadata | null;
 }
 
-export interface ICommandHandlerDescription {
-	readonly description: string;
-	readonly args: ReadonlyArray<{
+export interface ICommandMetadata {
+	/**
+	 * NOTE: Please use an ILocalizedString. string is in the type for backcompat for now.
+	 * A short summary of what the command does. This will be used in:
+	 * - API commands
+	 * - when showing keybindings that have no other UX
+	 * - when searching for commands in the Command Palette
+	 */
+	readonly description: ILocalizedString | string;
+	readonly args?: ReadonlyArray<{
 		readonly name: string;
 		readonly isOptional?: boolean;
 		readonly description?: string;
@@ -79,9 +87,9 @@ export const CommandsRegistry: ICommandRegistry = new class implements ICommandR
 		}
 
 		// add argument validation if rich command metadata is provided
-		if (idOrCommand.description) {
+		if (idOrCommand.metadata && Array.isArray(idOrCommand.metadata.args)) {
 			const constraints: Array<TypeConstraint | undefined> = [];
-			for (const arg of idOrCommand.description.args) {
+			for (const arg of idOrCommand.metadata.args) {
 				constraints.push(arg.constraint);
 			}
 			const actualHandler = idOrCommand.handler;

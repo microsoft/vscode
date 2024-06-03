@@ -39,26 +39,26 @@ export async function getProxyAgent(rawRequestURL: string, env: typeof process.e
 
 	const opts = {
 		host: proxyEndpoint.hostname || '',
-		port: proxyEndpoint.port || (proxyEndpoint.protocol === 'https' ? '443' : '80'),
+		port: (proxyEndpoint.port ? +proxyEndpoint.port : 0) || (proxyEndpoint.protocol === 'https' ? 443 : 80),
 		auth: proxyEndpoint.auth,
 		rejectUnauthorized: isBoolean(options.strictSSL) ? options.strictSSL : true,
 	};
 
 	if (requestURL.protocol === 'http:') {
 		// ESM-comment-begin
-		const ctor = await import('http-proxy-agent');
+		const mod = await import('http-proxy-agent');
 		// ESM-comment-end
 		// ESM-uncomment-begin
-		// const ctor = (await import('http-proxy-agent')).default;
+		// const mod = (await import('http-proxy-agent')).default;
 		// ESM-uncomment-end
-		return new ctor(opts as any as Url);
+		return new mod.HttpProxyAgent(proxyURL, opts);
 	} else {
 		// ESM-comment-begin
-		const ctor = await import('https-proxy-agent');
+		const mod = await import('https-proxy-agent');
 		// ESM-comment-end
 		// ESM-uncomment-begin
-		// const ctor = (await import('https-proxy-agent')).default;
+		// const mod = (await import('https-proxy-agent')).default;
 		// ESM-uncomment-end
-		return new ctor(opts);
+		return new mod.HttpProxyAgent(proxyURL, opts);
 	}
 }

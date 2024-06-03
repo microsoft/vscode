@@ -10,6 +10,7 @@ import { isWindows } from 'vs/base/common/platform';
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Selection } from 'vs/editor/common/core/selection';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { SnippetParser, Variable, VariableResolver } from 'vs/editor/contrib/snippet/browser/snippetParser';
@@ -21,6 +22,7 @@ import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { toWorkspaceFolders } from 'vs/platform/workspaces/common/workspaces';
 
 suite('Snippet Variables Resolver', function () {
+
 
 	const labelService = new class extends mock<ILabelService>() {
 		override getUriLabel(uri: URI) {
@@ -47,6 +49,9 @@ suite('Snippet Variables Resolver', function () {
 	teardown(function () {
 		model.dispose();
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 
 	function assertVariableResolve(resolver: VariableResolver, varName: string, expected?: string) {
 		const snippet = new SnippetParser().parse(`$${varName}`);
@@ -270,7 +275,7 @@ suite('Snippet Variables Resolver', function () {
 		assertVariableResolve(new ClipboardBasedVariableResolver(() => 'foo', 1, 0, true), 'cLIPBOARD', undefined);
 	});
 
-	test('Add variable to insert value from clipboard to a snippet #40153', function () {
+	test('Add variable to insert value from clipboard to a snippet #40153, 2', function () {
 
 		assertVariableResolve(new ClipboardBasedVariableResolver(() => 'line1', 1, 2, true), 'CLIPBOARD', 'line1');
 		assertVariableResolve(new ClipboardBasedVariableResolver(() => 'line1\nline2\nline3', 1, 2, true), 'CLIPBOARD', 'line1\nline2\nline3');

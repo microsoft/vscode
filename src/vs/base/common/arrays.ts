@@ -13,7 +13,7 @@ import { findFirstIdxMonotonousOrArrLen } from './arraysFind';
  * @param array The array.
  * @param n Which element from the end (default is zero).
  */
-export function tail<T>(array: ArrayLike<T>, n: number = 0): T {
+export function tail<T>(array: ArrayLike<T>, n: number = 0): T | undefined {
 	return array[array.length - (1 + n)];
 }
 
@@ -187,6 +187,12 @@ export function forEachAdjacent<T>(arr: T[], f: (item1: T | undefined, item2: T 
 	}
 }
 
+export function forEachWithNeighbors<T>(arr: T[], f: (before: T | undefined, element: T, after: T | undefined) => void): void {
+	for (let i = 0; i < arr.length; i++) {
+		f(i === 0 ? undefined : arr[i - 1], arr[i], i + 1 === arr.length ? undefined : arr[i + 1]);
+	}
+}
+
 interface IMutableSplice<T> extends ISplice<T> {
 	readonly toInsert: T[];
 	deleteCount: number;
@@ -335,13 +341,13 @@ function topStep<T>(array: ReadonlyArray<T>, compare: (a: T, b: T) => number, re
  * @returns New array with all falsy values removed. The original array IS NOT modified.
  */
 export function coalesce<T>(array: ReadonlyArray<T | undefined | null>): T[] {
-	return <T[]>array.filter(e => !!e);
+	return array.filter((e): e is T => !!e);
 }
 
 /**
  * Remove all falsy values from `array`. The original array IS modified.
  */
-export function coalesceInPlace<T>(array: Array<T | undefined | null>): void {
+export function coalesceInPlace<T>(array: Array<T | undefined | null>): asserts array is Array<T> {
 	let to = 0;
 	for (let i = 0; i < array.length; i++) {
 		if (!!array[i]) {
@@ -427,13 +433,6 @@ export function commonPrefixLength<T>(one: ReadonlyArray<T>, other: ReadonlyArra
 	}
 
 	return result;
-}
-
-/**
- * @deprecated Use `[].flat()`
- */
-export function flatten<T>(arr: T[][]): T[] {
-	return (<T[]>[]).concat(...arr);
 }
 
 export function range(to: number): number[];
@@ -851,5 +850,38 @@ export class CallbackIterable<T> {
 			return true;
 		});
 		return result;
+	}
+}
+
+/**
+ * Represents a re-arrangement of items in an array.
+ */
+export class Permutation {
+	constructor(private readonly _indexMap: readonly number[]) { }
+
+	/**
+	 * Returns a permutation that sorts the given array according to the given compare function.
+	 */
+	public static createSortPermutation<T>(arr: readonly T[], compareFn: (a: T, b: T) => number): Permutation {
+		const sortIndices = Array.from(arr.keys()).sort((index1, index2) => compareFn(arr[index1], arr[index2]));
+		return new Permutation(sortIndices);
+	}
+
+	/**
+	 * Returns a new array with the elements of the given array re-arranged according to this permutation.
+	 */
+	apply<T>(arr: readonly T[]): T[] {
+		return arr.map((_, index) => arr[this._indexMap[index]]);
+	}
+
+	/**
+	 * Returns a new permutation that undoes the re-arrangement of this permutation.
+	*/
+	inverse(): Permutation {
+		const inverseIndexMap = this._indexMap.slice();
+		for (let i = 0; i < this._indexMap.length; i++) {
+			inverseIndexMap[this._indexMap[i]] = i;
+		}
+		return new Permutation(inverseIndexMap);
 	}
 }

@@ -11,8 +11,11 @@ import { getLineRangeMapping } from 'vs/editor/common/diff/defaultLinesDiffCompu
 import { LinesSliceCharSequence } from 'vs/editor/common/diff/defaultLinesDiffComputer/linesSliceCharSequence';
 import { MyersDiffAlgorithm } from 'vs/editor/common/diff/defaultLinesDiffComputer/algorithms/myersDiffAlgorithm';
 import { DynamicProgrammingDiffing } from 'vs/editor/common/diff/defaultLinesDiffComputer/algorithms/dynamicProgrammingDiffing';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('myers', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('1', () => {
 		const s1 = new LinesSliceCharSequence(['hello world'], new OffsetRange(0, 1), true);
 		const s2 = new LinesSliceCharSequence(['hallo welt'], new OffsetRange(0, 1), true);
@@ -23,6 +26,8 @@ suite('myers', () => {
 });
 
 suite('lineRangeMapping', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('Simple', () => {
 		assert.deepStrictEqual(
 			getLineRangeMapping(
@@ -68,6 +73,8 @@ suite('lineRangeMapping', () => {
 });
 
 suite('LinesSliceCharSequence', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	const sequence = new LinesSliceCharSequence(
 		[
 			'line1: foo',

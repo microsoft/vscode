@@ -17,6 +17,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('StoredFileWorkingCopyManager', () => {
 
@@ -41,6 +42,10 @@ suite('StoredFileWorkingCopyManager', () => {
 	});
 
 	teardown(() => {
+		for (const workingCopy of manager.workingCopies) {
+			workingCopy.dispose();
+		}
+
 		disposables.clear();
 	});
 
@@ -386,6 +391,10 @@ suite('StoredFileWorkingCopyManager', () => {
 
 		// dispose does not remove from working copy service, only `destroy` should
 		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 3);
+
+		disposables.add(await firstPromise);
+		disposables.add(await secondPromise);
+		disposables.add(await thirdPromise);
 	});
 
 	test('destroy', async () => {
@@ -416,9 +425,9 @@ suite('StoredFileWorkingCopyManager', () => {
 		const workingCopy = await manager.resolve(resource);
 
 		let saved = false;
-		workingCopy.onDidSave(() => {
+		disposables.add(workingCopy.onDidSave(() => {
 			saved = true;
-		});
+		}));
 
 		workingCopy.model?.updateContents('hello create');
 		assert.strictEqual(workingCopy.isDirty(), true);
@@ -441,9 +450,9 @@ suite('StoredFileWorkingCopyManager', () => {
 		workingCopy.model?.setThrowOnSnapshot();
 
 		let unexpectedSave = false;
-		workingCopy.onDidSave(() => {
+		disposables.add(workingCopy.onDidSave(() => {
 			unexpectedSave = true;
-		});
+		}));
 
 		workingCopy.model?.updateContents('hello create');
 		assert.strictEqual(workingCopy.isDirty(), true);
@@ -468,12 +477,12 @@ suite('StoredFileWorkingCopyManager', () => {
 
 		let didResolve = false;
 		const onDidResolve = new Promise<void>(resolve => {
-			manager.onDidResolve(({ model }) => {
+			disposables.add(manager.onDidResolve(({ model }) => {
 				if (model?.resource.toString() === resource.toString()) {
 					didResolve = true;
 					resolve();
 				}
-			});
+			}));
 		});
 
 		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.UPDATED }], false));
@@ -491,7 +500,7 @@ suite('StoredFileWorkingCopyManager', () => {
 		let didResolve = false;
 		let resolvedCounter = 0;
 		const onDidResolve = new Promise<void>(resolve => {
-			manager.onDidResolve(({ model }) => {
+			disposables.add(manager.onDidResolve(({ model }) => {
 				if (model?.resource.toString() === resource.toString()) {
 					resolvedCounter++;
 					if (resolvedCounter === 2) {
@@ -499,7 +508,7 @@ suite('StoredFileWorkingCopyManager', () => {
 						resolve();
 					}
 				}
-			});
+			}));
 		});
 
 		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.UPDATED }], false));
@@ -512,19 +521,19 @@ suite('StoredFileWorkingCopyManager', () => {
 	test('file system provider change triggers working copy resolve', async () => {
 		const resource = URI.file('/path/index.txt');
 
-		await manager.resolve(resource);
+		disposables.add(await manager.resolve(resource));
 
 		let didResolve = false;
 		const onDidResolve = new Promise<void>(resolve => {
-			manager.onDidResolve(({ model }) => {
+			disposables.add(manager.onDidResolve(({ model }) => {
 				if (model?.resource.toString() === resource.toString()) {
 					didResolve = true;
 					resolve();
 				}
-			});
+			}));
 		});
 
-		accessor.fileService.fireFileSystemProviderCapabilitiesChangeEvent({ provider: new InMemoryFileSystemProvider(), scheme: resource.scheme });
+		accessor.fileService.fireFileSystemProviderCapabilitiesChangeEvent({ provider: disposables.add(new InMemoryFileSystemProvider()), scheme: resource.scheme });
 
 		await onDidResolve;
 
@@ -647,4 +656,6 @@ suite('StoredFileWorkingCopyManager', () => {
 		assert.strictEqual(saved1, true);
 		assert.strictEqual(saved2, true);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

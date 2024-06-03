@@ -9,6 +9,9 @@ parameters:
     type: boolean
   - name: VSCODE_RUN_SMOKE_TESTS
     type: boolean
+  - name: PUBLISH_TASK_NAME
+    type: string
+    default: PublishPipelineArtifact@0
 
 steps:
   - powershell: yarn npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install"
@@ -35,17 +38,14 @@ steps:
       - powershell: .\scripts\test.bat --build --tfs "Unit Tests"
         displayName: Run unit tests (Electron)
         timeoutInMinutes: 15
-        continueOnError: ${{ eq(parameters.VSCODE_ARCH, 'ia32') }}
 
       - powershell: yarn test-node --build
         displayName: Run unit tests (node.js)
         timeoutInMinutes: 15
-        continueOnError: ${{ eq(parameters.VSCODE_ARCH, 'ia32') }}
 
       - powershell: yarn test-browser-no-install --sequential --build --browser chromium --tfs "Browser Unit Tests"
         displayName: Run unit tests (Browser, Chromium)
         timeoutInMinutes: 20
-        continueOnError: ${{ eq(parameters.VSCODE_ARCH, 'ia32') }}
 
   - ${{ if eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true) }}:
     - powershell: |
@@ -100,7 +100,6 @@ steps:
           exec { .\scripts\test-integration.bat --build --tfs "Integration Tests" }
         displayName: Run integration tests (Electron)
         timeoutInMinutes: 20
-        continueOnError: ${{ eq(parameters.VSCODE_ARCH, 'ia32') }}
 
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
@@ -109,7 +108,6 @@ steps:
           exec { .\scripts\test-web-integration.bat --browser firefox }
         displayName: Run integration tests (Browser, Firefox)
         timeoutInMinutes: 20
-        continueOnError: ${{ eq(parameters.VSCODE_ARCH, 'ia32') }}
 
       - powershell: |
           . build/azure-pipelines/win32/exec.ps1
@@ -122,7 +120,6 @@ steps:
           exec { .\scripts\test-remote-integration.bat }
         displayName: Run integration tests (Remote)
         timeoutInMinutes: 20
-        continueOnError: ${{ eq(parameters.VSCODE_ARCH, 'ia32') }}
 
   - ${{ if eq(parameters.VSCODE_RUN_SMOKE_TESTS, true) }}:
     - powershell: .\build\azure-pipelines\win32\listprocesses.bat
@@ -145,14 +142,12 @@ steps:
       - powershell: yarn smoketest-no-compile --tracing --build "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
         displayName: Run smoke tests (Electron)
         timeoutInMinutes: 20
-        continueOnError: ${{ eq(parameters.VSCODE_ARCH, 'ia32') }}
 
       - powershell: yarn smoketest-no-compile --web --tracing --headless
         env:
           VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)\vscode-server-win32-$(VSCODE_ARCH)-web
         displayName: Run smoke tests (Browser, Chromium)
         timeoutInMinutes: 20
-        continueOnError: ${{ eq(parameters.VSCODE_ARCH, 'ia32') }}
 
       - powershell: yarn gulp compile-extension:vscode-test-resolver
         displayName: Compile test resolver extension
@@ -163,7 +158,6 @@ steps:
           VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)\vscode-server-win32-$(VSCODE_ARCH)
         displayName: Run smoke tests (Remote)
         timeoutInMinutes: 20
-        continueOnError: ${{ eq(parameters.VSCODE_ARCH, 'ia32') }}
 
     - powershell: .\build\azure-pipelines\win32\listprocesses.bat
       displayName: Diagnostics after smoke test run
@@ -171,7 +165,7 @@ steps:
       condition: succeededOrFailed()
 
   - ${{ if or(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
-    - task: PublishPipelineArtifact@0
+    - task: ${{ parameters.PUBLISH_TASK_NAME }}
       inputs:
         targetPath: .build\crashes
         ${{ if and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
@@ -180,13 +174,14 @@ steps:
           artifactName: crash-dump-windows-$(VSCODE_ARCH)-smoke-$(System.JobAttempt)
         ${{ else }}:
           artifactName: crash-dump-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
+        sbomEnabled: false
       displayName: "Publish Crash Reports"
       continueOnError: true
       condition: failed()
 
     # In order to properly symbolify above crash reports
     # (if any), we need the compiled native modules too
-    - task: PublishPipelineArtifact@0
+    - task: ${{ parameters.PUBLISH_TASK_NAME }}
       inputs:
         targetPath: node_modules
         ${{ if and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
@@ -195,11 +190,12 @@ steps:
           artifactName: node-modules-windows-$(VSCODE_ARCH)-smoke-$(System.JobAttempt)
         ${{ else }}:
           artifactName: node-modules-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
+        sbomEnabled: false
       displayName: "Publish Node Modules"
       continueOnError: true
       condition: failed()
 
-    - task: PublishPipelineArtifact@0
+    - task: ${{ parameters.PUBLISH_TASK_NAME }}
       inputs:
         targetPath: .build\logs
         ${{ if and(eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, false)) }}:
@@ -208,6 +204,7 @@ steps:
           artifactName: logs-windows-$(VSCODE_ARCH)-smoke-$(System.JobAttempt)
         ${{ else }}:
           artifactName: logs-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
+        sbomEnabled: false
       displayName: "Publish Log Files"
       continueOnError: true
       condition: succeededOrFailed()

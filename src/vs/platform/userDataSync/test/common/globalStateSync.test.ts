@@ -98,7 +98,7 @@ suite('GlobalStateSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseGlobalState(content!);
+		const actual = parseGlobalState(content);
 		assert.deepStrictEqual(actual.storage, { 'globalState.argv.locale': { version: 1, value: 'en' }, 'a': { version: 1, value: 'value1' } });
 	}));
 
@@ -129,7 +129,7 @@ suite('GlobalStateSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseGlobalState(content!);
+		const actual = parseGlobalState(content);
 		assert.deepStrictEqual(actual.storage, { 'a': { version: 1, value: 'value1' }, 'b': { version: 1, value: 'value2' } });
 	}));
 
@@ -147,7 +147,7 @@ suite('GlobalStateSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseGlobalState(content!);
+		const actual = parseGlobalState(content);
 		assert.deepStrictEqual(actual.storage, { 'a': { version: 1, value: 'value1' } });
 	}));
 
@@ -165,7 +165,7 @@ suite('GlobalStateSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseGlobalState(content!);
+		const actual = parseGlobalState(content);
 		assert.deepStrictEqual(actual.storage, { 'a': { version: 1, value: 'value1' }, 'b': { version: 1, value: 'value2' } });
 	}));
 
@@ -182,7 +182,7 @@ suite('GlobalStateSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseGlobalState(content!);
+		const actual = parseGlobalState(content);
 		assert.deepStrictEqual(actual.storage, { 'a': { version: 1, value: 'value2' } });
 	}));
 
@@ -201,7 +201,7 @@ suite('GlobalStateSync', () => {
 
 		const { content } = await testClient.read(testObject.resource);
 		assert.ok(content !== null);
-		const actual = parseGlobalState(content!);
+		const actual = parseGlobalState(content);
 		assert.deepStrictEqual(actual.storage, { 'a': { version: 1, value: 'value1' } });
 	}));
 
@@ -222,7 +222,7 @@ suite('GlobalStateSync', () => {
 
 		const { content } = await testClient.read(testObject.resource, '1');
 		assert.ok(content !== null);
-		const actual = parseGlobalState(content!);
+		const actual = parseGlobalState(content);
 		assert.deepStrictEqual(actual.storage, { 'a': { version: 1, value: 'value1' } });
 	}));
 

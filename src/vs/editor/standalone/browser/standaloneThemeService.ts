@@ -19,6 +19,7 @@ import { Extensions as ThemingExtensions, ICssStyleCollector, IFileIconTheme, IP
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { ColorScheme, isDark, isHighContrast } from 'vs/platform/theme/common/theme';
 import { getIconsStyleSheet, UnthemedProductIconTheme } from 'vs/platform/theme/browser/iconsStyleSheet';
+import { mainWindow } from 'vs/base/browser/window';
 
 export const VS_LIGHT_THEME_NAME = 'vs';
 export const VS_DARK_THEME_NAME = 'vs-dark';
@@ -244,7 +245,7 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 		this._knownThemes.set(HC_BLACK_THEME_NAME, newBuiltInTheme(HC_BLACK_THEME_NAME));
 		this._knownThemes.set(HC_LIGHT_THEME_NAME, newBuiltInTheme(HC_LIGHT_THEME_NAME));
 
-		const iconsStyleSheet = getIconsStyleSheet(this);
+		const iconsStyleSheet = this._register(getIconsStyleSheet(this));
 
 		this._codiconCSS = iconsStyleSheet.getCSS();
 		this._themeCSS = '';
@@ -255,12 +256,12 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 		this.setTheme(VS_LIGHT_THEME_NAME);
 		this._onOSSchemeChanged();
 
-		iconsStyleSheet.onDidChange(() => {
+		this._register(iconsStyleSheet.onDidChange(() => {
 			this._codiconCSS = iconsStyleSheet.getCSS();
 			this._updateCSS();
-		});
+		}));
 
-		addMatchMediaChangeListener('(forced-colors: active)', () => {
+		addMatchMediaChangeListener(mainWindow, '(forced-colors: active)', () => {
 			this._onOSSchemeChanged();
 		});
 	}
@@ -353,7 +354,7 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 
 	private _onOSSchemeChanged() {
 		if (this._autoDetectHighContrast) {
-			const wantsHighContrast = window.matchMedia(`(forced-colors: active)`).matches;
+			const wantsHighContrast = mainWindow.matchMedia(`(forced-colors: active)`).matches;
 			if (wantsHighContrast !== isHighContrast(this._theme.type)) {
 				// switch to high contrast or non-high contrast but stick to dark or light
 				let newThemeName;
@@ -392,7 +393,7 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 				colorVariables.push(`${asCssVariableName(item.id)}: ${color.toString()};`);
 			}
 		}
-		ruleCollector.addRule(`.monaco-editor, .monaco-diff-editor { ${colorVariables.join('\n')} }`);
+		ruleCollector.addRule(`.monaco-editor, .monaco-diff-editor, .monaco-component { ${colorVariables.join('\n')} }`);
 
 		const colorMap = this._colorMapOverride || this._theme.tokenTheme.getColorMap();
 		ruleCollector.addRule(generateTokensCSSForColorMap(colorMap));

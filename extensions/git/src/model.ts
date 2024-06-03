@@ -379,15 +379,26 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		while (foldersToTravers.length > 0) {
 			const currentFolder = foldersToTravers.shift()!;
 
+			const children: fs.Dirent[] = [];
+			try {
+				children.push(...await fs.promises.readdir(currentFolder.path, { withFileTypes: true }));
+
+				if (currentFolder.depth !== 0) {
+					result.push(currentFolder.path);
+				}
+			}
+			catch (err) {
+				this.logger.warn(`[swsf] Unable to read folder '${currentFolder.path}': ${err}`);
+				continue;
+			}
+
 			if (currentFolder.depth < maxDepth || maxDepth === -1) {
-				const children = await fs.promises.readdir(currentFolder.path, { withFileTypes: true });
 				const childrenFolders = children
 					.filter(dirent =>
 						dirent.isDirectory() && dirent.name !== '.git' &&
 						!repositoryScanIgnoredFolders.find(f => pathEquals(dirent.name, f)))
 					.map(dirent => path.join(currentFolder.path, dirent.name));
 
-				result.push(...childrenFolders);
 				foldersToTravers.push(...childrenFolders.map(folder => {
 					return { path: folder, depth: currentFolder.depth + 1 };
 				}));
@@ -495,7 +506,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		this.logger.trace(`Opening repository: ${repoPath}`);
 		const existingRepository = await this.getRepositoryExact(repoPath);
 		if (existingRepository) {
-			this.logger.trace(`Repository for path ${repoPath} already exists: ${existingRepository.root})`);
+			this.logger.trace(`Repository for path ${repoPath} already exists: ${existingRepository.root}`);
 			return;
 		}
 
@@ -593,8 +604,8 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	}
 
 	async openParentRepository(repoPath: string): Promise<void> {
-		await this.openRepository(repoPath);
 		this._parentRepositoriesManager.openRepository(repoPath);
+		await this.openRepository(repoPath);
 	}
 
 	private async getRepositoryRoot(repoPath: string): Promise<{ repositoryRoot: string; unsafeRepositoryMatch: RegExpMatchArray | null }> {
@@ -788,7 +799,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			// Use the repository real path
 			const repoPathRealPath = await fs.promises.realpath(repoPath, { encoding: 'utf8' });
 			const openRepositoryRealPath = this.openRepositories
-				.find(r => pathEquals(r.repository.rootRealPath ?? '', repoPathRealPath));
+				.find(r => pathEquals(r.repository.rootRealPath ?? r.repository.root, repoPathRealPath));
 
 			return openRepositoryRealPath?.repository;
 		} catch (err) {

@@ -6,16 +6,16 @@
 import * as nls from 'vs/nls';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { normalize, isAbsolute, posix } from 'vs/base/common/path';
-import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
+import { ViewPane, ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { renderViewTree } from 'vs/workbench/contrib/debug/browser/baseDebugView';
-import { IDebugSession, IDebugService, CONTEXT_LOADED_SCRIPTS_ITEM_TYPE } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugSession, IDebugService, CONTEXT_LOADED_SCRIPTS_ITEM_TYPE, LOADED_SCRIPTS_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { normalizeDriveLetter, tildify } from 'vs/base/common/labels';
 import { isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
@@ -34,12 +34,16 @@ import { DebugContentProvider } from 'vs/workbench/contrib/debug/common/debugCon
 import { ILabelService } from 'vs/platform/label/common/label';
 import type { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import type { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
+import { registerAction2, MenuId } from 'vs/platform/actions/common/actions';
+import { Codicon } from 'vs/base/common/codicons';
+
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { TreeFindMode } from 'vs/base/browser/ui/tree/abstractTree';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 const NEW_STYLE_COMPRESS = true;
 
@@ -434,9 +438,10 @@ export class LoadedScriptsView extends ViewPane {
 		@IPathService private readonly pathService: IPathService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 		this.loadedScriptsItemType = CONTEXT_LOADED_SCRIPTS_ITEM_TYPE.bindTo(contextKeyService);
 	}
 
@@ -478,9 +483,7 @@ export class LoadedScriptsView extends ViewPane {
 				},
 				filter: this.filter,
 				accessibilityProvider: new LoadedSciptsAccessibilityProvider(),
-				overrideStyles: {
-					listBackground: this.getBackgroundColor()
-				}
+				overrideStyles: this.getLocationBasedColors().listOverrideStyles
 			}
 		);
 
@@ -571,7 +574,7 @@ export class LoadedScriptsView extends ViewPane {
 		this._register(this.debugService.onDidNewSession(registerSessionListeners));
 		this.debugService.getModel().getSessions().forEach(registerSessionListeners);
 
-		this._register(this.debugService.onDidEndSession(session => {
+		this._register(this.debugService.onDidEndSession(({ session }) => {
 			root.remove(session.getId());
 			this.changeScheduler.schedule();
 		}));
@@ -620,6 +623,10 @@ export class LoadedScriptsView extends ViewPane {
 	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 		this.tree.layout(height, width);
+	}
+
+	collapseAll(): void {
+		this.tree.collapseAll();
 	}
 
 	override dispose(): void {
@@ -764,3 +771,24 @@ class LoadedScriptsFilter implements ITreeFilter<BaseTreeItem, FuzzyScore> {
 		return TreeVisibility.Recurse;
 	}
 }
+registerAction2(class Collapse extends ViewAction<LoadedScriptsView> {
+	constructor() {
+		super({
+			id: 'loadedScripts.collapse',
+			viewId: LOADED_SCRIPTS_VIEW_ID,
+			title: nls.localize('collapse', "Collapse All"),
+			f1: false,
+			icon: Codicon.collapseAll,
+			menu: {
+				id: MenuId.ViewTitle,
+				order: 30,
+				group: 'navigation',
+				when: ContextKeyExpr.equals('view', LOADED_SCRIPTS_VIEW_ID)
+			}
+		});
+	}
+
+	runInView(_accessor: ServicesAccessor, view: LoadedScriptsView) {
+		view.collapseAll();
+	}
+});

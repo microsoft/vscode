@@ -35,7 +35,7 @@ if %errorlevel% neq 0 exit /b %errorlevel%
 
 :: Tests in the extension host
 
-set API_TESTS_EXTRA_ARGS=--disable-telemetry --skip-welcome --skip-release-notes --crash-reporter-directory=%VSCODECRASHDIR% --logsPath=%VSCODELOGSDIR% --no-cached-data --disable-updates --disable-keytar --disable-extensions --disable-workspace-trust --user-data-dir=%VSCODEUSERDATADIR%
+set API_TESTS_EXTRA_ARGS=--disable-telemetry --skip-welcome --skip-release-notes --crash-reporter-directory=%VSCODECRASHDIR% --logsPath=%VSCODELOGSDIR% --no-cached-data --disable-updates --use-inmemory-secretstorage --disable-extensions --disable-workspace-trust --user-data-dir=%VSCODEUSERDATADIR%
 
 echo.
 echo ### API tests (folder)
@@ -49,7 +49,7 @@ if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo.
 echo ### Colorize tests
-call "%INTEGRATION_TEST_ELECTRON_PATH%" %~dp0\..\extensions\vscode-colorize-tests\test --extensionDevelopmentPath=%~dp0\..\extensions\vscode-colorize-tests --extensionTestsPath=%~dp0\..\extensions\vscode-colorize-tests\out %API_TESTS_EXTRA_ARGS%
+call yarn test-extension -l vscode-colorize-tests
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo.
@@ -59,7 +59,7 @@ if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo.
 echo ### Markdown tests
-call "%INTEGRATION_TEST_ELECTRON_PATH%" %~dp0\..\extensions\markdown-language-features\test-workspace --extensionDevelopmentPath=%~dp0\..\extensions\markdown-language-features --extensionTestsPath=%~dp0\..\extensions\markdown-language-features\out\test %API_TESTS_EXTRA_ARGS%
+call yarn test-extension -l markdown-language-features
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo.
@@ -77,23 +77,24 @@ if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo.
 echo ### Ipynb tests
-set IPYNBWORKSPACE=%TEMPDIR%\ipynb-%RANDOM%
-mkdir %IPYNBWORKSPACE%
-call "%INTEGRATION_TEST_ELECTRON_PATH%" %IPYNBWORKSPACE% --extensionDevelopmentPath=%~dp0\..\extensions\ipynb --extensionTestsPath=%~dp0\..\extensions\ipynb\out\test %API_TESTS_EXTRA_ARGS%
+call yarn test-extension -l ipynb
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo.
 echo ### Notebook Output tests
-set NBOUTWORKSPACE=%TEMPDIR%\nbout-%RANDOM%
-mkdir %NBOUTWORKSPACE%
-call "%INTEGRATION_TEST_ELECTRON_PATH%" %NBOUTWORKSPACE% --extensionDevelopmentPath=%~dp0\..\extensions\notebook-renderers --extensionTestsPath=%~dp0\..\extensions\notebook-renderers\out\test %API_TESTS_EXTRA_ARGS%
+call yarn test-extension -l notebook-renderers
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo.
 echo ### Configuration editing tests
 set CFWORKSPACE=%TEMPDIR%\cf-%RANDOM%
 mkdir %CFWORKSPACE%
-call "%INTEGRATION_TEST_ELECTRON_PATH%" %CFWORKSPACE% --extensionDevelopmentPath=%~dp0\..\extensions\configuration-editing --extensionTestsPath=%~dp0\..\extensions\configuration-editing\out\test %API_TESTS_EXTRA_ARGS%
+call yarn test-extension -l configuration-editing
+if %errorlevel% neq 0 exit /b %errorlevel%
+
+echo.
+echo ### GitHub Authentication tests
+call yarn test-extension -l github-authentication
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 :: Tests standalone (CommonJS)

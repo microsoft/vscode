@@ -326,7 +326,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 					if (semanticTokenInfo.metadata[property] !== undefined) {
 						const definition = semanticTokenInfo.definitions[property];
 						const defValue = this._renderTokenStyleDefinition(definition, property);
-						const defValueStr = defValue.map(el => el instanceof HTMLElement ? el.outerHTML : el).join();
+						const defValueStr = defValue.map(el => dom.isHTMLElement(el) ? el.outerHTML : el).join();
 						let properties = propertiesByDefValue[defValueStr];
 						if (!properties) {
 							propertiesByDefValue[defValueStr] = properties = [];

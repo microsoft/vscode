@@ -50,9 +50,12 @@ stages:
             inputs:
               scanFolder: "$(Build.SourcesDirectory)"
               outputFormat: "pre"
+
           - task: NodeTool@0
             inputs:
-              versionSpec: "18.x"
+              versionSource: fromFile
+              versionFilePath: .nvmrc
+              nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
           - template: ./distro/download-distro.yml
 
@@ -93,27 +96,15 @@ stages:
             condition: eq(variables['Codeql.enabled'], 'True')
 
           - powershell: |
-              mkdir -Force .build/node-gyp
-            displayName: Create custom node-gyp directory
-            condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-
-          - powershell: |
-              . ../../build/azure-pipelines/win32/exec.ps1
-              $ErrorActionPreference = "Stop"
-              # TODO: Should be replaced with upstream URL once https://github.com/nodejs/node-gyp/pull/2825
-              # gets merged.
-              exec { git clone https://github.com/rzhao271/node-gyp.git . } "Cloning rzhao271/node-gyp failed"
-              exec { git checkout 102b347da0c92c29f9c67df22e864e70249cf086 } "Checking out 102b347 failed"
-              exec { npm install } "Building rzhao271/node-gyp failed"
-            displayName: Install custom node-gyp
-            workingDirectory: .build/node-gyp
-            condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
-
-          - powershell: |
               . build/azure-pipelines/win32/exec.ps1
               . build/azure-pipelines/win32/retry.ps1
               $ErrorActionPreference = "Stop"
-              $env:npm_config_node_gyp = "$(Join-Path $pwd.Path '.build/node-gyp/bin/node-gyp.js')"
+              # TODO: remove custom node-gyp when updating to Node v20,
+              # refs https://github.com/npm/cli/releases/tag/v10.2.3 which is available with Node >= 20.10.0
+              $nodeGypDir = "$(Agent.TempDirectory)/custom-packages"
+              mkdir "$nodeGypDir"
+              npm install node-gyp@10.0.1 -g --prefix "$nodeGypDir"
+              $env:npm_config_node_gyp = "${nodeGypDir}/node_modules/node-gyp/bin/node-gyp.js"
               $env:npm_config_arch = "$(NPM_ARCH)"
               retry { exec { yarn --frozen-lockfile --check-files } }
             env:
@@ -142,11 +133,18 @@ stages:
               GITHUB_TOKEN: "$(github-distro-mixin-password)"
             displayName: Download Symbols
 
+          - task: PSScriptAnalyzer@1
+            inputs:
+              Path: '$(Build.SourcesDirectory)'
+              Settings: required
+              Recurse: true
+
           - task: BinSkim@4
             inputs:
               InputType: "Basic"
               Function: "analyze"
               TargetPattern: "guardianGlob"
+              AnalyzeIgnorePdbLoadError: true
               AnalyzeTargetGlob: '$(agent.builddirectory)\scanbin\**.dll;$(agent.builddirectory)\scanbin\**.exe;$(agent.builddirectory)\scanbin\**.node'
               AnalyzeLocalSymbolDirectories: '$(agent.builddirectory)\scanbin\VSCode-win32-$(VSCODE_ARCH)\pdb'
 
@@ -160,6 +158,13 @@ stages:
               TreatSignatureUpdateFailureAs: 'Warning'
               SignatureFreshness: 'OneDay'
               TreatStaleSignatureAs: 'Error'
+
+          - task: PublishSecurityAnalysisLogs@3
+            inputs:
+              ArtifactName: CodeAnalysisLogs
+              ArtifactType: Container
+              PublishProcessedResults: false
+              AllTools: true
 
           - task: TSAUpload@2
             inputs:
@@ -179,7 +184,9 @@ stages:
               toolMajorVersion: "V2"
           - task: NodeTool@0
             inputs:
-              versionSpec: "18.x"
+              versionSource: fromFile
+              versionFilePath: .nvmrc
+              nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
           - template: ./distro/download-distro.yml
 

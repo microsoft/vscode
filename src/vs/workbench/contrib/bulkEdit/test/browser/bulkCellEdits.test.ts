@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
 import { mockObject } from 'vs/base/test/common/mock';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IProgress } from 'vs/platform/progress/common/progress';
 import { UndoRedoGroup, UndoRedoSource } from 'vs/platform/undoRedo/common/undoRedo';
 import { BulkCellEdits, ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
@@ -16,9 +17,11 @@ import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebo
 import { TestEditorService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 suite('BulkCellEdits', function () {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
 	async function runTest(inputUri: URI, resolveUri: URI) {
 		const progress: IProgress<void> = { report: _ => { } };
-		const editorService = new TestEditorService();
+		const editorService = store.add(new TestEditorService());
 
 		const notebook = mockObject<NotebookTextModel>()();
 		notebook.uri.returns(URI.file('/project/notebook.ipynb'));
@@ -32,7 +35,7 @@ suite('BulkCellEdits', function () {
 		const edits = [
 			new ResourceNotebookCellEdit(inputUri, { index: 0, count: 1, editType: CellEditType.Replace, cells: [] })
 		];
-		const bce = new BulkCellEdits(new UndoRedoGroup(), new UndoRedoSource(), progress, new CancellationTokenSource().token, edits, editorService, notebookService as any);
+		const bce = new BulkCellEdits(new UndoRedoGroup(), new UndoRedoSource(), progress, CancellationToken.None, edits, editorService, notebookService as any);
 		await bce.apply();
 
 		const resolveArgs = notebookService.resolve.args[0];

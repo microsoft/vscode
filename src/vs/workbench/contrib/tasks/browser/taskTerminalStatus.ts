@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { Codicon } from 'vs/base/common/codicons';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import { AbstractProblemCollector, StartStopProblemCollector } from 'vs/workbench/contrib/tasks/common/problemCollectors';
 import { ITaskGeneralEvent, ITaskProcessEndedEvent, ITaskProcessStartedEvent, TaskEventKind, TaskRunType } from 'vs/workbench/contrib/tasks/common/tasks';
@@ -14,7 +14,7 @@ import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/termina
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { spinningLoading } from 'vs/platform/theme/common/iconRegistry';
 import { IMarker } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { ITerminalStatus } from 'vs/workbench/contrib/terminal/common/terminal';
 
 interface ITerminalData {
@@ -23,7 +23,7 @@ interface ITerminalData {
 	status: ITerminalStatus;
 	problemMatcher: AbstractProblemCollector;
 	taskRunEnded: boolean;
-	disposeListener?: IDisposable;
+	disposeListener?: MutableDisposable<IDisposable>;
 }
 
 const TASK_TERMINAL_STATUS_ID = 'task_terminal_status';
@@ -40,7 +40,7 @@ const INFO_INACTIVE_TASK_STATUS: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID
 export class TaskTerminalStatus extends Disposable {
 	private terminalMap: Map<number, ITerminalData> = new Map();
 	private _marker: IMarker | undefined;
-	constructor(@ITaskService taskService: ITaskService, @IAudioCueService private readonly _audioCueService: IAudioCueService) {
+	constructor(@ITaskService taskService: ITaskService, @IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService) {
 		super();
 		this._register(taskService.onDidStateChange((event) => {
 			switch (event.kind) {
@@ -50,23 +50,32 @@ export class TaskTerminalStatus extends Disposable {
 				case TaskEventKind.ProcessEnded: this.eventEnd(event); break;
 			}
 		}));
+		this._register(toDisposable(() => {
+			for (const terminalData of this.terminalMap.values()) {
+				terminalData.disposeListener?.dispose();
+			}
+			this.terminalMap.clear();
+		}));
 	}
 
 	addTerminal(task: Task, terminal: ITerminalInstance, problemMatcher: AbstractProblemCollector) {
 		const status: ITerminalStatus = { id: TASK_TERMINAL_STATUS_ID, severity: Severity.Info };
 		terminal.statusList.add(status);
-		problemMatcher.onDidFindFirstMatch(() => {
+		this._register(problemMatcher.onDidFindFirstMatch(() => {
 			this._marker = terminal.registerMarker();
-		});
-		problemMatcher.onDidFindErrors(() => {
+			if (this._marker) {
+				this._register(this._marker);
+			}
+		}));
+		this._register(problemMatcher.onDidFindErrors(() => {
 			if (this._marker) {
 				terminal.addBufferMarker({ marker: this._marker, hoverMessage: nls.localize('task.watchFirstError', "Beginning of detected errors for this run"), disableCommandStorage: true });
 			}
-		});
-		problemMatcher.onDidRequestInvalidateLastMarker(() => {
+		}));
+		this._register(problemMatcher.onDidRequestInvalidateLastMarker(() => {
 			this._marker?.dispose();
 			this._marker = undefined;
-		});
+		}));
 
 		this.terminalMap.set(terminal.instanceId, { terminal, task, status, problemMatcher, taskRunEnded: false });
 	}
@@ -86,7 +95,7 @@ export class TaskTerminalStatus extends Disposable {
 		terminalData.taskRunEnded = true;
 		terminalData.terminal.statusList.remove(terminalData.status);
 		if ((event.exitCode === 0) && (terminalData.problemMatcher.numberOfMatches === 0)) {
-			this._audioCueService.playAudioCue(AudioCue.taskCompleted);
+			this._accessibilitySignalService.playSignal(AccessibilitySignal.taskCompleted);
 			if (terminalData.task.configurationProperties.isBackground) {
 				for (const status of terminalData.terminal.statusList.statuses) {
 					terminalData.terminal.statusList.remove(status);
@@ -95,7 +104,7 @@ export class TaskTerminalStatus extends Disposable {
 				terminalData.terminal.statusList.add(SUCCEEDED_TASK_STATUS);
 			}
 		} else if (event.exitCode || terminalData.problemMatcher.maxMarkerSeverity === MarkerSeverity.Error) {
-			this._audioCueService.playAudioCue(AudioCue.taskFailed);
+			this._accessibilitySignalService.playSignal(AccessibilitySignal.taskFailed);
 			terminalData.terminal.statusList.add(FAILED_TASK_STATUS);
 		} else if (terminalData.problemMatcher.maxMarkerSeverity === MarkerSeverity.Warning) {
 			terminalData.terminal.statusList.add(WARNING_TASK_STATUS);
@@ -111,10 +120,10 @@ export class TaskTerminalStatus extends Disposable {
 		}
 		terminalData.terminal.statusList.remove(terminalData.status);
 		if (terminalData.problemMatcher.numberOfMatches === 0) {
-			this._audioCueService.playAudioCue(AudioCue.taskCompleted);
+			this._accessibilitySignalService.playSignal(AccessibilitySignal.taskCompleted);
 			terminalData.terminal.statusList.add(SUCCEEDED_INACTIVE_TASK_STATUS);
 		} else if (terminalData.problemMatcher.maxMarkerSeverity === MarkerSeverity.Error) {
-			this._audioCueService.playAudioCue(AudioCue.taskFailed);
+			this._accessibilitySignalService.playSignal(AccessibilitySignal.taskFailed);
 			terminalData.terminal.statusList.add(FAILED_INACTIVE_TASK_STATUS);
 		} else if (terminalData.problemMatcher.maxMarkerSeverity === MarkerSeverity.Warning) {
 			terminalData.terminal.statusList.add(WARNING_INACTIVE_TASK_STATUS);
@@ -129,7 +138,8 @@ export class TaskTerminalStatus extends Disposable {
 			return;
 		}
 		if (!terminalData.disposeListener) {
-			terminalData.disposeListener = terminalData.terminal.onDisposed(() => {
+			terminalData.disposeListener = this._register(new MutableDisposable());
+			terminalData.disposeListener.value = terminalData.terminal.onDisposed(() => {
 				if (!event.terminalId) {
 					return;
 				}

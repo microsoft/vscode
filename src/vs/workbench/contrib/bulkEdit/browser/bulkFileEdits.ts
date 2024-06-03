@@ -52,7 +52,7 @@ class RenameOperation implements IFileOperation {
 	) { }
 
 	get uris() {
-		return this._edits.map(edit => [edit.newUri, edit.oldUri]).flat();
+		return this._edits.flatMap(edit => [edit.newUri, edit.oldUri]);
 	}
 
 	async perform(token: CancellationToken): Promise<IFileOperation> {
@@ -106,7 +106,7 @@ class CopyOperation implements IFileOperation {
 	) { }
 
 	get uris() {
-		return this._edits.map(edit => [edit.newUri, edit.oldUri]).flat();
+		return this._edits.flatMap(edit => [edit.newUri, edit.oldUri]);
 	}
 
 	async perform(token: CancellationToken): Promise<IFileOperation> {
@@ -297,7 +297,7 @@ class FileUndoRedoElement implements IWorkspaceUndoRedoElement {
 		readonly operations: IFileOperation[],
 		readonly confirmBeforeUndo: boolean
 	) {
-		this.resources = operations.map(op => op.uris).flat();
+		this.resources = operations.flatMap(op => op.uris);
 	}
 
 	async undo(): Promise<void> {
@@ -363,7 +363,7 @@ export class BulkFileEdits {
 		for (let i = 1; i < edits.length; i++) {
 			const edit = edits[i];
 			const lastGroup = tail(groups);
-			if (lastGroup[0].type === edit.type) {
+			if (lastGroup?.[0].type === edit.type) {
 				lastGroup.push(edit);
 			} else {
 				groups.push([edit]);

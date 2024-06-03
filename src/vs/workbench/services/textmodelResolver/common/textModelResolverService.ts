@@ -18,6 +18,7 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { ModelUndoRedoParticipant } from 'vs/editor/common/services/modelUndoRedoParticipant';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { UntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
 
 class ResourceModelCollection extends ReferenceCollection<Promise<IResolvedTextEditorModel>> {
 
@@ -102,9 +103,9 @@ class ResourceModelCollection extends ReferenceCollection<Promise<IResolvedTextE
 
 	protected destroyReferencedObject(key: string, modelPromise: Promise<ITextEditorModel>): void {
 
-		// untitled and inMemory are bound to a different lifecycle
+		// inMemory is bound to a different lifecycle
 		const resource = URI.parse(key);
-		if (resource.scheme === Schemas.untitled || resource.scheme === Schemas.inMemory) {
+		if (resource.scheme === Schemas.inMemory) {
 			return;
 		}
 
@@ -125,6 +126,10 @@ class ResourceModelCollection extends ReferenceCollection<Promise<IResolvedTextE
 					// text file models have conditions that prevent them
 					// from dispose, so we have to wait until we can dispose
 					await this.textFileService.files.canDispose(model);
+				} else if (model instanceof UntitledTextEditorModel) {
+					// untitled file models have conditions that prevent them
+					// from dispose, so we have to wait until we can dispose
+					await this.textFileService.untitled.canDispose(model);
 				}
 
 				if (!this.modelsToDispose.has(key)) {

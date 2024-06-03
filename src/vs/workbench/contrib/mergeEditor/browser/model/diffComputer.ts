@@ -11,7 +11,7 @@ import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
 import { DetailedLineRangeMapping, RangeMapping } from 'vs/workbench/contrib/mergeEditor/browser/model/mapping';
-import { observableConfigValue } from 'vs/workbench/contrib/mergeEditor/browser/utils';
+import { observableConfigValue } from 'vs/platform/observable/common/platformObservableUtils';
 import { LineRange as DiffLineRange } from 'vs/editor/common/core/lineRange';
 
 export interface IMergeDiffComputer {
@@ -35,6 +35,9 @@ export class MergeDiffComputer implements IMergeDiffComputer {
 
 	async computeDiff(textModel1: ITextModel, textModel2: ITextModel, reader: IReader): Promise<IMergeDiffComputerResult> {
 		const diffAlgorithm = this.mergeAlgorithm.read(reader);
+		const inputVersion = textModel1.getVersionId();
+		const outputVersion = textModel2.getVersionId();
+
 		const result = await this.editorWorkerService.computeDiff(
 			textModel1.uri,
 			textModel2.uri,
@@ -63,6 +66,13 @@ export class MergeDiffComputer implements IMergeDiffComputer {
 				c.innerChanges?.map(ic => toRangeMapping(ic))
 			)
 		);
+
+		const newInputVersion = textModel1.getVersionId();
+		const newOutputVersion = textModel2.getVersionId();
+
+		if (inputVersion !== newInputVersion || outputVersion !== newOutputVersion) {
+			return { diffs: null };
+		}
 
 		assertFn(() => {
 			for (const c of changes) {

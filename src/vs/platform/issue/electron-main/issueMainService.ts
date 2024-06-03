@@ -4,12 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BrowserWindow, BrowserWindowConstructorOptions, contentTracing, Display, IpcMainEvent, screen } from 'electron';
-import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { arch, release, type } from 'os';
+import { raceTimeout } from 'vs/base/common/async';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { randomPath } from 'vs/base/common/extpath';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { FileAccess } from 'vs/base/common/network';
 import { IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
 import { listProcesses } from 'vs/base/node/ps';
+import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { localize } from 'vs/nls';
 import { IDiagnosticsService, isRemoteDiagnosticError, PerformanceInfo, SystemInfo } from 'vs/platform/diagnostics/common/diagnostics';
 import { IDiagnosticsMainService } from 'vs/platform/diagnostics/electron-main/diagnosticsMainService';
@@ -21,16 +24,12 @@ import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeH
 import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IIPCObjectUrl, IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
-import { zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
-import { IWindowState } from 'vs/platform/window/electron-main/window';
-import { randomPath } from 'vs/base/common/extpath';
 import { isESM } from 'vs/base/common/amd';
 import { IStateService } from 'vs/platform/state/node/state';
 import { UtilityProcess } from 'vs/platform/utilityProcess/electron-main/utilityProcess';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { URI } from 'vs/base/common/uri';
+import { zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
+import { ICodeWindow, IWindowState } from 'vs/platform/window/electron-main/window';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
-import { Promises, timeout } from 'vs/base/common/async';
 import { IWindowDevelopmentService } from 'vs/platform/windows/electron-main/windowDevService';
 
 const processExplorerWindowState = 'issue.processExplorerWindowState';
@@ -176,12 +175,11 @@ export class IssueMainService implements IIssueMainService {
 					product
 				});
 
-				const windowUrl = await this.windowDevService.appendDevSearchParams(FileAccess.asBrowserUri(`vs/code/electron-sandbox/issue/issueReporter${this.environmentMainService.isBuilt ? '' : '-dev'}.html`));
+				const windowUrl = await this.windowDevService.appendDevSearchParams(FileAccess.asBrowserUri(`vs/workbench/contrib/issue/electron-sandbox/issueReporter${this.environmentMainService.isBuilt ? '' : '-dev'}.html`));
 				this.issueReporterWindow.loadURL(windowUrl.toString(true));
 
 				this.issueReporterWindow.on('close', () => {
 					this.issueReporterWindow = null;
-
 					issueReporterDisposables.dispose();
 				});
 
@@ -189,14 +187,13 @@ export class IssueMainService implements IIssueMainService {
 					if (this.issueReporterWindow) {
 						this.issueReporterWindow.close();
 						this.issueReporterWindow = null;
-
 						issueReporterDisposables.dispose();
 					}
 				});
 			}
 		}
 
-		if (this.issueReporterWindow) {
+		else if (this.issueReporterWindow) {
 			this.focusWindow(this.issueReporterWindow);
 		}
 	}
@@ -366,7 +363,7 @@ export class IssueMainService implements IIssueMainService {
 		return false;
 	}
 
-	async $getIssueReporterUri(extensionId: string): Promise<URI> {
+	issueReporterWindowCheck(): ICodeWindow {
 		if (!this.issueReporterParentWindow) {
 			throw new Error('Issue reporter window not available');
 		}
@@ -374,24 +371,19 @@ export class IssueMainService implements IIssueMainService {
 		if (!window) {
 			throw new Error('Window not found');
 		}
-		const replyChannel = `vscode:triggerIssueUriRequestHandlerResponse${window.id}`;
-		return Promises.withAsyncBody<URI>(async (resolve, reject) => {
+		return window;
+	}
 
-			const cts = new CancellationTokenSource();
-			window.sendWhenReady('vscode:triggerIssueUriRequestHandler', cts.token, { replyChannel, extensionId });
-
-			validatedIpcMain.once(replyChannel, (_: unknown, data: string) => {
-				resolve(URI.parse(data));
-			});
-
-			try {
-				await timeout(5000);
-				cts.cancel();
-				reject(new Error('Timed out waiting for issue reporter URI'));
-			} finally {
-				validatedIpcMain.removeHandler(replyChannel);
-			}
+	async $sendReporterMenu(extensionId: string, extensionName: string): Promise<IssueReporterData | undefined> {
+		const window = this.issueReporterWindowCheck();
+		const replyChannel = `vscode:triggerReporterMenu`;
+		const cts = new CancellationTokenSource();
+		window.sendWhenReady(replyChannel, cts.token, { replyChannel, extensionId, extensionName });
+		const result = await raceTimeout(new Promise(resolve => validatedIpcMain.once(`vscode:triggerReporterMenuResponse:${extensionId}`, (_: unknown, data: IssueReporterData | undefined) => resolve(data))), 5000, () => {
+			this.logService.error(`Error: Extension ${extensionId} timed out waiting for menu response`);
+			cts.cancel();
 		});
+		return result as IssueReporterData | undefined;
 	}
 
 	async $closeReporter(): Promise<void> {
@@ -506,11 +498,11 @@ export class IssueMainService implements IIssueMainService {
 				state.y = displayBounds.y; // prevent window from falling out of the screen to the bottom
 			}
 
-			if (state.width! > displayBounds.width) {
+			if (state.width > displayBounds.width) {
 				state.width = displayBounds.width; // prevent window from exceeding display bounds width
 			}
 
-			if (state.height! > displayBounds.height) {
+			if (state.height > displayBounds.height) {
 				state.height = displayBounds.height; // prevent window from exceeding display bounds height
 			}
 		}

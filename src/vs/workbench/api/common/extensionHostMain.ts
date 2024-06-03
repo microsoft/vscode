@@ -194,7 +194,7 @@ export class ExtensionHostMain {
 	}
 
 	private static _transform(initData: IExtensionHostInitData, rpcProtocol: RPCProtocol): IExtensionHostInitData {
-		initData.allExtensions.forEach((ext) => {
+		initData.extensions.allExtensions.forEach((ext) => {
 			(<Mutable<IRelaxedExtensionDescription>>ext).extensionLocation = URI.revive(rpcProtocol.transformIncomingURIs(ext.extensionLocation));
 		});
 		initData.environment.appRoot = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.appRoot));

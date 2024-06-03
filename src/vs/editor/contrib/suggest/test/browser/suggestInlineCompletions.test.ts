@@ -44,7 +44,7 @@ suite('Suggest Inline Completions', function () {
 		editor.updateOptions({ quickSuggestions: { comments: 'inline', strings: 'inline', other: 'inline' } });
 
 		insta.invokeFunction(accessor => {
-			accessor.get(ILanguageFeaturesService).completionProvider.register({ pattern: '*.bar', scheme: 'foo' }, new class implements CompletionItemProvider {
+			disposables.add(accessor.get(ILanguageFeaturesService).completionProvider.register({ pattern: '*.bar', scheme: 'foo' }, new class implements CompletionItemProvider {
 				_debugDisplayName = 'test';
 
 				triggerCharacters?: string[] | undefined;
@@ -57,11 +57,11 @@ suite('Suggest Inline Completions', function () {
 					const suggestions: CompletionItem[] = [];
 					suggestions.push({ insertText: 'hello', label: 'hello', range, kind: CompletionItemKind.Class });
 					suggestions.push({ insertText: 'hell', label: 'hell', range, kind: CompletionItemKind.Class });
-					suggestions.push({ insertText: 'hey', label: 'hey', range, kind: CompletionItemKind.Class });
+					suggestions.push({ insertText: 'hey', label: 'hey', range, kind: CompletionItemKind.Snippet });
 					return { suggestions };
 				}
 
-			});
+			}));
 		});
 	});
 
@@ -76,7 +76,7 @@ suite('Suggest Inline Completions', function () {
 
 	test('Aggressive inline completions when typing within line #146948', async function () {
 
-		const completions: SuggestInlineCompletions = insta.createInstance(SuggestInlineCompletions, (id) => editor.getOption(id));
+		const completions: SuggestInlineCompletions = disposables.add(insta.createInstance(SuggestInlineCompletions));
 
 		{
 			// (1,3), end of word -> suggestions
@@ -89,5 +89,25 @@ suite('Suggest Inline Completions', function () {
 			const result = await completions.provideInlineCompletions(model, new Position(1, 2), { triggerKind: InlineCompletionTriggerKind.Explicit, selectedSuggestionInfo: undefined }, CancellationToken.None);
 			assert.ok(result === undefined);
 		}
+	});
+
+	test('Snippets show in inline suggestions even though they are turned off #175190', async function () {
+		const completions: SuggestInlineCompletions = disposables.add(insta.createInstance(SuggestInlineCompletions));
+
+		{
+			// unfiltered
+			const result = await completions.provideInlineCompletions(model, new Position(1, 3), { triggerKind: InlineCompletionTriggerKind.Explicit, selectedSuggestionInfo: undefined }, CancellationToken.None);
+			assert.strictEqual(result?.items.length, 3);
+			completions.freeInlineCompletions(result);
+		}
+
+		{
+			// filtered
+			editor.updateOptions({ suggest: { showSnippets: false } });
+			const result = await completions.provideInlineCompletions(model, new Position(1, 3), { triggerKind: InlineCompletionTriggerKind.Explicit, selectedSuggestionInfo: undefined }, CancellationToken.None);
+			assert.strictEqual(result?.items.length, 2);
+			completions.freeInlineCompletions(result);
+		}
+
 	});
 });

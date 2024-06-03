@@ -63,50 +63,20 @@ export function diffMaps<K, V>(before: Map<K, V>, after: Map<K, V>): { removed: 
 	}
 	return { removed, added };
 }
-export class SetMap<K, V> {
 
-	private map = new Map<K, Set<V>>();
-
-	add(key: K, value: V): void {
-		let values = this.map.get(key);
-
-		if (!values) {
-			values = new Set<V>();
-			this.map.set(key, values);
-		}
-
-		values.add(value);
-	}
-
-	delete(key: K, value: V): void {
-		const values = this.map.get(key);
-
-		if (!values) {
-			return;
-		}
-
-		values.delete(value);
-
-		if (values.size === 0) {
-			this.map.delete(key);
+/**
+ * Computes the intersection of two sets.
+ *
+ * @param setA - The first set.
+ * @param setB - The second iterable.
+ * @returns A new set containing the elements that are in both `setA` and `setB`.
+ */
+export function intersection<T>(setA: Set<T>, setB: Iterable<T>): Set<T> {
+	const result = new Set<T>();
+	for (const elem of setB) {
+		if (setA.has(elem)) {
+			result.add(elem);
 		}
 	}
-
-	forEach(key: K, fn: (value: V) => void): void {
-		const values = this.map.get(key);
-
-		if (!values) {
-			return;
-		}
-
-		values.forEach(fn);
-	}
-
-	get(key: K): ReadonlySet<V> {
-		const values = this.map.get(key);
-		if (!values) {
-			return new Set<V>();
-		}
-		return values;
-	}
+	return result;
 }

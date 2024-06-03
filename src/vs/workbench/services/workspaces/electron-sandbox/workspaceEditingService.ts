@@ -33,6 +33,7 @@ import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/w
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 
 export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingService {
 
@@ -87,7 +88,15 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 			return false; // Windows/Linux: quits when last window is closed, so do not ask then
 		}
 
-		const { result } = await this.dialogService.prompt<boolean>({
+		const confirmSaveUntitledWorkspace = this.configurationService.getValue<boolean>('window.confirmSaveUntitledWorkspace') !== false;
+		if (!confirmSaveUntitledWorkspace) {
+			await this.workspacesService.deleteUntitledWorkspace(workspaceIdentifier);
+
+			return false; // no confirmation configured
+		}
+
+		let canceled = false;
+		const { result, checkboxChecked } = await this.dialogService.prompt<boolean>({
 			type: Severity.Warning,
 			message: localize('saveWorkspaceMessage', "Do you want to save your workspace configuration as a file?"),
 			detail: localize('saveWorkspaceDetail', "Save your workspace if you plan to open it again."),
@@ -130,15 +139,26 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 				}
 			],
 			cancelButton: {
-				run: () => true // veto
+				run: () => {
+					canceled = true;
+
+					return true; // veto
+				}
+			},
+			checkbox: {
+				label: localize('doNotAskAgain', "Always discard untitled workspaces without asking")
 			}
 		});
+
+		if (!canceled && checkboxChecked) {
+			await this.configurationService.updateValue('window.confirmSaveUntitledWorkspace', false, ConfigurationTarget.USER);
+		}
 
 		return result;
 	}
 
 	override async isValidTargetWorkspacePath(workspaceUri: URI): Promise<boolean> {
-		const windows = await this.nativeHostService.getWindows();
+		const windows = await this.nativeHostService.getWindows({ includeAuxiliaryWindows: false });
 
 		// Prevent overwriting a workspace that is currently opened in another window
 		if (windows.some(window => isWorkspaceIdentifier(window.workspace) && this.uriIdentityService.extUri.isEqual(window.workspace.configPath, workspaceUri))) {

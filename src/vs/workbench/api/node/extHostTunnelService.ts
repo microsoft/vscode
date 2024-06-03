@@ -22,7 +22,7 @@ import { NodeRemoteTunnel } from 'vs/platform/tunnel/node/tunnelService';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { ExtHostTunnelService } from 'vs/workbench/api/common/extHostTunnelService';
-import { CandidatePort } from 'vs/workbench/services/remote/common/tunnelModel';
+import { CandidatePort, parseAddress } from 'vs/workbench/services/remote/common/tunnelModel';
 import * as vscode from 'vscode';
 
 export function getSockets(stdout: string): Record<string, { pid: number; socket: number }> {
@@ -37,10 +37,10 @@ export function getSockets(stdout: string): Record<string, { pid: number; socket
 			});
 		}
 	});
-	const socketMap = mapped.reduce((m, socket) => {
+	const socketMap = mapped.reduce((m: Record<string, typeof mapped[0]>, socket) => {
 		m[socket.socket] = socket;
 		return m;
-	}, {} as Record<string, typeof mapped[0]>);
+	}, {});
 	return socketMap;
 }
 
@@ -96,10 +96,10 @@ export function loadConnectionTable(stdout: string): Record<string, string>[] {
 	const lines = stdout.trim().split('\n');
 	const names = lines.shift()!.trim().split(/\s+/)
 		.filter(name => name !== 'rx_queue' && name !== 'tm->when');
-	const table = lines.map(line => line.trim().split(/\s+/).reduce((obj, value, i) => {
+	const table = lines.map(line => line.trim().split(/\s+/).reduce((obj: Record<string, string>, value, i) => {
 		obj[names[i] || i] = value;
 		return obj;
-	}, {} as Record<string, string>));
+	}, {}));
 	return table;
 }
 
@@ -126,10 +126,10 @@ export function getRootProcesses(stdout: string) {
 }
 
 export async function findPorts(connections: { socket: number; ip: string; port: number }[], socketMap: Record<string, { pid: number; socket: number }>, processes: { pid: number; cwd: string; cmd: string }[]): Promise<CandidatePort[]> {
-	const processMap = processes.reduce((m, process) => {
+	const processMap = processes.reduce((m: Record<string, typeof processes[0]>, process) => {
 		m[process.pid] = process;
 		return m;
-	}, {} as Record<string, typeof processes[0]>);
+	}, {});
 
 	const ports: CandidatePort[] = [];
 	connections.forEach(({ socket, ip, port }) => {
@@ -349,7 +349,7 @@ export class NodeExtHostTunnelService extends ExtHostTunnelService {
 			const disposeEmitter = new Emitter<void>();
 
 			return {
-				localAddress: t.localAddress,
+				localAddress: parseAddress(t.localAddress) ?? t.localAddress,
 				remoteAddress: { port: t.tunnelRemotePort, host: t.tunnelRemoteHost },
 				onDidDispose: disposeEmitter.event,
 				dispose: () => {

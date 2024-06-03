@@ -389,7 +389,10 @@ export class WindowsStateHandler extends Disposable {
 				if (lastActiveState.mode === WindowMode.Fullscreen) {
 					state.mode = WindowMode.Fullscreen; // only take mode (fixes https://github.com/microsoft/vscode/issues/19331)
 				} else {
-					state = lastActiveState;
+					state = {
+						...lastActiveState,
+						zoomLevel: undefined // do not inherit zoom level
+					};
 				}
 
 				ensureNoOverlap = state.mode !== WindowMode.Fullscreen && windowConfig.newWindowDimensions === 'offset';

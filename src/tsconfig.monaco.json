@@ -11,7 +11,7 @@
 		"moduleResolution": "classic",
 		"removeComments": false,
 		"preserveConstEnums": true,
-		"target": "es6",
+		"target": "es2018",
 		"sourceMap": false,
 		"declaration": true
 	},

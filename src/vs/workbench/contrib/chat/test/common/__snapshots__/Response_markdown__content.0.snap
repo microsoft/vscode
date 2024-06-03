@@ -1,0 +1,11 @@
+[
+  {
+    content: {
+      value: "markdowntext",
+      isTrusted: false,
+      supportThemeIcons: false,
+      supportHtml: false
+    },
+    kind: "markdownContent"
+  }
+]

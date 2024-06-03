@@ -5,20 +5,28 @@
   "publisher": "vscode",
   "license": "MIT",
   "enabledApiProposals": [
+    "activeComment",
     "authSession",
+    "defaultChatParticipant",
+    "chatParticipantPrivate",
+    "chatVariableResolver",
     "contribViewsRemote",
     "contribStatusBarItems",
+    "createFileSystemWatcher",
     "customEditorMove",
     "diffCommand",
     "documentFiltersExclusive",
     "documentPaste",
     "editorInsets",
+    "embeddings",
     "extensionRuntime",
     "extensionsAny",
     "externalUriOpener",
     "fileSearchProvider",
+    "findFiles2",
     "findTextInFiles",
     "fsChunks",
+    "interactive",
     "mappedEditsProvider",
     "notebookCellExecutionState",
     "notebookDeprecated",
@@ -27,9 +35,8 @@
     "notebookMime",
     "portsAttributes",
     "quickPickSortByLabel",
-    "readonlyMessage",
+    "languageStatusText",
     "resolvers",
-    "saveEditor",
     "scmActionButton",
     "scmSelectedProvider",
     "scmTextDocument",
@@ -37,20 +44,16 @@
     "taskPresentationGroup",
     "terminalDataWriteEvent",
     "terminalDimensions",
+    "terminalShellIntegration",
     "tunnels",
-    "envShellEvent",
-    "testCoverage",
     "testObserver",
-    "testMessageContextValue",
     "textSearchProvider",
     "timeline",
     "tokenInformation",
-	"treeViewActiveItem",
+    "treeViewActiveItem",
     "treeViewReveal",
     "workspaceTrust",
-    "telemetry",
-    "windowActivity",
-    "interactiveUserActions"
+    "telemetry"
   ],
   "private": true,
   "activationEvents": [],
@@ -60,6 +63,26 @@
   },
   "icon": "media/icon.png",
   "contributes": {
+    "chatParticipants": [
+      {
+        "id": "api-test.participant",
+        "name": "participant",
+        "description": "test",
+        "isDefault": true,
+        "commands": [
+          {
+            "name": "hello",
+            "description": "Hello"
+          }
+        ]
+      },
+      {
+        "id": "api-test.participant2",
+        "name": "participant2",
+        "description": "test",
+        "commands": []
+      }
+    ],
     "configuration": {
       "type": "object",
       "title": "Test Config",
@@ -164,6 +187,12 @@
         ]
       }
     ],
+    "interactiveSession": [
+      {
+        "id": "provider",
+        "label": "Provider"
+      }
+    ],
     "notebooks": [
       {
         "type": "notebookCoreTest",
@@ -213,7 +242,7 @@
   },
   "devDependencies": {
     "@types/mocha": "^9.1.1",
-    "@types/node": "18.x"
+    "@types/node": "20.x"
   },
   "repository": {
     "type": "git",

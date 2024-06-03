@@ -6,8 +6,11 @@
 import * as assert from 'assert';
 import { KeyCode, ScanCode } from 'vs/base/common/keyCodes';
 import { KeyCodeChord, ScanCodeChord } from 'vs/base/common/keybindings';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('keyCodes', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('issue #173325: wrong interpretations of special keys (e.g. [Equal] is mistaken for V)', () => {
 		const a = new KeyCodeChord(true, false, false, false, KeyCode.KeyV);

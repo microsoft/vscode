@@ -92,6 +92,9 @@ export async function getShellFileHistory(accessor: ServicesAccessor, shellType:
 		case PosixShellType.Fish:
 			result = await fetchFishHistory(accessor);
 			break;
+		case PosixShellType.Python:
+			result = await fetchPythonHistory(accessor);
+			break;
 		default: return [];
 	}
 	if (result === undefined) {
@@ -292,6 +295,30 @@ export async function fetchZshHistory(accessor: ServicesAccessor) {
 			result.add(sanitized);
 		}
 	}
+	return result.values();
+}
+
+
+export async function fetchPythonHistory(accessor: ServicesAccessor): Promise<IterableIterator<string> | undefined> {
+	const fileService = accessor.get(IFileService);
+	const remoteAgentService = accessor.get(IRemoteAgentService);
+
+	const content = await fetchFileContents(env['HOME'], '.python_history', false, fileService, remoteAgentService);
+
+	if (content === undefined) {
+		return undefined;
+	}
+
+	// Python history file is a simple text file with one command per line
+	const fileLines = content.split('\n');
+	const result: Set<string> = new Set();
+
+	fileLines.forEach(line => {
+		if (line.trim().length > 0) {
+			result.add(line.trim());
+		}
+	});
+
 	return result.values();
 }
 

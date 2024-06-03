@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { IDiskFileChange, ILogMessage, AbstractNonRecursiveWatcherClient, INonRecursiveWatcher } from 'vs/platform/files/common/watcher';
+import { IFileChange } from 'vs/platform/files/common/files';
+import { ILogMessage, AbstractNonRecursiveWatcherClient, INonRecursiveWatcher } from 'vs/platform/files/common/watcher';
 import { NodeJSWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcher';
 
 export class NodeJSWatcherClient extends AbstractNonRecursiveWatcherClient {
 
 	constructor(
-		onFileChanges: (changes: IDiskFileChange[]) => void,
+		onFileChanges: (changes: IFileChange[]) => void,
 		onLogMessage: (msg: ILogMessage) => void,
 		verboseLogging: boolean
 	) {
@@ -20,6 +21,6 @@ export class NodeJSWatcherClient extends AbstractNonRecursiveWatcherClient {
 	}
 
 	protected override createWatcher(disposables: DisposableStore): INonRecursiveWatcher {
-		return disposables.add(new NodeJSWatcher());
+		return disposables.add(new NodeJSWatcher(undefined /* no recursive watching support here */)) satisfies INonRecursiveWatcher;
 	}
 }

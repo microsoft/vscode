@@ -30,9 +30,7 @@ const platformOpensslDirName =
 	process.platform === 'win32' ? (
 		process.arch === 'arm64'
 			? 'arm64-windows-static-md'
-			: process.arch === 'ia32'
-				? 'x86-windows-static-md'
-				: 'x64-windows-static-md')
+			: 'x64-windows-static-md')
 		: process.platform === 'darwin' ? (
 			process.arch === 'arm64'
 				? 'arm64-osx'

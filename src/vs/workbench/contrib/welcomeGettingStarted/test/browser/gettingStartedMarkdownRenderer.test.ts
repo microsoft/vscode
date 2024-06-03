@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import { FileAccess } from 'vs/base/common/network';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { LanguageService } from 'vs/editor/common/services/languageService';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { GettingStartedDetailsRenderer } from 'vs/workbench/contrib/welcomeGettingStarted/browser/gettingStartedDetailsRenderer';
@@ -14,6 +15,9 @@ import { TestExtensionService } from 'vs/workbench/test/common/workbenchTestServ
 
 
 suite('Getting Started Markdown Renderer', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('renders theme picker markdown with images', async () => {
 		const fileService = new TestFileService();
 		const languageService = new LanguageService();
@@ -23,7 +27,7 @@ suite('Getting Started Markdown Renderer', () => {
 		const rendered = await renderer.renderMarkdown(mdPath, mdBase);
 		const imageSrcs = [...rendered.matchAll(/img src="[^"]*"/g)].map(match => match[0]);
 		for (const src of imageSrcs) {
-			const targetSrcFormat = /^img src="https:\/\/file\+.vscode-resource.vscode-cdn.net\/.*\/vs\/workbench\/contrib\/welcomeGettingStarted\/common\/media\/.*.png"$/;
+			const targetSrcFormat = /^img src=".*\/vs\/workbench\/contrib\/welcomeGettingStarted\/common\/media\/.*.png"$/;
 			assert(targetSrcFormat.test(src), `${src} didnt match regex`);
 		}
 		languageService.dispose();

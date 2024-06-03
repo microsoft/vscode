@@ -142,6 +142,11 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		this.grammarTokens.forceTokenization(lineNumber);
 	}
 
+	public hasAccurateTokensForLine(lineNumber: number): boolean {
+		this.validateLineNumber(lineNumber);
+		return this.grammarTokens.hasAccurateTokensForLine(lineNumber);
+	}
+
 	public isCheapToTokenize(lineNumber: number): boolean {
 		this.validateLineNumber(lineNumber);
 		return this.grammarTokens.isCheapToTokenize(lineNumber);
@@ -461,7 +466,7 @@ class GrammarTokens extends Disposable {
 			if (tokenizationSupport && tokenizationSupport.createBackgroundTokenizer && !tokenizationSupport.backgroundTokenizerShouldOnlyVerifyTokens) {
 				this._backgroundTokenizer.value = tokenizationSupport.createBackgroundTokenizer(this._textModel, b);
 			}
-			if (!this._backgroundTokenizer.value) {
+			if (!this._backgroundTokenizer.value && !this._textModel.isTooLargeForTokenization()) {
 				this._backgroundTokenizer.value = this._defaultBackgroundTokenizer =
 					new DefaultBackgroundTokenizer(this._tokenizer, b);
 				this._defaultBackgroundTokenizer.handleChanges();
@@ -566,6 +571,13 @@ class GrammarTokens extends Disposable {
 		this._tokenizer?.updateTokensUntilLine(builder, lineNumber);
 		this.setTokens(builder.finalize());
 		this._defaultBackgroundTokenizer?.checkFinished();
+	}
+
+	public hasAccurateTokensForLine(lineNumber: number): boolean {
+		if (!this._tokenizer) {
+			return true;
+		}
+		return this._tokenizer.hasAccurateTokensForLine(lineNumber);
 	}
 
 	public isCheapToTokenize(lineNumber: number): boolean {
