@@ -1648,6 +1648,16 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			this.languageConfigurationService,
 			this._themeService,
 			attachedView,
+			{
+				batchChanges: (cb) => {
+					try {
+						this._beginUpdate();
+						return cb();
+					} finally {
+						this._endUpdate();
+					}
+				},
+			}
 		);
 
 		// Someone might destroy the model from under the editor, so prevent any exceptions by setting a null model

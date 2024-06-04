@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
 import { LanguageIdCodec } from 'vs/editor/common/services/languagesRegistry';
