@@ -25,7 +25,7 @@ declare module 'vscode' {
 		 * A CancellationToken that represents the session for this search query. If the provider chooses to, this object can be used as the key for a cache,
 		 * and searches with the same session object can search the same cache. When the token is cancelled, the session is complete and the cache can be cleared.
 		 */
-		session?: CancellationToken;
+		session: CancellationToken;
 	}
 
 	/**

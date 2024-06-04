@@ -44,41 +44,41 @@ declare module 'vscode' {
 		/**
 		 * The root folder to search within.
 		 */
-		folder?: Uri;
+		folder: Uri;
 
 		/**
 		 * Files that match an `includes` glob pattern should be included in the search.
 		 */
-		includes?: string[];
+		includes: string[];
 
 		/**
 		 * Files that match an `excludes` glob pattern should be excluded from the search.
 		 */
-		excludes?: string[];
+		excludes: string[];
 
 		/**
 		 * Whether files located at the workspace root that exclude files, like .gitignore, should be respected.
 		 * See the vscode setting `"search.useIgnoreFiles"` for more information.
 		 */
-		useLocalIgnoreFiles?: boolean;
+		useLocalIgnoreFiles: boolean;
 
 		/**
 		 * Whether symlinks should be followed while searching.
 		 * See the vscode setting `"search.followSymlinks"` for more information.
 		 */
-		followSymlinks?: boolean;
+		followSymlinks: boolean;
 
 		/**
 		 * Whether global files that exclude files, like .gitignore, should be respected.
 		 * See the vscode setting `"search.useGlobalIgnoreFiles"` for more information.
 		 */
-		useGlobalIgnoreFiles?: boolean;
+		useGlobalIgnoreFiles: boolean;
 
 		/**
 		 * Whether files in parent directories that exclude files, like .gitignore, should be respected.
 		 * See the vscode setting `"search.useParentIgnoreFiles"` for more information.
 		 */
-		useParentIgnoreFiles?: boolean;
+		useParentIgnoreFiles: boolean;
 
 		/**
 		 * The maximum number of results to be returned.
@@ -90,7 +90,7 @@ declare module 'vscode' {
 		 * See the vscode setting `"search.useIgnoreFiles"`.
 		 * @deprecated
 		 */
-		useIgnoreFiles?: boolean;
+		useIgnoreFiles: boolean;
 	}
 
 	/**
@@ -118,28 +118,36 @@ declare module 'vscode' {
 		/**
 		 * Options to specify the size of the result text preview.
 		 */
-		previewOptions?: TextSearchPreviewOptions;
+		previewOptions: TextSearchPreviewOptions;
 
 		/**
 		 * Exclude files larger than `maxFileSize` in bytes.
 		 */
-		maxFileSize?: number;
+		maxFileSize: number;
 
 		/**
 		 * Interpret files using this encoding.
 		 * See the vscode setting `"files.encoding"`
 		 */
-		encoding?: string;
+		encoding: string;
+
+		/**
+		 * Number of lines of context to include before and after each match.
+		 */
+		surroundingContext: number;
+
 
 		/**
 		 * Number of lines of context to include before each match.
+		 * @deprecated
 		 */
-		beforeContext?: number;
+		beforeContext: number;
 
 		/**
 		 * Number of lines of context to include after each match.
+		 * @deprecated
 		 */
-		afterContext?: number;
+		afterContext: number;
 	}
 
 	/**
@@ -238,8 +246,7 @@ declare module 'vscode' {
 		/**
 		 * Any applicable context lines
 		 */
-		beforeContext?: TextSearchContext[];
-		afterContext?: TextSearchContext[];
+		surroundingContext: TextSearchContext[];
 	}
 
 	/**
