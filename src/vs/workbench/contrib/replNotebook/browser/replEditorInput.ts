@@ -72,9 +72,9 @@ export class ReplEditorInput extends NotebookEditorInput {
 	override dispose() {
 		if (!this.isDisposing) {
 			this.isDisposing = true;
-			super.dispose();
 			this.editorModelReference?.object.revert({ soft: true });
 			this.inputModelRef?.dispose();
+			super.dispose();
 		}
 	}
 }

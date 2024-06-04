@@ -293,8 +293,9 @@ registerAction2(class extends Action2 {
 					return;
 				}
 
-				historyService.addToHistory(notebookDocument.uri, '');
+				historyService.addToHistory(notebookDocument.uri, value);
 				textModel.setValue('');
+				notebookDocument.cells[index].resetTextBuffer(textModel.getTextBuffer());
 
 				const collapseState = editorControl.notebookEditor.notebookOptions.getDisplayOptions().interactiveWindowCollapseCodeCells === 'fromEditor' ?
 					{
