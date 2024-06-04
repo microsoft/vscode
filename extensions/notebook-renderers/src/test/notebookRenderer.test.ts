@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import * as assert from 'assert';ert';
 import { activate } from '..';
 import { RendererApi } from 'vscode-notebook-renderer';
 import { IDisposable, IRichRenderContext, OutputWithAppend, RenderOptions } from '../rendererTypes';
@@ -508,4 +508,3 @@ suite('Notebook builtin output renderer', () => {
 	});
 
 });
-

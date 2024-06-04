@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'mocha';
-import * as assert from 'assert';
+import * as assert from 'assert';ert';
 import { workspace, extensions, Uri, commands } from 'vscode';
 import { findPullRequestTemplates, pickPullRequestTemplate } from '../pushErrorHandler';
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { formatStackTrace } from '../stackTraceHelper';
-import * as assert from 'assert';
+import * as assert from 'assert';ert';
 
 // The stack frames for these tests can be retreived by using the raw json for a notebook with an error
 suite('StackTraceHelper', () => {

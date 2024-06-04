@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import 'mocha';
-import * as assert from 'assert';
+import * as assert from 'assert';ert';
 import { URI } from 'vscode-uri';
 import { resolve } from 'path';
 import { TextDocument, DocumentLink } from 'vscode-languageserver-types';
