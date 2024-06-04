@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Barrier } from 'vs/base/common/async';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
+import { observableValue } from 'vs/base/common/observable';
 import { IDisposable, DisposableStore, combinedDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, IInputValidation, ISCMViewService, InputValidationType, ISCMActionButtonDescriptor } from 'vs/workbench/contrib/scm/common/scm';
 import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceSplices, SCMGroupFeatures, MainContext, SCMHistoryItemGroupDto } from '../common/extHost.protocol';
@@ -25,7 +27,6 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { Schemas } from 'vs/base/common/network';
 import { ITextModel } from 'vs/editor/common/model';
-import { Barrier } from 'vs/base/common/async';
 
 function getIconFromIconDto(iconDto?: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon): URI | { light: URI; dark: URI } | ThemeIcon | undefined {
 	if (iconDto === undefined) {
@@ -225,18 +226,23 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 	get inputBoxTextModel(): ITextModel { return this._inputBoxTextModel; }
 	get contextValue(): string { return this._providerId; }
 
-	get commitTemplate(): string { return this.features.commitTemplate || ''; }
 	get historyProvider(): ISCMHistoryProvider | undefined { return this._historyProvider; }
 	get acceptInputCommand(): Command | undefined { return this.features.acceptInputCommand; }
 	get actionButton(): ISCMActionButtonDescriptor | undefined { return this.features.actionButton ?? undefined; }
 	get statusBarCommands(): Command[] | undefined { return this.features.statusBarCommands; }
 	get count(): number | undefined { return this.features.count; }
 
+	private readonly _countObs = observableValue<number | undefined>(this, undefined);
+	get countObs() { return this._countObs; }
+
+	private readonly _statusBarCommandsObs = observableValue<readonly Command[] | undefined>(this, undefined);
+	get statusBarCommandsObs() { return this._statusBarCommandsObs; }
+
 	private readonly _name: string | undefined;
 	get name(): string { return this._name ?? this._label; }
 
-	private readonly _onDidChangeCommitTemplate = new Emitter<string>();
-	readonly onDidChangeCommitTemplate: Event<string> = this._onDidChangeCommitTemplate.event;
+	private readonly _commitTemplate = observableValue<string>(this, '');
+	get commitTemplate() { return this._commitTemplate; }
 
 	private readonly _onDidChangeStatusBarCommands = new Emitter<readonly Command[]>();
 	get onDidChangeStatusBarCommands(): Event<readonly Command[]> { return this._onDidChangeStatusBarCommands.event; }
@@ -278,10 +284,15 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 		this._onDidChange.fire();
 
 		if (typeof features.commitTemplate !== 'undefined') {
-			this._onDidChangeCommitTemplate.fire(this.commitTemplate);
+			this._commitTemplate.set(features.commitTemplate, undefined);
+		}
+
+		if (typeof features.count !== 'undefined') {
+			this._countObs.set(features.count, undefined);
 		}
 
 		if (typeof features.statusBarCommands !== 'undefined') {
+			this._statusBarCommandsObs.set(features.statusBarCommands, undefined);
 			this._onDidChangeStatusBarCommands.fire(this.statusBarCommands!);
 		}
 

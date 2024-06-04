@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { equals } from 'vs/base/common/arrays';
-import { raceCancellation, timeout } from 'vs/base/common/async';
+import { DeferredPromise, raceCancellation, timeout } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { mock } from 'vs/base/test/common/mock';
@@ -89,21 +89,21 @@ suite('InteractiveChatController', function () {
 
 		readonly states: readonly State[] = [];
 
-		waitFor(states: readonly State[]): Promise<void> {
+		awaitStates(states: readonly State[]): Promise<string | undefined> {
 			const actual: State[] = [];
 
-			return new Promise<void>((resolve, reject) => {
+			return new Promise<string | undefined>((resolve, reject) => {
 				const d = this.onDidChangeState(state => {
 					actual.push(state);
 					if (equals(states, actual)) {
 						d.dispose();
-						resolve();
+						resolve(undefined);
 					}
 				});
 
 				setTimeout(() => {
 					d.dispose();
-					reject(new Error(`timeout, \nEXPECTED: ${states.join('>')}, \nACTUAL  : ${actual.join('>')}`));
+					resolve(`[${states.join(',')}] <> [${actual.join(',')}]`);
 				}, 1000);
 			});
 		}
@@ -243,9 +243,9 @@ suite('InteractiveChatController', function () {
 
 	test('run (show/hide)', async function () {
 		ctrl = instaService.createInstance(TestController, editor);
-		const p = ctrl.waitFor(TestController.INIT_SEQUENCE_AUTO_SEND);
+		const actualStates = ctrl.awaitStates(TestController.INIT_SEQUENCE_AUTO_SEND);
 		const run = ctrl.run({ message: 'Hello', autoSend: true });
-		await p;
+		assert.strictEqual(await actualStates, undefined);
 		assert.ok(ctrl.getWidgetPosition() !== undefined);
 		await ctrl.cancelSession();
 
@@ -274,10 +274,10 @@ suite('InteractiveChatController', function () {
 		configurationService.setUserConfiguration(InlineChatConfigKeys.FinishOnType, true);
 
 		ctrl = instaService.createInstance(TestController, editor);
-		const p = ctrl.waitFor(TestController.INIT_SEQUENCE_AUTO_SEND);
+		const actualStates = ctrl.awaitStates(TestController.INIT_SEQUENCE_AUTO_SEND);
 		const r = ctrl.run({ message: 'Hello', autoSend: true });
 
-		await p;
+		assert.strictEqual(await actualStates, undefined);
 
 		const session = inlineChatSessionService.getSession(editor, editor.getModel()!.uri);
 		assert.ok(session);
@@ -286,7 +286,7 @@ suite('InteractiveChatController', function () {
 		editor.setSelection(new Range(2, 1, 2, 1));
 		editor.trigger('test', 'type', { text: 'a' });
 
-		await ctrl.waitFor([State.ACCEPT]);
+		assert.strictEqual(await ctrl.awaitStates([State.ACCEPT]), undefined);
 		await r;
 	});
 
@@ -313,17 +313,18 @@ suite('InteractiveChatController', function () {
 		}));
 
 		ctrl = instaService.createInstance(TestController, editor);
-		const p = ctrl.waitFor(TestController.INIT_SEQUENCE);
+		const p = ctrl.awaitStates(TestController.INIT_SEQUENCE);
 		const r = ctrl.run({ message: 'GENGEN', autoSend: false });
 
-		await p;
+		assert.strictEqual(await p, undefined);
+
 
 		const session = inlineChatSessionService.getSession(editor, editor.getModel()!.uri);
 		assert.ok(session);
 		assert.deepStrictEqual(session.wholeRange.value, new Range(3, 1, 3, 3)); // initial
 
 		ctrl.acceptInput();
-		await ctrl.waitFor([State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
+		assert.strictEqual(await ctrl.awaitStates([State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]), undefined);
 
 		assert.deepStrictEqual(session.wholeRange.value, new Range(1, 1, 4, 3));
 
@@ -343,10 +344,11 @@ suite('InteractiveChatController', function () {
 		}));
 
 		ctrl = instaService.createInstance(TestController, editor);
-		const p = ctrl.waitFor([...TestController.INIT_SEQUENCE, State.SHOW_REQUEST]);
+		const p = ctrl.awaitStates([...TestController.INIT_SEQUENCE, State.SHOW_REQUEST]);
 		const r = ctrl.run({ message: 'Hello', autoSend: true });
 
-		await p;
+		assert.strictEqual(await p, undefined);
+
 		ctrl.acceptSession();
 
 		await r;
@@ -372,9 +374,9 @@ suite('InteractiveChatController', function () {
 		const valueThen = editor.getModel().getValue();
 
 		ctrl = instaService.createInstance(TestController, editor);
-		const p = ctrl.waitFor([...TestController.INIT_SEQUENCE, State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
+		const p = ctrl.awaitStates([...TestController.INIT_SEQUENCE, State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
 		const r = ctrl.run({ message: 'Hello', autoSend: true });
-		await p;
+		assert.strictEqual(await p, undefined);
 		ctrl.acceptSession();
 		await r;
 
@@ -415,9 +417,9 @@ suite('InteractiveChatController', function () {
 			// store.add(editor.getModel().onDidChangeContent(() => { modelChangeCounter++; }));
 
 			ctrl = instaService.createInstance(TestController, editor);
-			const p = ctrl.waitFor([...TestController.INIT_SEQUENCE, State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
+			const p = ctrl.awaitStates([...TestController.INIT_SEQUENCE, State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
 			const r = ctrl.run({ message: 'Hello', autoSend: true });
-			await p;
+			assert.strictEqual(await p, undefined);
 
 			// assert.ok(modelChangeCounter > 0, modelChangeCounter.toString()); // some changes have been made
 			// const modelChangeCounterNow = modelChangeCounter;
@@ -438,9 +440,9 @@ suite('InteractiveChatController', function () {
 
 		// NO manual edits -> cancel
 		ctrl = instaService.createInstance(TestController, editor);
-		const p = ctrl.waitFor([...TestController.INIT_SEQUENCE, State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
+		const p = ctrl.awaitStates([...TestController.INIT_SEQUENCE, State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
 		const r = ctrl.run({ message: 'GENERATED', autoSend: true });
-		await p;
+		assert.strictEqual(await p, undefined);
 
 		assert.ok(model.getValue().includes('GENERATED'));
 		assert.strictEqual(contextKeyService.getContextKeyValue(CTX_INLINE_CHAT_USER_DID_EDIT.key), undefined);
@@ -454,9 +456,9 @@ suite('InteractiveChatController', function () {
 
 		// manual edits -> finish
 		ctrl = instaService.createInstance(TestController, editor);
-		const p = ctrl.waitFor([...TestController.INIT_SEQUENCE, State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
+		const p = ctrl.awaitStates([...TestController.INIT_SEQUENCE, State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
 		const r = ctrl.run({ message: 'GENERATED', autoSend: true });
-		await p;
+		assert.strictEqual(await p, undefined);
 
 		assert.ok(model.getValue().includes('GENERATED'));
 
@@ -489,16 +491,17 @@ suite('InteractiveChatController', function () {
 
 		model.setValue('');
 
-		const p = ctrl.waitFor([...TestController.INIT_SEQUENCE, State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
+		const p = ctrl.awaitStates([...TestController.INIT_SEQUENCE, State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
 		const r = ctrl.run({ message: 'PROMPT_', autoSend: true });
-		await p;
+		assert.strictEqual(await p, undefined);
+
 
 		assert.strictEqual(model.getValue(), 'PROMPT_1');
 
-		const p2 = ctrl.waitFor([State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
+		const p2 = ctrl.awaitStates([State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
 		await instaService.invokeFunction(rerun.runInlineChatCommand, ctrl, editor);
 
-		await p2;
+		assert.strictEqual(await p2, undefined);
 
 		assert.strictEqual(model.getValue(), 'PROMPT_2');
 		ctrl.finishExistingSession();
@@ -529,23 +532,23 @@ suite('InteractiveChatController', function () {
 		model.setValue('');
 
 		// REQUEST 1
-		const p = ctrl.waitFor([...TestController.INIT_SEQUENCE, State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
+		const p = ctrl.awaitStates([...TestController.INIT_SEQUENCE, State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
 		const r = ctrl.run({ message: '1', autoSend: true });
-		await p;
+		assert.strictEqual(await p, undefined);
 
 		assert.strictEqual(model.getValue(), 'eins-');
 
 		// REQUEST 2
-		const p2 = ctrl.waitFor([State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
+		const p2 = ctrl.awaitStates([State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
 		await ctrl.acceptInput();
-		await p2;
+		assert.strictEqual(await p2, undefined);
 
 		assert.strictEqual(model.getValue(), 'zwei-eins-');
 
 		// REQUEST 2 - RERUN
-		const p3 = ctrl.waitFor([State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
+		const p3 = ctrl.awaitStates([State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
 		await instaService.invokeFunction(rerun.runInlineChatCommand, ctrl, editor);
-		await p3;
+		assert.strictEqual(await p3, undefined);
 
 		assert.strictEqual(model.getValue(), 'drei-eins-');
 
@@ -572,10 +575,9 @@ suite('InteractiveChatController', function () {
 		ctrl = instaService.createInstance(TestController, editor);
 
 		// REQUEST 1
-		const p = ctrl.waitFor([...TestController.INIT_SEQUENCE, State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
+		const p = ctrl.awaitStates([...TestController.INIT_SEQUENCE, State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
 		ctrl.run({ message: '1', autoSend: true });
-		await p;
-
+		assert.strictEqual(await p, undefined);
 
 		assert.strictEqual(model.getValue(), 'eins\nHello\nWorld\nHello Again\nHello World\n');
 
@@ -613,16 +615,16 @@ suite('InteractiveChatController', function () {
 		ctrl = instaService.createInstance(TestController, editor);
 
 		// REQUEST 1
-		const p = ctrl.waitFor([...TestController.INIT_SEQUENCE, State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
+		const p = ctrl.awaitStates([...TestController.INIT_SEQUENCE, State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
 		ctrl.run({ message: '1', autoSend: true });
-		await p;
+		assert.strictEqual(await p, undefined);
 
 		assert.strictEqual(model.getValue(), 'eins\nHello\nWorld\nHello Again\nHello World\n');
 
 		// REQUEST 2
-		const p2 = ctrl.waitFor([State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
+		const p2 = ctrl.awaitStates([State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
 		await ctrl.acceptInput();
-		await p2;
+		assert.strictEqual(await p2, undefined);
 
 		assert.strictEqual(model.getValue(), 'zwei\neins\nHello\nWorld\nHello Again\nHello World\n');
 
@@ -672,17 +674,17 @@ suite('InteractiveChatController', function () {
 		ctrl = instaService.createInstance(TestController, editor);
 
 		// REQUEST 1
-		const p = ctrl.waitFor([...TestController.INIT_SEQUENCE, State.SHOW_REQUEST]);
+		const p = ctrl.awaitStates([...TestController.INIT_SEQUENCE, State.SHOW_REQUEST]);
 		ctrl.run({ message: 'Hello-', autoSend: true });
-		await p;
+		assert.strictEqual(await p, undefined);
 
 		// resend pending request without command detection
 		const request = ctrl.chatWidget.viewModel?.model.getRequests().at(-1);
 		assertType(request);
-		const p2 = ctrl.waitFor([State.SHOW_REQUEST, State.SHOW_RESPONSE]);
+		const p2 = ctrl.awaitStates([State.SHOW_REQUEST, State.SHOW_RESPONSE]);
 		chatService.resendRequest(request, { noCommandDetection: true, attempt: request.attempt + 1, location: ChatAgentLocation.Editor });
 
-		await p2;
+		assert.strictEqual(await p2, undefined);
 
 		assert.deepStrictEqual(commandDetection, [true, false]);
 		assert.strictEqual(model.getValue(), 'Hello-1');
@@ -708,19 +710,64 @@ suite('InteractiveChatController', function () {
 		ctrl = instaService.createInstance(TestController, editor);
 
 		// REQUEST 1
-		const p = ctrl.waitFor([...TestController.INIT_SEQUENCE, State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
+		const p = ctrl.awaitStates([...TestController.INIT_SEQUENCE, State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
 		ctrl.run({ message: 'Hello-', autoSend: true });
-		await p;
+		assert.strictEqual(await p, undefined);
 
 		// resend pending request without command detection
 		const request = ctrl.chatWidget.viewModel?.model.getRequests().at(-1);
 		assertType(request);
-		const p2 = ctrl.waitFor([State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
+		const p2 = ctrl.awaitStates([State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
 		chatService.resendRequest(request, { noCommandDetection: true, attempt: request.attempt + 1, location: ChatAgentLocation.Editor });
 
-		await p2;
+		assert.strictEqual(await p2, undefined);
 
 		assert.deepStrictEqual(commandDetection, [true, false]);
 		assert.strictEqual(model.getValue(), 'Hello-1');
+	});
+
+
+	test('Inline: Pressing Rerun request while the response streams breaks the response #5442', async function () {
+
+		model.setValue('two\none\n');
+
+		const attempts: (number | undefined)[] = [];
+
+		const deferred = new DeferredPromise<void>();
+
+		store.add(chatAgentService.registerDynamicAgent({
+			id: 'testEditorAgent2',
+			...agentData
+		}, {
+			async invoke(request, progress, history, token) {
+
+				attempts.push(request.attempt);
+
+				progress({ kind: 'textEdit', uri: model.uri, edits: [{ range: new Range(1, 1, 1, 1), text: `TRY:${request.attempt}\n` }] });
+				await raceCancellation(deferred.p, token);
+				deferred.complete();
+				await timeout(10);
+				return {};
+			},
+		}));
+
+		ctrl = instaService.createInstance(TestController, editor);
+
+		// REQUEST 1
+		const p = ctrl.awaitStates([...TestController.INIT_SEQUENCE, State.SHOW_REQUEST]);
+		ctrl.run({ message: 'Hello-', autoSend: true });
+		assert.strictEqual(await p, undefined);
+		assert.deepStrictEqual(attempts, [0]);
+
+		// RERUN (cancel, undo, redo)
+		const p2 = ctrl.awaitStates([State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
+		const rerun = new RerunAction();
+		await instaService.invokeFunction(rerun.runInlineChatCommand, ctrl, editor);
+		assert.strictEqual(await p2, undefined);
+
+		assert.deepStrictEqual(attempts, [0, 1]);
+
+		assert.strictEqual(model.getValue(), 'TRY:1\ntwo\none\n');
+
 	});
 });

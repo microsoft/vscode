@@ -44,9 +44,10 @@ export namespace Iterable {
 		return iterable[Symbol.iterator]().next().value;
 	}
 
-	export function some<T>(iterable: Iterable<T>, predicate: (t: T) => unknown): boolean {
+	export function some<T>(iterable: Iterable<T>, predicate: (t: T, i: number) => unknown): boolean {
+		let i = 0;
 		for (const element of iterable) {
-			if (predicate(element)) {
+			if (predicate(element, i++)) {
 				return true;
 			}
 		}
