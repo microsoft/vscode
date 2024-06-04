@@ -12,16 +12,16 @@ export class HoverResult {
 
 	constructor(
 		public readonly anchor: HoverAnchor,
-		public readonly messages: IHoverPart[],
+		public readonly hoverParts: IHoverPart[],
 		public readonly isComplete: boolean
 	) { }
 
 	public filter(anchor: HoverAnchor): HoverResult {
-		const filteredMessages = this.messages.filter((m) => m.isValidForHoverAnchor(anchor));
-		if (filteredMessages.length === this.messages.length) {
+		const filteredHoverParts = this.hoverParts.filter((m) => m.isValidForHoverAnchor(anchor));
+		if (filteredHoverParts.length === this.hoverParts.length) {
 			return this;
 		}
-		return new FilteredHoverResult(this, this.anchor, filteredMessages, this.isComplete);
+		return new FilteredHoverResult(this, this.anchor, filteredHoverParts, this.isComplete);
 	}
 }
 
