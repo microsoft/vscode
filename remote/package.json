@@ -22,7 +22,6 @@
     "@xterm/headless": "5.6.0-beta.19",
     "@xterm/xterm": "5.6.0-beta.19",
     "cookie": "^0.4.0",
-    "graceful-fs": "4.2.11",
     "http-proxy-agent": "^7.0.0",
     "https-proxy-agent": "^7.0.2",
     "jschardet": "3.1.2",

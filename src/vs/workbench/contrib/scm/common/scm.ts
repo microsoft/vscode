@@ -74,6 +74,7 @@ export interface ISCMProvider extends IDisposable {
 	readonly rootUri?: URI;
 	readonly inputBoxTextModel: ITextModel;
 	readonly count?: number;
+	readonly countObs: IObservable<number | undefined>;
 	readonly commitTemplate: IObservable<string>;
 	readonly historyProvider?: ISCMHistoryProvider;
 	readonly onDidChangeHistoryProvider: Event<void>;
@@ -81,6 +82,7 @@ export interface ISCMProvider extends IDisposable {
 	readonly acceptInputCommand?: Command;
 	readonly actionButton?: ISCMActionButtonDescriptor;
 	readonly statusBarCommands?: readonly Command[];
+	readonly statusBarCommandsObs: IObservable<readonly Command[] | undefined>;
 	readonly onDidChange: Event<void>;
 
 	getOriginalResource(uri: URI): Promise<URI | null>;
