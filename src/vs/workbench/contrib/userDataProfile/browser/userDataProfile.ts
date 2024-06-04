@@ -30,6 +30,7 @@ import { UserDataProfilesEditor, UserDataProfilesEditorInput, UserDataProfilesEd
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 type IProfileTemplateQuickPickItem = IQuickPickItem & IProfileTemplateInfo;
 
@@ -123,6 +124,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			submenu: ProfilesMenu,
 			group: '2_configuration',
 			order: 1,
+			when: HAS_PROFILES_CONTEXT,
 		});
 		MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 			get title() {
@@ -131,60 +133,20 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			submenu: ProfilesMenu,
 			group: '2_configuration',
 			order: 1,
-			when: PROFILES_ENABLEMENT_CONTEXT,
+			when: HAS_PROFILES_CONTEXT,
 		});
-	}
-
-	private registerManageProfilesAction(): IDisposable {
-		const disposables = new DisposableStore();
-		const when = ContextKeyExpr.equals('config.workbench.experimental.enableNewProfilesUI', true);
-		disposables.add(registerAction2(class ManageProfilesAction extends Action2 {
-			constructor() {
-				super({
-					id: `workbench.profiles.actions.manageProfiles`,
-					title: {
-						...localize2('manage profiles', "Profiles"),
-						mnemonicTitle: localize({ key: 'miOpenProfiles', comment: ['&& denotes a mnemonic'] }, "&&Profiles"),
-					},
-					menu: [
-						{
-							id: MenuId.GlobalActivity,
-							group: '2_configuration',
-							when,
-							order: 1
-						},
-						{
-							id: MenuId.MenubarPreferencesMenu,
-							group: '2_configuration',
-							when,
-							order: 1
-						}
-					]
-				});
-			}
-			run(accessor: ServicesAccessor) {
-				const editorGroupsService = accessor.get(IEditorGroupsService);
-				const instantiationService = accessor.get(IInstantiationService);
-				return editorGroupsService.activeGroup.openEditor(new UserDataProfilesEditorInput(instantiationService));
-			}
-		}));
-		disposables.add(MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
-			command: {
-				id: 'workbench.profiles.actions.manageProfiles',
-				category: Categories.Preferences,
-				title: localize2('open profiles', "Open Profiles (UI)"),
-				precondition: when,
-			},
-		}));
-
-		return disposables;
 	}
 
 	private readonly profilesDisposable = this._register(new MutableDisposable<DisposableStore>());
 	private registerProfilesActions(): void {
 		this.profilesDisposable.value = new DisposableStore();
 		for (const profile of this.userDataProfilesService.profiles) {
-			this.profilesDisposable.value.add(this.registerProfileEntryAction(profile));
+			if (!profile.isTransient) {
+				this.profilesDisposable.value.add(this.registerProfileEntryAction(profile));
+				if (!profile.isDefault) {
+					this.profilesDisposable.value.add(this.registerNewWindowAction(profile));
+				}
+			}
 		}
 	}
 
@@ -222,6 +184,31 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 					}
 					return that.userDataProfileManagementService.switchProfile(profile);
 				}
+			}
+		});
+	}
+
+	private registerNewWindowAction(profile: IUserDataProfile): IDisposable {
+		return registerAction2(class NewWindowAction extends Action2 {
+
+			constructor() {
+				super({
+					id: `workbench.action.${profile.name.toLowerCase().replace('/\s+/', '_')}.newWindow`,
+					title: {
+						...localize2('newWindow', "New {0} Window", profile.name),
+					},
+					f1: true,
+					menu: {
+						id: MenuId.MenubarFileMenu,
+						group: '1_new',
+						order: 4
+					}
+				});
+			}
+
+			override run(accessor: ServicesAccessor): Promise<void> {
+				const hostService = accessor.get(IHostService);
+				return hostService.openWindow({ remoteAuthority: null, forceProfile: profile.name });
 			}
 		});
 	}
@@ -266,21 +253,73 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 		this.currentprofileActionsDisposable.value.add(this.registerImportProfileAction());
 	}
 
+	private registerManageProfilesAction(): IDisposable {
+		const disposables = new DisposableStore();
+		const precondition = ContextKeyExpr.equals('config.workbench.experimental.enableNewProfilesUI', true);
+		disposables.add(registerAction2(class ManageProfilesAction extends Action2 {
+			constructor() {
+				super({
+					id: `workbench.profiles.actions.manageProfiles`,
+					title: {
+						...localize2('manage profiles', "Profiles"),
+						mnemonicTitle: localize({ key: 'miOpenProfiles', comment: ['&& denotes a mnemonic'] }, "&&Profiles"),
+					},
+					menu: [
+						{
+							id: ProfilesMenu,
+							group: '2_manage_current',
+							when: precondition,
+							order: 1
+						},
+						{
+							id: MenuId.GlobalActivity,
+							group: '2_configuration',
+							order: 1,
+							when: ContextKeyExpr.and(HAS_PROFILES_CONTEXT.negate(), precondition),
+						},
+						{
+							id: MenuId.MenubarPreferencesMenu,
+							group: '2_configuration',
+							order: 1,
+							when: ContextKeyExpr.and(HAS_PROFILES_CONTEXT.negate(), precondition),
+						},
+					]
+				});
+			}
+			run(accessor: ServicesAccessor) {
+				const editorGroupsService = accessor.get(IEditorGroupsService);
+				const instantiationService = accessor.get(IInstantiationService);
+				return editorGroupsService.activeGroup.openEditor(new UserDataProfilesEditorInput(instantiationService));
+			}
+		}));
+		disposables.add(MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+			command: {
+				id: 'workbench.profiles.actions.manageProfiles',
+				category: Categories.Preferences,
+				title: localize2('open profiles', "Open Profiles (UI)"),
+				precondition: precondition,
+			},
+		}));
+
+		return disposables;
+	}
+
+
 	private registerEditCurrentProfileAction(): IDisposable {
 		const that = this;
 		return registerAction2(class RenameCurrentProfileAction extends Action2 {
 			constructor() {
-				const when = ContextKeyExpr.and(ContextKeyExpr.notEquals(CURRENT_PROFILE_CONTEXT.key, that.userDataProfilesService.defaultProfile.id), IS_CURRENT_PROFILE_TRANSIENT_CONTEXT.toNegated());
+				const precondition = ContextKeyExpr.and(ContextKeyExpr.notEquals(CURRENT_PROFILE_CONTEXT.key, that.userDataProfilesService.defaultProfile.id), IS_CURRENT_PROFILE_TRANSIENT_CONTEXT.toNegated());
 				super({
 					id: `workbench.profiles.actions.editCurrentProfile`,
 					title: localize2('edit profile', "Edit Profile..."),
-					precondition: when,
+					precondition: precondition,
 					f1: true,
 					menu: [
 						{
 							id: ProfilesMenu,
 							group: '2_manage_current',
-							when,
+							when: ContextKeyExpr.and(precondition, ContextKeyExpr.notEquals('config.workbench.experimental.enableNewProfilesUI', true)),
 							order: 2
 						}
 					]
@@ -304,9 +343,8 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 						{
 							id: ProfilesMenu,
 							group: '2_manage_current',
-							order: 3
-						}, {
-							id: MenuId.CommandPalette
+							order: 3,
+							when: ContextKeyExpr.notEquals('config.workbench.experimental.enableNewProfilesUI', true)
 						}
 					]
 				});
@@ -334,7 +372,8 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 						{
 							id: ProfilesMenu,
 							group: '4_import_export_profiles',
-							order: 1
+							order: 1,
+							when: ContextKeyExpr.notEquals('config.workbench.experimental.enableNewProfilesUI', true),
 						}, {
 							id: MenuId.CommandPalette
 						}
@@ -372,7 +411,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 						{
 							id: ProfilesMenu,
 							group: '4_import_export_profiles',
-							when: PROFILES_ENABLEMENT_CONTEXT,
+							when: ContextKeyExpr.and(PROFILES_ENABLEMENT_CONTEXT, ContextKeyExpr.notEquals('config.workbench.experimental.enableNewProfilesUI', true)),
 							order: 2
 						}, {
 							id: MenuId.CommandPalette,
@@ -493,7 +532,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 						{
 							id: ProfilesMenu,
 							group: '3_manage_profiles',
-							when: PROFILES_ENABLEMENT_CONTEXT,
+							when: ContextKeyExpr.and(PROFILES_ENABLEMENT_CONTEXT, ContextKeyExpr.notEquals('config.workbench.experimental.enableNewProfilesUI', true)),
 							order: 1
 						}
 					]
@@ -519,7 +558,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 						{
 							id: ProfilesMenu,
 							group: '3_manage_profiles',
-							when: PROFILES_ENABLEMENT_CONTEXT,
+							when: ContextKeyExpr.and(PROFILES_ENABLEMENT_CONTEXT, ContextKeyExpr.notEquals('config.workbench.experimental.enableNewProfilesUI', true)),
 							order: 2
 						}
 					]

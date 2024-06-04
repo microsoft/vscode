@@ -7,26 +7,25 @@ import { createStyleSheet2 } from 'vs/base/browser/dom';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { timeout } from 'vs/base/common/async';
 import { cancelOnDispose } from 'vs/base/common/cancellation';
-import { itemEquals, itemsEquals } from 'vs/base/common/equals';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, ITransaction, autorun, autorunHandleChanges, constObservable, derived, disposableObservableValue, observableFromEvent, observableSignal, observableValue, transaction, waitForState } from 'vs/base/common/observable';
-import { ISettableObservable, observableValueOpts } from 'vs/base/common/observableInternal/base';
+import { IObservable, ITransaction, autorun, autorunHandleChanges, autorunWithStoreHandleChanges, constObservable, derived, disposableObservableValue, observableFromEvent, observableSignal, observableValue, transaction, waitForState } from 'vs/base/common/observable';
+import { ISettableObservable } from 'vs/base/common/observableInternal/base';
 import { mapObservableArrayCached } from 'vs/base/common/observableInternal/utils';
 import { isUndefined } from 'vs/base/common/types';
 import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { obsCodeEditor } from 'vs/editor/browser/observableUtilities';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
 import { ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
 import { inlineSuggestCommitId } from 'vs/editor/contrib/inlineCompletions/browser/commandIds';
 import { GhostTextWidget } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextWidget';
 import { InlineCompletionContextKeys } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionContextKeys';
 import { InlineCompletionsHintsWidget, InlineSuggestionHintsContentWidget } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsHintsWidget';
-import { InlineCompletionsModel, VersionIdChangeReason } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsModel';
+import { InlineCompletionsModel } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsModel';
 import { SuggestWidgetAdaptor } from 'vs/editor/contrib/inlineCompletions/browser/suggestWidgetInlineCompletionProvider';
 import { localize } from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
@@ -44,42 +43,47 @@ export class InlineCompletionsController extends Disposable {
 		return editor.getContribution<InlineCompletionsController>(InlineCompletionsController.ID);
 	}
 
-	public readonly model = this._register(disposableObservableValue<InlineCompletionsModel | undefined>('inlineCompletionModel', undefined));
-	private readonly _textModelVersionId = observableValue<number, VersionIdChangeReason>(this, -1);
-	private readonly _positions = observableValueOpts<readonly Position[]>({ owner: this, equalsFn: itemsEquals(itemEquals()) }, [new Position(1, 1)]);
+	public readonly model = this._register(disposableObservableValue<InlineCompletionsModel | undefined>(this, undefined));
+	private readonly _editorObs = obsCodeEditor(this.editor);
+	private readonly _positions = derived(this, reader => this._editorObs.positions.read(reader) ?? [new Position(1, 1)]);
 	private readonly _suggestWidgetAdaptor = this._register(new SuggestWidgetAdaptor(
 		this.editor,
-		() => this.model.get()?.selectedInlineCompletion.get()?.toSingleTextEdit(undefined),
-		(tx) => this.updateObservables(tx, VersionIdChangeReason.Other),
+		() => {
+			this._editorObs.forceUpdate();
+			return this.model.get()?.selectedInlineCompletion.get()?.toSingleTextEdit(undefined);
+		},
 		(item) => {
-			transaction(tx => {
+			this._editorObs.forceUpdate(tx => {
 				/** @description InlineCompletionsController.handleSuggestAccepted */
-				this.updateObservables(tx, VersionIdChangeReason.Other);
 				this.model.get()?.handleSuggestAccepted(item);
 			});
 		}
 	));
+	private readonly _suggestWidgetSelectedItem = observableFromEvent(cb => this._suggestWidgetAdaptor.onDidSelectedItemChange(() => {
+		this._editorObs.forceUpdate(_tx => cb(undefined));
+	}), () => this._suggestWidgetAdaptor.selectedItem);
 	private readonly _enabledInConfig = observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).enabled);
 	private readonly _isScreenReaderEnabled = observableFromEvent(this._accessibilityService.onDidChangeScreenReaderOptimized, () => this._accessibilityService.isScreenReaderOptimized());
-	private readonly _editorDictationInProgress = observableFromEvent(this._contextKeyService.onDidChangeContext, () => this._contextKeyService.getContext(this.editor.getDomNode()).getValue('editorDictation.inProgress') === true);
+	private readonly _editorDictationInProgress = observableFromEvent(
+		this._contextKeyService.onDidChangeContext,
+		() => this._contextKeyService.getContext(this.editor.getDomNode()).getValue('editorDictation.inProgress') === true
+	);
 	private readonly _enabled = derived(this, reader => this._enabledInConfig.read(reader) && (!this._isScreenReaderEnabled.read(reader) || !this._editorDictationInProgress.read(reader)));
-
 	private readonly _fontFamily = observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).fontFamily);
 
 	private readonly _ghostTexts = derived(this, (reader) => {
 		const model = this.model.read(reader);
 		return model?.ghostTexts.read(reader) ?? [];
 	});
-
 	private readonly _stablizedGhostTexts = convertItemsToStableObservables(this._ghostTexts, this._store);
 
-	private readonly _ghostTextWidgets = mapObservableArrayCached(this, this._stablizedGhostTexts, (ghostText, store) => {
-		return store.add(this._instantiationService.createInstance(GhostTextWidget, this.editor, {
+	private readonly _ghostTextWidgets = mapObservableArrayCached(this, this._stablizedGhostTexts, (ghostText, store) =>
+		store.add(this._instantiationService.createInstance(GhostTextWidget, this.editor, {
 			ghostText: ghostText,
 			minReservedLineCount: constObservable(0),
 			targetTextModel: this.model.map(v => v?.textModel),
-		}));
-	}).recomputeInitiallyAndOnChange(this._store);
+		}))
+	).recomputeInitiallyAndOnChange(this._store);
 
 	private readonly _debounceValue = this._debounceService.for(
 		this._languageFeaturesService.inlineCompletionsProvider,
@@ -88,10 +92,7 @@ export class InlineCompletionsController extends Disposable {
 	);
 
 	private readonly _playAccessibilitySignal = observableSignal(this);
-
-	private readonly _isReadonly = observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.readOnly));
-	private readonly _textModel = observableFromEvent(this.editor.onDidChangeModel, () => this.editor.getModel());
-	private readonly _textModelIfWritable = derived(reader => this._isReadonly.read(reader) ? undefined : this._textModel.read(reader));
+	private readonly _textModelIfWritable = derived(reader => this._editorObs.isReadonly.read(reader) ? undefined : this._editorObs.model.read(reader));
 
 	constructor(
 		public readonly editor: ICodeEditor,
@@ -115,14 +116,12 @@ export class InlineCompletionsController extends Disposable {
 			transaction(tx => {
 				/** @description InlineCompletionsController.onDidChangeModel/readonly */
 				this.model.set(undefined, tx);
-				this.updateObservables(tx, VersionIdChangeReason.Other);
-
 				if (textModel) {
 					const model = _instantiationService.createInstance(
 						InlineCompletionsModel,
 						textModel,
-						this._suggestWidgetAdaptor.selectedItem,
-						this._textModelVersionId,
+						this._suggestWidgetSelectedItem,
+						this._editorObs.versionId,
 						this._positions,
 						this._debounceValue,
 						observableFromEvent(editor.onDidChangeConfiguration, () => editor.getOption(EditorOption.suggest).preview),
@@ -146,28 +145,26 @@ export class InlineCompletionsController extends Disposable {
 }`);
 		}));
 
-		const getReason = (e: IModelContentChangedEvent): VersionIdChangeReason => {
-			if (e.isUndoing) { return VersionIdChangeReason.Undo; }
-			if (e.isRedoing) { return VersionIdChangeReason.Redo; }
-			if (this.model.get()?.isAcceptingPartially) { return VersionIdChangeReason.AcceptWord; }
-			return VersionIdChangeReason.Other;
-		};
-		this._register(editor.onDidChangeModelContent((e) => transaction(tx =>
-			/** @description InlineCompletionsController.onDidChangeModelContent */
-			this.updateObservables(tx, getReason(e))
-		)));
-
-		this._register(editor.onDidChangeCursorPosition(e => transaction(tx => {
-			/** @description InlineCompletionsController.onDidChangeCursorPosition */
-			this.updateObservables(tx, VersionIdChangeReason.Other);
-			if (e.reason === CursorChangeReason.Explicit || e.source === 'api') {
-				this.model.get()?.stop(tx);
+		this._register(autorunWithStoreHandleChanges({
+			createEmptyChangeSummary: () => ({ shouldStop: false }),
+			handleChange: (context, changeSummary) => {
+				if (context.didChange(this._editorObs.selections)) {
+					const e = context.change;
+					if (e && (e.reason === CursorChangeReason.Explicit || e.source === 'api')) {
+						changeSummary.shouldStop = true;
+					}
+				}
+				return changeSummary.shouldStop;
+			},
+		}, (reader, changeSummary) => {
+			this._editorObs.selections.read(reader);
+			if (changeSummary.shouldStop) {
+				this.model.get()?.stop(undefined);
 			}
-		})));
+		}));
 
-		this._register(editor.onDidType(() => transaction(tx => {
+		this._register(editor.onDidType(() => this._editorObs.forceUpdate(tx => {
 			/** @description InlineCompletionsController.onDidType */
-			this.updateObservables(tx, VersionIdChangeReason.Other);
 			if (this._enabled.get()) {
 				this.model.get()?.trigger(tx);
 			}
@@ -183,7 +180,7 @@ export class InlineCompletionsController extends Disposable {
 				'acceptSelectedSuggestion',
 			]);
 			if (commands.has(e.commandId) && editor.hasTextFocus() && this._enabled.get()) {
-				transaction(tx => {
+				this._editorObs.forceUpdate(tx => {
 					/** @description onDidExecuteCommand */
 					this.model.get()?.trigger(tx);
 				});
@@ -246,7 +243,7 @@ export class InlineCompletionsController extends Disposable {
 				const lineText = model.textModel.getLineContent(state.primaryGhostText.lineNumber);
 
 				await timeout(50, cancelOnDispose(cancellationStore));
-				await waitForState(this._suggestWidgetAdaptor.selectedItem, isUndefined, () => false, cancelOnDispose(cancellationStore));
+				await waitForState(this._suggestWidgetSelectedItem, isUndefined, () => false, cancelOnDispose(cancellationStore));
 
 				await this._accessibilitySignalService.playSignal(AccessibilitySignal.inlineSuggestion);
 
@@ -257,6 +254,8 @@ export class InlineCompletionsController extends Disposable {
 		}));
 
 		this._register(new InlineCompletionsHintsWidget(this.editor, this.model, this._instantiationService));
+
+		// TODO@hediet
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('accessibility.verbosity.inlineCompletions')) {
 				this.editor.updateOptions({ inlineCompletionsAccessibilityVerbose: this._configurationService.getValue('accessibility.verbosity.inlineCompletions') });
@@ -277,17 +276,6 @@ export class InlineCompletionsController extends Disposable {
 			hint = localize('showAccessibleViewHint', "Inspect this in the accessible view ({0})", accessibleViewKeybinding.getAriaLabel());
 		}
 		hint ? alert(content + ', ' + hint) : alert(content);
-	}
-
-	/**
-	 * Copies over the relevant state from the text model to observables.
-	 * This solves all kind of eventing issues, as we make sure we always operate on the latest state,
-	 * regardless of who calls into us.
-	 */
-	private updateObservables(tx: ITransaction, changeReason: VersionIdChangeReason): void {
-		const newModel = this.editor.getModel();
-		this._textModelVersionId.set(newModel?.getVersionId() ?? -1, tx, changeReason);
-		this._positions.set(this.editor.getSelections()?.map(selection => selection.getPosition()) ?? [new Position(1, 1)], tx);
 	}
 
 	public shouldShowHoverAt(range: Range) {

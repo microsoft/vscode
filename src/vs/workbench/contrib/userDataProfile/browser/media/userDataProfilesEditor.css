@@ -15,15 +15,21 @@
 	height: 100%;
 }
 
-.profiles-editor .contents-container,
-.profiles-editor .sidebar-container {
+.profiles-editor .contents-container {
 	padding: 0px 20px;
 	height: 100%;
 }
 
+.profiles-editor .sidebar-container {
+	padding-left: 20px;
+	height: 100%;
+}
+
 .profiles-editor .sidebar-container .new-profile-button {
+	padding: 0px 20px 0px 18px;
 	display: flex;
 	align-items: center;
+	height: 40px;
 }
 
 .profiles-editor .sidebar-container .new-profile-button > .monaco-button-dropdown {
@@ -36,20 +42,25 @@
 	padding: 0 4px;
 }
 
-.profiles-editor .sidebar-container .profiles-tree {
+.profiles-editor .sidebar-container .profiles-list {
 	margin-top: 10px;
 }
 
-.profiles-editor .sidebar-container .profiles-tree .profile-tree-item {
+.profiles-editor .sidebar-container .profiles-list .profile-list-item {
+	padding-left: 20px;
 	display: flex;
 	align-items: center;
 }
 
-.profiles-editor .sidebar-container .profiles-tree .profile-tree-item > * {
+.profiles-editor .sidebar-container .profiles-list .profile-list-item > * {
 	margin-right: 5px;
 }
 
-.profiles-editor .sidebar-container .profiles-tree .profile-tree-item > .profile-tree-item-description {
+.profiles-editor .sidebar-container .profiles-list .profile-list-item > .profile-list-item-label.new-profile {
+	font-style: italic;
+}
+
+.profiles-editor .sidebar-container .profiles-list .profile-list-item > .profile-list-item-description {
 	margin-left: 2px;
 	display: flex;
 	align-items: center;
@@ -63,14 +74,35 @@
 
 .profiles-editor .contents-container .profile-header {
 	display: flex;
-	height: 34px;
+	height: 40px;
 	align-items: center;
 }
 
-.profiles-editor .contents-container .profile-header .profile-title {
-	font-size: x-large;
-	font-weight: bold;
+.profiles-editor .contents-container .profile-header .profile-title-container {
 	flex: 1;
+	display: flex;
+	align-items: center;
+	font-size: large;
+}
+
+.profiles-editor .contents-container .profile-title-container .codicon {
+	cursor: pointer;
+	font-size: large;
+	padding: 6px;
+	margin-right: 8px;
+}
+
+.profiles-editor .contents-container .profile-title-container .monaco-inputbox {
+	width: 330px;
+}
+
+.profiles-editor .contents-container .profile-header .profile-button-container {
+	display: flex;
+	align-items: center;
+}
+
+.profiles-editor .contents-container .profile-header .profile-button-container .monaco-button {
+	margin-right: 4px;
 }
 
 .profiles-editor .contents-container .profile-header .profile-actions-container {
@@ -84,10 +116,11 @@
 
 .profiles-editor .contents-container .profile-header .profile-actions-container .actions-container .codicon {
 	font-size: 18px;
+	padding: 6px;
 }
 
 .profiles-editor .contents-container .profile-header .profile-actions-container .profile-button-container {
-	margin-right: 5px;
+	margin-left:6px;
 	min-width: 120px;
 }
 
@@ -98,24 +131,6 @@
 
 .profiles-editor .contents-container .profile-body {
 	margin-top: 20px;
-}
-
-.profiles-editor .contents-container .profile-name-container {
-	margin: 0px 0px 20px 15px;
-	display: flex;
-	width: 330px;
-	align-items: center;
-}
-
-.profiles-editor .contents-container .profile-name-container .codicon {
-	cursor: pointer;
-	font-size: 20px;
-	padding: 2px;
-}
-
-.profiles-editor .contents-container .profile-name-container .monaco-inputbox {
-	flex: 1;
-	margin-left: 10px;
 }
 
 .profiles-editor .contents-container .profile-select-container {
@@ -135,11 +150,11 @@
 .profiles-editor .contents-container .profile-copy-from-container {
 	display: flex;
 	align-items: center;
-	margin: 0px 0px 20px 20px;
+	margin: 0px 0px 20px 28px;
 }
 
 .profiles-editor .contents-container .profile-copy-from-container > .profile-copy-from-label {
-	margin-right: 10px;
+	margin-right: 25px;
 	display: inline-flex;
 	align-items: center;
 }
@@ -148,9 +163,15 @@
 	width: 250px;
 }
 
+.profiles-editor .contents-container .profile-use-as-default-container {
+	display: flex;
+	align-items: center;
+	margin: 25px 20px 20px 28px;
+	cursor: pointer;
+}
+
 .profiles-editor .contents-container .profile-contents-container {
 	margin: 0px 0px 10px 20px;
-	font-size: medium;
 }
 
 .profiles-editor .contents-container .profile-tree-item-container {
@@ -158,8 +179,22 @@
 	align-items: center;
 }
 
+.profiles-editor .contents-container .profile-tree-item-container > .profile-resource-type-label {
+	width: 200px;
+}
+
+.profiles-editor .contents-container .profile-tree-item-container > .inherit-container {
+	display: flex;
+	align-items: center;
+}
+
+.profiles-editor .contents-container .profile-tree-item-container > .inherit-container > .inherit-label {
+	/* font-size: 0.9em; */
+	opacity: 0.8;
+}
+
 .profiles-editor .contents-container .profile-tree-item-container.new-profile-resource-type-container > .profile-resource-type-label-container {
-	width: 150px;
+	width: 170px;
 }
 
 .profiles-editor .contents-container .profile-tree-item-container.new-profile-resource-type-container > .profile-select-container {

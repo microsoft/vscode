@@ -18,6 +18,7 @@ import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { hash } from 'vs/base/common/hash';
 import { CodeWindow, ensureCodeWindow, mainWindow } from 'vs/base/browser/window';
+import { isPointWithinTriangle } from 'vs/base/common/numbers';
 
 export interface IRegisteredCodeWindow {
 	readonly window: CodeWindow;
@@ -2407,4 +2408,54 @@ export function trackAttributes(from: Element, to: Element, filter?: string[]): 
 	}));
 
 	return disposables;
+}
+
+/**
+ * Helper for calculating the "safe triangle" occluded by hovers to avoid early dismissal.
+ * @see https://www.smashingmagazine.com/2023/08/better-context-menus-safe-triangles/ for example
+ */
+export class SafeTriangle {
+	// 4 triangles, 2 points (x, y) stored for each
+	private triangles: number[] = [];
+
+	constructor(
+		private readonly originX: number,
+		private readonly originY: number,
+		target: HTMLElement
+	) {
+		const { top, left, right, bottom } = target.getBoundingClientRect();
+		const t = this.triangles;
+		let i = 0;
+
+		t[i++] = left;
+		t[i++] = top;
+		t[i++] = right;
+		t[i++] = top;
+
+		t[i++] = left;
+		t[i++] = top;
+		t[i++] = left;
+		t[i++] = bottom;
+
+		t[i++] = right;
+		t[i++] = top;
+		t[i++] = right;
+		t[i++] = bottom;
+
+		t[i++] = left;
+		t[i++] = bottom;
+		t[i++] = right;
+		t[i++] = bottom;
+	}
+
+	public contains(x: number, y: number) {
+		const { triangles, originX, originY } = this;
+		for (let i = 0; i < 4; i++) {
+			if (isPointWithinTriangle(x, y, originX, originY, triangles[2 * i], triangles[2 * i + 1], triangles[2 * i + 2], triangles[2 * i + 3])) {
+				return true;
+			}
+		}
+
+		return false;
+	}
 }

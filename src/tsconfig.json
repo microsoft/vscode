@@ -1,6 +1,7 @@
 {
 	"extends": "./tsconfig.base.json",
 	"compilerOptions": {
+		"esModuleInterop": true,
 		"removeComments": false,
 		"preserveConstEnums": true,
 		"sourceMap": false,

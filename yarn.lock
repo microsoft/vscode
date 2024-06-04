@@ -1145,13 +1145,6 @@
     "@types/minimatch" "*"
     "@types/node" "*"
 
-"@types/graceful-fs@4.1.2":
-  version "4.1.2"
-  resolved "https://registry.yarnpkg.com/@types/graceful-fs/-/graceful-fs-4.1.2.tgz#fbc9575dbcc6d1d91dd768d30c5fc0c19f6c50bd"
-  integrity sha512-epDhsJAVxJsWfeqpzEDFhLnhHMbHie/VMFY+2Hvt5p7FemeW5ELM+6gcVYL/ZsUwdu3zrWpDE3VUTddXW+EMYg==
-  dependencies:
-    "@types/node" "*"
-
 "@types/gulp-svgmin@^1.2.1":
   version "1.2.1"
   resolved "https://registry.yarnpkg.com/@types/gulp-svgmin/-/gulp-svgmin-1.2.1.tgz#e18f344ea09560554652406b37e1dc3253a6bda2"
@@ -1982,40 +1975,40 @@
   resolved "https://registry.yarnpkg.com/@webpack-cli/serve/-/serve-2.0.5.tgz#325db42395cd49fe6c14057f9a900e427df8810e"
   integrity sha512-lqaoKnRYBdo1UgDX8uF24AfGMifWK19TxPmM5FHc2vAGxrJ/qtyUyFBWoY1tISZdelsQ5fBcOusifo5o5wSJxQ==
 
-"@xterm/addon-image@0.9.0-beta.18":
-  version "0.9.0-beta.18"
-  resolved "https://registry.yarnpkg.com/@xterm/addon-image/-/addon-image-0.9.0-beta.18.tgz#c33c0612349f2446399f9da8db4d71252b0c1c73"
-  integrity sha512-X1m2lwxfxma1oZaH1w5UalE1VFqTuof2pw23UqP2ol0nGIcpd1KN+0LKrd0g+GvyFbiAgNi0ANuDfupNfjVLQQ==
+"@xterm/addon-image@0.9.0-beta.19":
+  version "0.9.0-beta.19"
+  resolved "https://registry.yarnpkg.com/@xterm/addon-image/-/addon-image-0.9.0-beta.19.tgz#3823382e5c55268998f0e0d8d77e8b7810925830"
+  integrity sha512-LX9g03po3mXYE/HZFoKbdnIRvdD56Qw84FpQ9LCJGDsyx9SFIf47DXLS+lXCEpJ2hjKIing46BQxP+MDEayXDw==
 
-"@xterm/addon-search@0.16.0-beta.18":
-  version "0.16.0-beta.18"
-  resolved "https://registry.yarnpkg.com/@xterm/addon-search/-/addon-search-0.16.0-beta.18.tgz#7271cb43a56892de0ce35e650bcaec742b220fcb"
-  integrity sha512-iYqzlg9ujecT8opZjmjrSrFHcDt9bq6SruKlxXzWMQapMA9cdQGOJZe74tRjwQxkG3wySDHm3bPHNPB5iPKLfQ==
+"@xterm/addon-search@0.16.0-beta.19":
+  version "0.16.0-beta.19"
+  resolved "https://registry.yarnpkg.com/@xterm/addon-search/-/addon-search-0.16.0-beta.19.tgz#46b3374eb312a1bff974a5df188b1ebf777ff49d"
+  integrity sha512-iTJVUEsKSdL8SyhcDBqN6gYxhqv0wrwtP1QCUGLKNAAVDI7HKVgig3V9wToqRxYfOnu/anyU+u0qFUoKCRLnCg==
 
-"@xterm/addon-serialize@0.14.0-beta.18":
-  version "0.14.0-beta.18"
-  resolved "https://registry.yarnpkg.com/@xterm/addon-serialize/-/addon-serialize-0.14.0-beta.18.tgz#22a59ce3135326073cfc146123f9113e87de331d"
-  integrity sha512-ebNfRggeIx9hOs0kM0XaquMAvKfLwjOGRRhXCK3OAJSqkG6jNPIZ+7foHIUVxcFYb8EKfvS67ZoDStO4mZCiEg==
+"@xterm/addon-serialize@0.14.0-beta.19":
+  version "0.14.0-beta.19"
+  resolved "https://registry.yarnpkg.com/@xterm/addon-serialize/-/addon-serialize-0.14.0-beta.19.tgz#c7a0a0e5f5b1bd94a35a775ec6224ba42282556c"
+  integrity sha512-D+BiXQfuxDb3azAIBq1RJTQGZlvo459V6U/2s/3dKpTAvRybqCRMazuf8cLoffUoNcjTb3uSWpii9+MVVvHIrQ==
 
-"@xterm/addon-unicode11@0.9.0-beta.18":
-  version "0.9.0-beta.18"
-  resolved "https://registry.yarnpkg.com/@xterm/addon-unicode11/-/addon-unicode11-0.9.0-beta.18.tgz#993e872c7f1a58fd35c4c64aef6f34259d099e8e"
-  integrity sha512-kfF9i0MS/T6wGwv7Y6+nVGd/cf4GT5OdPDldiyYpINCusIkFfTC5UMojNucvbL0nN0rvRoCBhTjh8LkafQV5hw==
+"@xterm/addon-unicode11@0.9.0-beta.19":
+  version "0.9.0-beta.19"
+  resolved "https://registry.yarnpkg.com/@xterm/addon-unicode11/-/addon-unicode11-0.9.0-beta.19.tgz#529d8b22d9378cff8c31df1b7e76250b2f8079c3"
+  integrity sha512-0Umiu9GkjwL/jaT85Rcfka9HVyJw3UhJsnOVOVZd/3YBZqMY2SZMHqz73W/qpXl5nz6vvyCWKbpkfddsJhpToA==
 
-"@xterm/addon-webgl@0.19.0-beta.18":
-  version "0.19.0-beta.18"
-  resolved "https://registry.yarnpkg.com/@xterm/addon-webgl/-/addon-webgl-0.19.0-beta.18.tgz#62f961e1255cde12444559e5ea105409598aa6d8"
-  integrity sha512-3vFr51TrbjXtR9RBbY4o3amGKsoni5sdgKg4NKSNZew/K3TyTFwCkj7z1HjyEsW/j9ee9KXH435pTMSmH/L40g==
+"@xterm/addon-webgl@0.19.0-beta.19":
+  version "0.19.0-beta.19"
+  resolved "https://registry.yarnpkg.com/@xterm/addon-webgl/-/addon-webgl-0.19.0-beta.19.tgz#655d1e27b1249c19352c65a8ea1d0bf319397b35"
+  integrity sha512-Y5efISx8X5hpFAsPOTza1Fp0xiD8x+l3MuH+mv68v1El8tpna/MW5EM4oX25qYOsPDZY00mpmkBmPbAT5loMEg==
 
-"@xterm/headless@5.6.0-beta.18":
-  version "5.6.0-beta.18"
-  resolved "https://registry.yarnpkg.com/@xterm/headless/-/headless-5.6.0-beta.18.tgz#27a774455bf68565257916a3355cc61151eb9d10"
-  integrity sha512-3EUxNyjki4YHRlI4p/uMT6Hok3Ln4fZVi1HbFDopk3CZ0W+TXUQW4F+4fy4nkcFWYnBR9egKBcRmP2Vxk13RKQ==
+"@xterm/headless@5.6.0-beta.19":
+  version "5.6.0-beta.19"
+  resolved "https://registry.yarnpkg.com/@xterm/headless/-/headless-5.6.0-beta.19.tgz#dbbd4dd420e24e9bdee6e533153f405bfc1ba89b"
+  integrity sha512-zFTcftonaaMEbMqfQnFwos1YQCmqWnvIzSNXwmfIymkEvSxhsB03oynEjFwm48dT2filTcJXpYT91io4qvR+3g==
 
-"@xterm/xterm@5.6.0-beta.18":
-  version "5.6.0-beta.18"
-  resolved "https://registry.yarnpkg.com/@xterm/xterm/-/xterm-5.6.0-beta.18.tgz#c346d5773b1e253b2cef986b5c7f9bfe372e5c54"
-  integrity sha512-PKpqGVlJ5e65RFxG9CgCR1Gdpz1eSttdRZZd5eEFJIyz3VQv1DUlZgfwlFhMMGRi42zyw40HuArkrw+fRRDU7Q==
+"@xterm/xterm@5.6.0-beta.19":
+  version "5.6.0-beta.19"
+  resolved "https://registry.yarnpkg.com/@xterm/xterm/-/xterm-5.6.0-beta.19.tgz#2cc292fc93b25c7c655ed6d1f0425a636b36747d"
+  integrity sha512-mGoJxrUxAL4dueZEqw2e23KCrGNSvYaw5twTnccKqK7lITK/hDrosWCxb1jL1AjFf7bBzMxw9/dZdhWncKQQmw==
 
 "@xtuc/ieee754@^1.2.0":
   version "1.2.0"
@@ -5127,11 +5120,6 @@ got@^11.8.5:
     p-cancelable "^2.0.0"
     responselike "^2.0.0"
 
-graceful-fs@4.2.11, graceful-fs@^4.2.11:
-  version "4.2.11"
-  resolved "https://registry.yarnpkg.com/graceful-fs/-/graceful-fs-4.2.11.tgz#4183e4e8bf08bb6e05bbb2f7d2e0c8f712ca40e3"
-  integrity sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ==
-
 graceful-fs@^4.0.0, graceful-fs@^4.1.11, graceful-fs@^4.1.6, graceful-fs@^4.2.0:
   version "4.2.4"
   resolved "https://registry.yarnpkg.com/graceful-fs/-/graceful-fs-4.2.4.tgz#2256bde14d3632958c465ebc96dc467ca07a29fb"
@@ -5141,6 +5129,11 @@ graceful-fs@^4.1.2, graceful-fs@^4.2.4:
   version "4.2.6"
   resolved "https://registry.yarnpkg.com/graceful-fs/-/graceful-fs-4.2.6.tgz#ff040b2b0853b23c3d31027523706f1885d76bee"
   integrity sha512-nTnJ528pbqxYanhpDYsi4Rd8MAeaBA67+RZ10CM1m3bTAVFEDcd5AuA4a6W5YkGZ1iNXHzZz8T6TBKLeBuNriQ==
+
+graceful-fs@^4.2.11:
+  version "4.2.11"
+  resolved "https://registry.yarnpkg.com/graceful-fs/-/graceful-fs-4.2.11.tgz#4183e4e8bf08bb6e05bbb2f7d2e0c8f712ca40e3"
+  integrity sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ==
 
 graceful-fs@^4.2.9:
   version "4.2.10"
@@ -10055,10 +10048,10 @@ typescript@^4.7.4:
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.8.4.tgz#c464abca159669597be5f96b8943500b238e60e6"
   integrity sha512-QCh+85mCy+h0IGff8r5XWzOVSbBO+KfeYrMQh7NJ58QujwcE22u+NUSmUxqF+un70P9GXKxa2HCNiTTMJknyjQ==
 
-typescript@^5.5.0-dev.20240521:
-  version "5.5.0-dev.20240521"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.5.0-dev.20240521.tgz#a53f71ad2f5e4c4401a56c35993474b77813364c"
-  integrity sha512-52WLKX9mbRmStK1lb30KM78dSo5ssgQT8WQERYiv8JihXir4HUgwlgTz4crExojzpsGjFGFJROL/bZrhXUiOEQ==
+typescript@^5.5.0-dev.20240603:
+  version "5.5.0-dev.20240603"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-5.5.0-dev.20240603.tgz#a1b7311df5039a8abbaaa2213c21cac6ec547490"
+  integrity sha512-gdm3Sh1A+Pjj9ZlfBEJY3o2rs3tvpcSbu3vYqcCijMe09BePQBtZlsuShuPn+zCnP+qBLxdKjFiw5v1tkna3tA==
 
 typical@^4.0.0:
   version "4.0.0"
