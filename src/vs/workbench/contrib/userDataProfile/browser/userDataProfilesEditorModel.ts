@@ -464,28 +464,33 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 			case ProfileResourceType.Settings:
 				if (profileTemplate.settings) {
 					await this.instantiationService.createInstance(SettingsResource).apply(profileTemplate.settings, profile);
+					return this.getChildrenFromProfile(profile, resourceType);
 				}
-				return this.getChildrenFromProfile(profile, resourceType);
+				return [];
 			case ProfileResourceType.Keybindings:
 				if (profileTemplate.keybindings) {
 					await this.instantiationService.createInstance(KeybindingsResource).apply(profileTemplate.keybindings, profile);
+					return this.getChildrenFromProfile(profile, resourceType);
 				}
-				return this.getChildrenFromProfile(profile, resourceType);
+				return [];
 			case ProfileResourceType.Snippets:
 				if (profileTemplate.snippets) {
 					await this.instantiationService.createInstance(SnippetsResource).apply(profileTemplate.snippets, profile);
+					return this.getChildrenFromProfile(profile, resourceType);
 				}
-				return this.getChildrenFromProfile(profile, resourceType);
+				return [];
 			case ProfileResourceType.Tasks:
 				if (profileTemplate.tasks) {
 					await this.instantiationService.createInstance(TasksResource).apply(profileTemplate.tasks, profile);
+					return this.getChildrenFromProfile(profile, resourceType);
 				}
-				return this.getChildrenFromProfile(profile, resourceType);
+				return [];
 			case ProfileResourceType.Extensions:
 				if (profileTemplate.extensions) {
 					const children = await this.instantiationService.createInstance(ExtensionsResourceImportTreeItem, profileTemplate.extensions).getChildren();
 					return children.map(child => this.toUserDataProfileResourceChildElement(child));
 				}
+				return [];
 		}
 		return [];
 	}
