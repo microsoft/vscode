@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import assert from 'assert';
+import * as assert from 'assert';
 import { JSDOM } from "jsdom";
 import { LinkDetector, linkify } from '../linkify';
 
@@ -46,3 +46,4 @@ suite('Notebook builtin output link detection', () => {
 		assert.equal(htmlWithLinks.textContent, 'something <a href="file.py">link</a> something');
 	});
 });
+
