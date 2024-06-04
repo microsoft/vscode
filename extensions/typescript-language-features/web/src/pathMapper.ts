@@ -76,7 +76,10 @@ export function fromResource(extensionUri: URI, uri: URI) {
 		&& uri.path.endsWith('.d.ts')) {
 		return uri.path;
 	}
-	return `/${uri.scheme}/${uri.authority}${uri.path}`;
+
+	// MEMBRANE: this function is used by the file watcher which uses `ts-nul-authority`
+	// instead of an empty string so we must do the same
+	return `/${uri.scheme}/${uri.authority || 'ts-nul-authority'}${uri.path}`;
 }
 
 export function looksLikeLibDtsPath(filepath: string) {
