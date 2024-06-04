@@ -77,6 +77,14 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 		// mode and ignore any event that does not match the correlation ID.
 		const excludeUncorrelatedEvents = options?.correlate;
 
+		// MEMBRANE: The `scheme` of globPattern is ignored by `parsedPattern`
+		// which was causing events in `tmpfs://` to trigger watchers for
+		// `memfs://`. To fix it, we use this function that also checks schemes.
+		const scheme = typeof globPattern !== 'string' ? globPattern.baseUri.scheme : null;
+		const matchesPattern = (uri: vscode.Uri) => {
+			return (!scheme || uri.scheme === scheme) && parsedPattern(uri.fsPath);
+		};
+
 		const subscription = dispatcher(events => {
 			if (typeof events.session === 'number' && events.session !== this.session) {
 				return; // ignore events from other file watchers that are in correlation mode
@@ -89,7 +97,7 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 			if (!options?.ignoreCreateEvents) {
 				for (const created of events.created) {
 					const uri = URI.revive(created);
-					if (parsedPattern(uri.fsPath) && (!excludeOutOfWorkspaceEvents || workspace.getWorkspaceFolder(uri))) {
+					if (matchesPattern(uri) && (!excludeOutOfWorkspaceEvents || workspace.getWorkspaceFolder(uri))) {
 						this._onDidCreate.fire(uri);
 					}
 				}
@@ -97,7 +105,7 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 			if (!options?.ignoreChangeEvents) {
 				for (const changed of events.changed) {
 					const uri = URI.revive(changed);
-					if (parsedPattern(uri.fsPath) && (!excludeOutOfWorkspaceEvents || workspace.getWorkspaceFolder(uri))) {
+					if (matchesPattern(uri) && (!excludeOutOfWorkspaceEvents || workspace.getWorkspaceFolder(uri))) {
 						this._onDidChange.fire(uri);
 					}
 				}
@@ -105,7 +113,7 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 			if (!options?.ignoreDeleteEvents) {
 				for (const deleted of events.deleted) {
 					const uri = URI.revive(deleted);
-					if (parsedPattern(uri.fsPath) && (!excludeOutOfWorkspaceEvents || workspace.getWorkspaceFolder(uri))) {
+					if (matchesPattern(uri) && (!excludeOutOfWorkspaceEvents || workspace.getWorkspaceFolder(uri))) {
 						this._onDidDelete.fire(uri);
 					}
 				}
