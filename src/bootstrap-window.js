@@ -8,6 +8,10 @@
 //@ts-check
 'use strict';
 
+/**
+ * @import { ISandboxConfiguration } from './vs/base/parts/sandbox/common/sandboxTypes'
+ */
+
 /* eslint-disable no-restricted-globals */
 
 // Simple module style to support node.js and browser environments
@@ -29,8 +33,6 @@
 	const safeProcess = preloadGlobals.process;
 
 	/**
-	 * @typedef {import('./vs/base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration} ISandboxConfiguration
-	 *
 	 * @param {string[]} modulePaths
 	 * @param {(result: unknown, configuration: ISandboxConfiguration) => Promise<unknown> | undefined} resultCallback
 	 * @param {{
@@ -80,28 +82,23 @@
 			developerDeveloperKeybindingsDisposable = registerDeveloperKeybindings(disallowReloadKeybinding);
 		}
 
-		// Get the nls configuration into the process.env as early as possible
-		// @ts-ignore
-		const nlsConfig = globalThis.MonacoBootstrap.setupNLS();
-
-		let locale = nlsConfig.availableLanguages['*'] || 'en';
-		if (locale === 'zh-tw') {
-			locale = 'zh-Hant';
-		} else if (locale === 'zh-cn') {
-			locale = 'zh-Hans';
+		// VSCODE_GLOBALS: NLS
+		globalThis._VSCODE_NLS_MESSAGES = configuration.nls.messages;
+		globalThis._VSCODE_NLS_LANGUAGE = configuration.nls.language;
+		let language = configuration.nls.language || 'en';
+		if (language === 'zh-tw') {
+			language = 'zh-Hant';
+		} else if (language === 'zh-cn') {
+			language = 'zh-Hans';
 		}
 
-		window.document.documentElement.setAttribute('lang', locale);
+		window.document.documentElement.setAttribute('lang', language);
 
 		window['MonacoEnvironment'] = {};
 
-		/**
-		 * @typedef {any} LoaderConfig
-		 */
-		/** @type {LoaderConfig} */
+		/** @type {any} */
 		const loaderConfig = {
 			baseUrl: `${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out`,
-			'vs/nls': nlsConfig,
 			preferScriptTags: true
 		};
 
@@ -124,6 +121,7 @@
 			'vscode-oniguruma': `${baseNodeModulesPath}/vscode-oniguruma/release/main.js`,
 			'vsda': `${baseNodeModulesPath}/vsda/index.js`,
 			'@xterm/xterm': `${baseNodeModulesPath}/@xterm/xterm/lib/xterm.js`,
+			'@xterm/addon-clipboard': `${baseNodeModulesPath}/@xterm/addon-clipboard/lib/addon-clipboard.js`,
 			'@xterm/addon-image': `${baseNodeModulesPath}/@xterm/addon-image/lib/addon-image.js`,
 			'@xterm/addon-search': `${baseNodeModulesPath}/@xterm/addon-search/lib/addon-search.js`,
 			'@xterm/addon-serialize': `${baseNodeModulesPath}/@xterm/addon-serialize/lib/addon-serialize.js`,
@@ -143,13 +141,6 @@
 
 		// Configure loader
 		require.config(loaderConfig);
-
-		// Handle pseudo NLS
-		if (nlsConfig.pseudo) {
-			require(['vs/nls'], function (nlsPlugin) {
-				nlsPlugin.setPseudoTranslation(nlsConfig.pseudo);
-			});
-		}
 
 		// Signal before require()
 		if (typeof options?.beforeRequire === 'function') {

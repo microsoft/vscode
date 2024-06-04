@@ -122,7 +122,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		super();
 
 		this._domNode = dom.$('div.review-comment');
-		this._contextKeyService = contextKeyService.createScoped(this._domNode);
+		this._contextKeyService = this._register(contextKeyService.createScoped(this._domNode));
 		this._commentContextValue = CommentContextKeys.commentContext.bindTo(this._contextKeyService);
 		if (this.comment.contextValue) {
 			this._commentContextValue.set(this.comment.contextValue);

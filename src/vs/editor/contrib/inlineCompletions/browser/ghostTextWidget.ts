@@ -34,7 +34,7 @@ export interface IGhostTextWidgetModel {
 
 export class GhostTextWidget extends Disposable {
 	private readonly isDisposed = observableValue(this, false);
-	private readonly currentTextModel = observableFromEvent(this.editor.onDidChangeModel, () => /** @description editor.model */ this.editor.getModel());
+	private readonly currentTextModel = observableFromEvent(this, this.editor.onDidChangeModel, () => /** @description editor.model */ this.editor.getModel());
 
 	constructor(
 		private readonly editor: ICodeEditor,

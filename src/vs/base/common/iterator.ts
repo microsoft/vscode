@@ -83,6 +83,13 @@ export namespace Iterable {
 		}
 	}
 
+	export function* flatMap<T, R>(iterable: Iterable<T>, fn: (t: T, index: number) => Iterable<R>): Iterable<R> {
+		let index = 0;
+		for (const element of iterable) {
+			yield* fn(element, index++);
+		}
+	}
+
 	export function* concat<T>(...iterables: Iterable<T>[]): Iterable<T> {
 		for (const iterable of iterables) {
 			yield* iterable;

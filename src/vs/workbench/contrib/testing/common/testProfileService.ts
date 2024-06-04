@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
+import { Iterable } from 'vs/base/common/iterator';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { deepClone } from 'vs/base/common/objects';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -64,7 +65,7 @@ export interface ITestProfileService {
 	/**
 	 * Gets the default profiles to be run for a given run group.
 	 */
-	getGroupDefaultProfiles(group: TestRunProfileBitset): ITestRunProfile[];
+	getGroupDefaultProfiles(group: TestRunProfileBitset, controllerId?: string): ITestRunProfile[];
 
 	/**
 	 * Sets the default profiles to be run for a given run group.
@@ -252,20 +253,17 @@ export class TestProfileService extends Disposable implements ITestProfileServic
 	}
 
 	/** @inheritdoc */
-	public getGroupDefaultProfiles(group: TestRunProfileBitset) {
-		let defaults: ITestRunProfile[] = [];
-		for (const { profiles } of this.controllerProfiles.values()) {
-			defaults = defaults.concat(profiles.filter(c => c.group === group && c.isDefault));
-		}
+	public getGroupDefaultProfiles(group: TestRunProfileBitset, controllerId?: string) {
+		const allProfiles = controllerId
+			? (this.controllerProfiles.get(controllerId)?.profiles || [])
+			: [...Iterable.flatMap(this.controllerProfiles.values(), c => c.profiles)];
+		const defaults = allProfiles.filter(c => c.group === group && c.isDefault);
 
 		// have *some* default profile to run if none are set otherwise
 		if (defaults.length === 0) {
-			for (const { profiles } of this.controllerProfiles.values()) {
-				const first = profiles.find(p => p.group === group);
-				if (first) {
-					defaults.push(first);
-					break;
-				}
+			const first = allProfiles.find(p => p.group === group);
+			if (first) {
+				defaults.push(first);
 			}
 		}
 

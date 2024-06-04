@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { reset } from 'vs/base/browser/dom';
-import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
+import type { IManagedHover } from 'vs/base/browser/ui/hover/hover';
 import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
@@ -12,7 +12,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 
 export class SimpleIconLabel implements IDisposable {
 
-	private hover?: IUpdatableHover;
+	private hover?: IManagedHover;
 
 	constructor(
 		private readonly _container: HTMLElement
@@ -24,7 +24,7 @@ export class SimpleIconLabel implements IDisposable {
 
 	set title(title: string) {
 		if (!this.hover && title) {
-			this.hover = getBaseLayerHoverDelegate().setupUpdatableHover(getDefaultHoverDelegate('mouse'), this._container, title);
+			this.hover = getBaseLayerHoverDelegate().setupManagedHover(getDefaultHoverDelegate('mouse'), this._container, title);
 		} else if (this.hover) {
 			this.hover.update(title);
 		}

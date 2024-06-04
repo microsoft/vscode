@@ -55,7 +55,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		// Count for the number of notifications over 800ms...
 		interval: 800,
 		// ...and ensure we are not showing more than MAX_NOTIFICATIONS
-		limit: NotificationsToasts.MAX_NOTIFICATIONS
+		limit: this.MAX_NOTIFICATIONS
 	};
 
 	private readonly _onDidChangeVisibility = this._register(new Emitter<void>());
@@ -602,7 +602,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		if (visible) {
 			notificationsToastsContainer.appendChild(toast.container);
 		} else {
-			notificationsToastsContainer.removeChild(toast.container);
+			toast.container.remove();
 		}
 
 		// Update visibility in model

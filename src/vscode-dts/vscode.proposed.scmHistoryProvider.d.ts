@@ -25,6 +25,7 @@ declare module 'vscode' {
 		// onDidChangeHistoryItemGroups: Event<SourceControlHistoryChangeEvent>;
 
 		provideHistoryItems(historyItemGroupId: string, options: SourceControlHistoryOptions, token: CancellationToken): ProviderResult<SourceControlHistoryItem[]>;
+		provideHistoryItems2(options: SourceControlHistoryOptions, token: CancellationToken): ProviderResult<SourceControlHistoryItem[]>;
 		provideHistoryItemSummary?(historyItemId: string, historyItemParentId: string | undefined, token: CancellationToken): ProviderResult<SourceControlHistoryItem>;
 		provideHistoryItemChanges(historyItemId: string, historyItemParentId: string | undefined, token: CancellationToken): ProviderResult<SourceControlHistoryItemChange[]>;
 
@@ -34,23 +35,25 @@ declare module 'vscode' {
 	export interface SourceControlHistoryOptions {
 		readonly cursor?: string;
 		readonly limit?: number | { id?: string };
+		readonly historyItemGroupIds?: readonly string[];
 	}
 
 	export interface SourceControlHistoryItemGroup {
 		readonly id: string;
 		readonly name: string;
-		readonly base?: Omit<SourceControlRemoteHistoryItemGroup, 'base'>;
-	}
-
-	export interface SourceControlRemoteHistoryItemGroup {
-		readonly id: string;
-		readonly name: string;
+		readonly base?: Omit<Omit<SourceControlHistoryItemGroup, 'base'>, 'remote'>;
+		readonly remote?: Omit<Omit<SourceControlHistoryItemGroup, 'base'>, 'remote'>;
 	}
 
 	export interface SourceControlHistoryItemStatistics {
 		readonly files: number;
 		readonly insertions: number;
 		readonly deletions: number;
+	}
+
+	export interface SourceControlHistoryItemLabel {
+		readonly title: string;
+		readonly icon?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
 	}
 
 	export interface SourceControlHistoryItem {
@@ -61,6 +64,7 @@ declare module 'vscode' {
 		readonly icon?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
 		readonly timestamp?: number;
 		readonly statistics?: SourceControlHistoryItemStatistics;
+		readonly labels?: SourceControlHistoryItemLabel[];
 	}
 
 	export interface SourceControlHistoryItemChange {

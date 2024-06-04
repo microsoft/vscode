@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { unthemedInboxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
 import { unthemedButtonStyles } from 'vs/base/browser/ui/button/button';
 import { unthemedListStyles } from 'vs/base/browser/ui/list/listWidget';
@@ -57,7 +57,7 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 	setup(() => {
 		const fixture = document.createElement('div');
 		mainWindow.document.body.appendChild(fixture);
-		store.add(toDisposable(() => mainWindow.document.body.removeChild(fixture)));
+		store.add(toDisposable(() => fixture.remove()));
 
 		const instantiationService = new TestInstantiationService();
 

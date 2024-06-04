@@ -122,7 +122,7 @@ class LanguageStatus {
 				this._update();
 				this._storeState();
 			}
-		}, this._disposables);
+		}, undefined, this._disposables);
 
 	}
 

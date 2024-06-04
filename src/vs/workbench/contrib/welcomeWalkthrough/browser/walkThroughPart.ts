@@ -414,7 +414,7 @@ export class WalkThroughPart extends EditorPane {
 			const keybinding = command && this.keybindingService.lookupKeybinding(command);
 			const label = keybinding ? keybinding.getLabel() || '' : UNBOUND_COMMAND;
 			while (key.firstChild) {
-				key.removeChild(key.firstChild);
+				key.firstChild.remove();
 			}
 			key.appendChild(document.createTextNode(label));
 		});
@@ -433,7 +433,7 @@ export class WalkThroughPart extends EditorPane {
 		const keys = this.content.querySelectorAll('.multi-cursor-modifier');
 		Array.prototype.forEach.call(keys, (key: Element) => {
 			while (key.firstChild) {
-				key.removeChild(key.firstChild);
+				key.firstChild.remove();
 			}
 			key.appendChild(document.createTextNode(modifier));
 		});

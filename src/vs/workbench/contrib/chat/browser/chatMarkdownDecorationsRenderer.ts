@@ -42,7 +42,7 @@ export function agentToMarkdown(agent: IChatAgentData, isClickable: boolean, acc
 
 	const isAllowed = chatAgentNameService.getAgentNameRestriction(agent);
 	let name = `${isAllowed ? agent.name : getFullyQualifiedId(agent)}`;
-	const isDupe = isAllowed && chatAgentService.getAgentsByName(agent.name).length > 1;
+	const isDupe = isAllowed && chatAgentService.agentHasDupeName(agent.id);
 	if (isDupe) {
 		name += ` (${agent.publisherDisplayName})`;
 	}
@@ -177,7 +177,7 @@ export class ChatMarkdownDecorationsRenderer {
 
 		const agent = this.chatAgentService.getAgent(args.agentId);
 		const hover: Lazy<ChatAgentHover> = new Lazy(() => store.add(this.instantiationService.createInstance(ChatAgentHover)));
-		store.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('element'), container, () => {
+		store.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), container, () => {
 			hover.value.setAgent(args.agentId);
 			return hover.value.domNode;
 		}, agent && getChatAgentHoverOptions(() => agent, this.commandService)));

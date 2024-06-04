@@ -281,7 +281,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 
 		// Lifecycle
 
-		this._extensionHostProcess.onExit(({ code, signal }) => this._onExtHostProcessExit(code, signal));
+		this._toDispose.add(this._extensionHostProcess.onExit(({ code, signal }) => this._onExtHostProcessExit(code, signal)));
 
 		// Notify debugger that we are ready to attach to the process if we run a development extension
 		if (portNumber) {

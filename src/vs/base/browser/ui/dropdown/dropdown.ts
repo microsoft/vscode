@@ -8,7 +8,7 @@ import { $, addDisposableListener, append, EventHelper, EventType, isMouseEvent 
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType as GestureEventType, Gesture } from 'vs/base/browser/touch';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
-import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
+import type { IManagedHover } from 'vs/base/browser/ui/hover/hover';
 import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { IMenuOptions } from 'vs/base/browser/ui/menu/menu';
@@ -37,7 +37,7 @@ class BaseDropdown extends ActionRunner {
 	private _onDidChangeVisibility = this._register(new Emitter<boolean>());
 	readonly onDidChangeVisibility = this._onDidChangeVisibility.event;
 
-	private hover: IUpdatableHover | undefined;
+	private hover: IManagedHover | undefined;
 
 	constructor(container: HTMLElement, options: IBaseDropdownOptions) {
 		super();
@@ -107,7 +107,7 @@ class BaseDropdown extends ActionRunner {
 	set tooltip(tooltip: string) {
 		if (this._label) {
 			if (!this.hover && tooltip !== '') {
-				this.hover = this._register(getBaseLayerHoverDelegate().setupUpdatableHover(getDefaultHoverDelegate('mouse'), this._label, tooltip));
+				this.hover = this._register(getBaseLayerHoverDelegate().setupManagedHover(getDefaultHoverDelegate('mouse'), this._label, tooltip));
 			} else if (this.hover) {
 				this.hover.update(tooltip);
 			}
