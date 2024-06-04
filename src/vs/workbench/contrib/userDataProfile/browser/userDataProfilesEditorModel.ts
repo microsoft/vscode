@@ -45,20 +45,28 @@ export type ChangeEvent = {
 	readonly disabled?: boolean;
 };
 
-export interface IUserDataProfileChildElement {
+export interface IProfileChildElement {
 	readonly handle: string;
-	readonly checkbox?: ITreeItemCheckboxState;
 	readonly action?: IAction;
+	readonly checkbox?: ITreeItemCheckboxState;
 }
 
-export interface IUserDataProfileResourceElement extends IUserDataProfileChildElement {
+export interface IProfileResourceTypeElement extends IProfileChildElement {
 	readonly resourceType: ProfileResourceType;
 }
 
-export interface IUserDataProfileResourceChildElement extends IUserDataProfileChildElement {
+export interface IProfileResourceTypeChildElement extends IProfileChildElement {
 	readonly label: string;
 	readonly resource?: URI;
 	readonly icon?: ThemeIcon;
+}
+
+export function isProfileResourceTypeElement(element: IProfileChildElement): element is IProfileResourceTypeElement {
+	return (element as IProfileResourceTypeElement).resourceType !== undefined;
+}
+
+export function isProfileResourceChildElement(element: IProfileChildElement): element is IProfileResourceTypeChildElement {
+	return (element as IProfileResourceTypeChildElement).label !== undefined;
 }
 
 export abstract class AbstractUserDataProfileElement extends Disposable {
@@ -177,7 +185,7 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 		this.message = undefined;
 	}
 
-	async getChildren(resourceType?: ProfileResourceType): Promise<IUserDataProfileChildElement[]> {
+	async getChildren(resourceType?: ProfileResourceType): Promise<IProfileChildElement[]> {
 		if (resourceType === undefined) {
 			const resourceTypes = [
 				ProfileResourceType.Settings,
@@ -186,7 +194,7 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 				ProfileResourceType.Snippets,
 				ProfileResourceType.Extensions
 			];
-			return resourceTypes.map<IUserDataProfileResourceElement>(resourceType => ({
+			return resourceTypes.map<IProfileResourceTypeElement>(resourceType => ({
 				handle: resourceType,
 				checkbox: undefined,
 				resourceType,
@@ -199,10 +207,14 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 					}) : undefined
 			}));
 		}
+		return this.getChildrenForResourceType(resourceType);
+	}
+
+	protected async getChildrenForResourceType(resourceType: ProfileResourceType): Promise<IProfileChildElement[]> {
 		return [];
 	}
 
-	protected async getChildrenFromProfile(profile: IUserDataProfile, resourceType: ProfileResourceType): Promise<IUserDataProfileResourceChildElement[]> {
+	protected async getChildrenFromProfile(profile: IUserDataProfile, resourceType: ProfileResourceType): Promise<IProfileResourceTypeChildElement[]> {
 		profile = this.getFlag(resourceType) ? this.userDataProfilesService.defaultProfile : profile;
 		let children: IProfileResourceChildTreeItem[] = [];
 		switch (resourceType) {
@@ -222,20 +234,25 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 				children = await this.instantiationService.createInstance(ExtensionsResourceExportTreeItem, profile).getChildren();
 				break;
 		}
-		return children.map<IUserDataProfileResourceChildElement>(child => ({
+		return children.map<IProfileResourceTypeChildElement>(child => this.toUserDataProfileResourceChildElement(child));
+	}
+
+	protected toUserDataProfileResourceChildElement(child: IProfileResourceChildTreeItem): IProfileResourceTypeChildElement {
+		return {
 			handle: child.handle,
 			checkbox: child.checkbox,
 			label: child.label?.label ?? '',
 			resource: URI.revive(child.resourceUri),
 			icon: child.themeIcon,
 			action: new Action('_openChild', '', undefined, true, async () => {
-				if (resourceType === ProfileResourceType.Extensions) {
+				if (child.parent.type === ProfileResourceType.Extensions) {
 					await this.commandService.executeCommand('extension.open', child.handle, undefined, true, undefined, true);
 				} else if (child.resourceUri) {
 					await this.commandService.executeCommand(API_OPEN_EDITOR_COMMAND_ID, child.resourceUri, [SIDE_GROUP], undefined);
 				}
 			})
-		}));
+		};
+
 	}
 
 	protected getInitialName(): string {
@@ -329,10 +346,7 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement {
 		await this.saveProfile(this.profile);
 	}
 
-	override async getChildren(resourceType?: ProfileResourceType): Promise<IUserDataProfileChildElement[]> {
-		if (resourceType === undefined) {
-			return super.getChildren(resourceType);
-		}
+	protected override async getChildrenForResourceType(resourceType: ProfileResourceType): Promise<IProfileChildElement[]> {
 		return this.getChildrenFromProfile(this.profile, resourceType);
 	}
 
@@ -424,10 +438,7 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 		this.copyFlags = flags;
 	}
 
-	override async getChildren(resourceType?: ProfileResourceType): Promise<IUserDataProfileChildElement[]> {
-		if (resourceType === undefined) {
-			return super.getChildren(resourceType);
-		}
+	protected override async getChildrenForResourceType(resourceType: ProfileResourceType): Promise<IProfileChildElement[]> {
 		if (this.getFlag(resourceType)) {
 			return this.getChildrenFromProfile(this.userDataProfilesService.defaultProfile, resourceType);
 		}
@@ -447,7 +458,7 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 		return [];
 	}
 
-	private async getChildrenFromProfileTemplate(profileTemplate: IUserDataProfileTemplate, resourceType: ProfileResourceType): Promise<IUserDataProfileResourceChildElement[]> {
+	private async getChildrenFromProfileTemplate(profileTemplate: IUserDataProfileTemplate, resourceType: ProfileResourceType): Promise<IProfileResourceTypeChildElement[]> {
 		const profile = toUserDataProfile(generateUuid(), this.name, URI.file('/root').with({ scheme: USER_DATA_PROFILE_TEMPLATE_PREVIEW_SCHEME }), URI.file('/cache').with({ scheme: USER_DATA_PROFILE_TEMPLATE_PREVIEW_SCHEME }));
 		switch (resourceType) {
 			case ProfileResourceType.Settings:
@@ -473,16 +484,7 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 			case ProfileResourceType.Extensions:
 				if (profileTemplate.extensions) {
 					const children = await this.instantiationService.createInstance(ExtensionsResourceImportTreeItem, profileTemplate.extensions).getChildren();
-					return children.map<IUserDataProfileResourceChildElement>(child => ({
-						handle: child.handle,
-						checkbox: child.checkbox,
-						label: child.label?.label ?? '',
-						resource: URI.revive(child.resourceUri),
-						icon: child.themeIcon,
-						action: new Action('_openExtension', '', undefined, true, async () => {
-							await this.commandService.executeCommand('extension.open', child.handle, undefined, true, undefined, true);
-						})
-					}));
+					return children.map(child => this.toUserDataProfileResourceChildElement(child));
 				}
 		}
 		return [];
