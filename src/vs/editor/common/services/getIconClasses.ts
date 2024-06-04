@@ -123,5 +123,5 @@ function detectLanguageId(modelService: IModelService, languageService: ILanguag
 }
 
 function cssEscape(str: string): string {
-	return str.replace(/[\11\12\14\15\40]/g, '/'); // HTML class names can not contain certain whitespace characters, use / instead, which doesn't exist in file names.
+	return str.replace(/[\x11\x12\x14\x15\x40]/g, '/'); // HTML class names can not contain certain whitespace characters, use / instead, which doesn't exist in file names.
 }

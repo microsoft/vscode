@@ -68,6 +68,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	private _onMouseDown = false;
 	private _endLineNumbers: number[] = [];
 	private _showEndForLine: number | undefined;
+	private _minRebuildFromLine: number | undefined;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -485,22 +486,23 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			this._resetState();
 			return;
 		}
+		const nextRebuildFromLine = this._updateAndGetMinRebuildFromLine(rebuildFromLine);
 		const stickyWidgetVersion = this._stickyLineCandidateProvider.getVersionId();
 		const shouldUpdateState = stickyWidgetVersion === undefined || stickyWidgetVersion === model.getVersionId();
 		if (shouldUpdateState) {
 			if (!this._focused) {
-				await this._updateState(rebuildFromLine);
+				await this._updateState(nextRebuildFromLine);
 			} else {
 				// Suppose that previously the sticky scroll widget had height 0, then if there are visible lines, set the last line as focused
 				if (this._focusedStickyElementIndex === -1) {
-					await this._updateState(rebuildFromLine);
+					await this._updateState(nextRebuildFromLine);
 					this._focusedStickyElementIndex = this._stickyScrollWidget.lineNumberCount - 1;
 					if (this._focusedStickyElementIndex !== -1) {
 						this._stickyScrollWidget.focusLineWithIndex(this._focusedStickyElementIndex);
 					}
 				} else {
 					const focusedStickyElementLineNumber = this._stickyScrollWidget.lineNumbers[this._focusedStickyElementIndex];
-					await this._updateState(rebuildFromLine);
+					await this._updateState(nextRebuildFromLine);
 					// Suppose that after setting the state, there are no sticky lines, set the focused index to -1
 					if (this._stickyScrollWidget.lineNumberCount === 0) {
 						this._focusedStickyElementIndex = -1;
@@ -518,7 +520,17 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			}
 		}
 	}
+
+	private _updateAndGetMinRebuildFromLine(rebuildFromLine: number | undefined): number | undefined {
+		if (rebuildFromLine !== undefined) {
+			const minRebuildFromLineOrInfinity = this._minRebuildFromLine !== undefined ? this._minRebuildFromLine : Infinity;
+			this._minRebuildFromLine = Math.min(rebuildFromLine, minRebuildFromLineOrInfinity);
+		}
+		return this._minRebuildFromLine;
+	}
+
 	private async _updateState(rebuildFromLine?: number): Promise<void> {
+		this._minRebuildFromLine = undefined;
 		this._foldingModel = await FoldingController.get(this._editor)?.getFoldingModel() ?? undefined;
 		this._widgetState = this.findScrollWidgetState();
 		const stickyWidgetHasLines = this._widgetState.startLineNumbers.length > 0;
@@ -527,6 +539,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 	}
 
 	private async _resetState(): Promise<void> {
+		this._minRebuildFromLine = undefined;
 		this._foldingModel = undefined;
 		this._widgetState = StickyScrollWidgetState.Empty;
 		this._stickyScrollVisibleContextKey.set(false);

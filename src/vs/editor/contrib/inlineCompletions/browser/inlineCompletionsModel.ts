@@ -23,6 +23,7 @@ import { Command, InlineCompletionContext, InlineCompletionTriggerKind, PartialA
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
 import { IFeatureDebounceInformation } from 'vs/editor/common/services/languageFeatureDebounce';
+import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
 import { GhostText, GhostTextOrReplacement, ghostTextOrReplacementEquals, ghostTextsOrReplacementsEqual } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
 import { InlineCompletionWithUpdatedRange, InlineCompletionsSource } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsSource';
 import { computeGhostText, singleTextEditAugments, singleTextRemoveCommonPrefix } from 'vs/editor/contrib/inlineCompletions/browser/singleTextEdit';
@@ -41,7 +42,7 @@ export enum VersionIdChangeReason {
 
 export class InlineCompletionsModel extends Disposable {
 	private readonly _source = this._register(this._instantiationService.createInstance(InlineCompletionsSource, this.textModel, this.textModelVersionId, this._debounceValue));
-	private readonly _isActive = observableValue<boolean, InlineCompletionTriggerKind | void>(this, false);
+	private readonly _isActive = observableValue<boolean>(this, false);
 	readonly _forceUpdateExplicitlySignal = observableSignal(this);
 
 	// We use a semantic id to keep the same inline completion selected even if the provider reorders the completions.
@@ -54,7 +55,7 @@ export class InlineCompletionsModel extends Disposable {
 	constructor(
 		public readonly textModel: ITextModel,
 		public readonly selectedSuggestItem: IObservable<SuggestItemInfo | undefined>,
-		public readonly textModelVersionId: IObservable<number, VersionIdChangeReason>,
+		public readonly textModelVersionId: IObservable<number | null, IModelContentChangedEvent | undefined>,
 		private readonly _positions: IObservable<readonly Position[]>,
 		private readonly _debounceValue: IFeatureDebounceInformation,
 		private readonly _suggestPreviewEnabled: IObservable<boolean>,
@@ -91,6 +92,13 @@ export class InlineCompletionsModel extends Disposable {
 		VersionIdChangeReason.AcceptWord,
 	]);
 
+	private _getReason(e: IModelContentChangedEvent | undefined): VersionIdChangeReason {
+		if (e?.isUndoing) { return VersionIdChangeReason.Undo; }
+		if (e?.isRedoing) { return VersionIdChangeReason.Redo; }
+		if (this.isAcceptingPartially) { return VersionIdChangeReason.AcceptWord; }
+		return VersionIdChangeReason.Other;
+	}
+
 	private readonly _fetchInlineCompletionsPromise = derivedHandleChanges({
 		owner: this,
 		createEmptyChangeSummary: () => ({
@@ -99,7 +107,7 @@ export class InlineCompletionsModel extends Disposable {
 		}),
 		handleChange: (ctx, changeSummary) => {
 			/** @description fetch inline completions */
-			if (ctx.didChange(this.textModelVersionId) && this._preserveCurrentCompletionReasons.has(ctx.change)) {
+			if (ctx.didChange(this.textModelVersionId) && this._preserveCurrentCompletionReasons.has(this._getReason(ctx.change))) {
 				changeSummary.preserveCurrentCompletion = true;
 			} else if (ctx.didChange(this._forceUpdateExplicitlySignal)) {
 				changeSummary.inlineCompletionTriggerKind = InlineCompletionTriggerKind.Explicit;
