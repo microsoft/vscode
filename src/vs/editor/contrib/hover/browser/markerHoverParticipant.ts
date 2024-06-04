@@ -90,20 +90,20 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 		return result;
 	}
 
-	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: MarkerHover[]): { disposables: IDisposable; renderedParts: RenderedHoverPart<MarkerHover>[] } {
+	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: MarkerHover[]): { disposables: IDisposable; renderedHoverParts: RenderedHoverPart<MarkerHover>[] } {
 		if (!hoverParts.length) {
-			return { disposables: Disposable.None, renderedParts: [] };
+			return { disposables: Disposable.None, renderedHoverParts: [] };
 		}
 		const disposables = new DisposableStore();
-		const renderedParts: RenderedHoverPart<MarkerHover>[] = [];
+		const renderedHoverParts: RenderedHoverPart<MarkerHover>[] = [];
 		hoverParts.forEach(hoverPart => {
 			const element = this.renderMarkerHover(hoverPart, disposables);
 			context.fragment.appendChild(element);
-			renderedParts.push({ hoverPart, element });
+			renderedHoverParts.push({ hoverPart, element });
 		});
 		const markerHoverForStatusbar = hoverParts.length === 1 ? hoverParts[0] : hoverParts.sort((a, b) => MarkerSeverity.compare(a.marker.severity, b.marker.severity))[0];
 		this.renderMarkerStatusbar(context, markerHoverForStatusbar, disposables);
-		return { disposables, renderedParts };
+		return { disposables, renderedHoverParts };
 	}
 
 	public getAccessibleContent(hoverPart: MarkerHover): string {

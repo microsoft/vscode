@@ -87,14 +87,14 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 		return [];
 	}
 
-	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: ColorHover[]): { disposables: IDisposable; renderedParts: RenderedHoverPart<ColorHover>[] } {
-		const renderedHoverParts = renderHoverParts(this, this._editor, this._themeService, hoverParts, context);
-		if (!renderedHoverParts) {
-			return { disposables: Disposable.None, renderedParts: [] };
+	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: ColorHover[]): { disposables: IDisposable; renderedHoverParts: RenderedHoverPart<ColorHover>[] } {
+		const renderedParts = renderHoverParts(this, this._editor, this._themeService, hoverParts, context);
+		if (!renderedParts) {
+			return { disposables: Disposable.None, renderedHoverParts: [] };
 		}
-		const disposables = renderedHoverParts.disposables;
-		const renderedParts = [{ hoverPart: renderedHoverParts.hoverPart, element: renderedHoverParts.element }];
-		return { disposables, renderedParts };
+		const disposables = renderedParts.disposables;
+		const renderedHoverParts = [{ hoverPart: renderedParts.hoverPart, element: renderedParts.element }];
+		return { disposables, renderedHoverParts };
 	}
 
 	public getAccessibleContent(): string {

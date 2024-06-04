@@ -127,7 +127,7 @@ export interface RenderedHoverPart<T extends IHoverPart = IHoverPart> {
 	 */
 	hoverPart: T;
 	/**
-	 * The HTML element containig the hover part data.
+	 * The HTML element containing the hover part data.
 	 */
 	element: HTMLElement;
 }
@@ -138,7 +138,7 @@ export interface IEditorHoverParticipant<T extends IHoverPart = IHoverPart> {
 	computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): T[];
 	computeAsync?(anchor: HoverAnchor, lineDecorations: IModelDecoration[], token: CancellationToken): AsyncIterableObject<T>;
 	createLoadingMessage?(anchor: HoverAnchor): T | null;
-	renderHoverParts(context: IEditorHoverRenderContext, hoverParts: T[]): { disposables: IDisposable; renderedParts: RenderedHoverPart<T>[] };
+	renderHoverParts(context: IEditorHoverRenderContext, hoverParts: T[]): { disposables: IDisposable; renderedHoverParts: RenderedHoverPart<T>[] };
 	getAccessibleContent(hoverPart: T): string;
 }
 

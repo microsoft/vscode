@@ -94,7 +94,7 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 		return [];
 	}
 
-	renderHoverParts(context: IEditorHoverRenderContext, hoverParts: InlineCompletionsHover[]): { disposables: IDisposable; renderedParts: RenderedHoverPart<InlineCompletionsHover>[] } {
+	renderHoverParts(context: IEditorHoverRenderContext, hoverParts: InlineCompletionsHover[]): { disposables: IDisposable; renderedHoverParts: RenderedHoverPart<InlineCompletionsHover>[] } {
 		const disposables = new DisposableStore();
 		const part = hoverParts[0];
 
@@ -117,12 +117,12 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 		);
 		const widgetNode: HTMLElement = w.getDomNode();
 		context.fragment.appendChild(widgetNode);
-		const renderedParts: RenderedHoverPart<InlineCompletionsHover>[] = [{ hoverPart: part, element: widgetNode }];
+		const renderedHoverParts: RenderedHoverPart<InlineCompletionsHover>[] = [{ hoverPart: part, element: widgetNode }];
 
 		model.triggerExplicitly();
 
 		disposables.add(w);
-		return { disposables, renderedParts };
+		return { disposables, renderedHoverParts };
 	}
 
 	getAccessibleContent(hoverPart: InlineCompletionsHover): string {

@@ -506,7 +506,7 @@ export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipa
 		return result;
 	}
 
-	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: MarkdownHover[]): { disposables: IDisposable; renderedParts: RenderedHoverPart<MarkdownHover>[] } {
+	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: MarkdownHover[]): { disposables: IDisposable; renderedHoverParts: RenderedHoverPart<MarkdownHover>[] } {
 		return renderMarkdownHovers(context, hoverParts, this._editor, this._languageService, this._openerService);
 	}
 

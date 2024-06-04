@@ -187,9 +187,7 @@ export class HoverAccessibilityHelpProvider extends BaseHoverAccessibleViewProvi
 
 	public readonly options: IAccessibleViewOptions = { type: AccessibleViewType.Help };
 
-	constructor(
-		hoverController: HoverController,
-	) {
+	constructor(hoverController: HoverController) {
 		super(hoverController);
 	}
 

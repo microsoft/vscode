@@ -50,9 +50,9 @@ export class ChatAgentHoverParticipant implements IEditorHoverParticipant<ChatAg
 		return [];
 	}
 
-	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: ChatAgentHoverPart[]): { disposables: IDisposable; renderedParts: RenderedHoverPart<ChatAgentHoverPart>[] } {
+	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: ChatAgentHoverPart[]): { disposables: IDisposable; renderedHoverParts: RenderedHoverPart<ChatAgentHoverPart>[] } {
 		if (!hoverParts.length) {
-			return { disposables: Disposable.None, renderedParts: [] };
+			return { disposables: Disposable.None, renderedHoverParts: [] };
 		}
 
 		const disposables = new DisposableStore();
@@ -66,8 +66,8 @@ export class ChatAgentHoverParticipant implements IEditorHoverParticipant<ChatAg
 		const wrapper = this.instantiationService.createInstance(ChatEditorHoverWrapper, hover.domNode, actions);
 		const wrapperNode = wrapper.domNode;
 		context.fragment.appendChild(wrapperNode);
-		const renderedParts: RenderedHoverPart<ChatAgentHoverPart>[] = [{ hoverPart, element: wrapperNode }];
-		return { disposables, renderedParts };
+		const renderedHoverParts: RenderedHoverPart<ChatAgentHoverPart>[] = [{ hoverPart, element: wrapperNode }];
+		return { disposables, renderedHoverParts };
 	}
 
 	public getAccessibleContent(hoverPart: ChatAgentHoverPart): string {

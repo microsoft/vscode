@@ -87,7 +87,7 @@ export class InlineEditHoverParticipant implements IEditorHoverParticipant<Inlin
 		return [];
 	}
 
-	renderHoverParts(context: IEditorHoverRenderContext, hoverParts: InlineEditHover[]): { disposables: IDisposable; renderedParts: RenderedHoverPart<InlineEditHover>[] } {
+	renderHoverParts(context: IEditorHoverRenderContext, hoverParts: InlineEditHover[]): { disposables: IDisposable; renderedHoverParts: RenderedHoverPart<InlineEditHover>[] } {
 		const disposables = new DisposableStore();
 
 		this._telemetryService.publicLog2<{}, {
@@ -99,10 +99,10 @@ export class InlineEditHoverParticipant implements IEditorHoverParticipant<Inlin
 			constObservable(null),
 		);
 		const widgetNode: HTMLElement = w.getDomNode();
-		const renderedParts: RenderedHoverPart<InlineEditHover>[] = [{ hoverPart: hoverParts[0], element: widgetNode }];
+		const renderedHoverParts: RenderedHoverPart<InlineEditHover>[] = [{ hoverPart: hoverParts[0], element: widgetNode }];
 		disposables.add(w);
 
-		return { disposables, renderedParts };
+		return { disposables, renderedHoverParts };
 	}
 
 	getAccessibleContent(hoverPart: InlineEditHover): string {

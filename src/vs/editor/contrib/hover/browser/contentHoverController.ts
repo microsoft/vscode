@@ -257,7 +257,7 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 	private _renderHoverPartsInFragment(fragment: DocumentFragment, hoverParts: IHoverPart[]): DisposableStore {
 		const statusBar = new EditorHoverStatusBar(this._keybindingService);
 		const context = this._getHoverContext(fragment, statusBar);
-		const renderedHoverParts = this._renderHoverPartsUsingContext(context, hoverParts);
+		const renderedHoverParts = this._renderHoverParts(context, hoverParts);
 		const renderedStatusBar = this._renderStatusBar(fragment, statusBar);
 		const disposables = new DisposableStore();
 		disposables.add(renderedHoverParts.disposables);
@@ -266,7 +266,7 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		return disposables;
 	}
 
-	private _renderHoverPartsUsingContext(context: IEditorHoverRenderContext, hoverParts: IHoverPart[]): { disposables: IDisposable; renderedParts: RenderedHoverPart[] } {
+	private _renderHoverParts(context: IEditorHoverRenderContext, hoverParts: IHoverPart[]): { disposables: IDisposable; renderedParts: RenderedHoverPart[] } {
 		const disposables = new DisposableStore();
 		const renderedParts: RenderedHoverPart[] = [];
 		for (const participant of this._participants) {
@@ -274,7 +274,7 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 			if (hoverPartsForParticipant.length === 0) {
 				continue;
 			}
-			const { disposables: currentDisposables, renderedParts: currentRenderedParts } = participant.renderHoverParts(context, hoverPartsForParticipant);
+			const { disposables: currentDisposables, renderedHoverParts: currentRenderedParts } = participant.renderHoverParts(context, hoverPartsForParticipant);
 			disposables.add(currentDisposables);
 			currentRenderedParts.forEach(renderedPart => {
 				const renderedHoverPart: RenderedHoverPart = { brand: `renderedHoverPart`, participant, ...renderedPart };
