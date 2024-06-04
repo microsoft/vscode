@@ -337,8 +337,8 @@ export class TestingExplorerView extends ViewPane {
 						const { include, exclude } = this.getTreeIncludeExclude(undefined, profile);
 						this.testService.runResolvedTests({
 							exclude: exclude.map(e => e.item.extId),
+							group: profile.group,
 							targets: [{
-								profileGroup: profile.group,
 								profileId: profile.profileId,
 								controllerId: profile.controllerId,
 								testIds: include.map(i => i.item.extId),
