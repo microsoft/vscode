@@ -11,7 +11,7 @@ import { FileWatcherManager } from './fileWatcherManager';
 import { Logger } from './logging';
 import { PathMapper, looksLikeNodeModules, mapUri } from './pathMapper';
 import { findArgument, hasArgument } from './util/args';
-import membraneTsPlugin from '../../../membrane-ts-plugin/src/index'
+import membraneTsPlugin from '../../../membrane-ts-plugin/src/index';
 
 type ServerHostWithImport = ts.server.ServerHost & { importPlugin(root: string, moduleName: string): Promise<ts.server.ModuleImportResult> };
 
@@ -72,6 +72,9 @@ function createServerHost(
 			this.clearTimeout(timeoutId);
 		},
 		importPlugin: async (root, moduleName) => {
+			if (moduleName !== 'membrane-ts-plugin') {
+				throw new Error('Only the Membrane TS plugin is supported');
+			}
 			const scriptPath = combinePaths(root, moduleName);
 			try {
 				// Dynamically import the script using the constructed path

@@ -119,42 +119,43 @@ function withBrowserDefaults(/**@type WebpackConfig & { context: string }*/extCo
 			mainFields: ['browser', 'module', 'main'],
 			extensions: ['.ts', '.js'], // support ts-files and js-files
 			fallback: {
-				'os': require.resolve('os-browserify'),
-				"events": require.resolve("events"),
+				// 'os': require.resolve('os-browserify'),
+				'events': require.resolve('events/'),
 				'path': require.resolve('path-browserify'),
 				'util': require.resolve('util/'),
 			}
 		},
 		module: {
 			rules: [
-				{ 
+				// MEMBRANE: see ts-plugin/src/membraneLib.ts
+				{
 					test: /\.d\.ts$/,
 					type: 'asset/source'
 				},
 				{
-				test: /\.ts$/,
-				exclude: /node_modules|typings\/.*\.d\.ts$/, // Exclude node_modules and .d.ts files in the typings folder
-				use: [
-					{
-						// configure TypeScript loader:
-						// * enable sources maps for end-to-end source maps
-						loader: 'ts-loader',
-						options: {
-							...tsLoaderOptions,
-							...(additionalOptions ? {} : { configFile: additionalOptions.configFile }),
-						}
-					},
-					{
-						loader: path.resolve(__dirname, 'mangle-loader.js'),
-						options: {
-							configFile: path.join(extConfig.context, additionalOptions?.configFile ?? 'tsconfig.json')
+					test: /\.ts$/,
+					exclude: /node_modules|typings\/.*\.d\.ts$/, // Exclude node_modules and .d.ts files in the typings folder
+					use: [
+						{
+							// configure TypeScript loader:
+							// * enable sources maps for end-to-end source maps
+							loader: 'ts-loader',
+							options: {
+								...tsLoaderOptions,
+								...(additionalOptions ? {} : { configFile: additionalOptions.configFile }),
+							}
 						},
-					},
-				]
-			}, {
-				test: /\.wasm$/,
-				type: 'asset/inline'
-			}]
+						{
+							loader: path.resolve(__dirname, 'mangle-loader.js'),
+							options: {
+								configFile: path.join(extConfig.context, additionalOptions?.configFile ?? 'tsconfig.json')
+							},
+						},
+					]
+				}, {
+					test: /\.wasm$/,
+					type: 'asset/inline'
+				}]
 		},
 		externals: {
 			'vscode': 'commonjs vscode', // ignored because it doesn't exist,

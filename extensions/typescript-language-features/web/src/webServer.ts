@@ -20,7 +20,8 @@ async function initializeSession(
 	extensionUri: URI,
 	ports: { tsserver: MessagePort; sync: MessagePort; watcher: MessagePort },
 ): Promise<void> {
-	const logLevel = parseLogLevel(findArgument(args, '--logVerbosity') ?? "verbose");
+	// MEMBRANE: Can be set to "normal" or "verbose" for debugging
+	const logLevel = parseLogLevel(findArgument(args, '--logVerbosity')); // ?? "normal");
 	const logger = new Logger(logLevel);
 
 	const modeOrUnknown = parseServerMode(args);
