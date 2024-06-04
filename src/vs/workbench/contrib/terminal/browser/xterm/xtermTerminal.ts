@@ -9,6 +9,7 @@ import type { Unicode11Addon as Unicode11AddonType } from '@xterm/addon-unicode1
 import type { WebglAddon as WebglAddonType } from '@xterm/addon-webgl';
 import type { SerializeAddon as SerializeAddonType } from '@xterm/addon-serialize';
 import type { ImageAddon as ImageAddonType } from '@xterm/addon-image';
+import type { ClipboardAddon as ClipboardAddonType } from '@xterm/addon-clipboard';
 import * as dom from 'vs/base/browser/dom';
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -39,6 +40,7 @@ import { MouseWheelClassifier } from 'vs/base/browser/ui/scrollbar/scrollableEle
 import { IMouseWheelEvent, StandardWheelEvent } from 'vs/base/browser/mouseEvent';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
+import { VscodeClipboardAddon } from 'vs/workbench/contrib/terminal/browser/xterm/vscodeClipboardAddon';
 
 const enum RenderConstants {
 	SmoothScrollDuration = 125
@@ -117,6 +119,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	private _markNavigationAddon: MarkNavigationAddon;
 	private _shellIntegrationAddon: ShellIntegrationAddon;
 	private _decorationAddon: DecorationAddon;
+	private _clipboardAddon: ClipboardAddonType;
 
 	// Optional addons
 	private _searchAddon?: SearchAddonType;
@@ -273,6 +276,8 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this.raw.loadAddon(this._decorationAddon);
 		this._shellIntegrationAddon = new ShellIntegrationAddon(shellIntegrationNonce, disableShellIntegrationReporting, this._telemetryService, this._logService);
 		this.raw.loadAddon(this._shellIntegrationAddon);
+		this._clipboardAddon = this._instantiationService.createInstance(VscodeClipboardAddon);
+		this.raw.loadAddon(this._clipboardAddon);
 
 		this._anyTerminalFocusContextKey = TerminalContextKeys.focusInAny.bindTo(contextKeyService);
 		this._anyFocusedTerminalHasSelection = TerminalContextKeys.textSelectedInFocused.bindTo(contextKeyService);
