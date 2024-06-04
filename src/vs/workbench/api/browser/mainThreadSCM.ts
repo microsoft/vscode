@@ -231,6 +231,12 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 	get statusBarCommands(): Command[] | undefined { return this.features.statusBarCommands; }
 	get count(): number | undefined { return this.features.count; }
 
+	private readonly _countObs = observableValue<number | undefined>(this, undefined);
+	get countObs() { return this._countObs; }
+
+	private readonly _statusBarCommandsObs = observableValue<readonly Command[] | undefined>(this, undefined);
+	get statusBarCommandsObs() { return this._statusBarCommandsObs; }
+
 	private readonly _name: string | undefined;
 	get name(): string { return this._name ?? this._label; }
 
@@ -280,7 +286,12 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 			this._commitTemplate.set(features.commitTemplate, undefined);
 		}
 
+		if (typeof features.count !== 'undefined') {
+			this._countObs.set(features.count, undefined);
+		}
+
 		if (typeof features.statusBarCommands !== 'undefined') {
+			this._statusBarCommandsObs.set(features.statusBarCommands, undefined);
 			this._onDidChangeStatusBarCommands.fire(this.statusBarCommands!);
 		}
 
