@@ -106,6 +106,6 @@ export class InlineEditHoverParticipant implements IEditorHoverParticipant<Inlin
 	}
 
 	getAccessibleContent(hoverPart: InlineEditHover): string {
-		return 'There are inline edits here';
+		return `There are inline edits here`;
 	}
 }

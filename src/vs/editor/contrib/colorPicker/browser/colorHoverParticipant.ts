@@ -196,7 +196,7 @@ function renderHoverParts(participant: ColorHoverParticipant | StandaloneColorPi
 	const editorModel = editor.getModel();
 	const model = colorHover.model;
 	const widget = disposables.add(new ColorPickerWidget(context.fragment, model, editor.getOption(EditorOption.pixelRatio), themeService, participant instanceof StandaloneColorPickerParticipant));
-	const elements = [widget.getDomNode()];
+	const elements = [widget.domNode];
 	context.setColorPicker(widget);
 
 	let editorUpdatedByColorPicker = false;

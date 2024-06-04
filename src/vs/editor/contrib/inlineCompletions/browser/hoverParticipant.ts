@@ -126,7 +126,7 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 	}
 
 	getAccessibleContent(hoverPart: InlineCompletionsHover): string {
-		return 'There are inline completions here';
+		return `There are inline completions here`;
 	}
 
 	private renderScreenReaderText(context: IEditorHoverRenderContext, part: InlineCompletionsHover, disposableStore: DisposableStore) {

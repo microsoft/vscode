@@ -263,10 +263,8 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 
 	private _renderHoverPartsInFragment(fragment: DocumentFragment, hoverParts: IHoverPart[]): IDisposable {
 		const disposables = new DisposableStore();
-		const hoverContextAndStatusBar = this._getHoverContextAndStatusBar(fragment);
-		const statusBar = hoverContextAndStatusBar.statusBar;
-		const hoverRenderContext = hoverContextAndStatusBar.context;
-		const renderedHoverParts = this._renderHoverPartsWithContext(hoverRenderContext, hoverParts);
+		const { context, statusBar } = this._getContextAndStatusBar(fragment);
+		const renderedHoverParts = this._renderHoverPartsWithContext(context, hoverParts);
 		const renderedStatusBar = this._renderStatusBar(fragment, statusBar);
 		this._renderedParts = [];
 		this._renderedParts.push(...renderedHoverParts.renderedHoverParts);
@@ -276,46 +274,29 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		return disposables;
 	}
 
-	private _getHoverContextAndStatusBar(fragment: DocumentFragment,): {
-		context: IEditorHoverRenderContext;
-		statusBar: EditorHoverStatusBar;
-	} {
+	private _getContextAndStatusBar(fragment: DocumentFragment): { context: IEditorHoverRenderContext; statusBar: EditorHoverStatusBar } {
 		const hide = () => this.hide();
 		const onContentsChanged = () => this._doOnContentsChanged();
 		const statusBar = new EditorHoverStatusBar(this._keybindingService);
 		const setColorPicker = (widget: IEditorHoverColorPickerWidget) => { this._colorWidget = widget; };
 		const setMinimumDimensions = (dimensions: dom.Dimension) => this._widget.setMinimumDimensions(dimensions);
-		const context: IEditorHoverRenderContext = {
-			hide,
-			fragment,
-			statusBar,
-			setColorPicker,
-			onContentsChanged,
-			setMinimumDimensions,
-		};
+		const context: IEditorHoverRenderContext = { hide, fragment, statusBar, setColorPicker, onContentsChanged, setMinimumDimensions };
 		return { context, statusBar };
 	}
 
-	private _renderHoverPartsWithContext(context: IEditorHoverRenderContext, hoverParts: IHoverPart[]): {
-		disposables: DisposableStore;
-		renderedHoverParts: RenderedHoverPart[];
-	} {
+	private _renderHoverPartsWithContext(context: IEditorHoverRenderContext, hoverParts: IHoverPart[]): { disposables: DisposableStore; renderedHoverParts: RenderedHoverPart[] } {
 		const disposables = new DisposableStore();
 		const renderedHoverParts: RenderedHoverPart[] = [];
 		for (const participant of this._participants) {
-			const hoverPartsForParticipant = hoverParts.filter(msg => msg.owner === participant);
-			if (hoverPartsForParticipant.length === 0) {
+			const participantHoverParts = hoverParts.filter(msg => msg.owner === participant);
+			if (participantHoverParts.length === 0) {
 				continue;
 			}
-			const { disposables: store, elements } = participant.renderHoverParts(context, hoverPartsForParticipant);
-			hoverPartsForParticipant.forEach((hoverPart: IHoverPart, index: number) => {
+			const { disposables: store, elements } = participant.renderHoverParts(context, participantHoverParts);
+			participantHoverParts.forEach((hoverPart: IHoverPart, index: number) => {
 				const element = elements[index];
-				renderedHoverParts.push({
-					brand: `renderedHoverPart`,
-					participant,
-					hoverPart,
-					element
-				});
+				const renderedHoverPart: RenderedHoverPart = { brand: `renderedHoverPart`, participant, hoverPart, element };
+				renderedHoverParts.push(renderedHoverPart);
 			});
 			disposables.add(store);
 		}
@@ -327,10 +308,7 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 			return;
 		}
 		fragment.appendChild(statusBar.hoverElement);
-		return {
-			brand: `renderedStatusBar`,
-			element: statusBar.hoverElement
-		};
+		return { brand: `renderedStatusBar`, element: statusBar.hoverElement };
 	}
 
 	private _registerHoverListeners(): IDisposable {
@@ -479,14 +457,15 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 
 	public getAccessibleWidgetContentAtIndex(index: number): string {
 		const renderedHoverPart = this._renderedParts[index];
-		if (renderedHoverPart.brand === `renderedStatusBar`) {
-			return `There is a status bar here`;
+		switch (renderedHoverPart.brand) {
+			case `renderedStatusBar`: {
+				return `There is a status bar here`;
+			}
+			case `renderedHoverPart`: {
+				const { participant, hoverPart } = renderedHoverPart;
+				return participant.getAccessibleContent(hoverPart);
+			}
 		}
-		if (renderedHoverPart.brand === `renderedHoverPart`) {
-			const { participant, hoverPart } = renderedHoverPart;
-			return participant.getAccessibleContent(hoverPart);
-		}
-		return '';
 	}
 
 	public containsNode(node: Node | null | undefined): boolean {
