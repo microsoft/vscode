@@ -54,6 +54,10 @@ export class ReplEditorInput extends NotebookEditorInput {
 		return ReplEditorInput.ID;
 	}
 
+	override getName() {
+		return 'REPL';
+	}
+
 	override get capabilities() {
 		const capabilities = super.capabilities;
 		const scratchPad = this.isScratchpad ? EditorInputCapabilities.Scratchpad : 0;
