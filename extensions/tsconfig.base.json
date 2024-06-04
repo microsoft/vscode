@@ -35,7 +35,6 @@
 		"noImplicitOverride": true,
 		"noUnusedLocals": true,
 		"noUnusedParameters": true,
-		"forceConsistentCasingInFileNames": true,
-		"esModuleInterop": true
+		"forceConsistentCasingInFileNames": true
 	}
 }
