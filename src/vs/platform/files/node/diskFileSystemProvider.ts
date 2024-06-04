@@ -24,7 +24,6 @@ import { readFileIntoStream } from 'vs/platform/files/common/io';
 import { AbstractNonRecursiveWatcherClient, AbstractUniversalWatcherClient, ILogMessage } from 'vs/platform/files/common/watcher';
 import { ILogService } from 'vs/platform/log/common/log';
 import { AbstractDiskFileSystemProvider, IDiskFileSystemProviderOptions } from 'vs/platform/files/common/diskFileSystemProvider';
-import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { UniversalWatcherClient } from 'vs/platform/files/node/watcher/watcherClient';
 import { NodeJSWatcherClient } from 'vs/platform/files/node/watcher/nodejs/nodejsClient';
 
@@ -36,7 +35,7 @@ import { NodeJSWatcherClient } from 'vs/platform/files/node/watcher/nodejs/nodej
 	try {
 		gracefulify(fs);
 	} catch (error) {
-		console.error(`Error enabling graceful-fs: ${toErrorMessage(error)}`);
+		// console.error(`Error enabling graceful-fs: ${toErrorMessage(error)}`);
 	}
 })();
 
