@@ -154,7 +154,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		allModeIds: readonly string[]
 	) {
 		super();
-		
+
 		this.logger = services.logger;
 		this.tracer = new Tracer(this.logger);
 
