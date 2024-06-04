@@ -16,7 +16,7 @@ import { IFileService, FileOperationError, FileOperationResult, FileChangesEvent
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IModelService } from 'vs/editor/common/services/model';
 import { timeout, TaskSequentializer } from 'vs/base/common/async';
-import { ITextBufferFactory, ITextModel } from 'vs/editor/common/model';
+import { ITextBufferFactory, ITextModel, ITextSnapshot } from 'vs/editor/common/model';
 import { ILogService } from 'vs/platform/log/common/log';
 import { basename } from 'vs/base/common/path';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
@@ -99,7 +99,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private static readonly UNDO_REDO_SAVE_PARTICIPANTS_AUTO_SAVE_THROTTLE_THRESHOLD = 500;
 	private lastModelContentChangeFromUndoRedo: number | undefined = undefined;
 
-	lastResolvedFileStat: IFileStatWithMetadata | undefined; // !!! DO NOT MARK PRIVATE! USED IN TESTS !!!
+	private readonly fileState = new ResolvedTextFileState();
 
 	private readonly saveSequentializer = new TaskSequentializer();
 
@@ -216,12 +216,12 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 		// Fill in metadata if we are resolved
 		let meta: IBackupMetaData | undefined = undefined;
-		if (this.lastResolvedFileStat) {
+		if (this.fileState.stat) {
 			meta = {
-				mtime: this.lastResolvedFileStat.mtime,
-				ctime: this.lastResolvedFileStat.ctime,
-				size: this.lastResolvedFileStat.size,
-				etag: this.lastResolvedFileStat.etag,
+				mtime: this.fileState.stat.mtime,
+				ctime: this.fileState.stat.ctime,
+				size: this.fileState.stat.size,
+				etag: this.fileState.stat.etag,
 				orphaned: this.inOrphanMode
 			};
 		}
@@ -433,8 +433,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		let etag: string | undefined;
 		if (forceReadFromFile) {
 			etag = ETAG_DISABLED; // disable ETag if we enforce to read from disk
-		} else if (this.lastResolvedFileStat) {
-			etag = this.lastResolvedFileStat.etag; // otherwise respect etag to support caching
+		} else if (this.fileState.stat) {
+			etag = this.fileState.stat.etag; // otherwise respect etag to support caching
 		}
 
 		// Remember current version before doing any long running operation
@@ -502,7 +502,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			return;
 		}
 
-		// Update our resolved disk stat model
+		// Update our resolved disk stat model (stat)
 		this.updateLastResolvedFileStat({
 			resource: this.resource,
 			name: content.name,
@@ -538,6 +538,11 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		else {
 			this.doCreateTextModel(content.resource, content.value);
 		}
+
+		// Update our resolved disk stat model (snapshot)
+		if (!dirty && this.isResolved()) {
+			this.fileState.updateSnapshot(this.createSnapshot(), this.textEditorModel.getTextBuffer().getLength());
+		} // TODO what if dirty (i.e. opened from backup)?
 
 		// Update model dirty flag. This is very important to call
 		// in both cases of dirty or not because it conditionally
@@ -605,11 +610,22 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// - explicitly instructed to ignore it (e.g. from model.resolve())
 		// - the model is readonly (in that case we never assume the change was done by the user)
 		if (!this.ignoreDirtyOnModelContentChange && !this.isReadonly()) {
-
-			// The contents changed as a matter of Undo and the version reached matches the saved one
-			// In this case we clear the dirty flag and emit a SAVED event to indicate this state.
+			let clearDirty = false;
 			if (model.getAlternativeVersionId() === this.bufferSavedVersionId) {
+				// The contents changed as a matter of Undo and the version reached matches the saved one
+				// In this case we clear the dirty flag and emit a SAVED event to indicate this state.
 				this.trace('onModelContentChanged() - model content changed back to last saved version');
+
+				clearDirty = true;
+			} else if (this.fileState.matches(model)) {
+				// The contents changed back to the version on disk
+				// In this case we clear the dirty flag and emit a SAVED event to indicate this state.
+				this.trace('onModelContentChanged() - model content changed back to file contents');
+
+				clearDirty = true;
+			}
+
+			if (clearDirty) {
 
 				// Clear flags
 				const wasDirty = this.dirty;
@@ -917,11 +933,14 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// participant triggering
 			progress.report({ message: localize('saveTextFile', "Writing into file...") });
 			this.trace(`doSave(${versionId}) - before write()`);
-			const lastResolvedFileStat = assertIsDefined(this.lastResolvedFileStat);
+			const lastResolvedFileStat = assertIsDefined(this.fileState.stat);
 			const resolvedTextFileEditorModel = this;
 			return this.saveSequentializer.run(versionId, (async () => {
 				try {
-					const stat = await this.textFileService.write(lastResolvedFileStat.resource, resolvedTextFileEditorModel.createSnapshot(), {
+					const snapshot = resolvedTextFileEditorModel.createSnapshot();
+					const fileModelLength = resolvedTextFileEditorModel.textEditorModel.getTextBuffer().getLength();
+
+					const stat = await this.textFileService.write(lastResolvedFileStat.resource, snapshot, {
 						mtime: lastResolvedFileStat.mtime,
 						encoding: this.getEncoding(),
 						etag: (options.ignoreModifiedSince || !this.filesConfigurationService.preventSaveConflicts(lastResolvedFileStat.resource, resolvedTextFileEditorModel.getLanguageId())) ? ETAG_DISABLED : lastResolvedFileStat.etag,
@@ -929,7 +948,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 						writeElevated: options.writeElevated
 					});
 
-					this.handleSaveSuccess(stat, versionId, options);
+					this.handleSaveSuccess(stat, snapshot, fileModelLength, versionId, options);
 				} catch (error) {
 					this.handleSaveError(error, versionId, options);
 				}
@@ -937,10 +956,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		})(), () => saveCancellation.cancel());
 	}
 
-	private handleSaveSuccess(stat: IFileStatWithMetadata, versionId: number, options: ITextFileSaveAsOptions): void {
+	private handleSaveSuccess(stat: IFileStatWithMetadata, snapshot: ITextSnapshot, fileModelLength: number, versionId: number, options: ITextFileSaveAsOptions): void {
 
 		// Updated resolved stat with updated stat
-		this.updateLastResolvedFileStat(stat);
+		this.fileState.update(stat, snapshot, fileModelLength);
 
 		// Update dirty state unless model has changed meanwhile
 		if (versionId === this.versionId) {
@@ -1001,17 +1020,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private updateLastResolvedFileStat(newFileStat: IFileStatWithMetadata): void {
 		const oldReadonly = this.isReadonly();
 
-		// First resolve - just take
-		if (!this.lastResolvedFileStat) {
-			this.lastResolvedFileStat = newFileStat;
-		}
-
-		// Subsequent resolve - make sure that we only assign it if the mtime is equal or has advanced.
-		// This prevents race conditions from resolving and saving. If a save comes in late after a revert
-		// was called, the mtime could be out of sync.
-		else if (this.lastResolvedFileStat.mtime <= newFileStat.mtime) {
-			this.lastResolvedFileStat = newFileStat;
-		}
+		// Update in file state
+		this.fileState.updateStat(newFileStat);
 
 		// Signal that the readonly state changed
 		if (this.isReadonly() !== oldReadonly) {
@@ -1184,7 +1194,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	override isReadonly(): boolean | IMarkdownString {
-		return this.filesConfigurationService.isReadonly(this.resource, this.lastResolvedFileStat);
+		return this.filesConfigurationService.isReadonly(this.resource, this.fileState.stat);
 	}
 
 	override dispose(): void {
@@ -1195,5 +1205,89 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		this.inErrorMode = false;
 
 		super.dispose();
+	}
+}
+
+// TODO
+// - not when model is readonly
+// - not when model is large
+class ResolvedTextFileState {
+
+	private _stat: IFileStatWithMetadata | undefined;
+	get stat() { return this._stat; }
+
+	private snapshot: ITextSnapshot | undefined;
+	private length: number | undefined;
+
+	constructor() {
+
+	}
+
+	updateStat(newFileStat: IFileStatWithMetadata): void {
+
+		// First resolve - just take
+		if (!this._stat) {
+			this._stat = newFileStat;
+		}
+
+		// Subsequent resolve - make sure that we only assign it if the mtime is equal or has advanced.
+		// This prevents race conditions from resolving and saving. If a save comes in late after a revert
+		// was called, the mtime could be out of sync.
+		else if (this._stat.mtime <= newFileStat.mtime) {
+			this._stat = newFileStat;
+		}
+	}
+
+	updateSnapshot(snapshot: ITextSnapshot, length: number): void {
+		this.snapshot = snapshot;
+		this.length = length;
+	}
+
+	update(newFileStat: IFileStatWithMetadata, snapshot: ITextSnapshot, length: number): void {
+		this.updateStat(newFileStat);
+		this.updateSnapshot(snapshot, length);
+	}
+
+	// TODO should this be running when idle to prevent latency increase?
+	// and if so: we need to build cancellation support in all the way down
+	// to the model.equals(snapshot) method
+	matches(model: ITextModel): boolean {
+		if (!this.snapshot || typeof this.length !== 'number') {
+			return false;
+		}
+
+		if (this.length !== model.getTextBuffer().getLength()) {
+			return false;
+		}
+
+		// TODO: this needs an efficient implementation on the text model (model.equals(snapshot))
+		// TODO: should we be giving a hint here what line was changed to first diff that line?
+
+		const otherSnapshot = model.createSnapshot();
+		if (!otherSnapshot) {
+			return false;
+		}
+
+		let snapshotContent = '';
+		let otherSnapshotContent = '';
+		while (true) {
+			const res = this.snapshot.read();
+			if (res) {
+				snapshotContent += res;
+			} else {
+				break;
+			}
+		}
+
+		while (true) {
+			const res = otherSnapshot.read();
+			if (res) {
+				otherSnapshotContent += res;
+			} else {
+				break;
+			}
+		}
+
+		return snapshotContent === otherSnapshotContent;
 	}
 }
