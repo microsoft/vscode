@@ -102,6 +102,7 @@ for (const item of allEntryPointFromTheAmdWorld) {
  * @type {import('esbuild').BuildOptions} BuildOptions
  */
 const commonOptions = {
+	logLevel: 'silent',
 	bundle: true,
 	minify: false,
 	external: npmDependencies,
@@ -190,8 +191,16 @@ function build(opts) {
 		if (result.errors.length > 0) {
 			console.error(result.errors);
 		}
-		if (result.warnings.length > 0) {
-			console.error(result.warnings);
+
+		const warnings = result.warnings.filter(candidate => {
+			if (candidate.id === 'suspicious-nullish-coalescing') {
+				return false;
+			}
+			return true;
+		})
+
+		if (warnings.length > 0) {
+			console.error(warnings);
 		}
 	});
 }
