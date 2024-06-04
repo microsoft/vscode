@@ -1330,7 +1330,9 @@ export namespace DocumentLink {
 				// ignore
 			}
 		}
-		return new types.DocumentLink(Range.to(link.range), target);
+		const result = new types.DocumentLink(Range.to(link.range), target);
+		result.tooltip = link.tooltip;
+		return result;
 	}
 }
 

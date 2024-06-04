@@ -141,7 +141,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 
 		this.createQueryEditor(
 			this.queryEditorContainer,
-			this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])),
+			this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]))),
 			SearchContext.InputBoxFocusedKey.bindTo(scopedContextKeyService)
 		);
 	}

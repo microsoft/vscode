@@ -690,6 +690,7 @@ export class CodeCompareBlockPart extends Disposable {
 		this.layout(width);
 		this.diffEditor.updateOptions({ ariaLabel: localize('chat.compareCodeBlockLabel', "Code Edits") });
 
+		this.toolbar1.clear();
 		this.toolbar1.push(toAction({
 			label: basename(data.edit.uri),
 			tooltip: localize('chat.edit.tooltip', "Open '{0}'", this.labelService.getUriLabel(data.edit.uri, { relative: true })),

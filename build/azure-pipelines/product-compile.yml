@@ -135,12 +135,21 @@ steps:
 
     - script: |
         set -e
-        AZURE_STORAGE_ACCOUNT="ticino" \
+        AZURE_STORAGE_ACCOUNT="vscodeweb" \
         AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
         AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
         AZURE_CLIENT_SECRET="$(AZURE_CLIENT_SECRET)" \
           node build/azure-pipelines/upload-sourcemaps
       displayName: Upload sourcemaps to Azure
+
+    - script: |
+        set -e
+        AZURE_STORAGE_ACCOUNT="ticino" \
+        AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
+        AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
+        AZURE_CLIENT_SECRET="$(AZURE_CLIENT_SECRET)" \
+          node build/azure-pipelines/upload-sourcemaps
+      displayName: Upload sourcemaps to Azure (Deprecated)
 
     - script: ./build/azure-pipelines/common/extract-telemetry.sh
       displayName: Generate lists of telemetry events

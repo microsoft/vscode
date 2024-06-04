@@ -22,7 +22,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { ChatAgentLocation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
-import { CTX_INLINE_CHAT_HAS_AGENT, EditMode, IInlineChatResponse, IInlineChatSession } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_HAS_AGENT, EditMode } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { EmptyResponse, ErrorResponse, HunkData, ReplyResponse, Session, SessionExchange, SessionWholeRange, StashedSession, TelemetryData, TelemetryDataClassification } from './inlineChatSession';
@@ -145,13 +145,6 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		const textModel = editor.getModel();
 		const selection = editor.getSelection();
 
-		const rawSession: IInlineChatSession = {
-			id: Math.random(),
-			wholeRange: new Range(selection.selectionStartLineNumber, selection.selectionStartColumn, selection.positionLineNumber, selection.positionColumn),
-			placeholder: agent.description,
-			slashCommands: agent.slashCommands
-		};
-
 		const store = new DisposableStore();
 		this._logService.trace(`[IE] creating NEW session for ${editor.getId()}, ${agent.extensionId}`);
 
@@ -171,8 +164,6 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			if (e.kind !== 'addRequest' || !e.request.response) {
 				return;
 			}
-
-			const modelAltVersionIdNow = textModel.getAlternativeVersionId();
 
 			const { response } = e.request;
 
@@ -197,29 +188,9 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 					// epmty response
 					inlineResponse = new EmptyResponse();
 				} else {
-					// replay response
-					const raw: IInlineChatResponse = {
-						edits: { edits: [] },
-					};
-					for (const item of response.response.value) {
-						if (item.kind === 'textEditGroup') {
-							for (const group of item.edits) {
-								for (const edit of group) {
-									raw.edits.edits.push({
-										resource: item.uri,
-										textEdit: edit,
-										versionId: undefined
-									});
-								}
-							}
-						}
-					}
-
 					inlineResponse = this._instaService.createInstance(
 						ReplyResponse,
-						raw,
 						session.textModelN.uri,
-						modelAltVersionIdNow,
 						e.request,
 						response
 					);
@@ -267,7 +238,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 		let wholeRange = options.wholeRange;
 		if (!wholeRange) {
-			wholeRange = rawSession.wholeRange ? Range.lift(rawSession.wholeRange) : editor.getSelection();
+			wholeRange = new Range(selection.selectionStartLineNumber, selection.selectionStartColumn, selection.positionLineNumber, selection.positionColumn);
 		}
 
 		if (token.isCancellationRequested) {
@@ -281,7 +252,6 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			textModel0,
 			textModelN,
 			agent,
-			rawSession,
 			store.add(new SessionWholeRange(textModelN, wholeRange)),
 			store.add(new HunkData(this._editorWorkerService, textModel0, textModelN)),
 			chatModel

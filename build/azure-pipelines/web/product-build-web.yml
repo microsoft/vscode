@@ -129,6 +129,15 @@ steps:
         node build/azure-pipelines/upload-cdn
     displayName: Upload to CDN
 
+  - script: |
+      set -e
+      AZURE_STORAGE_ACCOUNT="vscodeweb" \
+      AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
+      AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
+      AZURE_CLIENT_SECRET="$(AZURE_CLIENT_SECRET)" \
+        node build/azure-pipelines/upload-sourcemaps out-vscode-web-min out-vscode-web-min/vs/workbench/workbench.web.main.js.map
+    displayName: Upload sourcemaps (Web)
+
     # upload only the workbench.web.main.js source maps because
     # we just compiled these bits in the previous step and the
     # general task to upload source maps has already been run
@@ -139,7 +148,7 @@ steps:
       AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
       AZURE_CLIENT_SECRET="$(AZURE_CLIENT_SECRET)" \
         node build/azure-pipelines/upload-sourcemaps out-vscode-web-min out-vscode-web-min/vs/workbench/workbench.web.main.js.map
-    displayName: Upload sourcemaps (Web)
+    displayName: Upload sourcemaps (Deprecated)
 
   - script: |
       set -e

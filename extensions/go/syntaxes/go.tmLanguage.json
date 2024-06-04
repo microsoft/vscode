@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/worlpaker/go-syntax/commit/254bd0f25182c86ffd2043824f8d003e11a34268",
+	"version": "https://github.com/worlpaker/go-syntax/commit/092c45ec9a51fe40188408d1371f123eaa4796fa",
 	"name": "Go",
 	"scopeName": "source.go",
 	"patterns": [
@@ -32,6 +32,9 @@
 				},
 				{
 					"include": "#group-variables"
+				},
+				{
+					"include": "#field_hover"
 				}
 			]
 		},
@@ -2377,8 +2380,8 @@
 				},
 				{
 					"comment": "make keyword",
-					"match": "(?:(\\bmake\\b)(?:(\\()((?:(?:(?:[\\*\\[\\]]+)?(?:\\<\\-\\s*)?\\bchan\\b(?:\\s*\\<\\-)?\\s*)+(?:\\([^\\)]+\\))?)?(?:[\\w\\.\\*\\[\\]\\{\\}]+)?(?:\\[(?:[^\\]]+)?\\])?(?:[\\w\\.\\*\\[\\]\\{\\}]+)?)?((?:\\,\\s*(?:[\\w\\.\\(\\)/\\+\\-\\<\\>\\&\\|\\%\\*]+)?)+)?(\\))))",
-					"captures": {
+					"begin": "(?:(\\bmake\\b)(?:(\\()((?:(?:(?:[\\*\\[\\]]+)?(?:\\<\\-\\s*)?\\bchan\\b(?:\\s*\\<\\-)?\\s*)+(?:\\([^\\)]+\\))?)?(?:[\\[\\]\\*]+)?(?:(?!\\bmap\\b)(?:[\\w\\.]+))?(\\[(?:(?:[\\S]+)(?:(?:\\,\\s*(?:[\\S]+))*))?\\])?(?:\\,)?)?))",
+					"beginCaptures": {
 						"1": {
 							"name": "entity.name.function.support.builtin.go"
 						},
@@ -2398,18 +2401,19 @@
 									"name": "entity.name.type.go"
 								}
 							]
-						},
-						"4": {
-							"patterns": [
-								{
-									"include": "$self"
-								}
-							]
-						},
-						"5": {
+						}
+					},
+					"end": "\\)",
+					"endCaptures": {
+						"0": {
 							"name": "punctuation.definition.end.bracket.round.go"
 						}
-					}
+					},
+					"patterns": [
+						{
+							"include": "$self"
+						}
+					]
 				}
 			]
 		},
@@ -2901,6 +2905,38 @@
 						{
 							"match": "\\]",
 							"name": "punctuation.definition.end.bracket.square.go"
+						},
+						{
+							"match": "\\w+",
+							"name": "entity.name.type.go"
+						}
+					]
+				}
+			}
+		},
+		"field_hover": {
+			"comment": "struct field property and types when hovering with the mouse",
+			"match": "(?:(?<=^\\bfield\\b)\\s+([\\w\\*\\.]+)\\s+([\\s\\S]+))",
+			"captures": {
+				"1": {
+					"patterns": [
+						{
+							"include": "#type-declarations"
+						},
+						{
+							"match": "\\w+",
+							"name": "variable.other.property.go"
+						}
+					]
+				},
+				"2": {
+					"patterns": [
+						{
+							"include": "#type-declarations"
+						},
+						{
+							"match": "\\binvalid\\b\\s+\\btype\\b",
+							"name": "invalid.field.go"
 						},
 						{
 							"match": "\\w+",

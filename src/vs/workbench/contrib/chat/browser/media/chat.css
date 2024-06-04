@@ -555,6 +555,12 @@
 	display: block;
 	color: var(--vscode-textLink-foreground);
 	font-size: 12px;
+
+	/* clamp to max 3 lines */
+	display: -webkit-box;
+	-webkit-line-clamp: 3;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
 }
 
 .interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups code {
