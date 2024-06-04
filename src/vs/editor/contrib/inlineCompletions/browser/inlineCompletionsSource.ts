@@ -62,7 +62,7 @@ export class InlineCompletionsSource extends Disposable {
 				await wait(this._debounceValue.get(this.textModel), source.token);
 			}
 
-			if (source.token.isCancellationRequested || this.textModel.getVersionId() !== request.versionId) {
+			if (source.token.isCancellationRequested || this._store.isDisposed || this.textModel.getVersionId() !== request.versionId) {
 				return false;
 			}
 
