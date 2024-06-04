@@ -50,6 +50,10 @@ export class ReplEditorInput extends NotebookEditorInput {
 		this.isScratchpad = configurationService.getValue<boolean>(NotebookSetting.InteractiveWindowPromptToSave) !== true;
 	}
 
+	override get typeId(): string {
+		return ReplEditorInput.ID;
+	}
+
 	override get capabilities() {
 		const capabilities = super.capabilities;
 		const scratchPad = this.isScratchpad ? EditorInputCapabilities.Scratchpad : 0;

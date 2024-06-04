@@ -266,13 +266,13 @@ registerAction2(class extends Action2 {
 		let editorControl: { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
 		if (context) {
 			const resourceUri = URI.revive(context);
-			const editors = editorService.findEditors(resourceUri)
-				.filter(id => id.editor instanceof InteractiveEditorInput && id.editor.resource?.toString() === resourceUri.toString());
-			if (editors.length) {
-				const editorInput = editors[0].editor as InteractiveEditorInput;
-				const currentGroup = editors[0].groupId;
-				const editor = await editorService.openEditor(editorInput, currentGroup);
-				editorControl = editor?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
+			const editors = editorService.findEditors(resourceUri);
+			for (const found of editors) {
+				if (found.editor.typeId === ReplEditorInput.ID) {
+					const editor = await editorService.openEditor(found.editor, found.groupId);
+					editorControl = editor?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
+					break;
+				}
 			}
 		}
 		else {
