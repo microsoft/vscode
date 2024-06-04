@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
+import { Stats } from 'fs';
 import { Barrier, retry } from 'vs/base/common/async';
 import { ResourceMap } from 'vs/base/common/map';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -125,7 +125,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		}
 	}
 
-	private toType(entry: fs.Stats | IDirent, symbolicLink?: { dangling: boolean }): FileType {
+	private toType(entry: Stats | IDirent, symbolicLink?: { dangling: boolean }): FileType {
 
 		// Signal file type by checking for file / directory, except:
 		// - symbolic links pointing to nonexistent files are FileType.Unknown
