@@ -2057,6 +2057,7 @@ class OutputPeekTree extends Disposable {
 				result = Iterable.concat(
 					Iterable.single<ICompressedTreeElement<TreeElement>>({
 						element: new CoverageElement(results, task, coverageService),
+						collapsible: true,
 						incompressible: true,
 					}),
 					result,
@@ -2082,6 +2083,7 @@ class OutputPeekTree extends Disposable {
 				return ({
 					element: taskElem,
 					incompressible: false,
+					collapsible: true,
 					children: getTaskChildren(taskElem),
 				});
 			});
@@ -2092,6 +2094,7 @@ class OutputPeekTree extends Disposable {
 			return {
 				element,
 				incompressible: true,
+				collapsible: true,
 				collapsed: this.tree.hasElement(element) ? this.tree.isCollapsed(element) : true,
 				children: getResultChildren(result)
 			};

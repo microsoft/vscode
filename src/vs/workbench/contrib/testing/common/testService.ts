@@ -201,12 +201,9 @@ export const testsUnderUri = async function* (testService: ITestService, ident: 
 			// tests already encompass their children.
 			if (!test) {
 				// no-op
-			} else if (!test.item.uri) {
-				queue.push(test.children.values());
-				continue;
-			} else if (ident.extUri.isEqualOrParent(test.item.uri, uri)) {
+			} else if (test.item.uri && ident.extUri.isEqualOrParent(test.item.uri, uri)) {
 				yield test;
-			} else if (ident.extUri.isEqualOrParent(uri, test.item.uri)) {
+			} else if (!test.item.uri || ident.extUri.isEqualOrParent(uri, test.item.uri)) {
 				if (test.expand === TestItemExpandState.Expandable) {
 					await testService.collection.expand(test.item.extId, 1);
 				}

@@ -54,9 +54,9 @@ export function observableFromPromise<T>(promise: Promise<T>): IObservable<{ val
 
 export function observableFromEvent<T, TArgs = unknown>(
 	event: Event<TArgs>,
-	getValue: (args: TArgs | undefined) => T
+	getValue: (args: TArgs | undefined) => T,
 ): IObservable<T> {
-	return new FromEventObservable(event, getValue);
+	return new FromEventObservable(event, getValue, () => FromEventObservable.globalTransaction);
 }
 
 export class FromEventObservable<TArgs, T> extends BaseObservable<T> {
@@ -68,7 +68,8 @@ export class FromEventObservable<TArgs, T> extends BaseObservable<T> {
 
 	constructor(
 		private readonly event: Event<TArgs>,
-		public readonly _getValue: (args: TArgs | undefined) => T
+		public readonly _getValue: (args: TArgs | undefined) => T,
+		private readonly _getTransaction: () => ITransaction | undefined,
 	) {
 		super();
 	}
@@ -99,7 +100,7 @@ export class FromEventObservable<TArgs, T> extends BaseObservable<T> {
 			if (this.hasValue) {
 				didRunTransaction = true;
 				subtransaction(
-					FromEventObservable.globalTransaction,
+					this._getTransaction(),
 					(tx) => {
 						getLogger()?.handleFromEventObservableTriggered(this, { oldValue, newValue, change: undefined, didChange, hadValue: this.hasValue });
 
@@ -227,6 +228,10 @@ export interface IObservableSignal<TChange> extends IObservable<void, TChange> {
 class ObservableSignal<TChange> extends BaseObservable<void, TChange> implements IObservableSignal<TChange> {
 	public get debugName() {
 		return new DebugNameData(this._owner, this._debugName, undefined).getDebugName(this) ?? 'Observable Signal';
+	}
+
+	public override toString(): string {
+		return this.debugName;
 	}
 
 	constructor(

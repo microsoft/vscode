@@ -7939,6 +7939,11 @@ declare namespace monaco.languages {
 		arguments?: any[];
 	}
 
+	export interface CommentThreadRevealOptions {
+		preserveFocus: boolean;
+		focusReply: boolean;
+	}
+
 	export interface CommentAuthorInformation {
 		name: string;
 		iconPath?: UriComponents;
