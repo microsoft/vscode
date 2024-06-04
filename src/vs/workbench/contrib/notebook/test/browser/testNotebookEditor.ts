@@ -230,7 +230,8 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 
 	const model = disposables.add(new NotebookEditorTestModel(notebook));
 	const notebookOptions = disposables.add(new NotebookOptions(mainWindow, instantiationService.get(IConfigurationService), instantiationService.get(INotebookExecutionStateService), instantiationService.get(ICodeEditorService), false));
-	const viewContext = new ViewContext(notebookOptions, disposables.add(new NotebookEventDispatcher()), () => ({} as IBaseCellEditorOptions));
+	const baseCellEditorOptions = new class extends mock<IBaseCellEditorOptions>() { };
+	const viewContext = new ViewContext(notebookOptions, disposables.add(new NotebookEventDispatcher()), () => baseCellEditorOptions);
 	const viewModel: NotebookViewModel = disposables.add(instantiationService.createInstance(NotebookViewModel, viewType, model.notebook, viewContext, null, { isReadOnly: false }));
 
 	const cellList = disposables.add(createNotebookCellList(instantiationService, disposables, viewContext));
@@ -461,9 +462,10 @@ export function createNotebookCellList(instantiationService: TestInstantiationSe
 		getTemplateId() { return 'template'; }
 	};
 
+	const baseCellRenderTemplate = new class extends mock<BaseCellRenderTemplate>() { };
 	const renderer: IListRenderer<CellViewModel, BaseCellRenderTemplate> = {
 		templateId: 'template',
-		renderTemplate() { return {} as BaseCellRenderTemplate; },
+		renderTemplate() { return baseCellRenderTemplate; },
 		renderElement() { },
 		disposeTemplate() { }
 	};
