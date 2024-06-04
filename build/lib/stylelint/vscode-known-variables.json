@@ -703,6 +703,7 @@
 		"--vscode-terminal-selectionBackground",
 		"--vscode-terminal-selectionForeground",
 		"--vscode-terminal-tab-activeBorder",
+		"--vscode-terminal-initialHintForeground",
 		"--vscode-terminalCommandDecoration-defaultBackground",
 		"--vscode-terminalCommandDecoration-errorBackground",
 		"--vscode-terminalCommandDecoration-successBackground",
