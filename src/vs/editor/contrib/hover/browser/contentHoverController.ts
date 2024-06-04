@@ -259,18 +259,16 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		const context = this._getHoverContext(fragment, statusBar);
 		const renderedHoverParts = this._renderHoverPartsUsingContext(context, hoverParts);
 		const renderedStatusBar = this._renderStatusBar(fragment, statusBar);
-		this._renderedParts = [];
-		this._renderedParts.push(...renderedHoverParts.renderedHoverParts);
-		if (renderedStatusBar) { this._renderedParts.push(renderedStatusBar); }
 		const disposables = new DisposableStore();
 		disposables.add(renderedHoverParts.disposables);
-		disposables.add(this._registerHoverListeners());
+		disposables.add(renderedStatusBar.disposables);
+		disposables.add(this._registerListenersOnRenderedParts(renderedHoverParts.renderedParts, renderedStatusBar.renderedPart));
 		return disposables;
 	}
 
-	private _renderHoverPartsUsingContext(context: IEditorHoverRenderContext, hoverParts: IHoverPart[]): { disposables: DisposableStore; renderedHoverParts: RenderedHoverPart[] } {
+	private _renderHoverPartsUsingContext(context: IEditorHoverRenderContext, hoverParts: IHoverPart[]): { disposables: IDisposable; renderedParts: RenderedHoverPart[] } {
 		const disposables = new DisposableStore();
-		const renderedHoverParts: RenderedHoverPart[] = [];
+		const renderedParts: RenderedHoverPart[] = [];
 		for (const participant of this._participants) {
 			const hoverPartsForParticipant = hoverParts.filter(hoverPart => hoverPart.owner === participant);
 			if (hoverPartsForParticipant.length === 0) {
@@ -280,22 +278,26 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 			hoverPartsForParticipant.forEach((hoverPart: IHoverPart, index: number) => {
 				const element = elements[index];
 				const renderedHoverPart: RenderedHoverPart = { brand: `renderedHoverPart`, participant, hoverPart, element };
-				renderedHoverParts.push(renderedHoverPart);
+				renderedParts.push(renderedHoverPart);
 			});
 			disposables.add(store);
 		}
-		return { disposables, renderedHoverParts };
+		return { disposables, renderedParts };
 	}
 
-	private _renderStatusBar(fragment: DocumentFragment, statusBar: EditorHoverStatusBar): RenderedHoverStatusBar | undefined {
+	private _renderStatusBar(fragment: DocumentFragment, statusBar: EditorHoverStatusBar): { disposables: IDisposable; renderedPart: RenderedHoverStatusBar | undefined } {
 		if (!statusBar.hasContent) {
-			return;
+			return { disposables: statusBar, renderedPart: undefined };
 		}
 		fragment.appendChild(statusBar.hoverElement);
-		return { brand: `renderedStatusBar`, element: statusBar.hoverElement };
+		return { disposables: statusBar, renderedPart: { brand: `renderedStatusBar`, element: statusBar.hoverElement } };
 	}
 
-	private _registerHoverListeners(): IDisposable {
+	private _registerListenersOnRenderedParts(renderedHoverParts: RenderedHoverPart[], renderedStatusBar: RenderedHoverStatusBar | undefined): IDisposable {
+		this._renderedParts = [];
+		this._renderedParts.push(...renderedHoverParts);
+		if (renderedStatusBar) { this._renderedParts.push(renderedStatusBar); }
+
 		const disposables = new DisposableStore();
 		this._renderedParts.map((renderedPart: RenderedPart, index: number) => {
 			const element = renderedPart.element;
