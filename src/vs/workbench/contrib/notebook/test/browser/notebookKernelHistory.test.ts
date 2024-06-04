@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { setupInstantiationService, withTestNotebook as _withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
+import { setupInstantiationService } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 import { Emitter, Event } from 'vs/base/common/event';
 import { INotebookKernel, INotebookKernelService, VariablesResult } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { NotebookKernelService } from 'vs/workbench/contrib/notebook/browser/services/notebookKernelServiceImpl';

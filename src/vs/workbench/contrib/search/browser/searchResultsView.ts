@@ -136,7 +136,7 @@ export class FolderMatchRenderer extends Disposable implements ICompressibleTree
 		SearchContext.FileFocusKey.bindTo(contextKeyServiceMain).set(false);
 		SearchContext.FolderFocusKey.bindTo(contextKeyServiceMain).set(true);
 
-		const instantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyServiceMain]));
+		const instantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyServiceMain])));
 		const actions = disposables.add(instantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, MenuId.SearchActionMenu, {
 			menuOptions: {
 				shouldForwardArgs: true

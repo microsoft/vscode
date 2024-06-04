@@ -5,7 +5,7 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -215,7 +215,7 @@ export class DisposableTunnel {
 	}
 }
 
-export abstract class AbstractTunnelService implements ITunnelService {
+export abstract class AbstractTunnelService extends Disposable implements ITunnelService {
 	declare readonly _serviceBrand: undefined;
 
 	private _onTunnelOpened: Emitter<RemoteTunnel> = new Emitter();
@@ -234,7 +234,7 @@ export abstract class AbstractTunnelService implements ITunnelService {
 	public constructor(
 		@ILogService protected readonly logService: ILogService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService
-	) { }
+	) { super(); }
 
 	get hasTunnelProvider(): boolean {
 		return !!this._tunnelProvider;
@@ -308,7 +308,8 @@ export abstract class AbstractTunnelService implements ITunnelService {
 		return tunnels;
 	}
 
-	async dispose(): Promise<void> {
+	override async dispose(): Promise<void> {
+		super.dispose();
 		for (const portMap of this._tunnels.values()) {
 			for (const { value } of portMap.values()) {
 				await value.then(tunnel => typeof tunnel !== 'string' ? tunnel?.dispose() : undefined);

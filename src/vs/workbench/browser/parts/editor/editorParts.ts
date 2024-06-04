@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { EditorGroupLayout, GroupDirection, GroupLocation, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, IAuxiliaryEditorPartCreateEvent, IEditorGroupContextKeyProvider, IEditorDropTargetDelegate, IEditorGroupsService, IEditorSideGroup, IEditorWorkingSet, IFindGroupScope, IMergeGroupOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { EditorGroupLayout, GroupDirection, GroupLocation, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, IAuxiliaryEditorPartCreateEvent, IEditorGroupContextKeyProvider, IEditorDropTargetDelegate, IEditorGroupsService, IEditorSideGroup, IEditorWorkingSet, IFindGroupScope, IMergeGroupOptions, IEditorWorkingSetOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Emitter } from 'vs/base/common/event';
 import { DisposableMap, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
@@ -21,6 +21,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ContextKeyValue, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { isHTMLElement } from 'vs/base/browser/dom';
 
 interface IEditorPartsUIState {
 	readonly auxiliary: IAuxiliaryEditorPartState[];
@@ -161,7 +162,7 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 	override getPart(element: HTMLElement): EditorPart;
 	override getPart(groupOrElement: IEditorGroupView | GroupIdentifier | HTMLElement): EditorPart {
 		if (this._parts.size > 1) {
-			if (groupOrElement instanceof HTMLElement) {
+			if (isHTMLElement(groupOrElement)) {
 				const element = groupOrElement;
 
 				return this.getPartByDocument(element.ownerDocument);
@@ -375,7 +376,7 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		}
 	}
 
-	async applyWorkingSet(workingSet: IEditorWorkingSet | 'empty'): Promise<boolean> {
+	async applyWorkingSet(workingSet: IEditorWorkingSet | 'empty', options?: IEditorWorkingSetOptions): Promise<boolean> {
 		let workingSetState: IEditorWorkingSetState | 'empty' | undefined;
 		if (workingSet === 'empty') {
 			workingSetState = 'empty';
@@ -395,13 +396,15 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		if (!applied) {
 			return false;
 		}
-		await this.mainPart.applyState(workingSetState === 'empty' ? workingSetState : workingSetState.main);
+		await this.mainPart.applyState(workingSetState === 'empty' ? workingSetState : workingSetState.main, options);
 
-		// Restore Focus
-		const mostRecentActivePart = firstOrDefault(this.mostRecentActiveParts);
-		if (mostRecentActivePart) {
-			await mostRecentActivePart.whenReady;
-			mostRecentActivePart.activeGroup.focus();
+		// Restore Focus unless instructed otherwise
+		if (!options?.preserveFocus) {
+			const mostRecentActivePart = firstOrDefault(this.mostRecentActiveParts);
+			if (mostRecentActivePart) {
+				await mostRecentActivePart.whenReady;
+				mostRecentActivePart.activeGroup.focus();
+			}
 		}
 
 		return true;

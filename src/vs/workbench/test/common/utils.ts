@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import assert from 'assert';
 import { LanguagesRegistry } from 'vs/editor/common/services/languagesRegistry';
-import assert from 'assert'
 
 /**
  * This function is called before test running and also again at the end of test running

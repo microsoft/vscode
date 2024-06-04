@@ -86,11 +86,20 @@ function createPatchedModule<T extends object>(module: T, patch: any) {
 }
 
 function createPatchedModules(params: ProxyAgentParams, resolveProxy: ReturnType<typeof createProxyResolver>) {
+
+	function proxyAssign(module: any, patch: any) {
+		return new Proxy(module, {
+			get(target, prop) {
+				return prop in patch ? patch[prop] : target[prop];
+			}
+		});
+	}
+
 	return {
-		http: createPatchedModule(http, createHttpPatch(params, http, resolveProxy)),
-		https: createPatchedModule(https, createHttpPatch(params, https, resolveProxy)),
-		net: createPatchedModule(net, createNetPatch(params, net)),
-		tls: createPatchedModule(tls, createTlsPatch(params, tls))
+		http: proxyAssign(http, createHttpPatch(params, http, resolveProxy)),
+		https: proxyAssign(https, createHttpPatch(params, https, resolveProxy)),
+		net: proxyAssign(net, createNetPatch(params, net)),
+		tls: proxyAssign(tls, createTlsPatch(params, tls))
 	};
 }
 

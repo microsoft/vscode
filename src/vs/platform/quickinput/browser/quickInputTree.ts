@@ -903,13 +903,13 @@ export class QuickInputTree extends Disposable {
 		this._register(this._tree.onMouseOver(async e => {
 			// If we hover over an anchor element, we don't want to show the hover because
 			// the anchor may have a tooltip that we want to show instead.
-			if (e.browserEvent.target instanceof HTMLAnchorElement) {
+			if (dom.isHTMLAnchorElement(e.browserEvent.target)) {
 				delayer.cancel();
 				return;
 			}
 			if (
 				// anchors are an exception as called out above so we skip them here
-				!(e.browserEvent.relatedTarget instanceof HTMLAnchorElement) &&
+				!(dom.isHTMLAnchorElement(e.browserEvent.relatedTarget)) &&
 				// check if the mouse is still over the same element
 				dom.isAncestor(e.browserEvent.relatedTarget as Node, e.element?.element as Node)
 			) {

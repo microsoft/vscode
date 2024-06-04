@@ -109,7 +109,7 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 			}
 
 			if (promise && (event.kind === TaskEventKind.Active) && (this._activeTasksCount === 1)) {
-				this._progressService.withProgress({ location: ProgressLocation.Window, command: 'workbench.action.tasks.showTasks', type: 'loading' }, progress => {
+				this._progressService.withProgress({ location: ProgressLocation.Window, command: 'workbench.action.tasks.showTasks' }, progress => {
 					progress.report({ message: nls.localize('building', 'Building...') });
 					return promise!;
 				}).then(() => {

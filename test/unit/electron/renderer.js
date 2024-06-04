@@ -5,10 +5,10 @@
 
 /*eslint-env mocha*/
 
-import '../../../node_modules/mocha/mocha.js'
-import * as coverage from '../coverage.js'
-import { takeSnapshotAndCountClasses } from '../analyzeSnapshot.js'
-import { testGlobals } from './import-map/testGlobals.js'
+import '../../../node_modules/mocha/mocha.js';
+import * as coverage from '../coverage.js';
+import { takeSnapshotAndCountClasses } from '../analyzeSnapshot.js';
+import { testGlobals } from './import-map/testGlobals.js';
 
 const { setRun, fs, ipcRenderer, assert, path, url, glob, util } = testGlobals;
 
@@ -124,10 +124,10 @@ const doImportUrl = async url => {
 async function loadWorkbenchTestingUtilsModule() {
 	try {
 		const utilsPath = new URL('../../../out/vs/workbench/test/common/utils.js', import.meta.url).toString();
-		const module = doImportUrl(utilsPath)
+		const module = doImportUrl(utilsPath);
 		return module;
 	} catch (error) {
-		throw new Error(`Failed to load utils module: ${error}`)
+		throw new Error(`Failed to load utils module: ${error}`);
 	}
 }
 
@@ -159,8 +159,8 @@ async function loadTestModules(opts) {
 
 	const files = await globPromise(pattern, {
 		cwd: _out
-	})
-	return loadModules(files)
+	});
+	return loadModules(files);
 }
 
 /** @type Mocha.Test */
@@ -195,11 +195,21 @@ async function loadTests(opts) {
 		'throw ListenerLeakError'
 	]);
 
-	let _testsWithUnexpectedOutput = false;
+	// let _testsWithUnexpectedOutput = false;
 
 	// for (const consoleFn of [console.log, console.error, console.info, console.warn, console.trace, console.debug]) {
 	// 	console[consoleFn.name] = function (msg) {
 	// 		if (!_allowedTestOutput.some(a => a.test(msg)) && !_allowedTestsWithOutput.has(currentTest.title)) {
+	// 			_testsWithUnexpectedOutput = true;
+	// 			consoleFn.apply(console, arguments);
+	// 		}
+	// 	};
+	// }
+	// for (const consoleFn of [console.log, console.error, console.info, console.warn, console.trace, console.debug]) {
+	// 	console[consoleFn.name] = function (msg) {
+	// 		if (!currentTest) {
+	// 			consoleFn.apply(console, arguments);
+	// 		} else if (!_allowedTestOutput.some(a => a.test(msg)) && !_allowedTestsWithOutput.has(currentTest.title)) {
 	// 			_testsWithUnexpectedOutput = true;
 	// 			consoleFn.apply(console, arguments);
 	// 		}
@@ -254,7 +264,7 @@ async function loadTests(opts) {
 
 	//#endregion
 
-	const workbenchTestingModule = await loadWorkbenchTestingUtilsModule()
+	const workbenchTestingModule = await loadWorkbenchTestingUtilsModule();
 
 	const assertCleanState = workbenchTestingModule.assertCleanState;
 
@@ -398,7 +408,7 @@ async function runTests(opts) {
 		mocha.timeout(opts.timeout);
 	}
 
-	await loadTests(opts)
+	await loadTests(opts);
 
 	if (opts.grep) {
 		mocha.grep(opts.grep);
@@ -445,28 +455,28 @@ const mockAlerts = () => {
 		throw new Error("window.confirm() is not supported in tests!");
 	};
 
-}
+};
 
 const setupMocha = () => {
 
-}
+};
 
 const main = async (e, opts) => {
 	try {
-		mockAlerts()
-		setupMocha()
+		mockAlerts();
+		setupMocha();
 		initLoader(opts);
-		await runTests(opts)
+		await runTests(opts);
 	} catch (err) {
 		console.error(err);
 		if (typeof err !== 'string') {
 			err = JSON.stringify(err);
 		}
 		ipcRenderer.send('error', err);
-	};
-}
+	}
+};
 
-setRun(main)
+setRun(main);
 
 class PerTestCoverage {
 	static async init() {

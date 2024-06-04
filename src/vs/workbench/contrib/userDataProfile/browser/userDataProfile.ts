@@ -18,7 +18,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { URI } from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceTagsService } from 'vs/workbench/contrib/tags/common/workspaceTags';
 import { getErrorMessage } from 'vs/base/common/errors';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
@@ -40,6 +40,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 	private readonly currentProfileContext: IContextKey<string>;
 	private readonly isCurrentProfileTransientContext: IContextKey<boolean>;
 	private readonly hasProfilesContext: IContextKey<boolean>;
+	private readonly startTime: number = Date.now();
 
 	constructor(
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
@@ -183,7 +184,9 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 	private registerProfilesActions(): void {
 		this.profilesDisposable.value = new DisposableStore();
 		for (const profile of this.userDataProfilesService.profiles) {
-			this.profilesDisposable.value.add(this.registerProfileEntryAction(profile));
+			if (!profile.isTransient) {
+				this.profilesDisposable.value.add(this.registerProfileEntryAction(profile));
+			}
 		}
 	}
 
@@ -206,6 +209,19 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			}
 			async run(accessor: ServicesAccessor) {
 				if (that.userDataProfileService.currentProfile.id !== profile.id) {
+					if (profile.isDefault && Date.now() - that.startTime < (1000 * 20 /* 20 seconds */)) {
+						type SwitchToDefaultProfileInfoClassification = {
+							owner: 'sandy081';
+							comment: 'Report if the user switches to the default profile.';
+							emptyWindow: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'If the current window is empty window or not' };
+						};
+						type SwitchToDefaultProfileInfoEvent = {
+							emptyWindow: boolean;
+						};
+						that.telemetryService.publicLog2<SwitchToDefaultProfileInfoEvent, SwitchToDefaultProfileInfoClassification>('profiles:newwindowprofile', {
+							emptyWindow: that.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY
+						});
+					}
 					return that.userDataProfileManagementService.switchProfile(profile);
 				}
 			}

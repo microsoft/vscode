@@ -7,7 +7,6 @@ import * as dom from 'vs/base/browser/dom';
 import { Gesture } from 'vs/base/browser/touch';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
-import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
 import 'vs/css!./lightBulbWidget';
@@ -16,11 +15,10 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IPosition } from 'vs/editor/common/core/position';
 import { computeIndentLevel } from 'vs/editor/common/model/utils';
 import { autoFixCommandId, quickFixCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
-import { CodeActionKind, CodeActionSet, CodeActionTrigger } from 'vs/editor/contrib/codeAction/common/types';
+import { CodeActionSet, CodeActionTrigger } from 'vs/editor/contrib/codeAction/common/types';
 import * as nls from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 namespace LightBulbState {
 
@@ -65,8 +63,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@ICommandService commandService: ICommandService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@ICommandService commandService: ICommandService
 	) {
 		super();
 
@@ -200,24 +197,6 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			return;
 		}
 
-		const hierarchicalKind = new HierarchicalKind(actionKind);
-
-		if (CodeActionKind.RefactorMove.contains(hierarchicalKind)) {
-			// Telemetry for showing code actions here. only log on `showLightbulb`. Logs when code action list is quit out.
-			type ShowCodeActionListEvent = {
-				codeActionListLength: number;
-			};
-
-			type ShowListEventClassification = {
-				codeActionListLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The length of the code action list when quit out. Can be from any code action menu.' };
-				owner: 'justschen';
-				comment: 'Event used to gain insights into how often the lightbulb only contains one code action, namely the move to code action. ';
-			};
-
-			this._telemetryService.publicLog2<ShowCodeActionListEvent, ShowListEventClassification>('lightbulbWidget.moveToCodeActions', {
-				codeActionListLength: validActions.length,
-			});
-		}
 
 		this._editor.layoutContentWidget(this);
 	}

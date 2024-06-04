@@ -60,7 +60,8 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			scale: 1,
 			showRegionSectionHeaders: true,
 			showMarkSectionHeaders: true,
-			sectionHeaderFontSize: 9
+			sectionHeaderFontSize: 9,
+			sectionHeaderLetterSpacing: 1,
 		};
 		options._write(EditorOption.minimap, minimapOptions);
 		const scrollbarOptions: InternalEditorScrollbarOptions = {

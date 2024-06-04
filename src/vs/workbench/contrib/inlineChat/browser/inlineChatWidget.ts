@@ -595,6 +595,7 @@ export class EditorBasedInlineChatWidget extends InlineChatWidget {
 	private readonly _accessibleViewer = this._store.add(new MutableDisposable<HunkAccessibleDiffViewer>());
 
 	constructor(
+		location: ChatAgentLocation,
 		private readonly _parentEditor: ICodeEditor,
 		options: IInlineChatWidgetConstructionOptions,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -607,10 +608,20 @@ export class EditorBasedInlineChatWidget extends InlineChatWidget {
 		@IChatService chatService: IChatService,
 		@IHoverService hoverService: IHoverService,
 	) {
-		super(ChatAgentLocation.Editor, { ...options, editorOverflowWidgetsDomNode: _parentEditor.getOverflowWidgetsDomNode() }, instantiationService, contextKeyService, keybindingService, accessibilityService, configurationService, accessibleViewService, textModelResolverService, chatService, hoverService);
+		super(location, { ...options, editorOverflowWidgetsDomNode: _parentEditor.getOverflowWidgetsDomNode() }, instantiationService, contextKeyService, keybindingService, accessibilityService, configurationService, accessibleViewService, textModelResolverService, chatService, hoverService);
 	}
 
 	// --- layout
+
+	override get contentHeight(): number {
+		let result = super.contentHeight;
+
+		if (this._accessibleViewer.value) {
+			result += this._accessibleViewer.value.height;
+		}
+
+		return result;
+	}
 
 	protected override _doLayout(dimension: Dimension): void {
 

@@ -1275,6 +1275,22 @@ suite('ExtHostLanguageFeatureCommands', function () {
 
 	});
 
+	testApiCmd('DocumentLink[] vscode.executeLinkProvider returns lack tooltip #213970', async function () {
+		disposables.push(extHost.registerDocumentLinkProvider(nullExtensionDescription, defaultSelector, <vscode.DocumentLinkProvider>{
+			provideDocumentLinks(): any {
+				const link = new types.DocumentLink(new types.Range(0, 0, 0, 20), URI.parse('foo:bar'));
+				link.tooltip = 'Link Tooltip';
+				return [link];
+			}
+		}));
+
+		await rpcProtocol.sync();
+
+		const links1 = await commands.executeCommand<vscode.DocumentLink[]>('vscode.executeLinkProvider', model.uri);
+		assert.strictEqual(links1.length, 1);
+		assert.strictEqual(links1[0].tooltip, 'Link Tooltip');
+	});
+
 
 	test('Color provider', function () {
 

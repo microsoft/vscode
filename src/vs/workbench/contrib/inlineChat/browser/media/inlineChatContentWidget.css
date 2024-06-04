@@ -11,9 +11,6 @@
 	box-shadow: 0 4px 8px var(--vscode-inlineChat-shadow);
 }
 
-.monaco-workbench .inline-chat-content-widget .hidden {
-	display: none;
-}
 
 .monaco-workbench .inline-chat-content-widget.interactive-session .interactive-session {
 	max-width: unset;
@@ -38,4 +35,8 @@
 	padding-right: 5px;
 	font-size: 12px;
 	line-height: 18px;
+}
+
+.monaco-workbench .inline-chat-content-widget .hidden {
+	display: none;
 }
