@@ -225,3 +225,4 @@ suite('HTML Semantic Tokens', () => {
 
 
 });
+
