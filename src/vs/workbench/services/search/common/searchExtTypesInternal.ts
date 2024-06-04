@@ -10,4 +10,4 @@ interface RipGrepSearchOptionsCommon {
 
 export interface RipgrepTextSearchOptions extends TextSearchOptions, RipGrepSearchOptionsCommon { }
 
-export interface RipgrepFileSearchOpions extends FileSearchOptions, RipGrepSearchOptionsCommon { }
+export interface RipgrepFileSearchOptions extends FileSearchOptions, RipGrepSearchOptionsCommon { }
