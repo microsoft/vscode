@@ -697,6 +697,14 @@ export class NotebookService extends Disposable implements INotebookService {
 		return result;
 	}
 
+	tryGetDataProviderSync(viewType: string): SimpleNotebookProviderInfo | undefined {
+		const selected = this.notebookProviderInfoStore.get(viewType);
+		if (!selected) {
+			return undefined;
+		}
+		return this._notebookProviders.get(selected.id);
+	}
+
 
 	private _persistMementos(): void {
 		this._memento.saveMemento();
