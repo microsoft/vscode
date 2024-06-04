@@ -9,6 +9,7 @@
 
 .monaco-editor .monaco-hover-content {
 	padding-right: 2px;
+	padding-bottom: 2px;
 	box-sizing: border-box;
 }
 

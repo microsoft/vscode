@@ -36,6 +36,11 @@ export interface ITestCoverageService {
 	readonly filterToTest: ISettableObservable<TestId | undefined>;
 
 	/**
+	 * Whether inline coverage is shown.
+	 */
+	readonly showInline: ISettableObservable<boolean>;
+
+	/**
 	 * Opens a test coverage report from a task, optionally focusing it in the editor.
 	 */
 	openCoverage(task: ITestRunTaskResults, focus?: boolean): Promise<void>;
@@ -52,6 +57,7 @@ export class TestCoverageService extends Disposable implements ITestCoverageServ
 
 	public readonly selected = observableValue<TestCoverage | undefined>('testCoverage', undefined);
 	public readonly filterToTest = observableValue<TestId | undefined>('filterToTest', undefined);
+	public readonly showInline = observableValue('inlineCoverage', false);
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -66,6 +72,12 @@ export class TestCoverageService extends Disposable implements ITestCoverageServ
 			TestingContextKeys.coverageToolbarEnabled,
 			contextKeyService,
 			reader => toolbarConfig.read(reader),
+		));
+
+		this._register(bindContextKey(
+			TestingContextKeys.inlineCoverageEnabled,
+			contextKeyService,
+			reader => this.showInline.read(reader),
 		));
 
 		this._register(bindContextKey(

@@ -436,7 +436,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 					}
 
 					table, thead, tr, th, td, tbody {
-						border: none !important;
+						border: none;
 						border-color: transparent;
 						border-spacing: 0;
 						border-collapse: collapse;

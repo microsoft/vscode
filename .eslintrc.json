@@ -645,7 +645,6 @@
 							"events",
 							"fs",
 							"fs/promises",
-							"graceful-fs",
 							"http",
 							"https",
 							"minimist",

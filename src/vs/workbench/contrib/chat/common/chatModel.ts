@@ -529,10 +529,28 @@ export interface IChatAddResponseEvent {
 	response: IChatResponseModel;
 }
 
+export const enum ChatRequestRemovalReason {
+	/**
+	 * "Normal" remove
+	 */
+	Removal,
+
+	/**
+	 * Removed because the request will be resent
+	 */
+	Resend,
+
+	/**
+	 * Remove because the request is moving to another model
+	 */
+	Adoption
+}
+
 export interface IChatRemoveRequestEvent {
 	kind: 'removeRequest';
 	requestId: string;
 	responseId?: string;
+	reason: ChatRequestRemovalReason;
 }
 
 export interface IChatInitEvent {
@@ -804,7 +822,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		request.response?.adoptTo(this);
 		this._requests.push(request);
 
-		oldOwner._onDidChange.fire({ kind: 'removeRequest', requestId: request.id, responseId: request.response?.id });
+		oldOwner._onDidChange.fire({ kind: 'removeRequest', requestId: request.id, responseId: request.response?.id, reason: ChatRequestRemovalReason.Adoption });
 		this._onDidChange.fire({ kind: 'addRequest', request });
 	}
 
@@ -841,12 +859,12 @@ export class ChatModel extends Disposable implements IChatModel {
 		}
 	}
 
-	removeRequest(id: string): void {
+	removeRequest(id: string, reason: ChatRequestRemovalReason = ChatRequestRemovalReason.Removal): void {
 		const index = this._requests.findIndex(request => request.id === id);
 		const request = this._requests[index];
 
 		if (index !== -1) {
-			this._onDidChange.fire({ kind: 'removeRequest', requestId: request.id, responseId: request.response?.id });
+			this._onDidChange.fire({ kind: 'removeRequest', requestId: request.id, responseId: request.response?.id, reason });
 			this._requests.splice(index, 1);
 			request.response?.dispose();
 		}

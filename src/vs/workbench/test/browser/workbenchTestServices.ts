@@ -396,7 +396,8 @@ export class TestServiceAccessor {
 		@IInstantiationService public instantiationService: IInstantiationService,
 		@IElevatedFileService public elevatedFileService: IElevatedFileService,
 		@IWorkspaceTrustRequestService public workspaceTrustRequestService: TestWorkspaceTrustRequestService,
-		@IDecorationsService public decorationsService: IDecorationsService
+		@IDecorationsService public decorationsService: IDecorationsService,
+		@IProgressService public progressService: IProgressService,
 	) { }
 }
 
@@ -1545,6 +1546,10 @@ export class TestHostService implements IHostService {
 
 	readonly colorScheme = ColorScheme.DARK;
 	onDidChangeColorScheme = Event.None;
+
+	getPathForFile(file: File): string | undefined {
+		return undefined;
+	}
 }
 
 export class TestFilesConfigurationService extends FilesConfigurationService {

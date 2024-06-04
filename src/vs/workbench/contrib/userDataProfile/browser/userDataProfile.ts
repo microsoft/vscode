@@ -184,7 +184,9 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 	private registerProfilesActions(): void {
 		this.profilesDisposable.value = new DisposableStore();
 		for (const profile of this.userDataProfilesService.profiles) {
-			this.profilesDisposable.value.add(this.registerProfileEntryAction(profile));
+			if (!profile.isTransient) {
+				this.profilesDisposable.value.add(this.registerProfileEntryAction(profile));
+			}
 		}
 	}
 

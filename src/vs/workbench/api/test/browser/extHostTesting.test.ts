@@ -23,7 +23,7 @@ import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
 import { ExtHostTesting, TestRunCoordinator, TestRunDto, TestRunProfileImpl } from 'vs/workbench/api/common/extHostTesting';
 import { ExtHostTestItemCollection, TestItemImpl } from 'vs/workbench/api/common/extHostTestItem';
 import * as convert from 'vs/workbench/api/common/extHostTypeConverters';
-import { Location, Position, Range, TestMessage, TestResultState, TestRunProfileKind, TestRunRequest as TestRunRequestImpl, TestTag } from 'vs/workbench/api/common/extHostTypes';
+import { Location, Position, Range, TestMessage, TestRunProfileKind, TestRunRequest as TestRunRequestImpl, TestTag } from 'vs/workbench/api/common/extHostTypes';
 import { AnyCallRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { TestDiffOpType, TestItemExpandState, TestMessageType, TestsDiff } from 'vs/workbench/contrib/testing/common/testTypes';
@@ -862,29 +862,6 @@ suite('ExtHost Testing', () => {
 			assert.strictEqual(proxy.$addTestsToRun.called, false);
 			assert.strictEqual(proxy.$appendOutputToRun.called, false);
 			assert.strictEqual(proxy.$appendTestMessagesInRun.called, false);
-		});
-
-		test('excludes tests outside tree or explicitly excluded', () => {
-			const task = c.createTestRun(ext, 'ctrlId', single, {
-				profile: configuration,
-				include: [single.root.children.get('id-a')!],
-				exclude: [single.root.children.get('id-a')!.children.get('id-aa')!],
-				preserveFocus: false,
-			}, 'hello world', false);
-
-			task.passed(single.root.children.get('id-a')!.children.get('id-aa')!);
-			task.passed(single.root.children.get('id-a')!.children.get('id-ab')!);
-
-			assert.deepStrictEqual(proxy.$updateTestStateInRun.args.length, 1);
-			const args = proxy.$updateTestStateInRun.args[0];
-			assert.deepStrictEqual(proxy.$updateTestStateInRun.args, [[
-				args[0],
-				args[1],
-				new TestId(['ctrlId', 'id-a', 'id-ab']).toString(),
-				TestResultState.Passed,
-				undefined,
-			]]);
-			task.end();
 		});
 
 		test('sets state of test with identical local IDs (#131827)', () => {
