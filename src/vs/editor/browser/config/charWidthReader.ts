@@ -56,7 +56,7 @@ class DomCharWidthReader {
 		this._readFromDomElements();
 
 		// Remove the container from the DOM
-		this._container!.remove();
+		this._container?.remove();
 
 		this._container = null;
 		this._testElements = null;
