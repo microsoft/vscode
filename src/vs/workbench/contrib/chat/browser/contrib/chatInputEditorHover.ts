@@ -49,9 +49,9 @@ export class ChatAgentHoverParticipant implements IEditorHoverParticipant<ChatAg
 		return [];
 	}
 
-	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: ChatAgentHoverPart[]): IDisposable {
+	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: ChatAgentHoverPart[]): { disposables: IDisposable; elements: HTMLElement[] } {
 		if (!hoverParts.length) {
-			return Disposable.None;
+			return { disposables: Disposable.None, elements: [] };
 		}
 
 		const store = new DisposableStore();
@@ -62,9 +62,15 @@ export class ChatAgentHoverParticipant implements IEditorHoverParticipant<ChatAg
 
 		const actions = getChatAgentHoverOptions(() => agent, this.commandService).actions;
 		const wrapper = this.instantiationService.createInstance(ChatEditorHoverWrapper, hover.domNode, actions);
-		context.fragment.appendChild(wrapper.domNode);
+		const wrapperNode = wrapper.domNode;
+		context.fragment.appendChild(wrapperNode);
+		const elements = [wrapperNode];
 
-		return store;
+		return { disposables: store, elements };
+	}
+
+	public getAccessibleContent(hoverPart: ChatAgentHoverPart): string {
+		return `There is a chat agent hover part.`;
 	}
 }
 
