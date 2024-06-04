@@ -21,6 +21,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { Dimension } from 'vs/base/browser/dom';
+import * as nls from 'vs/nls';
 
 export class ColorHover implements IHoverPart {
 
@@ -91,7 +92,7 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 	}
 
 	public getAccessibleContent(): string {
-		return `There is a color picker here.`;
+		return nls.localize('hoverAccessibilityColorParticipant', 'There is a color picker here.');
 	}
 }
 

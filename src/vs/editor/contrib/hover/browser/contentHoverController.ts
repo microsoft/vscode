@@ -24,6 +24,7 @@ import { ContentHoverComputer } from 'vs/editor/contrib/hover/browser/contentHov
 import { ContentHoverVisibleData, HoverResult } from 'vs/editor/contrib/hover/browser/contentHoverTypes';
 import { EditorHoverStatusBar } from 'vs/editor/contrib/hover/browser/contentHoverStatusBar';
 import { Emitter } from 'vs/base/common/event';
+import * as nls from 'vs/nls';
 
 interface RenderedHoverPart {
 	brand: `renderedHoverPart`;
@@ -459,7 +460,7 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		const renderedHoverPart = this._renderedParts[index];
 		switch (renderedHoverPart.brand) {
 			case `renderedStatusBar`: {
-				return `There is a status bar here`;
+				return nls.localize('hoverAccessibilityStatusBar', 'There is a status bar here.');
 			}
 			case `renderedHoverPart`: {
 				const { participant, hoverPart } = renderedHoverPart;

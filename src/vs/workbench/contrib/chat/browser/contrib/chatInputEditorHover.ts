@@ -15,6 +15,7 @@ import { ChatAgentHover, getChatAgentHoverOptions } from 'vs/workbench/contrib/c
 import { ChatEditorHoverWrapper } from 'vs/workbench/contrib/chat/browser/contrib/editorHoverWrapper';
 import { IChatAgentData } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { extractAgentAndCommand } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import * as nls from 'vs/nls';
 
 export class ChatAgentHoverParticipant implements IEditorHoverParticipant<ChatAgentHoverPart> {
 
@@ -70,7 +71,7 @@ export class ChatAgentHoverParticipant implements IEditorHoverParticipant<ChatAg
 	}
 
 	public getAccessibleContent(hoverPart: ChatAgentHoverPart): string {
-		return `There is a chat agent hover part.`;
+		return nls.localize('hoverAccessibilityChatAgent', 'There is a chat agent hover part here.');
 	}
 }
 

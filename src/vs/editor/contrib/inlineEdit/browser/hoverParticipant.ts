@@ -14,6 +14,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { InlineEditController } from 'vs/editor/contrib/inlineEdit/browser/inlineEditController';
 import { InlineEditHintsContentWidget } from 'vs/editor/contrib/inlineEdit/browser/inlineEditHintsWidget';
+import * as nls from 'vs/nls';
 
 export class InlineEditHover implements IHoverPart {
 	constructor(
@@ -106,6 +107,6 @@ export class InlineEditHoverParticipant implements IEditorHoverParticipant<Inlin
 	}
 
 	getAccessibleContent(hoverPart: InlineEditHover): string {
-		return `There are inline edits here`;
+		return nls.localize('hoverAccessibilityInlineEdits', 'There are inline edits here.');
 	}
 }
