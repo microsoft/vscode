@@ -486,11 +486,9 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			this._resetState();
 			return;
 		}
-
 		const nextRebuildFromLine = this._updateAndGetMinRebuildFromLine(rebuildFromLine);
 		const stickyWidgetVersion = this._stickyLineCandidateProvider.getVersionId();
 		const shouldUpdateState = stickyWidgetVersion === undefined || stickyWidgetVersion === model.getVersionId();
-
 		if (shouldUpdateState) {
 			if (!this._focused) {
 				await this._updateState(nextRebuildFromLine);
@@ -533,7 +531,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 
 	private async _updateState(rebuildFromLine?: number): Promise<void> {
 		this._minRebuildFromLine = undefined;
-		this._foldingModel = await FoldingController.get(this._editor)?.getFoldingModel() ?? null;
+		this._foldingModel = await FoldingController.get(this._editor)?.getFoldingModel() ?? undefined;
 		this._widgetState = this.findScrollWidgetState();
 		const stickyWidgetHasLines = this._widgetState.startLineNumbers.length > 0;
 		this._stickyScrollVisibleContextKey.set(stickyWidgetHasLines);
@@ -542,10 +540,10 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 
 	private async _resetState(): Promise<void> {
 		this._minRebuildFromLine = undefined;
-		this._foldingModel = null;
+		this._foldingModel = undefined;
 		this._widgetState = StickyScrollWidgetState.Empty;
 		this._stickyScrollVisibleContextKey.set(false);
-		this._stickyScrollWidget.setState(undefined, null);
+		this._stickyScrollWidget.setState(undefined, undefined);
 	}
 
 	findScrollWidgetState(): StickyScrollWidgetState {
