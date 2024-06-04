@@ -7,10 +7,10 @@ import { IDetachedTerminalInstance, ITerminalContribution, ITerminalEditorServic
 import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
 import type { Terminal as RawXtermTerminal, IDecoration, ITerminalAddon } from '@xterm/xterm';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { ITerminalProcessManager, ITerminalProcessInfo } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProcessManager, ITerminalProcessInfo, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Emitter, Event } from 'vs/base/common/event';
 import { OS } from 'vs/base/common/platform';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
@@ -23,13 +23,17 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { status } from 'vs/base/browser/ui/aria/aria';
 import * as dom from 'vs/base/browser/dom';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { TerminalChatCommandId } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import 'vs/css!./media/terminalInitialHint';
 import { TerminalInitialHintSettingId } from 'vs/workbench/contrib/terminalContrib/chat/common/terminalInitialHintConfiguration';
 import { ChatAgentLocation, IChatAgent, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
+import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 
 const $ = dom.$;
 
@@ -86,6 +90,8 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 	private _decoration: IDecoration | undefined;
 	private _xterm: IXtermTerminal & { raw: RawXtermTerminal } | undefined;
 
+	private _hintEnabledContextKey: IContextKey<boolean>;
+
 	constructor(
 		private readonly _instance: Pick<ITerminalInstance, 'capabilities'> | IDetachedTerminalInstance,
 		processManager: ITerminalProcessManager | ITerminalProcessInfo | undefined,
@@ -96,15 +102,18 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		super();
-
+		this._hintEnabledContextKey = TerminalContextKeys.initialHintEnabled.bindTo(this._contextKeyService);
 		// Reset hint state when config changes
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TerminalInitialHintSettingId.Enabled)) {
 				this._storageService.remove(Constants.InitialHintHideStorageKey, StorageScope.APPLICATION);
+				this._hintEnabledContextKey.set(this._configurationService.getValue(TerminalInitialHintSettingId.Enabled));
 			}
 		}));
+		this._hintEnabledContextKey.set(this._configurationService.getValue(TerminalInitialHintSettingId.Enabled));
 	}
 
 	xtermOpen(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
@@ -171,7 +180,7 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 			if (!this._hintWidget && this._xterm?.isFocused && this._terminalGroupService.instances.length + this._terminalEditorService.instances.length === 1) {
 				const terminalAgents = this._chatAgentService.getActivatedAgents().filter(candidate => candidate.locations.includes(ChatAgentLocation.Terminal));
 				if (terminalAgents?.length) {
-					const widget = this._register(this._instantiationService.createInstance(TerminalInitialHintWidget, instance));
+					const widget = this._register(this._instantiationService.createInstance(TerminalInitialHintWidget, instance, this._hintEnabledContextKey));
 					this._addon?.dispose();
 					this._hintWidget = widget.getDomNode(terminalAgents);
 					if (!this._hintWidget) {
@@ -201,7 +210,6 @@ registerTerminalContribution(TerminalInitialHintContribution.ID, TerminalInitial
 
 class TerminalInitialHintWidget extends Disposable {
 
-
 	private domNode: HTMLElement | undefined;
 	private readonly toDispose: DisposableStore = this._register(new DisposableStore());
 	private isVisible = false;
@@ -209,6 +217,7 @@ class TerminalInitialHintWidget extends Disposable {
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
+		private _hintEnabledContextKey: IContextKey<boolean>,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -247,6 +256,7 @@ class TerminalInitialHintWidget extends Disposable {
 
 		const handleClick = () => {
 			this._storageService.store(Constants.InitialHintHideStorageKey, true, StorageScope.APPLICATION, StorageTarget.USER);
+			this._hintEnabledContextKey.set(false);
 			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {
 				id: 'terminalInlineChat.hintAction',
 				from: 'hint'
@@ -340,3 +350,19 @@ class TerminalInitialHintWidget extends Disposable {
 		super.dispose();
 	}
 }
+
+class DisableInitialHintAction extends Action2 {
+	constructor() {
+		super({
+			id: TerminalCommandId.DisableInitialHint,
+			title: localize2('disableHintAction', "Disable Initial Hint"),
+			category: terminalStrings.actionCategory,
+			precondition: ContextKeyExpr.and(TerminalContextKeys.initialHintEnabled),
+		});
+	}
+	run(accessor: ServicesAccessor) {
+		// AccessibilityVerbositySettingId.TerminalChat
+	}
+}
+
+registerAction2(DisableInitialHintAction);

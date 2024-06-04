@@ -39,6 +39,7 @@ export const enum TerminalContextKeyStrings {
 	ShellType = 'terminalShellType',
 	InTerminalRunCommandPicker = 'inTerminalRunCommandPicker',
 	TerminalShellIntegrationEnabled = 'terminalShellIntegrationEnabled',
+	InitialHintEnabled = 'terminalInitialHintEnabled'
 }
 
 export namespace TerminalContextKeys {
@@ -158,4 +159,6 @@ export namespace TerminalContextKeys {
 			ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'always')
 		)
 	);
+
+	export const initialHintEnabled = new RawContextKey<boolean>(TerminalContextKeyStrings.InitialHintEnabled, false, localize('terminalInitialHintEnabled', "Whether the terminal initial hint is enabled."));
 }

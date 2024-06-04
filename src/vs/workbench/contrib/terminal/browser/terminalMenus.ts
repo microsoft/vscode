@@ -184,6 +184,27 @@ export function setupTerminalMenus(): void {
 					order: 3
 				}
 			},
+			{
+				id: MenuId.TerminalInstanceContext,
+				item: {
+					command: {
+						id: 'workbench.action.terminal.chat.start',
+						title: localize2('startChat', 'Copilot: Start in Terminal'),
+					},
+					group: '1_copilot@0',
+					order: 2
+				}
+			},
+			{
+				id: MenuId.TerminalInstanceContext,
+				item: {
+					command: {
+						id: TerminalCommandId.DisableInitialHint,
+						title: localize2('disableInitialHint', 'Disable Initial Hint'),
+					},
+					when: TerminalContextKeys.initialHintEnabled,
+				}
+			}
 		]
 	);
 
