@@ -32,6 +32,8 @@ import { ITreeItemCheckboxState } from 'vs/workbench/common/views';
 import { API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { CONFIG_NEW_WINDOW_PROFILE } from 'vs/workbench/common/configuration';
 
 export type ChangeEvent = {
 	readonly name?: boolean;
@@ -43,6 +45,7 @@ export type ChangeEvent = {
 	readonly copyFlags?: boolean;
 	readonly preview?: boolean;
 	readonly disabled?: boolean;
+	readonly newWindowProfile?: boolean;
 };
 
 export interface IProfileChildElement {
@@ -315,6 +318,7 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement {
 		readonly titleActions: [IAction[], IAction[]],
 		readonly contextMenuActions: IAction[],
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IUserDataProfileManagementService userDataProfileManagementService: IUserDataProfileManagementService,
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@ICommandService commandService: ICommandService,
@@ -330,6 +334,13 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement {
 			commandService,
 			instantiationService,
 		);
+		this._isNewWindowProfile = this.configurationService.getValue(CONFIG_NEW_WINDOW_PROFILE) === this.profile.name;
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(CONFIG_NEW_WINDOW_PROFILE)) {
+				this.isNewWindowProfile = this.configurationService.getValue(CONFIG_NEW_WINDOW_PROFILE) === this.profile.name;
+			}
+		}
+		));
 		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => this.active = this.userDataProfileService.currentProfile.id === this.profile.id));
 		this._register(this.userDataProfilesService.onDidChangeProfiles(() => {
 			const profile = this.userDataProfilesService.profiles.find(p => p.id === this.profile.id);
@@ -340,6 +351,23 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement {
 				this.flags = profile.useDefaultFlags;
 			}
 		}));
+	}
+
+	public async toggleNewWindowProfile(): Promise<void> {
+		if (this._isNewWindowProfile) {
+			await this.configurationService.updateValue(CONFIG_NEW_WINDOW_PROFILE, null);
+		} else {
+			await this.configurationService.updateValue(CONFIG_NEW_WINDOW_PROFILE, this.profile.name);
+		}
+	}
+
+	private _isNewWindowProfile: boolean = false;
+	get isNewWindowProfile(): boolean { return this._isNewWindowProfile; }
+	set isNewWindowProfile(isNewWindowProfile: boolean) {
+		if (this._isNewWindowProfile !== isNewWindowProfile) {
+			this._isNewWindowProfile = isNewWindowProfile;
+			this._onDidChange.fire({ newWindowProfile: true });
+		}
 	}
 
 	protected override async doSave(): Promise<void> {
@@ -592,7 +620,8 @@ export class UserDataProfilesEditorModel extends EditorModel {
 		const copyFromProfileAction = disposables.add(new Action('userDataProfile.copyFromProfile', localize('copyFromProfile', "Save As..."), ThemeIcon.asClassName(Codicon.copy), true, () => this.createNewProfile(profile)));
 		const exportAction = disposables.add(new Action('userDataProfile.export', localize('export', "Export..."), ThemeIcon.asClassName(Codicon.export), true, () => this.exportProfile(profile)));
 		const deleteAction = disposables.add(new Action('userDataProfile.delete', localize('delete', "Delete"), ThemeIcon.asClassName(Codicon.trash), true, () => this.removeProfile(profile)));
-		const newWindowAction = disposables.add(new Action('userDataProfile.newWindow', localize('new window', "New Window"), ThemeIcon.asClassName(Codicon.emptyWindow), true, () => this.openWindow(profile)));
+		const newWindowAction = disposables.add(new Action('userDataProfile.newWindow', localize('new window', "New {0} Window", profile.name), ThemeIcon.asClassName(Codicon.emptyWindow), true, () => this.openWindow(profile)));
+		const useAsNewWindowProfileAction = disposables.add(new Action('userDataProfile.useAsNewWindowProfile', localize('use as new window', "Enable for New Windows", profile.name), undefined, true, () => profileElement.toggleNewWindowProfile()));
 
 		const titlePrimaryActions: IAction[] = [];
 		titlePrimaryActions.push(copyFromProfileAction);
@@ -602,11 +631,11 @@ export class UserDataProfilesEditorModel extends EditorModel {
 		}
 
 		const titleSecondaryActions: IAction[] = [];
-		titleSecondaryActions.push(activateAction);
-		titleSecondaryActions.push(newWindowAction);
 
 		const secondaryActions: IAction[] = [];
 		secondaryActions.push(activateAction);
+		secondaryActions.push(useAsNewWindowProfileAction);
+		secondaryActions.push(new Separator());
 		secondaryActions.push(newWindowAction);
 		secondaryActions.push(new Separator());
 		secondaryActions.push(copyFromProfileAction);
@@ -620,6 +649,19 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			[titlePrimaryActions, titleSecondaryActions],
 			secondaryActions,
 		));
+
+		useAsNewWindowProfileAction.checked = profileElement.isNewWindowProfile;
+		useAsNewWindowProfileAction.label = profileElement.isNewWindowProfile ? localize('donot use as new window', "Disable for New Windows") : localize('use as new window', "Enable for New Windows");
+
+		disposables.add(profileElement.onDidChange(e => {
+			if (e.name) {
+				newWindowAction.label = localize('new window', "New {0} Window", profileElement.name);
+			}
+			if (e.newWindowProfile) {
+				useAsNewWindowProfileAction.checked = profileElement.isNewWindowProfile;
+				useAsNewWindowProfileAction.label = profileElement.isNewWindowProfile ? localize('donot use as new window', "Disable for New Windows") : localize('use as new window', "Enable for New Windows");
+			}
+		}));
 		return [profileElement, disposables];
 	}
 
