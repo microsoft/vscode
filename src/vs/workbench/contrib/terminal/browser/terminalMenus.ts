@@ -192,7 +192,7 @@ export function setupTerminalMenus(): void {
 						title: localize2('startChat', 'Copilot: Start in Terminal'),
 					},
 					group: '1_copilot@0',
-					order: 2
+					order: 1
 				}
 			},
 			{
@@ -202,7 +202,9 @@ export function setupTerminalMenus(): void {
 						id: TerminalCommandId.DisableInitialHint,
 						title: localize2('disableInitialHint', 'Disable Initial Hint'),
 					},
-					when: TerminalContextKeys.initialHintEnabled,
+					group: '1_copilot@0',
+					order: 2,
+					// when: ContextKeyExpr.and(TerminalContextKeys.initialHintEnabled),
 				}
 			}
 		]

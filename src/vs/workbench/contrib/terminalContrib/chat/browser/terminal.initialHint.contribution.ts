@@ -110,10 +110,16 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TerminalInitialHintSettingId.Enabled)) {
 				this._storageService.remove(Constants.InitialHintHideStorageKey, StorageScope.APPLICATION);
-				this._hintEnabledContextKey.set(this._configurationService.getValue(TerminalInitialHintSettingId.Enabled));
+				this._updateHintEnabled();
 			}
 		}));
-		this._hintEnabledContextKey.set(this._configurationService.getValue(TerminalInitialHintSettingId.Enabled));
+		this._updateHintEnabled();
+	}
+
+	private _updateHintEnabled(): void {
+		const hideInitialHint: boolean = this._storageService.getBoolean(Constants.InitialHintHideStorageKey, StorageScope.APPLICATION, false);
+		const enabled: boolean = this._configurationService.getValue(TerminalInitialHintSettingId.Enabled) || false;
+		this._hintEnabledContextKey.set(enabled && !hideInitialHint);
 	}
 
 	xtermOpen(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
@@ -180,7 +186,8 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 			if (!this._hintWidget && this._xterm?.isFocused && this._terminalGroupService.instances.length + this._terminalEditorService.instances.length === 1) {
 				const terminalAgents = this._chatAgentService.getActivatedAgents().filter(candidate => candidate.locations.includes(ChatAgentLocation.Terminal));
 				if (terminalAgents?.length) {
-					const widget = this._register(this._instantiationService.createInstance(TerminalInitialHintWidget, instance, this._hintEnabledContextKey));
+					const widget = this._register(this._instantiationService.createInstance(TerminalInitialHintWidget, instance));
+					this._register(widget.onDidRequestUpdateHintEnabled(() => this._updateHintEnabled()));
 					this._addon?.dispose();
 					this._hintWidget = widget.getDomNode(terminalAgents);
 					if (!this._hintWidget) {
@@ -214,10 +221,11 @@ class TerminalInitialHintWidget extends Disposable {
 	private readonly toDispose: DisposableStore = this._register(new DisposableStore());
 	private isVisible = false;
 	private ariaLabel: string = '';
+	private _onDidRequestUpdateHintEnabled: Emitter<void> = new Emitter();
+	onDidRequestUpdateHintEnabled: Event<void> = this._onDidRequestUpdateHintEnabled.event;
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
-		private _hintEnabledContextKey: IContextKey<boolean>,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -256,7 +264,7 @@ class TerminalInitialHintWidget extends Disposable {
 
 		const handleClick = () => {
 			this._storageService.store(Constants.InitialHintHideStorageKey, true, StorageScope.APPLICATION, StorageTarget.USER);
-			this._hintEnabledContextKey.set(false);
+			this._onDidRequestUpdateHintEnabled.fire();
 			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {
 				id: 'terminalInlineChat.hintAction',
 				from: 'hint'
@@ -361,7 +369,7 @@ class DisableInitialHintAction extends Action2 {
 		});
 	}
 	run(accessor: ServicesAccessor) {
-		// AccessibilityVerbositySettingId.TerminalChat
+		accessor.get(IConfigurationService).updateValue(TerminalInitialHintSettingId.Enabled, false);
 	}
 }
 
