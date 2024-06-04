@@ -488,14 +488,16 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 		return this._outlineProviderReference?.object?.isEmpty ?? true;
 	}
 	async reveal(entry: OutlineEntry, options: IEditorOptions, sideBySide: boolean): Promise<void> {
+		const notebookEditorOptions: INotebookEditorOptions = {
+			...options,
+			override: this._editor.input?.editorId,
+			cellRevealType: CellRevealType.NearTopIfOutsideViewport,
+			selection: entry.position,
+			viewState: undefined,
+		};
 		await this._editorService.openEditor({
 			resource: entry.cell.uri,
-			options: {
-				...options,
-				override: this._editor.input?.editorId,
-				cellRevealType: CellRevealType.NearTopIfOutsideViewport,
-				selection: entry.position
-			} as INotebookEditorOptions,
+			options: notebookEditorOptions,
 		}, sideBySide ? SIDE_GROUP : undefined);
 	}
 
