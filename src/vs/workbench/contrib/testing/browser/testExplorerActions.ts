@@ -44,7 +44,7 @@ import { ITestProfileService, canUseProfileWithTest } from 'vs/workbench/contrib
 import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { IMainThreadTestCollection, IMainThreadTestController, ITestService, expandAndGetTestById, testsInFile, testsUnderUri } from 'vs/workbench/contrib/testing/common/testService';
-import { ExtTestRunProfileKind, ITestRunProfile, InternalTestItem, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
+import { ExtTestRunProfileKind, ITestRunProfile, InternalTestItem, TestItemExpandState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestingContinuousRunService } from 'vs/workbench/contrib/testing/common/testingContinuousRunService';
 import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
@@ -625,7 +625,8 @@ abstract class RunOrDebugAllTestsAction extends Action2 {
 		const testService = accessor.get(ITestService);
 		const notifications = accessor.get(INotificationService);
 
-		const roots = [...testService.collection.rootItems].filter(r => r.children.size);
+		const roots = [...testService.collection.rootItems].filter(r => r.children.size
+			|| r.expand === TestItemExpandState.Expandable || r.expand === TestItemExpandState.BusyExpanding);
 		if (!roots.length) {
 			notifications.info(this.noTestsFoundError);
 			return;
