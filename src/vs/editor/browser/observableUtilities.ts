@@ -5,7 +5,7 @@
 
 import { equalsIfDefined, itemsEquals } from 'vs/base/common/equals';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, ITransaction, autorunOpts, derived, derivedOpts, observableFromEvent, observableSignal, observableValue, observableValueOpts } from 'vs/base/common/observable';
+import { IObservable, ITransaction, autorunOpts, autorunWithStoreHandleChanges, derived, derivedOpts, observableFromEvent, observableSignal, observableValue, observableValueOpts } from 'vs/base/common/observable';
 import { TransactionImpl } from 'vs/base/common/observableInternal/base';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -188,4 +188,40 @@ class ObservableCodeEditor extends Disposable {
 		});
 		return d;
 	}
+}
+
+type RemoveUndefined<T> = T extends undefined ? never : T;
+export function reactToChange<T, TChange>(observable: IObservable<T, TChange>, cb: (value: T, deltas: RemoveUndefined<TChange>[]) => void): IDisposable {
+	return autorunWithStoreHandleChanges({
+		createEmptyChangeSummary: () => ({ deltas: [] as RemoveUndefined<TChange>[], didChange: false }),
+		handleChange: (context, changeSummary) => {
+			if (context.didChange(observable)) {
+				const e = context.change;
+				if (e !== undefined) {
+					changeSummary.deltas.push(e as RemoveUndefined<TChange>);
+				}
+				changeSummary.didChange = true;
+			}
+			return true;
+		},
+	}, (reader, changeSummary) => {
+		const value = observable.read(reader);
+		if (changeSummary.didChange) {
+			cb(value, changeSummary.deltas);
+		}
+	});
+}
+
+export function reactToChangeWithStore<T, TChange>(observable: IObservable<T, TChange>, cb: (value: T, deltas: RemoveUndefined<TChange>[], store: DisposableStore) => void): IDisposable {
+	const store = new DisposableStore();
+	const disposable = reactToChange(observable, (value, deltas) => {
+		store.clear();
+		cb(value, deltas, store);
+	});
+	return {
+		dispose() {
+			disposable.dispose();
+			store.dispose();
+		}
+	};
 }
