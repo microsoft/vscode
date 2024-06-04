@@ -85,9 +85,9 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 			this._updateTheme(this._themeService.getColorTheme(), false);
 		}));
 
-		this._languageService.onDidRequestRichLanguageFeatures((languageId) => {
+		this._register(this._languageService.onDidRequestRichLanguageFeatures((languageId) => {
 			this._createdModes.push(languageId);
-		});
+		}));
 	}
 
 	private getAsyncTokenizationEnabled(): boolean {
