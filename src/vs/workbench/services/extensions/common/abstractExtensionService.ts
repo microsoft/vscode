@@ -1179,6 +1179,11 @@ class ExtensionHostCollection extends Disposable {
 
 	private _extensionHostManagers: ExtensionHostManagerData[] = [];
 
+	public override dispose(): void {
+		this.disposeAllInReverse();
+		super.dispose();
+	}
+
 	public add(extensionHostManager: IExtensionHostManager, disposableStore: DisposableStore): void {
 		this._extensionHostManagers.push(new ExtensionHostManagerData(extensionHostManager, disposableStore));
 	}
