@@ -16,7 +16,7 @@ import { getColorPresentations, getColors } from 'vs/editor/contrib/colorPicker/
 import { ColorDetector } from 'vs/editor/contrib/colorPicker/browser/colorDetector';
 import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/browser/colorPickerModel';
 import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/browser/colorPickerWidget';
-import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
+import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, RenderedHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
@@ -87,8 +87,14 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 		return [];
 	}
 
-	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: ColorHover[]): { disposables: IDisposable; elements: HTMLElement[] } {
-		return renderHoverParts(this, this._editor, this._themeService, hoverParts, context);
+	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: ColorHover[]): { disposables: IDisposable; renderedParts: RenderedHoverPart<ColorHover>[] } {
+		const renderedHoverParts = renderHoverParts(this, this._editor, this._themeService, hoverParts, context);
+		if (!renderedHoverParts) {
+			return { disposables: Disposable.None, renderedParts: [] };
+		}
+		const disposables = renderedHoverParts.disposables;
+		const renderedParts = [{ hoverPart: renderedHoverParts.hoverPart, element: renderedHoverParts.element }];
+		return { disposables, renderedParts };
 	}
 
 	public getAccessibleContent(): string {
@@ -151,8 +157,8 @@ export class StandaloneColorPickerParticipant {
 		}
 	}
 
-	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: ColorHover[] | StandaloneColorPickerHover[]): IDisposable {
-		return renderHoverParts(this, this._editor, this._themeService, hoverParts, context).disposables;
+	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: StandaloneColorPickerHover[]): IDisposable {
+		return renderHoverParts(this, this._editor, this._themeService, hoverParts, context)?.disposables ?? Disposable.None;
 	}
 
 	public set color(color: Color | null) {
@@ -183,9 +189,9 @@ async function _createColorHover(participant: ColorHoverParticipant | Standalone
 	}
 }
 
-function renderHoverParts(participant: ColorHoverParticipant | StandaloneColorPickerParticipant, editor: ICodeEditor, themeService: IThemeService, hoverParts: ColorHover[] | StandaloneColorPickerHover[], context: IEditorHoverRenderContext): { disposables: IDisposable; elements: HTMLElement[] } {
+function renderHoverParts<T extends (ColorHover | StandaloneColorPickerHover)>(participant: ColorHoverParticipant | StandaloneColorPickerParticipant, editor: ICodeEditor, themeService: IThemeService, hoverParts: T[], context: IEditorHoverRenderContext): { disposables: IDisposable; hoverPart: T; element: HTMLElement } | undefined {
 	if (hoverParts.length === 0 || !editor.hasModel()) {
-		return { disposables: Disposable.None, elements: [] };
+		return undefined;
 	}
 	if (context.setMinimumDimensions) {
 		const minimumHeight = editor.getOption(EditorOption.lineHeight) + 8;
@@ -197,13 +203,12 @@ function renderHoverParts(participant: ColorHoverParticipant | StandaloneColorPi
 	const editorModel = editor.getModel();
 	const model = colorHover.model;
 	const widget = disposables.add(new ColorPickerWidget(context.fragment, model, editor.getOption(EditorOption.pixelRatio), themeService, participant instanceof StandaloneColorPickerParticipant));
-	const elements = [widget.domNode];
 	context.setColorPicker(widget);
 
 	let editorUpdatedByColorPicker = false;
 	let range = new Range(colorHover.range.startLineNumber, colorHover.range.startColumn, colorHover.range.endLineNumber, colorHover.range.endColumn);
 	if (participant instanceof StandaloneColorPickerParticipant) {
-		const color = hoverParts[0].model.color;
+		const color = colorHover.model.color;
 		participant.color = color;
 		_updateColorPresentations(editorModel, model, color, range, colorHover);
 		disposables.add(model.onColorFlushed((color: Color) => {
@@ -227,7 +232,7 @@ function renderHoverParts(participant: ColorHoverParticipant | StandaloneColorPi
 			editor.focus();
 		}
 	}));
-	return { disposables, elements };
+	return { disposables, hoverPart: colorHover, element: widget.domNode };
 }
 
 function _updateEditorModel(editor: IActiveCodeEditor, range: Range, model: ColorPickerModel): Range {

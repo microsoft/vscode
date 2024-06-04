@@ -274,13 +274,12 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 			if (hoverPartsForParticipant.length === 0) {
 				continue;
 			}
-			const { disposables: store, elements } = participant.renderHoverParts(context, hoverPartsForParticipant);
-			hoverPartsForParticipant.forEach((hoverPart: IHoverPart, index: number) => {
-				const element = elements[index];
-				const renderedHoverPart: RenderedHoverPart = { brand: `renderedHoverPart`, participant, hoverPart, element };
+			const { disposables: currentDisposables, renderedParts: currentRenderedParts } = participant.renderHoverParts(context, hoverPartsForParticipant);
+			disposables.add(currentDisposables);
+			currentRenderedParts.forEach(renderedPart => {
+				const renderedHoverPart: RenderedHoverPart = { brand: `renderedHoverPart`, participant, ...renderedPart };
 				renderedParts.push(renderedHoverPart);
 			});
-			disposables.add(store);
 		}
 		return { disposables, renderedParts };
 	}

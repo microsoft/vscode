@@ -121,13 +121,24 @@ export interface IEditorHoverRenderContext {
 	hide(): void;
 }
 
+export interface RenderedHoverPart<T extends IHoverPart = IHoverPart> {
+	/**
+	 * Rendered hover part.
+	 */
+	hoverPart: T;
+	/**
+	 * The HTML element containig the hover part data.
+	 */
+	element: HTMLElement;
+}
+
 export interface IEditorHoverParticipant<T extends IHoverPart = IHoverPart> {
 	readonly hoverOrdinal: number;
 	suggestHoverAnchor?(mouseEvent: IEditorMouseEvent): HoverAnchor | null;
 	computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): T[];
 	computeAsync?(anchor: HoverAnchor, lineDecorations: IModelDecoration[], token: CancellationToken): AsyncIterableObject<T>;
 	createLoadingMessage?(anchor: HoverAnchor): T | null;
-	renderHoverParts(context: IEditorHoverRenderContext, hoverParts: T[]): { disposables: IDisposable; elements: HTMLElement[] };
+	renderHoverParts(context: IEditorHoverRenderContext, hoverParts: T[]): { disposables: IDisposable; renderedParts: RenderedHoverPart<T>[] };
 	getAccessibleContent(hoverPart: T): string;
 }
 
