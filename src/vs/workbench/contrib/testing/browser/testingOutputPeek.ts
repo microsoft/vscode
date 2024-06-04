@@ -1020,15 +1020,14 @@ class TestResultsViewContent extends Disposable {
 		}
 
 
-		this.currentSubjectStore.add(
-			this.instantiationService
-				.createChild(new ServiceCollection([IContextKeyService, this.messageContextKeyService]))
-				.createInstance(FloatingClickMenu, {
-					container: this.messageContainer,
-					menuId: MenuId.TestMessageContent,
-					getActionArg: () => (subject as MessageSubject).context,
-				})
-		);
+		const instaService = this.currentSubjectStore.add(this.instantiationService
+			.createChild(new ServiceCollection([IContextKeyService, this.messageContextKeyService])));
+
+		this.currentSubjectStore.add(instaService.createInstance(FloatingClickMenu, {
+			container: this.messageContainer,
+			menuId: MenuId.TestMessageContent,
+			getActionArg: () => (subject as MessageSubject).context,
+		}));
 	}
 
 	public onLayoutBody(height: number, width: number) {
@@ -1086,7 +1085,7 @@ class TestResultsPeek extends PeekViewWidget {
 		if (!this.scopedContextKeyService) {
 			this.scopedContextKeyService = this._disposables.add(this.contextKeyService.createScoped(container));
 			TestingContextKeys.isInPeek.bindTo(this.scopedContextKeyService).set(true);
-			const instaService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService]));
+			const instaService = this._disposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
 			this.content = this._disposables.add(instaService.createInstance(TestResultsViewContent, this.editor, { historyVisible: this.testingPeek.historyVisible, showRevealLocationOnMessages: false, locationForProgress: Testing.ResultsViewId }));
 		}
 
