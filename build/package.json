@@ -44,7 +44,6 @@
     "esbuild": "0.20.0",
     "extract-zip": "^2.0.1",
     "gulp-merge-json": "^2.1.1",
-    "gulp-shell": "^0.8.0",
     "jsonc-parser": "^2.3.0",
     "mime": "^1.4.1",
     "mkdirp": "^1.0.4",
