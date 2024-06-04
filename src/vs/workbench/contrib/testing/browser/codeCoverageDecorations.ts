@@ -51,7 +51,6 @@ import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { CoverageDetails, DetailType, IDeclarationCoverage, IStatementCoverage } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 
-const MAX_HOVERED_LINES = 30;
 const CLASS_HIT = 'coverage-deco-hit';
 const CLASS_MISS = 'coverage-deco-miss';
 const TOGGLE_INLINE_COMMAND_TEXT = localize('testing.toggleInlineCoverage', 'Toggle Inline');
@@ -213,9 +212,14 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 
 		const todo = [{ line: lineNumber, dir: 0 }];
 		const toEnable = new Set<string>();
+		const ranges = this.editor.getVisibleRanges();
 		if (!this.coverage.showInline.get()) {
-			for (let i = 0; i < todo.length && i < MAX_HOVERED_LINES; i++) {
+			for (let i = 0; i < todo.length; i++) {
 				const { line, dir } = todo[i];
+				if (!ranges.some(r => r.startLineNumber <= line && r.endLineNumber >= line)) {
+					continue; // stop once outside the viewport
+				}
+
 				let found = false;
 				for (const decoration of model.getLineDecorations(line)) {
 					if (this.decorationIds.has(decoration.id)) {
