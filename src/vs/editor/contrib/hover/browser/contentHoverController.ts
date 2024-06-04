@@ -181,12 +181,12 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 			// avoid updating the DOM to avoid resetting the user selection
 			return;
 		}
-		if (hoverResult && hoverResult.messages.length === 0) {
+		if (hoverResult && hoverResult.hoverParts.length === 0) {
 			hoverResult = null;
 		}
 		this._currentResult = hoverResult;
 		if (this._currentResult) {
-			this._renderHoverParts(this._currentResult.anchor, this._currentResult.messages);
+			this._showHover(this._currentResult.anchor, this._currentResult.hoverParts);
 		} else {
 			this._widget.hide();
 		}
@@ -215,7 +215,7 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 				return;
 			}
 
-			if (this._computer.insistOnKeepingHoverVisible && hoverResult.messages.length === 0) {
+			if (this._computer.insistOnKeepingHoverVisible && hoverResult.hoverParts.length === 0) {
 				// The hover would now hide normally, so we'll keep the previous messages
 				return;
 			}
@@ -224,77 +224,60 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		this._setCurrentResult(hoverResult);
 	}
 
-	private _renderHoverParts(anchor: HoverAnchor, hoverParts: IHoverPart[]): void {
+	private _showHover(anchor: HoverAnchor, hoverParts: IHoverPart[]): void {
 
-		const disposables = new DisposableStore();
 		const fragment = document.createDocumentFragment();
-		disposables.add(this._renderHoverPartsInFragment(fragment, hoverParts));
-		disposables.add(this._registerHoverListeners());
-
-		if (fragment.hasChildNodes()) {
-			const { showAtPosition, showAtSecondaryPosition, highlightRange } = ContentHoverController.computeHoverRanges(this._editor, anchor.range, hoverParts);
-			if (highlightRange) {
-				const highlightDecoration = this._editor.createDecorationsCollection();
-				highlightDecoration.set([{
-					range: highlightRange,
-					options: ContentHoverController._DECORATION_OPTIONS
-				}]);
-				disposables.add(toDisposable(() => {
-					highlightDecoration.clear();
-				}));
-			}
-
-			const isBeforeContent = hoverParts.some(m => m.isBeforeContent);
-			this._widget.showAt(fragment, new ContentHoverVisibleData(
-				anchor.initialMousePosX,
-				anchor.initialMousePosY,
-				this._colorWidget,
-				showAtPosition,
-				showAtSecondaryPosition,
-				this._editor.getOption(EditorOption.hover).above,
-				this._computer.shouldFocus,
-				this._computer.source,
-				isBeforeContent,
-				disposables
-			));
+		const disposables = this._renderHoverPartsInFragment(fragment, hoverParts);
+		const fragmentHasContent = fragment.hasChildNodes();
+		if (fragmentHasContent) {
+			this._doShowHover(fragment, hoverParts, anchor, disposables);
 		} else {
 			disposables.dispose();
 		}
 	}
 
-	private _renderHoverPartsInFragment(fragment: DocumentFragment, hoverParts: IHoverPart[]): IDisposable {
-		const disposables = new DisposableStore();
-		const { context, statusBar } = this._getContextAndStatusBar(fragment);
-		const renderedHoverParts = this._renderHoverPartsWithContext(context, hoverParts);
+	private _getHoverContext(fragment: DocumentFragment, statusBar: EditorHoverStatusBar): IEditorHoverRenderContext {
+		const hide = () => {
+			this.hide();
+		};
+		const onContentsChanged = () => {
+			this._onContentsChanged.fire();
+			this._widget.onContentsChanged();
+		};
+		const setColorPicker = (widget: IEditorHoverColorPickerWidget) => {
+			this._colorWidget = widget;
+		};
+		const setMinimumDimensions = (dimensions: dom.Dimension) => {
+			this._widget.setMinimumDimensions(dimensions);
+		};
+		const context: IEditorHoverRenderContext = { fragment, statusBar, hide, onContentsChanged, setColorPicker, setMinimumDimensions };
+		return context;
+	}
+
+	private _renderHoverPartsInFragment(fragment: DocumentFragment, hoverParts: IHoverPart[]): DisposableStore {
+		const statusBar = new EditorHoverStatusBar(this._keybindingService);
+		const context = this._getHoverContext(fragment, statusBar);
+		const renderedHoverParts = this._renderHoverPartsUsingContext(context, hoverParts);
 		const renderedStatusBar = this._renderStatusBar(fragment, statusBar);
 		this._renderedParts = [];
 		this._renderedParts.push(...renderedHoverParts.renderedHoverParts);
 		if (renderedStatusBar) { this._renderedParts.push(renderedStatusBar); }
+		const disposables = new DisposableStore();
 		disposables.add(renderedHoverParts.disposables);
-		disposables.add(statusBar);
+		disposables.add(this._registerHoverListeners());
 		return disposables;
 	}
 
-	private _getContextAndStatusBar(fragment: DocumentFragment): { context: IEditorHoverRenderContext; statusBar: EditorHoverStatusBar } {
-		const hide = () => this.hide();
-		const onContentsChanged = () => this._doOnContentsChanged();
-		const statusBar = new EditorHoverStatusBar(this._keybindingService);
-		const setColorPicker = (widget: IEditorHoverColorPickerWidget) => { this._colorWidget = widget; };
-		const setMinimumDimensions = (dimensions: dom.Dimension) => this._widget.setMinimumDimensions(dimensions);
-		const context: IEditorHoverRenderContext = { hide, fragment, statusBar, setColorPicker, onContentsChanged, setMinimumDimensions };
-		return { context, statusBar };
-	}
-
-	private _renderHoverPartsWithContext(context: IEditorHoverRenderContext, hoverParts: IHoverPart[]): { disposables: DisposableStore; renderedHoverParts: RenderedHoverPart[] } {
+	private _renderHoverPartsUsingContext(context: IEditorHoverRenderContext, hoverParts: IHoverPart[]): { disposables: DisposableStore; renderedHoverParts: RenderedHoverPart[] } {
 		const disposables = new DisposableStore();
 		const renderedHoverParts: RenderedHoverPart[] = [];
 		for (const participant of this._participants) {
-			const participantHoverParts = hoverParts.filter(msg => msg.owner === participant);
-			if (participantHoverParts.length === 0) {
+			const hoverPartsForParticipant = hoverParts.filter(hoverPart => hoverPart.owner === participant);
+			if (hoverPartsForParticipant.length === 0) {
 				continue;
 			}
-			const { disposables: store, elements } = participant.renderHoverParts(context, participantHoverParts);
-			participantHoverParts.forEach((hoverPart: IHoverPart, index: number) => {
+			const { disposables: store, elements } = participant.renderHoverParts(context, hoverPartsForParticipant);
+			hoverPartsForParticipant.forEach((hoverPart: IHoverPart, index: number) => {
 				const element = elements[index];
 				const renderedHoverPart: RenderedHoverPart = { brand: `renderedHoverPart`, participant, hoverPart, element };
 				renderedHoverParts.push(renderedHoverPart);
@@ -329,9 +312,43 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		return disposables;
 	}
 
-	private _doOnContentsChanged(): void {
-		this._onContentsChanged.fire();
-		this._widget.onContentsChanged();
+	private _doShowHover(fragment: DocumentFragment, hoverParts: IHoverPart[], anchor: HoverAnchor, disposables: DisposableStore): void {
+		const { showAtPosition, showAtSecondaryPosition, highlightRange } = ContentHoverController.computeHoverRanges(this._editor, anchor.range, hoverParts);
+		this._addEditorDecorations(highlightRange, disposables);
+		const initialMousePosX = anchor.initialMousePosX;
+		const initialMousePosY = anchor.initialMousePosY;
+		const preferAbove = this._editor.getOption(EditorOption.hover).above;
+		const stoleFocus = this._computer.shouldFocus;
+		const hoverSource = this._computer.source;
+		const isBeforeContent = hoverParts.some(m => m.isBeforeContent);
+
+		const contentHoverVisibleData = new ContentHoverVisibleData(
+			initialMousePosX,
+			initialMousePosY,
+			this._colorWidget,
+			showAtPosition,
+			showAtSecondaryPosition,
+			preferAbove,
+			stoleFocus,
+			hoverSource,
+			isBeforeContent,
+			disposables
+		);
+		this._widget.showAt(fragment, contentHoverVisibleData);
+	}
+
+	private _addEditorDecorations(highlightRange: Range | undefined, disposables: DisposableStore): void {
+		if (!highlightRange) {
+			return;
+		}
+		const highlightDecoration = this._editor.createDecorationsCollection();
+		highlightDecoration.set([{
+			range: highlightRange,
+			options: ContentHoverController._DECORATION_OPTIONS
+		}]);
+		disposables.add(toDisposable(() => {
+			highlightDecoration.clear();
+		}));
 	}
 
 	private static readonly _DECORATION_OPTIONS = ModelDecorationOptions.register({
