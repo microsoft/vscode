@@ -20,7 +20,7 @@ import { IEditorOpenContext, IEditorSerializer, IUntypedEditorInput } from 'vs/w
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IUserDataProfilesEditor } from 'vs/workbench/contrib/userDataProfile/common/userDataProfile';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { defaultUserDataProfileIcon, IProfileResourceChildTreeItem, IProfileTemplateInfo, IUserDataProfileManagementService, PROFILE_FILTER } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { defaultUserDataProfileIcon, IProfileTemplateInfo, IUserDataProfileManagementService, PROFILE_FILTER } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { Orientation, Sizing, SplitView } from 'vs/base/browser/ui/splitview/splitview';
 import { Button, ButtonWithDropdown } from 'vs/base/browser/ui/button/button';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
@@ -44,18 +44,14 @@ import { IHoverWidget } from 'vs/base/browser/ui/hover/hover';
 import { ISelectOptionItem, SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { URI } from 'vs/base/common/uri';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
-import { ExtensionsResourceTreeItem } from 'vs/workbench/services/userDataProfile/browser/extensionsResource';
-import { isString, isUndefined } from 'vs/base/common/types';
+import { isUndefined } from 'vs/base/common/types';
 import { basename } from 'vs/base/common/resources';
 import { RenderIndentGuides } from 'vs/base/browser/ui/tree/abstractTree';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { DEFAULT_LABELS_CONTAINER, IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { AbstractUserDataProfileElement, NewProfileElement, UserDataProfileElement, UserDataProfilesEditorModel } from 'vs/workbench/contrib/userDataProfile/browser/userDataProfilesEditorModel';
+import { AbstractUserDataProfileElement, IUserDataProfileChildElement, IUserDataProfileResourceChildElement, IUserDataProfileResourceElement, NewProfileElement, UserDataProfileElement, UserDataProfilesEditorModel } from 'vs/workbench/contrib/userDataProfile/browser/userDataProfilesEditorModel';
 import { Codicon } from 'vs/base/common/codicons';
 import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { createInstantHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
@@ -427,7 +423,6 @@ class ProfileWidget extends Disposable {
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IEditorProgressService private readonly editorProgressService: IEditorProgressService,
-		@ICommandService private readonly commandService: ICommandService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
@@ -522,11 +517,11 @@ class ProfileWidget extends Disposable {
 				horizontalScrolling: false,
 				accessibilityProvider: {
 					getAriaLabel(element: ProfileResourceTreeElement | null): string {
-						if (isString(element?.element)) {
-							return element.element;
+						if ((<IUserDataProfileResourceElement>element?.element).resourceType) {
+							return (<IUserDataProfileResourceElement>element?.element).resourceType;
 						}
-						if (element?.element) {
-							return element.element.label?.label ?? '';
+						if ((<IUserDataProfileResourceChildElement>element?.element).label) {
+							return (<IUserDataProfileResourceChildElement>element?.element).label;
 						}
 						return '';
 					},
@@ -536,10 +531,7 @@ class ProfileWidget extends Disposable {
 				},
 				identityProvider: {
 					getId(element) {
-						if (isString(element?.element)) {
-							return element.element;
-						}
-						if (element?.element) {
+						if (element?.element.handle) {
 							return element.element.handle;
 						}
 						return '';
@@ -547,8 +539,8 @@ class ProfileWidget extends Disposable {
 				},
 				expandOnlyOnTwistieClick: true,
 				renderIndentGuides: RenderIndentGuides.None,
-				openOnSingleClick: true,
 				enableStickyScroll: false,
+				collapseByDefault: () => false
 			}));
 		this._register(this.resourcesTree.onDidOpen(async (e) => {
 			if (!e.browserEvent) {
@@ -557,12 +549,8 @@ class ProfileWidget extends Disposable {
 			if (e.browserEvent.target && (e.browserEvent.target as HTMLElement).classList.contains(Checkbox.CLASS_NAME)) {
 				return;
 			}
-			if (e.element && !isString(e.element.element)) {
-				if (e.element.element.resourceUri) {
-					await this.commandService.executeCommand(API_OPEN_EDITOR_COMMAND_ID, e.element.element.resourceUri, [SIDE_GROUP], undefined, e);
-				} else if (e.element.element.parent instanceof ExtensionsResourceTreeItem) {
-					await this.commandService.executeCommand('extension.open', e.element.element.handle, undefined, true, undefined, true);
-				}
+			if (e.element?.element.action) {
+				await e.element.element.action.run();
 			}
 		}));
 	}
@@ -758,13 +746,21 @@ class ProfileWidget extends Disposable {
 
 
 interface ProfileResourceTreeElement {
-	element: ProfileResourceType | IProfileResourceChildTreeItem;
+	element: IUserDataProfileChildElement;
 	root: AbstractUserDataProfileElement;
+}
+
+interface ProfileResourceTypeTreeElement extends ProfileResourceTreeElement {
+	element: IUserDataProfileResourceElement;
+}
+
+interface ProfileResourceChildTreeElement extends ProfileResourceTreeElement {
+	element: IUserDataProfileResourceChildElement;
 }
 
 class ProfileResourceTreeElementDelegate implements IListVirtualDelegate<ProfileResourceTreeElement> {
 	getTemplateId(element: ProfileResourceTreeElement) {
-		if (!isString(element.element)) {
+		if (!(<IUserDataProfileResourceElement>element.element).resourceType) {
 			return ProfileResourceChildTreeItemRenderer.TEMPLATE_ID;
 		}
 		if (element.root instanceof NewProfileElement) {
@@ -787,18 +783,18 @@ class ProfileResourceTreeDataSource implements IAsyncDataSource<AbstractUserData
 		if (element instanceof AbstractUserDataProfileElement) {
 			return true;
 		}
-		if (isString(element.element)) {
-			if (element.element !== ProfileResourceType.Extensions && element.element !== ProfileResourceType.Snippets) {
+		if ((<IUserDataProfileResourceElement>element.element).resourceType) {
+			if ((<IUserDataProfileResourceElement>element.element).resourceType !== ProfileResourceType.Extensions && (<IUserDataProfileResourceElement>element.element).resourceType !== ProfileResourceType.Snippets) {
 				return false;
 			}
 			if (element.root instanceof NewProfileElement) {
-				if (element.root.getFlag(element.element)) {
+				if (element.root.getFlag((<IUserDataProfileResourceElement>element.element).resourceType)) {
 					return true;
 				}
 				if (element.root.copyFrom === undefined) {
 					return false;
 				}
-				if (!element.root.getCopyFlag(element.element)) {
+				if (!element.root.getCopyFlag((<IUserDataProfileResourceElement>element.element).resourceType)) {
 					return false;
 				}
 			}
@@ -809,20 +805,14 @@ class ProfileResourceTreeDataSource implements IAsyncDataSource<AbstractUserData
 
 	async getChildren(element: AbstractUserDataProfileElement | ProfileResourceTreeElement): Promise<ProfileResourceTreeElement[]> {
 		if (element instanceof AbstractUserDataProfileElement) {
-			const resourceTypes = [
-				ProfileResourceType.Settings,
-				ProfileResourceType.Keybindings,
-				ProfileResourceType.Tasks,
-				ProfileResourceType.Snippets,
-				ProfileResourceType.Extensions
-			];
-			return resourceTypes.map(resourceType => ({ element: resourceType, root: element }));
+			const children = await element.getChildren();
+			return children.map(e => ({ element: e, root: element }));
 		}
-		if (isString(element.element)) {
-			const progressRunner = this.editorProgressService.show(true);
+		if ((<IUserDataProfileResourceElement>element.element).resourceType) {
+			const progressRunner = this.editorProgressService.show(true, 500);
 			try {
-				const extensions = await element.root.getChildren(element.element);
-				return extensions.map(extension => ({ element: extension, root: element.root }));
+				const extensions = await element.root.getChildren((<IUserDataProfileResourceElement>element.element).resourceType);
+				return extensions.map(e => ({ element: e, root: element.root }));
 			} finally {
 				progressRunner.done();
 			}
@@ -899,23 +889,20 @@ class ExistingProfileResourceTreeRenderer extends AbstractProfileResourceTreeRen
 		return { checkbox, label, inheritContainer, disposables, elementDisposables: disposables.add(new DisposableStore()) };
 	}
 
-	renderElement({ element: profileResourceTreeElement }: ITreeNode<ProfileResourceTreeElement, void>, index: number, templateData: IExistingProfileResourceTemplateData, height: number | undefined): void {
+	renderElement({ element: profileResourceTreeElement }: ITreeNode<ProfileResourceTypeTreeElement, void>, index: number, templateData: IExistingProfileResourceTemplateData, height: number | undefined): void {
 		templateData.elementDisposables.clear();
 		const { element, root } = profileResourceTreeElement;
 		if (!(root instanceof UserDataProfileElement)) {
 			throw new Error('ExistingProfileResourceTreeRenderer can only render existing profile element');
 		}
-		if (!isString(element)) {
-			throw new Error('ExistingProfileResourceTreeRenderer can only render profile resource types');
-		}
 
-		templateData.label.textContent = this.getResourceTypeTitle(element);
+		templateData.label.textContent = this.getResourceTypeTitle(element.resourceType);
 		if (root instanceof UserDataProfileElement && root.profile.isDefault) {
 			templateData.inheritContainer.classList.add('hide');
 		} else {
 			templateData.inheritContainer.classList.remove('hide');
-			templateData.checkbox.checked = root.getFlag(element);
-			templateData.elementDisposables.add(templateData.checkbox.onChange(() => root.setFlag(element, templateData.checkbox.checked)));
+			templateData.checkbox.checked = root.getFlag(element.resourceType);
+			templateData.elementDisposables.add(templateData.checkbox.onChange(() => root.setFlag(element.resourceType, templateData.checkbox.checked)));
 		}
 	}
 
@@ -954,35 +941,32 @@ class NewProfileResourceTreeRenderer extends AbstractProfileResourceTreeRenderer
 		return { label, selectContainer, selectBox, disposables, elementDisposables: disposables.add(new DisposableStore()) };
 	}
 
-	renderElement({ element: profileResourceTreeElement }: ITreeNode<ProfileResourceTreeElement, void>, index: number, templateData: INewProfileResourceTemplateData, height: number | undefined): void {
+	renderElement({ element: profileResourceTreeElement }: ITreeNode<ProfileResourceTypeTreeElement, void>, index: number, templateData: INewProfileResourceTemplateData, height: number | undefined): void {
 		templateData.elementDisposables.clear();
 		const { element, root } = profileResourceTreeElement;
 		if (!(root instanceof NewProfileElement)) {
 			throw new Error('NewProfileResourceTreeRenderer can only render new profile element');
 		}
-		if (!isString(element)) {
-			throw new Error('NewProfileResourceTreeRenderer can only profile resoyrce types');
-		}
-		templateData.label.textContent = this.getResourceTypeTitle(element);
+		templateData.label.textContent = this.getResourceTypeTitle(element.resourceType);
 		if (root.copyFrom) {
 			templateData.selectBox.setOptions([
 				{ text: localize('empty', "Empty") },
 				{ text: localize('copy', "Copy") },
 				{ text: localize('default', "Use Default Profile") }
 			]);
-			templateData.selectBox.select(root.getCopyFlag(element) ? 1 : root.getFlag(element) ? 2 : 0);
+			templateData.selectBox.select(root.getCopyFlag(element.resourceType) ? 1 : root.getFlag(element.resourceType) ? 2 : 0);
 			templateData.elementDisposables.add(templateData.selectBox.onDidSelect(option => {
-				root.setFlag(element, option.index === 2);
-				root.setCopyFlag(element, option.index === 1);
+				root.setFlag(element.resourceType, option.index === 2);
+				root.setCopyFlag(element.resourceType, option.index === 1);
 			}));
 		} else {
 			templateData.selectBox.setOptions([
 				{ text: localize('empty', "Empty") },
 				{ text: localize('default', "Use Default Profile") }
 			]);
-			templateData.selectBox.select(root.getFlag(element) ? 1 : 0);
+			templateData.selectBox.select(root.getFlag(element.resourceType) ? 1 : 0);
 			templateData.elementDisposables.add(templateData.selectBox.onDidSelect(option => {
-				root.setFlag(element, option.index === 1);
+				root.setFlag(element.resourceType, option.index === 1);
 			}));
 		}
 		templateData.selectBox.setEnabled(!root.disabled);
@@ -1014,12 +998,10 @@ class ProfileResourceChildTreeItemRenderer extends AbstractProfileResourceTreeRe
 		return { checkbox, resourceLabel, disposables, elementDisposables: disposables.add(new DisposableStore()) };
 	}
 
-	renderElement({ element: profileResourceTreeElement }: ITreeNode<ProfileResourceTreeElement, void>, index: number, templateData: IProfileResourceChildTreeItemTemplateData, height: number | undefined): void {
+	renderElement({ element: profileResourceTreeElement }: ITreeNode<ProfileResourceChildTreeElement, void>, index: number, templateData: IProfileResourceChildTreeItemTemplateData, height: number | undefined): void {
 		templateData.elementDisposables.clear();
 		const { element } = profileResourceTreeElement;
-		if (isString(element)) {
-			throw new Error('NewProfileResourceTreeRenderer can only render profile resource child tree items');
-		}
+
 		if (element.checkbox) {
 			templateData.checkbox.domNode.classList.remove('hide');
 			templateData.checkbox.checked = element.checkbox.isChecked;
@@ -1031,16 +1013,15 @@ class ProfileResourceChildTreeItemRenderer extends AbstractProfileResourceTreeRe
 			templateData.checkbox.domNode.classList.add('hide');
 		}
 
-		const resource = URI.revive(element.resourceUri);
 		templateData.resourceLabel.setResource(
 			{
-				name: resource ? basename(resource) : element.label?.label,
-				description: isString(element.description) ? element.description : undefined,
-				resource
+				name: element.resource ? basename(element.resource) : element.label,
+				resource: element.resource
 			},
 			{
 				forceLabel: true,
-				hideIcon: !resource,
+				icon: element.icon,
+				hideIcon: !element.resource && !element.icon,
 			});
 	}
 

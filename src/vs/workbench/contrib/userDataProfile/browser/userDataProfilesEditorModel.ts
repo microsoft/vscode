@@ -28,6 +28,10 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { ITreeItemCheckboxState } from 'vs/workbench/common/views';
+import { API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export type ChangeEvent = {
 	readonly name?: boolean;
@@ -40,6 +44,22 @@ export type ChangeEvent = {
 	readonly preview?: boolean;
 	readonly disabled?: boolean;
 };
+
+export interface IUserDataProfileChildElement {
+	readonly handle: string;
+	readonly checkbox?: ITreeItemCheckboxState;
+	readonly action?: IAction;
+}
+
+export interface IUserDataProfileResourceElement extends IUserDataProfileChildElement {
+	readonly resourceType: ProfileResourceType;
+}
+
+export interface IUserDataProfileResourceChildElement extends IUserDataProfileChildElement {
+	readonly label: string;
+	readonly resource?: URI;
+	readonly icon?: ThemeIcon;
+}
 
 export abstract class AbstractUserDataProfileElement extends Disposable {
 
@@ -55,6 +75,7 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 		isActive: boolean,
 		@IUserDataProfileManagementService protected readonly userDataProfileManagementService: IUserDataProfileManagementService,
 		@IUserDataProfilesService protected readonly userDataProfilesService: IUserDataProfilesService,
+		@ICommandService protected readonly commandService: ICommandService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 	) {
 		super();
@@ -156,25 +177,65 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 		this.message = undefined;
 	}
 
-	async getChildren(resourceType: ProfileResourceType): Promise<IProfileResourceChildTreeItem[]> {
+	async getChildren(resourceType?: ProfileResourceType): Promise<IUserDataProfileChildElement[]> {
+		if (resourceType === undefined) {
+			const resourceTypes = [
+				ProfileResourceType.Settings,
+				ProfileResourceType.Keybindings,
+				ProfileResourceType.Tasks,
+				ProfileResourceType.Snippets,
+				ProfileResourceType.Extensions
+			];
+			return resourceTypes.map<IUserDataProfileResourceElement>(resourceType => ({
+				handle: resourceType,
+				checkbox: undefined,
+				resourceType,
+				action: resourceType === ProfileResourceType.Settings
+					|| resourceType === ProfileResourceType.Keybindings
+					|| resourceType === ProfileResourceType.Tasks
+					? new Action('_open', '', undefined, true, async () => {
+						const children = await this.getChildren(resourceType);
+						children[0]?.action?.run();
+					}) : undefined
+			}));
+		}
 		return [];
 	}
 
-	protected async getChildrenFromProfile(profile: IUserDataProfile, resourceType: ProfileResourceType): Promise<IProfileResourceChildTreeItem[]> {
+	protected async getChildrenFromProfile(profile: IUserDataProfile, resourceType: ProfileResourceType): Promise<IUserDataProfileResourceChildElement[]> {
 		profile = this.getFlag(resourceType) ? this.userDataProfilesService.defaultProfile : profile;
+		let children: IProfileResourceChildTreeItem[] = [];
 		switch (resourceType) {
 			case ProfileResourceType.Settings:
-				return this.instantiationService.createInstance(SettingsResourceTreeItem, profile).getChildren();
+				children = await this.instantiationService.createInstance(SettingsResourceTreeItem, profile).getChildren();
+				break;
 			case ProfileResourceType.Keybindings:
-				return this.instantiationService.createInstance(KeybindingsResourceTreeItem, profile).getChildren();
+				children = await this.instantiationService.createInstance(KeybindingsResourceTreeItem, profile).getChildren();
+				break;
 			case ProfileResourceType.Snippets:
-				return (await this.instantiationService.createInstance(SnippetsResourceTreeItem, profile).getChildren()) ?? [];
+				children = (await this.instantiationService.createInstance(SnippetsResourceTreeItem, profile).getChildren()) ?? [];
+				break;
 			case ProfileResourceType.Tasks:
-				return this.instantiationService.createInstance(TasksResourceTreeItem, profile).getChildren();
+				children = await this.instantiationService.createInstance(TasksResourceTreeItem, profile).getChildren();
+				break;
 			case ProfileResourceType.Extensions:
-				return this.instantiationService.createInstance(ExtensionsResourceExportTreeItem, profile).getChildren();
+				children = await this.instantiationService.createInstance(ExtensionsResourceExportTreeItem, profile).getChildren();
+				break;
 		}
-		return [];
+		return children.map<IUserDataProfileResourceChildElement>(child => ({
+			handle: child.handle,
+			checkbox: child.checkbox,
+			label: child.label?.label ?? '',
+			resource: URI.revive(child.resourceUri),
+			icon: child.themeIcon,
+			action: new Action('_openChild', '', undefined, true, async () => {
+				if (resourceType === ProfileResourceType.Extensions) {
+					await this.commandService.executeCommand('extension.open', child.handle, undefined, true, undefined, true);
+				} else if (child.resourceUri) {
+					await this.commandService.executeCommand(API_OPEN_EDITOR_COMMAND_ID, child.resourceUri, [SIDE_GROUP], undefined);
+				}
+			})
+		}));
 	}
 
 	protected getInitialName(): string {
@@ -239,6 +300,7 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement {
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IUserDataProfileManagementService userDataProfileManagementService: IUserDataProfileManagementService,
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
+		@ICommandService commandService: ICommandService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super(
@@ -248,6 +310,7 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement {
 			userDataProfileService.currentProfile.id === _profile.id,
 			userDataProfileManagementService,
 			userDataProfilesService,
+			commandService,
 			instantiationService,
 		);
 		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => this.active = this.userDataProfileService.currentProfile.id === this.profile.id));
@@ -266,7 +329,10 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement {
 		await this.saveProfile(this.profile);
 	}
 
-	override async getChildren(resourceType: ProfileResourceType): Promise<IProfileResourceChildTreeItem[]> {
+	override async getChildren(resourceType?: ProfileResourceType): Promise<IUserDataProfileChildElement[]> {
+		if (resourceType === undefined) {
+			return super.getChildren(resourceType);
+		}
 		return this.getChildrenFromProfile(this.profile, resourceType);
 	}
 
@@ -291,6 +357,7 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 		@IUserDataProfileImportExportService private readonly userDataProfileImportExportService: IUserDataProfileImportExportService,
 		@IUserDataProfileManagementService userDataProfileManagementService: IUserDataProfileManagementService,
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
+		@ICommandService commandService: ICommandService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super(
@@ -300,6 +367,7 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 			false,
 			userDataProfileManagementService,
 			userDataProfilesService,
+			commandService,
 			instantiationService,
 		);
 		this._copyFrom = copyFrom;
@@ -356,7 +424,10 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 		this.copyFlags = flags;
 	}
 
-	override async getChildren(resourceType: ProfileResourceType): Promise<IProfileResourceChildTreeItem[]> {
+	override async getChildren(resourceType?: ProfileResourceType): Promise<IUserDataProfileChildElement[]> {
+		if (resourceType === undefined) {
+			return super.getChildren(resourceType);
+		}
 		if (this.getFlag(resourceType)) {
 			return this.getChildrenFromProfile(this.userDataProfilesService.defaultProfile, resourceType);
 		}
@@ -376,7 +447,7 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 		return [];
 	}
 
-	private async getChildrenFromProfileTemplate(profileTemplate: IUserDataProfileTemplate, resourceType: ProfileResourceType): Promise<IProfileResourceChildTreeItem[]> {
+	private async getChildrenFromProfileTemplate(profileTemplate: IUserDataProfileTemplate, resourceType: ProfileResourceType): Promise<IUserDataProfileResourceChildElement[]> {
 		const profile = toUserDataProfile(generateUuid(), this.name, URI.file('/root').with({ scheme: USER_DATA_PROFILE_TEMPLATE_PREVIEW_SCHEME }), URI.file('/cache').with({ scheme: USER_DATA_PROFILE_TEMPLATE_PREVIEW_SCHEME }));
 		switch (resourceType) {
 			case ProfileResourceType.Settings:
@@ -401,7 +472,17 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 				return this.getChildrenFromProfile(profile, resourceType);
 			case ProfileResourceType.Extensions:
 				if (profileTemplate.extensions) {
-					return this.instantiationService.createInstance(ExtensionsResourceImportTreeItem, profileTemplate.extensions).getChildren();
+					const children = await this.instantiationService.createInstance(ExtensionsResourceImportTreeItem, profileTemplate.extensions).getChildren();
+					return children.map<IUserDataProfileResourceChildElement>(child => ({
+						handle: child.handle,
+						checkbox: child.checkbox,
+						label: child.label?.label ?? '',
+						resource: URI.revive(child.resourceUri),
+						icon: child.themeIcon,
+						action: new Action('_openExtension', '', undefined, true, async () => {
+							await this.commandService.executeCommand('extension.open', child.handle, undefined, true, undefined, true);
+						})
+					}));
 				}
 		}
 		return [];
@@ -504,21 +585,22 @@ export class UserDataProfilesEditorModel extends EditorModel {
 		const copyFromProfileAction = disposables.add(new Action('userDataProfile.copyFromProfile', localize('copyFromProfile', "Save As..."), ThemeIcon.asClassName(Codicon.copy), true, () => this.createNewProfile(profile)));
 		const exportAction = disposables.add(new Action('userDataProfile.export', localize('export', "Export..."), ThemeIcon.asClassName(Codicon.export), true, () => this.exportProfile(profile)));
 		const deleteAction = disposables.add(new Action('userDataProfile.delete', localize('delete', "Delete"), ThemeIcon.asClassName(Codicon.trash), true, () => this.removeProfile(profile)));
+		const newWindowAction = disposables.add(new Action('userDataProfile.newWindow', localize('new window', "New Window"), ThemeIcon.asClassName(Codicon.emptyWindow), true, () => this.openWindow(profile)));
 
 		const titlePrimaryActions: IAction[] = [];
-		if (!profile.isTransient) {
-			titlePrimaryActions.push(activateAction);
-		}
+		titlePrimaryActions.push(copyFromProfileAction);
 		titlePrimaryActions.push(exportAction);
 		if (!profile.isDefault) {
 			titlePrimaryActions.push(deleteAction);
 		}
 
 		const titleSecondaryActions: IAction[] = [];
-		titleSecondaryActions.push(copyFromProfileAction);
+		titleSecondaryActions.push(activateAction);
+		titleSecondaryActions.push(newWindowAction);
 
 		const secondaryActions: IAction[] = [];
 		secondaryActions.push(activateAction);
+		secondaryActions.push(newWindowAction);
 		secondaryActions.push(new Separator());
 		secondaryActions.push(copyFromProfileAction);
 		secondaryActions.push(exportAction);
@@ -610,7 +692,7 @@ export class UserDataProfilesEditorModel extends EditorModel {
 		const profile = await this.saveNewProfile(true, token);
 		if (profile) {
 			this.newProfileElement.previewProfile = profile;
-			await this.hostService.openWindow({ forceProfile: profile.name });
+			await this.openWindow(profile);
 		}
 	}
 
@@ -708,6 +790,10 @@ export class UserDataProfilesEditorModel extends EditorModel {
 		if (result.confirmed) {
 			await this.userDataProfileManagementService.removeProfile(profile);
 		}
+	}
+
+	private async openWindow(profile: IUserDataProfile): Promise<void> {
+		await this.hostService.openWindow({ forceProfile: profile.name });
 	}
 
 	private async exportProfile(profile: IUserDataProfile): Promise<void> {
