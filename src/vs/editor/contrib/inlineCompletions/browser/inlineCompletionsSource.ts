@@ -76,7 +76,7 @@ export class InlineCompletionsSource extends Disposable {
 				this.languageConfigurationService
 			);
 
-			if (source.token.isCancellationRequested || this.textModel.getVersionId() !== request.versionId) {
+			if (source.token.isCancellationRequested || this._store.isDisposed || this.textModel.getVersionId() !== request.versionId) {
 				return false;
 			}
 
