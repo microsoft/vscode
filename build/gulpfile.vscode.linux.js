@@ -117,13 +117,15 @@ function prepareDebPackage(arch) {
 /**
  * @param {string} arch
  */
-async function buildDebPackage(arch) {
+function buildDebPackage(arch) {
 	const debArch = getDebPackageArch(arch);
 	const cwd = `.build/linux/deb/${debArch}`;
 
-	await exec(`chmod 755 ${product.applicationName}-${debArch}/DEBIAN/postinst ${product.applicationName}-${debArch}/DEBIAN/prerm ${product.applicationName}-${debArch}/DEBIAN/postrm`, { cwd });
-	await exec('mkdir -p deb', { cwd });
-	await exec(`fakeroot dpkg-deb -b ${product.applicationName}-${debArch} deb`, { cwd });
+	return async () => {
+		await exec(`chmod 755 ${product.applicationName}-${debArch}/DEBIAN/postinst ${product.applicationName}-${debArch}/DEBIAN/prerm ${product.applicationName}-${debArch}/DEBIAN/postrm`, { cwd });
+		await exec('mkdir -p deb', { cwd });
+		await exec(`fakeroot dpkg-deb -b ${product.applicationName}-${debArch} deb`, { cwd });
+	};
 }
 
 /**
@@ -218,15 +220,17 @@ function prepareRpmPackage(arch) {
 /**
  * @param {string} arch
  */
-async function buildRpmPackage(arch) {
+function buildRpmPackage(arch) {
 	const rpmArch = getRpmPackageArch(arch);
 	const rpmBuildPath = getRpmBuildPath(rpmArch);
 	const rpmOut = `${rpmBuildPath}/RPMS/${rpmArch}`;
 	const destination = `.build/linux/rpm/${rpmArch}`;
 
-	await exec(`mkdir -p ${destination}`);
-	await exec(`HOME="$(pwd)/${destination}" rpmbuild -bb ${rpmBuildPath}/SPECS/${product.applicationName}.spec --target=${rpmArch}`);
-	await exec(`cp "${rpmOut}/$(ls ${rpmOut})" ${destination}/`);
+	return async () => {
+		await exec(`mkdir -p ${destination}`);
+		await exec(`HOME="$(pwd)/${destination}" rpmbuild -bb ${rpmBuildPath}/SPECS/${product.applicationName}.spec --target=${rpmArch}`);
+		await exec(`cp "${rpmOut}/$(ls ${rpmOut})" ${destination}/`);
+	};
 }
 
 /**
@@ -286,9 +290,9 @@ function prepareSnapPackage(arch) {
 /**
  * @param {string} arch
  */
-async function buildSnapPackage(arch) {
+function buildSnapPackage(arch) {
 	const cwd = getSnapBuildPath(arch);
-	await exec('snapcraft', { cwd });
+	return () => exec('snapcraft', { cwd });
 }
 
 const BUILD_TARGETS = [
