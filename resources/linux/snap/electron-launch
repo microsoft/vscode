@@ -106,6 +106,7 @@ copy_env_variable GDK_BACKEND
 copy_env_variable GTK_PATH
 copy_env_variable GTK_EXE_PREFIX
 copy_env_variable GTK_IM_MODULE_FILE
+copy_env_variable LIBGL_DRIVERS_PATH
 
 # XDG Config
 prepend_dir XDG_CONFIG_DIRS "$SNAP/etc/xdg"
@@ -123,6 +124,11 @@ ensure_dir_exists "$XDG_DATA_HOME"
 # Workaround for GLib < 2.53.2 not searching for schemas in $XDG_DATA_HOME:
 #   https://bugzilla.gnome.org/show_bug.cgi?id=741335
 prepend_dir XDG_DATA_DIRS "$XDG_DATA_HOME"
+
+# Use the snap MESA drivers to launch the snap.
+# This is required by wayland, but electron will make better use under X11 too
+prepend_dir LIBGL_DRIVERS_PATH "$SNAP/usr/lib/dri"
+prepend_dir LIBGL_DRIVERS_PATH "$SNAP/usr/lib/$ARCH/dri"
 
 # Set cache folder to local path
 if [[ -d "$SNAP_USER_DATA/.cache" && ! -e "$SNAP_USER_COMMON/.cache" ]]; then
