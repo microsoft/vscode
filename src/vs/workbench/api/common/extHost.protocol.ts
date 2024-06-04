@@ -147,6 +147,7 @@ export interface MainThreadCommentsShape extends IDisposable {
 	$updateCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, changes: CommentThreadChanges): void;
 	$deleteCommentThread(handle: number, commentThreadHandle: number): void;
 	$updateCommentingRanges(handle: number, resourceHints?: languages.CommentingRangeResourceHint): void;
+	$revealCommentThread(handle: number, commentThreadHandle: number, options: languages.CommentThreadRevealOptions): Promise<void>;
 }
 
 export interface AuthenticationForceNewSessionOptions {
