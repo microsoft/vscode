@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/scm';
-import { IDisposable, DisposableStore, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
+import { autorun } from 'vs/base/common/observable';
 import { append, $ } from 'vs/base/browser/dom';
 import { ISCMProvider, ISCMRepository, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
@@ -109,28 +110,17 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 			templateData.toolBar.setActions([...statusPrimaryActions, ...menuPrimaryActions], menuSecondaryActions);
 		};
 
-		const onDidChangeProvider = () => {
-			const commands = repository.provider.statusBarCommands || [];
+		templateData.elementDisposables.add(autorun(reader => {
+			const commands = repository.provider.statusBarCommandsObs.read(reader) ?? [];
 			statusPrimaryActions = commands.map(c => new StatusBarAction(c, this.commandService));
 			updateToolbar();
-
-			const count = repository.provider.count || 0;
-			templateData.countContainer.setAttribute('data-count', String(count));
-			templateData.count.setCount(count);
-		};
-
-		// TODO@joao TODO@lszomoru
-		let disposed = false;
-		templateData.elementDisposables.add(toDisposable(() => disposed = true));
-		templateData.elementDisposables.add(repository.provider.onDidChange(() => {
-			if (disposed) {
-				return;
-			}
-
-			onDidChangeProvider();
 		}));
 
-		onDidChangeProvider();
+		templateData.elementDisposables.add(autorun(reader => {
+			const count = repository.provider.countObs.read(reader) ?? 0;
+			templateData.countContainer.setAttribute('data-count', String(count));
+			templateData.count.setCount(count);
+		}));
 
 		const repositoryMenus = this.scmViewService.menus.getRepositoryMenus(repository.provider);
 		const menu = this.toolbarMenuId === MenuId.SCMTitle ? repositoryMenus.titleMenu.menu : repositoryMenus.repositoryMenu;

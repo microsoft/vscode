@@ -29,8 +29,6 @@ import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLa
 import { OS } from 'vs/base/common/platform';
 import { status } from 'vs/base/browser/ui/aria/aria';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions, IConfigurationMigrationRegistry } from 'vs/workbench/common/configuration';
 import { LOG_MODE_ID, OUTPUT_MODE_ID } from 'vs/workbench/services/output/common/output';
 import { SEARCH_RESULT_LANGUAGE_ID } from 'vs/workbench/services/search/common/search';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
@@ -38,23 +36,6 @@ import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { ChatAgentLocation, IChatAgent, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 
 const $ = dom.$;
-
-// TODO@joyceerhl remove this after a few iterations
-Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
-	.registerConfigurationMigrations([{
-		key: 'workbench.editor.untitled.hint',
-		migrateFn: (value, _accessor) => ([
-			[emptyTextEditorHintSetting, { value }],
-			['workbench.editor.untitled.hint', { value: undefined }]
-		])
-	},
-	{
-		key: 'accessibility.verbosity.untitledHint',
-		migrateFn: (value, _accessor) => ([
-			[AccessibilityVerbositySettingId.EmptyEditorHint, { value }],
-			['accessibility.verbosity.untitledHint', { value: undefined }]
-		])
-	}]);
 
 export interface IEmptyTextEditorHintOptions {
 	readonly clickable?: boolean;
@@ -218,6 +199,12 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 		return EmptyTextEditorHintContentWidget.ID;
 	}
 
+	private _disableHint() {
+		this.configurationService.updateValue(emptyTextEditorHintSetting, 'hidden');
+		this.dispose();
+		this.editor.focus();
+	}
+
 	private _getHintInlineChat(providers: IChatAgent[]) {
 		const providerName = (providers.length === 1 ? providers[0].fullName : undefined) ?? this.productService.nameShort;
 
@@ -257,6 +244,7 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 					const hintPart = $('a', undefined, fragment);
 					hintPart.style.fontStyle = 'italic';
 					hintPart.style.cursor = 'pointer';
+					this.toDispose.add(dom.addDisposableListener(label.element, dom.EventType.CONTEXT_MENU, () => this._disableHint()));
 					this.toDispose.add(dom.addDisposableListener(hintPart, dom.EventType.CLICK, handleClick));
 					return hintPart;
 				} else {
@@ -275,6 +263,7 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 
 			if (this.options.clickable) {
 				label.element.style.cursor = 'pointer';
+				this.toDispose.add(dom.addDisposableListener(label.element, dom.EventType.CONTEXT_MENU, () => this._disableHint()));
 				this.toDispose.add(dom.addDisposableListener(label.element, dom.EventType.CLICK, handleClick));
 			}
 
@@ -297,7 +286,7 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 			hintElement.appendChild(rendered);
 		}
 
-		return { ariaLabel, hintHandler, hintElement };
+		return { ariaLabel, hintElement };
 	}
 
 	private _getHintDefault() {
@@ -315,7 +304,7 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 						chooseEditorOnClickOrTap(event.browserEvent);
 						break;
 					case '3':
-						dontShowOnClickOrTap();
+						this._disableHint();
 						break;
 				}
 			}
@@ -358,12 +347,6 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 			if (newEditorSelected && activeEditorInput !== null && activeEditorInput.resource?.scheme === Schemas.untitled) {
 				this.editorGroupsService.activeGroup.closeEditor(activeEditorInput, { preserveFocus: true });
 			}
-		};
-
-		const dontShowOnClickOrTap = () => {
-			this.configurationService.updateValue(emptyTextEditorHintSetting, 'hidden');
-			this.dispose();
-			this.editor.focus();
 		};
 
 		const hintMsg = localize({
