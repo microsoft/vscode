@@ -38,9 +38,9 @@ export class ChatContextAttachments extends Disposable implements IChatWidgetCon
 		return [...this._attachedContext.values()];
 	}
 
-	setInputState(s: IChatRequestVariableEntry[]): void {
+	setInputState(s: any): void {
 		if (!Array.isArray(s)) {
-			return;
+			s = [];
 		}
 
 		this._attachedContext.clear();
@@ -69,6 +69,7 @@ export class ChatContextAttachments extends Disposable implements IChatWidgetCon
 
 	private _removeContext(attachment: IChatRequestVariableEntry) {
 		this._attachedContext.delete(attachment);
+		this._onDidChangeInputState.fire();
 	}
 
 	private _clearAttachedContext() {

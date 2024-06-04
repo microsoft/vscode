@@ -45,7 +45,6 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 	constructor(
 		private readonly widget: IChatWidget,
 		@ILabelService private readonly labelService: ILabelService,
-		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 		this._register(widget.inputEditor.onDidChangeModelContent(e => {
@@ -96,9 +95,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 
 	setInputState(s: any): void {
 		if (!Array.isArray(s)) {
-			// Something went wrong
-			this.logService.warn('ChatDynamicVariableModel.setInputState called with invalid state: ' + JSON.stringify(s));
-			return;
+			s = [];
 		}
 
 		this._variables = s;

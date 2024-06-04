@@ -133,7 +133,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private history: HistoryNavigator2<IChatHistoryEntry>;
 	private historyNavigationBackwardsEnablement!: IContextKey<boolean>;
 	private historyNavigationForewardsEnablement!: IContextKey<boolean>;
-	private onHistoryEntry = false;
 	private inHistoryNavigation = false;
 	private inputModel: ITextModel | undefined;
 	private inputEditorHasText: IContextKey<boolean>;
@@ -170,8 +169,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (history.length === 0) {
 			history.push({ text: '' });
 		}
-		this.history = new HistoryNavigator2(history, 50);
-		this._register(this.historyService.onDidClearHistory(() => this.history = new HistoryNavigator2([{ text: '' }], 50)));
+
+		const historyKeyFn = (entry: IChatHistoryEntry) => JSON.stringify(entry);
+		this.history = new HistoryNavigator2(history, 50, historyKeyFn);
+		this._register(this.historyService.onDidClearHistory(() => this.history = new HistoryNavigator2([{ text: '' }], 50, historyKeyFn)));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AccessibilityVerbositySettingId.Chat)) {
@@ -197,8 +198,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		if (typeof inputValue === 'string') {
-			this.setValue(inputValue);
+			this.setValue(inputValue, true);
 		}
+
+		const newEntry = { text: this._inputEditor.getValue(), state: inputState };
+		this.history.replaceLast(newEntry);
+		this.history.resetCursor();
 	}
 
 	setVisible(visible: boolean): void {
@@ -210,13 +215,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	showPreviousValue(): void {
-		const newEntry = { text: this._inputEditor.getValue(), state: this.currentInputState };
 		if (this.history.isAtEnd()) {
-			this.history.replaceLast(newEntry);
+			this.saveCurrentValue();
 		} else {
-			const existingEntry = [...this.history].find(candidate => candidate.text === newEntry.text);
-			if (!existingEntry) {
-				this.history.replaceLast(newEntry);
+			if (!this.history.has({ text: this._inputEditor.getValue(), state: this.history.current().state })) {
+				this.saveCurrentValue();
 				this.history.resetCursor();
 			}
 		}
@@ -225,13 +228,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	showNextValue(): void {
-		const newEntry = { text: this._inputEditor.getValue(), state: this.currentInputState };
 		if (this.history.isAtEnd()) {
 			return;
 		} else {
-			const existingEntry = [...this.history].find(candidate => candidate.text === newEntry.text);
-			if (!existingEntry) {
-				this.history.replaceLast(newEntry);
+			if (!this.history.has({ text: this._inputEditor.getValue(), state: this.history.current().state })) {
+				this.saveCurrentValue();
 				this.history.resetCursor();
 			}
 		}
@@ -246,7 +247,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		aria.status(historyEntry.text);
 
 		this.inHistoryNavigation = true;
-		this.setValue(historyEntry.text);
+		this.setValue(historyEntry.text, true);
 		this.inHistoryNavigation = false;
 
 		this.currentInputState = historyEntry.state;
@@ -263,10 +264,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
-	setValue(value: string): void {
+	setValue(value: string, transient: boolean): void {
 		this.inputEditor.setValue(value);
 		// always leave cursor at the end
 		this.inputEditor.setPosition({ lineNumber: 1, column: value.length + 1 });
+
+		if (!transient) {
+			this.saveCurrentValue();
+		}
+	}
+
+	private saveCurrentValue(): void {
+		const newEntry = { text: this._inputEditor.getValue(), state: this.history.current().state };
+		this.history.replaceLast(newEntry);
 	}
 
 	focus() {
@@ -277,18 +287,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._inputEditor.hasWidgetFocus();
 	}
 
-	private addToHistory(query: string): void {
-		// TODO also consider state
-		let element = [...this.history].find(candidate => candidate.text === query);
-		if (!element) {
-			element = { text: query, state: this.currentInputState };
-		} else {
-			// TODO only add to history if state changed?
-			element.state = this.currentInputState;
-		}
-		this.history.add(element);
-	}
-
 	/**
 	 * Reset the input and update history.
 	 * @param userQuery If provided, this will be added to the history. Followups and programmatic queries should not be passed.
@@ -297,8 +295,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// TODO pass boolean, not string
 		if (isUserQuery) {
 			const userQuery = this._inputEditor.getValue();
-			this.addToHistory(userQuery);
-			this.addToHistory('');
+			const entry: IChatHistoryEntry = { text: userQuery, state: this.currentInputState };
+			this.history.replaceLast(entry);
+			this.history.add({ text: '' });
 		}
 
 		this.currentInputState = {};
@@ -382,21 +381,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				this._onDidChangeHeight.fire();
 			}
 
-			// Only allow history navigation when the input is empty.
-			// (If this model change happened as a result of a history navigation, this is canceled out by a call in this.navigateHistory)
 			const model = this._inputEditor.getModel();
 			const inputHasText = !!model && model.getValue().trim().length > 0;
 			this.inputEditorHasText.set(inputHasText);
-
-			// If the user is typing on a history entry, then reset the onHistoryEntry flag so that history navigation can be disabled
-			// if (!this.inHistoryNavigation) {
-			// 	this.onHistoryEntry = false;
-			// }
-
-			// if (!this.onHistoryEntry) {
-			// 	this.historyNavigationForewardsEnablement.set(!inputHasText);
-			// 	this.historyNavigationBackwardsEnablement.set(!inputHasText);
-			// }
 		}));
 		this._register(this._inputEditor.onDidFocusEditorText(() => {
 			this.inputEditorHasFocus.set(true);
@@ -420,8 +407,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 			this.historyNavigationBackwardsEnablement.set(atTop);
 			this.historyNavigationForewardsEnablement.set(e.position.equals(getLastPosition(model)));
-			if (this.onHistoryEntry) {
-			}
 		}));
 
 		this.toolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, inputContainer, this.options.menus.executeToolbar, {
