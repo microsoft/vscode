@@ -202,28 +202,13 @@ export class MarkdownItEngine implements IMdParser {
 		this._slugCount = new Map<string, number>();
 	}
 
-	private _preprocessMarkdown(markdown: string): string {
-		const fencedMathRegex = /```math\s+([\s\S]*?)\s+```/g;
-		return markdown.replace(fencedMathRegex, (_, mathContent) => {
-			return `$$\n${mathContent}\n$$`;
-		});
-	}
-
-
 	public async render(input: ITextDocument | string, resourceProvider?: WebviewResourceProvider): Promise<RenderOutput> {
 		const config = this._getConfig(typeof input === 'string' ? undefined : input.uri);
 		const engine = await this._getEngine(config);
 
-		let content: string;
-
-		if (typeof input === "string") {
-			content = input;
-		} else {
-			content = input.getText();
-		}
-
-		const preprocessedContent = this._preprocessMarkdown(content);
-		const tokens = this._tokenizeString(preprocessedContent, engine);
+		const tokens = typeof input === 'string'
+			? this._tokenizeString(input, engine)
+			: this._tokenizeDocument(input, config, engine);
 
 		const env: RenderEnv = {
 			containingImages: new Set<string>(),
