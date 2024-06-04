@@ -102,7 +102,6 @@ import { PixelRatio } from 'vs/base/browser/pixelRatio';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { PreventDefaultContextMenuItemsContextKeyName } from 'vs/workbench/contrib/webview/browser/webview.contribution';
 import { NotebookAccessibilityProvider } from 'vs/workbench/contrib/notebook/browser/notebookAccessibilityProvider';
-import { thenIfNotDisposed } from 'vs/workbench/contrib/mergeEditor/browser/utils';
 
 const $ = DOM.$;
 
