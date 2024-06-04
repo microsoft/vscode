@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import { IExtensionManagementService, DidUninstallExtensionEvent, ILocalExtension, InstallExtensionEvent, InstallExtensionResult, UninstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, DidUninstallExtensionEvent, ILocalExtension, InstallExtensionEvent, InstallExtensionResult, UninstallExtensionEvent, DidUpdateExtensionMetadata } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, ExtensionInstallLocation, IProfileAwareExtensionManagementService, DidChangeProfileEvent } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionEnablementService } from 'vs/workbench/services/extensionManagement/browser/extensionEnablementService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -70,7 +70,7 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 					onUninstallExtension: disposables.add(new Emitter<UninstallExtensionEvent>()).event,
 					onDidUninstallExtension: disposables.add(new Emitter<DidUninstallExtensionEvent>()).event,
 					onDidChangeProfile: disposables.add(new Emitter<DidChangeProfileEvent>()).event,
-					onDidUpdateExtensionMetadata: disposables.add(new Emitter<ILocalExtension>()).event,
+					onDidUpdateExtensionMetadata: disposables.add(new Emitter<DidUpdateExtensionMetadata>()).event,
 				},
 			}, null, null));
 		const extensionManagementService = disposables.add(instantiationService.createInstance(ExtensionManagementService));
@@ -456,7 +456,7 @@ suite('ExtensionEnablementService Test', () => {
 
 		await testObject.setEnablement([extension], EnablementState.DisabledWorkspace);
 		await testObject.setEnablement([extension], EnablementState.DisabledGlobally);
-		didUninstallEvent.fire({ identifier: { id: 'pub.a' } });
+		didUninstallEvent.fire({ identifier: { id: 'pub.a' }, profileLocation: null! });
 
 		assert.ok(testObject.isEnabled(extension));
 		assert.strictEqual(testObject.getEnablementState(extension), EnablementState.EnabledGlobally);

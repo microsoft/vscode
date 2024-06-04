@@ -78,6 +78,7 @@ export interface IWorkbenchExtensionManagementService extends IProfileAwareExten
 	installResourceExtension(extension: IResourceExtension, installOptions: InstallOptions): Promise<ILocalExtension>;
 
 	updateFromGallery(gallery: IGalleryExtension, extension: ILocalExtension, installOptions?: InstallOptions): Promise<ILocalExtension>;
+	updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>): Promise<ILocalExtension>;
 }
 
 export const extensionsConfigurationNodeBase = {

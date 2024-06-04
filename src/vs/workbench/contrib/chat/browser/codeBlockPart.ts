@@ -690,6 +690,7 @@ export class CodeCompareBlockPart extends Disposable {
 		this.layout(width);
 		this.diffEditor.updateOptions({ ariaLabel: localize('chat.compareCodeBlockLabel', "Code Edits") });
 
+		this.toolbar1.clear();
 		this.toolbar1.push(toAction({
 			label: basename(data.edit.uri),
 			tooltip: localize('chat.edit.tooltip', "Open '{0}'", this.labelService.getUriLabel(data.edit.uri, { relative: true })),
@@ -732,11 +733,12 @@ export class CodeCompareBlockPart extends Disposable {
 			const uriLabel = this.labelService.getUriLabel(data.edit.uri, { relative: true, noPrefix: true });
 
 			const template = data.edit.state.applied > 1
-				? localize('chat.edits.N', "Made {0} changes in [[{1}]]", data.edit.state.applied, uriLabel)
-				: localize('chat.edits.1', "Made 1 change in [[{0}]]", uriLabel);
+				? localize('chat.edits.N', "Made {0} changes in [[``{1}``]]", data.edit.state.applied, uriLabel)
+				: localize('chat.edits.1', "Made 1 change in [[``{0}``]]", uriLabel);
 
 
 			const message = renderFormattedText(template, {
+				renderCodeSegments: true,
 				actionHandler: {
 					callback: () => {
 						this.openerService.open(data.edit.uri, { fromUserGesture: true, allowCommands: false });
