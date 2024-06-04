@@ -366,11 +366,7 @@ class ProfileElementRenderer implements IListRenderer<AbstractUserDataProfileEle
 		templateData.disposables.clear();
 		templateData.label.textContent = element.name;
 		templateData.label.classList.toggle('new-profile', element instanceof NewProfileElement);
-		if (element.icon) {
-			templateData.icon.className = ThemeIcon.asClassName(ThemeIcon.fromId(element.icon));
-		} else {
-			templateData.icon.className = 'hide';
-		}
+		templateData.icon.className = ThemeIcon.asClassName(element.icon ? ThemeIcon.fromId(element.icon) : DEFAULT_ICON);
 		templateData.description.classList.toggle('hide', !element.active);
 		if (element.onDidChange) {
 			templateData.disposables.add(element.onDidChange(e => {
@@ -402,6 +398,8 @@ class ProfileWidget extends Disposable {
 	private readonly toolbar: WorkbenchToolBar;
 	private readonly buttonContainer: HTMLElement;
 	private readonly iconElement: HTMLElement;
+	private readonly useAsDefaultProfileContainer: HTMLElement;
+	private readonly useAsDefaultProfileCheckbox: Checkbox;
 	private readonly nameInput: InputBox;
 	private readonly copyFromContainer: HTMLElement;
 	private readonly copyFromSelectBox: SelectBox;
@@ -485,7 +483,7 @@ class ProfileWidget extends Disposable {
 		const body = append(parent, $('.profile-body'));
 
 		this.copyFromContainer = append(body, $('.profile-copy-from-container'));
-		append(this.copyFromContainer, $('.profile-copy-from-label', undefined, localize('create from', "Copy from:")));
+		append(this.copyFromContainer, $('.profile-copy-from-label', undefined, localize('create from', "Copy from")));
 		this.copyFromSelectBox = this._register(this.instantiationService.createInstance(SelectBox,
 			[],
 			0,
@@ -498,8 +496,21 @@ class ProfileWidget extends Disposable {
 		));
 		this.copyFromSelectBox.render(append(this.copyFromContainer, $('.profile-select-container')));
 
-		const contentsContainer = append(body, $('.profile-contents-container'));
-		append(contentsContainer, $('.profile-contents-label', undefined, localize('contents', "Contents")));
+		this.useAsDefaultProfileContainer = append(body, $('.profile-use-as-default-container'));
+		const useAsDefaultProfileTitle = localize('enable for new windows', "Enable this profile for new windows");
+		this.useAsDefaultProfileCheckbox = this._register(new Checkbox(useAsDefaultProfileTitle, false, defaultCheckboxStyles));
+		append(this.useAsDefaultProfileContainer, this.useAsDefaultProfileCheckbox.domNode);
+		const useAsDefaultProfileLabel = append(this.useAsDefaultProfileContainer, $('.profile-use-as-default-label', undefined, useAsDefaultProfileTitle));
+		this._register(this.useAsDefaultProfileCheckbox.onChange(() => {
+			if (this._profileElement.value?.element instanceof UserDataProfileElement) {
+				this._profileElement.value.element.toggleNewWindowProfile();
+			}
+		}));
+		this._register(addDisposableListener(useAsDefaultProfileLabel, EventType.CLICK, () => {
+			if (this._profileElement.value?.element instanceof UserDataProfileElement) {
+				this._profileElement.value.element.toggleNewWindowProfile();
+			}
+		}));
 
 		const delegate = new ProfileResourceTreeElementDelegate();
 		this.resourcesTree = this._register(this.instantiationService.createInstance(WorkbenchAsyncDataTree<AbstractUserDataProfileElement, ProfileResourceTreeElement>,
@@ -540,7 +551,7 @@ class ProfileWidget extends Disposable {
 				expandOnlyOnTwistieClick: true,
 				renderIndentGuides: RenderIndentGuides.None,
 				enableStickyScroll: false,
-				collapseByDefault: () => false
+				openOnSingleClick: false
 			}));
 		this._register(this.resourcesTree.onDidOpen(async (e) => {
 			if (!e.browserEvent) {
@@ -648,7 +659,6 @@ class ProfileWidget extends Disposable {
 		const profile = profileElement instanceof UserDataProfileElement ? profileElement.profile : undefined;
 		this.profileTitle.classList.toggle('hide', !profile?.isDefault);
 		this.nameInput.element.classList.toggle('hide', !!profile?.isDefault);
-		this.iconElement.classList.toggle('hide', !!profile?.isDefault);
 
 		this.resourcesTree.setInput(profileElement);
 		disposables.add(profileElement.onDidChange(e => {
@@ -725,6 +735,7 @@ class ProfileWidget extends Disposable {
 			this.iconElement.className = ThemeIcon.asClassName(ThemeIcon.fromId(DEFAULT_ICON.id));
 		}
 		if (profileElement instanceof NewProfileElement) {
+			this.useAsDefaultProfileContainer.classList.add('hide');
 			this.copyFromContainer.classList.remove('hide');
 			const id = profileElement.copyFrom instanceof URI ? profileElement.copyFrom.toString() : profileElement.copyFrom?.id;
 			const index = id
@@ -738,7 +749,9 @@ class ProfileWidget extends Disposable {
 				this.copyFromSelectBox.setOptions([{ text: basename(profileElement.copyFrom as URI) }]);
 				this.copyFromSelectBox.setEnabled(false);
 			}
-		} else {
+		} else if (profileElement instanceof UserDataProfileElement) {
+			this.useAsDefaultProfileContainer.classList.remove('hide');
+			this.useAsDefaultProfileCheckbox.checked = profileElement.isNewWindowProfile;
 			this.copyFromContainer.classList.add('hide');
 		}
 	}
