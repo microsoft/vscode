@@ -46,6 +46,7 @@ import { NOTEBOOK_EDITOR_FOCUSED, REPL_NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/work
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 
 type SerializedNotebookEditorData = { resource: URI; preferredResource: URI; viewType: string; options?: NotebookEditorInputOptions };
@@ -194,236 +195,247 @@ class ReplWindowWorkingCopyEditorHandler extends Disposable implements IWorkbenc
 registerWorkbenchContribution2(ReplWindowWorkingCopyEditorHandler.ID, ReplWindowWorkingCopyEditorHandler, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ReplDocumentContribution.ID, ReplDocumentContribution, WorkbenchPhase.BlockRestore);
 
+export class ReplActionsContribution extends Disposable implements IWorkbenchContribution {
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'repl.open',
-			title: localize2('repl.open', 'Open REPL Editor'),
-			category: 'REPL',
-			metadata: {
-				description: localize('repl.open', 'Open REPL Editor'),
-			}
-
-		});
+	constructor(@IConfigurationService configurationService: IConfigurationService) {
+		super();
+		if (configurationService.getValue('notebook.experimental.replView') === true) {
+			this._registerActions();
+		}
 	}
 
-	async run(accessor: ServicesAccessor) {
-		const resource = URI.from({ scheme: Schemas.untitled, path: 'repl.ipynb' });
-		const editorInput: IUntypedEditorInput = { resource, options: { override: 'repl' } };
-
-		const editorService = accessor.get(IEditorService);
-		await editorService.openEditor(editorInput, 1);
-	}
-});
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'replNotebook.input.execute',
-			title: localize2('replNotebook.input.execute', 'Execute the input box contents'),
-			keybinding: [{
-				when: ContextKeyExpr.and(
-					REPL_NOTEBOOK_IS_ACTIVE_EDITOR,
-					ContextKeyExpr.equals('config.interactiveWindow.executeWithShiftEnter', true)
-				),
-				primary: KeyMod.Shift | KeyCode.Enter,
-				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
-			}, {
-				when: ContextKeyExpr.and(
-					REPL_NOTEBOOK_IS_ACTIVE_EDITOR,
-					ContextKeyExpr.equals('config.interactiveWindow.executeWithShiftEnter', false)
-				),
-				primary: KeyCode.Enter,
-				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
-			}],
-			menu: [
-				{
-					id: MenuId.ReplInputExecute
-				}
-			],
-			icon: icons.executeIcon,
-			f1: false,
-			metadata: {
-				description: 'Execute the Contents of the Input Box',
-				args: [
-					{
-						name: 'resource',
-						description: 'Interactive resource Uri',
-						isOptional: true
+	private _registerActions(): void {
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: 'replNotebook.open',
+					title: localize2('repl.open', 'Open REPL Editor'),
+					category: 'REPL',
+					metadata: {
+						description: localize('repl.open', 'Open REPL Editor'),
 					}
-				]
+				});
+			}
+
+			async run(accessor: ServicesAccessor) {
+				const resource = URI.from({ scheme: Schemas.untitled, path: 'repl.ipynb' });
+				const editorInput: IUntypedEditorInput = { resource, options: { override: 'repl' } };
+
+				const editorService = accessor.get(IEditorService);
+				await editorService.openEditor(editorInput, 1);
 			}
 		});
-	}
 
-	async run(accessor: ServicesAccessor, context?: UriComponents): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const bulkEditService = accessor.get(IBulkEditService);
-		const historyService = accessor.get(IInteractiveHistoryService);
-		const notebookEditorService = accessor.get(INotebookEditorService);
-		let editorControl: { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
-		if (context) {
-			const resourceUri = URI.revive(context);
-			const editors = editorService.findEditors(resourceUri);
-			for (const found of editors) {
-				if (found.editor.typeId === ReplEditorInput.ID) {
-					const editor = await editorService.openEditor(found.editor, found.groupId);
-					editorControl = editor?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
-					break;
-				}
-			}
-		}
-		else {
-			editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
-		}
-
-		if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
-			const notebookDocument = editorControl.notebookEditor.textModel;
-			const textModel = editorControl.codeEditor.getModel();
-			const activeKernel = editorControl.notebookEditor.activeKernel;
-			const language = activeKernel?.supportedLanguages[0] ?? PLAINTEXT_LANGUAGE_ID;
-
-			if (notebookDocument && textModel) {
-				const index = notebookDocument.length - 1;
-				const value = textModel.getValue();
-
-				if (isFalsyOrWhitespace(value)) {
-					return;
-				}
-
-				historyService.addToHistory(notebookDocument.uri, value);
-				textModel.setValue('');
-				notebookDocument.cells[index].resetTextBuffer(textModel.getTextBuffer());
-
-				const collapseState = editorControl.notebookEditor.notebookOptions.getDisplayOptions().interactiveWindowCollapseCodeCells === 'fromEditor' ?
-					{
-						inputCollapsed: false,
-						outputCollapsed: false
-					} :
-					undefined;
-
-				await bulkEditService.apply([
-					new ResourceNotebookCellEdit(notebookDocument.uri,
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: 'replNotebook.input.execute',
+					title: localize2('replNotebook.input.execute', 'Execute the input box contents'),
+					keybinding: [{
+						when: ContextKeyExpr.and(
+							REPL_NOTEBOOK_IS_ACTIVE_EDITOR,
+							ContextKeyExpr.equals('config.interactiveWindow.executeWithShiftEnter', true)
+						),
+						primary: KeyMod.Shift | KeyCode.Enter,
+						weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
+					}, {
+						when: ContextKeyExpr.and(
+							REPL_NOTEBOOK_IS_ACTIVE_EDITOR,
+							ContextKeyExpr.equals('config.interactiveWindow.executeWithShiftEnter', false)
+						),
+						primary: KeyCode.Enter,
+						weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
+					}],
+					menu: [
 						{
-							editType: CellEditType.Replace,
-							index: index,
-							count: 0,
-							cells: [{
-								cellKind: CellKind.Code,
-								mime: undefined,
-								language,
-								source: value,
-								outputs: [],
-								metadata: {},
-								collapseState
-							}]
+							id: MenuId.ReplInputExecute
 						}
-					)
-				]);
+					],
+					icon: icons.executeIcon,
+					f1: false,
+					metadata: {
+						description: 'Execute the Contents of the Input Box',
+						args: [
+							{
+								name: 'resource',
+								description: 'Interactive resource Uri',
+								isOptional: true
+							}
+						]
+					}
+				});
+			}
 
-				// reveal the cell into view first
-				const range = { start: index, end: index + 1 };
-				editorControl.notebookEditor.revealCellRangeInView(range);
-				await editorControl.notebookEditor.executeNotebookCells(editorControl.notebookEditor.getCellsInRange({ start: index, end: index + 1 }));
+			async run(accessor: ServicesAccessor, context?: UriComponents): Promise<void> {
+				const editorService = accessor.get(IEditorService);
+				const bulkEditService = accessor.get(IBulkEditService);
+				const historyService = accessor.get(IInteractiveHistoryService);
+				const notebookEditorService = accessor.get(INotebookEditorService);
+				let editorControl: { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
+				if (context) {
+					const resourceUri = URI.revive(context);
+					const editors = editorService.findEditors(resourceUri);
+					for (const found of editors) {
+						if (found.editor.typeId === ReplEditorInput.ID) {
+							const editor = await editorService.openEditor(found.editor, found.groupId);
+							editorControl = editor?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
+							break;
+						}
+					}
+				}
+				else {
+					editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
+				}
 
-				// update the selection and focus in the extension host model
-				const editor = notebookEditorService.getNotebookEditor(editorControl.notebookEditor.getId());
-				if (editor) {
-					editor.setSelections([range]);
-					editor.setFocus(range);
+				if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
+					const notebookDocument = editorControl.notebookEditor.textModel;
+					const textModel = editorControl.codeEditor.getModel();
+					const activeKernel = editorControl.notebookEditor.activeKernel;
+					const language = activeKernel?.supportedLanguages[0] ?? PLAINTEXT_LANGUAGE_ID;
+
+					if (notebookDocument && textModel) {
+						const index = notebookDocument.length - 1;
+						const value = textModel.getValue();
+
+						if (isFalsyOrWhitespace(value)) {
+							return;
+						}
+
+						historyService.addToHistory(notebookDocument.uri, value);
+						textModel.setValue('');
+						notebookDocument.cells[index].resetTextBuffer(textModel.getTextBuffer());
+
+						const collapseState = editorControl.notebookEditor.notebookOptions.getDisplayOptions().interactiveWindowCollapseCodeCells === 'fromEditor' ?
+							{
+								inputCollapsed: false,
+								outputCollapsed: false
+							} :
+							undefined;
+
+						await bulkEditService.apply([
+							new ResourceNotebookCellEdit(notebookDocument.uri,
+								{
+									editType: CellEditType.Replace,
+									index: index,
+									count: 0,
+									cells: [{
+										cellKind: CellKind.Code,
+										mime: undefined,
+										language,
+										source: value,
+										outputs: [],
+										metadata: {},
+										collapseState
+									}]
+								}
+							)
+						]);
+
+						// reveal the cell into view first
+						const range = { start: index, end: index + 1 };
+						editorControl.notebookEditor.revealCellRangeInView(range);
+						await editorControl.notebookEditor.executeNotebookCells(editorControl.notebookEditor.getCellsInRange({ start: index, end: index + 1 }));
+
+						// update the selection and focus in the extension host model
+						const editor = notebookEditorService.getNotebookEditor(editorControl.notebookEditor.getId());
+						if (editor) {
+							editor.setSelections([range]);
+							editor.setFocus(range);
+						}
+					}
 				}
 			}
-		}
-	}
-});
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'replNotebook.input.clear',
-			title: localize2('replNotebook.input.clear', 'Clear the REPL input contents'),
-			f1: false,
-			keybinding: [{
-				when: ContextKeyExpr.and(
-					REPL_NOTEBOOK_IS_ACTIVE_EDITOR,
-					InputFocusedContext,
-					EditorContextKeys.writable,
-					EditorContextKeys.hasNonEmptySelection.toNegated(),
-				),
-				primary: KeyCode.Escape,
-				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
-			}]
 		});
-	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
-
-		if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
-			const notebookDocument = editorControl.notebookEditor.textModel;
-			const textModel = editorControl.codeEditor.getModel();
-			const range = editorControl.codeEditor.getModel()?.getFullModelRange();
-
-			if (notebookDocument && textModel && range) {
-				editorControl.codeEditor.executeEdits('', [EditOperation.replace(range, null)]);
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: 'replNotebook.input.clear',
+					title: localize2('replNotebook.input.clear', 'Clear the REPL input contents'),
+					f1: false,
+					keybinding: [{
+						when: ContextKeyExpr.and(
+							REPL_NOTEBOOK_IS_ACTIVE_EDITOR,
+							InputFocusedContext,
+							EditorContextKeys.writable,
+							EditorContextKeys.hasNonEmptySelection.toNegated(),
+						),
+						primary: KeyCode.Escape,
+						weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
+					}]
+				});
 			}
-		}
-	}
-});
+
+			async run(accessor: ServicesAccessor): Promise<void> {
+				const editorService = accessor.get(IEditorService);
+				const editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
+
+				if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
+					const notebookDocument = editorControl.notebookEditor.textModel;
+					const textModel = editorControl.codeEditor.getModel();
+					const range = editorControl.codeEditor.getModel()?.getFullModelRange();
+
+					if (notebookDocument && textModel && range) {
+						editorControl.codeEditor.executeEdits('', [EditOperation.replace(range, null)]);
+					}
+				}
+			}
+		});
 
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'replNotebook.input.focus',
-			title: localize2('interactive.input.focus', 'Focus Input Editor'),
-			keybinding: {
-				when: ContextKeyExpr.and(
-					REPL_NOTEBOOK_IS_ACTIVE_EDITOR,
-					NOTEBOOK_EDITOR_FOCUSED,
-				),
-				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.DownArrow,
-				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
-			},
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: 'replNotebook.input.focus',
+					title: localize2('interactive.input.focus', 'Focus Input Editor'),
+					keybinding: {
+						when: ContextKeyExpr.and(
+							REPL_NOTEBOOK_IS_ACTIVE_EDITOR,
+							NOTEBOOK_EDITOR_FOCUSED,
+						),
+						primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.DownArrow,
+						weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
+					},
+				});
+			}
+
+			async run(accessor: ServicesAccessor): Promise<void> {
+				const editorService = accessor.get(IEditorService);
+				const editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
+
+				if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
+					editorService.activeEditorPane?.focus();
+				}
+			}
+		});
+
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: 'replNotebook.history.focus',
+					title: localize2('replNotebook.history.focus', 'Focus History'),
+					f1: false,
+					keybinding: {
+						when: ContextKeyExpr.and(
+							REPL_NOTEBOOK_IS_ACTIVE_EDITOR,
+							EditorContextKeys.textInputFocus,
+							NOTEBOOK_EDITOR_FOCUSED.toNegated()
+						),
+						primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.UpArrow,
+						weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
+					},
+				});
+			}
+
+			async run(accessor: ServicesAccessor): Promise<void> {
+				const editorService = accessor.get(IEditorService);
+				const editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget; focusHistory: () => void } | undefined;
+
+				if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
+					editorControl.notebookEditor.focus();
+				}
+			}
 		});
 	}
+}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
-
-		if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
-			editorService.activeEditorPane?.focus();
-		}
-	}
-});
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'replNotebook.history.focus',
-			title: localize2('replNotebook.history.focus', 'Focus History'),
-			f1: false,
-			keybinding: {
-				when: ContextKeyExpr.and(
-					REPL_NOTEBOOK_IS_ACTIVE_EDITOR,
-					EditorContextKeys.textInputFocus,
-					NOTEBOOK_EDITOR_FOCUSED.toNegated()
-				),
-				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.UpArrow,
-				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
-			},
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget; focusHistory: () => void } | undefined;
-
-		if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
-			editorControl.notebookEditor.focus();
-		}
-	}
-});
