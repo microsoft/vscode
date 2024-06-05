@@ -11,6 +11,7 @@ import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import * as platform from 'vs/platform/registry/common/platform';
 import { IColorTheme } from 'vs/platform/theme/common/themeService';
+import * as nls from 'vs/nls';
 
 //  ------ API types
 
@@ -79,6 +80,8 @@ export const Extensions = {
 	ColorContribution: 'base.contributions.colors'
 };
 
+export const DEFAULT_COLOR_CONFIG_VALUE = 'default';
+
 export interface IColorRegistry {
 
 	readonly onDidChangeSchema: Event<void>;
@@ -141,9 +144,14 @@ class ColorRegistry implements IColorRegistry {
 		}
 		if (needsTransparency) {
 			propertySchema.pattern = '^#(?:(?<rgba>[0-9a-fA-f]{3}[0-9a-eA-E])|(?:[0-9a-fA-F]{6}(?:(?![fF]{2})(?:[0-9a-fA-F]{2}))))?$';
-			propertySchema.patternErrorMessage = 'This color must be transparent or it will obscure content';
+			propertySchema.patternErrorMessage = nls.localize('transparecyRequired', 'This color must be transparent or it will obscure content');
 		}
-		this.colorSchema.properties[id] = propertySchema;
+		this.colorSchema.properties[id] = {
+			oneOf: [
+				propertySchema,
+				{ type: 'string', const: DEFAULT_COLOR_CONFIG_VALUE, description: nls.localize('useDefault', 'Use the default color.') }
+			]
+		};
 		this.colorReferenceSchema.enum.push(id);
 		this.colorReferenceSchema.enumDescriptions.push(description);
 
@@ -319,6 +327,7 @@ const schemaRegistry = platform.Registry.as<IJSONContributionRegistry>(JSONExten
 schemaRegistry.registerSchema(workbenchColorsSchemaId, colorRegistry.getColorSchema());
 
 const delayer = new RunOnceScheduler(() => schemaRegistry.notifySchemaChanged(workbenchColorsSchemaId), 200);
+
 colorRegistry.onDidChangeSchema(() => {
 	if (!delayer.isScheduled()) {
 		delayer.schedule();
