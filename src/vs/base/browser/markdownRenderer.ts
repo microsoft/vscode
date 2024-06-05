@@ -427,7 +427,7 @@ function sanitizeRenderedMarkdown(
 			if (element.attributes.getNamedItem('type')?.value === 'checkbox') {
 				element.setAttribute('disabled', '');
 			} else if (!options.replaceWithPlaintext) {
-				element.parentElement?.removeChild(element);
+				element.remove();
 			}
 		}
 
