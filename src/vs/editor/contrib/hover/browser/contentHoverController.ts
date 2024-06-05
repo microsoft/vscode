@@ -13,7 +13,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { TokenizationRegistry } from 'vs/editor/common/languages';
 import { HoverOperation, HoverStartMode, HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
-import { HoverAnchor, HoverParticipantRegistry, HoverRangeAnchor, IEditorHoverColorPickerWidget, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IHoverWidget } from 'vs/editor/contrib/hover/browser/hoverTypes';
+import { HoverAnchor, HoverParticipantRegistry, HoverRangeAnchor, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IHoverWidget } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { MarkdownHoverParticipant } from 'vs/editor/contrib/hover/browser/markdownHoverParticipant';
@@ -24,17 +24,18 @@ import { ContentHoverComputer } from 'vs/editor/contrib/hover/browser/contentHov
 import { ContentHoverVisibleData, HoverResult } from 'vs/editor/contrib/hover/browser/contentHoverTypes';
 import { EditorHoverStatusBar } from 'vs/editor/contrib/hover/browser/contentHoverStatusBar';
 import { Emitter } from 'vs/base/common/event';
+import { ColorHoverParticipant } from 'vs/editor/contrib/colorPicker/browser/colorHoverParticipant';
 
 export class ContentHoverController extends Disposable implements IHoverWidget {
 
 	private _currentResult: HoverResult | null = null;
-	private _colorWidget: IEditorHoverColorPickerWidget | null = null;
 
 	private readonly _computer: ContentHoverComputer;
 	private readonly _widget: ContentHoverWidget;
 	private readonly _participants: IEditorHoverParticipant[];
 	// TODO@aiday-mar make array of participants, dispatch between them
 	private readonly _markdownHoverParticipant: MarkdownHoverParticipant | undefined;
+	private readonly _colorHoverParticipant: ColorHoverParticipant | undefined;
 	private readonly _hoverOperation: HoverOperation<IHoverPart>;
 
 	private readonly _onContentsChanged = this._register(new Emitter<void>());
@@ -56,9 +57,15 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 			if (participantInstance instanceof MarkdownHoverParticipant && !(participantInstance instanceof InlayHintsHover)) {
 				this._markdownHoverParticipant = participantInstance;
 			}
+			if (participantInstance instanceof ColorHoverParticipant) {
+				this._colorHoverParticipant = participantInstance;
+			}
 			this._participants.push(participantInstance);
 		}
 		this._participants.sort((p1, p2) => p1.hoverOrdinal - p2.hoverOrdinal);
+		this._register(this._widget.onDidResize(() => {
+			this._participants.forEach(participant => participant.onResize?.());
+		}));
 
 		this._computer = new ContentHoverComputer(this._editor, this._participants);
 		this._hoverOperation = this._register(new HoverOperation(this._editor, this._computer));
@@ -227,13 +234,10 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 			this._onContentsChanged.fire();
 			this._widget.onContentsChanged();
 		};
-		const setColorPicker = (widget: IEditorHoverColorPickerWidget) => {
-			this._colorWidget = widget;
-		};
 		const setMinimumDimensions = (dimensions: dom.Dimension) => {
 			this._widget.setMinimumDimensions(dimensions);
 		};
-		const context: IEditorHoverRenderContext = { fragment, statusBar, hide, onContentsChanged, setColorPicker, setMinimumDimensions };
+		const context: IEditorHoverRenderContext = { fragment, statusBar, hide, onContentsChanged, setMinimumDimensions };
 		return context;
 	}
 
@@ -279,7 +283,6 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		const contentHoverVisibleData = new ContentHoverVisibleData(
 			initialMousePosX,
 			initialMousePosY,
-			this._colorWidget,
 			showAtPosition,
 			showAtSecondaryPosition,
 			preferAbove,
@@ -466,7 +469,7 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 	}
 
 	public get isColorPickerVisible(): boolean {
-		return this._widget.isColorPickerVisible;
+		return this._colorHoverParticipant?.isColorPickerVisible() ?? false;
 	}
 
 	public get isVisibleFromKeyboard(): boolean {

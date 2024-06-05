@@ -16,6 +16,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { getHoverAccessibleViewHint, HoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
 import { PositionAffinity } from 'vs/editor/common/model';
 import { ContentHoverVisibleData } from 'vs/editor/contrib/hover/browser/contentHoverTypes';
+import { Emitter } from 'vs/base/common/event';
 
 const HORIZONTAL_SCROLLING_BY = 30;
 const CONTAINER_HEIGHT_PADDING = 6;
@@ -34,9 +35,8 @@ export class ContentHoverWidget extends ResizableContentWidget {
 	private readonly _hoverVisibleKey: IContextKey<boolean>;
 	private readonly _hoverFocusedKey: IContextKey<boolean>;
 
-	public get isColorPickerVisible(): boolean {
-		return Boolean(this._visibleData?.colorPicker);
-	}
+	private readonly _onDidResize = this._register(new Emitter<void>());
+	public readonly onDidResize = this._onDidResize.event;
 
 	public get isVisibleFromKeyboard(): boolean {
 		return (this._visibleData?.source === HoverStartSource.Keyboard);
@@ -158,7 +158,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		this._updateResizableNodeMaxDimensions();
 		this._hover.scrollbar.scanDomNode();
 		this._editor.layoutContentWidget(this);
-		this._visibleData?.colorPicker?.layout();
+		this._onDidResize.fire();
 	}
 
 	private _findAvailableSpaceVertically(): number | undefined {
@@ -336,7 +336,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		if (hoverData.stoleFocus) {
 			this._hover.containerDomNode.focus();
 		}
-		hoverData.colorPicker?.layout();
+		this._onDidResize.fire();
 		// The aria label overrides the label, so if we add to it, add the contents of the hover
 		const hoverFocused = this._hover.containerDomNode.ownerDocument.activeElement === this._hover.containerDomNode;
 		const accessibleViewHint = hoverFocused && getHoverAccessibleViewHint(
