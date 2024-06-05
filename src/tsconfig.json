@@ -1,11 +1,13 @@
 {
 	"extends": "./tsconfig.base.json",
 	"compilerOptions": {
+		"esModuleInterop": true,
 		"removeComments": false,
 		"preserveConstEnums": true,
 		"sourceMap": false,
 		"allowJs": true,
 		"resolveJsonModule": true,
+		"isolatedModules": true,
 		"outDir": "../out/vs",
 		"types": [
 			"mocha",

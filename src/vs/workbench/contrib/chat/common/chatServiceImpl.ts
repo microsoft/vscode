@@ -6,6 +6,7 @@
 import { coalesce } from 'vs/base/common/arrays';
 import { DeferredPromise } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { ErrorNoTelemetry } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
@@ -23,7 +24,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ChatAgentLocation, IChatAgent, IChatAgentRequest, IChatAgentResult, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ChatModel, ChatRequestModel, ChatWelcomeMessageModel, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatRequestVariableEntry, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatsData, getHistoryEntriesFromModel, updateRanges } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, ChatWelcomeMessageModel, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatRequestVariableEntry, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatsData, getHistoryEntriesFromModel, updateRanges } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, IParsedChatRequest, chatAgentLeader, chatSubcommandLeader, getPromptText } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
 import { ChatCopyKind, IChatCompleteResponse, IChatDetail, IChatFollowup, IChatProgress, IChatSendRequestData, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatTransferredSessionData, IChatUserActionEvent, ChatAgentVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
@@ -393,7 +394,7 @@ export class ChatService extends Disposable implements IChatService {
 			return model;
 		}
 
-		const sessionData = this._persistedSessions[sessionId];
+		const sessionData = revive<ISerializableChatData>(this._persistedSessions[sessionId]);
 		if (!sessionData) {
 			return undefined;
 		}
@@ -417,9 +418,10 @@ export class ChatService extends Disposable implements IChatService {
 
 		await model.waitForInitialization();
 
-		if (this._pendingRequests.has(request.session.sessionId)) {
-			this.trace('sendRequest', `Session ${request.session.sessionId} already has a pending request`);
-			return;
+		const cts = this._pendingRequests.get(request.session.sessionId);
+		if (cts) {
+			this.trace('resendRequest', `Session ${request.session.sessionId} already has a pending request, cancelling...`);
+			cts.cancel();
 		}
 
 		const location = options?.location ?? model.initialLocation;
@@ -427,7 +429,7 @@ export class ChatService extends Disposable implements IChatService {
 		const enableCommandDetection = !options?.noCommandDetection;
 		const defaultAgent = this.chatAgentService.getDefaultAgent(location)!;
 
-		this.removeRequest(model.sessionId, request.id);
+		model.removeRequest(request.id, ChatRequestRemovalReason.Resend);
 
 		await this._sendRequestAsync(model, model.sessionId, request.message, attempt, enableCommandDetection, defaultAgent, location, options).responseCompletePromise;
 	}
@@ -568,7 +570,7 @@ export class ChatService extends Disposable implements IChatService {
 					const updatedVariableData = updateRanges(variableData, promptTextResult.diff); // TODO bit of a hack
 
 					// TODO- should figure out how to get rid of implicit variables for inline chat
-					const implicitVariablesEnabled = location === ChatAgentLocation.Editor;
+					const implicitVariablesEnabled = (location === ChatAgentLocation.Editor || location === ChatAgentLocation.Notebook);
 					if (implicitVariablesEnabled) {
 						const implicitVariables = agent.defaultImplicitVariables;
 						if (implicitVariables) {
@@ -656,6 +658,25 @@ export class ChatService extends Disposable implements IChatService {
 						});
 					}
 				}
+			} catch (err) {
+				const result = 'error';
+				this.telemetryService.publicLog2<ChatProviderInvokedEvent, ChatProviderInvokedClassification>('interactiveSessionProviderInvoked', {
+					timeToFirstProgress: undefined,
+					totalTime: undefined,
+					result,
+					requestType,
+					agent: agentPart?.agent.id ?? '',
+					slashCommand: agentSlashCommandPart ? agentSlashCommandPart.command.name : commandPart?.slashCommand.command,
+					chatSessionId: model.sessionId,
+					location
+				});
+				const rawResult: IChatAgentResult = { errorDetails: { message: err.message } };
+				if (request) {
+					model.setResponse(request, rawResult);
+				}
+				completeResponseCreated();
+				this.logService.error(`Error while handling chat request: ${toErrorMessage(err)}`);
+				model.completeResponse(request);
 			} finally {
 				listener.dispose();
 			}
@@ -680,6 +701,28 @@ export class ChatService extends Disposable implements IChatService {
 		await model.waitForInitialization();
 
 		model.removeRequest(requestId);
+	}
+
+	async adoptRequest(sessionId: string, request: IChatRequestModel) {
+		if (!(request instanceof ChatRequestModel)) {
+			throw new TypeError('Can only adopt requests of type ChatRequestModel');
+		}
+		const target = this._sessionModels.get(sessionId);
+		if (!target) {
+			throw new Error(`Unknown session: ${sessionId}`);
+		}
+
+		await target.waitForInitialization();
+
+		const oldOwner = request.session;
+		target.adoptRequest(request);
+
+		if (request.response && !request.response.isComplete) {
+			const cts = this._pendingRequests.deleteAndLeak(oldOwner.sessionId);
+			if (cts) {
+				this._pendingRequests.set(target.sessionId, cts);
+			}
+		}
 	}
 
 	async addCompleteRequest(sessionId: string, message: IParsedChatRequest | string, variableData: IChatRequestVariableData | undefined, attempt: number | undefined, response: IChatCompleteResponse): Promise<void> {
@@ -724,7 +767,9 @@ export class ChatService extends Disposable implements IChatService {
 		}
 
 		if (model.initialLocation === ChatAgentLocation.Panel) {
-			this._persistedSessions[sessionId] = model.toJSON();
+			// Turn all the real objects into actual JSON, otherwise, calling 'revive' may fail when it tries to
+			// assign values to properties that are getters- microsoft/vscode-copilot-release#1233
+			this._persistedSessions[sessionId] = JSON.parse(JSON.stringify(model));
 		}
 
 		this._sessionModels.deleteAndDispose(sessionId);

@@ -215,7 +215,6 @@
 }
 
 .extension-editor > .header > .details > .actions-status-container > .monaco-action-bar > .actions-container > .action-item:not(.checkbox-action-item) .extension-action:not(.icon) {
-	border-radius: 0;
 	padding-top: 0;
 	padding-bottom: 0;
 }

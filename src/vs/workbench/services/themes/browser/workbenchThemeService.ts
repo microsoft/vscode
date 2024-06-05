@@ -358,7 +358,11 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 	// preferred scheme handling
 
 	private installPreferredSchemeListener() {
-		this._register(this.hostColorService.onDidChangeColorScheme(() => this.restoreColorTheme()));
+		this._register(this.hostColorService.onDidChangeColorScheme(() => {
+			if (this.settings.isDetectingColorScheme()) {
+				this.restoreColorTheme();
+			}
+		}));
 	}
 
 	public hasUpdatedDefaultThemes(): boolean {

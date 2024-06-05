@@ -164,7 +164,7 @@ resources:
     - repository: 1ESPipelines
       type: git
       name: 1ESPipelineTemplates/1ESPipelineTemplates
-      ref: refs/heads/joao/disable-tsa-linux-arm64
+      ref: refs/tags/release
 
 extends:
   template: v1/1ES.Official.PipelineTemplate.yml@1esPipelines

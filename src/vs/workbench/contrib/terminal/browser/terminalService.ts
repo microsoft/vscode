@@ -285,24 +285,26 @@ export class TerminalService extends Disposable implements ITerminalService {
 
 		const isPersistentRemote = !!this._environmentService.remoteAuthority && enableTerminalReconnection;
 
-		this._primaryBackend?.onDidRequestDetach(async (e) => {
-			const instanceToDetach = this.getInstanceFromResource(getTerminalUri(e.workspaceId, e.instanceId));
-			if (instanceToDetach) {
-				const persistentProcessId = instanceToDetach?.persistentProcessId;
-				if (persistentProcessId && !instanceToDetach.shellLaunchConfig.isFeatureTerminal && !instanceToDetach.shellLaunchConfig.customPtyImplementation) {
-					if (instanceToDetach.target === TerminalLocation.Editor) {
-						this._terminalEditorService.detachInstance(instanceToDetach);
+		if (this._primaryBackend) {
+			this._register(this._primaryBackend.onDidRequestDetach(async (e) => {
+				const instanceToDetach = this.getInstanceFromResource(getTerminalUri(e.workspaceId, e.instanceId));
+				if (instanceToDetach) {
+					const persistentProcessId = instanceToDetach?.persistentProcessId;
+					if (persistentProcessId && !instanceToDetach.shellLaunchConfig.isFeatureTerminal && !instanceToDetach.shellLaunchConfig.customPtyImplementation) {
+						if (instanceToDetach.target === TerminalLocation.Editor) {
+							this._terminalEditorService.detachInstance(instanceToDetach);
+						} else {
+							this._terminalGroupService.getGroupForInstance(instanceToDetach)?.removeInstance(instanceToDetach);
+						}
+						await instanceToDetach.detachProcessAndDispose(TerminalExitReason.User);
+						await this._primaryBackend?.acceptDetachInstanceReply(e.requestId, persistentProcessId);
 					} else {
-						this._terminalGroupService.getGroupForInstance(instanceToDetach)?.removeInstance(instanceToDetach);
+						// will get rejected without a persistentProcessId to attach to
+						await this._primaryBackend?.acceptDetachInstanceReply(e.requestId, undefined);
 					}
-					await instanceToDetach.detachProcessAndDispose(TerminalExitReason.User);
-					await this._primaryBackend?.acceptDetachInstanceReply(e.requestId, persistentProcessId);
-				} else {
-					// will get rejected without a persistentProcessId to attach to
-					await this._primaryBackend?.acceptDetachInstanceReply(e.requestId, undefined);
 				}
-			}
-		});
+			}));
+		}
 
 		mark('code/terminal/willReconnect');
 		let reconnectedPromise: Promise<any>;
@@ -1207,7 +1209,7 @@ class TerminalEditorStyle extends Themable {
 		super(_themeService);
 		this._registerListeners();
 		this._styleElement = dom.createStyleSheet(container);
-		this._register(toDisposable(() => container.removeChild(this._styleElement)));
+		this._register(toDisposable(() => this._styleElement.remove()));
 		this.updateStyles();
 	}
 

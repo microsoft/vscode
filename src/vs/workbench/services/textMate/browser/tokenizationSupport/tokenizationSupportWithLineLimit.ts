@@ -7,7 +7,7 @@ import { LanguageId } from 'vs/editor/common/encodedTokenAttributes';
 import { EncodedTokenizationResult, IBackgroundTokenizationStore, IBackgroundTokenizer, IState, ITokenizationSupport, TokenizationResult } from 'vs/editor/common/languages';
 import { nullTokenizeEncoded } from 'vs/editor/common/languages/nullTokenize';
 import { ITextModel } from 'vs/editor/common/model';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IObservable, keepObserved } from 'vs/base/common/observable';
 
 export class TokenizationSupportWithLineLimit extends Disposable implements ITokenizationSupport {
@@ -18,11 +18,13 @@ export class TokenizationSupportWithLineLimit extends Disposable implements ITok
 	constructor(
 		private readonly _encodedLanguageId: LanguageId,
 		private readonly _actual: ITokenizationSupport,
+		disposable: IDisposable,
 		private readonly _maxTokenizationLineLength: IObservable<number>,
 	) {
 		super();
 
 		this._register(keepObserved(this._maxTokenizationLineLength));
+		this._register(disposable);
 	}
 
 	getInitialState(): IState {

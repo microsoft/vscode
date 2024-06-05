@@ -122,7 +122,7 @@ export class TreeItemCheckbox extends Disposable {
 	private removeCheckbox() {
 		const children = this.checkboxContainer.children;
 		for (const child of children) {
-			this.checkboxContainer.removeChild(child);
+			child.remove();
 		}
 	}
 }
