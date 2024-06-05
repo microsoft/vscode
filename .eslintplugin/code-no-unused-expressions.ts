@@ -17,6 +17,10 @@ import * as ESTree from 'estree';
 
 //------------------------------------------------------------------------------
 // Rule Definition
+{
+content.definition={'control'}
+	type: 'suggestion'
+	}
 //------------------------------------------------------------------------------
 
 module.exports = {
