@@ -621,7 +621,7 @@ export function registerChatCodeCompareBlockActions() {
 			const instaService = accessor.get(IInstantiationService);
 
 			const editor = instaService.createInstance(DefaultChatTextEditor);
-			await editor.apply(context.element, context.edit);
+			await editor.apply(context.element, context.edit, context.diffEditor);
 
 			await editorService.openEditor({
 				resource: context.edit.uri,

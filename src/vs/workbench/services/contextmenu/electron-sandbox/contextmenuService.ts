@@ -106,8 +106,8 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 			let x: number | undefined;
 			let y: number | undefined;
 
-			let zoom = getZoomFactor(anchor instanceof HTMLElement ? dom.getWindow(anchor) : dom.getActiveWindow());
-			if (anchor instanceof HTMLElement) {
+			let zoom = getZoomFactor(dom.isHTMLElement(anchor) ? dom.getWindow(anchor) : dom.getActiveWindow());
+			if (dom.isHTMLElement(anchor)) {
 				const elementPosition = dom.getDomNodePagePosition(anchor);
 
 				// When drawing context menus, we adjust the pixel position for native menus using zoom level

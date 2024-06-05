@@ -294,9 +294,7 @@ export class RecommendationWidget extends ExtensionWidget {
 	}
 
 	private clear(): void {
-		if (this.element) {
-			this.parent.removeChild(this.element);
-		}
+		this.element?.remove();
 		this.element = undefined;
 		this.disposables.clear();
 	}
@@ -330,9 +328,7 @@ export class PreReleaseBookmarkWidget extends ExtensionWidget {
 	}
 
 	private clear(): void {
-		if (this.element) {
-			this.parent.removeChild(this.element);
-		}
+		this.element?.remove();
 		this.element = undefined;
 		this.disposables.clear();
 	}
@@ -367,9 +363,7 @@ export class RemoteBadgeWidget extends ExtensionWidget {
 	}
 
 	private clear(): void {
-		if (this.remoteBadge.value) {
-			this.element.removeChild(this.remoteBadge.value.element);
-		}
+		this.remoteBadge.value?.element.remove();
 		this.remoteBadge.clear();
 	}
 

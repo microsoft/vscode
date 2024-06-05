@@ -28,7 +28,7 @@ import { fetchUrls, fetchGithub } from './fetch';
 
 const root = path.dirname(path.dirname(__dirname));
 const commit = getVersion(root);
-const sourceMappingURLBase = `https://ticino.blob.core.windows.net/sourcemaps/${commit}`;
+const sourceMappingURLBase = `https://main.vscode-cdn.net/sourcemaps/${commit}`;
 
 function minifyExtensionResources(input: Stream): Stream {
 	const jsonFilter = filter(['**/*.json', '**/*.code-snippets'], { restore: true });

@@ -5,7 +5,7 @@
 
 import { localize, localize2 } from 'vs/nls';
 import { MenuRegistry, MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
+import { IWorkbenchIssueService } from 'vs/workbench/contrib/issue/common/issue';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { BaseIssueContribution } from 'vs/workbench/contrib/issue/common/issue.contribution';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -23,6 +23,9 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
 import { IssueQuickAccess } from 'vs/workbench/contrib/issue/browser/issueQuickAccess';
+import 'vs/workbench/contrib/issue/electron-sandbox/issueMainService';
+import 'vs/workbench/contrib/issue/electron-sandbox/issueService';
+import 'vs/workbench/contrib/issue/browser/issueTroubleshoot';
 
 
 //#region Issue Contribution

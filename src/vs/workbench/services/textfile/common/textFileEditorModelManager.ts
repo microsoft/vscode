@@ -24,6 +24,7 @@ import { extname, joinPath } from 'vs/base/common/resources';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { PLAINTEXT_EXTENSION, PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
 
 export class TextFileEditorModelManager extends Disposable implements ITextFileEditorModelManager {
 
@@ -540,8 +541,8 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		return this.saveParticipants.addSaveParticipant(participant);
 	}
 
-	runSaveParticipants(model: ITextFileEditorModel, context: IStoredFileWorkingCopySaveParticipantContext, token: CancellationToken): Promise<void> {
-		return this.saveParticipants.participate(model, context, token);
+	runSaveParticipants(model: ITextFileEditorModel, context: IStoredFileWorkingCopySaveParticipantContext, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
+		return this.saveParticipants.participate(model, context, progress, token);
 	}
 
 	//#endregion

@@ -5,60 +5,8 @@
 
 declare module 'vscode' {
 
-	/**
-	 * The location at which the chat is happening.
-	 */
-	export enum ChatLocation {
-		/**
-		 * The chat panel
-		 */
-		Panel = 1,
-		/**
-		 * Terminal inline chat
-		 */
-		Terminal = 2,
-		/**
-		 * Notebook inline chat
-		 */
-		Notebook = 3,
-		/**
-		 * Code editor inline chat
-		 */
-		Editor = 4
-	}
-
-	export interface ChatRequest {
-		/**
-		 * The attempt number of the request. The first request has attempt number 0.
-		 */
-		readonly attempt: number;
-
-		/**
-		 * If automatic command detection is enabled.
-		 */
-		readonly enableCommandDetection: boolean;
-
-		/**
-		 * The location at which the chat is happening. This will always be one of the supported values
-		 */
-		readonly location: ChatLocation;
-	}
-
 	export interface ChatParticipant {
 		onDidPerformAction: Event<ChatUserActionEvent>;
-		supportIssueReporting?: boolean;
-
-		/**
-		 * Temp, support references that are slow to resolve and should be tools rather than references.
-		 */
-		supportsSlowReferences?: boolean;
-	}
-
-	export interface ChatErrorDetails {
-		/**
-		 * If set to true, the message content is completely hidden. Only ChatErrorDetails#message will be shown.
-		 */
-		responseIsRedacted?: boolean;
 	}
 
 	/**
@@ -224,8 +172,6 @@ declare module 'vscode' {
 		 */
 		export function createChatParticipant(id: string, handler: ChatExtendedRequestHandler): ChatParticipant;
 
-		export function createDynamicChatParticipant(id: string, dynamicProps: DynamicChatParticipantProps, handler: ChatExtendedRequestHandler): ChatParticipant;
-
 		/**
 		 * Current version of the proposal. Changes whenever backwards-incompatible changes are made.
 		 * If a new feature is added that doesn't break existing code, the version is not incremented. When the extension uses this new feature, it should set its engines.vscode version appropriately.
@@ -233,16 +179,6 @@ declare module 'vscode' {
 		 * The chat extension should not activate if it doesn't support the current version.
 		 */
 		export const _version: 1 | number;
-	}
-
-	/**
-	 * These don't get set on the ChatParticipant after creation, like other props, because they are typically defined in package.json and we want them at the time of creation.
-	 */
-	export interface DynamicChatParticipantProps {
-		name: string;
-		publisherName: string;
-		description?: string;
-		fullName?: string;
 	}
 
 	/*
@@ -312,72 +248,5 @@ declare module 'vscode' {
 		 * TODO Needed for now to drive the variableName-type reference, but probably both of these should go away in the future.
 		 */
 		readonly name: string;
-	}
-
-	/**
-	 * The detail level of this chat variable value.
-	 */
-	export enum ChatVariableLevel {
-		Short = 1,
-		Medium = 2,
-		Full = 3
-	}
-
-	export interface ChatVariableValue {
-		/**
-		 * The detail level of this chat variable value. If possible, variable resolvers should try to offer shorter values that will consume fewer tokens in an LLM prompt.
-		 */
-		level: ChatVariableLevel;
-
-		/**
-		 * The variable's value, which can be included in an LLM prompt as-is, or the chat participant may decide to read the value and do something else with it.
-		 */
-		value: string | Uri;
-
-		/**
-		 * A description of this value, which could be provided to the LLM as a hint.
-		 */
-		description?: string;
-	}
-
-	export interface ChatVariableResolverResponseStream {
-		/**
-		 * Push a progress part to this stream. Short-hand for
-		 * `push(new ChatResponseProgressPart(value))`.
-		 *
-		 * @param value
-		 * @returns This stream.
-		 */
-		progress(value: string): ChatVariableResolverResponseStream;
-
-		/**
-		 * Push a reference to this stream. Short-hand for
-		 * `push(new ChatResponseReferencePart(value))`.
-		 *
-		 * *Note* that the reference is not rendered inline with the response.
-		 *
-		 * @param value A uri or location
-		 * @returns This stream.
-		 */
-		reference(value: Uri | Location): ChatVariableResolverResponseStream;
-
-		/**
-		 * Pushes a part to this stream.
-		 *
-		 * @param part A response part, rendered or metadata
-		 */
-		push(part: ChatVariableResolverResponsePart): ChatVariableResolverResponseStream;
-	}
-
-	export type ChatVariableResolverResponsePart = ChatResponseProgressPart | ChatResponseReferencePart;
-
-	export interface ChatVariableResolver {
-		/**
-		 * A callback to resolve the value of a chat variable.
-		 * @param name The name of the variable.
-		 * @param context Contextual information about this chat request.
-		 * @param token A cancellation token.
-		 */
-		resolve2?(name: string, context: ChatVariableContext, stream: ChatVariableResolverResponseStream, token: CancellationToken): ProviderResult<ChatVariableValue[]>;
 	}
 }

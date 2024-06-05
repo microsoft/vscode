@@ -12,7 +12,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { HoverWidget } from 'vs/editor/browser/services/hoverService/hoverWidget';
 import { IContextViewProvider, IDelegate } from 'vs/base/browser/ui/contextview/contextview';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { addDisposableListener, EventType, getActiveElement, isAncestorOfActiveElement, isAncestor, getWindow } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType, getActiveElement, isAncestorOfActiveElement, isAncestor, getWindow, isHTMLElement } from 'vs/base/browser/dom';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
@@ -90,7 +90,7 @@ export class HoverService extends Disposable implements IHoverService {
 		}, undefined, hoverDisposables);
 		// Set the container explicitly to enable aux window support
 		if (!options.container) {
-			const targetElement = options.target instanceof HTMLElement ? options.target : options.target.targetElements[0];
+			const targetElement = isHTMLElement(options.target) ? options.target : options.target.targetElements[0];
 			options.container = this._layoutService.getContainer(getWindow(targetElement));
 		}
 
@@ -259,7 +259,7 @@ export class HoverService extends Disposable implements IHoverService {
 				// track the mouse position
 				const onMouseMove = (e: MouseEvent) => {
 					target.x = e.x + 10;
-					if ((e.target instanceof HTMLElement) && getHoverTargetElement(e.target, htmlElement) !== htmlElement) {
+					if ((isHTMLElement(e.target)) && getHoverTargetElement(e.target, htmlElement) !== htmlElement) {
 						hideHover(true, true);
 					}
 				};
@@ -268,7 +268,7 @@ export class HoverService extends Disposable implements IHoverService {
 
 			hoverPreparation = toDispose;
 
-			if ((e.target instanceof HTMLElement) && getHoverTargetElement(e.target as HTMLElement, htmlElement) !== htmlElement) {
+			if ((isHTMLElement(e.target)) && getHoverTargetElement(e.target as HTMLElement, htmlElement) !== htmlElement) {
 				return; // Do not show hover when the mouse is over another hover target
 			}
 

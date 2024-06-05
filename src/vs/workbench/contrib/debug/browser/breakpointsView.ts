@@ -1682,7 +1682,7 @@ registerAction2(class extends Action2 {
 		} else if (breakpoint instanceof DataBreakpoint) {
 			await debugService.removeDataBreakpoints(breakpoint.getId());
 		} else if (breakpoint instanceof InstructionBreakpoint) {
-			await debugService.removeInstructionBreakpoints(breakpoint.instructionReference);
+			await debugService.removeInstructionBreakpoints(breakpoint.instructionReference, breakpoint.offset);
 		}
 	}
 });
