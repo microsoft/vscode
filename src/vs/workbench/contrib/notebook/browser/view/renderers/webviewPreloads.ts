@@ -90,7 +90,7 @@ declare function __import(path: string): Promise<any>;
 
 async function webviewPreloads(ctx: PreloadContext) {
 
-	/* eslint-disable no-restricted-globals */
+	/* eslint-disable no-restricted-globals, no-restricted-syntax */
 
 	// The use of global `window` should be fine in this context, even
 	// with aux windows. This code is running from within an `iframe`
@@ -3069,7 +3069,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			});
 
 			if (this.dragOverlay) {
-				window.document.body.removeChild(this.dragOverlay);
+				this.dragOverlay.remove();
 				this.dragOverlay = undefined;
 			}
 

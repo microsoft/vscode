@@ -413,7 +413,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	private _assertNotDisposed(): void {
 		if (this._isDisposed) {
-			throw new Error('Model is disposed!');
+			throw new BugIndicatingError('Model is disposed!');
 		}
 	}
 

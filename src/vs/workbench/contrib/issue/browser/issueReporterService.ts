@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { $, reset, windowOpenNoOpener } from 'vs/base/browser/dom';
+import { $, isHTMLInputElement, isHTMLTextAreaElement, reset, windowOpenNoOpener } from 'vs/base/browser/dom';
 import { Codicon } from 'vs/base/common/codicons';
 import { groupBy } from 'vs/base/common/collections';
 import { isMacintosh } from 'vs/base/common/platform';
@@ -124,7 +124,7 @@ export class IssueWebReporter extends BaseIssueReporterService {
 			// Manually perform the selection
 			if (isMacintosh) {
 				if (cmdOrCtrlKey && e.key === 'a' && e.target) {
-					if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+					if (isHTMLInputElement(e.target) || isHTMLTextAreaElement(e.target)) {
 						(<HTMLInputElement>e.target).select();
 					}
 				}

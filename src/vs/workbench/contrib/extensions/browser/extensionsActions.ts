@@ -12,7 +12,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import * as json from 'vs/base/common/json';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { disposeIfDisposable } from 'vs/base/common/lifecycle';
-import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewPaneContainer, IExtensionContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP, UPDATE_ACTIONS_GROUP, AutoUpdateConfigurationKey, AutoUpdateConfigurationValue, ExtensionEditorTab, ExtensionRuntimeActionType } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewPaneContainer, IExtensionContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP, UPDATE_ACTIONS_GROUP, AutoUpdateConfigurationKey, AutoUpdateConfigurationValue, ExtensionEditorTab, ExtensionRuntimeActionType, IExtensionArg } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ExtensionsConfigurationInitialContent } from 'vs/workbench/contrib/extensions/common/extensionsFileTemplate';
 import { IGalleryExtension, IExtensionGalleryService, ILocalExtension, InstallOptions, InstallOperation, TargetPlatformToString, ExtensionManagementErrorCode } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
@@ -1272,9 +1272,15 @@ export class MenuItemExtensionAction extends ExtensionAction {
 
 	override async run(): Promise<void> {
 		if (this.extension) {
-			await this.action.run(this.extension.local ? getExtensionId(this.extension.local.manifest.publisher, this.extension.local.manifest.name)
+			const id = this.extension.local ? getExtensionId(this.extension.local.manifest.publisher, this.extension.local.manifest.name)
 				: this.extension.gallery ? getExtensionId(this.extension.gallery.publisher, this.extension.gallery.name)
-					: this.extension.identifier.id);
+					: this.extension.identifier.id;
+			const extensionArg: IExtensionArg = {
+				id: this.extension.identifier.id,
+				version: this.extension.version,
+				location: this.extension.local?.location
+			};
+			await this.action.run(id, extensionArg);
 		}
 	}
 }
@@ -2571,7 +2577,6 @@ export class ExtensionStatusAction extends ExtensionAction {
 				}
 			}
 			if (this.extension.enablementState === EnablementState.EnabledGlobally) {
-				this.updateStatus({ message: new MarkdownString(localize('globally enabled', "This extension is enabled globally.")) }, true);
 				return;
 			}
 		}

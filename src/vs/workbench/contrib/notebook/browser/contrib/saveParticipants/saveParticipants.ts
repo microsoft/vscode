@@ -433,7 +433,7 @@ class CodeActionOnSaveParticipant implements IStoredFileWorkingCopySaveParticipa
 	}
 }
 
-class CodeActionParticipantUtils {
+export class CodeActionParticipantUtils {
 
 	static async checkAndRunFormatCodeAction(
 		accessor: ServicesAccessor,

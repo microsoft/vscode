@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDragAndDropData } from 'vs/base/browser/dnd';
-import { asCssValueWithDefault, createStyleSheet, Dimension, EventHelper, getActiveElement, getWindow, isActiveElement, isMouseEvent } from 'vs/base/browser/dom';
+import { asCssValueWithDefault, createStyleSheet, Dimension, EventHelper, getActiveElement, getWindow, isActiveElement, isHTMLElement, isMouseEvent } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Gesture } from 'vs/base/browser/touch';
@@ -635,7 +635,7 @@ class DOMFocusController<T> implements IDisposable {
 
 		const tabIndexElement = focusedDomElement.querySelector('[tabIndex]');
 
-		if (!tabIndexElement || !(tabIndexElement instanceof HTMLElement) || tabIndexElement.tabIndex === -1) {
+		if (!tabIndexElement || !(isHTMLElement(tabIndexElement)) || tabIndexElement.tabIndex === -1) {
 			return;
 		}
 

@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { $, reset, windowOpenNoOpener } from 'vs/base/browser/dom';
+import { $, isHTMLInputElement, isHTMLTextAreaElement, reset, windowOpenNoOpener } from 'vs/base/browser/dom';
 import { mainWindow } from 'vs/base/browser/window';
 import { Codicon } from 'vs/base/common/codicons';
 import { groupBy } from 'vs/base/common/collections';
@@ -146,7 +146,7 @@ export class IssueReporter2 extends BaseIssueReporterService {
 			// Manually perform the selection
 			if (isMacintosh) {
 				if (cmdOrCtrlKey && e.key === 'a' && e.target) {
-					if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+					if (isHTMLInputElement(e.target) || isHTMLTextAreaElement(e.target)) {
 						(<HTMLInputElement>e.target).select();
 					}
 				}
@@ -464,7 +464,7 @@ export class IssueReporter2 extends BaseIssueReporterService {
 		const showLoading = this.getElementById('ext-loading')!;
 		show(showLoading);
 		while (showLoading.firstChild) {
-			showLoading.removeChild(showLoading.firstChild);
+			showLoading.firstChild.remove();
 		}
 		showLoading.append(element);
 
@@ -485,7 +485,7 @@ export class IssueReporter2 extends BaseIssueReporterService {
 		const hideLoading = this.getElementById('ext-loading')!;
 		hide(hideLoading);
 		if (hideLoading.firstChild) {
-			hideLoading.removeChild(element);
+			element.remove();
 		}
 		this.renderBlocks();
 	}
