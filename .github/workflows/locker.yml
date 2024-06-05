@@ -21,8 +21,8 @@ jobs:
         uses: ./actions/locker
         with:
           daysSinceClose: 45
-          appInsightsKey: ${{secrets.TRIAGE_ACTIONS_APP_INSIGHTS}}
           daysSinceUpdate: 3
           ignoredLabel: "*out-of-scope,accessibility"
           ignoreLabelUntil: "author-verification-requested"
+          ignoredMilestones: "Backlog Candidates"
           labelUntil: "verified"

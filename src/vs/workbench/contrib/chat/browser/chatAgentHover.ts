@@ -9,6 +9,7 @@ import { IUpdatableHoverOptions } from 'vs/base/browser/ui/hover/hover';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { FileAccess } from 'vs/base/common/network';
 import { ThemeIcon } from 'vs/base/common/themables';
@@ -28,6 +29,9 @@ export class ChatAgentHover extends Disposable {
 	private readonly extensionName: HTMLElement;
 	private readonly publisherName: HTMLElement;
 	private readonly description: HTMLElement;
+
+	private readonly _onDidChangeContents = this._register(new Emitter<void>());
+	public readonly onDidChangeContents: Event<void> = this._onDidChangeContents.event;
 
 	constructor(
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
@@ -110,6 +114,7 @@ export class ChatAgentHover extends Disposable {
 				const extension = extensions[0];
 				if (extension?.publisherDomain?.verified) {
 					this.domNode.classList.toggle('verifiedPublisher', true);
+					this._onDidChangeContents.fire();
 				}
 			});
 		}
@@ -121,7 +126,7 @@ export function getChatAgentHoverOptions(getAgent: () => IChatAgentData | undefi
 		actions: [
 			{
 				commandId: showExtensionsWithIdsCommandId,
-				label: localize('marketplaceLabel', "View in Marketplace"),
+				label: localize('viewExtensionLabel', "View Extension"),
 				run: () => {
 					const agent = getAgent();
 					if (agent) {

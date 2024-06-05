@@ -177,10 +177,10 @@ export class TestingContinuousRunService extends Disposable implements ITestingC
 		if (actualProfiles.length) {
 			this.testService.startContinuousRun({
 				continuous: true,
+				group: actualProfiles[0].group,
 				targets: actualProfiles.map(p => ({
 					testIds: [testId ?? p.controllerId],
 					controllerId: p.controllerId,
-					profileGroup: p.group,
 					profileId: p.profileId
 				})),
 			}, cts.token);

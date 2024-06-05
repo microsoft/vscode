@@ -16,6 +16,7 @@ import { ExtensionKind } from 'vs/platform/environment/common/environment';
 import { allApiProposals } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
 import { productSchemaId } from 'vs/platform/product/common/productService';
 import { ImplicitActivationEvents, IActivationEventsGenerator } from 'vs/platform/extensionManagement/common/implicitActivationEvents';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 const schemaRegistry = Registry.as<IJSONContributionRegistry>(Extensions.JSONContribution);
 
@@ -67,7 +68,7 @@ export type IExtensionPointHandler<T> = (extensions: readonly IExtensionPointUse
 
 export interface IExtensionPoint<T> {
 	readonly name: string;
-	setHandler(handler: IExtensionPointHandler<T>): void;
+	setHandler(handler: IExtensionPointHandler<T>): IDisposable;
 	readonly defaultExtensionKind: ExtensionKind[] | undefined;
 }
 
@@ -121,12 +122,18 @@ export class ExtensionPoint<T> implements IExtensionPoint<T> {
 		this._delta = null;
 	}
 
-	setHandler(handler: IExtensionPointHandler<T>): void {
+	setHandler(handler: IExtensionPointHandler<T>): IDisposable {
 		if (this._handler !== null) {
 			throw new Error('Handler already set!');
 		}
 		this._handler = handler;
 		this._handle();
+
+		return {
+			dispose: () => {
+				this._handler = null;
+			}
+		};
 	}
 
 	acceptUsers(users: IExtensionPointUser<T>[]): void {

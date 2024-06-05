@@ -28,7 +28,7 @@ import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { showWindowLogActionId } from 'vs/workbench/services/log/common/logConstants';
-import { getActiveElement, getWindow, isAncestor } from 'vs/base/browser/dom';
+import { getActiveElement, getWindow, isAncestor, isHTMLElement } from 'vs/base/browser/dom';
 
 let _logging: boolean = false;
 function toggleLogging() {
@@ -360,7 +360,7 @@ export class NotebookClipboardContribution extends Disposable {
 		const loggerService = accessor.get(ILogService);
 
 		const activeElement = getActiveElement();
-		if (activeElement instanceof HTMLElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
+		if (isHTMLElement(activeElement) && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
 			_log(loggerService, '[NotebookEditor] focus is on input or textarea element, bypass');
 			return false;
 		}

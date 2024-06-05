@@ -331,7 +331,7 @@ export interface IChatService {
 	sendRequest(sessionId: string, message: string, options?: IChatSendRequestOptions): Promise<IChatSendRequestData | undefined>;
 
 	resendRequest(request: IChatRequestModel, options?: IChatSendRequestOptions): Promise<void>;
-
+	adoptRequest(sessionId: string, request: IChatRequestModel): Promise<void>;
 	removeRequest(sessionid: string, requestId: string): Promise<void>;
 	cancelCurrentRequestForSession(sessionId: string): void;
 	clearSession(sessionId: string): void;
