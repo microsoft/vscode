@@ -170,7 +170,8 @@ class RenderedContentHoverParts extends Disposable {
 			if (!hasHoverPartsForParticipant) {
 				continue;
 			}
-			disposables.add(participant.renderHoverParts(context, hoverPartsForParticipant));
+			const renderedHoverParts = participant.renderHoverParts(context, hoverPartsForParticipant);
+			disposables.add(renderedHoverParts.disposables);
 		}
 		return disposables;
 	}
