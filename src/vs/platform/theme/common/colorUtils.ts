@@ -7,7 +7,7 @@ import { assertNever } from 'vs/base/common/assert';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
+import { IJSONSchema, IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import * as platform from 'vs/platform/registry/common/platform';
 import { IColorTheme } from 'vs/platform/theme/common/themeService';
@@ -120,9 +120,12 @@ export interface IColorRegistry {
 	/**
 	 * Notify when the color theme or settings change.
 	 */
-	notifyThemeUpdate(theme: IColorTheme): void
+	notifyThemeUpdate(theme: IColorTheme): void;
 
 }
+
+type IJSONSchemaForColors = IJSONSchema & { properties: { [name: string]: IJSONSchemaWithSnippets } };
+type IJSONSchemaWithSnippets = IJSONSchema & { defaultSnippets: IJSONSchemaSnippet[] };
 
 class ColorRegistry implements IColorRegistry {
 
@@ -130,7 +133,7 @@ class ColorRegistry implements IColorRegistry {
 	readonly onDidChangeSchema: Event<void> = this._onDidChangeSchema.event;
 
 	private colorsById: { [key: string]: ColorContribution };
-	private colorSchema: IJSONSchema & { properties: IJSONSchemaMap } = { type: 'object', properties: {} };
+	private colorSchema: IJSONSchemaForColors = { type: 'object', properties: {} };
 	private colorReferenceSchema: IJSONSchema & { enum: string[]; enumDescriptions: string[] } = { type: 'string', enum: [], enumDescriptions: [] };
 
 	constructor() {
@@ -139,21 +142,18 @@ class ColorRegistry implements IColorRegistry {
 
 	public notifyThemeUpdate(colorThemeData: IColorTheme) {
 		for (const key of Object.keys(this.colorsById)) {
-			const color = colorThemeData.getColor(key)
-			if (!color) {
-				continue
+			const color = colorThemeData.getColor(key);
+			if (color) {
+				this.colorSchema.properties[key].defaultSnippets[0].body = `\${1:${color.toString()}}`;
 			}
-			const colorString = color.toString()
-			this.colorSchema.properties[key].defaultSnippets = [
-				{ body: `\${1:${colorString}}` }
-			]
 		}
+		this._onDidChangeSchema.fire();
 	}
 
 	public registerColor(id: string, defaults: ColorDefaults | null, description: string, needsTransparency = false, deprecationMessage?: string): ColorIdentifier {
 		const colorContribution: ColorContribution = { id, description, defaults, needsTransparency, deprecationMessage };
 		this.colorsById[id] = colorContribution;
-		const propertySchema: IJSONSchema = { type: 'string', description, format: 'color-hex', defaultSnippets: [{ body: '${1:#ff0000}' }] };
+		const propertySchema: IJSONSchemaWithSnippets = { type: 'string', description, format: 'color-hex', defaultSnippets: [{ body: '${1:#ff0000}' }] };
 		if (deprecationMessage) {
 			propertySchema.deprecationMessage = deprecationMessage;
 		}
