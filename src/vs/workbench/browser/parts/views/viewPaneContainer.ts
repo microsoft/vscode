@@ -112,7 +112,7 @@ class ViewPaneDropOverlay extends Themable {
 		this.paneElement.appendChild(this.container);
 		this.paneElement.classList.add('dragged-over');
 		this._register(toDisposable(() => {
-			this.paneElement.removeChild(this.container);
+			this.container.remove();
 			this.paneElement.classList.remove('dragged-over');
 		}));
 

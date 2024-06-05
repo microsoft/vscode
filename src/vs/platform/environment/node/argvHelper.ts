@@ -9,7 +9,7 @@ import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { ErrorReporter, NATIVE_CLI_COMMANDS, OPTIONS, parseArgs } from 'vs/platform/environment/node/argv';
 
 // ESM-comment-begin
-import * as assert from 'assert';
+import assert from 'assert';
 // ESM-comment-end
 // ESM-uncomment-begin
 // function assert(condition: boolean, message: string) {

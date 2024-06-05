@@ -188,7 +188,6 @@
 	user-select: text;
 }
 
-
 .monaco-workbench .notebookOverlay .cell-chat-part .inline-chat .status .label A {
 	color: var(--vscode-textLink-foreground);
 	cursor: pointer;

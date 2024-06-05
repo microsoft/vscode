@@ -252,7 +252,7 @@ class StandaloneDialogService implements IDialogService {
 		return {
 			confirmed,
 			checkboxChecked: false // unsupported
-		} as IConfirmationResult;
+		};
 	}
 
 	private doConfirm(message: string, detail?: string): boolean {

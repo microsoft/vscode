@@ -218,9 +218,9 @@ export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 
 		await this.proxy.$runTests({
 			preserveFocus: req.preserveFocus ?? true,
+			group: profileGroupToBitset[profile.kind],
 			targets: [{
 				testIds: req.include?.map(t => TestId.fromExtHostTestItem(t, controller.collection.root.id).toString()) ?? [controller.collection.root.id],
-				profileGroup: profileGroupToBitset[profile.kind],
 				profileId: profile.profileId,
 				controllerId: profile.controllerId,
 			}],

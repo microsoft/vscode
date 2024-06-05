@@ -197,7 +197,7 @@ function build(opts) {
 				return false;
 			}
 			return true;
-		})
+		});
 
 		if (warnings.length > 0) {
 			console.error(warnings);
