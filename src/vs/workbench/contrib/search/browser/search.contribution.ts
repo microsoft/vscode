@@ -198,9 +198,9 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('search.quickOpen.includeSymbols', "Whether to include results from a global symbol search in the file results for Quick Open."),
 			default: false
 		},
-		'search.ripgrep.numThreads': {
+		'search.ripgrep.maxThreads': {
 			type: 'number',
-			description: nls.localize('search.ripgrep.numThreads', "Number of threads to use for searching. When set to 0, the engine automatically determines this value."),
+			description: nls.localize('search.ripgrep.maxThreads', "Number of threads to use for searching. When set to 0, the engine automatically determines this value."),
 			default: 0
 		},
 		'search.quickOpen.includeHistory': {
