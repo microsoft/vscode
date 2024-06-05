@@ -13,7 +13,7 @@ import { CTX_INLINE_CHAT_EMPTY, CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_HAS_AGE
 import { isDetachedTerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { registerActiveXtermAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { MENU_TERMINAL_CHAT_INPUT, MENU_TERMINAL_CHAT_WIDGET, MENU_TERMINAL_CHAT_WIDGET_FEEDBACK, MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatCommandId, TerminalChatContextKeys } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
+import { MENU_TERMINAL_CHAT_INPUT, MENU_TERMINAL_CHAT_WIDGET, MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatCommandId, TerminalChatContextKeys } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
 import { TerminalChatController } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatController';
 
 registerActiveXtermAction({
@@ -78,7 +78,7 @@ registerActiveXtermAction({
 			return;
 		}
 		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
-		contr?.clear();
+		contr?.dispose();
 	}
 });
 
@@ -152,7 +152,7 @@ registerActiveXtermAction({
 			return;
 		}
 		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
-		contr?.clear();
+		contr?.dispose();
 	}
 });
 
@@ -366,25 +366,45 @@ registerActiveXtermAction({
 });
 
 registerActiveXtermAction({
-	id: TerminalChatCommandId.FeedbackReportIssue,
-	title: localize2('reportIssue', 'Report Issue'),
+	id: TerminalChatCommandId.PreviousFromHistory,
+	title: localize2('previousFromHitory', 'Previous From History'),
 	precondition: ContextKeyExpr.and(
-		TerminalChatContextKeys.requestActive.negate(),
-		TerminalChatContextKeys.responseContainsCodeBlock.notEqualsTo(undefined),
-		TerminalChatContextKeys.responseSupportsIssueReporting
+		TerminalChatContextKeys.focused,
+		TerminalChatContextKeys.agentRegistered
 	),
-	icon: Codicon.report,
-	menu: [{
-		id: MENU_TERMINAL_CHAT_WIDGET_FEEDBACK,
-		when: ContextKeyExpr.and(TerminalChatContextKeys.responseContainsCodeBlock.notEqualsTo(undefined), TerminalChatContextKeys.responseSupportsIssueReporting),
-		group: 'inline',
-		order: 3
-	}],
+	keybinding: {
+		when: ContextKeyExpr.and(TerminalChatContextKeys.focused),
+		weight: KeybindingWeight.EditorCore + 10,
+		primary: KeyCode.UpArrow,
+	},
+
 	run: (_xterm, _accessor, activeInstance) => {
 		if (isDetachedTerminalInstance(activeInstance)) {
 			return;
 		}
 		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
-		contr?.acceptFeedback();
+		contr?.populateHistory(true);
+	}
+});
+
+registerActiveXtermAction({
+	id: TerminalChatCommandId.NextFromHistory,
+	title: localize2('nextFromHitory', 'Next From History'),
+	precondition: ContextKeyExpr.and(
+		TerminalChatContextKeys.focused,
+		TerminalChatContextKeys.agentRegistered
+	),
+	keybinding: {
+		when: ContextKeyExpr.and(TerminalChatContextKeys.focused),
+		weight: KeybindingWeight.EditorCore + 10,
+		primary: KeyCode.DownArrow,
+	},
+
+	run: (_xterm, _accessor, activeInstance) => {
+		if (isDetachedTerminalInstance(activeInstance)) {
+			return;
+		}
+		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+		contr?.populateHistory(false);
 	}
 });

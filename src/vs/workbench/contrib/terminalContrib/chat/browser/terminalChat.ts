@@ -15,9 +15,6 @@ export const enum TerminalChatCommandId {
 	Discard = 'workbench.action.terminal.chat.discard',
 	MakeRequest = 'workbench.action.terminal.chat.makeRequest',
 	Cancel = 'workbench.action.terminal.chat.cancel',
-	FeedbackHelpful = 'workbench.action.terminal.chat.feedbackHelpful',
-	FeedbackUnhelpful = 'workbench.action.terminal.chat.feedbackUnhelpful',
-	FeedbackReportIssue = 'workbench.action.terminal.chat.feedbackReportIssue',
 	RunCommand = 'workbench.action.terminal.chat.runCommand',
 	RunFirstCommand = 'workbench.action.terminal.chat.runFirstCommand',
 	InsertCommand = 'workbench.action.terminal.chat.insertCommand',
@@ -69,10 +66,4 @@ export namespace TerminalChatContextKeys {
 
 	/** The chat response contains multiple code blocks */
 	export const responseContainsMultipleCodeBlocks = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatResponseContainsMultipleCodeBlocks, false, localize('chatResponseContainsMultipleCodeBlocksContextKey', "Whether the chat response contains multiple code blocks."));
-
-	/** Whether the response supports issue reporting */
-	export const responseSupportsIssueReporting = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatResponseSupportsIssueReporting, false, localize('chatResponseSupportsIssueReportingContextKey', "Whether the response supports issue reporting"));
-
-	/** The chat vote, if any for the response, if any */
-	export const sessionResponseVote = new RawContextKey<string>(TerminalChatContextKeyStrings.ChatSessionResponseVote, undefined, { type: 'string', description: localize('interactiveSessionResponseVote', "When the response has been voted up, is set to 'up'. When voted down, is set to 'down'. Otherwise an empty string.") });
 }
