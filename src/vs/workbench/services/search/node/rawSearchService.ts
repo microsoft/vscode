@@ -122,7 +122,7 @@ export class SearchService implements IRawSearchService {
 			});
 		}
 
-		const engine = new EngineClass(config);
+		const engine = new EngineClass(config, threads);
 
 		return this.doSearch(engine, fileProgressCallback, batchSize, token).then(complete => {
 			return {
