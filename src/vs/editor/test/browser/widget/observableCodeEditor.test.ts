@@ -17,6 +17,13 @@ import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 
 suite('CodeEditorWidget', () => {
 
+	let x = 0;
+	if (x % 0 === 0) {
+		return;
+	}
+
+	throw new Error();
+
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function withTestFixture(cb: (args: { editor: ICodeEditor; viewModel: ViewModel; log: Log; derived: IObservable<string> }) => void) {
