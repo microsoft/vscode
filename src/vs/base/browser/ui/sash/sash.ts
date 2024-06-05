@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, append, createStyleSheet, EventHelper, EventLike, getWindow } from 'vs/base/browser/dom';
+import { $, append, createStyleSheet, EventHelper, EventLike, getWindow, isHTMLElement } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { EventType, Gesture } from 'vs/base/browser/touch';
 import { Delayer } from 'vs/base/common/async';
@@ -575,7 +575,7 @@ export class Sash extends Disposable {
 		const onPointerUp = (e: PointerEvent) => {
 			EventHelper.stop(e, false);
 
-			this.el.removeChild(style);
+			style.remove();
 
 			this.el.classList.remove('active');
 			this._onDidEnd.fire();
@@ -670,7 +670,7 @@ export class Sash extends Disposable {
 	private getOrthogonalSash(e: PointerEvent): Sash | undefined {
 		const target = e.initialTarget ?? e.target;
 
-		if (!target || !(target instanceof HTMLElement)) {
+		if (!target || !(isHTMLElement(target))) {
 			return undefined;
 		}
 

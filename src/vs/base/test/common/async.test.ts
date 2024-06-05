@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import * as async from 'vs/base/common/async';
 import * as MicrotaskDelay from "vs/base/common/symbols";
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';

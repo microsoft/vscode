@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { Emitter } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
@@ -267,5 +267,52 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 		]);
 	});
 
-});
+	test('fixes #213316 (single root)', async () => {
+		harness.flush();
+		assert.deepStrictEqual(harness.tree.getRendered(), [
+			{ e: 'a' }, { e: 'b' }
+		]);
+		harness.pushDiff({
+			op: TestDiffOpType.Remove,
+			itemId: new TestId(['ctrlId', 'id-a']).toString(),
+		});
+		harness.flush();
+		assert.deepStrictEqual(harness.tree.getRendered(), [
+			{ e: 'b' }
+		]);
+	});
 
+	test('fixes #213316 (multi root)', async () => {
+		harness.pushDiff({
+			op: TestDiffOpType.Add,
+			item: { controllerId: 'ctrl2', expand: TestItemExpandState.Expanded, item: new TestTestItem(new TestId(['ctrlId2']), 'c').toTestItem() },
+		}, {
+			op: TestDiffOpType.Add,
+			item: { controllerId: 'ctrl2', expand: TestItemExpandState.NotExpandable, item: new TestTestItem(new TestId(['ctrlId2', 'id-c']), 'ca').toTestItem() },
+		});
+		harness.flush();
+		assert.deepStrictEqual(harness.flush(), [
+			{ e: 'c', children: [{ e: 'ca' }] },
+			{ e: 'root', children: [{ e: 'a' }, { e: 'b' }] }
+		]);
+
+		harness.pushDiff({
+			op: TestDiffOpType.Remove,
+			itemId: new TestId(['ctrlId', 'id-a']).toString(),
+		});
+		harness.flush();
+		assert.deepStrictEqual(harness.tree.getRendered(), [
+			{ e: 'c', children: [{ e: 'ca' }] },
+			{ e: 'root', children: [{ e: 'b' }] }
+		]);
+
+		harness.pushDiff({
+			op: TestDiffOpType.Remove,
+			itemId: new TestId(['ctrlId', 'id-b']).toString(),
+		});
+		harness.flush();
+		assert.deepStrictEqual(harness.tree.getRendered(), [
+			{ e: 'ca' }
+		]);
+	});
+});

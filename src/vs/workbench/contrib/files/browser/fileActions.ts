@@ -1110,18 +1110,32 @@ export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: Fi
 	const configurationService = accessor.get(IConfigurationService);
 	const uriIdentityService = accessor.get(IUriIdentityService);
 	const dialogService = accessor.get(IDialogService);
+	const hostService = accessor.get(IHostService);
 
 	const context = explorerService.getContext(false);
 	const hasNativeFilesToPaste = fileList && fileList.length > 0;
 	const confirmPasteNative = hasNativeFilesToPaste && configurationService.getValue<boolean>('explorer.confirmPasteNative');
 
-	const toPaste = await getFilesToPaste(fileList, clipboardService);
+	const toPaste = await getFilesToPaste(fileList, clipboardService, hostService);
 
 	if (confirmPasteNative && toPaste.files.length >= 1) {
 		const message = toPaste.files.length > 1 ?
 			nls.localize('confirmMultiPasteNative', "Are you sure you want to paste the following {0} items?", toPaste.files.length) :
 			nls.localize('confirmPasteNative', "Are you sure you want to paste '{0}'?", basename(toPaste.type === 'paths' ? toPaste.files[0].fsPath : toPaste.files[0].name));
-		const detail = toPaste.files.length > 1 ? getFileNamesMessage(toPaste.files.map(item => toPaste.type === 'paths' ? item.path : (item as File).name)) : undefined;
+		const detail = toPaste.files.length > 1 ? getFileNamesMessage(toPaste.files.map(item => {
+			if (URI.isUri(item)) {
+				return item.fsPath;
+			}
+
+			if (toPaste.type === 'paths') {
+				const path = hostService.getPathForFile(item);
+				if (path) {
+					return path;
+				}
+			}
+
+			return item.name;
+		})) : undefined;
 		const confirmation = await dialogService.confirm({
 			message,
 			detail,
@@ -1270,16 +1284,16 @@ type FilesToPaste =
 	| { type: 'paths'; files: URI[] }
 	| { type: 'data'; files: File[] };
 
-async function getFilesToPaste(fileList: FileList | undefined, clipboardService: IClipboardService): Promise<FilesToPaste> {
+async function getFilesToPaste(fileList: FileList | undefined, clipboardService: IClipboardService, hostService: IHostService): Promise<FilesToPaste> {
 	if (fileList && fileList.length > 0) {
 		// with a `fileList` we support natively pasting file from disk from clipboard
-		const resources = [...fileList].filter(file => !!file.path && isAbsolute(file.path)).map(file => URI.file(file.path));
+		const resources = [...fileList].map(file => hostService.getPathForFile(file)).filter(filePath => !!filePath && isAbsolute(filePath)).map((filePath) => URI.file(filePath!));
 		if (resources.length) {
 			return { type: 'paths', files: resources, };
 		}
 
 		// Support pasting files that we can't read from disk
-		return { type: 'data', files: [...fileList].filter(file => !file.path) };
+		return { type: 'data', files: [...fileList].filter(file => !hostService.getPathForFile(file)) };
 	} else {
 		// otherwise we fallback to reading resources from our clipboard service
 		return { type: 'paths', files: resources.distinctParents(await clipboardService.readResources(), resource => resource) };
