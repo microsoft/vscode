@@ -18,11 +18,14 @@ import { isString } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInput, IQuickInputButton, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickWidget, QuickInputHideReason, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { QuickInputBox } from 'vs/platform/quickinput/browser/quickInputBox';
-import { QuickInputUI, Writeable, IQuickInputStyles, IQuickInputOptions, QuickPick, backButton, InputBox, Visibilities, QuickWidget } from 'vs/platform/quickinput/browser/quickInput';
+import { QuickInputUI, Writeable, IQuickInputStyles, IQuickInputOptions, QuickPick, backButton, InputBox, Visibilities, QuickWidget, InQuickInputContextKey, QuickInputTypeContextKey, EndOfQuickInputBoxContextKey } from 'vs/platform/quickinput/browser/quickInput';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { mainWindow } from 'vs/base/browser/window';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { QuickInputListFocus, QuickInputTree } from 'vs/platform/quickinput/browser/quickInputTree';
+import { QuickInputTree } from 'vs/platform/quickinput/browser/quickInputTree';
+import { QuickPickFocus } from '../common/quickInput';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import 'vs/platform/quickinput/browser/quickInputActions';
 
 const $ = dom.$;
 
@@ -40,6 +43,7 @@ export class QuickInputController extends Disposable {
 	private keyMods: Writeable<IKeyMods> = { ctrlCmd: false, alt: false };
 
 	private controller: IQuickInput | null = null;
+	get currentQuickInput() { return this.controller ?? undefined; }
 
 	private _container: HTMLElement;
 	get container() { return this._container; }
@@ -54,10 +58,15 @@ export class QuickInputController extends Disposable {
 
 	private previousFocusElement?: HTMLElement;
 
+	private readonly inQuickInputContext = InQuickInputContextKey.bindTo(this.contextKeyService);
+	private readonly quickInputTypeContext = QuickInputTypeContextKey.bindTo(this.contextKeyService);
+	private readonly endOfQuickInputBoxContext = EndOfQuickInputBoxContextKey.bindTo(this.contextKeyService);
+
 	constructor(
 		private options: IQuickInputOptions,
 		@ILayoutService private readonly layoutService: ILayoutService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
 		this.idPrefix = options.idPrefix;
@@ -204,17 +213,33 @@ export class QuickInputController extends Disposable {
 		const focusTracker = dom.trackFocus(container);
 		this._register(focusTracker);
 		this._register(dom.addDisposableListener(container, dom.EventType.FOCUS, e => {
+			const ui = this.getUI();
+			if (dom.isAncestor(e.relatedTarget as HTMLElement, ui.inputContainer)) {
+				const value = ui.inputBox.isSelectionAtEnd();
+				if (this.endOfQuickInputBoxContext.get() !== value) {
+					this.endOfQuickInputBoxContext.set(value);
+				}
+			}
 			// Ignore focus events within container
-			if (dom.isAncestor(e.relatedTarget as HTMLElement, container)) {
+			if (dom.isAncestor(e.relatedTarget as HTMLElement, ui.container)) {
 				return;
 			}
-			this.previousFocusElement = e.relatedTarget instanceof HTMLElement ? e.relatedTarget : undefined;
+			this.inQuickInputContext.set(true);
+			this.previousFocusElement = dom.isHTMLElement(e.relatedTarget) ? e.relatedTarget : undefined;
 		}, true));
 		this._register(focusTracker.onDidBlur(() => {
 			if (!this.getUI().ignoreFocusOut && !this.options.ignoreFocusOut()) {
 				this.hide(QuickInputHideReason.Blur);
 			}
+			this.inQuickInputContext.set(false);
+			this.endOfQuickInputBoxContext.set(false);
 			this.previousFocusElement = undefined;
+		}));
+		this._register(inputBox.onKeyDown(_ => {
+			const value = this.getUI().inputBox.isSelectionAtEnd();
+			if (this.endOfQuickInputBoxContext.get() !== value) {
+				this.endOfQuickInputBoxContext.set(value);
+			}
 		}));
 		this._register(dom.addDisposableListener(container, dom.EventType.FOCUS, (e: FocusEvent) => {
 			inputBox.setFocus();
@@ -569,6 +594,7 @@ export class QuickInputController extends Disposable {
 		ui.container.style.display = '';
 		this.updateLayout();
 		ui.inputBox.setFocus();
+		this.quickInputTypeContext.set(controller.type);
 	}
 
 	isVisible(): boolean {
@@ -659,7 +685,7 @@ export class QuickInputController extends Disposable {
 
 	navigate(next: boolean, quickNavigate?: IQuickNavigateConfiguration) {
 		if (this.isVisible() && this.getUI().list.isDisplayed()) {
-			this.getUI().list.focus(next ? QuickInputListFocus.Next : QuickInputListFocus.Previous);
+			this.getUI().list.focus(next ? QuickPickFocus.Next : QuickPickFocus.Previous);
 			if (quickNavigate && this.controller instanceof QuickPick) {
 				this.controller.quickNavigate = quickNavigate;
 			}

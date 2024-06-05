@@ -38,7 +38,6 @@ export interface NativeParsedArgs {
 	add?: boolean;
 	goto?: boolean;
 	'new-window'?: boolean;
-	'unity-launch'?: boolean; // Always open a new window, except if opening the first window or opening a file or folder as part of the launch.
 	'reuse-window'?: boolean;
 	locale?: string;
 	'user-data-dir'?: string;
@@ -130,6 +129,7 @@ export interface NativeParsedArgs {
 	'inspect'?: string;
 	'inspect-brk'?: string;
 	'js-flags'?: string;
+	'disable-lcd-text'?: boolean;
 	'disable-gpu'?: boolean;
 	'disable-gpu-sandbox'?: boolean;
 	'nolazy'?: boolean;
@@ -141,4 +141,8 @@ export interface NativeParsedArgs {
 	'vmodule'?: string;
 	'disable-dev-shm-usage'?: boolean;
 	'ozone-platform'?: string;
+	'enable-tracing'?: string;
+	'trace-startup-format'?: string;
+	'trace-startup-file'?: string;
+	'trace-startup-duration'?: string;
 }

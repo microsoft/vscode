@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
-import { ISCMService, ISCMProvider, ISCMInput, ISCMRepository, IInputValidator, ISCMInputChangeEvent, SCMInputChangeReason, InputValidationType, IInputValidation, ISCMActionButtonDescriptor } from './scm';
+import { ISCMService, ISCMProvider, ISCMInput, ISCMRepository, IInputValidator, ISCMInputChangeEvent, SCMInputChangeReason, InputValidationType, IInputValidation } from './scm';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -16,7 +16,7 @@ import { URI } from 'vs/base/common/uri';
 import { Iterable } from 'vs/base/common/iterator';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
-class SCMInput implements ISCMInput {
+class SCMInput extends Disposable implements ISCMInput {
 
 	private _value = '';
 
@@ -69,19 +69,6 @@ class SCMInput implements ISCMInput {
 	private readonly _onDidChangeVisibility = new Emitter<boolean>();
 	readonly onDidChangeVisibility: Event<boolean> = this._onDidChangeVisibility.event;
 
-	private _actionButton: ISCMActionButtonDescriptor | undefined;
-	get actionButton(): ISCMActionButtonDescriptor | undefined {
-		return this._actionButton;
-	}
-
-	set actionButton(actionButton: ISCMActionButtonDescriptor) {
-		this._actionButton = actionButton;
-		this._onDidChangeActionButton.fire();
-	}
-
-	private readonly _onDidChangeActionButton = new Emitter<void>();
-	readonly onDidChangeActionButton: Event<void> = this._onDidChangeActionButton.event;
-
 	setFocus(): void {
 		this._onDidChangeFocus.fire();
 	}
@@ -117,9 +104,11 @@ class SCMInput implements ISCMInput {
 		readonly repository: ISCMRepository,
 		private readonly history: SCMInputHistory
 	) {
+		super();
+
 		if (this.repository.provider.rootUri) {
 			this.historyNavigator = history.getHistory(this.repository.provider.label, this.repository.provider.rootUri);
-			this.history.onWillSaveHistory(event => {
+			this._register(this.history.onWillSaveHistory(event => {
 				if (this.historyNavigator.isAtEnd()) {
 					this.saveValue();
 				}
@@ -129,7 +118,7 @@ class SCMInput implements ISCMInput {
 				}
 
 				this.didChangeHistory = false;
-			});
+			}));
 		} else { // in memory only
 			this.historyNavigator = new HistoryNavigator2([''], 100);
 		}

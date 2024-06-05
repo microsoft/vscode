@@ -13,7 +13,7 @@ import { basename, dirname, join, sep } from 'vs/base/common/path';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ByteSize } from 'vs/platform/files/common/files';
-import { ICachedSearchStats, IFileQuery, IFileSearchProgressItem, IFileSearchStats, IFolderQuery, IProgressMessage, IRawFileMatch, IRawFileQuery, IRawQuery, IRawSearchService, IRawTextQuery, ISearchEngine, ISearchEngineSuccess, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess, isFilePatternMatch, ITextQuery } from 'vs/workbench/services/search/common/search';
+import { DEFAULT_MAX_SEARCH_RESULTS, ICachedSearchStats, IFileQuery, IFileSearchProgressItem, IFileSearchStats, IFolderQuery, IProgressMessage, IRawFileMatch, IRawFileQuery, IRawQuery, IRawSearchService, IRawTextQuery, ISearchEngine, ISearchEngineSuccess, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ISerializedSearchSuccess, isFilePatternMatch, ITextQuery } from 'vs/workbench/services/search/common/search';
 import { Engine as FileSearchEngine } from 'vs/workbench/services/search/node/fileSearch';
 import { TextSearchEngineAdapter } from 'vs/workbench/services/search/node/textSearchAdapter';
 
@@ -123,7 +123,7 @@ export class SearchService implements IRawSearchService {
 		const engine = new EngineClass(config);
 
 		return this.doSearch(engine, fileProgressCallback, batchSize, token).then(complete => {
-			return <ISerializedSearchSuccess>{
+			return {
 				limitHit: complete.limitHit,
 				type: 'success',
 				stats: {
@@ -132,7 +132,8 @@ export class SearchService implements IRawSearchService {
 					fromCache: false,
 					resultCount,
 					sortingTime: undefined
-				}
+				},
+				messages: []
 			};
 		});
 	}
@@ -196,12 +197,11 @@ export class SearchService implements IRawSearchService {
 							sortingTime,
 							fromCache: false,
 							type: this.processType,
-							workspaceFolderCount: config.folderQueries.length,
 							resultCount: sortedResults.length
 						},
 						messages: result.messages,
 						limitHit: result.limitHit || typeof config.maxResults === 'number' && results.length > config.maxResults
-					} as ISerializedSearchSuccess, sortedResults];
+					}, sortedResults];
 				});
 		});
 	}
@@ -239,8 +239,9 @@ export class SearchService implements IRawSearchService {
 							{
 								type: 'success',
 								limitHit: result.limitHit || typeof config.maxResults === 'number' && results.length > config.maxResults,
-								stats
-							} as ISerializedSearchSuccess,
+								stats,
+								messages: [],
+							} satisfies ISerializedSearchSuccess,
 							sortedResults
 						];
 					});
@@ -257,7 +258,7 @@ export class SearchService implements IRawSearchService {
 		const query = prepareQuery(config.filePattern || '');
 		const compare = (matchA: IRawFileMatch, matchB: IRawFileMatch) => compareItemsByFuzzyScore(matchA, matchB, query, true, FileMatchItemAccessor, scorerCache);
 
-		const maxResults = typeof config.maxResults === 'number' ? config.maxResults : Number.MAX_VALUE;
+		const maxResults = typeof config.maxResults === 'number' ? config.maxResults : DEFAULT_MAX_SEARCH_RESULTS;
 		return arrays.topAsync(results, compare, maxResults, 10000, token);
 	}
 

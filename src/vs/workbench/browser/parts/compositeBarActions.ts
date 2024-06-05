@@ -26,7 +26,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { URI } from 'vs/base/common/uri';
 import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { IHoverWidget } from 'vs/base/browser/ui/hover/updatableHoverWidget';
+import type { IHoverWidget } from 'vs/base/browser/ui/hover/hover';
 
 export interface ICompositeBar {
 

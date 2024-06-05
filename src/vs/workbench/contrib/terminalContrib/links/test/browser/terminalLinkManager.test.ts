@@ -35,7 +35,7 @@ const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	fastScrollSensitivity: 2,
 	mouseWheelScrollSensitivity: 1,
 	unicodeVersion: '11',
-	wordSeparators: ' ()[]{}\',"`─‘’'
+	wordSeparators: ' ()[]{}\',"`─‘’“”'
 };
 
 class TestLinkManager extends TerminalLinkManager {

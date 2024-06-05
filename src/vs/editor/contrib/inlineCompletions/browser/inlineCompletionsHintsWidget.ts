@@ -11,7 +11,8 @@ import { equals } from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, autorun, autorunWithStore, derived, observableFromEvent } from 'vs/base/common/observable';
+import { IObservable, autorun, autorunWithStore, derived, derivedObservableWithCache, observableFromEvent } from 'vs/base/common/observable';
+import { derivedWithStore } from 'vs/base/common/observableInternal/derived';
 import { OS } from 'vs/base/common/platform';
 import { ThemeIcon } from 'vs/base/common/themables';
 import 'vs/css!./inlineCompletionsHintsWidget';
@@ -71,26 +72,36 @@ export class InlineCompletionsHintsWidget extends Disposable {
 				return;
 			}
 
-			const contentWidget = store.add(this.instantiationService.createInstance(
-				InlineSuggestionHintsContentWidget,
-				this.editor,
-				true,
-				this.position,
-				model.selectedInlineCompletionIndex,
-				model.inlineCompletionsCount,
-				model.selectedInlineCompletion.map(v => /** @description commands */ v?.inlineCompletion.source.inlineCompletions.commands ?? []),
-			));
-			editor.addContentWidget(contentWidget);
-			store.add(toDisposable(() => editor.removeContentWidget(contentWidget)));
+			const contentWidgetValue = derivedWithStore((reader, store) => {
+				const contentWidget = store.add(this.instantiationService.createInstance(
+					InlineSuggestionHintsContentWidget,
+					this.editor,
+					true,
+					this.position,
+					model.selectedInlineCompletionIndex,
+					model.inlineCompletionsCount,
+					model.activeCommands,
+				));
+				editor.addContentWidget(contentWidget);
+				store.add(toDisposable(() => editor.removeContentWidget(contentWidget)));
 
+				store.add(autorun(reader => {
+					/** @description request explicit */
+					const position = this.position.read(reader);
+					if (!position) {
+						return;
+					}
+					if (model.lastTriggerKind.read(reader) !== InlineCompletionTriggerKind.Explicit) {
+						model.triggerExplicitly();
+					}
+				}));
+				return contentWidget;
+			});
+
+			const hadPosition = derivedObservableWithCache(this, (reader, lastValue) => !!this.position.read(reader) || !!lastValue);
 			store.add(autorun(reader => {
-				/** @description request explicit */
-				const position = this.position.read(reader);
-				if (!position) {
-					return;
-				}
-				if (model.lastTriggerKind.read(reader) !== InlineCompletionTriggerKind.Explicit) {
-					model.triggerExplicitly();
+				if (hadPosition.read(reader)) {
+					contentWidgetValue.read(reader);
 				}
 			}));
 		}));
@@ -150,8 +161,6 @@ export class InlineSuggestionHintsContentWidget extends Disposable implements IC
 	private readonly disableButtonsDebounced = this._register(new RunOnceScheduler(() => {
 		this.previousAction.enabled = this.nextAction.enabled = false;
 	}, 100));
-
-	private lastCommands: Command[] = [];
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -225,13 +234,6 @@ export class InlineSuggestionHintsContentWidget extends Disposable implements IC
 		this._register(autorun(reader => {
 			/** @description extra commands */
 			const extraCommands = this._extraCommands.read(reader);
-			if (equals(this.lastCommands, extraCommands)) {
-				// nothing to update
-				return;
-			}
-
-			this.lastCommands = extraCommands;
-
 			const extraActions = extraCommands.map<IAction>(c => ({
 				class: undefined,
 				id: c.id,
@@ -328,9 +330,10 @@ export class CustomizedMenuWorkbenchToolBar extends WorkbenchToolBar {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
+		@ICommandService commandService: ICommandService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(container, { resetMenu: menuId, ...options2 }, menuService, contextKeyService, contextMenuService, keybindingService, telemetryService);
+		super(container, { resetMenu: menuId, ...options2 }, menuService, contextKeyService, contextMenuService, keybindingService, commandService, telemetryService);
 
 		this._store.add(this.menu.onDidChange(() => this.updateToolbar()));
 		this.updateToolbar();

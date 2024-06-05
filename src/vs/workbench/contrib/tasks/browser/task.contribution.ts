@@ -70,7 +70,7 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 	private _registerListeners(): void {
 		let promise: Promise<void> | undefined = undefined;
 		let resolve: (value?: void | Thenable<void>) => void;
-		this._taskService.onDidStateChange(event => {
+		this._register(this._taskService.onDidStateChange(event => {
 			if (event.kind === TaskEventKind.Changed) {
 				this._updateRunningTasksStatus();
 			}
@@ -109,14 +109,14 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 			}
 
 			if (promise && (event.kind === TaskEventKind.Active) && (this._activeTasksCount === 1)) {
-				this._progressService.withProgress({ location: ProgressLocation.Window, command: 'workbench.action.tasks.showTasks', type: 'loading' }, progress => {
+				this._progressService.withProgress({ location: ProgressLocation.Window, command: 'workbench.action.tasks.showTasks' }, progress => {
 					progress.report({ message: nls.localize('building', 'Building...') });
 					return promise!;
 				}).then(() => {
 					promise = undefined;
 				});
 			}
-		});
+		}));
 	}
 
 	private async _updateRunningTasksStatus(): Promise<void> {

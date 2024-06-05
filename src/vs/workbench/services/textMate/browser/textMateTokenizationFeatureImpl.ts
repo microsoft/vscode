@@ -85,9 +85,9 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 			this._updateTheme(this._themeService.getColorTheme(), false);
 		}));
 
-		this._languageService.onDidRequestRichLanguageFeatures((languageId) => {
+		this._register(this._languageService.onDidRequestRichLanguageFeatures((languageId) => {
 			this._createdModes.push(languageId);
-		});
+		}));
 	}
 
 	private getAsyncTokenizationEnabled(): boolean {
@@ -302,14 +302,14 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 				},
 				true,
 			);
-			tokenization.onDidEncounterLanguage((encodedLanguageId) => {
+			const disposable = tokenization.onDidEncounterLanguage((encodedLanguageId) => {
 				if (!this._encounteredLanguages[encodedLanguageId]) {
 					const languageId = this._languageService.languageIdCodec.decodeLanguageId(encodedLanguageId);
 					this._encounteredLanguages[encodedLanguageId] = true;
 					this._languageService.requestBasicLanguageFeatures(languageId);
 				}
 			});
-			return new TokenizationSupportWithLineLimit(encodedLanguageId, tokenization, maxTokenizationLineLength);
+			return new TokenizationSupportWithLineLimit(encodedLanguageId, tokenization, disposable, maxTokenizationLineLength);
 		} catch (err) {
 			if (err.message && err.message === missingTMGrammarErrorMessage) {
 				// Don't log this error message
@@ -410,13 +410,13 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 		}, {
 			owner: 'hediet';
 
-			timeMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'To understand how long it took to tokenize a random line' };
-			languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'To relate the performance to the language' };
-			lineLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'To relate the performance to the line length' };
-			fromWorker: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'To figure out if this line was tokenized sync or async' };
-			sourceExtensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'To figure out which extension contributed the grammar' };
-			isRandomSample: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'To figure out if this is a random sample or measured because of some other condition.' };
-			tokenizationSetting: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'To understand if the user has async tokenization enabled. 0=sync, 1=async, 2=verification' };
+			timeMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'To understand how long it took to tokenize a random line' };
+			languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'To relate the performance to the language' };
+			lineLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'To relate the performance to the line length' };
+			fromWorker: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'To figure out if this line was tokenized sync or async' };
+			sourceExtensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'To figure out which extension contributed the grammar' };
+			isRandomSample: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'To figure out if this is a random sample or measured because of some other condition.' };
+			tokenizationSetting: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'To understand if the user has async tokenization enabled. 0=sync, 1=async, 2=verification' };
 
 			comment: 'This event gives insight about the performance certain grammars.';
 		}>('editor.tokenizedLine', {

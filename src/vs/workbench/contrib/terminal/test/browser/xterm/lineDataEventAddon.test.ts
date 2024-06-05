@@ -4,22 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Terminal } from '@xterm/xterm';
-import { LineDataEventAddon } from 'vs/workbench/contrib/terminal/browser/xterm/lineDataEventAddon';
-import { OperatingSystem } from 'vs/base/common/platform';
 import { deepStrictEqual } from 'assert';
 import { importAMDNodeModule } from 'vs/amdX';
-import { writeP } from 'vs/workbench/contrib/terminal/browser/terminalTestHelpers';
+import { OperatingSystem } from 'vs/base/common/platform';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { writeP } from 'vs/workbench/contrib/terminal/browser/terminalTestHelpers';
+import { LineDataEventAddon } from 'vs/workbench/contrib/terminal/browser/xterm/lineDataEventAddon';
 
 suite('LineDataEventAddon', () => {
 	let xterm: Terminal;
 	let lineDataEventAddon: LineDataEventAddon;
 
-	let store: DisposableStore;
-	setup(() => store = new DisposableStore());
-	teardown(() => store.dispose());
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('onLineData', () => {
 		let events: string[];

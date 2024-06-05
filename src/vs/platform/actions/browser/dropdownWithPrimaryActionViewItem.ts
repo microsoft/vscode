@@ -25,6 +25,7 @@ export interface IDropdownWithPrimaryActionViewItemOptions {
 	actionRunner?: IActionRunner;
 	getKeyBinding?: (action: IAction) => ResolvedKeybinding | undefined;
 	hoverDelegate?: IHoverDelegate;
+	menuAsChild?: boolean;
 }
 
 export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
@@ -57,7 +58,7 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 		}
 
 		this._dropdown = new DropdownMenuActionViewItem(dropdownAction, dropdownMenuActions, this._contextMenuProvider, {
-			menuAsChild: true,
+			menuAsChild: _options?.menuAsChild ?? true,
 			classNames: className ? ['codicon', 'codicon-chevron-down', className] : ['codicon', 'codicon-chevron-down'],
 			actionRunner: this._options?.actionRunner,
 			keybindingProvider: this._options?.getKeyBinding,
@@ -134,7 +135,9 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 		this._dropdown = new DropdownMenuActionViewItem(dropdownAction, dropdownMenuActions, this._contextMenuProvider, {
 			menuAsChild: true,
 			classNames: ['codicon', dropdownIcon || 'codicon-chevron-down'],
-			hoverDelegate: this._options?.hoverDelegate
+			actionRunner: this._options?.actionRunner,
+			hoverDelegate: this._options?.hoverDelegate,
+			keybindingProvider: this._options?.getKeyBinding
 		});
 		if (this._dropdownContainer) {
 			this._dropdown.render(this._dropdownContainer);

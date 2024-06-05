@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -26,10 +26,7 @@ suite('NotebookCellList', () => {
 	setup(() => {
 		testDisposables = new DisposableStore();
 		instantiationService = setupInstantiationService(testDisposables);
-		config = new TestConfigurationService({
-			[NotebookSetting.anchorToFocusedCell]: 'auto'
-		});
-
+		config = new TestConfigurationService();
 		instantiationService.stub(IConfigurationService, config);
 	});
 

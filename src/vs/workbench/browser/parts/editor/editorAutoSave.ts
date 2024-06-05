@@ -29,7 +29,7 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 	// Auto save: focus change & window change
 	private lastActiveEditor: EditorInput | undefined = undefined;
 	private lastActiveGroupId: GroupIdentifier | undefined = undefined;
-	private lastActiveEditorControlDisposable = this._register(new DisposableStore());
+	private readonly lastActiveEditorControlDisposable = this._register(new DisposableStore());
 
 	// Auto save: waiting on specific condition
 	private readonly waitingOnConditionAutoSaveWorkingCopies = new ResourceMap<{ readonly workingCopy: IWorkingCopy; readonly reason: SaveReason; condition: AutoSaveDisabledReason }>(resource => this.uriIdentityService.extUri.getComparisonKey(resource));

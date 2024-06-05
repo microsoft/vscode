@@ -93,8 +93,8 @@ class RecommendationsNotification extends Disposable {
 		return this.cancelled;
 	}
 
-	private onDidCloseDisposable = this._register(new MutableDisposable());
-	private onDidChangeVisibilityDisposable = this._register(new MutableDisposable());
+	private readonly onDidCloseDisposable = this._register(new MutableDisposable());
+	private readonly onDidChangeVisibilityDisposable = this._register(new MutableDisposable());
 	private updateNotificationHandle(notificationHandle: INotificationHandle) {
 		this.onDidCloseDisposable.clear();
 		this.onDidChangeVisibilityDisposable.clear();
@@ -444,7 +444,11 @@ export class ExtensionRecommendationNotificationService extends Disposable imple
 			}
 			if (resourceExtensions.length) {
 				const extensions = await this.extensionsWorkbenchService.getResourceExtensions(resourceExtensions, true);
-				result.push(...extensions);
+				for (const extension of extensions) {
+					if (await this.extensionsWorkbenchService.canInstall(extension)) {
+						result.push(extension);
+					}
+				}
 			}
 		}
 		return result;

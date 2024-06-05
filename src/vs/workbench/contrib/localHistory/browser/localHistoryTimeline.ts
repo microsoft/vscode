@@ -151,7 +151,7 @@ export class LocalHistoryTimeline extends Disposable implements IWorkbenchContri
 		return {
 			handle: entry.id,
 			label: SaveSourceRegistry.getSourceLabel(entry.source),
-			tooltip: new MarkdownString(`$(history) ${getLocalHistoryDateFormatter().format(entry.timestamp)}\n\n${SaveSourceRegistry.getSourceLabel(entry.source)}`, { supportThemeIcons: true }),
+			tooltip: new MarkdownString(`$(history) ${getLocalHistoryDateFormatter().format(entry.timestamp)}\n\n${SaveSourceRegistry.getSourceLabel(entry.source)}${entry.sourceDescription ? ` (${entry.sourceDescription})` : ``}`, { supportThemeIcons: true }),
 			source: this.id,
 			timestamp: entry.timestamp,
 			themeIcon: LOCAL_HISTORY_ICON_ENTRY,

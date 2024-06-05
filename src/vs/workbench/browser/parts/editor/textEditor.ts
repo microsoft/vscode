@@ -267,7 +267,8 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 		}
 
 		return {
-			scrollTop: editor.getScrollTop(),
+			// The top position can vary depending on the view zones (find widget for example)
+			scrollTop: editor.getScrollTop() - editor.getTopForLineNumber(1),
 			scrollLeft: editor.getScrollLeft(),
 		};
 	}

@@ -384,8 +384,11 @@ export class Storage extends Disposable implements IStorage {
 	}
 
 	async flush(delay?: number): Promise<void> {
-		if (!this.hasPending) {
-			return; // return early if nothing to do
+		if (
+			this.state === StorageState.Closed || 	// Return early if we are already closed
+			this.pendingClose 						// return early if nothing to do
+		) {
+			return;
 		}
 
 		return this.doFlush(delay);

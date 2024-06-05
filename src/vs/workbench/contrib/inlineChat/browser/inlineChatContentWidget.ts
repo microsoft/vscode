@@ -10,8 +10,6 @@ import { IDimension } from 'vs/editor/common/core/dimension';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IPosition, Position } from 'vs/editor/common/core/position';
-import { clamp } from 'vs/base/common/numbers';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { inlineChatBackground } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
@@ -20,6 +18,10 @@ import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { editorBackground, editorForeground, inputBackground } from 'vs/platform/theme/common/colorRegistry';
 import { ChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { Range } from 'vs/editor/common/core/range';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { ScrollType } from 'vs/editor/common/editorCommon';
 
 export class InlineChatContentWidget implements IContentWidget {
 
@@ -43,20 +45,32 @@ export class InlineChatContentWidget implements IContentWidget {
 	private readonly _widget: ChatWidget;
 
 	constructor(
+		location: ChatAgentLocation,
 		private readonly _editor: ICodeEditor,
 		@IInstantiationService instaService: IInstantiationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 
-		this._defaultChatModel = this._store.add(instaService.createInstance(ChatModel, `inlineChatDefaultModel/editorContentWidgetPlaceholder`, undefined));
+		this._defaultChatModel = this._store.add(instaService.createInstance(ChatModel, undefined, ChatAgentLocation.Editor));
 
-		this._widget = instaService.createInstance(
+		const scopedInstaService = instaService.createChild(
+			new ServiceCollection([
+				IContextKeyService,
+				this._store.add(contextKeyService.createScoped(this._domNode))
+			]),
+			this._store
+		);
+
+		this._widget = scopedInstaService.createInstance(
 			ChatWidget,
-			ChatAgentLocation.Editor,
+			location,
 			{ resource: true },
 			{
+				defaultElementHeight: 32,
 				editorOverflowWidgetsDomNode: _editor.getOverflowWidgetsDomNode(),
 				renderStyle: 'compact',
 				renderInputOnTop: true,
+				renderFollowups: true,
 				supportsFileReferences: false,
 				menus: {
 					telemetrySource: 'inlineChat-content'
@@ -113,20 +127,16 @@ export class InlineChatContentWidget implements IContentWidget {
 		}
 		return {
 			position: this._position,
-			preference: [ContentWidgetPositionPreference.ABOVE, ContentWidgetPositionPreference.BELOW]
+			preference: [ContentWidgetPositionPreference.ABOVE]
 		};
 	}
 
 	beforeRender(): IDimension | null {
 
-		const contentWidth = this._editor.getLayoutInfo().contentWidth;
-		const minWidth = Math.round(contentWidth * 0.38);
-		const maxWidth = Math.round(contentWidth * 0.82);
+		const maxHeight = this._widget.input.inputEditor.getOption(EditorOption.lineHeight) * 5;
+		const inputEditorHeight = this._widget.contentHeight;
 
-		const width = clamp(220, minWidth, maxWidth);
-
-		const inputEditorHeight = this._widget.inputEditor.getContentHeight();
-		this._widget.inputEditor.layout(new dom.Dimension(width, inputEditorHeight));
+		this._widget.layout(Math.min(maxHeight, inputEditorHeight), 390);
 
 		// const actualHeight = this._widget.inputPartHeight;
 		// return new dom.Dimension(width, actualHeight);
@@ -159,7 +169,7 @@ export class InlineChatContentWidget implements IContentWidget {
 			this._visible = true;
 			this._focusNext = true;
 
-			this._editor.revealRangeNearTopIfOutsideViewport(Range.fromPositions(position));
+			this._editor.revealRangeNearTopIfOutsideViewport(Range.fromPositions(position), ScrollType.Immediate);
 			this._widget.inputEditor.setValue('');
 
 			const wordInfo = this._editor.getModel()?.getWordAtPosition(position);
@@ -181,14 +191,6 @@ export class InlineChatContentWidget implements IContentWidget {
 
 	setSession(session: Session): void {
 		this._widget.setModel(session.chatModel, {});
-		this._widget.setInputPlaceholder(session.session.placeholder ?? '');
-		this._updateMessage(session.session.message ?? '');
-	}
-
-	private _updateMessage(message: string) {
-		this._messageContainer.classList.toggle('hidden', !message);
-		const renderedMessage = renderLabelWithIcons(message);
-		dom.reset(this._messageContainer, ...renderedMessage);
-		this._editor.layoutContentWidget(this);
+		this._widget.setInputPlaceholder(session.agent.description ?? '');
 	}
 }

@@ -11,7 +11,6 @@ import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { ISelectBoxOptions, ISelectBoxStyles, ISelectOptionItem, SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IToggleStyles } from 'vs/base/browser/ui/toggle/toggle';
 import { Action, ActionRunner, IAction, IActionChangeEvent, IActionRunner, Separator } from 'vs/base/common/actions';
@@ -20,6 +19,8 @@ import * as platform from 'vs/base/common/platform';
 import * as types from 'vs/base/common/types';
 import 'vs/css!./actionbar';
 import * as nls from 'vs/nls';
+import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
+import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
 
 export interface IBaseActionViewItemOptions {
 	draggable?: boolean;
@@ -35,7 +36,7 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 	_context: unknown;
 	readonly _action: IAction;
 
-	private customHover?: ICustomHover;
+	private customHover?: IUpdatableHover;
 
 	get action() {
 		return this._action;
@@ -232,7 +233,7 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 		} else {
 			if (!this.customHover && title !== '') {
 				const hoverDelegate = this.options.hoverDelegate ?? getDefaultHoverDelegate('element');
-				this.customHover = this._store.add(setupCustomHover(hoverDelegate, this.element, title));
+				this.customHover = this._store.add(getBaseLayerHoverDelegate().setupUpdatableHover(hoverDelegate, this.element, title));
 			} else if (this.customHover) {
 				this.customHover.update(title);
 			}

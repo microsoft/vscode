@@ -205,6 +205,7 @@ export interface IExtensionContributions {
 	readonly notebooks?: INotebookEntry[];
 	readonly notebookRenderer?: INotebookRendererContribution[];
 	readonly debugVisualizers?: IDebugVisualizationContribution[];
+	readonly chatParticipants?: ReadonlyArray<{ id: string }>;
 }
 
 export interface IExtensionCapabilities {
@@ -324,6 +325,7 @@ export interface IExtension {
 	readonly manifest: IExtensionManifest;
 	readonly location: URI;
 	readonly targetPlatform: TargetPlatform;
+	readonly publisherDisplayName?: string;
 	readonly readmeUrl?: URI;
 	readonly changelogUrl?: URI;
 	readonly isValid: boolean;
@@ -460,6 +462,7 @@ export interface IRelaxedExtensionDescription extends IRelaxedExtensionManifest 
 	id?: string;
 	identifier: ExtensionIdentifier;
 	uuid?: string;
+	publisherDisplayName?: string;
 	targetPlatform: TargetPlatform;
 	isBuiltin: boolean;
 	isUserBuiltin: boolean;

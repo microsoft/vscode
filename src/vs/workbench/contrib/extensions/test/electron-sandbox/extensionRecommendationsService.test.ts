@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as sinon from 'sinon';
-import * as assert from 'assert';
+import assert from 'assert';
 import * as uuid from 'vs/base/common/uuid';
 import {
 	IExtensionGalleryService, IGalleryExtensionAssets, IGalleryExtension, IExtensionManagementService, IExtensionTipsService, getTargetPlatform,
@@ -232,7 +232,6 @@ suite('ExtensionRecommendationsService Test', () => {
 			async canInstall() { return true; },
 			async getExtensionsControlManifest() { return { malicious: [], deprecated: {}, search: [] }; },
 			async getTargetPlatform() { return getTargetPlatform(platform, arch); },
-			isWorkspaceExtensionsSupported() { return false; },
 		});
 		instantiationService.stub(IExtensionService, {
 			onDidChangeExtensions: Event.None,

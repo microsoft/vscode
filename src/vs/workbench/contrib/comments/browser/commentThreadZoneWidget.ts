@@ -139,9 +139,9 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		super(editor, { keepEditorSelection: true, isAccessible: true });
 		this._contextKeyService = contextKeyService.createScoped(this.domNode);
 
-		this._scopedInstantiationService = instantiationService.createChild(new ServiceCollection(
+		this._scopedInstantiationService = this._globalToDispose.add(instantiationService.createChild(new ServiceCollection(
 			[IContextKeyService, this._contextKeyService]
-		));
+		)));
 
 		const controller = this.commentService.getCommentController(this._uniqueOwner);
 		if (controller) {
@@ -150,7 +150,6 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 		this._initialCollapsibleState = _pendingComment ? languages.CommentThreadCollapsibleState.Expanded : _commentThread.initialCollapsibleState;
 		_commentThread.initialCollapsibleState = this._initialCollapsibleState;
-		this._isExpanded = this._initialCollapsibleState === languages.CommentThreadCollapsibleState.Expanded;
 		this._commentThreadDisposables = [];
 		this.create();
 
@@ -328,7 +327,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			this.bindCommentThreadListeners();
 		}
 
-		this._commentThreadWidget.updateCommentThread(commentThread);
+		await this._commentThreadWidget.updateCommentThread(commentThread);
 
 		// Move comment glyph widget and show position if the line has changed.
 		const lineNumber = this._commentThread.range?.endLineNumber ?? 1;
@@ -356,13 +355,13 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		this._commentThreadWidget.layout(widthInPixel);
 	}
 
-	display(range: IRange | undefined) {
+	async display(range: IRange | undefined, shouldReveal: boolean) {
 		if (range) {
 			this._commentGlyph = new CommentGlyphWidget(this.editor, range?.endLineNumber ?? -1);
 			this._commentGlyph.setThreadState(this._commentThread.state);
 		}
 
-		this._commentThreadWidget.display(this.editor.getOption(EditorOption.lineHeight));
+		await this._commentThreadWidget.display(this.editor.getOption(EditorOption.lineHeight), shouldReveal);
 		this._disposables.add(this._commentThreadWidget.onDidResize(dimension => {
 			this._refresh(dimension);
 		}));
@@ -371,7 +370,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		}
 
 		// If this is a new comment thread awaiting user input then we need to reveal it.
-		if (this._commentThread.canReply && this._commentThread.isTemplate && (!this._commentThread.comments || (this._commentThread.comments.length === 0))) {
+		if (shouldReveal) {
 			this.reveal();
 		}
 
@@ -439,7 +438,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	}
 
 	_refresh(dimensions: dom.Dimension) {
-		if (dimensions.height === 0 && dimensions.width === 0) {
+		if ((this._isExpanded === undefined) && (dimensions.height === 0) && (dimensions.width === 0)) {
 			this.commentThread.collapsibleState = languages.CommentThreadCollapsibleState.Collapsed;
 			return;
 		}
@@ -461,10 +460,6 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 			if (this._viewZone && currentPosition && currentPosition.lineNumber !== this._viewZone.afterLineNumber && this._viewZone.afterLineNumber !== 0) {
 				this._viewZone.afterLineNumber = currentPosition.lineNumber;
-			}
-
-			if (!this._commentThread.comments || !this._commentThread.comments.length) {
-				this._commentThreadWidget.focusCommentEditor();
 			}
 
 			const capture = StableEditorScrollState.capture(this.editor);

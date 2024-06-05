@@ -306,6 +306,13 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		return listView;
 	}
 
+	/**
+	 * Test Only
+	 */
+	_getView() {
+		return this.view;
+	}
+
 	attachWebview(element: HTMLElement) {
 		element.style.top = `-${NOTEBOOK_WEBVIEW_BOUNDARY}px`;
 		this.rowsContainer.insertAdjacentElement('afterbegin', element);
@@ -929,7 +936,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			// wait for the editor to be created if the cell is in editing mode
 			cell.getEditState() === CellEditState.Editing
 			// wait for the editor to be created if we are revealing the first line of the cell
-			|| revealType === CellRevealType.FirstLineIfOutsideViewport
+			|| (revealType === CellRevealType.FirstLineIfOutsideViewport && cell.cellKind === CellKind.Code)
 		) && !cell.editorAttached) {
 			return getEditorAttachedPromise(cell);
 		}

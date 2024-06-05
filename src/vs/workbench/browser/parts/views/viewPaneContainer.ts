@@ -43,11 +43,11 @@ import { IWorkbenchLayoutService, LayoutSettings, Position } from 'vs/workbench/
 import { IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 export const ViewsSubMenu = new MenuId('Views');
-MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, <ISubmenuItem>{
+MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, {
 	submenu: ViewsSubMenu,
 	title: nls.localize('views', "Views"),
 	order: 1,
-});
+} satisfies ISubmenuItem);
 
 export interface IViewPaneContainerOptions extends IPaneViewOptions {
 	mergeViewWithContainerWhenSingleView: boolean;
@@ -112,7 +112,7 @@ class ViewPaneDropOverlay extends Themable {
 		this.paneElement.appendChild(this.container);
 		this.paneElement.classList.add('dragged-over');
 		this._register(toDisposable(() => {
-			this.paneElement.removeChild(this.container);
+			this.container.remove();
 			this.paneElement.classList.remove('dragged-over');
 		}));
 
@@ -1098,6 +1098,10 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 	isViewMergedWithContainer(): boolean {
 		if (!(this.options.mergeViewWithContainerWhenSingleView && this.paneItems.length === 1)) {
+			return false;
+		}
+		if (this.paneItems[0].pane.titleDescription) {
+			// Don't merge a view with a titleDescription. See #166000
 			return false;
 		}
 		if (!this.areExtensionsReady) {

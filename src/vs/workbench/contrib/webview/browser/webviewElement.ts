@@ -513,7 +513,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 				this.element?.classList.add('ready');
 
 				if (this._state.type === WebviewState.Type.Initializing) {
-					this._state.pendingMessages.forEach(({ channel, data }) => this.doPostMessage(channel, data));
+					this._state.pendingMessages.forEach(({ channel, data, resolve }) => resolve(this.doPostMessage(channel, data)));
 				}
 				this._state = WebviewState.Ready;
 

@@ -18,8 +18,11 @@
           value: "nullExtensionDescription",
           _lower: "nullextensiondescription"
         },
+        publisherDisplayName: "",
+        extensionDisplayName: "",
+        extensionPublisherId: "",
         locations: [ "panel" ],
-        metadata: { description: "" },
+        metadata: {  },
         slashCommands: [
           {
             name: "subCommand",
@@ -56,6 +59,7 @@
       },
       variableName: "selection",
       variableArg: "",
+      variableId: "copilot.selection",
       kind: "var"
     },
     {
@@ -85,6 +89,7 @@
       },
       variableName: "debugConsole",
       variableArg: "",
+      variableId: "copilot.debugConsole",
       kind: "var"
     }
   ],
