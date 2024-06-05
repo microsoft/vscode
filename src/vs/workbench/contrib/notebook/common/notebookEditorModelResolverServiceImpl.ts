@@ -220,8 +220,9 @@ export class NotebookModelResolverServiceImpl implements INotebookEditorModelRes
 			} else {
 				await this._extensionService.whenInstalledExtensionsRegistered();
 				const providers = this._notebookService.getContributedNotebookTypes(resource);
-				const exclusiveProvider = providers.find(provider => provider.exclusive);
-				viewType = exclusiveProvider?.id || providers[0]?.id;
+				viewType = providers.find(provider => provider.priority === 'exclusive')?.id ??
+					providers.find(provider => provider.priority === 'default')?.id ??
+					providers[0]?.id;
 			}
 		}
 

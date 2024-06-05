@@ -115,7 +115,7 @@ export class ReplDocumentContribution extends Disposable implements IWorkbenchCo
 				providerDisplayName: 'REPL Notebook',
 				displayName: 'Repl Notebook',
 				filenamePattern: ['*.ipynb'],
-				exclusive: false
+				priority: RegisteredEditorPriority.option,
 			}));
 		}
 

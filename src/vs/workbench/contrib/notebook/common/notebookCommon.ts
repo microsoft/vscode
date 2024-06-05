@@ -34,6 +34,7 @@ import { IFileReadLimits } from 'vs/platform/files/common/files';
 import { parse as parseUri, generate as generateUri } from 'vs/workbench/services/notebook/common/notebookDocumentService';
 import { ICellExecutionError } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookTextModelLike } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 
 export const NOTEBOOK_EDITOR_ID = 'workbench.editor.notebook';
 export const NOTEBOOK_DIFF_EDITOR_ID = 'workbench.editor.notebookTextDiffEditor';
@@ -554,7 +555,7 @@ export interface INotebookContributionData {
 	providerDisplayName: string;
 	displayName: string;
 	filenamePattern: (string | glob.IRelativePattern | INotebookExclusiveDocumentFilter)[];
-	exclusive: boolean;
+	priority?: RegisteredEditorPriority;
 }
 
 
