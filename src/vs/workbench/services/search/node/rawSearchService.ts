@@ -75,7 +75,7 @@ export class SearchService implements IRawSearchService {
 
 	private async ripgrepTextSearch(config: ITextQuery, progressCallback: IProgressCallback, token: CancellationToken): Promise<ISerializedSearchSuccess> {
 		config.maxFileSize = this.getPlatformFileLimits().maxFileSize;
-		const numThreads = await this.getNumThreads;
+		const numThreads = await this.getNumThreads?.();
 		const engine = new TextSearchEngineAdapter(config, numThreads);
 
 		return engine.search(token, progressCallback, progressCallback);
