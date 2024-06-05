@@ -2243,23 +2243,69 @@ export namespace ChatFollowup {
 	}
 }
 
+export namespace LanguageModelChatMessageRole {
+	export function to(role: chatProvider.ChatMessageRole): vscode.LanguageModelChatMessageRole {
+		switch (role) {
+			case chatProvider.ChatMessageRole.System: return types.LanguageModelChatMessageRole.System;
+			case chatProvider.ChatMessageRole.User: return types.LanguageModelChatMessageRole.User;
+			case chatProvider.ChatMessageRole.Assistant: return types.LanguageModelChatMessageRole.Assistant;
+		}
+	}
+
+	export function from(role: vscode.LanguageModelChatMessageRole): chatProvider.ChatMessageRole {
+		switch (role) {
+			case types.LanguageModelChatMessageRole.System: return chatProvider.ChatMessageRole.System;
+			case types.LanguageModelChatMessageRole.User: return chatProvider.ChatMessageRole.User;
+			case types.LanguageModelChatMessageRole.Assistant: return chatProvider.ChatMessageRole.Assistant;
+		}
+		return chatProvider.ChatMessageRole.User;
+	}
+}
 
 export namespace LanguageModelChatMessage {
 
 	export function to(message: chatProvider.IChatMessage): vscode.LanguageModelChatMessage {
-		switch (message.role) {
-			case chatProvider.ChatMessageRole.System: return new types.LanguageModelChatMessage(<number>types.LanguageModelChatMessageRole.System, message.content);
-			case chatProvider.ChatMessageRole.User: return new types.LanguageModelChatMessage(<number>types.LanguageModelChatMessageRole.User, message.content);
-			case chatProvider.ChatMessageRole.Assistant: return new types.LanguageModelChatMessage(<number>types.LanguageModelChatMessageRole.Assistant, message.content);
+		let content: string = '';
+		let content2: vscode.LanguageModelChatMessageFunctionResultPart | undefined;
+		if (message.content.type === 'text') {
+			content = message.content.value;
+		} else {
+			content2 = new types.LanguageModelFunctionResultPart(message.content.name, message.content.value, message.content.isError);
 		}
+		const role = LanguageModelChatMessageRole.to(message.role);
+		const result = new types.LanguageModelChatMessage(role, content, message.name);
+		if (content2 !== undefined) {
+			result.content2 = content2;
+		}
+		return result;
 	}
 
 	export function from(message: vscode.LanguageModelChatMessage): chatProvider.IChatMessage {
-		switch (message.role as types.LanguageModelChatMessageRole) {
-			case types.LanguageModelChatMessageRole.System: return { role: chatProvider.ChatMessageRole.System, content: message.content };
-			case types.LanguageModelChatMessageRole.User: return { role: chatProvider.ChatMessageRole.User, content: message.content };
-			case types.LanguageModelChatMessageRole.Assistant: return { role: chatProvider.ChatMessageRole.Assistant, content: message.content };
+
+		const role = LanguageModelChatMessageRole.from(message.role);
+		const name = message.name;
+
+		let content: chatProvider.IChatMessagePart;
+
+		if (message.content2 instanceof types.LanguageModelFunctionResultPart) {
+			content = {
+				type: 'function_result',
+				name: message.content2.name,
+				value: message.content2.content,
+				isError: message.content2.isError
+			};
+		} else {
+			content = {
+				type: 'text',
+				value: message.content
+			};
 		}
+
+		return {
+			role,
+			name,
+			content
+		};
 	}
 }
 
