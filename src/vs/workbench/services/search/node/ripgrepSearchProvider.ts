@@ -14,12 +14,12 @@ import type { RipgrepTextSearchOptions } from 'vs/workbench/services/search/comm
 export class RipgrepSearchProvider implements TextSearchProvider {
 	private inProgress: Set<CancellationTokenSource> = new Set();
 
-	constructor(private outputChannel: OutputChannel, private numThreadsPromise: Promise<number | undefined>) {
+	constructor(private outputChannel: OutputChannel, private getNumThreads: () => Promise<number | undefined>) {
 		process.once('exit', () => this.dispose());
 	}
 
 	async provideTextSearchResults(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): Promise<TextSearchComplete> {
-		const numThreads = await this.numThreadsPromise;
+		const numThreads = await this.getNumThreads();
 		const engine = new RipgrepTextSearchEngine(this.outputChannel, numThreads);
 		const extendedOptions: RipgrepTextSearchOptions = {
 			...options,

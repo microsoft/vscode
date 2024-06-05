@@ -26,7 +26,7 @@ export class SearchService implements IRawSearchService {
 
 	private caches: { [cacheKey: string]: Cache } = Object.create(null);
 
-	constructor(private readonly processType: IFileSearchStats['type'] = 'searchProcess', private readonly numThreadsPromise?: Promise<number | undefined>) { }
+	constructor(private readonly processType: IFileSearchStats['type'] = 'searchProcess', private readonly getNumThreads?: () => Promise<number | undefined>) { }
 
 	fileSearch(config: IRawFileQuery): Event<ISerializedSearchProgressItem | ISerializedSearchComplete> {
 		let promise: CancelablePromise<ISerializedSearchSuccess>;
@@ -35,7 +35,7 @@ export class SearchService implements IRawSearchService {
 		const emitter = new Emitter<ISerializedSearchProgressItem | ISerializedSearchComplete>({
 			onDidAddFirstListener: () => {
 				promise = createCancelablePromise(async token => {
-					const numThreads = await this.numThreadsPromise;
+					const numThreads = await this.getNumThreads?.();
 					return this.doFileSearchWithEngine(FileSearchEngine, query, p => emitter.fire(p), token, SearchService.BATCH_SIZE, numThreads);
 				});
 
@@ -75,7 +75,7 @@ export class SearchService implements IRawSearchService {
 
 	private async ripgrepTextSearch(config: ITextQuery, progressCallback: IProgressCallback, token: CancellationToken): Promise<ISerializedSearchSuccess> {
 		config.maxFileSize = this.getPlatformFileLimits().maxFileSize;
-		const numThreads = await this.numThreadsPromise;
+		const numThreads = await this.getNumThreads;
 		const engine = new TextSearchEngineAdapter(config, numThreads);
 
 		return engine.search(token, progressCallback, progressCallback);
