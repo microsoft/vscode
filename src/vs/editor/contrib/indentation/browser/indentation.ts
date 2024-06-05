@@ -418,10 +418,6 @@ export class AutoIndentOnPaste implements IEditorContribution {
 		if (!model) {
 			return;
 		}
-		// TODO: also need to understand how autoindentation works when not pasting at the beginning of the line, but in the middle
-		// but could say that when the pasted text is only whitespaces, then should never reindent
-		// why when pasted in the middle of the text, no reindentation happens?
-
 		const containsOnlyWhitespace = this.rangeContainsOnlyWhitespaceCharacters(model, range);
 		if (containsOnlyWhitespace) {
 			return;
@@ -454,19 +450,14 @@ export class AutoIndentOnPaste implements IEditorContribution {
 			}
 			break;
 		}
-		console.log('range : ', range);
-		console.log('startLineNumber : ', startLineNumber);
-		console.log('range.endLineNumber : ', range.endLineNumber);
 
 		if (startLineNumber > range.endLineNumber) {
 			return;
 		}
 
 		let firstLineText = model.getLineContent(startLineNumber);
-		console.log('firstLineText : ', firstLineText);
 		if (!/\S/.test(firstLineText.substring(0, range.startColumn - 1))) {
 			const indentOfFirstLine = getGoodIndentForLine(autoIndent, model, model.getLanguageId(), startLineNumber, indentConverter, this._languageConfigurationService);
-			console.log('indentOfFirstLine.length : ', indentOfFirstLine?.length);
 
 			if (indentOfFirstLine !== null) {
 				const oldIndentation = strings.getLeadingWhitespace(firstLineText);
@@ -474,12 +465,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 				const oldSpaceCnt = indentUtils.getSpaceCnt(oldIndentation, tabSize);
 
 				if (newSpaceCnt !== oldSpaceCnt) {
-					console.log('newSpaceCnt : ', newSpaceCnt);
-					console.log('oldSpaceCnt : ', oldSpaceCnt);
-					console.log('tabSize : ', tabSize);
-					console.log('insertSpaces : ', insertSpaces);
 					const newIndent = indentUtils.generateIndent(newSpaceCnt, tabSize, insertSpaces);
-					console.log('push 1');
 					textEdits.push({
 						range: new Range(startLineNumber, 1, startLineNumber, oldIndentation.length + 1),
 						text: newIndent
@@ -546,7 +532,6 @@ export class AutoIndentOnPaste implements IEditorContribution {
 						const newIndent = indentUtils.generateIndent(newSpacesCnt, tabSize, insertSpaces);
 
 						if (newIndent !== originalIndent) {
-							console.log('push 2');
 							textEdits.push({
 								range: new Range(i, 1, i, originalIndent.length + 1),
 								text: newIndent
@@ -556,7 +541,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 				}
 			}
 		}
-		console.log('textEdits : ', textEdits);
+
 		if (textEdits.length > 0) {
 			this.editor.pushUndoStop();
 			const cmd = new AutoIndentOnPasteCommand(textEdits, this.editor.getSelection()!);
@@ -565,25 +550,29 @@ export class AutoIndentOnPaste implements IEditorContribution {
 		}
 	}
 
-	// Is there a better way to find if a line contains only whitespace, other than doing this
-	// instead of trimming do a regex check that is maybe more efficient
 	private rangeContainsOnlyWhitespaceCharacters(model: ITextModel, range: Range): boolean {
+		const lineContainsOnlyWhitespace = (content: string): boolean => {
+			return content.trim().length === 0;
+		};
 		let containsOnlyWhitespace: boolean = true;
 		if (range.startLineNumber === range.endLineNumber) {
 			const lineContent = model.getLineContent(range.startLineNumber);
 			const linePart = lineContent.substring(range.startColumn - 1, range.endColumn - 1);
-			containsOnlyWhitespace = linePart.trim().length === 0;
+			containsOnlyWhitespace = lineContainsOnlyWhitespace(linePart);
 		} else {
 			for (let i = range.startLineNumber; i <= range.endLineNumber; i++) {
 				const lineContent = model.getLineContent(i);
 				if (i === range.startLineNumber) {
 					const linePart = lineContent.substring(range.startColumn - 1);
-					containsOnlyWhitespace = linePart.trim().length === 0;
+					containsOnlyWhitespace = lineContainsOnlyWhitespace(linePart);
 				} else if (i === range.endLineNumber) {
 					const linePart = lineContent.substring(0, range.endColumn - 1);
-					containsOnlyWhitespace = linePart.trim().length === 0;
+					containsOnlyWhitespace = lineContainsOnlyWhitespace(linePart);
 				} else {
 					containsOnlyWhitespace = model.getLineFirstNonWhitespaceColumn(i) === 0;
+				}
+				if (!containsOnlyWhitespace) {
+					break;
 				}
 			}
 		}
