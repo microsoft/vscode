@@ -207,7 +207,7 @@ configurationRegistry.registerConfiguration({
 			'items': {
 				'type': 'string',
 				'enum': Object.keys(GUESSABLE_ENCODINGS),
-				'enumDescriptions': Object.keys(GUESSABLE_ENCODINGS).map(key => GUESSABLE_ENCODINGS[key].labelLong),
+				'enumDescriptions': Object.keys(GUESSABLE_ENCODINGS).map(key => GUESSABLE_ENCODINGS[key].labelLong)
 			},
 			'default': [],
 			'markdownDescription': nls.localize('candidateGuessEncodings', "List of character set encodings that the editor should attempt to guess in the order they are listed. In case it cannot be determined, {0} is respected", '`#files.encoding#`'),
