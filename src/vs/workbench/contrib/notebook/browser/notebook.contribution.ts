@@ -188,7 +188,7 @@ class NotebookDiffEditorSerializer implements IEditorSerializer {
 type SerializedNotebookEditorData = { resource: URI; preferredResource: URI; viewType: string; options?: NotebookEditorInputOptions };
 class NotebookEditorSerializer implements IEditorSerializer {
 	canSerialize(input: EditorInput): boolean {
-		return input instanceof NotebookEditorInput && input.viewType === 'jupyter-notebook';
+		return input.typeId === NotebookEditorInput.ID;
 	}
 	serialize(input: EditorInput): string {
 		assertType(input instanceof NotebookEditorInput);

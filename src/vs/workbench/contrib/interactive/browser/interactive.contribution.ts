@@ -411,10 +411,10 @@ registerAction2(class extends Action2 {
 		logService.debug('Open new interactive window:', notebookUri.toString(), inputUri.toString());
 
 		if (id) {
-			const allKernels = kernelService.getMatchingKernel({ uri: notebookUri, kernelType: 'interactive' }).all;
+			const allKernels = kernelService.getMatchingKernel({ uri: notebookUri, notebookType: 'interactive' }).all;
 			const preferredKernel = allKernels.find(kernel => kernel.id === id);
 			if (preferredKernel) {
-				kernelService.preselectKernelForNotebook(preferredKernel, { uri: notebookUri, kernelType: 'interactive' });
+				kernelService.preselectKernelForNotebook(preferredKernel, { uri: notebookUri, notebookType: 'interactive' });
 			}
 		}
 

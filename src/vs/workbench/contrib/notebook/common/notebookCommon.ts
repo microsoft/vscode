@@ -33,6 +33,7 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IFileReadLimits } from 'vs/platform/files/common/files';
 import { parse as parseUri, generate as generateUri } from 'vs/workbench/services/notebook/common/notebookDocumentService';
 import { ICellExecutionError } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { INotebookTextModelLike } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 
 export const NOTEBOOK_EDITOR_ID = 'workbench.editor.notebook';
 export const NOTEBOOK_DIFF_EDITOR_ID = 'workbench.editor.notebookTextDiffEditor';
@@ -253,8 +254,8 @@ export interface ICell {
 	onDidChangeInternalMetadata: Event<CellInternalMetadataChangedEvent>;
 }
 
-export interface INotebookTextModel {
-	readonly kernelType: string;
+export interface INotebookTextModel extends INotebookTextModelLike {
+	readonly notebookType: string;
 	readonly viewType: string;
 	metadata: NotebookDocumentMetadata;
 	readonly transientOptions: TransientOptions;

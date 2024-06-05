@@ -51,7 +51,7 @@ import { InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
 type SerializedNotebookEditorData = { resource: URI; preferredResource: URI; viewType: string; options?: NotebookEditorInputOptions };
 class ReplEditorSerializer implements IEditorSerializer {
 	canSerialize(input: EditorInput): boolean {
-		return input instanceof ReplEditorInput && input.viewType === 'repl';
+		return input.typeId === ReplEditorInput.ID;
 	}
 	serialize(input: EditorInput): string {
 		assertType(input instanceof ReplEditorInput);
