@@ -493,13 +493,13 @@ export function detectEncodingFromBuffer({ buffer, bytesRead }: IReadResult, aut
 	return { seemsBinary, encoding };
 }
 
-export const SUPPORTED_ENCODINGS: { [encoding: string]: { labelLong: string; labelShort: string; order: number; encodeOnly?: boolean; alias?: string; jscardetEncodingName?: string } } = {
+export const SUPPORTED_ENCODINGS: { [encoding: string]: { labelLong: string; labelShort: string; order: number; encodeOnly?: boolean; alias?: string; jschardetEncodingName?: string } } = {
 	utf8: {
 		labelLong: 'UTF-8',
 		labelShort: 'UTF-8',
 		order: 1,
 		alias: 'utf8bom',
-		jscardetEncodingName: 'UTF-8'
+		jschardetEncodingName: 'UTF-8'
 	},
 	utf8bom: {
 		labelLong: 'UTF-8 with BOM',
@@ -512,19 +512,19 @@ export const SUPPORTED_ENCODINGS: { [encoding: string]: { labelLong: string; lab
 		labelLong: 'UTF-16 LE',
 		labelShort: 'UTF-16 LE',
 		order: 3,
-		jscardetEncodingName: 'UTF-16LE'
+		jschardetEncodingName: 'UTF-16LE'
 	},
 	utf16be: {
 		labelLong: 'UTF-16 BE',
 		labelShort: 'UTF-16 BE',
 		order: 4,
-		jscardetEncodingName: 'UTF-16BE'
+		jschardetEncodingName: 'UTF-16BE'
 	},
 	windows1252: {
 		labelLong: 'Western (Windows 1252)',
 		labelShort: 'Windows 1252',
 		order: 5,
-		jscardetEncodingName: 'windows-1252'
+		jschardetEncodingName: 'windows-1252'
 	},
 	iso88591: {
 		labelLong: 'Western (ISO 8859-1)',
@@ -580,13 +580,13 @@ export const SUPPORTED_ENCODINGS: { [encoding: string]: { labelLong: string; lab
 		labelLong: 'Central European (Windows 1250)',
 		labelShort: 'Windows 1250',
 		order: 16,
-		jscardetEncodingName: 'windows-1250'
+		jschardetEncodingName: 'windows-1250'
 	},
 	iso88592: {
 		labelLong: 'Central European (ISO 8859-2)',
 		labelShort: 'ISO 8859-2',
 		order: 17,
-		jscardetEncodingName: 'ISO-8859-2'
+		jschardetEncodingName: 'ISO-8859-2'
 	},
 	cp852: {
 		labelLong: 'Central European (CP 852)',
@@ -597,25 +597,25 @@ export const SUPPORTED_ENCODINGS: { [encoding: string]: { labelLong: string; lab
 		labelLong: 'Cyrillic (Windows 1251)',
 		labelShort: 'Windows 1251',
 		order: 19,
-		jscardetEncodingName: 'windows-1251'
+		jschardetEncodingName: 'windows-1251'
 	},
 	cp866: {
 		labelLong: 'Cyrillic (CP 866)',
 		labelShort: 'CP 866',
 		order: 20,
-		jscardetEncodingName: 'IBM866'
+		jschardetEncodingName: 'IBM866'
 	},
 	iso88595: {
 		labelLong: 'Cyrillic (ISO 8859-5)',
 		labelShort: 'ISO 8859-5',
 		order: 21,
-		jscardetEncodingName: 'ISO-8859-5'
+		jschardetEncodingName: 'ISO-8859-5'
 	},
 	koi8r: {
 		labelLong: 'Cyrillic (KOI8-R)',
 		labelShort: 'KOI8-R',
 		order: 22,
-		jscardetEncodingName: 'KOI8-R'
+		jschardetEncodingName: 'KOI8-R'
 	},
 	koi8u: {
 		labelLong: 'Cyrillic (KOI8-U)',
@@ -631,19 +631,19 @@ export const SUPPORTED_ENCODINGS: { [encoding: string]: { labelLong: string; lab
 		labelLong: 'Greek (Windows 1253)',
 		labelShort: 'Windows 1253',
 		order: 25,
-		jscardetEncodingName: 'windows-1253'
+		jschardetEncodingName: 'windows-1253'
 	},
 	iso88597: {
 		labelLong: 'Greek (ISO 8859-7)',
 		labelShort: 'ISO 8859-7',
 		order: 26,
-		jscardetEncodingName: 'ISO-8859-7'
+		jschardetEncodingName: 'ISO-8859-7'
 	},
 	windows1255: {
 		labelLong: 'Hebrew (Windows 1255)',
 		labelShort: 'Windows 1255',
 		order: 27,
-		jscardetEncodingName: 'windows-1255'
+		jschardetEncodingName: 'windows-1255'
 	},
 	iso88598: {
 		labelLong: 'Hebrew (ISO 8859-8)',
@@ -689,7 +689,7 @@ export const SUPPORTED_ENCODINGS: { [encoding: string]: { labelLong: string; lab
 		labelLong: 'Traditional Chinese (Big5)',
 		labelShort: 'Big5',
 		order: 36,
-		jscardetEncodingName: 'Big5'
+		jschardetEncodingName: 'Big5'
 	},
 	big5hkscs: {
 		labelLong: 'Traditional Chinese (Big5-HKSCS)',
@@ -700,19 +700,19 @@ export const SUPPORTED_ENCODINGS: { [encoding: string]: { labelLong: string; lab
 		labelLong: 'Japanese (Shift JIS)',
 		labelShort: 'Shift JIS',
 		order: 38,
-		jscardetEncodingName: 'SHIFT_JIS'
+		jschardetEncodingName: 'SHIFT_JIS'
 	},
 	eucjp: {
 		labelLong: 'Japanese (EUC-JP)',
 		labelShort: 'EUC-JP',
 		order: 39,
-		jscardetEncodingName: 'EUC-JP'
+		jschardetEncodingName: 'EUC-JP'
 	},
 	euckr: {
 		labelLong: 'Korean (EUC-KR)',
 		labelShort: 'EUC-KR',
 		order: 40,
-		jscardetEncodingName: 'EUC-KR'
+		jschardetEncodingName: 'EUC-KR'
 	},
 	windows874: {
 		labelLong: 'Thai (Windows 874)',
@@ -738,7 +738,7 @@ export const SUPPORTED_ENCODINGS: { [encoding: string]: { labelLong: string; lab
 		labelLong: 'Simplified Chinese (GB 2312)',
 		labelShort: 'GB 2312',
 		order: 45,
-		jscardetEncodingName: 'GB2312'
+		jschardetEncodingName: 'GB2312'
 	},
 	cp865: {
 		labelLong: 'Nordic DOS (CP 865)',
@@ -756,12 +756,12 @@ function normalizedEncodings(encodings: string[]): string[] {
 	const normalizedEncodings = encodings.map(encoding => encoding.replace(/[^a-zA-Z0-9]/g, '').toLowerCase());
 
 	const validEncodings: string[] = Object.keys(SUPPORTED_ENCODINGS)
-		.filter(key => SUPPORTED_ENCODINGS[key].jscardetEncodingName)
+		.filter(key => SUPPORTED_ENCODINGS[key].jschardetEncodingName)
 		.filter(supportEncoding => {
 			const normalizedSupportEncoding = supportEncoding.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
 			return normalizedEncodings.indexOf(normalizedSupportEncoding) !== -1;
 		})
-		.map(supportEncoding => SUPPORTED_ENCODINGS[supportEncoding].jscardetEncodingName)
+		.map(supportEncoding => SUPPORTED_ENCODINGS[supportEncoding].jschardetEncodingName)
 		.filter((supportEncoding): supportEncoding is string => !!supportEncoding);
 
 	return validEncodings;
