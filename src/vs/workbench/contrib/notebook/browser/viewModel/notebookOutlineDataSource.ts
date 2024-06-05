@@ -9,16 +9,14 @@ import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IActiveNotebookEditor, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellKind, NotebookCellsChangeType, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { OutlineChangeEvent, OutlineConfigKeys } from 'vs/workbench/services/outline/browser/outline';
 import { OutlineEntry } from './OutlineEntry';
 import { IOutlineModelService } from 'vs/editor/contrib/documentSymbols/browser/outlineModel';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { NotebookOutlineEntryFactory } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineEntryFactory';
-import { Delayer } from 'vs/base/common/async';
 
 export interface INotebookCellOutlineDataSource {
 	readonly activeElement: OutlineEntry | undefined;
@@ -26,113 +24,44 @@ export interface INotebookCellOutlineDataSource {
 }
 
 export class NotebookCellOutlineDataSource implements INotebookCellOutlineDataSource {
-	private readonly _disposables = new DisposableStore();
-	private readonly _onDidChange = new Emitter<OutlineChangeEvent>();
 
+	private readonly _disposables = new DisposableStore();
+	private readonly _entriesDisposables = new DisposableStore();
+
+	private readonly _onDidChange = new Emitter<OutlineChangeEvent>();
 	readonly onDidChange: Event<OutlineChangeEvent> = this._onDidChange.event;
 
 	private _uri: URI | undefined;
 	private _entries: OutlineEntry[] = [];
-	get entries(): OutlineEntry[] {
-		if (this.delayedOutlineRecompute.isTriggered()) {
-			this.delayedOutlineRecompute.cancel();
-			this._recomputeState();
-		}
-		return this._entries;
-	}
-
 	private _activeEntry?: OutlineEntry;
-	private readonly _entriesDisposables = new DisposableStore();
-
-	readonly outlineKind = 'notebookCells';
-
-	get activeElement(): OutlineEntry | undefined {
-		if (this.delayedOutlineRecompute.isTriggered()) {
-			this.delayedOutlineRecompute.cancel();
-			this._recomputeState();
-		}
-		return this._activeEntry;
-	}
 
 	private readonly _outlineEntryFactory: NotebookOutlineEntryFactory;
-	private readonly delayedOutlineRecompute: Delayer<void>;
+
 	constructor(
 		private readonly _editor: INotebookEditor,
-		@IThemeService themeService: IThemeService,
 		@INotebookExecutionStateService private readonly _notebookExecutionStateService: INotebookExecutionStateService,
 		@IOutlineModelService private readonly _outlineModelService: IOutlineModelService,
 		@IMarkerService private readonly _markerService: IMarkerService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		this._outlineEntryFactory = new NotebookOutlineEntryFactory(this._notebookExecutionStateService);
-
-		const delayerRecomputeActive = this._disposables.add(new Delayer(200));
-		this._disposables.add(_editor.onDidChangeSelection(() => {
-			delayerRecomputeActive.trigger(() => this._recomputeActive());
-		}, this));
-
-		// .3s of a delay is sufficient, 100-200s is too quick and will unnecessarily block the ui thread.
-		// Given we're only updating the outline when the user types, we can afford to wait a bit.
-		this.delayedOutlineRecompute = this._disposables.add(new Delayer<void>(300));
-		const delayedRecompute = () => {
-			delayerRecomputeActive.cancel(); // Active is always recomputed after a recomputing the outline state.
-			this.delayedOutlineRecompute.trigger(() => this._recomputeState());
-		};
-
-		this._disposables.add(_configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(NotebookSetting.outlineShowMarkdownHeadersOnly) ||
-				e.affectsConfiguration(NotebookSetting.outlineShowCodeCells) ||
-				e.affectsConfiguration(NotebookSetting.outlineShowCodeCellSymbols) ||
-				e.affectsConfiguration(NotebookSetting.breadcrumbsShowCodeCells)
-			) {
-				delayedRecompute();
-			}
-		}));
-
-		this._disposables.add(themeService.onDidFileIconThemeChange(() => {
-			this._onDidChange.fire({});
-		}));
-
-		this._disposables.add(
-			this._notebookExecutionStateService.onDidChangeExecution(e => {
-				if (e.type === NotebookExecutionType.cell && !!this._editor.textModel && e.affectsNotebook(this._editor.textModel?.uri)) {
-					delayedRecompute();
-				}
-			})
-		);
-
-		const disposable = this._disposables.add(new DisposableStore());
-		const monitorModelChanges = () => {
-			disposable.clear();
-			if (!this._editor.textModel) {
-				return;
-			}
-			disposable.add(this._editor.textModel.onDidChangeContent(contentChanges => {
-				if (contentChanges.rawEvents.some(c => c.kind === NotebookCellsChangeType.ChangeCellContent ||
-					c.kind === NotebookCellsChangeType.ChangeCellInternalMetadata ||
-					c.kind === NotebookCellsChangeType.Move ||
-					c.kind === NotebookCellsChangeType.ModelChange)) {
-					delayedRecompute();
-				}
-			}));
-			// Perhaps this is the first time we're building the outline
-			if (!this._entries.length) {
-				this._recomputeState();
-			}
-		};
-		this._disposables.add(this._editor.onDidChangeModel(monitorModelChanges));
-		monitorModelChanges();
-		this._recomputeState();
+		this.recomputeState();
 	}
 
-	dispose(): void {
-		this._entries.length = 0;
-		this._activeEntry = undefined;
-		this._entriesDisposables.dispose();
-		this._disposables.dispose();
+	get activeElement(): OutlineEntry | undefined {
+		return this._activeEntry;
+	}
+	get entries(): OutlineEntry[] {
+		return this._entries;
+	}
+	get isEmpty(): boolean {
+		return this._entries.length === 0;
+	}
+	get uri() {
+		return this._uri;
 	}
 
-	async setFullSymbols(cancelToken: CancellationToken) {
+	public async computeFullSymbols(cancelToken: CancellationToken) {
 		const notebookEditorWidget = this._editor;
 
 		const notebookCells = notebookEditorWidget?.getViewModel()?.viewCells.filter((cell) => cell.cellKind === CellKind.Code);
@@ -146,10 +75,10 @@ export class NotebookCellOutlineDataSource implements INotebookCellOutlineDataSo
 			}
 			await Promise.allSettled(promises);
 		}
-
-		this._recomputeState();
+		this.recomputeState();
 	}
-	private _recomputeState(): void {
+
+	public recomputeState(): void {
 		this._entriesDisposables.clear();
 		this._activeEntry = undefined;
 		this._uri = undefined;
@@ -254,13 +183,13 @@ export class NotebookCellOutlineDataSource implements INotebookCellOutlineDataSo
 			}
 		}));
 
-		const { changeEventTriggered } = this._recomputeActive();
+		const { changeEventTriggered } = this.recomputeActive();
 		if (!changeEventTriggered) {
 			this._onDidChange.fire({});
 		}
 	}
 
-	private _recomputeActive(): { changeEventTriggered: boolean } {
+	public recomputeActive(): { changeEventTriggered: boolean } {
 		let newActive: OutlineEntry | undefined;
 		const notebookEditorWidget = this._editor;
 
@@ -286,11 +215,10 @@ export class NotebookCellOutlineDataSource implements INotebookCellOutlineDataSo
 		return { changeEventTriggered: false };
 	}
 
-	get isEmpty(): boolean {
-		return this._entries.length === 0;
-	}
-
-	get uri() {
-		return this._uri;
+	dispose(): void {
+		this._entries.length = 0;
+		this._activeEntry = undefined;
+		this._entriesDisposables.dispose();
+		this._disposables.dispose();
 	}
 }
