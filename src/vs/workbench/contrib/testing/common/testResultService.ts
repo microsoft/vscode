@@ -16,7 +16,7 @@ import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingC
 import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
 import { ITestResult, LiveTestResult, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultStorage, RETAIN_MAX_RESULTS } from 'vs/workbench/contrib/testing/common/testResultStorage';
-import { ExtensionRunTestsRequest, ITestRunProfile, ResolvedTestRunRequest, TestResultItem, TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
+import { ExtensionRunTestsRequest, ITestRunProfile, ResolvedTestRunRequest, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
 
 export type ResultChangeEvent =
 	| { completed: LiveTestResult }
@@ -153,11 +153,11 @@ export class TestResultService extends Disposable implements ITestResultService 
 			targets: [],
 			exclude: req.exclude,
 			continuous: req.continuous,
+			group: profile?.group ?? TestRunProfileBitset.Run,
 		};
 
 		if (profile) {
 			resolved.targets.push({
-				profileGroup: profile.group,
 				profileId: profile.profileId,
 				controllerId: req.controllerId,
 				testIds: req.include,

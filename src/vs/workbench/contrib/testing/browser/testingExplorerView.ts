@@ -337,8 +337,8 @@ export class TestingExplorerView extends ViewPane {
 						const { include, exclude } = this.getTreeIncludeExclude(undefined, profile);
 						this.testService.runResolvedTests({
 							exclude: exclude.map(e => e.item.extId),
+							group: profile.group,
 							targets: [{
-								profileGroup: profile.group,
 								profileId: profile.profileId,
 								controllerId: profile.controllerId,
 								testIds: include.map(i => i.item.extId),
@@ -500,7 +500,7 @@ class ResultSummaryView extends Disposable {
 		const { count, root, status, duration, rerun } = this.elements;
 		if (!results.length) {
 			if (this.elementsWereAttached) {
-				this.container.removeChild(root);
+				root.remove();
 				this.elementsWereAttached = false;
 			}
 			this.container.innerText = localize('noResults', 'No test results yet.');

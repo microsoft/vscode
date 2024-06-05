@@ -17,7 +17,7 @@ import 'vs/editor/contrib/suggest/browser/suggest';
 import 'vs/editor/contrib/rename/browser/rename';
 import 'vs/editor/contrib/inlayHints/browser/inlayHintsController';
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { setUnexpectedErrorHandler, errorHandler } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';

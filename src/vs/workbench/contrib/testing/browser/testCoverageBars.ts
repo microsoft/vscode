@@ -99,7 +99,7 @@ export class ManagedTestCoverageBars extends Disposable {
 
 		if (!this._coverage) {
 			const root = this.el.value.root;
-			ds.add(toDisposable(() => this.options.container.removeChild(root)));
+			ds.add(toDisposable(() => root.remove()));
 			this.options.container.appendChild(root);
 			ds.add(this.configurationService.onDidChangeConfiguration(c => {
 				if (!this._coverage) {
