@@ -119,7 +119,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 
 	declare readonly _serviceBrand: undefined;
 
-	private static readonly DEFAULT_AUTO_SAVE_MODE = isWeb ? AutoSaveConfiguration.AFTER_DELAY : AutoSaveConfiguration.OFF;
+	private static readonly DEFAULT_AUTO_SAVE_MODE = AutoSaveConfiguration.OFF;
 	private static readonly DEFAULT_AUTO_SAVE_DELAY = 1000;
 
 	private static readonly READONLY_MESSAGES = {
