@@ -62,6 +62,7 @@ class AccessibleViewNextCodeBlockAction extends Action2 {
 				mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageDown, },
 				weight: KeybindingWeight.WorkbenchContrib,
 			},
+			// to 
 			icon: Codicon.arrowRight,
 			menu:
 			{

@@ -56,7 +56,7 @@ export interface IDiffCodeEditorWidgetOptions {
 export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 	public static ENTIRE_DIFF_OVERVIEW_WIDTH = OverviewRulerFeature.ENTIRE_DIFF_OVERVIEW_WIDTH;
 
-	private readonly elements = h('div.monaco-diff-editor.side-by-side', { style: { position: 'relative' } }, [
+	private readonly elements = h('div.monaco-diff-editor.side-by-side', { style: { position: 'relative', height: '100%' } }, [
 		h('div.editor.original@original', { style: { position: 'absolute', height: '100%', } }),
 		h('div.editor.modified@modified', { style: { position: 'absolute', height: '100%', } }),
 		h('div.accessibleDiffViewer@accessibleDiffViewer', { style: { position: 'absolute', height: '100%' } }),
@@ -111,7 +111,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		this._contextKeyService.createKey('isInDiffEditor', true);
 
 		this._domElement.appendChild(this.elements.root);
-		this._register(toDisposable(() => this._domElement.removeChild(this.elements.root)));
+		this._register(toDisposable(() => this.elements.root.remove()));
 
 		this._rootSizeObserver = this._register(new ObservableElementSizeObserver(this.elements.root, options.dimension));
 		this._rootSizeObserver.setAutomaticLayout(options.automaticLayout ?? false);
@@ -344,7 +344,12 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 	private readonly _layoutInfo = derived(this, reader => {
 		const fullWidth = this._rootSizeObserver.width.read(reader);
 		const fullHeight = this._rootSizeObserver.height.read(reader);
-		this.elements.root.style.height = fullHeight + 'px';
+
+		if (this._rootSizeObserver.automaticLayout) {
+			this.elements.root.style.height = '100%';
+		} else {
+			this.elements.root.style.height = fullHeight + 'px';
+		}
 
 		const sash = this._sash.read(reader);
 

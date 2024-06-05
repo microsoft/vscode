@@ -497,7 +497,7 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 				const dragImage = this.getDragImage(item);
 				rowElement.ownerDocument.body.appendChild(dragImage);
 				ev.dataTransfer.setDragImage(dragImage, -10, -10);
-				setTimeout(() => rowElement.ownerDocument.body.removeChild(dragImage), 0);
+				setTimeout(() => dragImage.remove(), 0);
 			}
 		}));
 		this.listDisposables.add(DOM.addDisposableListener(rowElement, DOM.EventType.DRAG_OVER, (ev) => {
@@ -899,7 +899,7 @@ export class ObjectSettingDropdownWidget extends AbstractListSettingWidget<IObje
 				class: ThemeIcon.asClassName(settingsEditIcon),
 				enabled: true,
 				id: 'workbench.action.editListItem',
-				label: this.getLocalizedStrings().editActionTooltip,
+				label: '',
 				tooltip: this.getLocalizedStrings().editActionTooltip,
 				run: () => this.editSetting(idx)
 			},
@@ -910,7 +910,7 @@ export class ObjectSettingDropdownWidget extends AbstractListSettingWidget<IObje
 				class: ThemeIcon.asClassName(settingsRemoveIcon),
 				enabled: true,
 				id: 'workbench.action.removeListItem',
-				label: this.getLocalizedStrings().deleteActionTooltip,
+				label: '',
 				tooltip: this.getLocalizedStrings().deleteActionTooltip,
 				run: () => this._onDidChangeList.fire({ originalItem: item, item: undefined, targetIndex: idx })
 			});
@@ -919,7 +919,7 @@ export class ObjectSettingDropdownWidget extends AbstractListSettingWidget<IObje
 				class: ThemeIcon.asClassName(settingsDiscardIcon),
 				enabled: true,
 				id: 'workbench.action.resetListItem',
-				label: this.getLocalizedStrings().resetActionTooltip,
+				label: '',
 				tooltip: this.getLocalizedStrings().resetActionTooltip,
 				run: () => this._onDidChangeList.fire({ originalItem: item, item: undefined, targetIndex: idx })
 			});

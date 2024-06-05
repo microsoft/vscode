@@ -21,6 +21,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ContextKeyValue, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { isHTMLElement } from 'vs/base/browser/dom';
 
 interface IEditorPartsUIState {
 	readonly auxiliary: IAuxiliaryEditorPartState[];
@@ -161,7 +162,7 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 	override getPart(element: HTMLElement): EditorPart;
 	override getPart(groupOrElement: IEditorGroupView | GroupIdentifier | HTMLElement): EditorPart {
 		if (this._parts.size > 1) {
-			if (groupOrElement instanceof HTMLElement) {
+			if (isHTMLElement(groupOrElement)) {
 				const element = groupOrElement;
 
 				return this.getPartByDocument(element.ownerDocument);

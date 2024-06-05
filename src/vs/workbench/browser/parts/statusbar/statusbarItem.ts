@@ -283,7 +283,7 @@ class StatusBarCodiconLabel extends SimpleIconLabel {
 	private progressCodicon = renderIcon(syncing);
 
 	private currentText = '';
-	private currentShowProgress: boolean | 'syncing' | 'loading' = false;
+	private currentShowProgress: boolean | 'loading' | 'syncing' = false;
 
 	constructor(
 		private readonly container: HTMLElement
@@ -291,10 +291,10 @@ class StatusBarCodiconLabel extends SimpleIconLabel {
 		super(container);
 	}
 
-	set showProgress(showProgress: boolean | 'syncing' | 'loading') {
+	set showProgress(showProgress: boolean | 'loading' | 'syncing') {
 		if (this.currentShowProgress !== showProgress) {
 			this.currentShowProgress = showProgress;
-			this.progressCodicon = renderIcon(showProgress === 'loading' ? spinningLoading : syncing);
+			this.progressCodicon = renderIcon(showProgress === 'syncing' ? syncing : spinningLoading);
 			this.text = this.currentText;
 		}
 	}

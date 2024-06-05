@@ -370,9 +370,13 @@ class SliceLineTokens implements IViewLineTokens {
 	}
 }
 
-export function getStandardTokenTypeAtPosition(model: ITextModel, position: IPosition): StandardTokenType {
-	model.tokenization.forceTokenization(position.lineNumber);
-	const lineTokens = model.tokenization.getLineTokens(position.lineNumber);
+export function getStandardTokenTypeAtPosition(model: ITextModel, position: IPosition): StandardTokenType | undefined {
+	const lineNumber = position.lineNumber;
+	if (!model.tokenization.isCheapToTokenize(lineNumber)) {
+		return undefined;
+	}
+	model.tokenization.forceTokenization(lineNumber);
+	const lineTokens = model.tokenization.getLineTokens(lineNumber);
 	const tokenIndex = lineTokens.findTokenIndexAtOffset(position.column - 1);
 	const tokenType = lineTokens.getStandardTokenType(tokenIndex);
 	return tokenType;
