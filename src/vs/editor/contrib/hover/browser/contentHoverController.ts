@@ -276,9 +276,9 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 			}
 			const { disposables: currentDisposables, renderedHoverParts: currentRenderedParts } = participant.renderHoverParts(context, hoverPartsForParticipant);
 			disposables.add(currentDisposables);
-			currentRenderedParts.forEach(renderedPart => {
-				const renderedHoverPart: RenderedHoverPart = { brand: `renderedHoverPart`, participant, ...renderedPart };
-				renderedParts.push(renderedHoverPart);
+			currentRenderedParts.forEach(currentRenderedPart => {
+				const renderedPart: RenderedHoverPart = { brand: `renderedHoverPart`, participant, ...currentRenderedPart };
+				renderedParts.push(renderedPart);
 			});
 		}
 		return { disposables, renderedParts };
@@ -338,7 +338,7 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		this._widget.showAt(fragment, contentHoverVisibleData);
 	}
 
-	private _addEditorDecorations(highlightRange: Range | undefined, disposables: DisposableStore): void {
+	private _addEditorDecorations(highlightRange: Range | undefined, disposables: DisposableStore) {
 		if (!highlightRange) {
 			return;
 		}
