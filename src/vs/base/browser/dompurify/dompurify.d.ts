@@ -15,6 +15,8 @@ export const sanitize: typeof DOMPurify.sanitize;
 export const removeHook: typeof DOMPurify.removeHook;
 export const addHook: typeof DOMPurify.addHook;
 export type Config = DOMPurify.Config;
+export type SanitizeAttributeHookEvent = DOMPurify.SanitizeAttributeHookEvent;
+export type SanitizeElementHookEvent = DOMPurify.SanitizeElementHookEvent;
 
 declare const DOMPurify: createDOMPurifyI;
 
