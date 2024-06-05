@@ -87,8 +87,8 @@
 
 .profiles-editor .contents-container .profile-title-container .codicon {
 	cursor: pointer;
-	font-size: x-large;
-	padding: 4px;
+	font-size: large;
+	padding: 6px;
 	margin-right: 8px;
 }
 
@@ -150,11 +150,11 @@
 .profiles-editor .contents-container .profile-copy-from-container {
 	display: flex;
 	align-items: center;
-	margin: 0px 0px 20px 20px;
+	margin: 0px 0px 20px 28px;
 }
 
 .profiles-editor .contents-container .profile-copy-from-container > .profile-copy-from-label {
-	margin-right: 33px;
+	margin-right: 25px;
 	display: inline-flex;
 	align-items: center;
 }
@@ -163,9 +163,15 @@
 	width: 250px;
 }
 
+.profiles-editor .contents-container .profile-use-as-default-container {
+	display: flex;
+	align-items: center;
+	margin: 25px 20px 20px 28px;
+	cursor: pointer;
+}
+
 .profiles-editor .contents-container .profile-contents-container {
 	margin: 0px 0px 10px 20px;
-	font-size: medium;
 }
 
 .profiles-editor .contents-container .profile-tree-item-container {

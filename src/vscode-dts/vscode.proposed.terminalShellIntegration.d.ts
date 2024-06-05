@@ -29,9 +29,9 @@ declare module 'vscode' {
 		 * });
 		 * function summarizeCommandLine(commandLine: TerminalShellExecutionCommandLine) {
 		 *   return [
-		 *     `  Command line: ${command.ommandLine.value}`,
-		 *     `  Confidence: ${command.ommandLine.confidence}`,
-		 *     `  Trusted: ${command.ommandLine.isTrusted}
+		 *     `  Command line: ${command.commandLine.value}`,
+		 *     `  Confidence: ${command.commandLine.confidence}`,
+		 *     `  Trusted: ${command.commandLine.isTrusted}
 		 *   ].join('\n');
 		 * }
 		 */

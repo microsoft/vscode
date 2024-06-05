@@ -279,7 +279,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 		// Remove the input editor from the DOM temporarily to prevent VoiceOver
 		// from reading the cleared text (the request) to the user.
-		this._inputEditorElement.removeChild(domNode);
+		domNode.remove();
 		this._inputEditor.setValue('');
 		this._inputEditorElement.appendChild(domNode);
 		this._inputEditor.focus();

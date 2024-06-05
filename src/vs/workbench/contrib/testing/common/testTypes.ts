@@ -78,10 +78,10 @@ export interface ITestRunProfile {
  * and extension host.
  */
 export interface ResolvedTestRunRequest {
+	group: TestRunProfileBitset;
 	targets: {
 		testIds: string[];
 		controllerId: string;
-		profileGroup: TestRunProfileBitset;
 		profileId: number;
 	}[];
 	exclude?: string[];
