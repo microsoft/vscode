@@ -103,10 +103,10 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		}
 		const isHoverSticky = this._editor.getOption(EditorOption.hover).sticky;
 		const isMouseGettingCloser = mouseEvent && this._contentHoverWidget.isMouseGettingCloser(mouseEvent.event.posx, mouseEvent.event.posy);
-		const isHoverStickyAndMouseGettingCloser = isHoverSticky && isMouseGettingCloser;
+		const isHoverStickyAndIsMouseGettingCloser = isHoverSticky && isMouseGettingCloser;
 		// The mouse is getting closer to the hover, so we will keep the hover untouched
 		// But we will kick off a hover update at the new anchor, insisting on keeping the hover visible.
-		if (isHoverStickyAndMouseGettingCloser) {
+		if (isHoverStickyAndIsMouseGettingCloser) {
 			if (anchor) {
 				this._startHoverOperationIfNecessary(anchor, mode, source, focus, true);
 			}
@@ -190,7 +190,8 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 			this._setCurrentResult(hoverResult);
 		}
 		// The hover is visible with a previous complete result.
-		if (!hoverResult.isComplete) {
+		const isCurrentHoverResultComplete = hoverResult.isComplete;
+		if (!isCurrentHoverResultComplete) {
 			// Instead of rendering the new partial result, we wait for the result to be complete.
 			return;
 		}
@@ -246,8 +247,8 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		const disposables = new DisposableStore();
 		for (const participant of this._participants) {
 			const hoverPartsForParticipant = hoverParts.filter(hoverPart => hoverPart.owner === participant);
-			const hasNoHoverPartsForParticipant = hoverPartsForParticipant.length === 0;
-			if (hasNoHoverPartsForParticipant) {
+			const hasHoverPartsForParticipant = hoverPartsForParticipant.length > 0;
+			if (!hasHoverPartsForParticipant) {
 				continue;
 			}
 			disposables.add(participant.renderHoverParts(context, hoverPartsForParticipant));
@@ -348,7 +349,8 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 	}
 
 	public showsOrWillShow(mouseEvent: IEditorMouseEvent): boolean {
-		if (this._contentHoverWidget.isResizing) {
+		const isContentWidgetResizing = this._contentHoverWidget.isResizing;
+		if (isContentWidgetResizing) {
 			return true;
 		}
 		const anchorCandidates: HoverAnchor[] = this._findHoverAnchorCandidates(mouseEvent);
@@ -356,7 +358,8 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		if (!anchorCandidatesExist) {
 			return this._startShowingOrUpdateHover(null, HoverStartMode.Delayed, HoverStartSource.Mouse, false, mouseEvent);
 		}
-		return this._startShowingOrUpdateHover(anchorCandidates[0], HoverStartMode.Delayed, HoverStartSource.Mouse, false, mouseEvent);
+		const anchor = anchorCandidates[0];
+		return this._startShowingOrUpdateHover(anchor, HoverStartMode.Delayed, HoverStartSource.Mouse, false, mouseEvent);
 	}
 
 	private _findHoverAnchorCandidates(mouseEvent: IEditorMouseEvent): HoverAnchor[] {
