@@ -827,7 +827,7 @@ class FollowupActionWidget extends Disposable {
 
 		this.container.appendChild(this.el.root);
 		this.visibleStore.add(toDisposable(() => {
-			this.el.root.remove();
+			this.el.root.parentElement?.removeChild(this.el.root);
 		}));
 	}
 
@@ -1376,7 +1376,7 @@ class ScrollableMarkdownMessage extends Disposable {
 		container.appendChild(this.scrollable.getDomNode());
 
 		this._register(toDisposable(() => {
-			this.scrollable.getDomNode().remove();
+			container.removeChild(this.scrollable.getDomNode());
 		}));
 
 		this.scrollable.scanDomNode();

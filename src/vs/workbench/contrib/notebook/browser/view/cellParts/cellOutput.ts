@@ -95,7 +95,7 @@ class CellOutputElement extends Disposable {
 	}
 
 	detach() {
-		this.renderedOutputContainer?.remove();
+		this.renderedOutputContainer?.parentElement?.removeChild(this.renderedOutputContainer);
 
 		let count = 0;
 		if (this.innerContainer) {
@@ -110,7 +110,7 @@ class CellOutputElement extends Disposable {
 			}
 
 			if (count === 0) {
-				this.innerContainer.remove();
+				this.innerContainer.parentElement?.removeChild(this.innerContainer);
 			}
 		}
 
@@ -154,7 +154,7 @@ class CellOutputElement extends Disposable {
 			this._renderDisposableStore.clear();
 			const element = this.innerContainer;
 			if (element) {
-				element.remove();
+				element.parentElement?.removeChild(element);
 				this.notebookEditor.removeInset(this.output);
 			}
 
@@ -400,7 +400,7 @@ class CellOutputElement extends Disposable {
 		this._renderDisposableStore.clear();
 		const element = this.innerContainer;
 		if (element) {
-			element.remove();
+			element.parentElement?.removeChild(element);
 			this.notebookEditor.removeInset(viewModel);
 		}
 
@@ -807,3 +807,5 @@ const JUPYTER_RENDERER_MIMETYPES = [
 	'application/vnd.jupyter.widget-view+json',
 	'application/vnd.code.notebook.error'
 ];
+
+

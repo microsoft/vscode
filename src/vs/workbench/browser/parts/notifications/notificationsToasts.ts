@@ -602,7 +602,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		if (visible) {
 			notificationsToastsContainer.appendChild(toast.container);
 		} else {
-			toast.container.remove();
+			notificationsToastsContainer.removeChild(toast.container);
 		}
 
 		// Update visibility in model

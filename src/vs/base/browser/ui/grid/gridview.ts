@@ -1063,7 +1063,7 @@ export class GridView implements IDisposable {
 		const oldRoot = this._root;
 
 		if (oldRoot) {
-			oldRoot.element.remove();
+			this.element.removeChild(oldRoot.element);
 			oldRoot.dispose();
 		}
 
@@ -1831,6 +1831,6 @@ export class GridView implements IDisposable {
 	dispose(): void {
 		this.onDidSashResetRelay.dispose();
 		this.root.dispose();
-		this.element.remove();
+		this.element.parentElement?.removeChild(this.element);
 	}
 }

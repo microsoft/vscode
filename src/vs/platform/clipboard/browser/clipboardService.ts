@@ -134,7 +134,7 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 			activeElement.focus();
 		}
 
-		textArea.remove();
+		activeDocument.body.removeChild(textArea);
 	}
 
 	async readText(type?: string): Promise<string> {

@@ -3069,7 +3069,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			});
 
 			if (this.dragOverlay) {
-				this.dragOverlay.remove();
+				window.document.body.removeChild(this.dragOverlay);
 				this.dragOverlay = undefined;
 			}
 

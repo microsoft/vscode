@@ -2134,7 +2134,7 @@ function cleanRenderedMarkdown(element: Node): void {
 
 		const tagName = (<Element>child).tagName && (<Element>child).tagName.toLowerCase();
 		if (tagName === 'img') {
-			child.remove();
+			element.removeChild(child);
 		} else {
 			cleanRenderedMarkdown(child);
 		}

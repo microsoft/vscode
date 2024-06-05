@@ -92,7 +92,7 @@ class DropOverlay extends Themable {
 		this.groupView.element.appendChild(container);
 		this.groupView.element.classList.add('dragged-over');
 		this._register(toDisposable(() => {
-			container.remove();
+			this.groupView.element.removeChild(container);
 			this.groupView.element.classList.remove('dragged-over');
 		}));
 

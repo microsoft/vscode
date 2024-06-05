@@ -160,7 +160,7 @@ export class SideBySideEditor extends AbstractEditorWithViewState<ISideBySideEdi
 		// Clear old (if any) but remember ratio
 		const ratio = this.getSplitViewRatio();
 		if (this.splitview) {
-			this.splitview.el.remove();
+			container.removeChild(this.splitview.el);
 			this.splitviewDisposables.clear();
 		}
 

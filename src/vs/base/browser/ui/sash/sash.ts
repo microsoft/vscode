@@ -575,7 +575,7 @@ export class Sash extends Disposable {
 		const onPointerUp = (e: PointerEvent) => {
 			EventHelper.stop(e, false);
 
-			style.remove();
+			this.el.removeChild(style);
 
 			this.el.classList.remove('active');
 			this._onDidEnd.fire();

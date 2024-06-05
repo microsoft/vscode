@@ -115,7 +115,7 @@ suite('Workbench parts', () => {
 	});
 
 	teardown(() => {
-		fixture.remove();
+		mainWindow.document.body.removeChild(fixture);
 		disposables.clear();
 	});
 

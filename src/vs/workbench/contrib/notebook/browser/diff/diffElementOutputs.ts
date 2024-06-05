@@ -181,7 +181,7 @@ export class OutputElement extends Disposable {
 			this.resizeListener.clear();
 			const element = this.domNode;
 			if (element) {
-				element.remove();
+				element.parentElement?.removeChild(element);
 				this._notebookEditor.removeInset(
 					this._diffElementViewModel,
 					this._nestedCell,
@@ -259,7 +259,7 @@ export class OutputContainer extends Disposable {
 				// already removed
 				removedKeys.push(key);
 				// remove element from DOM
-				value.domNode.remove();
+				this._outputContainer.removeChild(value.domNode);
 				this._editor.removeInset(this._diffElementViewModel, this._nestedCellViewModel, key, this._diffSide);
 			}
 		});

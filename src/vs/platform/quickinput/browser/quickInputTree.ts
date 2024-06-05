@@ -1125,7 +1125,7 @@ export class QuickInputTree extends Disposable {
 				const parent = focusedElement?.parentNode;
 				if (focusedElement && parent) {
 					const nextSibling = focusedElement.nextSibling;
-					focusedElement.remove();
+					parent.removeChild(focusedElement);
 					parent.insertBefore(focusedElement, nextSibling);
 				}
 			}, 0);

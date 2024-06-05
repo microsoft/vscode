@@ -63,7 +63,7 @@ class InspectContextKeysAction extends Action2 {
 		const hoverFeedback = document.createElement('div');
 		const activeDocument = getActiveDocument();
 		activeDocument.body.appendChild(hoverFeedback);
-		disposables.add(toDisposable(() => hoverFeedback.remove()));
+		disposables.add(toDisposable(() => activeDocument.body.removeChild(hoverFeedback)));
 
 		hoverFeedback.style.position = 'absolute';
 		hoverFeedback.style.pointerEvents = 'none';

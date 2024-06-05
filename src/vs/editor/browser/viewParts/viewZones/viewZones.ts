@@ -271,12 +271,12 @@ export class ViewZones extends ViewPart {
 
 			zone.domNode.removeAttribute('monaco-visible-view-zone');
 			zone.domNode.removeAttribute('monaco-view-zone');
-			zone.domNode.domNode.remove();
+			zone.domNode.domNode.parentNode!.removeChild(zone.domNode.domNode);
 
 			if (zone.marginDomNode) {
 				zone.marginDomNode.removeAttribute('monaco-visible-view-zone');
 				zone.marginDomNode.removeAttribute('monaco-view-zone');
-				zone.marginDomNode.domNode.remove();
+				zone.marginDomNode.domNode.parentNode!.removeChild(zone.marginDomNode.domNode);
 			}
 
 			this.setShouldRender();

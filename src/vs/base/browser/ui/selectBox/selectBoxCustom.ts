@@ -520,7 +520,12 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		return {
 			dispose: () => {
 				// contextView will dispose itself if moving from one View to another
-				this.selectDropDownContainer.remove(); // remove to take out the CSS rules we add
+				try {
+					container.removeChild(this.selectDropDownContainer); // remove to take out the CSS rules we add
+				}
+				catch (error) {
+					// Ignore, removed already by change of focus
+				}
 			}
 		};
 	}
@@ -607,20 +612,20 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 					&& this.options.length > maxVisibleOptionsBelow
 				) {
 					this._dropDownPosition = AnchorPosition.ABOVE;
-					this.selectDropDownListContainer.remove();
-					this.selectionDetailsPane.remove();
-					this.selectionDetailsPane.remove();
-					this.selectDropDownListContainer.remove();
+					this.selectDropDownContainer.removeChild(this.selectDropDownListContainer);
+					this.selectDropDownContainer.removeChild(this.selectionDetailsPane);
+					this.selectDropDownContainer.appendChild(this.selectionDetailsPane);
+					this.selectDropDownContainer.appendChild(this.selectDropDownListContainer);
 
 					this.selectionDetailsPane.classList.remove('border-top');
 					this.selectionDetailsPane.classList.add('border-bottom');
 
 				} else {
 					this._dropDownPosition = AnchorPosition.BELOW;
-					this.selectDropDownListContainer.remove();
-					this.selectionDetailsPane.remove();
-					this.selectDropDownListContainer.remove();
-					this.selectionDetailsPane.remove();
+					this.selectDropDownContainer.removeChild(this.selectDropDownListContainer);
+					this.selectDropDownContainer.removeChild(this.selectionDetailsPane);
+					this.selectDropDownContainer.appendChild(this.selectDropDownListContainer);
+					this.selectDropDownContainer.appendChild(this.selectionDetailsPane);
 
 					this.selectionDetailsPane.classList.remove('border-bottom');
 					this.selectionDetailsPane.classList.add('border-top');
@@ -874,7 +879,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 				const tagName = child.tagName && child.tagName.toLowerCase();
 				if (tagName === 'img') {
-					child.remove();
+					element.removeChild(child);
 				} else {
 					cleanRenderedMarkdown(child);
 				}

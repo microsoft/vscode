@@ -17,7 +17,7 @@ suite('ProgressBar', () => {
 	});
 
 	teardown(() => {
-		fixture.remove();
+		mainWindow.document.body.removeChild(fixture);
 	});
 
 	test('Progress Bar', function () {

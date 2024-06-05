@@ -1158,7 +1158,7 @@ export class ListView<T> implements IListView<T> {
 			const container = getDragImageContainer(this.domNode);
 			container.appendChild(dragImage);
 			event.dataTransfer.setDragImage(dragImage, -10, -10);
-			setTimeout(() => dragImage.remove(), 0);
+			setTimeout(() => container.removeChild(dragImage), 0);
 		}
 
 		this.domNode.classList.add('dragging');
@@ -1542,7 +1542,7 @@ export class ListView<T> implements IListView<T> {
 		this.virtualDelegate.setDynamicHeight?.(item.element, item.size);
 
 		item.lastDynamicHeightWidth = this.renderWidth;
-		row.domNode.remove();
+		this.rowsContainer.removeChild(row.domNode);
 		this.cache.release(row);
 
 		return item.size - size;
@@ -1570,7 +1570,9 @@ export class ListView<T> implements IListView<T> {
 
 		this.items = [];
 
-		this.domNode?.remove();
+		if (this.domNode && this.domNode.parentNode) {
+			this.domNode.parentNode.removeChild(this.domNode);
+		}
 
 		this.dragOverAnimationDisposable?.dispose();
 		this.disposables.dispose();

@@ -181,7 +181,7 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 			this._commentDisposable.delete(commentToDelete);
 
 			this._commentElements.splice(commentElementsToDelIndex[i], 1);
-			commentToDelete.domNode.remove();
+			this._commentsElement.removeChild(commentToDelete.domNode);
 		}
 
 

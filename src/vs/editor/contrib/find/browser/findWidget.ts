@@ -410,7 +410,9 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		}
 
 		// remove previous content
-		this._matchesCount.firstChild?.remove();
+		if (this._matchesCount.firstChild) {
+			this._matchesCount.removeChild(this._matchesCount.firstChild);
+		}
 
 		let label: string;
 		if (this._state.matchesCount > 0) {

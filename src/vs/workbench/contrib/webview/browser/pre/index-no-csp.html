@@ -973,7 +973,7 @@
 				const previousPendingFrame = getPendingFrame();
 				if (previousPendingFrame) {
 					previousPendingFrame.setAttribute('id', '');
-					previousPendingFrame.remove();
+					document.body.removeChild(previousPendingFrame);
 				}
 				if (!wasFirstLoad) {
 					pendingMessages = [];
@@ -1070,7 +1070,9 @@
 					if (newFrame && newFrame.contentDocument && newFrame.contentDocument === contentDocument) {
 						const wasFocused = document.hasFocus();
 						const oldActiveFrame = getActiveFrame();
-						oldActiveFrame?.remove();
+						if (oldActiveFrame) {
+							document.body.removeChild(oldActiveFrame);
+						}
 						// Styles may have changed since we created the element. Make sure we re-style
 						if (initialStyleVersion !== styleVersion) {
 							applyStyles(newFrame.contentDocument, newFrame.contentDocument.body);

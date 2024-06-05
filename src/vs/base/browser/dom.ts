@@ -968,7 +968,7 @@ export function createStyleSheet(container: HTMLElement = mainWindow.document.he
 	container.appendChild(style);
 
 	if (disposableStore) {
-		disposableStore.add(toDisposable(() => style.remove()));
+		disposableStore.add(toDisposable(() => container.removeChild(style)));
 	}
 
 	// With <head> as container, the stylesheet becomes global and is tracked
@@ -1005,7 +1005,7 @@ function cloneGlobalStyleSheet(globalStylesheet: HTMLStyleElement, globalStylesh
 
 	const clone = globalStylesheet.cloneNode(true) as HTMLStyleElement;
 	targetWindow.document.head.appendChild(clone);
-	disposables.add(toDisposable(() => clone.remove()));
+	disposables.add(toDisposable(() => targetWindow.document.head.removeChild(clone)));
 
 	for (const rule of getDynamicStyleSheetRules(globalStylesheet)) {
 		clone.sheet?.insertRule(rule.cssText, clone.sheet?.cssRules.length);
@@ -1727,7 +1727,7 @@ export function triggerDownload(dataOrUri: Uint8Array | URI, name: string): void
 	anchor.click();
 
 	// Ensure to remove the element from DOM eventually
-	setTimeout(() => anchor.remove());
+	setTimeout(() => activeWindow.document.body.removeChild(anchor));
 }
 
 export function triggerUpload(): Promise<FileList | undefined> {
@@ -1750,7 +1750,7 @@ export function triggerUpload(): Promise<FileList | undefined> {
 		input.click();
 
 		// Ensure to remove the element from DOM eventually
-		setTimeout(() => input.remove());
+		setTimeout(() => activeWindow.document.body.removeChild(input));
 	});
 }
 

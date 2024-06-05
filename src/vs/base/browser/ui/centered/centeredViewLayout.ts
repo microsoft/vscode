@@ -166,7 +166,7 @@ export class CenteredViewLayout implements IDisposable {
 		}
 
 		if (active) {
-			this.view.element.remove();
+			this.container.removeChild(this.view.element);
 			this.splitView = new SplitView(this.container, {
 				inverseAltBehavior: true,
 				orientation: Orientation.HORIZONTAL,
@@ -195,7 +195,9 @@ export class CenteredViewLayout implements IDisposable {
 
 			this.resizeSplitViews();
 		} else {
-			this.splitView?.el.remove();
+			if (this.splitView) {
+				this.container.removeChild(this.splitView.el);
+			}
 			this.splitViewDisposables.clear();
 			this.splitView?.dispose();
 			this.splitView = undefined;

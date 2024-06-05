@@ -348,7 +348,9 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 		this._matchesCount.title = '';
 
 		// remove previous content
-		this._matchesCount.firstChild?.remove();
+		if (this._matchesCount.firstChild) {
+			this._matchesCount.removeChild(this._matchesCount.firstChild);
+		}
 
 		let label: string;
 
