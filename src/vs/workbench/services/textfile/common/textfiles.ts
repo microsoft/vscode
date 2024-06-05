@@ -132,7 +132,7 @@ export interface IReadTextFileEncodingOptions {
 	readonly autoGuessEncoding?: boolean;
 
 	/**
-	 * The optional candidateGuessEncodings parameter allows to guess encoding from a provided list of encodings.
+	 * The optional candidateGuessEncodings parameter limits the allowed encodings to guess from.
 	 */
 	readonly candidateGuessEncodings?: string[];
 
