@@ -383,18 +383,21 @@ export class InlineChatEnabler {
 
 	private readonly _ctxHasProvider: IContextKey<boolean>;
 
+	private readonly _store = new DisposableStore();
+
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatAgentService chatAgentService: IChatAgentService
 	) {
 		this._ctxHasProvider = CTX_INLINE_CHAT_HAS_AGENT.bindTo(contextKeyService);
-		chatAgentService.onDidChangeAgents(() => {
+		this._store.add(chatAgentService.onDidChangeAgents(() => {
 			const hasEditorAgent = Boolean(chatAgentService.getDefaultAgent(ChatAgentLocation.Editor));
 			this._ctxHasProvider.set(hasEditorAgent);
-		});
+		}));
 	}
 
 	dispose() {
 		this._ctxHasProvider.reset();
+		this._store.dispose();
 	}
 }
