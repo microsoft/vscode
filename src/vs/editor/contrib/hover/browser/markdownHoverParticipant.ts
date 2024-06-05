@@ -383,9 +383,8 @@ class MarkdownRenderedHoverParts extends Disposable {
 		if (!renderedHoverPart) {
 			return '';
 		}
-		const element = renderedHoverPart.element;
-		const formattedContent = element.innerText.trim();
-		return formattedContent;
+		const accessibleContent = renderedHoverPart.element.innerText.trim();
+		return accessibleContent;
 	}
 
 	public markdownHoverContentAtIndex(index: number): string {

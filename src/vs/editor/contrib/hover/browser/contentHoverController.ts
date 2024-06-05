@@ -27,15 +27,15 @@ import { Emitter } from 'vs/base/common/event';
 import * as nls from 'vs/nls';
 
 interface RenderedHoverPart {
-	brand: `renderedHoverPart`;
-	element: HTMLElement;
-	hoverPart: IHoverPart;
-	participant: IEditorHoverParticipant<IHoverPart>;
+	readonly brand: `renderedHoverPart`;
+	readonly element: HTMLElement;
+	readonly hoverPart: IHoverPart;
+	readonly participant: IEditorHoverParticipant<IHoverPart>;
 }
 
 interface RenderedHoverStatusBar {
-	brand: `renderedStatusBar`;
-	element: HTMLElement;
+	readonly brand: `renderedStatusBar`;
+	readonly element: HTMLElement;
 }
 
 type RenderedPart = RenderedHoverPart | RenderedHoverStatusBar;
@@ -277,8 +277,7 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 			const { disposables: currentDisposables, renderedHoverParts: currentRenderedParts } = participant.renderHoverParts(context, hoverPartsForParticipant);
 			disposables.add(currentDisposables);
 			currentRenderedParts.forEach(currentRenderedPart => {
-				const renderedPart: RenderedHoverPart = { brand: `renderedHoverPart`, participant, ...currentRenderedPart };
-				renderedParts.push(renderedPart);
+				renderedParts.push({ brand: `renderedHoverPart`, participant, ...currentRenderedPart });
 			});
 		}
 		return { disposables, renderedParts };
@@ -467,11 +466,11 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 	}
 
 	public getAccessibleWidgetContent(): string | undefined {
-		const formattedContent: string[] = [];
+		const content: string[] = [];
 		for (let i = 0; i < this._renderedParts.length; i++) {
-			formattedContent.push(this.getAccessibleWidgetContentAtIndex(i));
+			content.push(this.getAccessibleWidgetContentAtIndex(i));
 		}
-		return formattedContent.join('\n\n');
+		return content.join('\n\n');
 	}
 
 	public getAccessibleWidgetContentAtIndex(index: number): string {
