@@ -43,7 +43,7 @@ export class NativeExtHostSearch extends ExtHostSearch implements IDisposable {
 		super(extHostRpc, _uriTransformer, _logService);
 
 		const outputChannel = new OutputChannel('RipgrepSearchUD', this._logService);
-		this._numThreadsPromise = _configurationService.getConfigProvider().then(provider => provider.getConfiguration('search').get<number>('ripgrep.numThreads'));
+		this._numThreadsPromise = _configurationService.getConfigProvider().then(provider => provider.getConfiguration('search').get<number>('ripgrep.maxThreads'));
 		this._disposables.add(this.registerTextSearchProvider(Schemas.vscodeUserData, new RipgrepSearchProvider(outputChannel, this._numThreadsPromise)));
 		if (initData.remote.isRemote && initData.remote.authority) {
 			this._registerEHSearchProviders();
