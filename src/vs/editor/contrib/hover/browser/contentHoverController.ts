@@ -46,23 +46,30 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		super();
-
 		this._widget = this._register(this._instantiationService.createInstance(ContentHoverWidget, this._editor));
+		const initializedParticipants = this._initializeHoverParticipants();
+		this._participants = initializedParticipants.participants;
+		this._markdownHoverParticipant = initializedParticipants.markdownHoverParticipant;
+		this._computer = new ContentHoverComputer(this._editor, this._participants);
+		this._hoverOperation = this._register(new HoverOperation(this._editor, this._computer));
+		this._registerListeners();
+	}
 
-		// Instantiate participants and sort them by `hoverOrdinal` which is relevant for rendering order.
-		this._participants = [];
+	private _initializeHoverParticipants(): { participants: IEditorHoverParticipant[]; markdownHoverParticipant: MarkdownHoverParticipant | undefined } {
+		const participants: IEditorHoverParticipant[] = [];
+		let markdownHoverParticipant: MarkdownHoverParticipant | undefined;
 		for (const participant of HoverParticipantRegistry.getAll()) {
 			const participantInstance = this._instantiationService.createInstance(participant, this._editor);
 			if (participantInstance instanceof MarkdownHoverParticipant && !(participantInstance instanceof InlayHintsHover)) {
-				this._markdownHoverParticipant = participantInstance;
+				markdownHoverParticipant = participantInstance;
 			}
-			this._participants.push(participantInstance);
+			participants.push(participantInstance);
 		}
-		this._participants.sort((p1, p2) => p1.hoverOrdinal - p2.hoverOrdinal);
+		participants.sort((p1, p2) => p1.hoverOrdinal - p2.hoverOrdinal);
+		return { participants, markdownHoverParticipant };
+	}
 
-		this._computer = new ContentHoverComputer(this._editor, this._participants);
-		this._hoverOperation = this._register(new HoverOperation(this._editor, this._computer));
-
+	private _registerListeners(): void {
 		this._register(this._hoverOperation.onResult((result) => {
 			if (!this._computer.anchor) {
 				// invalid state, ignore result
