@@ -76,15 +76,6 @@ export function connectProxyResolver(
 	return configureModuleLoading(extensionService, lookup);
 }
 
-function createPatchedModule<T extends object>(module: T, patch: any) {
-	// @ts-ignore
-	if (module[Symbol.toStringTag] === 'Module') {
-		// cannot be patched
-		return module;
-	}
-	return Object.assign(module, patch);
-}
-
 function createPatchedModules(params: ProxyAgentParams, resolveProxy: ReturnType<typeof createProxyResolver>) {
 
 	function proxyAssign(module: any, patch: any) {
