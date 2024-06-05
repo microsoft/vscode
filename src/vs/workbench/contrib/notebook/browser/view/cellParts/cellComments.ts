@@ -157,10 +157,12 @@ export class CellComments extends CellContentPart {
 	override didRenderCell(element: ICellViewModel): void {
 		if (element.cellKind === CellKind.Code) {
 			this.currentElement = element as CodeCellViewModel;
-			this.initialize(element);
-			this._bindListeners();
+			this.initializeCodeCell(element);
+		} else if (element.cellKind === CellKind.Markup) {
+			this.currentElement = element as MarkupCellViewModel;
+			this.initializeMarkupCell(element);
 		}
-
+		this._bindListeners();
 	}
 
 	override prepareLayout(): void {
