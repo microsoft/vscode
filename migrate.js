@@ -161,7 +161,7 @@ function migrateTS(filePath, fileContents) {
 
 	const imports = discoverImports(fileContents);
 	/** @type {Replacement[]} */
-	let replacements = [];
+	const replacements = [];
 	for (let i = imports.length - 1; i >= 0; i--) {
 		const pos = imports[i].pos + 1;
 		const end = imports[i].end + 1;
@@ -226,7 +226,7 @@ function migrateTS(filePath, fileContents) {
 		replacements.push({ pos, end, text: replacementImport });
 	}
 
-	replacements = replacements.concat(rewriteDefaultImports(fileContents));
+	// replacements = replacements.concat(rewriteDefaultImports(fileContents));
 
 	fileContents = applyReplacements(fileContents, replacements);
 

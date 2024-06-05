@@ -34,7 +34,6 @@ declare global {
 		path: typeof import('path'),
 		yauzl: typeof import('yauzl'),
 		yazl: typeof import('yazl'),
-		['graceful-fs']: typeof import('graceful-fs'),
 		minimist: typeof import('minimist'),
 		https: typeof import('https'),
 		['xterm-headless']: typeof import('@xterm/headless'),
