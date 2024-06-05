@@ -18,13 +18,7 @@ import { autoFixCommandId, quickFixCommandId } from 'vs/editor/contrib/codeActio
 import { CodeActionSet, CodeActionTrigger } from 'vs/editor/contrib/codeAction/common/types';
 import * as nls from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-
-
-
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-
-
-
 
 namespace LightBulbState {
 
