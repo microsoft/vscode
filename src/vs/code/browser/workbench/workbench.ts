@@ -3,32 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { create } from "vs/workbench/workbench.web.main";
-import { URI, UriComponents } from "vs/base/common/uri";
+import { create } from 'vs/workbench/workbench.web.main';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import {
 	IWorkbenchConstructionOptions,
 	IWorkspace,
 	IWorkspaceProvider,
-} from "vs/workbench/browser/web.api";
-import { ISecretStorageProvider } from "vs/platform/secrets/common/secrets";
+} from 'vs/workbench/browser/web.api';
+import { ISecretStorageProvider } from 'vs/platform/secrets/common/secrets';
 declare const window: any;
 type Writeable<T> = { -readonly [P in keyof T]: T[P] };
 
 class SecretStorageProvider implements ISecretStorageProvider {
-	public type: "persisted";
+	public type: 'persisted';
 	constructor() {
-		this.type = "persisted";
+		this.type = 'persisted';
 	}
 	async get(key: any): Promise<string | undefined> {
 		const secret = JSON.parse(key);
 		if (
-			secret.extensionId === "membrane.membrane" &&
-			secret.key === "membraneApiToken"
+			secret.extensionId === 'membrane.membrane' &&
+			secret.key === 'membraneApiToken'
 		) {
 			const allKeys = Object.keys(localStorage);
 			// Find the first key that matches the pattern of auth0 React
 			const filteredKeys = allKeys.filter((key) =>
-				key.includes("::default::openid")
+				key.includes('::default::openid')
 			);
 			if (filteredKeys.length > 0) {
 				const firstMatchingKey = filteredKeys[0];
@@ -36,12 +36,12 @@ class SecretStorageProvider implements ISecretStorageProvider {
 				const value = JSON.parse(values!);
 				return value.body.access_token;
 			} else {
-				throw new Error("No matching keys found");
+				throw new Error('No matching keys found');
 			}
 		}
 		const value = localStorage.getItem(secret.key);
 		if (!value) {
-			throw new Error("Secret not found");
+			throw new Error('Secret not found');
 		}
 		return value;
 	}
@@ -64,14 +64,14 @@ class SecretStorageProvider implements ISecretStorageProvider {
 	if (window.product) {
 		config = window.product;
 	} else {
-		const result = await fetch("/product.json");
+		const result = await fetch('/product.json');
 		config = await result.json();
 	}
 
-	const isHttps = window.location.protocol === "https:";
+	const isHttps = window.location.protocol === 'https:';
 	const extUrl = {
-		scheme: isHttps ? "https" : "http",
-		path: "/membrane",
+		scheme: isHttps ? 'https' : 'http',
+		path: '/membrane',
 	};
 
 	config.additionalBuiltinExtensions = [URI.revive(extUrl)];
