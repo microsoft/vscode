@@ -19,7 +19,7 @@ import { ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/te
 import { TerminalChatWidget } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatWidget';
 
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { ChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatModel, IChatResponseModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { TerminalChatContextKeys } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -192,7 +192,39 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		}
 	}
 
-	async acceptInput(): Promise<void> {
+	private _forcedPlaceholder: string | undefined = undefined;
+
+	private _updatePlaceholder(): void {
+		const inlineChatWidget = this._chatWidget?.value.inlineChatWidget;
+		if (inlineChatWidget) {
+			inlineChatWidget.placeholder = this._getPlaceholderText();
+		}
+	}
+
+	private _getPlaceholderText(): string {
+		return this._forcedPlaceholder ?? '';
+	}
+
+	setPlaceholder(text: string): void {
+		this._forcedPlaceholder = text;
+		this._updatePlaceholder();
+	}
+
+	resetPlaceholder(): void {
+		this._forcedPlaceholder = undefined;
+		this._updatePlaceholder();
+	}
+
+	clear(): void {
+		this.cancel();
+		this._model.clear();
+		this._chatWidget?.rawValue?.hide();
+		this._chatWidget?.rawValue?.setValue(undefined);
+		this._responseContainsCodeBlockContextKey.reset();
+		this._requestActiveContextKey.reset();
+	}
+
+	async acceptInput(): Promise<IChatResponseModel | undefined> {
 		assertType(this._chatWidget);
 		assertType(this._model.value);
 		const lastInput = this._chatWidget.value.inlineChatWidget.value;
@@ -207,9 +239,9 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		const store = new DisposableStore();
 		this._requestActiveContextKey.set(true);
 		let responseContent = '';
-		const response = await this._chatWidget.value.inlineChatWidget.chatWidget.acceptInput();
+		const response = await this._chatWidget.value.inlineChatWidget.chatWidget.acceptInput(lastInput);
 		this._currentRequestId = response?.requestId;
-		const responsePromise = new DeferredPromise<void>();
+		const responsePromise = new DeferredPromise<IChatResponseModel | undefined>();
 		try {
 			this._requestActiveContextKey.set(true);
 			if (response) {
@@ -231,12 +263,14 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 						this._responseContainsMulitpleCodeBlocksContextKey.set(!!secondCodeBlock);
 						this._chatWidget?.value.inlineChatWidget.updateToolbar(true);
 						this._chatWidget?.value.inlineChatWidget.updateProgress(false);
-						responsePromise.complete();
+						responsePromise.complete(response);
 					}
 				}));
 			}
 			await responsePromise.p;
+			return response;
 		} catch {
+			return;
 		} finally {
 			store.dispose();
 		}

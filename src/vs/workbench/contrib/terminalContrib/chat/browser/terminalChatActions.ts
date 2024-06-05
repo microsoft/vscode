@@ -361,7 +361,7 @@ registerActiveXtermAction({
 			return;
 		}
 		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
-		contr?.cancel();
+		contr?.clear();
 	}
 });
 
