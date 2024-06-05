@@ -21,13 +21,10 @@ import { Iterable } from 'vs/base/common/iterator';
 import { ITitleService } from 'vs/workbench/services/title/browser/titleService';
 import { IEditorGroupContextKeyProvider, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { getRepositoryResourceCount } from 'vs/workbench/contrib/scm/browser/util';
 
 function getCount(repository: ISCMRepository): number {
-	if (typeof repository.provider.count === 'number') {
-		return repository.provider.count;
-	} else {
-		return repository.provider.groups.reduce<number>((r, g) => r + g.resources.length, 0);
-	}
+	return repository.provider.count ?? getRepositoryResourceCount(repository.provider);
 }
 
 export class SCMStatusController implements IWorkbenchContribution {
