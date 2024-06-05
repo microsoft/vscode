@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Codicon } from 'vs/base/common/codicons';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
@@ -284,6 +285,7 @@ export abstract class ExtensionsResourceTreeItem implements IProfileResourceTree
 					label: localize('exclude', "Select {0} Extension", e.displayName || e.identifier.id),
 				}
 			} : undefined,
+			themeIcon: Codicon.extensions,
 			command: {
 				id: 'extension.open',
 				title: '',

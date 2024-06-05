@@ -10,13 +10,10 @@ import { workbenchInstantiationService } from 'vs/workbench/test/browser/workben
 import { NullLogService } from 'vs/platform/log/common/log';
 import { InitialHintAddon } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminal.initialHint.contribution';
 import { getActiveDocument } from 'vs/base/browser/dom';
-import { IInlineChatSession, IInlineChatSessionProvider, InlineChatProviderChangeEvent } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { Emitter } from 'vs/base/common/event';
 import { strictEqual } from 'assert';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { ITextModel } from 'vs/editor/common/model';
-import { ISelection } from 'vs/editor/common/core/selection';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { ChatAgentLocation, IChatAgent } from 'vs/workbench/contrib/chat/common/chatAgents';
 
 // Test TerminalInitialHintAddon
 
@@ -25,13 +22,35 @@ suite('Terminal Initial Hint Addon', () => {
 	let eventCount = 0;
 	let xterm: Terminal;
 	let initialHintAddon: InitialHintAddon;
-	const _onDidChangeProviders: Emitter<InlineChatProviderChangeEvent> = new Emitter();
-	const onDidChangeProviders = _onDidChangeProviders.event;
+	const _onDidChangeAgents: Emitter<IChatAgent | undefined> = new Emitter();
+	const onDidChangeAgents = _onDidChangeAgents.event;
+	const agent: IChatAgent = {
+		id: 'termminal',
+		name: 'terminal',
+		extensionId: new ExtensionIdentifier('test'),
+		extensionPublisherId: 'test',
+		extensionDisplayName: 'test',
+		metadata: {},
+		slashCommands: [{ name: 'test', description: 'test' }],
+		locations: [ChatAgentLocation.fromRaw('terminal')],
+		invoke: async () => { return {}; }
+	};
+	const editorAgent: IChatAgent = {
+		id: 'editor',
+		name: 'editor',
+		extensionId: new ExtensionIdentifier('test-editor'),
+		extensionPublisherId: 'test-editor',
+		extensionDisplayName: 'test-editor',
+		metadata: {},
+		slashCommands: [{ name: 'test', description: 'test' }],
+		locations: [ChatAgentLocation.fromRaw('editor')],
+		invoke: async () => { return {}; }
+	};
 	setup(() => {
 		const instantiationService = workbenchInstantiationService({}, store);
 		xterm = store.add(new Terminal());
 		const shellIntegrationAddon = store.add(new ShellIntegrationAddon('', true, undefined, new NullLogService));
-		initialHintAddon = store.add(instantiationService.createInstance(InitialHintAddon, shellIntegrationAddon.capabilities, onDidChangeProviders));
+		initialHintAddon = store.add(instantiationService.createInstance(InitialHintAddon, shellIntegrationAddon.capabilities, onDidChangeAgents));
 		store.add(initialHintAddon.onDidRequestCreateHint(() => eventCount++));
 		const testContainer = document.createElement('div');
 		getActiveDocument().body.append(testContainer);
@@ -47,36 +66,32 @@ suite('Terminal Initial Hint Addon', () => {
 			xterm.focus();
 			strictEqual(eventCount, 0);
 		});
-		test('hint is shown when there is a chat provider', () => {
+		test('hint is not shown when there is just an editor agent', () => {
 			eventCount = 0;
-			const provider: IInlineChatSessionProvider = {
-				extensionId: new ExtensionIdentifier('test'),
-				label: 'blahblah',
-				prepareInlineChatSession(model: ITextModel, range: ISelection, token: CancellationToken): Promise<IInlineChatSession> {
-					throw new Error('Method not implemented.');
-				},
-				provideResponse() {
-					throw new Error('Method not implemented.');
-				}
-			};
-			_onDidChangeProviders.fire({ added: provider });
+			_onDidChangeAgents.fire(editorAgent);
 			xterm.focus();
+			strictEqual(eventCount, 0);
+		});
+		test('hint is shown when there is a terminal chat agent', () => {
+			eventCount = 0;
+			_onDidChangeAgents.fire(editorAgent);
+			xterm.focus();
+			strictEqual(eventCount, 0);
+			_onDidChangeAgents.fire(agent);
+			strictEqual(eventCount, 1);
+		});
+		test('hint is not shown again when another terminal chat agent is added if it has already shown', () => {
+			eventCount = 0;
+			_onDidChangeAgents.fire(agent);
+			xterm.focus();
+			strictEqual(eventCount, 1);
+			_onDidChangeAgents.fire(agent);
 			strictEqual(eventCount, 1);
 		});
 	});
 	suite('Input', () => {
 		test('hint is not shown when there has been input', () => {
-			const provider: IInlineChatSessionProvider = {
-				extensionId: new ExtensionIdentifier('test'),
-				label: 'blahblah',
-				prepareInlineChatSession(model: ITextModel, range: ISelection, token: CancellationToken): Promise<IInlineChatSession> {
-					throw new Error('Method not implemented.');
-				},
-				provideResponse() {
-					throw new Error('Method not implemented.');
-				}
-			};
-			_onDidChangeProviders.fire({ added: provider });
+			_onDidChangeAgents.fire(agent);
 			xterm.writeln('data');
 			setTimeout(() => {
 				xterm.focus();
@@ -85,5 +100,3 @@ suite('Terminal Initial Hint Addon', () => {
 		});
 	});
 });
-
-

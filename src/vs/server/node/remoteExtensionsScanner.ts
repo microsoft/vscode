@@ -133,7 +133,7 @@ export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerS
 			this._scanDevelopedExtensions(language, extensionDevelopmentPath)
 		]);
 
-		return dedupExtensions(builtinExtensions, [...installedExtensions, ...workspaceInstalledExtensions], developedExtensions, this._logService);
+		return dedupExtensions(builtinExtensions, installedExtensions, workspaceInstalledExtensions, developedExtensions, this._logService);
 	}
 
 	private async _scanDevelopedExtensions(language: string, extensionDevelopmentPaths?: string[]): Promise<IExtensionDescription[]> {
