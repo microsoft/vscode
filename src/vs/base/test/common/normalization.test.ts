@@ -3,10 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { removeAccents } from 'vs/base/common/normalization';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Normalization', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('removeAccents', function () {
 		assert.strictEqual(removeAccents('joào'), 'joao');

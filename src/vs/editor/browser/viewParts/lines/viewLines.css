@@ -20,8 +20,8 @@
 }
 
 .mtkoverflow {
-	background-color: var(--vscode-button-background, --vscode-editor-background);
-	color: var(--vscode-button-foreground, --vscode-editor-foreground);
+	background-color: var(--vscode-button-background, var(--vscode-editor-background));
+	color: var(--vscode-button-foreground, var(--vscode-editor-foreground));
 	border-width: 1px;
 	border-style: solid;
 	border-color: var(--vscode-contrastBorder);
@@ -61,6 +61,13 @@
 .monaco-editor .view-line {
 	position: absolute;
 	width: 100%;
+}
+
+/* There are view-lines in view-zones. We have to make sure this rule does not apply to them, as they don't set a line height */
+.monaco-editor .lines-content > .view-lines > .view-line > span {
+	top: 0;
+	bottom: 0;
+	position: absolute;
 }
 
 .monaco-editor .mtkw {

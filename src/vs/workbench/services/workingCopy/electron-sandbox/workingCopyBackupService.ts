@@ -11,9 +11,8 @@ import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/com
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { NativeWorkingCopyBackupTracker } from 'vs/workbench/services/workingCopy/electron-sandbox/workingCopyBackupTracker';
 
 export class NativeWorkingCopyBackupService extends WorkingCopyBackupService {
@@ -34,7 +33,7 @@ export class NativeWorkingCopyBackupService extends WorkingCopyBackupService {
 		// Lifecycle: ensure to prolong the shutdown for as long
 		// as pending backup operations have not finished yet.
 		// Otherwise, we risk writing partial backups to disk.
-		this.lifecycleService.onWillShutdown(event => event.join(this.joinBackups(), { id: 'join.workingCopyBackups', label: localize('join.workingCopyBackups', "Backup working copies") }));
+		this._register(this.lifecycleService.onWillShutdown(event => event.join(this.joinBackups(), { id: 'join.workingCopyBackups', label: localize('join.workingCopyBackups', "Backup working copies") })));
 	}
 }
 
@@ -42,4 +41,4 @@ export class NativeWorkingCopyBackupService extends WorkingCopyBackupService {
 registerSingleton(IWorkingCopyBackupService, NativeWorkingCopyBackupService, InstantiationType.Eager);
 
 // Register Backup Tracker
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(NativeWorkingCopyBackupTracker, LifecyclePhase.Starting);
+registerWorkbenchContribution2(NativeWorkingCopyBackupTracker.ID, NativeWorkingCopyBackupTracker, WorkbenchPhase.BlockStartup);

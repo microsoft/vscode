@@ -7,13 +7,12 @@
 
 const path = require('path');
 const perf = require('@vscode/vscode-perf');
-const minimist = require('minimist');
 
 const VSCODE_FOLDER = path.join(__dirname, '..');
 
 async function main() {
 
-	const args = [...process.argv];
+	const args = process.argv;
 	/** @type {string | undefined} */
 	let build = undefined;
 
@@ -43,10 +42,13 @@ async function main() {
 		args.push(path.join(VSCODE_FOLDER, 'package.json'));
 	}
 
-	await perf.run(build ? {
-		...minimist(args),
-		build
-	} : undefined);
+	if (build) {
+		args.push('--build');
+		args.push(build);
+	}
+
+	await perf.run();
+	process.exit(0);
 }
 
 /**
@@ -83,7 +85,7 @@ function getExePath(buildPath) {
  * @returns {string}
  */
 function getLocalCLIPath() {
-	return process.platform === 'win32' ? path.join(VSCODE_FOLDER, 'scripts', 'code-cli.bat') : path.join(VSCODE_FOLDER, 'scripts', 'code-cli.sh');
+	return process.platform === 'win32' ? path.join(VSCODE_FOLDER, 'scripts', 'code.bat') : path.join(VSCODE_FOLDER, 'scripts', 'code.sh');
 }
 
 main();

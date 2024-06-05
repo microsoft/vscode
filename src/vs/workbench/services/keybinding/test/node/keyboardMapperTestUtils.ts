@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import * as path from 'vs/base/common/path';
 import { SingleModifierChord, ResolvedKeybinding, Keybinding } from 'vs/base/common/keybindings';
 import { Promises } from 'vs/base/node/pfs';
@@ -48,7 +48,7 @@ export function assertResolveKeybinding(mapper: IKeyboardMapper, keybinding: Key
 export function readRawMapping<T>(file: string): Promise<T> {
 	return Promises.readFile(FileAccess.asFileUri(`vs/workbench/services/keybinding/test/node/${file}.js`).fsPath).then((buff) => {
 		const contents = buff.toString();
-		const func = new Function('define', contents);
+		const func = new Function('define', contents);// CodeQL [SM01632] This is used in tests and we read the files as JS to avoid slowing down TS compilation
 		let rawMappings: T | null = null;
 		func(function (value: T) {
 			rawMappings = value;

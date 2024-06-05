@@ -7,28 +7,31 @@ import { localize } from 'vs/nls';
 import { IDisposable, Disposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { IFilesConfiguration } from 'vs/platform/files/common/files';
+import { IFileService, IFilesConfiguration } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { ResourceMap } from 'vs/base/common/map';
-import { INotificationService, Severity, NeverShowAgainScope } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity, NeverShowAgainScope, NotificationPriority } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { isAbsolute } from 'vs/base/common/path';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IWorkbenchFileService } from 'vs/workbench/services/files/common/files';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export class WorkspaceWatcher extends Disposable {
+
+	static readonly ID = 'workbench.contrib.workspaceWatcher';
 
 	private readonly watchedWorkspaces = new ResourceMap<IDisposable>(resource => this.uriIdentityService.extUri.getComparisonKey(resource));
 
 	constructor(
-		@IWorkbenchFileService private readonly fileService: IWorkbenchFileService,
+		@IFileService private readonly fileService: IFileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@IHostService private readonly hostService: IHostService
+		@IHostService private readonly hostService: IHostService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super();
 
@@ -69,12 +72,15 @@ export class WorkspaceWatcher extends Disposable {
 
 	private onDidWatchError(error: Error): void {
 		const msg = error.toString();
+		let reason: 'ENOSPC' | 'EUNKNOWN' | 'ETERM' | undefined = undefined;
 
 		// Detect if we run into ENOSPC issues
 		if (msg.indexOf('ENOSPC') >= 0) {
+			reason = 'ENOSPC';
+
 			this.notificationService.prompt(
 				Severity.Warning,
-				localize('enospcError', "Unable to watch for file changes in this large workspace folder. Please follow the instructions link to resolve this issue."),
+				localize('enospcError', "Unable to watch for file changes. Please follow the instructions link to resolve this issue."),
 				[{
 					label: localize('learnMore', "Instructions"),
 					run: () => this.openerService.open(URI.parse('https://go.microsoft.com/fwlink/?linkid=867693'))
@@ -88,6 +94,8 @@ export class WorkspaceWatcher extends Disposable {
 
 		// Detect when the watcher throws an error unexpectedly
 		else if (msg.indexOf('EUNKNOWN') >= 0) {
+			reason = 'EUNKNOWN';
+
 			this.notificationService.prompt(
 				Severity.Warning,
 				localize('eshutdownError', "File changes watcher stopped unexpectedly. A reload of the window may enable the watcher again unless the workspace cannot be watched for file changes."),
@@ -97,9 +105,28 @@ export class WorkspaceWatcher extends Disposable {
 				}],
 				{
 					sticky: true,
-					silent: true // reduce potential spam since we don't really know how often this fires
+					priority: NotificationPriority.SILENT // reduce potential spam since we don't really know how often this fires
 				}
 			);
+		}
+
+		// Detect unexpected termination
+		else if (msg.indexOf('ETERM') >= 0) {
+			reason = 'ETERM';
+		}
+
+		// Log telemetry if we gathered a reason (logging it from the renderer
+		// allows us to investigate this situation in context of experiments)
+		if (reason) {
+			type WatchErrorClassification = {
+				owner: 'bpasero';
+				comment: 'An event that fires when a watcher errors';
+				reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The watcher error reason.' };
+			};
+			type WatchErrorEvent = {
+				reason: string;
+			};
+			this.telemetryService.publicLog2<WatchErrorEvent, WatchErrorClassification>('fileWatcherError', { reason });
 		}
 	}
 
@@ -110,7 +137,7 @@ export class WorkspaceWatcher extends Disposable {
 		const config = this.configurationService.getValue<IFilesConfiguration>({ resource: workspace.uri });
 		if (config.files?.watcherExclude) {
 			for (const key in config.files.watcherExclude) {
-				if (config.files.watcherExclude[key] === true) {
+				if (key && config.files.watcherExclude[key] === true) {
 					excludes.push(key);
 				}
 			}

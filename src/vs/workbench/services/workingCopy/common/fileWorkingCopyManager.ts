@@ -23,7 +23,7 @@ import { IUntitledFileWorkingCopy, IUntitledFileWorkingCopyModel, IUntitledFileW
 import { INewOrExistingUntitledFileWorkingCopyOptions, INewUntitledFileWorkingCopyOptions, INewUntitledFileWorkingCopyWithAssociatedResourceOptions, IUntitledFileWorkingCopyManager, UntitledFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/untitledFileWorkingCopyManager';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IBaseFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/abstractFileWorkingCopyManager';
-import { IFileWorkingCopy } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
+import { IFileWorkingCopy, SnapshotContext } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -38,6 +38,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IDecorationData, IDecorationsProvider, IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
 import { Codicon } from 'vs/base/common/codicons';
 import { listErrorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IProgressService } from 'vs/platform/progress/common/progress';
 
 export interface IFileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U extends IUntitledFileWorkingCopyModel> extends IBaseFileWorkingCopyManager<S | U, IFileWorkingCopy<S | U>> {
 
@@ -153,7 +154,7 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 		@IWorkingCopyBackupService workingCopyBackupService: IWorkingCopyBackupService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
-		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
+		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@IWorkingCopyService workingCopyService: IWorkingCopyService,
 		@INotificationService notificationService: INotificationService,
 		@IWorkingCopyEditorService workingCopyEditorService: IWorkingCopyEditorService,
@@ -162,7 +163,8 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 		@IPathService private readonly pathService: IPathService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IDialogService private readonly dialogService: IDialogService,
-		@IDecorationsService private readonly decorationsService: IDecorationsService
+		@IDecorationsService private readonly decorationsService: IDecorationsService,
+		@IProgressService progressService: IProgressService
 	) {
 		super();
 
@@ -172,7 +174,7 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 			this.storedWorkingCopyModelFactory,
 			fileService, lifecycleService, labelService, logService, workingCopyFileService,
 			workingCopyBackupService, uriIdentityService, filesConfigurationService, workingCopyService,
-			notificationService, workingCopyEditorService, editorService, elevatedFileService
+			notificationService, workingCopyEditorService, editorService, elevatedFileService, progressService
 		));
 
 		// Untitled file working copies manager
@@ -199,7 +201,7 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 	private provideDecorations(): void {
 
 		// File working copy decorations
-		this.decorationsService.registerDecorationsProvider(new class extends Disposable implements IDecorationsProvider {
+		const provider = this._register(new class extends Disposable implements IDecorationsProvider {
 
 			readonly label = localize('fileWorkingCopyDecorations', "File Working Copy Decorations");
 
@@ -247,7 +249,7 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 						color: listErrorForeground,
 						letter: Codicon.lockSmall,
 						strikethrough: true,
-						tooltip: localize('readonlyAndDeleted', "Deleted, Read Only"),
+						tooltip: localize('readonlyAndDeleted', "Deleted, Read-only"),
 					};
 				}
 
@@ -255,7 +257,7 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 				else if (isReadonly) {
 					return {
 						letter: Codicon.lockSmall,
-						tooltip: localize('readonly', "Read Only"),
+						tooltip: localize('readonly', "Read-only"),
 					};
 				}
 
@@ -271,6 +273,8 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 				return undefined;
 			}
 		}(this.stored));
+
+		this._register(this.decorationsService.registerDecorationsProvider(provider));
 	}
 
 	//#endregin
@@ -330,6 +334,16 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 			return; // user canceled
 		}
 
+		// Ensure target is not marked as readonly and prompt otherwise
+		if (this.filesConfigurationService.isReadonly(target)) {
+			const confirmed = await this.confirmMakeWriteable(target);
+			if (!confirmed) {
+				return;
+			} else {
+				this.filesConfigurationService.updateReadonly(target, false);
+			}
+		}
+
 		// Just save if target is same as working copies own resource
 		// and we are not saving an untitled file working copy
 		if (this.fileService.hasProvider(source) && isEqual(source, target)) {
@@ -378,7 +392,7 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 		// use that to copy the contents to the target destination
 		const sourceWorkingCopy = this.get(source);
 		if (sourceWorkingCopy?.isResolved()) {
-			sourceContents = await sourceWorkingCopy.model.snapshot(CancellationToken.None);
+			sourceContents = await sourceWorkingCopy.model.snapshot(SnapshotContext.Save, CancellationToken.None);
 		}
 
 		// Otherwise we resolve the contents from the underlying file
@@ -417,7 +431,11 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 		}
 
 		// Save target
-		const success = await targetStoredFileWorkingCopy.save({ ...options, force: true  /* force to save, even if not dirty (https://github.com/microsoft/vscode/issues/99619) */ });
+		const success = await targetStoredFileWorkingCopy.save({
+			...options,
+			from: source,
+			force: true  /* force to save, even if not dirty (https://github.com/microsoft/vscode/issues/99619) */
+		});
 		if (!success) {
 			return undefined;
 		}
@@ -478,8 +496,19 @@ export class FileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, U ext
 		const { confirmed } = await this.dialogService.confirm({
 			type: 'warning',
 			message: localize('confirmOverwrite', "'{0}' already exists. Do you want to replace it?", basename(resource)),
-			detail: localize('irreversible', "A file or folder with the name '{0}' already exists in the folder '{1}'. Replacing it will overwrite its current contents.", basename(resource), basename(dirname(resource))),
+			detail: localize('overwriteIrreversible', "A file or folder with the name '{0}' already exists in the folder '{1}'. Replacing it will overwrite its current contents.", basename(resource), basename(dirname(resource))),
 			primaryButton: localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace")
+		});
+
+		return confirmed;
+	}
+
+	private async confirmMakeWriteable(resource: URI): Promise<boolean> {
+		const { confirmed } = await this.dialogService.confirm({
+			type: 'warning',
+			message: localize('confirmMakeWriteable', "'{0}' is marked as read-only. Do you want to save anyway?", basename(resource)),
+			detail: localize('confirmMakeWriteableDetail', "Paths can be configured as read-only via settings."),
+			primaryButton: localize({ key: 'makeWriteableButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Save Anyway")
 		});
 
 		return confirmed;

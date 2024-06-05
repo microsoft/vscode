@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import * as sinon from 'sinon';
 import { URI } from 'vs/base/common/uri';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -57,6 +57,10 @@ suite('MainThreadConfiguration', function () {
 		instantiationService.stub(IEnvironmentService, {
 			isBuilt: false
 		});
+	});
+
+	teardown(() => {
+		instantiationService.dispose();
 	});
 
 	test('update resource configuration without configuration target defaults to workspace in multi root workspace when no resource is provided', function () {

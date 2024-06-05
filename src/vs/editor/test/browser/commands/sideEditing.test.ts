@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -27,6 +28,8 @@ function testCommand(lines: string[], selections: Selection[], edits: ISingleEdi
 }
 
 suite('Editor Side Editing - collapsed selection', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('replace at selection', () => {
 		testCommand(
@@ -185,6 +188,8 @@ suite('Editor Side Editing - collapsed selection', () => {
 });
 
 suite('SideEditing', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const LINES = [
 		'My First Line',

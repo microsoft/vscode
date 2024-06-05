@@ -13,22 +13,22 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { MenuId, MenuRegistry, Action2 } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
+import { CommandsRegistry, ICommandMetadata } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, IContextKeyService, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor as InstantiationServicesAccessor, BrandedService, IInstantiationService, IConstructorSignature } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindings, KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { withNullAsUndefined, assertType } from 'vs/base/common/types';
+import { assertType } from 'vs/base/common/types';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ILogService } from 'vs/platform/log/common/log';
-
+import { getActiveElement } from 'vs/base/browser/dom';
 
 export type ServicesAccessor = InstantiationServicesAccessor;
-export type IEditorContributionCtor = IConstructorSignature<IEditorContribution, [ICodeEditor]>;
-export type IDiffEditorContributionCtor = IConstructorSignature<IDiffEditorContribution, [IDiffEditor]>;
+export type EditorContributionCtor = IConstructorSignature<IEditorContribution, [ICodeEditor]>;
+export type DiffEditorContributionCtor = IConstructorSignature<IDiffEditorContribution, [IDiffEditor]>;
 
 export const enum EditorContributionInstantiation {
 	/**
@@ -65,13 +65,13 @@ export const enum EditorContributionInstantiation {
 
 export interface IEditorContributionDescription {
 	readonly id: string;
-	readonly ctor: IEditorContributionCtor;
+	readonly ctor: EditorContributionCtor;
 	readonly instantiation: EditorContributionInstantiation;
 }
 
 export interface IDiffEditorContributionDescription {
 	id: string;
-	ctor: IDiffEditorContributionCtor;
+	ctor: DiffEditorContributionCtor;
 }
 
 //#region Command
@@ -96,7 +96,7 @@ export interface ICommandOptions {
 	id: string;
 	precondition: ContextKeyExpression | undefined;
 	kbOpts?: ICommandKeybindingsOptions | ICommandKeybindingsOptions[];
-	description?: ICommandHandlerDescription;
+	metadata?: ICommandMetadata;
 	menuOpts?: ICommandMenuOptions | ICommandMenuOptions[];
 }
 export abstract class Command {
@@ -104,14 +104,14 @@ export abstract class Command {
 	public readonly precondition: ContextKeyExpression | undefined;
 	private readonly _kbOpts: ICommandKeybindingsOptions | ICommandKeybindingsOptions[] | undefined;
 	private readonly _menuOpts: ICommandMenuOptions | ICommandMenuOptions[] | undefined;
-	private readonly _description: ICommandHandlerDescription | undefined;
+	public readonly metadata: ICommandMetadata | undefined;
 
 	constructor(opts: ICommandOptions) {
 		this.id = opts.id;
 		this.precondition = opts.precondition;
 		this._kbOpts = opts.kbOpts;
 		this._menuOpts = opts.menuOpts;
-		this._description = opts.description;
+		this.metadata = opts.metadata;
 	}
 
 	public register(): void {
@@ -153,7 +153,7 @@ export abstract class Command {
 		CommandsRegistry.registerCommand({
 			id: this.id,
 			handler: (accessor, args) => this.runCommand(accessor, args),
-			description: this._description
+			metadata: this.metadata
 		});
 	}
 
@@ -181,7 +181,7 @@ export abstract class Command {
 /**
  * Potential override for a command.
  *
- * @return `true` if the command was successfully run. This stops other overrides from being executed.
+ * @return `true` or a Promise if the command was successfully run. This stops other overrides from being executed.
  */
 export type CommandImplementation = (accessor: ServicesAccessor, args: unknown) => boolean | Promise<void>;
 
@@ -189,6 +189,7 @@ interface ICommandImplementationRegistration {
 	priority: number;
 	name: string;
 	implementation: CommandImplementation;
+	when?: ContextKeyExpression;
 }
 
 export class MultiCommand extends Command {
@@ -198,8 +199,8 @@ export class MultiCommand extends Command {
 	/**
 	 * A higher priority gets to be looked at first
 	 */
-	public addImplementation(priority: number, name: string, implementation: CommandImplementation): IDisposable {
-		this._implementations.push({ priority, name, implementation });
+	public addImplementation(priority: number, name: string, implementation: CommandImplementation, when?: ContextKeyExpression): IDisposable {
+		this._implementations.push({ priority, name, implementation, when });
 		this._implementations.sort((a, b) => b.priority - a.priority);
 		return {
 			dispose: () => {
@@ -215,8 +216,16 @@ export class MultiCommand extends Command {
 
 	public runCommand(accessor: ServicesAccessor, args: any): void | Promise<void> {
 		const logService = accessor.get(ILogService);
+		const contextKeyService = accessor.get(IContextKeyService);
 		logService.trace(`Executing Command '${this.id}' which has ${this._implementations.length} bound.`);
 		for (const impl of this._implementations) {
+			if (impl.when) {
+				const context = contextKeyService.getContext(getActiveElement());
+				const value = impl.when.evaluate(context);
+				if (!value) {
+					continue;
+				}
+			}
 			const result = impl.implementation(accessor, args);
 			if (result) {
 				logService.trace(`Command '${this.id}' was handled by '${impl.name}'.`);
@@ -299,7 +308,7 @@ export abstract class EditorCommand extends Command {
 
 		return editor.invokeWithinContext((editorAccessor) => {
 			const kbService = editorAccessor.get(IContextKeyService);
-			if (!kbService.contextMatchesRules(withNullAsUndefined(precondition))) {
+			if (!kbService.contextMatchesRules(precondition ?? undefined)) {
 				// precondition does not hold
 				return;
 			}
@@ -451,9 +460,13 @@ export abstract class EditorAction2 extends Action2 {
 		// precondition does hold
 		return editor.invokeWithinContext((editorAccessor) => {
 			const kbService = editorAccessor.get(IContextKeyService);
-			if (kbService.contextMatchesRules(withNullAsUndefined(this.desc.precondition))) {
-				return this.runEditorCommand(editorAccessor, editor!, ...args);
+			const logService = editorAccessor.get(ILogService);
+			const enabled = kbService.contextMatchesRules(this.desc.precondition ?? undefined);
+			if (!enabled) {
+				logService.debug(`[EditorAction2] NOT running command because its precondition is FALSE`, this.desc.id, this.desc.precondition?.serialize());
+				return;
 			}
+			return this.runEditorCommand(editorAccessor, editor, ...args);
 		});
 	}
 
@@ -515,10 +528,18 @@ export function registerInstantiatedEditorAction(editorAction: EditorAction): vo
 	EditorContributionRegistry.INSTANCE.registerEditorAction(editorAction);
 }
 
+/**
+ * Registers an editor contribution. Editor contributions have a lifecycle which is bound
+ * to a specific code editor instance.
+ */
 export function registerEditorContribution<Services extends BrandedService[]>(id: string, ctor: { new(editor: ICodeEditor, ...services: Services): IEditorContribution }, instantiation: EditorContributionInstantiation): void {
 	EditorContributionRegistry.INSTANCE.registerEditorContribution(id, ctor, instantiation);
 }
 
+/**
+ * Registers a diff editor contribution. Diff editor contributions have a lifecycle which
+ * is bound to a specific diff editor instance.
+ */
 export function registerDiffEditorContribution<Services extends BrandedService[]>(id: string, ctor: { new(editor: IDiffEditor, ...services: Services): IEditorContribution }): void {
 	EditorContributionRegistry.INSTANCE.registerDiffEditorContribution(id, ctor);
 }
@@ -555,20 +576,16 @@ class EditorContributionRegistry {
 
 	public static readonly INSTANCE = new EditorContributionRegistry();
 
-	private readonly editorContributions: IEditorContributionDescription[];
-	private readonly diffEditorContributions: IDiffEditorContributionDescription[];
-	private readonly editorActions: EditorAction[];
-	private readonly editorCommands: { [commandId: string]: EditorCommand };
+	private readonly editorContributions: IEditorContributionDescription[] = [];
+	private readonly diffEditorContributions: IDiffEditorContributionDescription[] = [];
+	private readonly editorActions: EditorAction[] = [];
+	private readonly editorCommands: { [commandId: string]: EditorCommand } = Object.create(null);
 
 	constructor() {
-		this.editorContributions = [];
-		this.diffEditorContributions = [];
-		this.editorActions = [];
-		this.editorCommands = Object.create(null);
 	}
 
 	public registerEditorContribution<Services extends BrandedService[]>(id: string, ctor: { new(editor: ICodeEditor, ...services: Services): IEditorContribution }, instantiation: EditorContributionInstantiation): void {
-		this.editorContributions.push({ id, ctor: ctor as IEditorContributionCtor, instantiation });
+		this.editorContributions.push({ id, ctor: ctor as EditorContributionCtor, instantiation });
 	}
 
 	public getEditorContributions(): IEditorContributionDescription[] {
@@ -576,7 +593,7 @@ class EditorContributionRegistry {
 	}
 
 	public registerDiffEditorContribution<Services extends BrandedService[]>(id: string, ctor: { new(editor: IDiffEditor, ...services: Services): IEditorContribution }): void {
-		this.diffEditorContributions.push({ id, ctor: ctor as IDiffEditorContributionCtor });
+		this.diffEditorContributions.push({ id, ctor: ctor as DiffEditorContributionCtor });
 	}
 
 	public getDiffEditorContributions(): IDiffEditorContributionDescription[] {

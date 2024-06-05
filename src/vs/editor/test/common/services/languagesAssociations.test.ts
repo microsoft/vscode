@@ -3,11 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { getMimeTypes, registerPlatformLanguageAssociation, registerConfiguredLanguageAssociation } from 'vs/editor/common/services/languagesAssociations';
 
 suite('LanguagesAssociations', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('Dynamically Register Text Mime', () => {
 		let guess = getMimeTypes(URI.file('foo.monaco'));

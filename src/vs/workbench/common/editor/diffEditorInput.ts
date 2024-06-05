@@ -5,17 +5,16 @@
 
 import { localize } from 'vs/nls';
 import { AbstractSideBySideEditorInputSerializer, SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { EditorInput, IUntypedEditorOptions } from 'vs/workbench/common/editor/editorInput';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
-import { TEXT_DIFF_EDITOR_ID, BINARY_DIFF_EDITOR_ID, Verbosity, IEditorDescriptor, IEditorPane, GroupIdentifier, IResourceDiffEditorInput, IUntypedEditorInput, isResourceDiffEditorInput, IDiffEditorInput, IResourceSideBySideEditorInput, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { TEXT_DIFF_EDITOR_ID, BINARY_DIFF_EDITOR_ID, Verbosity, IEditorDescriptor, IEditorPane, IResourceDiffEditorInput, IUntypedEditorInput, isResourceDiffEditorInput, IDiffEditorInput, IResourceSideBySideEditorInput, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { DiffEditorModel } from 'vs/workbench/common/editor/diffEditorModel';
 import { TextDiffEditorModel } from 'vs/workbench/common/editor/textDiffEditorModel';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { shorten } from 'vs/base/common/labels';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { isResolvedEditorModel } from 'vs/platform/editor/common/editor';
 
 interface IDiffEditorInputLabels {
 	name: string;
@@ -116,9 +115,16 @@ export class DiffEditorInput extends SideBySideEditorInput implements IDiffEdito
 		}
 
 		// Title
-		const shortTitle = this.computeLabel(this.original.getTitle(Verbosity.SHORT) ?? this.original.getName(), this.modified.getTitle(Verbosity.SHORT) ?? this.modified.getName(), ' ↔ ');
-		const mediumTitle = this.computeLabel(this.original.getTitle(Verbosity.MEDIUM) ?? this.original.getName(), this.modified.getTitle(Verbosity.MEDIUM) ?? this.modified.getName(), ' ↔ ');
-		const longTitle = this.computeLabel(this.original.getTitle(Verbosity.LONG) ?? this.original.getName(), this.modified.getTitle(Verbosity.LONG) ?? this.modified.getName(), ' ↔ ');
+		let shortTitle = this.computeLabel(this.original.getTitle(Verbosity.SHORT) ?? this.original.getName(), this.modified.getTitle(Verbosity.SHORT) ?? this.modified.getName(), ' ↔ ');
+		let mediumTitle = this.computeLabel(this.original.getTitle(Verbosity.MEDIUM) ?? this.original.getName(), this.modified.getTitle(Verbosity.MEDIUM) ?? this.modified.getName(), ' ↔ ');
+		let longTitle = this.computeLabel(this.original.getTitle(Verbosity.LONG) ?? this.original.getName(), this.modified.getTitle(Verbosity.LONG) ?? this.modified.getName(), ' ↔ ');
+
+		const preferredTitle = this.getPreferredTitle();
+		if (preferredTitle) {
+			shortTitle = `${preferredTitle} (${shortTitle})`;
+			mediumTitle = `${preferredTitle} (${mediumTitle})`;
+			longTitle = `${preferredTitle} (${longTitle})`;
+		}
 
 		return { name, shortDescription, mediumDescription, longDescription, forceDescription, shortTitle, mediumTitle, longTitle };
 	}
@@ -165,13 +171,13 @@ export class DiffEditorInput extends SideBySideEditorInput implements IDiffEdito
 		}
 	}
 
-	override async resolve(options?: IEditorOptions): Promise<EditorModel> {
+	override async resolve(): Promise<EditorModel> {
 
 		// Create Model - we never reuse our cached model if refresh is true because we cannot
 		// decide for the inputs within if the cached model can be reused or not. There may be
 		// inputs that need to be loaded again and thus we always recreate the model and dispose
 		// the previous one - if any.
-		const resolvedModel = await this.createModel(options);
+		const resolvedModel = await this.createModel();
 		this.cachedModel?.dispose();
 
 		this.cachedModel = resolvedModel;
@@ -187,12 +193,12 @@ export class DiffEditorInput extends SideBySideEditorInput implements IDiffEdito
 		return editorPanes.find(editorPane => editorPane.typeId === TEXT_DIFF_EDITOR_ID);
 	}
 
-	private async createModel(options?: IEditorOptions): Promise<DiffEditorModel> {
+	private async createModel(): Promise<DiffEditorModel> {
 
 		// Join resolve call over two inputs and build diff editor model
 		const [originalEditorModel, modifiedEditorModel] = await Promise.all([
-			this.original.resolve(options),
-			this.modified.resolve(options)
+			this.original.resolve(),
+			this.modified.resolve()
 		]);
 
 		// If both are text models, return textdiffeditor model
@@ -201,10 +207,10 @@ export class DiffEditorInput extends SideBySideEditorInput implements IDiffEdito
 		}
 
 		// Otherwise return normal diff model
-		return new DiffEditorModel(withNullAsUndefined(originalEditorModel), withNullAsUndefined(modifiedEditorModel));
+		return new DiffEditorModel(isResolvedEditorModel(originalEditorModel) ? originalEditorModel : undefined, isResolvedEditorModel(modifiedEditorModel) ? modifiedEditorModel : undefined);
 	}
 
-	override toUntyped(options?: { preserveViewState: GroupIdentifier }): (IResourceDiffEditorInput & IResourceSideBySideEditorInput) | undefined {
+	override toUntyped(options?: IUntypedEditorOptions): (IResourceDiffEditorInput & IResourceSideBySideEditorInput) | undefined {
 		const untyped = super.toUntyped(options);
 		if (untyped) {
 			return {

@@ -10,12 +10,12 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { PerfviewInput } from 'vs/workbench/contrib/performance/browser/perfviewEditor';
+import { PerfviewContrib } from 'vs/workbench/contrib/performance/browser/perfviewEditor';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { URI } from 'vs/base/common/uri';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -118,7 +118,8 @@ export class StartupProfiler implements IWorkbenchContribution {
 			return;
 		}
 
-		const ref = await this._textModelResolverService.createModelReference(PerfviewInput.Uri);
+		const contrib = PerfviewContrib.get();
+		const ref = await this._textModelResolverService.createModelReference(contrib.getInputUri());
 		try {
 			await this._clipboardService.writeText(ref.object.textEditorModel.getValue());
 		} finally {

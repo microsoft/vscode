@@ -16,19 +16,19 @@ import { IFileService, FileChangesEvent, FileOperation, FileChangeType, IFileSys
 import { Promises, ResourceQueue } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { TextFileSaveParticipant } from 'vs/workbench/services/textfile/common/textFileSaveParticipant';
-import { SaveReason } from 'vs/workbench/common/editor';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IWorkingCopyFileService, WorkingCopyFileEvent } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
+import { IStoredFileWorkingCopySaveParticipantContext, IWorkingCopyFileService, WorkingCopyFileEvent } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { ITextSnapshot } from 'vs/editor/common/model';
 import { extname, joinPath } from 'vs/base/common/resources';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { PLAINTEXT_EXTENSION, PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { IProgress, IProgressStep } from 'vs/platform/progress/common/progress';
 
 export class TextFileEditorModelManager extends Disposable implements ITextFileEditorModelManager {
 
-	private readonly _onDidCreate = this._register(new Emitter<TextFileEditorModel>());
+	private readonly _onDidCreate = this._register(new Emitter<TextFileEditorModel>({ leakWarningThreshold: 500 /* increased for users with hundreds of inputs opened */ }));
 	readonly onDidCreate = this._onDidCreate.event;
 
 	private readonly _onDidResolve = this._register(new Emitter<ITextFileResolveEvent>());
@@ -159,9 +159,9 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		// Resolve model to update (use a queue to prevent accumulation of resolves
 		// when the resolve actually takes long. At most we only want the queue
 		// to have a size of 2 (1 running resolve and 1 queued resolve).
-		const queue = this.modelResolveQueue.queueFor(model.resource);
-		if (queue.size <= 1) {
-			queue.queue(async () => {
+		const queueSize = this.modelResolveQueue.queueSize(model.resource);
+		if (queueSize <= 1) {
+			this.modelResolveQueue.queueFor(model.resource, async () => {
 				try {
 					await this.reload(model);
 				} catch (error) {
@@ -270,12 +270,17 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 
 						await Promises.settled(modelsToRestore.map(async modelToRestore => {
 
+							// From this moment on, only operate on the canonical resource
+							// to fix a potential data loss issue:
+							// https://github.com/microsoft/vscode/issues/211374
+							const target = this.uriIdentityService.asCanonicalUri(modelToRestore.target);
+
 							// restore the model at the target. if we have previous dirty content, we pass it
 							// over to be used, otherwise we force a reload from disk. this is important
 							// because we know the file has changed on disk after the move and the model might
 							// have still existed with the previous state. this ensures that the model is not
 							// tracking a stale state.
-							const restoredModel = await this.resolve(modelToRestore.target, {
+							const restoredModel = await this.resolve(target, {
 								reload: { async: false }, // enforce a reload
 								contents: modelToRestore.snapshot ? createTextBufferFactoryFromSnapshot(modelToRestore.snapshot) : undefined,
 								encoding: modelToRestore.encoding
@@ -288,7 +293,7 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 								modelToRestore.languageId &&
 								modelToRestore.languageId !== PLAINTEXT_LANGUAGE_ID &&
 								restoredModel.getLanguageId() === PLAINTEXT_LANGUAGE_ID &&
-								extname(modelToRestore.target) !== PLAINTEXT_EXTENSION
+								extname(target) !== PLAINTEXT_EXTENSION
 							) {
 								restoredModel.updateTextEditorModel(undefined, modelToRestore.languageId);
 							}
@@ -536,8 +541,8 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		return this.saveParticipants.addSaveParticipant(participant);
 	}
 
-	runSaveParticipants(model: ITextFileEditorModel, context: { reason: SaveReason }, token: CancellationToken): Promise<void> {
-		return this.saveParticipants.participate(model, context, token);
+	runSaveParticipants(model: ITextFileEditorModel, context: IStoredFileWorkingCopySaveParticipantContext, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
+		return this.saveParticipants.participate(model, context, progress, token);
 	}
 
 	//#endregion

@@ -11,6 +11,7 @@
   "scripts": {
     "update-grammar": "node ../node_modules/vscode-grammar-updater/bin atom/language-coffee-script grammars/coffeescript.cson ./syntaxes/coffeescript.tmLanguage.json"
   },
+  "categories": ["Programming Languages"],
   "contributes": {
     "languages": [
       {

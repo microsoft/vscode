@@ -20,10 +20,10 @@
         "path": "./themes/dark_plus.json"
       },
       {
-        "id": "Default Dark+ Experimental",
-        "label": "%darkPlusExperimentalColorThemeLabel%",
+        "id": "Default Dark Modern",
+        "label": "%darkModernThemeLabel%",
         "uiTheme": "vs-dark",
-        "path": "./themes/dark_plus_experimental.json"
+        "path": "./themes/dark_modern.json"
       },
       {
         "id": "Default Light+",
@@ -32,10 +32,10 @@
         "path": "./themes/light_plus.json"
       },
       {
-        "id": "Default Light+ Experimental",
-        "label": "%lightPlusExperimentalColorThemeLabel%",
+        "id": "Default Light Modern",
+        "label": "%lightModernThemeLabel%",
         "uiTheme": "vs",
-        "path": "./themes/light_plus_experimental.json"
+        "path": "./themes/light_modern.json"
       },
       {
         "id": "Visual Studio Dark",

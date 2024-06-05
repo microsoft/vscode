@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { KeyCodeChord } from 'vs/base/common/keybindings';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { OperatingSystem } from 'vs/base/common/platform';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { organizeImportsCommandId, refactorCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { CodeActionKeybindingResolver } from 'vs/editor/contrib/codeAction/browser/codeActionKeybindingResolver';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
@@ -15,6 +16,9 @@ import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKe
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 
 suite('CodeActionKeybindingResolver', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	const refactorKeybinding = createCodeActionKeybinding(
 		KeyCode.KeyA,
 		refactorCommandId,
@@ -97,4 +101,3 @@ function createCodeActionKeybinding(keycode: KeyCode, command: string, commandAr
 		null,
 		false);
 }
-

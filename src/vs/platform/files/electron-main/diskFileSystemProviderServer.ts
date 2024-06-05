@@ -16,6 +16,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { AbstractDiskFileSystemProviderChannel, AbstractSessionFileWatcher, ISessionFileWatcher } from 'vs/platform/files/node/diskFileSystemProviderServer';
 import { DefaultURITransformer, IURITransformer } from 'vs/base/common/uriIpc';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 
 export class DiskFileSystemProviderChannel extends AbstractDiskFileSystemProviderChannel<unknown> {
 
@@ -47,7 +48,7 @@ export class DiskFileSystemProviderChannel extends AbstractDiskFileSystemProvide
 		try {
 			await shell.trashItem(filePath);
 		} catch (error) {
-			throw createFileSystemProviderError(isWindows ? localize('binFailed', "Failed to move '{0}' to the recycle bin", basename(filePath)) : localize('trashFailed', "Failed to move '{0}' to the trash", basename(filePath)), FileSystemProviderErrorCode.Unknown);
+			throw createFileSystemProviderError(isWindows ? localize('binFailed', "Failed to move '{0}' to the recycle bin ({1})", basename(filePath), toErrorMessage(error)) : localize('trashFailed', "Failed to move '{0}' to the trash ({1})", basename(filePath), toErrorMessage(error)), FileSystemProviderErrorCode.Unknown);
 		}
 	}
 

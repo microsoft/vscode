@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ISerializedSingleFolderWorkspaceIdentifier, ISerializedWorkspaceIdentifier, reviveIdentifier, hasWorkspaceFileExtension, isWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, IEmptyWorkspaceIdentifier, toWorkspaceIdentifier, isEmptyWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
 suite('Workspaces', () => {
@@ -46,4 +47,6 @@ suite('Workspaces', () => {
 		assert.ok(!isSingleFolderWorkspaceIdentifier(identifier));
 		assert.ok(isWorkspaceIdentifier(identifier));
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

@@ -58,7 +58,7 @@ export class OutlineViewState implements IOutlineViewState {
 			followCursor: this.followCursor,
 			sortBy: this.sortBy,
 			filterOnType: this.filterOnType,
-		}), StorageScope.WORKSPACE, StorageTarget.USER);
+		}), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	restore(storageService: IStorageService): void {

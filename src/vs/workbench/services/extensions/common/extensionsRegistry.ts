@@ -11,11 +11,12 @@ import { EXTENSION_IDENTIFIER_PATTERN } from 'vs/platform/extensionManagement/co
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IMessage } from 'vs/workbench/services/extensions/common/extensions';
-import { ExtensionIdentifier, IExtensionDescription, EXTENSION_CATEGORIES } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription, EXTENSION_CATEGORIES, ExtensionIdentifierSet } from 'vs/platform/extensions/common/extensions';
 import { ExtensionKind } from 'vs/platform/environment/common/environment';
 import { allApiProposals } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
 import { productSchemaId } from 'vs/platform/product/common/productService';
 import { ImplicitActivationEvents, IActivationEventsGenerator } from 'vs/platform/extensionManagement/common/implicitActivationEvents';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 const schemaRegistry = Registry.as<IJSONContributionRegistry>(Extensions.JSONContribution);
 
@@ -67,16 +68,16 @@ export type IExtensionPointHandler<T> = (extensions: readonly IExtensionPointUse
 
 export interface IExtensionPoint<T> {
 	readonly name: string;
-	setHandler(handler: IExtensionPointHandler<T>): void;
+	setHandler(handler: IExtensionPointHandler<T>): IDisposable;
 	readonly defaultExtensionKind: ExtensionKind[] | undefined;
 }
 
 export class ExtensionPointUserDelta<T> {
 
-	private static _toSet<T>(arr: readonly IExtensionPointUser<T>[]): Set<string> {
-		const result = new Set<string>();
+	private static _toSet<T>(arr: readonly IExtensionPointUser<T>[]): ExtensionIdentifierSet {
+		const result = new ExtensionIdentifierSet();
 		for (let i = 0, len = arr.length; i < len; i++) {
-			result.add(ExtensionIdentifier.toKey(arr[i].description.identifier));
+			result.add(arr[i].description.identifier);
 		}
 		return result;
 	}
@@ -92,8 +93,8 @@ export class ExtensionPointUserDelta<T> {
 		const previousSet = this._toSet(previous);
 		const currentSet = this._toSet(current);
 
-		const added = current.filter(user => !previousSet.has(ExtensionIdentifier.toKey(user.description.identifier)));
-		const removed = previous.filter(user => !currentSet.has(ExtensionIdentifier.toKey(user.description.identifier)));
+		const added = current.filter(user => !previousSet.has(user.description.identifier));
+		const removed = previous.filter(user => !currentSet.has(user.description.identifier));
 
 		return new ExtensionPointUserDelta<T>(added, removed);
 	}
@@ -121,12 +122,18 @@ export class ExtensionPoint<T> implements IExtensionPoint<T> {
 		this._delta = null;
 	}
 
-	setHandler(handler: IExtensionPointHandler<T>): void {
+	setHandler(handler: IExtensionPointHandler<T>): IDisposable {
 		if (this._handler !== null) {
 			throw new Error('Handler already set!');
 		}
 		this._handler = handler;
 		this._handle();
+
+		return {
+			dispose: () => {
+				this._handler = null;
+			}
+		};
 	}
 
 	acceptUsers(users: IExtensionPointUser<T>[]): void {
@@ -374,6 +381,11 @@ export const schema: IJSONSchema = {
 						description: nls.localize('vscode.extension.activationEvents.onWalkthrough', 'An activation event emitted when a specified walkthrough is opened.'),
 					},
 					{
+						label: 'onIssueReporterOpened',
+						body: 'onIssueReporterOpened',
+						description: nls.localize('vscode.extension.activationEvents.onIssueReporterOpened', 'An activation event emitted when the issue reporter is opened.'),
+					},
+					{
 						label: '*',
 						description: nls.localize('vscode.extension.activationEvents.star', 'An activation event emitted on VS Code startup. To ensure a great end user experience, please use this activation event in your extension only when no other activation events combination works in your use-case.'),
 						body: '*'
@@ -569,6 +581,12 @@ export const schema: IJSONSchema = {
 					'{Locked="vscode.l10n API"}'
 				]
 			}, 'The relative path to a folder containing localization (bundle.l10n.*.json) files. Must be specified if you are using the vscode.l10n API.')
+		},
+		pricing: {
+			type: 'string',
+			markdownDescription: nls.localize('vscode.extension.pricing', 'The pricing information for the extension. Can be Free (default) or Trial. For more details visit: https://code.visualstudio.com/api/working-with-extensions/publishing-extension#extension-pricing-label'),
+			enum: ['Free', 'Trial'],
+			default: 'Free'
 		}
 	}
 };
@@ -582,7 +600,7 @@ export interface IExtensionPointDescriptor<T> {
 	defaultExtensionKind?: ExtensionKind[];
 	/**
 	 * A function which runs before the extension point has been validated and which
-	 * can should collect automatic activation events from the contribution.
+	 * should collect automatic activation events from the contribution.
 	 */
 	activationEventsGenerator?: IActivationEventsGenerator<removeArray<T>>;
 }

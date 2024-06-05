@@ -28,19 +28,27 @@ const enum BinaryKeybindingsMask {
 	KeyCode = 0x000000FF
 }
 
-export function decodeKeybinding(keybinding: number, OS: OperatingSystem): Keybinding | null {
-	if (keybinding === 0) {
-		return null;
+export function decodeKeybinding(keybinding: number | number[], OS: OperatingSystem): Keybinding | null {
+	if (typeof keybinding === 'number') {
+		if (keybinding === 0) {
+			return null;
+		}
+		const firstChord = (keybinding & 0x0000FFFF) >>> 0;
+		const secondChord = (keybinding & 0xFFFF0000) >>> 16;
+		if (secondChord !== 0) {
+			return new Keybinding([
+				createSimpleKeybinding(firstChord, OS),
+				createSimpleKeybinding(secondChord, OS)
+			]);
+		}
+		return new Keybinding([createSimpleKeybinding(firstChord, OS)]);
+	} else {
+		const chords = [];
+		for (let i = 0; i < keybinding.length; i++) {
+			chords.push(createSimpleKeybinding(keybinding[i], OS));
+		}
+		return new Keybinding(chords);
 	}
-	const firstChord = (keybinding & 0x0000FFFF) >>> 0;
-	const secondChord = (keybinding & 0xFFFF0000) >>> 16;
-	if (secondChord !== 0) {
-		return new Keybinding([
-			createSimpleKeybinding(firstChord, OS),
-			createSimpleKeybinding(secondChord, OS)
-		]);
-	}
-	return new Keybinding([createSimpleKeybinding(firstChord, OS)]);
 }
 
 export function createSimpleKeybinding(keybinding: number, OS: OperatingSystem): KeyCodeChord {
@@ -94,7 +102,7 @@ export class KeyCodeChord implements Modifiers {
 		const shift = this.shiftKey ? '1' : '0';
 		const alt = this.altKey ? '1' : '0';
 		const meta = this.metaKey ? '1' : '0';
-		return `${ctrl}${shift}${alt}${meta}${this.keyCode}`;
+		return `K${ctrl}${shift}${alt}${meta}${this.keyCode}`;
 	}
 
 	public isModifierKey(): boolean {
@@ -154,7 +162,7 @@ export class ScanCodeChord implements Modifiers {
 		const shift = this.shiftKey ? '1' : '0';
 		const alt = this.altKey ? '1' : '0';
 		const meta = this.metaKey ? '1' : '0';
-		return `${ctrl}${shift}${alt}${meta}${this.scanCode}`;
+		return `S${ctrl}${shift}${alt}${meta}${this.scanCode}`;
 	}
 
 	/**

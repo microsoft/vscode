@@ -58,7 +58,7 @@ export class WebviewEditorInputSerializer implements IEditorSerializer {
 	}
 
 	public serialize(input: WebviewInput): string | undefined {
-		if (!this._webviewWorkbenchService.shouldPersist(input)) {
+		if (!this.canSerialize(input)) {
 			return undefined;
 		}
 

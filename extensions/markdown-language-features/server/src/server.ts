@@ -3,32 +3,39 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as l10n from '@vscode/l10n';
 import { CancellationToken, CompletionRegistrationOptions, CompletionRequest, Connection, Disposable, DocumentHighlightRegistrationOptions, DocumentHighlightRequest, InitializeParams, InitializeResult, NotebookDocuments, ResponseError, TextDocuments } from 'vscode-languageserver';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import * as lsp from 'vscode-languageserver-types';
 import * as md from 'vscode-markdown-languageservice';
 import { URI } from 'vscode-uri';
-import { getLsConfiguration, LsConfiguration } from './config';
+import { LsConfiguration, getLsConfiguration } from './config';
 import { ConfigurationManager, Settings } from './configuration';
 import { registerValidateSupport } from './languageFeatures/diagnostics';
 import { LogFunctionLogger } from './logging';
 import * as protocol from './protocol';
 import { IDisposable } from './util/dispose';
 import { VsCodeClientWorkspace } from './workspace';
-import * as l10n from '@vscode/l10n';
 
 interface MdServerInitializationOptions extends LsConfiguration { }
 
 const organizeLinkDefKind = 'source.organizeLinkDefinitions';
 
 export async function startVsCodeServer(connection: Connection) {
-	const logger = new LogFunctionLogger(connection.console.log.bind(connection.console));
+	const configurationManager = new ConfigurationManager(connection);
+	const logger = new LogFunctionLogger(connection.console.log.bind(connection.console), configurationManager);
 
 	const parser = new class implements md.IMdParser {
 		slugifier = md.githubSlugifier;
 
 		tokenize(document: md.ITextDocument): Promise<md.Token[]> {
-			return connection.sendRequest(protocol.parse, { uri: document.uri.toString() });
+			return connection.sendRequest(protocol.parse, {
+				uri: document.uri,
+
+				// Clients won't be able to read temp documents.
+				// Send along the full text for parsing.
+				text: document.version < 0 ? document.getText() : undefined
+			});
 		}
 	};
 
@@ -41,7 +48,7 @@ export async function startVsCodeServer(connection: Connection) {
 		return workspace;
 	};
 
-	return startServer(connection, { documents, notebooks, logger, parser, workspaceFactory });
+	return startServer(connection, { documents, notebooks, configurationManager, logger, parser, workspaceFactory });
 }
 
 type WorkspaceFactory = (config: {
@@ -53,6 +60,7 @@ type WorkspaceFactory = (config: {
 export async function startServer(connection: Connection, serverConfig: {
 	documents: TextDocuments<md.ITextDocument>;
 	notebooks?: NotebookDocuments<md.ITextDocument>;
+	configurationManager: ConfigurationManager;
 	logger: md.ILogger;
 	parser: md.IMdParser;
 	workspaceFactory: WorkspaceFactory;
@@ -63,22 +71,29 @@ export async function startServer(connection: Connection, serverConfig: {
 
 	connection.onInitialize((params: InitializeParams): InitializeResult => {
 		const initOptions = params.initializationOptions as MdServerInitializationOptions | undefined;
-		const config = getLsConfiguration(initOptions ?? {});
 
-		const configurationManager = new ConfigurationManager(connection);
+		const mdConfig = getLsConfiguration(initOptions ?? {});
 
-		const workspace = serverConfig.workspaceFactory({ connection, config, workspaceFolders: params.workspaceFolders });
+		const workspace = serverConfig.workspaceFactory({ connection, config: mdConfig, workspaceFolders: params.workspaceFolders });
 		mdLs = md.createLanguageService({
 			workspace,
 			parser: serverConfig.parser,
 			logger: serverConfig.logger,
-			markdownFileExtensions: config.markdownFileExtensions,
-			excludePaths: config.excludePaths,
+			...mdConfig,
+			get preferredMdPathExtensionStyle() {
+				switch (serverConfig.configurationManager.getSettings()?.markdown.preferredMdPathExtensionStyle) {
+					case 'includeExtension': return md.PreferredMdPathExtensionStyle.includeExtension;
+					case 'removeExtension': return md.PreferredMdPathExtensionStyle.removeExtension;
+					case 'auto':
+					default:
+						return md.PreferredMdPathExtensionStyle.auto;
+				}
+			}
 		});
 
-		registerCompletionsSupport(connection, documents, mdLs, configurationManager);
-		registerDocumentHighlightSupport(connection, documents, mdLs, configurationManager);
-		registerValidateSupport(connection, workspace, documents, mdLs, configurationManager, serverConfig.logger);
+		registerCompletionsSupport(connection, documents, mdLs, serverConfig.configurationManager);
+		registerDocumentHighlightSupport(connection, documents, mdLs, serverConfig.configurationManager);
+		registerValidateSupport(connection, workspace, documents, mdLs, serverConfig.configurationManager, serverConfig.logger);
 
 		return {
 			capabilities: {
@@ -88,11 +103,19 @@ export async function startServer(connection: Connection, serverConfig: {
 					interFileDependencies: true,
 					workspaceDiagnostics: false,
 				},
-				codeActionProvider: { resolveProvider: true },
+				codeActionProvider: {
+					resolveProvider: true,
+					codeActionKinds: [
+						organizeLinkDefKind,
+						'quickfix',
+						'refactor',
+					]
+				},
 				definitionProvider: true,
 				documentLinkProvider: { resolveProvider: true },
 				documentSymbolProvider: true,
 				foldingRangeProvider: true,
+				hoverProvider: true,
 				referencesProvider: true,
 				renameProvider: { prepareProvider: true, },
 				selectionRangeProvider: true,
@@ -202,7 +225,7 @@ export async function startServer(connection: Connection, serverConfig: {
 			const action: lsp.CodeAction = {
 				title: l10n.t("Organize link definitions"),
 				kind: organizeLinkDefKind,
-				data: <OrganizeLinkActionData>{ uri: document.uri }
+				data: { uri: document.uri } satisfies OrganizeLinkActionData,
 			};
 			return [action];
 		}
@@ -230,6 +253,15 @@ export async function startServer(connection: Connection, serverConfig: {
 		return codeAction;
 	});
 
+	connection.onHover(async (params, token) => {
+		const document = documents.get(params.textDocument.uri);
+		if (!document) {
+			return null;
+		}
+
+		return mdLs!.getHover(document, params.position, token);
+	});
+
 	connection.onRequest(protocol.getReferencesToFileInWorkspace, (async (params: { uri: string }, token: CancellationToken) => {
 		return mdLs!.getFileReferences(URI.parse(params.uri), token);
 	}));
@@ -244,6 +276,26 @@ export async function startServer(connection: Connection, serverConfig: {
 			edit: result.edit,
 			participatingRenames: result.participatingRenames.map(rename => ({ oldUri: rename.oldUri.toString(), newUri: rename.newUri.toString() }))
 		};
+	}));
+
+	connection.onRequest(protocol.prepareUpdatePastedLinks, (async (params, token: CancellationToken) => {
+		const document = documents.get(params.uri);
+		if (!document) {
+			return undefined;
+		}
+
+		return mdLs!.prepareUpdatePastedLinks(document, params.ranges, token);
+	}));
+
+	connection.onRequest(protocol.getUpdatePastedLinksEdit, (async (params, token: CancellationToken) => {
+		const document = documents.get(params.pasteIntoDoc);
+		if (!document) {
+			return undefined;
+		}
+
+		// TODO: Figure out why range types are lying
+		const edits = params.edits.map((edit: any) => lsp.TextEdit.replace(lsp.Range.create(edit.range[0].line, edit.range[0].character, edit.range[1].line, edit.range[1].character), edit.newText));
+		return mdLs!.getUpdatePastedLinksEdit(document, edits, params.metadata, token);
 	}));
 
 	connection.onRequest(protocol.resolveLinkTarget, (async (params, token: CancellationToken) => {
@@ -283,6 +335,15 @@ function registerCompletionsSupport(
 	ls: md.IMdLanguageService,
 	config: ConfigurationManager,
 ): IDisposable {
+	function getIncludeWorkspaceHeaderCompletions(): md.IncludeWorkspaceHeaderCompletions {
+		switch (config.getSettings()?.markdown.suggest.paths.includeWorkspaceHeaderCompletions) {
+			case 'onSingleOrDoubleHash': return md.IncludeWorkspaceHeaderCompletions.onSingleOrDoubleHash;
+			case 'onDoubleHash': return md.IncludeWorkspaceHeaderCompletions.onDoubleHash;
+			case 'never':
+			default: return md.IncludeWorkspaceHeaderCompletions.never;
+		}
+	}
+
 	connection.onCompletion(async (params, token): Promise<lsp.CompletionItem[]> => {
 		const settings = config.getSettings();
 		if (!settings?.markdown.suggest.paths.enabled) {
@@ -291,7 +352,11 @@ function registerCompletionsSupport(
 
 		const document = documents.get(params.textDocument.uri);
 		if (document) {
-			return ls.getCompletionItems(document, params.position, params.context!, token);
+			// TODO: remove any type after picking up new release with correct types
+			return ls.getCompletionItems(document, params.position, {
+				...(params.context || {}),
+				includeWorkspaceHeaderCompletions: getIncludeWorkspaceHeaderCompletions(),
+			} as any, token);
 		}
 		return [];
 	});

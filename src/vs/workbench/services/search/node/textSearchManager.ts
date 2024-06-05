@@ -12,7 +12,7 @@ import { TextSearchManager } from 'vs/workbench/services/search/common/textSearc
 export class NativeTextSearchManager extends TextSearchManager {
 
 	constructor(query: ITextQuery, provider: TextSearchProvider, _pfs: typeof pfs = pfs, processType: ITextSearchStats['type'] = 'searchProcess') {
-		super(query, provider, {
+		super({ query, provider }, {
 			readdir: resource => _pfs.Promises.readdir(resource.fsPath),
 			toCanonicalName: name => toCanonicalName(name)
 		}, processType);

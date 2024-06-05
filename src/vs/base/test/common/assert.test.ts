@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { ok } from 'vs/base/common/assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Assert', () => {
 	test('ok', () => {
@@ -31,4 +32,6 @@ suite('Assert', () => {
 		ok({});
 		ok(5);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

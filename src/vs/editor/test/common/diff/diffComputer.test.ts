@@ -2,10 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
+import assert from 'assert';
 import { Constants } from 'vs/base/common/uint';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Range } from 'vs/editor/common/core/range';
-import { DiffComputer, ICharChange, ILineChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
+import { DiffComputer, ICharChange, ILineChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
 import { IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 
@@ -222,6 +223,8 @@ function createCharChange(
 }
 
 suite('Editor Diff - DiffComputer', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	// ---- insertions
 

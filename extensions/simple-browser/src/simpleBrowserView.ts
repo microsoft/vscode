@@ -125,7 +125,7 @@ export class SimpleBrowserView extends Disposable {
 
 				<meta http-equiv="Content-Security-Policy" content="
 					default-src 'none';
-					font-src ${this._webviewPanel.webview.cspSource};
+					font-src data:;
 					style-src ${this._webviewPanel.webview.cspSource};
 					script-src 'nonce-${nonce}';
 					frame-src *;
@@ -165,7 +165,7 @@ export class SimpleBrowserView extends Disposable {
 				</header>
 				<div class="content">
 					<div class="iframe-focused-alert">${vscode.l10n.t("Focus Lock")}</div>
-					<iframe sandbox="allow-scripts allow-forms allow-same-origin"></iframe>
+					<iframe sandbox="allow-scripts allow-forms allow-same-origin allow-downloads"></iframe>
 				</div>
 
 				<script src="${mainJs}" nonce="${nonce}"></script>

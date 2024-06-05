@@ -31,6 +31,16 @@
 	opacity: .75;
 }
 
+.extension-verified-publisher {
+	display: flex;
+	align-items: center;
+}
+
+.extension-verified-publisher > .extension-verified-publisher-domain {
+	padding-left: 2px;
+	color: var(--vscode-extensionIcon-verifiedForeground);
+}
+
 .extension-bookmark {
 	display: inline-block;
 	height: 20px;

@@ -9,7 +9,6 @@ import * as strings from 'vs/base/common/strings';
 import { ITextModel } from 'vs/editor/common/model';
 import { DEFAULT_WORD_REGEXP, ensureValidWordDefinition } from 'vs/editor/common/core/wordHelper';
 import { EnterAction, FoldingRules, IAutoClosingPair, IndentationRule, LanguageConfiguration, AutoClosingPairs, CharacterPair, ExplicitLanguageConfiguration } from 'vs/editor/common/languages/languageConfiguration';
-import { createScopedLineTokens, ScopedLineTokens } from 'vs/editor/common/languages/supports';
 import { CharacterPairSupport } from 'vs/editor/common/languages/supports/characterPair';
 import { BracketElectricCharacterSupport } from 'vs/editor/common/languages/supports/electricCharacter';
 import { IndentRulesSupport } from 'vs/editor/common/languages/supports/indentRules';
@@ -127,7 +126,9 @@ function computeConfig(
 
 	if (!languageConfig) {
 		if (!languageService.isRegisteredLanguageId(languageId)) {
-			throw new Error(`Language id "${languageId}" is not configured nor known`);
+			// this happens for the null language, which can be returned by monarch.
+			// Instead of throwing an error, we just return a default config.
+			return new ResolvedLanguageConfiguration(languageId, {});
 		}
 		languageConfig = new ResolvedLanguageConfiguration(languageId, {});
 	}
@@ -177,13 +178,6 @@ export function getIndentationAtPosition(model: ITextModel, lineNumber: number, 
 		indentation = indentation.substring(0, column - 1);
 	}
 	return indentation;
-}
-
-export function getScopedLineTokens(model: ITextModel, lineNumber: number, columnNumber?: number): ScopedLineTokens {
-	model.tokenization.forceTokenization(lineNumber);
-	const lineTokens = model.tokenization.getLineTokens(lineNumber);
-	const column = (typeof columnNumber === 'undefined' ? model.getLineMaxColumn(lineNumber) - 1 : columnNumber - 1);
-	return createScopedLineTokens(lineTokens, column);
 }
 
 class ComposedLanguageConfiguration {

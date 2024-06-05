@@ -12,6 +12,9 @@ performance.mark('code/fork/start');
 const bootstrap = require('./bootstrap');
 const bootstrapNode = require('./bootstrap-node');
 
+// Crash reporter
+configureCrashReporter();
+
 // Remove global paths from the node module lookup
 bootstrapNode.removeGlobalNodeModuleLookupPaths();
 
@@ -53,6 +56,9 @@ function pipeLoggingToParent() {
 	 * @param {ArrayLike<unknown>} args
 	 */
 	function safeToArray(args) {
+		/**
+		 * @type {string[]}
+		 */
 		const seen = [];
 		const argsArray = [];
 
@@ -175,7 +181,7 @@ function pipeLoggingToParent() {
 
 		Object.defineProperty(stream, 'write', {
 			set: () => { },
-			get: () => (chunk, encoding, callback) => {
+			get: () => (/** @type {string | Buffer | Uint8Array} */ chunk, /** @type {BufferEncoding | undefined} */ encoding, /** @type {((err?: Error | undefined) => void) | undefined} */ callback) => {
 				buf += chunk.toString(encoding);
 				const eol = buf.length > MAX_STREAM_BUFFER_LENGTH ? buf.length : buf.lastIndexOf('\n');
 				if (eol !== -1) {
@@ -229,6 +235,21 @@ function terminateWhenParentTerminates() {
 				process.exit();
 			}
 		}, 5000);
+	}
+}
+
+function configureCrashReporter() {
+	const crashReporterProcessType = process.env['VSCODE_CRASH_REPORTER_PROCESS_TYPE'];
+	if (crashReporterProcessType) {
+		try {
+			// @ts-ignore
+			if (process['crashReporter'] && typeof process['crashReporter'].addExtraParameter === 'function' /* Electron only */) {
+				// @ts-ignore
+				process['crashReporter'].addExtraParameter('processType', crashReporterProcessType);
+			}
+		} catch (error) {
+			console.error(error);
+		}
 	}
 }
 

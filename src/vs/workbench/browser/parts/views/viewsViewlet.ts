@@ -5,7 +5,7 @@
 
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IViewDescriptor, IViewDescriptorService, IAddedViewDescriptorRef } from 'vs/workbench/common/views';
+import { IViewDescriptor, IViewDescriptorService, IAddedViewDescriptorRef, IView } from 'vs/workbench/common/views';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -46,13 +46,6 @@ export abstract class FilterViewPaneContainer extends ViewPaneContainer {
 		this._register(onDidChangeFilterValue(newFilterValue => {
 			this.filterValue = newFilterValue;
 			this.onFilterChanged(newFilterValue);
-		}));
-
-		this._register(this.onDidChangeViewVisibility(view => {
-			const descriptorMap = Array.from(this.allViews.entries()).find(entry => entry[1].has(view.id));
-			if (descriptorMap && !this.filterValue?.includes(descriptorMap[0])) {
-				this.setFilter(descriptorMap[1].get(view.id)!);
-			}
 		}));
 
 		this._register(this.viewContainerModel.onDidChangeActiveViewDescriptors(() => {
@@ -135,6 +128,17 @@ export abstract class FilterViewPaneContainer extends ViewPaneContainer {
 			this.updateAllViews(this.viewContainerModel.activeViewDescriptors);
 		}
 		return panes;
+	}
+
+	override openView(id: string, focus?: boolean): IView | undefined {
+		const result = super.openView(id, focus);
+		if (result) {
+			const descriptorMap = Array.from(this.allViews.entries()).find(entry => entry[1].has(id));
+			if (descriptorMap && !this.filterValue?.includes(descriptorMap[0])) {
+				this.setFilter(descriptorMap[1].get(id)!);
+			}
+		}
+		return result;
 	}
 
 	abstract override getTitle(): string;

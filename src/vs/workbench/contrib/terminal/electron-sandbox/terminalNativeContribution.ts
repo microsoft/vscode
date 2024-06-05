@@ -9,10 +9,11 @@ import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 import { registerRemoteContributions } from 'vs/workbench/contrib/terminal/electron-sandbox/terminalRemote';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { disposableWindowInterval, getActiveWindow } from 'vs/base/browser/dom';
 
 export class TerminalNativeContribution extends Disposable implements IWorkbenchContribution {
 	declare _serviceBrand: undefined;
@@ -29,9 +30,7 @@ export class TerminalNativeContribution extends Disposable implements IWorkbench
 		this._register(nativeHostService.onDidResumeOS(() => this._onOsResume()));
 
 		this._terminalService.setNativeDelegate({
-			getWindowCount: () => nativeHostService.getWindowCount(),
-			openDevTools: () => nativeHostService.openDevTools(),
-			toggleDevTools: () => nativeHostService.toggleDevTools()
+			getWindowCount: () => nativeHostService.getWindowCount()
 		});
 
 		const connection = remoteAgentService.getConnection();
@@ -63,14 +62,14 @@ export class TerminalNativeContribution extends Disposable implements IWorkbench
 		// Complete when wait marker file is deleted
 		return new Promise<void>(resolve => {
 			let running = false;
-			const interval = setInterval(async () => {
+			const interval = disposableWindowInterval(getActiveWindow(), async () => {
 				if (!running) {
 					running = true;
 					const exists = await this._fileService.exists(path);
 					running = false;
 
 					if (!exists) {
-						clearInterval(interval);
+						interval.dispose();
 						resolve(undefined);
 					}
 				}

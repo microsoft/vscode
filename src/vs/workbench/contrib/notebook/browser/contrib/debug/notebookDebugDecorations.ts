@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Delayer } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -13,7 +14,7 @@ import { INotebookCellDecorationOptions, INotebookDeltaDecoration, INotebookEdit
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { runningCellRulerDecorationColor } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { CellUri, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
 interface ICellAndRange {
 	handle: number;
@@ -34,11 +35,12 @@ export class PausedCellDecorationContribution extends Disposable implements INot
 	) {
 		super();
 
+		const delayer = this._register(new Delayer(200));
 		this._register(_debugService.getModel().onDidChangeCallStack(() => this.updateExecutionDecorations()));
 		this._register(_debugService.getViewModel().onDidFocusStackFrame(() => this.updateExecutionDecorations()));
-		this._register(_notebookExecutionStateService.onDidChangeCellExecution(e => {
-			if (this._notebookEditor.textModel && e.affectsNotebook(this._notebookEditor.textModel.uri)) {
-				this.updateExecutionDecorations();
+		this._register(_notebookExecutionStateService.onDidChangeExecution(e => {
+			if (e.type === NotebookExecutionType.cell && this._notebookEditor.textModel && e.affectsNotebook(this._notebookEditor.textModel.uri)) {
+				delayer.trigger(() => this.updateExecutionDecorations());
 			}
 		}));
 	}

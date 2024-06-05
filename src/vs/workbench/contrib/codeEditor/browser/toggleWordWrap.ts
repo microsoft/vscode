@@ -3,23 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import { addDisposableListener, onDidRegisterWindow } from 'vs/base/browser/dom';
+import { mainWindow } from 'vs/base/browser/window';
+import { Codicon } from 'vs/base/common/codicons';
+import { Event } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IActiveCodeEditor, ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution, registerDiffEditorContribution, EditorContributionInstantiation } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, EditorContributionInstantiation, ServicesAccessor, registerDiffEditorContribution, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IDiffEditorContribution, IEditorContribution } from 'vs/editor/common/editorCommon';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ITextModel } from 'vs/editor/common/model';
+import * as nls from 'vs/nls';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { Codicon } from 'vs/base/common/codicons';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 const transientWordWrapState = 'transientWordWrapState';
@@ -238,10 +239,6 @@ function canToggleWordWrap(codeEditorService: ICodeEditorService, editor: ICodeE
 	if (!model) {
 		return false;
 	}
-	if (model.uri.scheme === 'output') {
-		// in output editor
-		return false;
-	}
 	if (editor.getOption(EditorOption.inDiffEditor)) {
 		// this editor belongs to a diff editor
 		for (const diffEditor of codeEditorService.listDiffEditors()) {
@@ -255,7 +252,9 @@ function canToggleWordWrap(codeEditorService: ICodeEditorService, editor: ICodeE
 	return true;
 }
 
-class EditorWordWrapContextKeyTracker implements IWorkbenchContribution {
+class EditorWordWrapContextKeyTracker extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.editorWordWrapContextKeyTracker';
 
 	private readonly _canToggleWordWrap: IContextKey<boolean>;
 	private readonly _editorWordWrap: IContextKey<boolean>;
@@ -267,9 +266,12 @@ class EditorWordWrapContextKeyTracker implements IWorkbenchContribution {
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IContextKeyService private readonly _contextService: IContextKeyService,
 	) {
-		window.addEventListener('focus', () => this._update(), true);
-		window.addEventListener('blur', () => this._update(), true);
-		this._editorService.onDidActiveEditorChange(() => this._update());
+		super();
+		this._register(Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposables }) => {
+			disposables.add(addDisposableListener(window, 'focus', () => this._update(), true));
+			disposables.add(addDisposableListener(window, 'blur', () => this._update(), true));
+		}, { window: mainWindow, disposables: this._store }));
+		this._register(this._editorService.onDidActiveEditorChange(() => this._update()));
 		this._canToggleWordWrap = CAN_TOGGLE_WORD_WRAP.bindTo(this._contextService);
 		this._editorWordWrap = EDITOR_WORD_WRAP.bindTo(this._contextService);
 		this._activeEditor = null;
@@ -312,8 +314,7 @@ class EditorWordWrapContextKeyTracker implements IWorkbenchContribution {
 	}
 }
 
-const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);
-workbenchRegistry.registerWorkbenchContribution(EditorWordWrapContextKeyTracker, LifecyclePhase.Ready);
+registerWorkbenchContribution2(EditorWordWrapContextKeyTracker.ID, EditorWordWrapContextKeyTracker, WorkbenchPhase.AfterRestored);
 
 registerEditorContribution(ToggleWordWrapController.ID, ToggleWordWrapController, EditorContributionInstantiation.Eager); // eager because it needs to change the editor word wrap configuration
 registerDiffEditorContribution(DiffToggleWordWrapController.ID, DiffToggleWordWrapController);

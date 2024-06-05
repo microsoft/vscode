@@ -174,8 +174,9 @@ export class ExtHostOutputService implements ExtHostOutputServiceShape {
 
 	private async doCreateLogOutputChannel(name: string, logLevel: LogLevel | undefined, extension: IExtensionDescription): Promise<ExtHostLogOutputChannel> {
 		const extensionLogDir = await this.createExtensionLogDirectory(extension);
-		const file = this.extHostFileSystemInfo.extUri.joinPath(extensionLogDir, `${name.replace(/[\\/:\*\?"<>\|]/g, '')}.log`);
-		const id = file.toString();
+		const fileName = name.replace(/[\\/:\*\?"<>\|]/g, '');
+		const file = this.extHostFileSystemInfo.extUri.joinPath(extensionLogDir, `${fileName}.log`);
+		const id = `${extension.identifier.value}.${fileName}`;
 		const logger = this.loggerService.createLogger(file, { id, name, logLevel, extensionId: extension.identifier.value });
 		return new ExtHostLogOutputChannel(id, name, logger, this.proxy, extension);
 	}

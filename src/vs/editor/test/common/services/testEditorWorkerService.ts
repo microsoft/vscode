@@ -8,7 +8,8 @@ import { IRange } from 'vs/editor/common/core/range';
 import { DiffAlgorithmName, IEditorWorkerService, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';
 import { TextEdit, IInplaceReplaceSupportResult } from 'vs/editor/common/languages';
 import { IDocumentDiff, IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
-import { IChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
+import { IChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
+import { SectionHeader } from 'vs/editor/common/services/findSectionHeaders';
 
 export class TestEditorWorkerService implements IEditorWorkerService {
 
@@ -20,8 +21,10 @@ export class TestEditorWorkerService implements IEditorWorkerService {
 	canComputeDirtyDiff(original: URI, modified: URI): boolean { return false; }
 	async computeDirtyDiff(original: URI, modified: URI, ignoreTrimWhitespace: boolean): Promise<IChange[] | null> { return null; }
 	async computeMoreMinimalEdits(resource: URI, edits: TextEdit[] | null | undefined): Promise<TextEdit[] | undefined> { return undefined; }
+	async computeHumanReadableDiff(resource: URI, edits: TextEdit[] | null | undefined): Promise<TextEdit[] | undefined> { return undefined; }
 	canComputeWordRanges(resource: URI): boolean { return false; }
 	async computeWordRanges(resource: URI, range: IRange): Promise<{ [word: string]: IRange[] } | null> { return null; }
 	canNavigateValueSet(resource: URI): boolean { return false; }
 	async navigateValueSet(resource: URI, range: IRange, up: boolean): Promise<IInplaceReplaceSupportResult | null> { return null; }
+	async findSectionHeaders(uri: URI): Promise<SectionHeader[]> { return []; }
 }

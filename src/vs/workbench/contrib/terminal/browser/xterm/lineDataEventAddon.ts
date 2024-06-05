@@ -6,7 +6,7 @@
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { OperatingSystem } from 'vs/base/common/platform';
-import type { Terminal as XTermTerminal, IBuffer, ITerminalAddon } from 'xterm';
+import type { Terminal as XTermTerminal, IBuffer, ITerminalAddon } from '@xterm/xterm';
 
 /**
  * Provides extensions to the xterm object in a modular, testable way.

@@ -23,6 +23,10 @@ function update(options) {
 	if (location !== undefined && !fs.existsSync(location)) {
 		throw new Error(`${location} doesn't exist.`);
 	}
+	let externalExtensionsLocation = options.externalExtensionsLocation;
+	if (externalExtensionsLocation !== undefined && !fs.existsSync(externalExtensionsLocation)) {
+		throw new Error(`${externalExtensionsLocation} doesn't exist.`);
+	}
 	let locExtFolder = idOrPath;
 	if (/^\w{2,3}(-\w+)?$/.test(idOrPath)) {
 		locExtFolder = path.join('..', 'vscode-loc', 'i18n', `vscode-language-pack-${idOrPath}`);
@@ -67,7 +71,10 @@ function update(options) {
 
 		console.log(`Importing translations for ${languageId} form '${location}' to '${translationDataFolder}' ...`);
 		let translationPaths = [];
-		gulp.src(path.join(location, '**', languageId, '*.xlf'), { silent: false })
+		gulp.src([
+			path.join(location, '**', languageId, '*.xlf'),
+			...i18n.EXTERNAL_EXTENSIONS.map(extensionId => path.join(externalExtensionsLocation, extensionId, languageId, '*-new.xlf'))
+		], { silent: false })
 			.pipe(i18n.prepareI18nPackFiles(translationPaths))
 			.on('error', (error) => {
 				console.log(`Error occurred while importing translations:`);
@@ -94,7 +101,7 @@ function update(options) {
 }
 if (path.basename(process.argv[1]) === 'update-localization-extension.js') {
 	var options = minimist(process.argv.slice(2), {
-		string: 'location'
+		string: ['location', 'externalExtensionsLocation']
 	});
 	update(options);
 }

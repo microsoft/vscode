@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
+import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
+import { BugIndicatingError } from 'vs/base/common/errors';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { StringBuilder } from 'vs/editor/common/core/stringBuilder';
 import * as viewEvents from 'vs/editor/common/viewEvents';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 /**
  * Represents a visible line
@@ -20,12 +22,12 @@ export interface IVisibleLine extends ILine {
 	 * Return null if the HTML should not be touched.
 	 * Return the new HTML otherwise.
 	 */
-	renderLine(lineNumber: number, deltaTop: number, viewportData: ViewportData, sb: StringBuilder): boolean;
+	renderLine(lineNumber: number, deltaTop: number, lineHeight: number, viewportData: ViewportData, sb: StringBuilder): boolean;
 
 	/**
 	 * Layout the line.
 	 */
-	layoutLine(lineNumber: number, deltaTop: number): void;
+	layoutLine(lineNumber: number, deltaTop: number, lineHeight: number): void;
 }
 
 export interface ILine {
@@ -80,7 +82,7 @@ export class RenderedLinesCollection<T extends ILine> {
 	public getLine(lineNumber: number): T {
 		const lineIndex = lineNumber - this._rendLineNumberStart;
 		if (lineIndex < 0 || lineIndex >= this._lines.length) {
-			throw new Error('Illegal value for lineNumber');
+			throw new BugIndicatingError('Illegal value for lineNumber');
 		}
 		return this._lines[lineIndex];
 	}
@@ -293,9 +295,7 @@ export class VisibleLinesCollection<T extends IVisibleLine> {
 			// Remove from DOM
 			for (let i = 0, len = deleted.length; i < len; i++) {
 				const lineDomNode = deleted[i].getDomNode();
-				if (lineDomNode) {
-					this.domNode.domNode.removeChild(lineDomNode);
-				}
+				lineDomNode?.remove();
 			}
 		}
 
@@ -308,9 +308,7 @@ export class VisibleLinesCollection<T extends IVisibleLine> {
 			// Remove from DOM
 			for (let i = 0, len = deleted.length; i < len; i++) {
 				const lineDomNode = deleted[i].getDomNode();
-				if (lineDomNode) {
-					this.domNode.domNode.removeChild(lineDomNode);
-				}
+				lineDomNode?.remove();
 			}
 		}
 
@@ -370,7 +368,7 @@ interface IRendererContext<T extends IVisibleLine> {
 
 class ViewLayerRenderer<T extends IVisibleLine> {
 
-	private static _ttPolicy = window.trustedTypes?.createPolicy('editorViewLayer', { createHTML: value => value });
+	private static _ttPolicy = createTrustedTypesPolicy('editorViewLayer', { createHTML: value => value });
 
 	readonly domNode: HTMLElement;
 	readonly host: IVisibleLinesHost<T>;
@@ -463,7 +461,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 
 		for (let i = startIndex; i <= endIndex; i++) {
 			const lineNumber = rendLineNumberStart + i;
-			lines[i].layoutLine(lineNumber, deltaTop[lineNumber - deltaLN]);
+			lines[i].layoutLine(lineNumber, deltaTop[lineNumber - deltaLN], this.viewportData.lineHeight);
 		}
 	}
 
@@ -479,9 +477,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 	private _removeLinesBefore(ctx: IRendererContext<T>, removeCount: number): void {
 		for (let i = 0; i < removeCount; i++) {
 			const lineDomNode = ctx.lines[i].getDomNode();
-			if (lineDomNode) {
-				this.domNode.removeChild(lineDomNode);
-			}
+			lineDomNode?.remove();
 		}
 		ctx.lines.splice(0, removeCount);
 	}
@@ -500,9 +496,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 
 		for (let i = 0; i < removeCount; i++) {
 			const lineDomNode = ctx.lines[removeIndex + i].getDomNode();
-			if (lineDomNode) {
-				this.domNode.removeChild(lineDomNode);
-			}
+			lineDomNode?.remove();
 		}
 		ctx.lines.splice(removeIndex, removeCount);
 	}
@@ -571,7 +565,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 					continue;
 				}
 
-				const renderResult = line.renderLine(i + rendLineNumberStart, deltaTop[i], this.viewportData, sb);
+				const renderResult = line.renderLine(i + rendLineNumberStart, deltaTop[i], this.viewportData.lineHeight, this.viewportData, sb);
 				if (!renderResult) {
 					// line does not need rendering
 					continue;
@@ -601,7 +595,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 					continue;
 				}
 
-				const renderResult = line.renderLine(i + rendLineNumberStart, deltaTop[i], this.viewportData, sb);
+				const renderResult = line.renderLine(i + rendLineNumberStart, deltaTop[i], this.viewportData.lineHeight, this.viewportData, sb);
 				if (!renderResult) {
 					// line does not need rendering
 					continue;

@@ -1,10 +1,10 @@
 {
 	"information_for_contributors": [
-		"This file has been converted from https://github.com/atom/language-php/blob/master/grammars/php.cson",
+		"This file has been converted from https://github.com/KapitanOczywisty/language-php/blob/master/grammars/php.cson",
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-php/commit/eb28b8aea1214dcbc732f3d9b9ed20c089c648bd",
+	"version": "https://github.com/KapitanOczywisty/language-php/commit/5e8f000cb5a20f44f7a7a89d07ad0774031c53f3",
 	"scopeName": "source.php",
 	"patterns": [
 		{
@@ -320,10 +320,19 @@
 			]
 		},
 		{
-			"begin": "(?ix)\n(?:\n  \\b(?:(abstract|final)\\s+)?(class)\\s+([a-z_\\x{7f}-\\x{10ffff}][a-z0-9_\\x{7f}-\\x{10ffff}]*)\n  |\\b(new)\\b\\s*(\\#\\[.*\\])?\\s*\\b(class)\\b # anonymous class\n)",
+			"begin": "(?ix)\n(?:\n  \\b((?:(?:final|abstract|readonly)\\s+)*)(class)\\s+([a-z_\\x{7f}-\\x{10ffff}][a-z0-9_\\x{7f}-\\x{10ffff}]*)\n  |\\b(new)\\b\\s*(\\#\\[.*\\])?\\s*(?:(readonly)\\s+)?\\b(class)\\b # anonymous class\n)",
 			"beginCaptures": {
 				"1": {
-					"name": "storage.modifier.${1:/downcase}.php"
+					"patterns": [
+						{
+							"match": "final|abstract",
+							"name": "storage.modifier.${0:/downcase}.php"
+						},
+						{
+							"match": "readonly",
+							"name": "storage.modifier.php"
+						}
+					]
 				},
 				"2": {
 					"name": "storage.type.class.php"
@@ -342,6 +351,9 @@
 					]
 				},
 				"6": {
+					"name": "storage.modifier.php"
+				},
+				"7": {
 					"name": "storage.type.class.php"
 				}
 			},
@@ -574,7 +586,7 @@
 					]
 				},
 				{
-					"match": "(?xi)\n(:)\\s*\n(\n  (?:\\?\\s*)? [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+ |                                        # nullable type\n  [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+ (?: \\s*[|&]\\s* [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+)+ # union type\n)\n(?=\\s*(?:{|/[/*]|\\#|$))",
+					"match": "(?xi)\n(:)\\s*\n(\n  # nullable type\n  (?:\\?\\s*)? [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+ |\n  # union, intersection or DNF type\n  (?: [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+ | \\(\\s* [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+(?:\\s*&\\s*[a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+)+ \\s*\\) )\n  (?: \\s*[|&]\\s*\n  (?: [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+ | \\(\\s* [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+(?:\\s*&\\s*[a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+)+ \\s*\\) )\n  )+\n)\n(?=\\s*(?:{|/[/*]|\\#|$))",
 					"captures": {
 						"1": {
 							"name": "keyword.operator.return-value.php"
@@ -629,7 +641,7 @@
 					]
 				},
 				{
-					"match": "(?xi)\n(:)\\s*\n(\n  (?:\\?\\s*)? [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+ |                                        # nullable type\n  [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+ (?: \\s*[|&]\\s* [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+)+ # union type\n)\n(?=\\s*(?:=>|/[/*]|\\#|$))",
+					"match": "(?xi)\n(:)\\s*\n(\n  # nullable type\n  (?:\\?\\s*)? [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+ |\n  # union, intersection or DNF type\n  (?: [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+ | \\(\\s* [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+(?:\\s*&\\s*[a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+)+ \\s*\\) )\n  (?: \\s*[|&]\\s*\n  (?: [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+ | \\(\\s* [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+(?:\\s*&\\s*[a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+)+ \\s*\\) )\n  )+\n)\n(?=\\s*(?:=>|/[/*]|\\#|$))",
 					"captures": {
 						"1": {
 							"name": "keyword.operator.return-value.php"
@@ -667,7 +679,7 @@
 				}
 			},
 			"contentName": "meta.function.parameters.php",
-			"end": "(?xi)\n(\\)) \\s* ( : \\s*\n  (?:\\?\\s*)? (?!\\s) [a-z0-9_\\x{7f}-\\x{10ffff}\\\\\\s\\|&]+ (?<!\\s)\n)?\n(?=\\s*(?:{|/[/*]|\\#|$|;))",
+			"end": "(?xi)\n(\\)) \\s* ( : \\s*\n  (?:\\?\\s*)? (?!\\s) [a-z0-9_\\x{7f}-\\x{10ffff}\\\\\\s\\|&()]+ (?<!\\s)\n)?\n(?=\\s*(?:{|/[/*]|\\#|$|;))",
 			"endCaptures": {
 				"1": {
 					"name": "punctuation.definition.parameters.end.bracket.round.php"
@@ -686,7 +698,7 @@
 					"name": "punctuation.separator.delimiter.php"
 				},
 				{
-					"begin": "(?xi)\n((?:(?:public|private|protected|readonly)(?:\\s+|(?=\\?)))++)\n(?: (\n  (?:\\?\\s*)? [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+ |                                        # nullable type\n  [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+ (?: \\s*[|&]\\s* [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+)+ # union type\n) \\s+ )?\n((?:(&)\\s*)?(\\$)[a-z_\\x{7f}-\\x{10ffff}][a-z0-9_\\x{7f}-\\x{10ffff}]*) # Variable name with possible reference",
+					"begin": "(?xi)\n((?:(?:public|private|protected|readonly)(?:\\s+|(?=\\?)))++)\n(?: (\n  # nullable type\n  (?:\\?\\s*)? [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+ |\n  # union, intersection or DNF type\n  (?: [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+ | \\(\\s* [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+(?:\\s*&\\s*[a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+)+ \\s*\\) )\n  (?: \\s*[|&]\\s*\n  (?: [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+ | \\(\\s* [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+(?:\\s*&\\s*[a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+)+ \\s*\\) )\n  )+\n) \\s+ )?\n((?:(&)\\s*)?(\\$)[a-z_\\x{7f}-\\x{10ffff}][a-z0-9_\\x{7f}-\\x{10ffff}]*) # Variable name with possible reference",
 					"beginCaptures": {
 						"1": {
 							"patterns": [
@@ -765,7 +777,7 @@
 				}
 			},
 			"contentName": "meta.function.parameters.php",
-			"end": "(?xi)\n(\\)) (?: \\s* (:) \\s* (\n  (?:\\?\\s*)? [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+ |                                        # nullable type\n  [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+ (?: \\s*[|&]\\s* [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+)+ # union type\n) )?\n(?=\\s*(?:{|/[/*]|\\#|$|;))",
+			"end": "(?xi)\n(\\)) (?: \\s* (:) \\s* (\n  # nullable type\n  (?:\\?\\s*)? [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+ |\n  # union, intersection or DNF type\n  (?: [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+ | \\(\\s* [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+(?:\\s*&\\s*[a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+)+ \\s*\\) )\n  (?: \\s*[|&]\\s*\n  (?: [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+ | \\(\\s* [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+(?:\\s*&\\s*[a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+)+ \\s*\\) )\n  )+\n) )?\n(?=\\s*(?:{|/[/*]|\\#|$|;))",
 			"endCaptures": {
 				"1": {
 					"name": "punctuation.definition.parameters.end.bracket.round.php"
@@ -797,7 +809,7 @@
 			]
 		},
 		{
-			"match": "(?xi)\n((?:(?:public|private|protected|static|readonly)(?:\\s+|(?=\\?)))++)                     # At least one modifier\n(\n  (?:\\?\\s*)? [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+ |                                        # nullable type\n  [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+ (?: \\s*[|&]\\s* [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+)+ # union type\n)?\n\\s+ ((\\$)[a-z_\\x{7f}-\\x{10ffff}][a-z0-9_\\x{7f}-\\x{10ffff}]*)          # Variable name",
+			"match": "(?xi)\n((?:(?:public|private|protected|static|readonly)(?:\\s+|(?=\\?)))++)                     # At least one modifier\n(\n  # nullable type\n  (?:\\?\\s*)? [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+ |\n  # union, intersection or DNF type\n  (?: [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+ | \\(\\s* [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+(?:\\s*&\\s*[a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+)+ \\s*\\) )\n  (?: \\s*[|&]\\s*\n  (?: [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+ | \\(\\s* [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+(?:\\s*&\\s*[a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+)+ \\s*\\) )\n  )+\n)?\n\\s+ ((\\$)[a-z_\\x{7f}-\\x{10ffff}][a-z0-9_\\x{7f}-\\x{10ffff}]*)          # Variable name",
 			"captures": {
 				"1": {
 					"patterns": [
@@ -1110,7 +1122,7 @@
 					]
 				},
 				{
-					"match": "(?xi)\n(\\\\)?\\b(Attribute)\\b",
+					"match": "(?xi)\n(\\\\)?\\b(Attribute|SensitiveParameter|AllowDynamicProperties|ReturnTypeWillChange)\\b",
 					"name": "support.attribute.builtin.php",
 					"captures": {
 						"1": {
@@ -1476,7 +1488,7 @@
 					"name": "punctuation.separator.delimiter.php"
 				},
 				{
-					"match": "(?xi)\n(?: (\n  (?:\\?\\s*)? [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+ |                                        # nullable type\n  [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+ (?: \\s*[|&]\\s* [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+)+ # union type\n) \\s+ )?\n((?:(&)\\s*)?(\\.\\.\\.)(\\$)[a-z_\\x{7f}-\\x{10ffff}][a-z0-9_\\x{7f}-\\x{10ffff}]*) # Variable name with possible reference\n(?=\\s*(?:,|\\)|/[/*]|\\#|$)) # A closing parentheses (end of argument list) or a comma or a comment",
+					"match": "(?xi)\n(?: (\n  # nullable type\n  (?:\\?\\s*)? [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+ |\n  # union, intersection or DNF type\n  (?: [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+ | \\(\\s* [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+(?:\\s*&\\s*[a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+)+ \\s*\\) )\n  (?: \\s*[|&]\\s*\n  (?: [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+ | \\(\\s* [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+(?:\\s*&\\s*[a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+)+ \\s*\\) )\n  )+\n) \\s+ )?\n((?:(&)\\s*)?(\\.\\.\\.)(\\$)[a-z_\\x{7f}-\\x{10ffff}][a-z0-9_\\x{7f}-\\x{10ffff}]*) # Variable name with possible reference\n(?=\\s*(?:,|\\)|/[/*]|\\#|$)) # A closing parentheses (end of argument list) or a comma or a comment",
 					"captures": {
 						"1": {
 							"patterns": [
@@ -1501,7 +1513,7 @@
 					"name": "meta.function.parameter.variadic.php"
 				},
 				{
-					"begin": "(?xi)\n(\n  (?:\\?\\s*)? [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+ |                                        # nullable type\n  [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+ (?: \\s*[|&]\\s* [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+)+ # union type\n)\n\\s+ ((?:(&)\\s*)?(\\$)[a-z_\\x{7f}-\\x{10ffff}][a-z0-9_\\x{7f}-\\x{10ffff}]*) # Variable name with possible reference",
+					"begin": "(?xi)\n(\n  # nullable type\n  (?:\\?\\s*)? [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+ |\n  # union, intersection or DNF type\n  (?: [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+ | \\(\\s* [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+(?:\\s*&\\s*[a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+)+ \\s*\\) )\n  (?: \\s*[|&]\\s*\n  (?: [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+ | \\(\\s* [a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+(?:\\s*&\\s*[a-z0-9_\\x{7f}-\\x{10ffff}\\\\]+)+ \\s*\\) )\n  )+\n)\n\\s+ ((?:(&)\\s*)?(\\$)[a-z_\\x{7f}-\\x{10ffff}][a-z0-9_\\x{7f}-\\x{10ffff}]*) # Variable name with possible reference",
 					"beginCaptures": {
 						"1": {
 							"patterns": [
@@ -2610,12 +2622,20 @@
 					"name": "punctuation.separator.delimiter.php"
 				},
 				{
-					"match": "(?i)\\b(null|int|float|bool|string|array|object|callable|iterable|false|mixed|void)\\b",
+					"match": "(?i)\\b(null|int|float|bool|string|array|object|callable|iterable|true|false|mixed|void)\\b",
 					"name": "keyword.other.type.php"
 				},
 				{
 					"match": "(?i)\\b(parent|self)\\b",
 					"name": "storage.type.php"
+				},
+				{
+					"match": "\\(",
+					"name": "punctuation.definition.type.begin.bracket.round.php"
+				},
+				{
+					"match": "\\)",
+					"name": "punctuation.definition.type.end.bracket.round.php"
 				},
 				{
 					"include": "#class-name"
@@ -2801,6 +2821,14 @@
 						{
 							"match": "[|&]",
 							"name": "punctuation.separator.delimiter.php"
+						},
+						{
+							"match": "\\(",
+							"name": "punctuation.definition.type.begin.bracket.round.php"
+						},
+						{
+							"match": "\\)",
+							"name": "punctuation.definition.type.end.bracket.round.php"
 						}
 					]
 				}

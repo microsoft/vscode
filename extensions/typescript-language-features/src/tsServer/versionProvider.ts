@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import API from '../utils/api';
-import { TypeScriptServiceConfiguration } from '../utils/configuration';
+import { TypeScriptServiceConfiguration } from '../configuration/configuration';
+import { API } from './api';
 
 
 export const enum TypeScriptVersionSource {

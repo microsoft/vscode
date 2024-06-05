@@ -10,6 +10,12 @@ export type ValidateEnabled = 'ignore' | 'warning' | 'error' | 'hint';
 
 export interface Settings {
 	readonly markdown: {
+		readonly server: {
+			readonly log: 'off' | 'debug' | 'trace';
+		};
+
+		readonly preferredMdPathExtensionStyle: 'auto' | 'includeExtension' | 'removeExtension';
+
 		readonly occurrencesHighlight: {
 			readonly enabled: boolean;
 		};
@@ -17,6 +23,7 @@ export interface Settings {
 		readonly suggest: {
 			readonly paths: {
 				readonly enabled: boolean;
+				readonly includeWorkspaceHeaderCompletions: 'never' | 'onSingleOrDoubleHash' | 'onDoubleHash';
 			};
 		};
 

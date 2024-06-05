@@ -13,7 +13,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ITextModel } from 'vs/editor/common/model';
 import { FindStartFocusAction, getSelectionSearchString, IFindStartOptions, StartFindAction, StartFindReplaceAction } from 'vs/editor/contrib/find/browser/findController';
-import { localize } from 'vs/nls';
+import { localize2 } from 'vs/nls';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -25,6 +25,7 @@ import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INTERACTIVE_WINDOW_IS_ACTIVE_EDITOR, KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { INotebookCommandContext, NotebookMultiCellAction } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 
 registerNotebookContribution(NotebookFindContrib.id, NotebookFindContrib);
 
@@ -32,7 +33,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'notebook.hideFind',
-			title: { value: localize('notebookActions.hideFind', "Hide Find in Notebook"), original: 'Hide Find in Notebook' },
+			title: localize2('notebookActions.hideFind', 'Hide Find in Notebook'),
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED),
 				primary: KeyCode.Escape,
@@ -55,11 +56,11 @@ registerAction2(class extends Action2 {
 	}
 });
 
-registerAction2(class extends Action2 {
+registerAction2(class extends NotebookMultiCellAction {
 	constructor() {
 		super({
 			id: 'notebook.find',
-			title: { value: localize('notebookActions.findInNotebook', "Find in Notebook"), original: 'Find in Notebook' },
+			title: localize2('notebookActions.findInNotebook', 'Find in Notebook'),
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.or(NOTEBOOK_IS_ACTIVE_EDITOR, INTERACTIVE_WINDOW_IS_ACTIVE_EDITOR), EditorContextKeys.focus.toNegated()),
 				primary: KeyCode.KeyF | KeyMod.CtrlCmd,
@@ -68,7 +69,7 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCommandContext): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
 
@@ -77,7 +78,12 @@ registerAction2(class extends Action2 {
 		}
 
 		const controller = editor.getContribution<NotebookFindContrib>(NotebookFindContrib.id);
-		controller.show();
+
+		if (context.selectedCells.length > 1) {
+			controller.show(undefined, { searchInRanges: true, selectedRanges: editor.getSelections() });
+		} else {
+			controller.show(undefined, { searchInRanges: false, selectedRanges: [] });
+		}
 	}
 });
 
@@ -200,4 +206,3 @@ StartFindReplaceAction.addImplementation(100, (accessor: ServicesAccessor, codeE
 
 	return false;
 });
-

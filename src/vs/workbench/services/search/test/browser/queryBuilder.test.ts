@@ -2,11 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
+import assert from 'assert';
 import { IExpression } from 'vs/base/common/glob';
 import { join } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
-import { URI as uri } from 'vs/base/common/uri';
+import { URI, URI as uri } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -20,6 +20,7 @@ import { TestContextService } from 'vs/workbench/test/common/workbenchTestServic
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 const DEFAULT_EDITOR_CONFIG = {};
 const DEFAULT_USER_CONFIG = { useRipgrep: true, useIgnoreFiles: true, useGlobalIgnoreFiles: true, useParentIgnoreFiles: true };
@@ -27,6 +28,7 @@ const DEFAULT_QUERY_PROPS = {};
 const DEFAULT_TEXT_QUERY_PROPS = { usePCRE2: false };
 
 suite('QueryBuilder', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
 	const PATTERN_INFO: IPatternInfo = { pattern: 'a' };
 	const ROOT_1 = fixPath('/foo/root1');
 	const ROOT_1_URI = getUri(ROOT_1);
@@ -56,6 +58,10 @@ suite('QueryBuilder', () => {
 		instantiationService.stub(IPathService, new TestPathService());
 
 		queryBuilder = instantiationService.createInstance(QueryBuilder);
+	});
+
+	teardown(() => {
+		instantiationService.dispose();
 	});
 
 	test('simple text pattern', () => {
@@ -551,7 +557,7 @@ suite('QueryBuilder', () => {
 			});
 	});
 
-	suite('parseSearchPaths', () => {
+	suite('parseSearchPaths 1', () => {
 		test('simple includes', () => {
 			function testSimpleIncludes(includePattern: string, expectedPatterns: string[]): void {
 				const result = queryBuilder.parseSearchPaths(includePattern);
@@ -920,6 +926,46 @@ suite('QueryBuilder', () => {
 							}]
 					}
 				]
+			];
+			cases.forEach(testIncludesDataItem);
+		});
+	});
+
+	suite('parseSearchPaths 2', () => {
+
+		function testIncludes(includePattern: string, expectedResult: ISearchPathsInfo): void {
+			assertEqualSearchPathResults(
+				queryBuilder.parseSearchPaths(includePattern),
+				expectedResult,
+				includePattern);
+		}
+
+		function testIncludesDataItem([includePattern, expectedResult]: [string, ISearchPathsInfo]): void {
+			testIncludes(includePattern, expectedResult);
+		}
+
+		(isWindows ? test.skip : test)('includes with tilde', () => {
+			const userHome = URI.file('/');
+			const cases: [string, ISearchPathsInfo][] = [
+				[
+					'~/foo/bar',
+					{
+						searchPaths: [{ searchPath: getUri(userHome.fsPath, '/foo/bar') }]
+					}
+				],
+				[
+					'~/foo/bar, a',
+					{
+						searchPaths: [{ searchPath: getUri(userHome.fsPath, '/foo/bar') }],
+						pattern: patternsToIExpression(...globalGlob('a'))
+					}
+				],
+				[
+					fixPath('/foo/~/bar'),
+					{
+						searchPaths: [{ searchPath: getUri('/foo/~/bar') }]
+					}
+				],
 			];
 			cases.forEach(testIncludesDataItem);
 		});

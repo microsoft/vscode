@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Dimension } from 'vs/base/browser/dom';
 import { AsyncIterableObject } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -111,6 +112,10 @@ export interface IEditorHoverRenderContext {
 	 */
 	onContentsChanged(): void;
 	/**
+	 * Set the minimum dimensions of the resizable hover
+	 */
+	setMinimumDimensions?(dimensions: Dimension): void;
+	/**
 	 * Hide the hover.
 	 */
 	hide(): void;
@@ -140,3 +145,17 @@ export const HoverParticipantRegistry = (new class HoverParticipantRegistry {
 	}
 
 }());
+
+export interface IHoverWidget {
+	/**
+	 * Returns whether the hover widget is shown or should show in the future.
+	 * If the widget should show, this triggers the display.
+	 * @param mouseEvent editor mouse event
+	 */
+	showsOrWillShow(mouseEvent: IEditorMouseEvent): boolean;
+
+	/**
+	 * Hides the hover.
+	 */
+	hide(): void;
+}

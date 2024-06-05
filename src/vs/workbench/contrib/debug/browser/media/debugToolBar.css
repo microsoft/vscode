@@ -5,11 +5,12 @@
 
 .monaco-workbench .debug-toolbar {
 	position: absolute;
-	z-index: 39;
-	height: 32px;
+	z-index: 3000;
+	height: 26px;
 	display: flex;
 	padding-left: 7px;
 	border-radius: 4px;
+	-webkit-app-region: no-drag;
 }
 
 .monaco-workbench .debug-toolbar .monaco-action-bar .action-item {

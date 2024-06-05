@@ -7,7 +7,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IKeyboardLayoutInfo, IKeyboardMapping, IMacLinuxKeyboardMapping, IWindowsKeyboardMapping, macLinuxKeyboardMappingEquals, windowsKeyboardMappingEquals } from 'vs/platform/keyboardLayout/common/keyboardLayout';
 import { Emitter, Event } from 'vs/base/common/event';
 import { OperatingSystem, OS } from 'vs/base/common/platform';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
+import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
 import { INativeKeyboardLayoutService as IBaseNativeKeyboardLayoutService } from 'vs/platform/keyboardLayout/common/keyboardLayoutService';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';

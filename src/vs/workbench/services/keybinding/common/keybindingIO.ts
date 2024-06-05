@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Keybinding } from 'vs/base/common/keybindings';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
+import { Keybinding } from 'vs/base/common/keybindings';
 import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
-import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 
 export interface IUserKeybindingItem {
@@ -14,7 +13,7 @@ export interface IUserKeybindingItem {
 	command: string | null;
 	commandArgs?: any;
 	when: ContextKeyExpression | undefined;
-	_source: IUserFriendlyKeybinding;
+	_sourceKey: string | undefined; /** captures `key` field from `keybindings.json`; `this.keybinding !== null` implies `_sourceKey !== null` */
 }
 
 export class KeybindingIO {
@@ -43,17 +42,25 @@ export class KeybindingIO {
 		out.write(' }');
 	}
 
-	public static readUserKeybindingItem(input: IUserFriendlyKeybinding): IUserKeybindingItem {
-		const keybinding = (typeof input.key === 'string' ? KeybindingParser.parseKeybinding(input.key) : null);
-		const when = (typeof input.when === 'string' ? ContextKeyExpr.deserialize(input.when) : undefined);
-		const command = (typeof input.command === 'string' ? input.command : null);
-		const commandArgs = (typeof input.args !== 'undefined' ? input.args : undefined);
+	public static readUserKeybindingItem(input: Object): IUserKeybindingItem {
+		const keybinding = 'key' in input && typeof input.key === 'string'
+			? KeybindingParser.parseKeybinding(input.key)
+			: null;
+		const when = 'when' in input && typeof input.when === 'string'
+			? ContextKeyExpr.deserialize(input.when)
+			: undefined;
+		const command = 'command' in input && typeof input.command === 'string'
+			? input.command
+			: null;
+		const commandArgs = 'args' in input && typeof input.args !== 'undefined'
+			? input.args
+			: undefined;
 		return {
 			keybinding,
 			command,
 			commandArgs,
 			when,
-			_source: input
+			_sourceKey: 'key' in input && typeof input.key === 'string' ? input.key : undefined,
 		};
 	}
 }

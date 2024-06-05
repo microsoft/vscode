@@ -32,6 +32,9 @@ import { bufferToReadable, VSBuffer } from 'vs/base/common/buffer';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
+import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 
 export type SearchConfiguration = {
 	query: string;
@@ -44,9 +47,17 @@ export type SearchConfiguration = {
 	useExcludeSettingsAndIgnoreFiles: boolean;
 	showIncludesExcludes: boolean;
 	onlyOpenEditors: boolean;
+	notebookSearchConfig: {
+		includeMarkupInput: boolean;
+		includeMarkupPreview: boolean;
+		includeCodeInput: boolean;
+		includeOutput: boolean;
+	};
 };
 
 export const SEARCH_EDITOR_EXT = '.code-search';
+
+const SearchEditorIcon = registerIcon('search-editor-label-icon', Codicon.search, localize('searchEditorLabelIcon', 'Icon of the search editor label.'));
 
 export class SearchEditorInput extends EditorInput {
 	static readonly ID: string = SearchEditorInputTypeId;
@@ -57,6 +68,10 @@ export class SearchEditorInput extends EditorInput {
 
 	override get editorId(): string | undefined {
 		return this.typeId;
+	}
+
+	override getIcon(): ThemeIcon {
+		return SearchEditorIcon;
 	}
 
 	override get capabilities(): EditorInputCapabilities {
@@ -125,6 +140,7 @@ export class SearchEditorInput extends EditorInput {
 			readonly onDidChangeContent = input.onDidChangeContent;
 			readonly onDidSave = input.onDidSave;
 			isDirty(): boolean { return input.isDirty(); }
+			isModified(): boolean { return input.isDirty(); }
 			backup(token: CancellationToken): Promise<IWorkingCopyBackup> { return input.backup(token); }
 			save(options?: ISaveOptions): Promise<boolean> { return input.save(0, options).then(editor => !!editor); }
 			revert(options?: IRevertOptions): Promise<void> { return input.revert(0, options); }

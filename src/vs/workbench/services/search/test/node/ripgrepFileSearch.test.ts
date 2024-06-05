@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import * as platform from 'vs/base/common/platform';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { fixDriveC, getAbsoluteGlob } from 'vs/workbench/services/search/node/ripgrepFileSearch';
 
 suite('RipgrepFileSearch - etc', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
 	function testGetAbsGlob(params: string[]): void {
 		const [folder, glob, expectedResult] = params;
 		assert.strictEqual(fixDriveC(getAbsoluteGlob(folder, glob)), expectedResult, JSON.stringify(params));

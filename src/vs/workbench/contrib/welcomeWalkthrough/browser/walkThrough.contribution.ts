@@ -13,9 +13,8 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorExtensions, IEditorFactoryRegistry } from 'vs/workbench/common/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { MenuRegistry, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { IEditorPaneRegistry, EditorPaneDescriptor } from 'vs/workbench/browser/editor';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane)
@@ -30,8 +29,7 @@ registerAction2(EditorWalkThroughAction);
 
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(EditorWalkThroughInputSerializer.ID, EditorWalkThroughInputSerializer);
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(WalkThroughSnippetContentProvider, LifecyclePhase.Ready /* cannot be on a later phase because an editor might need this on startup */);
+registerWorkbenchContribution2(WalkThroughSnippetContentProvider.ID, WalkThroughSnippetContentProvider, { editorTypeId: WalkThroughPart.ID });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule(WalkThroughArrowUp);
 

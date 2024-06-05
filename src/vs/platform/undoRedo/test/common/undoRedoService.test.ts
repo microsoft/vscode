@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IDialogService, IPrompt } from 'vs/platform/dialogs/common/dialogs';
 import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
@@ -226,4 +227,5 @@ suite('UndoRedoService', () => {
 		assert.strictEqual(UndoRedoGroup.None.nextOrder(), 0);
 	});
 
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

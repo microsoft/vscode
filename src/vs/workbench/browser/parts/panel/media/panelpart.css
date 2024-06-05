@@ -13,8 +13,8 @@
 	border-top-style: solid;
 }
 
-.monaco-workbench.noeditorarea .part.panel.bottom .composite.title {
-	border-top-width: 0; /* no border when editor area is hiden */
+.monaco-workbench.nomaineditorarea .part.panel.bottom .composite.title {
+	border-top-width: 0; /* no border when main editor area is hiden */
 }
 
 .monaco-workbench .part.panel.right {
@@ -22,8 +22,8 @@
 	border-left-style: solid;
 }
 
-.monaco-workbench.noeditorarea .part.panel.right {
-	border-left-width: 0; /* no border when editor area is hiden */
+.monaco-workbench.nomaineditorarea .part.panel.right {
+	border-left-width: 0; /* no border when main editor area is hiden */
 }
 
 .monaco-workbench .part.panel.left {
@@ -31,18 +31,30 @@
 	border-right-style: solid;
 }
 
-.monaco-workbench.noeditorarea .part.panel.left {
-	border-right-width: 0; /* no border when editor area is hiden */
+.monaco-workbench.nomaineditorarea .part.panel.left {
+	border-right-width: 0; /* no border when main editor area is hiden */
 }
 
 .monaco-workbench .part.panel > .content .monaco-editor,
 .monaco-workbench .part.panel > .content .monaco-editor .margin,
 .monaco-workbench .part.panel > .content .monaco-editor .monaco-editor-background {
+	/* THIS DOESN'T WORK ANYMORE */
 	background-color: var(--vscode-panel-background);
 }
 
-.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus .action-label,
-.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label {
+.monaco-workbench .part.panel > .content .suggest-input-container .monaco-editor,
+.monaco-workbench .part.panel > .content .suggest-input-container .monaco-editor .margin,
+.monaco-workbench .part.panel > .content .suggest-input-container .monaco-editor .monaco-editor-background {
+	background-color: inherit;
+}
+
+.monaco-workbench .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:not(:focus) .active-item-indicator:before,
+.monaco-workbench .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked.clicked:focus .active-item-indicator:before {
+	border-top-color: var(--vscode-panelTitle-activeBorder) !important;
+}
+
+.monaco-workbench .part.panel > .title > .composite-bar-container >.composite-bar > .monaco-action-bar .action-item:focus .action-label,
+.monaco-workbench .part.panel > .title > .composite-bar-container >.composite-bar > .monaco-action-bar .action-item:hover .action-label {
 	color: var(--vscode-panelTitle-activeForeground) !important;
 }
 
@@ -50,26 +62,22 @@
 	border-color: var(--vscode-panelInput-border, transparent) !important;
 }
 
-.monaco-workbench .part.basepanel > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus .active-item-indicator:before {
-	border-top-color: var(--vscode-focusBorder) !important;
-}
-
-.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:focus {
+.monaco-workbench .part.panel > .title > .composite-bar-container >.composite-bar > .monaco-action-bar .action-item:focus {
 	outline: none;
 }
 
-.monaco-workbench .part.basepanel > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked:not(:focus) .active-item-indicator:before,
-.monaco-workbench .part.basepanel > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked.clicked:focus .active-item-indicator:before {
-	border-top-color: var(--vscode-panelTitle-activeBorder) !important;
+/* Rotate icons when panel is on right */
+.monaco-workbench .part.basepanel.right .title-actions .codicon-split-horizontal::before,
+.monaco-workbench .part.basepanel.right .global-actions .codicon-panel-maximize::before,
+.monaco-workbench .part.basepanel.right .global-actions .codicon-panel-restore::before {
+	display: inline-block;
+	transform: rotate(-90deg);
 }
 
-.monaco-workbench .part.basepanel > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked .action-label,
-.monaco-workbench .part.basepanel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label {
-	outline: var(--vscode-contrastActiveBorder, unset) solid 1px !important;
+/* Rotate icons when panel is on left */
+.monaco-workbench .part.basepanel.left .title-actions .codicon-split-horizontal::before,
+.monaco-workbench .part.basepanel.left .global-actions .codicon-panel-maximize::before,
+.monaco-workbench .part.basepanel.left .global-actions .codicon-panel-restore::before {
+	display: inline-block;
+	transform: rotate(90deg);
 }
-
-.monaco-workbench .part.basepanel > .title > .panel-switcher-container > .monaco-action-bar .action-item:not(.checked):hover .action-label {
-	outline: var(--vscode-contrastActiveBorder, unset) dashed 1px !important;
-}
-
-

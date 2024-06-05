@@ -2,8 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
+import assert from 'assert';
 import * as strings from 'vs/base/common/strings';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Strings', () => {
 	test('equalsIgnoreCase', () => {
@@ -132,8 +133,26 @@ suite('Strings', () => {
 		assert.strictEqual(strings.lcut('foo bar', 5), 'foo bar');
 		assert.strictEqual(strings.lcut('test string 0.1.2.3', 3), '2.3');
 
+		assert.strictEqual(strings.lcut('foo bar', 0, '…'), '…');
+		assert.strictEqual(strings.lcut('foo bar', 1, '…'), '…bar');
+		assert.strictEqual(strings.lcut('foo bar', 3, '…'), '…bar');
+		assert.strictEqual(strings.lcut('foo bar', 4, '…'), '…bar'); // Leading whitespace trimmed
+		assert.strictEqual(strings.lcut('foo bar', 5, '…'), 'foo bar');
+		assert.strictEqual(strings.lcut('test string 0.1.2.3', 3, '…'), '…2.3');
+
 		assert.strictEqual(strings.lcut('', 10), '');
 		assert.strictEqual(strings.lcut('a', 10), 'a');
+		assert.strictEqual(strings.lcut(' a', 10), 'a');
+		assert.strictEqual(strings.lcut('            a', 10), 'a');
+		assert.strictEqual(strings.lcut(' bbbb       a', 10), 'bbbb       a');
+		assert.strictEqual(strings.lcut('............a', 10), '............a');
+
+		assert.strictEqual(strings.lcut('', 10, '…'), '');
+		assert.strictEqual(strings.lcut('a', 10, '…'), 'a');
+		assert.strictEqual(strings.lcut(' a', 10, '…'), 'a');
+		assert.strictEqual(strings.lcut('            a', 10, '…'), 'a');
+		assert.strictEqual(strings.lcut(' bbbb       a', 10, '…'), 'bbbb       a');
+		assert.strictEqual(strings.lcut('............a', 10, '…'), '............a');
 	});
 
 	test('escape', () => {
@@ -265,22 +284,6 @@ suite('Strings', () => {
 		assert(regExpWithFlags.multiline);
 	});
 
-	test('regExpContainsBackreference', () => {
-		assert(strings.regExpContainsBackreference('foo \\5 bar'));
-		assert(strings.regExpContainsBackreference('\\2'));
-		assert(strings.regExpContainsBackreference('(\\d)(\\n)(\\1)'));
-		assert(strings.regExpContainsBackreference('(A).*?\\1'));
-		assert(strings.regExpContainsBackreference('\\\\\\1'));
-		assert(strings.regExpContainsBackreference('foo \\\\\\1'));
-
-		assert(!strings.regExpContainsBackreference(''));
-		assert(!strings.regExpContainsBackreference('\\\\1'));
-		assert(!strings.regExpContainsBackreference('foo \\\\1'));
-		assert(!strings.regExpContainsBackreference('(A).*?\\\\1'));
-		assert(!strings.regExpContainsBackreference('foo \\d1 bar'));
-		assert(!strings.regExpContainsBackreference('123'));
-	});
-
 	test('getLeadingWhitespace', () => {
 		assert.strictEqual(strings.getLeadingWhitespace('  foo'), '  ');
 		assert.strictEqual(strings.getLeadingWhitespace('  foo', 2), '');
@@ -387,6 +390,11 @@ suite('Strings', () => {
 		assert.strictEqual('hello…', strings.truncate('hello world', 5));
 	});
 
+	test('truncateMiddle', () => {
+		assert.strictEqual('hello world', strings.truncateMiddle('hello world', 100));
+		assert.strictEqual('he…ld', strings.truncateMiddle('hello world', 5));
+	});
+
 	test('replaceAsync', async () => {
 		let i = 0;
 		assert.strictEqual(await strings.replaceAsync('abcabcabcabc', /b(.)/g, async (match, after) => {
@@ -395,4 +403,186 @@ suite('Strings', () => {
 			return `${i++}${after}`;
 		}), 'a0ca1ca2ca3c');
 	});
+
+	test('removeAnsiEscapeCodes', () => {
+		const CSI = '\x1b\[';
+		const sequences = [
+			// Base cases from https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h3-Functions-using-CSI-_-ordered-by-the-final-character_s_
+			`${CSI}42@`,
+			`${CSI}42 @`,
+			`${CSI}42A`,
+			`${CSI}42 A`,
+			`${CSI}42B`,
+			`${CSI}42C`,
+			`${CSI}42D`,
+			`${CSI}42E`,
+			`${CSI}42F`,
+			`${CSI}42G`,
+			`${CSI}42;42H`,
+			`${CSI}42I`,
+			`${CSI}42J`,
+			`${CSI}?42J`,
+			`${CSI}42K`,
+			`${CSI}?42K`,
+			`${CSI}42L`,
+			`${CSI}42M`,
+			`${CSI}42P`,
+			`${CSI}#P`,
+			`${CSI}3#P`,
+			`${CSI}#Q`,
+			`${CSI}3#Q`,
+			`${CSI}#R`,
+			`${CSI}42S`,
+			`${CSI}?1;2;3S`,
+			`${CSI}42T`,
+			`${CSI}42;42;42;42;42T`,
+			`${CSI}>3T`,
+			`${CSI}42X`,
+			`${CSI}42Z`,
+			`${CSI}42^`,
+			`${CSI}42\``,
+			`${CSI}42a`,
+			`${CSI}42b`,
+			`${CSI}42c`,
+			`${CSI}=42c`,
+			`${CSI}>42c`,
+			`${CSI}42d`,
+			`${CSI}42e`,
+			`${CSI}42;42f`,
+			`${CSI}42g`,
+			`${CSI}3h`,
+			`${CSI}?3h`,
+			`${CSI}42i`,
+			`${CSI}?42i`,
+			`${CSI}3l`,
+			`${CSI}?3l`,
+			`${CSI}3m`,
+			`${CSI}>0;0m`,
+			`${CSI}>0m`,
+			`${CSI}?0m`,
+			`${CSI}42n`,
+			`${CSI}>42n`,
+			`${CSI}?42n`,
+			`${CSI}>42p`,
+			`${CSI}!p`,
+			`${CSI}0;0"p`,
+			`${CSI}42$p`,
+			`${CSI}?42$p`,
+			`${CSI}#p`,
+			`${CSI}3#p`,
+			`${CSI}>42q`,
+			`${CSI}42q`,
+			`${CSI}42 q`,
+			`${CSI}42"q`,
+			`${CSI}#q`,
+			`${CSI}42;42r`,
+			`${CSI}?3r`,
+			`${CSI}0;0;0;0;3$r`,
+			`${CSI}s`,
+			`${CSI}0;0s`,
+			`${CSI}>42s`,
+			`${CSI}?3s`,
+			`${CSI}42;42;42t`,
+			`${CSI}>3t`,
+			`${CSI}42 t`,
+			`${CSI}0;0;0;0;3$t`,
+			`${CSI}u`,
+			`${CSI}42 u`,
+			`${CSI}0;0;0;0;0;0;0;0$v`,
+			`${CSI}42$w`,
+			`${CSI}0;0;0;0'w`,
+			`${CSI}42x`,
+			`${CSI}42*x`,
+			`${CSI}0;0;0;0;0$x`,
+			`${CSI}42#y`,
+			`${CSI}0;0;0;0;0;0*y`,
+			`${CSI}42;0'z`,
+			`${CSI}0;1;2;4$z`,
+			`${CSI}3'{`,
+			`${CSI}#{`,
+			`${CSI}3#{`,
+			`${CSI}0;0;0;0\${`,
+			`${CSI}0;0;0;0#|`,
+			`${CSI}42$|`,
+			`${CSI}42'|`,
+			`${CSI}42*|`,
+			`${CSI}#}`,
+			`${CSI}42'}`,
+			`${CSI}42$}`,
+			`${CSI}42'~`,
+			`${CSI}42$~`,
+
+			// Common SGR cases:
+			`${CSI}1;31m`, // multiple attrs
+			`${CSI}105m`, // bright background
+			`${CSI}48:5:128m`, // 256 indexed color
+			`${CSI}48;5;128m`, // 256 indexed color alt
+			`${CSI}38:2:0:255:255:255m`, // truecolor
+			`${CSI}38;2;255;255;255m`, // truecolor alt
+
+			// Custom sequences:
+			'\x1b]633;SetMark;\x07',
+			'\x1b]633;P;Cwd=/foo\x07',
+		];
+
+		for (const sequence of sequences) {
+			assert.strictEqual(strings.removeAnsiEscapeCodes(`hello${sequence}world`), 'helloworld', `expect to remove ${JSON.stringify(sequence)}`);
+		}
+
+		for (const sequence of sequences) {
+			assert.deepStrictEqual(
+				[...strings.forAnsiStringParts(`hello${sequence}world`)],
+				[{ isCode: false, str: 'hello' }, { isCode: true, str: sequence }, { isCode: false, str: 'world' }],
+				`expect to forAnsiStringParts ${JSON.stringify(sequence)}`
+			);
+		}
+
+		// #209937
+		assert.strictEqual(
+			strings.removeAnsiEscapeCodes(`localhost:\x1b[31m1234`),
+			'localhost:1234',);
+	});
+
+	test('removeAnsiEscapeCodesFromPrompt', () => {
+		assert.strictEqual(strings.removeAnsiEscapeCodesFromPrompt('\u001b[31m$ \u001b[0m'), '$ ');
+		assert.strictEqual(strings.removeAnsiEscapeCodesFromPrompt('\n\\[\u001b[01;34m\\]\\w\\[\u001b[00m\\]\n\\[\u001b[1;32m\\]> \\[\u001b[0m\\]'), '\n\\w\n> ');
+	});
+
+	test('count', () => {
+		assert.strictEqual(strings.count('hello world', 'o'), 2);
+		assert.strictEqual(strings.count('hello world', 'l'), 3);
+		assert.strictEqual(strings.count('hello world', 'z'), 0);
+		assert.strictEqual(strings.count('hello world', 'hello'), 1);
+		assert.strictEqual(strings.count('hello world', 'world'), 1);
+		assert.strictEqual(strings.count('hello world', 'hello world'), 1);
+		assert.strictEqual(strings.count('hello world', 'foo'), 0);
+	});
+
+	test('containsAmbiguousCharacter', () => {
+		assert.strictEqual(strings.AmbiguousCharacters.getInstance(new Set()).containsAmbiguousCharacter('abcd'), false);
+		assert.strictEqual(strings.AmbiguousCharacters.getInstance(new Set()).containsAmbiguousCharacter('üå'), false);
+		assert.strictEqual(strings.AmbiguousCharacters.getInstance(new Set()).containsAmbiguousCharacter('(*&^)'), false);
+
+		assert.strictEqual(strings.AmbiguousCharacters.getInstance(new Set()).containsAmbiguousCharacter('ο'), true);
+		assert.strictEqual(strings.AmbiguousCharacters.getInstance(new Set()).containsAmbiguousCharacter('abɡc'), true);
+	});
+
+	test('containsInvisibleCharacter', () => {
+		assert.strictEqual(strings.InvisibleCharacters.containsInvisibleCharacter('abcd'), false);
+		assert.strictEqual(strings.InvisibleCharacters.containsInvisibleCharacter(' '), true);
+		assert.strictEqual(strings.InvisibleCharacters.containsInvisibleCharacter('a\u{e004e}b'), true);
+		assert.strictEqual(strings.InvisibleCharacters.containsInvisibleCharacter('a\u{e015a}\u000bb'), true);
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+});
+
+test('htmlAttributeEncodeValue', () => {
+	assert.strictEqual(strings.htmlAttributeEncodeValue(''), '');
+	assert.strictEqual(strings.htmlAttributeEncodeValue('abc'), 'abc');
+	assert.strictEqual(strings.htmlAttributeEncodeValue('<script>alert("Hello")</script>'), '&lt;script&gt;alert(&quot;Hello&quot;)&lt;/script&gt;');
+	assert.strictEqual(strings.htmlAttributeEncodeValue('Hello & World'), 'Hello &amp; World');
+	assert.strictEqual(strings.htmlAttributeEncodeValue('"Hello"'), '&quot;Hello&quot;');
+	assert.strictEqual(strings.htmlAttributeEncodeValue('\'Hello\''), '&apos;Hello&apos;');
+	assert.strictEqual(strings.htmlAttributeEncodeValue('<>&\'"'), '&lt;&gt;&amp;&apos;&quot;');
 });

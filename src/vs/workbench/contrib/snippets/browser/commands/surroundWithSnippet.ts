@@ -8,7 +8,6 @@ import { Position } from 'vs/editor/common/core/position';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ITextModel } from 'vs/editor/common/model';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
-import { localize } from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -16,6 +15,7 @@ import { SnippetEditorAction } from 'vs/workbench/contrib/snippets/browser/comma
 import { pickSnippet } from 'vs/workbench/contrib/snippets/browser/snippetPicker';
 import { Snippet } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
 import { ISnippetsService } from '../snippets';
+import { localize2 } from 'vs/nls';
 
 export async function getSurroundableSnippets(snippetsService: ISnippetsService, model: ITextModel, position: Position, includeDisabledSnippets: boolean): Promise<Snippet[]> {
 
@@ -31,10 +31,7 @@ export class SurroundWithSnippetEditorAction extends SnippetEditorAction {
 
 	static readonly options = {
 		id: 'editor.action.surroundWithSnippet',
-		title: {
-			value: localize('label', 'Surround With Snippet...'),
-			original: 'Surround With Snippet...'
-		}
+		title: localize2('label', "Surround with Snippet...")
 	};
 
 	constructor() {

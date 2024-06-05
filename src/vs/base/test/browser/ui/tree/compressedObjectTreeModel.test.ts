@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { compress, CompressedObjectTreeModel, decompress, ICompressedTreeElement, ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { IList } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { IObjectTreeModelSetChildrenOptions } from 'vs/base/browser/ui/tree/objectTreeModel';
 import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { Iterable } from 'vs/base/common/iterator';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 interface IResolvedCompressedTreeElement<T> extends ICompressedTreeElement<T> {
 	readonly element: T;
@@ -31,6 +32,8 @@ function resolve<T>(treeElement: ICompressedTreeElement<T>): IResolvedCompressed
 }
 
 suite('CompressedObjectTree', function () {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('compress & decompress', function () {
 

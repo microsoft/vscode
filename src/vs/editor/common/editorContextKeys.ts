@@ -24,8 +24,22 @@ export namespace EditorContextKeys {
 	 */
 	export const textInputFocus = new RawContextKey<boolean>('textInputFocus', false, nls.localize('textInputFocus', "Whether an editor or a rich text input has focus (cursor is blinking)"));
 
-	export const readOnly = new RawContextKey<boolean>('editorReadonly', false, nls.localize('editorReadonly', "Whether the editor is read only"));
+	export const readOnly = new RawContextKey<boolean>('editorReadonly', false, nls.localize('editorReadonly', "Whether the editor is read-only"));
 	export const inDiffEditor = new RawContextKey<boolean>('inDiffEditor', false, nls.localize('inDiffEditor', "Whether the context is a diff editor"));
+	export const isEmbeddedDiffEditor = new RawContextKey<boolean>('isEmbeddedDiffEditor', false, nls.localize('isEmbeddedDiffEditor', "Whether the context is an embedded diff editor"));
+	export const inMultiDiffEditor = new RawContextKey<boolean>('inMultiDiffEditor', false, nls.localize('inMultiDiffEditor', "Whether the context is a multi diff editor"));
+	export const multiDiffEditorAllCollapsed = new RawContextKey<boolean>('multiDiffEditorAllCollapsed', undefined, nls.localize('multiDiffEditorAllCollapsed', "Whether all files in multi diff editor are collapsed"));
+	export const hasChanges = new RawContextKey<boolean>('diffEditorHasChanges', false, nls.localize('diffEditorHasChanges', "Whether the diff editor has changes"));
+	export const comparingMovedCode = new RawContextKey<boolean>('comparingMovedCode', false, nls.localize('comparingMovedCode', "Whether a moved code block is selected for comparison"));
+	export const accessibleDiffViewerVisible = new RawContextKey<boolean>('accessibleDiffViewerVisible', false, nls.localize('accessibleDiffViewerVisible', "Whether the accessible diff viewer is visible"));
+	export const diffEditorRenderSideBySideInlineBreakpointReached = new RawContextKey<boolean>('diffEditorRenderSideBySideInlineBreakpointReached', false, nls.localize('diffEditorRenderSideBySideInlineBreakpointReached', "Whether the diff editor render side by side inline breakpoint is reached"));
+	export const diffEditorInlineMode = new RawContextKey<boolean>('diffEditorInlineMode', false, nls.localize('diffEditorInlineMode', "Whether inline mode is active"));
+
+	export const diffEditorOriginalWritable = new RawContextKey<boolean>('diffEditorOriginalWritable', false, nls.localize('diffEditorOriginalWritable', "Whether modified is writable in the diff editor"));
+	export const diffEditorModifiedWritable = new RawContextKey<boolean>('diffEditorModifiedWritable', false, nls.localize('diffEditorModifiedWritable', "Whether modified is writable in the diff editor"));
+	export const diffEditorOriginalUri = new RawContextKey<string>('diffEditorOriginalUri', '', nls.localize('diffEditorOriginalUri', "The uri of the original document"));
+	export const diffEditorModifiedUri = new RawContextKey<string>('diffEditorModifiedUri', '', nls.localize('diffEditorModifiedUri', "The uri of the modified document"));
+
 	export const columnSelection = new RawContextKey<boolean>('editorColumnSelection', false, nls.localize('editorColumnSelection', "Whether `editor.columnSelection` is enabled"));
 	export const writable = readOnly.toNegated();
 	export const hasNonEmptySelection = new RawContextKey<boolean>('editorHasSelection', false, nls.localize('editorHasSelection', "Whether the editor has text selected"));
@@ -34,12 +48,18 @@ export namespace EditorContextKeys {
 	export const hasSingleSelection = hasMultipleSelections.toNegated();
 	export const tabMovesFocus = new RawContextKey<boolean>('editorTabMovesFocus', false, nls.localize('editorTabMovesFocus', "Whether `Tab` will move focus out of the editor"));
 	export const tabDoesNotMoveFocus = tabMovesFocus.toNegated();
-	export const isInWalkThroughSnippet = new RawContextKey<boolean>('isInEmbeddedEditor', false, true);
+	export const isInEmbeddedEditor = new RawContextKey<boolean>('isInEmbeddedEditor', false, true);
 	export const canUndo = new RawContextKey<boolean>('canUndo', false, true);
 	export const canRedo = new RawContextKey<boolean>('canRedo', false, true);
 
 	export const hoverVisible = new RawContextKey<boolean>('editorHoverVisible', false, nls.localize('editorHoverVisible', "Whether the editor hover is visible"));
+	export const hoverFocused = new RawContextKey<boolean>('editorHoverFocused', false, nls.localize('editorHoverFocused', "Whether the editor hover is focused"));
 
+	export const stickyScrollFocused = new RawContextKey<boolean>('stickyScrollFocused', false, nls.localize('stickyScrollFocused', "Whether the sticky scroll is focused"));
+	export const stickyScrollVisible = new RawContextKey<boolean>('stickyScrollVisible', false, nls.localize('stickyScrollVisible', "Whether the sticky scroll is visible"));
+
+	export const standaloneColorPickerVisible = new RawContextKey<boolean>('standaloneColorPickerVisible', false, nls.localize('standaloneColorPickerVisible', "Whether the standalone color picker is visible"));
+	export const standaloneColorPickerFocused = new RawContextKey<boolean>('standaloneColorPickerFocused', false, nls.localize('standaloneColorPickerFocused', "Whether the standalone color picker is focused"));
 	/**
 	 * A context key that is set when an editor is part of a larger editor, like notebooks or
 	 * (future) a diff editor

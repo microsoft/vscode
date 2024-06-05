@@ -1,0 +1,3460 @@
+[
+	{
+		"c": "{",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets punctuation.definition.dictionary.begin.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "//",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets comment.line.double-slash.js punctuation.definition.comment.json.comments.snippets",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668",
+			"dark_modern": "comment: #6A9955",
+			"hc_light": "comment: #515151",
+			"light_modern": "comment: #008000"
+		}
+	},
+	{
+		"c": " Each snippet is defined under a snippet name and has a scope, prefix, body and",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets comment.line.double-slash.js",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668",
+			"dark_modern": "comment: #6A9955",
+			"hc_light": "comment: #515151",
+			"light_modern": "comment: #008000"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "//",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets comment.line.double-slash.js punctuation.definition.comment.json.comments.snippets",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668",
+			"dark_modern": "comment: #6A9955",
+			"hc_light": "comment: #515151",
+			"light_modern": "comment: #008000"
+		}
+	},
+	{
+		"c": " description. The scope defines in watch languages the snippet is applicable. The prefix is what is",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets comment.line.double-slash.js",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668",
+			"dark_modern": "comment: #6A9955",
+			"hc_light": "comment: #515151",
+			"light_modern": "comment: #008000"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "//",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets comment.line.double-slash.js punctuation.definition.comment.json.comments.snippets",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668",
+			"dark_modern": "comment: #6A9955",
+			"hc_light": "comment: #515151",
+			"light_modern": "comment: #008000"
+		}
+	},
+	{
+		"c": " used to trigger the snippet and the body will be expanded and inserted.Possible variables are:",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets comment.line.double-slash.js",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668",
+			"dark_modern": "comment: #6A9955",
+			"hc_light": "comment: #515151",
+			"light_modern": "comment: #008000"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "//",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets comment.line.double-slash.js punctuation.definition.comment.json.comments.snippets",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668",
+			"dark_modern": "comment: #6A9955",
+			"hc_light": "comment: #515151",
+			"light_modern": "comment: #008000"
+		}
+	},
+	{
+		"c": " $1, $2 for tab stops, $0 for the final cursor position, and ${1:label}, ${2:another} for placeholders.",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets comment.line.double-slash.js",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668",
+			"dark_modern": "comment: #6A9955",
+			"hc_light": "comment: #515151",
+			"light_modern": "comment: #008000"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "//",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets comment.line.double-slash.js punctuation.definition.comment.json.comments.snippets",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668",
+			"dark_modern": "comment: #6A9955",
+			"hc_light": "comment: #515151",
+			"light_modern": "comment: #008000"
+		}
+	},
+	{
+		"c": " Placeholders with the same ids are connected.",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets comment.line.double-slash.js",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668",
+			"dark_modern": "comment: #6A9955",
+			"hc_light": "comment: #515151",
+			"light_modern": "comment: #008000"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "//",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets comment.line.double-slash.js punctuation.definition.comment.json.comments.snippets",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668",
+			"dark_modern": "comment: #6A9955",
+			"hc_light": "comment: #515151",
+			"light_modern": "comment: #008000"
+		}
+	},
+	{
+		"c": " Example:",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets comment.line.double-slash.js",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668",
+			"dark_modern": "comment: #6A9955",
+			"hc_light": "comment: #515151",
+			"light_modern": "comment: #008000"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets string.json.comments.snippets support.type.property-name.json.comments.snippets punctuation.support.type.property-name.begin.json.comments.snippets",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name.json: #0451A5",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name.json: #0451A5",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name.json: #0451A5",
+			"light_modern": "support.type.property-name.json: #0451A5"
+		}
+	},
+	{
+		"c": "MSFT Copyright Header",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets string.json.comments.snippets support.type.property-name.json.comments.snippets",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name.json: #0451A5",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name.json: #0451A5",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name.json: #0451A5",
+			"light_modern": "support.type.property-name.json: #0451A5"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets string.json.comments.snippets support.type.property-name.json.comments.snippets punctuation.support.type.property-name.end.json.comments.snippets",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name.json: #0451A5",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name.json: #0451A5",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name.json: #0451A5",
+			"light_modern": "support.type.property-name.json: #0451A5"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets punctuation.separator.dictionary.key-value.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "{",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets punctuation.definition.dictionary.begin.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\t\t",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets string.json.comments.snippets support.type.property-name.json.comments.snippets punctuation.support.type.property-name.begin.json.comments.snippets",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name.json: #0451A5",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name.json: #0451A5",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name.json: #0451A5",
+			"light_modern": "support.type.property-name.json: #0451A5"
+		}
+	},
+	{
+		"c": "scope",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets string.json.comments.snippets support.type.property-name.json.comments.snippets",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name.json: #0451A5",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name.json: #0451A5",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name.json: #0451A5",
+			"light_modern": "support.type.property-name.json: #0451A5"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets string.json.comments.snippets support.type.property-name.json.comments.snippets punctuation.support.type.property-name.end.json.comments.snippets",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name.json: #0451A5",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name.json: #0451A5",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name.json: #0451A5",
+			"light_modern": "support.type.property-name.json: #0451A5"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets punctuation.separator.dictionary.key-value.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets string.quoted.double.json.comments.snippets punctuation.definition.string.begin.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "javascript,typescript,css",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets string.quoted.double.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets string.quoted.double.json.comments.snippets punctuation.definition.string.end.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets punctuation.separator.dictionary.pair.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\t\t",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets string.json.comments.snippets support.type.property-name.json.comments.snippets punctuation.support.type.property-name.begin.json.comments.snippets",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name.json: #0451A5",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name.json: #0451A5",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name.json: #0451A5",
+			"light_modern": "support.type.property-name.json: #0451A5"
+		}
+	},
+	{
+		"c": "prefix",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets string.json.comments.snippets support.type.property-name.json.comments.snippets",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name.json: #0451A5",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name.json: #0451A5",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name.json: #0451A5",
+			"light_modern": "support.type.property-name.json: #0451A5"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets string.json.comments.snippets support.type.property-name.json.comments.snippets punctuation.support.type.property-name.end.json.comments.snippets",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name.json: #0451A5",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name.json: #0451A5",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name.json: #0451A5",
+			"light_modern": "support.type.property-name.json: #0451A5"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets punctuation.separator.dictionary.key-value.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "[",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets punctuation.definition.array.begin.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\t\t\t",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets string.quoted.double.json.comments.snippets punctuation.definition.string.begin.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "header",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets string.quoted.double.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets string.quoted.double.json.comments.snippets punctuation.definition.string.end.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets punctuation.separator.array.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\t\t\t",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets string.quoted.double.json.comments.snippets punctuation.definition.string.begin.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "stub",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets string.quoted.double.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets string.quoted.double.json.comments.snippets punctuation.definition.string.end.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets punctuation.separator.array.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\t\t\t",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets string.quoted.double.json.comments.snippets punctuation.definition.string.begin.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "copyright",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets string.quoted.double.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets string.quoted.double.json.comments.snippets punctuation.definition.string.end.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "\t\t",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "]",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets punctuation.definition.array.end.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets punctuation.separator.dictionary.pair.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\t\t",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets string.json.comments.snippets support.type.property-name.json.comments.snippets punctuation.support.type.property-name.begin.json.comments.snippets",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name.json: #0451A5",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name.json: #0451A5",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name.json: #0451A5",
+			"light_modern": "support.type.property-name.json: #0451A5"
+		}
+	},
+	{
+		"c": "body",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets string.json.comments.snippets support.type.property-name.json.comments.snippets",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name.json: #0451A5",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name.json: #0451A5",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name.json: #0451A5",
+			"light_modern": "support.type.property-name.json: #0451A5"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets string.json.comments.snippets support.type.property-name.json.comments.snippets punctuation.support.type.property-name.begin.json.comments.snippets",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name.json: #0451A5",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name.json: #0451A5",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name.json: #0451A5",
+			"light_modern": "support.type.property-name.json: #0451A5"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets punctuation.separator.dictionary.key-value.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "[",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets punctuation.definition.array.begin.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\t\t\t",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets string.quoted.double.json.comments.snippets punctuation.definition.string.begin.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "/*---------------------------------------------------------------------------------------------",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets string.quoted.double.json.comments.snippets meta.any.json.comments.snippets string.quoted.double.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets string.quoted.double.json.comments.snippets punctuation.definition.string.end.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets punctuation.separator.array.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\t\t\t",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets string.quoted.double.json.comments.snippets punctuation.definition.string.begin.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": " *  Copyright (c) Microsoft Corporation. All rights reserved.",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets string.quoted.double.json.comments.snippets meta.any.json.comments.snippets string.quoted.double.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets string.quoted.double.json.comments.snippets punctuation.definition.string.end.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets punctuation.separator.array.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\t\t\t",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets string.quoted.double.json.comments.snippets punctuation.definition.string.begin.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": " *  Licensed under the MIT License. See License.txt in the project root for license information.",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets string.quoted.double.json.comments.snippets meta.any.json.comments.snippets string.quoted.double.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets string.quoted.double.json.comments.snippets punctuation.definition.string.end.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets punctuation.separator.array.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\t\t\t",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets string.quoted.double.json.comments.snippets punctuation.definition.string.begin.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": " *--------------------------------------------------------------------------------------------*/",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets string.quoted.double.json.comments.snippets meta.any.json.comments.snippets string.quoted.double.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets string.quoted.double.json.comments.snippets punctuation.definition.string.end.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets punctuation.separator.array.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\t\t\t",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets string.quoted.double.json.comments.snippets punctuation.definition.string.begin.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets string.quoted.double.json.comments.snippets punctuation.definition.string.end.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets punctuation.separator.array.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\t\t\t",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets string.quoted.double.json.comments.snippets punctuation.definition.string.begin.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "$",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets string.quoted.double.json.comments.snippets meta.any.json.comments.snippets meta.insertion.simple.numeric.json.comments.snippets meta.insertion.tabstop.simple.json.comments.snippets punctuation.section.insertion.dollar.simple.json.comments.snippets keyword.operator.insertion.json.comments.snippets custom.punctuation.section.insertion.dollar.simple.json.comments.snippets",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"dark_modern": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000",
+			"light_modern": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": "0",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets string.quoted.double.json.comments.snippets meta.any.json.comments.snippets meta.insertion.simple.numeric.json.comments.snippets meta.insertion.tabstop.simple.json.comments.snippets variable.other.normal.json.comments.snippets keyword.operator.insertion.json.comments.snippets custom.variable.other.normal.numeric.json.comments.snippets",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"dark_modern": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000",
+			"light_modern": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets string.quoted.double.json.comments.snippets punctuation.definition.string.end.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "\t\t",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "]",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets punctuation.definition.array.end.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets punctuation.separator.dictionary.pair.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\t\t",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets string.json.comments.snippets support.type.property-name.json.comments.snippets punctuation.support.type.property-name.begin.json.comments.snippets",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name.json: #0451A5",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name.json: #0451A5",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name.json: #0451A5",
+			"light_modern": "support.type.property-name.json: #0451A5"
+		}
+	},
+	{
+		"c": "description",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets string.json.comments.snippets support.type.property-name.json.comments.snippets",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name.json: #0451A5",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name.json: #0451A5",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name.json: #0451A5",
+			"light_modern": "support.type.property-name.json: #0451A5"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets string.json.comments.snippets support.type.property-name.json.comments.snippets punctuation.support.type.property-name.end.json.comments.snippets",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name.json: #0451A5",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name.json: #0451A5",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name.json: #0451A5",
+			"light_modern": "support.type.property-name.json: #0451A5"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets punctuation.separator.dictionary.key-value.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets string.quoted.double.json.comments.snippets punctuation.definition.string.begin.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "Insert Copyright Statement",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets string.quoted.double.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets string.quoted.double.json.comments.snippets punctuation.definition.string.end.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "}",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets punctuation.definition.dictionary.end.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets punctuation.separator.dictionary.pair.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets string.json.comments.snippets support.type.property-name.json.comments.snippets punctuation.support.type.property-name.begin.json.comments.snippets",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name.json: #0451A5",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name.json: #0451A5",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name.json: #0451A5",
+			"light_modern": "support.type.property-name.json: #0451A5"
+		}
+	},
+	{
+		"c": "TS -> Inject Service",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets string.json.comments.snippets support.type.property-name.json.comments.snippets",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name.json: #0451A5",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name.json: #0451A5",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name.json: #0451A5",
+			"light_modern": "support.type.property-name.json: #0451A5"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets string.json.comments.snippets support.type.property-name.json.comments.snippets punctuation.support.type.property-name.end.json.comments.snippets",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name.json: #0451A5",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name.json: #0451A5",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name.json: #0451A5",
+			"light_modern": "support.type.property-name.json: #0451A5"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets punctuation.separator.dictionary.key-value.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "{",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets punctuation.definition.dictionary.begin.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\t\t",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets string.json.comments.snippets support.type.property-name.json.comments.snippets punctuation.support.type.property-name.begin.json.comments.snippets",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name.json: #0451A5",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name.json: #0451A5",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name.json: #0451A5",
+			"light_modern": "support.type.property-name.json: #0451A5"
+		}
+	},
+	{
+		"c": "scope",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets string.json.comments.snippets support.type.property-name.json.comments.snippets",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name.json: #0451A5",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name.json: #0451A5",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name.json: #0451A5",
+			"light_modern": "support.type.property-name.json: #0451A5"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets string.json.comments.snippets support.type.property-name.json.comments.snippets punctuation.support.type.property-name.end.json.comments.snippets",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name.json: #0451A5",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name.json: #0451A5",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name.json: #0451A5",
+			"light_modern": "support.type.property-name.json: #0451A5"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets punctuation.separator.dictionary.key-value.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets string.quoted.double.json.comments.snippets punctuation.definition.string.begin.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "typescript",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets string.quoted.double.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets string.quoted.double.json.comments.snippets punctuation.definition.string.end.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets punctuation.separator.dictionary.pair.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\t\t",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets string.json.comments.snippets support.type.property-name.json.comments.snippets punctuation.support.type.property-name.begin.json.comments.snippets",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name.json: #0451A5",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name.json: #0451A5",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name.json: #0451A5",
+			"light_modern": "support.type.property-name.json: #0451A5"
+		}
+	},
+	{
+		"c": "description",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets string.json.comments.snippets support.type.property-name.json.comments.snippets",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name.json: #0451A5",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name.json: #0451A5",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name.json: #0451A5",
+			"light_modern": "support.type.property-name.json: #0451A5"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets string.json.comments.snippets support.type.property-name.json.comments.snippets punctuation.support.type.property-name.end.json.comments.snippets",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name.json: #0451A5",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name.json: #0451A5",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name.json: #0451A5",
+			"light_modern": "support.type.property-name.json: #0451A5"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets punctuation.separator.dictionary.key-value.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets string.quoted.double.json.comments.snippets punctuation.definition.string.begin.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "Constructor Injection Pattern",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets string.quoted.double.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets string.quoted.double.json.comments.snippets punctuation.definition.string.end.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets punctuation.separator.dictionary.pair.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\t\t",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets string.json.comments.snippets support.type.property-name.json.comments.snippets punctuation.support.type.property-name.begin.json.comments.snippets",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name.json: #0451A5",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name.json: #0451A5",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name.json: #0451A5",
+			"light_modern": "support.type.property-name.json: #0451A5"
+		}
+	},
+	{
+		"c": "prefix",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets string.json.comments.snippets support.type.property-name.json.comments.snippets",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name.json: #0451A5",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name.json: #0451A5",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name.json: #0451A5",
+			"light_modern": "support.type.property-name.json: #0451A5"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets string.json.comments.snippets support.type.property-name.json.comments.snippets punctuation.support.type.property-name.end.json.comments.snippets",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name.json: #0451A5",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name.json: #0451A5",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name.json: #0451A5",
+			"light_modern": "support.type.property-name.json: #0451A5"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets punctuation.separator.dictionary.key-value.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets string.quoted.double.json.comments.snippets punctuation.definition.string.begin.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "@inject",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets string.quoted.double.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets string.quoted.double.json.comments.snippets punctuation.definition.string.end.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets punctuation.separator.dictionary.pair.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\t\t",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets string.json.comments.snippets support.type.property-name.json.comments.snippets punctuation.support.type.property-name.begin.json.comments.snippets",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name.json: #0451A5",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name.json: #0451A5",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name.json: #0451A5",
+			"light_modern": "support.type.property-name.json: #0451A5"
+		}
+	},
+	{
+		"c": "body",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets string.json.comments.snippets support.type.property-name.json.comments.snippets",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name.json: #0451A5",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name.json: #0451A5",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name.json: #0451A5",
+			"light_modern": "support.type.property-name.json: #0451A5"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets string.json.comments.snippets support.type.property-name.json.comments.snippets punctuation.support.type.property-name.begin.json.comments.snippets",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name.json: #0451A5",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name.json: #0451A5",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name.json: #0451A5",
+			"light_modern": "support.type.property-name.json: #0451A5"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets punctuation.separator.dictionary.key-value.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets string.quoted.double.json.comments.snippets punctuation.definition.string.begin.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "@",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets string.quoted.double.json.comments.snippets meta.any.json.comments.snippets string.quoted.double.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "$",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets string.quoted.double.json.comments.snippets meta.any.json.comments.snippets meta.insertion.simple.numeric.json.comments.snippets meta.insertion.tabstop.simple.json.comments.snippets punctuation.section.insertion.dollar.simple.json.comments.snippets keyword.operator.insertion.json.comments.snippets custom.punctuation.section.insertion.dollar.simple.json.comments.snippets",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"dark_modern": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000",
+			"light_modern": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": "1",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets string.quoted.double.json.comments.snippets meta.any.json.comments.snippets meta.insertion.simple.numeric.json.comments.snippets meta.insertion.tabstop.simple.json.comments.snippets variable.other.normal.json.comments.snippets keyword.operator.insertion.json.comments.snippets custom.variable.other.normal.numeric.json.comments.snippets",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"dark_modern": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000",
+			"light_modern": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": " private readonly _",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets string.quoted.double.json.comments.snippets meta.any.json.comments.snippets string.quoted.double.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "$",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets string.quoted.double.json.comments.snippets meta.any.json.comments.snippets meta.insertion.simple.numeric.json.comments.snippets meta.insertion.tabstop.simple.json.comments.snippets punctuation.section.insertion.dollar.simple.json.comments.snippets keyword.operator.insertion.json.comments.snippets custom.punctuation.section.insertion.dollar.simple.json.comments.snippets",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"dark_modern": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000",
+			"light_modern": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": "2",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets string.quoted.double.json.comments.snippets meta.any.json.comments.snippets meta.insertion.simple.numeric.json.comments.snippets meta.insertion.tabstop.simple.json.comments.snippets variable.other.normal.json.comments.snippets keyword.operator.insertion.json.comments.snippets custom.variable.other.normal.numeric.json.comments.snippets",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"dark_modern": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000",
+			"light_modern": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": ": ",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets string.quoted.double.json.comments.snippets meta.any.json.comments.snippets string.quoted.double.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "$",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets string.quoted.double.json.comments.snippets meta.any.json.comments.snippets meta.insertion.brackets.json.comments.snippets meta.insertion.tabstop.bracket.json.comments.snippets punctuation.section.insertion.dollar.brackets.json.comments.snippets keyword.operator.insertion.json.comments.snippets custom.punctuation.section.insertion.dollar.brackets.json.comments.snippets",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"dark_modern": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000",
+			"light_modern": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": "{",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets string.quoted.double.json.comments.snippets meta.any.json.comments.snippets meta.insertion.brackets.json.comments.snippets meta.insertion.tabstop.bracket.json.comments.snippets punctuation.section.insertion.bracket.json.comments.snippets keyword.operator.insertion.json.comments.snippets custom.punctuation.section.insertion.bracket.json.comments.snippets",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"dark_modern": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000",
+			"light_modern": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": "1",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets string.quoted.double.json.comments.snippets meta.any.json.comments.snippets meta.insertion.brackets.json.comments.snippets meta.insertion.tabstop.bracket.json.comments.snippets variable.other.normal.json.comments.snippets keyword.operator.insertion.json.comments.snippets custom.variable.other.normal.numeric.json.comments.snippets",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"dark_modern": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000",
+			"light_modern": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": "}",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets string.quoted.double.json.comments.snippets meta.any.json.comments.snippets meta.insertion.brackets.json.comments.snippets meta.insertion.tabstop.bracket.json.comments.snippets punctuation.section.insertion.bracket.json.comments.snippets keyword.operator.insertion.json.comments.snippets custom.punctuation.section.insertion.bracket.json.comments.snippets",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"dark_modern": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000",
+			"light_modern": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets string.quoted.double.json.comments.snippets meta.any.json.comments.snippets string.quoted.double.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "$",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets string.quoted.double.json.comments.snippets meta.any.json.comments.snippets meta.insertion.simple.numeric.json.comments.snippets meta.insertion.tabstop.simple.json.comments.snippets punctuation.section.insertion.dollar.simple.json.comments.snippets keyword.operator.insertion.json.comments.snippets custom.punctuation.section.insertion.dollar.simple.json.comments.snippets",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"dark_modern": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000",
+			"light_modern": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": "0",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets string.quoted.double.json.comments.snippets meta.any.json.comments.snippets meta.insertion.simple.numeric.json.comments.snippets meta.insertion.tabstop.simple.json.comments.snippets variable.other.normal.json.comments.snippets keyword.operator.insertion.json.comments.snippets custom.variable.other.normal.numeric.json.comments.snippets",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"dark_modern": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000",
+			"light_modern": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets string.quoted.double.json.comments.snippets punctuation.definition.string.end.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "}",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets punctuation.definition.dictionary.end.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets punctuation.separator.dictionary.pair.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets string.json.comments.snippets support.type.property-name.json.comments.snippets punctuation.support.type.property-name.begin.json.comments.snippets",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name.json: #0451A5",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name.json: #0451A5",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name.json: #0451A5",
+			"light_modern": "support.type.property-name.json: #0451A5"
+		}
+	},
+	{
+		"c": "TS -> Event & Emitter",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets string.json.comments.snippets support.type.property-name.json.comments.snippets",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name.json: #0451A5",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name.json: #0451A5",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name.json: #0451A5",
+			"light_modern": "support.type.property-name.json: #0451A5"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets string.json.comments.snippets support.type.property-name.json.comments.snippets punctuation.support.type.property-name.end.json.comments.snippets",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name.json: #0451A5",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name.json: #0451A5",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name.json: #0451A5",
+			"light_modern": "support.type.property-name.json: #0451A5"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets punctuation.separator.dictionary.key-value.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "{",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets punctuation.definition.dictionary.begin.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\t\t",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets string.json.comments.snippets support.type.property-name.json.comments.snippets punctuation.support.type.property-name.begin.json.comments.snippets",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name.json: #0451A5",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name.json: #0451A5",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name.json: #0451A5",
+			"light_modern": "support.type.property-name.json: #0451A5"
+		}
+	},
+	{
+		"c": "scope",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets string.json.comments.snippets support.type.property-name.json.comments.snippets",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name.json: #0451A5",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name.json: #0451A5",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name.json: #0451A5",
+			"light_modern": "support.type.property-name.json: #0451A5"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets string.json.comments.snippets support.type.property-name.json.comments.snippets punctuation.support.type.property-name.end.json.comments.snippets",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name.json: #0451A5",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name.json: #0451A5",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name.json: #0451A5",
+			"light_modern": "support.type.property-name.json: #0451A5"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets punctuation.separator.dictionary.key-value.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets string.quoted.double.json.comments.snippets punctuation.definition.string.begin.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "typescript",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets string.quoted.double.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets string.quoted.double.json.comments.snippets punctuation.definition.string.end.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets punctuation.separator.dictionary.pair.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\t\t",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets string.json.comments.snippets support.type.property-name.json.comments.snippets punctuation.support.type.property-name.begin.json.comments.snippets",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name.json: #0451A5",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name.json: #0451A5",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name.json: #0451A5",
+			"light_modern": "support.type.property-name.json: #0451A5"
+		}
+	},
+	{
+		"c": "prefix",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets string.json.comments.snippets support.type.property-name.json.comments.snippets",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name.json: #0451A5",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name.json: #0451A5",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name.json: #0451A5",
+			"light_modern": "support.type.property-name.json: #0451A5"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets string.json.comments.snippets support.type.property-name.json.comments.snippets punctuation.support.type.property-name.end.json.comments.snippets",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name.json: #0451A5",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name.json: #0451A5",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name.json: #0451A5",
+			"light_modern": "support.type.property-name.json: #0451A5"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets punctuation.separator.dictionary.key-value.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets string.quoted.double.json.comments.snippets punctuation.definition.string.begin.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "emitter",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets string.quoted.double.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets string.quoted.double.json.comments.snippets punctuation.definition.string.end.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets punctuation.separator.dictionary.pair.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\t\t",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets string.json.comments.snippets support.type.property-name.json.comments.snippets punctuation.support.type.property-name.begin.json.comments.snippets",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name.json: #0451A5",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name.json: #0451A5",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name.json: #0451A5",
+			"light_modern": "support.type.property-name.json: #0451A5"
+		}
+	},
+	{
+		"c": "description",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets string.json.comments.snippets support.type.property-name.json.comments.snippets",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name.json: #0451A5",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name.json: #0451A5",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name.json: #0451A5",
+			"light_modern": "support.type.property-name.json: #0451A5"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets string.json.comments.snippets support.type.property-name.json.comments.snippets punctuation.support.type.property-name.end.json.comments.snippets",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name.json: #0451A5",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name.json: #0451A5",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name.json: #0451A5",
+			"light_modern": "support.type.property-name.json: #0451A5"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets punctuation.separator.dictionary.key-value.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets string.quoted.double.json.comments.snippets punctuation.definition.string.begin.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "Add emitter and event properties",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets string.quoted.double.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets string.quoted.double.json.comments.snippets punctuation.definition.string.end.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets punctuation.separator.dictionary.pair.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\t\t",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets string.json.comments.snippets support.type.property-name.json.comments.snippets punctuation.support.type.property-name.begin.json.comments.snippets",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name.json: #0451A5",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name.json: #0451A5",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name.json: #0451A5",
+			"light_modern": "support.type.property-name.json: #0451A5"
+		}
+	},
+	{
+		"c": "body",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets string.json.comments.snippets support.type.property-name.json.comments.snippets",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name.json: #0451A5",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name.json: #0451A5",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name.json: #0451A5",
+			"light_modern": "support.type.property-name.json: #0451A5"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets string.json.comments.snippets support.type.property-name.json.comments.snippets punctuation.support.type.property-name.begin.json.comments.snippets",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name.json: #0451A5",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name.json: #0451A5",
+			"hc_black": "support.type.property-name: #D4D4D4",
+			"dark_modern": "support.type.property-name: #9CDCFE",
+			"hc_light": "support.type.property-name.json: #0451A5",
+			"light_modern": "support.type.property-name.json: #0451A5"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets punctuation.separator.dictionary.key-value.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "[",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets punctuation.definition.array.begin.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\t\t\t",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets string.quoted.double.json.comments.snippets punctuation.definition.string.begin.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "private readonly _onDid",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets string.quoted.double.json.comments.snippets meta.any.json.comments.snippets string.quoted.double.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "$",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets string.quoted.double.json.comments.snippets meta.any.json.comments.snippets meta.insertion.simple.numeric.json.comments.snippets meta.insertion.tabstop.simple.json.comments.snippets punctuation.section.insertion.dollar.simple.json.comments.snippets keyword.operator.insertion.json.comments.snippets custom.punctuation.section.insertion.dollar.simple.json.comments.snippets",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"dark_modern": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000",
+			"light_modern": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": "1",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets string.quoted.double.json.comments.snippets meta.any.json.comments.snippets meta.insertion.simple.numeric.json.comments.snippets meta.insertion.tabstop.simple.json.comments.snippets variable.other.normal.json.comments.snippets keyword.operator.insertion.json.comments.snippets custom.variable.other.normal.numeric.json.comments.snippets",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"dark_modern": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000",
+			"light_modern": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": " = new Emitter<",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets string.quoted.double.json.comments.snippets meta.any.json.comments.snippets string.quoted.double.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "$",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets string.quoted.double.json.comments.snippets meta.any.json.comments.snippets meta.insertion.simple.numeric.json.comments.snippets meta.insertion.tabstop.simple.json.comments.snippets punctuation.section.insertion.dollar.simple.json.comments.snippets keyword.operator.insertion.json.comments.snippets custom.punctuation.section.insertion.dollar.simple.json.comments.snippets",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"dark_modern": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000",
+			"light_modern": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": "2",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets string.quoted.double.json.comments.snippets meta.any.json.comments.snippets meta.insertion.simple.numeric.json.comments.snippets meta.insertion.tabstop.simple.json.comments.snippets variable.other.normal.json.comments.snippets keyword.operator.insertion.json.comments.snippets custom.variable.other.normal.numeric.json.comments.snippets",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"dark_modern": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000",
+			"light_modern": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": ">();",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets string.quoted.double.json.comments.snippets meta.any.json.comments.snippets string.quoted.double.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets string.quoted.double.json.comments.snippets punctuation.definition.string.end.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets punctuation.separator.array.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\t\t\t",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets string.quoted.double.json.comments.snippets punctuation.definition.string.begin.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "readonly onDid",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets string.quoted.double.json.comments.snippets meta.any.json.comments.snippets string.quoted.double.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "$",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets string.quoted.double.json.comments.snippets meta.any.json.comments.snippets meta.insertion.simple.numeric.json.comments.snippets meta.insertion.tabstop.simple.json.comments.snippets punctuation.section.insertion.dollar.simple.json.comments.snippets keyword.operator.insertion.json.comments.snippets custom.punctuation.section.insertion.dollar.simple.json.comments.snippets",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"dark_modern": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000",
+			"light_modern": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": "1",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets string.quoted.double.json.comments.snippets meta.any.json.comments.snippets meta.insertion.simple.numeric.json.comments.snippets meta.insertion.tabstop.simple.json.comments.snippets variable.other.normal.json.comments.snippets keyword.operator.insertion.json.comments.snippets custom.variable.other.normal.numeric.json.comments.snippets",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"dark_modern": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000",
+			"light_modern": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": ": Event<",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets string.quoted.double.json.comments.snippets meta.any.json.comments.snippets string.quoted.double.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "$",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets string.quoted.double.json.comments.snippets meta.any.json.comments.snippets meta.insertion.simple.numeric.json.comments.snippets meta.insertion.tabstop.simple.json.comments.snippets punctuation.section.insertion.dollar.simple.json.comments.snippets keyword.operator.insertion.json.comments.snippets custom.punctuation.section.insertion.dollar.simple.json.comments.snippets",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"dark_modern": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000",
+			"light_modern": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": "2",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets string.quoted.double.json.comments.snippets meta.any.json.comments.snippets meta.insertion.simple.numeric.json.comments.snippets meta.insertion.tabstop.simple.json.comments.snippets variable.other.normal.json.comments.snippets keyword.operator.insertion.json.comments.snippets custom.variable.other.normal.numeric.json.comments.snippets",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"dark_modern": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000",
+			"light_modern": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": "> = this._onDid",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets string.quoted.double.json.comments.snippets meta.any.json.comments.snippets string.quoted.double.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "$",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets string.quoted.double.json.comments.snippets meta.any.json.comments.snippets meta.insertion.simple.numeric.json.comments.snippets meta.insertion.tabstop.simple.json.comments.snippets punctuation.section.insertion.dollar.simple.json.comments.snippets keyword.operator.insertion.json.comments.snippets custom.punctuation.section.insertion.dollar.simple.json.comments.snippets",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"dark_modern": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000",
+			"light_modern": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": "1",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets string.quoted.double.json.comments.snippets meta.any.json.comments.snippets meta.insertion.simple.numeric.json.comments.snippets meta.insertion.tabstop.simple.json.comments.snippets variable.other.normal.json.comments.snippets keyword.operator.insertion.json.comments.snippets custom.variable.other.normal.numeric.json.comments.snippets",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4",
+			"dark_modern": "keyword.operator: #D4D4D4",
+			"hc_light": "keyword.operator: #000000",
+			"light_modern": "keyword.operator: #000000"
+		}
+	},
+	{
+		"c": ".event;",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets string.quoted.double.json.comments.snippets meta.any.json.comments.snippets string.quoted.double.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets string.quoted.double.json.comments.snippets punctuation.definition.string.end.json.comments.snippets",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string: #0F4A85",
+			"light_modern": "string: #A31515"
+		}
+	},
+	{
+		"c": "\t\t",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "]",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.array.json.comments.snippets punctuation.definition.array.end.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets punctuation.separator.dictionary.pair.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "}",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets meta.structure.dictionary.value.json.comments.snippets meta.structure.dictionary.json.comments.snippets punctuation.definition.dictionary.end.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	},
+	{
+		"c": "}",
+		"t": "source.json.comments.snippets meta.structure.dictionary.json.comments.snippets punctuation.definition.dictionary.end.json.comments.snippets",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF",
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
+		}
+	}
+]

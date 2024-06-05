@@ -9,12 +9,11 @@ const majorNodeVersion = parseInt(nodeVersion[1]);
 const minorNodeVersion = parseInt(nodeVersion[2]);
 const patchNodeVersion = parseInt(nodeVersion[3]);
 
-if (majorNodeVersion < 16 || (majorNodeVersion === 16 && minorNodeVersion < 14)) {
-	console.error('\033[1;31m*** Please use node.js versions >=16.14.x and <17.\033[0;0m');
-	err = true;
-}
-if (majorNodeVersion >= 17) {
-	console.warn('\033[1;31m*** Warning: Versions of node.js >= 17 have not been tested.\033[0;0m')
+if (!process.env['VSCODE_SKIP_NODE_VERSION_CHECK']) {
+	if (majorNodeVersion < 20) {
+		console.error('\x1b[1;31m*** Please use latest Node.js v20 LTS for development.\x1b[0;0m');
+		err = true;
+	}
 }
 
 const path = require('path');
@@ -33,18 +32,18 @@ if (
 	) ||
 	majorYarnVersion >= 2
 ) {
-	console.error('\033[1;31m*** Please use yarn >=1.10.1 and <2.\033[0;0m');
+	console.error('\x1b[1;31m*** Please use yarn >=1.10.1 and <2.\x1b[0;0m');
 	err = true;
 }
 
 if (!/yarn[\w-.]*\.c?js$|yarnpkg$/.test(process.env['npm_execpath'])) {
-	console.error('\033[1;31m*** Please use yarn to install dependencies.\033[0;0m');
+	console.error('\x1b[1;31m*** Please use yarn to install dependencies.\x1b[0;0m');
 	err = true;
 }
 
 if (process.platform === 'win32') {
 	if (!hasSupportedVisualStudioVersion()) {
-		console.error('\033[1;31m*** Invalid C/C++ Compiler Toolchain. Please check https://github.com/microsoft/vscode/wiki/How-to-Contribute#prerequisites.\033[0;0m');
+		console.error('\x1b[1;31m*** Invalid C/C++ Compiler Toolchain. Please check https://github.com/microsoft/vscode/wiki/How-to-Contribute#prerequisites.\x1b[0;0m');
 		err = true;
 	}
 	if (!err) {
@@ -100,7 +99,8 @@ function installHeaders() {
 	const yarnResult = cp.spawnSync(yarn, ['install'], {
 		env: process.env,
 		cwd: path.join(__dirname, 'gyp'),
-		stdio: 'inherit'
+		stdio: 'inherit',
+		shell: true
 	});
 	if (yarnResult.error || yarnResult.status !== 0) {
 		console.error(`Installing node-gyp failed`);
@@ -112,7 +112,7 @@ function installHeaders() {
 	// file checked into our repository. So from that point it is save to construct the path
 	// to that executable
 	const node_gyp = path.join(__dirname, 'gyp', 'node_modules', '.bin', 'node-gyp.cmd');
-	const result = cp.execFileSync(node_gyp, ['list'], { encoding: 'utf8' });
+	const result = cp.execFileSync(node_gyp, ['list'], { encoding: 'utf8', shell: true });
 	const versions = new Set(result.split(/\n/g).filter(line => !line.startsWith('gyp info')).map(value => value));
 
 	const local = getHeaderInfo(path.join(__dirname, '..', '..', '.yarnrc'));
@@ -120,12 +120,24 @@ function installHeaders() {
 
 	if (local !== undefined && !versions.has(local.target)) {
 		// Both disturl and target come from a file checked into our repository
-		cp.execFileSync(node_gyp, ['install', '--dist-url', local.disturl, local.target]);
+		cp.execFileSync(node_gyp, ['install', '--dist-url', local.disturl, local.target], { shell: true });
 	}
 
-	if (remote !== undefined && !versions.has(remote.target)) {
+	// Avoid downloading headers for Windows arm64 till we move to Nodejs v19 in remote
+	// which is the first official release with support for the architecture. Downloading
+	// the headers for older versions now redirect to https://origin.nodejs.org/404.html
+	// which causes checksum validation error in node-gyp.
+	//
+	// gyp http 200 https://origin.nodejs.org/404.html
+	// gyp WARN install got an error, rolling back install
+	// gyp ERR! install error
+	// gyp ERR! stack Error: win-arm64/node.lib local checksum 4c62bed7a032f7b36984321b7ffdd60b596fac870672037ff879ae9ac9548fb7 not match remote undefined
+	//
+	if (remote !== undefined && !versions.has(remote.target) &&
+		process.env['npm_config_arch'] !== "arm64" &&
+		process.arch !== "arm64") {
 		// Both disturl and target come from a file checked into our repository
-		cp.execFileSync(node_gyp, ['install', '--dist-url', remote.disturl, remote.target]);
+		cp.execFileSync(node_gyp, ['install', '--dist-url', remote.disturl, remote.target], { shell: true });
 	}
 }
 

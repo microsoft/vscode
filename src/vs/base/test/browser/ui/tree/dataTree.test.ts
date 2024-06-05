@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { DataTree } from 'vs/base/browser/ui/tree/dataTree';
 import { IDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 interface E {
 	value: number;
@@ -29,6 +30,10 @@ suite('DataTree', function () {
 		value: -1,
 		children: []
 	};
+
+	teardown(() => tree.dispose());
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(() => {
 		const container = document.createElement('div');
@@ -65,10 +70,6 @@ suite('DataTree', function () {
 
 		tree = new DataTree<E, E>('test', container, delegate, [renderer], dataSource, { identityProvider });
 		tree.layout(200);
-	});
-
-	teardown(() => {
-		tree.dispose();
 	});
 
 	test('view state is lost implicitly', () => {

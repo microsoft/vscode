@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ITextAreaWrapper, PagedScreenReaderStrategy, TextAreaState } from 'vs/editor/browser/controller/textAreaState';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -70,6 +71,8 @@ function equalsTextAreaState(a: TextAreaState, b: TextAreaState): boolean {
 }
 
 suite('TextAreaState', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function assertTextAreaState(actual: TextAreaState, value: string, selectionStart: number, selectionEnd: number): void {
 		const desired = new TextAreaState(value, selectionStart, selectionEnd, null, undefined);

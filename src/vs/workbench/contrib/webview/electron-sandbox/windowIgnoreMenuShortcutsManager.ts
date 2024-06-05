@@ -6,9 +6,10 @@
 import { isMacintosh } from 'vs/base/common/platform';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
+import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
+import { hasNativeTitlebar } from 'vs/platform/window/common/window';
 
 export class WindowIgnoreMenuShortcutsManager {
 
@@ -21,7 +22,7 @@ export class WindowIgnoreMenuShortcutsManager {
 		mainProcessService: IMainProcessService,
 		private readonly _nativeHostService: INativeHostService
 	) {
-		this._isUsingNativeTitleBars = configurationService.getValue<string>('window.titleBarStyle') === 'native';
+		this._isUsingNativeTitleBars = hasNativeTitlebar(configurationService);
 
 		this._webviewMainService = ProxyChannel.toService<IWebviewManagerService>(mainProcessService.getChannel('webview'));
 	}

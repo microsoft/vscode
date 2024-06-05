@@ -60,6 +60,8 @@ export class SuggestWidgetStatus {
 
 	dispose(): void {
 		this._menuDisposables.dispose();
+		this._leftActions.dispose();
+		this._rightActions.dispose();
 		this.element.remove();
 	}
 

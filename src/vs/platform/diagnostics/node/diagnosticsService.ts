@@ -9,6 +9,7 @@ import { Schemas } from 'vs/base/common/network';
 import { basename, join } from 'vs/base/common/path';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { ProcessItem } from 'vs/base/common/processes';
+import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI } from 'vs/base/common/uri';
 import { virtualMachineHint } from 'vs/base/node/id';
 import { IDirent, Promises as pfs } from 'vs/base/node/pfs';
@@ -60,11 +61,13 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 
 	const MAX_FILES = 20000;
 
-	function collect(root: string, dir: string, filter: string[], token: { count: number; maxReached: boolean }): Promise<void> {
+	function collect(root: string, dir: string, filter: string[], token: { count: number; maxReached: boolean; readdirCount: number }): Promise<void> {
 		const relativePath = dir.substring(root.length + 1);
 
 		return Promises.withAsyncBody(async resolve => {
 			let files: IDirent[];
+
+			token.readdirCount++;
 			try {
 				files = await pfs.readdir(dir, { withFileTypes: true });
 			} catch (error) {
@@ -130,8 +133,8 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 	}
 
 	const statsPromise = Promises.withAsyncBody<WorkspaceStats>(async (resolve) => {
-		const token: { count: number; maxReached: boolean } = { count: 0, maxReached: false };
-
+		const token: { count: number; maxReached: boolean; readdirCount: number } = { count: 0, maxReached: false, readdirCount: 0 };
+		const sw = new StopWatch(true);
 		await collect(folder, folder, filter, token);
 		const launchConfigs = await collectLaunchConfigs(folder);
 		resolve({
@@ -139,7 +142,9 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 			fileTypes: asSortedItems(fileTypes),
 			fileCount: token.count,
 			maxFilesReached: token.maxReached,
-			launchConfigFiles: launchConfigs
+			launchConfigFiles: launchConfigs,
+			totalScanTime: sw.elapsed(),
+			totalReaddirCount: token.readdirCount
 		});
 	});
 
@@ -456,21 +461,22 @@ export class DiagnosticsService implements IDiagnosticsService {
 	}
 
 	private formatProcessList(info: IMainProcessDiagnostics, rootProcess: ProcessItem): string {
-		const mapPidToWindowTitle = new Map<number, string>();
-		info.windows.forEach(window => mapPidToWindowTitle.set(window.pid, window.title));
+		const mapProcessToName = new Map<number, string>();
+		info.windows.forEach(window => mapProcessToName.set(window.pid, `window [${window.id}] (${window.title})`));
+		info.pidToNames.forEach(({ pid, name }) => mapProcessToName.set(pid, name));
 
 		const output: string[] = [];
 
 		output.push('CPU %\tMem MB\t   PID\tProcess');
 
 		if (rootProcess) {
-			this.formatProcessItem(info.mainPID, mapPidToWindowTitle, output, rootProcess, 0);
+			this.formatProcessItem(info.mainPID, mapProcessToName, output, rootProcess, 0);
 		}
 
 		return output.join('\n');
 	}
 
-	private formatProcessItem(mainPid: number, mapPidToWindowTitle: Map<number, string>, output: string[], item: ProcessItem, indent: number): void {
+	private formatProcessItem(mainPid: number, mapProcessToName: Map<number, string>, output: string[], item: ProcessItem, indent: number): void {
 		const isRoot = (indent === 0);
 
 		// Format name with indent
@@ -478,10 +484,10 @@ export class DiagnosticsService implements IDiagnosticsService {
 		if (isRoot) {
 			name = item.pid === mainPid ? `${this.productService.applicationName} main` : 'remote agent';
 		} else {
-			name = `${'  '.repeat(indent)} ${item.name}`;
-
-			if (item.name === 'window') {
-				name = `${name} (${mapPidToWindowTitle.get(item.pid)})`;
+			if (mapProcessToName.has(item.pid)) {
+				name = mapProcessToName.get(item.pid)!;
+			} else {
+				name = `${'  '.repeat(indent)} ${item.name}`;
 			}
 		}
 
@@ -490,7 +496,7 @@ export class DiagnosticsService implements IDiagnosticsService {
 
 		// Recurse into children if any
 		if (Array.isArray(item.children)) {
-			item.children.forEach(child => this.formatProcessItem(mainPid, mapPidToWindowTitle, output, child, indent + 1));
+			item.children.forEach(child => this.formatProcessItem(mainPid, mapProcessToName, output, child, indent + 1));
 		}
 	}
 
@@ -538,8 +544,8 @@ export class DiagnosticsService implements IDiagnosticsService {
 					owner: 'lramos15';
 					comment: 'Helps us gain insights into what type of files are being used in a workspace';
 					rendererSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the session.' };
-					type: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The type of file' };
-					count: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How many types of that file are present' };
+					type: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of file' };
+					count: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How many types of that file are present' };
 				};
 				type WorkspaceStatsFileEvent = {
 					rendererSessionId: string;
@@ -567,6 +573,23 @@ export class DiagnosticsService implements IDiagnosticsService {
 						count: e.count
 					});
 				});
+
+				// Workspace stats metadata
+				type WorkspaceStatsMetadataClassification = {
+					owner: 'jrieken';
+					comment: 'Metadata about workspace metadata collection';
+					duration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'How did it take to make workspace stats' };
+					reachedLimit: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Did making workspace stats reach its limits' };
+					fileCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'How many files did workspace stats discover' };
+					readdirCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'How many readdir call were needed' };
+				};
+				type WorkspaceStatsMetadata = {
+					duration: number;
+					reachedLimit: boolean;
+					fileCount: number;
+					readdirCount: number;
+				};
+				this.telemetryService.publicLog2<WorkspaceStatsMetadata, WorkspaceStatsMetadataClassification>('workspace.stats.metadata', { duration: stats.totalScanTime, reachedLimit: stats.maxFilesReached, fileCount: stats.fileCount, readdirCount: stats.totalReaddirCount });
 			} catch {
 				// Report nothing if collecting metadata fails.
 			}

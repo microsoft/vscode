@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtensionContext, Uri, l10n } from 'vscode';
-import { BaseLanguageClient, LanguageClientOptions } from 'vscode-languageclient';
-import { startClient, LanguageClientConstructor, SchemaRequestService } from '../jsonClient';
+import { Disposable, ExtensionContext, Uri, l10n, window } from 'vscode';
+import { LanguageClientOptions } from 'vscode-languageclient';
+import { startClient, LanguageClientConstructor, SchemaRequestService, AsyncDisposable, languageServerDescription } from '../jsonClient';
 import { LanguageClient } from 'vscode-languageclient/browser';
 
 declare const Worker: {
@@ -14,7 +14,7 @@ declare const Worker: {
 
 declare function fetch(uri: string, options: any): any;
 
-let client: BaseLanguageClient | undefined;
+let client: AsyncDisposable | undefined;
 
 // this method is called when vs code is activated
 export async function activate(context: ExtensionContext) {
@@ -36,7 +36,17 @@ export async function activate(context: ExtensionContext) {
 			}
 		};
 
-		client = await startClient(context, newLanguageClient, { schemaRequests });
+		const timer = {
+			setTimeout(callback: (...args: any[]) => void, ms: number, ...args: any[]): Disposable {
+				const handle = setTimeout(callback, ms, ...args);
+				return { dispose: () => clearTimeout(handle) };
+			}
+		};
+
+		const logOutputChannel = window.createOutputChannel(languageServerDescription, { log: true });
+		context.subscriptions.push(logOutputChannel);
+
+		client = await startClient(context, newLanguageClient, { schemaRequests, timer, logOutputChannel });
 
 	} catch (e) {
 		console.log(e);
@@ -45,7 +55,7 @@ export async function activate(context: ExtensionContext) {
 
 export async function deactivate(): Promise<void> {
 	if (client) {
-		await client.stop();
+		await client.dispose();
 		client = undefined;
 	}
 }

@@ -221,6 +221,35 @@ export interface TextSearchOptions extends SearchOptions {
 	 */
 	afterContext?: number;
 }
+/**
+ * Options that apply to AI text search.
+ */
+export interface AITextSearchOptions extends SearchOptions {
+	/**
+	 * The maximum number of results to be returned.
+	 */
+	maxResults: number;
+
+	/**
+	 * Options to specify the size of the result text preview.
+	 */
+	previewOptions?: TextSearchPreviewOptions;
+
+	/**
+	 * Exclude files larger than `maxFileSize` in bytes.
+	 */
+	maxFileSize?: number;
+
+	/**
+	 * Number of lines of context to include before each match.
+	 */
+	beforeContext?: number;
+
+	/**
+	 * Number of lines of context to include after each match.
+	 */
+	afterContext?: number;
+}
 
 /**
  * Represents the severity of a TextSearchComplete message.
@@ -388,6 +417,17 @@ export interface TextSearchProvider {
 	 * @param token A cancellation token.
 	 */
 	provideTextSearchResults(query: TextSearchQuery, options: TextSearchOptions, progress: IProgress<TextSearchResult>, token: CancellationToken): ProviderResult<TextSearchComplete>;
+}
+
+export interface AITextSearchProvider {
+	/**
+	 * Provide results that match the given text pattern.
+	 * @param query The parameter for this query.
+	 * @param options A set of options to consider while searching.
+	 * @param progress A progress callback that must be invoked for all results.
+	 * @param token A cancellation token.
+	 */
+	provideAITextSearchResults(query: string, options: AITextSearchOptions, progress: IProgress<TextSearchResult>, token: CancellationToken): ProviderResult<TextSearchComplete>;
 }
 
 /**

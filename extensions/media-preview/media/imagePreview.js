@@ -327,21 +327,57 @@
 		}
 
 		switch (e.data.type) {
-			case 'setScale':
+			case 'setScale': {
 				updateScale(e.data.scale);
 				break;
-
-			case 'setActive':
+			}
+			case 'setActive': {
 				setActive(e.data.value);
 				break;
-
-			case 'zoomIn':
+			}
+			case 'zoomIn': {
 				zoomIn();
 				break;
-
-			case 'zoomOut':
+			}
+			case 'zoomOut': {
 				zoomOut();
 				break;
+			}
+			case 'copyImage': {
+				copyImage();
+				break;
+			}
 		}
 	});
+
+	document.addEventListener('copy', () => {
+		copyImage();
+	});
+
+	async function copyImage(retries = 5) {
+		if (!document.hasFocus() && retries > 0) {
+			// copyImage is called at the same time as webview.reveal, which means this function is running whilst the webview is gaining focus.
+			// Since navigator.clipboard.write requires the document to be focused, we need to wait for focus.
+			// We cannot use a listener, as there is a high chance the focus is gained during the setup of the listener resulting in us missing it.
+			setTimeout(() => { copyImage(retries - 1); }, 20);
+			return;
+		}
+
+		try {
+			await navigator.clipboard.write([new ClipboardItem({
+				'image/png': new Promise((resolve, reject) => {
+					const canvas = document.createElement('canvas');
+					canvas.width = image.naturalWidth;
+					canvas.height = image.naturalHeight;
+					canvas.getContext('2d').drawImage(image, 0, 0);
+					canvas.toBlob((blob) => {
+						resolve(blob);
+						canvas.remove();
+					}, 'image/png');
+				})
+			})]);
+		} catch (e) {
+			console.error(e);
+		}
+	}
 }());

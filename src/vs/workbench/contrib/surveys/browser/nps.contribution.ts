@@ -11,7 +11,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Severity, INotificationService } from 'vs/platform/notification/common/notification';
+import { Severity, INotificationService, NotificationPriority } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
 import { platform } from 'vs/base/common/process';
@@ -71,14 +71,12 @@ class NPSContribution implements IWorkbenchContribution {
 			[{
 				label: nls.localize('takeSurvey', "Take Survey"),
 				run: () => {
-					telemetryService.getTelemetryInfo().then(info => {
-						openerService.open(URI.parse(`${productService.npsSurveyUrl}?o=${encodeURIComponent(platform)}&v=${encodeURIComponent(productService.version)}&m=${encodeURIComponent(info.machineId)}`));
-						storageService.store(IS_CANDIDATE_KEY, false, StorageScope.APPLICATION, StorageTarget.USER);
-						storageService.store(SKIP_VERSION_KEY, productService.version, StorageScope.APPLICATION, StorageTarget.USER);
-					});
+					openerService.open(URI.parse(`${productService.npsSurveyUrl}?o=${encodeURIComponent(platform)}&v=${encodeURIComponent(productService.version)}&m=${encodeURIComponent(telemetryService.machineId)}`));
+					storageService.store(IS_CANDIDATE_KEY, false, StorageScope.APPLICATION, StorageTarget.USER);
+					storageService.store(SKIP_VERSION_KEY, productService.version, StorageScope.APPLICATION, StorageTarget.USER);
 				}
 			}, {
-				label: nls.localize('remindLater', "Remind Me later"),
+				label: nls.localize('remindLater', "Remind Me Later"),
 				run: () => storageService.store(SESSION_COUNT_KEY, sessionCount - 3, StorageScope.APPLICATION, StorageTarget.USER)
 			}, {
 				label: nls.localize('neverAgain', "Don't Show Again"),
@@ -87,7 +85,7 @@ class NPSContribution implements IWorkbenchContribution {
 					storageService.store(SKIP_VERSION_KEY, productService.version, StorageScope.APPLICATION, StorageTarget.USER);
 				}
 			}],
-			{ sticky: true }
+			{ sticky: true, priority: NotificationPriority.URGENT }
 		);
 	}
 }

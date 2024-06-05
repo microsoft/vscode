@@ -6,6 +6,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { generateUuid } from 'vs/base/common/uuid';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
@@ -42,14 +43,16 @@ export async function showGoToContextMenu(accessor: ServicesAccessor, editor: IC
 	// from all registered (not active) context menu actions select those
 	// that are a symbol navigation actions
 	const filter = new Set(MenuRegistry.getMenuItems(MenuId.EditorContext)
-		.map(item => isIMenuItem(item) ? item.command.id : ''));
+		.map(item => isIMenuItem(item) ? item.command.id : generateUuid()));
 
 	for (const delegate of SymbolNavigationAction.all()) {
 		if (filter.has(delegate.desc.id)) {
 			menuActions.push(new Action(delegate.desc.id, MenuItemAction.label(delegate.desc, { renderShortTitle: true }), undefined, true, async () => {
 				const ref = await resolverService.createModelReference(location.uri);
 				try {
-					await instaService.invokeFunction(delegate.run.bind(delegate), editor, new SymbolNavigationAnchor(ref.object.textEditorModel, Range.getStartPosition(location.range)));
+					const symbolAnchor = new SymbolNavigationAnchor(ref.object.textEditorModel, Range.getStartPosition(location.range));
+					const range = part.item.anchor.range;
+					await instaService.invokeFunction(delegate.runEditorCommand.bind(delegate), editor, symbolAnchor, range);
 				} finally {
 					ref.dispose();
 

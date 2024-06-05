@@ -1,0 +1,84 @@
+{
+	"original": {
+		"content": "class Test {\n    public getDecorationsViewportData(viewRange: Range): IDecorationsViewportData {\n\t\treturn null!;\n\t}\n\n\tpublic getInlineDecorationsOnLine(lineNumber: number): InlineDecoration[] {\n\t\tconst range = new Range(lineNumber, this._linesCollection.getViewLineMinColumn(lineNumber), lineNumber, this._linesCollection.getViewLineMaxColumn(lineNumber));\n\t\treturn this._getDecorationsInRange(range).inlineDecorations[0];\n\t}\n\n\tprivate _getDecorationsInRange(viewRange: Range): IDecorationsViewportData {\n\t\tconst modelDecorations = this._linesCollection.getDecorationsInRange(viewRange, this.editorId, filterValidationDecorations(this.configuration.options));\n\t\tconst startLineNumber = viewRange.startLineNumber;\n\t\tconst endLineNumber = viewRange.endLineNumber;\n\n\t\tconst decorationsInViewport: ViewModelDecoration[] = [];\n\t\tlet decorationsInViewportLen = 0;\n\t\tconst inlineDecorations: InlineDecoration[][] = [];\n\t\tfor (let j = startLineNumber; j <= endLineNumber; j++) {\n\t\t\tinlineDecorations[j - startLineNumber] = [];\n\t\t}\n\n\t\tfor (let i = 0, len = modelDecorations.length; i < len; i++) {\n\t\t\tconst modelDecoration = modelDecorations[i];\n\t\t\tconst decorationOptions = modelDecoration.options;\n\n\t\t\tif (!isModelDecorationVisible(this.model, modelDecoration)) {\n\t\t\t\tcontinue;\n\t\t\t}\n\n\t\t\tconst viewModelDecoration = this._getOrCreateViewModelDecoration(modelDecoration);\n\t\t\tconst viewRange = viewModelDecoration.range;\n\n\t\t\tdecorationsInViewport[decorationsInViewportLen++] = viewModelDecoration;\n\n\t\t\tif (decorationOptions.inlineClassName) {\n\t\t\t\tconst inlineDecoration = new InlineDecoration(viewRange, decorationOptions.inlineClassName, decorationOptions.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular);\n\t\t\t\tconst intersectedStartLineNumber = Math.max(startLineNumber, viewRange.startLineNumber);\n\t\t\t\tconst intersectedEndLineNumber = Math.min(endLineNumber, viewRange.endLineNumber);\n\t\t\t\tfor (let j = intersectedStartLineNumber; j <= intersectedEndLineNumber; j++) {\n\t\t\t\t\tinlineDecorations[j - startLineNumber].push(inlineDecoration);\n\t\t\t\t}\n\t\t\t}\n\t\t\tif (decorationOptions.beforeContentClassName) {\n\t\t\t\tif (startLineNumber <= viewRange.startLineNumber && viewRange.startLineNumber <= endLineNumber) {\n\t\t\t\t\tconst inlineDecoration = new InlineDecoration(\n\t\t\t\t\t\tnew Range(viewRange.startLineNumber, viewRange.startColumn, viewRange.startLineNumber, viewRange.startColumn),\n\t\t\t\t\t\tdecorationOptions.beforeContentClassName,\n\t\t\t\t\t\tInlineDecorationType.Before\n\t\t\t\t\t);\n\t\t\t\t\tinlineDecorations[viewRange.startLineNumber - startLineNumber].push(inlineDecoration);\n\t\t\t\t}\n\t\t\t}\n\t\t\tif (decorationOptions.afterContentClassName) {\n\t\t\t\tif (startLineNumber <= viewRange.endLineNumber && viewRange.endLineNumber <= endLineNumber) {\n\t\t\t\t\tconst inlineDecoration = new InlineDecoration(\n\t\t\t\t\t\tnew Range(viewRange.endLineNumber, viewRange.endColumn, viewRange.endLineNumber, viewRange.endColumn),\n\t\t\t\t\t\tdecorationOptions.afterContentClassName,\n\t\t\t\t\t\tInlineDecorationType.After\n\t\t\t\t\t);\n\t\t\t\t\tinlineDecorations[viewRange.endLineNumber - startLineNumber].push(inlineDecoration);\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\n\t\treturn {\n\t\t\tdecorations: decorationsInViewport,\n\t\t\tinlineDecorations: inlineDecorations\n\t\t};\n\t}\n}",
+		"fileName": "./1.tst"
+	},
+	"modified": {
+		"content": "class Test {\n    public getDecorationsViewportData(viewRange: Range): IDecorationsViewportData {\n\t\treturn null!;\n\t}\n\n\tprivate _getDecorationsViewportData(viewportRange: Range, onlyMinimapDecorations: boolean): IDecorationsViewportData {\n\t\tconst modelDecorations = this._linesCollection.getDecorationsInRange(viewportRange, this.editorId, filterValidationDecorations(this.configuration.options), onlyMinimapDecorations);\n\n\t\tconst startLineNumber = viewportRange.startLineNumber;\n\t\tconst endLineNumber = viewportRange.endLineNumber;\n\n\t\tconst decorationsInViewport: ViewModelDecoration[] = [];\n\t\tlet decorationsInViewportLen = 0;\n\t\tconst inlineDecorations: InlineDecoration[][] = [];\n\t\tfor (let j = startLineNumber; j <= endLineNumber; j++) {\n\t\t\tinlineDecorations[j - startLineNumber] = [];\n\t\t}\n\n\t\tfor (let i = 0, len = modelDecorations.length; i < len; i++) {\n\t\t\tconst modelDecoration = modelDecorations[i];\n\t\t\tconst decorationOptions = modelDecoration.options;\n\n\t\t\tif (!isModelDecorationVisible(this.model, modelDecoration)) {\n\t\t\t\tcontinue;\n\t\t\t}\n\n\t\t\tconst viewModelDecoration = this._getOrCreateViewModelDecoration(modelDecoration);\n\t\t\tconst viewRange = viewModelDecoration.range;\n\n\t\t\tdecorationsInViewport[decorationsInViewportLen++] = viewModelDecoration;\n\n\t\t\tif (decorationOptions.inlineClassName) {\n\t\t\t\tconst inlineDecoration = new InlineDecoration(viewRange, decorationOptions.inlineClassName, decorationOptions.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular);\n\t\t\t\tconst intersectedStartLineNumber = Math.max(startLineNumber, viewRange.startLineNumber);\n\t\t\t\tconst intersectedEndLineNumber = Math.min(endLineNumber, viewRange.endLineNumber);\n\t\t\t\tfor (let j = intersectedStartLineNumber; j <= intersectedEndLineNumber; j++) {\n\t\t\t\t\tinlineDecorations[j - startLineNumber].push(inlineDecoration);\n\t\t\t\t}\n\t\t\t}\n\t\t\tif (decorationOptions.beforeContentClassName) {\n\t\t\t\tif (startLineNumber <= viewRange.startLineNumber && viewRange.startLineNumber <= endLineNumber) {\n\t\t\t\t\tconst inlineDecoration = new InlineDecoration(\n\t\t\t\t\t\tnew Range(viewRange.startLineNumber, viewRange.startColumn, viewRange.startLineNumber, viewRange.startColumn),\n\t\t\t\t\t\tdecorationOptions.beforeContentClassName,\n\t\t\t\t\t\tInlineDecorationType.Before\n\t\t\t\t\t);\n\t\t\t\t\tinlineDecorations[viewRange.startLineNumber - startLineNumber].push(inlineDecoration);\n\t\t\t\t}\n\t\t\t}\n\t\t\tif (decorationOptions.afterContentClassName) {\n\t\t\t\tif (startLineNumber <= viewRange.endLineNumber && viewRange.endLineNumber <= endLineNumber) {\n\t\t\t\t\tconst inlineDecoration = new InlineDecoration(\n\t\t\t\t\t\tnew Range(viewRange.endLineNumber, viewRange.endColumn, viewRange.endLineNumber, viewRange.endColumn),\n\t\t\t\t\t\tdecorationOptions.afterContentClassName,\n\t\t\t\t\t\tInlineDecorationType.After\n\t\t\t\t\t);\n\t\t\t\t\tinlineDecorations[viewRange.endLineNumber - startLineNumber].push(inlineDecoration);\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\n\t\treturn {\n\t\t\tdecorations: decorationsInViewport,\n\t\t\tinlineDecorations: inlineDecorations\n\t\t};\n\t}\n}",
+		"fileName": "./2.tst"
+	},
+	"diffs": [
+		{
+			"originalRange": "[6,10)",
+			"modifiedRange": "[6,8)",
+			"innerChanges": [
+				{
+					"originalRange": "[6,3 -> 6,9]",
+					"modifiedRange": "[6,3 -> 6,11]"
+				},
+				{
+					"originalRange": "[6,12 -> 6,18]",
+					"modifiedRange": "[6,14 -> 6,14]"
+				},
+				{
+					"originalRange": "[6,29 -> 6,54]",
+					"modifiedRange": "[6,25 -> 6,91]"
+				},
+				{
+					"originalRange": "[6,58 -> 6,63]",
+					"modifiedRange": "[6,95 -> 6,95]"
+				},
+				{
+					"originalRange": "[6,73 -> 6,75]",
+					"modifiedRange": "[6,105 -> 6,118]"
+				},
+				{
+					"originalRange": "[7,9 -> 7,38]",
+					"modifiedRange": "[7,9 -> 7,27]"
+				},
+				{
+					"originalRange": "[7,64 -> 7,105]",
+					"modifiedRange": "[7,53 -> 7,85]"
+				},
+				{
+					"originalRange": "[7,112 -> 7,124]",
+					"modifiedRange": "[7,92 -> 7,114]"
+				},
+				{
+					"originalRange": "[7,128 -> 8,10]",
+					"modifiedRange": "[7,118 -> 7,130]"
+				},
+				{
+					"originalRange": "[8,15 -> 8,23]",
+					"modifiedRange": "[7,135 -> 7,142]"
+				},
+				{
+					"originalRange": "[8,29 -> 8,51]",
+					"modifiedRange": "[7,148 -> 7,170]"
+				},
+				{
+					"originalRange": "[8,62 -> 9,3 EOL]",
+					"modifiedRange": "[7,181 -> 7,183 EOL]"
+				}
+			]
+		},
+		{
+			"originalRange": "[11,15)",
+			"modifiedRange": "[9,11)",
+			"innerChanges": [
+				{
+					"originalRange": "[11,1 -> 13,1]",
+					"modifiedRange": "[9,1 -> 9,1]"
+				},
+				{
+					"originalRange": "[13,31 -> 13,31]",
+					"modifiedRange": "[9,31 -> 9,35]"
+				},
+				{
+					"originalRange": "[14,29 -> 14,29]",
+					"modifiedRange": "[10,29 -> 10,33]"
+				}
+			]
+		}
+	]
+}

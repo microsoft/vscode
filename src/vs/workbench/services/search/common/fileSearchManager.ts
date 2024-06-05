@@ -152,7 +152,7 @@ class FileSearchEngine {
 			}
 
 			this.matchDirectoryTree(tree, queryTester, onResult);
-			return <IFileSearchProviderStats>{
+			return {
 				providerTime,
 				postProcessTime: postProcessSW.elapsed()
 			};
@@ -286,14 +286,15 @@ export class FileSearchManager {
 
 		return this.doSearch(engine, FileSearchManager.BATCH_SIZE, onInternalResult, token).then(
 			result => {
-				return <ISearchCompleteStats>{
+				return {
 					limitHit: result.limitHit,
-					stats: {
+					stats: result.stats ? {
 						fromCache: false,
 						type: 'fileSearchProvider',
 						resultCount,
 						detailStats: result.stats
-					}
+					} : undefined,
+					messages: []
 				};
 			});
 	}
@@ -329,7 +330,7 @@ export class FileSearchManager {
 	}
 
 	private doSearch(engine: FileSearchEngine, batchSize: number, onResultBatch: (matches: IInternalFileMatch[]) => void, token: CancellationToken): Promise<IInternalSearchComplete> {
-		token.onCancellationRequested(() => {
+		const listener = token.onCancellationRequested(() => {
 			engine.cancel();
 		});
 
@@ -349,12 +350,14 @@ export class FileSearchManager {
 				onResultBatch(batch);
 			}
 
+			listener.dispose();
 			return result;
 		}, error => {
 			if (batch.length) {
 				onResultBatch(batch);
 			}
 
+			listener.dispose();
 			return Promise.reject(error);
 		});
 	}

@@ -49,5 +49,7 @@ export const fixedDiffEditorOptions: IDiffEditorConstructionOptions = {
 	renderOverviewRuler: false,
 	wordWrap: 'off',
 	diffWordWrap: 'off',
-	diffAlgorithm: 'smart',
+	diffAlgorithm: 'advanced',
+	renderSideBySide: true,
+	useInlineViewWhenSpaceIsLimited: false
 };

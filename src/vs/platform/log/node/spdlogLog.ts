@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as spdlog from 'spdlog';
+import type * as spdlog from '@vscode/spdlog';
 import { ByteSize } from 'vs/platform/files/common/files';
 import { AbstractMessageLogger, ILogger, LogLevel } from 'vs/platform/log/common/log';
 
@@ -20,7 +20,7 @@ enum SpdLogLevel {
 async function createSpdLogLogger(name: string, logfilePath: string, filesize: number, filecount: number, donotUseFormatters: boolean): Promise<spdlog.Logger | null> {
 	// Do not crash if spdlog cannot be loaded
 	try {
-		const _spdlog = await import('spdlog');
+		const _spdlog = await import('@vscode/spdlog');
 		_spdlog.setFlushOn(SpdLogLevel.Trace);
 		const logger = await _spdlog.createAsyncRotatingLogger(name, logfilePath, filesize, filecount);
 		if (donotUseFormatters) {
@@ -123,6 +123,7 @@ export class SpdLogLogger extends AbstractMessageLogger implements ILogger {
 		} else {
 			this._loggerCreationPromise.then(() => this.disposeLogger());
 		}
+		super.dispose();
 	}
 
 	private disposeLogger(): void {

@@ -6,8 +6,9 @@
 import { performCellDropEdits } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellDnd';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
-import * as assert from 'assert';
+import assert from 'assert';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 interface IBeginningState {
 	startOrder: string[];
@@ -46,6 +47,8 @@ async function testCellDnd(beginning: IBeginningState, dragAction: IDragAction, 
 }
 
 suite('cellDND', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('drag 1 cell', async () => {
 		await testCellDnd(
 			{

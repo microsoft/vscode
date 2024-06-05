@@ -106,7 +106,7 @@ export class ExtHostDecorations implements ExtHostDecorationsShape {
 					}
 					result[id] = <DecorationData>[data.propagate, data.tooltip, data.badge, data.color];
 				} catch (e) {
-					this._logService.warn(`INVALID decoration from extension '${extensionId}': ${e}`);
+					this._logService.warn(`INVALID decoration from extension '${extensionId.identifier.value}': ${e}`);
 				}
 			} catch (err) {
 				this._logService.error(err);

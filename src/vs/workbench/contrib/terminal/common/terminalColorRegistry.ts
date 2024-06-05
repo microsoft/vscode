@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 
-import { registerColor, ColorIdentifier, ColorDefaults, editorFindMatch, editorFindMatchHighlight, overviewRulerFindMatchForeground, editorSelectionBackground, transparent } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, ColorIdentifier, ColorDefaults, editorFindMatch, editorFindMatchHighlight, overviewRulerFindMatchForeground, editorSelectionBackground, transparent, editorHoverHighlight } from 'vs/platform/theme/common/colorRegistry';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND, PANEL_BORDER, TAB_ACTIVE_BORDER } from 'vs/workbench/common/theme';
 
 /**
@@ -77,7 +77,13 @@ export const TERMINAL_FIND_MATCH_BACKGROUND_COLOR = registerColor('terminal.find
 	// Use regular selection background in high contrast with a thick border
 	hcDark: null,
 	hcLight: '#0F4A85'
-}, nls.localize('terminal.findMatchBackground', 'Color of the current search match in the terminal. The color must not be opaque so as not to hide underlying terminal content.'));
+}, nls.localize('terminal.findMatchBackground', 'Color of the current search match in the terminal. The color must not be opaque so as not to hide underlying terminal content.'), true);
+export const TERMINAL_HOVER_HIGHLIGHT_BACKGROUND_COLOR = registerColor('terminal.hoverHighlightBackground', {
+	dark: transparent(editorHoverHighlight, 0.5),
+	light: transparent(editorHoverHighlight, 0.5),
+	hcDark: transparent(editorHoverHighlight, 0.5),
+	hcLight: transparent(editorHoverHighlight, 0.5)
+}, nls.localize('terminal.findMatchHighlightBorder', 'Border color of the other search matches in the terminal.'));
 export const TERMINAL_FIND_MATCH_BORDER_COLOR = registerColor('terminal.findMatchBorder', {
 	dark: null,
 	light: null,
@@ -89,7 +95,7 @@ export const TERMINAL_FIND_MATCH_HIGHLIGHT_BACKGROUND_COLOR = registerColor('ter
 	light: editorFindMatchHighlight,
 	hcDark: null,
 	hcLight: null
-}, nls.localize('terminal.findMatchHighlightBackground', 'Color of the other search matches in the terminal. The color must not be opaque so as not to hide underlying terminal content.'));
+}, nls.localize('terminal.findMatchHighlightBackground', 'Color of the other search matches in the terminal. The color must not be opaque so as not to hide underlying terminal content.'), true);
 export const TERMINAL_FIND_MATCH_HIGHLIGHT_BORDER_COLOR = registerColor('terminal.findMatchHighlightBorder', {
 	dark: null,
 	light: null,
@@ -107,13 +113,19 @@ export const TERMINAL_DRAG_AND_DROP_BACKGROUND = registerColor('terminal.dropBac
 	light: EDITOR_DRAG_AND_DROP_BACKGROUND,
 	hcDark: EDITOR_DRAG_AND_DROP_BACKGROUND,
 	hcLight: EDITOR_DRAG_AND_DROP_BACKGROUND
-}, nls.localize('terminal.dragAndDropBackground', "Background color when dragging on top of terminals. The color should have transparency so that the terminal contents can still shine through."));
+}, nls.localize('terminal.dragAndDropBackground', "Background color when dragging on top of terminals. The color should have transparency so that the terminal contents can still shine through."), true);
 export const TERMINAL_TAB_ACTIVE_BORDER = registerColor('terminal.tab.activeBorder', {
 	dark: TAB_ACTIVE_BORDER,
 	light: TAB_ACTIVE_BORDER,
 	hcDark: TAB_ACTIVE_BORDER,
 	hcLight: TAB_ACTIVE_BORDER
 }, nls.localize('terminal.tab.activeBorder', 'Border on the side of the terminal tab in the panel. This defaults to tab.activeBorder.'));
+export const TERMINAL_INITIAL_HINT_FOREGROUND = registerColor('terminal.initialHintForeground', {
+	dark: '#ffffff56',
+	light: '#0007',
+	hcDark: null,
+	hcLight: null
+}, nls.localize('terminalInitialHintForeground', 'Foreground color of the terminal initial hint.'));
 
 export const ansiColorMap: { [key: string]: { index: number; defaults: ColorDefaults } } = {
 	'terminal.ansiBlack': {
@@ -137,10 +149,10 @@ export const ansiColorMap: { [key: string]: { index: number; defaults: ColorDefa
 	'terminal.ansiGreen': {
 		index: 2,
 		defaults: {
-			light: '#00BC00',
+			light: '#107C10',
 			dark: '#0DBC79',
 			hcDark: '#00cd00',
-			hcLight: '#00bc00'
+			hcLight: '#136C13'
 		}
 	},
 	'terminal.ansiYellow': {
@@ -176,7 +188,7 @@ export const ansiColorMap: { [key: string]: { index: number; defaults: ColorDefa
 			light: '#0598bc',
 			dark: '#11a8cd',
 			hcDark: '#00cdcd',
-			hcLight: '#0598b'
+			hcLight: '#0598bc'
 		}
 	},
 	'terminal.ansiWhite': {

@@ -19,6 +19,10 @@ export interface ISimpleCompletion {
 	 * The completion's detail which appears on the right of the list.
 	 */
 	detail?: string;
+	/**
+	 * The completion's completion text which is used to actually insert the completion.
+	 */
+	completionText?: string;
 }
 
 export class SimpleCompletionItem {
@@ -27,7 +31,6 @@ export class SimpleCompletionItem {
 
 	// sorting, filtering
 	score: FuzzyScore = FuzzyScore.Default;
-	distance: number = 0;
 	idx?: number;
 	word?: string;
 
