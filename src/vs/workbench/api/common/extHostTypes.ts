@@ -4471,7 +4471,7 @@ export class LanguageModelFunctionResultPart implements vscode.LanguageModelChat
 export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage {
 
 	static User(content: string | LanguageModelFunctionResultPart, name?: string): LanguageModelChatMessage {
-		const value = new LanguageModelChatMessage(LanguageModelChatMessageRole.User, '', name);
+		const value = new LanguageModelChatMessage(LanguageModelChatMessageRole.User, typeof content === 'string' ? content : '', name);
 		value.content2 = content;
 		return value;
 	}
