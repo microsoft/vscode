@@ -351,8 +351,6 @@ jschardet@3.1.2:
   version "3.1.2"
   resolved "https://registry.yarnpkg.com/jschardet/-/jschardet-3.1.2.tgz#9bf4364deba0677fe9e3bd9e29eda57febf2e9db"
   integrity sha512-mw3CBZGzW8nUBPYhFU2ztZ/kJ6NClQUQVpyzvFMfznZsoC///ZQ30J2RCUanNsr5yF22LqhgYr/lj807/ZleWA==
-<<<<<<< HEAD
-=======
 
 jsonfile@^6.0.1:
   version "6.1.0"
@@ -362,7 +360,6 @@ jsonfile@^6.0.1:
     universalify "^2.0.0"
   optionalDependencies:
     graceful-fs "^4.1.6"
->>>>>>> upstream/main
 
 kerberos@^2.0.1:
   version "2.0.1"
