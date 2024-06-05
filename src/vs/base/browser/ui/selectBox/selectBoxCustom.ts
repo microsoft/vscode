@@ -609,8 +609,8 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 					this._dropDownPosition = AnchorPosition.ABOVE;
 					this.selectDropDownListContainer.remove();
 					this.selectionDetailsPane.remove();
-					this.selectionDetailsPane.remove();
-					this.selectDropDownListContainer.remove();
+					this.selectDropDownContainer.appendChild(this.selectionDetailsPane);
+					this.selectDropDownContainer.appendChild(this.selectDropDownListContainer);
 
 					this.selectionDetailsPane.classList.remove('border-top');
 					this.selectionDetailsPane.classList.add('border-bottom');
@@ -619,8 +619,8 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 					this._dropDownPosition = AnchorPosition.BELOW;
 					this.selectDropDownListContainer.remove();
 					this.selectionDetailsPane.remove();
-					this.selectDropDownListContainer.remove();
-					this.selectionDetailsPane.remove();
+					this.selectDropDownContainer.appendChild(this.selectDropDownListContainer);
+					this.selectDropDownContainer.appendChild(this.selectionDetailsPane);
 
 					this.selectionDetailsPane.classList.remove('border-bottom');
 					this.selectionDetailsPane.classList.add('border-top');
