@@ -78,9 +78,9 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 
 			if (!this._terminalDisposedListener) {
 				// React on terminal disposed and check if that is the debug terminal #12956
-				this._terminalDisposedListener = this._terminalService.onDidCloseTerminal(terminal => {
+				this._terminalDisposedListener = this._register(this._terminalService.onDidCloseTerminal(terminal => {
 					this._integratedTerminalInstances.onTerminalClosed(terminal);
-				});
+				}));
 			}
 
 			const configProvider = await this._configurationService.getConfigProvider();
