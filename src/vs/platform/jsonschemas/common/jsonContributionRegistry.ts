@@ -24,10 +24,6 @@ export interface IJSONContributionRegistry {
 	 */
 	registerSchema(uri: string, unresolvedSchemaContent: IJSONSchema): void;
 
-	/**
-	 * Register a function to generate a schema to the registry.
-	 */
-	registerSchemaFunction(uri: string, unresolvedSchemaContent: () => IJSONSchema): void;
 
 	/**
 	 * Notifies all listeners that the content of the given schema has changed.
@@ -66,15 +62,6 @@ class JSONContributionRegistry implements IJSONContributionRegistry {
 	public registerSchema(uri: string, unresolvedSchemaContent: IJSONSchema): void {
 		this.schemasById[normalizeId(uri)] = unresolvedSchemaContent;
 		this._onDidChangeSchema.fire(uri);
-	}
-
-	public registerSchemaFunction(uri: string, schemaFunction: () => IJSONSchema): void {
-		Object.defineProperty(this.schemasById, normalizeId(uri), {
-			get() {
-				return schemaFunction()
-			}
-		})
-		this._onDidChangeSchema.fire(uri)
 	}
 
 	public notifySchemaChanged(uri: string): void {

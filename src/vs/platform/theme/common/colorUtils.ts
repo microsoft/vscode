@@ -11,6 +11,7 @@ import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import * as platform from 'vs/platform/registry/common/platform';
 import { IColorTheme } from 'vs/platform/theme/common/themeService';
+import * as nls from 'vs/nls';
 
 //  ------ API types
 
@@ -79,6 +80,8 @@ export const Extensions = {
 	ColorContribution: 'base.contributions.colors'
 };
 
+export const DEFAULT_COLOR_CONFIG_VALUE = 'default';
+
 export interface IColorRegistry {
 
 	readonly onDidChangeSchema: Event<void>;
@@ -132,7 +135,6 @@ class ColorRegistry implements IColorRegistry {
 		this.colorsById = {};
 	}
 
-
 	public registerColor(id: string, defaults: ColorDefaults | null, description: string, needsTransparency = false, deprecationMessage?: string): ColorIdentifier {
 		const colorContribution: ColorContribution = { id, description, defaults, needsTransparency, deprecationMessage };
 		this.colorsById[id] = colorContribution;
@@ -142,9 +144,14 @@ class ColorRegistry implements IColorRegistry {
 		}
 		if (needsTransparency) {
 			propertySchema.pattern = '^#(?:(?<rgba>[0-9a-fA-f]{3}[0-9a-eA-E])|(?:[0-9a-fA-F]{6}(?:(?![fF]{2})(?:[0-9a-fA-F]{2}))))?$';
-			propertySchema.patternErrorMessage = 'This color must be transparent or it will obscure content';
+			propertySchema.patternErrorMessage = nls.localize('transparecyRequired', 'This color must be transparent or it will obscure content');
 		}
-		this.colorSchema.properties[id] = propertySchema;
+		this.colorSchema.properties[id] = {
+			oneOf: [
+				propertySchema,
+				{ type: 'string', const: DEFAULT_COLOR_CONFIG_VALUE, description: nls.localize('useDefault', 'Use the default color.') }
+			]
+		};
 		this.colorReferenceSchema.enum.push(id);
 		this.colorReferenceSchema.enumDescriptions.push(description);
 
@@ -179,29 +186,6 @@ class ColorRegistry implements IColorRegistry {
 
 	public getColorSchema(): IJSONSchema {
 		return this.colorSchema;
-	}
-
-	public getNullableColorSchema(): IJSONSchema {
-		const nullableColorSchema: IJSONSchema & {
-			properties: IJSONSchemaMap;
-		} = {
-			...this.colorSchema,
-			properties: Object.fromEntries(Object.entries(this.colorSchema.properties).map(([key, value]) => {
-				return [key, {
-					defaultSnippets: value.defaultSnippets,
-					description: value.description,
-					deprecationMessage: value.deprecationMessage,
-					oneOf: [
-						value,
-						{
-							type: 'string',
-							const: 'default'
-						}
-					]
-				}]
-			}))
-		}
-		return nullableColorSchema;
 	}
 
 	public getColorReferenceSchema(): IJSONSchema {
@@ -342,15 +326,7 @@ export const workbenchColorsSchemaId = 'vscode://schemas/workbench-colors';
 const schemaRegistry = platform.Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 schemaRegistry.registerSchema(workbenchColorsSchemaId, colorRegistry.getColorSchema());
 
-export const nullableWorkbenchColorsSchemaId = 'vscode://schemas/nullable-workbench-colors';
-
-schemaRegistry.registerSchemaFunction(nullableWorkbenchColorsSchemaId, () => colorRegistry.getNullableColorSchema());
-
-
-const delayer = new RunOnceScheduler(() => {
-	schemaRegistry.notifySchemaChanged(workbenchColorsSchemaId)
-	schemaRegistry.notifySchemaChanged(nullableWorkbenchColorsSchemaId)
-}, 200);
+const delayer = new RunOnceScheduler(() => schemaRegistry.notifySchemaChanged(workbenchColorsSchemaId), 200);
 
 colorRegistry.onDidChangeSchema(() => {
 	if (!delayer.isScheduled()) {
