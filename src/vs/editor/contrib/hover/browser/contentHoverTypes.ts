@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
 import { HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
 import { HoverAnchor, IEditorHoverColorPickerWidget, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
@@ -54,7 +53,6 @@ export class ContentHoverVisibleData {
 		public readonly preferAbove: boolean,
 		public readonly stoleFocus: boolean,
 		public readonly source: HoverStartSource,
-		public readonly isBeforeContent: boolean,
-		public readonly disposables: DisposableStore
+		public readonly isBeforeContent: boolean
 	) { }
 }

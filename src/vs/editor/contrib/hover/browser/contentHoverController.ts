@@ -29,6 +29,7 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 
 	private _currentResult: HoverResult | null = null;
 	private _colorWidget: IEditorHoverColorPickerWidget | null = null;
+	private _disposables: IDisposable = Disposable.None;
 
 	private readonly _computer: ContentHoverComputer;
 	private readonly _widget: ContentHoverWidget;
@@ -168,8 +169,9 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 			hoverResult = null;
 		}
 		this._currentResult = hoverResult;
+		this._disposables.dispose();
 		if (this._currentResult) {
-			this._showHover(this._currentResult.anchor, this._currentResult.hoverParts);
+			this._disposables = this._register(this._showHover(this._currentResult.anchor, this._currentResult.hoverParts));
 		} else {
 			this._widget.hide();
 		}
@@ -207,16 +209,16 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		this._setCurrentResult(hoverResult);
 	}
 
-	private _showHover(anchor: HoverAnchor, hoverParts: IHoverPart[]): void {
-
+	private _showHover(anchor: HoverAnchor, hoverParts: IHoverPart[]): IDisposable {
 		const fragment = document.createDocumentFragment();
 		const disposables = this._renderHoverPartsInFragment(fragment, hoverParts);
 		const fragmentHasContent = fragment.hasChildNodes();
 		if (fragmentHasContent) {
-			this._doShowHover(fragment, hoverParts, anchor, disposables);
-		} else {
-			disposables.dispose();
+			disposables.add(this._doShowHover(fragment, hoverParts, anchor));
+			return disposables;
 		}
+		disposables.dispose();
+		return Disposable.None;
 	}
 
 	private _getHoverContext(fragment: DocumentFragment, statusBar: EditorHoverStatusBar): IEditorHoverRenderContext {
@@ -266,16 +268,15 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		return statusBar;
 	}
 
-	private _doShowHover(fragment: DocumentFragment, hoverParts: IHoverPart[], anchor: HoverAnchor, disposables: DisposableStore): void {
+	private _doShowHover(fragment: DocumentFragment, hoverParts: IHoverPart[], anchor: HoverAnchor): IDisposable {
 		const { showAtPosition, showAtSecondaryPosition, highlightRange } = ContentHoverController.computeHoverRanges(this._editor, anchor.range, hoverParts);
-		this._addEditorDecorations(highlightRange, disposables);
+		const disposables = this._addEditorDecorations(highlightRange);
 		const initialMousePosX = anchor.initialMousePosX;
 		const initialMousePosY = anchor.initialMousePosY;
 		const preferAbove = this._editor.getOption(EditorOption.hover).above;
 		const stoleFocus = this._computer.shouldFocus;
 		const hoverSource = this._computer.source;
 		const isBeforeContent = hoverParts.some(m => m.isBeforeContent);
-
 		const contentHoverVisibleData = new ContentHoverVisibleData(
 			initialMousePosX,
 			initialMousePosY,
@@ -285,24 +286,24 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 			preferAbove,
 			stoleFocus,
 			hoverSource,
-			isBeforeContent,
-			disposables
+			isBeforeContent
 		);
 		this._widget.showAt(fragment, contentHoverVisibleData);
+		return disposables;
 	}
 
-	private _addEditorDecorations(highlightRange: Range | undefined, disposables: DisposableStore) {
+	private _addEditorDecorations(highlightRange: Range | undefined): IDisposable {
 		if (!highlightRange) {
-			return;
+			return Disposable.None;
 		}
 		const highlightDecoration = this._editor.createDecorationsCollection();
 		highlightDecoration.set([{
 			range: highlightRange,
 			options: ContentHoverController._DECORATION_OPTIONS
 		}]);
-		disposables.add(toDisposable(() => {
+		return toDisposable(() => {
 			highlightDecoration.clear();
-		}));
+		});
 	}
 
 	private static readonly _DECORATION_OPTIONS = ModelDecorationOptions.register({

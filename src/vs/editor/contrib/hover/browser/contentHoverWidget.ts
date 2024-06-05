@@ -92,7 +92,6 @@ export class ContentHoverWidget extends ResizableContentWidget {
 
 	public override dispose(): void {
 		super.dispose();
-		this._visibleData?.disposables.dispose();
 		this._editor.removeContentWidget(this);
 	}
 
@@ -265,7 +264,6 @@ export class ContentHoverWidget extends ResizableContentWidget {
 	}
 
 	private _setHoverData(hoverData: ContentHoverVisibleData | undefined): void {
-		this._visibleData?.disposables.dispose();
 		this._visibleData = hoverData;
 		this._hoverVisibleKey.set(!!hoverData);
 		this._hover.containerDomNode.classList.toggle('hidden', !hoverData);
