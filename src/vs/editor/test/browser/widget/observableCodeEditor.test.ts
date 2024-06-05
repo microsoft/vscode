@@ -22,8 +22,6 @@ suite('CodeEditorWidget', () => {
 		return;
 	}
 
-	throw new Error();
-
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function withTestFixture(cb: (args: { editor: ICodeEditor; viewModel: ViewModel; log: Log; derived: IObservable<string> }) => void) {
