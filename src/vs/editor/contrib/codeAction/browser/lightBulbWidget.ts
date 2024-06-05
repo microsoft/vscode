@@ -18,7 +18,13 @@ import { autoFixCommandId, quickFixCommandId } from 'vs/editor/contrib/codeActio
 import { CodeActionSet, CodeActionTrigger } from 'vs/editor/contrib/codeAction/common/types';
 import * as nls from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+
+
+
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+
+
+
 
 namespace LightBulbState {
 
@@ -181,9 +187,17 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			};
 
 			if (lineNumber > 1 && !isFolded(lineNumber - 1)) {
-				if (isLineEmptyOrIndented(lineNumber - 1) || lineNumber === model.getLineCount()) {
+				const lineCount = model.getLineCount();
+				const endLine = lineNumber === lineCount;
+				const prevLineEmptyOrIndented = lineNumber > 1 && isLineEmptyOrIndented(lineNumber - 1);
+				const nextLineEmptyOrIndented = !endLine && isLineEmptyOrIndented(lineNumber + 1);
+				const currLineEmptyOrIndented = isLineEmptyOrIndented(lineNumber);
+				const notEmpty = !nextLineEmptyOrIndented && !prevLineEmptyOrIndented;
+
+				// check above and below. if both are blocked, display lightbulb below.
+				if (prevLineEmptyOrIndented || endLine || (notEmpty && !currLineEmptyOrIndented)) {
 					effectiveLineNumber -= 1;
-				} else if (isLineEmptyOrIndented(lineNumber + 1)) {
+				} else if (nextLineEmptyOrIndented || (notEmpty && currLineEmptyOrIndented)) {
 					effectiveLineNumber += 1;
 				}
 			} else if ((lineNumber < model.getLineCount()) && !isFolded(lineNumber + 1)) {
