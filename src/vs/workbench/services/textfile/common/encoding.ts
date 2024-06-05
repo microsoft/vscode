@@ -7,6 +7,7 @@ import { Readable, ReadableStream, newWriteableStream, listenStream } from 'vs/b
 import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { importAMDNodeModule } from 'vs/amdX';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { coalesce } from 'vs/base/common/arrays';
 
 export const UTF8 = 'utf8';
 export const UTF8_with_bom = 'utf8bom';
@@ -329,19 +330,15 @@ async function guessEncodingByBuffer(buffer: VSBuffer, candidateGuessEncodings?:
 	// https://github.com/aadsm/jschardet/blob/v2.1.1/src/index.js#L36-L40
 	const binaryString = encodeLatin1(limitedBuffer.buffer);
 
+	// ensure to convert candidate encodings to jschardet encoding names if provided
 	if (candidateGuessEncodings) {
-		candidateGuessEncodings = normalizedEncodings(candidateGuessEncodings);
+		candidateGuessEncodings = coalesce(candidateGuessEncodings.map(e => toJschardetEncoding(e)));
 		if (candidateGuessEncodings.length === 0) {
 			candidateGuessEncodings = undefined;
 		}
 	}
 
-	const guessed = jschardet.detect(binaryString, {
-		// Lower the threshold to make sure we have a result
-		minimumThreshold: 0,
-		detectEncodings: candidateGuessEncodings
-	}
-	);
+	const guessed = jschardet.detect(binaryString, candidateGuessEncodings ? { detectEncodings: candidateGuessEncodings } : undefined);
 	if (!guessed || !guessed.encoding) {
 		return null;
 	}
@@ -359,11 +356,22 @@ const JSCHARDET_TO_ICONV_ENCODINGS: { [name: string]: string } = {
 	'big5': 'cp950'
 };
 
+function normalizeEncoding(encodingName: string): string {
+	return encodingName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+}
+
 function toIconvLiteEncoding(encodingName: string): string {
-	const normalizedEncodingName = encodingName.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+	const normalizedEncodingName = normalizeEncoding(encodingName);
 	const mapped = JSCHARDET_TO_ICONV_ENCODINGS[normalizedEncodingName];
 
 	return mapped || normalizedEncodingName;
+}
+
+function toJschardetEncoding(encodingName: string): string | undefined {
+	const normalizedEncodingName = normalizeEncoding(encodingName);
+	const mapped = GUESSABLE_ENCODINGS[normalizedEncodingName];
+
+	return mapped.guessableName;
 }
 
 function encodeLatin1(buffer: Uint8Array): string {
@@ -493,13 +501,15 @@ export function detectEncodingFromBuffer({ buffer, bytesRead }: IReadResult, aut
 	return { seemsBinary, encoding };
 }
 
-export const SUPPORTED_ENCODINGS: { [encoding: string]: { labelLong: string; labelShort: string; order: number; encodeOnly?: boolean; alias?: string; jschardetEncodingName?: string } } = {
+type EncodingsMap = { [encoding: string]: { labelLong: string; labelShort: string; order: number; encodeOnly?: boolean; alias?: string; guessableName?: string } };
+
+export const SUPPORTED_ENCODINGS: EncodingsMap = {
 	utf8: {
 		labelLong: 'UTF-8',
 		labelShort: 'UTF-8',
 		order: 1,
 		alias: 'utf8bom',
-		jschardetEncodingName: 'UTF-8'
+		guessableName: 'UTF-8'
 	},
 	utf8bom: {
 		labelLong: 'UTF-8 with BOM',
@@ -512,19 +522,19 @@ export const SUPPORTED_ENCODINGS: { [encoding: string]: { labelLong: string; lab
 		labelLong: 'UTF-16 LE',
 		labelShort: 'UTF-16 LE',
 		order: 3,
-		jschardetEncodingName: 'UTF-16LE'
+		guessableName: 'UTF-16LE'
 	},
 	utf16be: {
 		labelLong: 'UTF-16 BE',
 		labelShort: 'UTF-16 BE',
 		order: 4,
-		jschardetEncodingName: 'UTF-16BE'
+		guessableName: 'UTF-16BE'
 	},
 	windows1252: {
 		labelLong: 'Western (Windows 1252)',
 		labelShort: 'Windows 1252',
 		order: 5,
-		jschardetEncodingName: 'windows-1252'
+		guessableName: 'windows-1252'
 	},
 	iso88591: {
 		labelLong: 'Western (ISO 8859-1)',
@@ -580,13 +590,13 @@ export const SUPPORTED_ENCODINGS: { [encoding: string]: { labelLong: string; lab
 		labelLong: 'Central European (Windows 1250)',
 		labelShort: 'Windows 1250',
 		order: 16,
-		jschardetEncodingName: 'windows-1250'
+		guessableName: 'windows-1250'
 	},
 	iso88592: {
 		labelLong: 'Central European (ISO 8859-2)',
 		labelShort: 'ISO 8859-2',
 		order: 17,
-		jschardetEncodingName: 'ISO-8859-2'
+		guessableName: 'ISO-8859-2'
 	},
 	cp852: {
 		labelLong: 'Central European (CP 852)',
@@ -597,25 +607,25 @@ export const SUPPORTED_ENCODINGS: { [encoding: string]: { labelLong: string; lab
 		labelLong: 'Cyrillic (Windows 1251)',
 		labelShort: 'Windows 1251',
 		order: 19,
-		jschardetEncodingName: 'windows-1251'
+		guessableName: 'windows-1251'
 	},
 	cp866: {
 		labelLong: 'Cyrillic (CP 866)',
 		labelShort: 'CP 866',
 		order: 20,
-		jschardetEncodingName: 'IBM866'
+		guessableName: 'IBM866'
 	},
 	iso88595: {
 		labelLong: 'Cyrillic (ISO 8859-5)',
 		labelShort: 'ISO 8859-5',
 		order: 21,
-		jschardetEncodingName: 'ISO-8859-5'
+		guessableName: 'ISO-8859-5'
 	},
 	koi8r: {
 		labelLong: 'Cyrillic (KOI8-R)',
 		labelShort: 'KOI8-R',
 		order: 22,
-		jschardetEncodingName: 'KOI8-R'
+		guessableName: 'KOI8-R'
 	},
 	koi8u: {
 		labelLong: 'Cyrillic (KOI8-U)',
@@ -631,24 +641,25 @@ export const SUPPORTED_ENCODINGS: { [encoding: string]: { labelLong: string; lab
 		labelLong: 'Greek (Windows 1253)',
 		labelShort: 'Windows 1253',
 		order: 25,
-		jschardetEncodingName: 'windows-1253'
+		guessableName: 'windows-1253'
 	},
 	iso88597: {
 		labelLong: 'Greek (ISO 8859-7)',
 		labelShort: 'ISO 8859-7',
 		order: 26,
-		jschardetEncodingName: 'ISO-8859-7'
+		guessableName: 'ISO-8859-7'
 	},
 	windows1255: {
 		labelLong: 'Hebrew (Windows 1255)',
 		labelShort: 'Windows 1255',
 		order: 27,
-		jschardetEncodingName: 'windows-1255'
+		guessableName: 'windows-1255'
 	},
 	iso88598: {
 		labelLong: 'Hebrew (ISO 8859-8)',
 		labelShort: 'ISO 8859-8',
-		order: 28
+		order: 28,
+		guessableName: 'ISO-8859-8'
 	},
 	iso885910: {
 		labelLong: 'Nordic (ISO 8859-10)',
@@ -689,7 +700,7 @@ export const SUPPORTED_ENCODINGS: { [encoding: string]: { labelLong: string; lab
 		labelLong: 'Traditional Chinese (Big5)',
 		labelShort: 'Big5',
 		order: 36,
-		jschardetEncodingName: 'Big5'
+		guessableName: 'Big5'
 	},
 	big5hkscs: {
 		labelLong: 'Traditional Chinese (Big5-HKSCS)',
@@ -700,19 +711,19 @@ export const SUPPORTED_ENCODINGS: { [encoding: string]: { labelLong: string; lab
 		labelLong: 'Japanese (Shift JIS)',
 		labelShort: 'Shift JIS',
 		order: 38,
-		jschardetEncodingName: 'SHIFT_JIS'
+		guessableName: 'SHIFT_JIS'
 	},
 	eucjp: {
 		labelLong: 'Japanese (EUC-JP)',
 		labelShort: 'EUC-JP',
 		order: 39,
-		jschardetEncodingName: 'EUC-JP'
+		guessableName: 'EUC-JP'
 	},
 	euckr: {
 		labelLong: 'Korean (EUC-KR)',
 		labelShort: 'EUC-KR',
 		order: 40,
-		jschardetEncodingName: 'EUC-KR'
+		guessableName: 'EUC-KR'
 	},
 	windows874: {
 		labelLong: 'Thai (Windows 874)',
@@ -738,7 +749,7 @@ export const SUPPORTED_ENCODINGS: { [encoding: string]: { labelLong: string; lab
 		labelLong: 'Simplified Chinese (GB 2312)',
 		labelShort: 'GB 2312',
 		order: 45,
-		jschardetEncodingName: 'GB2312'
+		guessableName: 'GB2312'
 	},
 	cp865: {
 		labelLong: 'Nordic DOS (CP 865)',
@@ -752,17 +763,13 @@ export const SUPPORTED_ENCODINGS: { [encoding: string]: { labelLong: string; lab
 	}
 };
 
-function normalizedEncodings(encodings: string[]): string[] {
-	const normalizedEncodings = encodings.map(encoding => encoding.replace(/[^a-zA-Z0-9]/g, '').toLowerCase());
+export const GUESSABLE_ENCODINGS: EncodingsMap = (() => {
+	const guessableEncodings: EncodingsMap = {};
+	for (const encoding in SUPPORTED_ENCODINGS) {
+		if (SUPPORTED_ENCODINGS[encoding].guessableName) {
+			guessableEncodings[encoding] = SUPPORTED_ENCODINGS[encoding];
+		}
+	}
 
-	const validEncodings: string[] = Object.keys(SUPPORTED_ENCODINGS)
-		.filter(key => SUPPORTED_ENCODINGS[key].jschardetEncodingName)
-		.filter(supportEncoding => {
-			const normalizedSupportEncoding = supportEncoding.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-			return normalizedEncodings.indexOf(normalizedSupportEncoding) !== -1;
-		})
-		.map(supportEncoding => SUPPORTED_ENCODINGS[supportEncoding].jschardetEncodingName)
-		.filter((supportEncoding): supportEncoding is string => !!supportEncoding);
-
-	return validEncodings;
-}
+	return guessableEncodings;
+})();

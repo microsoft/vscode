@@ -23,7 +23,7 @@ import { IEditorPaneRegistry, EditorPaneDescriptor } from 'vs/workbench/browser/
 import { ILabelService } from 'vs/platform/label/common/label';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExplorerService, UNDO_REDO_SOURCE } from 'vs/workbench/contrib/files/browser/explorerService';
-import { SUPPORTED_ENCODINGS } from 'vs/workbench/services/textfile/common/encoding';
+import { GUESSABLE_ENCODINGS, SUPPORTED_ENCODINGS } from 'vs/workbench/services/textfile/common/encoding';
 import { Schemas } from 'vs/base/common/network';
 import { WorkspaceWatcher } from 'vs/workbench/contrib/files/browser/workspaceWatcher';
 import { editorConfigurationBaseNode } from 'vs/editor/common/config/editorConfigurationSchema';
@@ -206,8 +206,8 @@ configurationRegistry.registerConfiguration({
 			'type': 'array',
 			'items': {
 				'type': 'string',
-				'enum': Object.keys(SUPPORTED_ENCODINGS).filter(key => SUPPORTED_ENCODINGS[key].jschardetEncodingName),
-				'enumDescriptions': Object.keys(SUPPORTED_ENCODINGS).filter(key => SUPPORTED_ENCODINGS[key].jschardetEncodingName).map(key => SUPPORTED_ENCODINGS[key].labelLong),
+				'enum': Object.keys(GUESSABLE_ENCODINGS),
+				'enumDescriptions': Object.keys(GUESSABLE_ENCODINGS).map(key => GUESSABLE_ENCODINGS[key].labelLong),
 			},
 			'default': [],
 			'markdownDescription': nls.localize('candidateGuessEncodings', "List of character set encodings that the editor should attempt to guess in the order they are listed. In case it cannot be determined, {0} is respected", '`#files.encoding#`'),
