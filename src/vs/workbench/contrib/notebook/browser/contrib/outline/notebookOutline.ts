@@ -696,28 +696,9 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 				c.kind === NotebookCellsChangeType.ModelChange)) {
 				this.delayedRecomputeState();
 			}
-
-			// TODO @Yoyokrazy start having more focused recomputes
-			if (contentChanges.rawEvents.some(c => c.kind === NotebookCellsChangeType.Move)) {
-				const cells = contentChanges.rawEvents.filter(c => c.kind === NotebookCellsChangeType.Move).map(c => c.cells).flat();
-				const includesCodeCells: boolean = cells.some(cell => cell.cellKind === CellKind.Code);
-				console.log('includesCodeCells', includesCodeCells);
-			}
 		}));
-
-		// recompute symbols when the model changes // ! need to do this sparingly...
-		// this._modelDisposableStore.add(this._editor.textModel.onDidChangeContent(contentChanges => {
-		// 	if (contentChanges.rawEvents.some(c =>
-		// 		c.kind === NotebookCellsChangeType.ChangeCellContent ||
-		// 		c.kind === NotebookCellsChangeType.ChangeCellInternalMetadata ||
-		// 		c.kind === NotebookCellsChangeType.Move ||
-		// 		c.kind === NotebookCellsChangeType.ModelChange)) {
-		// 		this.computeSymbols(CancellationToken.None);
-		// 	}
-		// }));
 	}
 
-	// TODO@Yoyokrazy -- transfer this to the NotebookCellOutlineDataSource and call from there. minimal recompute
 	private async computeSymbols(cancelToken: CancellationToken = CancellationToken.None) {
 		if (this._target === OutlineTarget.QuickPick && this.gotoShowCodeCellSymbols) {
 			await this._outlineDataSourceReference?.object?.computeFullSymbols(cancelToken);
