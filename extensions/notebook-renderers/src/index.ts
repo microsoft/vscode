@@ -11,7 +11,7 @@ import { formatStackTrace } from './stackTraceHelper';
 
 function clearContainer(container: HTMLElement) {
 	while (container.firstChild) {
-		container.removeChild(container.firstChild);
+		container.firstChild.remove();
 	}
 }
 
@@ -378,7 +378,7 @@ function renderStream(outputInfo: OutputWithAppend, outputElement: HTMLElement, 
 			contentParent = document.createElement('div');
 			contentParent.appendChild(newContent);
 			while (outputElement.firstChild) {
-				outputElement.removeChild(outputElement.firstChild);
+				outputElement.firstChild.remove();
 			}
 			outputElement.appendChild(contentParent);
 		}
