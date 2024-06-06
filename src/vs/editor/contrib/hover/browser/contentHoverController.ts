@@ -64,7 +64,7 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		}
 		this._participants.sort((p1, p2) => p1.hoverOrdinal - p2.hoverOrdinal);
 		this._register(this._widget.onDidResize(() => {
-			this._participants.forEach(participant => participant.onResize?.());
+			this._participants.forEach(participant => participant.handleResize?.());
 		}));
 
 		this._computer = new ContentHoverComputer(this._editor, this._participants);

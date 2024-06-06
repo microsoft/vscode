@@ -94,7 +94,7 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 		return disposables;
 	}
 
-	public onResize(): void {
+	public handleResize(): void {
 		this._colorPicker?.layout();
 	}
 
