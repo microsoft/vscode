@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { MenuRegistry, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -23,7 +23,7 @@ import { IOutputChannelRegistry, Extensions as OutputExt } from 'vs/workbench/se
 import { ITaskEvent, TaskEventKind, TaskGroup, TaskSettingId, TASKS_CATEGORY, TASK_RUNNING_STATE } from 'vs/workbench/contrib/tasks/common/tasks';
 import { ITaskService, TaskCommandsRegistered, TaskExecutionSupportedContext } from 'vs/workbench/contrib/tasks/common/taskService';
 
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { RunAutomaticTasks, ManageAutomaticTaskRunning } from 'vs/workbench/contrib/tasks/browser/runAutomaticTasks';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
@@ -431,15 +431,28 @@ schema.oneOf = [...(schemaVersion2.oneOf || []), ...(schemaVersion1.oneOf || [])
 const jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>Registry.as(jsonContributionRegistry.Extensions.JSONContribution);
 jsonRegistry.registerSchema(tasksSchemaId, schema);
 
-ProblemMatcherRegistry.onMatcherChanged(() => {
-	updateProblemMatchers();
-	jsonRegistry.notifySchemaChanged(tasksSchemaId);
-});
+export class ProblemMatcherUpdater extends Disposable implements IWorkbenchContribution {
+	static ID = 'problemMatcherUpdater';
+	constructor() {
+		super();
 
-TaskDefinitionRegistry.onDefinitionsChanged(() => {
-	updateTaskDefinitions();
-	jsonRegistry.notifySchemaChanged(tasksSchemaId);
-});
+		this._register(ProblemMatcherRegistry.onMatcherChanged(() => {
+			updateProblemMatchers();
+			jsonRegistry.notifySchemaChanged(tasksSchemaId);
+		}));
+
+		this._register(TaskDefinitionRegistry.onDefinitionsChanged(() => {
+			updateTaskDefinitions();
+			jsonRegistry.notifySchemaChanged(tasksSchemaId);
+		}));
+
+		this._register(toDisposable(() => ProblemMatcherRegistry.onReady().then(() => {
+			updateProblemMatchers();
+		})));
+	}
+}
+registerWorkbenchContribution2(ProblemMatcherUpdater.ID, ProblemMatcherUpdater, WorkbenchPhase.AfterRestored);
+
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 configurationRegistry.registerConfiguration({
