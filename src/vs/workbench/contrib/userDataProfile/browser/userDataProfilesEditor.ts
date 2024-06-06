@@ -501,7 +501,11 @@ class ProfileWidget extends Disposable {
 								type: MessageType.ERROR
 							};
 						}
-						const initialName = this._profileElement.value?.element instanceof UserDataProfileElement ? this._profileElement.value.element.profile.name : undefined;
+						if (this._profileElement.value?.element.disabled) {
+							return null;
+						}
+						const initialName = this._profileElement.value?.element.getInitialName();
+						value = value.trim();
 						if (initialName !== value && this.userDataProfilesService.profiles.some(p => p.name === value)) {
 							return {
 								content: localize('profileExists', "Profile with name {0} already exists.", value),
@@ -778,6 +782,7 @@ class ProfileWidget extends Disposable {
 	private renderProfileElement(profileElement: AbstractUserDataProfileElement): void {
 		this.profileTitle.textContent = profileElement.name;
 		this.nameInput.value = profileElement.name;
+		this.nameInput.validate();
 		if (profileElement.disabled) {
 			this.nameInput.disable();
 		} else {

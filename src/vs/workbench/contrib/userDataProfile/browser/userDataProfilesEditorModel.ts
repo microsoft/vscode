@@ -104,9 +104,10 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 
 	private _name = '';
 	get name(): string { return this._name; }
-	set name(label: string) {
-		if (this._name !== label) {
-			this._name = label;
+	set name(name: string) {
+		name = name.trim();
+		if (this._name !== name) {
+			this._name = name;
 			this._onDidChange.fire({ name: true });
 		}
 	}
@@ -263,7 +264,7 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 
 	}
 
-	protected getInitialName(): string {
+	getInitialName(): string {
 		return '';
 	}
 
@@ -380,7 +381,7 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement {
 		return this.getChildrenFromProfile(this.profile, resourceType);
 	}
 
-	protected override getInitialName(): string {
+	override getInitialName(): string {
 		return this.profile.name;
 	}
 
@@ -614,7 +615,7 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 		return [];
 	}
 
-	protected override getInitialName(): string {
+	override getInitialName(): string {
 		return this.previewProfile?.name ?? '';
 	}
 
@@ -832,9 +833,8 @@ export class UserDataProfilesEditorModel extends EditorModel {
 				if (e.preview) {
 					previewProfileAction.checked = !!this.newProfileElement?.previewProfile;
 				}
-				if (e.disabled) {
-					previewProfileAction.enabled = !this.newProfileElement?.disabled;
-					createAction.enabled = !this.newProfileElement?.disabled;
+				if (e.disabled || e.message) {
+					previewProfileAction.enabled = createAction.enabled = !this.newProfileElement?.disabled && !this.newProfileElement?.message;
 				}
 			}));
 			this._profiles.push([this.newProfileElement, disposables]);
