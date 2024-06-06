@@ -226,7 +226,7 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 					actions.push(...this.getTreeContextMenuActions());
 				}
 				if (e.element instanceof AbstractUserDataProfileElement) {
-					actions.push(...e.element.contextMenuActions);
+					actions.push(...e.element.actions[1]);
 				}
 				if (actions.length) {
 					this.contextMenuService.showContextMenu({
@@ -243,7 +243,6 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 			}));
 		}
 	}
-
 
 	private getTreeContextMenuActions(): IAction[] {
 		const actions: IAction[] = [];
@@ -434,7 +433,7 @@ class ProfileElementRenderer implements IListRenderer<AbstractUserDataProfileEle
 				}
 			}));
 		}
-		templateData.actionBar.setActions(element.titleActions[0] ?? []);
+		templateData.actionBar.setActions(element.actions[0] ?? []);
 	}
 
 	disposeElement(element: AbstractUserDataProfileElement, index: number, templateData: IProfileElementTemplateData, height: number | undefined): void {
@@ -768,7 +767,7 @@ class ProfileWidget extends Disposable {
 			this.buttonContainer.classList.add('hide');
 		}
 
-		this.toolbar.setActions([], profileElement.titleActions[1].slice(0));
+		this.toolbar.setActions(profileElement.titleActions[0].slice(0), profileElement.titleActions[1].slice(0));
 
 		if (profileElement instanceof NewProfileElement) {
 			this.nameInput.focus();
