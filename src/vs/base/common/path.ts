@@ -344,6 +344,7 @@ export const win32: IPath = {
 		let rootEnd = 0;
 		let device;
 		let isAbsolute = false;
+		let isRoot = false;
 		const code = path.charCodeAt(0);
 
 		// Try to match a root
@@ -359,7 +360,8 @@ export const win32: IPath = {
 			// path of some kind (UNC or otherwise)
 			isAbsolute = true;
 
-			if (isPathSeparator(path.charCodeAt(1))) {
+			const secondCode = path.charCodeAt(1);
+			if (isPathSeparator(secondCode)) {
 				// Matched double path separator at beginning
 				let j = 2;
 				let last = j;
@@ -395,19 +397,30 @@ export const win32: IPath = {
 						}
 					}
 				}
+			} else if (isWindowsDeviceRoot(secondCode) && (len === 2 || isPathSeparator(path.charCodeAt(2)))) {
+				device = path[1].toUpperCase() + ':';
+				isAbsolute = true;
+				isRoot = true;
+				rootEnd = 2;
+			} else if (path.startsWith('/cygdrive/') && (len === 11 || isPathSeparator(path.charCodeAt(11)))) {
+				device = path[10].toUpperCase() + ':';
+				isAbsolute = true;
+				isRoot = true;
+				rootEnd = 11;
 			} else {
 				rootEnd = 1;
 			}
 		} else if (isWindowsDeviceRoot(code) && path.charCodeAt(1) === CHAR_COLON) {
 			// Possible device root
 			device = path.slice(0, 2);
+			isRoot = true;
 			rootEnd = 2;
-			if (len > 2 && isPathSeparator(path.charCodeAt(2))) {
-				// Treat separator following drive name as an absolute path
-				// indicator
-				isAbsolute = true;
-				rootEnd = 3;
-			}
+		}
+		if (isRoot && len > rootEnd && isPathSeparator(path.charCodeAt(rootEnd))) {
+			// Treat separator following drive name as an absolute path
+			// indicator
+			isAbsolute = true;
+			++rootEnd;
 		}
 
 		let tail = rootEnd < len ?

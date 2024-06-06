@@ -53,7 +53,7 @@ suite('Debug - Source', () => {
 			assert.strictEqual(sessionId, expectedSessionId);
 		};
 
-		checkData(uri.file('a/b/c/d'), 'd', isWindows ? '\\a\\b\\c\\d' : '/a/b/c/d', undefined, undefined);
+		checkData(uri.file('aa/b/c/d'), 'd', isWindows ? '\\aa\\b\\c\\d' : '/aa/b/c/d', undefined, undefined);
 		checkData(uri.from({ scheme: 'file', path: '/my/path/test.js', query: 'ref=1&session=2' }), 'test.js', isWindows ? '\\my\\path\\test.js' : '/my/path/test.js', undefined, undefined);
 
 		checkData(uri.from({ scheme: 'http', authority: 'www.example.com', path: '/my/path' }), 'path', 'http://www.example.com/my/path', undefined, undefined);

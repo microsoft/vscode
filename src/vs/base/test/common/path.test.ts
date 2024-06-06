@@ -602,7 +602,7 @@ suite('Paths (Node Implementation)', () => {
 		assert.strictEqual(path.win32.normalize('a//b//.'), 'a\\b');
 		assert.strictEqual(path.win32.normalize('//server/share/dir/file.ext'),
 			'\\\\server\\share\\dir\\file.ext');
-		assert.strictEqual(path.win32.normalize('/a/b/c/../../../x/y/z'), '\\x\\y\\z');
+		assert.strictEqual(path.win32.normalize('/aa/b/c/../../../x/y/z'), '\\x\\y\\z');
 		assert.strictEqual(path.win32.normalize('C:'), 'C:.');
 		assert.strictEqual(path.win32.normalize('C:..\\abc'), 'C:..\\abc');
 		assert.strictEqual(path.win32.normalize('C:..\\..\\abc\\..\\def'),
@@ -634,6 +634,12 @@ suite('Paths (Node Implementation)', () => {
 
 		assert.strictEqual(path.posix.normalize('./fixtures///b/../b/c.js'),
 			'fixtures/b/c.js');
+		assert.strictEqual(path.win32.normalize('/c'), 'C:\\');
+		assert.strictEqual(path.win32.normalize('/c/'), 'C:\\');
+		assert.strictEqual(path.win32.normalize('/c/foo.txt'), 'C:\\foo.txt');
+		assert.strictEqual(path.win32.normalize('/cd/foo.txt'), '\\cd\\foo.txt');
+		assert.strictEqual(path.win32.normalize('/cygdrive/c/foo.txt'), 'C:\\foo.txt');
+		assert.strictEqual(path.win32.normalize('/cygdrive/cd/foo.txt'), '\\cygdrive\\cd\\foo.txt');
 		assert.strictEqual(path.posix.normalize('/foo/../../../bar'), '/bar');
 		assert.strictEqual(path.posix.normalize('a//b//../b'), 'a/b');
 		assert.strictEqual(path.posix.normalize('a//b//./c'), 'a/b/c');
@@ -678,6 +684,12 @@ suite('Paths (Node Implementation)', () => {
 		assert.strictEqual(path.win32.isAbsolute('c://'), true);
 		assert.strictEqual(path.win32.isAbsolute('C:/Users/'), true);
 		assert.strictEqual(path.win32.isAbsolute('C:\\Users\\'), true);
+		assert.strictEqual(path.win32.isAbsolute('/c/Users'), true);
+		assert.strictEqual(path.win32.isAbsolute('/c'), true);
+		assert.strictEqual(path.win32.isAbsolute('/c/'), true);
+		assert.strictEqual(path.win32.isAbsolute('/cygdrive/c/Users'), true);
+		assert.strictEqual(path.win32.isAbsolute('/cygdrive/c'), true);
+		assert.strictEqual(path.win32.isAbsolute('/cygdrive/c/'), true);
 		assert.strictEqual(path.win32.isAbsolute('C:cwd/another'), false);
 		assert.strictEqual(path.win32.isAbsolute('C:cwd\\another'), false);
 		assert.strictEqual(path.win32.isAbsolute('directory/directory'), false);
