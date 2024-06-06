@@ -13,7 +13,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { TokenizationRegistry } from 'vs/editor/common/languages';
 import { HoverOperation, HoverStartMode, HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
-import { HoverAnchor, HoverParticipantRegistry, HoverRangeAnchor, IEditorHoverColorPickerWidget, IEditorHoverControllerContext, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IHoverWidget } from 'vs/editor/contrib/hover/browser/hoverTypes';
+import { HoverAnchor, HoverParticipantRegistry, HoverRangeAnchor, IEditorHoverContext, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IHoverWidget } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { MarkdownHoverParticipant } from 'vs/editor/contrib/hover/browser/markdownHoverParticipant';
@@ -167,9 +167,9 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		}
 		this._currentResult = currentHoverResult;
 		if (this._currentResult) {
-			this._showHover(this._currentResult.anchor, this._currentResult.hoverParts);
+			this._showHover(this._currentResult);
 		} else {
-			this._contentHoverWidget.hide();
+			this._hideHover();
 		}
 	}
 
@@ -211,14 +211,13 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		this._setCurrentResult(hoverResult);
 	}
 
-	private _showHover(anchor: HoverAnchor, hoverParts: IHoverPart[]): void {
+	private _showHover(hoverResult: HoverResult): void {
 		const hoverContext = this._getHoverContext();
 		const renderedHoverData = new RenderedContentHover(
 			this._editor,
 			hoverContext,
 			this._participants,
-			anchor,
-			hoverParts,
+			hoverResult,
 			this._computer,
 			this._keybindingService
 		);
@@ -229,7 +228,11 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		}
 	}
 
-	private _getHoverContext(): IEditorHoverControllerContext {
+	private _hideHover(): void {
+		this._contentHoverWidget.hide();
+	}
+
+	private _getHoverContext(): IEditorHoverContext {
 		const hide = () => {
 			this.hide();
 		};
@@ -237,13 +240,10 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 			this._onContentsChanged.fire();
 			this._contentHoverWidget.onContentsChanged();
 		};
-		const setColorPicker = (widget: IEditorHoverColorPickerWidget) => {
-			this._colorWidget = widget;
-		};
 		const setMinimumDimensions = (dimensions: dom.Dimension) => {
 			this._contentHoverWidget.setMinimumDimensions(dimensions);
 		};
-		return { hide, onContentsChanged, setColorPicker, setMinimumDimensions };
+		return { hide, onContentsChanged, setMinimumDimensions };
 	}
 
 	public static computeHoverRanges(editor: ICodeEditor, anchorRange: Range, hoverParts: IHoverPart[]) {
@@ -444,31 +444,32 @@ export class RenderedContentHover extends Disposable {
 	public closestMouseDistance: number | undefined;
 	public initialMousePosX: number | undefined;
 	public initialMousePosY: number | undefined;
-	public readonly colorPicker: IEditorHoverColorPickerWidget | null;
 	public readonly showAtPosition: Position;
 	public readonly showAtSecondaryPosition: Position;
 	public readonly preferAbove: boolean;
 	public readonly stoleFocus: boolean;
 	public readonly source: HoverStartSource;
 	public readonly isBeforeContent: boolean;
-	public readonly _renderedHoverParts: RenderedHoverParts;
+
+	private readonly _renderedHoverParts: RenderedHoverParts;
 
 	constructor(
-		private readonly editor: ICodeEditor,
-		context: IEditorHoverControllerContext,
+		editor: ICodeEditor,
+		context: IEditorHoverContext,
 		participants: IEditorHoverParticipant[],
-		anchor: HoverAnchor,
-		hoverParts: IHoverPart[],
+		hoverResult: HoverResult,
 		computer: ContentHoverComputer,
 		keybindingService: IKeybindingService,
 	) {
 		super();
+		const hoverParts = hoverResult.hoverParts;
+		const anchor = hoverResult.anchor;
 		this._renderedHoverParts = new RenderedHoverParts(hoverParts, participants, context, keybindingService);
 		this._register(this._renderedHoverParts);
 		const { showAtPosition, showAtSecondaryPosition, highlightRange } = ContentHoverController.computeHoverRanges(editor, anchor.range, hoverParts);
 		this.showAtPosition = showAtPosition;
 		this.showAtSecondaryPosition = showAtSecondaryPosition;
-		this._register(this._addEditorDecorations(highlightRange));
+		this._register(this._addEditorDecorations(editor, highlightRange));
 		this.initialMousePosX = anchor.initialMousePosX;
 		this.initialMousePosY = anchor.initialMousePosY;
 		this.preferAbove = editor.getOption(EditorOption.hover).above;
@@ -477,11 +478,11 @@ export class RenderedContentHover extends Disposable {
 		this.isBeforeContent = hoverParts.some(m => m.isBeforeContent);
 	}
 
-	private _addEditorDecorations(highlightRange: Range | undefined): IDisposable {
+	private _addEditorDecorations(editor: ICodeEditor, highlightRange: Range | undefined): IDisposable {
 		if (!highlightRange) {
 			return Disposable.None;
 		}
-		const highlightDecoration = this.editor.createDecorationsCollection();
+		const highlightDecoration = editor.createDecorationsCollection();
 		highlightDecoration.set([{
 			range: highlightRange,
 			options: RenderedContentHover._DECORATION_OPTIONS
@@ -509,7 +510,7 @@ class RenderedHoverParts extends Disposable {
 	constructor(
 		hoverParts: IHoverPart[],
 		participants: IEditorHoverParticipant<IHoverPart>[],
-		context: IEditorHoverControllerContext,
+		context: IEditorHoverContext,
 		keybindingService: IKeybindingService
 	) {
 		super();

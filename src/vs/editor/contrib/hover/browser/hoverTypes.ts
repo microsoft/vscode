@@ -94,11 +94,7 @@ export interface IEditorHoverColorPickerWidget {
 	layout(): void;
 }
 
-export interface IEditorHoverControllerContext {
-	/**
-	 * Set if the hover will render a color picker widget.
-	 */
-	setColorPicker(widget: IEditorHoverColorPickerWidget): void;
+export interface IEditorHoverContext {
 	/**
 	 * The contents rendered inside the fragment have been changed, which means that the hover should relayout.
 	 */
@@ -113,7 +109,7 @@ export interface IEditorHoverControllerContext {
 	hide(): void;
 }
 
-export interface IEditorHoverRenderContext extends IEditorHoverControllerContext {
+export interface IEditorHoverRenderContext extends IEditorHoverContext {
 	/**
 	 * The fragment where dom elements should be attached.
 	 */
