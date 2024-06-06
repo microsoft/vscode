@@ -53,6 +53,8 @@ export interface IUserDataProfileManagementService {
 }
 
 export interface IUserDataProfileTemplate {
+	readonly name: string;
+	readonly icon?: string;
 	readonly settings?: string;
 	readonly keybindings?: string;
 	readonly tasks?: string;
