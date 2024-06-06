@@ -62,6 +62,10 @@ export type ColorTransform =
 	| { op: ColorTransformType.LessProminent; value: ColorValue; background: ColorValue; factor: number; transparency: number }
 	| { op: ColorTransformType.IfDefinedThenElse; if: ColorIdentifier; then: ColorValue; else: ColorValue };
 
+export function isColorTransform(value: unknown): value is ColorTransform {
+	return typeof value === 'object' && !!value && 'op' in value && typeof value.op === 'number';
+}
+
 export interface ColorDefaults {
 	light: ColorValue | null;
 	dark: ColorValue | null;
@@ -74,6 +78,10 @@ export interface ColorDefaults {
  * A Color Value is either a color literal, a reference to an other color or a derived color
  */
 export type ColorValue = Color | string | ColorIdentifier | ColorTransform;
+
+export function isColorValue(value: unknown): value is ColorValue {
+	return typeof value === 'string' || value instanceof Color || isColorTransform(value);
+}
 
 // color registry
 export const Extensions = {
@@ -127,7 +135,7 @@ export interface IColorRegistry {
 
 }
 
-type IJSONSchemaForColors = IJSONSchema & { properties: { [name: string]: IJSONSchemaWithSnippets } };
+type IJSONSchemaForColors = IJSONSchema & { properties: { [name: string]: { oneOf: [IJSONSchemaWithSnippets, IJSONSchema] } } };
 type IJSONSchemaWithSnippets = IJSONSchema & { defaultSnippets: IJSONSchemaSnippet[] };
 
 class ColorRegistry implements IColorRegistry {
@@ -147,7 +155,7 @@ class ColorRegistry implements IColorRegistry {
 		for (const key of Object.keys(this.colorsById)) {
 			const color = colorThemeData.getColor(key);
 			if (color) {
-				this.colorSchema.properties[key].defaultSnippets[0].body = `\${1:${color.toString()}}`;
+				this.colorSchema.properties[key].oneOf[0].defaultSnippets[0].body = `\${1:${color.toString()}}`;
 			}
 		}
 		this._onDidChangeSchema.fire();
@@ -229,7 +237,15 @@ const colorRegistry = new ColorRegistry();
 platform.Registry.add(Extensions.ColorContribution, colorRegistry);
 
 
-export function registerColor(id: string, defaults: ColorDefaults | null, description: string, needsTransparency?: boolean, deprecationMessage?: string): ColorIdentifier {
+export function registerColor(id: string, defaults: ColorDefaults | ColorValue | null, description: string, needsTransparency?: boolean, deprecationMessage?: string): ColorIdentifier {
+	if (isColorValue(defaults)) {
+		defaults = {
+			dark: defaults,
+			light: defaults,
+			hcDark: defaults,
+			hcLight: defaults
+		} satisfies ColorDefaults;
+	}
 	return colorRegistry.registerColor(id, defaults, description, needsTransparency, deprecationMessage);
 }
 

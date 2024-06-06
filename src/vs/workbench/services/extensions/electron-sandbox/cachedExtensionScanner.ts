@@ -3,10 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
-import { IExtensionDescription, ExtensionType, IExtension } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription, IExtension } from 'vs/platform/extensions/common/extensions';
 import { dedupExtensions } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { IExtensionsScannerService, IScannedExtension, toExtensionDescription as toExtensionDescriptionFromScannedExtension } from 'vs/platform/extensionManagement/common/extensionsScannerService';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -40,11 +38,6 @@ export class CachedExtensionScanner {
 			this._scannedExtensionsResolve = resolve;
 			this._scannedExtensionsReject = reject;
 		});
-	}
-
-	public async scanSingleExtension(extensionPath: string, isBuiltin: boolean): Promise<IExtensionDescription | null> {
-		const scannedExtension = await this._extensionsScannerService.scanExistingExtension(URI.file(path.resolve(extensionPath)), isBuiltin ? ExtensionType.System : ExtensionType.User, { language: platform.language });
-		return scannedExtension ? toExtensionDescriptionFromScannedExtension(scannedExtension, false) : null;
 	}
 
 	public async startScanningExtensions(): Promise<void> {
