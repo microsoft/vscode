@@ -109,7 +109,7 @@ export function renderExpressionValue(expressionOrValue: IExpressionValue | stri
 
 	if (options.hover) {
 		const { store, commands, commandService } = options.hover instanceof DisposableStore ? { store: options.hover, commands: [], commandService: undefined } : options.hover;
-		store.add(hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), container, () => {
+		store.add(hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), container, () => {
 			const container = dom.$('div');
 			const markdownHoverElement = dom.$('div.hover-row');
 			const hoverContentsElement = dom.append(markdownHoverElement, dom.$('div.hover-contents'));
@@ -228,7 +228,7 @@ export abstract class AbstractExpressionsRenderer<T = IExpression> implements IT
 		const name = dom.append(expression, $('span.name'));
 		const lazyButton = dom.append(expression, $('span.lazy-button'));
 		lazyButton.classList.add(...ThemeIcon.asClassNameArray(Codicon.eye));
-		templateDisposable.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), lazyButton, localize('debug.lazyButton.tooltip', "Click to expand")));
+		templateDisposable.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), lazyButton, localize('debug.lazyButton.tooltip', "Click to expand")));
 		const value = dom.append(expression, $('span.value'));
 
 		const label = templateDisposable.add(new HighlightedLabel(name));

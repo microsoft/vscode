@@ -8,7 +8,7 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { ActionBar, IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Button } from 'vs/base/browser/ui/button/button';
-import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
+import type { IManagedHover } from 'vs/base/browser/ui/hover/hover';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
@@ -448,7 +448,7 @@ class ResultSummaryView extends Disposable {
 	private elementsWereAttached = false;
 	private badgeType: TestingCountBadge;
 	private lastBadge?: NumberBadge | IconBadge;
-	private countHover: IUpdatableHover;
+	private countHover: IManagedHover;
 	private readonly badgeDisposable = this._register(new MutableDisposable());
 	private readonly renderLoop = this._register(new RunOnceScheduler(() => this.render(), SUMMARY_RENDER_INTERVAL));
 	private readonly elements = dom.h('div.result-summary', [
@@ -480,7 +480,7 @@ class ResultSummaryView extends Disposable {
 			}
 		}));
 
-		this.countHover = this._register(hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), this.elements.count, ''));
+		this.countHover = this._register(hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this.elements.count, ''));
 
 		const ab = this._register(new ActionBar(this.elements.rerun, {
 			actionViewItemProvider: (action, options) => createActionViewItem(instantiationService, action, options),
@@ -1344,7 +1344,7 @@ class ErrorRenderer implements ITreeRenderer<TestTreeErrorMessage, FuzzyScore, I
 			const result = this.renderer.render(element.message, { inline: true });
 			data.label.appendChild(result.element);
 		}
-		data.disposable.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), data.label, element.description));
+		data.disposable.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), data.label, element.description));
 	}
 
 	disposeTemplate(data: IErrorTemplateData): void {
@@ -1465,7 +1465,7 @@ class TestItemRenderer extends Disposable
 			data.icon.className += ' retired';
 		}
 
-		data.elementDisposable.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), data.label, getLabelForTestTreeElement(node.element)));
+		data.elementDisposable.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), data.label, getLabelForTestTreeElement(node.element)));
 		if (node.element.test.item.label.trim()) {
 			dom.reset(data.label, ...renderLabelWithIcons(node.element.test.item.label));
 		} else {

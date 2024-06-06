@@ -370,7 +370,7 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 			anchor.style.cursor = 'pointer';
 			const id = keybindingsLookup.shift();
 			const title = id && this.keybindingService.lookupKeybinding(id)?.getLabel();
-			hintHandler.disposables.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), anchor, title ?? ''));
+			hintHandler.disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), anchor, title ?? ''));
 		}
 
 		return { hintElement, ariaLabel };
