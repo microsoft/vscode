@@ -41,7 +41,7 @@ export interface IDebugger {
 }
 
 export interface IGrammar {
-	language: string;
+	language?: string;
 }
 
 export interface IJSONValidation {

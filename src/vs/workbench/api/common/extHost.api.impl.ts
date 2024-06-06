@@ -1448,6 +1448,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				}
 				return extHostLanguageModels.onDidChangeProviders(listener, thisArgs, disposables);
 			},
+			registerChatModelProvider: (id, provider, metadata) => {
+				checkProposedApiEnabled(extension, 'chatProvider');
+				return extHostLanguageModels.registerLanguageModel(extension, id, provider, metadata);
+			},
 			// --- embeddings
 			get embeddingModels() {
 				checkProposedApiEnabled(extension, 'embeddings');
@@ -1729,6 +1733,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatLocation: extHostTypes.ChatLocation,
 			LanguageModelChatMessageRole: extHostTypes.LanguageModelChatMessageRole,
 			LanguageModelChatMessage: extHostTypes.LanguageModelChatMessage,
+			LanguageModelChatMessageFunctionResultPart: extHostTypes.LanguageModelFunctionResultPart,
+			LanguageModelChatResponseTextPart: extHostTypes.LanguageModelTextPart,
+			LanguageModelChatResponseFunctionUsePart: extHostTypes.LanguageModelFunctionUsePart,
 			LanguageModelChatMessage2: extHostTypes.LanguageModelChatMessage, // TODO@jrieken REMOVE
 			LanguageModelChatSystemMessage: extHostTypes.LanguageModelChatSystemMessage,// TODO@jrieken REMOVE
 			LanguageModelChatUserMessage: extHostTypes.LanguageModelChatUserMessage,// TODO@jrieken REMOVE

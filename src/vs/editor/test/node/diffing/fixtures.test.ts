@@ -123,7 +123,7 @@ suite('diffing fixtures', () => {
 	}
 
 	test(`test`, () => {
-		runTest('shifting-twice', 'advanced');
+		runTest('issue-214049', 'advanced');
 	});
 
 	for (const folder of folders) {

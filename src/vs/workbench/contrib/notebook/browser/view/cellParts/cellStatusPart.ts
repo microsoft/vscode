@@ -123,12 +123,15 @@ export class CellEditorStatusBar extends CellContentPart {
 
 
 	override didRenderCell(element: ICellViewModel): void {
-		this.updateContext(<INotebookCellActionContext>{
-			ui: true,
-			cell: element,
-			notebookEditor: this._notebookEditor,
-			$mid: MarshalledId.NotebookCellActionContext
-		});
+		if (this._notebookEditor.hasModel()) {
+			const context: (INotebookCellActionContext & { $mid: number }) = {
+				ui: true,
+				cell: element,
+				notebookEditor: this._notebookEditor,
+				$mid: MarshalledId.NotebookCellActionContext
+			};
+			this.updateContext(context);
+		}
 
 		if (this._editor) {
 			// Focus Mode
@@ -235,7 +238,7 @@ export class CellEditorStatusBar extends CellContentPart {
 			if (renderedItems.length > newItems.length) {
 				const deleted = renderedItems.splice(newItems.length, renderedItems.length - newItems.length);
 				for (const deletedItem of deleted) {
-					container.removeChild(deletedItem.container);
+					deletedItem.container.remove();
 					deletedItem.dispose();
 				}
 			}
@@ -327,7 +330,7 @@ class CellStatusBarItem extends Disposable {
 		this.container.setAttribute('role', role || '');
 
 		if (item.tooltip) {
-			const hoverContent = typeof item.tooltip === 'string' ? item.tooltip : { markdown: item.tooltip } as IUpdatableHoverTooltipMarkdownString;
+			const hoverContent = typeof item.tooltip === 'string' ? item.tooltip : { markdown: item.tooltip, markdownNotSupportedFallback: undefined } satisfies IUpdatableHoverTooltipMarkdownString;
 			this._itemDisposables.add(this._hoverService.setupUpdatableHover(this._hoverDelegate, this.container, hoverContent));
 		}
 

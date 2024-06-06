@@ -9,7 +9,7 @@ import { derived, derivedOpts, observableValue } from 'vs/base/common/observable
 import 'vs/css!./placeholderText';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { obsCodeEditor } from 'vs/editor/browser/observableUtilities';
+import { observableCodeEditor } from 'vs/editor/browser/observableUtilities';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration, InjectedTextCursorStops } from 'vs/editor/common/model';
@@ -20,7 +20,7 @@ export class PlaceholderTextContribution extends Disposable implements IEditorCo
 	}
 
 	public static readonly ID = 'editor.contrib.placeholderText';
-	private readonly _editorObs = obsCodeEditor(this._editor);
+	private readonly _editorObs = observableCodeEditor(this._editor);
 
 	private readonly _placeholderText = observableValue<string | undefined>(this, undefined);
 

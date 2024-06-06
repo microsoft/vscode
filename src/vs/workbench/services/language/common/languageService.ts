@@ -23,6 +23,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { index } from 'vs/base/common/arrays';
 import { MarkdownString } from 'vs/base/common/htmlContent';
+import { isString } from 'vs/base/common/types';
 
 export interface IRawLanguageExtensionPoint {
 	id: string;
@@ -147,6 +148,10 @@ class LanguageTableRenderer extends Disposable implements IExtensionFeatureTable
 
 		const grammars = contributes?.grammars || [];
 		grammars.forEach(grammar => {
+			if (!isString(grammar.language)) {
+				// ignore the grammars that are only used as includes in other grammars
+				return;
+			}
 			let language = byId[grammar.language];
 
 			if (language) {
@@ -160,6 +165,10 @@ class LanguageTableRenderer extends Disposable implements IExtensionFeatureTable
 
 		const snippets = contributes?.snippets || [];
 		snippets.forEach(snippet => {
+			if (!isString(snippet.language)) {
+				// ignore invalid snippets
+				return;
+			}
 			let language = byId[snippet.language];
 
 			if (language) {

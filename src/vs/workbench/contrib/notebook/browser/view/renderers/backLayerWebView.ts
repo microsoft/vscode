@@ -30,7 +30,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { ITextEditorOptions, ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -1119,7 +1119,9 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		}
 
 		if (match) {
-			match.group.openEditor(match.editor, lineNumber !== undefined && column !== undefined ? <ITextEditorOptions>{ selection: { startLineNumber: lineNumber, startColumn: column } } : undefined);
+			const selection: ITextEditorSelection | undefined = lineNumber !== undefined && column !== undefined ? { startLineNumber: lineNumber, startColumn: column } : undefined;
+			const textEditorOptions: ITextEditorOptions = { selection: selection };
+			match.group.openEditor(match.editor, selection ? textEditorOptions : undefined);
 		} else {
 			this.openerService.open(uri, { fromUserGesture: true, fromWorkspace: true });
 		}

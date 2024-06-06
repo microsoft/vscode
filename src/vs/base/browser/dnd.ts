@@ -100,7 +100,7 @@ export function applyDragImage(event: DragEvent, label: string | null, clazz: st
 		event.dataTransfer.setDragImage(dragImage, -10, -10);
 
 		// Removes the element when the DND operation is done
-		setTimeout(() => ownerDocument.body.removeChild(dragImage), 0);
+		setTimeout(() => dragImage.remove(), 0);
 	}
 }
 

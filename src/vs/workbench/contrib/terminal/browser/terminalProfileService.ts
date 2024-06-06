@@ -71,7 +71,7 @@ export class TerminalProfileService extends Disposable implements ITerminalProfi
 
 		// in web, we don't want to show the dropdown unless there's a web extension
 		// that contributes a profile
-		this._extensionService.onDidChangeExtensions(() => this.refreshAvailableProfiles());
+		this._register(this._extensionService.onDidChangeExtensions(() => this.refreshAvailableProfiles()));
 
 		this._webExtensionContributedProfileContextKey = TerminalContextKeys.webExtensionContributedProfile.bindTo(this._contextKeyService);
 		this._updateWebContextKey();

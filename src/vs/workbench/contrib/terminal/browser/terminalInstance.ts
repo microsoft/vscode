@@ -858,7 +858,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Determine whether to send ETX (ctrl+c) before running the command. This should always
 		// happen unless command detection can reliably say that a command is being entered and
 		// there is no content in the prompt
-		if (commandDetection?.hasInput !== false) {
+		if (!commandDetection || commandDetection.promptInputModel.value.length > 0) {
 			await this.sendText('\x03', false);
 			// Wait a little before running the command to avoid the sequences being echoed while the ^C
 			// is being evaluated
@@ -2296,9 +2296,7 @@ class TerminalInstanceDragAndDropController extends Disposable implements dom.ID
 	}
 
 	private _clearDropOverlay() {
-		if (this._dropOverlay && this._dropOverlay.parentElement) {
-			this._dropOverlay.parentElement.removeChild(this._dropOverlay);
-		}
+		this._dropOverlay?.remove();
 		this._dropOverlay = undefined;
 	}
 

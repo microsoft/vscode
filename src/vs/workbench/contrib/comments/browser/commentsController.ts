@@ -430,6 +430,7 @@ export class CommentController implements IEditorContribution {
 	private _commentingRangeSpaceReserved = false;
 	private _commentingRangeAmountReserved = 0;
 	private _computePromise: CancelablePromise<Array<ICommentInfo | null>> | null;
+	private _computeAndSetPromise: Promise<void> | undefined;
 	private _addInProgress!: boolean;
 	private _emptyThreadsToAddQueue: [Range | undefined, IEditorMouseEvent | undefined][] = [];
 	private _computeCommentingRangePromise!: CancelablePromise<ICommentInfo[]> | null;
@@ -645,10 +646,12 @@ export class CommentController implements IEditorContribution {
 			return Promise.resolve([]);
 		});
 
-		return this._computePromise.then(async commentInfos => {
+		this._computeAndSetPromise = this._computePromise.then(async commentInfos => {
 			await this.setComments(coalesce(commentInfos));
 			this._computePromise = null;
 		}, error => console.log(error));
+		this._computePromise.then(() => this._computeAndSetPromise = undefined);
+		return this._computeAndSetPromise;
 	}
 
 	private beginComputeCommentingRanges() {
@@ -687,8 +690,8 @@ export class CommentController implements IEditorContribution {
 		if (commentThreadWidget.length === 1) {
 			commentThreadWidget[0].reveal(commentUniqueId, focus);
 		} else if (fetchOnceIfNotExist) {
-			if (this._computePromise) {
-				this._computePromise.then(_ => {
+			if (this._computeAndSetPromise) {
+				this._computeAndSetPromise.then(_ => {
 					this.revealCommentThread(threadId, commentUniqueId, false, focus);
 				});
 			} else {
