@@ -492,6 +492,9 @@ export class ExtensionsScanner extends Disposable {
 	private readonly _onExtract = this._register(new Emitter<URI>());
 	readonly onExtract = this._onExtract.event;
 
+	private scanAllExtensionPromise: Promise<IScannedExtension[]> | undefined;
+	private scanUserExtensionsPromise: Promise<IScannedExtension[]> | undefined;
+
 	constructor(
 		private readonly beforeRemovingExtension: (e: ILocalExtension) => Promise<void>,
 		@IFileService private readonly fileService: IFileService,
@@ -512,12 +515,18 @@ export class ExtensionsScanner extends Disposable {
 
 	async scanExtensions(type: ExtensionType | null, profileLocation: URI, productVersion: IProductVersion): Promise<ILocalExtension[]> {
 		try {
-			const userScanOptions: ScanOptions = { includeInvalid: true, profileLocation, productVersion };
+			const userScanOptions: ScanOptions = { includeInvalid: true, useCache: true, profileLocation, productVersion };
 			let scannedExtensions: IScannedExtension[] = [];
 			if (type === null || type === ExtensionType.System) {
-				scannedExtensions.push(...await this.extensionsScannerService.scanAllExtensions({ includeInvalid: true }, userScanOptions, false));
+				if (!this.scanAllExtensionPromise) {
+					this.scanAllExtensionPromise = this.extensionsScannerService.scanAllExtensions({ includeInvalid: true, useCache: true }, userScanOptions, false).finally(() => this.scanAllExtensionPromise = undefined);
+				}
+				scannedExtensions.push(...await this.scanAllExtensionPromise);
 			} else if (type === ExtensionType.User) {
-				scannedExtensions.push(...await this.extensionsScannerService.scanUserExtensions(userScanOptions));
+				if (!this.scanUserExtensionsPromise) {
+					this.scanUserExtensionsPromise = this.extensionsScannerService.scanUserExtensions(userScanOptions).finally(() => this.scanUserExtensionsPromise = undefined);
+				}
+				scannedExtensions.push(...await this.scanUserExtensionsPromise);
 			}
 			scannedExtensions = type !== null ? scannedExtensions.filter(r => r.type === type) : scannedExtensions;
 			return await Promise.all(scannedExtensions.map(extension => this.toLocalExtension(extension)));

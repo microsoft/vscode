@@ -18,11 +18,11 @@ import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
 /**
  * Returns a facade for the code editor that provides observables for various states/events.
 */
-export function obsCodeEditor(editor: ICodeEditor): ObservableCodeEditor {
+export function observableCodeEditor(editor: ICodeEditor): ObservableCodeEditor {
 	return ObservableCodeEditor.get(editor);
 }
 
-class ObservableCodeEditor extends Disposable {
+export class ObservableCodeEditor extends Disposable {
 	private static _map = new Map<ICodeEditor, ObservableCodeEditor>();
 
 	/**

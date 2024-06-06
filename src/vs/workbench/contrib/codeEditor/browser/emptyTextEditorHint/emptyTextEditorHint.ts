@@ -244,7 +244,7 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 					const hintPart = $('a', undefined, fragment);
 					hintPart.style.fontStyle = 'italic';
 					hintPart.style.cursor = 'pointer';
-					this.toDispose.add(dom.addDisposableListener(label.element, dom.EventType.CONTEXT_MENU, () => this._disableHint()));
+					this.toDispose.add(dom.addDisposableListener(hintPart, dom.EventType.CONTEXT_MENU, () => this._disableHint()));
 					this.toDispose.add(dom.addDisposableListener(hintPart, dom.EventType.CLICK, handleClick));
 					return hintPart;
 				} else {
