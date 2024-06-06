@@ -56,7 +56,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { createInstantHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
-export const profilesSashBorder = registerColor('profiles.sashBorder', { dark: PANEL_BORDER, light: PANEL_BORDER, hcDark: PANEL_BORDER, hcLight: PANEL_BORDER }, localize('profilesSashBorder', "The color of the Profiles editor splitview sash border."));
+export const profilesSashBorder = registerColor('profiles.sashBorder', PANEL_BORDER, localize('profilesSashBorder', "The color of the Profiles editor splitview sash border."));
 
 export class UserDataProfilesEditor extends EditorPane implements IUserDataProfilesEditor {
 

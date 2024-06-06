@@ -14,7 +14,7 @@ export const multiDiffEditorHeaderBackground = registerColor(
 
 export const multiDiffEditorBackground = registerColor(
 	'multiDiffEditor.background',
-	{ dark: 'editorBackground', light: 'editorBackground', hcDark: 'editorBackground', hcLight: 'editorBackground', },
+	'editorBackground',
 	localize('multiDiffEditor.background', 'The background color of the multi file diff editor')
 );
 

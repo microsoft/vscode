@@ -8,7 +8,7 @@ import { mergeCurrentHeaderBackground, mergeIncomingHeaderBackground, registerCo
 
 export const diff = registerColor(
 	'mergeEditor.change.background',
-	{ dark: '#9bb95533', light: '#9bb95533', hcDark: '#9bb95533', hcLight: '#9bb95533', },
+	'#9bb95533',
 	localize('mergeEditor.change.background', 'The background color for changes.')
 );
 
@@ -38,49 +38,49 @@ export const conflictBorderUnhandledUnfocused = registerColor(
 
 export const conflictBorderUnhandledFocused = registerColor(
 	'mergeEditor.conflict.unhandledFocused.border',
-	{ dark: '#ffa600', light: '#ffa600', hcDark: '#ffa600', hcLight: '#ffa600', },
+	'#ffa600',
 	localize('mergeEditor.conflict.unhandledFocused.border', 'The border color of unhandled focused conflicts.')
 );
 
 export const conflictBorderHandledUnfocused = registerColor(
 	'mergeEditor.conflict.handledUnfocused.border',
-	{ dark: '#86868649', light: '#86868649', hcDark: '#86868649', hcLight: '#86868649', },
+	'#86868649',
 	localize('mergeEditor.conflict.handledUnfocused.border', 'The border color of handled unfocused conflicts.')
 );
 
 export const conflictBorderHandledFocused = registerColor(
 	'mergeEditor.conflict.handledFocused.border',
-	{ dark: '#c1c1c1cc', light: '#c1c1c1cc', hcDark: '#c1c1c1cc', hcLight: '#c1c1c1cc', },
+	'#c1c1c1cc',
 	localize('mergeEditor.conflict.handledFocused.border', 'The border color of handled focused conflicts.')
 );
 
 export const handledConflictMinimapOverViewRulerColor = registerColor(
 	'mergeEditor.conflict.handled.minimapOverViewRuler',
-	{ dark: '#adaca8ee', light: '#adaca8ee', hcDark: '#adaca8ee', hcLight: '#adaca8ee', },
+	'#adaca8ee',
 	localize('mergeEditor.conflict.handled.minimapOverViewRuler', 'The foreground color for changes in input 1.')
 );
 
 export const unhandledConflictMinimapOverViewRulerColor = registerColor(
 	'mergeEditor.conflict.unhandled.minimapOverViewRuler',
-	{ dark: '#fcba03FF', light: '#fcba03FF', hcDark: '#fcba03FF', hcLight: '#fcba03FF', },
+	'#fcba03FF',
 	localize('mergeEditor.conflict.unhandled.minimapOverViewRuler', 'The foreground color for changes in input 1.')
 );
 
 export const conflictingLinesBackground = registerColor(
 	'mergeEditor.conflictingLines.background',
-	{ dark: '#ffea0047', light: '#ffea0047', hcDark: '#ffea0047', hcLight: '#ffea0047', },
+	'#ffea0047',
 	localize('mergeEditor.conflictingLines.background', 'The background of the "Conflicting Lines" text.')
 );
 
 const contentTransparency = 0.4;
 export const conflictInput1Background = registerColor(
 	'mergeEditor.conflict.input1.background',
-	{ dark: transparent(mergeCurrentHeaderBackground, contentTransparency), light: transparent(mergeCurrentHeaderBackground, contentTransparency), hcDark: transparent(mergeCurrentHeaderBackground, contentTransparency), hcLight: transparent(mergeCurrentHeaderBackground, contentTransparency) },
+	transparent(mergeCurrentHeaderBackground, contentTransparency),
 	localize('mergeEditor.conflict.input1.background', 'The background color of decorations in input 1.')
 );
 
 export const conflictInput2Background = registerColor(
 	'mergeEditor.conflict.input2.background',
-	{ dark: transparent(mergeIncomingHeaderBackground, contentTransparency), light: transparent(mergeIncomingHeaderBackground, contentTransparency), hcDark: transparent(mergeIncomingHeaderBackground, contentTransparency), hcLight: transparent(mergeIncomingHeaderBackground, contentTransparency) },
+	transparent(mergeIncomingHeaderBackground, contentTransparency),
 	localize('mergeEditor.conflict.input2.background', 'The background color of decorations in input 2.')
 );

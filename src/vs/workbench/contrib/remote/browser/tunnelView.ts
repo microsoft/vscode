@@ -1818,10 +1818,5 @@ MenuRegistry.appendMenuItem(MenuId.TunnelLocalAddressInline, ({
 	when: isForwardedOrDetectedExpr
 }));
 
-registerColor('ports.iconRunningProcessForeground', {
-	light: STATUS_BAR_REMOTE_ITEM_BACKGROUND,
-	dark: STATUS_BAR_REMOTE_ITEM_BACKGROUND,
-	hcDark: STATUS_BAR_REMOTE_ITEM_BACKGROUND,
-	hcLight: STATUS_BAR_REMOTE_ITEM_BACKGROUND
-}, nls.localize('portWithRunningProcess.foreground', "The color of the icon for a port that has an associated running process."));
+registerColor('ports.iconRunningProcessForeground', STATUS_BAR_REMOTE_ITEM_BACKGROUND, nls.localize('portWithRunningProcess.foreground', "The color of the icon for a port that has an associated running process."));
 
