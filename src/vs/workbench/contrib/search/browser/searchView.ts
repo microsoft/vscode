@@ -535,8 +535,8 @@ export class SearchView extends ViewPane {
 		this._register(this.inputPatternIncludes.onSubmit(onFilePatternSubmit));
 		this._register(this.inputPatternExcludes.onSubmit(onFilePatternSubmit));
 
-		this.messagesElement = dom.append(this.container, $('.messages.text-search-provider-messages'));
 		this.progressElement = dom.append(this.container, $('.messages.text-search-provider-progress'));
+		this.messagesElement = dom.append(this.container, $('.messages.text-search-provider-messages'));
 		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			this.showSearchWithoutFolderMessage();
 		}
@@ -951,8 +951,6 @@ export class SearchView extends ViewPane {
 			} else {
 				iconElement.classList.add(...ThemeIcon.asClassNameArray(Codicon.check));
 			}
-			iconElement.style.marginRight = `10px`;
-			iconElement.style.fontSize = `16px`;
 			dom.append(newMessage, $('span', undefined, progress[i]));
 		}
 
