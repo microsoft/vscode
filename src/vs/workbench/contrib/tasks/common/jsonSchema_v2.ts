@@ -579,7 +579,7 @@ osSpecificTaskRunnerConfiguration.additionalProperties = false;
 definitions.osSpecificTaskRunnerConfiguration = osSpecificTaskRunnerConfiguration;
 definitionsTaskRunnerConfigurationProperties.version = Objects.deepClone(version);
 
-const taskSchema: IJSONSchema = {
+const schema: IJSONSchema = {
 	oneOf: [
 		{
 			'allOf': [
@@ -610,7 +610,7 @@ const taskSchema: IJSONSchema = {
 	]
 };
 
-taskSchema.definitions = definitions;
+schema.definitions = definitions;
 
 function deprecatedVariableMessage(schemaMap: IJSONSchemaMap, property: string) {
 	const mapAtProperty = schemaMap[property].properties!;
@@ -629,7 +629,7 @@ Object.getOwnPropertyNames(definitions).forEach(key => {
 	delete definitions[key];
 	deprecatedVariableMessage(definitions, newKey);
 });
-fixReferences(taskSchema);
+fixReferences(schema);
 
 export function updateProblemMatchers() {
 	try {
@@ -642,4 +642,4 @@ export function updateProblemMatchers() {
 }
 
 
-export default taskSchema;
+export default schema;
