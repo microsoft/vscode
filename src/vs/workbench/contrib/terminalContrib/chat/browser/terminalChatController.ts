@@ -10,8 +10,8 @@ import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IChatCodeBlockContextProviderService, showChatView } from 'vs/workbench/contrib/chat/browser/chat';
-import { IChatProgress, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatCodeBlockContextProviderService } from 'vs/workbench/contrib/chat/browser/chat';
+import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal, isDetachedTerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -20,7 +20,6 @@ import { TerminalChatWidget } from 'vs/workbench/contrib/terminalContrib/chat/br
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { ChatModel, IChatResponseModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { TerminalChatContextKeys } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
-import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { assertType } from 'vs/base/common/types';
 import { CancelablePromise, createCancelablePromise, DeferredPromise } from 'vs/base/common/async';
@@ -75,8 +74,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	readonly onDidAcceptInput = Event.filter(this._messages.event, m => m === Message.ACCEPT_INPUT, this._store);
 	get onDidHide() { return this.chatWidget?.onDidHide ?? Event.None; }
 
-	private _terminalAgentName = 'terminal';
-
 	private readonly _model: MutableDisposable<ChatModel> = this._register(new MutableDisposable());
 
 	get scopedContextKeyService(): IContextKeyService {
@@ -90,7 +87,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	private _historyCandidate: string = '';
 	private _historyUpdate: (prompt: string) => void;
 
-	private _currentRequestId: string | undefined;
 	private _activeRequestCts?: CancellationTokenSource;
 
 	constructor(
@@ -102,7 +98,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IChatService private readonly _chatService: IChatService,
 		@IChatCodeBlockContextProviderService private readonly _chatCodeBlockContextProviderService: IChatCodeBlockContextProviderService,
-		@IViewsService private readonly _viewsService: IViewsService,
 		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super();
@@ -220,7 +215,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		this._requestActiveContextKey.set(true);
 		let responseContent = '';
 		const response = await this._chatWidget.value.inlineChatWidget.chatWidget.acceptInput(lastInput);
-		this._currentRequestId = response?.requestId;
 		const responsePromise = new DeferredPromise<IChatResponseModel | undefined>();
 		try {
 			this._requestActiveContextKey.set(true);
@@ -331,42 +325,5 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		await this._createSession();
 		this._chatWidget?.value.reveal();
 		this._chatWidget?.value.focus();
-	}
-
-	async viewInChat(): Promise<void> {
-		//TODO: is this necessary? better way?
-		const widget = await showChatView(this._viewsService);
-		const currentRequest = this.chatWidget?.inlineChatWidget.chatWidget.viewModel?.model.getRequests().find(r => r.id === this._currentRequestId);
-		if (!widget || !currentRequest?.response) {
-			return;
-		}
-
-		const message: IChatProgress[] = [];
-		for (const item of currentRequest.response.response.value) {
-			if (item.kind === 'textEditGroup') {
-				for (const group of item.edits) {
-					message.push({
-						kind: 'textEdit',
-						edits: group,
-						uri: item.uri
-					});
-				}
-			} else {
-				message.push(item);
-			}
-		}
-
-		this._chatService.addCompleteRequest(widget!.viewModel!.sessionId,
-			// DEBT: Add hardcoded agent name until its removed
-			`@${this._terminalAgentName} ${currentRequest.message.text}`,
-			currentRequest.variableData,
-			currentRequest.attempt,
-			{
-				message,
-				result: currentRequest.response!.result,
-				followups: currentRequest.response!.followups
-			});
-		widget.focusLastMessage();
-		this._chatWidget?.rawValue?.hide();
 	}
 }
