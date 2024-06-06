@@ -67,26 +67,40 @@ onceDocumentLoaded(() => {
 		history.back();
 	});
 
-	openExternalButton.addEventListener('click', () => {
-		vscode.postMessage({
-			type: 'openExternal',
-			url: input.value
+	if (openExternalButton) {
+		openExternalButton.addEventListener('click', () => {
+			vscode.postMessage({
+				type: 'openExternal',
+				url: input.value
+			});
 		});
-	});
+	}
 
-	reloadButton.addEventListener('click', () => {
-		// This does not seem to trigger what we want
-		// history.go(0);
+	if (reloadButton) {
+		reloadButton.addEventListener('click', () => {
+			// This does not seem to trigger what we want
+			// history.go(0);
 
-		// This incorrectly adds entries to the history but does reload
-		// It also always incorrectly always loads the value in the input bar,
-		// which may not match the current page if the user has navigated
-		navigateTo(input.value);
-	});
+			// This incorrectly adds entries to the history but does reload
+			// It also always incorrectly always loads the value in the input bar,
+			// which may not match the current page if the user has navigated
+			navigateTo(input.value);
+		});
+	}
 
+	// Set the initial URL
 	navigateTo(settings.url);
-	input.value = settings.url;
 
+	// Check if 'input' and 'settings' are truthy and if 'settings' has a 'url' property
+	if (input && settings && settings.url) {
+		// If all conditions are met, set the value of 'input' to the 'url' from 'settings'
+		input.value = settings.url;
+	} else {
+		// If any of the conditions are not met, set the value of 'input' to an empty string
+		input.value = '';
+	}
+
+	// Toggle the focus lock indicator
 	toggleFocusLockIndicatorEnabled(settings.focusLockIndicatorEnabled);
 
 	function navigateTo(rawUrl: string): void {
@@ -99,7 +113,8 @@ onceDocumentLoaded(() => {
 
 			iframe.src = url.toString();
 		} catch {
-			iframe.src = rawUrl;
+			// If rawUrl is not a valid URL, log an error and do not change iframe.src
+			console.error(`Invalid URL: ${rawUrl}`);
 		}
 
 		vscode.setState({ url: rawUrl });
