@@ -11,9 +11,12 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { observableCodeEditor } from 'vs/editor/browser/observableUtilities';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { ghostTextForeground } from 'vs/editor/common/core/editorColorRegistry';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration, InjectedTextCursorStops } from 'vs/editor/common/model';
+import { localize } from 'vs/nls';
+import { registerColor } from 'vs/platform/theme/common/colorUtils';
 
 /**
  * Use the editor option to set the placeholder text.
@@ -64,3 +67,5 @@ export class PlaceholderTextContribution extends Disposable implements IEditorCo
 }
 
 registerEditorContribution(PlaceholderTextContribution.ID, PlaceholderTextContribution, EditorContributionInstantiation.Eager);
+
+registerColor('editor.placeholder.foreground', { dark: ghostTextForeground, light: ghostTextForeground, hcDark: ghostTextForeground, hcLight: ghostTextForeground }, localize('placeholderForeground', 'Foreground color of the placeholder text in the editor.'));

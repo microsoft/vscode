@@ -3358,14 +3358,7 @@ class EditorPixelRatio extends ComputedEditorOption<EditorOption.pixelRatio, num
 
 class PlaceholderOption extends BaseEditorOption<EditorOption.placeholder, string | undefined, string | undefined> {
 	constructor() {
-		super(
-			EditorOption.placeholder, 'placeholder', undefined,
-			{
-				type: 'string',
-				description: nls.localize('placeholder', "Editor placeholder."),
-				default: undefined
-			}
-		);
+		super(EditorOption.placeholder, 'placeholder', undefined);
 	}
 
 	public validate(input: any): string | undefined {
