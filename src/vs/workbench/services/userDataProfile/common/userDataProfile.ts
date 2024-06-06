@@ -82,8 +82,8 @@ export function toUserDataProfileUri(path: string, productService: IProductServi
 }
 
 export interface IUserDataProfileCreateOptions extends IUserDataProfileOptions {
+	readonly name?: string;
 	readonly resourceTypeFlags?: ProfileResourceTypeFlags;
-	readonly donotSwitch?: boolean;
 }
 
 export interface IProfileImportOptions extends IUserDataProfileCreateOptions {
@@ -100,15 +100,12 @@ export interface IUserDataProfileImportExportService {
 	unregisterProfileContentHandler(id: string): void;
 
 	resolveProfileTemplate(uri: URI): Promise<IUserDataProfileTemplate | null>;
-	exportProfile(): Promise<void>;
-	exportProfile2(profile: IUserDataProfile): Promise<void>;
+	exportProfile(profile: IUserDataProfile): Promise<void>;
 	importProfile(uri: URI, options?: IProfileImportOptions): Promise<void>;
-	showProfileContents(): Promise<void>;
 	createProfile(from?: IUserDataProfile | URI): Promise<void>;
-	createFromProfile(from: IUserDataProfile, name: string, options?: IUserDataProfileCreateOptions): Promise<void>;
-	editProfile(profile: IUserDataProfile): Promise<void>;
+	createFromProfile(from: IUserDataProfile, options: IUserDataProfileCreateOptions, token: CancellationToken): Promise<IUserDataProfile | undefined>;
+	createProfileFromTemplate(profileTemplate: IUserDataProfileTemplate, options: IUserDataProfileCreateOptions, token: CancellationToken): Promise<IUserDataProfile | undefined>;
 	createTroubleshootProfile(): Promise<void>;
-	setProfile(profile: IUserDataProfileTemplate): Promise<void>;
 }
 
 export interface IProfileResourceInitializer {

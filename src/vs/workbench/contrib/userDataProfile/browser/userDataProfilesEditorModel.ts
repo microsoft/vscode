@@ -305,7 +305,7 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 
 	abstract readonly titleButtons: [Action[], Action[]];
 	abstract readonly titleActions: [IAction[], IAction[]];
-	abstract readonly contextMenuActions: IAction[];
+	abstract readonly actions: [IAction[], IAction[]];
 
 	protected abstract doSave(): Promise<void>;
 }
@@ -318,7 +318,7 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement {
 		private _profile: IUserDataProfile,
 		readonly titleButtons: [Action[], Action[]],
 		readonly titleActions: [IAction[], IAction[]],
-		readonly contextMenuActions: IAction[],
+		readonly actions: [IAction[], IAction[]],
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IUserDataProfileManagementService userDataProfileManagementService: IUserDataProfileManagementService,
@@ -398,7 +398,7 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 		copyFrom: URI | IUserDataProfile | undefined,
 		readonly titleButtons: [Action[], Action[]],
 		readonly titleActions: [IAction[], IAction[]],
-		readonly contextMenuActions: Action[],
+		readonly actions: [IAction[], IAction[]],
 		@IFileService private readonly fileService: IFileService,
 		@IUserDataProfileImportExportService private readonly userDataProfileImportExportService: IUserDataProfileImportExportService,
 		@IUserDataProfileManagementService userDataProfileManagementService: IUserDataProfileManagementService,
@@ -506,7 +506,7 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 		}
 	}
 
-	private async resolveTemplate(uri: URI): Promise<void> {
+	async resolveTemplate(uri: URI): Promise<IUserDataProfileTemplate | null> {
 		if (!this.templatePromise) {
 			this.templatePromise = createCancelablePromise(async token => {
 				const template = await this.userDataProfileImportExportService.resolveProfileTemplate(uri);
@@ -515,7 +515,8 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 				}
 			});
 		}
-		return this.templatePromise;
+		await this.templatePromise;
+		return this.template;
 	}
 
 	hasResource(resourceType: ProfileResourceType): boolean {
@@ -752,7 +753,6 @@ export class UserDataProfilesEditorModel extends EditorModel {
 		));
 
 		const titlePrimaryActions: IAction[] = [];
-		titlePrimaryActions.push(newWindowAction);
 		const titleSecondaryActions: IAction[] = [];
 		titleSecondaryActions.push(copyFromProfileAction);
 		titleSecondaryActions.push(exportAction);
@@ -761,6 +761,8 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			titleSecondaryActions.push(deleteAction);
 		}
 
+		const primaryActions: IAction[] = [];
+		primaryActions.push(newWindowAction);
 		const secondaryActions: IAction[] = [];
 		secondaryActions.push(activateAction);
 		secondaryActions.push(useAsNewWindowProfileAction);
@@ -776,7 +778,7 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			profile,
 			[[newWindowAction], []],
 			[titlePrimaryActions, titleSecondaryActions],
-			secondaryActions,
+			[primaryActions, secondaryActions]
 		));
 
 		activateAction.checked = this.userDataProfileService.currentProfile.id === profile.id;
@@ -823,8 +825,8 @@ export class UserDataProfilesEditorModel extends EditorModel {
 				localize('untitled', "Untitled"),
 				copyFrom,
 				[[createAction], [previewProfileAction, cancelAction]],
+				[[], []],
 				[[cancelAction], []],
-				[],
 			));
 			disposables.add(this.newProfileElement.onDidChange(e => {
 				if (e.preview) {
@@ -906,14 +908,37 @@ export class UserDataProfilesEditorModel extends EditorModel {
 				const createProfileTelemetryData: CreateProfileInfoEvent = { source: copyFrom instanceof URI ? 'template' : isUserDataProfile(copyFrom) ? 'profile' : copyFrom ? 'external' : undefined };
 
 				if (copyFrom instanceof URI) {
-					this.telemetryService.publicLog2<CreateProfileInfoEvent, CreateProfileInfoClassification>('userDataProfile.createFromTemplate', createProfileTelemetryData);
-					await this.userDataProfileImportExportService.importProfile(copyFrom, { mode: 'apply', name: name, useDefaultFlags, icon: icon ? icon : undefined, resourceTypeFlags: this.newProfileElement.copyFlags, donotSwitch: true, transient });
+					const template = await this.newProfileElement.resolveTemplate(copyFrom);
+					if (template) {
+						this.telemetryService.publicLog2<CreateProfileInfoEvent, CreateProfileInfoClassification>('userDataProfile.createFromTemplate', createProfileTelemetryData);
+						await this.userDataProfileImportExportService.createProfileFromTemplate(
+							template,
+							{
+								name,
+								useDefaultFlags,
+								icon,
+								resourceTypeFlags: this.newProfileElement.copyFlags,
+								transient
+							},
+							token ?? CancellationToken.None
+						);
+					}
 				} else if (isUserDataProfile(copyFrom)) {
 					this.telemetryService.publicLog2<CreateProfileInfoEvent, CreateProfileInfoClassification>('userDataProfile.createFromProfile', createProfileTelemetryData);
-					await this.userDataProfileImportExportService.createFromProfile(copyFrom, name, { useDefaultFlags, icon: icon ? icon : undefined, resourceTypeFlags: this.newProfileElement.copyFlags, donotSwitch: true, transient });
+					await this.userDataProfileImportExportService.createFromProfile(
+						copyFrom,
+						{
+							name,
+							useDefaultFlags,
+							icon: icon,
+							resourceTypeFlags: this.newProfileElement.copyFlags,
+							transient
+						},
+						token ?? CancellationToken.None
+					);
 				} else {
 					this.telemetryService.publicLog2<CreateProfileInfoEvent, CreateProfileInfoClassification>('userDataProfile.createEmptyProfile', createProfileTelemetryData);
-					await this.userDataProfileManagementService.createProfile(name, { useDefaultFlags, icon: icon ? icon : undefined, transient });
+					await this.userDataProfileManagementService.createProfile(name, { useDefaultFlags, icon, transient });
 				}
 
 				profile = this.userDataProfilesService.profiles.find(p => p.name === name);
@@ -971,6 +996,6 @@ export class UserDataProfilesEditorModel extends EditorModel {
 	}
 
 	private async exportProfile(profile: IUserDataProfile): Promise<void> {
-		return this.userDataProfileImportExportService.exportProfile2(profile);
+		return this.userDataProfileImportExportService.exportProfile(profile);
 	}
 }
