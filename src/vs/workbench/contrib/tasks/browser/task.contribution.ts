@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { MenuRegistry, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -445,10 +445,6 @@ export class TaskRegistryContribution extends Disposable implements IWorkbenchCo
 			updateTaskDefinitions();
 			jsonRegistry.notifySchemaChanged(tasksSchemaId);
 		}));
-
-		this._register(toDisposable(() => ProblemMatcherRegistry.onReady().then(() => {
-			updateProblemMatchers();
-		})));
 	}
 }
 registerWorkbenchContribution2(TaskRegistryContribution.ID, TaskRegistryContribution, WorkbenchPhase.AfterRestored);

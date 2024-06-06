@@ -641,5 +641,8 @@ export function updateProblemMatchers() {
 	}
 }
 
+ProblemMatcherRegistry.onReady().then(() => {
+	updateProblemMatchers();
+});
 
 export default schema;
