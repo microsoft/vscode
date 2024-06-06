@@ -177,22 +177,14 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 
 	private async _createSession(): Promise<void> {
 		this._sessionCtor = createCancelablePromise<void>(async token => {
-			await this._startSession(token);
+			if (!this._model.value) {
+				this._model.value = this._chatService.startSession(ChatAgentLocation.Terminal, token);
 
-			if (this._chatWidget) {
-				this.focus();
+				if (!this._model.value) {
+					throw new Error('Failed to start chat session');
+				}
 			}
 		});
-	}
-
-	private async _startSession(token: CancellationToken) {
-		if (!this._model.value) {
-			this._model.value = this._chatService.startSession(ChatAgentLocation.Terminal, token);
-
-			if (!this._model.value) {
-				throw new Error('Failed to start chat session');
-			}
-		}
 	}
 
 	private _forcedPlaceholder: string | undefined = undefined;
@@ -355,6 +347,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	async reveal(): Promise<void> {
 		await this._createSession();
 		this._chatWidget?.value.reveal();
+		this._chatWidget?.value.focus();
 	}
 
 	async viewInChat(): Promise<void> {
