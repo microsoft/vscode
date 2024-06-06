@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { Event } from 'vs/base/common/event';
 import { TestContextService, TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
 import { randomPath } from 'vs/base/common/extpath';

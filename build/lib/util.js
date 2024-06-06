@@ -34,7 +34,6 @@ const rename = require("gulp-rename");
 const path = require("path");
 const fs = require("fs");
 const _rimraf = require("rimraf");
-const VinylFile = require("vinyl");
 const url_1 = require("url");
 const ternaryStream = require("ternary-stream");
 const root = path.dirname(path.dirname(__dirname));

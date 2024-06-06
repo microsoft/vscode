@@ -7,7 +7,6 @@ import { BugIndicatingError } from 'vs/base/common/errors';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { Range } from 'vs/editor/common/core/range';
 import { findFirstIdxMonotonousOrArrLen, findLastIdxMonotonous, findLastMonotonous } from 'vs/base/common/arraysFind';
-import { ITextModel } from 'vs/editor/common/model';
 
 /**
  * A range of lines (1-based).
@@ -75,32 +74,6 @@ export class LineRange {
 	 */
 	public static deserialize(lineRange: ISerializedLineRange): LineRange {
 		return new LineRange(lineRange[0], lineRange[1]);
-	}
-
-	/**
-	 * @internal
-	 */
-	public static invert(range: LineRange, model: ITextModel): LineRange[] {
-		if (range.isEmpty) {
-			return [];
-		}
-		const result: LineRange[] = [];
-		if (range.startLineNumber > 1) {
-			result.push(new LineRange(1, range.startLineNumber));
-		}
-		if (range.endLineNumberExclusive < model.getLineCount() + 1) {
-			result.push(new LineRange(range.endLineNumberExclusive, model.getLineCount() + 1));
-		}
-		return result.filter(r => !r.isEmpty);
-	}
-
-	/**
-	 * @internal
-	 */
-	public static asRange(lineRange: LineRange, model: ITextModel): Range {
-		return lineRange.isEmpty
-			? new Range(lineRange.startLineNumber, 1, lineRange.startLineNumber, model.getLineLength(lineRange.startLineNumber))
-			: new Range(lineRange.startLineNumber, 1, lineRange.endLineNumberExclusive - 1, model.getLineLength(lineRange.endLineNumberExclusive - 1));
 	}
 
 	/**

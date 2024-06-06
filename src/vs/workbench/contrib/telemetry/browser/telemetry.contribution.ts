@@ -33,6 +33,7 @@ import { isBoolean, isNumber, isString } from 'vs/base/common/types';
 import { LayoutSettings } from 'vs/workbench/services/layout/browser/layoutService';
 import { AutoUpdateConfigurationKey } from 'vs/workbench/contrib/extensions/common/extensions';
 import { KEYWORD_ACTIVIATION_SETTING_ID } from 'vs/workbench/contrib/chat/common/chatService';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 type TelemetryData = {
 	mimeType: TelemetryTrustedValue<string>;
@@ -240,6 +241,7 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
@@ -419,6 +421,23 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
 				}>('window.systemColorTheme', { settingValue: this.getValueToReport(key, target), source });
 				return;
+
+			case 'window.newWindowProfile':
+				{
+					const valueToReport = this.getValueToReport(key, target);
+					const settingValue =
+						valueToReport === null ? 'null'
+							: valueToReport === this.userDataProfilesService.defaultProfile.name
+								? 'default'
+								: 'custom';
+					this.telemetryService.publicLog2<UpdatedSettingEvent, {
+						owner: 'bpasero';
+						comment: 'This is used to know the new window profile that is being used';
+						settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'if the profile is default or not' };
+						source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
+					}>('window.systemColorTheme', { settingValue, source });
+					return;
+				}
 		}
 	}
 

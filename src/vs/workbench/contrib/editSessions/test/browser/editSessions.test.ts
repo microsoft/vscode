@@ -20,7 +20,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { mock } from 'vs/base/test/common/mock';
 import * as sinon from 'sinon';
-import * as assert from 'assert';
+import assert from 'assert';
 import { ChangeType, FileType, IEditSessionsLogService, IEditSessionsStorageService } from 'vs/workbench/contrib/editSessions/common/editSessions';
 import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';

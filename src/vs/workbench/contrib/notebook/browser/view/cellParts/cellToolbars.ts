@@ -80,13 +80,15 @@ export class BetweenCellToolbar extends CellOverlayPart {
 
 	override didRenderCell(element: ICellViewModel): void {
 		const betweenCellToolbar = this._initialize();
-		betweenCellToolbar.context = <INotebookCellActionContext>{
-			ui: true,
-			cell: element,
-			notebookEditor: this._notebookEditor,
-			source: 'insertToolbar',
-			$mid: MarshalledId.NotebookCellActionContext
-		};
+		if (this._notebookEditor.hasModel()) {
+			betweenCellToolbar.context = {
+				ui: true,
+				cell: element,
+				notebookEditor: this._notebookEditor,
+				source: 'insertToolbar',
+				$mid: MarshalledId.NotebookCellActionContext
+			} satisfies (INotebookCellActionContext & { source?: string; $mid: number });
+		}
 		this.updateInternalLayoutNow(element);
 	}
 
@@ -202,13 +204,17 @@ export class CellTitleToolbarPart extends CellOverlayPart {
 		const view = this._initialize(model, element);
 		this.cellDisposables.add(registerCellToolbarStickyScroll(this._notebookEditor, element, this.toolbarContainer, { extraOffset: 4, min: -14 }));
 
-		this.updateContext(view, <INotebookCellActionContext>{
-			ui: true,
-			cell: element,
-			notebookEditor: this._notebookEditor,
-			source: 'cellToolbar',
-			$mid: MarshalledId.NotebookCellActionContext
-		});
+		if (this._notebookEditor.hasModel()) {
+			const toolbarContext: INotebookCellActionContext & { source?: string; $mid: number } = {
+				ui: true,
+				cell: element,
+				notebookEditor: this._notebookEditor,
+				source: 'cellToolbar',
+				$mid: MarshalledId.NotebookCellActionContext
+			};
+
+			this.updateContext(view, toolbarContext);
+		}
 	}
 
 	private updateContext(view: CellTitleToolbarView, toolbarContext: INotebookCellActionContext) {

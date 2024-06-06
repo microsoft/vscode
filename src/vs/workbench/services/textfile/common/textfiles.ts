@@ -132,6 +132,11 @@ export interface IReadTextFileEncodingOptions {
 	readonly autoGuessEncoding?: boolean;
 
 	/**
+	 * The optional candidateGuessEncodings parameter limits the allowed encodings to guess from.
+	 */
+	readonly candidateGuessEncodings?: string[];
+
+	/**
 	 * The optional acceptTextOnly parameter allows to fail this request early if the file
 	 * contents are not textual.
 	 */
@@ -385,7 +390,7 @@ export interface ITextFileEditorModelManager {
 	/**
 	 * Runs the registered save participants on the provided model.
 	 */
-	runSaveParticipants(model: ITextFileEditorModel, context: ITextFileSaveParticipantContext, token: CancellationToken): Promise<void>;
+	runSaveParticipants(model: ITextFileEditorModel, context: ITextFileSaveParticipantContext, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void>;
 
 	/**
 	 * Waits for the model to be ready to be disposed. There may be conditions

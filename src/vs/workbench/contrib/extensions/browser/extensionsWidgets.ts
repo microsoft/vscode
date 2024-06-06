@@ -294,9 +294,7 @@ export class RecommendationWidget extends ExtensionWidget {
 	}
 
 	private clear(): void {
-		if (this.element) {
-			this.parent.removeChild(this.element);
-		}
+		this.element?.remove();
 		this.element = undefined;
 		this.disposables.clear();
 	}
@@ -330,9 +328,7 @@ export class PreReleaseBookmarkWidget extends ExtensionWidget {
 	}
 
 	private clear(): void {
-		if (this.element) {
-			this.parent.removeChild(this.element);
-		}
+		this.element?.remove();
 		this.element = undefined;
 		this.disposables.clear();
 	}
@@ -367,9 +363,7 @@ export class RemoteBadgeWidget extends ExtensionWidget {
 	}
 
 	private clear(): void {
-		if (this.remoteBadge.value) {
-			this.element.removeChild(this.remoteBadge.value.element);
-		}
+		this.remoteBadge.value?.element.remove();
 		this.remoteBadge.clear();
 	}
 
@@ -553,7 +547,7 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		if (this.extension) {
 			this.hover.value = this.hoverService.setupUpdatableHover({
 				delay: this.configurationService.getValue<number>('workbench.hover.delay'),
-				showHover: (options) => {
+				showHover: (options, focus) => {
 					return this.hoverService.showHover({
 						...options,
 						additionalClasses: ['extension-hover'],
@@ -561,7 +555,10 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 							hoverPosition: this.options.position(),
 							forcePosition: true,
 						},
-					});
+						persistence: {
+							hideOnKeyDown: true,
+						}
+					}, focus);
 				},
 				placement: 'element'
 			}, this.options.target, { markdown: () => Promise.resolve(this.getHoverMarkdown()), markdownNotSupportedFallback: undefined });

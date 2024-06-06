@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { FoldingMarkers } from 'vs/editor/common/languages/languageConfiguration';
 import { MAX_FOLDING_REGIONS, FoldRange, FoldingRegions, FoldSource } from 'vs/editor/contrib/folding/browser/foldingRanges';

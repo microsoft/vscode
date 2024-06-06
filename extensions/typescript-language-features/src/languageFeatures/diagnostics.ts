@@ -156,7 +156,7 @@ class DiagnosticsTelemetryManager extends Disposable {
 	private readonly _diagnosticCodesMap = new Map<number, number>();
 	private readonly _diagnosticSnapshotsMap = new ResourceMap<readonly vscode.Diagnostic[]>(uri => uri.toString(), { onCaseInsensitiveFileSystem: false });
 	private _timeout: NodeJS.Timeout | undefined;
-	private _telemetryEmitter: NodeJS.Timer | undefined;
+	private _telemetryEmitter: NodeJS.Timeout | undefined;
 
 	constructor(
 		private readonly _telemetryReporter: TelemetryReporter,

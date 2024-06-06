@@ -30,6 +30,7 @@ import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/wo
 import { isWeb } from 'vs/base/common/platform';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { SnapshotContext } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
+import { IProgressService } from 'vs/platform/progress/common/progress';
 
 /**
  * The only one that should be dealing with `IStoredFileWorkingCopy` and handle all
@@ -186,7 +187,8 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 		@INotificationService private readonly notificationService: INotificationService,
 		@IWorkingCopyEditorService private readonly workingCopyEditorService: IWorkingCopyEditorService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IElevatedFileService private readonly elevatedFileService: IElevatedFileService
+		@IElevatedFileService private readonly elevatedFileService: IElevatedFileService,
+		@IProgressService private readonly progressService: IProgressService
 	) {
 		super(fileService, logService, workingCopyBackupService);
 
@@ -532,7 +534,7 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 				async options => { await this.resolve(resource, { ...options, reload: { async: false } }); },
 				this.fileService, this.logService, this.workingCopyFileService, this.filesConfigurationService,
 				this.workingCopyBackupService, this.workingCopyService, this.notificationService, this.workingCopyEditorService,
-				this.editorService, this.elevatedFileService
+				this.editorService, this.elevatedFileService, this.progressService
 			);
 
 			workingCopyResolve = workingCopy.resolve(resolveOptions);

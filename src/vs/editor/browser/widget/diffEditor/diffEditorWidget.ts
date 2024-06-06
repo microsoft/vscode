@@ -26,7 +26,8 @@ import { HideUnchangedRegionsFeature } from 'vs/editor/browser/widget/diffEditor
 import { MovedBlocksLinesFeature } from 'vs/editor/browser/widget/diffEditor/features/movedBlocksLinesFeature';
 import { OverviewRulerFeature } from 'vs/editor/browser/widget/diffEditor/features/overviewRulerFeature';
 import { RevertButtonsFeature } from 'vs/editor/browser/widget/diffEditor/features/revertButtonsFeature';
-import { CSSStyle, ObservableElementSizeObserver, applyStyle, applyViewZones, bindContextKey, readHotReloadableExport, translatePosition } from 'vs/editor/browser/widget/diffEditor/utils';
+import { CSSStyle, ObservableElementSizeObserver, applyStyle, applyViewZones, readHotReloadableExport, translatePosition } from 'vs/editor/browser/widget/diffEditor/utils';
+import { bindContextKey } from 'vs/platform/observable/common/platformObservableUtils';
 import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IDimension } from 'vs/editor/common/core/dimension';
 import { Position } from 'vs/editor/common/core/position';
@@ -67,9 +68,9 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 	public get onDidContentSizeChange() { return this._editors.onDidContentSizeChange; }
 
 	private readonly _contextKeyService = this._register(this._parentContextKeyService.createScoped(this._domElement));
-	private readonly _instantiationService = this._parentInstantiationService.createChild(
+	private readonly _instantiationService = this._register(this._parentInstantiationService.createChild(
 		new ServiceCollection([IContextKeyService, this._contextKeyService])
-	);
+	));
 	private readonly _rootSizeObserver: ObservableElementSizeObserver;
 
 
@@ -110,7 +111,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		this._contextKeyService.createKey('isInDiffEditor', true);
 
 		this._domElement.appendChild(this.elements.root);
-		this._register(toDisposable(() => this._domElement.removeChild(this.elements.root)));
+		this._register(toDisposable(() => this.elements.root.remove()));
 
 		this._rootSizeObserver = this._register(new ObservableElementSizeObserver(this.elements.root, options.dimension));
 		this._rootSizeObserver.setAutomaticLayout(options.automaticLayout ?? false);
@@ -343,6 +344,12 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 	private readonly _layoutInfo = derived(this, reader => {
 		const fullWidth = this._rootSizeObserver.width.read(reader);
 		const fullHeight = this._rootSizeObserver.height.read(reader);
+
+		if (this._rootSizeObserver.automaticLayout) {
+			this.elements.root.style.height = '100%';
+		} else {
+			this.elements.root.style.height = fullHeight + 'px';
+		}
 
 		const sash = this._sash.read(reader);
 

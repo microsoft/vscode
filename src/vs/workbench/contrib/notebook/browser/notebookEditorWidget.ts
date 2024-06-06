@@ -80,7 +80,7 @@ import { INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { NotebookOptions, OutputInnerContainerTopPadding } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
-import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
+import { cellRangesToIndexes, ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { INotebookRendererMessagingService } from 'vs/workbench/contrib/notebook/common/notebookRendererMessagingService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IWebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
@@ -324,7 +324,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 		this._overlayContainer = document.createElement('div');
 		this.scopedContextKeyService = this._register(contextKeyService.createScoped(this._overlayContainer));
-		this.instantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService]));
+		this.instantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
 
 		this._register(_notebookService.onDidChangeOutputRenderers(() => {
 			this._updateOutputRenderers();
@@ -366,6 +366,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				|| e.dragAndDropEnabled
 				|| e.fontSize
 				|| e.markupFontSize
+				|| e.markdownLineHeight
 				|| e.fontFamily
 				|| e.insertToolbarAlignment
 				|| e.outputFontSize
@@ -831,6 +832,18 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		styleSheets.push(`
 			.notebookOverlay .monaco-list .monaco-list-row:has(+ .monaco-list-row.selected) .cell-focus-indicator-bottom {
 				height: ${bottomToolbarGap + cellBottomMargin}px;
+			}
+		`);
+
+		styleSheets.push(`
+			.notebookOverlay .monaco-list .monaco-list-row.code-cell-row.nb-multiCellHighlight:has(+ .monaco-list-row.nb-multiCellHighlight) .cell-focus-indicator-bottom {
+				height: ${bottomToolbarGap + cellBottomMargin}px;
+				background-color: var(--vscode-notebook-symbolHighlightBackground) !important;
+			}
+
+			.notebookOverlay .monaco-list .monaco-list-row.markdown-cell-row.nb-multiCellHighlight:has(+ .monaco-list-row.nb-multiCellHighlight) .cell-focus-indicator-bottom {
+				height: ${bottomToolbarGap + cellBottomMargin - 6}px;
+				background-color: var(--vscode-notebook-symbolHighlightBackground) !important;
 			}
 		`);
 
@@ -1813,6 +1826,19 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			return;
 		}
 
+		const whenContainerStylesLoaded = this.layoutService.whenContainerStylesLoaded(DOM.getWindow(this.getDomNode()));
+		if (whenContainerStylesLoaded) {
+			// In floating windows, we need to ensure that the
+			// container is ready for us to compute certain
+			// layout related properties.
+			whenContainerStylesLoaded.then(() => this.layoutNotebook(dimension, shadowElement, position));
+		} else {
+			this.layoutNotebook(dimension, shadowElement, position);
+		}
+
+	}
+
+	private layoutNotebook(dimension: DOM.Dimension, shadowElement?: HTMLElement, position?: DOM.IDomPosition) {
 		if (shadowElement) {
 			this.updateShadowElement(shadowElement, dimension, position);
 		}
@@ -2536,7 +2562,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			}
 		}
 
-
 		return Promise.all(requests);
 	}
 
@@ -2575,7 +2600,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				return [];
 			}
 
-			const webviewMatches = await this._webview.find(query, { caseSensitive: options.caseSensitive, wholeWord: options.wholeWord, includeMarkup: !!options.includeMarkupPreview, includeOutput: !!options.includeOutput, shouldGetSearchPreviewInfo, ownerID });
+			const selectedRanges = options.selectedRanges?.map(range => this._notebookViewModel?.validateRange(range)).filter(range => !!range);
+			const selectedIndexes = cellRangesToIndexes(selectedRanges ?? []);
+			const findIds: string[] = selectedIndexes.map<string>(index => this._notebookViewModel?.viewCells[index].id ?? '');
+
+			const webviewMatches = await this._webview.find(query, { caseSensitive: options.caseSensitive, wholeWord: options.wholeWord, includeMarkup: !!options.includeMarkupPreview, includeOutput: !!options.includeOutput, shouldGetSearchPreviewInfo, ownerID, findIds: options.searchInRanges ? findIds : [] });
 
 			if (token.isCancellationRequested) {
 				return [];

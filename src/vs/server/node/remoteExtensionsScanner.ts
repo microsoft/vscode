@@ -79,7 +79,13 @@ export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerS
 		return this._whenExtensionsReady;
 	}
 
-	async scanExtensions(language?: string, profileLocation?: URI, extensionDevelopmentLocations?: URI[], languagePackId?: string): Promise<IExtensionDescription[]> {
+	async scanExtensions(
+		language?: string,
+		profileLocation?: URI,
+		workspaceExtensionLocations?: URI[],
+		extensionDevelopmentLocations?: URI[],
+		languagePackId?: string
+	): Promise<IExtensionDescription[]> {
 		performance.mark('code/server/willScanExtensions');
 		this._logService.trace(`Scanning extensions using UI language: ${language}`);
 
@@ -88,7 +94,7 @@ export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerS
 		const extensionDevelopmentPaths = extensionDevelopmentLocations ? extensionDevelopmentLocations.filter(url => url.scheme === Schemas.file).map(url => url.fsPath) : undefined;
 		profileLocation = profileLocation ?? this._userDataProfilesService.defaultProfile.extensionsResource;
 
-		const extensions = await this._scanExtensions(profileLocation, language ?? platform.language, extensionDevelopmentPaths, languagePackId);
+		const extensions = await this._scanExtensions(profileLocation, language ?? platform.language, workspaceExtensionLocations, extensionDevelopmentPaths, languagePackId);
 
 		this._logService.trace('Scanned Extensions', extensions);
 		this._massageWhenConditions(extensions);
@@ -97,36 +103,17 @@ export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerS
 		return extensions;
 	}
 
-	async scanSingleExtension(extensionLocation: URI, isBuiltin: boolean, language?: string): Promise<IExtensionDescription | null> {
-		await this._whenBuiltinExtensionsReady;
-
-		const extensionPath = extensionLocation.scheme === Schemas.file ? extensionLocation.fsPath : null;
-
-		if (!extensionPath) {
-			return null;
-		}
-
-		const extension = await this._scanSingleExtension(extensionPath, isBuiltin, language ?? platform.language);
-
-		if (!extension) {
-			return null;
-		}
-
-		this._massageWhenConditions([extension]);
-
-		return extension;
-	}
-
-	private async _scanExtensions(profileLocation: URI, language: string, extensionDevelopmentPath: string[] | undefined, languagePackId: string | undefined): Promise<IExtensionDescription[]> {
+	private async _scanExtensions(profileLocation: URI, language: string, workspaceInstalledExtensionLocations: URI[] | undefined, extensionDevelopmentPath: string[] | undefined, languagePackId: string | undefined): Promise<IExtensionDescription[]> {
 		await this._ensureLanguagePackIsInstalled(language, languagePackId);
 
-		const [builtinExtensions, installedExtensions, developedExtensions] = await Promise.all([
+		const [builtinExtensions, installedExtensions, workspaceInstalledExtensions, developedExtensions] = await Promise.all([
 			this._scanBuiltinExtensions(language),
 			this._scanInstalledExtensions(profileLocation, language),
+			this._scanWorkspaceInstalledExtensions(language, workspaceInstalledExtensionLocations),
 			this._scanDevelopedExtensions(language, extensionDevelopmentPath)
 		]);
 
-		return dedupExtensions(builtinExtensions, installedExtensions, developedExtensions, this._logService);
+		return dedupExtensions(builtinExtensions, installedExtensions, workspaceInstalledExtensions, developedExtensions, this._logService);
 	}
 
 	private async _scanDevelopedExtensions(language: string, extensionDevelopmentPaths?: string[]): Promise<IExtensionDescription[]> {
@@ -138,6 +125,19 @@ export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerS
 		return [];
 	}
 
+	private async _scanWorkspaceInstalledExtensions(language: string, workspaceInstalledExtensions?: URI[]): Promise<IExtensionDescription[]> {
+		const result: IExtensionDescription[] = [];
+		if (workspaceInstalledExtensions?.length) {
+			const scannedExtensions = await Promise.all(workspaceInstalledExtensions.map(location => this._extensionsScannerService.scanExistingExtension(location, ExtensionType.User, { language })));
+			for (const scannedExtension of scannedExtensions) {
+				if (scannedExtension) {
+					result.push(toExtensionDescription(scannedExtension, false));
+				}
+			}
+		}
+		return result;
+	}
+
 	private async _scanBuiltinExtensions(language: string): Promise<IExtensionDescription[]> {
 		const scannedExtensions = await this._extensionsScannerService.scanSystemExtensions({ language, useCache: true });
 		return scannedExtensions.map(e => toExtensionDescription(e, false));
@@ -146,13 +146,6 @@ export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerS
 	private async _scanInstalledExtensions(profileLocation: URI, language: string): Promise<IExtensionDescription[]> {
 		const scannedExtensions = await this._extensionsScannerService.scanUserExtensions({ profileLocation, language, useCache: true });
 		return scannedExtensions.map(e => toExtensionDescription(e, false));
-	}
-
-	private async _scanSingleExtension(extensionPath: string, isBuiltin: boolean, language: string): Promise<IExtensionDescription | null> {
-		const extensionLocation = URI.file(resolve(extensionPath));
-		const type = isBuiltin ? ExtensionType.System : ExtensionType.User;
-		const scannedExtension = await this._extensionsScannerService.scanExistingExtension(extensionLocation, type, { language });
-		return scannedExtension ? toExtensionDescription(scannedExtension, false) : null;
 	}
 
 	private async _ensureLanguagePackIsInstalled(language: string, languagePackId: string | undefined): Promise<void> {
@@ -319,14 +312,17 @@ export class RemoteExtensionsScannerChannel implements IServerChannel {
 			case 'scanExtensions': {
 				const language = args[0];
 				const profileLocation = args[1] ? URI.revive(uriTransformer.transformIncoming(args[1])) : undefined;
-				const extensionDevelopmentPath = Array.isArray(args[2]) ? args[2].map(u => URI.revive(uriTransformer.transformIncoming(u))) : undefined;
-				const languagePackId: string | undefined = args[3];
-				const extensions = await this.service.scanExtensions(language, profileLocation, extensionDevelopmentPath, languagePackId);
+				const workspaceExtensionLocations = Array.isArray(args[2]) ? args[2].map(u => URI.revive(uriTransformer.transformIncoming(u))) : undefined;
+				const extensionDevelopmentPath = Array.isArray(args[3]) ? args[3].map(u => URI.revive(uriTransformer.transformIncoming(u))) : undefined;
+				const languagePackId: string | undefined = args[4];
+				const extensions = await this.service.scanExtensions(
+					language,
+					profileLocation,
+					workspaceExtensionLocations,
+					extensionDevelopmentPath,
+					languagePackId
+				);
 				return extensions.map(extension => transformOutgoingURIs(extension, uriTransformer));
-			}
-			case 'scanSingleExtension': {
-				const extension = await this.service.scanSingleExtension(URI.revive(uriTransformer.transformIncoming(args[0])), args[1], args[2]);
-				return extension ? transformOutgoingURIs(extension, uriTransformer) : null;
 			}
 		}
 		throw new Error('Invalid call');

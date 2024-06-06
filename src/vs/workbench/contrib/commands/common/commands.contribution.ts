@@ -102,9 +102,9 @@ class RunCommands extends Action2 {
 
 				logService.debug(`runCommands: executing ${i}-th command: ${safeStringify(cmd)}`);
 
-				const r = await this._runCommand(commandService, cmd);
+				await this._runCommand(commandService, cmd);
 
-				logService.debug(`runCommands: executed ${i}-th command with return value: ${safeStringify(r)}`);
+				logService.debug(`runCommands: executed ${i}-th command`);
 			}
 		} catch (err) {
 			logService.debug(`runCommands: executing ${i}-th command resulted in an error: ${err instanceof Error ? err.message : safeStringify(err)}`);

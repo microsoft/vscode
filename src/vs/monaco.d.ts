@@ -4318,6 +4318,10 @@ declare namespace monaco.editor {
 		 * Font size of section headers. Defaults to 9.
 		 */
 		sectionHeaderFontSize?: number;
+		/**
+		 * Spacing between the section header characters (in CSS px). Defaults to 1.
+		 */
+		sectionHeaderLetterSpacing?: number;
 	}
 
 	/**
@@ -4999,8 +5003,8 @@ declare namespace monaco.editor {
 		screenReaderAnnounceInlineSuggestion: IEditorOption<EditorOption.screenReaderAnnounceInlineSuggestion, boolean>;
 		autoClosingBrackets: IEditorOption<EditorOption.autoClosingBrackets, 'always' | 'languageDefined' | 'beforeWhitespace' | 'never'>;
 		autoClosingComments: IEditorOption<EditorOption.autoClosingComments, 'always' | 'languageDefined' | 'beforeWhitespace' | 'never'>;
-		autoClosingDelete: IEditorOption<EditorOption.autoClosingDelete, 'always' | 'never' | 'auto'>;
-		autoClosingOvertype: IEditorOption<EditorOption.autoClosingOvertype, 'always' | 'never' | 'auto'>;
+		autoClosingDelete: IEditorOption<EditorOption.autoClosingDelete, 'auto' | 'always' | 'never'>;
+		autoClosingOvertype: IEditorOption<EditorOption.autoClosingOvertype, 'auto' | 'always' | 'never'>;
 		autoClosingQuotes: IEditorOption<EditorOption.autoClosingQuotes, 'always' | 'languageDefined' | 'beforeWhitespace' | 'never'>;
 		autoIndent: IEditorOption<EditorOption.autoIndent, EditorAutoIndentStrategy>;
 		automaticLayout: IEditorOption<EditorOption.automaticLayout, boolean>;
@@ -5012,7 +5016,7 @@ declare namespace monaco.editor {
 		codeLensFontFamily: IEditorOption<EditorOption.codeLensFontFamily, string>;
 		codeLensFontSize: IEditorOption<EditorOption.codeLensFontSize, number>;
 		colorDecorators: IEditorOption<EditorOption.colorDecorators, boolean>;
-		colorDecoratorActivatedOn: IEditorOption<EditorOption.colorDecoratorsActivatedOn, 'clickAndHover' | 'click' | 'hover'>;
+		colorDecoratorActivatedOn: IEditorOption<EditorOption.colorDecoratorsActivatedOn, 'hover' | 'clickAndHover' | 'click'>;
 		colorDecoratorsLimit: IEditorOption<EditorOption.colorDecoratorsLimit, number>;
 		columnSelection: IEditorOption<EditorOption.columnSelection, boolean>;
 		comments: IEditorOption<EditorOption.comments, Readonly<Required<IEditorCommentsOptions>>>;
@@ -5120,13 +5124,13 @@ declare namespace monaco.editor {
 		tabCompletion: IEditorOption<EditorOption.tabCompletion, 'on' | 'off' | 'onlySnippets'>;
 		tabIndex: IEditorOption<EditorOption.tabIndex, number>;
 		unicodeHighlight: IEditorOption<EditorOption.unicodeHighlighting, any>;
-		unusualLineTerminators: IEditorOption<EditorOption.unusualLineTerminators, 'auto' | 'off' | 'prompt'>;
+		unusualLineTerminators: IEditorOption<EditorOption.unusualLineTerminators, 'off' | 'auto' | 'prompt'>;
 		useShadowDOM: IEditorOption<EditorOption.useShadowDOM, boolean>;
 		useTabStops: IEditorOption<EditorOption.useTabStops, boolean>;
 		wordBreak: IEditorOption<EditorOption.wordBreak, 'normal' | 'keepAll'>;
 		wordSegmenterLocales: IEditorOption<EditorOption.wordSegmenterLocales, {}>;
 		wordSeparators: IEditorOption<EditorOption.wordSeparators, string>;
-		wordWrap: IEditorOption<EditorOption.wordWrap, 'on' | 'off' | 'wordWrapColumn' | 'bounded'>;
+		wordWrap: IEditorOption<EditorOption.wordWrap, 'wordWrapColumn' | 'on' | 'off' | 'bounded'>;
 		wordWrapBreakAfterCharacters: IEditorOption<EditorOption.wordWrapBreakAfterCharacters, string>;
 		wordWrapBreakBeforeCharacters: IEditorOption<EditorOption.wordWrapBreakBeforeCharacters, string>;
 		wordWrapColumn: IEditorOption<EditorOption.wordWrapColumn, number>;
@@ -5387,12 +5391,21 @@ declare namespace monaco.editor {
 		 * The position preference for the overlay widget.
 		 */
 		preference: OverlayWidgetPositionPreference | IOverlayWidgetPositionCoordinates | null;
+		/**
+		 * When set, stacks with other overlay widgets with the same preference,
+		 * in an order determined by the ordinal value.
+		 */
+		stackOridinal?: number;
 	}
 
 	/**
 	 * An overlay widgets renders on top of the text.
 	 */
 	export interface IOverlayWidget {
+		/**
+		 * Event fired when the widget layout changes.
+		 */
+		onDidLayout?: IEvent<void>;
 		/**
 		 * Render this overlay widget in a location where it could overflow the editor's view dom node.
 		 */
@@ -6876,9 +6889,9 @@ declare namespace monaco.languages {
 
 	export interface HoverVerbosityRequest<THover = Hover> {
 		/**
-		 * Whether to increase or decrease the hover's verbosity
+		 * The delta by which to increase/decrease the hover verbosity level
 		 */
-		action: HoverVerbosityAction;
+		verbosityDelta: number;
 		/**
 		 * The previous hover for the same position
 		 */
@@ -7924,6 +7937,11 @@ declare namespace monaco.languages {
 		title: string;
 		tooltip?: string;
 		arguments?: any[];
+	}
+
+	export interface CommentThreadRevealOptions {
+		preserveFocus: boolean;
+		focusReply: boolean;
 	}
 
 	export interface CommentAuthorInformation {

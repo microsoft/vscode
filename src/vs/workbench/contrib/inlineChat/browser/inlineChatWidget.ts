@@ -34,11 +34,10 @@ import { asCssVariable, asCssVariableName, editorBackground, editorForeground, i
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IAccessibleViewService } from 'vs/platform/accessibility/browser/accessibleView';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
-import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
 import { ChatModel, IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { HunkInformation, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
-import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_FOCUSED, IInlineChatFollowup, IInlineChatSlashCommand, inlineChatBackground } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_FOCUSED, inlineChatBackground } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { chatRequestBackground } from 'vs/workbench/contrib/chat/common/chatColors';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -131,7 +130,8 @@ export class InlineChatWidget {
 
 	private _isLayouting: boolean = false;
 
-	private readonly _followUpDisposables = this._store.add(new DisposableStore());
+	readonly scopedContextKeyService: IContextKeyService;
+
 	constructor(
 		location: ChatAgentLocation,
 		options: IInlineChatWidgetConstructionOptions,
@@ -151,12 +151,13 @@ export class InlineChatWidget {
 
 		let allowRequests = false;
 
-
+		this.scopedContextKeyService = this._store.add(_contextKeyService.createScoped(this._elements.chatWidget));
 		const scopedInstaService = _instantiationService.createChild(
 			new ServiceCollection([
 				IContextKeyService,
-				this._store.add(_contextKeyService.createScoped(this._elements.chatWidget))
-			])
+				this.scopedContextKeyService
+			]),
+			this._store
 		);
 
 		this._chatWidget = scopedInstaService.createInstance(
@@ -380,17 +381,17 @@ export class InlineChatWidget {
 		// The chat widget is variable height and supports scrolling. It should be
 		// at least "maxWidgetHeight" high and at most the content height.
 
-		let maxWidgetHeight = 100;
+		let maxWidgetOutputHeight = 100;
 		for (const item of this._chatWidget.viewModel?.getItems() ?? []) {
 			if (isResponseVM(item) && item.response.value.some(r => r.kind === 'textEditGroup' && !r.state?.applied)) {
-				maxWidgetHeight = 270;
+				maxWidgetOutputHeight = 270;
 				break;
 			}
 		}
 
 		let value = this.contentHeight;
 		value -= this._chatWidget.contentHeight;
-		value += Math.min(maxWidgetHeight, this._chatWidget.contentHeight);
+		value += Math.min(this._chatWidget.input.contentHeight + maxWidgetOutputHeight, this._chatWidget.contentHeight);
 		return value;
 	}
 
@@ -527,28 +528,6 @@ export class InlineChatWidget {
 			}
 		};
 	}
-	/**
-	 * @deprecated use `setChatModel` instead
-	 */
-	updateFollowUps(items: IInlineChatFollowup[], onFollowup: (followup: IInlineChatFollowup) => void): void;
-	updateFollowUps(items: undefined): void;
-	updateFollowUps(items: IInlineChatFollowup[] | undefined, onFollowup?: ((followup: IInlineChatFollowup) => void)) {
-		this._followUpDisposables.clear();
-		this._elements.followUps.classList.toggle('hidden', !items || items.length === 0);
-		reset(this._elements.followUps);
-		if (items && items.length > 0 && onFollowup) {
-			this._followUpDisposables.add(
-				this._instantiationService.createInstance(ChatFollowups, this._elements.followUps, items, ChatAgentLocation.Editor, undefined, onFollowup));
-		}
-		this._onDidChangeHeight.fire();
-	}
-
-	/**
-	 * @deprecated use `setChatModel` instead
-	 */
-	updateSlashCommands(commands: IInlineChatSlashCommand[]) {
-
-	}
 
 	updateInfo(message: string): void {
 		this._elements.infoLabel.classList.toggle('hidden', !message);
@@ -588,7 +567,6 @@ export class InlineChatWidget {
 	reset() {
 		this._chatWidget.saveState();
 		this.updateChatMessage(undefined);
-		this.updateFollowUps(undefined);
 
 		reset(this._elements.statusLabel);
 		this._elements.statusLabel.classList.toggle('hidden', true);
@@ -617,6 +595,7 @@ export class EditorBasedInlineChatWidget extends InlineChatWidget {
 	private readonly _accessibleViewer = this._store.add(new MutableDisposable<HunkAccessibleDiffViewer>());
 
 	constructor(
+		location: ChatAgentLocation,
 		private readonly _parentEditor: ICodeEditor,
 		options: IInlineChatWidgetConstructionOptions,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -629,10 +608,20 @@ export class EditorBasedInlineChatWidget extends InlineChatWidget {
 		@IChatService chatService: IChatService,
 		@IHoverService hoverService: IHoverService,
 	) {
-		super(ChatAgentLocation.Editor, { ...options, editorOverflowWidgetsDomNode: _parentEditor.getOverflowWidgetsDomNode() }, instantiationService, contextKeyService, keybindingService, accessibilityService, configurationService, accessibleViewService, textModelResolverService, chatService, hoverService);
+		super(location, { ...options, editorOverflowWidgetsDomNode: _parentEditor.getOverflowWidgetsDomNode() }, instantiationService, contextKeyService, keybindingService, accessibilityService, configurationService, accessibleViewService, textModelResolverService, chatService, hoverService);
 	}
 
 	// --- layout
+
+	override get contentHeight(): number {
+		let result = super.contentHeight;
+
+		if (this._accessibleViewer.value) {
+			result += this._accessibleViewer.value.height;
+		}
+
+		return result;
+	}
 
 	protected override _doLayout(dimension: Dimension): void {
 

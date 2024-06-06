@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { unthemedInboxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
 import { unthemedButtonStyles } from 'vs/base/browser/ui/button/button';
 import { unthemedListStyles } from 'vs/base/browser/ui/list/listWidget';
@@ -32,6 +32,8 @@ import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyServ
 import { NoMatchingKb } from 'vs/platform/keybinding/common/keybindingResolver';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { TestAccessibilityService } from 'vs/platform/accessibility/test/common/testAccessibilityService';
 
 // Sets up an `onShow` listener to allow us to wait until the quick pick is shown (useful when triggering an `accept()` right after launching a quick pick)
 // kick this off before you launch the picker and then await the promise returned after you launch the picker.
@@ -55,13 +57,14 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 	setup(() => {
 		const fixture = document.createElement('div');
 		mainWindow.document.body.appendChild(fixture);
-		store.add(toDisposable(() => mainWindow.document.body.removeChild(fixture)));
+		store.add(toDisposable(() => fixture.remove()));
 
 		const instantiationService = new TestInstantiationService();
 
 		// Stub the services the quick input controller needs to function
 		instantiationService.stub(IThemeService, new TestThemeService());
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
+		instantiationService.stub(IAccessibilityService, new TestAccessibilityService());
 		instantiationService.stub(IListService, store.add(new ListService()));
 		instantiationService.stub(ILayoutService, { activeContainer: fixture, onDidLayoutContainer: Event.None } as any);
 		instantiationService.stub(IContextViewService, store.add(instantiationService.createInstance(ContextViewService)));
