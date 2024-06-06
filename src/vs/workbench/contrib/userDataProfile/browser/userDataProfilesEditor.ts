@@ -502,7 +502,10 @@ class ProfileWidget extends Disposable {
 								type: MessageType.ERROR
 							};
 						}
-						const initialName = this._profileElement.value?.element instanceof UserDataProfileElement ? this._profileElement.value.element.profile.name : undefined;
+						if (this._profileElement.value?.element.disabled) {
+							return null;
+						}
+						const initialName = this._profileElement.value?.element.getInitialName();
 						if (initialName !== value && this.userDataProfilesService.profiles.some(p => p.name === value)) {
 							return {
 								content: localize('profileExists', "Profile with name {0} already exists.", value),

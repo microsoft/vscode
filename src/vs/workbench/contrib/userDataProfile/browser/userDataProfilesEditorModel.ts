@@ -263,7 +263,7 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 
 	}
 
-	protected getInitialName(): string {
+	getInitialName(): string {
 		return '';
 	}
 
@@ -380,7 +380,7 @@ export class UserDataProfileElement extends AbstractUserDataProfileElement {
 		return this.getChildrenFromProfile(this.profile, resourceType);
 	}
 
-	protected override getInitialName(): string {
+	override getInitialName(): string {
 		return this.profile.name;
 	}
 
@@ -613,7 +613,7 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 		return [];
 	}
 
-	protected override getInitialName(): string {
+	override getInitialName(): string {
 		return this.previewProfile?.name ?? '';
 	}
 
