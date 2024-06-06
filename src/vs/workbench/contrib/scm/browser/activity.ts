@@ -42,8 +42,7 @@ export class SCMStatusController implements IWorkbenchContribution {
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@IActivityService private readonly activityService: IActivityService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
 		this.scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.disposables);
@@ -69,29 +68,12 @@ export class SCMStatusController implements IWorkbenchContribution {
 			return false;
 		}
 
-		let bestRepository: ISCMRepository | null = null;
-		let bestMatchLength = Number.POSITIVE_INFINITY;
-
-		for (const repository of repositories) {
-			const root = repository.provider.rootUri;
-
-			if (!root) {
-				continue;
-			}
-
-			const path = this.uriIdentityService.extUri.relativePath(root, resource);
-
-			if (path && !/^\.\./.test(path) && path.length < bestMatchLength) {
-				bestRepository = repository;
-				bestMatchLength = path.length;
-			}
-		}
-
-		if (!bestRepository) {
+		const repository = this.scmService.getRepository(resource);
+		if (!repository) {
 			return false;
 		}
 
-		this.focusRepository(bestRepository);
+		this.focusRepository(repository);
 		return true;
 	}
 
@@ -230,9 +212,9 @@ export class SCMActiveRepositoryContextKeyController implements IWorkbenchContri
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IEditorService private readonly editorService: IEditorService,
-		@ISCMViewService private readonly scmViewService: ISCMViewService,
-		@ITitleService titleService: ITitleService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+		@ISCMViewService scmViewService: ISCMViewService,
+		@ISCMService private readonly scmService: ISCMService,
+		@ITitleService titleService: ITitleService
 	) {
 		this.activeRepositoryNameContextKey = ActiveRepositoryContextKeys.ActiveRepositoryName.bindTo(contextKeyService);
 		this.activeRepositoryBranchNameContextKey = ActiveRepositoryContextKeys.ActiveRepositoryBranchName.bindTo(contextKeyService);
@@ -249,16 +231,11 @@ export class SCMActiveRepositoryContextKeyController implements IWorkbenchContri
 
 	private onDidActiveEditorChange(): void {
 		const activeResource = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor);
-
-		if (activeResource?.scheme !== Schemas.file && activeResource?.scheme !== Schemas.vscodeRemote) {
+		if (!activeResource) {
 			return;
 		}
 
-		const repository = Iterable.find(
-			this.scmViewService.repositories,
-			r => Boolean(r.provider.rootUri && this.uriIdentityService.extUri.isEqualOrParent(activeResource, r.provider.rootUri))
-		);
-
+		const repository = this.scmService.getRepository(activeResource);
 		this.onDidFocusRepository(repository);
 	}
 
