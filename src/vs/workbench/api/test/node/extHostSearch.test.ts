@@ -148,6 +148,7 @@ suite('ExtHostSearch', () => {
 					new class extends mock<IExtHostConfiguration>() {
 						override async getConfigProvider(): Promise<ExtHostConfigProvider> {
 							return {
+								onDidChangeConfiguration(_listener: (event: vscode.ConfigurationChangeEvent) => void) { },
 								getConfiguration(): vscode.WorkspaceConfiguration {
 									return {
 										get() { },
@@ -160,6 +161,7 @@ suite('ExtHostSearch', () => {
 										async update() { }
 									};
 								},
+
 							} as ExtHostConfigProvider;
 						}
 					},
