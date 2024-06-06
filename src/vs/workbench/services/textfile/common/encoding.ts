@@ -330,18 +330,30 @@ async function guessEncodingByBuffer(buffer: VSBuffer, candidateGuessEncodings?:
 	// https://github.com/aadsm/jschardet/blob/v2.1.1/src/index.js#L36-L40
 	const binaryString = encodeLatin1(limitedBuffer.buffer);
 
+
+	let candidateGuessEncodingsFallback: string | null = null;
+
 	// ensure to convert candidate encodings to jschardet encoding names if provided
 	if (candidateGuessEncodings) {
 		candidateGuessEncodings = coalesce(candidateGuessEncodings.map(e => toJschardetEncoding(e)));
+
 		if (candidateGuessEncodings.length === 0) {
 			candidateGuessEncodings = undefined;
+		} else {
+			candidateGuessEncodingsFallback = candidateGuessEncodings.at(-1) ?? null;
 		}
 	}
 
-	const guessed = jschardet.detect(binaryString, candidateGuessEncodings ? { detectEncodings: candidateGuessEncodings } : undefined);
-	if (!guessed || !guessed.encoding) {
+	let guessed = jschardet.detect(binaryString, candidateGuessEncodings ? { detectEncodings: candidateGuessEncodings } : undefined);
+
+	if (!candidateGuessEncodingsFallback && (!guessed || !guessed.encoding)) {
 		return null;
 	}
+
+	if (candidateGuessEncodingsFallback !== null) {
+		guessed = { encoding: candidateGuessEncodingsFallback, confidence: 0.99 };
+	}
+
 
 	const enc = guessed.encoding.toLowerCase();
 	if (0 <= IGNORE_ENCODINGS.indexOf(enc)) {
