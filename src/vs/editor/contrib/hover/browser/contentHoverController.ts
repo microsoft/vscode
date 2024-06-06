@@ -26,6 +26,12 @@ import { EditorHoverStatusBar } from 'vs/editor/contrib/hover/browser/contentHov
 import { Emitter } from 'vs/base/common/event';
 import { ColorHoverParticipant } from 'vs/editor/contrib/colorPicker/browser/colorHoverParticipant';
 
+interface HoverRanges {
+	showAtPosition: Position;
+	showAtSecondaryPosition: Position;
+	highlightRange: Range;
+}
+
 export class ContentHoverController extends Disposable implements IHoverWidget {
 
 	private _currentResult: HoverResult | null = null;
@@ -222,19 +228,17 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 	}
 
 	private _showHover(hoverResult: HoverResult): void {
+		const hoverParts = hoverResult.hoverParts;
+		const hoverAnchor = hoverResult.anchor;
 		const hoverContext = this._getHoverContext();
-		const renderedHoverData = new RenderedContentHover(
-			this._editor,
-			hoverContext,
-			this._participants,
-			hoverResult,
-			this._computer,
-			this._keybindingService
-		);
-		if (renderedHoverData.hasContent) {
-			this._contentHoverWidget.showAt(renderedHoverData);
+		const hoverRanges = ContentHoverController.computeHoverRanges(this._editor, hoverAnchor.range, hoverParts);
+		const renderedHoverParts = new RenderedHoverParts(this._editor, hoverRanges.highlightRange, hoverParts, this._participants, hoverContext, this._keybindingService);
+		if (renderedHoverParts.hasContent) {
+			const renderedHoverDomNode = renderedHoverParts.domNode;
+			const renderingMetadata = new RenderingMetadata(this._editor, hoverRanges, hoverParts, hoverAnchor, this._computer);
+			this._contentHoverWidget.showAt(renderedHoverDomNode, renderingMetadata);
 		} else {
-			renderedHoverData.dispose();
+			renderedHoverParts.dispose();
 		}
 	}
 
@@ -256,7 +260,7 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		return { hide, onContentsChanged, setMinimumDimensions };
 	}
 
-	public static computeHoverRanges(editor: ICodeEditor, anchorRange: Range, hoverParts: IHoverPart[]) {
+	public static computeHoverRanges(editor: ICodeEditor, anchorRange: Range, hoverParts: IHoverPart[]): HoverRanges {
 
 		let startColumnBoundary = 1;
 		if (editor.hasModel()) {
@@ -444,80 +448,19 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 	}
 }
 
-export class RenderedContentHover extends Disposable {
+export class RenderedHoverParts extends Disposable {
 
 	private static readonly _DECORATION_OPTIONS = ModelDecorationOptions.register({
 		description: 'content-hover-highlight',
 		className: 'hoverHighlight'
 	});
 
-	public closestMouseDistance: number | undefined;
-	public initialMousePosX: number | undefined;
-	public initialMousePosY: number | undefined;
-	public readonly showAtPosition: Position;
-	public readonly showAtSecondaryPosition: Position;
-	public readonly preferAbove: boolean;
-	public readonly stoleFocus: boolean;
-	public readonly source: HoverStartSource;
-	public readonly isBeforeContent: boolean;
-
-	private readonly _renderedHoverParts: RenderedHoverParts;
+	private readonly _participants: IEditorHoverParticipant<IHoverPart>[];
+	private readonly _fragment: DocumentFragment;
 
 	constructor(
 		editor: ICodeEditor,
-		context: IEditorHoverContext,
-		participants: IEditorHoverParticipant[],
-		hoverResult: HoverResult,
-		computer: ContentHoverComputer,
-		keybindingService: IKeybindingService,
-	) {
-		super();
-		const hoverParts = hoverResult.hoverParts;
-		const anchor = hoverResult.anchor;
-		this._renderedHoverParts = new RenderedHoverParts(hoverParts, participants, context, keybindingService);
-		this._register(this._renderedHoverParts);
-		const { showAtPosition, showAtSecondaryPosition, highlightRange } = ContentHoverController.computeHoverRanges(editor, anchor.range, hoverParts);
-		this.showAtPosition = showAtPosition;
-		this.showAtSecondaryPosition = showAtSecondaryPosition;
-		this._register(this._addEditorDecorations(editor, highlightRange));
-		this.initialMousePosX = anchor.initialMousePosX;
-		this.initialMousePosY = anchor.initialMousePosY;
-		this.preferAbove = editor.getOption(EditorOption.hover).above;
-		this.stoleFocus = computer.shouldFocus;
-		this.source = computer.source;
-		this.isBeforeContent = hoverParts.some(m => m.isBeforeContent);
-	}
-
-	private _addEditorDecorations(editor: ICodeEditor, highlightRange: Range | undefined): IDisposable {
-		if (!highlightRange) {
-			return Disposable.None;
-		}
-		const highlightDecoration = editor.createDecorationsCollection();
-		highlightDecoration.set([{
-			range: highlightRange,
-			options: RenderedContentHover._DECORATION_OPTIONS
-		}]);
-		return toDisposable(() => {
-			highlightDecoration.clear();
-		});
-	}
-
-	public get hasContent(): boolean {
-		return this._renderedHoverParts.hasContent;
-	}
-
-	public get domNode(): DocumentFragment {
-		return this._renderedHoverParts.domNode;
-	}
-}
-
-class RenderedHoverParts extends Disposable {
-
-	private readonly _participants: IEditorHoverParticipant<IHoverPart>[];
-	private readonly _fragment: DocumentFragment;
-	public readonly hasContent: boolean;
-
-	constructor(
+		highlightRange: Range,
 		hoverParts: IHoverPart[],
 		participants: IEditorHoverParticipant<IHoverPart>[],
 		context: IEditorHoverContext,
@@ -530,7 +473,21 @@ class RenderedHoverParts extends Disposable {
 		const hoverContext: IEditorHoverRenderContext = { fragment: this._fragment, statusBar, ...context };
 		this._register(this._renderHoverPartsUsingContext(hoverContext, hoverParts));
 		this._register(this._renderStatusBar(this._fragment, statusBar));
-		this.hasContent = this._fragment.hasChildNodes();
+		this._register(this._addEditorDecorations(editor, highlightRange));
+	}
+
+	private _addEditorDecorations(editor: ICodeEditor, highlightRange: Range | undefined): IDisposable {
+		if (!highlightRange) {
+			return Disposable.None;
+		}
+		const highlightDecoration = editor.createDecorationsCollection();
+		highlightDecoration.set([{
+			range: highlightRange,
+			options: RenderedHoverParts._DECORATION_OPTIONS
+		}]);
+		return toDisposable(() => {
+			highlightDecoration.clear();
+		});
 	}
 
 	private _renderHoverPartsUsingContext(context: IEditorHoverRenderContext, hoverParts: IHoverPart[]): IDisposable {
@@ -556,5 +513,41 @@ class RenderedHoverParts extends Disposable {
 
 	public get domNode(): DocumentFragment {
 		return this._fragment;
+	}
+
+	public get hasContent(): boolean {
+		return this._fragment.hasChildNodes();
+	}
+}
+
+export class RenderingMetadata extends Disposable {
+
+	public closestMouseDistance: number | undefined;
+	public initialMousePosX: number | undefined;
+	public initialMousePosY: number | undefined;
+
+	public readonly showAtPosition: Position;
+	public readonly showAtSecondaryPosition: Position;
+	public readonly preferAbove: boolean;
+	public readonly stoleFocus: boolean;
+	public readonly source: HoverStartSource;
+	public readonly isBeforeContent: boolean;
+
+	constructor(
+		editor: ICodeEditor,
+		hoverRanges: HoverRanges,
+		hoverParts: IHoverPart[],
+		anchor: HoverAnchor,
+		computer: ContentHoverComputer
+	) {
+		super();
+		this.showAtPosition = hoverRanges.showAtPosition;
+		this.showAtSecondaryPosition = hoverRanges.showAtSecondaryPosition;
+		this.initialMousePosX = anchor.initialMousePosX;
+		this.initialMousePosY = anchor.initialMousePosY;
+		this.preferAbove = editor.getOption(EditorOption.hover).above;
+		this.stoleFocus = computer.shouldFocus;
+		this.source = computer.source;
+		this.isBeforeContent = hoverParts.some(m => m.isBeforeContent);
 	}
 }
