@@ -7,6 +7,7 @@ import { asPromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { URI, UriComponents } from 'vs/base/common/uri';
+import { Disposable as DisposableCls, toDisposable } from 'vs/base/common/lifecycle';
 import { ExtensionIdentifier, IExtensionDescription, IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ISignService } from 'vs/platform/sign/common/sign';
@@ -25,7 +26,6 @@ import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import type * as vscode from 'vscode';
 import { IExtHostConfiguration } from '../common/extHostConfiguration';
 import { IExtHostVariableResolverProvider } from './extHostVariableResolverService';
-import { toDisposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon as ThemeIconUtils } from 'vs/base/common/themables';
 import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import * as Convert from 'vs/workbench/api/common/extHostTypeConverters';
@@ -60,7 +60,7 @@ export interface IExtHostDebugService extends ExtHostDebugServiceShape {
 	asDebugSourceUri(source: vscode.DebugProtocolSource, session?: vscode.DebugSession): vscode.Uri;
 }
 
-export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, ExtHostDebugServiceShape {
+export abstract class ExtHostDebugServiceBase extends DisposableCls implements IExtHostDebugService, ExtHostDebugServiceShape {
 
 	readonly _serviceBrand: undefined;
 
@@ -124,6 +124,8 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 		@IExtHostVariableResolverProvider private _variableResolver: IExtHostVariableResolverProvider,
 		@IExtHostCommands private _commands: IExtHostCommands,
 	) {
+		super();
+
 		this._configProviderHandleCounter = 0;
 		this._configProviders = [];
 
@@ -136,25 +138,25 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 		this._debugAdapters = new Map();
 		this._debugAdaptersTrackers = new Map();
 
-		this._onDidStartDebugSession = new Emitter<vscode.DebugSession>();
-		this._onDidTerminateDebugSession = new Emitter<vscode.DebugSession>();
-		this._onDidChangeActiveDebugSession = new Emitter<vscode.DebugSession | undefined>();
-		this._onDidReceiveDebugSessionCustomEvent = new Emitter<vscode.DebugSessionCustomEvent>();
+		this._onDidStartDebugSession = this._register(new Emitter<vscode.DebugSession>());
+		this._onDidTerminateDebugSession = this._register(new Emitter<vscode.DebugSession>());
+		this._onDidChangeActiveDebugSession = this._register(new Emitter<vscode.DebugSession | undefined>());
+		this._onDidReceiveDebugSessionCustomEvent = this._register(new Emitter<vscode.DebugSessionCustomEvent>());
 
 		this._debugServiceProxy = extHostRpcService.getProxy(MainContext.MainThreadDebugService);
 
-		this._onDidChangeBreakpoints = new Emitter<vscode.BreakpointsChangeEvent>();
+		this._onDidChangeBreakpoints = this._register(new Emitter<vscode.BreakpointsChangeEvent>());
 
-		this._onDidChangeActiveStackItem = new Emitter<vscode.DebugThread | vscode.DebugStackFrame | undefined>();
+		this._onDidChangeActiveStackItem = this._register(new Emitter<vscode.DebugThread | vscode.DebugStackFrame | undefined>());
 
 		this._activeDebugConsole = new ExtHostDebugConsole(this._debugServiceProxy);
 
 		this._breakpoints = new Map<string, vscode.Breakpoint>();
 
 		this._extensionService.getExtensionRegistry().then((extensionRegistry: ExtensionDescriptionRegistry) => {
-			extensionRegistry.onDidChange(_ => {
+			this._register(extensionRegistry.onDidChange(_ => {
 				this.registerAllDebugTypes(extensionRegistry);
-			});
+			}));
 			this.registerAllDebugTypes(extensionRegistry);
 		});
 	}

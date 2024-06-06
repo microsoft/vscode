@@ -127,7 +127,7 @@ export interface IColorRegistry {
 
 }
 
-type IJSONSchemaForColors = IJSONSchema & { properties: { [name: string]: IJSONSchemaWithSnippets } };
+type IJSONSchemaForColors = IJSONSchema & { properties: { [name: string]: { oneOf: [IJSONSchemaWithSnippets, IJSONSchema] } } };
 type IJSONSchemaWithSnippets = IJSONSchema & { defaultSnippets: IJSONSchemaSnippet[] };
 
 class ColorRegistry implements IColorRegistry {
@@ -147,7 +147,7 @@ class ColorRegistry implements IColorRegistry {
 		for (const key of Object.keys(this.colorsById)) {
 			const color = colorThemeData.getColor(key);
 			if (color) {
-				this.colorSchema.properties[key].defaultSnippets[0].body = `\${1:${color.toString()}}`;
+				this.colorSchema.properties[key].oneOf[0].defaultSnippets[0].body = `\${1:${color.toString()}}`;
 			}
 		}
 		this._onDidChangeSchema.fire();

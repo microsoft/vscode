@@ -20,6 +20,7 @@ jobs:
       - name: Run Locker
         uses: ./actions/locker
         with:
+          token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
           daysSinceClose: 45
           daysSinceUpdate: 3
           ignoredLabel: "*out-of-scope,accessibility"
