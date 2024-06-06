@@ -823,7 +823,7 @@ export class UserDataProfilesEditorModel extends EditorModel {
 				() => this.previewNewProfile(cancellationTokenSource.token)
 			));
 			this.newProfileElement = disposables.add(this.instantiationService.createInstance(NewProfileElement,
-				localize('untitled', "Untitled"),
+				copyFrom ? '' : localize('untitled', "Untitled"),
 				copyFrom,
 				[[createAction], [previewProfileAction, cancelAction]],
 				[[], []],
@@ -911,7 +911,7 @@ export class UserDataProfilesEditorModel extends EditorModel {
 					const template = await this.newProfileElement.resolveTemplate(copyFrom);
 					if (template) {
 						this.telemetryService.publicLog2<CreateProfileInfoEvent, CreateProfileInfoClassification>('userDataProfile.createFromTemplate', createProfileTelemetryData);
-						await this.userDataProfileImportExportService.createProfileFromTemplate(
+						profile = await this.userDataProfileImportExportService.createProfileFromTemplate(
 							template,
 							{
 								name,
@@ -925,7 +925,7 @@ export class UserDataProfilesEditorModel extends EditorModel {
 					}
 				} else if (isUserDataProfile(copyFrom)) {
 					this.telemetryService.publicLog2<CreateProfileInfoEvent, CreateProfileInfoClassification>('userDataProfile.createFromProfile', createProfileTelemetryData);
-					await this.userDataProfileImportExportService.createFromProfile(
+					profile = await this.userDataProfileImportExportService.createFromProfile(
 						copyFrom,
 						{
 							name,
@@ -938,10 +938,8 @@ export class UserDataProfilesEditorModel extends EditorModel {
 					);
 				} else {
 					this.telemetryService.publicLog2<CreateProfileInfoEvent, CreateProfileInfoClassification>('userDataProfile.createEmptyProfile', createProfileTelemetryData);
-					await this.userDataProfileManagementService.createProfile(name, { useDefaultFlags, icon, transient });
+					profile = await this.userDataProfileManagementService.createProfile(name, { useDefaultFlags, icon, transient });
 				}
-
-				profile = this.userDataProfilesService.profiles.find(p => p.name === name);
 			}
 		} finally {
 			if (this.newProfileElement) {
