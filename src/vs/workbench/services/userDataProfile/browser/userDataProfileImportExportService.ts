@@ -241,7 +241,14 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			creationPromise = createCancelablePromise(async token => {
 				const userDataProfilesExportState = disposables.add(this.instantiationService.createInstance(UserDataProfileExportState, from, { ...options?.resourceTypeFlags, extensions: false }));
 				const profileTemplate = await userDataProfilesExportState.getProfileTemplate(options.name ?? from.name, options?.icon);
-				profile = await this.doCreateProfile2(profileTemplate, options, reportProgress, token);
+				profile = await this.getProfileToImport({ ...profileTemplate, name: options.name ?? profileTemplate.name }, !!options.transient, options);
+				if (!profile) {
+					return;
+				}
+				if (token.isCancellationRequested) {
+					return;
+				}
+				await this.applyProfileTemplate(profileTemplate, profile, options, reportProgress, token);
 			});
 			try {
 				await creationPromise;
@@ -252,6 +259,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			} catch (error) {
 				if (profile) {
 					await this.userDataProfilesService.removeProfile(profile);
+					profile = undefined;
 				}
 			}
 			return profile;
@@ -272,27 +280,28 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		}, async progress => {
 			const reportProgress = (message: string) => progress.report({ message: localize('create from profile', "Create Profile: {0}", message) });
 			creationPromise = createCancelablePromise(async token => {
-				profile = await this.doCreateProfile2(profileTemplate, options, reportProgress, token);
+				profile = await this.getProfileToImport({ ...profileTemplate, name: options.name ?? profileTemplate.name }, !!options.transient, options);
+				if (!profile) {
+					return;
+				}
+				if (token.isCancellationRequested) {
+					return;
+				}
+				await this.applyProfileTemplate(profileTemplate, profile, options, reportProgress, token);
 			});
 			try {
 				await creationPromise;
 			} catch (error) {
 				if (profile) {
 					await this.userDataProfilesService.removeProfile(profile);
+					profile = undefined;
 				}
 			}
 			return profile;
 		}, () => creationPromise.cancel()).finally(() => disposables.dispose());
 	}
 
-	private async doCreateProfile2(profileTemplate: IUserDataProfileTemplate, options: IUserDataProfileCreateOptions, reportProgress: (message: string) => void, token: CancellationToken): Promise<IUserDataProfile | undefined> {
-		const profile = await this.getProfileToImport({ ...profileTemplate, name: options.name ?? profileTemplate.name }, !!options.transient, options);
-		if (!profile) {
-			return;
-		}
-		if (token.isCancellationRequested) {
-			return;
-		}
+	private async applyProfileTemplate(profileTemplate: IUserDataProfileTemplate, profile: IUserDataProfile, options: IUserDataProfileCreateOptions, reportProgress: (message: string) => void, token: CancellationToken): Promise<void> {
 		if (profileTemplate.settings && (options.resourceTypeFlags?.settings ?? true) && !profile.useDefaultFlags?.settings) {
 			reportProgress(localize('creating settings', "Creating Settings..."));
 			await this.instantiationService.createInstance(SettingsResource).apply(profileTemplate.settings, profile);
@@ -332,7 +341,6 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			reportProgress(localize('installing extensions', "Installing Extensions..."));
 			await this.instantiationService.createInstance(ExtensionsResource).apply(profileTemplate.extensions, profile, reportProgress, token);
 		}
-		return profile;
 	}
 
 	private saveProfile(profile: IUserDataProfile): Promise<void>;
