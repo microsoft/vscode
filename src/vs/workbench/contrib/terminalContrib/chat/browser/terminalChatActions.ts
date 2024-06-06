@@ -164,7 +164,6 @@ registerActiveXtermAction({
 	precondition: ContextKeyExpr.and(
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 		TerminalChatContextKeys.requestActive.negate(),
-		TerminalChatContextKeys.agentRegistered,
 		TerminalChatContextKeys.responseContainsCodeBlock,
 		TerminalChatContextKeys.responseContainsMultipleCodeBlocks.negate()
 	),
@@ -196,7 +195,6 @@ registerActiveXtermAction({
 	precondition: ContextKeyExpr.and(
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 		TerminalChatContextKeys.requestActive.negate(),
-		TerminalChatContextKeys.agentRegistered,
 		TerminalChatContextKeys.responseContainsMultipleCodeBlocks
 	),
 	icon: Codicon.play,
@@ -227,7 +225,6 @@ registerActiveXtermAction({
 	precondition: ContextKeyExpr.and(
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 		TerminalChatContextKeys.requestActive.negate(),
-		TerminalChatContextKeys.agentRegistered,
 		TerminalChatContextKeys.responseContainsCodeBlock,
 		TerminalChatContextKeys.responseContainsMultipleCodeBlocks.negate()
 	),
@@ -259,7 +256,6 @@ registerActiveXtermAction({
 	precondition: ContextKeyExpr.and(
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 		TerminalChatContextKeys.requestActive.negate(),
-		TerminalChatContextKeys.agentRegistered,
 		TerminalChatContextKeys.responseContainsMultipleCodeBlocks
 	),
 	keybinding: {
@@ -289,7 +285,6 @@ registerActiveXtermAction({
 	precondition: ContextKeyExpr.and(
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 		TerminalChatContextKeys.requestActive.negate(),
-		TerminalChatContextKeys.agentRegistered,
 	),
 	icon: Codicon.commentDiscussion,
 	menu: [{
@@ -319,7 +314,6 @@ registerActiveXtermAction({
 	precondition: ContextKeyExpr.and(
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 		TerminalChatContextKeys.requestActive.negate(),
-		TerminalChatContextKeys.agentRegistered,
 		CTX_INLINE_CHAT_EMPTY.negate()
 	),
 	icon: Codicon.send,
@@ -348,7 +342,6 @@ registerActiveXtermAction({
 	title: localize2('cancelChat', 'Cancel Chat'),
 	precondition: ContextKeyExpr.and(
 		TerminalChatContextKeys.requestActive,
-		TerminalChatContextKeys.agentRegistered
 	),
 	icon: Codicon.debugStop,
 	menu: {
@@ -370,7 +363,6 @@ registerActiveXtermAction({
 	title: localize2('previousFromHitory', 'Previous From History'),
 	precondition: ContextKeyExpr.and(
 		TerminalChatContextKeys.focused,
-		TerminalChatContextKeys.agentRegistered
 	),
 	keybinding: {
 		when: ContextKeyExpr.and(TerminalChatContextKeys.focused),
@@ -392,7 +384,6 @@ registerActiveXtermAction({
 	title: localize2('nextFromHitory', 'Next From History'),
 	precondition: ContextKeyExpr.and(
 		TerminalChatContextKeys.focused,
-		TerminalChatContextKeys.agentRegistered
 	),
 	keybinding: {
 		when: ContextKeyExpr.and(TerminalChatContextKeys.focused),

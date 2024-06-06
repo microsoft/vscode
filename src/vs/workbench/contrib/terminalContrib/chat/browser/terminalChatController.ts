@@ -4,14 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IChatCodeBlockContextProviderService, showChatView } from 'vs/workbench/contrib/chat/browser/chat';
-import { ChatAgentLocation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatProgress, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal, isDetachedTerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
@@ -25,6 +24,7 @@ import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { assertType } from 'vs/base/common/types';
 import { CancelablePromise, createCancelablePromise, DeferredPromise } from 'vs/base/common/async';
+import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
 
 const enum Message {
 	NONE = 0,
@@ -62,7 +62,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	get chatWidget(): TerminalChatWidget | undefined { return this._chatWidget?.value; }
 
 	private readonly _requestActiveContextKey: IContextKey<boolean>;
-	private readonly _terminalAgentRegisteredContextKey: IContextKey<boolean>;
 	private readonly _responseContainsCodeBlockContextKey: IContextKey<boolean>;
 	private readonly _responseContainsMulitpleCodeBlocksContextKey: IContextKey<boolean>;
 
@@ -100,7 +99,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		widgetManager: TerminalWidgetManager,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IChatService private readonly _chatService: IChatService,
 		@IChatCodeBlockContextProviderService private readonly _chatCodeBlockContextProviderService: IChatCodeBlockContextProviderService,
@@ -110,13 +108,9 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		super();
 
 		this._requestActiveContextKey = TerminalChatContextKeys.requestActive.bindTo(this._contextKeyService);
-		this._terminalAgentRegisteredContextKey = TerminalChatContextKeys.agentRegistered.bindTo(this._contextKeyService);
 		this._responseContainsCodeBlockContextKey = TerminalChatContextKeys.responseContainsCodeBlock.bindTo(this._contextKeyService);
 		this._responseContainsMulitpleCodeBlocksContextKey = TerminalChatContextKeys.responseContainsMultipleCodeBlocks.bindTo(this._contextKeyService);
 
-		if (!this._initTerminalAgent()) {
-			this._register(this._chatAgentService.onDidChangeAgents(() => this._initTerminalAgent()));
-		}
 		this._register(this._chatCodeBlockContextProviderService.registerProvider({
 			getCodeBlockContext: (editor) => {
 				if (!editor || !this._chatWidget?.hasValue || !this.hasFocus()) {
@@ -142,17 +136,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			this._historyCandidate = '';
 			this._storageService.store(TerminalChatController._storageKey, JSON.stringify(TerminalChatController._promptHistory), StorageScope.PROFILE, StorageTarget.USER);
 		};
-	}
-
-
-	private _initTerminalAgent(): boolean {
-		const terminalAgent = this._chatAgentService.getAgentsByName(this._terminalAgentName)[0];
-		if (terminalAgent) {
-			this._terminalAgentRegisteredContextKey.set(true);
-			return true;
-		}
-
-		return false;
 	}
 
 	xtermReady(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {

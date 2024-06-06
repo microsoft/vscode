@@ -58,9 +58,6 @@ export namespace TerminalChatContextKeys {
 	/** Whether the chat input has text */
 	export const inputHasText = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatInputHasText, false, localize('chatInputHasTextContextKey', "Whether the chat input has text."));
 
-	/** Whether the terminal chat agent has been registered */
-	export const agentRegistered = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatAgentRegistered, false, localize('chatAgentRegisteredContextKey', "Whether the terminal chat agent has been registered."));
-
 	/** The chat response contains at least one code block */
 	export const responseContainsCodeBlock = new RawContextKey<boolean>(TerminalChatContextKeyStrings.ChatResponseContainsCodeBlock, false, localize('chatResponseContainsCodeBlockContextKey', "Whether the chat response contains a code block."));
 
