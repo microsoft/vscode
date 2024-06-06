@@ -14,11 +14,12 @@ import type { IDisposable } from 'vs/base/common/lifecycle';
  */
 export interface IHoverDelegate2 {
 	/**
-	 * Shows a hover, provided a hover with the same options object is not already visible.
+	 * Shows a hover, provided a hover with the same {@link options} object is not already visible.
+	 *
 	 * @param options A set of options defining the characteristics of the hover.
 	 * @param focus Whether to focus the hover (useful for keyboard accessibility).
 	 *
-	 * **Example:** A simple usage with a single element target.
+	 * @example A simple usage with a single element target.
 	 *
 	 * ```typescript
 	 * showHover({
@@ -27,7 +28,10 @@ export interface IHoverDelegate2 {
 	 * });
 	 * ```
 	 */
-	showHover(options: IHoverOptions, focus?: boolean): IHoverWidget | undefined;
+	showHover(
+		options: IHoverOptions,
+		focus?: boolean
+	): IHoverWidget | undefined;
 
 	/**
 	 * Hides the hover if it was visible. This call will be ignored if the the hover is currently
@@ -250,13 +254,13 @@ export interface IHoverTarget extends IDisposable {
 	 * An optional absolute x coordinate to position the hover with, for example to position the
 	 * hover using `MouseEvent.pageX`.
 	 */
-	x?: number;
+	readonly x?: number;
 
 	/**
 	 * An optional absolute y coordinate to position the hover with, for example to position the
 	 * hover using `MouseEvent.pageY`.
 	 */
-	y?: number;
+	readonly y?: number;
 }
 
 // #region Managed hover
@@ -269,10 +273,7 @@ export interface IManagedHoverTooltipMarkdownString {
 export type IManagedHoverContent = string | IManagedHoverTooltipMarkdownString | HTMLElement | undefined;
 export type IManagedHoverContentOrFactory = IManagedHoverContent | (() => IManagedHoverContent);
 
-export interface IManagedHoverOptions {
-	actions?: IHoverAction[];
-	linkHandler?(url: string): void;
-	trapFocus?: boolean;
+export interface IManagedHoverOptions extends Pick<IHoverOptions, 'actions' | 'linkHandler' | 'trapFocus'> {
 }
 
 export interface IManagedHover extends IDisposable {
