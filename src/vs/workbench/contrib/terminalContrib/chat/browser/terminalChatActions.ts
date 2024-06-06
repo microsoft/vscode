@@ -78,7 +78,7 @@ registerActiveXtermAction({
 			return;
 		}
 		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
-		contr?.dispose();
+		contr?.clear();
 	}
 });
 
@@ -152,7 +152,7 @@ registerActiveXtermAction({
 			return;
 		}
 		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
-		contr?.dispose();
+		contr?.clear();
 	}
 });
 
@@ -374,7 +374,7 @@ registerActiveXtermAction({
 	),
 	keybinding: {
 		when: ContextKeyExpr.and(TerminalChatContextKeys.focused),
-		weight: KeybindingWeight.EditorCore + 10,
+		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyCode.UpArrow,
 	},
 
@@ -396,7 +396,7 @@ registerActiveXtermAction({
 	),
 	keybinding: {
 		when: ContextKeyExpr.and(TerminalChatContextKeys.focused),
-		weight: KeybindingWeight.EditorCore + 10,
+		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyCode.DownArrow,
 	},
 

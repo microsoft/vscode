@@ -171,14 +171,18 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			if (!this._instance.domElement) {
 				throw new Error('FindWidget expected terminal DOM to be initialized');
 			}
-			this._sessionCtor = createCancelablePromise<void>(async token => {
-				await this._startSession(token);
-
-				if (this._chatWidget) {
-					this.focus();
-				}
-			});
+			this._createSession();
 			return chatWidget;
+		});
+	}
+
+	private async _createSession(): Promise<void> {
+		this._sessionCtor = createCancelablePromise<void>(async token => {
+			await this._startSession(token);
+
+			if (this._chatWidget) {
+				this.focus();
+			}
 		});
 	}
 
@@ -218,10 +222,12 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	clear(): void {
 		this.cancel();
 		this._model.clear();
-		this._chatWidget?.rawValue?.hide();
-		this._chatWidget?.rawValue?.setValue(undefined);
 		this._responseContainsCodeBlockContextKey.reset();
 		this._requestActiveContextKey.reset();
+		this._chatWidget?.value.hide();
+		this._chatWidget?.value.setValue(undefined);
+		this._sessionCtor?.cancel();
+		this._sessionCtor = undefined;
 	}
 
 	async acceptInput(): Promise<IChatResponseModel | undefined> {
@@ -250,6 +256,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 					this._chatWidget?.value.inlineChatWidget.updateProgress(true);
 					if (response.isCanceled) {
 						this._requestActiveContextKey.set(false);
+						responsePromise.complete(undefined);
 						return;
 					}
 					if (response.isComplete) {
@@ -333,6 +340,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	}
 
 	cancel(): void {
+		this._sessionCtor?.cancel();
 		this._requestActiveContextKey.set(false);
 		this._activeRequestCts?.cancel();
 	}
@@ -345,7 +353,8 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		this._chatWidget?.value.acceptCommand(code.textEditorModel.getValue(), shouldExecute);
 	}
 
-	reveal(): void {
+	async reveal(): Promise<void> {
+		await this._createSession();
 		this._chatWidget?.value.reveal();
 	}
 
@@ -384,15 +393,5 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			});
 		widget.focusLastMessage();
 		this._chatWidget?.rawValue?.hide();
-	}
-
-	// TODO: Move to register calls, don't override
-	override dispose() {
-		super.dispose();
-		this._sessionCtor?.cancel();
-		this._sessionCtor = undefined;
-		this._model.clear();
-		this._historyOffset = -1;
-		this._historyCandidate = '';
 	}
 }
