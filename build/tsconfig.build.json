@@ -1,15 +1,29 @@
 {
-	"extends": "./tsconfig.json",
-	"compilerOptions": {
-		"allowJs": false,
-		"checkJs": false,
-		"noEmit": false,
-		"skipLibCheck": true
-	},
-	"include": [
-		"**/*.ts"
-	],
-	"exclude": [
-		"lib/eslint-plugin-vscode/**/*"
-	]
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        "allowJs": false,
+        "checkJs": false,
+        "noEmit": false,
+        "skipLibCheck": true,
+        "target": "ES2020",
+        "module": "commonjs",
+        "lib": ["ES2020", "DOM"],
+        "strict": true,
+        "noImplicitAny": true,
+        "moduleResolution": "node",
+        "outDir": "./dist",
+        "baseUrl": ".",
+        "paths": {
+            "*": ["node_modules/*"]
+        },
+        "types": ["node", "electron"]
+    },
+    "include": [
+        "**/*.ts"
+    ],
+    "exclude": [
+        "lib/eslint-plugin-vscode/**/*",
+        "node_modules",
+        "dist"
+    ]
 }
