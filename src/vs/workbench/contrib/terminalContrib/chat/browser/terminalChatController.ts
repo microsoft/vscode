@@ -195,8 +195,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 		this._requestActiveContextKey.reset();
 		this._chatWidget?.value.hide();
 		this._chatWidget?.value.setValue(undefined);
-		this._sessionCtor?.cancel();
-		this._sessionCtor = undefined;
 	}
 
 	async acceptInput(): Promise<IChatResponseModel | undefined> {
@@ -309,8 +307,9 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 
 	cancel(): void {
 		this._sessionCtor?.cancel();
-		this._requestActiveContextKey.set(false);
+		this._sessionCtor = undefined;
 		this._activeRequestCts?.cancel();
+		this._requestActiveContextKey.set(false);
 	}
 
 	async acceptCommand(shouldExecute: boolean): Promise<void> {
