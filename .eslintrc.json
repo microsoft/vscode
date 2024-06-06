@@ -666,6 +666,7 @@
 							"vscode-regexpp",
 							"vscode-textmate",
 							"worker_threads",
+							"@xterm/addon-clipboard",
 							"@xterm/addon-image",
 							"@xterm/addon-search",
 							"@xterm/addon-serialize",
