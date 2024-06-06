@@ -8,7 +8,7 @@ import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecyc
 import { IObservable, ITransaction, autorunOpts, autorunWithStoreHandleChanges, derived, derivedOpts, observableFromEvent, observableSignal, observableValue, observableValueOpts } from 'vs/base/common/observable';
 import { TransactionImpl } from 'vs/base/common/observableInternal/base';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EditorOption, FindComputedEditorOptionValueById } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
@@ -173,6 +173,12 @@ export class ObservableCodeEditor extends Disposable {
 	public readonly cursorPosition = derivedOpts({ owner: this, equalsFn: Position.equals }, reader => this.selections.read(reader)?.[0]?.getPosition() ?? null);
 
 	public readonly onDidType = observableSignal<string>(this);
+
+	public getOption<T extends EditorOption>(id: T): IObservable<FindComputedEditorOptionValueById<T>> {
+		return observableFromEvent(cb => this.editor.onDidChangeConfiguration(e => {
+			if (e.hasChanged(id)) { cb(undefined); }
+		}), () => this.editor.getOption(id));
+	}
 
 	public setDecorations(decorations: IObservable<IModelDeltaDecoration[]>): IDisposable {
 		const d = new DisposableStore();
