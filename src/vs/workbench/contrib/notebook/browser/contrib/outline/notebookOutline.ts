@@ -660,7 +660,7 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 		if (!notebookEditor?.hasModel()) {
 			this._outlineDataSourceReference = undefined;
 		} else {
-			this._outlineDataSourceReference = this._instantiationService.invokeFunction((accessor) => accessor.get(INotebookCellOutlineDataSourceFactory).getOrCreate(notebookEditor));
+			this._outlineDataSourceReference = this._dataSourceDisposables.add(this._instantiationService.invokeFunction((accessor) => accessor.get(INotebookCellOutlineDataSourceFactory).getOrCreate(notebookEditor)));
 			// escalate outline data source change events
 			this._dataSourceDisposables.add(this._outlineDataSourceReference.object.onDidChange(() => {
 				this._onDidChange.fire({});
@@ -668,9 +668,9 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 		}
 
 		// these fields can be passed undefined outlineDataSources. View Providers all handle it accordingly
-		this._treeDataSource = this._instantiationService.createInstance(NotebookOutlinePaneProvider, this._outlineDataSourceReference);
-		this._quickPickDataSource = this._instantiationService.createInstance(NotebookQuickPickProvider, this._outlineDataSourceReference);
-		this._breadcrumbsDataSource = this._instantiationService.createInstance(NotebookBreadcrumbsProvider, this._outlineDataSourceReference);
+		this._treeDataSource = this._dataSourceDisposables.add(this._instantiationService.createInstance(NotebookOutlinePaneProvider, this._outlineDataSourceReference));
+		this._quickPickDataSource = this._dataSourceDisposables.add(this._instantiationService.createInstance(NotebookQuickPickProvider, this._outlineDataSourceReference));
+		this._breadcrumbsDataSource = this._dataSourceDisposables.add(this._instantiationService.createInstance(NotebookBreadcrumbsProvider, this._outlineDataSourceReference));
 	}
 
 	/**

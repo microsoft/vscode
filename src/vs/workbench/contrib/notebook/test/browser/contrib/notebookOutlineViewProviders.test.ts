@@ -25,7 +25,7 @@ suite('Notebook Outline View Providers', function () {
 
 	// #region Setup
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const configurationService = new TestConfigurationService();
 	const themeService = new TestThemeService();
@@ -218,7 +218,7 @@ suite('Notebook Outline View Providers', function () {
 		}
 
 		// Generate filtered outline (view model)
-		const outlinePaneProvider = new NotebookOutlinePaneProvider(undefined, configurationService);
+		const outlinePaneProvider = store.add(new NotebookOutlinePaneProvider(undefined, configurationService));
 		const results = flatten(outlineModel, outlinePaneProvider);
 
 		// Validate
@@ -261,7 +261,7 @@ suite('Notebook Outline View Providers', function () {
 		}
 
 		// Generate filtered outline (view model)
-		const outlinePaneProvider = new NotebookOutlinePaneProvider(undefined, configurationService);
+		const outlinePaneProvider = store.add(new NotebookOutlinePaneProvider(undefined, configurationService));
 		const results = flatten(outlineModel, outlinePaneProvider);
 
 		assert.equal(results.length, 2);
@@ -307,7 +307,7 @@ suite('Notebook Outline View Providers', function () {
 		}
 
 		// Generate filtered outline (view model)
-		const outlinePaneProvider = new NotebookOutlinePaneProvider(undefined, configurationService);
+		const outlinePaneProvider = store.add(new NotebookOutlinePaneProvider(undefined, configurationService));
 		const results = flatten(outlineModel, outlinePaneProvider);
 
 		assert.equal(results.length, 1);
@@ -350,7 +350,7 @@ suite('Notebook Outline View Providers', function () {
 		}
 
 		// Generate filtered outline (view model)
-		const outlinePaneProvider = new NotebookOutlinePaneProvider(undefined, configurationService);
+		const outlinePaneProvider = store.add(new NotebookOutlinePaneProvider(undefined, configurationService));
 		const results = flatten(outlineModel, outlinePaneProvider);
 
 		assert.equal(results.length, 3);
@@ -399,7 +399,7 @@ suite('Notebook Outline View Providers', function () {
 		}
 
 		// Generate filtered outline (view model)
-		const outlinePaneProvider = new NotebookOutlinePaneProvider(undefined, configurationService);
+		const outlinePaneProvider = store.add(new NotebookOutlinePaneProvider(undefined, configurationService));
 		const results = flatten(outlineModel, outlinePaneProvider);
 
 		// validate
@@ -458,7 +458,7 @@ suite('Notebook Outline View Providers', function () {
 		}
 
 		// Generate filtered outline (view model)
-		const quickPickProvider = new NotebookQuickPickProvider(createMockOutlineDataSource([...outlineModel.children]), configurationService, themeService);
+		const quickPickProvider = store.add(new NotebookQuickPickProvider(createMockOutlineDataSource([...outlineModel.children]), configurationService, themeService));
 		const results = quickPickProvider.getQuickPickElements();
 
 		// Validate
@@ -511,7 +511,7 @@ suite('Notebook Outline View Providers', function () {
 		}
 
 		// Generate filtered outline (view model)
-		const quickPickProvider = new NotebookQuickPickProvider(createMockOutlineDataSource([...outlineModel.children]), configurationService, themeService);
+		const quickPickProvider = store.add(new NotebookQuickPickProvider(createMockOutlineDataSource([...outlineModel.children]), configurationService, themeService));
 		const results = quickPickProvider.getQuickPickElements();
 
 		// Validate
@@ -564,7 +564,7 @@ suite('Notebook Outline View Providers', function () {
 		}
 
 		// Generate filtered outline (view model)
-		const quickPickProvider = new NotebookQuickPickProvider(createMockOutlineDataSource([...outlineModel.children]), configurationService, themeService);
+		const quickPickProvider = store.add(new NotebookQuickPickProvider(createMockOutlineDataSource([...outlineModel.children]), configurationService, themeService));
 		const results = quickPickProvider.getQuickPickElements();
 
 		// Validate
@@ -621,8 +621,7 @@ suite('Notebook Outline View Providers', function () {
 		const outlineTree = buildOutlineTree([...outlineModel.children]);
 
 		// Generate filtered outline (view model)
-		// const breadcrumbsProvider = new NotebookBreadcrumbsProvider(() => , configurationService);
-		const breadcrumbsProvider = new NotebookBreadcrumbsProvider(createMockOutlineDataSource([], [...outlineTree![0].children][1]), configurationService);
+		const breadcrumbsProvider = store.add(new NotebookBreadcrumbsProvider(createMockOutlineDataSource([], [...outlineTree![0].children][1]), configurationService));
 		const results = breadcrumbsProvider.getBreadcrumbElements();
 
 		// Validate
@@ -673,7 +672,7 @@ suite('Notebook Outline View Providers', function () {
 		const outlineTree = buildOutlineTree([...outlineModel.children]);
 
 		// Generate filtered outline (view model)
-		const breadcrumbsProvider = new NotebookBreadcrumbsProvider(createMockOutlineDataSource([], [...outlineTree![0].children][1]), configurationService);
+		const breadcrumbsProvider = store.add(new NotebookBreadcrumbsProvider(createMockOutlineDataSource([], [...outlineTree![0].children][1]), configurationService));
 		const results = breadcrumbsProvider.getBreadcrumbElements();
 
 		// Validate

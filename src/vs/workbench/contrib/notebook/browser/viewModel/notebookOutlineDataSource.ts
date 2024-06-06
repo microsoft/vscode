@@ -26,7 +26,6 @@ export interface INotebookCellOutlineDataSource {
 export class NotebookCellOutlineDataSource implements INotebookCellOutlineDataSource {
 
 	private readonly _disposables = new DisposableStore();
-	private readonly _entriesDisposables = new DisposableStore();
 
 	private readonly _onDidChange = new Emitter<OutlineChangeEvent>();
 	readonly onDidChange: Event<OutlineChangeEvent> = this._onDidChange.event;
@@ -79,7 +78,7 @@ export class NotebookCellOutlineDataSource implements INotebookCellOutlineDataSo
 	}
 
 	public recomputeState(): void {
-		this._entriesDisposables.clear();
+		this._disposables.clear();
 		this._activeEntry = undefined;
 		this._uri = undefined;
 
@@ -135,7 +134,7 @@ export class NotebookCellOutlineDataSource implements INotebookCellOutlineDataSo
 
 		// feature: show markers with each cell
 		const markerServiceListener = new MutableDisposable();
-		this._entriesDisposables.add(markerServiceListener);
+		this._disposables.add(markerServiceListener);
 		const updateMarkerUpdater = () => {
 			if (notebookEditorWidget.isDisposed) {
 				return;
@@ -176,7 +175,7 @@ export class NotebookCellOutlineDataSource implements INotebookCellOutlineDataSo
 			}
 		};
 		updateMarkerUpdater();
-		this._entriesDisposables.add(this._configurationService.onDidChangeConfiguration(e => {
+		this._disposables.add(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('problems.visibility') || e.affectsConfiguration(OutlineConfigKeys.problemsEnabled)) {
 				updateMarkerUpdater();
 				this._onDidChange.fire({});
@@ -218,7 +217,6 @@ export class NotebookCellOutlineDataSource implements INotebookCellOutlineDataSo
 	dispose(): void {
 		this._entries.length = 0;
 		this._activeEntry = undefined;
-		this._entriesDisposables.dispose();
 		this._disposables.dispose();
 	}
 }
