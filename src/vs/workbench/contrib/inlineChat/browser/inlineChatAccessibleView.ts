@@ -37,7 +37,7 @@ export class InlineChatAccessibleView implements IAccessibleViewImplentation {
 		return {
 			id: AccessibleViewProviderId.InlineChat,
 			verbositySettingKey: AccessibilityVerbositySettingId.InlineChat,
-			provideContent(): string { return renderMarkdownAsPlaintext(new MarkdownString(responseContent)); },
+			provideContent(): string { return renderMarkdownAsPlaintext(new MarkdownString(responseContent), true); },
 			onClose() {
 				controller.focus();
 			},
