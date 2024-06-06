@@ -15,7 +15,7 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { getHoverAccessibleViewHint, HoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
 import { PositionAffinity } from 'vs/editor/common/model';
-import { ContentHoverVisibleData } from 'vs/editor/contrib/hover/browser/contentHoverTypes';
+import { RenderedContentHover } from 'vs/editor/contrib/hover/browser/contentHoverController';
 
 const HORIZONTAL_SCROLLING_BY = 30;
 const CONTAINER_HEIGHT_PADDING = 6;
@@ -25,7 +25,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 	public static ID = 'editor.contrib.resizableContentHoverWidget';
 	private static _lastDimensions: dom.Dimension = new dom.Dimension(0, 0);
 
-	private _visibleData: ContentHoverVisibleData | undefined;
+	private _visibleData: RenderedContentHover | undefined;
 	private _positionPreference: ContentWidgetPositionPreference | undefined;
 	private _minimumSize: dom.Dimension;
 	private _contentWidth: number | undefined;
@@ -92,7 +92,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 
 	public override dispose(): void {
 		super.dispose();
-		this._visibleData?.disposables.dispose();
+		this._visibleData?.dispose();
 		this._editor.removeContentWidget(this);
 	}
 
@@ -264,8 +264,8 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		return true;
 	}
 
-	private _setHoverData(hoverData: ContentHoverVisibleData | undefined): void {
-		this._visibleData?.disposables.dispose();
+	private _setHoverData(hoverData: RenderedContentHover | undefined): void {
+		this._visibleData?.dispose();
 		this._visibleData = hoverData;
 		this._hoverVisibleKey.set(!!hoverData);
 		this._hover.containerDomNode.classList.toggle('hidden', !hoverData);
@@ -298,8 +298,8 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		this._setHoverWidgetMaxDimensions(width, height);
 	}
 
-	private _render(node: DocumentFragment, hoverData: ContentHoverVisibleData) {
-		this._setHoverData(hoverData);
+	private _render(node: DocumentFragment, renderedHoverData: RenderedContentHover) {
+		this._setHoverData(renderedHoverData);
 		this._updateFont();
 		this._updateContent(node);
 		this._updateMaxDimensions();
@@ -321,22 +321,23 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		};
 	}
 
-	public showAt(node: DocumentFragment, hoverData: ContentHoverVisibleData): void {
+	public showAt(renderedHoverData: RenderedContentHover): void {
 		if (!this._editor || !this._editor.hasModel()) {
 			return;
 		}
-		this._render(node, hoverData);
+		const node = renderedHoverData.domNode;
+		this._render(node, renderedHoverData);
 		const widgetHeight = dom.getTotalHeight(this._hover.containerDomNode);
-		const widgetPosition = hoverData.showAtPosition;
+		const widgetPosition = renderedHoverData.showAtPosition;
 		this._positionPreference = this._findPositionPreference(widgetHeight, widgetPosition) ?? ContentWidgetPositionPreference.ABOVE;
 
 		// See https://github.com/microsoft/vscode/issues/140339
 		// TODO: Doing a second layout of the hover after force rendering the editor
 		this.onContentsChanged();
-		if (hoverData.stoleFocus) {
+		if (renderedHoverData.stoleFocus) {
 			this._hover.containerDomNode.focus();
 		}
-		hoverData.colorPicker?.layout();
+		renderedHoverData.colorPicker?.layout();
 		// The aria label overrides the label, so if we add to it, add the contents of the hover
 		const hoverFocused = this._hover.containerDomNode.ownerDocument.activeElement === this._hover.containerDomNode;
 		const accessibleViewHint = hoverFocused && getHoverAccessibleViewHint(

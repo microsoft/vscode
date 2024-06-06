@@ -94,15 +94,7 @@ export interface IEditorHoverColorPickerWidget {
 	layout(): void;
 }
 
-export interface IEditorHoverRenderContext {
-	/**
-	 * The fragment where dom elements should be attached.
-	 */
-	readonly fragment: DocumentFragment;
-	/**
-	 * The status bar for actions for this hover.
-	 */
-	readonly statusBar: IEditorHoverStatusBar;
+export interface IEditorHoverControllerContext {
 	/**
 	 * Set if the hover will render a color picker widget.
 	 */
@@ -119,6 +111,17 @@ export interface IEditorHoverRenderContext {
 	 * Hide the hover.
 	 */
 	hide(): void;
+}
+
+export interface IEditorHoverRenderContext extends IEditorHoverControllerContext {
+	/**
+	 * The fragment where dom elements should be attached.
+	 */
+	readonly fragment: DocumentFragment;
+	/**
+	 * The status bar for actions for this hover.
+	 */
+	readonly statusBar: IEditorHoverStatusBar;
 }
 
 export interface IEditorHoverParticipant<T extends IHoverPart = IHoverPart> {
