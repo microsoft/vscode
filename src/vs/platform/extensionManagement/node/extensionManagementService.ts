@@ -515,7 +515,7 @@ export class ExtensionsScanner extends Disposable {
 
 	async scanExtensions(type: ExtensionType | null, profileLocation: URI, productVersion: IProductVersion): Promise<ILocalExtension[]> {
 		try {
-			const userScanOptions: ScanOptions = { includeInvalid: true, useCache: true, profileLocation, productVersion };
+			const userScanOptions: ScanOptions = { includeInvalid: true, profileLocation, productVersion };
 			let scannedExtensions: IScannedExtension[] = [];
 			if (type === null || type === ExtensionType.System) {
 				if (!this.scanAllExtensionPromise) {
