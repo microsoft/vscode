@@ -27,7 +27,6 @@ export const enum TerminalChatCommandId {
 export const MENU_TERMINAL_CHAT_INPUT = MenuId.for('terminalChatInput');
 export const MENU_TERMINAL_CHAT_WIDGET = MenuId.for('terminalChatWidget');
 export const MENU_TERMINAL_CHAT_WIDGET_STATUS = MenuId.for('terminalChatWidget.status');
-export const MENU_TERMINAL_CHAT_WIDGET_FEEDBACK = MenuId.for('terminalChatWidget.feedback');
 export const MENU_TERMINAL_CHAT_WIDGET_TOOLBAR = MenuId.for('terminalChatWidget.toolbar');
 
 export const enum TerminalChatContextKeyStrings {
