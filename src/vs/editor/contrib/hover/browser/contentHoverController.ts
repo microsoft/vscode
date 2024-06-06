@@ -51,12 +51,13 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		const initializedParticipants = this._initializeHoverParticipants();
 		this._participants = initializedParticipants.participants;
 		this._markdownHoverParticipant = initializedParticipants.markdownHoverParticipant;
+		this._colorHoverParticipant = initializedParticipants.colorHoverParticipant;
 		this._computer = new ContentHoverComputer(this._editor, this._participants);
 		this._hoverOperation = this._register(new HoverOperation(this._editor, this._computer));
 		this._registerListeners();
 	}
 
-	private _initializeHoverParticipants(): { participants: IEditorHoverParticipant[]; markdownHoverParticipant: MarkdownHoverParticipant | undefined, colorHoverParticipant: ColorHoverParticipant | undefined } {
+	private _initializeHoverParticipants(): { participants: IEditorHoverParticipant[]; markdownHoverParticipant: MarkdownHoverParticipant | undefined; colorHoverParticipant: ColorHoverParticipant | undefined } {
 		const participants: IEditorHoverParticipant[] = [];
 		let markdownHoverParticipant: MarkdownHoverParticipant | undefined;
 		let colorHoverParticipant: ColorHoverParticipant | undefined;
@@ -237,7 +238,7 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		};
 		const onContentsChanged = () => {
 			this._onContentsChanged.fire();
-			this._widget.onContentsChanged();
+			this._contentHoverWidget.onContentsChanged();
 		};
 		const setMinimumDimensions = (dimensions: dom.Dimension) => {
 			this._contentHoverWidget.setMinimumDimensions(dimensions);
