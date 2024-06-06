@@ -61,7 +61,10 @@ export class NativeExtHostSearch extends ExtHostSearch implements IDisposable {
 		});
 	}
 
-	private handleConfigurationChanged() {
+	private handleConfigurationChanged(event: vscode.ConfigurationChangeEvent) {
+		if (!event.affectsConfiguration('search')) {
+			return;
+		}
 		this._numThreadsPromise = undefined;
 	}
 
