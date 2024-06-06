@@ -177,7 +177,7 @@ export class ChatMarkdownDecorationsRenderer {
 
 		const agent = this.chatAgentService.getAgent(args.agentId);
 		const hover: Lazy<ChatAgentHover> = new Lazy(() => store.add(this.instantiationService.createInstance(ChatAgentHover)));
-		store.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('element'), container, () => {
+		store.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), container, () => {
 			hover.value.setAgent(args.agentId);
 			return hover.value.domNode;
 		}, agent && getChatAgentHoverOptions(() => agent, this.commandService)));

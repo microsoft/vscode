@@ -455,7 +455,7 @@ export class SearchView extends ViewPane {
 		// Toggle query details button
 		this.toggleQueryDetailsButton = dom.append(this.queryDetails,
 			$('.more' + ThemeIcon.asCSSSelector(searchDetailsIcon), { tabindex: 0, role: 'button' }));
-		this._register(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('element'), this.toggleQueryDetailsButton, nls.localize('moreSearch', "Toggle Search Details")));
+		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this.toggleQueryDetailsButton, nls.localize('moreSearch', "Toggle Search Details")));
 
 		this._register(dom.addDisposableListener(this.toggleQueryDetailsButton, dom.EventType.CLICK, e => {
 			dom.EventHelper.stop(e);
@@ -2222,7 +2222,7 @@ class SearchLinkButton extends Disposable {
 	constructor(label: string, handler: (e: dom.EventLike) => unknown, hoverService: IHoverService, tooltip?: string) {
 		super();
 		this.element = $('a.pointer', { tabindex: 0 }, label);
-		this._register(hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), this.element, tooltip));
+		this._register(hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this.element, tooltip));
 		this.addEventHandlers(handler);
 	}
 
