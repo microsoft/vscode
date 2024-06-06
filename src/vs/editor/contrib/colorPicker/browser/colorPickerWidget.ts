@@ -14,13 +14,27 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
 import 'vs/css!./colorPicker';
 import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/browser/colorPickerModel';
-import { IEditorHoverColorPickerWidget } from 'vs/editor/contrib/hover/browser/hoverTypes';
+import { IEditorHoverColorPickerWidget, IEditorHoverRenderContext } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { localize } from 'vs/nls';
 import { editorHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { Range } from 'vs/editor/common/core/range';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { getColorPresentations } from 'vs/editor/contrib/colorPicker/browser/color';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
+import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IColorHover } from 'vs/editor/contrib/colorPicker/browser/colorHoverParticipant';
+import { Dimension } from 'vs/base/browser/dom';
 
 const $ = dom.$;
+
+enum ColorPickerType {
+	Hover,
+	Standalone
+}
 
 export class ColorPickerHeader extends Disposable {
 
@@ -28,10 +42,9 @@ export class ColorPickerHeader extends Disposable {
 	private readonly _pickedColorNode: HTMLElement;
 	private readonly _pickedColorPresentation: HTMLElement;
 	private readonly _originalColorNode: HTMLElement;
-	private readonly _closeButton: CloseButton | null = null;
 	private backgroundColor: Color;
 
-	constructor(container: HTMLElement, private readonly model: ColorPickerModel, themeService: IThemeService, private showingStandaloneColorPicker: boolean = false) {
+	constructor(container: HTMLElement, private readonly model: ColorPickerModel, themeService: IThemeService) {
 		super();
 
 		this._domNode = $('.colorpicker-header');
@@ -64,20 +77,10 @@ export class ColorPickerHeader extends Disposable {
 		this._pickedColorNode.classList.toggle('light', model.color.rgba.a < 0.5 ? this.backgroundColor.isLighter() : model.color.isLighter());
 
 		this.onDidChangeColor(this.model.color);
-
-		// When the color picker widget is a standalone color picker widget, then add a close button
-		if (this.showingStandaloneColorPicker) {
-			this._domNode.classList.add('standalone-colorpicker');
-			this._closeButton = this._register(new CloseButton(this._domNode));
-		}
 	}
 
 	public get domNode(): HTMLElement {
 		return this._domNode;
-	}
-
-	public get closeButton(): CloseButton | null {
-		return this._closeButton;
 	}
 
 	public get pickedColorNode(): HTMLElement {
@@ -96,6 +99,21 @@ export class ColorPickerHeader extends Disposable {
 
 	private onDidChangePresentation(): void {
 		this._pickedColorPresentation.textContent = this.model.presentation ? this.model.presentation.label : '';
+	}
+}
+
+class StandaloneColorPickerHeader extends ColorPickerHeader {
+
+	private readonly _closeButton: CloseButton;
+
+	constructor(container: HTMLElement, model: ColorPickerModel, themeService: IThemeService) {
+		super(container, model, themeService);
+		this.domNode.classList.add('standalone-colorpicker');
+		this._closeButton = this._register(new CloseButton(this.domNode));
+	}
+
+	public get closeButton(): CloseButton {
+		return this._closeButton;
 	}
 }
 
@@ -123,56 +141,33 @@ class CloseButton extends Disposable {
 	}
 }
 
-export class ColorPickerBody extends Disposable {
+export abstract class AbstractColorPickerBody extends Disposable {
 
-	private readonly _domNode: HTMLElement;
-	private readonly _saturationBox: SaturationBox;
-	private readonly _hueStrip: Strip;
-	private readonly _opacityStrip: Strip;
-	private readonly _insertButton: InsertButton | null = null;
+	protected abstract _domNode: HTMLElement;
+	protected abstract _saturationBox: SaturationBox;
+	protected abstract _hueStrip: Strip;
+	protected abstract _opacityStrip: Strip;
 
-	constructor(container: HTMLElement, private readonly model: ColorPickerModel, private pixelRatio: number, isStandaloneColorPicker: boolean = false) {
+	constructor(protected readonly model: ColorPickerModel) {
 		super();
 
-		this._domNode = $('.colorpicker-body');
-		dom.append(container, this._domNode);
-
-		this._saturationBox = new SaturationBox(this._domNode, this.model, this.pixelRatio);
-		this._register(this._saturationBox);
-		this._register(this._saturationBox.onDidChange(this.onDidSaturationValueChange, this));
-		this._register(this._saturationBox.onColorFlushed(this.flushColor, this));
-
-		this._opacityStrip = new OpacityStrip(this._domNode, this.model, isStandaloneColorPicker);
-		this._register(this._opacityStrip);
-		this._register(this._opacityStrip.onDidChange(this.onDidOpacityChange, this));
-		this._register(this._opacityStrip.onColorFlushed(this.flushColor, this));
-
-		this._hueStrip = new HueStrip(this._domNode, this.model, isStandaloneColorPicker);
-		this._register(this._hueStrip);
-		this._register(this._hueStrip.onDidChange(this.onDidHueChange, this));
-		this._register(this._hueStrip.onColorFlushed(this.flushColor, this));
-
-		if (isStandaloneColorPicker) {
-			this._insertButton = this._register(new InsertButton(this._domNode));
-			this._domNode.classList.add('standalone-colorpicker');
-		}
 	}
 
-	private flushColor(): void {
+	protected flushColor(): void {
 		this.model.flushColor();
 	}
 
-	private onDidSaturationValueChange({ s, v }: { s: number; v: number }): void {
+	protected onDidSaturationValueChange({ s, v }: { s: number; v: number }): void {
 		const hsva = this.model.color.hsva;
 		this.model.color = new Color(new HSVA(hsva.h, s, v, hsva.a));
 	}
 
-	private onDidOpacityChange(a: number): void {
+	protected onDidOpacityChange(a: number): void {
 		const hsva = this.model.color.hsva;
 		this.model.color = new Color(new HSVA(hsva.h, hsva.s, hsva.v, a));
 	}
 
-	private onDidHueChange(value: number): void {
+	protected onDidHueChange(value: number): void {
 		const hsva = this.model.color.hsva;
 		const h = (1 - value) * 360;
 
@@ -195,14 +190,68 @@ export class ColorPickerBody extends Disposable {
 		return this._hueStrip;
 	}
 
-	get enterButton() {
-		return this._insertButton;
-	}
-
 	layout(): void {
 		this._saturationBox.layout();
 		this._opacityStrip.layout();
 		this._hueStrip.layout();
+	}
+}
+
+class HoverColorPickerBody extends AbstractColorPickerBody {
+
+	protected _domNode = $('.colorpicker-body');
+	protected _saturationBox = new SaturationBox(this._domNode, this.model, this.pixelRatio);
+	protected _opacityStrip = new OpacityStrip(this._domNode, this.model, ColorPickerType.Hover);
+	protected _hueStrip = new HueStrip(this._domNode, this.model, ColorPickerType.Hover);
+
+	constructor(container: HTMLElement, model: ColorPickerModel, private pixelRatio: number) {
+		super(model);
+
+		dom.append(container, this._domNode);
+		this._register(this._saturationBox);
+		this._register(this._saturationBox.onDidChange(this.onDidSaturationValueChange, this));
+		this._register(this._saturationBox.onColorFlushed(this.flushColor, this));
+
+		this._register(this._opacityStrip);
+		this._register(this._opacityStrip.onDidChange(this.onDidOpacityChange, this));
+		this._register(this._opacityStrip.onColorFlushed(this.flushColor, this));
+
+		this._register(this._hueStrip);
+		this._register(this._hueStrip.onDidChange(this.onDidHueChange, this));
+		this._register(this._hueStrip.onColorFlushed(this.flushColor, this));
+	}
+}
+
+class StandaloneColorPickerBody extends AbstractColorPickerBody {
+
+	protected _domNode = $('.colorpicker-body');
+	protected _saturationBox = new SaturationBox(this._domNode, this.model, this.pixelRatio);
+	protected _opacityStrip = new OpacityStrip(this._domNode, this.model, ColorPickerType.Standalone);
+	protected _hueStrip = new HueStrip(this._domNode, this.model, ColorPickerType.Standalone);
+
+	private _insertButton = this._register(new InsertButton(this._domNode, this.foundInEditor));
+
+	constructor(container: HTMLElement, model: ColorPickerModel, private foundInEditor: boolean, private pixelRatio: number) {
+		super(model);
+
+		dom.append(container, this._domNode);
+		this._register(this._saturationBox);
+		this._register(this._saturationBox.onDidChange(this.onDidSaturationValueChange, this));
+		this._register(this._saturationBox.onColorFlushed(this.flushColor, this));
+
+		this._register(this._opacityStrip);
+		this._register(this._opacityStrip.onDidChange(this.onDidOpacityChange, this));
+		this._register(this._opacityStrip.onColorFlushed(this.flushColor, this));
+
+		this._register(this._hueStrip);
+		this._register(this._hueStrip.onDidChange(this.onDidHueChange, this));
+		this._register(this._hueStrip.onColorFlushed(this.flushColor, this));
+
+		this._domNode.classList.add('standalone-colorpicker');
+	}
+
+	public get insertButton(): InsertButton {
+		return this._insertButton;
 	}
 }
 
@@ -344,14 +393,19 @@ abstract class Strip extends Disposable {
 	private readonly _onColorFlushed = new Emitter<void>();
 	readonly onColorFlushed: Event<void> = this._onColorFlushed.event;
 
-	constructor(container: HTMLElement, protected model: ColorPickerModel, showingStandaloneColorPicker: boolean = false) {
+	constructor(container: HTMLElement, protected model: ColorPickerModel, type: ColorPickerType) {
 		super();
-		if (showingStandaloneColorPicker) {
-			this.domNode = dom.append(container, $('.standalone-strip'));
-			this.overlay = dom.append(this.domNode, $('.standalone-overlay'));
-		} else {
-			this.domNode = dom.append(container, $('.strip'));
-			this.overlay = dom.append(this.domNode, $('.overlay'));
+		switch (type) {
+			case (ColorPickerType.Hover): {
+				this.domNode = dom.append(container, $('.strip'));
+				this.overlay = dom.append(this.domNode, $('.overlay'));
+				break;
+			}
+			case (ColorPickerType.Standalone): {
+				this.domNode = dom.append(container, $('.standalone-strip'));
+				this.overlay = dom.append(this.domNode, $('.standalone-overlay'));
+				break;
+			}
 		}
 		this.slider = dom.append(this.domNode, $('.slider'));
 		this.slider.style.top = `0px`;
@@ -411,8 +465,8 @@ abstract class Strip extends Disposable {
 
 class OpacityStrip extends Strip {
 
-	constructor(container: HTMLElement, model: ColorPickerModel, showingStandaloneColorPicker: boolean = false) {
-		super(container, model, showingStandaloneColorPicker);
+	constructor(container: HTMLElement, model: ColorPickerModel, type: ColorPickerType) {
+		super(container, model, type);
 		this.domNode.classList.add('opacity-strip');
 
 		this.onDidChangeColor(this.model.color);
@@ -434,8 +488,8 @@ class OpacityStrip extends Strip {
 
 class HueStrip extends Strip {
 
-	constructor(container: HTMLElement, model: ColorPickerModel, showingStandaloneColorPicker: boolean = false) {
-		super(container, model, showingStandaloneColorPicker);
+	constructor(container: HTMLElement, model: ColorPickerModel, type: ColorPickerType) {
+		super(container, model, type);
 		this.domNode.classList.add('hue-strip');
 	}
 
@@ -450,11 +504,15 @@ export class InsertButton extends Disposable {
 	private readonly _onClicked = this._register(new Emitter<void>());
 	public readonly onClicked = this._onClicked.event;
 
-	constructor(container: HTMLElement) {
+	constructor(container: HTMLElement, foundInEditor: boolean) {
 		super();
 		this._button = dom.append(container, document.createElement('button'));
 		this._button.classList.add('insert-button');
-		this._button.textContent = 'Insert';
+		if (foundInEditor) {
+			this._button.textContent = 'Replace';
+		} else {
+			this._button.textContent = 'Insert';
+		}
 		this._register(dom.addDisposableListener(this._button, dom.EventType.CLICK, () => {
 			this._onClicked.fire();
 		}));
@@ -465,14 +523,14 @@ export class InsertButton extends Disposable {
 	}
 }
 
-export class ColorPickerWidget extends Widget implements IEditorHoverColorPickerWidget {
+class HoverColorPickerWidget extends Widget implements IEditorHoverColorPickerWidget {
 
-	private static readonly ID = 'editor.contrib.colorPickerWidget';
+	private static readonly ID = 'editor.contrib.hoverColorPickerWidget';
 
-	body: ColorPickerBody;
+	body: HoverColorPickerBody;
 	header: ColorPickerHeader;
 
-	constructor(container: Node, readonly model: ColorPickerModel, private pixelRatio: number, themeService: IThemeService, standaloneColorPicker: boolean = false) {
+	constructor(container: Node, readonly model: ColorPickerModel, private pixelRatio: number, themeService: IThemeService) {
 		super();
 
 		this._register(PixelRatio.getInstance(dom.getWindow(container)).onDidChange(() => this.layout()));
@@ -480,15 +538,224 @@ export class ColorPickerWidget extends Widget implements IEditorHoverColorPicker
 		const element = $('.colorpicker-widget');
 		container.appendChild(element);
 
-		this.header = this._register(new ColorPickerHeader(element, this.model, themeService, standaloneColorPicker));
-		this.body = this._register(new ColorPickerBody(element, this.model, this.pixelRatio, standaloneColorPicker));
+		this.header = this._register(new ColorPickerHeader(element, this.model, themeService));
+		this.body = this._register(new HoverColorPickerBody(element, this.model, this.pixelRatio));
 	}
 
 	getId(): string {
-		return ColorPickerWidget.ID;
+		return HoverColorPickerWidget.ID;
 	}
 
 	layout(): void {
 		this.body.layout();
+	}
+}
+
+export class StandaloneColorPickerWidget extends Widget implements IEditorHoverColorPickerWidget {
+
+	private static readonly ID = 'editor.contrib.standaloneColorPickerWidget';
+	private static CLOSE_BUTTON_WIDTH = 22;
+	private static PADDING = 8;
+
+	private readonly _onInsert = new Emitter<void>();
+	readonly onInsert: Event<void> = this._onInsert.event;
+
+	private readonly _onClose = new Emitter<void>();
+	readonly onClose: Event<void> = this._onClose.event;
+
+	body: StandaloneColorPickerBody;
+	header: StandaloneColorPickerHeader;
+
+	constructor(container: Node, foundInEditor: boolean, readonly model: ColorPickerModel, private pixelRatio: number, themeService: IThemeService) {
+		super();
+
+		this._register(PixelRatio.getInstance(dom.getWindow(container)).onDidChange(() => this.layout()));
+
+		const element = $('.colorpicker-widget');
+		container.appendChild(element);
+
+		this.header = this._register(new StandaloneColorPickerHeader(element, this.model, themeService));
+		this.body = this._register(new StandaloneColorPickerBody(element, this.model, foundInEditor, this.pixelRatio));
+
+		const saturationBoxWidth = this.body.saturationBox.domNode.clientWidth;
+		const widthOfOriginalColorBox = this.body.domNode.clientWidth - saturationBoxWidth - StandaloneColorPickerWidget.CLOSE_BUTTON_WIDTH - StandaloneColorPickerWidget.PADDING;
+		const pickedColorNode = this.header.pickedColorNode;
+		pickedColorNode.style.width = saturationBoxWidth + StandaloneColorPickerWidget.PADDING + 'px';
+		const originalColorNode = this.header.originalColorNode;
+		originalColorNode.style.width = widthOfOriginalColorBox + 'px';
+
+		const closeButton = this.header.closeButton;
+		const insertButton = this.body.insertButton;
+		this._register(insertButton.onClicked(() => {
+			this._onInsert.fire();
+		}));
+		this._register(closeButton.onClicked(() => {
+			this._onClose.fire();
+		}));
+	}
+
+	getId(): string {
+		return StandaloneColorPickerWidget.ID;
+	}
+
+	layout(): void {
+		this.body.layout();
+	}
+}
+
+export abstract class AbstractColorPicker extends Disposable {
+
+	protected _editor: IActiveCodeEditor;
+	private _context: IEditorHoverRenderContext;
+
+	constructor(
+		editor: IActiveCodeEditor,
+		colorHover: IColorHover,
+		context: IEditorHoverRenderContext
+	) {
+		super();
+		this._editor = editor;
+		this._context = context;
+		this._setMinimumDimensionsOfHover(context, editor);
+		this._registerListeners(colorHover);
+	}
+
+	protected abstract _registerListeners(colorHover: IColorHover): void;
+
+	protected _updateEditorModel(editor: IActiveCodeEditor, range: Range, model: ColorPickerModel): Range {
+		const textEdits: ISingleEditOperation[] = [];
+		const edit = model.presentation.textEdit ?? { range, text: model.presentation.label, forceMoveMarkers: false };
+		textEdits.push(edit);
+
+		if (model.presentation.additionalTextEdits) {
+			textEdits.push(...model.presentation.additionalTextEdits);
+		}
+		const replaceRange = Range.lift(edit.range);
+		const trackedRange = editor.getModel()._setTrackedRange(null, replaceRange, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter);
+		editor.executeEdits('colorpicker', textEdits);
+		editor.pushUndoStop();
+		return editor.getModel()._getTrackedRange(trackedRange) ?? replaceRange;
+	}
+
+	protected async _updateColorPresentations(editorModel: ITextModel, colorPickerModel: ColorPickerModel, color: Color, range: Range, colorHover: IColorHover) {
+		const colorPresentations = await getColorPresentations(editorModel, {
+			range: range,
+			color: {
+				red: color.rgba.r / 255,
+				green: color.rgba.g / 255,
+				blue: color.rgba.b / 255,
+				alpha: color.rgba.a
+			}
+		}, colorHover.provider, CancellationToken.None);
+		colorPickerModel.colorPresentations = colorPresentations || [];
+	}
+
+	protected _hide(): void {
+		this._context.hide();
+		this._editor.focus();
+	}
+
+	private _setMinimumDimensionsOfHover(context: IEditorHoverRenderContext, editor: ICodeEditor): void {
+		if (!context.setMinimumDimensions) {
+			return;
+		}
+		const minimumHeight = editor.getOption(EditorOption.lineHeight) + 8;
+		context.setMinimumDimensions(new Dimension(302, minimumHeight));
+	}
+}
+
+export class StandaloneColorPicker extends AbstractColorPicker {
+
+	private _color: Color | undefined;
+	private _colorPicker: StandaloneColorPickerWidget;
+
+	constructor(
+		editor: IActiveCodeEditor,
+		colorHover: IColorHover,
+		foundInEditor: boolean,
+		context: IEditorHoverRenderContext,
+		themeService: IThemeService,
+	) {
+		super(editor, colorHover, context);
+		const model = colorHover.model;
+		const pixelRatio = editor.getOption(EditorOption.pixelRatio);
+		this._colorPicker = this._register(new StandaloneColorPickerWidget(context.fragment, foundInEditor, model, pixelRatio, themeService));
+	}
+
+	public layout(): void {
+		this._colorPicker.layout();
+	}
+
+	public async updateEditorModel(colorHover: IColorHover): Promise<void> {
+		if (!this._editor.hasModel()) {
+			return;
+		}
+		const colorPickerModel = colorHover.model;
+		let range = new Range(colorHover.range.startLineNumber, colorHover.range.startColumn, colorHover.range.endLineNumber, colorHover.range.endColumn);
+		if (this._color) {
+			await this._updateColorPresentations(this._editor.getModel(), colorPickerModel, this._color, range, colorHover);
+			range = this._updateEditorModel(this._editor, range, colorPickerModel);
+		}
+	}
+
+	protected _registerListeners(colorHover: IColorHover): void {
+		const colorModel = colorHover.model;
+		const color = colorModel.color;
+		this._color = color;
+		const range = Range.lift(colorHover.range);
+		const editorModel = this._editor.getModel();
+		this._updateColorPresentations(editorModel, colorModel, color, range, colorHover);
+		this._register(colorModel.onColorFlushed((color: Color) => {
+			this._color = color;
+		}));
+		this._register(this._editor.onDidChangeModelContent(() => {
+			this._hide();
+		}));
+		this._register(colorModel.onDidChangeColor((color: Color) => {
+			this._updateColorPresentations(editorModel, colorModel, color, range, colorHover);
+		}));
+	}
+}
+
+export class HoverColorPicker extends AbstractColorPicker {
+
+	private _colorPicker: HoverColorPickerWidget;
+
+	constructor(
+		editor: IActiveCodeEditor,
+		colorHover: IColorHover,
+		context: IEditorHoverRenderContext,
+		themeService: IThemeService,
+	) {
+		super(editor, colorHover, context);
+		const model = colorHover.model;
+		const pixelRatio = editor.getOption(EditorOption.pixelRatio);
+		this._colorPicker = this._register(new HoverColorPickerWidget(context.fragment, model, pixelRatio, themeService));
+	}
+
+	public layout(): void {
+		this._colorPicker.layout();
+	}
+
+	protected override _registerListeners(colorHover: IColorHover): void {
+		const editorModel = this._editor.getModel();
+		const colorModel = colorHover.model;
+		let range = Range.lift(colorHover.range);
+		let editorUpdatedByColorPicker = false;
+		this._register(colorModel.onColorFlushed(async (color: Color) => {
+			await this._updateColorPresentations(editorModel, colorModel, color, range, colorHover);
+			editorUpdatedByColorPicker = true;
+			range = this._updateEditorModel(this._editor, range, colorModel);
+		}));
+		this._register(this._editor.onDidChangeModelContent(() => {
+			if (editorUpdatedByColorPicker) {
+				editorUpdatedByColorPicker = false;
+			} else {
+				this._hide();
+			}
+		}));
+		this._register(colorModel.onDidChangeColor((color: Color) => {
+			this._updateColorPresentations(editorModel, colorModel, color, range, colorHover);
+		}));
 	}
 }

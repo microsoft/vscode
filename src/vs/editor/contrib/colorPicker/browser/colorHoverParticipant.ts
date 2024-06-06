@@ -6,23 +6,26 @@
 import { AsyncIterableObject } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Color, RGBA } from 'vs/base/common/color';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
-import { IModelDecoration, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { IModelDecoration, ITextModel } from 'vs/editor/common/model';
 import { DocumentColorProvider, IColorInformation } from 'vs/editor/common/languages';
 import { getColorPresentations, getColors } from 'vs/editor/contrib/colorPicker/browser/color';
 import { ColorDetector } from 'vs/editor/contrib/colorPicker/browser/colorDetector';
 import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/browser/colorPickerModel';
-import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/browser/colorPickerWidget';
 import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import { Dimension } from 'vs/base/browser/dom';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { HoverColorPicker, StandaloneColorPicker } from 'vs/editor/contrib/colorPicker/browser/colorPickerWidget';
 
-export class ColorHover implements IHoverPart {
+export interface IColorHover {
+	readonly range: Range;
+	readonly model: ColorPickerModel;
+	readonly provider: DocumentColorProvider;
+}
+
+export class ColorHover implements IHoverPart, IColorHover {
 
 	/**
 	 * Force the hover to always be rendered at this specific range,
@@ -44,13 +47,17 @@ export class ColorHover implements IHoverPart {
 			&& this.range.endColumn >= anchor.range.endColumn
 		);
 	}
+
+	public static from(owner: IEditorHoverParticipant<ColorHover>, colorHover: IColorHover): ColorHover {
+		return new ColorHover(owner, colorHover.range, colorHover.model, colorHover.provider);
+	}
 }
 
 export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover> {
 
 	public readonly hoverOrdinal: number = 2;
 
-	private _colorPicker: ColorPickerWidget | undefined;
+	private _colorPicker: HoverColorPicker | undefined;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -80,8 +87,8 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 
 			const colorData = colorDetector.getColorData(d.range.getStartPosition());
 			if (colorData) {
-				const colorHover = await _createColorHover(this, this._editor.getModel(), colorData.colorInfo, colorData.provider);
-				return [colorHover];
+				const colorHover = await createColorHover(this._editor.getModel(), colorData.colorInfo, colorData.provider);
+				return [ColorHover.from(this, colorHover)];
 			}
 
 		}
@@ -89,9 +96,11 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 	}
 
 	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: ColorHover[]): IDisposable {
-		const { disposables, colorPicker } = renderHoverParts(this, this._editor, this._themeService, hoverParts, context);
-		this._colorPicker = colorPicker;
-		return disposables;
+		if (hoverParts.length === 0 || !this._editor.hasModel()) {
+			return Disposable.None;
+		}
+		this._colorPicker = new HoverColorPicker(this._editor, hoverParts[0], context, this._themeService);
+		return this._colorPicker;
 	}
 
 	public handleResize(): void {
@@ -103,26 +112,17 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 	}
 }
 
-export class StandaloneColorPickerHover {
-	constructor(
-		public readonly owner: StandaloneColorPickerParticipant,
-		public readonly range: Range,
-		public readonly model: ColorPickerModel,
-		public readonly provider: DocumentColorProvider
-	) { }
-}
-
 export class StandaloneColorPickerParticipant {
 
 	public readonly hoverOrdinal: number = 2;
-	private _color: Color | null = null;
+	private _colorPicker: StandaloneColorPicker | undefined;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IThemeService private readonly _themeService: IThemeService,
 	) { }
 
-	public async createColorHover(defaultColorInfo: IColorInformation, defaultColorProvider: DocumentColorProvider, colorProviderRegistry: LanguageFeatureRegistry<DocumentColorProvider>): Promise<{ colorHover: StandaloneColorPickerHover; foundInEditor: boolean } | null> {
+	public async createColorHover(defaultColorInfo: IColorInformation, defaultColorProvider: DocumentColorProvider, colorProviderRegistry: LanguageFeatureRegistry<DocumentColorProvider>): Promise<{ colorHover: IColorHover; foundInEditor: boolean } | null> {
 		if (!this._editor.hasModel()) {
 			return null;
 		}
@@ -143,36 +143,24 @@ export class StandaloneColorPickerParticipant {
 		const colorInfo = foundColorInfo ?? defaultColorInfo;
 		const colorProvider = foundColorProvider ?? defaultColorProvider;
 		const foundInEditor = !!foundColorInfo;
-		return { colorHover: await _createColorHover(this, this._editor.getModel(), colorInfo, colorProvider), foundInEditor: foundInEditor };
+		const colorHover = await createColorHover(this._editor.getModel(), colorInfo, colorProvider);
+		return { colorHover, foundInEditor };
 	}
 
-	public async updateEditorModel(colorHoverData: StandaloneColorPickerHover): Promise<void> {
+	public async updateEditorModel(colorHover: IColorHover): Promise<void> {
+		this._colorPicker?.updateEditorModel(colorHover);
+	}
+
+	public renderColorPicker(context: IEditorHoverRenderContext, colorHover: IColorHover, foundInEditor: boolean): StandaloneColorPicker | undefined {
 		if (!this._editor.hasModel()) {
 			return;
 		}
-		const colorPickerModel = colorHoverData.model;
-		let range = new Range(colorHoverData.range.startLineNumber, colorHoverData.range.startColumn, colorHoverData.range.endLineNumber, colorHoverData.range.endColumn);
-		if (this._color) {
-			await _updateColorPresentations(this._editor.getModel(), colorPickerModel, this._color, range, colorHoverData);
-			range = _updateEditorModel(this._editor, range, colorPickerModel);
-		}
-	}
-
-	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: ColorHover[] | StandaloneColorPickerHover[]): { disposables: IDisposable; colorPicker: ColorPickerWidget | undefined } {
-		return renderHoverParts(this, this._editor, this._themeService, hoverParts, context);
-	}
-
-	public set color(color: Color | null) {
-		this._color = color;
-	}
-
-	public get color(): Color | null {
-		return this._color;
+		this._colorPicker = new StandaloneColorPicker(this._editor, colorHover, foundInEditor, context, this._themeService);
+		return this._colorPicker;
 	}
 }
 
-async function _createColorHover<T extends ColorHoverParticipant | StandaloneColorPickerParticipant>(participant: T, editorModel: ITextModel, colorInfo: IColorInformation, provider: DocumentColorProvider): Promise<T extends ColorHoverParticipant ? ColorHover : StandaloneColorPickerHover>;
-async function _createColorHover(participant: ColorHoverParticipant | StandaloneColorPickerParticipant, editorModel: ITextModel, colorInfo: IColorInformation, provider: DocumentColorProvider): Promise<ColorHover | StandaloneColorPickerHover> {
+async function createColorHover(editorModel: ITextModel, colorInfo: IColorInformation, provider: DocumentColorProvider): Promise<IColorHover> {
 	const originalText = editorModel.getValueInRange(colorInfo.range);
 	const { red, green, blue, alpha } = colorInfo.color;
 	const rgba = new RGBA(Math.round(red * 255), Math.round(green * 255), Math.round(blue * 255), alpha);
@@ -182,83 +170,8 @@ async function _createColorHover(participant: ColorHoverParticipant | Standalone
 	const model = new ColorPickerModel(color, [], 0);
 	model.colorPresentations = colorPresentations || [];
 	model.guessColorPresentation(color, originalText);
-
-	if (participant instanceof ColorHoverParticipant) {
-		return new ColorHover(participant, Range.lift(colorInfo.range), model, provider);
-	} else {
-		return new StandaloneColorPickerHover(participant, Range.lift(colorInfo.range), model, provider);
-	}
+	const range = Range.lift(colorInfo.range);
+	return { range, model, provider };
 }
 
-function renderHoverParts(participant: ColorHoverParticipant | StandaloneColorPickerParticipant, editor: ICodeEditor, themeService: IThemeService, hoverParts: ColorHover[] | StandaloneColorPickerHover[], context: IEditorHoverRenderContext): { disposables: IDisposable; colorPicker: ColorPickerWidget | undefined } {
-	if (hoverParts.length === 0 || !editor.hasModel()) {
-		return { disposables: Disposable.None, colorPicker: undefined };
-	}
-	if (context.setMinimumDimensions) {
-		const minimumHeight = editor.getOption(EditorOption.lineHeight) + 8;
-		context.setMinimumDimensions(new Dimension(302, minimumHeight));
-	}
 
-	const disposables = new DisposableStore();
-	const colorHover = hoverParts[0];
-	const editorModel = editor.getModel();
-	const model = colorHover.model;
-	const colorPicker = disposables.add(new ColorPickerWidget(context.fragment, model, editor.getOption(EditorOption.pixelRatio), themeService, participant instanceof StandaloneColorPickerParticipant));
-
-	let editorUpdatedByColorPicker = false;
-	let range = new Range(colorHover.range.startLineNumber, colorHover.range.startColumn, colorHover.range.endLineNumber, colorHover.range.endColumn);
-	if (participant instanceof StandaloneColorPickerParticipant) {
-		const color = hoverParts[0].model.color;
-		participant.color = color;
-		_updateColorPresentations(editorModel, model, color, range, colorHover);
-		disposables.add(model.onColorFlushed((color: Color) => {
-			participant.color = color;
-		}));
-	} else {
-		disposables.add(model.onColorFlushed(async (color: Color) => {
-			await _updateColorPresentations(editorModel, model, color, range, colorHover);
-			editorUpdatedByColorPicker = true;
-			range = _updateEditorModel(editor, range, model);
-		}));
-	}
-	disposables.add(model.onDidChangeColor((color: Color) => {
-		_updateColorPresentations(editorModel, model, color, range, colorHover);
-	}));
-	disposables.add(editor.onDidChangeModelContent((e) => {
-		if (editorUpdatedByColorPicker) {
-			editorUpdatedByColorPicker = false;
-		} else {
-			context.hide();
-			editor.focus();
-		}
-	}));
-	return { disposables, colorPicker };
-}
-
-function _updateEditorModel(editor: IActiveCodeEditor, range: Range, model: ColorPickerModel): Range {
-	const textEdits: ISingleEditOperation[] = [];
-	const edit = model.presentation.textEdit ?? { range, text: model.presentation.label, forceMoveMarkers: false };
-	textEdits.push(edit);
-
-	if (model.presentation.additionalTextEdits) {
-		textEdits.push(...model.presentation.additionalTextEdits);
-	}
-	const replaceRange = Range.lift(edit.range);
-	const trackedRange = editor.getModel()._setTrackedRange(null, replaceRange, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter);
-	editor.executeEdits('colorpicker', textEdits);
-	editor.pushUndoStop();
-	return editor.getModel()._getTrackedRange(trackedRange) ?? replaceRange;
-}
-
-async function _updateColorPresentations(editorModel: ITextModel, colorPickerModel: ColorPickerModel, color: Color, range: Range, colorHover: ColorHover | StandaloneColorPickerHover) {
-	const colorPresentations = await getColorPresentations(editorModel, {
-		range: range,
-		color: {
-			red: color.rgba.r / 255,
-			green: color.rgba.g / 255,
-			blue: color.rgba.b / 255,
-			alpha: color.rgba.a
-		}
-	}, colorHover.provider, CancellationToken.None);
-	colorPickerModel.colorPresentations = colorPresentations || [];
-}
