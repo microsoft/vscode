@@ -20,14 +20,14 @@ import { MarkdownHoverParticipant } from 'vs/editor/contrib/hover/browser/markdo
 import { InlayHintsHover } from 'vs/editor/contrib/inlayHints/browser/inlayHintsHover';
 import { HoverVerbosityAction } from 'vs/editor/common/standalone/standaloneEnums';
 import { ContentHoverWidget } from 'vs/editor/contrib/hover/browser/contentHoverWidget';
-import { ContentHoverComputer } from 'vs/editor/contrib/hover/browser/contentHoverComputer';
+import { ContentHoverComputer, ContentHoverComputerOptions } from 'vs/editor/contrib/hover/browser/contentHoverComputer';
 import { ContentHoverVisibleData, HoverResult } from 'vs/editor/contrib/hover/browser/contentHoverTypes';
 import { EditorHoverStatusBar } from 'vs/editor/contrib/hover/browser/contentHoverStatusBar';
 import { Emitter } from 'vs/base/common/event';
 
 export class ContentHoverController extends Disposable implements IHoverWidget {
 
-	private _currentResult: HoverResult | null = null;
+	private _currentResult: HoverResult<ContentHoverComputerOptions> | null = null;
 	private _colorWidget: IEditorHoverColorPickerWidget | null = null;
 
 	private readonly _computer: ContentHoverComputer;
@@ -35,7 +35,7 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 	private readonly _participants: IEditorHoverParticipant[];
 	// TODO@aiday-mar make array of participants, dispatch between them
 	private readonly _markdownHoverParticipant: MarkdownHoverParticipant | undefined;
-	private readonly _hoverOperation: HoverOperation<IHoverPart>;
+	private readonly _hoverOperation: HoverOperation<ContentHoverComputerOptions, IHoverPart>;
 
 	private readonly _onContentsChanged = this._register(new Emitter<void>());
 	public readonly onContentsChanged = this._onContentsChanged.event;
@@ -71,12 +71,13 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 
 	private _registerListeners(): void {
 		this._register(this._hoverOperation.onResult((result) => {
-			if (!this._computer.anchor) {
+			const anchor = result.options?.anchor;
+			if (!anchor) {
 				// invalid state, ignore result
 				return;
 			}
-			const messages = (result.hasLoadingMessage ? this._addLoadingMessage(result.value) : result.value);
-			this._withResult(new HoverResult(this._computer.anchor, messages, result.isComplete));
+			const messages = (result.hasLoadingMessage ? this._addLoadingMessage(result.value, anchor) : result.value);
+			this._withResult(new HoverResult(anchor, messages, result.isComplete, result.options));
 		}));
 		this._register(dom.addStandardDisposableListener(this._contentHoverWidget.getDomNode(), 'keydown', (e) => {
 			if (e.equals(KeyCode.Escape)) {
@@ -143,20 +144,26 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		return true;
 	}
 
+	private get _hoverOperationAnchor(): HoverAnchor | undefined {
+		return this._hoverOperation.options?.anchor;
+	}
+
 	private _startHoverOperationIfNecessary(anchor: HoverAnchor, mode: HoverStartMode, source: HoverStartSource, focus: boolean, insistOnKeepingHoverVisible: boolean): void {
-		const currentAnchorEqualToPreviousHover = this._computer.anchor && this._computer.anchor.equals(anchor);
+		const currentAnchorEqualToPreviousHover = this._hoverOperationAnchor && this._hoverOperationAnchor.equals(anchor);
 		if (currentAnchorEqualToPreviousHover) {
 			return;
 		}
 		this._hoverOperation.cancel();
-		this._computer.anchor = anchor;
-		this._computer.shouldFocus = focus;
-		this._computer.source = source;
-		this._computer.insistOnKeepingHoverVisible = insistOnKeepingHoverVisible;
-		this._hoverOperation.start(mode);
+		const contentHoverComputerOptions: ContentHoverComputerOptions = {
+			anchor,
+			focus,
+			insistOnKeepingHoverVisible,
+			source
+		};
+		this._hoverOperation.start(mode, contentHoverComputerOptions);
 	}
 
-	private _setCurrentResult(hoverResult: HoverResult | null): void {
+	private _setCurrentResult(hoverResult: HoverResult<ContentHoverComputerOptions> | null): void {
 		let currentHoverResult = hoverResult;
 		const currentResultEqualToPreviousResult = this._currentResult === currentHoverResult;
 		if (currentResultEqualToPreviousResult) {
@@ -168,21 +175,18 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		}
 		this._currentResult = currentHoverResult;
 		if (this._currentResult) {
-			this._showHover(this._currentResult.anchor, this._currentResult.hoverParts);
+			this._showHover(this._currentResult);
 		} else {
 			this._contentHoverWidget.hide();
 		}
 	}
 
-	private _addLoadingMessage(result: IHoverPart[]): IHoverPart[] {
-		if (!this._computer.anchor) {
-			return result;
-		}
+	private _addLoadingMessage(result: IHoverPart[], anchor: HoverAnchor): IHoverPart[] {
 		for (const participant of this._participants) {
 			if (!participant.createLoadingMessage) {
 				continue;
 			}
-			const loadingMessage = participant.createLoadingMessage(this._computer.anchor);
+			const loadingMessage = participant.createLoadingMessage(anchor);
 			if (!loadingMessage) {
 				continue;
 			}
@@ -191,7 +195,7 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		return result;
 	}
 
-	private _withResult(hoverResult: HoverResult): void {
+	private _withResult(hoverResult: HoverResult<ContentHoverComputerOptions>): void {
 		const previousHoverIsVisibleWithCompleteResult = this._contentHoverWidget.position && this._currentResult && this._currentResult.isComplete;
 		if (!previousHoverIsVisibleWithCompleteResult) {
 			this._setCurrentResult(hoverResult);
@@ -203,7 +207,7 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 			return;
 		}
 		const currentHoverResultIsEmpty = hoverResult.hoverParts.length === 0;
-		const insistOnKeepingPreviousHoverVisible = this._computer.insistOnKeepingHoverVisible;
+		const insistOnKeepingPreviousHoverVisible = hoverResult.options?.insistOnKeepingHoverVisible ?? false;
 		const shouldKeepPreviousHoverVisible = currentHoverResultIsEmpty && insistOnKeepingPreviousHoverVisible;
 		if (shouldKeepPreviousHoverVisible) {
 			// The hover would now hide normally, so we'll keep the previous messages
@@ -212,12 +216,13 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		this._setCurrentResult(hoverResult);
 	}
 
-	private _showHover(anchor: HoverAnchor, hoverParts: IHoverPart[]): void {
+	private _showHover(hoverResult: HoverResult<ContentHoverComputerOptions>): void {
 		const fragment = document.createDocumentFragment();
+		const hoverParts = hoverResult.hoverParts;
 		const disposables = this._renderHoverPartsInFragment(fragment, hoverParts);
 		const fragmentHasContent = fragment.hasChildNodes();
 		if (fragmentHasContent) {
-			this._doShowHover(fragment, hoverParts, anchor, disposables);
+			this._doShowHover(fragment, hoverResult, disposables);
 		} else {
 			disposables.dispose();
 		}
@@ -271,14 +276,16 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		return statusBar;
 	}
 
-	private _doShowHover(fragment: DocumentFragment, hoverParts: IHoverPart[], anchor: HoverAnchor, disposables: DisposableStore): void {
+	private _doShowHover(fragment: DocumentFragment, hoverResult: HoverResult<ContentHoverComputerOptions>, disposables: DisposableStore): void {
+		const hoverParts = hoverResult.hoverParts;
+		const anchor = hoverResult.anchor;
+		const stoleFocus = hoverResult.options?.focus ?? false;
+		const hoverSource = hoverResult.options?.source ?? HoverStartSource.Mouse;
 		const { showAtPosition, showAtSecondaryPosition, highlightRange } = ContentHoverController.computeHoverRanges(this._editor, anchor.range, hoverParts);
 		this._addEditorDecorations(highlightRange, disposables);
 		const initialMousePosX = anchor.initialMousePosX;
 		const initialMousePosY = anchor.initialMousePosY;
 		const preferAbove = this._editor.getOption(EditorOption.hover).above;
-		const stoleFocus = this._computer.shouldFocus;
-		const hoverSource = this._computer.source;
 		const isBeforeContent = hoverParts.some(m => m.isBeforeContent);
 
 		const contentHoverVisibleData = new ContentHoverVisibleData(
@@ -473,7 +480,6 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 	}
 
 	public hide(): void {
-		this._computer.anchor = null;
 		this._hoverOperation.cancel();
 		this._setCurrentResult(null);
 	}

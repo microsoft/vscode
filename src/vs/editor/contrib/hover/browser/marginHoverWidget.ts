@@ -9,11 +9,11 @@ import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/brow
 import { ICodeEditor, IEditorMouseEvent, IOverlayWidget, IOverlayWidgetPosition, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { HoverOperation, HoverStartMode } from 'vs/editor/contrib/hover/browser/hoverOperation';
+import { HoverOperation, HoverResult, HoverStartMode } from 'vs/editor/contrib/hover/browser/hoverOperation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { HoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
 import { IHoverWidget } from 'vs/editor/contrib/hover/browser/hoverTypes';
-import { IHoverMessage, LaneOrLineNumber, MarginHoverComputer } from 'vs/editor/contrib/hover/browser/marginHoverComputer';
+import { IHoverMessage, LaneOrLineNumber, MarginHoverComputer, MarginHoverComputerOptions } from 'vs/editor/contrib/hover/browser/marginHoverComputer';
 
 const $ = dom.$;
 
@@ -28,8 +28,7 @@ export class MarginHoverWidget extends Disposable implements IOverlayWidget, IHo
 	private _messages: IHoverMessage[];
 
 	private readonly _markdownRenderer: MarkdownRenderer;
-	private readonly _computer: MarginHoverComputer;
-	private readonly _hoverOperation: HoverOperation<IHoverMessage>;
+	private readonly _hoverOperation: HoverOperation<MarginHoverComputerOptions, IHoverMessage>;
 	private readonly _renderDisposeables = this._register(new DisposableStore());
 
 	constructor(
@@ -47,10 +46,9 @@ export class MarginHoverWidget extends Disposable implements IOverlayWidget, IHo
 		this._hover.containerDomNode.classList.toggle('hidden', !this._isVisible);
 
 		this._markdownRenderer = this._register(new MarkdownRenderer({ editor: this._editor }, languageService, openerService));
-		this._computer = new MarginHoverComputer(this._editor);
-		this._hoverOperation = this._register(new HoverOperation(this._editor, this._computer));
+		this._hoverOperation = this._register(new HoverOperation(this._editor, new MarginHoverComputer(this._editor)));
 		this._register(this._hoverOperation.onResult((result) => {
-			this._withResult(result.value);
+			this._withResult(result);
 		}));
 
 		this._register(this._editor.onDidChangeModelDecorations(() => this._onModelDecorationsChanged()));
@@ -90,7 +88,7 @@ export class MarginHoverWidget extends Disposable implements IOverlayWidget, IHo
 			// The decorations have changed and the hover is visible,
 			// we need to recompute the displayed text
 			this._hoverOperation.cancel();
-			this._hoverOperation.start(HoverStartMode.Delayed);
+			this._hoverOperation.start(HoverStartMode.Delayed, undefined);
 		}
 	}
 
@@ -108,22 +106,16 @@ export class MarginHoverWidget extends Disposable implements IOverlayWidget, IHo
 	}
 
 	private _startShowingAt(lineNumber: number, laneOrLine: LaneOrLineNumber): void {
-		if (this._computer.lineNumber === lineNumber && this._computer.lane === laneOrLine) {
+		if (this._hoverOperation.options?.lineNumber === lineNumber && this._hoverOperation.options.laneOrLine === laneOrLine) {
 			// We have to show the widget at the exact same line number as before, so no work is needed
 			return;
 		}
-
 		this._hoverOperation.cancel();
-
 		this.hide();
-
-		this._computer.lineNumber = lineNumber;
-		this._computer.lane = laneOrLine;
-		this._hoverOperation.start(HoverStartMode.Delayed);
+		this._hoverOperation.start(HoverStartMode.Delayed, { lineNumber, laneOrLine });
 	}
 
 	public hide(): void {
-		this._computer.lineNumber = -1;
 		this._hoverOperation.cancel();
 		if (!this._isVisible) {
 			return;
@@ -132,17 +124,17 @@ export class MarginHoverWidget extends Disposable implements IOverlayWidget, IHo
 		this._hover.containerDomNode.classList.toggle('hidden', !this._isVisible);
 	}
 
-	private _withResult(result: IHoverMessage[]): void {
-		this._messages = result;
+	private _withResult(result: HoverResult<MarginHoverComputerOptions, IHoverMessage>): void {
+		this._messages = result.value;
 
 		if (this._messages.length > 0) {
-			this._renderMessages(this._computer.lineNumber, this._messages);
+			this._renderMessages(result.options?.lineNumber ?? -1, result.options?.laneOrLine ?? 'lineNo', this._messages,);
 		} else {
 			this.hide();
 		}
 	}
 
-	private _renderMessages(lineNumber: number, messages: IHoverMessage[]): void {
+	private _renderMessages(lineNumber: number, laneOrLine: LaneOrLineNumber, messages: IHoverMessage[]): void {
 		this._renderDisposeables.clear();
 
 		const fragment = document.createDocumentFragment();
@@ -156,7 +148,7 @@ export class MarginHoverWidget extends Disposable implements IOverlayWidget, IHo
 		}
 
 		this._updateContents(fragment);
-		this._showAt(lineNumber);
+		this._showAt(lineNumber, laneOrLine);
 	}
 
 	private _updateContents(node: Node): void {
@@ -165,7 +157,7 @@ export class MarginHoverWidget extends Disposable implements IOverlayWidget, IHo
 		this._updateFont();
 	}
 
-	private _showAt(lineNumber: number): void {
+	private _showAt(lineNumber: number, laneOrLine: LaneOrLineNumber,): void {
 		if (!this._isVisible) {
 			this._isVisible = true;
 			this._hover.containerDomNode.classList.toggle('hidden', !this._isVisible);
@@ -177,7 +169,7 @@ export class MarginHoverWidget extends Disposable implements IOverlayWidget, IHo
 		const lineHeight = this._editor.getOption(EditorOption.lineHeight);
 		const nodeHeight = this._hover.containerDomNode.clientHeight;
 		const top = topForLineNumber - editorScrollTop - ((nodeHeight - lineHeight) / 2);
-		const left = editorLayout.glyphMarginLeft + editorLayout.glyphMarginWidth + (this._computer.lane === 'lineNo' ? editorLayout.lineNumbersWidth : 0);
+		const left = editorLayout.glyphMarginLeft + editorLayout.glyphMarginWidth + (laneOrLine === 'lineNo' ? editorLayout.lineNumbersWidth : 0);
 		this._hover.containerDomNode.style.left = `${left}px`;
 		this._hover.containerDomNode.style.top = `${Math.max(Math.round(top), 0)}px`;
 	}

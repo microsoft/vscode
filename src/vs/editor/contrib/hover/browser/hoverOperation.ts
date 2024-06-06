@@ -11,15 +11,15 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
-export interface IHoverComputer<T> {
+export interface IHoverComputer<U, T> {
 	/**
 	 * This is called after half the hover time
 	 */
-	computeAsync?: (token: CancellationToken) => AsyncIterableObject<T>;
+	computeAsync?: (args: U | undefined, token: CancellationToken) => AsyncIterableObject<T>;
 	/**
 	 * This is called after all the hover time
 	 */
-	computeSync?: () => T[];
+	computeSync?: (args: U | undefined) => T[];
 }
 
 const enum HoverOperationState {
@@ -40,11 +40,12 @@ export const enum HoverStartSource {
 	Keyboard = 1
 }
 
-export class HoverResult<T> {
+export class HoverResult<U, T> {
 	constructor(
 		public readonly value: T[],
 		public readonly isComplete: boolean,
 		public readonly hasLoadingMessage: boolean,
+		public readonly options: U | undefined
 	) { }
 }
 
@@ -58,9 +59,9 @@ export class HoverResult<T> {
  *   - if there are sync or async results, they are rendered.
  * - at 900ms, if the async computation hasn't finished, a "Loading..." result is added.
  */
-export class HoverOperation<T> extends Disposable {
+export class HoverOperation<U, T> extends Disposable {
 
-	private readonly _onResult = this._register(new Emitter<HoverResult<T>>());
+	private readonly _onResult = this._register(new Emitter<HoverResult<U, T>>());
 	public readonly onResult = this._onResult.event;
 
 	private readonly _firstWaitScheduler = this._register(new RunOnceScheduler(() => this._triggerAsyncComputation(), 0));
@@ -71,10 +72,11 @@ export class HoverOperation<T> extends Disposable {
 	private _asyncIterable: CancelableAsyncIterableObject<T> | null = null;
 	private _asyncIterableDone: boolean = false;
 	private _result: T[] = [];
+	private _options: U | undefined;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		private readonly _computer: IHoverComputer<T>
+		private readonly _computer: IHoverComputer<U, T>
 	) {
 		super();
 	}
@@ -84,6 +86,7 @@ export class HoverOperation<T> extends Disposable {
 			this._asyncIterable.cancel();
 			this._asyncIterable = null;
 		}
+		this._options = undefined;
 		super.dispose();
 	}
 
@@ -116,7 +119,7 @@ export class HoverOperation<T> extends Disposable {
 
 		if (this._computer.computeAsync) {
 			this._asyncIterableDone = false;
-			this._asyncIterable = createCancelableAsyncIterable(token => this._computer.computeAsync!(token));
+			this._asyncIterable = createCancelableAsyncIterable(token => this._computer.computeAsync!(this._options, token));
 
 			(async () => {
 				try {
@@ -144,7 +147,7 @@ export class HoverOperation<T> extends Disposable {
 
 	private _triggerSyncComputation(): void {
 		if (this._computer.computeSync) {
-			this._result = this._result.concat(this._computer.computeSync());
+			this._result = this._result.concat(this._computer.computeSync(this._options));
 		}
 		this._setState(this._asyncIterableDone ? HoverOperationState.Idle : HoverOperationState.WaitingForAsync);
 	}
@@ -162,10 +165,11 @@ export class HoverOperation<T> extends Disposable {
 		}
 		const isComplete = (this._state === HoverOperationState.Idle);
 		const hasLoadingMessage = (this._state === HoverOperationState.WaitingForAsyncShowingLoading);
-		this._onResult.fire(new HoverResult(this._result.slice(0), isComplete, hasLoadingMessage));
+		this._onResult.fire(new HoverResult(this._result.slice(0), isComplete, hasLoadingMessage, this._options));
 	}
 
-	public start(mode: HoverStartMode): void {
+	public start(mode: HoverStartMode, options: U | undefined): void {
+		this._options = options;
 		if (mode === HoverStartMode.Delayed) {
 			if (this._state === HoverOperationState.Idle) {
 				this._setState(HoverOperationState.FirstWait);
@@ -196,7 +200,11 @@ export class HoverOperation<T> extends Disposable {
 			this._asyncIterable = null;
 		}
 		this._result = [];
+		this._options = undefined;
 		this._setState(HoverOperationState.Idle, false);
 	}
 
+	public get options(): U | undefined {
+		return this._options;
+	}
 }

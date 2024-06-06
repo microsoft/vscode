@@ -11,23 +11,14 @@ import { HoverStartSource, IHoverComputer } from 'vs/editor/contrib/hover/browse
 import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { AsyncIterableObject } from 'vs/base/common/async';
 
-export class ContentHoverComputer implements IHoverComputer<IHoverPart> {
+export interface ContentHoverComputerOptions {
+	anchor: HoverAnchor;
+	focus: boolean;
+	insistOnKeepingHoverVisible: boolean;
+	source: HoverStartSource;
+}
 
-	private _anchor: HoverAnchor | null = null;
-	public get anchor(): HoverAnchor | null { return this._anchor; }
-	public set anchor(value: HoverAnchor | null) { this._anchor = value; }
-
-	private _shouldFocus: boolean = false;
-	public get shouldFocus(): boolean { return this._shouldFocus; }
-	public set shouldFocus(value: boolean) { this._shouldFocus = value; }
-
-	private _source: HoverStartSource = HoverStartSource.Mouse;
-	public get source(): HoverStartSource { return this._source; }
-	public set source(value: HoverStartSource) { this._source = value; }
-
-	private _insistOnKeepingHoverVisible: boolean = false;
-	public get insistOnKeepingHoverVisible(): boolean { return this._insistOnKeepingHoverVisible; }
-	public set insistOnKeepingHoverVisible(value: boolean) { this._insistOnKeepingHoverVisible = value; }
+export class ContentHoverComputer implements IHoverComputer<ContentHoverComputerOptions, IHoverPart> {
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -73,9 +64,8 @@ export class ContentHoverComputer implements IHoverComputer<IHoverPart> {
 		});
 	}
 
-	public computeAsync(token: CancellationToken): AsyncIterableObject<IHoverPart> {
-		const anchor = this._anchor;
-
+	public computeAsync(options: ContentHoverComputerOptions | undefined, token: CancellationToken): AsyncIterableObject<IHoverPart> {
+		const anchor = options?.anchor;
 		if (!this._editor.hasModel() || !anchor) {
 			return AsyncIterableObject.EMPTY;
 		}
@@ -92,16 +82,17 @@ export class ContentHoverComputer implements IHoverComputer<IHoverPart> {
 		);
 	}
 
-	public computeSync(): IHoverPart[] {
-		if (!this._editor.hasModel() || !this._anchor) {
+	public computeSync(options: ContentHoverComputerOptions | undefined): IHoverPart[] {
+		const anchor = options?.anchor;
+		if (!this._editor.hasModel() || !anchor) {
 			return [];
 		}
 
-		const lineDecorations = ContentHoverComputer._getLineDecorations(this._editor, this._anchor);
+		const lineDecorations = ContentHoverComputer._getLineDecorations(this._editor, anchor);
 
 		let result: IHoverPart[] = [];
 		for (const participant of this._participants) {
-			result = result.concat(participant.computeSync(this._anchor, lineDecorations));
+			result = result.concat(participant.computeSync(anchor, lineDecorations));
 		}
 
 		return coalesce(result);

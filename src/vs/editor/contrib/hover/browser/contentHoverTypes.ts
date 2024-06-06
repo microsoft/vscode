@@ -8,35 +8,37 @@ import { Position } from 'vs/editor/common/core/position';
 import { HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
 import { HoverAnchor, IEditorHoverColorPickerWidget, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
 
-export class HoverResult {
+export class HoverResult<U> {
 
 	constructor(
 		public readonly anchor: HoverAnchor,
 		public readonly hoverParts: IHoverPart[],
-		public readonly isComplete: boolean
+		public readonly isComplete: boolean,
+		public readonly options: U | undefined
 	) { }
 
-	public filter(anchor: HoverAnchor): HoverResult {
+	public filter(anchor: HoverAnchor): HoverResult<U> {
 		const filteredHoverParts = this.hoverParts.filter((m) => m.isValidForHoverAnchor(anchor));
 		if (filteredHoverParts.length === this.hoverParts.length) {
 			return this;
 		}
-		return new FilteredHoverResult(this, this.anchor, filteredHoverParts, this.isComplete);
+		return new FilteredHoverResult(this, this.anchor, filteredHoverParts, this.isComplete, this.options);
 	}
 }
 
-export class FilteredHoverResult extends HoverResult {
+export class FilteredHoverResult<U> extends HoverResult<U> {
 
 	constructor(
-		private readonly original: HoverResult,
+		private readonly original: HoverResult<U>,
 		anchor: HoverAnchor,
 		messages: IHoverPart[],
-		isComplete: boolean
+		isComplete: boolean,
+		options: U | undefined,
 	) {
-		super(anchor, messages, isComplete);
+		super(anchor, messages, isComplete, options);
 	}
 
-	public override filter(anchor: HoverAnchor): HoverResult {
+	public override filter(anchor: HoverAnchor): HoverResult<U> {
 		return this.original.filter(anchor);
 	}
 }
