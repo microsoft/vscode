@@ -346,14 +346,12 @@ async function guessEncodingByBuffer(buffer: VSBuffer, candidateGuessEncodings?:
 
 	let guessed = jschardet.detect(binaryString, candidateGuessEncodings ? { detectEncodings: candidateGuessEncodings } : undefined);
 
-	if (!candidateGuessEncodingsFallback && (!guessed || !guessed.encoding)) {
-		return null;
-	}
-
-	if (candidateGuessEncodingsFallback !== null) {
+	if (!guessed || !guessed.encoding) {
+		if (!candidateGuessEncodingsFallback) {
+			return null;
+		}
 		guessed = { encoding: candidateGuessEncodingsFallback, confidence: 0.99 };
 	}
-
 
 	const enc = guessed.encoding.toLowerCase();
 	if (0 <= IGNORE_ENCODINGS.indexOf(enc)) {
