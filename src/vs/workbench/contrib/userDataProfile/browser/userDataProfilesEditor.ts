@@ -779,6 +779,7 @@ class ProfileWidget extends Disposable {
 	private renderProfileElement(profileElement: AbstractUserDataProfileElement): void {
 		this.profileTitle.textContent = profileElement.name;
 		this.nameInput.value = profileElement.name;
+		this.nameInput.validate();
 		if (profileElement.disabled) {
 			this.nameInput.disable();
 		} else {

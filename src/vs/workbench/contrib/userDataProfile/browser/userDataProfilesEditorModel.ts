@@ -830,9 +830,8 @@ export class UserDataProfilesEditorModel extends EditorModel {
 				if (e.preview) {
 					previewProfileAction.checked = !!this.newProfileElement?.previewProfile;
 				}
-				if (e.disabled) {
-					previewProfileAction.enabled = !this.newProfileElement?.disabled;
-					createAction.enabled = !this.newProfileElement?.disabled;
+				if (e.disabled || e.message) {
+					previewProfileAction.enabled = createAction.enabled = !this.newProfileElement?.disabled && !this.newProfileElement?.message;
 				}
 			}));
 			this._profiles.push([this.newProfileElement, disposables]);
