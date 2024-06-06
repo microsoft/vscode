@@ -175,7 +175,9 @@ export interface ISCMService {
 	readonly repositoryCount: number;
 
 	registerSCMProvider(provider: ISCMProvider): ISCMRepository;
+
 	getRepository(id: string): ISCMRepository | undefined;
+	getRepository(resource: URI): ISCMRepository | undefined;
 }
 
 export interface ISCMTitleMenu {
