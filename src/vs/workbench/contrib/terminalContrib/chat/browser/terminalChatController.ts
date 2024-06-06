@@ -171,7 +171,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			if (!this._instance.domElement) {
 				throw new Error('FindWidget expected terminal DOM to be initialized');
 			}
-			this._createSession();
 			return chatWidget;
 		});
 	}
