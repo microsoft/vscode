@@ -30,7 +30,11 @@ export class NativeExtHostSearch extends ExtHostSearch implements IDisposable {
 
 	private _registeredEHSearchProvider = false;
 
+	private _numThreadsPromise: Promise<number | undefined> | undefined;
+
 	private readonly _disposables = new DisposableStore();
+
+	private isDisposed = false;
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
@@ -41,11 +45,24 @@ export class NativeExtHostSearch extends ExtHostSearch implements IDisposable {
 	) {
 		super(extHostRpc, _uriTransformer, _logService);
 		this.getNumThreads = this.getNumThreads.bind(this);
+		this.getNumThreadsCached = this.getNumThreadsCached.bind(this);
+		this.handleConfigurationChanged = this.handleConfigurationChanged.bind(this);
 		const outputChannel = new OutputChannel('RipgrepSearchUD', this._logService);
-		this._disposables.add(this.registerTextSearchProvider(Schemas.vscodeUserData, new RipgrepSearchProvider(outputChannel, this.getNumThreads)));
+		this._disposables.add(this.registerTextSearchProvider(Schemas.vscodeUserData, new RipgrepSearchProvider(outputChannel, this.getNumThreadsCached)));
 		if (initData.remote.isRemote && initData.remote.authority) {
 			this._registerEHSearchProviders();
 		}
+
+		configurationService.getConfigProvider().then(provider => {
+			if (this.isDisposed) {
+				return;
+			}
+			this._disposables.add(provider.onDidChangeConfiguration(this.handleConfigurationChanged));
+		});
+	}
+
+	private handleConfigurationChanged() {
+		this._numThreadsPromise = undefined;
 	}
 
 	async getNumThreads(): Promise<number | undefined> {
@@ -54,7 +71,15 @@ export class NativeExtHostSearch extends ExtHostSearch implements IDisposable {
 		return numThreads;
 	}
 
+	async getNumThreadsCached(): Promise<number | undefined> {
+		if (!this._numThreadsPromise) {
+			this._numThreadsPromise = this.getNumThreads();
+		}
+		return this._numThreadsPromise;
+	}
+
 	dispose(): void {
+		this.isDisposed = true;
 		this._disposables.dispose();
 	}
 
@@ -69,8 +94,8 @@ export class NativeExtHostSearch extends ExtHostSearch implements IDisposable {
 
 		this._registeredEHSearchProvider = true;
 		const outputChannel = new OutputChannel('RipgrepSearchEH', this._logService);
-		this._disposables.add(this.registerTextSearchProvider(Schemas.file, new RipgrepSearchProvider(outputChannel, this.getNumThreads)));
-		this._disposables.add(this.registerInternalFileSearchProvider(Schemas.file, new SearchService('fileSearchProvider', this.getNumThreads)));
+		this._disposables.add(this.registerTextSearchProvider(Schemas.file, new RipgrepSearchProvider(outputChannel, this.getNumThreadsCached)));
+		this._disposables.add(this.registerInternalFileSearchProvider(Schemas.file, new SearchService('fileSearchProvider', this.getNumThreadsCached)));
 	}
 
 	private registerInternalFileSearchProvider(scheme: string, provider: SearchService): IDisposable {
@@ -117,7 +142,7 @@ export class NativeExtHostSearch extends ExtHostSearch implements IDisposable {
 		if (!this._internalFileSearchProvider) {
 			throw new Error('No internal file search handler');
 		}
-		const numThreads = await this.getNumThreads();
+		const numThreads = await this.getNumThreadsCached();
 		return <Promise<ISearchCompleteStats>>this._internalFileSearchProvider.doFileSearch(rawQuery, numThreads, onResult, token);
 	}
 
