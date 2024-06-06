@@ -11,33 +11,117 @@ import { Schemas } from 'vs/base/common/network';
 import * as path from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { DEFAULT_MAX_SEARCH_RESULTS, hasSiblingPromiseFn, IAITextQuery, IExtendedExtensionSearchOptions, IFileMatch, IFolderQuery, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchResult, ITextSearchStats, QueryGlobTester, QueryType, resolvePatternsForProvider } from 'vs/workbench/services/search/common/search';
-import { AITextSearchProvider, Range, TextSearchComplete, TextSearchMatch, TextSearchOptions, TextSearchProvider, TextSearchQuery, TextSearchResult } from 'vs/workbench/services/search/common/searchExtTypes';
+import { IProgress } from 'vs/platform/progress/common/progress';
+import { DEFAULT_MAX_SEARCH_RESULTS, hasSiblingPromiseFn, IAITextQuery, IExtendedExtensionSearchOptions, IFileMatch, IFolderQuery, IPatternInfo, ISearchCompleteStats, isUserFacingProgress, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchResult, ITextSearchStats, IUserFacingProgress, QueryGlobTester, resolvePatternsForProvider } from 'vs/workbench/services/search/common/search';
+import { AITextSearchProvider, Range, TextSearchComplete, TextSearchMatch, TextSearchOptions, TextSearchProvider, TextSearchQuery, TextSearchResult, TextSearchResultWithProgress } from 'vs/workbench/services/search/common/searchExtTypes';
 
 export interface IFileUtils {
 	readdir: (resource: URI) => Promise<string[]>;
 	toCanonicalName: (encoding: string) => string;
 }
-interface IAITextQueryProviderPair {
-	query: IAITextQuery; provider: AITextSearchProvider;
+
+export abstract class TextSearchManagerBase<ResultType> {
+	protected collector: TextSearchResultsCollector | null = null;
+
+	protected isLimitHit = false;
+	protected resultCount = 0;
+
+	constructor(
+		protected fileUtils: IFileUtils,
+		protected processType: ITextSearchStats['type']) { }
+
+	protected abstract get query(): IAITextQuery | ITextQuery;
+	protected abstract search(onProgress: (matches: ResultType[]) => void, token: CancellationToken): Promise<ISearchCompleteStats>;
+
+	protected resultSize(result: TextSearchResult): number {
+		if (extensionResultIsMatch(result)) {
+			return Array.isArray(result.ranges) ?
+				result.ranges.length :
+				1;
+		}
+		else {
+			// #104400 context lines shoudn't count towards result count
+			return 0;
+		}
+	}
+
+	protected trimResultToSize(result: TextSearchMatch, size: number): TextSearchMatch {
+		const rangesArr = Array.isArray(result.ranges) ? result.ranges : [result.ranges];
+		const matchesArr = Array.isArray(result.preview.matches) ? result.preview.matches : [result.preview.matches];
+
+		return {
+			ranges: rangesArr.slice(0, size),
+			preview: {
+				matches: matchesArr.slice(0, size),
+				text: result.preview.text
+			},
+			uri: result.uri
+		};
+	}
+
+
+
+	// protected abstract provideResults(options: TextSearchOptions, progress: IProgress<TextSearchResult>, token: CancellationToken): Promise<TextSearchComplete | null | undefined>;
+
+	protected validateProviderResult(result: TextSearchResult): boolean {
+		if (extensionResultIsMatch(result)) {
+			if (Array.isArray(result.ranges)) {
+				if (!Array.isArray(result.preview.matches)) {
+					console.warn('INVALID - A text search provider match\'s`ranges` and`matches` properties must have the same type.');
+					return false;
+				}
+
+				if ((<Range[]>result.preview.matches).length !== result.ranges.length) {
+					console.warn('INVALID - A text search provider match\'s`ranges` and`matches` properties must have the same length.');
+					return false;
+				}
+			} else {
+				if (Array.isArray(result.preview.matches)) {
+					console.warn('INVALID - A text search provider match\'s`ranges` and`matches` properties must have the same length.');
+					return false;
+				}
+			}
+		}
+
+		return true;
+	}
+
+	protected getSearchOptionsForFolder(fq: IFolderQuery<URI>): TextSearchOptions {
+		const includes = resolvePatternsForProvider(this.query.includePattern, fq.includePattern);
+		const excludes = resolvePatternsForProvider(this.query.excludePattern, fq.excludePattern);
+
+		const options = {
+			folder: URI.from(fq.folder),
+			excludes,
+			includes,
+			useIgnoreFiles: !fq.disregardIgnoreFiles,
+			useGlobalIgnoreFiles: !fq.disregardGlobalIgnoreFiles,
+			useParentIgnoreFiles: !fq.disregardParentIgnoreFiles,
+			followSymlinks: !fq.ignoreSymlinks,
+			encoding: fq.fileEncoding && this.fileUtils.toCanonicalName(fq.fileEncoding),
+			maxFileSize: this.query.maxFileSize,
+			maxResults: this.query.maxResults ?? DEFAULT_MAX_SEARCH_RESULTS,
+			previewOptions: this.query.previewOptions,
+			afterContext: this.query.afterContext,
+			beforeContext: this.query.beforeContext
+		};
+		if ('usePCRE2' in this.query) {
+			(<IExtendedExtensionSearchOptions>options).usePCRE2 = this.query.usePCRE2;
+		}
+		return options;
+	}
 }
+export class TextSearchManager extends TextSearchManagerBase<IFileMatch> {
+	constructor(
+		protected query: ITextQuery,
+		private provider: TextSearchProvider,
+		fileUtils: IFileUtils,
+		processType: ITextSearchStats['type']) {
+		super(fileUtils, processType);
+	}
 
-interface ITextQueryProviderPair {
-	query: ITextQuery; provider: TextSearchProvider;
-}
-export class TextSearchManager {
-
-	private collector: TextSearchResultsCollector | null = null;
-
-	private isLimitHit = false;
-	private resultCount = 0;
-
-	constructor(private queryProviderPair: IAITextQueryProviderPair | ITextQueryProviderPair,
-		private fileUtils: IFileUtils,
-		private processType: ITextSearchStats['type']) { }
-
-	private get query() {
-		return this.queryProviderPair.query;
+	async provideResults(options: TextSearchOptions, progress: IProgress<TextSearchResult>, token: CancellationToken): Promise<TextSearchComplete | null | undefined> {
+		return this.provider.provideTextSearchResults(patternInfoToQuery(this.query.contentPattern), options, progress, token);
 	}
 
 	search(onProgress: (matches: IFileMatch[]) => void, token: CancellationToken): Promise<ISearchCompleteStats> {
@@ -98,33 +182,7 @@ export class TextSearchManager {
 		});
 	}
 
-	private resultSize(result: TextSearchResult): number {
-		if (extensionResultIsMatch(result)) {
-			return Array.isArray(result.ranges) ?
-				result.ranges.length :
-				1;
-		}
-		else {
-			// #104400 context lines shoudn't count towards result count
-			return 0;
-		}
-	}
-
-	private trimResultToSize(result: TextSearchMatch, size: number): TextSearchMatch {
-		const rangesArr = Array.isArray(result.ranges) ? result.ranges : [result.ranges];
-		const matchesArr = Array.isArray(result.preview.matches) ? result.preview.matches : [result.preview.matches];
-
-		return {
-			ranges: rangesArr.slice(0, size),
-			preview: {
-				matches: matchesArr.slice(0, size),
-				text: result.preview.text
-			},
-			uri: result.uri
-		};
-	}
-
-	private async searchInFolder(folderQuery: IFolderQuery<URI>, onResult: (result: TextSearchResult) => void, token: CancellationToken): Promise<TextSearchComplete | null | undefined> {
+	protected async searchInFolder(folderQuery: IFolderQuery<URI>, onResult: (result: TextSearchResult) => void, token: CancellationToken): Promise<TextSearchComplete | null | undefined> {
 		const queryTester = new QueryGlobTester(this.query, folderQuery);
 		const testingPs: Promise<void>[] = [];
 		const progress = {
@@ -158,67 +216,138 @@ export class TextSearchManager {
 		};
 
 		const searchOptions = this.getSearchOptionsForFolder(folderQuery);
-
-
-		let result;
-		if (this.queryProviderPair.query.type === QueryType.aiText) {
-			result = await (this.queryProviderPair as IAITextQueryProviderPair).provider.provideAITextSearchResults(this.queryProviderPair.query.contentPattern, searchOptions, progress, token);
-		} else {
-			result = await (this.queryProviderPair as ITextQueryProviderPair).provider.provideTextSearchResults(patternInfoToQuery(this.queryProviderPair.query.contentPattern), searchOptions, progress, token);
-		}
+		const result = this.provideResults(searchOptions, progress, token);
 		if (testingPs.length) {
 			await Promise.all(testingPs);
 		}
 
 		return result;
 	}
+}
 
-	private validateProviderResult(result: TextSearchResult): boolean {
-		if (extensionResultIsMatch(result)) {
-			if (Array.isArray(result.ranges)) {
-				if (!Array.isArray(result.preview.matches)) {
-					console.warn('INVALID - A text search provider match\'s`ranges` and`matches` properties must have the same type.');
-					return false;
-				}
-
-				if ((<Range[]>result.preview.matches).length !== result.ranges.length) {
-					console.warn('INVALID - A text search provider match\'s`ranges` and`matches` properties must have the same length.');
-					return false;
-				}
-			} else {
-				if (Array.isArray(result.preview.matches)) {
-					console.warn('INVALID - A text search provider match\'s`ranges` and`matches` properties must have the same length.');
-					return false;
-				}
-			}
-		}
-
-		return true;
+export class AITextSearchManager extends TextSearchManagerBase<IFileMatch | IUserFacingProgress> {
+	constructor(
+		protected query: IAITextQuery,
+		private provider: AITextSearchProvider,
+		fileUtils: IFileUtils,
+		processType: ITextSearchStats['type']) {
+		super(fileUtils, processType);
 	}
 
-	private getSearchOptionsForFolder(fq: IFolderQuery<URI>): TextSearchOptions {
-		const includes = resolvePatternsForProvider(this.query.includePattern, fq.includePattern);
-		const excludes = resolvePatternsForProvider(this.query.excludePattern, fq.excludePattern);
+	async provideResults(options: TextSearchOptions, progress: IProgress<TextSearchResultWithProgress>, token: CancellationToken): Promise<TextSearchComplete | null | undefined> {
+		return this.provider.provideAITextSearchResults(this.query.contentPattern, options, progress, token);
+	}
 
-		const options = {
-			folder: URI.from(fq.folder),
-			excludes,
-			includes,
-			useIgnoreFiles: !fq.disregardIgnoreFiles,
-			useGlobalIgnoreFiles: !fq.disregardGlobalIgnoreFiles,
-			useParentIgnoreFiles: !fq.disregardParentIgnoreFiles,
-			followSymlinks: !fq.ignoreSymlinks,
-			encoding: fq.fileEncoding && this.fileUtils.toCanonicalName(fq.fileEncoding),
-			maxFileSize: this.query.maxFileSize,
-			maxResults: this.query.maxResults ?? DEFAULT_MAX_SEARCH_RESULTS,
-			previewOptions: this.query.previewOptions,
-			afterContext: this.query.afterContext,
-			beforeContext: this.query.beforeContext
+	search(onProgress: (matches: (IFileMatch | IUserFacingProgress)[]) => void, token: CancellationToken): Promise<ISearchCompleteStats> {
+		const folderQueries = this.query.folderQueries || [];
+		const tokenSource = new CancellationTokenSource(token);
+
+		return new Promise<ISearchCompleteStats>((resolve, reject) => {
+			this.collector = new TextSearchResultsCollector(onProgress);
+
+			let isCanceled = false;
+			const onResult = (result: TextSearchResultWithProgress, folderIdx: number) => {
+				if (isCanceled) {
+					return;
+				}
+				if (isUserFacingProgress(result)) {
+					onProgress([result]);
+					return;
+				}
+
+				if (!this.isLimitHit) {
+					const resultSize = this.resultSize(result);
+					if (extensionResultIsMatch(result) && typeof this.query.maxResults === 'number' && this.resultCount + resultSize > this.query.maxResults) {
+						this.isLimitHit = true;
+						isCanceled = true;
+						tokenSource.cancel();
+
+						result = this.trimResultToSize(result, this.query.maxResults - this.resultCount);
+					}
+
+					const newResultSize = this.resultSize(result);
+					this.resultCount += newResultSize;
+					if (newResultSize > 0 || !extensionResultIsMatch(result)) {
+						this.collector!.add(result, folderIdx);
+					}
+				}
+			};
+
+			// For each root folder
+			Promise.all(folderQueries.map((fq, i) => {
+				return this.searchInFolder(fq, r => onResult(r, i), (p) => onProgress(p), tokenSource.token);
+			})).then(results => {
+				tokenSource.dispose();
+				this.collector!.flush();
+
+				const someFolderHitLImit = results.some(result => !!result && !!result.limitHit);
+				resolve({
+					limitHit: this.isLimitHit || someFolderHitLImit,
+					messages: results.flatMap(result => {
+						if (!result?.message) { return []; }
+						if (Array.isArray(result.message)) { return result.message; }
+						else { return [result.message]; }
+					}),
+					stats: {
+						type: this.processType
+					}
+				});
+			}, (err: Error) => {
+				tokenSource.dispose();
+				const errMsg = toErrorMessage(err);
+				reject(new Error(errMsg));
+			});
+		});
+	}
+
+	protected async searchInFolder(
+		folderQuery: IFolderQuery<URI>,
+		onResult: (result: TextSearchResultWithProgress) => void,
+		onUserFacingProgress: (matches: IUserFacingProgress[]) => void,
+		token: CancellationToken): Promise<TextSearchComplete | null | undefined> {
+		const queryTester = new QueryGlobTester(this.query, folderQuery);
+		const testingPs: Promise<void>[] = [];
+		const progress = {
+			report: (result: TextSearchResultWithProgress) => {
+				if (isUserFacingProgress(result)) {
+					onUserFacingProgress([result]);
+					return;
+				}
+				if (!this.validateProviderResult(result)) {
+					return;
+				}
+
+				const hasSibling = folderQuery.folder.scheme === Schemas.file ?
+					hasSiblingPromiseFn(() => {
+						return this.fileUtils.readdir(resources.dirname(result.uri));
+					}) :
+					undefined;
+
+				const relativePath = resources.relativePath(folderQuery.folder, result.uri);
+				if (relativePath) {
+					// This method is only async when the exclude contains sibling clauses
+					const included = queryTester.includedInQuery(relativePath, path.basename(relativePath), hasSibling);
+					if (isThenable(included)) {
+						testingPs.push(
+							included.then(isIncluded => {
+								if (isIncluded) {
+									onResult(result);
+								}
+							}));
+					} else if (included) {
+						onResult(result);
+					}
+				}
+			}
 		};
-		if ('usePCRE2' in this.query) {
-			(<IExtendedExtensionSearchOptions>options).usePCRE2 = this.query.usePCRE2;
+
+		const searchOptions = this.getSearchOptionsForFolder(folderQuery);
+		const result = this.provideResults(searchOptions, progress, token);
+		if (testingPs.length) {
+			await Promise.all(testingPs);
 		}
-		return options;
+
+		return result;
 	}
 }
 

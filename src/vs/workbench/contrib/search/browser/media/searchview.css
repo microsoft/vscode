@@ -374,6 +374,17 @@
 	padding-right: 3px;
 }
 
+/* shared with search editor's message element */
+.text-search-provider-progress .providerMessage {
+	padding-top: 4px;
+}
+
+.text-search-provider-progress .providerMessage .codicon {
+	position: relative;
+	top: 3px;
+	padding-right: 3px;
+}
+
 .monaco-workbench .search-view .monaco-list.element-focused .monaco-list-row.focused.selected:not(.highlighted) .action-label:focus {
 	outline-color: var(--vscode-list-activeSelectionForeground)
 }

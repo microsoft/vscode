@@ -75,7 +75,7 @@ import { createEditorFromSearchResult } from 'vs/workbench/contrib/searchEditor/
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IPreferencesService, ISettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
 import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
-import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ITextQuery, QueryType, SearchCompletionExitCode, SearchSortOrder, TextSearchCompleteMessageType, ViewMode } from 'vs/workbench/services/search/common/search';
+import { IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ISearchProgressItem, isUserFacingProgress, ITextQuery, QueryType, SearchCompletionExitCode, SearchSortOrder, TextSearchCompleteMessageType, ViewMode } from 'vs/workbench/services/search/common/search';
 import { TextSearchCompleteMessage } from 'vs/workbench/services/search/common/searchExtTypes';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
@@ -83,6 +83,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { Codicon } from 'vs/base/common/codicons';
 
 const $ = dom.$;
 
@@ -130,6 +131,7 @@ export class SearchView extends ViewPane {
 	private treeLabels!: ResourceLabels;
 	private viewletState: MementoObject;
 	private messagesElement!: HTMLElement;
+	private progressElement!: HTMLElement;
 	private readonly messageDisposables: DisposableStore = new DisposableStore();
 	private searchWidgetsContainerElement!: HTMLElement;
 	private searchWidget!: SearchWidget;
@@ -534,6 +536,7 @@ export class SearchView extends ViewPane {
 		this._register(this.inputPatternExcludes.onSubmit(onFilePatternSubmit));
 
 		this.messagesElement = dom.append(this.container, $('.messages.text-search-provider-messages'));
+		this.progressElement = dom.append(this.container, $('.messages.text-search-provider-progress'));
 		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			this.showSearchWithoutFolderMessage();
 		}
@@ -908,6 +911,7 @@ export class SearchView extends ViewPane {
 	}
 
 	private clearMessage(): HTMLElement {
+		//
 		this.searchWithoutFolderMessageElement = undefined;
 
 		const wasHidden = this.messagesElement.style.display === 'none';
@@ -921,6 +925,37 @@ export class SearchView extends ViewPane {
 		}
 
 		return newMessage;
+	}
+
+	private clearProgress() {
+		const wasHidden = this.progressElement.style.display === 'none';
+		dom.clearNode(this.progressElement);
+		dom.show(this.progressElement);
+		if (wasHidden) {
+			this.reLayout();
+		}
+	}
+
+	private addProgressMessages(progress: string[]) {
+		this.clearProgress();
+		const wasHidden = this.progressElement.style.display === 'none';
+		if (wasHidden) {
+			this.reLayout();
+		}
+
+		for (let i = 0; i < progress.length; i++) {
+			const newMessage = dom.append(this.progressElement, $('.message'));
+			const iconElement = dom.append(newMessage, $('span'));
+			if (i === progress.length - 1) {
+				iconElement.classList.add(...ThemeIcon.asClassNameArray(Codicon.loading), 'codicon-modifier-spin');
+			} else {
+				iconElement.classList.add(...ThemeIcon.asClassNameArray(Codicon.check));
+			}
+			iconElement.style.marginRight = `10px`;
+			iconElement.style.fontSize = `16px`;
+			dom.append(newMessage, $('span', undefined, progress[i]));
+		}
+
 	}
 
 	private createSearchResultsView(container: HTMLElement): void {
@@ -1301,7 +1336,8 @@ export class SearchView extends ViewPane {
 
 		const widgetHeight = dom.getTotalHeight(this.searchWidgetsContainerElement);
 		const messagesHeight = dom.getTotalHeight(this.messagesElement);
-		this.tree.layout(this.size.height - widgetHeight - messagesHeight, this.size.width - 28);
+		const progressHeight = dom.getTotalHeight(this.progressElement);
+		this.tree.layout(this.size.height - widgetHeight - messagesHeight - progressHeight, this.size.width - 28);
 	}
 
 	protected override layoutBody(height: number, width: number): void {
@@ -1667,6 +1703,7 @@ export class SearchView extends ViewPane {
 
 		// Complete up to 100% as needed
 		progressComplete();
+		this.clearProgress();
 
 		// Do final render, then expand if just 1 file with less than 50 matches
 		this.onSearchResultsChanged();
@@ -1783,6 +1820,15 @@ export class SearchView extends ViewPane {
 			return new Promise<void>(resolve => progressComplete = resolve);
 		});
 
+		const progressMessages: string[] = [];
+		const onAIProgress = (result: ISearchProgressItem) => {
+			if (isUserFacingProgress(result)) {
+				progressMessages.push(result.text);
+				this.addProgressMessages(progressMessages);
+			}
+		};
+
+
 		this.searchWidget.searchInput?.clearMessage();
 		this.state = SearchUIState.Searching;
 		this.showEmptyStage();
@@ -1803,7 +1849,7 @@ export class SearchView extends ViewPane {
 		this.viewModel.replaceString = this.searchWidget.getReplaceValue();
 		const result = this.viewModel.search(query);
 		if (this.aiResultsVisible) {
-			const aiResult = this.viewModel.aiSearch({ ...query, contentPattern: query.contentPattern.pattern, type: QueryType.aiText });
+			const aiResult = this.viewModel.aiSearch({ ...query, contentPattern: query.contentPattern.pattern, type: QueryType.aiText }, onAIProgress);
 			return result.asyncResults.then(
 				() => aiResult.then(
 					(complete) => {

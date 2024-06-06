@@ -13,7 +13,7 @@ import { IURITransformerService } from 'vs/workbench/api/common/extHostUriTransf
 import { ILogService } from 'vs/platform/log/common/log';
 import { IRawFileQuery, ISearchCompleteStats, IFileQuery, IRawTextQuery, IRawQuery, ITextQuery, IFolderQuery, IRawAITextQuery, IAITextQuery } from 'vs/workbench/services/search/common/search';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { TextSearchManager } from 'vs/workbench/services/search/common/textSearchManager';
+import { AITextSearchManager, TextSearchManager } from 'vs/workbench/services/search/common/textSearchManager';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
 export interface IExtHostSearch extends ExtHostSearchShape {
@@ -146,14 +146,14 @@ export class ExtHostSearch implements IExtHostSearch {
 	$enableExtensionHostSearch(): void { }
 
 	protected createTextSearchManager(query: ITextQuery, provider: vscode.TextSearchProvider): TextSearchManager {
-		return new TextSearchManager({ query, provider }, {
+		return new TextSearchManager(query, provider, {
 			readdir: resource => Promise.resolve([]),
 			toCanonicalName: encoding => encoding
 		}, 'textSearchProvider');
 	}
 
-	protected createAITextSearchManager(query: IAITextQuery, provider: vscode.AITextSearchProvider): TextSearchManager {
-		return new TextSearchManager({ query, provider }, {
+	protected createAITextSearchManager(query: IAITextQuery, provider: vscode.AITextSearchProvider): AITextSearchManager {
+		return new AITextSearchManager(query, provider, {
 			readdir: resource => Promise.resolve([]),
 			toCanonicalName: encoding => encoding
 		}, 'aiTextSearchProvider');

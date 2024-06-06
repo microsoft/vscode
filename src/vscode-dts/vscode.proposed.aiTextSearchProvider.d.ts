@@ -35,6 +35,14 @@ declare module 'vscode' {
 		afterContext?: number;
 	}
 
+	export type TextSearchResultWithProgress = TextSearchResult | TextSearchProgress;
+	export interface TextSearchProgress {
+		/**
+		 * Text that is used for progress. Once another progress message comes, this will be marked as complete.
+		 */
+		text: string;
+	}
+
 
 	/**
 	 * An AITextSearchProvider provides additional AI text search results in the workspace.
@@ -47,7 +55,7 @@ declare module 'vscode' {
 		 * @param progress A progress callback that must be invoked for all results.
 		 * @param token A cancellation token.
 		 */
-		provideAITextSearchResults(query: string, options: AITextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): ProviderResult<TextSearchComplete>;
+		provideAITextSearchResults(query: string, options: AITextSearchOptions, progress: Progress<TextSearchResultWithProgress>, token: CancellationToken): ProviderResult<TextSearchComplete>;
 	}
 
 	export namespace workspace {
