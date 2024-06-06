@@ -431,8 +431,8 @@ schema.oneOf = [...(schemaVersion2.oneOf || []), ...(schemaVersion1.oneOf || [])
 const jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>Registry.as(jsonContributionRegistry.Extensions.JSONContribution);
 jsonRegistry.registerSchema(tasksSchemaId, schema);
 
-export class ProblemMatcherUpdater extends Disposable implements IWorkbenchContribution {
-	static ID = 'problemMatcherUpdater';
+export class TaskRegistryContribution extends Disposable implements IWorkbenchContribution {
+	static ID = 'taskRegistryContribution';
 	constructor() {
 		super();
 
@@ -451,7 +451,7 @@ export class ProblemMatcherUpdater extends Disposable implements IWorkbenchContr
 		})));
 	}
 }
-registerWorkbenchContribution2(ProblemMatcherUpdater.ID, ProblemMatcherUpdater, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(TaskRegistryContribution.ID, TaskRegistryContribution, WorkbenchPhase.AfterRestored);
 
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
