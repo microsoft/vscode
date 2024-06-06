@@ -952,14 +952,26 @@ const forEachListener = <T>(listeners: ListenerOrListeners<T>, fn: (c: ListenerC
 };
 
 
-const _listenerFinalizers = _enableListenerGCedWarning
-	? new FinalizationRegistry(heldValue => {
-		if (typeof heldValue === 'string') {
-			console.warn('[LEAKING LISTENER] GC\'ed a listener that was NOT yet disposed. This is where is was created:');
-			console.warn(heldValue);
+let _listenerFinalizers: FinalizationRegistry<string> | undefined;
+
+if (_enableListenerGCedWarning) {
+	const leaks: string[] = [];
+
+	setInterval(() => {
+		if (leaks.length === 0) {
+			return;
 		}
-	})
-	: undefined;
+		console.warn('[LEAKING LISTENERS] GC\'ed these listeners that were NOT yet disposed:');
+		console.warn(leaks.join('\n'));
+		leaks.length = 0;
+	}, 3000);
+
+	_listenerFinalizers = new FinalizationRegistry(heldValue => {
+		if (typeof heldValue === 'string') {
+			leaks.push(heldValue);
+		}
+	});
+}
 
 /**
  * The Emitter can be used to expose an Event to the public
@@ -1126,8 +1138,9 @@ export class Emitter<T> {
 			}
 
 			if (_listenerFinalizers) {
-				const stack = new Error().stack!.split('\n').slice(2).join('\n').trim();
-				_listenerFinalizers.register(result, stack, result);
+				const stack = new Error().stack!.split('\n').slice(2, 3).join('\n').trim();
+				const match = /(file:|vscode-file:\/\/vscode-app)?(\/[^:]*:\d+:\d+)/.exec(stack);
+				_listenerFinalizers.register(result, match?.[2] ?? stack, result);
 			}
 
 			return result;

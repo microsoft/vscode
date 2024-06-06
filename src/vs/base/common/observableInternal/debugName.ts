@@ -113,14 +113,6 @@ function findKey(obj: object, value: object): string | undefined {
 const countPerClassName = new Map<string, number>();
 const ownerId = new WeakMap<object, string>();
 
-/**
- * Don't call this method outside of tests.
-*/
-export function testingClearObservableNamingCache(): void {
-	countPerName.clear();
-	countPerClassName.clear();
-}
-
 function formatOwner(owner: object): string {
 	const id = ownerId.get(owner);
 	if (id) {

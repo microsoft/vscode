@@ -104,10 +104,6 @@ export interface IEditorHoverRenderContext {
 	 */
 	readonly statusBar: IEditorHoverStatusBar;
 	/**
-	 * Set if the hover will render a color picker widget.
-	 */
-	setColorPicker(widget: IEditorHoverColorPickerWidget): void;
-	/**
 	 * The contents rendered inside the fragment have been changed, which means that the hover should relayout.
 	 */
 	onContentsChanged(): void;
@@ -128,6 +124,7 @@ export interface IEditorHoverParticipant<T extends IHoverPart = IHoverPart> {
 	computeAsync?(anchor: HoverAnchor, lineDecorations: IModelDecoration[], token: CancellationToken): AsyncIterableObject<T>;
 	createLoadingMessage?(anchor: HoverAnchor): T | null;
 	renderHoverParts(context: IEditorHoverRenderContext, hoverParts: T[]): IDisposable;
+	handleResize?(): void;
 }
 
 export type IEditorHoverParticipantCtor = IConstructorSignature<IEditorHoverParticipant, [ICodeEditor]>;
