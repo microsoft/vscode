@@ -104,9 +104,10 @@ export abstract class AbstractUserDataProfileElement extends Disposable {
 
 	private _name = '';
 	get name(): string { return this._name; }
-	set name(label: string) {
-		if (this._name !== label) {
-			this._name = label;
+	set name(name: string) {
+		name = name.trim();
+		if (this._name !== name) {
+			this._name = name;
 			this._onDidChange.fire({ name: true });
 		}
 	}

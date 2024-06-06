@@ -505,6 +505,7 @@ class ProfileWidget extends Disposable {
 							return null;
 						}
 						const initialName = this._profileElement.value?.element.getInitialName();
+						value = value.trim();
 						if (initialName !== value && this.userDataProfilesService.profiles.some(p => p.name === value)) {
 							return {
 								content: localize('profileExists', "Profile with name {0} already exists.", value),
