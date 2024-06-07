@@ -279,6 +279,34 @@ registerActiveXtermAction({
 	}
 });
 
+registerActiveXtermAction({
+	id: TerminalChatCommandId.ViewInChat,
+	title: localize2('viewInChat', 'View in Chat'),
+	precondition: ContextKeyExpr.and(
+		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		TerminalChatContextKeys.requestActive.negate(),
+	),
+	icon: Codicon.commentDiscussion,
+	menu: [{
+		id: MENU_TERMINAL_CHAT_WIDGET_STATUS,
+		group: '0_main',
+		order: 1,
+		when: ContextKeyExpr.and(TerminalChatContextKeys.responseContainsCodeBlock.negate(), TerminalChatContextKeys.requestActive.negate()),
+	},
+	{
+		id: MENU_TERMINAL_CHAT_WIDGET,
+		group: 'navigation',
+		order: 1,
+		when: ContextKeyExpr.and(CTX_INLINE_CHAT_EMPTY.negate(), TerminalChatContextKeys.responseContainsCodeBlock, TerminalChatContextKeys.requestActive.negate()),
+	}],
+	run: (_xterm, _accessor, activeInstance) => {
+		if (isDetachedTerminalInstance(activeInstance)) {
+			return;
+		}
+		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+		contr?.viewInChat();
+	}
+});
 
 registerActiveXtermAction({
 	id: TerminalChatCommandId.MakeRequest,
