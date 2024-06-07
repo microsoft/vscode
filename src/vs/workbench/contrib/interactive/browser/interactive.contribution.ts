@@ -51,9 +51,12 @@ import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/note
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { CellEditType, CellKind, CellUri, INTERACTIVE_WINDOW_EDITOR_ID, NotebookSetting, NotebookWorkingCopyTypeIdentifier } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { InteractiveWindowOpen } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
+import { InteractiveWindowOpen, NOTEBOOK_CELL_LIST_FOCUSED, REPL_NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { executeReplInput } from 'vs/workbench/contrib/replNotebook/browser/repl.contribution';
+import { ReplEditor } from 'vs/workbench/contrib/replNotebook/browser/replEditor';
+import { ReplEditorInput } from 'vs/workbench/contrib/replNotebook/browser/replEditorInput';
 import { columnToEditorGroup } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
@@ -456,10 +459,20 @@ registerAction2(class extends Action2 {
 					primary: KeyMod.CtrlCmd | KeyCode.Enter
 				},
 				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
+			}, {
+				when: ContextKeyExpr.and(
+					REPL_NOTEBOOK_IS_ACTIVE_EDITOR,
+					NOTEBOOK_CELL_LIST_FOCUSED.toNegated()
+				),
+				primary: KeyMod.CtrlCmd | KeyCode.Enter,
+				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
 			}],
 			menu: [
 				{
 					id: MenuId.InteractiveInputExecute
+				},
+				{
+					id: MenuId.ReplInputExecute
 				}
 			],
 			icon: icons.executeIcon,
@@ -483,19 +496,27 @@ registerAction2(class extends Action2 {
 		const historyService = accessor.get(IInteractiveHistoryService);
 		const notebookEditorService = accessor.get(INotebookEditorService);
 		let editorControl: { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
+		let isReplEditor = false;
 		if (context) {
 			const resourceUri = URI.revive(context);
-			const editors = editorService.findEditors(resourceUri)
-				.filter(id => id.editor instanceof InteractiveEditorInput && id.editor.resource?.toString() === resourceUri.toString());
-			if (editors.length) {
-				const editorInput = editors[0].editor as InteractiveEditorInput;
-				const currentGroup = editors[0].groupId;
-				const editor = await editorService.openEditor(editorInput, currentGroup);
-				editorControl = editor?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
+			const editors = editorService.findEditors(resourceUri);
+			for (const found of editors) {
+				if (found.editor.typeId === ReplEditorInput.ID || found.editor.typeId === InteractiveEditorInput.ID) {
+					const editor = await editorService.openEditor(found.editor, found.groupId);
+					editorControl = editor?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
+					isReplEditor = found.editor.typeId === ReplEditorInput.ID;
+					break;
+				}
 			}
 		}
 		else {
+			const editor = editorService.activeEditorPane;
+			isReplEditor = editor instanceof ReplEditor;
 			editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
+		}
+
+		if (editorControl && isReplEditor) {
+			executeReplInput(accessor, editorControl);
 		}
 
 		if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {

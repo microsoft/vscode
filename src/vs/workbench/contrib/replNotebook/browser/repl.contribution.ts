@@ -10,10 +10,10 @@ import { EditorExtensions, IEditorFactoryRegistry, IEditorSerializer, IUntypedEd
 // is one contrib allowed to import from another?
 import { parse } from 'vs/base/common/marshalling';
 import { assertType } from 'vs/base/common/types';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { CellEditType, CellKind, EXECUTE_REPL_COMMAND_ID, NotebookWorkingCopyTypeIdentifier, REPL_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellKind, NotebookWorkingCopyTypeIdentifier, REPL_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookEditorInputOptions } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { ReplEditor } from 'vs/workbench/contrib/replNotebook/browser/replEditor';
 import { ReplEditorInput } from 'vs/workbench/contrib/replNotebook/browser/replEditorInput';
@@ -24,8 +24,8 @@ import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common
 import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 import { extname, isEqual } from 'vs/base/common/resources';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { localize, localize2 } from 'vs/nls';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { localize2 } from 'vs/nls';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { Schemas } from 'vs/base/common/network';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -34,18 +34,10 @@ import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
 import { IInteractiveHistoryService } from 'vs/workbench/contrib/interactive/browser/interactiveHistoryService';
-import { NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { NOTEBOOK_CELL_LIST_FOCUSED, REPL_NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
-import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
 
 type SerializedNotebookEditorData = { resource: URI; preferredResource: URI; viewType: string; options?: NotebookEditorInputOptions };
 class ReplEditorSerializer implements IEditorSerializer {
@@ -212,213 +204,66 @@ registerAction2(class extends Action2 {
 	}
 });
 
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: EXECUTE_REPL_COMMAND_ID,
-			title: localize2('repl.input.execute', 'Execute the input box contents'),
-			keybinding: [{
-				when: ContextKeyExpr.and(
-					REPL_NOTEBOOK_IS_ACTIVE_EDITOR,
-					ContextKeyExpr.equals('config.interactiveWindow.executeWithShiftEnter', true),
-					NOTEBOOK_CELL_LIST_FOCUSED.toNegated()
-				),
-				primary: KeyMod.Shift | KeyCode.Enter,
-				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
-			}, {
-				when: ContextKeyExpr.and(
-					REPL_NOTEBOOK_IS_ACTIVE_EDITOR,
-					ContextKeyExpr.equals('config.interactiveWindow.executeWithShiftEnter', false),
-					NOTEBOOK_CELL_LIST_FOCUSED.toNegated()
-				),
-				primary: KeyCode.Enter,
-				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
-			}, {
-				when: ContextKeyExpr.and(
-					REPL_NOTEBOOK_IS_ACTIVE_EDITOR,
-					NOTEBOOK_CELL_LIST_FOCUSED.toNegated()
-				),
-				primary: KeyMod.CtrlCmd | KeyCode.Enter,
-				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
-			}],
-			menu: [
+export async function executeReplInput(accessor: ServicesAccessor, editorControl: { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget }) {
+	const bulkEditService = accessor.get(IBulkEditService);
+	const historyService = accessor.get(IInteractiveHistoryService);
+	const notebookEditorService = accessor.get(INotebookEditorService);
+
+	if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
+		const notebookDocument = editorControl.notebookEditor.textModel;
+		const textModel = editorControl.codeEditor.getModel();
+		const activeKernel = editorControl.notebookEditor.activeKernel;
+		const language = activeKernel?.supportedLanguages[0] ?? PLAINTEXT_LANGUAGE_ID;
+
+		if (notebookDocument && textModel) {
+			const index = notebookDocument.length - 1;
+			const value = textModel.getValue();
+
+			if (isFalsyOrWhitespace(value)) {
+				return;
+			}
+
+			historyService.addToHistory(notebookDocument.uri, value);
+			textModel.setValue('');
+			notebookDocument.cells[index].resetTextBuffer(textModel.getTextBuffer());
+
+			const collapseState = editorControl.notebookEditor.notebookOptions.getDisplayOptions().interactiveWindowCollapseCodeCells === 'fromEditor' ?
 				{
-					id: MenuId.ReplInputExecute
-				}
-			],
-			icon: icons.executeIcon,
-			f1: false
-		});
-	}
+					inputCollapsed: false,
+					outputCollapsed: false
+				} :
+				undefined;
 
-	async run(accessor: ServicesAccessor, context?: UriComponents): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const bulkEditService = accessor.get(IBulkEditService);
-		const historyService = accessor.get(IInteractiveHistoryService);
-		const notebookEditorService = accessor.get(INotebookEditorService);
-		let editorControl: { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
-		if (context) {
-			const resourceUri = URI.revive(context);
-			const editors = editorService.findEditors(resourceUri);
-			for (const found of editors) {
-				if (found.editor.typeId === ReplEditorInput.ID) {
-					const editor = await editorService.openEditor(found.editor, found.groupId);
-					editorControl = editor?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
-					break;
-				}
-			}
-		}
-		else {
-			editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
-		}
-
-		if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
-			const notebookDocument = editorControl.notebookEditor.textModel;
-			const textModel = editorControl.codeEditor.getModel();
-			const activeKernel = editorControl.notebookEditor.activeKernel;
-			const language = activeKernel?.supportedLanguages[0] ?? PLAINTEXT_LANGUAGE_ID;
-
-			if (notebookDocument && textModel) {
-				const index = notebookDocument.length - 1;
-				const value = textModel.getValue();
-
-				if (isFalsyOrWhitespace(value)) {
-					return;
-				}
-
-				historyService.addToHistory(notebookDocument.uri, value);
-				textModel.setValue('');
-				notebookDocument.cells[index].resetTextBuffer(textModel.getTextBuffer());
-
-				const collapseState = editorControl.notebookEditor.notebookOptions.getDisplayOptions().interactiveWindowCollapseCodeCells === 'fromEditor' ?
+			await bulkEditService.apply([
+				new ResourceNotebookCellEdit(notebookDocument.uri,
 					{
-						inputCollapsed: false,
-						outputCollapsed: false
-					} :
-					undefined;
+						editType: CellEditType.Replace,
+						index: index,
+						count: 0,
+						cells: [{
+							cellKind: CellKind.Code,
+							mime: undefined,
+							language,
+							source: value,
+							outputs: [],
+							metadata: {},
+							collapseState
+						}]
+					}
+				)
+			]);
 
-				await bulkEditService.apply([
-					new ResourceNotebookCellEdit(notebookDocument.uri,
-						{
-							editType: CellEditType.Replace,
-							index: index,
-							count: 0,
-							cells: [{
-								cellKind: CellKind.Code,
-								mime: undefined,
-								language,
-								source: value,
-								outputs: [],
-								metadata: {},
-								collapseState
-							}]
-						}
-					)
-				]);
+			// reveal the cell into view first
+			const range = { start: index, end: index + 1 };
+			editorControl.notebookEditor.revealCellRangeInView(range);
+			await editorControl.notebookEditor.executeNotebookCells(editorControl.notebookEditor.getCellsInRange({ start: index, end: index + 1 }));
 
-				// reveal the cell into view first
-				const range = { start: index, end: index + 1 };
-				editorControl.notebookEditor.revealCellRangeInView(range);
-				await editorControl.notebookEditor.executeNotebookCells(editorControl.notebookEditor.getCellsInRange({ start: index, end: index + 1 }));
-
-				// update the selection and focus in the extension host model
-				const editor = notebookEditorService.getNotebookEditor(editorControl.notebookEditor.getId());
-				if (editor) {
-					editor.setSelections([range]);
-					editor.setFocus(range);
-				}
+			// update the selection and focus in the extension host model
+			const editor = notebookEditorService.getNotebookEditor(editorControl.notebookEditor.getId());
+			if (editor) {
+				editor.setSelections([range]);
+				editor.setFocus(range);
 			}
 		}
 	}
-});
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'repl.input.clear',
-			title: localize2('replNotebook.input.clear', 'Clear the REPL input contents'),
-			f1: false,
-			keybinding: [{
-				when: ContextKeyExpr.and(
-					REPL_NOTEBOOK_IS_ACTIVE_EDITOR,
-					InputFocusedContext,
-					EditorContextKeys.writable,
-					EditorContextKeys.hasNonEmptySelection.toNegated(),
-				),
-				primary: KeyCode.Escape,
-				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
-			}]
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
-
-		if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
-			const notebookDocument = editorControl.notebookEditor.textModel;
-			const textModel = editorControl.codeEditor.getModel();
-			const range = editorControl.codeEditor.getModel()?.getFullModelRange();
-
-			if (notebookDocument && textModel && range) {
-				editorControl.codeEditor.executeEdits('', [EditOperation.replace(range, null)]);
-			}
-		}
-	}
-});
-
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'repl.input.focus',
-			title: localize2('interactive.input.focus', 'Focus into REPL Input'),
-			keybinding: {
-				when: ContextKeyExpr.and(
-					REPL_NOTEBOOK_IS_ACTIVE_EDITOR,
-					NOTEBOOK_CELL_LIST_FOCUSED,
-				),
-				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.DownArrow,
-				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
-			},
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
-
-		if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
-			editorService.activeEditorPane?.focus();
-		}
-	}
-});
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'repl.history.focus',
-			title: localize2('repl.history.focus', 'Focus into REPL History'),
-			f1: false,
-			keybinding: {
-				when: ContextKeyExpr.and(
-					REPL_NOTEBOOK_IS_ACTIVE_EDITOR,
-					EditorContextKeys.textInputFocus,
-					NOTEBOOK_CELL_LIST_FOCUSED.toNegated()
-				),
-				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.UpArrow,
-				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
-			},
-		});
-	}
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget; focusHistory: () => void } | undefined;
-
-		if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
-			editorControl.notebookEditor.focus();
-		}
-	}
-});
-
+}
