@@ -10,7 +10,6 @@ import { EditorHoverStatusBar } from 'vs/editor/contrib/hover/browser/contentHov
 import { HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -23,8 +22,7 @@ export class RenderedContentHover extends Disposable {
 
 	public readonly showAtPosition: Position;
 	public readonly showAtSecondaryPosition: Position;
-	public readonly preferAbove: boolean;
-	public readonly stoleFocus: boolean;
+	public readonly shouldFocus: boolean;
 	public readonly source: HoverStartSource;
 	public readonly isBeforeContent: boolean;
 
@@ -50,11 +48,10 @@ export class RenderedContentHover extends Disposable {
 		const { showAtPosition, showAtSecondaryPosition } = RenderedContentHover.computeHoverPositions(editor, anchor.range, parts);
 		this.showAtPosition = showAtPosition;
 		this.showAtSecondaryPosition = showAtSecondaryPosition;
-		this.preferAbove = editor.getOption(EditorOption.hover).above;
 		this.isBeforeContent = parts.some(m => m.isBeforeContent);
 		this.initialMousePosX = anchor.initialMousePosX;
 		this.initialMousePosY = anchor.initialMousePosY;
-		this.stoleFocus = computer.shouldFocus;
+		this.shouldFocus = computer.shouldFocus;
 		this.source = computer.source;
 	}
 

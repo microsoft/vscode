@@ -321,7 +321,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		};
 	}
 
-	public showAt(renderedHover: RenderedContentHover): void {
+	public show(renderedHover: RenderedContentHover): void {
 		if (!this._editor || !this._editor.hasModel()) {
 			return;
 		}
@@ -333,7 +333,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		// See https://github.com/microsoft/vscode/issues/140339
 		// TODO: Doing a second layout of the hover after force rendering the editor
 		this.onContentsChanged();
-		if (renderedHover.stoleFocus) {
+		if (renderedHover.shouldFocus) {
 			this._hover.containerDomNode.focus();
 		}
 		this._onDidResize.fire();
@@ -353,13 +353,13 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		if (!this._renderedHover) {
 			return;
 		}
-		const stoleFocus = this._renderedHover.stoleFocus || this._hoverFocusedKey.get();
+		const hoverStoleFocus = this._renderedHover.shouldFocus || this._hoverFocusedKey.get();
 		this._setRenderedHover(undefined);
 		this._resizableNode.maxSize = new dom.Dimension(Infinity, Infinity);
 		this._resizableNode.clearSashHoverState();
 		this._hoverFocusedKey.set(false);
 		this._editor.layoutContentWidget(this);
-		if (stoleFocus) {
+		if (hoverStoleFocus) {
 			this._editor.focus();
 		}
 	}

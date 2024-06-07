@@ -225,7 +225,7 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		const context = this._getHoverContext();
 		const renderedHover = new RenderedContentHover(this._editor, parts, this._participants, anchor, this._computer, context, this._keybindingService);
 		if (renderedHover.domNodeHasChildren) {
-			this._contentHoverWidget.showAt(renderedHover);
+			this._contentHoverWidget.show(renderedHover);
 		} else {
 			renderedHover.dispose();
 		}
