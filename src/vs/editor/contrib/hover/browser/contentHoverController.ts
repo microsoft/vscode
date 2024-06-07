@@ -228,17 +228,14 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 	}
 
 	private _showHover(hoverResult: HoverResult): void {
-		const hoverParts = hoverResult.hoverParts;
-		const hoverAnchor = hoverResult.anchor;
-		const hoverContext = this._getHoverContext();
-		const hoverRanges = ContentHoverController.computeHoverRanges(this._editor, hoverAnchor.range, hoverParts);
-		const renderedHoverParts = new RenderedHoverParts(this._editor, hoverRanges.highlightRange, hoverParts, this._participants, hoverContext, this._keybindingService);
-		if (renderedHoverParts.hasContent) {
-			const renderedHoverDomNode = renderedHoverParts.domNode;
-			const renderingMetadata = new RenderingMetadata(this._editor, hoverRanges, hoverParts, hoverAnchor, this._computer);
-			this._contentHoverWidget.showAt(renderedHoverDomNode, renderingMetadata);
+		const parts = hoverResult.hoverParts;
+		const anchor = hoverResult.anchor;
+		const context = this._getHoverContext();
+		const renderedHover = new RenderedHover(this._editor, parts, this._participants, anchor, this._computer, context, this._keybindingService);
+		if (renderedHover.domNodeHasChildren) {
+			this._contentHoverWidget.showAt(renderedHover);
 		} else {
-			renderedHoverParts.dispose();
+			renderedHover.dispose();
 		}
 	}
 
@@ -260,45 +257,6 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		return { hide, onContentsChanged, setMinimumDimensions };
 	}
 
-	public static computeHoverRanges(editor: ICodeEditor, anchorRange: Range, hoverParts: IHoverPart[]): HoverRanges {
-
-		let startColumnBoundary = 1;
-		if (editor.hasModel()) {
-			// Ensure the range is on the current view line
-			const viewModel = editor._getViewModel();
-			const coordinatesConverter = viewModel.coordinatesConverter;
-			const anchorViewRange = coordinatesConverter.convertModelRangeToViewRange(anchorRange);
-			const anchorViewRangeStart = new Position(anchorViewRange.startLineNumber, viewModel.getLineMinColumn(anchorViewRange.startLineNumber));
-			startColumnBoundary = coordinatesConverter.convertViewPositionToModelPosition(anchorViewRangeStart).column;
-		}
-
-		// The anchor range is always on a single line
-		const anchorLineNumber = anchorRange.startLineNumber;
-		let renderStartColumn = anchorRange.startColumn;
-		let highlightRange = hoverParts[0].range;
-		let forceShowAtRange = null;
-
-		for (const hoverPart of hoverParts) {
-			highlightRange = Range.plusRange(highlightRange, hoverPart.range);
-			const hoverRangeIsWithinAnchorLine = hoverPart.range.startLineNumber === anchorLineNumber && hoverPart.range.endLineNumber === anchorLineNumber;
-			if (hoverRangeIsWithinAnchorLine) {
-				// this message has a range that is completely sitting on the line of the anchor
-				renderStartColumn = Math.max(Math.min(renderStartColumn, hoverPart.range.startColumn), startColumnBoundary);
-			}
-			if (hoverPart.forceShowAtRange) {
-				forceShowAtRange = hoverPart.range;
-			}
-		}
-
-		const showAtPosition = forceShowAtRange ? forceShowAtRange.getStartPosition() : new Position(anchorLineNumber, anchorRange.startColumn);
-		const showAtSecondaryPosition = forceShowAtRange ? forceShowAtRange.getStartPosition() : new Position(anchorLineNumber, renderStartColumn);
-
-		return {
-			showAtPosition,
-			showAtSecondaryPosition,
-			highlightRange
-		};
-	}
 
 	public showsOrWillShow(mouseEvent: IEditorMouseEvent): boolean {
 		const isContentWidgetResizing = this._contentHoverWidget.isResizing;
@@ -448,7 +406,101 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 	}
 }
 
-export class RenderedHoverParts extends Disposable {
+export class RenderedHover extends Disposable {
+
+	public closestMouseDistance: number | undefined;
+	public initialMousePosX: number | undefined;
+	public initialMousePosY: number | undefined;
+
+	public readonly showAtPosition: Position;
+	public readonly showAtSecondaryPosition: Position;
+	public readonly preferAbove: boolean;
+	public readonly stoleFocus: boolean;
+	public readonly source: HoverStartSource;
+	public readonly isBeforeContent: boolean;
+
+	private readonly _renderedHoverParts: RenderedHoverParts;
+
+	constructor(
+		editor: ICodeEditor,
+		parts: IHoverPart[],
+		participants: IEditorHoverParticipant<IHoverPart>[],
+		anchor: HoverAnchor,
+		computer: ContentHoverComputer,
+		context: IEditorHoverContext,
+		keybindingService: IKeybindingService
+	) {
+		super();
+		const hoverRanges = RenderedHover.computeHoverRanges(editor, anchor.range, parts);
+		const highlightRange = hoverRanges.highlightRange;
+		this._renderedHoverParts = this._register(new RenderedHoverParts(
+			editor,
+			participants,
+			parts,
+			highlightRange,
+			context,
+			keybindingService
+		));
+		this.preferAbove = editor.getOption(EditorOption.hover).above;
+		this.isBeforeContent = parts.some(m => m.isBeforeContent);
+		this.showAtPosition = hoverRanges.showAtPosition;
+		this.showAtSecondaryPosition = hoverRanges.showAtSecondaryPosition;
+		this.initialMousePosX = anchor.initialMousePosX;
+		this.initialMousePosY = anchor.initialMousePosY;
+		this.stoleFocus = computer.shouldFocus;
+		this.source = computer.source;
+	}
+
+	public get domNode(): DocumentFragment {
+		return this._renderedHoverParts.domNode;
+	}
+
+	public get domNodeHasChildren(): boolean {
+		return this._renderedHoverParts.domNodeHasChildren;
+	}
+
+	public static computeHoverRanges(editor: ICodeEditor, anchorRange: Range, hoverParts: IHoverPart[]): HoverRanges {
+
+		let startColumnBoundary = 1;
+		if (editor.hasModel()) {
+			// Ensure the range is on the current view line
+			const viewModel = editor._getViewModel();
+			const coordinatesConverter = viewModel.coordinatesConverter;
+			const anchorViewRange = coordinatesConverter.convertModelRangeToViewRange(anchorRange);
+			const anchorViewRangeStart = new Position(anchorViewRange.startLineNumber, viewModel.getLineMinColumn(anchorViewRange.startLineNumber));
+			startColumnBoundary = coordinatesConverter.convertViewPositionToModelPosition(anchorViewRangeStart).column;
+		}
+
+		// The anchor range is always on a single line
+		const anchorLineNumber = anchorRange.startLineNumber;
+		let renderStartColumn = anchorRange.startColumn;
+		let highlightRange = hoverParts[0].range;
+		let forceShowAtRange = null;
+
+		for (const hoverPart of hoverParts) {
+			highlightRange = Range.plusRange(highlightRange, hoverPart.range);
+			const hoverRangeIsWithinAnchorLine = hoverPart.range.startLineNumber === anchorLineNumber && hoverPart.range.endLineNumber === anchorLineNumber;
+			if (hoverRangeIsWithinAnchorLine) {
+				// this message has a range that is completely sitting on the line of the anchor
+				renderStartColumn = Math.max(Math.min(renderStartColumn, hoverPart.range.startColumn), startColumnBoundary);
+			}
+			if (hoverPart.forceShowAtRange) {
+				forceShowAtRange = hoverPart.range;
+			}
+		}
+
+		const showAtPosition = forceShowAtRange ? forceShowAtRange.getStartPosition() : new Position(anchorLineNumber, anchorRange.startColumn);
+		const showAtSecondaryPosition = forceShowAtRange ? forceShowAtRange.getStartPosition() : new Position(anchorLineNumber, renderStartColumn);
+
+		return {
+			showAtPosition,
+			showAtSecondaryPosition,
+			highlightRange
+		};
+	}
+}
+
+class RenderedHoverParts extends Disposable {
 
 	private static readonly _DECORATION_OPTIONS = ModelDecorationOptions.register({
 		description: 'content-hover-highlight',
@@ -460,18 +512,18 @@ export class RenderedHoverParts extends Disposable {
 
 	constructor(
 		editor: ICodeEditor,
-		highlightRange: Range,
-		hoverParts: IHoverPart[],
 		participants: IEditorHoverParticipant<IHoverPart>[],
+		hoverParts: IHoverPart[],
+		highlightRange: Range,
 		context: IEditorHoverContext,
 		keybindingService: IKeybindingService
 	) {
 		super();
-		this._fragment = document.createDocumentFragment();
 		this._participants = participants;
+		this._fragment = document.createDocumentFragment();
 		const statusBar = new EditorHoverStatusBar(keybindingService);
 		const hoverContext: IEditorHoverRenderContext = { fragment: this._fragment, statusBar, ...context };
-		this._register(this._renderHoverPartsUsingContext(hoverContext, hoverParts));
+		this._register(this._renderHoverParts(hoverContext, hoverParts));
 		this._register(this._renderStatusBar(this._fragment, statusBar));
 		this._register(this._addEditorDecorations(editor, highlightRange));
 	}
@@ -490,7 +542,7 @@ export class RenderedHoverParts extends Disposable {
 		});
 	}
 
-	private _renderHoverPartsUsingContext(context: IEditorHoverRenderContext, hoverParts: IHoverPart[]): IDisposable {
+	private _renderHoverParts(context: IEditorHoverRenderContext, hoverParts: IHoverPart[]): IDisposable {
 		const disposables = new DisposableStore();
 		for (const participant of this._participants) {
 			const hoverPartsForParticipant = hoverParts.filter(hoverPart => hoverPart.owner === participant);
@@ -515,39 +567,8 @@ export class RenderedHoverParts extends Disposable {
 		return this._fragment;
 	}
 
-	public get hasContent(): boolean {
+	public get domNodeHasChildren(): boolean {
 		return this._fragment.hasChildNodes();
 	}
 }
 
-export class RenderingMetadata extends Disposable {
-
-	public closestMouseDistance: number | undefined;
-	public initialMousePosX: number | undefined;
-	public initialMousePosY: number | undefined;
-
-	public readonly showAtPosition: Position;
-	public readonly showAtSecondaryPosition: Position;
-	public readonly preferAbove: boolean;
-	public readonly stoleFocus: boolean;
-	public readonly source: HoverStartSource;
-	public readonly isBeforeContent: boolean;
-
-	constructor(
-		editor: ICodeEditor,
-		hoverRanges: HoverRanges,
-		hoverParts: IHoverPart[],
-		anchor: HoverAnchor,
-		computer: ContentHoverComputer
-	) {
-		super();
-		this.showAtPosition = hoverRanges.showAtPosition;
-		this.showAtSecondaryPosition = hoverRanges.showAtSecondaryPosition;
-		this.initialMousePosX = anchor.initialMousePosX;
-		this.initialMousePosY = anchor.initialMousePosY;
-		this.preferAbove = editor.getOption(EditorOption.hover).above;
-		this.stoleFocus = computer.shouldFocus;
-		this.source = computer.source;
-		this.isBeforeContent = hoverParts.some(m => m.isBeforeContent);
-	}
-}
