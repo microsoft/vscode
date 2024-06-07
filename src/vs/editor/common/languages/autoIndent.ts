@@ -78,6 +78,8 @@ export function getInheritIndentForLine(
 	honorIntentialIndent: boolean = true,
 	languageConfigurationService: ILanguageConfigurationService
 ): { indentation: string; action: IndentAction | null; line?: number } | null {
+	console.log('getInheritIndentForLine');
+
 	if (autoIndent < EditorAutoIndentStrategy.Full) {
 		return null;
 	}
@@ -223,22 +225,29 @@ export function getGoodIndentForLine(
 	indentConverter: IIndentConverter,
 	languageConfigurationService: ILanguageConfigurationService
 ): string | null {
+	console.log('getGoodIndentForLine');
+	console.log('lineNumber:', lineNumber);
+
 	if (autoIndent < EditorAutoIndentStrategy.Full) {
+		console.log('return 1');
 		return null;
 	}
 
 	const richEditSupport = languageConfigurationService.getLanguageConfiguration(languageId);
 	if (!richEditSupport) {
+		console.log('return 2');
 		return null;
 	}
 
 	const indentRulesSupport = languageConfigurationService.getLanguageConfiguration(languageId).indentRulesSupport;
 	if (!indentRulesSupport) {
+		console.log('return 3');
 		return null;
 	}
 
 	const processedIndentRulesSupport = new ProcessedIndentRulesSupport(virtualModel, indentRulesSupport, languageConfigurationService);
 	const indent = getInheritIndentForLine(autoIndent, virtualModel, lineNumber, undefined, languageConfigurationService);
+	console.log('indent:', indent);
 
 	if (indent) {
 		const inheritLine = indent.line;
@@ -251,6 +260,7 @@ export function getGoodIndentForLine(
 					break;
 				}
 			}
+			console.log('shouldApplyEnterRules : ', shouldApplyEnterRules);
 			if (shouldApplyEnterRules) {
 				const enterResult = richEditSupport.onEnter(autoIndent, '', virtualModel.getLineContent(inheritLine), '');
 
@@ -278,25 +288,32 @@ export function getGoodIndentForLine(
 						indentation += enterResult.appendText;
 					}
 
+					console.log('return 4');
 					return strings.getLeadingWhitespace(indentation);
 				}
 			}
 		}
 
+		console.log('lineNumber : ', lineNumber);
 		if (processedIndentRulesSupport.shouldDecrease(lineNumber)) {
 			if (indent.action === IndentAction.Indent) {
+				console.log('return 5');
 				return indent.indentation;
 			} else {
+				console.log('return 6');
 				return indentConverter.unshiftIndent(indent.indentation);
 			}
 		} else {
 			if (indent.action === IndentAction.Indent) {
+				console.log('return 7');
 				return indentConverter.shiftIndent(indent.indentation);
 			} else {
+				console.log('return 8');
 				return indent.indentation;
 			}
 		}
 	}
+	console.log('return 9');
 	return null;
 }
 

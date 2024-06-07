@@ -41,6 +41,7 @@ export class MoveLinesCommand implements ICommand {
 	}
 
 	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
+		console.log('getEditOperations');
 
 		const modelLineCount = model.getLineCount();
 
@@ -127,6 +128,7 @@ export class MoveLinesCommand implements ICommand {
 								return model.getLineContent(lineNumber);
 							}
 						};
+						console.log('before getGoodIndentForLine for indentOfMovingLine');
 						const indentOfMovingLine = getGoodIndentForLine(
 							this._autoIndent,
 							virtualModel,
@@ -135,6 +137,7 @@ export class MoveLinesCommand implements ICommand {
 							indentConverter,
 							this._languageConfigurationService
 						);
+						console.log('indentOfMovingLine.length : ', indentOfMovingLine?.length);
 						if (indentOfMovingLine !== null) {
 							const oldIndentation = strings.getLeadingWhitespace(model.getLineContent(movingLineNumber));
 							const newSpaceCnt = indentUtils.getSpaceCnt(indentOfMovingLine, tabSize);
@@ -160,11 +163,17 @@ export class MoveLinesCommand implements ICommand {
 					} else {
 						// it doesn't match onEnter rules, let's check indentation rules then.
 						virtualModel.getLineContent = (lineNumber: number) => {
+							console.log('virtualModel.getLineContent');
+							console.log('lineNumber : ', lineNumber);
+							console.log('s : ', s);
 							if (lineNumber === s.startLineNumber) {
+								console.log('insertingText : ', insertingText);
 								return insertingText;
 							} else if (lineNumber >= s.startLineNumber + 1 && lineNumber <= s.endLineNumber + 1) {
+								console.log('getContent at lineNumber - 1 : ', model.getLineContent(lineNumber - 1));
 								return model.getLineContent(lineNumber - 1);
 							} else {
+								console.log('getContent at lineNumber : ', model.getLineContent(lineNumber));
 								return model.getLineContent(lineNumber);
 							}
 						};
@@ -177,6 +186,7 @@ export class MoveLinesCommand implements ICommand {
 							indentConverter,
 							this._languageConfigurationService
 						);
+						console.log('newIndentatOfMovingBlock.length : ', newIndentatOfMovingBlock?.length);
 
 						if (newIndentatOfMovingBlock !== null) {
 							const oldIndentation = strings.getLeadingWhitespace(model.getLineContent(s.startLineNumber));
@@ -228,6 +238,8 @@ export class MoveLinesCommand implements ICommand {
 							indentConverter,
 							this._languageConfigurationService
 						);
+						console.log('indentOfFirstLine.length : ', indentOfFirstLine?.length);
+
 						if (indentOfFirstLine !== null) {
 							// adjust the indentation of the moving block
 							const oldIndent = strings.getLeadingWhitespace(model.getLineContent(s.startLineNumber));
