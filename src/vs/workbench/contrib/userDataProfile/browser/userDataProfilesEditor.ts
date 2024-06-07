@@ -731,6 +731,23 @@ class ProfileWidget extends Disposable {
 		if (primaryTitleButtons?.length || secondatyTitleButtons?.length) {
 			this.buttonContainer.classList.remove('hide');
 
+			if (secondatyTitleButtons?.length) {
+				for (const action of secondatyTitleButtons) {
+					const button = disposables.add(new Button(this.buttonContainer, {
+						...defaultButtonStyles,
+						secondary: true
+					}));
+					button.label = action.label;
+					button.enabled = action.enabled;
+					disposables.add(button.onDidClick(() => this.editorProgressService.showWhile(action.run())));
+					disposables.add(action.onDidChange((e) => {
+						if (!isUndefined(e.enabled)) {
+							button.enabled = action.enabled;
+						}
+					}));
+				}
+			}
+
 			if (primaryTitleButtons?.length) {
 				for (const action of primaryTitleButtons) {
 					const button = disposables.add(new Button(this.buttonContainer, {
@@ -748,23 +765,6 @@ class ProfileWidget extends Disposable {
 						if (e.message) {
 							button.setTitle(profileElement.message ?? action.label);
 							button.element.classList.toggle('error', !!profileElement.message);
-						}
-					}));
-				}
-			}
-
-			if (secondatyTitleButtons?.length) {
-				for (const action of secondatyTitleButtons) {
-					const button = disposables.add(new Button(this.buttonContainer, {
-						...defaultButtonStyles,
-						secondary: true
-					}));
-					button.label = action.label;
-					button.enabled = action.enabled;
-					disposables.add(button.onDidClick(() => this.editorProgressService.showWhile(action.run())));
-					disposables.add(action.onDidChange((e) => {
-						if (!isUndefined(e.enabled)) {
-							button.enabled = action.enabled;
 						}
 					}));
 				}
