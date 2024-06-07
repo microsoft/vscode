@@ -217,10 +217,6 @@ class RenderedMarkdownHoverPart implements IRenderedHoverPart<MarkdownHover> {
 		public readonly disposables: DisposableStore,
 	) { }
 
-	clear(): void {
-		this.disposables.clear();
-	}
-
 	dispose(): void {
 		this.disposables.dispose();
 	}

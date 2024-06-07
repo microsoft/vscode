@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEditorHoverContext, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
+import { IEditorHoverContext, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ContentHoverComputer } from 'vs/editor/contrib/hover/browser/contentHoverComputer';
 import { EditorHoverStatusBar } from 'vs/editor/contrib/hover/browser/contentHoverStatusBar';
@@ -130,7 +130,44 @@ export class RenderedContentHover extends Disposable {
 	}
 }
 
-// Make objects themselves disposable
+interface IRenderedContentHoverPart extends IDisposable {
+	element: HTMLElement;
+	getAccessibleContent(): string;
+}
+
+class RenderedContentHoverPart implements IRenderedContentHoverPart {
+
+	constructor(
+		readonly renderedPart: IRenderedHoverPart<IHoverPart>,
+		readonly participant: IEditorHoverParticipant<IHoverPart>
+	) { }
+
+	get element(): HTMLElement {
+		return this.renderedPart.hoverElement;
+	}
+
+	getAccessibleContent(): string {
+		const hoverPart = this.renderedPart.hoverPart;
+		return this.participant.getAccessibleContent(hoverPart);
+	}
+
+	dispose(): void {
+		this.renderedPart.dispose();
+	}
+}
+
+class RenderedContentHoverStatusBar implements IRenderedContentHoverPart {
+
+	constructor(readonly element: HTMLElement) { }
+
+	getAccessibleContent(): string {
+		return nls.localize('hoverAccessibilityStatusBar', 'There is a status bar here.');
+	}
+
+	dispose(): void { }
+}
+
+
 class RenderedContentHoverParts extends Disposable {
 
 	private static readonly _DECORATION_OPTIONS = ModelDecorationOptions.register({
@@ -139,7 +176,7 @@ class RenderedContentHoverParts extends Disposable {
 	});
 
 	private readonly _participants: IEditorHoverParticipant<IHoverPart>[];
-	private readonly _renderedParts: RenderedPart[] = [];
+	private readonly _renderedParts: IRenderedContentHoverPart[] = [];
 	private readonly _fragment: DocumentFragment;
 
 	private _focusedHoverPartIndex: number = -1;
@@ -154,19 +191,12 @@ class RenderedContentHoverParts extends Disposable {
 		super();
 		this._participants = participants;
 		this._fragment = document.createDocumentFragment();
-		const statusBar = new EditorHoverStatusBar(keybindingService);
-		const hoverContext: IEditorHoverRenderContext = { fragment: this._fragment, statusBar, ...context };
-		const renderedHoverParts = this._renderHoverParts(hoverContext, hoverParts);
-		this._renderedParts.push(...renderedHoverParts.renderedHoverParts);
-		this._register(renderedHoverParts.disposables);
-		const renderedHoverStatusBar = this._renderStatusBar(this._fragment, statusBar);
-		if (renderedHoverStatusBar.renderedHoverPart) { this._renderedParts.push(renderedHoverStatusBar.renderedHoverPart); }
-		this._register(renderedHoverStatusBar.disposables);
+		this._register(this._renderParts(hoverParts, context, keybindingService));
 		this._register(this._registerListenersOnRenderedParts());
-		this._register(this._addEditorDecorations(editor, hoverParts));
+		this._register(this._createEditorDecorations(editor, hoverParts));
 	}
 
-	private _addEditorDecorations(editor: ICodeEditor, hoverParts: IHoverPart[]): IDisposable {
+	private _createEditorDecorations(editor: ICodeEditor, hoverParts: IHoverPart[]): IDisposable {
 		if (hoverParts.length === 0) {
 			return Disposable.None;
 		}
@@ -185,40 +215,49 @@ class RenderedContentHoverParts extends Disposable {
 		});
 	}
 
-	private _renderHoverParts(context: IEditorHoverRenderContext, hoverParts: IHoverPart[]): { renderedHoverParts: RenderedHoverPart[]; disposables: IDisposable } {
-		const renderedHoverPartsArray: RenderedHoverPart[] = [];
-		const disposableStore = new DisposableStore();
+	private _renderParts(hoverParts: IHoverPart[], context: IEditorHoverContext, keybindingService: IKeybindingService): IDisposable {
+		const statusBar = new EditorHoverStatusBar(keybindingService);
+		const hoverContext: IEditorHoverRenderContext = { fragment: this._fragment, statusBar, ...context };
+		const renderedHoverParts = this._renderHoverParts(hoverContext, hoverParts);
+		this._renderedParts.push(...renderedHoverParts);
+		const renderedHoverStatusBar = this._renderStatusBar(this._fragment, statusBar);
+		if (renderedHoverStatusBar) { this._renderedParts.push(renderedHoverStatusBar); }
+		return toDisposable(() => {
+			this._renderedParts.forEach((renderedPart) => {
+				renderedPart.dispose();
+			});
+		});
+	}
+
+	private _renderHoverParts(context: IEditorHoverRenderContext, hoverParts: IHoverPart[]): IRenderedContentHoverPart[] {
+		const renderedContentHoverParts: IRenderedContentHoverPart[] = [];
 		for (const participant of this._participants) {
 			const hoverPartsForParticipant = hoverParts.filter(hoverPart => hoverPart.owner === participant);
 			const hasHoverPartsForParticipant = hoverPartsForParticipant.length > 0;
 			if (!hasHoverPartsForParticipant) {
 				continue;
 			}
-			const renderedHoverParts = participant.renderHoverParts(context, hoverPartsForParticipant);
-			renderedHoverParts.renderedHoverParts.forEach(renderedHoverPart => {
-				renderedHoverPartsArray.push({
-					brand: 'renderedHoverPart',
-					element: renderedHoverPart.hoverElement,
-					hoverPart: renderedHoverPart.hoverPart,
-					participant
-				});
+			const renderedHoverPartsForParticipant = participant.renderHoverParts(context, hoverPartsForParticipant);
+			const renderedContentHoverPartsForParticipant = renderedHoverPartsForParticipant.renderedHoverParts.map(renderedHoverPart => {
+				return new RenderedContentHoverPart(renderedHoverPart, participant);
 			});
-			disposableStore.add(renderedHoverParts);
+			renderedContentHoverParts.push(...renderedContentHoverPartsForParticipant);
 		}
-		return { renderedHoverParts: renderedHoverPartsArray, disposables: disposableStore };
+		return renderedContentHoverParts;
 	}
 
-	private _renderStatusBar(fragment: DocumentFragment, statusBar: EditorHoverStatusBar): { renderedHoverPart: RenderedHoverStatusBar | undefined; disposables: IDisposable } {
+	private _renderStatusBar(fragment: DocumentFragment, statusBar: EditorHoverStatusBar): IRenderedContentHoverPart | undefined {
 		if (!statusBar.hasContent) {
-			return { renderedHoverPart: undefined, disposables: Disposable.None };
+			return undefined;
 		}
-		fragment.appendChild(statusBar.hoverElement);
-		return { renderedHoverPart: { brand: 'renderedStatusBar', element: statusBar.hoverElement }, disposables: statusBar };
+		const element = statusBar.hoverElement;
+		fragment.appendChild(element);
+		return new RenderedContentHoverStatusBar(element);
 	}
 
 	private _registerListenersOnRenderedParts(): IDisposable {
 		const disposables = new DisposableStore();
-		this._renderedParts.map((renderedPart: RenderedPart, index: number) => {
+		this._renderedParts.map((renderedPart: IRenderedContentHoverPart, index: number) => {
 			const element = renderedPart.element;
 			element.tabIndex = 0;
 			disposables.add(dom.addDisposableListener(element, dom.EventType.FOCUS_IN, (event: Event) => {
@@ -243,15 +282,7 @@ class RenderedContentHoverParts extends Disposable {
 
 	public getAccessibleWidgetContentAtIndex(index: number): string {
 		const renderedHoverPart = this._renderedParts[index];
-		switch (renderedHoverPart.brand) {
-			case `renderedStatusBar`: {
-				return nls.localize('hoverAccessibilityStatusBar', 'There is a status bar here.');
-			}
-			case `renderedHoverPart`: {
-				const { participant, hoverPart } = renderedHoverPart;
-				return participant.getAccessibleContent(hoverPart);
-			}
-		}
+		return renderedHoverPart.getAccessibleContent();
 	}
 
 	public get domNode(): DocumentFragment {
@@ -266,17 +297,3 @@ class RenderedContentHoverParts extends Disposable {
 		return this._focusedHoverPartIndex;
 	}
 }
-
-interface RenderedHoverPart {
-	readonly brand: 'renderedHoverPart';
-	readonly element: HTMLElement;
-	readonly hoverPart: IHoverPart;
-	readonly participant: IEditorHoverParticipant<IHoverPart>;
-}
-
-interface RenderedHoverStatusBar {
-	readonly brand: 'renderedStatusBar';
-	readonly element: HTMLElement;
-}
-
-type RenderedPart = RenderedHoverPart | RenderedHoverStatusBar;
