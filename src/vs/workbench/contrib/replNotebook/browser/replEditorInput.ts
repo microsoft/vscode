@@ -46,7 +46,7 @@ export class ReplEditorInput extends NotebookEditorInput {
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(resource, undefined, 'repl', {}, _notebookService, _notebookModelResolverService, _fileDialogService, labelService, fileService, filesConfigurationService, extensionService, editorService, textResourceConfigurationService, customEditorLabelService);
+		super(resource, undefined, 'jupyter-notebook', {}, _notebookService, _notebookModelResolverService, _fileDialogService, labelService, fileService, filesConfigurationService, extensionService, editorService, textResourceConfigurationService, customEditorLabelService);
 		this.isScratchpad = configurationService.getValue<boolean>(NotebookSetting.InteractiveWindowPromptToSave) !== true;
 	}
 

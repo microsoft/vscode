@@ -38,6 +38,8 @@ export interface IUntitledNotebookResource {
 	 * - they will not ask for a file path when saving but use the associated path
 	 */
 	untitledResource: URI | undefined;
+
+	scratchpad?: boolean;
 }
 
 export interface INotebookEditorModelResolverService {

@@ -13,7 +13,7 @@ import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { CellEditType, CellKind, NotebookWorkingCopyTypeIdentifier, REPL_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellKind, NotebookSetting, NotebookWorkingCopyTypeIdentifier, REPL_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookEditorInputOptions } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { ReplEditor } from 'vs/workbench/contrib/replNotebook/browser/replEditor';
 import { ReplEditorInput } from 'vs/workbench/contrib/replNotebook/browser/replEditorInput';
@@ -38,6 +38,7 @@ import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/
 import { IInteractiveHistoryService } from 'vs/workbench/contrib/interactive/browser/interactiveHistoryService';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 type SerializedNotebookEditorData = { resource: URI; preferredResource: URI; viewType: string; options?: NotebookEditorInputOptions };
 class ReplEditorSerializer implements IEditorSerializer {
@@ -94,24 +95,13 @@ export class ReplDocumentContribution extends Disposable implements IWorkbenchCo
 		@IEditorResolverService editorResolverService: IEditorResolverService,
 		@IEditorService editorService: IEditorService,
 		@INotebookEditorModelResolverService private readonly notebookEditorModelResolverService: INotebookEditorModelResolverService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
-		const info = notebookService.getContributedNotebookType('repl');
-
-		// We need to register with the notebook service to let it know about this editor contribution
-		if (!info) {
-			this._register(notebookService.registerContributedNotebookType('repl', {
-				providerDisplayName: 'REPL Notebook',
-				displayName: 'Repl Notebook',
-				filenamePattern: ['*.ipynb'],
-				priority: RegisteredEditorPriority.option,
-			}));
-		}
-
 		editorResolverService.registerEditor(
-			`*.ipynb`,
+			`*.replNotebook`,
 			{
 				id: 'repl',
 				label: 'repl Editor',
@@ -119,13 +109,14 @@ export class ReplDocumentContribution extends Disposable implements IWorkbenchCo
 			},
 			{
 				canSupportResource: uri =>
-					(uri.scheme === Schemas.untitled && extname(uri) === '.ipynb') ||
-					(uri.scheme === Schemas.vscodeNotebookCell && extname(uri) === '.ipynb'),
+					(uri.scheme === Schemas.untitled && extname(uri) === '.replNotebook') ||
+					(uri.scheme === Schemas.vscodeNotebookCell && extname(uri) === '.replNotebook'),
 				singlePerResource: true
 			},
 			{
 				createUntitledEditorInput: async ({ resource, options }) => {
-					const ref = await this.notebookEditorModelResolverService.resolve({ untitledResource: resource }, 'repl');
+					const scratchpad = this.configurationService.getValue<boolean>(NotebookSetting.InteractiveWindowPromptToSave) !== true;
+					const ref = await this.notebookEditorModelResolverService.resolve({ untitledResource: resource, scratchpad }, 'jupyter-notebook');
 
 					// untitled notebooks are disposed when they get saved. we should not hold a reference
 					// to such a disposed notebook and therefore dispose the reference as well
@@ -196,7 +187,7 @@ registerAction2(class extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor) {
-		const resource = URI.from({ scheme: Schemas.untitled, path: 'repl.ipynb' });
+		const resource = URI.from({ scheme: Schemas.untitled, path: 'repl.replNotebook' });
 		const editorInput: IUntypedEditorInput = { resource, options: { override: 'repl' } };
 
 		const editorService = accessor.get(IEditorService);

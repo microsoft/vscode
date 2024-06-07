@@ -61,7 +61,7 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 		return this._dirtyStates.get(resource) ?? false;
 	}
 
-	protected async createReferencedObject(key: string, viewType: string, hasAssociatedFilePath: boolean, limits?: IFileReadLimits): Promise<IResolvedNotebookEditorModel> {
+	protected async createReferencedObject(key: string, viewType: string, hasAssociatedFilePath: boolean, limits?: IFileReadLimits, isScratchpad?: boolean): Promise<IResolvedNotebookEditorModel> {
 		// Untrack as being disposed
 		this.modelsToDispose.delete(key);
 
@@ -79,9 +79,9 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 			);
 			this._workingCopyManagers.set(workingCopyTypeId, workingCopyManager);
 		}
-		const isScratchpadView = viewType === 'interactive' || viewType === 'repl';
-		const scratchPad = isScratchpadView && this._configurationService.getValue<boolean>(NotebookSetting.InteractiveWindowPromptToSave) !== true;
-		const model = this._instantiationService.createInstance(SimpleNotebookEditorModel, uri, hasAssociatedFilePath, viewType, workingCopyManager, scratchPad);
+
+		const isScratchpadView = isScratchpad || (viewType === 'interactive' && this._configurationService.getValue<boolean>(NotebookSetting.InteractiveWindowPromptToSave) !== true);
+		const model = this._instantiationService.createInstance(SimpleNotebookEditorModel, uri, hasAssociatedFilePath, viewType, workingCopyManager, isScratchpadView);
 		const result = await model.load({ limits });
 
 
@@ -178,8 +178,8 @@ export class NotebookModelResolverServiceImpl implements INotebookEditorModelRes
 	}
 
 	async resolve(resource: URI, viewType?: string, limits?: IFileReadLimits): Promise<IReference<IResolvedNotebookEditorModel>>;
-	async resolve(resource: IUntitledNotebookResource, viewType: string, limits?: IFileReadLimits): Promise<IReference<IResolvedNotebookEditorModel>>;
-	async resolve(arg0: URI | IUntitledNotebookResource, viewType?: string, limits?: IFileReadLimits): Promise<IReference<IResolvedNotebookEditorModel>> {
+	async resolve(resource: IUntitledNotebookResource, viewType: string, limits?: IFileReadLimits, isScratchpad?: boolean): Promise<IReference<IResolvedNotebookEditorModel>>;
+	async resolve(arg0: URI | IUntitledNotebookResource, viewType?: string, limits?: IFileReadLimits, isScratchpad?: boolean): Promise<IReference<IResolvedNotebookEditorModel>> {
 		let resource: URI;
 		let hasAssociatedFilePath = false;
 		if (URI.isUri(arg0)) {
@@ -241,7 +241,7 @@ export class NotebookModelResolverServiceImpl implements INotebookEditorModelRes
 			}
 		}
 
-		const reference = this._data.acquire(resource.toString(), viewType, hasAssociatedFilePath, limits);
+		const reference = this._data.acquire(resource.toString(), viewType, hasAssociatedFilePath, limits, isScratchpad);
 		try {
 			const model = await reference.object;
 			return {
