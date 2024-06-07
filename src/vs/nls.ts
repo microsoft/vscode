@@ -160,7 +160,10 @@ export function localize(key: string, message: string, ...args: (string | number
 /**
  * @skipMangle
  */
-export function localize(data: ILocalizeInfo | string, message: string, ...args: (string | number | boolean | undefined | null)[]): string {
+export function localize(data: ILocalizeInfo | string | [string, number], message: string, ...args: (string | number | boolean | undefined | null)[]): string {
+	if (Array.isArray(data)) {
+		message = globalThis._VSCODE_NLS.messages[data[0]][data[1]];
+	}
 	return _format(message, args);
 }
 
@@ -197,7 +200,10 @@ export function localize2(key: string, message: string, ...args: (string | numbe
 /**
  * @skipMangle
  */
-export function localize2(data: ILocalizeInfo | string, message: string, ...args: (string | number | boolean | undefined | null)[]): ILocalizedString {
+export function localize2(data: ILocalizeInfo | string | [string, number], message: string, ...args: (string | number | boolean | undefined | null)[]): ILocalizedString {
+	if (Array.isArray(data)) {
+		message = globalThis._VSCODE_NLS.messages[data[0]][data[1]];
+	}
 	const original = _format(message, args);
 	return {
 		value: original,

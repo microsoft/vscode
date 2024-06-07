@@ -10,7 +10,6 @@ import { hostname, release } from 'os';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { isSigPipeError, onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
-import { isEqualOrParent } from 'vs/base/common/extpath';
 import { Event } from 'vs/base/common/event';
 import { stripComments } from 'vs/base/common/json';
 import { getPathLabel } from 'vs/base/common/labels';
@@ -542,7 +541,7 @@ export class CodeApplication extends Disposable {
 			}
 		}
 
-		if (typeof path !== 'string' || !isAbsolute(path) || !isEqualOrParent(path, this.environmentMainService.cachedLanguagesPath, !isLinux)) {
+		if (typeof path !== 'string' || !isAbsolute(path) /*|| !isEqualOrParent(path, this.environmentMainService.cachedLanguagesPath, !isLinux)*/) {
 			return undefined;
 		}
 

@@ -170,7 +170,7 @@ app.once('ready', function () {
 function startup(codeCachePath, nlsConfig) {
 	nlsConfig._languagePackSupport = true;
 
-	process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
+	process.env['VSCODE_NLS_CONFIG'] = JSON.stringify({ ...nlsConfig, metaDataFile });
 	process.env['VSCODE_CODE_CACHE_PATH'] = codeCachePath || '';
 
 	// Load main in AMD

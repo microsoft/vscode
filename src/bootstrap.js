@@ -121,6 +121,26 @@
 
 	//#region NLS helpers
 
+	async function setupNLSForESM() {
+		let metaDataFile;
+
+		const process = safeProcess();
+		if (process && process.env['VSCODE_NLS_CONFIG']) {
+			try {
+				metaDataFile = JSON.parse(process.env['VSCODE_NLS_CONFIG']).metaDataFile;
+			} catch (e) {
+				// Ignore
+			}
+		}
+
+		if (!metaDataFile) {
+			return;
+		}
+
+		// VSCODE_GLOBALS: NLS
+		globalThis._VSCODE_NLS = JSON.parse(await safeReadNlsFile(metaDataFile));
+	}
+
 	/**
 	 * @returns {{locale?: string, availableLanguages: {[lang: string]: string;}, pseudo?: boolean } | undefined}
 	 */
@@ -253,6 +273,7 @@
 	return {
 		enableASARSupport,
 		setupNLS,
+		setupNLSForESM,
 		fileUriFromPath
 	};
 }));

@@ -82,6 +82,8 @@ exports.load = function (entrypoint, onLoad, onError) {
 	onLoad = onLoad || function () { };
 	onError = onError || function (err) { console.error(err); };
 
-	performance.mark('code/fork/willLoadCode');
-	loader([entrypoint], onLoad, onError);
+	bootstrap.setupNLSForESM().then(() => {
+		performance.mark('code/fork/willLoadCode');
+		loader([entrypoint], onLoad, onError);
+	});
 };

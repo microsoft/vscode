@@ -83,6 +83,8 @@
 		// Get the nls configuration into the process.env as early as possible
 		// @ts-ignore
 		const nlsConfig = globalThis.MonacoBootstrap.setupNLS();
+		// @ts-ignore
+		await globalThis.MonacoBootstrap.setupNLSForESM();
 
 		let locale = nlsConfig.availableLanguages['*'] || 'en';
 		if (locale === 'zh-tw') {
