@@ -386,6 +386,22 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	}
 });
 
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'scm.clearInput',
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ContextKeyExpr.has('scmRepository'),
+	primary: KeyCode.Escape,
+	handler: async (accessor) => {
+		const scmService = accessor.get(ISCMService);
+		const contextKeyService = accessor.get(IContextKeyService);
+
+		const context = contextKeyService.getContext(getActiveElement());
+		const repositoryId = context.getValue<string | undefined>('scmRepository');
+		const repository = repositoryId ? scmService.getRepository(repositoryId) : undefined;
+		repository?.input.setValue('', true);
+	}
+});
+
 const viewNextCommitCommand = {
 	description: { description: localize('scm view next commit', "Source Control: View Next Commit"), args: [] },
 	weight: KeybindingWeight.WorkbenchContrib,
