@@ -196,6 +196,11 @@ unset VSCODE_NONCE
 builtin printf "\e]633;P;ContinuationPrompt=$(echo "$PS2" | sed 's/\x1b/\\\\x1b/g')\a"
 
 __vsc_report_prompt() {
+	# HACK: Git bash is too slow at reporting the prompt, so skip for now
+	if [ "$__vsc_is_windows" = "1" ]; then
+		return
+	fi
+
 	# Expand the original PS1 similarly to how bash would normally
 	# See https://stackoverflow.com/a/37137981 for technique
 	if ((BASH_VERSINFO[0] >= 5 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 4))); then
