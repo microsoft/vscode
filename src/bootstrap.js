@@ -143,7 +143,11 @@
 		}
 
 		// VSCODE_GLOBALS: NLS
-		globalThis._VSCODE_NLS = JSON.parse(await safeReadNlsFile(...metaDataFile));
+		try {
+			globalThis._VSCODE_NLS = JSON.parse(await safeReadNlsFile(...metaDataFile));
+		} catch (e) {
+			// Ignore
+		}
 	}
 
 	/**
