@@ -20,7 +20,7 @@ import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 
 const $ = dom.$;
 
-function assert_variable(disposables: Pick<DisposableStore, "add">, variablesRenderer: VariablesRenderer, displayType: boolean) {
+function assertVariable(disposables: Pick<DisposableStore, "add">, variablesRenderer: VariablesRenderer, displayType: boolean) {
 	const session = new MockSession();
 	const thread = new Thread(session, 'mockthread', 1);
 	const range = {
@@ -44,6 +44,7 @@ function assert_variable(disposables: Pick<DisposableStore, "add">, variablesRen
 	};
 	const expression = $('.');
 	const name = $('.');
+	const type = $('.');
 	const value = $('.');
 	const label = disposables.add(new HighlightedLabel(name));
 	const lazyButton = $('.');
@@ -54,6 +55,7 @@ function assert_variable(disposables: Pick<DisposableStore, "add">, variablesRen
 	const data = {
 		expression,
 		name,
+		type,
 		value,
 		label,
 		lazyButton,
@@ -69,7 +71,8 @@ function assert_variable(disposables: Pick<DisposableStore, "add">, variablesRen
 	node.element.value = 'xpto';
 	variablesRenderer.renderElement(node, 0, data);
 	assert.strictEqual(value.textContent, 'xpto');
-	assert.strictEqual(label.element.textContent, displayType ? 'foo: string =' : 'foo =');
+	assert.strictEqual(type.textContent, displayType ? 'string =' : '');
+	assert.strictEqual(label.element.textContent, displayType ? 'foo: ' : 'foo =');
 }
 
 suite('Debug - Variable Debug View', () => {
@@ -90,11 +93,11 @@ suite('Debug - Variable Debug View', () => {
 
 	test('variable expressions with display type', () => {
 		variablesRenderer = instantiationService.createInstance(VariablesRenderer, linkDetector, true);
-		assert_variable(disposables, variablesRenderer, true);
+		assertVariable(disposables, variablesRenderer, true);
 	});
 
 	test('variable expressions', () => {
 		variablesRenderer = instantiationService.createInstance(VariablesRenderer, linkDetector, false);
-		assert_variable(disposables, variablesRenderer, false);
+		assertVariable(disposables, variablesRenderer, false);
 	});
 });

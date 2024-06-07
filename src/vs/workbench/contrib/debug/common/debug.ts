@@ -774,6 +774,7 @@ export interface IDebugConfiguration {
 	};
 	autoExpandLazyVariables: boolean;
 	enableStatusBarColor: boolean;
+	showVariableTypes: boolean;
 }
 
 export interface IGlobalConfig {

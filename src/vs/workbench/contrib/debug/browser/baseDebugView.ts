@@ -49,6 +49,7 @@ export interface IRenderValueOptions {
 export interface IVariableTemplateData {
 	expression: HTMLElement;
 	name: HTMLElement;
+	type: HTMLElement;
 	value: HTMLElement;
 	label: HighlightedLabel;
 	lazyButton: HTMLElement;
@@ -132,10 +133,20 @@ export function renderExpressionValue(expressionOrValue: IExpressionValue | stri
 
 export function renderVariable(store: DisposableStore, commandService: ICommandService, hoverService: IHoverService, variable: Variable, data: IVariableTemplateData, showChanged: boolean, highlights: IHighlight[], linkDetector?: LinkDetector, displayType?: boolean): void {
 	if (variable.available) {
+		data.type.textContent = '';
 		let text = variable.name;
 		if (variable.value && typeof variable.name === 'string') {
 			if (variable.type && displayType) {
-				text += ': ' + variable.type + ' =';
+				text += ': ';
+				//render type
+				const type = variable.type + ' =';
+				if (linkDetector) {
+					data.type.textContent = '';
+					const session = (variable instanceof ExpressionContainer) ? variable.getSession() : undefined;
+					data.type.appendChild(linkDetector.linkify(type, false, session ? session.root : undefined, true));
+				} else {
+					data.type.textContent = type;
+				}
 			} else {
 				text += ' =';
 			}
@@ -176,6 +187,7 @@ export interface IInputBoxOptions {
 export interface IExpressionTemplateData {
 	expression: HTMLElement;
 	name: HTMLSpanElement;
+	type: HTMLSpanElement;
 	value: HTMLSpanElement;
 	inputBoxContainer: HTMLElement;
 	actionBar?: ActionBar;
@@ -234,6 +246,7 @@ export abstract class AbstractExpressionsRenderer<T = IExpression> implements IT
 		const lazyButton = dom.append(expression, $('span.lazy-button'));
 		lazyButton.classList.add(...ThemeIcon.asClassNameArray(Codicon.eye));
 		templateDisposable.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), lazyButton, localize('debug.lazyButton.tooltip', "Click to expand")));
+		const type = dom.append(expression, $('span.type'));
 		const value = dom.append(expression, $('span.value'));
 
 		const label = templateDisposable.add(new HighlightedLabel(name));
@@ -246,7 +259,7 @@ export abstract class AbstractExpressionsRenderer<T = IExpression> implements IT
 			actionBar = templateDisposable.add(new ActionBar(expression));
 		}
 
-		const template: IExpressionTemplateData = { expression, name, value, label, inputBoxContainer, actionBar, elementDisposable: new DisposableStore(), templateDisposable, lazyButton, currentElement: undefined };
+		const template: IExpressionTemplateData = { expression, name, type, value, label, inputBoxContainer, actionBar, elementDisposable: new DisposableStore(), templateDisposable, lazyButton, currentElement: undefined };
 
 		templateDisposable.add(dom.addDisposableListener(lazyButton, dom.EventType.CLICK, () => {
 			if (template.currentElement) {
@@ -260,8 +273,6 @@ export abstract class AbstractExpressionsRenderer<T = IExpression> implements IT
 	public abstract renderElement(node: ITreeNode<T, FuzzyScore>, index: number, data: IExpressionTemplateData): void;
 
 	protected renderExpressionElement(element: IExpression, node: ITreeNode<T, FuzzyScore>, data: IExpressionTemplateData): void {
-		data.elementDisposable.clear();
-		data.currentElement = element;
 		this.renderExpression(node.element, data, createMatches(node.filterData));
 		if (data.actionBar) {
 			this.renderActionBar!(data.actionBar, element, data);

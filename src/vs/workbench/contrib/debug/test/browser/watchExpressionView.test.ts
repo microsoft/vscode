@@ -18,7 +18,7 @@ import { NullHoverService } from 'vs/platform/hover/test/browser/nullHoverServic
 import { IDebugService, IViewModel } from 'vs/workbench/contrib/debug/common/debug';
 const $ = dom.$;
 
-function assert_watch_variable(disposables: Pick<DisposableStore, "add">, watchExpressionsRenderer: WatchExpressionsRenderer, displayType: boolean) {
+function assertWatchVariable(disposables: Pick<DisposableStore, "add">, watchExpressionsRenderer: WatchExpressionsRenderer, displayType: boolean) {
 	const session = new MockSession();
 	const thread = new Thread(session, 'mockthread', 1);
 	const range = {
@@ -42,6 +42,7 @@ function assert_watch_variable(disposables: Pick<DisposableStore, "add">, watchE
 	};
 	const expression = $('.');
 	const name = $('.');
+	const type = $('.');
 	const value = $('.');
 	const label = disposables.add(new HighlightedLabel(name));
 	const lazyButton = $('.');
@@ -52,6 +53,7 @@ function assert_watch_variable(disposables: Pick<DisposableStore, "add">, watchE
 	const data = {
 		expression,
 		name,
+		type,
 		value,
 		label,
 		lazyButton,
@@ -62,12 +64,13 @@ function assert_watch_variable(disposables: Pick<DisposableStore, "add">, watchE
 	};
 	watchExpressionsRenderer.renderElement(node, 0, data);
 	assert.strictEqual(value.textContent, '');
-	assert.strictEqual(label.element.textContent, displayType ? 'foo: string =' : 'foo =');
+	assert.strictEqual(label.element.textContent, displayType ? 'foo: ' : 'foo =');
 
 	node.element.value = 'xpto';
 	watchExpressionsRenderer.renderElement(node, 0, data);
 	assert.strictEqual(value.textContent, 'xpto');
-	assert.strictEqual(label.element.textContent, displayType ? 'foo: string =' : 'foo =');
+	assert.strictEqual(type.textContent, displayType ? 'string =' : '');
+	assert.strictEqual(label.element.textContent, displayType ? 'foo: ' : 'foo =');
 }
 
 suite('Debug - Watch Debug View', () => {
@@ -87,11 +90,11 @@ suite('Debug - Watch Debug View', () => {
 
 	test('watch expressions with display type', () => {
 		watchExpressionsRenderer = instantiationService.createInstance(WatchExpressionsRenderer, true);
-		assert_watch_variable(disposables, watchExpressionsRenderer, true);
+		assertWatchVariable(disposables, watchExpressionsRenderer, true);
 	});
 
 	test('watch expressions', () => {
 		watchExpressionsRenderer = instantiationService.createInstance(WatchExpressionsRenderer, false);
-		assert_watch_variable(disposables, watchExpressionsRenderer, false);
+		assertWatchVariable(disposables, watchExpressionsRenderer, false);
 	});
 });

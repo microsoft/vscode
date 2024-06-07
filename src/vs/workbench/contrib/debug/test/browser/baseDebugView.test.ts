@@ -24,15 +24,16 @@ import { MockSession } from 'vs/workbench/contrib/debug/test/common/mockDebug';
 import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 const $ = dom.$;
 
-function assert_variable(session: MockSession, scope: Scope, disposables: Pick<DisposableStore, "add">, linkDetector: LinkDetector, displayType: boolean) {
+function assertVariable(session: MockSession, scope: Scope, disposables: Pick<DisposableStore, "add">, linkDetector: LinkDetector, displayType: boolean) {
 	let variable = new Variable(session, 1, scope, 2, 'foo', 'bar.foo', undefined, 0, 0, undefined, {}, 'string');
 	let expression = $('.');
 	let name = $('.');
+	let type = $('.');
 	let value = $('.');
 	const label = new HighlightedLabel(name);
 	const lazyButton = $('.');
 	const store = disposables.add(new DisposableStore());
-	renderVariable(store, NullCommandService, NullHoverService, variable, { expression, name, value, label, lazyButton }, false, [], undefined, displayType);
+	renderVariable(store, NullCommandService, NullHoverService, variable, { expression, name, type, value, label, lazyButton }, false, [], undefined, displayType);
 
 	assert.strictEqual(label.element.textContent, 'foo');
 	assert.strictEqual(value.textContent, '');
@@ -40,39 +41,45 @@ function assert_variable(session: MockSession, scope: Scope, disposables: Pick<D
 	variable.value = 'hey';
 	expression = $('.');
 	name = $('.');
+	type = $('.');
 	value = $('.');
-	renderVariable(store, NullCommandService, NullHoverService, variable, { expression, name, value, label, lazyButton }, false, [], linkDetector, displayType);
+	renderVariable(store, NullCommandService, NullHoverService, variable, { expression, name, type, value, label, lazyButton }, false, [], linkDetector, displayType);
 	assert.strictEqual(value.textContent, 'hey');
-	assert.strictEqual(label.element.textContent, displayType ? 'foo: string =' : 'foo =');
+	assert.strictEqual(label.element.textContent, displayType ? 'foo: ' : 'foo =');
+	assert.strictEqual(type.textContent, displayType ? 'string =' : '');
 
 	variable.value = isWindows ? 'C:\\foo.js:5' : '/foo.js:5';
 	expression = $('.');
 	name = $('.');
+	type = $('.');
 	value = $('.');
-	renderVariable(store, NullCommandService, NullHoverService, variable, { expression, name, value, label, lazyButton }, false, [], linkDetector, displayType);
+	renderVariable(store, NullCommandService, NullHoverService, variable, { expression, name, type, value, label, lazyButton }, false, [], linkDetector, displayType);
 	assert.ok(value.querySelector('a'));
 	assert.strictEqual(value.querySelector('a')!.textContent, variable.value);
 
 	variable = new Variable(session, 1, scope, 2, 'console', 'console', '5', 0, 0, undefined, { kind: 'virtual' });
 	expression = $('.');
 	name = $('.');
+	type = $('.');
 	value = $('.');
-	renderVariable(store, NullCommandService, NullHoverService, variable, { expression, name, value, label, lazyButton }, false, [], linkDetector, displayType);
+	renderVariable(store, NullCommandService, NullHoverService, variable, { expression, name, type, value, label, lazyButton }, false, [], linkDetector, displayType);
 	assert.strictEqual(name.className, 'virtual');
 	assert.strictEqual(label.element.textContent, 'console =');
 	assert.strictEqual(value.className, 'value number');
 
 	variable = new Variable(session, 1, scope, 2, 'xpto', 'xpto.xpto', undefined, 0, 0, undefined, {}, 'custom-type');
-	renderVariable(store, NullCommandService, NullHoverService, variable, { expression, name, value, label, lazyButton }, false, [], linkDetector, displayType);
+	renderVariable(store, NullCommandService, NullHoverService, variable, { expression, name, type, value, label, lazyButton }, false, [], linkDetector, displayType);
 	assert.strictEqual(label.element.textContent, 'xpto');
 	assert.strictEqual(value.textContent, '');
 	variable.value = '2';
 	expression = $('.');
 	name = $('.');
+	type = $('.');
 	value = $('.');
-	renderVariable(store, NullCommandService, NullHoverService, variable, { expression, name, value, label, lazyButton }, false, [], linkDetector, displayType);
+	renderVariable(store, NullCommandService, NullHoverService, variable, { expression, name, type, value, label, lazyButton }, false, [], linkDetector, displayType);
 	assert.strictEqual(value.textContent, '2');
-	assert.strictEqual(label.element.textContent, displayType ? 'xpto: custom-type =' : 'xpto =');
+	assert.strictEqual(label.element.textContent, displayType ? 'xpto: ' : 'xpto =');
+	assert.strictEqual(type.textContent, displayType ? 'custom-type =' : '');
 
 	label.dispose();
 }
@@ -149,7 +156,7 @@ suite('Debug - Base Debug View', () => {
 		const stackFrame = new StackFrame(thread, 1, null!, 'app.js', 'normal', range, 0, true);
 		const scope = new Scope(stackFrame, 1, 'local', 1, false, 10, 10);
 
-		assert_variable(session, scope, disposables, linkDetector, false);
+		assertVariable(session, scope, disposables, linkDetector, false);
 
 	});
 
@@ -165,7 +172,7 @@ suite('Debug - Base Debug View', () => {
 		const stackFrame = new StackFrame(thread, 1, null!, 'app.js', 'normal', range, 0, true);
 		const scope = new Scope(stackFrame, 1, 'local', 1, false, 10, 10);
 
-		assert_variable(session, scope, disposables, linkDetector, true);
+		assertVariable(session, scope, disposables, linkDetector, true);
 	});
 
 	test('statusbar in debug mode', () => {

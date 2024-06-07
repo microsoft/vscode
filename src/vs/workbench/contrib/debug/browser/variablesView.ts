@@ -41,7 +41,7 @@ import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { AbstractExpressionDataSource, AbstractExpressionsRenderer, IExpressionTemplateData, IInputBoxOptions, renderExpressionValue, renderVariable, renderViewTree } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { ADD_TO_WATCH_ID, ADD_TO_WATCH_LABEL, COPY_EVALUATE_PATH_ID, COPY_EVALUATE_PATH_LABEL, COPY_VALUE_ID, COPY_VALUE_LABEL } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
-import { CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_ACCESSED_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_READ_SUPPORTED, CONTEXT_VARIABLES_FOCUSED, DataBreakpointSetType, DebugVisualizationType, IDataBreakpointInfoResponse, IDebugService, IExpression, IScope, IStackFrame, IViewModel, VARIABLES_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
+import { CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_ACCESSED_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_READ_SUPPORTED, CONTEXT_VARIABLES_FOCUSED, DataBreakpointSetType, DebugVisualizationType, IDataBreakpointInfoResponse, IDebugConfiguration, IDebugService, IExpression, IScope, IStackFrame, IViewModel, VARIABLES_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
 import { getContextForVariable } from 'vs/workbench/contrib/debug/common/debugContext';
 import { ErrorScope, Expression, Scope, StackFrame, Variable, VisualizedExpression, getUriForDebugMemory } from 'vs/workbench/contrib/debug/common/debugModel';
 import { DebugVisualizer, IDebugVisualizerService } from 'vs/workbench/contrib/debug/common/debugVisualizers';
@@ -123,7 +123,7 @@ export class VariablesView extends ViewPane {
 		container.classList.add('debug-variables');
 		const treeContainer = renderViewTree(container);
 		const linkDetector = this.instantiationService.createInstance(LinkDetector);
-		const displayType: boolean = this.configurationService.getValue('variableDisplayType.variableView');
+		const displayType: boolean = this.configurationService.getValue<IDebugConfiguration>('debug').showVariableTypes;
 		this.tree = <WorkbenchAsyncDataTree<IStackFrame | null, IExpression | IScope, FuzzyScore>>this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'VariablesView', treeContainer, new VariablesDelegate(),
 			[
 				this.instantiationService.createInstance(VariablesRenderer, linkDetector, displayType),
@@ -456,6 +456,8 @@ export class VisualizedVariableRenderer extends AbstractExpressionsRenderer {
 	}
 
 	public override renderElement(node: ITreeNode<IExpression, FuzzyScore>, index: number, data: IExpressionTemplateData): void {
+		data.elementDisposable.clear();
+		data.currentElement = node.element;
 		super.renderExpressionElement(node.element, node, data);
 	}
 
@@ -524,7 +526,7 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 
 	constructor(
 		private readonly linkDetector: LinkDetector,
-		private readonly displayType: boolean,
+		private displayType: boolean,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IDebugVisualizerService private readonly visualization: IDebugVisualizerService,
@@ -533,6 +535,7 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 		@IDebugService debugService: IDebugService,
 		@IContextViewService contextViewService: IContextViewService,
 		@IHoverService hoverService: IHoverService,
+		@IConfigurationService private configurationService: IConfigurationService,
 	) {
 		super(debugService, contextViewService, hoverService);
 	}
@@ -546,6 +549,14 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 	}
 
 	public override renderElement(node: ITreeNode<IExpression, FuzzyScore>, index: number, data: IExpressionTemplateData): void {
+		data.elementDisposable.clear();
+		data.currentElement = node.element;
+		data.elementDisposable.add(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('debug.showVariableTypes')) {
+				this.displayType = this.configurationService.getValue<IDebugConfiguration>('debug').showVariableTypes;
+				super.renderExpressionElement(node.element, node, data);
+			}
+		}));
 		super.renderExpressionElement(node.element, node, data);
 	}
 
