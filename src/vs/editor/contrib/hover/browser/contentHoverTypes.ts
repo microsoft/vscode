@@ -6,7 +6,7 @@
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
 import { HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
-import { HoverAnchor, IEditorHoverColorPickerWidget, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
+import { HoverAnchor, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
 
 export class HoverResult {
 
@@ -48,7 +48,6 @@ export class ContentHoverVisibleData {
 	constructor(
 		public initialMousePosX: number | undefined,
 		public initialMousePosY: number | undefined,
-		public readonly colorPicker: IEditorHoverColorPickerWidget | null,
 		public readonly showAtPosition: Position,
 		public readonly showAtSecondaryPosition: Position,
 		public readonly preferAbove: boolean,
