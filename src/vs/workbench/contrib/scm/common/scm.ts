@@ -73,8 +73,7 @@ export interface ISCMProvider extends IDisposable {
 
 	readonly rootUri?: URI;
 	readonly inputBoxTextModel: ITextModel;
-	readonly count?: number;
-	readonly countObs: IObservable<number | undefined>;
+	readonly count: IObservable<number | undefined>;
 	readonly commitTemplate: IObservable<string>;
 	readonly historyProvider?: ISCMHistoryProvider;
 	readonly onDidChangeHistoryProvider: Event<void>;
