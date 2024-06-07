@@ -611,8 +611,8 @@ export class ChatService extends Disposable implements IChatService {
 						if (!request.response) {
 							continue;
 						}
-						history.push({ role: ChatMessageRole.User, content: request.message.text });
-						history.push({ role: ChatMessageRole.Assistant, content: request.response.response.asString() });
+						history.push({ role: ChatMessageRole.User, content: { type: 'text', value: request.message.text } });
+						history.push({ role: ChatMessageRole.Assistant, content: { type: 'text', value: request.response.response.asString() } });
 					}
 					const message = parsedRequest.text;
 					const commandResult = await this.chatSlashCommandService.executeCommand(commandPart.slashCommand.command, message.substring(commandPart.slashCommand.command.length + 1).trimStart(), new Progress<IChatProgress>(p => {

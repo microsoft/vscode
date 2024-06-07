@@ -556,16 +556,18 @@ export function toExtension(extensionDescription: IExtensionDescription): IExten
 }
 
 export function toExtensionDescription(extension: IExtension, isUnderDevelopment?: boolean): IExtensionDescription {
+	const id = getExtensionId(extension.manifest.publisher, extension.manifest.name);
 	return {
-		identifier: new ExtensionIdentifier(getExtensionId(extension.manifest.publisher, extension.manifest.name)),
+		id,
+		identifier: new ExtensionIdentifier(id),
 		isBuiltin: extension.type === ExtensionType.System,
 		isUserBuiltin: extension.type === ExtensionType.User && extension.isBuiltin,
 		isUnderDevelopment: !!isUnderDevelopment,
 		extensionLocation: extension.location,
-		...extension.manifest,
 		uuid: extension.identifier.uuid,
 		targetPlatform: extension.targetPlatform,
 		publisherDisplayName: extension.publisherDisplayName,
+		...extension.manifest,
 	};
 }
 

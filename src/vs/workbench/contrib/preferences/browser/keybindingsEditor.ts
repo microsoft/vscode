@@ -60,7 +60,7 @@ import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetN
 import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
+import type { IManagedHover } from 'vs/base/browser/ui/hover/hover';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 const $ = DOM.$;
@@ -903,7 +903,7 @@ class ActionsColumnRenderer implements ITableRenderer<IKeybindingItemEntry, IAct
 
 interface ICommandColumnTemplateData {
 	commandColumn: HTMLElement;
-	commandColumnHover: IUpdatableHover;
+	commandColumnHover: IManagedHover;
 	commandLabelContainer: HTMLElement;
 	commandLabel: HighlightedLabel;
 	commandDefaultLabelContainer: HTMLElement;
@@ -925,7 +925,7 @@ class CommandColumnRenderer implements ITableRenderer<IKeybindingItemEntry, ICom
 
 	renderTemplate(container: HTMLElement): ICommandColumnTemplateData {
 		const commandColumn = DOM.append(container, $('.command'));
-		const commandColumnHover = this._hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), commandColumn, '');
+		const commandColumnHover = this._hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), commandColumn, '');
 		const commandLabelContainer = DOM.append(commandColumn, $('.command-label'));
 		const commandLabel = new HighlightedLabel(commandLabelContainer);
 		const commandDefaultLabelContainer = DOM.append(commandColumn, $('.command-default-label'));
@@ -1011,7 +1011,7 @@ class KeybindingColumnRenderer implements ITableRenderer<IKeybindingItemEntry, I
 
 interface ISourceColumnTemplateData {
 	sourceColumn: HTMLElement;
-	sourceColumnHover: IUpdatableHover;
+	sourceColumnHover: IManagedHover;
 	sourceLabel: HighlightedLabel;
 	extensionContainer: HTMLElement;
 	extensionLabel: HTMLAnchorElement;
@@ -1046,7 +1046,7 @@ class SourceColumnRenderer implements ITableRenderer<IKeybindingItemEntry, ISour
 
 	renderTemplate(container: HTMLElement): ISourceColumnTemplateData {
 		const sourceColumn = DOM.append(container, $('.source'));
-		const sourceColumnHover = this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), sourceColumn, '');
+		const sourceColumnHover = this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), sourceColumn, '');
 		const sourceLabel = new HighlightedLabel(DOM.append(sourceColumn, $('.source-label')));
 		const extensionContainer = DOM.append(sourceColumn, $('.extension-container'));
 		const extensionLabel = DOM.append<HTMLAnchorElement>(extensionContainer, $('a.extension-label', { tabindex: 0 }));
@@ -1213,7 +1213,7 @@ class WhenColumnRenderer implements ITableRenderer<IKeybindingItemEntry, IWhenCo
 
 		if (keybindingItemEntry.keybindingItem.when) {
 			templateData.whenLabel.set(keybindingItemEntry.keybindingItem.when, keybindingItemEntry.whenMatches, keybindingItemEntry.keybindingItem.when);
-			templateData.disposables.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), templateData.element, keybindingItemEntry.keybindingItem.when));
+			templateData.disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), templateData.element, keybindingItemEntry.keybindingItem.when));
 		} else {
 			templateData.whenLabel.set('-');
 		}

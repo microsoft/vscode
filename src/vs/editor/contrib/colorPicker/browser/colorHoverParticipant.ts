@@ -51,6 +51,8 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 
 	public readonly hoverOrdinal: number = 2;
 
+	private _colorPicker: ColorPickerWidget | undefined;
+
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IThemeService private readonly _themeService: IThemeService,
@@ -99,6 +101,14 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 
 	public getAccessibleContent(): string {
 		return nls.localize('hoverAccessibilityColorParticipant', 'There is a color picker here.');
+	}
+
+	public handleResize(): void {
+		this._colorPicker?.layout();
+	}
+
+	public isColorPickerVisible(): boolean {
+		return !!this._colorPicker;
 	}
 }
 
@@ -202,8 +212,7 @@ function renderHoverParts<T extends (ColorHover | StandaloneColorPickerHover)>(p
 	const colorHover = hoverParts[0];
 	const editorModel = editor.getModel();
 	const model = colorHover.model;
-	const widget = disposables.add(new ColorPickerWidget(context.fragment, model, editor.getOption(EditorOption.pixelRatio), themeService, participant instanceof StandaloneColorPickerParticipant));
-	context.setColorPicker(widget);
+	const colorPicker = disposables.add(new ColorPickerWidget(context.fragment, model, editor.getOption(EditorOption.pixelRatio), themeService, participant instanceof StandaloneColorPickerParticipant));
 
 	let editorUpdatedByColorPicker = false;
 	let range = new Range(colorHover.range.startLineNumber, colorHover.range.startColumn, colorHover.range.endLineNumber, colorHover.range.endColumn);

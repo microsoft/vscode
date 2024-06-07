@@ -856,8 +856,8 @@ abstract class RunTestDecoration {
 				}
 
 				this.testService.runResolvedTests({
+					group: profile.group,
 					targets: [{
-						profileGroup: profile.group,
 						profileId: profile.profileId,
 						controllerId: profile.controllerId,
 						testIds: [test.item.extId]

@@ -24,7 +24,7 @@ import { spinningLoading, syncing } from 'vs/platform/theme/common/iconRegistry'
 import { isMarkdownString, markdownStringEqual } from 'vs/base/common/htmlContent';
 import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { Gesture, EventType as TouchEventType } from 'vs/base/browser/touch';
-import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
+import type { IManagedHover } from 'vs/base/browser/ui/hover/hover';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 export class StatusbarEntryItem extends Disposable {
@@ -42,7 +42,7 @@ export class StatusbarEntryItem extends Disposable {
 	private readonly focusListener = this._register(new MutableDisposable());
 	private readonly focusOutListener = this._register(new MutableDisposable());
 
-	private hover: IUpdatableHover | undefined = undefined;
+	private hover: IManagedHover | undefined = undefined;
 
 	readonly labelContainer: HTMLElement;
 	readonly beakContainer: HTMLElement;
@@ -122,7 +122,7 @@ export class StatusbarEntryItem extends Disposable {
 			if (this.hover) {
 				this.hover.update(hoverContents);
 			} else {
-				this.hover = this._register(this.hoverService.setupUpdatableHover(this.hoverDelegate, this.container, hoverContents));
+				this.hover = this._register(this.hoverService.setupManagedHover(this.hoverDelegate, this.container, hoverContents));
 			}
 			if (entry.command !== ShowTooltipCommand /* prevents flicker on click */) {
 				this.focusListener.value = addDisposableListener(this.labelContainer, EventType.FOCUS, e => {

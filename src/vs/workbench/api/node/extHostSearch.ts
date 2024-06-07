@@ -8,6 +8,7 @@ import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { ExtHostSearch, reviveQuery } from 'vs/workbench/api/common/extHostSearch';
@@ -29,24 +30,59 @@ export class NativeExtHostSearch extends ExtHostSearch implements IDisposable {
 
 	private _registeredEHSearchProvider = false;
 
+	private _numThreadsPromise: Promise<number | undefined> | undefined;
+
 	private readonly _disposables = new DisposableStore();
+
+	private isDisposed = false;
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
 		@IExtHostInitDataService initData: IExtHostInitDataService,
 		@IURITransformerService _uriTransformer: IURITransformerService,
+		@IExtHostConfiguration private readonly configurationService: IExtHostConfiguration,
 		@ILogService _logService: ILogService,
 	) {
 		super(extHostRpc, _uriTransformer, _logService);
-
+		this.getNumThreads = this.getNumThreads.bind(this);
+		this.getNumThreadsCached = this.getNumThreadsCached.bind(this);
+		this.handleConfigurationChanged = this.handleConfigurationChanged.bind(this);
 		const outputChannel = new OutputChannel('RipgrepSearchUD', this._logService);
-		this._disposables.add(this.registerTextSearchProvider(Schemas.vscodeUserData, new RipgrepSearchProvider(outputChannel)));
+		this._disposables.add(this.registerTextSearchProvider(Schemas.vscodeUserData, new RipgrepSearchProvider(outputChannel, this.getNumThreadsCached)));
 		if (initData.remote.isRemote && initData.remote.authority) {
 			this._registerEHSearchProviders();
 		}
+
+		configurationService.getConfigProvider().then(provider => {
+			if (this.isDisposed) {
+				return;
+			}
+			this._disposables.add(provider.onDidChangeConfiguration(this.handleConfigurationChanged));
+		});
+	}
+
+	private handleConfigurationChanged(event: vscode.ConfigurationChangeEvent) {
+		if (!event.affectsConfiguration('search')) {
+			return;
+		}
+		this._numThreadsPromise = undefined;
+	}
+
+	async getNumThreads(): Promise<number | undefined> {
+		const configProvider = await this.configurationService.getConfigProvider();
+		const numThreads = configProvider.getConfiguration('search').get<number>('ripgrep.maxThreads');
+		return numThreads;
+	}
+
+	async getNumThreadsCached(): Promise<number | undefined> {
+		if (!this._numThreadsPromise) {
+			this._numThreadsPromise = this.getNumThreads();
+		}
+		return this._numThreadsPromise;
 	}
 
 	dispose(): void {
+		this.isDisposed = true;
 		this._disposables.dispose();
 	}
 
@@ -61,8 +97,8 @@ export class NativeExtHostSearch extends ExtHostSearch implements IDisposable {
 
 		this._registeredEHSearchProvider = true;
 		const outputChannel = new OutputChannel('RipgrepSearchEH', this._logService);
-		this._disposables.add(this.registerTextSearchProvider(Schemas.file, new RipgrepSearchProvider(outputChannel)));
-		this._disposables.add(this.registerInternalFileSearchProvider(Schemas.file, new SearchService('fileSearchProvider')));
+		this._disposables.add(this.registerTextSearchProvider(Schemas.file, new RipgrepSearchProvider(outputChannel, this.getNumThreadsCached)));
+		this._disposables.add(this.registerInternalFileSearchProvider(Schemas.file, new SearchService('fileSearchProvider', this.getNumThreadsCached)));
 	}
 
 	private registerInternalFileSearchProvider(scheme: string, provider: SearchService): IDisposable {
@@ -90,7 +126,7 @@ export class NativeExtHostSearch extends ExtHostSearch implements IDisposable {
 		return super.$provideFileSearchResults(handle, session, rawQuery, token);
 	}
 
-	override doInternalFileSearchWithCustomCallback(rawQuery: IFileQuery, token: vscode.CancellationToken, handleFileMatch: (data: URI[]) => void): Promise<ISearchCompleteStats> {
+	override async doInternalFileSearchWithCustomCallback(rawQuery: IFileQuery, token: vscode.CancellationToken, handleFileMatch: (data: URI[]) => void): Promise<ISearchCompleteStats> {
 		const onResult = (ev: ISerializedSearchProgressItem) => {
 			if (isSerializedFileMatch(ev)) {
 				ev = [ev];
@@ -109,8 +145,8 @@ export class NativeExtHostSearch extends ExtHostSearch implements IDisposable {
 		if (!this._internalFileSearchProvider) {
 			throw new Error('No internal file search handler');
 		}
-
-		return <Promise<ISearchCompleteStats>>this._internalFileSearchProvider.doFileSearch(rawQuery, onResult, token);
+		const numThreads = await this.getNumThreadsCached();
+		return <Promise<ISearchCompleteStats>>this._internalFileSearchProvider.doFileSearch(rawQuery, numThreads, onResult, token);
 	}
 
 	private async doInternalFileSearch(handle: number, session: number, rawQuery: IFileQuery, token: vscode.CancellationToken): Promise<ISearchCompleteStats> {

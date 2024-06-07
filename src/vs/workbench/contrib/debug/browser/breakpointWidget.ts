@@ -346,7 +346,10 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		this.toDispose.push(scopedContextKeyService);
 
 		const scopedInstatiationService = this.instantiationService.createChild(new ServiceCollection(
-			[IContextKeyService, scopedContextKeyService], [IPrivateBreakpointWidgetService, this]));
+			[IContextKeyService, scopedContextKeyService],
+			[IPrivateBreakpointWidgetService, this]
+		));
+		this.toDispose.push(scopedInstatiationService);
 
 		const options = this.createEditorOptions();
 		const codeEditorWidgetOptions = getSimpleCodeEditorWidgetOptions();

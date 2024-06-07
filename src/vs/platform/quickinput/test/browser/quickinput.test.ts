@@ -57,7 +57,7 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 	setup(() => {
 		const fixture = document.createElement('div');
 		mainWindow.document.body.appendChild(fixture);
-		store.add(toDisposable(() => mainWindow.document.body.removeChild(fixture)));
+		store.add(toDisposable(() => fixture.remove()));
 
 		const instantiationService = new TestInstantiationService();
 
