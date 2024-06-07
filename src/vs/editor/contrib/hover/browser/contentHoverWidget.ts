@@ -16,7 +16,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { getHoverAccessibleViewHint, HoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
 import { PositionAffinity } from 'vs/editor/common/model';
 import { Emitter } from 'vs/base/common/event';
-import { RenderedHover } from 'vs/editor/contrib/hover/browser/contentHoverController';
+import { RenderedContentHover } from 'vs/editor/contrib/hover/browser/contentHoverRendered';
 
 const HORIZONTAL_SCROLLING_BY = 30;
 const CONTAINER_HEIGHT_PADDING = 6;
@@ -26,7 +26,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 	public static ID = 'editor.contrib.resizableContentHoverWidget';
 	private static _lastDimensions: dom.Dimension = new dom.Dimension(0, 0);
 
-	private _renderedHover: RenderedHover | undefined;
+	private _renderedHover: RenderedContentHover | undefined;
 	private _positionPreference: ContentWidgetPositionPreference | undefined;
 	private _minimumSize: dom.Dimension;
 	private _contentWidth: number | undefined;
@@ -264,7 +264,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		return true;
 	}
 
-	private _setRenderedHover(renderedHover: RenderedHover | undefined): void {
+	private _setRenderedHover(renderedHover: RenderedContentHover | undefined): void {
 		this._renderedHover?.dispose();
 		this._renderedHover = renderedHover;
 		this._hoverVisibleKey.set(!!renderedHover);
@@ -298,7 +298,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		this._setHoverWidgetMaxDimensions(width, height);
 	}
 
-	private _render(renderedHover: RenderedHover) {
+	private _render(renderedHover: RenderedContentHover) {
 		this._setRenderedHover(renderedHover);
 		this._updateFont();
 		this._updateContent(renderedHover.domNode);
@@ -321,7 +321,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		};
 	}
 
-	public showAt(renderedHover: RenderedHover): void {
+	public showAt(renderedHover: RenderedContentHover): void {
 		if (!this._editor || !this._editor.hasModel()) {
 			return;
 		}
