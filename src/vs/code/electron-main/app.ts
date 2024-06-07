@@ -185,7 +185,7 @@ export class CodeApplication extends Disposable {
 				return allowedPermissionsInWebview.has(permission);
 			}
 
-			return false;
+			return allowedPermissionsDefault.has(permission);
 		});
 
 		//#endregion
