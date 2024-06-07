@@ -21,7 +21,7 @@ import { terminalTypeAheadConfiguration } from 'vs/workbench/contrib/terminalCon
 import { terminalZoomConfiguration } from 'vs/workbench/contrib/terminalContrib/zoom/common/terminal.zoom'; // eslint-disable-line local/code-import-patterns
 import { terminalSuggestConfiguration } from 'vs/workbench/contrib/terminalContrib/suggest/common/terminalSuggestConfiguration'; // eslint-disable-line local/code-import-patterns
 import { terminalInitialHintConfiguration } from 'vs/workbench/contrib/terminalContrib/chat/common/terminalInitialHintConfiguration';  // eslint-disable-line local/code-import-patterns
-import { getFonts } from 'vs/base/browser/fonts';
+import type { IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 
 const terminalDescriptors = '\n- ' + [
 	'`\${cwd}`: ' + localize("cwd", "the terminal's current working directory"),
@@ -632,14 +632,18 @@ const terminalConfiguration: IConfigurationNode = {
 	}
 };
 
-export async function registerTerminalConfiguration() {
+export async function registerTerminalConfiguration(getFonts: () => Promise<string[]>) {
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 	configurationRegistry.registerConfiguration(terminalConfiguration);
 	// TODO load fonts on startup finished
 	const fonts = await getFonts();
-	console.log({ fonts });
 	if (terminalConfiguration.properties) {
-		terminalConfiguration.properties[TerminalSettingId.FontFamily].enum = fonts;
+		const snippets: IJSONSchemaSnippet[] = fonts.map(font => {
+			return {
+				body: `${font}`
+			};
+		});
+		terminalConfiguration.properties[TerminalSettingId.FontFamily].defaultSnippets = snippets;
 	}
 
 }
