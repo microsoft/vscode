@@ -460,6 +460,7 @@ class ProfileWidget extends Disposable {
 	private copyFromOptions: (ISelectOptionItem & { id?: string; source?: IUserDataProfile | URI })[] = [];
 
 	private readonly contentsTreeHeader: HTMLElement;
+	private readonly inheritLabelElement: HTMLElement;
 	private readonly resourcesTree: WorkbenchAsyncDataTree<AbstractUserDataProfileElement, ProfileResourceTreeElement>;
 
 	private _templates: IProfileTemplateInfo[] = [];
@@ -572,9 +573,11 @@ class ProfileWidget extends Disposable {
 		}));
 
 		this.contentsTreeHeader = append(body, $('.profile-content-tree-header'));
+		this.inheritLabelElement = $('.inherit-label', undefined, localize('default profile', "Use Default Profile"));
 		append(this.contentsTreeHeader,
 			$(''),
-			$('.inherit-label', undefined, localize('default profile', "Use Default Profile")),
+			$(''),
+			this.inheritLabelElement,
 			$('.actions-label', undefined, localize('actions', "Actions")),
 		);
 		const delegate = new ProfileResourceTreeElementDelegate();
@@ -811,7 +814,8 @@ class ProfileWidget extends Disposable {
 				this.copyFromSelectBox.setEnabled(false);
 			}
 		} else if (profileElement instanceof UserDataProfileElement) {
-			this.contentsTreeHeader.classList.toggle('hide', profileElement.profile.isDefault);
+			this.contentsTreeHeader.classList.remove('hide');
+			this.inheritLabelElement.textContent = profileElement.profile.isDefault ? '' : localize('default profile', "Use Default Profile");
 			this.useAsDefaultProfileContainer.classList.remove('hide');
 			this.useAsDefaultProfileCheckbox.checked = profileElement.isNewWindowProfile;
 			this.copyFromContainer.classList.add('hide');
