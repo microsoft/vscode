@@ -86,9 +86,9 @@ export class RenderedContentHover extends Disposable {
 
 		for (const hoverPart of hoverParts) {
 			const hoverPartRange = hoverPart.range;
-			const hoverPartRangeOnAnchorStartLin = hoverPartRange.startLineNumber === anchorStartLineNumber;
+			const hoverPartRangeOnAnchorStartLine = hoverPartRange.startLineNumber === anchorStartLineNumber;
 			const hoverPartRangeOnAnchorEndLine = hoverPartRange.endLineNumber === anchorStartLineNumber;
-			const hoverPartRangeIsOnAnchorLine = hoverPartRangeOnAnchorStartLin && hoverPartRangeOnAnchorEndLine;
+			const hoverPartRangeIsOnAnchorLine = hoverPartRangeOnAnchorStartLine && hoverPartRangeOnAnchorEndLine;
 			if (hoverPartRangeIsOnAnchorLine) {
 				// this message has a range that is completely sitting on the line of the anchor
 				const hoverPartStartColumn = hoverPartRange.startColumn;
