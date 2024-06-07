@@ -226,17 +226,14 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		if (!this._renderedHover) {
 			return false;
 		}
-		if (
-			typeof this._renderedHover.initialMousePosX === 'undefined'
-			|| typeof this._renderedHover.initialMousePosY === 'undefined'
-		) {
+		if (this._renderedHover.initialMousePosX === undefined || this._renderedHover.initialMousePosY === undefined) {
 			this._renderedHover.initialMousePosX = posx;
 			this._renderedHover.initialMousePosY = posy;
 			return false;
 		}
 
 		const widgetRect = dom.getDomNodePagePosition(this.getDomNode());
-		if (typeof this._renderedHover.closestMouseDistance === 'undefined') {
+		if (this._renderedHover.closestMouseDistance === undefined) {
 			this._renderedHover.closestMouseDistance = computeDistanceFromPointToRectangle(
 				this._renderedHover.initialMousePosX,
 				this._renderedHover.initialMousePosY,
@@ -316,7 +313,7 @@ export class ContentHoverWidget extends ResizableContentWidget {
 		return {
 			position: this._renderedHover.showAtPosition,
 			secondaryPosition: this._renderedHover.showAtSecondaryPosition,
-			positionAffinity: this._renderedHover.isBeforeContent ? PositionAffinity.LeftOfInjectedText : undefined,
+			positionAffinity: this._renderedHover.shouldAppearBeforeContent ? PositionAffinity.LeftOfInjectedText : undefined,
 			preference: [this._positionPreference ?? ContentWidgetPositionPreference.ABOVE]
 		};
 	}

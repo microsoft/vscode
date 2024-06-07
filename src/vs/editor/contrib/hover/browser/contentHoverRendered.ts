@@ -24,7 +24,7 @@ export class RenderedContentHover extends Disposable {
 	public readonly showAtSecondaryPosition: Position;
 	public readonly shouldFocus: boolean;
 	public readonly source: HoverStartSource;
-	public readonly isBeforeContent: boolean;
+	public readonly shouldAppearBeforeContent: boolean;
 
 	private readonly _renderedHoverParts: RenderedContentHoverParts;
 
@@ -46,9 +46,9 @@ export class RenderedContentHover extends Disposable {
 			keybindingService
 		));
 		const { showAtPosition, showAtSecondaryPosition } = RenderedContentHover.computeHoverPositions(editor, anchor.range, parts);
+		this.shouldAppearBeforeContent = parts.some(m => m.isBeforeContent);
 		this.showAtPosition = showAtPosition;
 		this.showAtSecondaryPosition = showAtSecondaryPosition;
-		this.isBeforeContent = parts.some(m => m.isBeforeContent);
 		this.initialMousePosX = anchor.initialMousePosX;
 		this.initialMousePosY = anchor.initialMousePosY;
 		this.shouldFocus = computer.shouldFocus;
