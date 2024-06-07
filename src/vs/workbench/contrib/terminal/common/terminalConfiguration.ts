@@ -637,6 +637,7 @@ export async function registerTerminalConfiguration() {
 	configurationRegistry.registerConfiguration(terminalConfiguration);
 	// TODO load fonts on startup finished
 	const fonts = await getFonts();
+	console.log({ fonts });
 	if (terminalConfiguration.properties) {
 		terminalConfiguration.properties[TerminalSettingId.FontFamily].enum = fonts;
 	}
