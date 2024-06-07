@@ -207,16 +207,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		return this._cells;
 	}
 
-	*cellsForView(): Iterable<NotebookCellTextModel> {
-		if (this.viewType === 'repl') {
-			for (let i = 0; i < this._cells.length - 1; i++) {
-				yield this._cells[i];
-			}
-		} else {
-			yield* this._cells;
-		}
-	}
-
 	get versionId() {
 		return this._versionId;
 	}
