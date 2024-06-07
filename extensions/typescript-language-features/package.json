@@ -47,6 +47,7 @@
     "vscode-uri": "^3.0.3"
   },
   "devDependencies": {
+    "@types/lodash": "^4.17.4",
     "@types/node": "18.x",
     "@types/semver": "^5.5.0"
   },
@@ -869,16 +870,16 @@
           ],
           "enumDescriptions": [
             "%typescript.locale.auto%",
-						"Deutsch",
-						"español",
+            "Deutsch",
+            "español",
             "English",
-						"français",
-						"italiano",
-						"日本語",
-						"한국어",
-						"русский",
-						"中文(简体)",
-						"中文(繁體)"
+            "français",
+            "italiano",
+            "日本語",
+            "한국어",
+            "русский",
+            "中文(简体)",
+            "中文(繁體)"
           ],
           "markdownDescription": "%typescript.locale%",
           "scope": "window"
@@ -1336,7 +1337,9 @@
           "default": false,
           "description": "%configuration.experimental.tsserver.web.typeAcquisition.enabled%",
           "scope": "window",
-          "tags": ["experimental"]
+          "tags": [
+            "experimental"
+          ]
         },
         "typescript.preferGoToSourceDefinition": {
           "type": "boolean",
