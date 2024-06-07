@@ -155,7 +155,7 @@ export class CellComments extends CellContentPart {
 	}
 
 	override didRenderCell(element: ICellViewModel): void {
-		if (element.cellKind === CellKind.Code || element.cellKind === CellKind.Markup) {
+		if (element.cellKind === CellKind.Code) {
 			this.currentElement = element as CodeCellViewModel;
 			this.initialize(element);
 		} else if (element.cellKind === CellKind.Markup) {
