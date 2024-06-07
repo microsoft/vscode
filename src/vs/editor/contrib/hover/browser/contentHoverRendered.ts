@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { HoverAnchor, IEditorHoverContext, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
+import { IEditorHoverContext, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ContentHoverComputer } from 'vs/editor/contrib/hover/browser/contentHoverComputer';
 import { EditorHoverStatusBar } from 'vs/editor/contrib/hover/browser/contentHoverStatusBar';
@@ -13,6 +13,7 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
+import { HoverResult } from 'vs/editor/contrib/hover/browser/contentHoverTypes';
 
 export class RenderedContentHover extends Disposable {
 
@@ -30,14 +31,15 @@ export class RenderedContentHover extends Disposable {
 
 	constructor(
 		editor: ICodeEditor,
-		parts: IHoverPart[],
+		hoverResult: HoverResult,
 		participants: IEditorHoverParticipant<IHoverPart>[],
-		anchor: HoverAnchor,
 		computer: ContentHoverComputer,
 		context: IEditorHoverContext,
 		keybindingService: IKeybindingService
 	) {
 		super();
+		const anchor = hoverResult.anchor;
+		const parts = hoverResult.hoverParts;
 		this._renderedHoverParts = this._register(new RenderedContentHoverParts(
 			editor,
 			participants,
