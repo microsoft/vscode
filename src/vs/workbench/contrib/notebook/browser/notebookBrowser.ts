@@ -383,6 +383,7 @@ export interface INotebookEditorCreationOptions {
 	};
 	readonly options?: NotebookOptions;
 	readonly codeWindow?: CodeWindow;
+	readonly forRepl?: boolean;
 }
 
 export interface INotebookWebviewMessage {

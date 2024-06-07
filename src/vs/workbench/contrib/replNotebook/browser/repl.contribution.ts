@@ -116,7 +116,7 @@ export class ReplDocumentContribution extends Disposable implements IWorkbenchCo
 			{
 				createUntitledEditorInput: async ({ resource, options }) => {
 					const scratchpad = this.configurationService.getValue<boolean>(NotebookSetting.InteractiveWindowPromptToSave) !== true;
-					const ref = await this.notebookEditorModelResolverService.resolve({ untitledResource: resource, scratchpad }, 'jupyter-notebook');
+					const ref = await this.notebookEditorModelResolverService.resolve({ untitledResource: resource }, 'jupyter-notebook', { scratchpad });
 
 					// untitled notebooks are disposed when they get saved. we should not hold a reference
 					// to such a disposed notebook and therefore dispose the reference as well
@@ -146,7 +146,7 @@ class ReplWindowWorkingCopyEditorHandler extends Disposable implements IWorkbenc
 
 	handles(workingCopy: IWorkingCopyIdentifier): boolean {
 		const viewType = this._getViewType(workingCopy);
-		return !!viewType && viewType === 'repl';
+		return !!viewType && viewType === 'jupyter-notebook' && extname(workingCopy.resource) === '.replNotebook';
 
 	}
 

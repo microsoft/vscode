@@ -359,6 +359,7 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 		this._notebookWidget = <IBorrowValue<NotebookEditorWidget>>this._instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, this.group, input, {
 			isEmbedded: true,
 			isReadOnly: true,
+			forRepl: true,
 			contributions: NotebookEditorExtensionsRegistry.getSomeEditorContributions([
 				ExecutionStateCellStatusBarContrib.id,
 				TimerCellStatusBarContrib.id,
