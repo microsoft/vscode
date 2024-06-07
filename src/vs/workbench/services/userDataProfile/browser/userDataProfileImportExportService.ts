@@ -80,6 +80,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import type { IHoverWidget } from 'vs/base/browser/ui/hover/hover';
 import { IAccessibleViewInformationService } from 'vs/workbench/services/accessibility/common/accessibleViewInformationService';
+import { ILogService } from 'vs/platform/log/common/log';
 
 interface IUserDataProfileTemplate {
 	readonly name: string;
@@ -103,6 +104,7 @@ function isUserDataProfileTemplate(thing: unknown): thing is IUserDataProfileTem
 		&& (isUndefined(candidate.extensions) || typeof candidate.extensions === 'string'));
 }
 
+const EXPORT_PROFILE_PREVIEW_VIEW = 'workbench.views.profiles.export.preview';
 const IMPORT_PROFILE_PREVIEW_VIEW = 'workbench.views.profiles.import.preview';
 
 export class UserDataProfileImportExportService extends Disposable implements IUserDataProfileImportExportService, IURLHandler {
@@ -141,6 +143,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 		this.registerProfileContentHandler(Schemas.file, this.fileUserDataProfileContentHandler = instantiationService.createInstance(FileUserDataProfileContentHandler));
@@ -190,6 +193,15 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		this.profileContentHandlers.delete(id);
 	}
 
+	async exportProfile2(): Promise<void> {
+		if (this.isProfileExportInProgressContextKey.get()) {
+			this.logService.warn('Profile export already in progress.');
+			return;
+		}
+
+		return this.showProfileContents();
+	}
+
 	async importProfile(uri: URI, options?: IProfileImportOptions): Promise<void> {
 		if (this.isProfileImportInProgressContextKey.get()) {
 			this.notificationService.warn('Profile import already in progress.');
@@ -224,6 +236,10 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 
 	createProfile(from?: IUserDataProfile | URI): Promise<void> {
 		return this.saveProfile(undefined, from);
+	}
+
+	editProfile(profile: IUserDataProfile): Promise<void> {
+		return this.saveProfile(profile);
 	}
 
 	async createFromProfile(from: IUserDataProfile, options: IUserDataProfileCreateOptions, token: CancellationToken): Promise<IUserDataProfile | undefined> {
@@ -640,6 +656,36 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			}
 		} catch (error) {
 			this.notificationService.error(error);
+		}
+	}
+
+	async showProfileContents(): Promise<void> {
+		const view = this.viewsService.getViewWithId(EXPORT_PROFILE_PREVIEW_VIEW);
+		if (view) {
+			this.viewsService.openView(view.id, true);
+			return;
+		}
+		const disposables = new DisposableStore();
+		try {
+			const userDataProfilesExportState = disposables.add(this.instantiationService.createInstance(UserDataProfileExportState, this.userDataProfileService.currentProfile, undefined));
+			const barrier = new Barrier();
+			const exportAction = new BarrierAction(barrier, new Action('export', localize('export', "Export"), undefined, true, async () => {
+				exportAction.enabled = false;
+				try {
+					await this.doExportProfile(userDataProfilesExportState, EXPORT_PROFILE_PREVIEW_VIEW);
+				} catch (error) {
+					exportAction.enabled = true;
+					this.notificationService.error(error);
+					throw error;
+				}
+			}), this.notificationService);
+			const closeAction = new BarrierAction(barrier, new Action('close', localize('close', "Close")), this.notificationService);
+			await this.showProfilePreviewView(EXPORT_PROFILE_PREVIEW_VIEW, userDataProfilesExportState.profile.name, exportAction, closeAction, true, userDataProfilesExportState);
+			disposables.add(this.userDataProfileService.onDidChangeCurrentProfile(e => barrier.open()));
+			await barrier.wait();
+			await this.hideProfilePreviewView(EXPORT_PROFILE_PREVIEW_VIEW);
+		} finally {
+			disposables.dispose();
 		}
 	}
 
