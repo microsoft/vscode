@@ -27,8 +27,7 @@ suite('Content Hover', () => {
 				actual,
 				{
 					showAtPosition: new Position(5, 5),
-					showAtSecondaryPosition: new Position(5, 5),
-					highlightRange: new Range(4, 1, 5, 6)
+					showAtSecondaryPosition: new Position(5, 5)
 				}
 			);
 		});
@@ -47,8 +46,7 @@ suite('Content Hover', () => {
 				actual,
 				{
 					showAtPosition: new Position(1, 8),
-					showAtSecondaryPosition: new Position(1, 6),
-					highlightRange: new Range(1, 1, 1, 15)
+					showAtSecondaryPosition: new Position(1, 6)
 				}
 			);
 		});
