@@ -10,7 +10,7 @@ import { DirtyDiffWorkbenchController } from './dirtydiffDecorator';
 import { VIEWLET_ID, ISCMService, VIEW_PANE_ID, ISCMProvider, ISCMViewService, REPOSITORIES_VIEW_PANE_ID } from 'vs/workbench/contrib/scm/common/scm';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
-import { SCMActiveRepositoryContextKeyController, SCMActiveResourceContextKeyController, SCMStatusController } from './activity';
+import { SCMActiveRepositoryContextKeyController, SCMActiveResourceContextKeyController, SCMActivityCountBadgeController, SCMStatusController } from './activity';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -111,6 +111,9 @@ viewsRegistry.registerViews([{
 	// readonly when = ContextKeyExpr.or(ContextKeyExpr.equals('config.scm.alwaysShowProviders', true), ContextKeyExpr.and(ContextKeyExpr.notEquals('scm.providerCount', 0), ContextKeyExpr.notEquals('scm.providerCount', 1)));
 	containerIcon: sourceControlViewIcon
 }], viewContainer);
+
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
+	.registerWorkbenchContribution(SCMActivityCountBadgeController, LifecyclePhase.Restored);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(SCMActiveResourceContextKeyController, LifecyclePhase.Restored);
