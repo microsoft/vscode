@@ -230,10 +230,9 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 	get acceptInputCommand(): Command | undefined { return this.features.acceptInputCommand; }
 	get actionButton(): ISCMActionButtonDescriptor | undefined { return this.features.actionButton ?? undefined; }
 	get statusBarCommands(): Command[] | undefined { return this.features.statusBarCommands; }
-	get count(): number | undefined { return this.features.count; }
 
-	private readonly _countObs = observableValue<number | undefined>(this, undefined);
-	get countObs() { return this._countObs; }
+	private readonly _count = observableValue<number | undefined>(this, undefined);
+	get count() { return this._count; }
 
 	private readonly _statusBarCommandsObs = observableValue<readonly Command[] | undefined>(this, undefined);
 	get statusBarCommandsObs() { return this._statusBarCommandsObs; }
@@ -288,7 +287,7 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 		}
 
 		if (typeof features.count !== 'undefined') {
-			this._countObs.set(features.count, undefined);
+			this._count.set(features.count, undefined);
 		}
 
 		if (typeof features.statusBarCommands !== 'undefined') {

@@ -73,8 +73,7 @@ export interface ISCMProvider extends IDisposable {
 
 	readonly rootUri?: URI;
 	readonly inputBoxTextModel: ITextModel;
-	readonly count?: number;
-	readonly countObs: IObservable<number | undefined>;
+	readonly count: IObservable<number | undefined>;
 	readonly commitTemplate: IObservable<string>;
 	readonly historyProvider?: ISCMHistoryProvider;
 	readonly onDidChangeHistoryProvider: Event<void>;
@@ -175,7 +174,9 @@ export interface ISCMService {
 	readonly repositoryCount: number;
 
 	registerSCMProvider(provider: ISCMProvider): ISCMRepository;
+
 	getRepository(id: string): ISCMRepository | undefined;
+	getRepository(resource: URI): ISCMRepository | undefined;
 }
 
 export interface ISCMTitleMenu {

@@ -6,7 +6,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
+import { IManagedHover } from 'vs/base/browser/ui/hover/hover';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { CachedListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
@@ -425,7 +425,7 @@ export class ReplAccessibilityProvider implements IListAccessibilityProvider<IRe
 class SourceWidget extends Disposable {
 	private readonly el: HTMLElement;
 	private source?: IReplElementSource;
-	private hover?: IUpdatableHover;
+	private hover?: IManagedHover;
 
 	constructor(container: HTMLElement,
 		@IEditorService editorService: IEditorService,
@@ -453,7 +453,7 @@ class SourceWidget extends Disposable {
 		this.source = source;
 		this.el.textContent = source ? `${basename(source.source.name)}:${source.lineNumber}` : '';
 
-		this.hover ??= this._register(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), this.el, ''));
+		this.hover ??= this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this.el, ''));
 		this.hover.update(source ? `${this.labelService.getUriLabel(source.source.uri)}:${source.lineNumber}` : '');
 	}
 }

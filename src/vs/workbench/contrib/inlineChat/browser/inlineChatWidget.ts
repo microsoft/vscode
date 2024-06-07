@@ -285,7 +285,7 @@ export class InlineChatWidget {
 		this._updateAriaLabel();
 
 		// this._elements.status
-		this._store.add(this._hoverService.setupUpdatableHover(getDefaultHoverDelegate('element'), this._elements.statusLabel, () => {
+		this._store.add(this._hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this._elements.statusLabel, () => {
 			return this._elements.statusLabel.dataset['title'];
 		}));
 

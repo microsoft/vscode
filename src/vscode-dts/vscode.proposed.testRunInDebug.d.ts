@@ -3,10 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-editor {
-	--vscode-editor-placeholder-foreground: rgba(0, 0, 0, 0.5);
-}
+declare module 'vscode' {
 
-.monaco-editor .placeholder-text {
-	color: var(--vscode-editor-placeholder-foreground);
+	// https://github.com/microsoft/vscode/issues/214486
+
+	export interface DebugSessionOptions {
+		/**
+		 * Signals to the editor that the debug session was started from a test run
+		 * request. This is used to link the lifecycle of the debug session and
+		 * test run in UI actions.
+		 */
+		testRun?: TestRun;
+	}
 }
