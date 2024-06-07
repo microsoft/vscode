@@ -117,7 +117,7 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 		}));
 
 		templateData.elementDisposables.add(autorun(reader => {
-			const count = repository.provider.countObs.read(reader) ?? getRepositoryResourceCount(repository.provider);
+			const count = repository.provider.count.read(reader) ?? getRepositoryResourceCount(repository.provider);
 			templateData.countContainer.setAttribute('data-count', String(count));
 			templateData.count.setCount(count);
 		}));

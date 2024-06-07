@@ -448,12 +448,12 @@ export class InlineChatWidget {
 		if (!viewModel) {
 			return undefined;
 		}
-		for (const item of viewModel.getItems()) {
-			if (isResponseVM(item)) {
-				return viewModel.codeBlockModelCollection.get(viewModel.sessionId, item, codeBlockIndex)?.model;
-			}
+		const items = viewModel.getItems().filter(i => isResponseVM(i));
+		if (!items.length) {
+			return;
 		}
-		return undefined;
+		const item = items[items.length - 1];
+		return viewModel.codeBlockModelCollection.get(viewModel.sessionId, item, codeBlockIndex)?.model;
 	}
 
 	get responseContent(): string | undefined {

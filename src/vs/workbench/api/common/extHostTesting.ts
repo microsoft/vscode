@@ -16,10 +16,11 @@ import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { isDefined } from 'vs/base/common/types';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IExtensionDescription, IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostTestingShape, ILocationDto, MainContext, MainThreadTestingShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
+import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
+import { IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { ExtHostTestItemCollection, TestItemImpl, TestItemRootImpl, toItemFromContext } from 'vs/workbench/api/common/extHostTestItem';
 import * as Convert from 'vs/workbench/api/common/extHostTypeConverters';
@@ -45,7 +46,14 @@ let followupCounter = 0;
 
 const testResultInternalIDs = new WeakMap<vscode.TestRunResult, string>();
 
+export const IExtHostTesting = createDecorator<IExtHostTesting>('IExtHostTesting');
+export interface IExtHostTesting extends ExtHostTesting {
+	readonly _serviceBrand: undefined;
+}
+
 export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
+	declare readonly _serviceBrand: undefined;
+
 	private readonly resultsChangedEmitter = this._register(new Emitter<void>());
 	protected readonly controllers = new Map</* controller ID */ string, ControllerInfo>();
 	private readonly proxy: MainThreadTestingShape;
@@ -61,8 +69,8 @@ export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 	constructor(
 		@IExtHostRpcService rpc: IExtHostRpcService,
 		@ILogService private readonly logService: ILogService,
-		private readonly commands: ExtHostCommands,
-		private readonly editors: ExtHostDocumentsAndEditors,
+		@IExtHostCommands private readonly commands: IExtHostCommands,
+		@IExtHostDocumentsAndEditors private readonly editors: IExtHostDocumentsAndEditors,
 	) {
 		super();
 		this.proxy = rpc.getProxy(MainContext.MainThreadTesting);
@@ -110,6 +118,8 @@ export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 			};
 		});
 	}
+
+	//#region public API
 
 	/**
 	 * Implements vscode.test.registerTestProvider
@@ -236,6 +246,9 @@ export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 		return { dispose: () => { this.followupProviders.delete(provider); } };
 	}
 
+	//#endregion
+
+	//#region RPC methods
 	/**
 	 * @inheritdoc
 	 */
@@ -412,6 +425,32 @@ export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 		return this.commands.executeCommand(command.command, ...(command.arguments || []));
 	}
 
+	/**
+	 * Cancels an ongoing test run.
+	 */
+	public $cancelExtensionTestRun(runId: string | undefined) {
+		if (runId === undefined) {
+			this.runTracker.cancelAllRuns();
+		} else {
+			this.runTracker.cancelRunById(runId);
+		}
+	}
+
+	//#endregion
+
+	public getMetadataForRun(run: vscode.TestRun) {
+		for (const tracker of this.runTracker.trackers) {
+			const taskId = tracker.getTaskIdForRun(run);
+			if (!taskId) {
+				return undefined;
+			}
+
+			return { taskId, runId: tracker.id };
+		}
+
+		return undefined;
+	}
+
 	private async runControllerTestRequest(req: ICallProfileRunHandler | ICallProfileRunHandler, isContinuous: boolean, token: CancellationToken): Promise<IStartControllerTestsResult> {
 		const lookup = this.controllers.get(req.controllerId);
 		if (!lookup) {
@@ -465,17 +504,6 @@ export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 					await Event.toPromise(tracker.onEnd);
 				}
 			}
-		}
-	}
-
-	/**
-	 * Cancels an ongoing test run.
-	 */
-	public $cancelExtensionTestRun(runId: string | undefined) {
-		if (runId === undefined) {
-			this.runTracker.cancelAllRuns();
-		} else {
-			this.runTracker.cancelRunById(runId);
 		}
 	}
 }
@@ -541,6 +569,17 @@ class TestRunTracker extends Disposable {
 			didDisposeEmitter.fire();
 			didDisposeEmitter.dispose();
 		}));
+	}
+
+	/** Gets the task ID from a test run object. */
+	public getTaskIdForRun(run: vscode.TestRun) {
+		for (const [taskId, { run: r }] of this.tasks) {
+			if (r === run) {
+				return taskId;
+			}
+		}
+
+		return undefined;
 	}
 
 	/** Requests cancellation of the run. On the second call, forces cancellation. */
