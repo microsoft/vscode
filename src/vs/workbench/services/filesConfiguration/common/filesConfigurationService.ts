@@ -13,7 +13,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IFilesConfiguration, AutoSaveConfiguration, HotExitConfiguration, FILES_READONLY_INCLUDE_CONFIG, FILES_READONLY_EXCLUDE_CONFIG, IFileStatWithMetadata, IFileService, IBaseFileStat, hasReadonlyCapability, IFilesConfigurationNode } from 'vs/platform/files/common/files';
 import { equals } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
-import { isWeb } from 'vs/base/common/platform';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
 import { GlobalIdleValue } from 'vs/base/common/async';
@@ -120,7 +119,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 	declare readonly _serviceBrand: undefined;
 
 	private static readonly DEFAULT_AUTO_SAVE_MODE = AutoSaveConfiguration.OFF;
-	private static readonly DEFAULT_AUTO_SAVE_DELAY = 1000;
+	private static readonly DEFAULT_AUTO_SAVE_DELAY = 0;
 
 	private static readonly READONLY_MESSAGES = {
 		providerReadonly: { value: localize('providerReadonly', "Editor is read-only because the file system of the file is read-only."), isTrusted: true },
@@ -326,7 +325,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		let isOutOfWorkspace: boolean | undefined;
 		let isShortAutoSaveDelay: boolean | undefined;
 
-		switch (filesConfiguration.autoSave ?? FilesConfigurationService.DEFAULT_AUTO_SAVE_MODE) {
+		switch (FilesConfigurationService.DEFAULT_AUTO_SAVE_MODE) {
 			case AutoSaveConfiguration.AFTER_DELAY: {
 				autoSave = 'afterDelay';
 				autoSaveDelay = typeof filesConfiguration.autoSaveDelay === 'number' && filesConfiguration.autoSaveDelay >= 0 ? filesConfiguration.autoSaveDelay : FilesConfigurationService.DEFAULT_AUTO_SAVE_DELAY;
