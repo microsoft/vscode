@@ -637,11 +637,6 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				this.actionToolBar.context = undefined;
 
 				this.editorToolbarMenuDisposables.add(this.actionToolBar.actionRunner);
-
-				// On startup there might not be an editor group yet, so we need to update the toolbar context once we have one
-				if (this.editorActionsEnabled) {
-					this.editorToolbarMenuDisposables.add(this.editorService.onDidActiveEditorChange(() => this.createActionToolBarMenus({ editorActions: true })));
-				}
 			}
 		}
 
