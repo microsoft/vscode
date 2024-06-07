@@ -24,7 +24,8 @@ export const getFonts = (): string[] => {
 	try {
 		// @ts-ignore
 		const fonts = mainWindow.queryLocalFonts() as FontData[];
-		const families = fonts.map(font => font.family);
+		const fontsArray = [...fonts];
+		const families = fontsArray.map(font => font.family);
 		return families;
 	} catch (error) {
 		console.error(`Failed to query fonts: ${error}`);
