@@ -178,9 +178,6 @@ const terminalConfiguration: IConfigurationNode = {
 		[TerminalSettingId.FontFamily]: {
 			markdownDescription: localize('terminal.integrated.fontFamily', "Controls the font family of the terminal. Defaults to {0}'s value.", '`#editor.fontFamily#`'),
 			type: 'string',
-			get enum() {
-				return getFonts();
-			}
 		},
 		// TODO: Support font ligatures
 		// 'terminal.integrated.fontLigatures': {
@@ -635,9 +632,16 @@ const terminalConfiguration: IConfigurationNode = {
 	}
 };
 
-export function registerTerminalConfiguration() {
+export async function registerTerminalConfiguration() {
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 	configurationRegistry.registerConfiguration(terminalConfiguration);
+	// TODO load fonts on startup finished
+	const fonts = await getFonts();
+	if (terminalConfiguration.properties) {
+
+		terminalConfiguration.properties[TerminalSettingId.FontFamily].enum = fonts;
+	}
+
 }
 
 Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
