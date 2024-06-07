@@ -20,7 +20,7 @@ interface FontData {
 	readonly family: string;
 }
 
-export const getFonts = async (): Promise<readonly string[]> => {
+export const getFonts = (): readonly string[] => {
 	try {
 		// @ts-ignore
 		const fonts = mainWindow.queryLocalFonts() as FontData[];
