@@ -49,6 +49,9 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	 */
 	static activeChatWidget?: TerminalChatController;
 
+	private static _storageKey = 'terminal-inline-chat-history';
+	private static _promptHistory: string[] = [];
+
 	/**
 	 * The chat widget for the controller, this is lazy as we don't want to instantiate it until
 	 * both it's required and xterm is ready.
@@ -84,8 +87,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	}
 
 	private _sessionCtor: CancelablePromise<void> | undefined;
-	private static _storageKey = 'terminal-inline-chat-history';
-	private static _promptHistory: string[] = [];
 	private _historyOffset: number = -1;
 	private _historyCandidate: string = '';
 	private _historyUpdate: (prompt: string) => void;

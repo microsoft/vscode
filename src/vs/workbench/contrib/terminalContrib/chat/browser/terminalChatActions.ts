@@ -361,11 +361,9 @@ registerActiveXtermAction({
 registerActiveXtermAction({
 	id: TerminalChatCommandId.PreviousFromHistory,
 	title: localize2('previousFromHitory', 'Previous From History'),
-	precondition: ContextKeyExpr.and(
-		TerminalChatContextKeys.focused,
-	),
+	precondition: TerminalChatContextKeys.focused,
 	keybinding: {
-		when: ContextKeyExpr.and(TerminalChatContextKeys.focused),
+		when: TerminalChatContextKeys.focused,
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyCode.UpArrow,
 	},
@@ -382,11 +380,9 @@ registerActiveXtermAction({
 registerActiveXtermAction({
 	id: TerminalChatCommandId.NextFromHistory,
 	title: localize2('nextFromHitory', 'Next From History'),
-	precondition: ContextKeyExpr.and(
-		TerminalChatContextKeys.focused,
-	),
+	precondition: TerminalChatContextKeys.focused,
 	keybinding: {
-		when: ContextKeyExpr.and(TerminalChatContextKeys.focused),
+		when: TerminalChatContextKeys.focused,
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyCode.DownArrow,
 	},
