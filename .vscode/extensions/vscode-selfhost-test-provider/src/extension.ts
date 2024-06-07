@@ -119,7 +119,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				map,
 				task,
 				kind === vscode.TestRunProfileKind.Debug
-					? await runner.debug(currentArgs, req.include)
+					? await runner.debug(task, currentArgs, req.include)
 					: await runner.run(currentArgs, req.include),
 				coverageDir,
 				cancellationToken

@@ -15,7 +15,7 @@ import 'vs/css!./toggle';
 import { isActiveElement, $, addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
+import type { IManagedHover } from 'vs/base/browser/ui/hover/hover';
 import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
 
 export interface IToggleOpts extends IToggleStyles {
@@ -113,7 +113,7 @@ export class Toggle extends Widget {
 	readonly domNode: HTMLElement;
 
 	private _checked: boolean;
-	private _hover: IUpdatableHover;
+	private _hover: IManagedHover;
 
 	constructor(opts: IToggleOpts) {
 		super();
@@ -134,7 +134,7 @@ export class Toggle extends Widget {
 		}
 
 		this.domNode = document.createElement('div');
-		this._hover = this._register(getBaseLayerHoverDelegate().setupUpdatableHover(opts.hoverDelegate ?? getDefaultHoverDelegate('mouse'), this.domNode, this._opts.title));
+		this._hover = this._register(getBaseLayerHoverDelegate().setupManagedHover(opts.hoverDelegate ?? getDefaultHoverDelegate('mouse'), this.domNode, this._opts.title));
 		this.domNode.classList.add(...classes);
 		if (!this._opts.notFocusable) {
 			this.domNode.tabIndex = 0;

@@ -1356,7 +1356,7 @@ export class IssueReporter extends Disposable {
 		const showLoading = this.getElementById('ext-loading')!;
 		show(showLoading);
 		while (showLoading.firstChild) {
-			showLoading.removeChild(showLoading.firstChild);
+			showLoading.firstChild.remove();
 		}
 		showLoading.append(element);
 
@@ -1377,7 +1377,7 @@ export class IssueReporter extends Disposable {
 		const hideLoading = this.getElementById('ext-loading')!;
 		hide(hideLoading);
 		if (hideLoading.firstChild) {
-			hideLoading.removeChild(element);
+			element.remove();
 		}
 		this.renderBlocks();
 	}

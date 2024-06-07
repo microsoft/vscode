@@ -116,14 +116,44 @@ __vsc_escape_value() {
 
 	for (( i=0; i < "${#str}"; ++i )); do
 		byte="${str:$i:1}"
-
-		# Escape backslashes, semi-colons specially, then special ASCII chars below space (0x20)
+		# Escape backslashes, semi-colons specially, then special ASCII chars below space (0x20).
+		# This is done in an unwrapped loop instead of using printf as the latter is very slow.
 		if [ "$byte" = "\\" ]; then
 			token="\\\\"
 		elif [ "$byte" = ";" ]; then
 			token="\\x3b"
-		elif (( $(builtin printf '%d' "'$byte") < 31 )); then
-			token=$(builtin printf '\\x%02x' "'$byte")
+		elif [ "$byte" = $'\x00' ]; then token="\\x00"
+		elif [ "$byte" = $'\x01' ]; then token="\\x01"
+		elif [ "$byte" = $'\x02' ]; then token="\\x02"
+		elif [ "$byte" = $'\x03' ]; then token="\\x03"
+		elif [ "$byte" = $'\x04' ]; then token="\\x04"
+		elif [ "$byte" = $'\x05' ]; then token="\\x05"
+		elif [ "$byte" = $'\x06' ]; then token="\\x06"
+		elif [ "$byte" = $'\x07' ]; then token="\\x07"
+		elif [ "$byte" = $'\x08' ]; then token="\\x08"
+		elif [ "$byte" = $'\x09' ]; then token="\\x09"
+		elif [ "$byte" = $'\x0a' ]; then token="\\x0a"
+		elif [ "$byte" = $'\x0b' ]; then token="\\x0b"
+		elif [ "$byte" = $'\x0c' ]; then token="\\x0c"
+		elif [ "$byte" = $'\x0d' ]; then token="\\x0d"
+		elif [ "$byte" = $'\x0e' ]; then token="\\x0e"
+		elif [ "$byte" = $'\x0f' ]; then token="\\x0f"
+		elif [ "$byte" = $'\x10' ]; then token="\\x10"
+		elif [ "$byte" = $'\x11' ]; then token="\\x11"
+		elif [ "$byte" = $'\x12' ]; then token="\\x12"
+		elif [ "$byte" = $'\x13' ]; then token="\\x13"
+		elif [ "$byte" = $'\x14' ]; then token="\\x14"
+		elif [ "$byte" = $'\x15' ]; then token="\\x15"
+		elif [ "$byte" = $'\x16' ]; then token="\\x16"
+		elif [ "$byte" = $'\x17' ]; then token="\\x17"
+		elif [ "$byte" = $'\x18' ]; then token="\\x18"
+		elif [ "$byte" = $'\x19' ]; then token="\\x19"
+		elif [ "$byte" = $'\x1a' ]; then token="\\x1a"
+		elif [ "$byte" = $'\x1b' ]; then token="\\x1b"
+		elif [ "$byte" = $'\x1c' ]; then token="\\x1c"
+		elif [ "$byte" = $'\x1d' ]; then token="\\x1d"
+		elif [ "$byte" = $'\x1e' ]; then token="\\x1e"
+		elif [ "$byte" = $'\x1f' ]; then token="\\x1f"
 		else
 			token="$byte"
 		fi
@@ -166,6 +196,11 @@ unset VSCODE_NONCE
 builtin printf "\e]633;P;ContinuationPrompt=$(echo "$PS2" | sed 's/\x1b/\\\\x1b/g')\a"
 
 __vsc_report_prompt() {
+	# HACK: Git bash is too slow at reporting the prompt, so skip for now
+	if [ "$__vsc_is_windows" = "1" ]; then
+		return
+	fi
+
 	# Expand the original PS1 similarly to how bash would normally
 	# See https://stackoverflow.com/a/37137981 for technique
 	if ((BASH_VERSINFO[0] >= 5 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 4))); then
