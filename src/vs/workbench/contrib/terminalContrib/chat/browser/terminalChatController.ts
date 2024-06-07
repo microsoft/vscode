@@ -7,7 +7,7 @@ import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
-import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IChatCodeBlockContextProviderService, showChatView } from 'vs/workbench/contrib/chat/browser/chat';
@@ -168,6 +168,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 				}
 			}
 		});
+		this._register(toDisposable(() => this._sessionCtor?.cancel()));
 	}
 
 	private _forcedPlaceholder: string | undefined = undefined;
