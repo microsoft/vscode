@@ -14,6 +14,8 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { HoverResult } from 'vs/editor/contrib/hover/browser/contentHoverTypes';
+import * as dom from 'vs/base/browser/dom';
+import * as nls from 'vs/nls';
 
 export class RenderedContentHover extends Disposable {
 
@@ -63,6 +65,18 @@ export class RenderedContentHover extends Disposable {
 
 	public get domNodeHasChildren(): boolean {
 		return this._renderedHoverParts.domNodeHasChildren;
+	}
+
+	public get focusedHoverPartIndex(): number {
+		return this._renderedHoverParts.focusedHoverPartIndex;
+	}
+
+	public getAccessibleWidgetContent(): string | undefined {
+		return this._renderedHoverParts.getAccessibleWidgetContent();
+	}
+
+	public getAccessibleWidgetContentAtIndex(index: number): string {
+		return this._renderedHoverParts.getAccessibleWidgetContentAtIndex(index);
 	}
 
 	public static computeHoverPositions(editor: ICodeEditor, anchorRange: Range, hoverParts: IHoverPart[]): { showAtPosition: Position; showAtSecondaryPosition: Position } {
@@ -116,6 +130,7 @@ export class RenderedContentHover extends Disposable {
 	}
 }
 
+// Make objects themselves disposable
 class RenderedContentHoverParts extends Disposable {
 
 	private static readonly _DECORATION_OPTIONS = ModelDecorationOptions.register({
@@ -124,7 +139,10 @@ class RenderedContentHoverParts extends Disposable {
 	});
 
 	private readonly _participants: IEditorHoverParticipant<IHoverPart>[];
+	private readonly _renderedParts: RenderedPart[] = [];
 	private readonly _fragment: DocumentFragment;
+
+	private _focusedHoverPartIndex: number = -1;
 
 	constructor(
 		editor: ICodeEditor,
@@ -138,8 +156,13 @@ class RenderedContentHoverParts extends Disposable {
 		this._fragment = document.createDocumentFragment();
 		const statusBar = new EditorHoverStatusBar(keybindingService);
 		const hoverContext: IEditorHoverRenderContext = { fragment: this._fragment, statusBar, ...context };
-		this._register(this._renderHoverParts(hoverContext, hoverParts));
-		this._register(this._renderStatusBar(this._fragment, statusBar));
+		const renderedHoverParts = this._renderHoverParts(hoverContext, hoverParts);
+		this._renderedParts.push(...renderedHoverParts.renderedHoverParts);
+		this._register(renderedHoverParts.disposables);
+		const renderedHoverStatusBar = this._renderStatusBar(this._fragment, statusBar);
+		if (renderedHoverStatusBar.renderedHoverPart) { this._renderedParts.push(renderedHoverStatusBar.renderedHoverPart); }
+		this._register(renderedHoverStatusBar.disposables);
+		this._register(this._registerListenersOnRenderedParts());
 		this._register(this._addEditorDecorations(editor, hoverParts));
 	}
 
@@ -162,25 +185,73 @@ class RenderedContentHoverParts extends Disposable {
 		});
 	}
 
-	private _renderHoverParts(context: IEditorHoverRenderContext, hoverParts: IHoverPart[]): IDisposable {
-		const disposables = new DisposableStore();
+	private _renderHoverParts(context: IEditorHoverRenderContext, hoverParts: IHoverPart[]): { renderedHoverParts: RenderedHoverPart[]; disposables: IDisposable } {
+		const renderedHoverPartsArray: RenderedHoverPart[] = [];
+		const disposableStore = new DisposableStore();
 		for (const participant of this._participants) {
 			const hoverPartsForParticipant = hoverParts.filter(hoverPart => hoverPart.owner === participant);
 			const hasHoverPartsForParticipant = hoverPartsForParticipant.length > 0;
 			if (!hasHoverPartsForParticipant) {
 				continue;
 			}
-			disposables.add(participant.renderHoverParts(context, hoverPartsForParticipant));
+			const renderedHoverParts = participant.renderHoverParts(context, hoverPartsForParticipant);
+			disposableStore.add(renderedHoverParts.disposables);
+			renderedHoverParts.renderedHoverParts.forEach(renderedHoverPart => {
+				renderedHoverPartsArray.push({
+					brand: 'renderedHoverPart',
+					element: renderedHoverPart.element,
+					hoverPart: renderedHoverPart.hoverPart,
+					participant
+				});
+			});
 		}
+		return { renderedHoverParts: renderedHoverPartsArray, disposables: disposableStore };
+	}
+
+	private _renderStatusBar(fragment: DocumentFragment, statusBar: EditorHoverStatusBar): { renderedHoverPart: RenderedHoverStatusBar | undefined; disposables: IDisposable } {
+		if (!statusBar.hasContent) {
+			return { renderedHoverPart: undefined, disposables: Disposable.None };
+		}
+		fragment.appendChild(statusBar.hoverElement);
+		return { renderedHoverPart: { brand: 'renderedStatusBar', element: statusBar.hoverElement }, disposables: statusBar };
+	}
+
+	private _registerListenersOnRenderedParts(): IDisposable {
+		const disposables = new DisposableStore();
+		this._renderedParts.map((renderedPart: RenderedPart, index: number) => {
+			const element = renderedPart.element;
+			element.tabIndex = 0;
+			disposables.add(dom.addDisposableListener(element, dom.EventType.FOCUS_IN, (event: Event) => {
+				event.stopPropagation();
+				this._focusedHoverPartIndex = index;
+			}));
+			disposables.add(dom.addDisposableListener(element, dom.EventType.FOCUS_OUT, (event: Event) => {
+				event.stopPropagation();
+				this._focusedHoverPartIndex = -1;
+			}));
+		});
 		return disposables;
 	}
 
-	private _renderStatusBar(fragment: DocumentFragment, statusBar: EditorHoverStatusBar): IDisposable {
-		if (!statusBar.hasContent) {
-			return Disposable.None;
+	public getAccessibleWidgetContent(): string | undefined {
+		const content: string[] = [];
+		for (let i = 0; i < this._renderedParts.length; i++) {
+			content.push(this.getAccessibleWidgetContentAtIndex(i));
 		}
-		fragment.appendChild(statusBar.hoverElement);
-		return statusBar;
+		return content.join('\n\n');
+	}
+
+	public getAccessibleWidgetContentAtIndex(index: number): string {
+		const renderedHoverPart = this._renderedParts[index];
+		switch (renderedHoverPart.brand) {
+			case `renderedStatusBar`: {
+				return nls.localize('hoverAccessibilityStatusBar', 'There is a status bar here.');
+			}
+			case `renderedHoverPart`: {
+				const { participant, hoverPart } = renderedHoverPart;
+				return participant.getAccessibleContent(hoverPart);
+			}
+		}
 	}
 
 	public get domNode(): DocumentFragment {
@@ -190,4 +261,22 @@ class RenderedContentHoverParts extends Disposable {
 	public get domNodeHasChildren(): boolean {
 		return this._fragment.hasChildNodes();
 	}
+
+	public get focusedHoverPartIndex(): number {
+		return this._focusedHoverPartIndex;
+	}
 }
+
+interface RenderedHoverPart {
+	readonly brand: 'renderedHoverPart';
+	readonly element: HTMLElement;
+	readonly hoverPart: IHoverPart;
+	readonly participant: IEditorHoverParticipant<IHoverPart>;
+}
+
+interface RenderedHoverStatusBar {
+	readonly brand: 'renderedStatusBar';
+	readonly element: HTMLElement;
+}
+
+type RenderedPart = RenderedHoverPart | RenderedHoverStatusBar;

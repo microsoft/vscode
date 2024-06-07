@@ -23,27 +23,11 @@ import { HoverResult } from 'vs/editor/contrib/hover/browser/contentHoverTypes';
 import { Emitter } from 'vs/base/common/event';
 import { ColorHoverParticipant } from 'vs/editor/contrib/colorPicker/browser/colorHoverParticipant';
 import { RenderedContentHover } from 'vs/editor/contrib/hover/browser/contentHoverRendered';
-import * as nls from 'vs/nls';
-
-interface RenderedHoverPart {
-	readonly brand: `renderedHoverPart`;
-	readonly element: HTMLElement;
-	readonly hoverPart: IHoverPart;
-	readonly participant: IEditorHoverParticipant<IHoverPart>;
-}
-
-interface RenderedHoverStatusBar {
-	readonly brand: `renderedStatusBar`;
-	readonly element: HTMLElement;
-}
-
-type RenderedPart = RenderedHoverPart | RenderedHoverStatusBar;
 
 export class ContentHoverController extends Disposable implements IHoverWidget {
 
 	private _currentResult: HoverResult | null = null;
-	private _renderedParts: RenderedPart[] = [];
-	private _focusedHoverPartIndex: number = -1;
+	private _renderedContentHover: RenderedContentHover | undefined;
 
 	private readonly _computer: ContentHoverComputer;
 	private readonly _contentHoverWidget: ContentHoverWidget;
@@ -238,11 +222,11 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 
 	private _showHover(hoverResult: HoverResult): void {
 		const context = this._getHoverContext();
-		const renderedHover = new RenderedContentHover(this._editor, hoverResult, this._participants, this._computer, context, this._keybindingService);
-		if (renderedHover.domNodeHasChildren) {
-			this._contentHoverWidget.show(renderedHover);
+		this._renderedContentHover = new RenderedContentHover(this._editor, hoverResult, this._participants, this._computer, context, this._keybindingService);
+		if (this._renderedContentHover.domNodeHasChildren) {
+			this._contentHoverWidget.show(this._renderedContentHover);
 		} else {
-			renderedHover.dispose();
+			this._renderedContentHover.dispose();
 		}
 	}
 
@@ -322,13 +306,6 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		this._markdownHoverParticipant?.updateMarkdownHoverVerbosityLevel(action, index, focus);
 	}
 
-	public focusedMarkdownHoverIndex(): number {
-		return this._markdownHoverParticipant?.focusedMarkdownHoverIndex() ?? -1;
-	}
-
-	public focusedHoverPartIndex(): number {
-		return this._focusedHoverPartIndex;
-	}
 
 	public doesMarkdownHoverAtIndexSupportVerbosityAction(index: number, action: HoverVerbosityAction): boolean {
 		return this._markdownHoverParticipant?.doesMarkdownHoverAtIndexSupportVerbosityAction(index, action) ?? false;
@@ -343,24 +320,19 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 	}
 
 	public getAccessibleWidgetContent(): string | undefined {
-		const content: string[] = [];
-		for (let i = 0; i < this._renderedParts.length; i++) {
-			content.push(this.getAccessibleWidgetContentAtIndex(i));
-		}
-		return content.join('\n\n');
+		return this._renderedContentHover?.getAccessibleWidgetContent();
 	}
 
-	public getAccessibleWidgetContentAtIndex(index: number): string {
-		const renderedHoverPart = this._renderedParts[index];
-		switch (renderedHoverPart.brand) {
-			case `renderedStatusBar`: {
-				return nls.localize('hoverAccessibilityStatusBar', 'There is a status bar here.');
-			}
-			case `renderedHoverPart`: {
-				const { participant, hoverPart } = renderedHoverPart;
-				return participant.getAccessibleContent(hoverPart);
-			}
-		}
+	public getAccessibleWidgetContentAtIndex(index: number): string | undefined {
+		return this._renderedContentHover?.getAccessibleWidgetContentAtIndex(index);
+	}
+
+	public focusedMarkdownHoverIndex(): number {
+		return this._markdownHoverParticipant?.focusedMarkdownHoverIndex() ?? -1;
+	}
+
+	public focusedHoverPartIndex(): number {
+		return this._renderedContentHover?.focusedHoverPartIndex ?? -1;
 	}
 
 	public containsNode(node: Node | null | undefined): boolean {

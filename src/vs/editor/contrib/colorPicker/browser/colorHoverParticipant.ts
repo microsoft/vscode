@@ -170,8 +170,8 @@ export class StandaloneColorPickerParticipant {
 		}
 	}
 
-	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: StandaloneColorPickerHover[]): IDisposable {
-		return renderHoverParts(this, this._editor, this._themeService, hoverParts, context)?.disposables ?? Disposable.None;
+	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: StandaloneColorPickerHover[]): { disposables: IDisposable; hoverPart: StandaloneColorPickerHover; colorPicker: ColorPickerWidget } | undefined {
+		return renderHoverParts(this, this._editor, this._themeService, hoverParts, context);
 	}
 
 	public set color(color: Color | null) {

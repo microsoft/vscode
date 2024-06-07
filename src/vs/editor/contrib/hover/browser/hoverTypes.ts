@@ -120,6 +120,7 @@ export interface IEditorHoverRenderContext extends IEditorHoverContext {
 	readonly statusBar: IEditorHoverStatusBar;
 }
 
+// Make actual disposable class maybe?
 export interface RenderedHoverPart<T extends IHoverPart = IHoverPart> {
 	/**
 	 * Rendered hover part.
@@ -131,13 +132,24 @@ export interface RenderedHoverPart<T extends IHoverPart = IHoverPart> {
 	element: HTMLElement;
 }
 
+export interface RenderedHoverParts<T extends IHoverPart = IHoverPart> {
+	/**
+	 * Disposable part.
+	 */
+	disposables: IDisposable;
+	/**
+	 * Rendered hover part.
+	 */
+	renderedHoverParts: RenderedHoverPart<T>[];
+}
+
 export interface IEditorHoverParticipant<T extends IHoverPart = IHoverPart> {
 	readonly hoverOrdinal: number;
 	suggestHoverAnchor?(mouseEvent: IEditorMouseEvent): HoverAnchor | null;
 	computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): T[];
 	computeAsync?(anchor: HoverAnchor, lineDecorations: IModelDecoration[], token: CancellationToken): AsyncIterableObject<T>;
 	createLoadingMessage?(anchor: HoverAnchor): T | null;
-	renderHoverParts(context: IEditorHoverRenderContext, hoverParts: T[]): { disposables: IDisposable; renderedHoverParts: RenderedHoverPart<T>[] };
+	renderHoverParts(context: IEditorHoverRenderContext, hoverParts: T[]): RenderedHoverParts<T>;
 	getAccessibleContent(hoverPart: T): string;
 	handleResize?(): void;
 }
