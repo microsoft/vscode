@@ -29,7 +29,13 @@ export async function startVsCodeServer(connection: Connection) {
 		slugifier = md.githubSlugifier;
 
 		tokenize(document: md.ITextDocument): Promise<md.Token[]> {
-			return connection.sendRequest(protocol.parse, { uri: document.uri.toString() });
+			return connection.sendRequest(protocol.parse, {
+				uri: document.uri,
+
+				// Clients won't be able to read temp documents.
+				// Send along the full text for parsing.
+				text: document.version < 0 ? document.getText() : undefined
+			});
 		}
 	};
 
@@ -109,6 +115,7 @@ export async function startServer(connection: Connection, serverConfig: {
 				documentLinkProvider: { resolveProvider: true },
 				documentSymbolProvider: true,
 				foldingRangeProvider: true,
+				hoverProvider: true,
 				referencesProvider: true,
 				renameProvider: { prepareProvider: true, },
 				selectionRangeProvider: true,
@@ -244,6 +251,15 @@ export async function startServer(connection: Connection, serverConfig: {
 		}
 
 		return codeAction;
+	});
+
+	connection.onHover(async (params, token) => {
+		const document = documents.get(params.textDocument.uri);
+		if (!document) {
+			return null;
+		}
+
+		return mdLs!.getHover(document, params.position, token);
 	});
 
 	connection.onRequest(protocol.getReferencesToFileInWorkspace, (async (params: { uri: string }, token: CancellationToken) => {

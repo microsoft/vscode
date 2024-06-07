@@ -33,7 +33,7 @@ import { ContextKeyExpr, IContextKey, IContextKeyService, IScopedContextKeyServi
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IExtensionGalleryService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -80,7 +80,6 @@ import { ExtensionContainers, ExtensionEditorTab, ExtensionState, IExtension, IE
 import { ExtensionsInput, IExtensionEditorOptions } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 import { DEFAULT_MARKDOWN_STYLES, renderMarkdownDocument } from 'vs/workbench/contrib/markdown/browser/markdownDocumentRenderer';
-import { ShowCurrentReleaseNotesActionId } from 'vs/workbench/contrib/update/common/update';
 import { IWebview, IWebviewService, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -201,7 +200,7 @@ class VersionWidget extends ExtensionWithDifferentGalleryVersionWidget {
 	) {
 		super();
 		this.element = append(container, $('code.version'));
-		this._register(hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), this.element, localize('extension version', "Extension Version")));
+		this._register(hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this.element, localize('extension version', "Extension Version")));
 		this.render();
 	}
 	render(): void {
@@ -288,11 +287,11 @@ export class ExtensionEditor extends EditorPane {
 		const details = append(header, $('.details'));
 		const title = append(details, $('.title'));
 		const name = append(title, $('span.name.clickable', { role: 'heading', tabIndex: 0 }));
-		this._register(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), name, localize('name', "Extension name")));
+		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), name, localize('name', "Extension name")));
 		const versionWidget = new VersionWidget(title, this.hoverService);
 
 		const preview = append(title, $('span.preview'));
-		this._register(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), preview, localize('preview', "Preview")));
+		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), preview, localize('preview', "Preview")));
 		preview.textContent = localize('preview', "Preview");
 
 		const builtin = append(title, $('span.builtin'));
@@ -300,7 +299,7 @@ export class ExtensionEditor extends EditorPane {
 
 		const subtitle = append(details, $('.subtitle'));
 		const publisher = append(append(subtitle, $('.subtitle-entry')), $('.publisher.clickable', { tabIndex: 0 }));
-		this._register(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), publisher, localize('publisher', "Publisher")));
+		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), publisher, localize('publisher', "Publisher")));
 		publisher.setAttribute('role', 'button');
 		const publisherDisplayName = append(publisher, $('.publisher-name'));
 		const verifiedPublisherWidget = this.instantiationService.createInstance(VerifiedPublisherWidget, append(publisher, $('.verified-publisher')), false);
@@ -309,11 +308,11 @@ export class ExtensionEditor extends EditorPane {
 		resource.setAttribute('role', 'button');
 
 		const installCount = append(append(subtitle, $('.subtitle-entry')), $('span.install', { tabIndex: 0 }));
-		this._register(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), installCount, localize('install count', "Install count")));
+		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), installCount, localize('install count', "Install count")));
 		const installCountWidget = this.instantiationService.createInstance(InstallCountWidget, installCount, false);
 
 		const rating = append(append(subtitle, $('.subtitle-entry')), $('span.rating.clickable', { tabIndex: 0 }));
-		this._register(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), rating, localize('rating', "Rating")));
+		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), rating, localize('rating', "Rating")));
 		rating.setAttribute('role', 'link'); // #132645
 		const ratingsWidget = this.instantiationService.createInstance(RatingsWidget, rating, false);
 
@@ -553,14 +552,14 @@ export class ExtensionEditor extends EditorPane {
 			const workspaceFolder = this.contextService.getWorkspaceFolder(location);
 			if (workspaceFolder && extension.isWorkspaceScoped) {
 				template.resource.parentElement?.classList.add('clickable');
-				this.transientDisposables.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), template.resource, this.uriIdentityService.extUri.relativePath(workspaceFolder.uri, location)));
+				this.transientDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), template.resource, this.uriIdentityService.extUri.relativePath(workspaceFolder.uri, location)));
 				template.resource.textContent = localize('workspace extension', "Workspace Extension");
 				this.transientDisposables.add(onClick(template.resource, () => {
 					this.viewsService.openView(EXPLORER_VIEW_ID, true).then(() => this.explorerService.select(location, true));
 				}));
 			} else {
 				template.resource.parentElement?.classList.remove('clickable');
-				this.transientDisposables.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), template.resource, location.path));
+				this.transientDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), template.resource, location.path));
 				template.resource.textContent = localize('local extension', "Local Extension");
 			}
 		}
@@ -692,16 +691,16 @@ export class ExtensionEditor extends EditorPane {
 		switch (id) {
 			case ExtensionEditorTab.Readme: return this.openDetails(extension, template, token);
 			case ExtensionEditorTab.Features: return this.openFeatures(template, token);
-			case ExtensionEditorTab.Changelog: return this.openChangelog(template, token);
+			case ExtensionEditorTab.Changelog: return this.openChangelog(extension, template, token);
 			case ExtensionEditorTab.Dependencies: return this.openExtensionDependencies(extension, template, token);
 			case ExtensionEditorTab.ExtensionPack: return this.openExtensionPack(extension, template, token);
 		}
 		return Promise.resolve(null);
 	}
 
-	private async openMarkdown(cacheResult: CacheResult<string>, noContentCopy: string, container: HTMLElement, webviewIndex: WebviewIndex, title: string, token: CancellationToken): Promise<IActiveElement | null> {
+	private async openMarkdown(extension: IExtension, cacheResult: CacheResult<string>, noContentCopy: string, container: HTMLElement, webviewIndex: WebviewIndex, title: string, token: CancellationToken): Promise<IActiveElement | null> {
 		try {
-			const body = await this.renderMarkdown(cacheResult, container, token);
+			const body = await this.renderMarkdown(extension, cacheResult, container, token);
 			if (token.isCancellationRequested) {
 				return Promise.resolve(null);
 			}
@@ -742,7 +741,7 @@ export class ExtensionEditor extends EditorPane {
 
 			this.contentDisposables.add(this.themeService.onDidColorThemeChange(async () => {
 				// Render again since syntax highlighting of code blocks may have changed
-				const body = await this.renderMarkdown(cacheResult, container);
+				const body = await this.renderMarkdown(extension, cacheResult, container);
 				if (!isDisposed) { // Make sure we weren't disposed of in the meantime
 					webview.setHtml(body);
 				}
@@ -756,8 +755,8 @@ export class ExtensionEditor extends EditorPane {
 				if (matchesScheme(link, Schemas.http) || matchesScheme(link, Schemas.https) || matchesScheme(link, Schemas.mailto)) {
 					this.openerService.open(link);
 				}
-				if (matchesScheme(link, Schemas.command) && URI.parse(link).path === ShowCurrentReleaseNotesActionId) {
-					this.openerService.open(link, { allowCommands: true }); // TODO@sandy081 use commands service
+				if (matchesScheme(link, Schemas.command) && extension.type === ExtensionType.System) {
+					this.openerService.open(link, { allowCommands: true });
 				}
 			}));
 
@@ -769,13 +768,13 @@ export class ExtensionEditor extends EditorPane {
 		}
 	}
 
-	private async renderMarkdown(cacheResult: CacheResult<string>, container: HTMLElement, token?: CancellationToken): Promise<string> {
+	private async renderMarkdown(extension: IExtension, cacheResult: CacheResult<string>, container: HTMLElement, token?: CancellationToken): Promise<string> {
 		const contents = await this.loadContents(() => cacheResult, container);
 		if (token?.isCancellationRequested) {
 			return '';
 		}
 
-		const content = await renderMarkdownDocument(contents, this.extensionService, this.languageService, true, false, token);
+		const content = await renderMarkdownDocument(contents, this.extensionService, this.languageService, extension.type !== ExtensionType.System, false, token);
 		if (token?.isCancellationRequested) {
 			return '';
 		}
@@ -860,9 +859,9 @@ export class ExtensionEditor extends EditorPane {
 		let activeElement: IActiveElement | null = null;
 		const manifest = await this.extensionManifest!.get().promise;
 		if (manifest && manifest.extensionPack?.length && this.shallRenderAsExtensionPack(manifest)) {
-			activeElement = await this.openExtensionPackReadme(manifest, readmeContainer, token);
+			activeElement = await this.openExtensionPackReadme(extension, manifest, readmeContainer, token);
 		} else {
-			activeElement = await this.openMarkdown(this.extensionReadme!.get(), localize('noReadme', "No README available."), readmeContainer, WebviewIndex.Readme, localize('Readme title', "Readme"), token);
+			activeElement = await this.openMarkdown(extension, this.extensionReadme!.get(), localize('noReadme', "No README available."), readmeContainer, WebviewIndex.Readme, localize('Readme title', "Readme"), token);
 		}
 
 		this.renderAdditionalDetails(additionalDetailsContainer, extension);
@@ -873,7 +872,7 @@ export class ExtensionEditor extends EditorPane {
 		return !!(manifest.categories?.some(category => category.toLowerCase() === 'extension packs'));
 	}
 
-	private async openExtensionPackReadme(manifest: IExtensionManifest, container: HTMLElement, token: CancellationToken): Promise<IActiveElement | null> {
+	private async openExtensionPackReadme(extension: IExtension, manifest: IExtensionManifest, container: HTMLElement, token: CancellationToken): Promise<IActiveElement | null> {
 		if (token.isCancellationRequested) {
 			return Promise.resolve(null);
 		}
@@ -902,7 +901,7 @@ export class ExtensionEditor extends EditorPane {
 
 		await Promise.all([
 			this.renderExtensionPack(manifest, extensionPackContent, token),
-			this.openMarkdown(this.extensionReadme!.get(), localize('noReadme', "No README available."), readmeContent, WebviewIndex.Readme, localize('Readme title', "Readme"), token),
+			this.openMarkdown(extension, this.extensionReadme!.get(), localize('noReadme', "No README available."), readmeContent, WebviewIndex.Readme, localize('Readme title', "Readme"), token),
 		]);
 
 		return { focus: () => extensionPackContent.focus() };
@@ -969,7 +968,7 @@ export class ExtensionEditor extends EditorPane {
 			for (const [label, uri] of resources) {
 				const resource = append(resourcesElement, $('a.resource', { tabindex: '0' }, label));
 				this.transientDisposables.add(onClick(resource, () => this.openerService.open(uri)));
-				this.transientDisposables.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), resource, uri.toString()));
+				this.transientDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), resource, uri.toString()));
 			}
 		}
 	}
@@ -1007,8 +1006,8 @@ export class ExtensionEditor extends EditorPane {
 			));
 	}
 
-	private openChangelog(template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
-		return this.openMarkdown(this.extensionChangelog!.get(), localize('noChangelog', "No Changelog available."), template.content, WebviewIndex.Changelog, localize('Changelog title', "Changelog"), token);
+	private openChangelog(extension: IExtension, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
+		return this.openMarkdown(extension, this.extensionChangelog!.get(), localize('noChangelog', "No Changelog available."), template.content, WebviewIndex.Changelog, localize('Changelog title', "Changelog"), token);
 	}
 
 	private async openFeatures(template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {

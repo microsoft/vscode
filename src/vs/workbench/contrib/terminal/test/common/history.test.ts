@@ -46,15 +46,13 @@ suite('Terminal history', () => {
 	suite('TerminalPersistedHistory', () => {
 		let history: ITerminalPersistedHistory<number>;
 		let instantiationService: TestInstantiationService;
-		let storageService: TestStorageService;
 		let configurationService: TestConfigurationService;
 
 		setup(() => {
 			configurationService = new TestConfigurationService(getConfig(5));
-			storageService = store.add(new TestStorageService());
 			instantiationService = store.add(new TestInstantiationService());
 			instantiationService.set(IConfigurationService, configurationService);
-			instantiationService.set(IStorageService, storageService);
+			instantiationService.set(IStorageService, store.add(new TestStorageService()));
 
 			history = store.add(instantiationService.createInstance(TerminalPersistedHistory<number>, 'test'));
 		});

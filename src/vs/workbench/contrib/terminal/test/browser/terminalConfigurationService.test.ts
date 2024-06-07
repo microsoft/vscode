@@ -6,6 +6,7 @@
 import { notStrictEqual, strictEqual } from 'assert';
 import { getActiveWindow } from 'vs/base/browser/dom';
 import { mainWindow } from 'vs/base/browser/window';
+import { isLinux } from 'vs/base/common/platform';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -13,23 +14,23 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ITerminalConfigurationService, LinuxDistro } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalConfigurationService } from 'vs/workbench/contrib/terminal/browser/terminalConfigurationService';
+import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 class TestTerminalConfigurationService extends TerminalConfigurationService {
 	get fontMetrics() { return this._fontMetrics; }
 }
 
 suite('Workbench - TerminalConfigurationService', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
 	let configurationService: TestConfigurationService;
 	let terminalConfigurationService: ITerminalConfigurationService;
 
 	setup(() => {
-		const instantiationService = new TestInstantiationService();
-		configurationService = new TestConfigurationService();
-		instantiationService.set(IConfigurationService, configurationService);
-		terminalConfigurationService = instantiationService.createInstance(TerminalConfigurationService);
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+		terminalConfigurationService = instantiationService.get(ITerminalConfigurationService);
 	});
-
-	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('config', () => {
 		test('should update on any change to terminal.integrated', () => {
@@ -219,7 +220,7 @@ suite('Workbench - TerminalConfigurationService', () => {
 					}
 				}
 			});
-			strictEqual(terminalConfigurationService.getFont(getActiveWindow()).lineHeight, 1, 'editor.lineHeight should be 1 when terminal.integrated.lineHeight not set');
+			strictEqual(terminalConfigurationService.getFont(getActiveWindow()).lineHeight, isLinux ? 1.1 : 1, 'editor.lineHeight should be the default when terminal.integrated.lineHeight not set');
 		});
 	});
 

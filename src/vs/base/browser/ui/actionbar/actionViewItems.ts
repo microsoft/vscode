@@ -19,7 +19,7 @@ import * as platform from 'vs/base/common/platform';
 import * as types from 'vs/base/common/types';
 import 'vs/css!./actionbar';
 import * as nls from 'vs/nls';
-import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
+import type { IManagedHover } from 'vs/base/browser/ui/hover/hover';
 import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
 
 export interface IBaseActionViewItemOptions {
@@ -36,7 +36,7 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 	_context: unknown;
 	readonly _action: IAction;
 
-	private customHover?: IUpdatableHover;
+	private customHover?: IManagedHover;
 
 	get action() {
 		return this._action;
@@ -233,7 +233,7 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 		} else {
 			if (!this.customHover && title !== '') {
 				const hoverDelegate = this.options.hoverDelegate ?? getDefaultHoverDelegate('element');
-				this.customHover = this._store.add(getBaseLayerHoverDelegate().setupUpdatableHover(hoverDelegate, this.element, title));
+				this.customHover = this._store.add(getBaseLayerHoverDelegate().setupManagedHover(hoverDelegate, this.element, title));
 			} else if (this.customHover) {
 				this.customHover.update(title);
 			}

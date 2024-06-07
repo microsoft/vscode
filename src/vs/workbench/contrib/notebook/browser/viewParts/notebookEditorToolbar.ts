@@ -320,7 +320,8 @@ export class NotebookEditorWorkbenchToolbar extends Disposable {
 
 		const context = {
 			ui: true,
-			notebookEditor: this.notebookEditor
+			notebookEditor: this.notebookEditor,
+			source: 'notebookToolbar'
 		};
 
 		const actionProvider = (action: IAction, options: IActionViewItemOptions) => {
@@ -415,7 +416,7 @@ export class NotebookEditorWorkbenchToolbar extends Disposable {
 				this._renderLabel = this._convertConfiguration(this.configurationService.getValue<RenderLabelWithFallback>(NotebookSetting.globalToolbarShowLabel));
 				this._updateStrategy();
 				const oldElement = this._notebookLeftToolbar.getElement();
-				oldElement.parentElement?.removeChild(oldElement);
+				oldElement.remove();
 				this._notebookLeftToolbar.dispose();
 
 				this._notebookLeftToolbar = this.instantiationService.createInstance(

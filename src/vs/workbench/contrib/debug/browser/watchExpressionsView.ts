@@ -34,7 +34,7 @@ import { AbstractExpressionDataSource, AbstractExpressionsRenderer, IExpressionT
 import { watchExpressionsAdd, watchExpressionsRemoveAll } from 'vs/workbench/contrib/debug/browser/debugIcons';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { VariablesRenderer, VisualizedVariableRenderer } from 'vs/workbench/contrib/debug/browser/variablesView';
-import { CONTEXT_CAN_VIEW_MEMORY, CONTEXT_VARIABLE_IS_READONLY, CONTEXT_WATCH_EXPRESSIONS_EXIST, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_WATCH_ITEM_TYPE, IDebugService, IExpression, WATCH_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
+import { CONTEXT_CAN_VIEW_MEMORY, CONTEXT_VARIABLE_IS_READONLY, CONTEXT_WATCH_EXPRESSIONS_EXIST, CONTEXT_WATCH_EXPRESSIONS_FOCUSED, CONTEXT_WATCH_ITEM_TYPE, IDebugConfiguration, IDebugService, IExpression, WATCH_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
 import { Expression, Variable, VisualizedExpression } from 'vs/workbench/contrib/debug/common/debugModel';
 
 const MAX_VALUE_RENDER_LENGTH_IN_VIEWLET = 1024;
@@ -109,9 +109,7 @@ export class WatchExpressionsView extends ViewPane {
 				}
 			},
 			dnd: new WatchExpressionsDragAndDrop(this.debugService),
-			overrideStyles: {
-				listBackground: this.getBackgroundColor()
-			}
+			overrideStyles: this.getLocationBasedColors().listOverrideStyles
 		});
 		this.tree.setInput(this.debugService);
 		CONTEXT_WATCH_EXPRESSIONS_FOCUSED.bindTo(this.tree.contextKeyService);
@@ -276,7 +274,7 @@ class WatchExpressionsDataSource extends AbstractExpressionDataSource<IDebugServ
 }
 
 
-class WatchExpressionsRenderer extends AbstractExpressionsRenderer {
+export class WatchExpressionsRenderer extends AbstractExpressionsRenderer {
 
 	static readonly ID = 'watchexpression';
 
@@ -286,6 +284,7 @@ class WatchExpressionsRenderer extends AbstractExpressionsRenderer {
 		@IDebugService debugService: IDebugService,
 		@IContextViewService contextViewService: IContextViewService,
 		@IHoverService hoverService: IHoverService,
+		@IConfigurationService private configurationService: IConfigurationService,
 	) {
 		super(debugService, contextViewService, hoverService);
 	}
@@ -295,16 +294,36 @@ class WatchExpressionsRenderer extends AbstractExpressionsRenderer {
 	}
 
 	public override renderElement(node: ITreeNode<IExpression, FuzzyScore>, index: number, data: IExpressionTemplateData): void {
+		data.elementDisposable.clear();
+		data.elementDisposable.add(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('debug.showVariableTypes')) {
+				super.renderExpressionElement(node.element, node, data);
+			}
+		}));
 		super.renderExpressionElement(node.element, node, data);
 	}
 
 	protected renderExpression(expression: IExpression, data: IExpressionTemplateData, highlights: IHighlight[]): void {
-		const text = typeof expression.value === 'string' ? `${expression.name}:` : expression.name;
+		let text: string;
+		data.type.textContent = '';
+		const showType = this.configurationService.getValue<IDebugConfiguration>('debug').showVariableTypes;
+		if (showType && expression.type) {
+			text = typeof expression.value === 'string' ? `${expression.name}: ` : expression.name;
+			//render type
+			data.type.textContent = expression.type + ' =';
+		} else {
+			text = typeof expression.value === 'string' ? `${expression.name} =` : expression.name;
+		}
+
 		let title: string;
 		if (expression.type) {
-			title = expression.type === expression.value ?
-				expression.type :
-				`${expression.type}: ${expression.value}`;
+			if (showType) {
+				title = `${expression.name}`;
+			} else {
+				title = expression.type === expression.value ?
+					expression.type :
+					`${expression.type}`;
+			}
 		} else {
 			title = expression.value;
 		}
@@ -423,7 +442,7 @@ class WatchExpressionsDragAndDrop implements ITreeDragAndDrop<IExpression> {
 			}
 		}
 
-		return { accept: true, effect: { type: ListDragOverEffectType.Move, position: dropEffectPosition }, feedback: [targetIndex] } as ITreeDragOverReaction;
+		return { accept: true, effect: { type: ListDragOverEffectType.Move, position: dropEffectPosition }, feedback: [targetIndex] } satisfies ITreeDragOverReaction;
 	}
 
 	getDragURI(element: IExpression): string | null {

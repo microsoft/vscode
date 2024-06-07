@@ -6,6 +6,7 @@
 import { addDisposableListener, isKeyboardEvent } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { distinct } from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -25,18 +26,19 @@ import { Constants } from 'vs/base/common/uint';
 import { URI } from 'vs/base/common/uri';
 import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
 import { ICodeEditor, IEditorMouseEvent, IPartialEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { IEditorHoverOptions } from 'vs/editor/common/config/editorOptions';
+import { EditorOption, IEditorHoverOptions } from 'vs/editor/common/config/editorOptions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { DEFAULT_WORD_REGEXP } from 'vs/editor/common/core/wordHelper';
+import { ScrollType } from 'vs/editor/common/editorCommon';
 import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 import { InlineValue, InlineValueContext } from 'vs/editor/common/languages';
 import { IModelDeltaDecoration, ITextModel, InjectedTextCursorStops } from 'vs/editor/common/model';
 import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IModelService } from 'vs/editor/common/services/model';
-import { HoverController } from 'vs/editor/contrib/hover/browser/hover';
+import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
 import { HoverStartMode, HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
 import * as nls from 'vs/nls';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
@@ -207,7 +209,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 	private toDispose: IDisposable[];
 	private hoverWidget: DebugHoverWidget;
-	private hoverPosition: Position | null = null;
+	private hoverPosition?: { position: Position; event: IMouseEvent };
 	private mouseDown = false;
 	private exceptionWidgetVisible: IContextKey<boolean>;
 	private gutterIsHovered = false;
@@ -340,7 +342,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 				if (debugHoverWasVisible && this.hoverPosition) {
 					// If the debug hover was visible immediately show the editor hover for the alt transition to be smooth
-					this.showEditorHover(this.hoverPosition, false);
+					this.showEditorHover(this.hoverPosition.position, false);
 				}
 
 				const onKeyUp = new DomEmitter(ownerDocument, 'keyup');
@@ -360,14 +362,14 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		});
 	}
 
-	async showHover(position: Position, focus: boolean): Promise<void> {
+	async showHover(position: Position, focus: boolean, mouseEvent?: IMouseEvent): Promise<void> {
 		// normally will already be set in `showHoverScheduler`, but public callers may hit this directly:
 		this.preventDefaultEditorHover();
 
 		const sf = this.debugService.getViewModel().focusedStackFrame;
 		const model = this.editor.getModel();
 		if (sf && model && this.uriIdentityService.extUri.isEqual(sf.source.uri, model.uri)) {
-			const result = await this.hoverWidget.showAt(position, focus);
+			const result = await this.hoverWidget.showAt(position, focus, mouseEvent);
 			if (result === ShowDebugHoverResult.NOT_AVAILABLE) {
 				// When no expression available fallback to editor hover
 				this.showEditorHover(position, focus);
@@ -437,7 +439,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private get showHoverScheduler() {
 		const scheduler = new RunOnceScheduler(() => {
 			if (this.hoverPosition && !this.altPressed) {
-				this.showHover(this.hoverPosition, false);
+				this.showHover(this.hoverPosition.position, false, this.hoverPosition.event);
 			}
 		}, this.hoverDelay);
 		this.toDispose.push(scheduler);
@@ -492,8 +494,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		}
 
 		if (target.type === MouseTargetType.CONTENT_TEXT) {
-			if (target.position && !Position.equals(target.position, this.hoverPosition)) {
-				this.hoverPosition = target.position;
+			if (target.position && !Position.equals(target.position, this.hoverPosition?.position || null) && !this.hoverWidget.isInSafeTriangle(mouseEvent.event.posx, mouseEvent.event.posy)) {
+				this.hoverPosition = { position: target.position, event: mouseEvent.event };
 				// Disable the editor hover during the request to avoid flickering
 				this.preventDefaultEditorHover();
 				this.showHoverScheduler.schedule(this.hoverDelay);
@@ -641,6 +643,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		return new RunOnceScheduler(
 			() => {
 				this.displayedStore.clear();
+				this.oldDecorations.clear();
 			},
 			100
 		);
@@ -803,9 +806,26 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				decoration => `${decoration.range.startLineNumber}:${decoration?.options.after?.content}`);
 		}
 
-		if (!cts.token.isCancellationRequested) {
-			this.oldDecorations.set(allDecorations);
-			this.displayedStore.add(toDisposable(() => this.oldDecorations.clear()));
+		if (cts.token.isCancellationRequested) {
+			return;
+		}
+
+		// If word wrap is on, application of inline decorations may change the scroll position.
+		// Ensure the cursor maintains its vertical position relative to the viewport when
+		// we apply decorations.
+		let preservePosition: { position: Position; top: number } | undefined;
+		if (this.editor.getOption(EditorOption.wordWrap) !== 'off') {
+			const position = this.editor.getPosition();
+			if (position && this.editor.getVisibleRanges().some(r => r.containsPosition(position))) {
+				preservePosition = { position, top: this.editor.getTopForPosition(position.lineNumber, position.column) };
+			}
+		}
+
+		this.oldDecorations.set(allDecorations);
+
+		if (preservePosition) {
+			const top = this.editor.getTopForPosition(preservePosition.position.lineNumber, preservePosition.position.column);
+			this.editor.setScrollTop(this.editor.getScrollTop() - (preservePosition.top - top), ScrollType.Immediate);
 		}
 	}
 

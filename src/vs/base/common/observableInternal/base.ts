@@ -6,7 +6,7 @@
 import { strictEquals, EqualityComparer } from 'vs/base/common/equals';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { keepObserved, recomputeInitiallyAndOnChange } from 'vs/base/common/observable';
-import { DebugNameData, IDebugNameData, Owner, getFunctionName } from 'vs/base/common/observableInternal/debugName';
+import { DebugNameData, Owner, getFunctionName } from 'vs/base/common/observableInternal/debugName';
 import type { derivedOpts } from 'vs/base/common/observableInternal/derived';
 import { getLogger } from 'vs/base/common/observableInternal/logging';
 
@@ -248,6 +248,10 @@ export abstract class ConvenientObservable<T, TChange> implements IObservable<T,
 	}
 
 	public abstract get debugName(): string;
+
+	protected get debugValue() {
+		return this.get();
+	}
 }
 
 export abstract class BaseObservable<T, TChange = void> extends ConvenientObservable<T, TChange> {
@@ -381,19 +385,6 @@ export function observableValue<T, TChange = void>(nameOrOwner: string | object,
 	return new ObservableValue(debugNameData, initialValue, strictEquals);
 }
 
-export function observableValueOpts<T>(
-	options: IDebugNameData & {
-		equalsFn?: EqualityComparer<T>;
-	},
-	initialValue: T
-): ISettableObservable<T> {
-	return new ObservableValue(
-		new DebugNameData(options.owner, options.debugName, undefined),
-		initialValue,
-		options.equalsFn ?? strictEquals,
-	);
-}
-
 export class ObservableValue<T, TChange = void>
 	extends BaseObservable<T, TChange>
 	implements ISettableObservable<T, TChange> {
@@ -416,7 +407,7 @@ export class ObservableValue<T, TChange = void>
 	}
 
 	public set(value: T, tx: ITransaction | undefined, change: TChange): void {
-		if (this._equalityComparator(this._value, value)) {
+		if (change === undefined && this._equalityComparator(this._value, value)) {
 			return;
 		}
 

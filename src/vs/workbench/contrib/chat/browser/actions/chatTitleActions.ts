@@ -16,7 +16,7 @@ import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { IChatService, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatService, ChatAgentVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { isRequestVM, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellEditType, CellKind, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -50,17 +50,16 @@ export function registerChatTitleActions() {
 
 			const chatService = accessor.get(IChatService);
 			chatService.notifyUserAction({
-				providerId: item.providerId,
 				agentId: item.agent?.id,
 				sessionId: item.sessionId,
 				requestId: item.requestId,
 				result: item.result,
 				action: {
 					kind: 'vote',
-					direction: InteractiveSessionVoteDirection.Up,
+					direction: ChatAgentVoteDirection.Up,
 				}
 			});
-			item.setVote(InteractiveSessionVoteDirection.Up);
+			item.setVote(ChatAgentVoteDirection.Up);
 		}
 	});
 
@@ -90,17 +89,16 @@ export function registerChatTitleActions() {
 
 			const chatService = accessor.get(IChatService);
 			chatService.notifyUserAction({
-				providerId: item.providerId,
 				agentId: item.agent?.id,
 				sessionId: item.sessionId,
 				requestId: item.requestId,
 				result: item.result,
 				action: {
 					kind: 'vote',
-					direction: InteractiveSessionVoteDirection.Down,
+					direction: ChatAgentVoteDirection.Down,
 				}
 			});
-			item.setVote(InteractiveSessionVoteDirection.Down);
+			item.setVote(ChatAgentVoteDirection.Down);
 		}
 	});
 
@@ -129,7 +127,6 @@ export function registerChatTitleActions() {
 
 			const chatService = accessor.get(IChatService);
 			chatService.notifyUserAction({
-				providerId: item.providerId,
 				agentId: item.agent?.id,
 				sessionId: item.sessionId,
 				requestId: item.requestId,

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { createHash } from 'crypto';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -37,7 +37,7 @@ flakySuite('BackupMainService', () => {
 
 	function toWorkspace(path: string): IWorkspaceIdentifier {
 		return {
-			id: createHash('md5').update(sanitizePath(path)).digest('hex'),
+			id: createHash('md5').update(sanitizePath(path)).digest('hex'), // CodeQL [SM04514] Using MD5 to convert a file path to a fixed length
 			configPath: URI.file(path)
 		};
 	}
@@ -45,7 +45,7 @@ flakySuite('BackupMainService', () => {
 	function toWorkspaceBackupInfo(path: string, remoteAuthority?: string): IWorkspaceBackupInfo {
 		return {
 			workspace: {
-				id: createHash('md5').update(sanitizePath(path)).digest('hex'),
+				id: createHash('md5').update(sanitizePath(path)).digest('hex'), // CodeQL [SM04514] Using MD5 to convert a file path to a fixed length
 				configPath: URI.file(path)
 			},
 			remoteAuthority

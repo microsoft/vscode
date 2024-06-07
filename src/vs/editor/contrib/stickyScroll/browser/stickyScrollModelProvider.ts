@@ -308,7 +308,6 @@ class StickyModelFromCandidateOutlineProvider extends StickyModelCandidateProvid
 			return res;
 		}
 	}
-
 }
 
 abstract class StickyModelFromCandidateFoldingProvider extends StickyModelCandidateProvider<FoldingRegions | null> {

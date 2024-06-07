@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Codicon } from 'vs/base/common/codicons';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { GlobalExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
@@ -114,7 +115,7 @@ export class ExtensionsResource implements IProfileResource {
 		return JSON.stringify(exclude?.length ? extensions.filter(e => !exclude.includes(e.identifier.id.toLowerCase())) : extensions);
 	}
 
-	async apply(content: string, profile: IUserDataProfile): Promise<void> {
+	async apply(content: string, profile: IUserDataProfile, progress?: (message: string) => void, token?: CancellationToken): Promise<void> {
 		return this.withProfileScopedServices(profile, async (extensionEnablementService) => {
 			const profileExtensions: IProfileExtension[] = await this.getProfileExtensions(content);
 			const installedExtensions = await this.extensionManagementService.getInstalled(undefined, profile.extensionsResource);
@@ -168,7 +169,17 @@ export class ExtensionsResource implements IProfileResource {
 					}
 				}));
 				if (installExtensionInfos.length) {
-					await this.extensionManagementService.installGalleryExtensions(installExtensionInfos);
+					if (token) {
+						for (const installExtensionInfo of installExtensionInfos) {
+							if (token.isCancellationRequested) {
+								return;
+							}
+							progress?.(localize('installingExtension', "Installing extension {0}...", installExtensionInfo.extension.displayName ?? installExtensionInfo.extension.identifier.id));
+							await this.extensionManagementService.installFromGallery(installExtensionInfo.extension, installExtensionInfo.options);
+						}
+					} else {
+						await this.extensionManagementService.installGalleryExtensions(installExtensionInfos);
+					}
 				}
 				this.logService.info(`Importing Profile (${profile.name}): Finished installing extensions.`);
 			}
@@ -194,7 +205,7 @@ export class ExtensionsResource implements IProfileResource {
 
 	async getLocalExtensions(profile: IUserDataProfile): Promise<IProfileExtension[]> {
 		return this.withProfileScopedServices(profile, async (extensionEnablementService) => {
-			const result: Array<IProfileExtension & { displayName?: string }> = [];
+			const result = new Map<string, IProfileExtension & { displayName?: string }>();
 			const installedExtensions = await this.extensionManagementService.getInstalled(undefined, profile.extensionsResource);
 			const disabledExtensions = extensionEnablementService.getDisabledExtensions();
 			for (const extension of installedExtensions) {
@@ -210,6 +221,11 @@ export class ExtensionsResource implements IProfileResource {
 						continue;
 					}
 				}
+				const existing = result.get(identifier.id.toLowerCase());
+				if (existing?.disabled) {
+					// Remove the duplicate disabled extension
+					result.delete(identifier.id.toLowerCase());
+				}
 				const profileExtension: IProfileExtension = { identifier, displayName: extension.manifest.displayName };
 				if (disabled) {
 					profileExtension.disabled = true;
@@ -220,9 +236,9 @@ export class ExtensionsResource implements IProfileResource {
 				if (!profileExtension.version && preRelease) {
 					profileExtension.preRelease = true;
 				}
-				result.push(profileExtension);
+				result.set(profileExtension.identifier.id.toLowerCase(), profileExtension);
 			}
-			return result;
+			return [...result.values()];
 		});
 	}
 
@@ -234,7 +250,7 @@ export class ExtensionsResource implements IProfileResource {
 		return this.userDataProfileStorageService.withProfileScopedStorageService(profile,
 			async storageService => {
 				const disposables = new DisposableStore();
-				const instantiationService = this.instantiationService.createChild(new ServiceCollection([IStorageService, storageService]));
+				const instantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection([IStorageService, storageService])));
 				const extensionEnablementService = disposables.add(instantiationService.createInstance(GlobalExtensionEnablementService));
 				try {
 					return await fn(extensionEnablementService);
@@ -279,6 +295,7 @@ export abstract class ExtensionsResourceTreeItem implements IProfileResourceTree
 					label: localize('exclude', "Select {0} Extension", e.displayName || e.identifier.id),
 				}
 			} : undefined,
+			themeIcon: Codicon.extensions,
 			command: {
 				id: 'extension.open',
 				title: '',

@@ -8,13 +8,12 @@ import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { localize2 } from 'vs/nls';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { AbstractInlineChatAction } from 'vs/workbench/contrib/inlineChat/browser/inlineChatActions';
-import { CTX_INLINE_CHAT_EMPTY, CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_HAS_PROVIDER } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_EMPTY, CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_HAS_AGENT } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { isDetachedTerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { registerActiveXtermAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import { MENU_TERMINAL_CHAT_INPUT, MENU_TERMINAL_CHAT_WIDGET, MENU_TERMINAL_CHAT_WIDGET_FEEDBACK, MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatCommandId, TerminalChatContextKeys } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
+import { MENU_TERMINAL_CHAT_INPUT, MENU_TERMINAL_CHAT_WIDGET, MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatCommandId, TerminalChatContextKeys } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
 import { TerminalChatController } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatController';
 
 registerActiveXtermAction({
@@ -29,16 +28,28 @@ registerActiveXtermAction({
 	f1: true,
 	category: AbstractInlineChatAction.category,
 	precondition: ContextKeyExpr.and(
-		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 		// TODO: This needs to change to check for a terminal location capable agent
-		CTX_INLINE_CHAT_HAS_PROVIDER
+		CTX_INLINE_CHAT_HAS_AGENT
 	),
-	run: (_xterm, _accessor, activeInstance) => {
+	run: (_xterm, _accessor, activeInstance, opts?: unknown) => {
 		if (isDetachedTerminalInstance(activeInstance)) {
 			return;
 		}
+
 		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+
+		if (opts) {
+			opts = typeof opts === 'string' ? { query: opts } : opts;
+			if (typeof opts === 'object' && opts !== null && 'query' in opts && typeof opts.query === 'string') {
+				contr?.updateInput(opts.query, false);
+				if (!('isPartialQuery' in opts && opts.isPartialQuery)) {
+					contr?.acceptInput();
+				}
+			}
+
+		}
+
 		contr?.reveal();
 	}
 });
@@ -60,7 +71,6 @@ registerActiveXtermAction({
 	},
 	f1: true,
 	precondition: ContextKeyExpr.and(
-		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
 		ContextKeyExpr.and(TerminalChatContextKeys.focused, TerminalChatContextKeys.visible)
 	),
 	run: (_xterm, _accessor, activeInstance) => {
@@ -83,7 +93,6 @@ registerActiveXtermAction({
 	f1: true,
 	category: AbstractInlineChatAction.category,
 	precondition: ContextKeyExpr.and(
-		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
 		TerminalChatContextKeys.focused
 	),
 	run: (_xterm, _accessor, activeInstance) => {
@@ -107,7 +116,6 @@ registerActiveXtermAction({
 	f1: true,
 	category: AbstractInlineChatAction.category,
 	precondition: ContextKeyExpr.and(
-		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
 		TerminalChatContextKeys.focused
 	),
 	run: (_xterm, _accessor, activeInstance) => {
@@ -135,7 +143,6 @@ registerActiveXtermAction({
 	},
 	f1: true,
 	precondition: ContextKeyExpr.and(
-		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 		TerminalChatContextKeys.focused,
 		TerminalChatContextKeys.responseContainsCodeBlock
@@ -155,10 +162,8 @@ registerActiveXtermAction({
 	title: localize2('runCommand', 'Run Chat Command'),
 	shortTitle: localize2('run', 'Run'),
 	precondition: ContextKeyExpr.and(
-		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 		TerminalChatContextKeys.requestActive.negate(),
-		TerminalChatContextKeys.agentRegistered,
 		TerminalChatContextKeys.responseContainsCodeBlock,
 		TerminalChatContextKeys.responseContainsMultipleCodeBlocks.negate()
 	),
@@ -188,10 +193,8 @@ registerActiveXtermAction({
 	title: localize2('runFirstCommand', 'Run First Chat Command'),
 	shortTitle: localize2('runFirst', 'Run First'),
 	precondition: ContextKeyExpr.and(
-		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 		TerminalChatContextKeys.requestActive.negate(),
-		TerminalChatContextKeys.agentRegistered,
 		TerminalChatContextKeys.responseContainsMultipleCodeBlocks
 	),
 	icon: Codicon.play,
@@ -220,10 +223,8 @@ registerActiveXtermAction({
 	title: localize2('insertCommand', 'Insert Chat Command'),
 	shortTitle: localize2('insert', 'Insert'),
 	precondition: ContextKeyExpr.and(
-		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 		TerminalChatContextKeys.requestActive.negate(),
-		TerminalChatContextKeys.agentRegistered,
 		TerminalChatContextKeys.responseContainsCodeBlock,
 		TerminalChatContextKeys.responseContainsMultipleCodeBlocks.negate()
 	),
@@ -253,10 +254,8 @@ registerActiveXtermAction({
 	title: localize2('insertFirstCommand', 'Insert First Chat Command'),
 	shortTitle: localize2('insertFirst', 'Insert First'),
 	precondition: ContextKeyExpr.and(
-		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 		TerminalChatContextKeys.requestActive.negate(),
-		TerminalChatContextKeys.agentRegistered,
 		TerminalChatContextKeys.responseContainsMultipleCodeBlocks
 	),
 	keybinding: {
@@ -284,10 +283,8 @@ registerActiveXtermAction({
 	id: TerminalChatCommandId.ViewInChat,
 	title: localize2('viewInChat', 'View in Chat'),
 	precondition: ContextKeyExpr.and(
-		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 		TerminalChatContextKeys.requestActive.negate(),
-		TerminalChatContextKeys.agentRegistered,
 	),
 	icon: Codicon.commentDiscussion,
 	menu: [{
@@ -315,10 +312,8 @@ registerActiveXtermAction({
 	id: TerminalChatCommandId.MakeRequest,
 	title: localize2('makeChatRequest', 'Make Chat Request'),
 	precondition: ContextKeyExpr.and(
-		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 		TerminalChatContextKeys.requestActive.negate(),
-		TerminalChatContextKeys.agentRegistered,
 		CTX_INLINE_CHAT_EMPTY.negate()
 	),
 	icon: Codicon.send,
@@ -346,9 +341,7 @@ registerActiveXtermAction({
 	id: TerminalChatCommandId.Cancel,
 	title: localize2('cancelChat', 'Cancel Chat'),
 	precondition: ContextKeyExpr.and(
-		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
 		TerminalChatContextKeys.requestActive,
-		TerminalChatContextKeys.agentRegistered
 	),
 	icon: Codicon.debugStop,
 	menu: {
@@ -366,26 +359,39 @@ registerActiveXtermAction({
 });
 
 registerActiveXtermAction({
-	id: TerminalChatCommandId.FeedbackReportIssue,
-	title: localize2('reportIssue', 'Report Issue'),
-	precondition: ContextKeyExpr.and(
-		ContextKeyExpr.has(`config.${TerminalSettingId.ExperimentalInlineChat}`),
-		TerminalChatContextKeys.requestActive.negate(),
-		TerminalChatContextKeys.responseContainsCodeBlock.notEqualsTo(undefined),
-		TerminalChatContextKeys.responseSupportsIssueReporting
-	),
-	icon: Codicon.report,
-	menu: [{
-		id: MENU_TERMINAL_CHAT_WIDGET_FEEDBACK,
-		when: ContextKeyExpr.and(TerminalChatContextKeys.responseContainsCodeBlock.notEqualsTo(undefined), TerminalChatContextKeys.responseSupportsIssueReporting),
-		group: 'inline',
-		order: 3
-	}],
+	id: TerminalChatCommandId.PreviousFromHistory,
+	title: localize2('previousFromHitory', 'Previous From History'),
+	precondition: TerminalChatContextKeys.focused,
+	keybinding: {
+		when: TerminalChatContextKeys.focused,
+		weight: KeybindingWeight.WorkbenchContrib,
+		primary: KeyCode.UpArrow,
+	},
+
 	run: (_xterm, _accessor, activeInstance) => {
 		if (isDetachedTerminalInstance(activeInstance)) {
 			return;
 		}
 		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
-		contr?.acceptFeedback();
+		contr?.populateHistory(true);
+	}
+});
+
+registerActiveXtermAction({
+	id: TerminalChatCommandId.NextFromHistory,
+	title: localize2('nextFromHitory', 'Next From History'),
+	precondition: TerminalChatContextKeys.focused,
+	keybinding: {
+		when: TerminalChatContextKeys.focused,
+		weight: KeybindingWeight.WorkbenchContrib,
+		primary: KeyCode.DownArrow,
+	},
+
+	run: (_xterm, _accessor, activeInstance) => {
+		if (isDetachedTerminalInstance(activeInstance)) {
+			return;
+		}
+		const contr = TerminalChatController.activeChatWidget || TerminalChatController.get(activeInstance);
+		contr?.populateHistory(false);
 	}
 });

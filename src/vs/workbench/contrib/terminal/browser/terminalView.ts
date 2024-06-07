@@ -91,7 +91,7 @@ export class TerminalViewPane extends ViewPane {
 		this._register(this._terminalService.onDidChangeInstances(() => {
 			// If the first terminal is opened, hide the welcome view
 			// and if the last one is closed, show it again
-			if (this._hasWelcomeScreen() && this._terminalService.instances.length <= 1) {
+			if (this._hasWelcomeScreen() && this._terminalGroupService.instances.length <= 1) {
 				this._onDidChangeViewWelcomeState.fire();
 			}
 			if (!this._parentDomElement) { return; }
@@ -100,7 +100,7 @@ export class TerminalViewPane extends ViewPane {
 				this._createTabsView();
 			}
 			// If we just opened our first terminal, layout
-			if (this._terminalService.instances.length === 1) {
+			if (this._terminalGroupService.instances.length === 1) {
 				this.layoutBody(this._parentDomElement.offsetHeight, this._parentDomElement.offsetWidth);
 			}
 		}));
@@ -446,7 +446,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 	override async onClick(event: MouseEvent): Promise<void> {
 		this._terminalGroupService.lastAccessedMenu = 'inline-tab';
 		if (event.altKey && this._menuItemAction.alt) {
-			this._commandService.executeCommand(this._menuItemAction.alt.id, { target: TerminalLocation.Panel } as ICreateTerminalOptions);
+			this._commandService.executeCommand(this._menuItemAction.alt.id, { location: TerminalLocation.Panel } satisfies ICreateTerminalOptions);
 		} else {
 			this._openContextMenu();
 		}
@@ -585,7 +585,7 @@ class TerminalThemeIconStyle extends Themable {
 		super(_themeService);
 		this._registerListeners();
 		this._styleElement = dom.createStyleSheet(container);
-		this._register(toDisposable(() => container.removeChild(this._styleElement)));
+		this._register(toDisposable(() => this._styleElement.remove()));
 		this.updateStyles();
 	}
 

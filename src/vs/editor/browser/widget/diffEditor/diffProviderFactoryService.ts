@@ -67,6 +67,16 @@ export class WorkerBasedDocumentDiffProvider implements IDocumentDiffProvider, I
 			return this.diffAlgorithm.computeDiff(original, modified, options, cancellationToken);
 		}
 
+		if (original.isDisposed() || modified.isDisposed()) {
+			// TODO@hediet
+			return {
+				changes: [],
+				identical: true,
+				quitEarly: false,
+				moves: [],
+			};
+		}
+
 		// This significantly speeds up the case when the original file is empty
 		if (original.getLineCount() === 1 && original.getLineMaxColumn(1) === 1) {
 			if (modified.getLineCount() === 1 && modified.getLineMaxColumn(1) === 1) {

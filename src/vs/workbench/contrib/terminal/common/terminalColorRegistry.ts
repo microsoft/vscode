@@ -120,6 +120,12 @@ export const TERMINAL_TAB_ACTIVE_BORDER = registerColor('terminal.tab.activeBord
 	hcDark: TAB_ACTIVE_BORDER,
 	hcLight: TAB_ACTIVE_BORDER
 }, nls.localize('terminal.tab.activeBorder', 'Border on the side of the terminal tab in the panel. This defaults to tab.activeBorder.'));
+export const TERMINAL_INITIAL_HINT_FOREGROUND = registerColor('terminal.initialHintForeground', {
+	dark: '#ffffff56',
+	light: '#0007',
+	hcDark: null,
+	hcLight: null
+}, nls.localize('terminalInitialHintForeground', 'Foreground color of the terminal initial hint.'));
 
 export const ansiColorMap: { [key: string]: { index: number; defaults: ColorDefaults } } = {
 	'terminal.ansiBlack': {
@@ -143,10 +149,10 @@ export const ansiColorMap: { [key: string]: { index: number; defaults: ColorDefa
 	'terminal.ansiGreen': {
 		index: 2,
 		defaults: {
-			light: '#00BC00',
+			light: '#107C10',
 			dark: '#0DBC79',
 			hcDark: '#00cd00',
-			hcLight: '#00bc00'
+			hcLight: '#136C13'
 		}
 	},
 	'terminal.ansiYellow': {

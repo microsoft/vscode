@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { assertFn } from 'vs/base/common/assert';
-import { strictEquals, EqualityComparer } from 'vs/base/common/equals';
+import { EqualityComparer, strictEquals } from 'vs/base/common/equals';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { BaseObservable, IChangeContext, IObservable, IObserver, IReader, _setDerivedOpts, } from 'vs/base/common/observableInternal/base';
+import { BaseObservable, IChangeContext, IObservable, IObserver, IReader, ISettableObservable, ITransaction, _setDerivedOpts, } from 'vs/base/common/observableInternal/base';
 import { DebugNameData, IDebugNameData, Owner } from 'vs/base/common/observableInternal/debugName';
 import { getLogger } from 'vs/base/common/observableInternal/logging';
 
@@ -36,6 +36,18 @@ export function derived<T>(computeFnOrOwner: ((reader: IReader) => T) | Owner, c
 		undefined,
 		undefined,
 		strictEquals
+	);
+}
+
+export function derivedWithSetter<T>(owner: Owner | undefined, computeFn: (reader: IReader) => T, setter: (value: T, transaction: ITransaction | undefined) => void): ISettableObservable<T> {
+	return new DerivedWithSetter(
+		new DebugNameData(owner, undefined, computeFn),
+		computeFn,
+		undefined,
+		undefined,
+		undefined,
+		strictEquals,
+		setter,
 	);
 }
 
@@ -338,7 +350,7 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 			const shouldReact = this._handleChange ? this._handleChange({
 				changedObservable: observable,
 				change,
-				didChange: o => o === observable as any,
+				didChange: (o): this is any => o === observable as any,
 			}, this.changeSummary!) : true;
 			const wasUpToDate = this.state === DerivedState.upToDate;
 			if (shouldReact && (this.state === DerivedState.dependenciesMightHaveChanged || wasUpToDate)) {
@@ -381,5 +393,27 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 			// Calling end update after removing the observer makes sure endUpdate cannot be called twice here.
 			observer.endUpdate(this);
 		}
+	}
+}
+
+
+export class DerivedWithSetter<T, TChangeSummary = any> extends Derived<T, TChangeSummary> implements ISettableObservable<T> {
+	constructor(
+		debugNameData: DebugNameData,
+		computeFn: (reader: IReader, changeSummary: TChangeSummary) => T,
+		createChangeSummary: (() => TChangeSummary) | undefined,
+		handleChange: ((context: IChangeContext, summary: TChangeSummary) => boolean) | undefined,
+		handleLastObserverRemoved: (() => void) | undefined = undefined,
+		equalityComparator: EqualityComparer<T>,
+		public readonly set: (value: T, tx: ITransaction | undefined) => void,
+	) {
+		super(
+			debugNameData,
+			computeFn,
+			createChangeSummary,
+			handleChange,
+			handleLastObserverRemoved,
+			equalityComparator,
+		);
 	}
 }
