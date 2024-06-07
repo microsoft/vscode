@@ -47,7 +47,6 @@
     "vscode-uri": "^3.0.3"
   },
   "devDependencies": {
-    "@types/lodash": "^4.17.4",
     "@types/node": "18.x",
     "@types/semver": "^5.5.0"
   },
