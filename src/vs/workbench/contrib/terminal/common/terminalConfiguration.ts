@@ -21,6 +21,7 @@ import { terminalTypeAheadConfiguration } from 'vs/workbench/contrib/terminalCon
 import { terminalZoomConfiguration } from 'vs/workbench/contrib/terminalContrib/zoom/common/terminal.zoom'; // eslint-disable-line local/code-import-patterns
 import { terminalSuggestConfiguration } from 'vs/workbench/contrib/terminalContrib/suggest/common/terminalSuggestConfiguration'; // eslint-disable-line local/code-import-patterns
 import { terminalInitialHintConfiguration } from 'vs/workbench/contrib/terminalContrib/chat/common/terminalInitialHintConfiguration';  // eslint-disable-line local/code-import-patterns
+import { getFonts } from 'vs/base/browser/fonts';
 
 const terminalDescriptors = '\n- ' + [
 	'`\${cwd}`: ' + localize("cwd", "the terminal's current working directory"),
@@ -176,7 +177,10 @@ const terminalConfiguration: IConfigurationNode = {
 		},
 		[TerminalSettingId.FontFamily]: {
 			markdownDescription: localize('terminal.integrated.fontFamily', "Controls the font family of the terminal. Defaults to {0}'s value.", '`#editor.fontFamily#`'),
-			type: 'string'
+			type: 'string',
+			get enum() {
+				return getFonts();
+			}
 		},
 		// TODO: Support font ligatures
 		// 'terminal.integrated.fontLigatures': {
