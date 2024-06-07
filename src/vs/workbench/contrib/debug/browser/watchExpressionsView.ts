@@ -86,14 +86,13 @@ export class WatchExpressionsView extends ViewPane {
 		this.element.classList.add('debug-pane');
 		container.classList.add('debug-watch');
 		const treeContainer = renderViewTree(container);
-		const watchDisplayType: boolean = this.configurationService.getValue<IDebugConfiguration>('debug').showVariableTypes;
 
-		const expressionsRenderer = this.instantiationService.createInstance(WatchExpressionsRenderer, watchDisplayType);
+		const expressionsRenderer = this.instantiationService.createInstance(WatchExpressionsRenderer);
 		const linkDetector = this.instantiationService.createInstance(LinkDetector);
 		this.tree = <WorkbenchAsyncDataTree<IDebugService | IExpression, IExpression, FuzzyScore>>this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'WatchExpressions', treeContainer, new WatchExpressionsDelegate(),
 			[
 				expressionsRenderer,
-				this.instantiationService.createInstance(VariablesRenderer, linkDetector, watchDisplayType),
+				this.instantiationService.createInstance(VariablesRenderer, linkDetector),
 				this.instantiationService.createInstance(VisualizedVariableRenderer, linkDetector),
 			],
 			this.instantiationService.createInstance(WatchExpressionsDataSource), {
@@ -280,7 +279,6 @@ export class WatchExpressionsRenderer extends AbstractExpressionsRenderer {
 	static readonly ID = 'watchexpression';
 
 	constructor(
-		private watchDisplayType: boolean,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IDebugService debugService: IDebugService,
@@ -297,10 +295,8 @@ export class WatchExpressionsRenderer extends AbstractExpressionsRenderer {
 
 	public override renderElement(node: ITreeNode<IExpression, FuzzyScore>, index: number, data: IExpressionTemplateData): void {
 		data.elementDisposable.clear();
-		data.currentElement = node.element;
 		data.elementDisposable.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('debug.showVariableTypes')) {
-				this.watchDisplayType = this.configurationService.getValue<IDebugConfiguration>('debug').showVariableTypes;
 				super.renderExpressionElement(node.element, node, data);
 			}
 		}));
@@ -310,7 +306,8 @@ export class WatchExpressionsRenderer extends AbstractExpressionsRenderer {
 	protected renderExpression(expression: IExpression, data: IExpressionTemplateData, highlights: IHighlight[]): void {
 		let text: string;
 		data.type.textContent = '';
-		if (this.watchDisplayType && expression.type) {
+		const showType = this.configurationService.getValue<IDebugConfiguration>('debug').showVariableTypes;
+		if (showType && expression.type) {
 			text = typeof expression.value === 'string' ? `${expression.name}: ` : expression.name;
 			//render type
 			data.type.textContent = expression.type + ' =';
@@ -320,7 +317,7 @@ export class WatchExpressionsRenderer extends AbstractExpressionsRenderer {
 
 		let title: string;
 		if (expression.type) {
-			if (this.watchDisplayType) {
+			if (showType) {
 				title = `${expression.name}`;
 			} else {
 				title = expression.type === expression.value ?

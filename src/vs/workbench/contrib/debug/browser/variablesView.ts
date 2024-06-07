@@ -123,10 +123,9 @@ export class VariablesView extends ViewPane {
 		container.classList.add('debug-variables');
 		const treeContainer = renderViewTree(container);
 		const linkDetector = this.instantiationService.createInstance(LinkDetector);
-		const displayType: boolean = this.configurationService.getValue<IDebugConfiguration>('debug').showVariableTypes;
 		this.tree = <WorkbenchAsyncDataTree<IStackFrame | null, IExpression | IScope, FuzzyScore>>this.instantiationService.createInstance(WorkbenchAsyncDataTree, 'VariablesView', treeContainer, new VariablesDelegate(),
 			[
-				this.instantiationService.createInstance(VariablesRenderer, linkDetector, displayType),
+				this.instantiationService.createInstance(VariablesRenderer, linkDetector),
 				this.instantiationService.createInstance(VisualizedVariableRenderer, linkDetector),
 				new ScopesRenderer(),
 				new ScopeErrorRenderer(),
@@ -457,7 +456,6 @@ export class VisualizedVariableRenderer extends AbstractExpressionsRenderer {
 
 	public override renderElement(node: ITreeNode<IExpression, FuzzyScore>, index: number, data: IExpressionTemplateData): void {
 		data.elementDisposable.clear();
-		data.currentElement = node.element;
 		super.renderExpressionElement(node.element, node, data);
 	}
 
@@ -526,7 +524,6 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 
 	constructor(
 		private readonly linkDetector: LinkDetector,
-		private displayType: boolean,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IDebugVisualizerService private readonly visualization: IDebugVisualizerService,
@@ -545,15 +542,14 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 	}
 
 	protected renderExpression(expression: IExpression, data: IExpressionTemplateData, highlights: IHighlight[]): void {
-		renderVariable(data.elementDisposable, this.commandService, this.hoverService, expression as Variable, data, true, highlights, this.linkDetector, this.displayType);
+		const showType = this.configurationService.getValue<IDebugConfiguration>('debug').showVariableTypes;
+		renderVariable(data.elementDisposable, this.commandService, this.hoverService, expression as Variable, data, true, highlights, this.linkDetector, showType);
 	}
 
 	public override renderElement(node: ITreeNode<IExpression, FuzzyScore>, index: number, data: IExpressionTemplateData): void {
 		data.elementDisposable.clear();
-		data.currentElement = node.element;
 		data.elementDisposable.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('debug.showVariableTypes')) {
-				this.displayType = this.configurationService.getValue<IDebugConfiguration>('debug').showVariableTypes;
 				super.renderExpressionElement(node.element, node, data);
 			}
 		}));

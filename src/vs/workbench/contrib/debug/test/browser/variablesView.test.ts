@@ -17,6 +17,8 @@ import { NullHoverService } from 'vs/platform/hover/test/browser/nullHoverServic
 import { IDebugService, IViewModel } from 'vs/workbench/contrib/debug/common/debug';
 import { VariablesRenderer } from 'vs/workbench/contrib/debug/browser/variablesView';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const $ = dom.$;
 
@@ -80,6 +82,7 @@ suite('Debug - Variable Debug View', () => {
 	let variablesRenderer: VariablesRenderer;
 	let instantiationService: TestInstantiationService;
 	let linkDetector: LinkDetector;
+	let configurationService: TestConfigurationService;
 
 	setup(() => {
 		instantiationService = workbenchInstantiationService(undefined, disposables);
@@ -92,12 +95,24 @@ suite('Debug - Variable Debug View', () => {
 	});
 
 	test('variable expressions with display type', () => {
-		variablesRenderer = instantiationService.createInstance(VariablesRenderer, linkDetector, true);
+		configurationService = new TestConfigurationService({
+			debug: {
+				showVariableTypes: true
+			}
+		});
+		instantiationService.stub(IConfigurationService, configurationService);
+		variablesRenderer = instantiationService.createInstance(VariablesRenderer, linkDetector);
 		assertVariable(disposables, variablesRenderer, true);
 	});
 
 	test('variable expressions', () => {
-		variablesRenderer = instantiationService.createInstance(VariablesRenderer, linkDetector, false);
+		configurationService = new TestConfigurationService({
+			debug: {
+				showVariableTypes: false
+			}
+		});
+		instantiationService.stub(IConfigurationService, configurationService);
+		variablesRenderer = instantiationService.createInstance(VariablesRenderer, linkDetector);
 		assertVariable(disposables, variablesRenderer, false);
 	});
 });

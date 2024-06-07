@@ -138,15 +138,7 @@ export function renderVariable(store: DisposableStore, commandService: ICommandS
 		if (variable.value && typeof variable.name === 'string') {
 			if (variable.type && displayType) {
 				text += ': ';
-				//render type
-				const type = variable.type + ' =';
-				if (linkDetector) {
-					data.type.textContent = '';
-					const session = (variable instanceof ExpressionContainer) ? variable.getSession() : undefined;
-					data.type.appendChild(linkDetector.linkify(type, false, session ? session.root : undefined, true));
-				} else {
-					data.type.textContent = type;
-				}
+				data.type.textContent = variable.type + ' =';
 			} else {
 				text += ' =';
 			}
@@ -275,6 +267,7 @@ export abstract class AbstractExpressionsRenderer<T = IExpression> implements IT
 	public abstract renderElement(node: ITreeNode<T, FuzzyScore>, index: number, data: IExpressionTemplateData): void;
 
 	protected renderExpressionElement(element: IExpression, node: ITreeNode<T, FuzzyScore>, data: IExpressionTemplateData): void {
+		data.currentElement = element;
 		this.renderExpression(node.element, data, createMatches(node.filterData));
 		if (data.actionBar) {
 			this.renderActionBar!(data.actionBar, element, data);
