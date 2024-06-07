@@ -56,7 +56,7 @@ import { ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { isEqual } from 'vs/base/common/resources';
 import { NotebookFindContrib } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindWidget';
-import { REPL_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { EXECUTE_REPL_COMMAND_ID, REPL_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import 'vs/css!./interactiveEditor';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { deepClone } from 'vs/base/common/objects';
@@ -641,22 +641,27 @@ export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 		if (model?.getValueLength() === 0) {
 			const transparentForeground = resolveColorValue(editorForeground, this.themeService.getColorTheme())?.transparent(0.4);
 			const languageId = model.getLanguageId();
-			const keybinding = this._keybindingService.lookupKeybinding('replNotebook.executeInput', this._contextKeyService)?.getLabel();
-			const text = nls.localize('interactiveInputPlaceHolder', "Type '{0}' code here and press {1} to run", languageId, keybinding ?? 'ctrl+enter');
-			decorations.push({
-				range: {
-					startLineNumber: 0,
-					endLineNumber: 0,
-					startColumn: 0,
-					endColumn: 1
-				},
-				renderOptions: {
-					after: {
-						contentText: text,
-						color: transparentForeground ? transparentForeground.toString() : undefined
+			if (languageId !== 'plaintext') {
+				const keybinding = this._keybindingService.lookupKeybinding(EXECUTE_REPL_COMMAND_ID, this._contextKeyService)?.getLabel();
+				const text = keybinding ?
+					nls.localize('interactiveInputPlaceHolder', "Type '{0}' code here and press {1} to run", languageId, keybinding) :
+					nls.localize('interactiveInputPlaceHolderNoKeybinding', "Type '{0}' code here and click run", languageId);
+				decorations.push({
+					range: {
+						startLineNumber: 0,
+						endLineNumber: 0,
+						startColumn: 0,
+						endColumn: 1
+					},
+					renderOptions: {
+						after: {
+							contentText: text,
+							color: transparentForeground ? transparentForeground.toString() : undefined
+						}
 					}
-				}
-			});
+				});
+			}
+
 		}
 
 		this._codeEditorWidget.setDecorationsByType('interactive-decoration', DECORATION_KEY, decorations);

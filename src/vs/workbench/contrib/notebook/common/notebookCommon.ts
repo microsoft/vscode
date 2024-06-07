@@ -41,6 +41,7 @@ export const NOTEBOOK_DIFF_EDITOR_ID = 'workbench.editor.notebookTextDiffEditor'
 export const INTERACTIVE_WINDOW_EDITOR_ID = 'workbench.editor.interactive';
 export const REPL_EDITOR_ID = 'workbench.editor.repl';
 
+export const EXECUTE_REPL_COMMAND_ID = 'replNotebook.input.execute';
 
 export enum CellKind {
 	Markup = 1,

@@ -13,7 +13,7 @@ import { assertType } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { CellEditType, CellKind, NotebookWorkingCopyTypeIdentifier, REPL_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellKind, EXECUTE_REPL_COMMAND_ID, NotebookWorkingCopyTypeIdentifier, REPL_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookEditorInputOptions } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { ReplEditor } from 'vs/workbench/contrib/replNotebook/browser/replEditor';
 import { ReplEditorInput } from 'vs/workbench/contrib/replNotebook/browser/replEditorInput';
@@ -42,7 +42,7 @@ import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/note
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
-import { NOTEBOOK_EDITOR_FOCUSED, REPL_NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
+import { NOTEBOOK_CELL_LIST_FOCUSED, REPL_NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
@@ -218,21 +218,30 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'replNotebook.input.execute',
+			id: EXECUTE_REPL_COMMAND_ID,
 			title: localize2('replNotebook.input.execute', 'Execute the input box contents'),
 			keybinding: [{
 				when: ContextKeyExpr.and(
 					REPL_NOTEBOOK_IS_ACTIVE_EDITOR,
-					ContextKeyExpr.equals('config.interactiveWindow.executeWithShiftEnter', true)
+					ContextKeyExpr.equals('config.interactiveWindow.executeWithShiftEnter', true),
+					NOTEBOOK_CELL_LIST_FOCUSED.toNegated()
 				),
 				primary: KeyMod.Shift | KeyCode.Enter,
 				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
 			}, {
 				when: ContextKeyExpr.and(
 					REPL_NOTEBOOK_IS_ACTIVE_EDITOR,
-					ContextKeyExpr.equals('config.interactiveWindow.executeWithShiftEnter', false)
+					ContextKeyExpr.equals('config.interactiveWindow.executeWithShiftEnter', false),
+					NOTEBOOK_CELL_LIST_FOCUSED.toNegated()
 				),
 				primary: KeyCode.Enter,
+				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
+			}, {
+				when: ContextKeyExpr.and(
+					REPL_NOTEBOOK_IS_ACTIVE_EDITOR,
+					NOTEBOOK_CELL_LIST_FOCUSED.toNegated()
+				),
+				primary: KeyMod.CtrlCmd | KeyCode.Enter,
 				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
 			}],
 			menu: [
@@ -380,7 +389,7 @@ registerAction2(class extends Action2 {
 			keybinding: {
 				when: ContextKeyExpr.and(
 					REPL_NOTEBOOK_IS_ACTIVE_EDITOR,
-					NOTEBOOK_EDITOR_FOCUSED,
+					NOTEBOOK_CELL_LIST_FOCUSED,
 				),
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.DownArrow,
 				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
@@ -408,7 +417,7 @@ registerAction2(class extends Action2 {
 				when: ContextKeyExpr.and(
 					REPL_NOTEBOOK_IS_ACTIVE_EDITOR,
 					EditorContextKeys.textInputFocus,
-					NOTEBOOK_EDITOR_FOCUSED.toNegated()
+					NOTEBOOK_CELL_LIST_FOCUSED.toNegated()
 				),
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.UpArrow,
 				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
