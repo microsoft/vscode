@@ -76,6 +76,7 @@ export interface IJSONSchema {
 	// VSCode extensions
 
 	defaultSnippets?: IJSONSchemaSnippet[];
+	defaultSnippetsAsync?: () => Promise<IJSONSchemaSnippet[]>;
 	errorMessage?: string;
 	patternErrorMessage?: string;
 	deprecationMessage?: string;
