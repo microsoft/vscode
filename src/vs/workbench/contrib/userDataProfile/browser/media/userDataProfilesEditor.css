@@ -54,7 +54,6 @@
 .profiles-editor .monaco-list-row.focused .profile-tree-item-actions-container,
 .profiles-editor .monaco-list-row.selected .profile-tree-item-actions-container,
 .profiles-editor .monaco-list-row:hover .profile-tree-item-actions-container {
-	flex: 1;
 	display: flex;
 	align-items: center;
 }
@@ -86,6 +85,7 @@
 }
 
 .profiles-editor .sidebar-container .profiles-list .profile-list-item .profile-tree-item-actions-container {
+	flex: 1;
 	justify-content: flex-end;
 	margin-right: 10px;
 }
@@ -197,11 +197,11 @@
 .profiles-editor .contents-container .profile-content-tree-header,
 .profiles-editor .contents-container .profile-content-tree {
 	margin-left: 6px;
-	max-width: 450px;
 }
 
 .profiles-editor .contents-container .profile-content-tree-header {
-	display: flex;
+	display: grid;
+	grid-template-columns: 30px repeat(2, 1fr) 100px;
 	height: 24px;
 	align-items: center;
 	margin-bottom: 2px;
@@ -214,28 +214,33 @@
 	align-items: center;
 }
 
-.profiles-editor .contents-container .profile-content-tree-header :first-child {
-	width: 200px;
-}
-
-.profiles-editor .contents-container .profile-tree-item-container > .profile-resource-type-label,
-.profiles-editor .contents-container .profile-tree-item-container.new-profile-resource-type-container > .profile-resource-type-label-container {
-	width: 170px;
+.profiles-editor .contents-container .profile-tree-item-container.existing-profile-resource-type-container {
+	display: grid;
+	grid-template-columns: repeat(2, 1fr) 100px;
 }
 
 .profiles-editor .contents-container .profile-content-tree-header > .inherit-label,
 .profiles-editor .contents-container .profile-tree-item-container > .inherit-container {
-	width: 130px;
+	justify-content: center;
+	align-items: center;
+}
+
+.profiles-editor .contents-container .profile-tree-item-container > .inherit-container {
+	padding-left: 50px;
+}
+
+.profiles-editor .contents-container .profile-content-tree-header > .actions-label {
 	display: flex;
 	justify-content: center;
 	align-items: center;
 }
 
-.profiles-editor .contents-container .profile-content-tree-header > .actions-label {
-	flex: 1;
-	display: flex;
-	justify-content: center;
-	align-items: center;
+.profiles-editor .contents-container .profile-tree-item-container.profile-resource-child-container > .profile-tree-item-actions-container {
+	width: 100px;
+}
+
+.profiles-editor .contents-container .profile-tree-item-container.new-profile-resource-type-container > .profile-resource-type-label-container {
+	width: 170px;
 }
 
 .profiles-editor .contents-container .profile-tree-item-container.new-profile-resource-type-container > .profile-select-container {
@@ -249,7 +254,7 @@
 }
 
 .profiles-editor .contents-container .profile-tree-item-container.profile-resource-child-container > .monaco-icon-label {
-	width: 295px;
+	flex: 1
 }
 
 .profiles-editor .contents-container .profile-tree-item-container .profile-tree-item-actions-container {
