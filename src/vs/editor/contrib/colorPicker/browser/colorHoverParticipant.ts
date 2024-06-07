@@ -95,7 +95,10 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 			return { disposables: Disposable.None, renderedHoverParts: [] };
 		}
 		const disposables = renderedParts.disposables;
-		const renderedHoverParts = [{ hoverPart: renderedParts.hoverPart, element: renderedParts.element }];
+		const hoverPart = renderedParts.hoverPart;
+		const colorPicker = renderedParts.colorPicker;
+		const renderedHoverParts = [{ hoverPart, element: colorPicker.domNode }];
+		this._colorPicker = colorPicker;
 		return { disposables, renderedHoverParts };
 	}
 
@@ -199,7 +202,7 @@ async function _createColorHover(participant: ColorHoverParticipant | Standalone
 	}
 }
 
-function renderHoverParts<T extends (ColorHover | StandaloneColorPickerHover)>(participant: ColorHoverParticipant | StandaloneColorPickerParticipant, editor: ICodeEditor, themeService: IThemeService, hoverParts: T[], context: IEditorHoverRenderContext): { disposables: IDisposable; hoverPart: T; element: HTMLElement } | undefined {
+function renderHoverParts<T extends (ColorHover | StandaloneColorPickerHover)>(participant: ColorHoverParticipant | StandaloneColorPickerParticipant, editor: ICodeEditor, themeService: IThemeService, hoverParts: T[], context: IEditorHoverRenderContext): { disposables: IDisposable; hoverPart: T; colorPicker: ColorPickerWidget } | undefined {
 	if (hoverParts.length === 0 || !editor.hasModel()) {
 		return undefined;
 	}
@@ -241,7 +244,7 @@ function renderHoverParts<T extends (ColorHover | StandaloneColorPickerHover)>(p
 			editor.focus();
 		}
 	}));
-	return { disposables, hoverPart: colorHover, element: widget.domNode };
+	return { disposables, hoverPart: colorHover, colorPicker };
 }
 
 function _updateEditorModel(editor: IActiveCodeEditor, range: Range, model: ColorPickerModel): Range {
