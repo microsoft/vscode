@@ -32,7 +32,7 @@ export class SCMActivityCountBadgeController extends Disposable implements IWork
 		Event.any(this.scmService.onDidAddRepository, this.scmService.onDidRemoveRepository),
 		() => this.scmService.repositories);
 
-	private readonly _focusedRepository = observableFromEvent(
+	private readonly _focusedRepository = observableFromEvent<ISCMRepository | undefined>(
 		this.scmViewService.onDidFocusRepository,
 		() => this.scmViewService.focusedRepository ? Object.create(this.scmViewService.focusedRepository) : undefined);
 
@@ -51,11 +51,12 @@ export class SCMActivityCountBadgeController extends Disposable implements IWork
 
 	private readonly _activeRepository = derivedObservableWithCache<ISCMRepository | undefined>(this, (reader, lastValue) => {
 		const focusedRepository = this._focusedRepository.read(reader);
+		const activeEditorRepository = this._activeEditorRepository.read(reader);
+
 		if (focusedRepository && focusedRepository.id !== lastValue?.id) {
 			return focusedRepository;
 		}
 
-		const activeEditorRepository = this._activeEditorRepository.read(reader);
 		if (activeEditorRepository && activeEditorRepository.id !== lastValue?.id) {
 			return activeEditorRepository;
 		}
