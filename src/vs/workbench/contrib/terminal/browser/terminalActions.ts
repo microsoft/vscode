@@ -153,7 +153,6 @@ export class TerminalLaunchHelpAction extends Action {
 	}
 }
 
-
 /**
  * A wrapper function around registerAction2 to help make registering terminal actions more concise.
  * The following default options are used if undefined:
