@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mainWindow } from 'vs/base/browser/window';
-import { isMacintosh, isWindows } from 'vs/base/common/platform';
+import type { IJSONSchemaSnippet } from 'vs/base/common/jsonSchema.js';
+import { isElectron, isMacintosh, isWindows } from 'vs/base/common/platform';
 
 /**
  * The best font-family to be used in CSS based on the platform:
@@ -31,4 +32,18 @@ export const getFonts = async (): Promise<string[]> => {
 		console.error(`Failed to query fonts: ${error}`);
 		return [];
 	}
+};
+
+
+export const getFontSnippets = async (): Promise<IJSONSchemaSnippet[]> => {
+	if (!isElectron) {
+		return [];
+	}
+	const fonts = await getFonts();
+	const snippets: IJSONSchemaSnippet[] = fonts.map(font => {
+		return {
+			body: `${font}`
+		};
+	});
+	return snippets;
 };

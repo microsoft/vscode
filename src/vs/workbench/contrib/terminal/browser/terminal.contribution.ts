@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getFonts } from 'vs/base/browser/fonts';
+import { getFontSnippets } from 'vs/base/browser/fonts';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Schemas } from 'vs/base/common/network';
 import { isIOS, isWindows } from 'vs/base/common/platform';
@@ -93,7 +93,7 @@ registerWorkbenchContribution2(TerminalWslRecommendationContribution.ID, Termina
 
 // Register configurations
 registerTerminalPlatformConfiguration();
-registerTerminalConfiguration(getFonts);
+registerTerminalConfiguration(getFontSnippets);
 
 // Register editor/dnd contributions
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(TerminalEditorInput.ID, TerminalInputSerializer);

@@ -7,7 +7,7 @@ import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegis
 import { localize } from 'vs/nls';
 import { DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, DEFAULT_COMMANDS_TO_SKIP_SHELL, SUGGESTIONS_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalLocationString, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { isElectron, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Codicon } from 'vs/base/common/codicons';
 import { terminalColorSchema, terminalIconSchema } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
@@ -632,22 +632,13 @@ const terminalConfiguration: IConfigurationNode = {
 	}
 };
 
-export async function registerTerminalConfiguration(getFonts: () => Promise<string[]>) {
+export async function registerTerminalConfiguration(getFontSnippets: () => Promise<IJSONSchemaSnippet[]>) {
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 	configurationRegistry.registerConfiguration(terminalConfiguration);
-	if (!isElectron) {
-		return;
-	}
-	const fonts = await getFonts();
+	const fontsSnippets = await getFontSnippets();
 	if (terminalConfiguration.properties) {
-		const snippets: IJSONSchemaSnippet[] = fonts.map(font => {
-			return {
-				body: `${font}`
-			};
-		});
-		terminalConfiguration.properties[TerminalSettingId.FontFamily].defaultSnippets = snippets;
+		terminalConfiguration.properties[TerminalSettingId.FontFamily].defaultSnippets = fontsSnippets;
 	}
-
 }
 
 Registry.as<IConfigurationMigrationRegistry>(WorkbenchExtensions.ConfigurationMigration)
