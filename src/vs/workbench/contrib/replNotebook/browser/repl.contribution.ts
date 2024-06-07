@@ -197,12 +197,9 @@ registerWorkbenchContribution2(ReplDocumentContribution.ID, ReplDocumentContribu
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'replNotebook.open',
-			title: localize2('replNotebook.open', 'Open REPL Editor'),
-			category: 'REPL',
-			metadata: {
-				description: localize('replNotebook.open', 'Open REPL Editor'),
-			}
+			id: 'repl.newRepl',
+			title: localize2('repl.editor.open', 'New REPL Editor'),
+			category: 'Create',
 		});
 	}
 
@@ -219,7 +216,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: EXECUTE_REPL_COMMAND_ID,
-			title: localize2('replNotebook.input.execute', 'Execute the input box contents'),
+			title: localize2('repl.input.execute', 'Execute the input box contents'),
 			keybinding: [{
 				when: ContextKeyExpr.and(
 					REPL_NOTEBOOK_IS_ACTIVE_EDITOR,
@@ -250,17 +247,7 @@ registerAction2(class extends Action2 {
 				}
 			],
 			icon: icons.executeIcon,
-			f1: false,
-			metadata: {
-				description: 'Execute the Contents of the Input Box',
-				args: [
-					{
-						name: 'resource',
-						description: 'Interactive resource Uri',
-						isOptional: true
-					}
-				]
-			}
+			f1: false
 		});
 	}
 
@@ -348,7 +335,7 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'replNotebook.input.clear',
+			id: 'repl.input.clear',
 			title: localize2('replNotebook.input.clear', 'Clear the REPL input contents'),
 			f1: false,
 			keybinding: [{
@@ -384,8 +371,8 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'replNotebook.input.focus',
-			title: localize2('interactive.input.focus', 'Focus Input Editor'),
+			id: 'repl.input.focus',
+			title: localize2('interactive.input.focus', 'Focus into REPL Input'),
 			keybinding: {
 				when: ContextKeyExpr.and(
 					REPL_NOTEBOOK_IS_ACTIVE_EDITOR,
@@ -410,8 +397,8 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'replNotebook.history.focus',
-			title: localize2('replNotebook.history.focus', 'Focus History'),
+			id: 'repl.history.focus',
+			title: localize2('repl.history.focus', 'Focus into REPL History'),
 			f1: false,
 			keybinding: {
 				when: ContextKeyExpr.and(
