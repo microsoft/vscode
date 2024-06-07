@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { constObservable } from 'vs/base/common/observable';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecoration } from 'vs/editor/common/model';
-import { HoverAnchor, HoverAnchorType, HoverForeignElementAnchor, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, RenderedHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
+import { HoverAnchor, HoverAnchorType, HoverForeignElementAnchor, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverPart, IRenderedHoverParts, RenderedHoverParts } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { InlineEditController } from 'vs/editor/contrib/inlineEdit/browser/inlineEditController';
@@ -87,7 +87,7 @@ export class InlineEditHoverParticipant implements IEditorHoverParticipant<Inlin
 		return [];
 	}
 
-	renderHoverParts(context: IEditorHoverRenderContext, hoverParts: InlineEditHover[]): { disposables: IDisposable; renderedHoverParts: RenderedHoverPart<InlineEditHover>[] } {
+	renderHoverParts(context: IEditorHoverRenderContext, hoverParts: InlineEditHover[]): IRenderedHoverParts<InlineEditHover> {
 		const disposables = new DisposableStore();
 
 		this._telemetryService.publicLog2<{}, {
@@ -99,10 +99,13 @@ export class InlineEditHoverParticipant implements IEditorHoverParticipant<Inlin
 			constObservable(null),
 		);
 		const widgetNode: HTMLElement = w.getDomNode();
-		const renderedHoverParts: RenderedHoverPart<InlineEditHover>[] = [{ hoverPart: hoverParts[0], element: widgetNode }];
 		disposables.add(w);
-
-		return { disposables, renderedHoverParts };
+		const renderedHoverPart: IRenderedHoverPart<InlineEditHover> = {
+			hoverPart: hoverParts[0],
+			hoverElement: widgetNode,
+			dispose: () => disposables.dispose()
+		};
+		return new RenderedHoverParts([renderedHoverPart]);
 	}
 
 	getAccessibleContent(hoverPart: InlineEditHover): string {

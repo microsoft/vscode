@@ -6,7 +6,7 @@
 import { AsyncIterableObject } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Color, RGBA } from 'vs/base/common/color';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
@@ -16,7 +16,7 @@ import { getColorPresentations, getColors } from 'vs/editor/contrib/colorPicker/
 import { ColorDetector } from 'vs/editor/contrib/colorPicker/browser/colorDetector';
 import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/browser/colorPickerModel';
 import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/browser/colorPickerWidget';
-import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, RenderedHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
+import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverPart, IRenderedHoverParts, RenderedHoverParts } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
@@ -89,17 +89,18 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 		return [];
 	}
 
-	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: ColorHover[]): { disposables: IDisposable; renderedHoverParts: RenderedHoverPart<ColorHover>[] } {
-		const renderedParts = renderHoverParts(this, this._editor, this._themeService, hoverParts, context);
-		if (!renderedParts) {
-			return { disposables: Disposable.None, renderedHoverParts: [] };
+	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: ColorHover[]): IRenderedHoverParts<ColorHover> {
+		const renderedPart = renderHoverParts(this, this._editor, this._themeService, hoverParts, context);
+		if (!renderedPart) {
+			return new RenderedHoverParts([]);
 		}
-		const disposables = renderedParts.disposables;
-		const hoverPart = renderedParts.hoverPart;
-		const colorPicker = renderedParts.colorPicker;
-		const renderedHoverParts = [{ hoverPart, element: colorPicker.domNode }];
-		this._colorPicker = colorPicker;
-		return { disposables, renderedHoverParts };
+		this._colorPicker = renderedPart.colorPicker;
+		const renderedHoverPart: IRenderedHoverPart<ColorHover> = {
+			hoverPart: renderedPart.hoverPart,
+			hoverElement: this._colorPicker.domNode,
+			dispose() { renderedPart.disposables.dispose(); }
+		};
+		return new RenderedHoverParts([renderedHoverPart]);
 	}
 
 	public getAccessibleContent(): string {
@@ -202,7 +203,7 @@ async function _createColorHover(participant: ColorHoverParticipant | Standalone
 	}
 }
 
-function renderHoverParts<T extends (ColorHover | StandaloneColorPickerHover)>(participant: ColorHoverParticipant | StandaloneColorPickerParticipant, editor: ICodeEditor, themeService: IThemeService, hoverParts: T[], context: IEditorHoverRenderContext): { disposables: IDisposable; hoverPart: T; colorPicker: ColorPickerWidget } | undefined {
+function renderHoverParts<T extends (ColorHover | StandaloneColorPickerHover)>(participant: ColorHoverParticipant | StandaloneColorPickerParticipant, editor: ICodeEditor, themeService: IThemeService, hoverParts: T[], context: IEditorHoverRenderContext): { hoverPart: T; colorPicker: ColorPickerWidget; disposables: DisposableStore } | undefined {
 	if (hoverParts.length === 0 || !editor.hasModel()) {
 		return undefined;
 	}
@@ -244,7 +245,7 @@ function renderHoverParts<T extends (ColorHover | StandaloneColorPickerHover)>(p
 			editor.focus();
 		}
 	}));
-	return { disposables, hoverPart: colorHover, colorPicker };
+	return { hoverPart: colorHover, colorPicker, disposables };
 }
 
 function _updateEditorModel(editor: IActiveCodeEditor, range: Range, model: ColorPickerModel): Range {

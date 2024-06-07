@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecoration } from 'vs/editor/common/model';
-import { HoverAnchor, HoverAnchorType, HoverParticipantRegistry, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, RenderedHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
+import { HoverAnchor, HoverAnchorType, HoverParticipantRegistry, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverPart, IRenderedHoverParts, RenderedHoverParts } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
@@ -50,9 +50,9 @@ export class ChatAgentHoverParticipant implements IEditorHoverParticipant<ChatAg
 		return [];
 	}
 
-	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: ChatAgentHoverPart[]): { disposables: IDisposable; renderedHoverParts: RenderedHoverPart<ChatAgentHoverPart>[] } {
+	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: ChatAgentHoverPart[]): IRenderedHoverParts<ChatAgentHoverPart> {
 		if (!hoverParts.length) {
-			return { disposables: Disposable.None, renderedHoverParts: [] };
+			return new RenderedHoverParts([]);
 		}
 
 		const disposables = new DisposableStore();
@@ -66,8 +66,12 @@ export class ChatAgentHoverParticipant implements IEditorHoverParticipant<ChatAg
 		const wrapper = this.instantiationService.createInstance(ChatEditorHoverWrapper, hover.domNode, actions);
 		const wrapperNode = wrapper.domNode;
 		context.fragment.appendChild(wrapperNode);
-		const renderedHoverParts: RenderedHoverPart<ChatAgentHoverPart>[] = [{ hoverPart, element: wrapperNode }];
-		return { disposables, renderedHoverParts };
+		const renderedHoverPart: IRenderedHoverPart<ChatAgentHoverPart> = {
+			hoverPart,
+			hoverElement: wrapperNode,
+			dispose() { disposables.dispose(); }
+		};
+		return new RenderedHoverParts([renderedHoverPart]);
 	}
 
 	public getAccessibleContent(hoverPart: ChatAgentHoverPart): string {

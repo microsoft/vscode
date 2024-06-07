@@ -195,15 +195,15 @@ class RenderedContentHoverParts extends Disposable {
 				continue;
 			}
 			const renderedHoverParts = participant.renderHoverParts(context, hoverPartsForParticipant);
-			disposableStore.add(renderedHoverParts.disposables);
 			renderedHoverParts.renderedHoverParts.forEach(renderedHoverPart => {
 				renderedHoverPartsArray.push({
 					brand: 'renderedHoverPart',
-					element: renderedHoverPart.element,
+					element: renderedHoverPart.hoverElement,
 					hoverPart: renderedHoverPart.hoverPart,
 					participant
 				});
 			});
+			disposableStore.add(renderedHoverParts);
 		}
 		return { renderedHoverParts: renderedHoverPartsArray, disposables: disposableStore };
 	}
