@@ -79,6 +79,7 @@ export class TerminalChatWidget extends Disposable {
 		this._register(Event.any(
 			this._inlineChatWidget.onDidChangeHeight,
 			this._instance.onDimensionsChanged,
+			this._inlineChatWidget.chatWidget.onDidChangeContentHeight,
 			Event.debounce(this._xterm.raw.onCursorMove, () => void 0, MicrotaskDelay),
 		)(() => this._relayout()));
 
@@ -154,10 +155,14 @@ export class TerminalChatWidget extends Disposable {
 		if (!terminalWrapperHeight) {
 			return;
 		}
-		if (top > terminalWrapperHeight - widgetHeight) {
+		if (top > terminalWrapperHeight - widgetHeight && terminalWrapperHeight - widgetHeight > 0) {
 			this._setTerminalOffset(top - (terminalWrapperHeight - widgetHeight));
 		} else {
 			this._setTerminalOffset(undefined);
+		}
+		if (terminalWrapperHeight - widgetHeight < 0) {
+			this._dimension = new Dimension(this._dimension!.width, terminalWrapperHeight - top - 20);
+			this._inlineChatWidget.layout(this._dimension!);
 		}
 	}
 
