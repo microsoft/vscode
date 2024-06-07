@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { tmpdir } from 'os';
 import { basename, dirname, join } from 'vs/base/common/path';
 import { Promises, RimRafMode } from 'vs/base/node/pfs';
@@ -701,7 +701,7 @@ import { TestParcelWatcher } from 'vs/platform/files/test/node/parcelWatcher.int
 
 		recursiveWatcher.onDidError(e => {
 			if (loggingEnabled) {
-				console.log(`[recursive watcher test error] ${e}`);
+				console.log(`[recursive watcher test error] ${e.error}`);
 			}
 		});
 

@@ -37,6 +37,7 @@ import { CellSearchModel } from 'vs/workbench/contrib/search/common/cellSearchMo
 import { INotebookCellMatchNoModel, INotebookFileMatchNoModel, IRawClosedNotebookFileMatch, genericCellMatchesToTextSearchMatches } from 'vs/workbench/contrib/search/common/searchNotebookHelpers';
 import { NotebookPriorityInfo } from 'vs/workbench/contrib/search/common/search';
 import { globMatchesResource } from 'vs/workbench/services/editor/common/editorResolverService';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class ExtHostNotebookController implements ExtHostNotebookShape {
 	private static _notebookStatusBarItemProviderHandlePool: number = 0;
@@ -78,7 +79,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		private _textDocumentsAndEditors: ExtHostDocumentsAndEditors,
 		private _textDocuments: ExtHostDocuments,
 		private _extHostFileSystem: IExtHostConsumerFileSystem,
-		private _extHostSearch: IExtHostSearch
+		private _extHostSearch: IExtHostSearch,
+		private _logService: ILogService
 	) {
 		this._notebookProxy = mainContext.getProxy(MainContext.MainThreadNotebook);
 		this._notebookDocumentsProxy = mainContext.getProxy(MainContext.MainThreadNotebookDocuments);
@@ -314,6 +316,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 	async $saveNotebook(handle: number, uriComponents: UriComponents, versionId: number, options: files.IWriteFileOptions, token: CancellationToken): Promise<INotebookPartialFileStatsWithMetadata> {
 		const uri = URI.revive(uriComponents);
 		const serializer = this._notebookSerializer.get(handle);
+		this.trace(`enter saveNotebook(versionId: ${versionId}, ${uri.toString()})`);
+
 		if (!serializer) {
 			throw new Error('NO serializer found');
 		}
@@ -330,7 +334,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		if (!this._extHostFileSystem.value.isWritableFileSystem(uri.scheme)) {
 			throw new files.FileOperationError(localize('err.readonly', "Unable to modify read-only file '{0}'", this._resourceForError(uri)), files.FileOperationResult.FILE_PERMISSION_DENIED);
 		}
-
 
 		const data: vscode.NotebookData = {
 			metadata: filter(document.apiNotebook.metadata, key => !(serializer.options?.transientDocumentMetadata ?? {})[key]),
@@ -356,8 +359,18 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		// validate write
 		await this._validateWriteFile(uri, options);
 
+		if (token.isCancellationRequested) {
+			throw new Error('canceled');
+		}
 		const bytes = await serializer.serializer.serializeNotebook(data, token);
+		if (token.isCancellationRequested) {
+			throw new Error('canceled');
+		}
+
+		// Don't accept any cancellation beyond this point, we need to report the result of the file write
+		this.trace(`serialized versionId: ${versionId} ${uri.toString()}`);
 		await this._extHostFileSystem.value.writeFile(uri, bytes);
+		this.trace(`Finished write versionId: ${versionId} ${uri.toString()}`);
 		const providerExtUri = this._extHostFileSystem.getFileSystemProviderExtUri(uri.scheme);
 		const stat = await this._extHostFileSystem.value.stat(uri);
 
@@ -375,6 +388,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			children: undefined
 		};
 
+		this.trace(`exit saveNotebook(versionId: ${versionId}, ${uri.toString()})`);
 		return fileStats;
 	}
 
@@ -717,5 +731,9 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 
 		extHostCommands.registerApiCommand(commandDataToNotebook);
 		extHostCommands.registerApiCommand(commandNotebookToData);
+	}
+
+	private trace(msg: string): void {
+		this._logService.trace(`[Extension Host Notebook] ${msg}`);
 	}
 }

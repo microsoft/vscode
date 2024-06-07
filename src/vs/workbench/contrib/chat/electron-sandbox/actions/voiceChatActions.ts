@@ -43,7 +43,7 @@ import { isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IVoiceChatService, VoiceChatInProgress as GlobalVoiceChatInProgress } from 'vs/workbench/contrib/chat/common/voiceChatService';
 import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
-import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_FOCUSED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { HasSpeechProvider, ISpeechService, KeywordRecognitionStatus, SpeechToTextInProgress, SpeechToTextStatus, TextToSpeechStatus, TextToSpeechInProgress as GlobalTextToSpeechInProgress } from 'vs/workbench/contrib/speech/common/speechService';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -67,7 +67,7 @@ const TerminalChatExecute = MenuId.for('terminalChatInput'); // unfortunately, t
 // Global Context Keys (set on global context key service)
 const CanVoiceChat = ContextKeyExpr.and(CONTEXT_CHAT_ENABLED, HasSpeechProvider);
 const FocusInChatInput = ContextKeyExpr.or(CTX_INLINE_CHAT_FOCUSED, CONTEXT_IN_CHAT_INPUT);
-const AnyChatRequestInProgress = ContextKeyExpr.or(CONTEXT_CHAT_REQUEST_IN_PROGRESS, CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, TerminalChatContextKeys.requestActive);
+const AnyChatRequestInProgress = ContextKeyExpr.or(CONTEXT_CHAT_REQUEST_IN_PROGRESS, TerminalChatContextKeys.requestActive);
 
 // Scoped Context Keys (set on per-chat-context scoped context key service)
 const ScopedVoiceChatGettingReady = new RawContextKey<boolean>('scopedVoiceChatGettingReady', false, { type: 'boolean', description: localize('scopedVoiceChatGettingReady', "True when getting ready for receiving voice input from the microphone for voice chat. This key is only defined scoped, per chat context.") });
@@ -188,15 +188,15 @@ class VoiceChatSessionControllerFactory {
 			switch (state) {
 				case VoiceChatSessionState.GettingReady:
 					contextVoiceChatGettingReady.set(true);
-					contextVoiceChatInProgress.set(undefined);
+					contextVoiceChatInProgress.reset();
 					break;
 				case VoiceChatSessionState.Started:
-					contextVoiceChatGettingReady.set(false);
+					contextVoiceChatGettingReady.reset();
 					contextVoiceChatInProgress.set(context);
 					break;
 				case VoiceChatSessionState.Stopped:
-					contextVoiceChatGettingReady.set(false);
-					contextVoiceChatInProgress.set(undefined);
+					contextVoiceChatGettingReady.reset();
+					contextVoiceChatInProgress.reset();
 					break;
 			}
 		};
@@ -629,7 +629,8 @@ export class StopListeningAction extends Action2 {
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib + 100,
-				primary: KeyCode.Escape
+				primary: KeyCode.Escape,
+				when: AnyScopedVoiceChatInProgress
 			},
 			icon: spinningLoading,
 			precondition: GlobalVoiceChatInProgress, // need global context here because of `f1: true`
@@ -664,7 +665,10 @@ export class StopListeningAndSubmitAction extends Action2 {
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: FocusInChatInput,
+				when: ContextKeyExpr.and(
+					FocusInChatInput,
+					AnyScopedVoiceChatInProgress
+				),
 				primary: KeyMod.CtrlCmd | KeyCode.KeyI
 			},
 			precondition: GlobalVoiceChatInProgress // need global context here because of `f1: true`
@@ -775,7 +779,7 @@ class ChatSynthesizerSessions {
 		disposables.add(controller.onDidHideChat(() => this.stop()));
 
 		const scopedChatToSpeechInProgress = ScopedChatSynthesisInProgress.bindTo(controller.contextKeyService);
-		disposables.add(toDisposable(() => scopedChatToSpeechInProgress.set(false)));
+		disposables.add(toDisposable(() => scopedChatToSpeechInProgress.reset()));
 
 		disposables.add(session.onDidChange(e => {
 			switch (e.status) {
@@ -783,7 +787,7 @@ class ChatSynthesizerSessions {
 					scopedChatToSpeechInProgress.set(true);
 					break;
 				case TextToSpeechStatus.Stopped:
-					scopedChatToSpeechInProgress.set(false);
+					scopedChatToSpeechInProgress.reset();
 					break;
 			}
 		}));
@@ -917,6 +921,7 @@ export class StopReadAloud extends Action2 {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib + 100,
 				primary: KeyCode.Escape,
+				when: ScopedChatSynthesisInProgress
 			},
 			menu: [
 				{
@@ -1237,7 +1242,7 @@ abstract class BaseInstallSpeechProviderAction extends Action2 {
 				enable: true
 			}, ProgressLocation.Notification);
 		} finally {
-			InstallingSpeechProvider.bindTo(contextKeyService).set(false);
+			InstallingSpeechProvider.bindTo(contextKeyService).reset();
 		}
 	}
 

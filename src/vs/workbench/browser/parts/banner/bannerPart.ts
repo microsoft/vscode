@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/bannerpart';
 import { localize2 } from 'vs/nls';
-import { $, addDisposableListener, append, asCSSUrl, clearNode, EventType } from 'vs/base/browser/dom';
+import { $, addDisposableListener, append, asCSSUrl, clearNode, EventType, isHTMLElement } from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -112,7 +112,7 @@ export class BannerPart extends Part implements IBannerService {
 
 		if (this.focusedActionIndex < length) {
 			const actionLink = this.messageActionsContainer?.children[this.focusedActionIndex];
-			if (actionLink instanceof HTMLElement) {
+			if (isHTMLElement(actionLink)) {
 				this.actionBar?.setFocusable(false);
 				actionLink.focus();
 			}

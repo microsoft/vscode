@@ -27,6 +27,10 @@ import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { Schemas } from 'vs/base/common/network';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { MarshalledCommentThread } from 'vs/workbench/common/comments';
+import { revealCommentThread } from 'vs/workbench/contrib/comments/browser/commentsController';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { CommentThreadRevealOptions } from 'vs/editor/common/languages';
 
 export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 	private _input?: languages.CommentInput;
@@ -109,8 +113,10 @@ export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 	}
 
 	set collapsibleState(newState: languages.CommentThreadCollapsibleState | undefined) {
-		this._collapsibleState = newState;
-		this._onDidChangeCollapsibleState.fire(this._collapsibleState);
+		if (newState !== this._collapsibleState) {
+			this._collapsibleState = newState;
+			this._onDidChangeCollapsibleState.fire(this._collapsibleState);
+		}
 	}
 
 	private _initialCollapsibleState: languages.CommentThreadCollapsibleState | undefined;
@@ -518,7 +524,9 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		extHostContext: IExtHostContext,
 		@ICommentService private readonly _commentService: ICommentService,
 		@IViewsService private readonly _viewsService: IViewsService,
-		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService
+		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
+		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
+		@IEditorService private readonly _editorService: IEditorService
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostComments);
@@ -627,6 +635,21 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		}
 
 		provider.updateCommentingRanges(resourceHints);
+	}
+
+	async $revealCommentThread(handle: number, commentThreadHandle: number, options: CommentThreadRevealOptions): Promise<void> {
+		const provider = this._commentControllers.get(handle);
+
+		if (!provider) {
+			return Promise.resolve();
+		}
+
+		const thread = provider.getAllComments().find(thread => thread.commentThreadHandle === commentThreadHandle);
+		if (!thread || !thread.isDocumentCommentThread()) {
+			return Promise.resolve();
+		}
+
+		revealCommentThread(this._commentService, this._editorService, this._uriIdentityService, thread, undefined, options.focusReply, undefined, options.preserveFocus);
 	}
 
 	private registerView(commentsViewAlreadyRegistered: boolean) {

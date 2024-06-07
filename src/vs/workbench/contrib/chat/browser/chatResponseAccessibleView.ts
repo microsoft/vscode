@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
+import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { AccessibleViewProviderId, AccessibleViewType } from 'vs/platform/accessibility/browser/accessibleView';
 import { alertAccessibleViewFocusChange, IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
@@ -71,7 +72,7 @@ export class ChatResponseAccessibleView implements IAccessibleViewImplentation {
 			return {
 				id: AccessibleViewProviderId.Chat,
 				verbositySettingKey: AccessibilityVerbositySettingId.Chat,
-				provideContent(): string { return responseContent!; },
+				provideContent(): string { return renderMarkdownAsPlaintext(new MarkdownString(responseContent), true); },
 				onClose() {
 					verifiedWidget.reveal(focusedItem);
 					if (chatInputFocused) {
@@ -94,4 +95,5 @@ export class ChatResponseAccessibleView implements IAccessibleViewImplentation {
 			};
 		}
 	}
+	dispose() { }
 }

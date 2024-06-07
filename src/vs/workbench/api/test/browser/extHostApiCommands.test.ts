@@ -17,7 +17,7 @@ import 'vs/editor/contrib/suggest/browser/suggest';
 import 'vs/editor/contrib/rename/browser/rename';
 import 'vs/editor/contrib/inlayHints/browser/inlayHintsController';
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { setUnexpectedErrorHandler, errorHandler } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
@@ -1273,6 +1273,22 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		assert.strictEqual(links2.length, 1);
 		assert.strictEqual(links2[0].target!.toString(), URI.parse('foo:bar').toString());
 
+	});
+
+	testApiCmd('DocumentLink[] vscode.executeLinkProvider returns lack tooltip #213970', async function () {
+		disposables.push(extHost.registerDocumentLinkProvider(nullExtensionDescription, defaultSelector, <vscode.DocumentLinkProvider>{
+			provideDocumentLinks(): any {
+				const link = new types.DocumentLink(new types.Range(0, 0, 0, 20), URI.parse('foo:bar'));
+				link.tooltip = 'Link Tooltip';
+				return [link];
+			}
+		}));
+
+		await rpcProtocol.sync();
+
+		const links1 = await commands.executeCommand<vscode.DocumentLink[]>('vscode.executeLinkProvider', model.uri);
+		assert.strictEqual(links1.length, 1);
+		assert.strictEqual(links1[0].tooltip, 'Link Tooltip');
 	});
 
 

@@ -13,7 +13,7 @@ import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/bro
 import { GoFilter, IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { CLOSE_EDITOR_COMMAND_ID, MOVE_ACTIVE_EDITOR_COMMAND_ID, ActiveEditorMoveCopyArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor, LAYOUT_EDITOR_GROUPS_COMMAND_ID, UNPIN_EDITOR_COMMAND_ID, COPY_ACTIVE_EDITOR_COMMAND_ID, SPLIT_EDITOR, resolveCommandsContext, getCommandsContext, TOGGLE_MAXIMIZE_EDITOR_GROUP, MOVE_EDITOR_INTO_NEW_WINDOW_COMMAND_ID, COPY_EDITOR_INTO_NEW_WINDOW_COMMAND_ID, MOVE_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID, COPY_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID, NEW_EMPTY_EDITOR_WINDOW_COMMAND_ID as NEW_EMPTY_EDITOR_WINDOW_COMMAND_ID, getEditorsFromContext } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { CLOSE_EDITOR_COMMAND_ID, MOVE_ACTIVE_EDITOR_COMMAND_ID, ActiveEditorMoveCopyArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor, LAYOUT_EDITOR_GROUPS_COMMAND_ID, UNPIN_EDITOR_COMMAND_ID, COPY_ACTIVE_EDITOR_COMMAND_ID, SPLIT_EDITOR, resolveCommandsContext, getCommandsContext, TOGGLE_MAXIMIZE_EDITOR_GROUP, MOVE_EDITOR_INTO_NEW_WINDOW_COMMAND_ID, COPY_EDITOR_INTO_NEW_WINDOW_COMMAND_ID, MOVE_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID, COPY_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID, NEW_EMPTY_EDITOR_WINDOW_COMMAND_ID as NEW_EMPTY_EDITOR_WINDOW_COMMAND_ID, resolveEditorsContext, getEditorsContext } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { IEditorGroupsService, IEditorGroup, GroupsArrangement, GroupLocation, GroupDirection, preferredSideBySideGroupDirection, IFindGroupScope, GroupOrientation, EditorGroupLayout, GroupsOrder, MergeGroupMode } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -65,7 +65,8 @@ abstract class AbstractSplitEditorAction extends Action2 {
 		const editorGroupService = accessor.get(IEditorGroupsService);
 		const configurationService = accessor.get(IConfigurationService);
 
-		splitEditor(editorGroupService, this.getDirection(configurationService), [getCommandsContext(accessor, resourceOrContext, context)]);
+		const commandContext = getCommandsContext(accessor, resourceOrContext, context);
+		splitEditor(editorGroupService, this.getDirection(configurationService), commandContext ? [commandContext] : undefined);
 	}
 }
 
@@ -436,7 +437,7 @@ export class UnpinEditorAction extends Action {
 	}
 }
 
-export class CloseOneEditorAction extends Action {
+export class CloseEditorTabAction extends Action {
 
 	static readonly ID = 'workbench.action.closeActiveEditor';
 	static readonly LABEL = localize('closeOneEditor', "Close");
@@ -450,33 +451,28 @@ export class CloseOneEditorAction extends Action {
 	}
 
 	override async run(context?: IEditorCommandsContext): Promise<void> {
-		let group: IEditorGroup | undefined;
-		let editorIndex: number | undefined;
-		if (context) {
-			group = this.editorGroupService.getGroup(context.groupId);
-
-			if (group) {
-				editorIndex = context.editorIndex; // only allow editor at index if group is valid
-			}
-		}
-
+		const group = context ? this.editorGroupService.getGroup(context.groupId) : this.editorGroupService.activeGroup;
 		if (!group) {
-			group = this.editorGroupService.activeGroup;
-		}
-
-		// Close specific editor in group
-		if (typeof editorIndex === 'number') {
-			const editorAtIndex = group.getEditorByIndex(editorIndex);
-			if (editorAtIndex) {
-				await group.closeEditor(editorAtIndex, { preserveFocus: context?.preserveFocus });
-				return;
-			}
-		}
-
-		// Otherwise close active editor in group
-		if (group.activeEditor) {
-			await group.closeEditor(group.activeEditor, { preserveFocus: context?.preserveFocus });
+			// group mentioned in context does not exist
 			return;
+		}
+
+		const targetEditor = context?.editorIndex !== undefined ? group.getEditorByIndex(context.editorIndex) : group.activeEditor;
+		if (!targetEditor) {
+			// No editor open or editor at index does not exist
+			return;
+		}
+
+		const editors: EditorInput[] = [];
+		if (group.isSelected(targetEditor)) {
+			editors.push(...group.selectedEditors);
+		} else {
+			editors.push(targetEditor);
+		}
+
+		// Close specific editors in group
+		for (const editor of editors) {
+			await group.closeEditor(editor, { preserveFocus: context?.preserveFocus });
 		}
 	}
 }
@@ -2514,23 +2510,19 @@ abstract class BaseMoveCopyEditorToNewWindowAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext) {
 		const editorGroupService = accessor.get(IEditorGroupsService);
-		const editors = getEditorsFromContext(accessor, resourceOrContext, context);
-
-		// If there is no editor, do not create a new window
-		if (editors.length === 0) {
+		const editorsContext = resolveEditorsContext(getEditorsContext(accessor, resourceOrContext, context));
+		if (editorsContext.length === 0) {
 			return;
 		}
 
 		const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart();
 
-		for (const { editor, group } of editors) {
-			if (group && editor) {
-				if (this.move) {
-					group.moveEditor(editor, auxiliaryEditorPart.activeGroup);
-				} else {
-					group.copyEditor(editor, auxiliaryEditorPart.activeGroup);
-				}
-			}
+		const sourceGroup = editorsContext[0].group; // only single group supported for move/copy for now
+		const sourceEditors = editorsContext.filter(({ group }) => group === sourceGroup);
+		if (this.move) {
+			sourceGroup.moveEditors(sourceEditors, auxiliaryEditorPart.activeGroup);
+		} else {
+			sourceGroup.copyEditors(sourceEditors, auxiliaryEditorPart.activeGroup);
 		}
 
 		auxiliaryEditorPart.activeGroup.focus();

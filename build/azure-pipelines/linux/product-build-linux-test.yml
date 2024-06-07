@@ -92,9 +92,6 @@ steps:
       - script: ./scripts/test-integration.sh --tfs "Integration Tests"
         env:
           DISPLAY: ":10"
-          # TODO(deepak1556): Remove this once runtime is updated for
-          # https://github.com/microsoft/vscode/issues/210467#issuecomment-2104566724
-          UV_USE_IO_URING: 0
         displayName: Run integration tests (Electron)
         timeoutInMinutes: 20
 
@@ -103,10 +100,6 @@ steps:
         timeoutInMinutes: 20
 
       - script: ./scripts/test-remote-integration.sh
-        env:
-          # TODO(deepak1556): Remove this once runtime is updated for
-          # https://github.com/microsoft/vscode/issues/210467#issuecomment-2104566724
-          UV_USE_IO_URING: 0
         displayName: Run integration tests (Remote)
         timeoutInMinutes: 20
 
@@ -123,9 +116,6 @@ steps:
           ./scripts/test-integration.sh --build --tfs "Integration Tests"
         env:
           VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)
-          # TODO(deepak1556): Remove this once runtime is updated for
-          # https://github.com/microsoft/vscode/issues/210467#issuecomment-2104566724
-          UV_USE_IO_URING: 0
         displayName: Run integration tests (Electron)
         timeoutInMinutes: 20
 
@@ -144,9 +134,6 @@ steps:
           ./scripts/test-remote-integration.sh
         env:
           VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)
-          # TODO(deepak1556): Remove this once runtime is updated for
-          # https://github.com/microsoft/vscode/issues/210467#issuecomment-2104566724
-          UV_USE_IO_URING: 0
         displayName: Run integration tests (Remote)
         timeoutInMinutes: 20
 
@@ -173,43 +160,24 @@ steps:
 
       - script: yarn smoketest-no-compile --tracing
         timeoutInMinutes: 20
-        env:
-          # TODO(deepak1556): Remove this once runtime is updated for
-          # https://github.com/microsoft/vscode/issues/210467#issuecomment-2104566724
-          UV_USE_IO_URING: 0
         displayName: Run smoke tests (Electron)
 
       - script: yarn smoketest-no-compile --web --tracing --headless --electronArgs="--disable-dev-shm-usage"
         timeoutInMinutes: 20
-        env:
-          # TODO(deepak1556): Remove this once runtime is updated for
-          # https://github.com/microsoft/vscode/issues/210467#issuecomment-2104566724
-          UV_USE_IO_URING: 0
         displayName: Run smoke tests (Browser, Chromium)
 
       - script: yarn smoketest-no-compile --remote --tracing
         timeoutInMinutes: 20
-        env:
-          # TODO(deepak1556): Remove this once runtime is updated for
-          # https://github.com/microsoft/vscode/issues/210467#issuecomment-2104566724
-          UV_USE_IO_URING: 0
         displayName: Run smoke tests (Remote)
 
     - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
       - script: yarn smoketest-no-compile --tracing --build "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)"
         timeoutInMinutes: 20
-        env:
-          # TODO(deepak1556): Remove this once runtime is updated for
-          # https://github.com/microsoft/vscode/issues/210467#issuecomment-2104566724
-          UV_USE_IO_URING: 0
         displayName: Run smoke tests (Electron)
 
       - script: yarn smoketest-no-compile --web --tracing --headless --electronArgs="--disable-dev-shm-usage"
         env:
           VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)-web
-          # TODO(deepak1556): Remove this once runtime is updated for
-          # https://github.com/microsoft/vscode/issues/210467#issuecomment-2104566724
-          UV_USE_IO_URING: 0
         timeoutInMinutes: 20
         displayName: Run smoke tests (Browser, Chromium)
 
@@ -220,10 +188,6 @@ steps:
           VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)" \
           yarn smoketest-no-compile --tracing --remote --build "$APP_PATH"
         timeoutInMinutes: 20
-        env:
-          # TODO(deepak1556): Remove this once runtime is updated for
-          # https://github.com/microsoft/vscode/issues/210467#issuecomment-2104566724
-          UV_USE_IO_URING: 0
         displayName: Run smoke tests (Remote)
 
     - script: |

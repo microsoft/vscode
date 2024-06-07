@@ -64,7 +64,7 @@ import { InputValidationType } from 'vs/workbench/contrib/scm/common/scm';
 import { IWorkspaceSymbol, NotebookPriorityInfo } from 'vs/workbench/contrib/search/common/search';
 import { IRawClosedNotebookFileMatch } from 'vs/workbench/contrib/search/common/searchNotebookHelpers';
 import { IKeywordRecognitionEvent, ISpeechProviderMetadata, ISpeechToTextEvent, ITextToSpeechEvent } from 'vs/workbench/contrib/speech/common/speechService';
-import { CoverageDetails, ExtensionRunTestsRequest, ICallProfileRunHandler, IFileCoverage, ISerializedTestResults, IStartControllerTests, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, TestResultState, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testTypes';
+import { CoverageDetails, ExtensionRunTestsRequest, ICallProfileRunHandler, IFileCoverage, ISerializedTestResults, IStartControllerTests, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, TestMessageFollowupRequest, TestMessageFollowupResponse, TestResultState, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testTypes';
 import { Timeline, TimelineChangeEvent, TimelineOptions, TimelineProviderDescriptor } from 'vs/workbench/contrib/timeline/common/timeline';
 import { TypeHierarchyItem } from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
 import { RelatedInformationResult, RelatedInformationType } from 'vs/workbench/services/aiRelatedInformation/common/aiRelatedInformation';
@@ -147,6 +147,7 @@ export interface MainThreadCommentsShape extends IDisposable {
 	$updateCommentThread(handle: number, commentThreadHandle: number, threadId: string, resource: UriComponents, changes: CommentThreadChanges): void;
 	$deleteCommentThread(handle: number, commentThreadHandle: number): void;
 	$updateCommentingRanges(handle: number, resourceHints?: languages.CommentingRangeResourceHint): void;
+	$revealCommentThread(handle: number, commentThreadHandle: number, options: languages.CommentThreadRevealOptions): Promise<void>;
 }
 
 export interface AuthenticationForceNewSessionOptions {
@@ -414,7 +415,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerMultiDocumentHighlightProvider(handle: number, selector: IDocumentFilterDto[]): void;
 	$registerLinkedEditingRangeProvider(handle: number, selector: IDocumentFilterDto[]): void;
 	$registerReferenceSupport(handle: number, selector: IDocumentFilterDto[]): void;
-	$registerQuickFixSupport(handle: number, selector: IDocumentFilterDto[], metadata: ICodeActionProviderMetadataDto, displayName: string, supportsResolve: boolean): void;
+	$registerCodeActionSupport(handle: number, selector: IDocumentFilterDto[], metadata: ICodeActionProviderMetadataDto, displayName: string, extensionID: string, supportsResolve: boolean): void;
 	$registerPasteEditProvider(handle: number, selector: IDocumentFilterDto[], metadata: IPasteEditProviderMetadataDto): void;
 	$registerDocumentFormattingSupport(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier, displayName: string): void;
 	$registerRangeFormattingSupport(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier, displayName: string, supportRanges: boolean): void;
@@ -1241,8 +1242,8 @@ export interface IDynamicChatAgentProps {
 
 export interface MainThreadChatAgentsShape2 extends IDisposable {
 	$registerAgent(handle: number, extension: ExtensionIdentifier, id: string, metadata: IExtensionChatAgentMetadata, dynamicProps: IDynamicChatAgentProps | undefined): void;
-	$registerAgentCompletionsProvider(handle: number, triggerCharacters: string[]): void;
-	$unregisterAgentCompletionsProvider(handle: number): void;
+	$registerAgentCompletionsProvider(handle: number, id: string, triggerCharacters: string[]): void;
+	$unregisterAgentCompletionsProvider(handle: number, id: string): void;
 	$updateAgent(handle: number, metadataUpdate: IExtensionChatAgentMetadata): void;
 	$unregisterAgent(handle: number): void;
 	$handleProgressChunk(requestId: string, chunk: IChatProgressDto, handle?: number): Promise<number | void>;
@@ -1252,6 +1253,8 @@ export interface MainThreadChatAgentsShape2 extends IDisposable {
 
 export interface IChatAgentCompletionItem {
 	id: string;
+	fullName?: string;
+	icon?: string;
 	insertText?: string;
 	label: string | languages.CompletionItemLabel;
 	value: IChatRequestVariableValueDto;
@@ -1519,24 +1522,24 @@ export interface SCMHistoryItemChangeDto {
 
 export interface MainThreadSCMShape extends IDisposable {
 	$registerSourceControl(handle: number, id: string, label: string, rootUri: UriComponents | undefined, inputBoxDocumentUri: UriComponents): Promise<void>;
-	$updateSourceControl(handle: number, features: SCMProviderFeatures): void;
-	$unregisterSourceControl(handle: number): void;
+	$updateSourceControl(handle: number, features: SCMProviderFeatures): Promise<void>;
+	$unregisterSourceControl(handle: number): Promise<void>;
 
-	$registerGroups(sourceControlHandle: number, groups: [number /*handle*/, string /*id*/, string /*label*/, SCMGroupFeatures, /* multiDiffEditorEnableViewChanges */ boolean][], splices: SCMRawResourceSplices[]): void;
-	$updateGroup(sourceControlHandle: number, handle: number, features: SCMGroupFeatures): void;
-	$updateGroupLabel(sourceControlHandle: number, handle: number, label: string): void;
-	$unregisterGroup(sourceControlHandle: number, handle: number): void;
+	$registerGroups(sourceControlHandle: number, groups: [number /*handle*/, string /*id*/, string /*label*/, SCMGroupFeatures, /* multiDiffEditorEnableViewChanges */ boolean][], splices: SCMRawResourceSplices[]): Promise<void>;
+	$updateGroup(sourceControlHandle: number, handle: number, features: SCMGroupFeatures): Promise<void>;
+	$updateGroupLabel(sourceControlHandle: number, handle: number, label: string): Promise<void>;
+	$unregisterGroup(sourceControlHandle: number, handle: number): Promise<void>;
 
-	$spliceResourceStates(sourceControlHandle: number, splices: SCMRawResourceSplices[]): void;
+	$spliceResourceStates(sourceControlHandle: number, splices: SCMRawResourceSplices[]): Promise<void>;
 
-	$setInputBoxValue(sourceControlHandle: number, value: string): void;
-	$setInputBoxPlaceholder(sourceControlHandle: number, placeholder: string): void;
-	$setInputBoxEnablement(sourceControlHandle: number, enabled: boolean): void;
-	$setInputBoxVisibility(sourceControlHandle: number, visible: boolean): void;
-	$showValidationMessage(sourceControlHandle: number, message: string | IMarkdownString, type: InputValidationType): void;
-	$setValidationProviderIsEnabled(sourceControlHandle: number, enabled: boolean): void;
+	$setInputBoxValue(sourceControlHandle: number, value: string): Promise<void>;
+	$setInputBoxPlaceholder(sourceControlHandle: number, placeholder: string): Promise<void>;
+	$setInputBoxEnablement(sourceControlHandle: number, enabled: boolean): Promise<void>;
+	$setInputBoxVisibility(sourceControlHandle: number, visible: boolean): Promise<void>;
+	$showValidationMessage(sourceControlHandle: number, message: string | IMarkdownString, type: InputValidationType): Promise<void>;
+	$setValidationProviderIsEnabled(sourceControlHandle: number, enabled: boolean): Promise<void>;
 
-	$onDidChangeHistoryProviderCurrentHistoryItemGroup(sourceControlHandle: number, historyItemGroup: SCMHistoryItemGroupDto | undefined): void;
+	$onDidChangeHistoryProviderCurrentHistoryItemGroup(sourceControlHandle: number, historyItemGroup: SCMHistoryItemGroupDto | undefined): Promise<void>;
 }
 
 export interface MainThreadQuickDiffShape extends IDisposable {
@@ -2699,8 +2702,6 @@ export interface ExtHostTestingShape {
 	$cancelExtensionTestRun(runId: string | undefined): void;
 	/** Handles a diff of tests, as a result of a subscribeToDiffs() call */
 	$acceptDiff(diff: TestsDiffOp.Serialized[]): void;
-	/** Publishes that a test run finished. */
-	$publishTestResults(results: ISerializedTestResults[]): void;
 	/** Expands a test item's children, by the given number of levels. */
 	$expandTest(testId: string, levels: number): Promise<void>;
 	/** Requests coverage details for a test run. Errors if not available. */
@@ -2715,6 +2716,17 @@ export interface ExtHostTestingShape {
 	$syncTests(): Promise<void>;
 	/** Sets the active test run profiles */
 	$setDefaultRunProfiles(profiles: Record</* controller id */string, /* profile id */ number[]>): void;
+
+	// --- test results:
+
+	/** Publishes that a test run finished. */
+	$publishTestResults(results: ISerializedTestResults[]): void;
+	/** Requests followup actions for a test (failure) message */
+	$provideTestFollowups(req: TestMessageFollowupRequest, token: CancellationToken): Promise<TestMessageFollowupResponse[]>;
+	/** Actions a followup actions for a test (failure) message */
+	$executeTestFollowup(id: number): Promise<void>;
+	/** Disposes followup actions for a test (failure) message */
+	$disposeTestFollowups(id: number[]): void;
 }
 
 export interface ExtHostLocalizationShape {
