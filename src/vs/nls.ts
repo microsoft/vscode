@@ -162,7 +162,12 @@ export function localize(key: string, message: string, ...args: (string | number
  */
 export function localize(data: ILocalizeInfo | string | [string, number], message: string, ...args: (string | number | boolean | undefined | null)[]): string {
 	if (Array.isArray(data)) {
-		message = globalThis._VSCODE_NLS.messages[data[0]][data[1]];
+		try {
+			message = globalThis._VSCODE_NLS.messages[data[0]][data[1]];
+		} catch (error) {
+			console.error(error, data[0], data[1]);
+			message = `Unable to load message with key: ${data[0]} and index: ${data[1]}`;
+		}
 	}
 	return _format(message, args);
 }
@@ -202,7 +207,12 @@ export function localize2(key: string, message: string, ...args: (string | numbe
  */
 export function localize2(data: ILocalizeInfo | string | [string, number], message: string, ...args: (string | number | boolean | undefined | null)[]): ILocalizedString {
 	if (Array.isArray(data)) {
-		message = globalThis._VSCODE_NLS.messages[data[0]][data[1]];
+		try {
+			message = globalThis._VSCODE_NLS.messages[data[0]][data[1]];
+		} catch (error) {
+			console.error(error, data[0], data[1]);
+			message = `Unable to load message with key: ${data[0]} and index: ${data[1]}`;
+		}
 	}
 	const original = _format(message, args);
 	return {
