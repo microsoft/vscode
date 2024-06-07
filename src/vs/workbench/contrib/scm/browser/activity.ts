@@ -22,9 +22,103 @@ import { ITitleService } from 'vs/workbench/services/title/browser/titleService'
 import { IEditorGroupContextKeyProvider, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { getRepositoryResourceCount } from 'vs/workbench/contrib/scm/browser/util';
+import { autorunWithStore, derived, derivedObservableWithCache, IObservable, observableFromEvent } from 'vs/base/common/observable';
+import { observableConfigValue } from 'vs/platform/observable/common/platformObservableUtils';
 
-function getCount(repository: ISCMRepository): number {
-	return repository.provider.count ?? getRepositoryResourceCount(repository.provider);
+export class SCMActivityCountBadgeController extends Disposable implements IWorkbenchContribution {
+	private readonly _countBadgeConfig = observableConfigValue<'all' | 'focused' | 'off'>('scm.countBadge', 'all', this.configurationService);
+
+	private readonly _repositories = observableFromEvent(
+		Event.any(this.scmService.onDidAddRepository, this.scmService.onDidRemoveRepository),
+		() => this.scmService.repositories);
+
+	private readonly _focusedRepository = observableFromEvent(
+		this.scmViewService.onDidFocusRepository,
+		() => this.scmViewService.focusedRepository ? Object.create(this.scmViewService.focusedRepository) : undefined);
+
+	private readonly _activeEditor = observableFromEvent(
+		this.editorService.onDidActiveEditorChange,
+		() => this.editorService.activeEditor);
+
+	private readonly _activeEditorRepository = derived(reader => {
+		const activeResource = EditorResourceAccessor.getOriginalUri(this._activeEditor.read(reader));
+		if (!activeResource) {
+			return undefined;
+		}
+
+		return this.scmService.getRepository(activeResource);
+	});
+
+	private readonly _activeRepository = derivedObservableWithCache<ISCMRepository | undefined>(this, (reader, lastValue) => {
+		const focusedRepository = this._focusedRepository.read(reader);
+		if (focusedRepository && focusedRepository.id !== lastValue?.id) {
+			return focusedRepository;
+		}
+
+		const activeEditorRepository = this._activeEditorRepository.read(reader);
+		if (activeEditorRepository && activeEditorRepository.id !== lastValue?.id) {
+			return activeEditorRepository;
+		}
+
+		return lastValue;
+	});
+
+	private readonly _countBadgeRepositories = derived(reader => {
+		switch (this._countBadgeConfig.read(reader)) {
+			case 'all': {
+				const repositories = this._repositories.read(reader);
+				return [...Iterable.map(repositories, r => ({ ...r.provider, resourceCount: this._getRepositoryResourceCount(r) }))];
+			}
+			case 'focused': {
+				const repository = this._activeRepository.read(reader);
+				return repository ? [{ ...repository.provider, resourceCount: this._getRepositoryResourceCount(repository) }] : [];
+			}
+			case 'off':
+				return [];
+			default:
+				throw new Error('Invalid countBadge setting');
+		}
+	});
+
+	private readonly _countBadge = derived(reader => {
+		let total = 0;
+
+		for (const repository of this._countBadgeRepositories.read(reader)) {
+			const count = repository.count?.read(reader);
+			const resourceCount = repository.resourceCount.read(reader);
+
+			total = total + (count ?? resourceCount);
+		}
+
+		return total;
+	});
+
+	constructor(
+		@IActivityService private readonly activityService: IActivityService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IEditorService private readonly editorService: IEditorService,
+		@ISCMService private readonly scmService: ISCMService,
+		@ISCMViewService private readonly scmViewService: ISCMViewService
+	) {
+		super();
+
+		this._register(autorunWithStore((reader, store) => {
+			this._renderActivityCount(this._countBadge.read(reader), store);
+		}));
+	}
+
+	private _getRepositoryResourceCount(repository: ISCMRepository): IObservable<number> {
+		return observableFromEvent(repository.provider.onDidChangeResources, () => getRepositoryResourceCount(repository.provider));
+	}
+
+	private _renderActivityCount(count: number, store: DisposableStore): void {
+		if (count === 0) {
+			return;
+		}
+
+		const badge = new NumberBadge(count, num => localize('scmPendingChangesBadge', '{0} pending changes', num));
+		store.add(this.activityService.showViewActivity(VIEW_PANE_ID, { badge }));
+	}
 }
 
 export class SCMStatusController implements IWorkbenchContribution {
@@ -40,16 +134,10 @@ export class SCMStatusController implements IWorkbenchContribution {
 		@ISCMService private readonly scmService: ISCMService,
 		@ISCMViewService private readonly scmViewService: ISCMViewService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
-		@IActivityService private readonly activityService: IActivityService,
-		@IEditorService private readonly editorService: IEditorService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		this.scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
 		this.scmService.onDidRemoveRepository(this.onDidRemoveRepository, this, this.disposables);
-
-		const onDidChangeSCMCountBadge = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.countBadge'));
-		onDidChangeSCMCountBadge(this.renderActivityCount, this, this.disposables);
 
 		for (const repository of this.scmService.repositories) {
 			this.onDidAddRepository(repository);
@@ -59,7 +147,6 @@ export class SCMStatusController implements IWorkbenchContribution {
 		this.focusRepository(this.scmViewService.focusedRepository);
 
 		editorService.onDidActiveEditorChange(() => this.tryFocusRepositoryBasedOnActiveEditor(), this, this.disposables);
-		this.renderActivityCount();
 	}
 
 	private tryFocusRepositoryBasedOnActiveEditor(repositories: Iterable<ISCMRepository> = this.scmService.repositories): boolean {
@@ -69,44 +156,23 @@ export class SCMStatusController implements IWorkbenchContribution {
 			return false;
 		}
 
-		let bestRepository: ISCMRepository | null = null;
-		let bestMatchLength = Number.POSITIVE_INFINITY;
-
-		for (const repository of repositories) {
-			const root = repository.provider.rootUri;
-
-			if (!root) {
-				continue;
-			}
-
-			const path = this.uriIdentityService.extUri.relativePath(root, resource);
-
-			if (path && !/^\.\./.test(path) && path.length < bestMatchLength) {
-				bestRepository = repository;
-				bestMatchLength = path.length;
-			}
-		}
-
-		if (!bestRepository) {
+		const repository = this.scmService.getRepository(resource);
+		if (!repository) {
 			return false;
 		}
 
-		this.focusRepository(bestRepository);
+		this.focusRepository(repository);
 		return true;
 	}
 
 	private onDidAddRepository(repository: ISCMRepository): void {
-		const onDidChange = Event.any(repository.provider.onDidChange, repository.provider.onDidChangeResources);
-		const changeDisposable = onDidChange(() => this.renderActivityCount());
-
 		const onDidRemove = Event.filter(this.scmService.onDidRemoveRepository, e => e === repository);
 		const removeDisposable = onDidRemove(() => {
 			disposable.dispose();
 			this.repositoryDisposables.delete(disposable);
-			this.renderActivityCount();
 		});
 
-		const disposable = combinedDisposable(changeDisposable, removeDisposable);
+		const disposable = combinedDisposable(removeDisposable);
 		this.repositoryDisposables.add(disposable);
 
 		this.tryFocusRepositoryBasedOnActiveEditor(Iterable.single(repository));
@@ -133,7 +199,6 @@ export class SCMStatusController implements IWorkbenchContribution {
 		}
 
 		this.renderStatusBar(repository);
-		this.renderActivityCount();
 	}
 
 	private renderStatusBar(repository: ISCMRepository | undefined): void {
@@ -184,25 +249,6 @@ export class SCMStatusController implements IWorkbenchContribution {
 		this.statusBarDisposable = disposables;
 	}
 
-	private renderActivityCount(): void {
-		const countBadgeType = this.configurationService.getValue<'all' | 'focused' | 'off'>('scm.countBadge');
-
-		let count = 0;
-
-		if (countBadgeType === 'all') {
-			count = Iterable.reduce(this.scmService.repositories, (r, repository) => r + getCount(repository), 0);
-		} else if (countBadgeType === 'focused' && this.focusedRepository) {
-			count = getCount(this.focusedRepository);
-		}
-
-		if (count > 0) {
-			const badge = new NumberBadge(count, num => localize('scmPendingChangesBadge', '{0} pending changes', num));
-			this.badgeDisposable.value = this.activityService.showViewActivity(VIEW_PANE_ID, { badge });
-		} else {
-			this.badgeDisposable.value = undefined;
-		}
-	}
-
 	dispose(): void {
 		this.focusDisposable.dispose();
 		this.statusBarDisposable.dispose();
@@ -230,9 +276,9 @@ export class SCMActiveRepositoryContextKeyController implements IWorkbenchContri
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IEditorService private readonly editorService: IEditorService,
-		@ISCMViewService private readonly scmViewService: ISCMViewService,
-		@ITitleService titleService: ITitleService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
+		@ISCMViewService scmViewService: ISCMViewService,
+		@ISCMService private readonly scmService: ISCMService,
+		@ITitleService titleService: ITitleService
 	) {
 		this.activeRepositoryNameContextKey = ActiveRepositoryContextKeys.ActiveRepositoryName.bindTo(contextKeyService);
 		this.activeRepositoryBranchNameContextKey = ActiveRepositoryContextKeys.ActiveRepositoryBranchName.bindTo(contextKeyService);
@@ -249,16 +295,11 @@ export class SCMActiveRepositoryContextKeyController implements IWorkbenchContri
 
 	private onDidActiveEditorChange(): void {
 		const activeResource = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor);
-
-		if (activeResource?.scheme !== Schemas.file && activeResource?.scheme !== Schemas.vscodeRemote) {
+		if (!activeResource) {
 			return;
 		}
 
-		const repository = Iterable.find(
-			this.scmViewService.repositories,
-			r => Boolean(r.provider.rootUri && this.uriIdentityService.extUri.isEqualOrParent(activeResource, r.provider.rootUri))
-		);
-
+		const repository = this.scmService.getRepository(activeResource);
 		this.onDidFocusRepository(repository);
 	}
 
