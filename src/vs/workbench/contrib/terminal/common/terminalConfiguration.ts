@@ -638,7 +638,6 @@ export async function registerTerminalConfiguration(getFonts: () => Promise<stri
 	if (!isElectron) {
 		return;
 	}
-	// TODO load fonts on startup finished
 	const fonts = await getFonts();
 	if (terminalConfiguration.properties) {
 		const snippets: IJSONSchemaSnippet[] = fonts.map(font => {
