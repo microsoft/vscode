@@ -7,7 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action, ActionRunner } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import * as languages from 'vs/editor/common/languages';
 import { IRange } from 'vs/editor/common/core/range';
@@ -46,6 +46,7 @@ export class CommentThreadHeader<T = IRange> extends Disposable {
 		super();
 		this._headElement = <HTMLDivElement>dom.$('.head');
 		container.appendChild(this._headElement);
+		this._register(toDisposable(() => this._headElement.remove()));
 		this._fillHead();
 	}
 
