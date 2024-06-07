@@ -171,7 +171,7 @@ export class CodeApplication extends Disposable {
 			'clipboard-sanitized-write',
 		]);
 
-		const allowedPermissionsDefault = new Set(['font-access']);
+		const allowedPermissionsDefault = new Set(['font-access', 'local-fonts']);
 
 		session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback, details) => {
 			if (isUrlFromWebview(details.requestingUrl)) {
