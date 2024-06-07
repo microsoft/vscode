@@ -418,16 +418,9 @@ module _nls {
 		// sourceValue can be "foo", 'foo', `foo` or "{ .... }"
 		// we want to return either the string or the object
 		try {
-			return JSON.parse(sourceValue);
+			// eslint-disable-next-line no-eval
+			return eval(`(${sourceValue})`);
 		} catch (e) {
-			// trim any leading/trailing ", ' or ` from the source value"
-			sourceValue = sourceValue.trim();
-			if (sourceValue[0] === '"' || sourceValue[0] === '\'' || sourceValue[0] === '`') {
-				sourceValue = sourceValue.substr(1);
-			}
-			if (sourceValue[sourceValue.length - 1] === '"' || sourceValue[sourceValue.length - 1] === '\'' || sourceValue[sourceValue.length - 1] === '`') {
-				sourceValue = sourceValue.substr(0, sourceValue.length - 1);
-			}
 			return sourceValue;
 		}
 	}

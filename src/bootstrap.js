@@ -122,23 +122,28 @@
 	//#region NLS helpers
 
 	async function setupNLSForESM() {
-		let metaDataFile;
+		const metaDataFile = [];
 
 		const process = safeProcess();
 		if (process && process.env['VSCODE_NLS_CONFIG']) {
 			try {
-				metaDataFile = JSON.parse(process.env['VSCODE_NLS_CONFIG']).metaDataFile;
+				const nlsConfig = JSON.parse(process.env['VSCODE_NLS_CONFIG']);
+				if (nlsConfig._resolvedLanguagePackCoreLocation) {
+					metaDataFile.push(nlsConfig._resolvedLanguagePackCoreLocation, `nls.metadata.json`);
+				} else {
+					metaDataFile.push(nlsConfig.metaDataFile);
+				}
 			} catch (e) {
 				// Ignore
 			}
 		}
 
-		if (!metaDataFile) {
+		if (metaDataFile.length === 0) {
 			return;
 		}
 
 		// VSCODE_GLOBALS: NLS
-		globalThis._VSCODE_NLS = JSON.parse(await safeReadNlsFile(metaDataFile));
+		globalThis._VSCODE_NLS = JSON.parse(await safeReadNlsFile(...metaDataFile));
 	}
 
 	/**
