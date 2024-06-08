@@ -22,8 +22,9 @@ import { ITitleService } from 'vs/workbench/services/title/browser/titleService'
 import { IEditorGroupContextKeyProvider, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { getRepositoryResourceCount } from 'vs/workbench/contrib/scm/browser/util';
-import { autorunWithStore, derived, derivedObservableWithCache, IObservable, observableFromEvent } from 'vs/base/common/observable';
+import { autorunWithStore, derived, IObservable, observableFromEvent } from 'vs/base/common/observable';
 import { observableConfigValue } from 'vs/platform/observable/common/platformObservableUtils';
+import { latestChangedValue } from 'vs/base/common/observableInternal/utils';
 
 export class SCMActivityCountBadgeController extends Disposable implements IWorkbenchContribution {
 	private readonly _countBadgeConfig = observableConfigValue<'all' | 'focused' | 'off'>('scm.countBadge', 'all', this.configurationService);
@@ -49,20 +50,7 @@ export class SCMActivityCountBadgeController extends Disposable implements IWork
 		return this.scmService.getRepository(activeResource);
 	});
 
-	private readonly _activeRepository = derivedObservableWithCache<ISCMRepository | undefined>(this, (reader, lastValue) => {
-		const focusedRepository = this._focusedRepository.read(reader);
-		const activeEditorRepository = this._activeEditorRepository.read(reader);
-
-		if (focusedRepository && focusedRepository.id !== lastValue?.id) {
-			return focusedRepository;
-		}
-
-		if (activeEditorRepository && activeEditorRepository.id !== lastValue?.id) {
-			return activeEditorRepository;
-		}
-
-		return lastValue;
-	});
+	private readonly _activeRepository = latestChangedValue(this._focusedRepository, this._activeEditorRepository);
 
 	private readonly _countBadgeRepositories = derived(reader => {
 		switch (this._countBadgeConfig.read(reader)) {
