@@ -417,7 +417,7 @@ export function generateTokensCSSForColorMap(colorMap: readonly Color[]): string
 	}
 	for (let i = 1, len = colorMap.length; i < len; i++) {
 		const color = colorMap[i];
-		rules.push(`.mtkbg${i} { background: ${color}; }`);
+		rules.push(`.mtkbg${i}::before { content: ""; position: absolute; top: 0; left: 0; background-color: ${color}; width: 100%; height: 100%; display: flex; z-index: -1; }`);
 	}
 	rules.push('.mtki { font-style: italic; }');
 	rules.push('.mtkb { font-weight: bold; }');
