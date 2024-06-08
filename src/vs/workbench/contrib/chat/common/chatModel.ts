@@ -725,7 +725,8 @@ export class ChatModel extends Disposable implements IChatModel {
 			{ variables: [] };
 
 		variableData.variables = variableData.variables.map<IChatRequestVariableEntry>((v): IChatRequestVariableEntry => {
-			if ('values' in v && Array.isArray(v.values)) {
+			// Old variables format
+			if (v && 'values' in v && Array.isArray(v.values)) {
 				return {
 					id: v.id ?? '',
 					name: v.name,

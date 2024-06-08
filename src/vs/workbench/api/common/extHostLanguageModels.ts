@@ -189,7 +189,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		});
 	}
 
-	async $provideLanguageModelResponse(handle: number, requestId: number, from: ExtensionIdentifier, messages: IChatMessage[], options: { [name: string]: any }, token: CancellationToken): Promise<any> {
+	async $provideLanguageModelResponse(handle: number, requestId: number, from: ExtensionIdentifier, messages: IChatMessage[], options: vscode.LanguageModelChatRequestOptions, token: CancellationToken): Promise<any> {
 		const data = this._languageModels.get(handle);
 		if (!data) {
 			return;
@@ -233,7 +233,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 
 			return data.provider.provideLanguageModelResponse(
 				messages.map(typeConvert.LanguageModelChatMessage.to),
-				options,
+				options?.modelOptions ?? {},
 				ExtensionIdentifier.toKey(from),
 				progress2,
 				token
@@ -355,7 +355,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		}
 
 		const requestId = (Math.random() * 1e6) | 0;
-		const requestPromise = this._proxy.$fetchResponse(from, languageModelId, requestId, internalMessages, options.modelOptions ?? {}, token);
+		const requestPromise = this._proxy.$fetchResponse(from, languageModelId, requestId, internalMessages, options, token);
 
 		const barrier = new Barrier();
 

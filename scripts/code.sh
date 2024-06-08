@@ -42,12 +42,18 @@ function code() {
 	export ELECTRON_ENABLE_STACK_DUMPING=1
 	export ELECTRON_ENABLE_LOGGING=1
 
+	DISABLE_TEST_EXTENSION="--disable-extension=vscode.vscode-api-tests"
+	if [[ "$@" == *"--extensionTestsPath"* ]]; then
+		DISABLE_TEST_EXTENSION=""
+	fi
+
 	# Launch Code
 	# exec "$CODE" . "$@"
 	# use default electron version 29.3.1 because
 	# vscode electron electron version 29.3.1 doesn't
 	# support loaders for some reason
-	exec "npx" "electron" . "$@"
+	# exec "npx" "electron" . "$@"
+	exec "$CODE" . $DISABLE_TEST_EXTENSION "$@"
 }
 
 function code-wsl()

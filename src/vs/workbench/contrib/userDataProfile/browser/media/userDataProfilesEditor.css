@@ -15,6 +15,11 @@
 	height: 100%;
 }
 
+.profiles-editor .monaco-split-view2 > .sash-container,
+.profiles-editor .monaco-split-view2.separator-border.horizontal > .monaco-scrollable-element > .split-view-container > .split-view-view:not(:first-child)::before {
+	top: 55px;
+}
+
 .profiles-editor .contents-container {
 	padding: 0px 20px;
 	height: 100%;
@@ -42,8 +47,19 @@
 	padding: 0 4px;
 }
 
+.profiles-editor .monaco-list-row .profile-tree-item-actions-container {
+	display: none;
+}
+
+.profiles-editor .monaco-list-row.focused .profile-tree-item-actions-container,
+.profiles-editor .monaco-list-row.selected .profile-tree-item-actions-container,
+.profiles-editor .monaco-list-row:hover .profile-tree-item-actions-container {
+	display: flex;
+	align-items: center;
+}
+
 .profiles-editor .sidebar-container .profiles-list {
-	margin-top: 10px;
+	margin-top: 15px;
 }
 
 .profiles-editor .sidebar-container .profiles-list .profile-list-item {
@@ -68,6 +84,12 @@
 	opacity: 0.7;
 }
 
+.profiles-editor .sidebar-container .profiles-list .profile-list-item .profile-tree-item-actions-container {
+	flex: 1;
+	justify-content: flex-end;
+	margin-right: 10px;
+}
+
 .profiles-editor .hide {
 	display: none !important;
 }
@@ -82,18 +104,18 @@
 	flex: 1;
 	display: flex;
 	align-items: center;
-	font-size: large;
+	font-size: medium;
 }
 
 .profiles-editor .contents-container .profile-title-container .codicon {
 	cursor: pointer;
 	font-size: large;
-	padding: 6px;
+	padding: 4px;
 	margin-right: 8px;
 }
 
 .profiles-editor .contents-container .profile-title-container .monaco-inputbox {
-	width: 330px;
+	width: 340px;
 }
 
 .profiles-editor .contents-container .profile-header .profile-button-container {
@@ -102,31 +124,25 @@
 }
 
 .profiles-editor .contents-container .profile-header .profile-button-container .monaco-button {
-	margin-right: 4px;
+	margin-left: 4px;
 }
 
 .profiles-editor .contents-container .profile-header .profile-actions-container {
 	display: flex;
-	height: 28px;
-}
-
-.profiles-editor .contents-container .profile-header .profile-actions-container .actions-container {
-	gap: 4px;
-}
-
-.profiles-editor .contents-container .profile-header .profile-actions-container .actions-container .codicon {
-	font-size: 18px;
-	padding: 6px;
 }
 
 .profiles-editor .contents-container .profile-header .profile-actions-container .profile-button-container {
-	margin-left:6px;
+	margin-right: 6px;
 	min-width: 120px;
 }
 
 .profiles-editor .contents-container .profile-header .profile-actions-container .profile-button-container .monaco-button {
 	padding-left: 10px;
 	padding-right: 10px;
+}
+
+.profiles-editor .contents-container .profile-header .profile-actions-container .actions-container .action-label {
+	padding: 6px;
 }
 
 .profiles-editor .contents-container .profile-body {
@@ -142,15 +158,15 @@
 
 .profiles-editor .contents-container .profile-select-container > .monaco-select-box {
 	cursor: pointer;
-	line-height: 17px;
-	padding: 2px 23px 2px 8px;
+	line-height: 18px;
+	padding: 0px 23px 0px 8px;
 	border-radius: 2px;
 }
 
 .profiles-editor .contents-container .profile-copy-from-container {
 	display: flex;
 	align-items: center;
-	margin: 0px 0px 20px 28px;
+	margin: 0px 0px 20px 36px;
 }
 
 .profiles-editor .contents-container .profile-copy-from-container > .profile-copy-from-label {
@@ -166,12 +182,31 @@
 .profiles-editor .contents-container .profile-use-as-default-container {
 	display: flex;
 	align-items: center;
-	margin: 25px 20px 20px 28px;
+	margin: 0px 20px 15px 6px;
 	cursor: pointer;
+}
+
+.profiles-editor .contents-container .profile-use-as-default-container .profile-use-as-default-label {
+	margin-left: 2px;
 }
 
 .profiles-editor .contents-container .profile-contents-container {
 	margin: 0px 0px 10px 20px;
+}
+
+.profiles-editor .contents-container .profile-content-tree-header,
+.profiles-editor .contents-container .profile-content-tree {
+	margin-left: 6px;
+}
+
+.profiles-editor .contents-container .profile-content-tree-header {
+	display: grid;
+	grid-template-columns: 30px repeat(2, 1fr) 100px;
+	height: 24px;
+	align-items: center;
+	margin-bottom: 2px;
+	background-color: var(--vscode-keybindingTable-headerBackground);
+	font-weight: bold;
 }
 
 .profiles-editor .contents-container .profile-tree-item-container {
@@ -179,18 +214,29 @@
 	align-items: center;
 }
 
-.profiles-editor .contents-container .profile-tree-item-container > .profile-resource-type-label {
-	width: 200px;
+.profiles-editor .contents-container .profile-tree-item-container.existing-profile-resource-type-container {
+	display: grid;
+	grid-template-columns: repeat(2, 1fr) 100px;
 }
 
+.profiles-editor .contents-container .profile-content-tree-header > .inherit-label,
 .profiles-editor .contents-container .profile-tree-item-container > .inherit-container {
-	display: flex;
+	justify-content: center;
 	align-items: center;
 }
 
-.profiles-editor .contents-container .profile-tree-item-container > .inherit-container > .inherit-label {
-	/* font-size: 0.9em; */
-	opacity: 0.8;
+.profiles-editor .contents-container .profile-tree-item-container > .inherit-container {
+	padding-left: 50px;
+}
+
+.profiles-editor .contents-container .profile-content-tree-header > .actions-label {
+	display: flex;
+	justify-content: center;
+	align-items: center;
+}
+
+.profiles-editor .contents-container .profile-tree-item-container.profile-resource-child-container > .profile-tree-item-actions-container {
+	width: 100px;
 }
 
 .profiles-editor .contents-container .profile-tree-item-container.new-profile-resource-type-container > .profile-resource-type-label-container {
@@ -205,4 +251,12 @@
 	margin-left: 10px;
 	font-size: 0.9em;
 	opacity: 0.7;
+}
+
+.profiles-editor .contents-container .profile-tree-item-container.profile-resource-child-container > .monaco-icon-label {
+	flex: 1
+}
+
+.profiles-editor .contents-container .profile-tree-item-container .profile-tree-item-actions-container {
+	justify-content: center;
 }
