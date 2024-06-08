@@ -11,6 +11,7 @@ import { DebugNameData, Owner, getFunctionName } from 'vs/base/common/observable
 import { derived, derivedOpts } from 'vs/base/common/observableInternal/derived';
 import { getLogger } from 'vs/base/common/observableInternal/logging';
 import { IValueWithChangeEvent } from '../event';
+import { BugIndicatingError } from 'vs/base/common/errors';
 
 /**
  * Represents an efficient observable whose value never changes.
@@ -525,4 +526,43 @@ export function observableFromValueWithChangeEvent<T>(_owner: Owner, value: IVal
 		return value.observable;
 	}
 	return observableFromEvent(value.onDidChange, () => value.value);
+}
+
+/**
+ * Creates an observable that has the latest changed value of the given observables.
+ * Initially (and when not observed), it has the value of the last observable.
+ * When observed and any of the observables change, it has the value of the last changed observable.
+ * If multiple observables change in the same transaction, the last observable wins.
+*/
+export function latestChangedValue<T extends IObservable<any>[]>(...observables: T): IObservable<ReturnType<T[number]['get']>> {
+	if (observables.length === 0) {
+		throw new BugIndicatingError();
+	}
+
+	let hasLastChangedValue = false;
+	let lastChangedValue: any = undefined;
+
+	return observableFromEvent<any, void>(cb => {
+		const store = new DisposableStore();
+		for (const o of observables) {
+			store.add(autorun(reader => {
+				hasLastChangedValue = true;
+				lastChangedValue = o.read(reader);
+				cb();
+			}));
+		}
+		store.add({
+			dispose() {
+				hasLastChangedValue = false;
+				lastChangedValue = undefined;
+			},
+		});
+		return store;
+	}, () => {
+		if (hasLastChangedValue) {
+			return lastChangedValue;
+		} else {
+			return observables[observables.length - 1].get();
+		}
+	});
 }
