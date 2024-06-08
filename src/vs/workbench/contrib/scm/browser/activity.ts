@@ -24,7 +24,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { getRepositoryResourceCount } from 'vs/workbench/contrib/scm/browser/util';
 import { autorunWithStore, derived, IObservable, observableFromEvent } from 'vs/base/common/observable';
 import { observableConfigValue } from 'vs/platform/observable/common/platformObservableUtils';
-import { latestChangedValue, observableFromEventOpts } from 'vs/base/common/observableInternal/utils';
+import { derivedObservableWithCache, latestChangedValue, observableFromEventOpts } from 'vs/base/common/observableInternal/utils';
 import { Command } from 'vs/editor/common/languages';
 
 export class SCMActiveRepositoryController extends Disposable implements IWorkbenchContribution {
@@ -44,13 +44,13 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 		this.editorService.onDidActiveEditorChange,
 		() => this.editorService.activeEditor);
 
-	private readonly _activeEditorRepository = derived(reader => {
+	private readonly _activeEditorRepository = derivedObservableWithCache<ISCMRepository | undefined>(this, (reader, lastValue) => {
 		const activeResource = EditorResourceAccessor.getOriginalUri(this._activeEditor.read(reader));
 		if (!activeResource) {
-			return undefined;
+			return lastValue;
 		}
 
-		return this.scmService.getRepository(activeResource);
+		return this.scmService.getRepository(activeResource) ?? lastValue;
 	});
 
 	private readonly _activeRepository = latestChangedValue(this._focusedRepository, this._activeEditorRepository);
