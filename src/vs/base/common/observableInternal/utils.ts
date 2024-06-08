@@ -12,6 +12,7 @@ import { derived, derivedOpts } from 'vs/base/common/observableInternal/derived'
 import { getLogger } from 'vs/base/common/observableInternal/logging';
 import { IValueWithChangeEvent } from '../event';
 import { BugIndicatingError } from 'vs/base/common/errors';
+import { EqualityComparer, strictEquals } from 'vs/base/common/equals';
 
 /**
  * Represents an efficient observable whose value never changes.
@@ -57,7 +58,17 @@ export function observableFromEvent<T, TArgs = unknown>(
 	event: Event<TArgs>,
 	getValue: (args: TArgs | undefined) => T,
 ): IObservable<T> {
-	return new FromEventObservable(event, getValue, () => FromEventObservable.globalTransaction);
+	return new FromEventObservable(event, getValue, () => FromEventObservable.globalTransaction, strictEquals);
+}
+
+export function observableFromEventOpts<T, TArgs = unknown>(
+	options: {
+		equalsFn?: EqualityComparer<T>;
+	},
+	event: Event<TArgs>,
+	getValue: (args: TArgs | undefined) => T,
+): IObservable<T> {
+	return new FromEventObservable(event, getValue, () => FromEventObservable.globalTransaction, options.equalsFn ?? strictEquals);
 }
 
 export class FromEventObservable<TArgs, T> extends BaseObservable<T> {
@@ -71,6 +82,7 @@ export class FromEventObservable<TArgs, T> extends BaseObservable<T> {
 		private readonly event: Event<TArgs>,
 		public readonly _getValue: (args: TArgs | undefined) => T,
 		private readonly _getTransaction: () => ITransaction | undefined,
+		private readonly _equalityComparator: EqualityComparer<T>
 	) {
 		super();
 	}
@@ -92,7 +104,7 @@ export class FromEventObservable<TArgs, T> extends BaseObservable<T> {
 		const newValue = this._getValue(args);
 		const oldValue = this.value;
 
-		const didChange = !this.hasValue || oldValue !== newValue;
+		const didChange = !this.hasValue || !(this._equalityComparator(oldValue!, newValue));
 		let didRunTransaction = false;
 
 		if (didChange) {
