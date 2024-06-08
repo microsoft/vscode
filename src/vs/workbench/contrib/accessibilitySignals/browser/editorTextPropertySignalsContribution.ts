@@ -5,8 +5,9 @@
 
 import { disposableTimeout } from 'vs/base/common/async';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IReader, autorun, autorunWithStore, derived, observableFromEvent, observableFromPromise } from 'vs/base/common/observable';
-import { observableFromValueWithChangeEvent, observableSignalFromEvent, wasEventTriggeredRecently } from 'vs/base/common/observableInternal/utils';
+import { IReader, ObservablePromise, autorun, autorunWithStore, derived, observableFromEvent } from 'vs/base/common/observable';
+import { observableFromValueWithChangeEvent, wasEventTriggeredRecently } from 'vs/base/common/observableInternal/utils';
+import { observableSignalFromEvent } from 'vs/base/common/observableInternal/observableFromEvent';
 import { isDefined } from 'vs/base/common/types';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
@@ -240,11 +241,11 @@ class FoldedAreaTextProperty implements TextProperty {
 		const foldingController = FoldingController.get(editor);
 		if (!foldingController) { return TextPropertySource.notPresent; }
 
-		const foldingModel = observableFromPromise(foldingController.getFoldingModel() ?? Promise.resolve(undefined));
+		const foldingModel = new ObservablePromise(foldingController.getFoldingModel() ?? Promise.resolve(undefined));
 		return new TextPropertySource({
 			isPresentOnLine(lineNumber, reader): boolean {
-				const m = foldingModel.read(reader);
-				const regionAtLine = m.value?.getRegionAtLine(lineNumber);
+				const m = foldingModel.promiseResult.read(reader)?.data;
+				const regionAtLine = m?.getRegionAtLine(lineNumber);
 				const hasFolding = !regionAtLine
 					? false
 					: regionAtLine.isCollapsed &&

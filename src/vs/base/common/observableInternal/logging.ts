@@ -6,7 +6,7 @@
 import { AutorunObserver } from 'vs/base/common/observableInternal/autorun';
 import { IObservable, ObservableValue, TransactionImpl } from 'vs/base/common/observableInternal/base';
 import { Derived } from 'vs/base/common/observableInternal/derived';
-import { FromEventObservable } from 'vs/base/common/observableInternal/utils';
+import { FromEventObservable } from './observableFromEvent';
 
 let globalObservableLogger: IObservableLogger | undefined;
 

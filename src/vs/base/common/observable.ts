@@ -46,12 +46,13 @@ export {
 	derivedObservableWithWritableCache,
 	keepObserved,
 	recomputeInitiallyAndOnChange,
-	observableFromEvent,
-	observableFromPromise,
 	observableSignal,
-	observableSignalFromEvent,
 	wasEventTriggeredRecently,
 } from 'vs/base/common/observableInternal/utils';
+export {
+	observableFromEvent,
+	observableSignalFromEvent,
+} from 'vs/base/common/observableInternal/observableFromEvent';
 export {
 	ObservableLazy,
 	ObservableLazyPromise,

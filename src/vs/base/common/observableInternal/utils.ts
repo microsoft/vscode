@@ -6,11 +6,12 @@
 import { Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { autorun } from 'vs/base/common/observableInternal/autorun';
-import { BaseObservable, ConvenientObservable, IObservable, IObserver, IReader, ITransaction, _setKeepObserved, _setRecomputeInitiallyAndOnChange, observableValue, subtransaction, transaction } from 'vs/base/common/observableInternal/base';
-import { DebugNameData, Owner, getFunctionName } from 'vs/base/common/observableInternal/debugName';
+import { BaseObservable, ConvenientObservable, IObservable, IObserver, IReader, ITransaction, _setKeepObserved, _setRecomputeInitiallyAndOnChange, observableValue, transaction } from 'vs/base/common/observableInternal/base';
+import { DebugNameData, Owner } from 'vs/base/common/observableInternal/debugName';
 import { derived, derivedOpts } from 'vs/base/common/observableInternal/derived';
-import { getLogger } from 'vs/base/common/observableInternal/logging';
 import { IValueWithChangeEvent } from '../event';
+import { observableFromEvent } from './observableFromEvent';
+import { BugIndicatingError } from 'vs/base/common/errors';
 
 /**
  * Represents an efficient observable whose value never changes.
@@ -40,169 +41,6 @@ class ConstObservable<T> extends ConvenientObservable<T, void> {
 
 	override toString(): string {
 		return `Const: ${this.value}`;
-	}
-}
-
-
-export function observableFromPromise<T>(promise: Promise<T>): IObservable<{ value?: T }> {
-	const observable = observableValue<{ value?: T }>('promiseValue', {});
-	promise.then((value) => {
-		observable.set({ value }, undefined);
-	});
-	return observable;
-}
-
-export function observableFromEvent<T, TArgs = unknown>(
-	event: Event<TArgs>,
-	getValue: (args: TArgs | undefined) => T,
-): IObservable<T> {
-	return new FromEventObservable(event, getValue, () => FromEventObservable.globalTransaction);
-}
-
-export class FromEventObservable<TArgs, T> extends BaseObservable<T> {
-	public static globalTransaction: ITransaction | undefined;
-
-	private value: T | undefined;
-	private hasValue = false;
-	private subscription: IDisposable | undefined;
-
-	constructor(
-		private readonly event: Event<TArgs>,
-		public readonly _getValue: (args: TArgs | undefined) => T,
-		private readonly _getTransaction: () => ITransaction | undefined,
-	) {
-		super();
-	}
-
-	private getDebugName(): string | undefined {
-		return getFunctionName(this._getValue);
-	}
-
-	public get debugName(): string {
-		const name = this.getDebugName();
-		return 'From Event' + (name ? `: ${name}` : '');
-	}
-
-	protected override onFirstObserverAdded(): void {
-		this.subscription = this.event(this.handleEvent);
-	}
-
-	private readonly handleEvent = (args: TArgs | undefined) => {
-		const newValue = this._getValue(args);
-		const oldValue = this.value;
-
-		const didChange = !this.hasValue || oldValue !== newValue;
-		let didRunTransaction = false;
-
-		if (didChange) {
-			this.value = newValue;
-
-			if (this.hasValue) {
-				didRunTransaction = true;
-				subtransaction(
-					this._getTransaction(),
-					(tx) => {
-						getLogger()?.handleFromEventObservableTriggered(this, { oldValue, newValue, change: undefined, didChange, hadValue: this.hasValue });
-
-						for (const o of this.observers) {
-							tx.updateObserver(o, this);
-							o.handleChange(this, undefined);
-						}
-					},
-					() => {
-						const name = this.getDebugName();
-						return 'Event fired' + (name ? `: ${name}` : '');
-					}
-				);
-			}
-			this.hasValue = true;
-		}
-
-		if (!didRunTransaction) {
-			getLogger()?.handleFromEventObservableTriggered(this, { oldValue, newValue, change: undefined, didChange, hadValue: this.hasValue });
-		}
-	};
-
-	protected override onLastObserverRemoved(): void {
-		this.subscription!.dispose();
-		this.subscription = undefined;
-		this.hasValue = false;
-		this.value = undefined;
-	}
-
-	public get(): T {
-		if (this.subscription) {
-			if (!this.hasValue) {
-				this.handleEvent(undefined);
-			}
-			return this.value!;
-		} else {
-			// no cache, as there are no subscribers to keep it updated
-			const value = this._getValue(undefined);
-			return value;
-		}
-	}
-}
-
-export namespace observableFromEvent {
-	export const Observer = FromEventObservable;
-
-	export function batchEventsGlobally(tx: ITransaction, fn: () => void): void {
-		let didSet = false;
-		if (FromEventObservable.globalTransaction === undefined) {
-			FromEventObservable.globalTransaction = tx;
-			didSet = true;
-		}
-		try {
-			fn();
-		} finally {
-			if (didSet) {
-				FromEventObservable.globalTransaction = undefined;
-			}
-		}
-	}
-}
-
-export function observableSignalFromEvent(
-	debugName: string,
-	event: Event<any>
-): IObservable<void> {
-	return new FromEventObservableSignal(debugName, event);
-}
-
-class FromEventObservableSignal extends BaseObservable<void> {
-	private subscription: IDisposable | undefined;
-
-	constructor(
-		public readonly debugName: string,
-		private readonly event: Event<any>,
-	) {
-		super();
-	}
-
-	protected override onFirstObserverAdded(): void {
-		this.subscription = this.event(this.handleEvent);
-	}
-
-	private readonly handleEvent = () => {
-		transaction(
-			(tx) => {
-				for (const o of this.observers) {
-					tx.updateObserver(o, this);
-					o.handleChange(this, undefined);
-				}
-			},
-			() => this.debugName
-		);
-	};
-
-	protected override onLastObserverRemoved(): void {
-		this.subscription!.dispose();
-		this.subscription = undefined;
-	}
-
-	public override get(): void {
-		// NO OP
 	}
 }
 
@@ -261,35 +99,9 @@ class ObservableSignal<TChange> extends BaseObservable<void, TChange> implements
 }
 
 /**
- * @deprecated Use `debouncedObservable2` instead.
- */
-export function debouncedObservable<T>(observable: IObservable<T>, debounceMs: number, disposableStore: DisposableStore): IObservable<T | undefined> {
-	const debouncedObservable = observableValue<T | undefined>('debounced', undefined);
-
-	let timeout: any = undefined;
-
-	disposableStore.add(autorun(reader => {
-		/** @description debounce */
-		const value = observable.read(reader);
-
-		if (timeout) {
-			clearTimeout(timeout);
-		}
-		timeout = setTimeout(() => {
-			transaction(tx => {
-				debouncedObservable.set(value, tx);
-			});
-		}, debounceMs);
-
-	}));
-
-	return debouncedObservable;
-}
-
-/**
  * Creates an observable that debounces the input observable.
  */
-export function debouncedObservable2<T>(observable: IObservable<T>, debounceMs: number): IObservable<T> {
+export function debouncedObservable<T>(observable: IObservable<T>, debounceMs: number): IObservable<T> {
 	let hasValue = false;
 	let lastValue: T | undefined;
 
@@ -317,6 +129,9 @@ export function debouncedObservable2<T>(observable: IObservable<T>, debounceMs: 
 				d.dispose();
 				hasValue = false;
 				lastValue = undefined;
+				if (timeout) {
+					clearTimeout(timeout);
+				}
 			},
 		};
 	}, () => {
