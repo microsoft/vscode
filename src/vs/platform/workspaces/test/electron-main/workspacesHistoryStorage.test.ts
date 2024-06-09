@@ -126,7 +126,7 @@ suite('History Storage', () => {
 					"label": "abc"
 				},
 				{
-					"fileUri": "file:///home/user/.config/code-oss-dev/storage.json",
+					"fileUri": "file:///home/user/.config/pearai-dev/storage.json",
 					"label": "def"
 				}
 			]
@@ -134,7 +134,7 @@ suite('History Storage', () => {
 
 		const windowsState = restoreRecentlyOpened(JSON.parse(v1_55), new NullLogService());
 		const expected: IRecentlyOpened = {
-			files: [{ label: 'def', fileUri: URI.parse('file:///home/user/.config/code-oss-dev/storage.json') }],
+			files: [{ label: 'def', fileUri: URI.parse('file:///home/user/.config/pearai-dev/storage.json') }],
 			workspaces: [
 				{ folderUri: URI.parse('foo://bar/23/43'), remoteAuthority: 'test+test' },
 				{ workspace: { id: '53b714b46ef1a2d4346568b4f591028c', configPath: URI.parse('file:///home/user/workspaces/testing/custom.code-workspace') } },

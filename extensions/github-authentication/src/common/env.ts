@@ -11,7 +11,7 @@ const VALID_DESKTOP_CALLBACK_SCHEMES = [
 	// On Windows, some browsers don't seem to redirect back to OSS properly.
 	// As a result, you get stuck in the auth flow. We exclude this from the
 	// list until we can figure out a way to fix this behavior in browsers.
-	// 'code-oss',
+	// 'pearai',
 	'vscode-wsl',
 	'vscode-exploration'
 ];

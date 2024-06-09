@@ -51,7 +51,7 @@ fi
 
 # Register yum repository
 # TODO: #229: Enable once the yum repository is signed
-#if [ "@@NAME@@" != "code-oss" ]; then
+#if [ "@@NAME@@" != "pearai" ]; then
 #	if [ -d "/etc/yum.repos.d" ]; then
 #		REPO_FILE=/etc/yum.repos.d/@@NAME@@.repo
 #		rm -f $REPO_FILE

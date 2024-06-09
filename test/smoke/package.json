@@ -1,5 +1,5 @@
 {
-  "name": "code-oss-dev-smoke-test",
+  "name": "pearai-dev-smoke-test",
   "version": "0.1.0",
   "license": "MIT",
   "main": "./src/main.js",
