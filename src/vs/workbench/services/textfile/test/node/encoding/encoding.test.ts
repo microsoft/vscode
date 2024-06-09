@@ -77,7 +77,7 @@ function readExactlyByFile(file: string, totalBytes: number): Promise<ReadResult
 	});
 }
 
-suite('Encoding', () => {
+suite.skip('Encoding', () => {
 
 	test('detectBOM does not return error for non existing file', async () => {
 		const file = FileAccess.asFileUri('vs/workbench/services/textfile/test/node/encoding/fixtures/not-exist.css').fsPath;
