@@ -4,22 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 // eslint-disable-next-line local/code-import-patterns, local/code-amd-node-module
+import { Terminal } from '@xterm/headless';
+
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { PromptInputModel, type IPromptInputModelState } from 'vs/platform/terminal/common/capabilities/commandDetection/promptInputModel';
 import { Emitter } from 'vs/base/common/event';
 import type { ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
-import xtermHeadless from '@xterm/headless';
 import { notDeepStrictEqual, strictEqual } from 'assert';
 import { timeout } from 'vs/base/common/async';
-
-const { Terminal } = xtermHeadless;
 
 suite('PromptInputModel', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let promptInputModel: PromptInputModel;
-	let xterm: xtermHeadless.Terminal;
+	let xterm: Terminal;
 	let onCommandStart: Emitter<ITerminalCommand>;
 	let onCommandExecuted: Emitter<ITerminalCommand>;
 
