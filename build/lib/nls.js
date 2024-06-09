@@ -4,7 +4,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.entryPoints = exports.buildMapKeys = exports.buildMap = void 0;
 exports.nls = nls;
 const lazy = require("lazy.js");
 const event_stream_1 = require("event-stream");
@@ -39,24 +38,11 @@ function clone(object) {
     }
     return result;
 }
-// function template(lines: string[]): string {
-// 	let indent = '', wrap = '';
-// 	if (lines.length > 1) {
-// 		indent = '\t';
-// 		wrap = '\n';
-// 	}
-// 	return `/*---------------------------------------------------------
-//  * Copyright (C) Microsoft Corporation. All rights reserved.
-//  *--------------------------------------------------------*/
-// define([], [${wrap + lines.map(l => indent + l).join(',\n') + wrap}]);`;
-// }
-exports.buildMap = {};
-exports.buildMapKeys = {};
-exports.entryPoints = {}; // TODO these need to be computed differently if we decide to keep them
 /**
  * Returns a stream containing the patched JavaScript and source maps.
  */
 function nls() {
+    let base;
     const input = (0, event_stream_1.through)();
     const output = input.pipe((0, event_stream_1.through)(function (f) {
         if (!f.sourceMap) {
@@ -74,7 +60,18 @@ function nls() {
         if (!typescript) {
             return this.emit('error', new Error(`File ${f.relative} does not have the original content in the source map.`));
         }
+        base = f.base;
         _nls.patchFiles(f, typescript).forEach(f => this.emit('data', f));
+    }, function () {
+        this.emit('data', new File({
+            contents: Buffer.from(JSON.stringify({
+                keys: _nls.moduleToNLSValues,
+                messages: _nls.moduleToNLSKeys,
+            }, null, '\t')),
+            base,
+            path: base + '/nls.metadata.json'
+        }));
+        this.emit('end');
     }));
     return (0, event_stream_1.duplex)(input, output);
 }
@@ -83,6 +80,8 @@ function isImportNode(ts, node) {
 }
 var _nls;
 (function (_nls) {
+    _nls.moduleToNLSKeys = {};
+    _nls.moduleToNLSValues = {};
     function fileFrom(file, contents, path = file.path) {
         return new File({
             contents: Buffer.from(contents),
@@ -150,13 +149,6 @@ var _nls;
             .filter(d => d.moduleSpecifier.kind === ts.SyntaxKind.StringLiteral)
             .filter(d => d.moduleSpecifier.getText() === '\'vs/nls\'')
             .filter(d => !!d.importClause && !!d.importClause.namedBindings);
-        const nlsExpressions = importEqualsDeclarations
-            .map(d => d.moduleReference.expression)
-            .concat(importDeclarations.map(d => d.moduleSpecifier))
-            .map(d => ({
-            start: ts.getLineAndCharacterOfPosition(sourceFile, d.getStart()),
-            end: ts.getLineAndCharacterOfPosition(sourceFile, d.getEnd())
-        }));
         // `nls.localize(...)` calls
         const nlsLocalizeCallExpressions = importDeclarations
             .filter(d => !!(d.importClause && d.importClause.namedBindings && d.importClause.namedBindings.kind === ts.SyntaxKind.NamespaceImport))
@@ -210,8 +202,7 @@ var _nls;
             value: a[1].getText()
         }));
         return {
-            localizeCalls: localizeCalls.toArray(),
-            nlsExpressions: nlsExpressions.toArray()
+            localizeCalls: localizeCalls.toArray()
         };
     }
     class TextModel {
@@ -266,14 +257,10 @@ var _nls;
                 .flatten().toArray().join('');
         }
     }
-    function patchJavascript(patches, contents /*, moduleId: string*/) {
+    function patchJavascript(patches, contents) {
         const model = new TextModel(contents);
         // patch the localize calls
         lazy(patches).reverse().each(p => model.apply(p));
-        // patch the 'vs/nls' imports
-        // const firstLine = model.get(0);
-        // const patchedFirstLine = firstLine.replace(/(['"])vs\/nls\1/g, `$1vs/nls!${moduleId}$1`);
-        // model.set(0, patchedFirstLine);
         return model.toString();
     }
     function patchSourcemap(patches, rsm, smc) {
@@ -323,8 +310,8 @@ var _nls;
         }
     }
     function patch(ts, moduleId, typescript, javascript, sourcemap) {
-        const { localizeCalls /*, nlsExpressions*/ } = analyze(ts, typescript, 'localize');
-        const { localizeCalls: localize2Calls /*, nlsExpressions: nls2Expressions*/ } = analyze(ts, typescript, 'localize2');
+        const { localizeCalls } = analyze(ts, typescript, 'localize');
+        const { localizeCalls: localize2Calls } = analyze(ts, typescript, 'localize2');
         if (localizeCalls.length === 0 && localize2Calls.length === 0) {
             return { javascript, sourcemap };
         }
@@ -367,14 +354,7 @@ var _nls;
                 return 0;
             }
         });
-        javascript = patchJavascript(patches, javascript /*, moduleId*/);
-        // since imports are not within the sourcemap information,
-        // we must do this MacGyver style
-        // if (nlsExpressions.length || nls2Expressions.length) {
-        // 	javascript = javascript.replace(/^define\(.*$/m, line => {
-        // 		return line.replace(/(['"])vs\/nls\1/g, `$1vs/nls!${moduleId}$1`);
-        // 	});
-        // }
+        javascript = patchJavascript(patches, javascript);
         sourcemap = patchSourcemap(patches, sourcemap, smc);
         return { javascript, sourcemap, nlsKeys, nls };
     }
@@ -388,18 +368,11 @@ var _nls;
         const result = [fileFrom(javascriptFile, javascript)];
         result[0].sourceMap = sourcemap;
         if (nlsKeys) {
-            exports.buildMapKeys[moduleId] = nlsKeys;
-            // result.push(fileFrom(javascriptFile, nlsKeys, javascriptFile.path.replace(/\.js$/, '.nls.keys.js')));
+            _nls.moduleToNLSValues[moduleId] = nlsKeys;
         }
         if (nls) {
-            exports.buildMap[moduleId] = nls;
-            // result.push(fileFrom(javascriptFile, nls, javascriptFile.path.replace(/\.js$/, '.nls.js')));
+            _nls.moduleToNLSKeys[moduleId] = nls;
         }
-        result.push(fileFrom(javascriptFile, JSON.stringify({
-            keys: exports.buildMapKeys,
-            messages: exports.buildMap,
-            bundles: exports.entryPoints
-        }, null, '\t'), javascriptFile.base + '/nls.metadata.json'));
         return result;
     }
     _nls.patchFiles = patchFiles;
