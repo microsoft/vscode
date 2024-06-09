@@ -8,11 +8,12 @@ const { testGlobalRequire, testSetRun, testIpcRenderer } = globalThis;
 
 const modules = [
 	'@parcel/watcher',
+	'@vscode/deviceid',
 	'@vscode/ripgrep',
 	'@vscode/sqlite3',
 	'@vscode/windows-ca-certs',
-	'@vscode/windows-registry',
 	'@vscode/windows-process-tree',
+	'@vscode/windows-registry',
 	'@xterm/headless',
 	'@xterm/xterm',
 	'assert',
@@ -45,27 +46,27 @@ const modules = [
 	'vscode-regexpp',
 	'yauzl',
 	'zlib',
-	"istanbul-lib-coverage",
-	"istanbul-lib-instrument",
-	"istanbul-lib-report",
-	"istanbul-lib-source-maps",
-	"istanbul-reports",
-	"windows-foreground-love",
-]
+	'istanbul-lib-coverage',
+	'istanbul-lib-instrument',
+	'istanbul-lib-report',
+	'istanbul-lib-source-maps',
+	'istanbul-reports',
+	'windows-foreground-love',
+];
 
 const createTestGlobals = () => {
-	const map = Object.create(null)
+	const map = Object.create(null);
 	for (const module of modules) {
 		Object.defineProperty(map, module, {
 			get() {
-				return testGlobalRequire(module)
+				return testGlobalRequire(module);
 			},
-		})
+		});
 	}
-	map.setRun = testSetRun
-	map.ipcRenderer = testIpcRenderer
-	return map
-}
+	map.setRun = testSetRun;
+	map.ipcRenderer = testIpcRenderer;
+	return map;
+};
 
 
-export const testGlobals = createTestGlobals()
+export const testGlobals = createTestGlobals();
