@@ -14,7 +14,8 @@ const ts = require("typescript");
 const url_1 = require("url");
 const workerpool = require("workerpool");
 const staticLanguageServiceHost_1 = require("./staticLanguageServiceHost");
-const buildfile = require('../../../src/buildfile');
+// @ts-ignore
+const buildfile = require("../../buildfile");
 class ShortIdent {
     prefix;
     static _keywords = new Set(['await', 'break', 'case', 'catch', 'class', 'const', 'continue', 'debugger',
