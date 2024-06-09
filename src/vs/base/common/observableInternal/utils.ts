@@ -11,7 +11,6 @@ import { DebugNameData, Owner } from 'vs/base/common/observableInternal/debugNam
 import { derived, derivedOpts } from 'vs/base/common/observableInternal/derived';
 import { IValueWithChangeEvent } from '../event';
 import { observableFromEvent } from './observableFromEvent';
-import { BugIndicatingError } from 'vs/base/common/errors';
 
 /**
  * Represents an efficient observable whose value never changes.
