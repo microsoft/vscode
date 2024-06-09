@@ -195,7 +195,7 @@ async function loadTests(opts) {
 		'throw ListenerLeakError'
 	]);
 
-	// let _testsWithUnexpectedOutput = false;
+	const _testsWithUnexpectedOutput = false;
 
 	// for (const consoleFn of [console.log, console.error, console.info, console.warn, console.trace, console.debug]) {
 	// 	console[consoleFn.name] = function (msg) {
