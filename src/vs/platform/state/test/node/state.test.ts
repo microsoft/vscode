@@ -46,7 +46,7 @@ flakySuite('StateService', () => {
 		return Promises.rm(testDir);
 	});
 
-	test.skip('Basics (delayed strategy)', async function () {
+	test('Basics (delayed strategy)', async function () {
 		const storageFile = join(testDir, 'storage.json');
 		writeFileSync(storageFile, '');
 
@@ -110,7 +110,7 @@ flakySuite('StateService', () => {
 		return service.close();
 	});
 
-	test.skip('Basics (immediate strategy)', async function () {
+	test('Basics (immediate strategy)', async function () {
 		const storageFile = join(testDir, 'storage.json');
 		writeFileSync(storageFile, '');
 
@@ -174,7 +174,7 @@ flakySuite('StateService', () => {
 		return service.close();
 	});
 
-	test.skip('Multiple ops are buffered and applied', async function () {
+	test('Multiple ops are buffered and applied', async function () {
 		const storageFile = join(testDir, 'storage.json');
 		writeFileSync(storageFile, '');
 
@@ -205,7 +205,7 @@ flakySuite('StateService', () => {
 		return service.close();
 	});
 
-	test.skip('Multiple ops (Immediate Strategy)', async function () {
+	test('Multiple ops (Immediate Strategy)', async function () {
 		const storageFile = join(testDir, 'storage.json');
 		writeFileSync(storageFile, '');
 
@@ -263,7 +263,7 @@ flakySuite('StateService', () => {
 		return service.close();
 	});
 
-	test.skip('Used after close', async function () {
+	test('Used after close', async function () {
 		const storageFile = join(testDir, 'storage.json');
 		writeFileSync(storageFile, '');
 
