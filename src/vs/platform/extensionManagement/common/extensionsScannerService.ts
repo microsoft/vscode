@@ -888,7 +888,7 @@ class CachedExtensionsScanner extends ExtensionsScanner {
 		const cacheContents = await this.readExtensionCache(cacheFile);
 		this.input = input;
 		if (cacheContents && cacheContents.input && ExtensionScannerInput.equals(cacheContents.input, this.input)) {
-			this.logService.debug('Using cached extensions scan result', input.location.toString());
+			this.logService.debug('Using cached extensions scan result', input.type === ExtensionType.System ? 'system' : 'user', input.location.toString());
 			this.cacheValidatorThrottler.trigger(() => this.validateCache());
 			return cacheContents.result.map((extension) => {
 				// revive URI object

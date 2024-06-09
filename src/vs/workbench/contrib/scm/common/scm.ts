@@ -15,6 +15,7 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { ResourceTree } from 'vs/base/common/resourceTree';
 import { ISCMHistoryProvider, ISCMHistoryProviderMenus } from 'vs/workbench/contrib/scm/common/history';
 import { ITextModel } from 'vs/editor/common/model';
+import { IObservable } from 'vs/base/common/observable';
 import { ISCMRepositoryGraphController } from 'vs/workbench/contrib/scm/common/scmHistory';
 
 export const VIEWLET_ID = 'workbench.view.scm';
@@ -73,15 +74,15 @@ export interface ISCMProvider extends IDisposable {
 
 	readonly rootUri?: URI;
 	readonly inputBoxTextModel: ITextModel;
-	readonly count?: number;
-	readonly commitTemplate: string;
+	readonly count: IObservable<number | undefined>;
+	readonly commitTemplate: IObservable<string>;
 	readonly historyProvider?: ISCMHistoryProvider;
-	readonly onDidChangeCommitTemplate: Event<string>;
 	readonly onDidChangeHistoryProvider: Event<void>;
 	readonly onDidChangeStatusBarCommands?: Event<readonly Command[]>;
 	readonly acceptInputCommand?: Command;
 	readonly actionButton?: ISCMActionButtonDescriptor;
 	readonly statusBarCommands?: readonly Command[];
+	readonly statusBarCommandsObs: IObservable<readonly Command[] | undefined>;
 	readonly onDidChange: Event<void>;
 
 	getOriginalResource(uri: URI): Promise<URI | null>;
@@ -175,7 +176,9 @@ export interface ISCMService {
 	readonly repositoryCount: number;
 
 	registerSCMProvider(provider: ISCMProvider): ISCMRepository;
+
 	getRepository(id: string): ISCMRepository | undefined;
+	getRepository(resource: URI): ISCMRepository | undefined;
 }
 
 export interface ISCMTitleMenu {
