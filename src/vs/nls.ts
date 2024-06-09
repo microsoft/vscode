@@ -165,7 +165,7 @@ export function localize(data: ILocalizeInfo | string | [string, number], messag
 		try {
 			message = globalThis._VSCODE_NLS.messages[data[0]][data[1]];
 		} catch (error) {
-			console.error(error, data[0], data[1]);
+			console.warn(error.message, data[0], data[1]);
 			message = `Unable to load message with key: ${data[0]} and index: ${data[1]}`;
 		}
 	}

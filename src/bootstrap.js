@@ -134,7 +134,7 @@
 					metaDataFile.push(nlsConfig.metaDataFile);
 				}
 			} catch (e) {
-				// Ignore
+				console.error(`Error resolving NLS metadata file: ${e}`);
 			}
 		}
 
@@ -146,7 +146,7 @@
 		try {
 			globalThis._VSCODE_NLS = JSON.parse(await safeReadNlsFile(...metaDataFile));
 		} catch (e) {
-			// Ignore
+			console.error(`Error reading NLS metadata file: ${e}`);
 		}
 	}
 
