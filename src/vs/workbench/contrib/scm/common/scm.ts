@@ -76,6 +76,7 @@ export interface ISCMProvider extends IDisposable {
 	readonly count: IObservable<number | undefined>;
 	readonly commitTemplate: IObservable<string>;
 	readonly historyProvider?: ISCMHistoryProvider;
+	readonly historyProviderObs: IObservable<ISCMHistoryProvider | undefined>;
 	readonly onDidChangeHistoryProvider: Event<void>;
 	readonly onDidChangeStatusBarCommands?: Event<readonly Command[]>;
 	readonly acceptInputCommand?: Command;
