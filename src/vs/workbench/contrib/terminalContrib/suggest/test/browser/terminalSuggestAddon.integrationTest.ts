@@ -4,9 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 // eslint-disable-next-line local/code-import-patterns, local/code-amd-node-module
-import xterm from '@xterm/xterm';
-
-const { Terminal } = xterm;
+import { Terminal } from '@xterm/xterm';
 
 import { strictEqual } from 'assert';
 import { getActiveDocument } from 'vs/base/browser/dom';
@@ -66,7 +64,7 @@ interface IRecordedSessionResizeEvent {
 suite('Terminal Contrib Suggest Recordings', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	let xterm: xterm.Terminal;
+	let xterm: Terminal;
 	let capabilities: TerminalCapabilityStore;
 	let suggestWidgetVisibleContextKey: IContextKey<boolean>;
 	let suggestAddon: SuggestAddon;
