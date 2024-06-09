@@ -5,4 +5,8 @@
 
 import { testGlobals } from './testGlobals.js';
 
+const { Terminal } = testGlobals['@xterm/xterm'];
+
+export { Terminal };
+
 export default testGlobals['@xterm/xterm'];
