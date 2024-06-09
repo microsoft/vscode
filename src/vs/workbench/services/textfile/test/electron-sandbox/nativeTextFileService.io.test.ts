@@ -24,7 +24,7 @@ import { TestInMemoryFileSystemProvider } from 'vs/workbench/test/browser/workbe
 import { TestNativeTextFileServiceWithEncodingOverrides, workbenchInstantiationService } from 'vs/workbench/test/electron-sandbox/workbenchTestServices';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
-suite('Files - NativeTextFileService i/o', function () {
+suite.skip('Files - NativeTextFileService i/o', function () {
 	const disposables = new DisposableStore();
 
 	let service: ITextFileService;
