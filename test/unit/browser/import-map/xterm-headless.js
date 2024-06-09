@@ -8,4 +8,8 @@ const module = await importAmdModule(
 	`${root}/node_modules/@xterm/headless/lib-headless/xterm-headless.js`,
 );
 
+const { Terminal } = module;
+
+export { Terminal };
+
 export default module;
