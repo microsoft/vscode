@@ -36,7 +36,8 @@ class SecretStorageProvider implements ISecretStorageProvider {
 				const value = JSON.parse(values!);
 				return value.body.access_token;
 			} else {
-				throw new Error('No matching keys found');
+				console.log('No matching keys found for', key);
+				throw new Error('SecretStorageProvider: No matching keys found');
 			}
 		}
 		const value = localStorage.getItem(secret.key);
