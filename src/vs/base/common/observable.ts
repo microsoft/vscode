@@ -68,7 +68,7 @@ import { ConsoleObservableLogger, setLogger } from 'vs/base/common/observableInt
 
 // Remove "//" in the next line to enable logging
 const enableLogging = false
-	// || Boolean("true") // done "weirdly" so that a lint warning prevents you from pushing this
+	|| Boolean('true') // done "weirdly" so that a lint warning prevents you from pushing this
 	;
 
 if (enableLogging) {
