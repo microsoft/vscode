@@ -1,7 +1,7 @@
 name: Locker
 on:
   schedule:
-    - cron: 20 23 * * * # 4:20pm Redmond
+    - cron: 20 18 * * * # 11:20am Redmond
   repository_dispatch:
     types: [trigger-locker]
 
