@@ -41,9 +41,11 @@ import { contentMatchesToTextSearchMatches, webviewMatchesToTextSearchMatches, I
 import { INotebookSearchService } from 'vs/workbench/contrib/search/common/notebookSearch';
 import { rawCellPrefix, INotebookCellMatchNoModel, isINotebookFileMatchNoModel } from 'vs/workbench/contrib/search/common/searchNotebookHelpers';
 import { ReplacePattern } from 'vs/workbench/services/search/common/replace';
-import { IAITextQuery, IFileMatch, IPatternInfo, ISearchComplete, ISearchConfigurationProperties, ISearchProgressItem, ISearchRange, ISearchService, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchPreviewOptions, ITextSearchResult, ITextSearchStats, OneLineRange, QueryType, resultIsMatch, SearchCompletionExitCode, SearchSortOrder } from 'vs/workbench/services/search/common/search';
+import { DEFAULT_MAX_SEARCH_RESULTS, IAITextQuery, IFileMatch, IPatternInfo, ISearchComplete, ISearchConfigurationProperties, ISearchProgressItem, ISearchRange, ISearchService, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchPreviewOptions, ITextSearchResult, ITextSearchStats, OneLineRange, QueryType, resultIsMatch, SearchCompletionExitCode, SearchSortOrder } from 'vs/workbench/services/search/common/search';
 import { getTextSearchMatchWithModelContext, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
 import { CellSearchModel } from 'vs/workbench/contrib/search/common/cellSearchModel';
+import { CellFindMatchModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findModel';
+import { coalesce } from 'vs/base/common/arrays';
 
 export class Match {
 
@@ -527,7 +529,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 
 		const wordSeparators = this._query.isWordMatch && this._query.wordSeparators ? this._query.wordSeparators : null;
 		const matches = this._model
-			.findMatches(this._query.pattern, this._model.getFullModelRange(), !!this._query.isRegExp, !!this._query.isCaseSensitive, wordSeparators, false, this._maxResults ?? Number.MAX_SAFE_INTEGER);
+			.findMatches(this._query.pattern, this._model.getFullModelRange(), !!this._query.isRegExp, !!this._query.isCaseSensitive, wordSeparators, false, this._maxResults ?? DEFAULT_MAX_SEARCH_RESULTS);
 
 		this.updateMatches(matches, true, this._model, false);
 	}
@@ -548,7 +550,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 		oldMatches.forEach(match => this._textMatches.delete(match.id()));
 
 		const wordSeparators = this._query.isWordMatch && this._query.wordSeparators ? this._query.wordSeparators : null;
-		const matches = this._model.findMatches(this._query.pattern, range, !!this._query.isRegExp, !!this._query.isCaseSensitive, wordSeparators, false, this._maxResults ?? Number.MAX_SAFE_INTEGER);
+		const matches = this._model.findMatches(this._query.pattern, range, !!this._query.isRegExp, !!this._query.isCaseSensitive, wordSeparators, false, this._maxResults ?? DEFAULT_MAX_SEARCH_RESULTS);
 		this.updateMatches(matches, modelChange, this._model, false);
 
 		// await this.updateMatchesForEditorWidget();
@@ -583,10 +585,10 @@ export class FileMatch extends Disposable implements IFileMatch {
 		this._model.changeDecorations((accessor) => {
 			const newDecorations = (
 				this.parent().showHighlights
-					? this.matches().map(match => <IModelDeltaDecoration>{
+					? this.matches().map((match): IModelDeltaDecoration => ({
 						range: match.range(),
 						options: FileMatch.getDecorationOption(this.isMatchSelected(match))
-					})
+					}))
 					: []
 			);
 			this._modelDecorations = accessor.deltaDecorations(this._modelDecorations, newDecorations);
@@ -836,22 +838,23 @@ export class FileMatch extends Disposable implements IFileMatch {
 		if (!this._findMatchDecorationModel) {
 			return;
 		}
-		const cellFindMatch: CellFindMatchWithIndex[] = cells.map((cell) => {
-			const webviewMatches: CellWebviewFindMatch[] = cell.webviewMatches.map(match => {
-				return <CellWebviewFindMatch>{
+		const cellFindMatch = coalesce(cells.map((cell): CellFindMatchModel | undefined => {
+			const webviewMatches: CellWebviewFindMatch[] = coalesce(cell.webviewMatches.map((match): CellWebviewFindMatch | undefined => {
+				if (!match.webviewIndex) {
+					return undefined;
+				}
+				return {
 					index: match.webviewIndex,
 				};
-			});
+			}));
+			if (!cell.cell) {
+				return undefined;
+			}
 			const findMatches: FindMatch[] = cell.contentMatches.map(match => {
 				return new FindMatch(match.range(), [match.text()]);
 			});
-			return <CellFindMatchWithIndex>{
-				cell: cell.cell,
-				index: cell.cellIndex,
-				contentMatches: findMatches,
-				webviewMatches: webviewMatches
-			};
-		});
+			return new CellFindMatchModel(cell.cell, cell.cellIndex, findMatches, webviewMatches);
+		}));
 		try {
 			this._findMatchDecorationModel.setAllFindMatchesDecorations(cellFindMatch);
 		} catch (e) {
@@ -2154,7 +2157,7 @@ export class SearchModel extends Disposable {
 			const resolvedNotebookResults = await notebookResult.completeData;
 			tokenSource.dispose();
 			const searchLength = Date.now() - searchStart;
-			const resolvedResult = <ISearchComplete>{
+			const resolvedResult: ISearchComplete = {
 				results: [...allClosedEditorResults.results, ...resolvedNotebookResults.results],
 				messages: [...allClosedEditorResults.messages, ...resolvedNotebookResults.messages],
 				limitHit: allClosedEditorResults.limitHit || resolvedNotebookResults.limitHit,
@@ -2560,3 +2563,4 @@ function mergeSearchResultEvents(events: IChangeEvent[]): IChangeEvent {
 
 	return retEvent;
 }
+

@@ -9,6 +9,7 @@ import { CommandManager } from './commands/commandManager';
 import { DocumentSelector } from './configuration/documentSelector';
 import * as fileSchemes from './configuration/fileSchemes';
 import { LanguageDescription } from './configuration/languageDescription';
+import { Schemes } from './configuration/schemes';
 import { DiagnosticKind } from './languageFeatures/diagnostics';
 import FileConfigurationManager from './languageFeatures/fileConfigurationManager';
 import { TelemetryReporter } from './logging/telemetry';
@@ -17,7 +18,7 @@ import { ClientCapability } from './typescriptService';
 import TypeScriptServiceClient from './typescriptServiceClient';
 import TypingsStatus from './ui/typingsStatus';
 import { Disposable } from './utils/dispose';
-import { isWeb } from './utils/platform';
+import { isWeb, isWebAndHasSharedArrayBuffers, supportsReadableByteStreams } from './utils/platform';
 
 
 const validateSetting = 'validate.enable';
@@ -64,6 +65,7 @@ export default class LanguageProvider extends Disposable {
 			import('./languageFeatures/codeLens/implementationsCodeLens').then(provider => this._register(provider.register(selector, this.description, this.client, cachedNavTreeResponse))),
 			import('./languageFeatures/codeLens/referencesCodeLens').then(provider => this._register(provider.register(selector, this.description, this.client, cachedNavTreeResponse))),
 			import('./languageFeatures/completions').then(provider => this._register(provider.register(selector, this.description, this.client, this.typingsStatus, this.fileConfigurationManager, this.commandManager, this.telemetryReporter, this.onCompletionAccepted))),
+			import('./languageFeatures/copyPaste').then(provider => this._register(provider.register(selector, this.description, this.client))),
 			import('./languageFeatures/definitions').then(provider => this._register(provider.register(selector, this.client))),
 			import('./languageFeatures/directiveCommentCompletions').then(provider => this._register(provider.register(selector, this.client))),
 			import('./languageFeatures/documentHighlight').then(provider => this._register(provider.register(selector, this.client))),
@@ -141,7 +143,19 @@ export default class LanguageProvider extends Disposable {
 			return;
 		}
 
-		if (diagnosticsKind === DiagnosticKind.Semantic && isWeb() && this.client.configuration.webProjectWideIntellisenseSuppressSemanticErrors) {
+		if (diagnosticsKind === DiagnosticKind.Semantic && isWeb()) {
+			if (
+				!isWebAndHasSharedArrayBuffers()
+				|| !supportsReadableByteStreams() // No ata. Will result in lots of false positives
+				|| this.client.configuration.webProjectWideIntellisenseSuppressSemanticErrors
+				|| !this.client.configuration.webProjectWideIntellisenseEnabled
+			) {
+				return;
+			}
+		}
+
+		// Disable semantic errors in notebooks until we have better notebook support
+		if (diagnosticsKind === DiagnosticKind.Semantic && file.scheme === Schemes.notebookCell) {
 			return;
 		}
 

@@ -46,6 +46,10 @@ import { PixelRatio } from 'vs/base/browser/pixelRatio';
 import { IHoverService, WorkbenchHoverDelegate } from 'vs/platform/hover/browser/hover';
 import { setHoverDelegateFactory } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { setBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
+import { AccessibilityProgressSignalScheduler } from 'vs/platform/accessibilitySignal/browser/progressAccessibilitySignalScheduler';
+import { setProgressAcccessibilitySignalScheduler } from 'vs/base/browser/ui/progressbar/progressAccessibilitySignal';
+import { AccessibleViewRegistry } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
+import { NotificationAccessibleView } from 'vs/workbench/browser/parts/notifications/notificationAccessibleView';
 
 export interface IWorkbenchOptions {
 
@@ -327,8 +331,9 @@ export class Workbench extends Layout {
 
 	private renderWorkbench(instantiationService: IInstantiationService, notificationService: NotificationService, storageService: IStorageService, configurationService: IConfigurationService): void {
 
-		// ARIA
+		// ARIA & Signals
 		setARIAContainer(this.mainContainer);
+		setProgressAcccessibilitySignalScheduler((msDelayTime: number, msLoopTime?: number) => instantiationService.createInstance(AccessibilityProgressSignalScheduler, msDelayTime, msLoopTime));
 
 		// State specific classes
 		const platformClass = isWindows ? 'windows' : isLinux ? 'linux' : 'mac';
@@ -412,6 +417,9 @@ export class Workbench extends Layout {
 
 		// Register Commands
 		registerNotificationCommands(notificationsCenter, notificationsToasts, notificationService.model);
+
+		// Register notification accessible view
+		AccessibleViewRegistry.register(new NotificationAccessibleView());
 
 		// Register with Layout
 		this.registerNotifications({

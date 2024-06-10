@@ -5,7 +5,7 @@
 
 import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
 import { Dimension, getActiveWindow, IFocusTracker, trackFocus } from 'vs/base/browser/dom';
-import { Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { MicrotaskDelay } from 'vs/base/common/symbols';
 import 'vs/css!./media/terminalChatWidget';
@@ -16,7 +16,7 @@ import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatProgress } from 'vs/workbench/contrib/chat/common/chatService';
 import { InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
 import { ITerminalInstance, type IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { MENU_TERMINAL_CHAT_INPUT, MENU_TERMINAL_CHAT_WIDGET, MENU_TERMINAL_CHAT_WIDGET_FEEDBACK, MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatCommandId, TerminalChatContextKeys } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
+import { MENU_TERMINAL_CHAT_INPUT, MENU_TERMINAL_CHAT_WIDGET, MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatCommandId, TerminalChatContextKeys } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
 import { TerminalStickyScrollContribution } from 'vs/workbench/contrib/terminalContrib/stickyScroll/browser/terminalStickyScrollContribution';
 
 const enum Constants {
@@ -26,6 +26,9 @@ const enum Constants {
 export class TerminalChatWidget extends Disposable {
 
 	private readonly _container: HTMLElement;
+
+	private readonly _onDidHide = this._register(new Emitter<void>());
+	readonly onDidHide = this._onDidHide.event;
 
 	private readonly _inlineChatWidget: InlineChatWidget;
 	public get inlineChatWidget(): InlineChatWidget { return this._inlineChatWidget; }
@@ -69,7 +72,6 @@ export class TerminalChatWidget extends Disposable {
 						}
 					}
 				},
-				feedbackMenuId: MENU_TERMINAL_CHAT_WIDGET_FEEDBACK,
 				telemetrySource: 'terminal-inline-chat',
 				rendererOptions: { editableCodeBlock: true }
 			}
@@ -77,6 +79,7 @@ export class TerminalChatWidget extends Disposable {
 		this._register(Event.any(
 			this._inlineChatWidget.onDidChangeHeight,
 			this._instance.onDimensionsChanged,
+			this._inlineChatWidget.chatWidget.onDidChangeContentHeight,
 			Event.debounce(this._xterm.raw.onCursorMove, () => void 0, MicrotaskDelay),
 		)(() => this._relayout()));
 
@@ -88,6 +91,11 @@ export class TerminalChatWidget extends Disposable {
 		this._container.appendChild(this._inlineChatWidget.domNode);
 
 		this._focusTracker = this._register(trackFocus(this._container));
+		this._register(this._focusTracker.onDidBlur(() => {
+			if (!this.inlineChatWidget.responseContent) {
+				this.hide();
+			}
+		}));
 		this.hide();
 	}
 
@@ -129,6 +137,7 @@ export class TerminalChatWidget extends Disposable {
 		this._focusedContextKey.set(true);
 		this._visibleContextKey.set(true);
 		this._inlineChatWidget.focus();
+		this._instance.scrollToBottom();
 	}
 
 	private _updateVerticalPosition(): void {
@@ -146,10 +155,14 @@ export class TerminalChatWidget extends Disposable {
 		if (!terminalWrapperHeight) {
 			return;
 		}
-		if (top > terminalWrapperHeight - widgetHeight) {
+		if (top > terminalWrapperHeight - widgetHeight && terminalWrapperHeight - widgetHeight > 0) {
 			this._setTerminalOffset(top - (terminalWrapperHeight - widgetHeight));
 		} else {
 			this._setTerminalOffset(undefined);
+		}
+		if (terminalWrapperHeight - widgetHeight < 0) {
+			this._dimension = new Dimension(this._dimension!.width, terminalWrapperHeight - top - 20);
+			this._inlineChatWidget.layout(this._dimension!);
 		}
 	}
 
@@ -161,7 +174,6 @@ export class TerminalChatWidget extends Disposable {
 		this._container.classList.add('hide');
 		this._reset();
 		this._inlineChatWidget.updateChatMessage(undefined);
-		this._inlineChatWidget.updateFollowUps(undefined);
 		this._inlineChatWidget.updateProgress(false);
 		this._inlineChatWidget.updateToolbar(false);
 		this._inlineChatWidget.reset();
@@ -170,6 +182,7 @@ export class TerminalChatWidget extends Disposable {
 		this._inlineChatWidget.value = '';
 		this._instance.focus();
 		this._setTerminalOffset(undefined);
+		this._onDidHide.fire();
 	}
 	private _setTerminalOffset(offset: number | undefined) {
 		if (offset === undefined || this._container.classList.contains('hide')) {

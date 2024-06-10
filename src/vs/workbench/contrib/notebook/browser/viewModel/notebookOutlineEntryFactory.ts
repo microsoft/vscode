@@ -45,7 +45,7 @@ function getMarkdownHeadersInCellFallbackToHtmlTags(fullContent: string) {
 export class NotebookOutlineEntryFactory {
 
 	private cellOutlineEntryCache: Record<string, entryDesc[]> = {};
-	private readonly cachedMarkdownOutlineEntries = new WeakMap<ICellViewModel, { alternativeId: number; headers: { depth: number, text: string }[] }>();
+	private readonly cachedMarkdownOutlineEntries = new WeakMap<ICellViewModel, { alternativeId: number; headers: { depth: number; text: string }[] }>();
 	constructor(
 		private readonly executionStateService: INotebookExecutionStateService
 	) { }
@@ -87,10 +87,8 @@ export class NotebookOutlineEntryFactory {
 				// Gathering symbols from the model is an async operation, but this provider is syncronous.
 				// So symbols need to be precached before this function is called to get the full list.
 				if (cachedEntries) {
-					// push code cell that is a parent of cached symbols if we are targeting the outlinePane
-					if (target === OutlineTarget.OutlinePane) {
-						entries.push(new OutlineEntry(index++, NotebookOutlineConstants.NonHeaderOutlineLevel, cell, preview, !!exeState, exeState ? exeState.isPaused : false));
-					}
+					// push code cell entry that is a parent of cached symbols, always necessary. filtering for quickpick done in that provider.
+					entries.push(new OutlineEntry(index++, NotebookOutlineConstants.NonHeaderOutlineLevel, cell, preview, !!exeState, exeState ? exeState.isPaused : false));
 					cachedEntries.forEach((cached) => {
 						entries.push(new OutlineEntry(index++, cached.level, cell, cached.name, false, false, cached.range, cached.kind));
 					});

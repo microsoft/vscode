@@ -20,7 +20,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Barrier } from 'vs/base/common/async';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { applyZoom } from 'vs/platform/window/electron-sandbox/window';
-import { getZoomLevel, isFullscreen } from 'vs/base/browser/browser';
+import { getZoomLevel, isFullscreen, setFullscreen } from 'vs/base/browser/browser';
 import { getActiveWindow } from 'vs/base/browser/dom';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { isMacintosh } from 'vs/base/common/platform';
@@ -53,6 +53,8 @@ export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 			// transitions (Windows, Linux) via window buttons.
 			this.handleMaximizedState();
 		}
+
+		this.handleFullScreenState();
 	}
 
 	private handleMaximizedState(): void {
@@ -71,6 +73,13 @@ export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 				this.maximized = false;
 			}
 		}));
+	}
+
+	private async handleFullScreenState(): Promise<void> {
+		const fullscreen = await this.nativeHostService.isFullScreen({ targetWindowId: this.window.vscodeWindowId });
+		if (fullscreen) {
+			setFullscreen(true, this.window);
+		}
 	}
 
 	protected override async handleVetoBeforeClose(e: BeforeUnloadEvent, veto: string): Promise<void> {
@@ -103,7 +112,7 @@ export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 		const fullscreen = isFullscreen(this.window);
 		return {
 			...state,
-			bounds: this.maximized ? undefined : state.bounds, // ignore if maximized (fullscreen is not yet supported!)
+			bounds: state.bounds,
 			mode: this.maximized ? AuxiliaryWindowMode.Maximized : fullscreen ? AuxiliaryWindowMode.Fullscreen : AuxiliaryWindowMode.Normal
 		};
 	}

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -11,12 +10,11 @@ import { localize } from 'vs/nls';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProgress, Progress } from 'vs/platform/progress/common/progress';
-import { Registry } from 'vs/platform/registry/common/platform';
 import { ExtHostLanguageModelsShape, ExtHostContext, MainContext, MainThreadLanguageModelsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ILanguageModelChatMetadata, IChatResponseFragment, ILanguageModelsService, IChatMessage } from 'vs/workbench/contrib/chat/common/languageModels';
+import { ILanguageModelStatsService } from 'vs/workbench/contrib/chat/common/languageModelStats';
+import { ILanguageModelChatMetadata, IChatResponseFragment, ILanguageModelsService, IChatMessage, ILanguageModelChatSelector } from 'vs/workbench/contrib/chat/common/languageModels';
 import { IAuthenticationAccessService } from 'vs/workbench/services/authentication/browser/authenticationAccessService';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationProviderCreateSessionOptions, IAuthenticationService, INTERNAL_AUTH_PROVIDER_PREFIX } from 'vs/workbench/services/authentication/common/authentication';
-import { Extensions, IExtensionFeaturesManagementService, IExtensionFeaturesRegistry } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
@@ -31,16 +29,15 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 	constructor(
 		extHostContext: IExtHostContext,
 		@ILanguageModelsService private readonly _chatProviderService: ILanguageModelsService,
-		@IExtensionFeaturesManagementService private readonly _extensionFeaturesManagementService: IExtensionFeaturesManagementService,
+		@ILanguageModelStatsService private readonly _languageModelStatsService: ILanguageModelStatsService,
 		@ILogService private readonly _logService: ILogService,
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 		@IAuthenticationAccessService private readonly _authenticationAccessService: IAuthenticationAccessService,
 		@IExtensionService private readonly _extensionService: IExtensionService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatProvider);
-
-		this._proxy.$updateLanguageModels({ added: coalesce(_chatProviderService.getLanguageModelIds().map(id => _chatProviderService.lookupLanguageModel(id))) });
-		this._store.add(_chatProviderService.onDidChangeLanguageModels(this._proxy.$updateLanguageModels, this._proxy));
+		this._proxy.$acceptChatModelMetadata({ added: _chatProviderService.getLanguageModelIds().map(id => ({ identifier: id, metadata: _chatProviderService.lookupLanguageModel(id)! })) });
+		this._store.add(_chatProviderService.onDidChangeLanguageModels(this._proxy.$acceptChatModelMetadata, this._proxy));
 	}
 
 	dispose(): void {
@@ -68,13 +65,6 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		if (metadata.auth) {
 			dipsosables.add(this._registerAuthenticationProvider(metadata.extension, metadata.auth));
 		}
-		dipsosables.add(Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).registerExtensionFeature({
-			id: `lm-${identifier}`,
-			label: localize('languageModels', "Language Model ({0})", `${identifier}`),
-			access: {
-				canToggle: false,
-			},
-		}));
 		this._providerRegistrations.set(handle, dipsosables);
 	}
 
@@ -86,26 +76,15 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		this._providerRegistrations.deleteAndDispose(handle);
 	}
 
-	async $prepareChatAccess(extension: ExtensionIdentifier, providerId: string, justification?: string): Promise<ILanguageModelChatMetadata | undefined> {
+	$selectChatModels(selector: ILanguageModelChatSelector): Promise<string[]> {
+		return this._chatProviderService.selectLanguageModels(selector);
+	}
 
-		const activate = this._extensionService.activateByEvent(`onLanguageModelAccess:${providerId}`);
-		const metadata = this._chatProviderService.lookupLanguageModel(providerId);
-
-		if (metadata) {
-			return metadata;
-		}
-
-		await Promise.race([
-			activate,
-			Event.toPromise(Event.filter(this._chatProviderService.onDidChangeLanguageModels, e => Boolean(e.added?.some(value => value.identifier === providerId))))
-		]);
-
-		return this._chatProviderService.lookupLanguageModel(providerId);
+	$whenLanguageModelChatRequestMade(identifier: string, extensionId: ExtensionIdentifier, participant?: string | undefined, tokenCount?: number | undefined): void {
+		this._languageModelStatsService.update(identifier, extensionId, participant, tokenCount);
 	}
 
 	async $fetchResponse(extension: ExtensionIdentifier, providerId: string, requestId: number, messages: IChatMessage[], options: {}, token: CancellationToken): Promise<any> {
-		await this._extensionFeaturesManagementService.getAccess(extension, `lm-${providerId}`);
-
 		this._logService.debug('[CHAT] extension request STARTED', extension.value, requestId);
 
 		const task = this._chatProviderService.makeLanguageModelChatRequest(providerId, extension, messages, options, new Progress(value => {

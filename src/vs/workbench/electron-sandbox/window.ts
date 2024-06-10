@@ -196,6 +196,18 @@ export class NativeWindow extends BaseWindow {
 			}
 		});
 
+		// Shared Process crash reported from main
+		ipcRenderer.on('vscode:reportSharedProcessCrash', (event: unknown, error: string) => {
+			this.notificationService.prompt(
+				Severity.Error,
+				localize('sharedProcessCrash', "A shared background process terminated unexpectedly. Please restart the application to recover."),
+				[{
+					label: localize('restart', "Restart"),
+					run: () => this.nativeHostService.relaunch()
+				}]
+			);
+		});
+
 		// Support openFiles event for existing and new files
 		ipcRenderer.on('vscode:openFiles', (event: unknown, request: IOpenFileRequest) => { this.onOpenFiles(request); });
 
@@ -253,8 +265,8 @@ export class NativeWindow extends BaseWindow {
 		});
 
 		// Fullscreen Events
-		ipcRenderer.on('vscode:enterFullScreen', async () => { setFullscreen(true, mainWindow); });
-		ipcRenderer.on('vscode:leaveFullScreen', async () => { setFullscreen(false, mainWindow); });
+		ipcRenderer.on('vscode:enterFullScreen', () => setFullscreen(true, mainWindow));
+		ipcRenderer.on('vscode:leaveFullScreen', () => setFullscreen(false, mainWindow));
 
 		// Proxy Login Dialog
 		ipcRenderer.on('vscode:openProxyAuthenticationDialog', async (event: unknown, payload: { authInfo: AuthInfo; username?: string; password?: string; replyChannel: string }) => {
@@ -331,7 +343,7 @@ export class NativeWindow extends BaseWindow {
 		// Allow to update security settings around protocol handlers
 		ipcRenderer.on('vscode:disablePromptForProtocolHandling', (event: unknown, kind: 'local' | 'remote') => {
 			const setting = kind === 'local' ? 'security.promptForLocalFileProtocolHandling' : 'security.promptForRemoteFileProtocolHandling';
-			this.configurationService.updateValue(setting, false, ConfigurationTarget.APPLICATION);
+			this.configurationService.updateValue(setting, false);
 		});
 
 		// Window Zoom

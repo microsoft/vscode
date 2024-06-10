@@ -21,8 +21,11 @@ export class ToggleStickyScroll extends Action2 {
 		super({
 			id: 'editor.action.toggleStickyScroll',
 			title: {
-				...localize2('toggleEditorStickyScroll', "Toggle/enable the editor sticky scroll which shows the nested scopes at the top of the viewport."),
+				...localize2('toggleEditorStickyScroll', "Toggle Editor Sticky Scroll"),
 				mnemonicTitle: localize({ key: 'mitoggleStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Toggle Editor Sticky Scroll"),
+			},
+			metadata: {
+				description: localize2('toggleEditorStickyScroll.description', "Toggle/enable the editor sticky scroll which shows the nested scopes at the top of the viewport"),
 			},
 			category: Categories.View,
 			toggled: {

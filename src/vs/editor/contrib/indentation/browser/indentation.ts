@@ -25,6 +25,8 @@ import * as nls from 'vs/nls';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { getGoodIndentForLine, getIndentMetadata } from 'vs/editor/common/languages/autoIndent';
 import { getReindentEditOperations } from '../common/indentation';
+import { getStandardTokenTypeAtPosition } from 'vs/editor/common/tokens/lineTokens';
+import { Position } from 'vs/editor/common/core/position';
 
 export class IndentationToSpacesAction extends EditorAction {
 	public static readonly ID = 'editor.action.indentationToSpaces';
@@ -416,7 +418,13 @@ export class AutoIndentOnPaste implements IEditorContribution {
 		if (!model) {
 			return;
 		}
-
+		const containsOnlyWhitespace = this.rangeContainsOnlyWhitespaceCharacters(model, range);
+		if (containsOnlyWhitespace) {
+			return;
+		}
+		if (isStartOrEndInString(model, range)) {
+			return;
+		}
 		if (!model.tokenization.isCheapToTokenize(range.getStartPosition().lineNumber)) {
 			return;
 		}
@@ -462,7 +470,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 						range: new Range(startLineNumber, 1, startLineNumber, oldIndentation.length + 1),
 						text: newIndent
 					});
-					firstLineText = newIndent + firstLineText.substr(oldIndentation.length);
+					firstLineText = newIndent + firstLineText.substring(oldIndentation.length);
 				} else {
 					const indentMetadata = getIndentMetadata(model, startLineNumber, this._languageConfigurationService);
 
@@ -542,6 +550,35 @@ export class AutoIndentOnPaste implements IEditorContribution {
 		}
 	}
 
+	private rangeContainsOnlyWhitespaceCharacters(model: ITextModel, range: Range): boolean {
+		const lineContainsOnlyWhitespace = (content: string): boolean => {
+			return content.trim().length === 0;
+		};
+		let containsOnlyWhitespace: boolean = true;
+		if (range.startLineNumber === range.endLineNumber) {
+			const lineContent = model.getLineContent(range.startLineNumber);
+			const linePart = lineContent.substring(range.startColumn - 1, range.endColumn - 1);
+			containsOnlyWhitespace = lineContainsOnlyWhitespace(linePart);
+		} else {
+			for (let i = range.startLineNumber; i <= range.endLineNumber; i++) {
+				const lineContent = model.getLineContent(i);
+				if (i === range.startLineNumber) {
+					const linePart = lineContent.substring(range.startColumn - 1);
+					containsOnlyWhitespace = lineContainsOnlyWhitespace(linePart);
+				} else if (i === range.endLineNumber) {
+					const linePart = lineContent.substring(0, range.endColumn - 1);
+					containsOnlyWhitespace = lineContainsOnlyWhitespace(linePart);
+				} else {
+					containsOnlyWhitespace = model.getLineFirstNonWhitespaceColumn(i) === 0;
+				}
+				if (!containsOnlyWhitespace) {
+					break;
+				}
+			}
+		}
+		return containsOnlyWhitespace;
+	}
+
 	private shouldIgnoreLine(model: ITextModel, lineNumber: number): boolean {
 		model.tokenization.forceTokenization(lineNumber);
 		const nonWhitespaceColumn = model.getLineFirstNonWhitespaceColumn(lineNumber);
@@ -563,6 +600,14 @@ export class AutoIndentOnPaste implements IEditorContribution {
 		this.callOnDispose.dispose();
 		this.callOnModel.dispose();
 	}
+}
+
+function isStartOrEndInString(model: ITextModel, range: Range): boolean {
+	const isPositionInString = (position: Position): boolean => {
+		const tokenType = getStandardTokenTypeAtPosition(model, position);
+		return tokenType === StandardTokenType.String;
+	};
+	return isPositionInString(range.getStartPosition()) || isPositionInString(range.getEndPosition());
 }
 
 function getIndentationEditOperations(model: ITextModel, builder: IEditOperationBuilder, tabSize: number, tabsToSpaces: boolean): void {

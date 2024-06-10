@@ -18,6 +18,7 @@ import { conditionalRegistration, requireMinVersion, requireSomeCapability } fro
 
 
 interface OrganizeImportsCommandMetadata {
+	readonly commandIds: readonly string[];
 	readonly title: string;
 	readonly minVersion?: API;
 	readonly kind: vscode.CodeActionKind;
@@ -25,12 +26,14 @@ interface OrganizeImportsCommandMetadata {
 }
 
 const organizeImportsCommand: OrganizeImportsCommandMetadata = {
+	commandIds: [], // We use the generic 'Organize imports' command
 	title: vscode.l10n.t("Organize Imports"),
 	kind: vscode.CodeActionKind.SourceOrganizeImports,
 	mode: OrganizeImportsMode.All,
 };
 
 const sortImportsCommand: OrganizeImportsCommandMetadata = {
+	commandIds: ['typescript.sortImports', 'javascript.sortImports'],
 	minVersion: API.v430,
 	title: vscode.l10n.t("Sort Imports"),
 	kind: vscode.CodeActionKind.Source.append('sortImports'),
@@ -38,16 +41,17 @@ const sortImportsCommand: OrganizeImportsCommandMetadata = {
 };
 
 const removeUnusedImportsCommand: OrganizeImportsCommandMetadata = {
+	commandIds: ['typescript.removeUnusedImports', 'javascript.removeUnusedImports'],
 	minVersion: API.v490,
 	title: vscode.l10n.t("Remove Unused Imports"),
 	kind: vscode.CodeActionKind.Source.append('removeUnusedImports'),
 	mode: OrganizeImportsMode.RemoveUnused,
 };
 
-class OrganizeImportsCommand implements Command {
+class DidOrganizeImportsCommand implements Command {
 
-	public static readonly ID = '_typescript.organizeImports';
-	public readonly id = OrganizeImportsCommand.ID;
+	public static readonly ID = '_typescript.didOrganizeImports';
+	public readonly id = DidOrganizeImportsCommand.ID;
 
 	constructor(
 		private readonly telemetryReporter: TelemetryReporter,
@@ -85,7 +89,7 @@ class ImportsCodeActionProvider implements vscode.CodeActionProvider<ImportCodeA
 		private readonly fileConfigManager: FileConfigurationManager,
 		telemetryReporter: TelemetryReporter,
 	) {
-		commandManager.register(new OrganizeImportsCommand(telemetryReporter));
+		commandManager.register(new DidOrganizeImportsCommand(telemetryReporter));
 	}
 
 	public provideCodeActions(
@@ -138,7 +142,7 @@ class ImportsCodeActionProvider implements vscode.CodeActionProvider<ImportCodeA
 			codeAction.edit = typeConverters.WorkspaceEdit.fromFileCodeEdits(this.client, response.body);
 		}
 
-		codeAction.command = { command: OrganizeImportsCommand.ID, title: '', arguments: [] };
+		codeAction.command = { command: DidOrganizeImportsCommand.ID, title: '', arguments: [] };
 
 		return codeAction;
 	}
@@ -154,15 +158,29 @@ export function register(
 	const disposables: vscode.Disposable[] = [];
 
 	for (const command of [organizeImportsCommand, sortImportsCommand, removeUnusedImportsCommand]) {
-		disposables.push(conditionalRegistration([
-			requireMinVersion(client, command.minVersion ?? API.defaultVersion),
-			requireSomeCapability(client, ClientCapability.Semantic),
-		], () => {
-			const provider = new ImportsCodeActionProvider(client, command, commandManager, fileConfigurationManager, telemetryReporter);
-			return vscode.languages.registerCodeActionsProvider(selector.semantic, provider, {
-				providedCodeActionKinds: [command.kind]
-			});
-		}));
+		disposables.push(
+			conditionalRegistration([
+				requireMinVersion(client, command.minVersion ?? API.defaultVersion),
+				requireSomeCapability(client, ClientCapability.Semantic),
+			], () => {
+				const provider = new ImportsCodeActionProvider(client, command, commandManager, fileConfigurationManager, telemetryReporter);
+				return vscode.Disposable.from(
+					vscode.languages.registerCodeActionsProvider(selector.semantic, provider, {
+						providedCodeActionKinds: [command.kind]
+					}));
+			}),
+			// Always register these commands. We will show a warning if the user tries to run them on an unsupported version
+			...command.commandIds.map(id =>
+				commandManager.register({
+					id,
+					execute() {
+						return vscode.commands.executeCommand('editor.action.sourceAction', {
+							kind: command.kind.value,
+							apply: 'first',
+						});
+					}
+				}))
+		);
 	}
 
 	return vscode.Disposable.from(...disposables);

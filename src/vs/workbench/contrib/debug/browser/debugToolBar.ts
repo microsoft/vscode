@@ -10,7 +10,7 @@ import { Action, IAction, IRunEvent, WorkbenchActionExecutedClassification, Work
 import * as arrays from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import * as errors from 'vs/base/common/errors';
-import { DisposableStore, dispose, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, dispose, IDisposable, markAsSingleton, MutableDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/debugToolBar';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
@@ -401,7 +401,7 @@ const registerDebugToolBarItem = (id: string, title: string | ICommandActionTitl
 	}));
 };
 
-MenuRegistry.onDidChangeMenu(e => {
+markAsSingleton(MenuRegistry.onDidChangeMenu(e => {
 	// In case the debug toolbar is docked we need to make sure that the docked toolbar has the up to date commands registered #115945
 	if (e.has(MenuId.DebugToolBar)) {
 		dispose(debugViewTitleItems);
@@ -413,7 +413,7 @@ MenuRegistry.onDidChangeMenu(e => {
 			}));
 		}
 	}
-});
+}));
 
 
 const CONTEXT_TOOLBAR_COMMAND_CENTER = ContextKeyExpr.equals('config.debug.toolBarLocation', 'commandCenter');

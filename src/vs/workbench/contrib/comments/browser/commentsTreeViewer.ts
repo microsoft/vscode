@@ -303,7 +303,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 			const renderedComment = this.getRenderedComment(originalComment.comment.body, disposables);
 			templateData.disposables.push(renderedComment);
 			templateData.threadMetadata.commentPreview.appendChild(renderedComment.element.firstElementChild ?? renderedComment.element);
-			templateData.disposables.push(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), templateData.threadMetadata.commentPreview, renderedComment.element.textContent ?? ''));
+			templateData.disposables.push(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), templateData.threadMetadata.commentPreview, renderedComment.element.textContent ?? ''));
 		}
 
 		if (node.element.range) {
@@ -320,7 +320,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 			commentControlHandle: node.element.controllerHandle,
 			commentThreadHandle: node.element.threadHandle,
 			$mid: MarshalledId.CommentThread
-		} as MarshalledCommentThread;
+		} satisfies MarshalledCommentThread;
 
 		if (!node.element.hasReply()) {
 			templateData.repliesMetadata.container.style.display = 'none';

@@ -17,7 +17,7 @@ import { LineRange } from 'vs/editor/common/core/lineRange';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
-import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel, IValidEditOperation, MinimapPosition, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, IValidEditOperation, MinimapPosition, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewModel';
@@ -35,7 +35,11 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { performAsyncTextEdit, asProgressiveEdit } from './utils';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TextEdit } from 'vs/editor/common/languages';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
+import { Schemas } from 'vs/base/common/network';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { DefaultChatTextEditor } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { isEqual } from 'vs/base/common/resources';
 
 export interface IEditObserver {
@@ -56,7 +60,6 @@ export abstract class EditModeStrategy {
 	protected readonly _onDidAccept = this._store.add(new Emitter<void>());
 	protected readonly _onDidDiscard = this._store.add(new Emitter<void>());
 
-	protected _editCount: number = 0;
 
 	readonly onDidAccept: Event<void> = this._onDidAccept.event;
 	readonly onDidDiscard: Event<void> = this._onDidDiscard.event;
@@ -67,44 +70,55 @@ export abstract class EditModeStrategy {
 		protected readonly _session: Session,
 		protected readonly _editor: ICodeEditor,
 		protected readonly _zone: InlineChatZoneWidget,
+		@ITextFileService private readonly _textFileService: ITextFileService,
+		@IInstantiationService private readonly _instaService: IInstantiationService,
 	) { }
 
 	dispose(): void {
 		this._store.dispose();
 	}
 
-	async apply(): Promise<void> {
+	protected async _doApplyChanges(ignoreLocal: boolean): Promise<void> {
 
-		if (this._session.lastExchange?.response instanceof ReplyResponse) {
-			const { untitledTextModel } = this._session.lastExchange.response;
-			if (untitledTextModel && !untitledTextModel.isDisposed()) {
+		const untitledModels: IUntitledTextEditorModel[] = [];
 
-				await untitledTextModel.resolve();
-				if (!untitledTextModel.textEditorModel) {
-					return;
+		const editor = this._instaService.createInstance(DefaultChatTextEditor);
+
+
+		for (const request of this._session.chatModel.getRequests()) {
+
+			if (!request.response?.response) {
+				continue;
+			}
+
+			for (const item of request.response.response.value) {
+				if (item.kind !== 'textEditGroup') {
+					continue;
+				}
+				if (ignoreLocal && isEqual(item.uri, this._session.textModelN.uri)) {
+					continue;
 				}
 
-				// TODO@jrieken
-				// apply changes only when not dirty. This is very proper and needs to
-				// fixed in the future
-				if (!untitledTextModel.isDirty()) {
-					const allEdits: TextEdit[] = [];
-					for (const request of this._session.chatModel.getRequests()) {
-						for (const item of request.response?.response.value ?? []) {
-							if (item.kind === 'textEdit' && isEqual(item.uri, untitledTextModel.resource)) {
-								allEdits.push(...item.edits);
-							}
-						}
+				await editor.apply(request.response, item, undefined);
+
+				if (item.uri.scheme === Schemas.untitled) {
+					const untitled = this._textFileService.untitled.get(item.uri);
+					if (untitled) {
+						untitledModels.push(untitled);
 					}
-					untitledTextModel.textEditorModel.pushStackElement();
-					untitledTextModel.textEditorModel.pushEditOperations(null, allEdits.map(TextEdit.asEditOperation), () => null);
-					untitledTextModel.textEditorModel.pushStackElement();
 				}
+			}
+		}
 
-				await untitledTextModel.save({ reason: SaveReason.EXPLICIT });
+		for (const untitledModel of untitledModels) {
+			if (!untitledModel.isDisposed()) {
+				await untitledModel.resolve();
+				await untitledModel.save({ reason: SaveReason.EXPLICIT });
 			}
 		}
 	}
+
+	abstract apply(): Promise<void>;
 
 	cancel() {
 		return this._session.hunkData.discardAll();
@@ -118,40 +132,9 @@ export abstract class EditModeStrategy {
 		this._onDidDiscard.fire();
 	}
 
-	abstract makeProgressiveChanges(edits: ISingleEditOperation[], obs: IEditObserver, timings: ProgressingEditsOptions): Promise<void>;
+	abstract makeProgressiveChanges(edits: ISingleEditOperation[], obs: IEditObserver, timings: ProgressingEditsOptions, undoStopBefore: boolean): Promise<void>;
 
-	abstract makeChanges(edits: ISingleEditOperation[], obs: IEditObserver): Promise<void>;
-
-	protected async _makeChanges(edits: ISingleEditOperation[], obs: IEditObserver, opts: ProgressingEditsOptions | undefined, progress: Progress<IValidEditOperation[]> | undefined): Promise<void> {
-
-		// push undo stop before first edit
-		if (++this._editCount === 1) {
-			this._editor.pushUndoStop();
-		}
-
-		if (opts) {
-			// ASYNC
-			const durationInSec = opts.duration / 1000;
-			for (const edit of edits) {
-				const wordCount = countWords(edit.text ?? '');
-				const speed = wordCount / durationInSec;
-				// console.log({ durationInSec, wordCount, speed: wordCount / durationInSec });
-				const asyncEdit = asProgressiveEdit(new WindowIntervalTimer(this._zone.domNode), edit, speed, opts.token);
-				await performAsyncTextEdit(this._session.textModelN, asyncEdit, progress, obs);
-			}
-
-		} else {
-			// SYNC
-			obs.start();
-			this._session.textModelN.pushEditOperations(null, edits, (undoEdits) => {
-				progress?.report(undoEdits);
-				return null;
-			});
-			obs.stop();
-		}
-	}
-
-	abstract undoChanges(altVersionId: number): Promise<void>;
+	abstract makeChanges(edits: ISingleEditOperation[], obs: IEditObserver, undoStopBefore: boolean): Promise<void>;
 
 	abstract renderChanges(response: ReplyResponse): Promise<Position | undefined>;
 
@@ -177,8 +160,10 @@ export class PreviewStrategy extends EditModeStrategy {
 		zone: InlineChatZoneWidget,
 		@IModelService modelService: IModelService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@ITextFileService textFileService: ITextFileService,
+		@IInstantiationService instaService: IInstantiationService
 	) {
-		super(session, editor, zone);
+		super(session, editor, zone, textFileService, instaService);
 
 		this._ctxDocumentChanged = CTX_INLINE_CHAT_DOCUMENT_CHANGED.bindTo(contextKeyService);
 
@@ -196,42 +181,16 @@ export class PreviewStrategy extends EditModeStrategy {
 	}
 
 	override async apply() {
-
-		// apply all edits from all responses
-		const textModel = this._editor.getModel();
-		if (textModel?.equalsTextBuffer(this._session.textModel0.getTextBuffer())) {
-
-			const allEdits: TextEdit[] = [];
-			for (const request of this._session.chatModel.getRequests()) {
-				for (const item of request.response?.response.value ?? []) {
-					if (item.kind === 'textEdit' && isEqual(item.uri, textModel.uri)) {
-						allEdits.push(...item.edits);
-					}
-				}
-			}
-
-			textModel.pushStackElement();
-			textModel.pushEditOperations(null, allEdits.map(TextEdit.asEditOperation), () => null);
-			textModel.pushStackElement();
-		}
-
-		await super.apply();
+		await super._doApplyChanges(false);
 	}
 
-	override async makeChanges(edits: ISingleEditOperation[], obs: IEditObserver): Promise<void> {
+	override async makeChanges(): Promise<void> {
 	}
 
-	override async makeProgressiveChanges(edits: ISingleEditOperation[], obs: IEditObserver, opts: ProgressingEditsOptions): Promise<void> {
+	override async makeProgressiveChanges(): Promise<void> {
 	}
 
-	override async undoChanges(altVersionId: number): Promise<void> {
-		const { textModelN } = this._session;
-		await undoModelUntil(textModelN, altVersionId);
-	}
-
-	override async renderChanges(response: ReplyResponse): Promise<undefined> {
-
-	}
+	override async renderChanges(response: ReplyResponse): Promise<undefined> { }
 
 	hasFocus(): boolean {
 		return this._zone.widget.hasFocus();
@@ -291,6 +250,7 @@ export class LiveStrategy extends EditModeStrategy {
 	private readonly _ctxCurrentChangeShowsDiff: IContextKey<boolean>;
 
 	private readonly _progressiveEditingDecorations: IEditorDecorationsCollection;
+	private _editCount: number = 0;
 
 	override acceptHunk: () => Promise<void> = () => super.acceptHunk();
 	override discardHunk: () => Promise<void> = () => super.discardHunk();
@@ -303,8 +263,10 @@ export class LiveStrategy extends EditModeStrategy {
 		@IEditorWorkerService protected readonly _editorWorkerService: IEditorWorkerService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IConfigurationService private readonly _configService: IConfigurationService,
+		@ITextFileService textFileService: ITextFileService,
+		@IInstantiationService instaService: IInstantiationService
 	) {
-		super(session, editor, zone);
+		super(session, editor, zone, textFileService, instaService);
 		this._ctxCurrentChangeHasDiff = CTX_INLINE_CHAT_CHANGE_HAS_DIFF.bindTo(contextKeyService);
 		this._ctxCurrentChangeShowsDiff = CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF.bindTo(contextKeyService);
 
@@ -334,7 +296,7 @@ export class LiveStrategy extends EditModeStrategy {
 		if (this._editCount > 0) {
 			this._editor.pushUndoStop();
 		}
-		await super.apply();
+		await super._doApplyChanges(true);
 	}
 
 	override cancel() {
@@ -342,16 +304,11 @@ export class LiveStrategy extends EditModeStrategy {
 		return super.cancel();
 	}
 
-	override async undoChanges(altVersionId: number): Promise<void> {
-		const { textModelN } = this._session;
-		await undoModelUntil(textModelN, altVersionId);
+	override async makeChanges(edits: ISingleEditOperation[], obs: IEditObserver, undoStopBefore: boolean): Promise<void> {
+		return this._makeChanges(edits, obs, undefined, undefined, undoStopBefore);
 	}
 
-	override async makeChanges(edits: ISingleEditOperation[], obs: IEditObserver): Promise<void> {
-		return this._makeChanges(edits, obs, undefined, undefined);
-	}
-
-	override async makeProgressiveChanges(edits: ISingleEditOperation[], obs: IEditObserver, opts: ProgressingEditsOptions): Promise<void> {
+	override async makeProgressiveChanges(edits: ISingleEditOperation[], obs: IEditObserver, opts: ProgressingEditsOptions, undoStopBefore: boolean): Promise<void> {
 
 		// add decorations once per line that got edited
 		const progress = new Progress<IValidEditOperation[]>(edits => {
@@ -371,7 +328,38 @@ export class LiveStrategy extends EditModeStrategy {
 
 			this._progressiveEditingDecorations.append(newDecorations);
 		});
-		return this._makeChanges(edits, obs, opts, progress);
+		return this._makeChanges(edits, obs, opts, progress, undoStopBefore);
+	}
+
+	private async _makeChanges(edits: ISingleEditOperation[], obs: IEditObserver, opts: ProgressingEditsOptions | undefined, progress: Progress<IValidEditOperation[]> | undefined, undoStopBefore: boolean): Promise<void> {
+
+		// push undo stop before first edit
+		if (undoStopBefore) {
+			this._editor.pushUndoStop();
+		}
+
+		this._editCount++;
+
+		if (opts) {
+			// ASYNC
+			const durationInSec = opts.duration / 1000;
+			for (const edit of edits) {
+				const wordCount = countWords(edit.text ?? '');
+				const speed = wordCount / durationInSec;
+				// console.log({ durationInSec, wordCount, speed: wordCount / durationInSec });
+				const asyncEdit = asProgressiveEdit(new WindowIntervalTimer(this._zone.domNode), edit, speed, opts.token);
+				await performAsyncTextEdit(this._session.textModelN, asyncEdit, progress, obs);
+			}
+
+		} else {
+			// SYNC
+			obs.start();
+			this._session.textModelN.pushEditOperations(null, edits, (undoEdits) => {
+				progress?.report(undoEdits);
+				return null;
+			});
+			obs.stop();
+		}
 	}
 
 	private readonly _hunkDisplayData = new Map<HunkInformation, HunkDisplayData>();
@@ -590,17 +578,17 @@ export class LiveStrategy extends EditModeStrategy {
 			message = localize('change.0', "Nothing changed.");
 		} else if (remaining === 1) {
 			message = needsReview
-				? localize('review.1', "$(info) Accept or Discard 1 change.")
+				? localize('review.1', "$(info) Accept or discard 1 change")
 				: localize('change.1', "1 change");
 		} else {
 			message = needsReview
-				? localize('review.N', "$(info) Accept or Discard {0} changes.", remaining)
+				? localize('review.N', "$(info) Accept or Discard {0} changes", remaining)
 				: localize('change.N', "{0} changes", total);
 		}
 
 		let title: string | undefined;
 		if (needsReview) {
-			title = localize('review', "Review (accept or discard) all changes before continuing.");
+			title = localize('review', "Review (accept or discard) all changes before continuing");
 		}
 
 		this._zone.widget.updateStatus(message, { title });
@@ -615,14 +603,6 @@ export class LiveStrategy extends EditModeStrategy {
 		return [];
 	}
 }
-
-
-async function undoModelUntil(model: ITextModel, targetAltVersion: number): Promise<void> {
-	while (targetAltVersion < model.getAlternativeVersionId() && model.canUndo()) {
-		await model.undo();
-	}
-}
-
 
 function changeDecorationsAndViewZones(editor: ICodeEditor, callback: (accessor: IModelDecorationsChangeAccessor, viewZoneAccessor: IViewZoneChangeAccessor) => void): void {
 	editor.changeDecorations(decorationsAccessor => {
