@@ -3009,7 +3009,8 @@ export class SCMViewPane extends ViewPane {
 							e.affectsConfiguration('scm.showActionButton') ||
 							e.affectsConfiguration('scm.showChangesSummary') ||
 							e.affectsConfiguration('scm.showIncomingChanges') ||
-							e.affectsConfiguration('scm.showOutgoingChanges'),
+							e.affectsConfiguration('scm.showOutgoingChanges') ||
+							e.affectsConfiguration('scm.showChangesGraph'),
 						this.visibilityDisposables)
 						(() => this.updateChildren(), this, this.visibilityDisposables);
 
@@ -3784,16 +3785,15 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 
 			children.push(...historyItemGroups);
 
-			// History Separator
-			children.push({
-				label: localize('historyHeader', "History"),
-				ariaLabel: localize('historyHeaderAriaLabel', "History"),
-				repository: inputOrElement,
-				type: 'separator'
-			} satisfies SCMViewSeparatorElement);
-
 			// History items
 			const historyItems = await this.getHistoryItems2(inputOrElement);
+			if (historyItems.length > 0) {
+				const label = localize('syncSeparatorHeader', "Incoming/Outgoing");
+				const ariaLabel = localize('syncSeparatorHeaderAriaLabel', "Incoming and outgoing changes");
+
+				children.push({ label, ariaLabel, repository: inputOrElement, type: 'separator' } satisfies SCMViewSeparatorElement);
+			}
+
 			children.push(...historyItems);
 
 			return children;
@@ -3830,13 +3830,13 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 	}
 
 	private async getHistoryItemGroups(element: ISCMRepository): Promise<SCMHistoryItemGroupTreeElement[]> {
-		const { showIncomingChanges, showOutgoingChanges } = this.getConfiguration();
+		const { showIncomingChanges, showOutgoingChanges, showChangesGraph } = this.getConfiguration();
 
 		const scmProvider = element.provider;
 		const historyProvider = scmProvider.historyProvider;
 		const currentHistoryItemGroup = historyProvider?.currentHistoryItemGroup;
 
-		if (!historyProvider || !currentHistoryItemGroup || (showIncomingChanges === 'never' && showOutgoingChanges === 'never')) {
+		if (!historyProvider || !currentHistoryItemGroup || (showIncomingChanges === 'never' && showOutgoingChanges === 'never') || showChangesGraph) {
 			return [];
 		}
 
@@ -3952,10 +3952,13 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 	}
 
 	private async getHistoryItems2(element: ISCMRepository): Promise<ISCMHistoryItemViewModel[]> {
+		const { showIncomingChanges, showOutgoingChanges, showChangesGraph } = this.getConfiguration();
+
 		const graphController = element.graphController;
 		const historyProvider = element.provider.historyProvider;
+		const currentHistoryItemGroup = historyProvider?.currentHistoryItemGroup;
 
-		if (!historyProvider?.currentHistoryItemGroup) {
+		if (!currentHistoryItemGroup || (showIncomingChanges === 'never' && showOutgoingChanges === 'never') || !showChangesGraph) {
 			return [];
 		}
 
@@ -3964,7 +3967,12 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 		const historyItemsMap = historyProviderCacheEntry.historyItems2;
 
 		if (!historyItemsElement) {
-			historyItemsElement = await historyProvider.provideHistoryItems2({ limit: 200 }) ?? [];
+			const ancestor = await historyProvider.resolveHistoryItemGroupCommonAncestor(currentHistoryItemGroup.id, currentHistoryItemGroup.base?.id);
+			if (!ancestor) {
+				return [];
+			}
+
+			historyItemsElement = await historyProvider.provideHistoryItems2({ cursor: ancestor.id }) ?? [];
 
 			this.historyProviderCache.set(element, {
 				...historyProviderCacheEntry,
@@ -4075,13 +4083,15 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 		showChangesSummary: boolean;
 		showIncomingChanges: ShowChangesSetting;
 		showOutgoingChanges: ShowChangesSetting;
+		showChangesGraph: boolean;
 	} {
 		return {
 			alwaysShowRepositories: this.configurationService.getValue<boolean>('scm.alwaysShowRepositories'),
 			showActionButton: this.configurationService.getValue<boolean>('scm.showActionButton'),
 			showChangesSummary: this.configurationService.getValue<boolean>('scm.showChangesSummary'),
 			showIncomingChanges: this.configurationService.getValue<ShowChangesSetting>('scm.showIncomingChanges'),
-			showOutgoingChanges: this.configurationService.getValue<ShowChangesSetting>('scm.showOutgoingChanges')
+			showOutgoingChanges: this.configurationService.getValue<ShowChangesSetting>('scm.showOutgoingChanges'),
+			showChangesGraph: this.configurationService.getValue<boolean>('scm.showChangesGraph')
 		};
 	}
 

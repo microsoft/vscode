@@ -113,7 +113,11 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 	}
 
 	async provideHistoryItems2(options: SourceControlHistoryOptions): Promise<SourceControlHistoryItem[]> {
-		const refNames = new Set(['main']);
+		if (!options.cursor) {
+			return [];
+		}
+
+		const refNames = new Set<string>();
 		if (this.currentHistoryItemGroup?.name) {
 			refNames.add(this.currentHistoryItemGroup.name);
 		}
@@ -121,13 +125,17 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			refNames.add(this.currentHistoryItemGroup.base.name);
 		}
 
-		const maxEntries = typeof options.limit === 'number' ? options.limit : 32;
-		const commits = await this.repository.log({ refNames: Array.from(refNames), maxEntries });
+		// TODO@lszomoru - see if there is a better to do this
+		const [incoming, outgoing, ancestor] = await Promise.all([
+			this.repository.log({ range: `${this.currentHistoryItemGroup?.name}..${this.currentHistoryItemGroup?.base?.name}`, refNames: Array.from(refNames) }),
+			this.repository.log({ range: `${this.currentHistoryItemGroup?.base?.name}..${this.currentHistoryItemGroup?.name}`, refNames: Array.from(refNames) }),
+			this.repository.getCommit(options.cursor)
+		]);
 
 		await ensureEmojis();
 
 		const historyItems: SourceControlHistoryItem[] = [];
-		historyItems.push(...commits.map(commit => {
+		historyItems.push(...[...outgoing, ...incoming, ancestor].map(commit => {
 			const newLineIndex = commit.message.indexOf('\n');
 			const subject = newLineIndex !== -1 ? commit.message.substring(0, newLineIndex) : commit.message;
 
