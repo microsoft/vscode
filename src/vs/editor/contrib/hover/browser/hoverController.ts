@@ -417,20 +417,16 @@ export class HoverController extends Disposable implements IEditorContribution {
 		return this._contentWidget?.widget.isResizing || false;
 	}
 
-	public focusedMarkdownHoverIndex(): number {
-		return this._getOrCreateContentWidget().focusedMarkdownHoverIndex();
-	}
-
 	public focusedHoverPartIndex(): number {
 		return this._getOrCreateContentWidget().focusedHoverPartIndex();
 	}
 
-	public doesMarkdownHoverAtIndexSupportVerbosityAction(index: number, action: HoverVerbosityAction): boolean {
-		return this._getOrCreateContentWidget().doesMarkdownHoverAtIndexSupportVerbosityAction(index, action);
+	public doesHoverAtIndexSupportVerbosityAction(index: number, action: HoverVerbosityAction): boolean {
+		return this._getOrCreateContentWidget().doesHoverAtIndexSupportVerbosityAction(index, action);
 	}
 
-	public updateMarkdownHoverVerbosityLevel(action: HoverVerbosityAction, index?: number, focus?: boolean): void {
-		this._getOrCreateContentWidget().updateMarkdownHoverVerbosityLevel(action, index, focus);
+	public updateHoverVerbosityLevel(action: HoverVerbosityAction, index: number, focus?: boolean): void {
+		this._getOrCreateContentWidget().updateHoverVerbosityLevel(action, index, focus);
 	}
 
 	public focus(): void {

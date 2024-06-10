@@ -98,7 +98,6 @@ abstract class BaseHoverAccessibleViewProvider extends Disposable implements IAc
 	public readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 
 	protected _focusedHoverPartIndex: number = -1;
-	protected _markdownHoverFocusedIndex: number = -1;
 	private _onHoverContentsChanged: IDisposable | undefined;
 
 	constructor(
@@ -113,7 +112,6 @@ abstract class BaseHoverAccessibleViewProvider extends Disposable implements IAc
 		}
 		this._hoverController.shouldKeepOpenOnEditorMouseMoveOrLeave = true;
 		this._focusedHoverPartIndex = this._hoverController.focusedHoverPartIndex();
-		this._markdownHoverFocusedIndex = this._hoverController.focusedMarkdownHoverIndex();
 		this._onHoverContentsChanged = this._register(this._hoverController.onHoverContentsChanged(() => {
 			this._onDidChangeContent.fire();
 		}));
@@ -124,21 +122,20 @@ abstract class BaseHoverAccessibleViewProvider extends Disposable implements IAc
 			return;
 		}
 		this._focusedHoverPartIndex = -1;
-		this._markdownHoverFocusedIndex = -1;
 		this._hoverController.focus();
 		this._hoverController.shouldKeepOpenOnEditorMouseMoveOrLeave = false;
 		this._onHoverContentsChanged?.dispose();
 	}
 
-	provideContentAtIndex(focusedHoverIndex: number, markdownFocusedHoverIndex: number, includeVerbosityActions: boolean): string {
+	provideContentAtIndex(focusedHoverIndex: number, includeVerbosityActions: boolean): string {
 		if (focusedHoverIndex !== -1) {
 			const accessibleContent = this._hoverController.getAccessibleWidgetContentAtIndex(focusedHoverIndex);
 			if (accessibleContent === undefined) {
 				return '';
 			}
 			const contents: string[] = [];
-			if (includeVerbosityActions && markdownFocusedHoverIndex !== -1) {
-				const actionsDescriptions = this._descriptionsOfVerbosityActionsForIndex(markdownFocusedHoverIndex);
+			if (includeVerbosityActions && focusedHoverIndex !== -1) {
+				const actionsDescriptions = this._descriptionsOfVerbosityActionsForIndex(focusedHoverIndex);
 				contents.push(...actionsDescriptions);
 			}
 			contents.push(HoverAccessibilityHelpNLS.introHoverPart);
@@ -170,7 +167,7 @@ abstract class BaseHoverAccessibleViewProvider extends Disposable implements IAc
 	}
 
 	private _descriptionOfVerbosityActionForIndex(action: HoverVerbosityAction, index: number): string | undefined {
-		const isActionSupported = this._hoverController.doesMarkdownHoverAtIndexSupportVerbosityAction(index, action);
+		const isActionSupported = this._hoverController.doesHoverAtIndexSupportVerbosityAction(index, action);
 		if (!isActionSupported) {
 			return;
 		}
@@ -192,7 +189,7 @@ export class HoverAccessibilityHelpProvider extends BaseHoverAccessibleViewProvi
 	}
 
 	provideContent(): string {
-		return this.provideContentAtIndex(this._focusedHoverPartIndex, this._markdownHoverFocusedIndex, true);
+		return this.provideContentAtIndex(this._focusedHoverPartIndex, true);
 	}
 }
 
@@ -210,7 +207,7 @@ export class HoverAccessibleViewProvider extends BaseHoverAccessibleViewProvider
 	}
 
 	public provideContent(): string {
-		return this.provideContentAtIndex(this._focusedHoverPartIndex, this._markdownHoverFocusedIndex, false);
+		return this.provideContentAtIndex(this._focusedHoverPartIndex, false);
 	}
 
 	public get actions(): IAction[] {
@@ -237,16 +234,16 @@ export class HoverAccessibleViewProvider extends BaseHoverAccessibleViewProvider
 				break;
 		}
 		const actionLabel = labelForHoverVerbosityAction(this._keybindingService, action);
-		const actionEnabled = this._hoverController.doesMarkdownHoverAtIndexSupportVerbosityAction(this._markdownHoverFocusedIndex, action);
+		const actionEnabled = this._hoverController.doesHoverAtIndexSupportVerbosityAction(this._focusedHoverPartIndex, action);
 		return new Action(accessibleActionId, actionLabel, ThemeIcon.asClassName(actionCodicon), actionEnabled, () => {
-			editor.getAction(actionId)?.run({ index: this._markdownHoverFocusedIndex, focus: false });
+			editor.getAction(actionId)?.run({ index: this._focusedHoverPartIndex, focus: false });
 		});
 	}
 
 	private _initializeOptions(editor: ICodeEditor, hoverController: HoverController): void {
 		const helpProvider = this._register(new HoverAccessibilityHelpProvider(hoverController));
 		this.options.language = editor.getModel()?.getLanguageId();
-		this.options.customHelp = () => { return helpProvider.provideContentAtIndex(this._focusedHoverPartIndex, this._markdownHoverFocusedIndex, true); };
+		this.options.customHelp = () => { return helpProvider.provideContentAtIndex(this._focusedHoverPartIndex, true); };
 	}
 }
 

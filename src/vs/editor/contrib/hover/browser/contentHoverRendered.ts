@@ -16,6 +16,10 @@ import { Range } from 'vs/editor/common/core/range';
 import { HoverResult } from 'vs/editor/contrib/hover/browser/contentHoverTypes';
 import * as dom from 'vs/base/browser/dom';
 import * as nls from 'vs/nls';
+import { HoverVerbosityAction } from 'vs/editor/common/languages';
+import { MarkdownHoverParticipant } from 'vs/editor/contrib/hover/browser/markdownHoverParticipant';
+import { InlayHintsHover } from 'vs/editor/contrib/inlayHints/browser/inlayHintsHover';
+import { ColorHoverParticipant } from 'vs/editor/contrib/colorPicker/browser/colorHoverParticipant';
 
 export class RenderedContentHover extends Disposable {
 
@@ -77,6 +81,18 @@ export class RenderedContentHover extends Disposable {
 
 	public getAccessibleWidgetContentAtIndex(index: number): string {
 		return this._renderedHoverParts.getAccessibleWidgetContentAtIndex(index);
+	}
+
+	public async updateHoverVerbosityLevel(action: HoverVerbosityAction, index: number, focus?: boolean): Promise<void> {
+		this._renderedHoverParts.updateHoverVerbosityLevel(action, index, focus);
+	}
+
+	public doesHoverAtIndexSupportVerbosityAction(index: number, action: HoverVerbosityAction): boolean {
+		return this._renderedHoverParts.doesHoverAtIndexSupportVerbosityAction(index, action) ?? false;
+	}
+
+	public isColorPickerVisible(): boolean {
+		return this._renderedHoverParts.isColorPickerVisible();
 	}
 
 	public static computeHoverPositions(editor: ICodeEditor, anchorRange: Range, hoverParts: IHoverPart[]): { showAtPosition: Position; showAtSecondaryPosition: Position } {
@@ -179,6 +195,11 @@ class RenderedContentHoverParts extends Disposable {
 	private readonly _renderedParts: IRenderedContentHoverPart[] = [];
 	private readonly _fragment: DocumentFragment;
 
+	private _markdownParticipantInfo: {
+		participant: MarkdownHoverParticipant;
+		range: { start: number; end: number };
+	} | undefined;
+	private _colorHoverParticipant: ColorHoverParticipant | undefined;
 	private _focusedHoverPartIndex: number = -1;
 
 	constructor(
@@ -230,6 +251,7 @@ class RenderedContentHoverParts extends Disposable {
 	}
 
 	private _renderHoverParts(context: IEditorHoverRenderContext, hoverParts: IHoverPart[]): IRenderedContentHoverPart[] {
+		let offset = 0;
 		const renderedContentHoverParts: IRenderedContentHoverPart[] = [];
 		for (const participant of this._participants) {
 			const hoverPartsForParticipant = hoverParts.filter(hoverPart => hoverPart.owner === participant);
@@ -238,6 +260,18 @@ class RenderedContentHoverParts extends Disposable {
 				continue;
 			}
 			const renderedHoverPartsForParticipant = participant.renderHoverParts(context, hoverPartsForParticipant);
+			const renderedHoverPartsForParticipantLength = renderedHoverPartsForParticipant.renderedHoverParts.length;
+			if (participant instanceof MarkdownHoverParticipant && !(participant instanceof InlayHintsHover)) {
+				this._markdownParticipantInfo = {
+					participant,
+					range: { start: offset, end: offset + renderedHoverPartsForParticipantLength - 1 }
+				};
+			}
+			if (participant instanceof ColorHoverParticipant) {
+				this._colorHoverParticipant = participant;
+			}
+			offset += renderedHoverPartsForParticipantLength;
+			// Disposable issue here, need to fix
 			const renderedContentHoverPartsForParticipant = renderedHoverPartsForParticipant.renderedHoverParts.map(renderedHoverPart => {
 				return new RenderedContentHoverPart(renderedHoverPart, participant);
 			});
@@ -283,6 +317,39 @@ class RenderedContentHoverParts extends Disposable {
 	public getAccessibleWidgetContentAtIndex(index: number): string {
 		const renderedHoverPart = this._renderedParts[index];
 		return renderedHoverPart.getAccessibleContent();
+	}
+
+	public async updateHoverVerbosityLevel(action: HoverVerbosityAction, index: number, focus?: boolean): Promise<void> {
+		if (!this._markdownParticipantInfo) {
+			return;
+		}
+		const normalizedMarkdownHoverIndex = this.normalizedIndexToRange(this._markdownParticipantInfo.range, index);
+		if (normalizedMarkdownHoverIndex === undefined) {
+			return;
+		}
+		this._markdownParticipantInfo.participant.updateMarkdownHoverVerbosityLevel(action, normalizedMarkdownHoverIndex, focus);
+	}
+
+	public doesHoverAtIndexSupportVerbosityAction(index: number, action: HoverVerbosityAction): boolean {
+		if (!this._markdownParticipantInfo) {
+			return false;
+		}
+		const normalizedMarkdownHoverIndex = this.normalizedIndexToRange(this._markdownParticipantInfo.range, index);
+		if (normalizedMarkdownHoverIndex === undefined) {
+			return false;
+		}
+		return this._markdownParticipantInfo.participant.doesMarkdownHoverAtIndexSupportVerbosityAction(normalizedMarkdownHoverIndex, action);
+	}
+
+	public isColorPickerVisible(): boolean {
+		return this._colorHoverParticipant?.isColorPickerVisible() ?? false;
+	}
+
+	private normalizedIndexToRange(range: { start: number; end: number }, index: number): number | undefined {
+		if (index < range.start || index > range.end) {
+			return;
+		}
+		return index - range.start;
 	}
 
 	public get domNode(): DocumentFragment {
