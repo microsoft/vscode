@@ -15,7 +15,7 @@ import { derivedObservableWithCache, mapObservableArrayCached } from 'vs/base/co
 import { isUndefined } from 'vs/base/common/types';
 import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { observableCodeEditor, reactToChange, reactToChangeWithStore } from 'vs/editor/browser/observableUtilities';
+import { observableCodeEditor, reactToChange, reactToChangeWithStore } from 'vs/editor/browser/observableCodeEditor';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
