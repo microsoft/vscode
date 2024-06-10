@@ -104,7 +104,7 @@ export class EditorTextPropertySignalsContribution extends Disposable implements
 
 				for (const modality of ['sound', 'announcement'] as AccessibilityModality[]) {
 					if (this._accessibilitySignalService.getEnabledState(signal, false, modality).value) {
-						const delay = this._accessibilitySignalService.getDelayMs(signal, modality) + (didType.get() ? 1000 : 0);
+						const delay = this._accessibilitySignalService.getDelayMs(signal, modality, mode) + (didType.get() ? 1000 : 0);
 
 						timeouts.add(disposableTimeout(() => {
 							if (source.isPresent(position, mode, undefined)) {
