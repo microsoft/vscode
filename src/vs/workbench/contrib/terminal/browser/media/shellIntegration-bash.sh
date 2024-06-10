@@ -112,18 +112,26 @@ __vsc_escape_value() {
 	fi
 
 	# Process text byte by byte, not by codepoint.
-	builtin local LC_ALL=C str="${1}" i byte token out=''
+	local -r LC_ALL=C
+	local -r str="${1}"
+	local -ir len="${#str}"
+
+	local -i i
+	local -i val
+	local byte
+	local token
+	local out=''
 
 	for (( i=0; i < "${#str}"; ++i )); do
+		# Escape backslashes, semi-colons specially, then special ASCII chars below space (0x20).
 		byte="${str:$i:1}"
-
-		# Escape backslashes, semi-colons specially, then special ASCII chars below space (0x20)
-		if [ "$byte" = "\\" ]; then
+		builtin printf -v val '%d' "'$byte"
+		if  (( val < 31 )); then
+			builtin printf -v token '\\x%02x' "'$byte"
+		elif (( val == 92 )); then # \
 			token="\\\\"
-		elif [ "$byte" = ";" ]; then
+		elif (( val == 59 )); then # ;
 			token="\\x3b"
-		elif (( $(builtin printf '%d' "'$byte") < 31 )); then
-			token=$(builtin printf '\\x%02x' "'$byte")
 		else
 			token="$byte"
 		fi
@@ -131,7 +139,7 @@ __vsc_escape_value() {
 		out+="$token"
 	done
 
-	builtin printf '%s\n' "${out}"
+	builtin printf '%s\n' "$out"
 }
 
 # Send the IsWindows property if the environment looks like Windows
