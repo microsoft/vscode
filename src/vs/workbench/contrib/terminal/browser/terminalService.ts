@@ -880,7 +880,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 	}
 
 	registerProcessSupport(isSupported: boolean): void {
-		if (!isSupported) {
+		if (!isSupported || this._processSupportContextKey.get()) {
 			return;
 		}
 		this._processSupportContextKey.set(isSupported);
