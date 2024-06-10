@@ -242,17 +242,16 @@ export class AccessibilitySignalService extends Disposable implements IAccessibi
 	}
 
 	public getDelayMs(signal: AccessibilitySignal, modality: AccessibilityModality, mode: 'line' | 'positional'): number {
-		const options: { debouncePositionChanges: boolean; 'experimental.delays': { general: { sound: number; announcement: number }; errorAtPosition: { sound: number; announcement: number }; warningAtPosition: { sound: number; announcement: number } } } = this.configurationService.getValue('accessibility.signalOptions');
-		if (!options || !options.debouncePositionChanges) {
+		if (!this.configurationService.getValue('accessibility.signalOptions.debouncePositionChanges')) {
 			return 0;
 		}
 		let value: { sound: number; announcement: number };
 		if (signal.name === AccessibilitySignal.errorAtPosition.name && mode === 'positional') {
-			value = options['experimental.delays'].errorAtPosition;
+			value = this.configurationService.getValue('accessibility.signalOptions.experimental.delays.errorAtPosition');
 		} else if (signal.name === AccessibilitySignal.warningAtPosition.name && mode === 'positional') {
-			value = options['experimental.delays'].warningAtPosition;
+			value = this.configurationService.getValue('accessibility.signalOptions.experimental.delays.warningAtPosition');
 		} else {
-			value = options['experimental.delays'].general;
+			value = this.configurationService.getValue('accessibility.signalOptions.experimental.delays.general');
 		}
 		return modality === 'sound' ? value.sound : value.announcement;
 	}
