@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 // eslint-disable-next-line local/code-import-patterns, local/code-amd-node-module
-import { Terminal } from '@xterm/xterm';
+import xterm from '@xterm/xterm';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ShellIntegrationAddon } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
 import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
@@ -15,12 +15,13 @@ import { strictEqual } from 'assert';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ChatAgentLocation, IChatAgent } from 'vs/workbench/contrib/chat/common/chatAgents';
 
+const { Terminal } = xterm;
 // Test TerminalInitialHintAddon
 
 suite('Terminal Initial Hint Addon', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let eventCount = 0;
-	let xterm: Terminal;
+	let xterm: xterm.Terminal;
 	let initialHintAddon: InitialHintAddon;
 	const _onDidChangeAgents: Emitter<IChatAgent | undefined> = new Emitter();
 	const onDidChangeAgents = _onDidChangeAgents.event;
