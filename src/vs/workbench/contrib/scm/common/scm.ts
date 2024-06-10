@@ -78,11 +78,9 @@ export interface ISCMProvider extends IDisposable {
 	readonly historyProvider?: ISCMHistoryProvider;
 	readonly historyProviderObs: IObservable<ISCMHistoryProvider | undefined>;
 	readonly onDidChangeHistoryProvider: Event<void>;
-	readonly onDidChangeStatusBarCommands?: Event<readonly Command[]>;
 	readonly acceptInputCommand?: Command;
 	readonly actionButton?: ISCMActionButtonDescriptor;
-	readonly statusBarCommands?: readonly Command[];
-	readonly statusBarCommandsObs: IObservable<readonly Command[] | undefined>;
+	readonly statusBarCommands: IObservable<readonly Command[] | undefined>;
 	readonly onDidChange: Event<void>;
 
 	getOriginalResource(uri: URI): Promise<URI | null>;

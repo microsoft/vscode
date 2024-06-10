@@ -235,22 +235,18 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 	get historyProvider(): ISCMHistoryProvider | undefined { return this._historyProvider; }
 	get acceptInputCommand(): Command | undefined { return this.features.acceptInputCommand; }
 	get actionButton(): ISCMActionButtonDescriptor | undefined { return this.features.actionButton ?? undefined; }
-	get statusBarCommands(): Command[] | undefined { return this.features.statusBarCommands; }
 
 	private readonly _count = observableValue<number | undefined>(this, undefined);
 	get count() { return this._count; }
 
-	private readonly _statusBarCommandsObs = observableValue<readonly Command[] | undefined>(this, undefined);
-	get statusBarCommandsObs() { return this._statusBarCommandsObs; }
+	private readonly _statusBarCommands = observableValue<readonly Command[] | undefined>(this, undefined);
+	get statusBarCommands() { return this._statusBarCommands; }
 
 	private readonly _name: string | undefined;
 	get name(): string { return this._name ?? this._label; }
 
 	private readonly _commitTemplate = observableValue<string>(this, '');
 	get commitTemplate() { return this._commitTemplate; }
-
-	private readonly _onDidChangeStatusBarCommands = new Emitter<readonly Command[]>();
-	get onDidChangeStatusBarCommands(): Event<readonly Command[]> { return this._onDidChangeStatusBarCommands.event; }
 
 	private readonly _onDidChangeHistoryProvider = new Emitter<void>();
 	readonly onDidChangeHistoryProvider: Event<void> = this._onDidChangeHistoryProvider.event;
@@ -299,8 +295,7 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 		}
 
 		if (typeof features.statusBarCommands !== 'undefined') {
-			this._statusBarCommandsObs.set(features.statusBarCommands, undefined);
-			this._onDidChangeStatusBarCommands.fire(this.statusBarCommands!);
+			this._statusBarCommands.set(features.statusBarCommands, undefined);
 		}
 
 		if (features.hasQuickDiffProvider && !this._quickDiff) {
