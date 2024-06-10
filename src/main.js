@@ -294,6 +294,13 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		`CalculateNativeWinOcclusion,${app.commandLine.getSwitchValue('disable-features')}`;
 	app.commandLine.appendSwitch('disable-features', featuresToDisable);
 
+	// Blink features to configure.
+	// `FontMatchingCTMigration` - Siwtch font matching on macOS to CoreText (Refs https://github.com/microsoft/vscode/issues/214390).
+	//  TODO(deepak1556): Enable this feature again after updating to Electron 30.
+	const blinkFeaturesToDisable =
+		`FontMatchingCTMigration,${app.commandLine.getSwitchValue('disable-blink-features')}`;
+	app.commandLine.appendSwitch('disable-blink-features', blinkFeaturesToDisable);
+
 	// Support JS Flags
 	const jsFlags = getJSFlags(cliArgs);
 	if (jsFlags) {
