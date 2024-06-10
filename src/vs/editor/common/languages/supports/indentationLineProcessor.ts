@@ -38,8 +38,6 @@ export class ProcessedIndentRulesSupport {
 	 */
 	public shouldIncrease(lineNumber: number, newIndentation?: string): boolean {
 		const processedLine = this._indentationLineProcessor.getProcessedLine(lineNumber, newIndentation);
-		console.log('shouldIncrease');
-		console.log('processedLine', processedLine);
 		return this._indentRulesSupport.shouldIncrease(processedLine);
 	}
 
@@ -48,8 +46,6 @@ export class ProcessedIndentRulesSupport {
 	 */
 	public shouldDecrease(lineNumber: number, newIndentation?: string): boolean {
 		const processedLine = this._indentationLineProcessor.getProcessedLine(lineNumber, newIndentation);
-		console.log('shouldDecrease');
-		console.log('processedLine', processedLine);
 		return this._indentRulesSupport.shouldDecrease(processedLine);
 	}
 
@@ -58,8 +54,6 @@ export class ProcessedIndentRulesSupport {
 	 */
 	public shouldIgnore(lineNumber: number, newIndentation?: string): boolean {
 		const processedLine = this._indentationLineProcessor.getProcessedLine(lineNumber, newIndentation);
-		console.log('shouldIgnore');
-		console.log('processedLine', processedLine);
 		return this._indentRulesSupport.shouldIgnore(processedLine);
 	}
 
@@ -68,8 +62,6 @@ export class ProcessedIndentRulesSupport {
 	 */
 	public shouldIndentNextLine(lineNumber: number, newIndentation?: string): boolean {
 		const processedLine = this._indentationLineProcessor.getProcessedLine(lineNumber, newIndentation);
-		console.log('shouldIndentNextLine');
-		console.log('processedLine', processedLine);
 		return this._indentRulesSupport.shouldIndentNextLine(processedLine);
 	}
 
@@ -189,7 +181,6 @@ class IndentationLineProcessor {
 	 * Remove the language configuration brackets from the regex, string and comment tokens.
 	 */
 	getProcessedLine(lineNumber: number, newIndentation?: string): string {
-		console.log('getProcessedLine');
 		const replaceIndentation = (line: string, newIndentation: string): string => {
 			const currentIndentation = strings.getLeadingWhitespace(line);
 			const adjustedLine = newIndentation + line.substring(currentIndentation.length);
@@ -198,7 +189,6 @@ class IndentationLineProcessor {
 
 		this.model.tokenization.forceTokenization?.(lineNumber);
 		const tokens = this.model.tokenization.getLineTokens(lineNumber);
-		console.log('tokens.getLineContent() : ', tokens.getLineContent());
 		let processedLine = this.getProcessedTokens(tokens).getLineContent();
 		if (newIndentation !== undefined) {
 			processedLine = replaceIndentation(processedLine, newIndentation);

@@ -152,8 +152,6 @@ export class TypeOperations {
 	}
 
 	private static _goodIndentForLine(config: CursorConfiguration, model: ITextModel, lineNumber: number): string | null {
-		console.log('_goodIndentForLine');
-
 		let action: IndentAction | EnterAction | null = null;
 		let indentation: string = '';
 
