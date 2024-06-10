@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 // eslint-disable-next-line local/code-import-patterns, local/code-amd-node-module
-import { Terminal } from '@xterm/xterm';
+import xterm from '@xterm/xterm';
 
 import { strictEqual } from 'assert';
 import { getActiveDocument } from 'vs/base/browser/dom';
@@ -30,6 +30,8 @@ import { events as windows11_pwsh_namespace_completion } from 'vs/workbench/cont
 import { events as windows11_pwsh_type_before_prompt } from 'vs/workbench/contrib/terminalContrib/suggest/test/browser/recordings/windows11_pwsh_type_before_prompt';
 import { events as windows11_pwsh_writehost_multiline_nav_up } from 'vs/workbench/contrib/terminalContrib/suggest/test/browser/recordings/windows11_pwsh_writehost_multiline_nav_up';
 import { events as windows11_pwsh_writehost_multiline } from 'vs/workbench/contrib/terminalContrib/suggest/test/browser/recordings/windows11_pwsh_writehost_multiline';
+
+const { Terminal } = xterm;
 
 const recordedTestCases: { name: string; events: RecordedSessionEvent[] }[] = [
 	{ name: 'macos_bash_echo_simple', events: macos_bash_echo_simple as any as RecordedSessionEvent[] },
@@ -64,7 +66,7 @@ interface IRecordedSessionResizeEvent {
 suite('Terminal Contrib Suggest Recordings', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	let xterm: Terminal;
+	let xterm: xterm.Terminal;
 	let capabilities: TerminalCapabilityStore;
 	let suggestWidgetVisibleContextKey: IContextKey<boolean>;
 	let suggestAddon: SuggestAddon;
