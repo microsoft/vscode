@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 // eslint-disable-next-line local/code-import-patterns, local/code-amd-node-module
-import { Terminal } from '@xterm/headless';
+import xterm from '@xterm/headless';
 
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { NullLogService } from 'vs/platform/log/common/log';
@@ -14,11 +14,13 @@ import type { ITerminalCommand } from 'vs/platform/terminal/common/capabilities/
 import { notDeepStrictEqual, strictEqual } from 'assert';
 import { timeout } from 'vs/base/common/async';
 
+const { Terminal } = xterm;
+
 suite('PromptInputModel', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let promptInputModel: PromptInputModel;
-	let xterm: Terminal;
+	let xterm: xterm.Terminal;
 	let onCommandStart: Emitter<ITerminalCommand>;
 	let onCommandExecuted: Emitter<ITerminalCommand>;
 
