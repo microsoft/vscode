@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ISettableObservable, autorun, constObservable, disposableObservableValue, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from 'vs/base/common/observable';
+import { ISettableObservable, autorun, constObservable, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from 'vs/base/common/observable';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
@@ -23,6 +23,7 @@ import { createStyleSheet2 } from 'vs/base/browser/dom';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { derivedDisposable } from 'vs/base/common/observableInternal/derived';
+import { InlineEditSideBySideWidget } from 'vs/editor/contrib/inlineEdit/browser/inlineEditSideBySideWidget';
 
 export class InlineEditController extends Disposable {
 	static ID = 'editor.contrib.inlineEditController';
@@ -166,6 +167,7 @@ export class InlineEditController extends Disposable {
 		}));
 
 		this._register(new InlineEditHintsWidget(this.editor, this._currentWidget, this.instantiationService));
+		this._register(new InlineEditSideBySideWidget(this.editor, this._currentEdit, this.instantiationService));
 	}
 
 	private checkCursorPosition(position: Position) {
