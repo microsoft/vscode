@@ -830,6 +830,10 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 
 	subscribe(request: IUniversalWatchRequest, callback: (error: true | null, change?: IFileChange) => void): IDisposable | undefined {
 		for (const watcher of this.watchers) {
+			if (watcher.request === request) {
+				continue; // prevent subscribing to itself
+			}
+
 			if (watcher.failed) {
 				continue; // watcher has already failed
 			}
