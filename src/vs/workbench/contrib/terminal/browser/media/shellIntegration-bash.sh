@@ -128,9 +128,9 @@ __vsc_escape_value() {
 		builtin printf -v val '%d' "'$byte"
 		if  (( val < 31 )); then
 			builtin printf -v token '\\x%02x' "'$byte"
-		elif (( val == 92 )); then
+		elif (( val == 92 )); then # \
 			token="\\\\"
-		elif (( val == 59 )); then
+		elif (( val == 59 )); then # ;
 			token="\\x3b"
 		else
 			token="$byte"
