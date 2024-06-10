@@ -11,7 +11,7 @@ import { FileWatcherManager } from './fileWatcherManager';
 import { Logger } from './logging';
 import { PathMapper, looksLikeNodeModules, mapUri } from './pathMapper';
 import { findArgument, hasArgument } from './util/args';
-import membraneTsPlugin from '../../../membrane-ts-plugin/src/index';
+import membraneTsPlugin from '../../../../../membrane-vscode/ts-plugin/src/index';
 
 type ServerHostWithImport = ts.server.ServerHost & { importPlugin(root: string, moduleName: string): Promise<ts.server.ModuleImportResult> };
 
