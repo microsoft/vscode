@@ -684,7 +684,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				disposables.clear();
 				this.basicRenderElement(renderableResponse, element, index, templateData);
 			} else if (!isFullyRendered) {
-				disposables.clear();
+				// disposables.clear();
 				this.renderContentReferencesIfNeeded(element, templateData, disposables);
 				let hasRenderedOneMarkdownBlock = false;
 				partsToRender.forEach((partToRender, index) => {
@@ -1242,6 +1242,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	disposeElement(node: ITreeNode<ChatTreeItem, FuzzyScore>, index: number, templateData: IChatListItemTemplate): void {
+		if (isResponseVM(node.element)) {
+			if (node.element.renderData) {
+				node.element.renderData.renderedParts.forEach((renderedPart, i, arr) => {
+					// if (!isMarkdownRenderData(renderedPart)) {
+					delete arr[i];
+					// }
+				});
+			}
+		}
+
 		templateData.elementDisposables.clear();
 	}
 
