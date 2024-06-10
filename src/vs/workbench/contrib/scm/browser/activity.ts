@@ -120,7 +120,7 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 
 		this._register(autorunWithStore((reader, store) => {
 			const repository = this._activeRepository.read(reader);
-			const commands = repository?.provider.statusBarCommandsObs.read(reader) ?? [];
+			const commands = repository?.provider.statusBarCommands.read(reader) ?? [];
 
 			this._updateStatusBar(repository, commands, store);
 		}));
