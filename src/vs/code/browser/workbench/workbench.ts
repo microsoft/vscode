@@ -69,12 +69,13 @@ class SecretStorageProvider implements ISecretStorageProvider {
 	}
 
 	const isHttps = window.location.protocol === 'https:';
-	const extUrl = {
+	const isDev = new URLSearchParams(window.location.search).get('dev') === 'true';
+	const extensionUrl = {
 		scheme: isHttps ? 'https' : 'http',
-		path: '/membrane',
+		path: isDev ? '/membrane-dev' : '/membrane',
 	};
 
-	config.additionalBuiltinExtensions = [URI.revive(extUrl)];
+	config.additionalBuiltinExtensions = [URI.revive(extensionUrl)];
 
 	let workspace;
 	if (config.folderUri) {
