@@ -115,7 +115,8 @@
 }
 
 .profiles-editor .contents-container .profile-title-container .monaco-inputbox {
-	width: 340px;
+	max-width: 340px;
+	flex: 1;
 }
 
 .profiles-editor .contents-container .profile-header .profile-button-container {
@@ -201,7 +202,7 @@
 
 .profiles-editor .contents-container .profile-content-tree-header {
 	display: grid;
-	grid-template-columns: 30px repeat(2, 1fr) 100px;
+	grid-template-columns: 30px repeat(1, 1fr) 150px 100px;
 	height: 24px;
 	align-items: center;
 	margin-bottom: 2px;
@@ -216,7 +217,7 @@
 
 .profiles-editor .contents-container .profile-tree-item-container.existing-profile-resource-type-container {
 	display: grid;
-	grid-template-columns: repeat(2, 1fr) 100px;
+	grid-template-columns: repeat(1, 1fr) 150px 100px;
 }
 
 .profiles-editor .contents-container .profile-content-tree-header > .inherit-label,
