@@ -1049,6 +1049,11 @@ export const TerminalExtensions = {
 	Backend: 'workbench.contributions.terminal.processBackend'
 };
 
+function sanitizeRemoteAuthority(remoteAuthority: string | undefined) {
+	// Normalize the key to lowercase as the authority is case-insensitive
+	return remoteAuthority?.toLowerCase() ?? '';
+}
+
 export interface ITerminalBackendRegistry {
 	/**
 	 * Gets all backends in the registry.
@@ -1072,7 +1077,7 @@ class TerminalBackendRegistry implements ITerminalBackendRegistry {
 	get backends(): ReadonlyMap<string, ITerminalBackend> { return this._backends; }
 
 	registerTerminalBackend(backend: ITerminalBackend): void {
-		const key = this._sanitizeRemoteAuthority(backend.remoteAuthority);
+		const key = sanitizeRemoteAuthority(backend.remoteAuthority);
 		if (this._backends.has(key)) {
 			throw new Error(`A terminal backend with remote authority '${key}' was already registered.`);
 		}
@@ -1080,12 +1085,7 @@ class TerminalBackendRegistry implements ITerminalBackendRegistry {
 	}
 
 	getTerminalBackend(remoteAuthority: string | undefined): ITerminalBackend | undefined {
-		return this._backends.get(this._sanitizeRemoteAuthority(remoteAuthority));
-	}
-
-	private _sanitizeRemoteAuthority(remoteAuthority: string | undefined) {
-		// Normalize the key to lowercase as the authority is case-insensitive
-		return remoteAuthority?.toLowerCase() ?? '';
+		return this._backends.get(sanitizeRemoteAuthority(remoteAuthority));
 	}
 }
 Registry.add(TerminalExtensions.Backend, new TerminalBackendRegistry());
