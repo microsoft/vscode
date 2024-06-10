@@ -114,7 +114,7 @@ function withBrowserDefaults(/**@type WebpackConfig & { context: string }*/extCo
 		target: 'webworker', // extensions run in a webworker context
 		resolve: {
 			alias: {
-				'./platform/vscode': path.resolve(__dirname, 'membrane-ts-plugin/src/platform/browser.ts'),
+				'./platform/vscode': path.resolve(__dirname, '../../membrane-vscode/ts-plugin/src/platform/browser.ts'),
 			},
 			mainFields: ['browser', 'module', 'main'],
 			extensions: ['.ts', '.js'], // support ts-files and js-files
