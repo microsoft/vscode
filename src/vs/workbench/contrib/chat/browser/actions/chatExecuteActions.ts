@@ -19,6 +19,7 @@ import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 
 export interface IVoiceChatExecuteActionContext {
 	readonly disableTimeout?: boolean;
+	readonly keywordActivated?: boolean;
 }
 
 export interface IChatExecuteActionContext {

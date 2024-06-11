@@ -246,6 +246,7 @@ interface IVoiceChatSession {
 interface IActiveVoiceChatSession extends IVoiceChatSession {
 	readonly id: number;
 	readonly controller: IVoiceChatSessionController;
+	readonly context: IChatExecuteActionContext | undefined;
 	readonly disposables: DisposableStore;
 }
 
@@ -282,6 +283,7 @@ class VoiceChatSessions {
 		const session: IActiveVoiceChatSession = this.currentVoiceChatSession = {
 			id: sessionId,
 			controller,
+			context,
 			disposables: new DisposableStore(),
 			setTimeoutDisabled: (disabled: boolean) => { disableTimeout = disabled; },
 			accept: () => this.accept(sessionId),
@@ -301,6 +303,9 @@ class VoiceChatSessions {
 		const voiceChatSession = await this.voiceChatService.createVoiceChatSession(cts.token, { usesAgents: controller.context !== 'inline', model: context?.widget?.viewModel?.model });
 
 		let inputValue = controller.getInput();
+		if (!inputValue && context?.voice?.keywordActivated) {
+			inputValue = '@voice';
+		}
 
 		let voiceChatTimeout = this.configurationService.getValue<number>(AccessibilityVoiceSettingId.SpeechTimeout);
 		if (!isNumber(voiceChatTimeout) || voiceChatTimeout < 0) {
@@ -391,7 +396,10 @@ class VoiceChatSessions {
 
 		if (
 			!this.accessibilityService.isScreenReaderOptimized() && // do not auto synthesize when screen reader is active
-			this.configurationService.getValue<boolean>(AccessibilityVoiceSettingId.AutoSynthesize) === true
+			(
+				this.configurationService.getValue<boolean>(AccessibilityVoiceSettingId.AutoSynthesize) === true ||
+				this.currentVoiceChatSession.context?.voice?.keywordActivated === true
+			)
 		) {
 			let context: IVoiceChatSessionController | 'focused';
 			if (controller.context === 'inline') {
@@ -1113,7 +1121,7 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 
 		if (result === KeywordRecognitionStatus.Recognized) {
 			if (this.hostService.hasFocus) {
-				this.commandService.executeCommand(this.getKeywordCommand());
+				this.commandService.executeCommand(this.getKeywordCommand(), { voice: { keywordActivated: true } } satisfies IChatExecuteActionContext);
 			}
 
 			// Immediately start another keyboard activation session
