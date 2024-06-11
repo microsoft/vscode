@@ -13,7 +13,7 @@ import { MarkerHoverParticipant } from 'vs/editor/contrib/hover/browser/markerHo
 import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
 import 'vs/css!./hover';
 import { AccessibleViewRegistry } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
-import { ExtHoverAccessibleView, HoverAccessibleView } from 'vs/editor/contrib/hover/browser/hoverAccessibleViews';
+import { ExtHoverAccessibleView, HoverAccessibilityHelp, HoverAccessibleView } from 'vs/editor/contrib/hover/browser/hoverAccessibleViews';
 
 registerEditorContribution(HoverController.ID, HoverController, EditorContributionInstantiation.BeforeFirstInteraction);
 registerEditorAction(ShowOrFocusHoverAction);
@@ -41,4 +41,5 @@ registerThemingParticipant((theme, collector) => {
 	}
 });
 AccessibleViewRegistry.register(new HoverAccessibleView());
+AccessibleViewRegistry.register(new HoverAccessibilityHelp());
 AccessibleViewRegistry.register(new ExtHoverAccessibleView());

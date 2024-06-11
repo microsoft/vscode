@@ -17,7 +17,7 @@ import { LineRange } from 'vs/editor/common/core/lineRange';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
-import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel, IValidEditOperation, MinimapPosition, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, IValidEditOperation, MinimapPosition, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewModel';
@@ -99,7 +99,7 @@ export abstract class EditModeStrategy {
 					continue;
 				}
 
-				await editor.apply(request.response, item);
+				await editor.apply(request.response, item, undefined);
 
 				if (item.uri.scheme === Schemas.untitled) {
 					const untitled = this._textFileService.untitled.get(item.uri);
@@ -135,8 +135,6 @@ export abstract class EditModeStrategy {
 	abstract makeProgressiveChanges(edits: ISingleEditOperation[], obs: IEditObserver, timings: ProgressingEditsOptions, undoStopBefore: boolean): Promise<void>;
 
 	abstract makeChanges(edits: ISingleEditOperation[], obs: IEditObserver, undoStopBefore: boolean): Promise<void>;
-
-	abstract undoChanges(altVersionId: number): Promise<void>;
 
 	abstract renderChanges(response: ReplyResponse): Promise<Position | undefined>;
 
@@ -192,14 +190,7 @@ export class PreviewStrategy extends EditModeStrategy {
 	override async makeProgressiveChanges(): Promise<void> {
 	}
 
-	override async undoChanges(altVersionId: number): Promise<void> {
-		const { textModelN } = this._session;
-		await undoModelUntil(textModelN, altVersionId);
-	}
-
-	override async renderChanges(response: ReplyResponse): Promise<undefined> {
-
-	}
+	override async renderChanges(response: ReplyResponse): Promise<undefined> { }
 
 	hasFocus(): boolean {
 		return this._zone.widget.hasFocus();
@@ -311,11 +302,6 @@ export class LiveStrategy extends EditModeStrategy {
 	override cancel() {
 		this._resetDiff();
 		return super.cancel();
-	}
-
-	override async undoChanges(altVersionId: number): Promise<void> {
-		const { textModelN } = this._session;
-		await undoModelUntil(textModelN, altVersionId);
 	}
 
 	override async makeChanges(edits: ISingleEditOperation[], obs: IEditObserver, undoStopBefore: boolean): Promise<void> {
@@ -617,14 +603,6 @@ export class LiveStrategy extends EditModeStrategy {
 		return [];
 	}
 }
-
-
-async function undoModelUntil(model: ITextModel, targetAltVersion: number): Promise<void> {
-	while (targetAltVersion < model.getAlternativeVersionId() && model.canUndo()) {
-		await model.undo();
-	}
-}
-
 
 function changeDecorationsAndViewZones(editor: ICodeEditor, callback: (accessor: IModelDecorationsChangeAccessor, viewZoneAccessor: IViewZoneChangeAccessor) => void): void {
 	editor.changeDecorations(decorationsAccessor => {

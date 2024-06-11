@@ -17,5 +17,6 @@
 		"../../src/vscode-dts/vscode.proposed.mappedEditsProvider.d.ts",
 		"../../src/vscode-dts/vscode.proposed.multiDocumentHighlightProvider.d.ts",
 		"../../src/vscode-dts/vscode.proposed.workspaceTrust.d.ts",
+		"../../src/vscode-dts/vscode.proposed.documentPaste.d.ts",
 	]
 }

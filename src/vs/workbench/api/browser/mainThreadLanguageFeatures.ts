@@ -67,7 +67,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 				}
 				this._proxy.$setWordDefinitions(wordDefinitionDtos);
 			};
-			this._languageConfigurationService.onDidChange((e) => {
+			this._register(this._languageConfigurationService.onDidChange((e) => {
 				if (!e.languageId) {
 					updateAllWordDefinitions();
 				} else {
@@ -78,7 +78,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 						regexFlags: wordDefinition.flags
 					}]);
 				}
-			});
+			}));
 			updateAllWordDefinitions();
 		}
 	}
@@ -260,7 +260,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 			provideHover: async (model: ITextModel, position: EditorPosition, token: CancellationToken, context?: languages.HoverContext<HoverWithId>): Promise<HoverWithId | undefined> => {
 				const serializedContext: languages.HoverContext<{ id: number }> = {
 					verbosityRequest: context?.verbosityRequest ? {
-						action: context.verbosityRequest.action,
+						verbosityDelta: context.verbosityRequest.verbosityDelta,
 						previousHover: { id: context.verbosityRequest.previousHover.id }
 					} : undefined,
 				};

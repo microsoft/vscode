@@ -816,7 +816,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 		['interactiveWindow.executeWithShiftEnter']: {
 			type: 'boolean',
-			default: true,
+			default: false,
 			markdownDescription: localize('interactiveWindow.executeWithShiftEnter', "Execute the interactive window (REPL) input box with shift+enter, so that enter can be used to create a newline.")
 		}
 	}
