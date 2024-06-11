@@ -286,6 +286,23 @@ declare module 'vscode' {
 		/**
 		 * The exit code reported by the shell. `undefined` means the shell did not report an exit
 		 * code or the shell reported a command started before the command finished.
+		 *
+		 * @example
+		 * const execution = shellIntegration.executeCommand({
+		 *   command: 'echo',
+		 *   args: ['Hello world']
+		 * });
+		 * window.onDidEndTerminalShellExecution(event => {
+		 *   if (event.execution === execution) {
+		 *     if (event.exitCode === undefined) {
+		 * 	     console.log('Command finished but exit code is unknown');
+		 *     } else if (event.exitCode === 0) {
+		 * 	     console.log('Command succeeded');
+		 *     } else {
+		 * 	     console.log('Command failed');
+		 *     }
+		 *   }
+		 * });
 		 */
 		readonly exitCode: number | undefined;
 	}

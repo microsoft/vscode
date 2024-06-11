@@ -110,6 +110,6 @@ export class PartsSplash {
 
 		// remove initial colors
 		const defaultStyles = mainWindow.document.head.getElementsByClassName('initialShellColors');
-		defaultStyles?.[0].remove();
+		defaultStyles[0]?.remove();
 	}
 }

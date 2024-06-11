@@ -1431,6 +1431,11 @@ export interface IReadonlyTextBuffer {
 	getLineFirstNonWhitespaceColumn(lineNumber: number): number;
 	getLineLastNonWhitespaceColumn(lineNumber: number): number;
 	findMatchesLineByLine(searchRange: Range, searchData: SearchData, captureMatches: boolean, limitResultCount: number): FindMatch[];
+
+	/**
+	 * Get nearest chunk of text after `offset` in the text buffer.
+	 */
+	getNearestChunk(offset: number): string;
 }
 
 /**

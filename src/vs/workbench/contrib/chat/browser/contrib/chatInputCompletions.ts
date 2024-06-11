@@ -117,7 +117,7 @@ class AgentCompletions extends Disposable {
 
 				return {
 					suggestions: agents.map((agent, i): CompletionItem => {
-						const { label: agentLabel, isDupe } = getAgentCompletionDetails(agent, agents, this.chatAgentNameService);
+						const { label: agentLabel, isDupe } = this.getAgentCompletionDetails(agent);
 						return {
 							// Leading space is important because detail has no space at the start by design
 							label: isDupe ?
@@ -216,7 +216,7 @@ class AgentCompletions extends Disposable {
 				const justAgents: CompletionItem[] = agents
 					.filter(a => !a.isDefault)
 					.map(agent => {
-						const { label: agentLabel, isDupe } = getAgentCompletionDetails(agent, agents, this.chatAgentNameService);
+						const { label: agentLabel, isDupe } = this.getAgentCompletionDetails(agent);
 						const detail = agent.description;
 
 						return {
@@ -236,7 +236,7 @@ class AgentCompletions extends Disposable {
 				return {
 					suggestions: justAgents.concat(
 						agents.flatMap(agent => agent.slashCommands.map((c, i) => {
-							const { label: agentLabel, isDupe } = getAgentCompletionDetails(agent, agents, this.chatAgentNameService);
+							const { label: agentLabel, isDupe } = this.getAgentCompletionDetails(agent);
 							const withSlash = `${chatSubcommandLeader}${c.name}`;
 							return {
 								label: { label: withSlash, description: agentLabel, detail: isDupe ? ` (${agent.publisherDisplayName})` : undefined },
@@ -253,6 +253,13 @@ class AgentCompletions extends Disposable {
 				};
 			}
 		}));
+	}
+
+	private getAgentCompletionDetails(agent: IChatAgentData): { label: string; isDupe: boolean } {
+		const isAllowed = this.chatAgentNameService.getAgentNameRestriction(agent);
+		const agentLabel = `${chatAgentLeader}${isAllowed ? agent.name : getFullyQualifiedId(agent)}`;
+		const isDupe = isAllowed && this.chatAgentService.agentHasDupeName(agent.id);
+		return { label: agentLabel, isDupe };
 	}
 }
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(AgentCompletions, LifecyclePhase.Eventually);
@@ -401,11 +408,3 @@ class VariableCompletions extends Disposable {
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(VariableCompletions, LifecyclePhase.Eventually);
-
-function getAgentCompletionDetails(agent: IChatAgentData, otherAgents: IChatAgentData[], chatAgentNameService: IChatAgentNameService): { label: string; isDupe: boolean } {
-	const isAllowed = chatAgentNameService.getAgentNameRestriction(agent);
-	const agentLabel = `${chatAgentLeader}${isAllowed ? agent.name : getFullyQualifiedId(agent)}`;
-	const isDupe = isAllowed && !!otherAgents.find(other => other.name === agent.name && other.id !== agent.id);
-
-	return { label: agentLabel, isDupe };
-}

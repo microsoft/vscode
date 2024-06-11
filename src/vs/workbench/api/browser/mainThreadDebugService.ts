@@ -329,6 +329,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 			compact: options.compact,
 			compoundRoot: parentSession?.compoundRoot,
 			saveBeforeRestart: saveBeforeStart,
+			testRun: options.testRun,
 
 			suppressDebugStatusbar: options.suppressDebugStatusbar,
 			suppressDebugToolbar: options.suppressDebugToolbar,
