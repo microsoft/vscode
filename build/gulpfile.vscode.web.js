@@ -254,6 +254,9 @@ const dashed = (/** @type {string} */ str) => (str ? `-${str}` : ``);
 	gulp.task(vscodeWebTaskCI);
 
 	const vscodeWebTask = task.define(`vscode-web${dashed(minified)}`, task.series(
+		// MEMBRANE: Use this instead of `compileBuildTask` to speed up local builds
+		// by skipping the mangle step (~15min)
+		// compileBuildTaskPullRequest,
 		compileBuildTask,
 		vscodeWebTaskCI
 	));
