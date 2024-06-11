@@ -42,6 +42,10 @@ export class TestParcelWatcher extends ParcelWatcher {
 		return this.removeDuplicateRequests(requests, false /* validate paths skipped for tests */).map(request => request.path);
 	}
 
+	protected override getUpdateWatchersDelay(): number {
+		return 0;
+	}
+
 	protected override async doWatch(requests: IRecursiveWatchRequest[]): Promise<void> {
 		await super.doWatch(requests);
 		await this.whenReady();

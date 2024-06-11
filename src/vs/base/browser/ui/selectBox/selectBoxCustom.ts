@@ -9,7 +9,7 @@ import { IContentActionHandler } from 'vs/base/browser/formattedTextRenderer';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { AnchorPosition, IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
+import type { IManagedHover } from 'vs/base/browser/ui/hover/hover';
 import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { IListEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
@@ -104,7 +104,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 	private selectionDetailsPane!: HTMLElement;
 	private _skipLayout: boolean = false;
 	private _cachedMaxDetailsHeight?: number;
-	private _hover?: IUpdatableHover;
+	private _hover?: IManagedHover;
 
 	private _sticky: boolean = false; // for dev purposes only
 
@@ -153,7 +153,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 	private setTitle(title: string): void {
 		if (!this._hover && title) {
-			this._hover = this._register(getBaseLayerHoverDelegate().setupUpdatableHover(getDefaultHoverDelegate('mouse'), this.selectElement, title));
+			this._hover = this._register(getBaseLayerHoverDelegate().setupManagedHover(getDefaultHoverDelegate('mouse'), this.selectElement, title));
 		} else if (this._hover) {
 			this._hover.update(title);
 		}
@@ -609,8 +609,8 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 					this._dropDownPosition = AnchorPosition.ABOVE;
 					this.selectDropDownListContainer.remove();
 					this.selectionDetailsPane.remove();
-					this.selectionDetailsPane.remove();
-					this.selectDropDownListContainer.remove();
+					this.selectDropDownContainer.appendChild(this.selectionDetailsPane);
+					this.selectDropDownContainer.appendChild(this.selectDropDownListContainer);
 
 					this.selectionDetailsPane.classList.remove('border-top');
 					this.selectionDetailsPane.classList.add('border-bottom');
@@ -619,8 +619,8 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 					this._dropDownPosition = AnchorPosition.BELOW;
 					this.selectDropDownListContainer.remove();
 					this.selectionDetailsPane.remove();
-					this.selectDropDownListContainer.remove();
-					this.selectionDetailsPane.remove();
+					this.selectDropDownContainer.appendChild(this.selectDropDownListContainer);
+					this.selectDropDownContainer.appendChild(this.selectionDetailsPane);
 
 					this.selectionDetailsPane.classList.remove('border-bottom');
 					this.selectionDetailsPane.classList.add('border-top');

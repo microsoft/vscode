@@ -50,7 +50,7 @@ import { unsupportedSchemas } from 'vs/platform/markers/common/markerService';
 import { defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
 import Severity from 'vs/base/common/severity';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
+import type { IManagedHover } from 'vs/base/browser/ui/hover/hover';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 interface IResourceMarkersTemplateData {
@@ -281,7 +281,7 @@ class MarkerWidget extends Disposable {
 	private readonly icon: HTMLElement;
 	private readonly iconContainer: HTMLElement;
 	private readonly messageAndDetailsContainer: HTMLElement;
-	private readonly messageAndDetailsContainerHover: IUpdatableHover;
+	private readonly messageAndDetailsContainerHover: IManagedHover;
 	private readonly disposables = this._register(new DisposableStore());
 
 	constructor(
@@ -302,7 +302,7 @@ class MarkerWidget extends Disposable {
 		this.iconContainer = dom.append(parent, dom.$(''));
 		this.icon = dom.append(this.iconContainer, dom.$(''));
 		this.messageAndDetailsContainer = dom.append(parent, dom.$('.marker-message-details-container'));
-		this.messageAndDetailsContainerHover = this._register(this._hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), this.messageAndDetailsContainer, ''));
+		this.messageAndDetailsContainerHover = this._register(this._hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this.messageAndDetailsContainer, ''));
 	}
 
 	render(element: Marker, filterData: MarkerFilterData | undefined): void {
