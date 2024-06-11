@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { mapArrayOrNot } from 'vs/base/common/arrays';
 import { timeout } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -16,6 +16,7 @@ import { mock } from 'vs/base/test/common/mock';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { MainContext, MainThreadSearchShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostConfigProvider, IExtHostConfiguration } from 'vs/workbench/api/common/extHostConfiguration.js';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { Range } from 'vs/workbench/api/common/extHostTypes';
 import { URITransformerService } from 'vs/workbench/api/common/extHostUriTransformerService';
@@ -144,6 +145,26 @@ suite('ExtHostSearch', () => {
 					rpcProtocol,
 					new class extends mock<IExtHostInitDataService>() { override remote = { isRemote: false, authority: undefined, connectionData: null }; },
 					new URITransformerService(null),
+					new class extends mock<IExtHostConfiguration>() {
+						override async getConfigProvider(): Promise<ExtHostConfigProvider> {
+							return {
+								onDidChangeConfiguration(_listener: (event: vscode.ConfigurationChangeEvent) => void) { },
+								getConfiguration(): vscode.WorkspaceConfiguration {
+									return {
+										get() { },
+										has() {
+											return false;
+										},
+										inspect() {
+											return undefined;
+										},
+										async update() { }
+									};
+								},
+
+							} as ExtHostConfigProvider;
+						}
+					},
 					logService
 				);
 				this._pfs = mockPFS as any;

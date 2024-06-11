@@ -11,7 +11,7 @@ export interface IWordCountResult {
 
 export function getNWords(str: string, numWordsToCount: number): IWordCountResult {
 	// Match words and markdown style links
-	const allWordMatches = Array.from(str.matchAll(/\[([^\]]+)\]\(([^)]+)\)|[^\s\|\-]+/g));
+	const allWordMatches = Array.from(str.matchAll(/\[([^\]]+)\]\(([^)]+)\)|\p{sc=Han}|[^\s\|\-|\p{sc=Han}]+/gu));
 
 	const targetWords = allWordMatches.slice(0, numWordsToCount);
 

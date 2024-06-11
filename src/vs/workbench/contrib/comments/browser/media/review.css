@@ -244,11 +244,6 @@
 	margin-top: 0;
 }
 
-.review-widget .body .comment-body code {
-	border-radius: 3px;
-	padding: 0 0.4em;
-}
-
 .review-widget .body .comment-body span {
 	white-space: pre;
 }
