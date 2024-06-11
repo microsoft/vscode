@@ -12,5 +12,6 @@
 		"../../../src/vscode-dts/vscode.d.ts",
 		"../../../src/vscode-dts/vscode.proposed.testObserver.d.ts",
 		"../../../src/vscode-dts/vscode.proposed.attributableCoverage.d.ts",
+		"../../../src/vscode-dts/vscode.proposed.testRunInDebug.d.ts",
 	]
 }

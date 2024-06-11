@@ -22,7 +22,7 @@ import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecyc
 import { ThemeIcon } from 'vs/base/common/themables';
 import 'vs/css!./button';
 import { localize } from 'vs/nls';
-import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
+import type { IManagedHover } from 'vs/base/browser/ui/hover/hover';
 import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
 import { IActionProvider } from 'vs/base/browser/ui/dropdown/dropdown';
 
@@ -80,7 +80,7 @@ export class Button extends Disposable implements IButton {
 	protected _label: string | IMarkdownString = '';
 	protected _labelElement: HTMLElement | undefined;
 	protected _labelShortElement: HTMLElement | undefined;
-	private _hover: IUpdatableHover | undefined;
+	private _hover: IManagedHover | undefined;
 
 	private _onDidClick = this._register(new Emitter<Event>());
 	get onDidClick(): BaseEvent<Event> { return this._onDidClick.event; }
@@ -306,7 +306,7 @@ export class Button extends Disposable implements IButton {
 
 	setTitle(title: string) {
 		if (!this._hover && title !== '') {
-			this._hover = this._register(getBaseLayerHoverDelegate().setupUpdatableHover(this.options.hoverDelegate ?? getDefaultHoverDelegate('mouse'), this._element, title));
+			this._hover = this._register(getBaseLayerHoverDelegate().setupManagedHover(this.options.hoverDelegate ?? getDefaultHoverDelegate('mouse'), this._element, title));
 		} else if (this._hover) {
 			this._hover.update(title);
 		}
@@ -370,7 +370,7 @@ export class ButtonWithDropdown extends Disposable implements IButton {
 		this.separator.style.backgroundColor = options.buttonSeparator ?? '';
 
 		this.dropdownButton = this._register(new Button(this.element, { ...options, title: false, supportIcons: true }));
-		this._register(getBaseLayerHoverDelegate().setupUpdatableHover(getDefaultHoverDelegate('mouse'), this.dropdownButton.element, localize("button dropdown more actions", 'More Actions...')));
+		this._register(getBaseLayerHoverDelegate().setupManagedHover(getDefaultHoverDelegate('mouse'), this.dropdownButton.element, localize("button dropdown more actions", 'More Actions...')));
 		this.dropdownButton.element.setAttribute('aria-haspopup', 'true');
 		this.dropdownButton.element.setAttribute('aria-expanded', 'false');
 		this.dropdownButton.element.classList.add('monaco-dropdown-button');

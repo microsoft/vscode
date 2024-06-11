@@ -17,6 +17,15 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { ClientConnectionEvent, IPCServer } from 'vs/base/parts/ipc/common/ipc';
 import { ChunkStream, Client, ISocket, Protocol, SocketCloseEvent, SocketCloseEventType, SocketDiagnostics, SocketDiagnosticsEventType } from 'vs/base/parts/ipc/common/ipc.net';
 
+/**
+ * Maximum time to wait for a 'close' event to fire after the socket stream
+ * ends. For unix domain sockets, the close event may not fire consistently
+ * due to what appears to be a Node.js bug.
+ *
+ * @see https://github.com/microsoft/vscode/issues/211462#issuecomment-2155471996
+ */
+const socketEndTimeoutMs = 30_000;
+
 export class NodeSocket implements ISocket {
 
 	public readonly debugLabel: string;
@@ -51,15 +60,20 @@ export class NodeSocket implements ISocket {
 		};
 		this.socket.on('error', this._errorListener);
 
+		let endTimeoutHandle: NodeJS.Timeout | undefined;
 		this._closeListener = (hadError: boolean) => {
 			this.traceSocketEvent(SocketDiagnosticsEventType.Close, { hadError });
 			this._canWrite = false;
+			if (endTimeoutHandle) {
+				clearTimeout(endTimeoutHandle);
+			}
 		};
 		this.socket.on('close', this._closeListener);
 
 		this._endListener = () => {
 			this.traceSocketEvent(SocketDiagnosticsEventType.NodeEndReceived);
 			this._canWrite = false;
+			endTimeoutHandle = setTimeout(() => socket.destroy(), socketEndTimeoutMs);
 		};
 		this.socket.on('end', this._endListener);
 	}

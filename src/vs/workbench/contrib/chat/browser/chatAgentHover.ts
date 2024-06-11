@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { h } from 'vs/base/browser/dom';
-import { IUpdatableHoverOptions } from 'vs/base/browser/ui/hover/hover';
+import { IManagedHoverOptions } from 'vs/base/browser/ui/hover/hover';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
@@ -121,7 +121,7 @@ export class ChatAgentHover extends Disposable {
 	}
 }
 
-export function getChatAgentHoverOptions(getAgent: () => IChatAgentData | undefined, commandService: ICommandService): IUpdatableHoverOptions {
+export function getChatAgentHoverOptions(getAgent: () => IChatAgentData | undefined, commandService: ICommandService): IManagedHoverOptions {
 	return {
 		actions: [
 			{

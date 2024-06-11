@@ -19,7 +19,7 @@ import { ConfigurationScope } from 'vs/platform/configuration/common/configurati
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { ExtensionKind } from 'vs/platform/environment/common/environment';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionIdentifier, ExtensionType, IExtension, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -139,14 +139,6 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 				this._initialize();
 			}, 50 /*max delay*/);
 		});
-	}
-
-	protected _scanSingleExtension(extension: IExtension): Promise<IExtensionDescription | null> {
-		if (extension.location.scheme === Schemas.vscodeRemote) {
-			return this._remoteExtensionsScannerService.scanSingleExtension(extension.location, extension.type === ExtensionType.System);
-		}
-
-		return this._extensionScanner.scanSingleExtension(extension.location.fsPath, extension.type === ExtensionType.System);
 	}
 
 	private async _scanAllLocalExtensions(): Promise<IExtensionDescription[]> {
