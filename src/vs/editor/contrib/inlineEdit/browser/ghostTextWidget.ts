@@ -92,7 +92,7 @@ export class GhostTextWidget extends Disposable {
 
 		let hiddenTextStartColumn: number | undefined = undefined;
 		let lastIdx = 0;
-		if (!isPureRemove) {
+		if (!isPureRemove && (isSingleLine || !range)) {
 			for (const part of ghostText.parts) {
 				let lines = part.lines;
 				//If remove range is set, we want to push all new liens to virtual area
@@ -215,7 +215,7 @@ export class GhostTextWidget extends Disposable {
 			derived(reader => {
 				/** @description lines */
 				const uiState = this.uiState.read(reader);
-				return uiState && !uiState.isPureRemove ? {
+				return uiState && !uiState.isPureRemove && (uiState.isSingleLine || !uiState.range) ? {
 					lineNumber: uiState.lineNumber,
 					additionalLines: uiState.additionalLines,
 					minReservedLineCount: uiState.additionalReservedLineCount,
