@@ -3968,7 +3968,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 
 		if (!historyItemsElement) {
 			const ancestor = await historyProvider.resolveHistoryItemGroupCommonAncestor(currentHistoryItemGroup.id, currentHistoryItemGroup.base?.id);
-			if (!ancestor) {
+			if (!ancestor || (ancestor.ahead === 0 && ancestor.behind === 0)) {
 				return [];
 			}
 
