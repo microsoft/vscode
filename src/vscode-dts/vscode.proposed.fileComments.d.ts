@@ -68,6 +68,9 @@ declare module 'vscode' {
 		 * Once disposed, this comment thread will be removed from visible editors and Comment Panel when appropriate.
 		 */
 		dispose(): void;
+
+		// Part of the comment reveal proposal
+		reveal(options?: CommentThreadRevealOptions): Thenable<void>;
 	}
 
 	export interface CommentController {

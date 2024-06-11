@@ -666,6 +666,27 @@ export class PieceTreeBase {
 		return this._getCharCode(nodePos);
 	}
 
+	public getNearestChunk(offset: number): string {
+		const nodePos = this.nodeAt(offset);
+		if (nodePos.remainder === nodePos.node.piece.length) {
+			// the offset is at the head of next node.
+			const matchingNode = nodePos.node.next();
+			if (!matchingNode || matchingNode === SENTINEL) {
+				return '';
+			}
+
+			const buffer = this._buffers[matchingNode.piece.bufferIndex];
+			const startOffset = this.offsetInBuffer(matchingNode.piece.bufferIndex, matchingNode.piece.start);
+			return buffer.buffer.substring(startOffset, startOffset + matchingNode.piece.length);
+		} else {
+			const buffer = this._buffers[nodePos.node.piece.bufferIndex];
+			const startOffset = this.offsetInBuffer(nodePos.node.piece.bufferIndex, nodePos.node.piece.start);
+			const targetOffset = startOffset + nodePos.remainder;
+			const targetEnd = startOffset + nodePos.node.piece.length;
+			return buffer.buffer.substring(targetOffset, targetEnd);
+		}
+	}
+
 	public findMatchesInNode(node: TreeNode, searcher: Searcher, startLineNumber: number, startColumn: number, startCursor: BufferCursor, endCursor: BufferCursor, searchData: SearchData, captureMatches: boolean, limitResultCount: number, resultLen: number, result: FindMatch[]) {
 		const buffer = this._buffers[node.piece.bufferIndex];
 		const startOffsetInBuffer = this.offsetInBuffer(node.piece.bufferIndex, node.piece.start);

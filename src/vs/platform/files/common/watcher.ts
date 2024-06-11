@@ -181,16 +181,14 @@ export interface IUniversalWatcher extends IWatcher {
 
 export abstract class AbstractWatcherClient extends Disposable {
 
-	private static readonly MAX_RESTARTS_PER_REQUEST_ERROR = 3;  // how often we give a request a chance to restart on error
-	private static readonly MAX_RESTARTS_PER_UNKNOWN_ERROR = 10; // how often we give the watcher a chance to restart on unknown errors (like crash)
+	private static readonly MAX_RESTARTS = 5;
 
 	private watcher: IWatcher | undefined;
 	private readonly watcherDisposables = this._register(new MutableDisposable());
 
 	private requests: IWatchRequest[] | undefined = undefined;
 
-	private restartsPerRequestError = new Map<string /* request path */, number /* restarts */>();
-	private restartsPerUnknownError = 0;
+	private restartCounter = 0;
 
 	constructor(
 		private readonly onFileChanges: (changes: IFileChange[]) => void,
@@ -224,41 +222,51 @@ export abstract class AbstractWatcherClient extends Disposable {
 
 	protected onError(error: string, failedRequest?: IUniversalWatchRequest): void {
 
-		// Restart on error (up to N times, if enabled)
-		if (this.options.restartOnError && this.requests?.length) {
-
-			// A request failed
-			if (failedRequest) {
-				const restartsPerRequestError = this.restartsPerRequestError.get(failedRequest.path) ?? 0;
-				if (restartsPerRequestError < AbstractWatcherClient.MAX_RESTARTS_PER_REQUEST_ERROR) {
-					this.error(`restarting watcher from error in watch request (retrying request): ${error} (${JSON.stringify(failedRequest)})`);
-					this.restartsPerRequestError.set(failedRequest.path, restartsPerRequestError + 1);
-					this.restart(this.requests);
-				} else {
-					this.error(`restarting watcher from error in watch request (skipping request): ${error} (${JSON.stringify(failedRequest)})`);
-					this.restart(this.requests.filter(request => request.path !== failedRequest.path));
-				}
-			}
-
-			// Any request failed or process crashed
-			else {
-				if (this.restartsPerUnknownError < AbstractWatcherClient.MAX_RESTARTS_PER_UNKNOWN_ERROR) {
-					this.error(`restarting watcher after unknown global error: ${error}`);
-					this.restartsPerUnknownError++;
-					this.restart(this.requests);
-				} else {
-					this.error(`giving up attempting to restart watcher after error: ${error}`);
-				}
+		// Restart on error (up to N times, if possible)
+		if (this.canRestart(error, failedRequest)) {
+			if (this.restartCounter < AbstractWatcherClient.MAX_RESTARTS && this.requests) {
+				this.error(`restarting watcher after unexpected error: ${error}`);
+				this.restart(this.requests);
+			} else {
+				this.error(`gave up attempting to restart watcher after unexpected error: ${error}`);
 			}
 		}
 
-		// Do not attempt to restart if not enabled
+		// Do not attempt to restart otherwise, report the error
 		else {
 			this.error(error);
 		}
 	}
 
+	private canRestart(error: string, failedRequest?: IUniversalWatchRequest): boolean {
+		if (!this.options.restartOnError) {
+			return false; // disabled by options
+		}
+
+		if (failedRequest) {
+			// do not treat a failing request as a reason to restart the entire
+			// watcher. it is possible that from a large amount of watch requests
+			// some fail and we would constantly restart all requests only because
+			// of that. rather, continue the watcher and leave the failed request
+			return false;
+		}
+
+		if (
+			error.indexOf('No space left on device') !== -1 ||
+			error.indexOf('EMFILE') !== -1
+		) {
+			// do not restart when the error indicates that the system is running
+			// out of handles for file watching. this is not recoverable anyway
+			// and needs changes to the system before continuing
+			return false;
+		}
+
+		return true;
+	}
+
 	private restart(requests: IUniversalWatchRequest[]): void {
+		this.restartCounter++;
+
 		this.init();
 		this.watch(requests);
 	}

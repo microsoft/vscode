@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { ActionBar, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action, Separator } from 'vs/base/common/actions';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';

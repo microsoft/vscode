@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as matchers from 'vs/workbench/contrib/tasks/common/problemMatcher';
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { ValidationState, IProblemReporter, ValidationStatus } from 'vs/base/common/parsers';
 
 class ProblemReporter implements IProblemReporter {

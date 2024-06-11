@@ -153,6 +153,8 @@
 .monaco-workbench .part.editor > .content .walkThroughContent code,
 .monaco-workbench .part.editor > .content .walkThroughContent .shortcut {
 	color: var(--vscode-textPreformat-foreground);
+	background-color: var(--vscode-textPreformat-background);
+	border-radius: 3px;
 }
 
 .monaco-workbench .part.editor > .content .walkThroughContent .monaco-editor {

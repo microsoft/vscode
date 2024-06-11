@@ -5,24 +5,31 @@
 
 import { structuralEquals } from 'vs/base/common/equals';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { derived, derivedOpts, observableValue } from 'vs/base/common/observable';
+import { derived, derivedOpts } from 'vs/base/common/observable';
 import 'vs/css!./placeholderText';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { obsCodeEditor } from 'vs/editor/browser/observableUtilities';
+import { observableCodeEditor } from 'vs/editor/browser/observableCodeEditor';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { ghostTextForeground } from 'vs/editor/common/core/editorColorRegistry';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IModelDeltaDecoration, InjectedTextCursorStops } from 'vs/editor/common/model';
+import { localize } from 'vs/nls';
+import { registerColor } from 'vs/platform/theme/common/colorUtils';
 
+/**
+ * Use the editor option to set the placeholder text.
+*/
 export class PlaceholderTextContribution extends Disposable implements IEditorContribution {
 	public static get(editor: ICodeEditor): PlaceholderTextContribution {
 		return editor.getContribution<PlaceholderTextContribution>(PlaceholderTextContribution.ID)!;
 	}
 
 	public static readonly ID = 'editor.contrib.placeholderText';
-	private readonly _editorObs = obsCodeEditor(this._editor);
+	private readonly _editorObs = observableCodeEditor(this._editor);
 
-	private readonly _placeholderText = observableValue<string | undefined>(this, undefined);
+	private readonly _placeholderText = this._editorObs.getOption(EditorOption.placeholder);
 
 	private readonly _decorationOptions = derivedOpts<{ placeholder: string } | undefined>({ owner: this, equalsFn: structuralEquals }, reader => {
 		const p = this._placeholderText.read(reader);
@@ -57,10 +64,8 @@ export class PlaceholderTextContribution extends Disposable implements IEditorCo
 
 		this._register(this._editorObs.setDecorations(this._decorations));
 	}
-
-	public setPlaceholderText(placeholder: string): void {
-		this._placeholderText.set(placeholder, undefined);
-	}
 }
 
-registerEditorContribution(PlaceholderTextContribution.ID, PlaceholderTextContribution, EditorContributionInstantiation.Lazy);
+registerEditorContribution(PlaceholderTextContribution.ID, PlaceholderTextContribution, EditorContributionInstantiation.Eager);
+
+registerColor('editor.placeholder.foreground', { dark: ghostTextForeground, light: ghostTextForeground, hcDark: ghostTextForeground, hcLight: ghostTextForeground }, localize('placeholderForeground', 'Foreground color of the placeholder text in the editor.'));

@@ -138,11 +138,11 @@ export class ExternalTerminalContribution extends Disposable implements IWorkben
 		MenuRegistry.appendMenuItem(MenuId.ExplorerContext, this._openInTerminalMenuItem);
 		MenuRegistry.appendMenuItem(MenuId.ExplorerContext, this._openInIntegratedTerminalMenuItem);
 
-		this._configurationService.onDidChangeConfiguration(e => {
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('terminal.explorerKind') || e.affectsConfiguration('terminal.external')) {
 				this._refreshOpenInTerminalMenuItemTitle();
 			}
-		});
+		}));
 
 		this._refreshOpenInTerminalMenuItemTitle();
 	}

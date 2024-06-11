@@ -103,8 +103,8 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		this.activeOutputChannelLevelIsDefaultContext = CONTEXT_ACTIVE_OUTPUT_LEVEL_IS_DEFAULT.bindTo(contextKeyService);
 
 		// Register as text model content provider for output
-		textModelResolverService.registerTextModelContentProvider(OUTPUT_SCHEME, this);
-		instantiationService.createInstance(OutputLinkProvider);
+		this._register(textModelResolverService.registerTextModelContentProvider(OUTPUT_SCHEME, this));
+		this._register(instantiationService.createInstance(OutputLinkProvider));
 
 		// Create output channels for already registered channels
 		const registry = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels);
