@@ -78,10 +78,10 @@ export interface ITestRunProfile {
  * and extension host.
  */
 export interface ResolvedTestRunRequest {
+	group: TestRunProfileBitset;
 	targets: {
 		testIds: string[];
 		controllerId: string;
-		profileGroup: TestRunProfileBitset;
 		profileId: number;
 	}[];
 	exclude?: string[];
@@ -473,6 +473,20 @@ export const applyTestItemUpdate = (internal: InternalTestItem | ITestItemUpdate
 		internal.item = internal.item ? Object.assign(internal.item, patch.item) : patch.item;
 	}
 };
+
+/** Request to an ext host to get followup messages for a test failure. */
+export interface TestMessageFollowupRequest {
+	resultId: string;
+	extId: string;
+	taskIndex: number;
+	messageIndex: number;
+}
+
+/** Request to an ext host to get followup messages for a test failure. */
+export interface TestMessageFollowupResponse {
+	id: number;
+	title: string;
+}
 
 /**
  * Test result item used in the main thread.

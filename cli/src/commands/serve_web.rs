@@ -12,7 +12,6 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use const_format::concatcp;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Request, Response, Server};
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -56,16 +55,9 @@ const RELEASE_CACHE_SECS: u64 = 60 * 60;
 /// Number of bytes for the secret keys. See workbench.ts for their usage.
 const SECRET_KEY_BYTES: usize = 32;
 /// Path to mint the key combining server and client parts.
-const SECRET_KEY_MINT_PATH: &str = "/_vscode-cli/mint-key";
+const SECRET_KEY_MINT_PATH: &str = "_vscode-cli/mint-key";
 /// Cookie set to the `SECRET_KEY_MINT_PATH`
 const PATH_COOKIE_NAME: &str = "vscode-secret-key-path";
-/// Cookie set to the `SECRET_KEY_MINT_PATH`
-const PATH_COOKIE_VALUE: &str = concatcp!(
-	PATH_COOKIE_NAME,
-	"=",
-	SECRET_KEY_MINT_PATH,
-	"; SameSite=Strict; Path=/"
-);
 /// HTTP-only cookie where the client's secret half is stored.
 const SECRET_KEY_COOKIE_NAME: &str = "vscode-cli-secret-half";
 
@@ -158,17 +150,22 @@ struct HandleContext {
 /// Handler function for an inbound request
 async fn handle(ctx: HandleContext, req: Request<Body>) -> Result<Response<Body>, Infallible> {
 	let client_key_half = get_client_key_half(&req);
-	let mut res = match req.uri().path() {
-		SECRET_KEY_MINT_PATH => handle_secret_mint(ctx, req),
-		_ => handle_proxied(ctx, req).await,
+	let path = req.uri().path();
+
+	let mut res = if path.starts_with(&ctx.cm.base_path)
+		&& path.get(ctx.cm.base_path.len()..).unwrap_or_default() == SECRET_KEY_MINT_PATH
+	{
+		handle_secret_mint(&ctx, req)
+	} else {
+		handle_proxied(&ctx, req).await
 	};
 
-	append_secret_headers(&mut res, &client_key_half);
+	append_secret_headers(&ctx.cm.base_path, &mut res, &client_key_half);
 
 	Ok(res)
 }
 
-async fn handle_proxied(ctx: HandleContext, req: Request<Body>) -> Response<Body> {
+async fn handle_proxied(ctx: &HandleContext, req: Request<Body>) -> Response<Body> {
 	let release = if let Some((r, _)) = get_release_from_path(req.uri().path(), ctx.cm.platform) {
 		r
 	} else {
@@ -194,7 +191,7 @@ async fn handle_proxied(ctx: HandleContext, req: Request<Body>) -> Response<Body
 	}
 }
 
-fn handle_secret_mint(ctx: HandleContext, req: Request<Body>) -> Response<Body> {
+fn handle_secret_mint(ctx: &HandleContext, req: Request<Body>) -> Response<Body> {
 	use sha2::{Digest, Sha256};
 
 	let mut hasher = Sha256::new();
@@ -208,11 +205,20 @@ fn handle_secret_mint(ctx: HandleContext, req: Request<Body>) -> Response<Body> 
 /// Appends headers to response to maintain the secret storage of the workbench:
 /// sets the `PATH_COOKIE_VALUE` so workbench.ts knows about the 'mint' endpoint,
 /// and maintains the http-only cookie the client will use for cookies.
-fn append_secret_headers(res: &mut Response<Body>, client_key_half: &SecretKeyPart) {
+fn append_secret_headers(
+	base_path: &str,
+	res: &mut Response<Body>,
+	client_key_half: &SecretKeyPart,
+) {
 	let headers = res.headers_mut();
 	headers.append(
 		hyper::header::SET_COOKIE,
-		PATH_COOKIE_VALUE.parse().unwrap(),
+		format!(
+			"{}={}{}; SameSite=Strict; Path=/",
+			PATH_COOKIE_NAME, base_path, SECRET_KEY_MINT_PATH,
+		)
+		.parse()
+		.unwrap(),
 	);
 	headers.append(
 		hyper::header::SET_COOKIE,
@@ -496,6 +502,8 @@ struct ConnectionManager {
 	pub platform: Platform,
 	pub log: log::Logger,
 	args: ServeWebArgs,
+	/// Server base path, ending in `/`
+	base_path: String,
 	/// Cache where servers are stored
 	cache: DownloadCache,
 	/// Mapping of (Quality, Commit) to the state each server is in
@@ -510,11 +518,24 @@ fn key_for_release(release: &Release) -> (Quality, String) {
 	(release.quality, release.commit.clone())
 }
 
+fn normalize_base_path(p: &str) -> String {
+	let p = p.trim_matches('/');
+
+	if p.is_empty() {
+		return "/".to_string();
+	}
+
+	format!("/{}/", p.trim_matches('/'))
+}
+
 impl ConnectionManager {
 	pub fn new(ctx: &CommandContext, platform: Platform, args: ServeWebArgs) -> Arc<Self> {
+		let base_path = normalize_base_path(args.server_base_path.as_deref().unwrap_or_default());
+
 		Arc::new(Self {
 			platform,
 			args,
+			base_path,
 			log: ctx.log.clone(),
 			cache: DownloadCache::new(ctx.paths.web_server_storage()),
 			update_service: UpdateService::new(

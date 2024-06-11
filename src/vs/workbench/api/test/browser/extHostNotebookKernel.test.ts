@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { Barrier } from 'vs/base/common/async';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -105,7 +105,7 @@ suite('NotebookKernel', function () {
 		});
 		extHostConsumerFileSystem = new ExtHostConsumerFileSystem(rpcProtocol, new ExtHostFileSystemInfo());
 		extHostSearch = new ExtHostSearch(rpcProtocol, new URITransformerService(null), new NullLogService());
-		extHostNotebooks = new ExtHostNotebookController(rpcProtocol, extHostCommands, extHostDocumentsAndEditors, extHostDocuments, extHostConsumerFileSystem, extHostSearch);
+		extHostNotebooks = new ExtHostNotebookController(rpcProtocol, extHostCommands, extHostDocumentsAndEditors, extHostDocuments, extHostConsumerFileSystem, extHostSearch, new NullLogService());
 
 		extHostNotebookDocuments = new ExtHostNotebookDocuments(extHostNotebooks);
 
@@ -344,4 +344,3 @@ suite('NotebookKernel', function () {
 		assert.ok(found);
 	});
 });
-

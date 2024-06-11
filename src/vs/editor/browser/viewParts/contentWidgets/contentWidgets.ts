@@ -121,7 +121,7 @@ export class ViewContentWidgets extends ViewPart {
 			delete this._widgets[widgetId];
 
 			const domNode = myWidget.domNode.domNode;
-			domNode.parentNode!.removeChild(domNode);
+			domNode.remove();
 			domNode.removeAttribute('monaco-visible-content-widget');
 
 			this.setShouldRender();
