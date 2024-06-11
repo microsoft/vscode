@@ -317,11 +317,13 @@ export class CodeActionController extends Disposable implements IEditorContribut
 					type ShowCodeActionListEvent = {
 						codeActionListLength: number;
 						didCancel: boolean;
+						codeActions: string[];
 					};
 
 					type ShowListEventClassification = {
 						codeActionListLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The length of the code action list when quit out. Can be from any code action menu.' };
 						didCancel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the code action was cancelled or selected.' };
+						codeActions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What code actions were available when cancelled.' };
 						owner: 'justschen';
 						comment: 'Event used to gain insights into how many valid code actions are being shown';
 					};
@@ -329,6 +331,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 					this._telemetryService.publicLog2<ShowCodeActionListEvent, ShowListEventClassification>('codeAction.showCodeActionList.onHide', {
 						codeActionListLength: actions.validActions.length,
 						didCancel: didCancel,
+						codeActions: actions.validActions.map(action => action.action.title),
 					});
 				}
 			},

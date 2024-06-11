@@ -73,9 +73,10 @@ export class InstantiationService implements IInstantiationService {
 	createChild(services: ServiceCollection, store?: DisposableStore): IInstantiationService {
 		this._throwIfDisposed();
 
+		const that = this;
 		const result = new class extends InstantiationService {
 			override dispose(): void {
-				this._children.delete(result);
+				that._children.delete(result);
 				super.dispose();
 			}
 		}(services, this._strict, this, this._enableTracing);

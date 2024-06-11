@@ -136,7 +136,7 @@ export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends D
 		for (const id of unusedIds) {
 			const view = this.views.get(id)!;
 			view.gutterItemView.dispose();
-			this._domNode.removeChild(view.domNode);
+			view.domNode.remove();
 			this.views.delete(id);
 		}
 	}

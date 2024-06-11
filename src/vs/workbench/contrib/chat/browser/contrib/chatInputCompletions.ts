@@ -117,7 +117,7 @@ class AgentCompletions extends Disposable {
 
 				return {
 					suggestions: agents.map((agent, i): CompletionItem => {
-						const { label: agentLabel, isDupe } = getAgentCompletionDetails(agent, agents, this.chatAgentNameService);
+						const { label: agentLabel, isDupe } = this.getAgentCompletionDetails(agent);
 						return {
 							// Leading space is important because detail has no space at the start by design
 							label: isDupe ?
@@ -203,10 +203,20 @@ class AgentCompletions extends Disposable {
 				const agents = this.chatAgentService.getAgents()
 					.filter(a => a.locations.includes(widget.location));
 
+				// When the input is only `/`, items are sorted by sortText.
+				// When typing, filterText is used to score and sort.
+				// The same list is refiltered/ranked while typing.
+				const getFilterText = (agent: IChatAgentData, command: string) => {
+					// This is hacking the filter algorithm to make @terminal /explain match worse than @workspace /explain by making its match index later in the string.
+					// When I type `/exp`, the workspace one should be sorted over the terminal one.
+					const dummyPrefix = agent.id === 'github.copilot.terminal' ? `0000` : ``;
+					return `${chatSubcommandLeader}${dummyPrefix}${agent.name}.${command}`;
+				};
+
 				const justAgents: CompletionItem[] = agents
 					.filter(a => !a.isDefault)
 					.map(agent => {
-						const { label: agentLabel, isDupe } = getAgentCompletionDetails(agent, agents, this.chatAgentNameService);
+						const { label: agentLabel, isDupe } = this.getAgentCompletionDetails(agent);
 						const detail = agent.description;
 
 						return {
@@ -218,7 +228,7 @@ class AgentCompletions extends Disposable {
 							insertText: `${agentLabel} `,
 							range: new Range(1, 1, 1, 1),
 							kind: CompletionItemKind.Text,
-							sortText: `${chatSubcommandLeader}${agent.id}`,
+							sortText: `${chatSubcommandLeader}${agent.name}`,
 							command: { id: AssignSelectedAgentAction.ID, title: AssignSelectedAgentAction.ID, arguments: [{ agent, widget } satisfies AssignSelectedAgentActionArgs] },
 						};
 					});
@@ -226,23 +236,30 @@ class AgentCompletions extends Disposable {
 				return {
 					suggestions: justAgents.concat(
 						agents.flatMap(agent => agent.slashCommands.map((c, i) => {
-							const { label: agentLabel, isDupe } = getAgentCompletionDetails(agent, agents, this.chatAgentNameService);
+							const { label: agentLabel, isDupe } = this.getAgentCompletionDetails(agent);
 							const withSlash = `${chatSubcommandLeader}${c.name}`;
 							return {
 								label: { label: withSlash, description: agentLabel, detail: isDupe ? ` (${agent.publisherDisplayName})` : undefined },
-								filterText: `${chatSubcommandLeader}${agent.name}${c.name}`,
+								filterText: getFilterText(agent, c.name),
 								commitCharacters: [' '],
 								insertText: `${agentLabel} ${withSlash} `,
 								detail: `(${agentLabel}) ${c.description ?? ''}`,
 								range: new Range(1, 1, 1, 1),
 								kind: CompletionItemKind.Text, // The icons are disabled here anyway
-								sortText: `${chatSubcommandLeader}${agent.id}${c.name}`,
+								sortText: `${chatSubcommandLeader}${agent.name}${c.name}`,
 								command: { id: AssignSelectedAgentAction.ID, title: AssignSelectedAgentAction.ID, arguments: [{ agent, widget } satisfies AssignSelectedAgentActionArgs] },
 							} satisfies CompletionItem;
 						})))
 				};
 			}
 		}));
+	}
+
+	private getAgentCompletionDetails(agent: IChatAgentData): { label: string; isDupe: boolean } {
+		const isAllowed = this.chatAgentNameService.getAgentNameRestriction(agent);
+		const agentLabel = `${chatAgentLeader}${isAllowed ? agent.name : getFullyQualifiedId(agent)}`;
+		const isDupe = isAllowed && this.chatAgentService.agentHasDupeName(agent.id);
+		return { label: agentLabel, isDupe };
 	}
 }
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(AgentCompletions, LifecyclePhase.Eventually);
@@ -391,11 +408,3 @@ class VariableCompletions extends Disposable {
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(VariableCompletions, LifecyclePhase.Eventually);
-
-function getAgentCompletionDetails(agent: IChatAgentData, otherAgents: IChatAgentData[], chatAgentNameService: IChatAgentNameService): { label: string; isDupe: boolean } {
-	const isAllowed = chatAgentNameService.getAgentNameRestriction(agent);
-	const agentLabel = `${chatAgentLeader}${isAllowed ? agent.name : getFullyQualifiedId(agent)}`;
-	const isDupe = isAllowed && !!otherAgents.find(other => other.name === agent.name && other.id !== agent.id);
-
-	return { label: agentLabel, isDupe };
-}

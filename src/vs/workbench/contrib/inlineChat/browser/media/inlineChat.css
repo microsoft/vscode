@@ -68,6 +68,7 @@
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
+	margin-top: 3px; /*makes space for action focus borders: https://github.com/microsoft/vscode-copilot/issues/5814 */
 }
 
 .monaco-workbench .inline-chat .status .actions.hidden {
@@ -142,6 +143,7 @@
 
 .monaco-workbench .inline-chat .status .actions {
 	display: flex;
+	padding-top: 3px;
 }
 
 .monaco-workbench .inline-chat .status .actions > .monaco-button,

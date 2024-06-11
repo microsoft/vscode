@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { mock } from 'vs/base/test/common/mock';
 import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
