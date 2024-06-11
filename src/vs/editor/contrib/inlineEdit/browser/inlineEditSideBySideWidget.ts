@@ -5,7 +5,7 @@
 
 import { $ } from 'vs/base/browser/dom';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, autorun, autorunWithStore, derived } from 'vs/base/common/observable';
+import { IObservable, autorun, autorunWithStore, derived, observableSignalFromEvent } from 'vs/base/common/observable';
 import 'vs/css!./inlineEditSideBySideWidget';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
@@ -93,19 +93,24 @@ class InlineEditSideBySideContentWidget extends Disposable implements IOverlayWi
 	private readonly nodes;
 	private readonly _markdownRenderer: MarkdownRenderer;
 
+	private readonly _scrollChanged = observableSignalFromEvent('editor.onDidScrollChange', this.editor.onDidScrollChange);
 
 	constructor(
 		private readonly editor: ICodeEditor,
 		private readonly _position: IObservable<Pos | null>,
 		private readonly text: string,
 
-		@IInstantiationService instantiationService: IInstantiationService,
 		@ILanguageService languageService: ILanguageService,
 		@IOpenerService openerService: IOpenerService,
 	) {
 		super();
 
 		this._markdownRenderer = this._register(new MarkdownRenderer({ editor: this.editor }, languageService, openerService));
+		const t = '```\n' + this.text + '\n```';
+		const code = this._markdownRenderer.render({ value: t, isTrusted: true });
+		this.nodes = $('div.inlineEditSideBySide', undefined,
+			code.element
+		);
 
 		this._register(autorun(reader => {
 			/** @description update position */
@@ -113,16 +118,25 @@ class InlineEditSideBySideContentWidget extends Disposable implements IOverlayWi
 			this.editor.layoutOverlayWidget(this);
 		}));
 
-		const t = '```\n' + this.text + '\n```';
-		console.log('InlineEditSideBySideContentWidget -> constructor -> t', t);
-
-		const code = this._markdownRenderer.render({ value: t, isTrusted: true });
-
-		this.nodes = $('div.inlineEditSideBySide', undefined,
-			code.element
-		);
-
-
+		this._register(autorun(reader => {
+			/** @description scroll change */
+			this._scrollChanged.read(reader);
+			const position = this._position.read(reader);
+			if (!position) {
+				return;
+			}
+			const visibleRanges = this.editor.getVisibleRanges();
+			const isVisble = visibleRanges.some(range => {
+				return position.top >= range.startLineNumber && position.top <= range.endLineNumber;
+			});
+			if (!isVisble) {
+				this.nodes.style.display = 'none';
+			}
+			else {
+				this.nodes.style.display = 'block';
+			}
+			this.editor.layoutOverlayWidget(this);
+		}));
 	}
 
 	getId(): string { return this.id; }
@@ -137,9 +151,12 @@ class InlineEditSideBySideContentWidget extends Disposable implements IOverlayWi
 			return null;
 		}
 		const layoutInfo = this.editor.getLayoutInfo();
-		const top = this.editor.getTopForLineNumber(position.top);
+		const visibPos = this.editor.getScrolledVisiblePosition(new Position(position.top, 1));
+		if (!visibPos) {
+			return null;
+		}
+		const top = visibPos.top;
 		const left = layoutInfo.contentLeft + this.editor.getOffsetForColumn(position.left.lineNumber, position.left.column) + 10;
-
 		return {
 			preference: {
 				left,
