@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import type { IBufferLine, IBufferCell } from '@xterm/xterm';
 import { convertLinkRangeToBuffer } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkHelpers';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';

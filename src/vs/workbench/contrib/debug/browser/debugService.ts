@@ -51,6 +51,7 @@ import { ViewModel } from 'vs/workbench/contrib/debug/common/debugViewModel';
 import { Debugger } from 'vs/workbench/contrib/debug/common/debugger';
 import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
 import { VIEWLET_ID as EXPLORER_VIEWLET_ID } from 'vs/workbench/contrib/files/common/files';
+import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -112,6 +113,7 @@ export class DebugService implements IDebugService {
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@ITestService private readonly testService: ITestService,
 	) {
 		this.breakpointsToSendOnResourceSaved = new Set<URI>();
 
@@ -838,6 +840,21 @@ export class DebugService implements IDebugService {
 				}
 			}
 		};
+
+		// For debug sessions spawned by test runs, cancel the test run and stop
+		// the session, then start the test run again; tests have no notion of restarts.
+		if (session.correlatedTestRun) {
+			if (!session.correlatedTestRun.completedAt) {
+				this.testService.cancelTestRun(session.correlatedTestRun.id);
+				await Event.toPromise(session.correlatedTestRun.onComplete);
+				// todo@connor4312 is there any reason to wait for the debug session to
+				// terminate? I don't think so, test extension should already handle any
+				// state conflicts...
+			}
+
+			this.testService.runResolvedTests(session.correlatedTestRun.request);
+			return;
+		}
 
 		if (session.capabilities.supportsRestartRequest) {
 			const taskResult = await runTasks();

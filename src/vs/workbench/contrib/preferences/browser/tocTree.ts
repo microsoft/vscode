@@ -131,7 +131,7 @@ export class TOCRenderer implements ITreeRenderer<SettingsTreeGroupElement, neve
 		const label = element.label;
 
 		template.labelElement.textContent = label;
-		template.elementDisposables.add(this._hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), template.labelElement, label));
+		template.elementDisposables.add(this._hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), template.labelElement, label));
 
 		if (count) {
 			template.countElement.textContent = ` (${count})`;

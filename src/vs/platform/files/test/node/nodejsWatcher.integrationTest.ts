@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { tmpdir } from 'os';
 import { basename, dirname, join } from 'vs/base/common/path';
 import { Promises, RimRafMode } from 'vs/base/node/pfs';
@@ -39,6 +39,10 @@ import { TestParcelWatcher } from 'vs/platform/files/test/node/parcelWatcher.int
 		readonly onDidWatch = this._onDidWatch.event;
 
 		readonly onWatchFail = this._onDidWatchFail.event;
+
+		protected override getUpdateWatchersDelay(): number {
+			return 0;
+		}
 
 		protected override async doWatch(requests: INonRecursiveWatchRequest[]): Promise<void> {
 			await super.doWatch(requests);
