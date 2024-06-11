@@ -40,6 +40,10 @@ import { TestParcelWatcher } from 'vs/platform/files/test/node/parcelWatcher.int
 
 		readonly onWatchFail = this._onDidWatchFail.event;
 
+		protected override getUpdateWatchersDelay(): number {
+			return 0;
+		}
+
 		protected override async doWatch(requests: INonRecursiveWatchRequest[]): Promise<void> {
 			await super.doWatch(requests);
 			for (const watcher of this.watchers) {

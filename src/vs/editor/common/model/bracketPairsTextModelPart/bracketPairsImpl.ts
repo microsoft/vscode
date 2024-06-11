@@ -8,7 +8,7 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { ILanguageConfigurationService, LanguageConfigurationServiceChangeEvent } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ignoreBracketsInToken } from 'vs/editor/common/languages/supports';
 import { LanguageBracketsConfiguration } from 'vs/editor/common/languages/supports/languageBracketsConfiguration';
 import { BracketsUtils, RichEditBracket, RichEditBrackets } from 'vs/editor/common/languages/supports/richEditBrackets';
@@ -36,18 +36,16 @@ export class BracketPairsTextModelPart extends Disposable implements IBracketPai
 		private readonly languageConfigurationService: ILanguageConfigurationService
 	) {
 		super();
-
-		this._register(
-			this.languageConfigurationService.onDidChange(e => {
-				if (!e.languageId || this.bracketPairsTree.value?.object.didLanguageChange(e.languageId)) {
-					this.bracketPairsTree.clear();
-					this.updateBracketPairsTree();
-				}
-			})
-		);
 	}
 
 	//#region TextModel events
+
+	public handleLanguageConfigurationServiceChange(e: LanguageConfigurationServiceChangeEvent): void {
+		if (!e.languageId || this.bracketPairsTree.value?.object.didLanguageChange(e.languageId)) {
+			this.bracketPairsTree.clear();
+			this.updateBracketPairsTree();
+		}
+	}
 
 	public handleDidChangeOptions(e: IModelOptionsChangedEvent): void {
 		this.bracketPairsTree.clear();

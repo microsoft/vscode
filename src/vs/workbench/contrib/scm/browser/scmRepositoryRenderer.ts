@@ -12,7 +12,7 @@ import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
-import { connectPrimaryMenu, isSCMRepository, StatusBarAction } from './util';
+import { connectPrimaryMenu, getRepositoryResourceCount, isSCMRepository, StatusBarAction } from './util';
 import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
 import { FuzzyScore } from 'vs/base/common/filters';
@@ -111,13 +111,13 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 		};
 
 		templateData.elementDisposables.add(autorun(reader => {
-			const commands = repository.provider.statusBarCommandsObs.read(reader) ?? [];
+			const commands = repository.provider.statusBarCommands.read(reader) ?? [];
 			statusPrimaryActions = commands.map(c => new StatusBarAction(c, this.commandService));
 			updateToolbar();
 		}));
 
 		templateData.elementDisposables.add(autorun(reader => {
-			const count = repository.provider.countObs.read(reader) ?? 0;
+			const count = repository.provider.count.read(reader) ?? getRepositoryResourceCount(repository.provider);
 			templateData.countContainer.setAttribute('data-count', String(count));
 			templateData.count.setCount(count);
 		}));

@@ -85,19 +85,19 @@ export class WindowsStateHandler extends Disposable {
 		});
 
 		// Handle various lifecycle events around windows
-		this.lifecycleMainService.onBeforeCloseWindow(window => this.onBeforeCloseWindow(window));
-		this.lifecycleMainService.onBeforeShutdown(() => this.onBeforeShutdown());
-		this.windowsMainService.onDidChangeWindowsCount(e => {
+		this._register(this.lifecycleMainService.onBeforeCloseWindow(window => this.onBeforeCloseWindow(window)));
+		this._register(this.lifecycleMainService.onBeforeShutdown(() => this.onBeforeShutdown()));
+		this._register(this.windowsMainService.onDidChangeWindowsCount(e => {
 			if (e.newCount - e.oldCount > 0) {
 				// clear last closed window state when a new window opens. this helps on macOS where
 				// otherwise closing the last window, opening a new window and then quitting would
 				// use the state of the previously closed window when restarting.
 				this.lastClosedState = undefined;
 			}
-		});
+		}));
 
 		// try to save state before destroy because close will not fire
-		this.windowsMainService.onDidDestroyWindow(window => this.onBeforeCloseWindow(window));
+		this._register(this.windowsMainService.onDidDestroyWindow(window => this.onBeforeCloseWindow(window)));
 	}
 
 	// Note that onBeforeShutdown() and onBeforeCloseWindow() are fired in different order depending on the OS:

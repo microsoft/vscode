@@ -1,7 +1,7 @@
 name: Locker
 on:
   schedule:
-    - cron: 20 23 * * * # 4:20pm Redmond
+    - cron: 20 * * * * # run on the 20th minute of every hour
   repository_dispatch:
     types: [trigger-locker]
 
@@ -20,6 +20,7 @@ jobs:
       - name: Run Locker
         uses: ./actions/locker
         with:
+          token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
           daysSinceClose: 45
           daysSinceUpdate: 3
           ignoredLabel: "*out-of-scope,accessibility"
