@@ -40,6 +40,10 @@ export class ObservableLazy<T> {
  * A promise whose state is observable.
  */
 export class ObservablePromise<T> {
+	public static fromFn<T>(fn: () => Promise<T>): ObservablePromise<T> {
+		return new ObservablePromise(fn());
+	}
+
 	private readonly _value = observableValue<PromiseResult<T> | undefined>(this, undefined);
 
 	/**

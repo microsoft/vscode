@@ -15,7 +15,7 @@ import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
 import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { InlineDecoration, ViewLineRenderingData } from 'vs/editor/common/viewModel';
 
-const ttPolicy = createTrustedTypesPolicy('diffEditorWidget', { createHTML: value => value });
+export const ttPolicy = createTrustedTypesPolicy('diffEditorWidget', { createHTML: value => value });
 
 export function renderLines(source: LineSource, options: RenderOptions, decorations: InlineDecoration[], domNode: HTMLElement): RenderLinesResult {
 	applyFontInfo(domNode, options.fontInfo);

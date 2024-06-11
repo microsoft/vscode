@@ -1,0 +1,32 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-editor {
+	--stop-color: rgb(37, 37, 37);
+}
+
+.monaco-editor div.inline-edits-widget .monaco-editor {
+
+	.mtk1 {
+		color: rgba(215, 215, 215, 0.452);
+	}
+	.view-overlays .current-line-exact {
+		border: none;
+	}
+
+	.current-line-margin {
+		border: none;
+	}
+
+	--vscode-editor-background: var(--stop-color);
+}
+
+.my-start {
+	stop-color: var(--vscode-editor-background);
+}
+
+.my-stop {
+	stop-color: var(--stop-color);
+}

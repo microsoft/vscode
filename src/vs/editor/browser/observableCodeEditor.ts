@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equalsIfDefined, itemsEquals } from 'vs/base/common/equals';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, ITransaction, autorunOpts, autorunWithStoreHandleChanges, derived, derivedOpts, observableFromEvent, observableSignal, observableValue, observableValueOpts } from 'vs/base/common/observable';
+import { Event } from 'vs/base/common/event';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IObservable, ITransaction, autorun, autorunOpts, autorunWithStoreHandleChanges, derived, derivedOpts, observableFromEvent, observableSignal, observableValue, observableValueOpts } from 'vs/base/common/observable';
 import { TransactionImpl } from 'vs/base/common/observableInternal/base';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { EditorOption, FindComputedEditorOptionValueById } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -170,9 +171,17 @@ export class ObservableCodeEditor extends Disposable {
 
 	public readonly value = derived(this, reader => { this.versionId.read(reader); return this.model.read(reader)?.getValue(); });
 	public readonly valueIsEmpty = derived(this, reader => { this.versionId.read(reader); return this.editor.getModel()?.getValueLength() === 0; });
+	public readonly cursorSelection = derivedOpts({ owner: this, equalsFn: equalsIfDefined(Selection.selectionsEqual) }, reader => this.selections.read(reader)?.[0] ?? null);
 	public readonly cursorPosition = derivedOpts({ owner: this, equalsFn: Position.equals }, reader => this.selections.read(reader)?.[0]?.getPosition() ?? null);
 
 	public readonly onDidType = observableSignal<string>(this);
+
+	public readonly scrollTop = observableFromEvent(this.editor.onDidScrollChange, () => this.editor.getScrollTop());
+	public readonly scrollLeft = observableFromEvent(this.editor.onDidScrollChange, () => this.editor.getScrollLeft());
+
+	public readonly layoutInfo = observableFromEvent(this.editor.onDidLayoutChange, () => this.editor.getLayoutInfo());
+
+	public readonly contentWidth = observableFromEvent(this.editor.onDidContentSizeChange, () => this.editor.getContentWidth());
 
 	public getOption<T extends EditorOption>(id: T): IObservable<FindComputedEditorOptionValueById<T>> {
 		return observableFromEvent(cb => this.editor.onDidChangeConfiguration(e => {
@@ -194,6 +203,36 @@ export class ObservableCodeEditor extends Disposable {
 		});
 		return d;
 	}
+
+	private _overlayWidgetCounter = 0;
+
+	public createOverlayWidget(widget: IObservableOverlayWidget): IDisposable {
+		const overlayWidgetId = 'observableOverlayWidget' + (this._overlayWidgetCounter++);
+		const w: IOverlayWidget = {
+			getDomNode: () => widget.domNode,
+			getPosition: () => widget.position.get(),
+			getId: () => overlayWidgetId,
+			allowEditorOverflow: widget.allowEditorOverflow,
+			getMinContentWidthInPx: () => widget.minContentWidthInPx.get(),
+		};
+		this.editor.addOverlayWidget(w);
+		const d = autorun(reader => {
+			widget.position.read(reader);
+			widget.minContentWidthInPx.read(reader);
+			this.editor.layoutOverlayWidget(w);
+		});
+		return toDisposable(() => {
+			d.dispose();
+			this.editor.removeOverlayWidget(w);
+		});
+	}
+}
+
+interface IObservableOverlayWidget {
+	get domNode(): HTMLElement;
+	readonly position: IObservable<IOverlayWidgetPosition | null>;
+	readonly minContentWidthInPx: IObservable<number>;
+	get allowEditorOverflow(): boolean;
 }
 
 type RemoveUndefined<T> = T extends undefined ? never : T;
