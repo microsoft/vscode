@@ -49,18 +49,24 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 	private readonly _activeEditorRepository = derivedObservableWithCache<ISCMRepository | undefined>(this, (reader, lastValue) => {
 		const activeResource = EditorResourceAccessor.getOriginalUri(this._activeEditor.read(reader));
 		if (!activeResource) {
+			this.logService.info('SCMActiveRepositoryController (activeEditorRepository derived): no activeResource');
 			return lastValue;
 		}
 
 		const repository = this.scmService.getRepository(activeResource);
 		if (!repository) {
+			this.logService.info(`SCMActiveRepositoryController (activeEditorRepository derived): no repository for '${activeResource.toString()}'`);
 			return lastValue;
 		}
 
 		return Object.create(repository);
 	});
 
-	private readonly _activeRepository = latestChangedValue(this._focusedRepository, this._activeEditorRepository);
+	/**
+	 * The focused repository takes precedence over the active editor repository when the observable
+	 * values are updated in the same transaction (or during the initial read of the observable value).
+	 */
+	private readonly _activeRepository = latestChangedValue(this._activeEditorRepository, this._focusedRepository);
 
 	private readonly _countBadgeRepositories = derived(reader => {
 		switch (this._countBadgeConfig.read(reader)) {
@@ -122,24 +128,28 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 
 		this._register(autorun(reader => {
 			const repository = this._focusedRepository.read(reader);
-			const commands = repository?.provider.statusBarCommands.read(reader) ?? [];
+			const commands = repository?.provider.statusBarCommands.read(reader);
 
-			this.logService.info('SCMActiveRepositoryController (focusedRepository):', commands.map(c => c.title).join(', '));
+			this.logService.info('SCMActiveRepositoryController (focusedRepository):', repository?.id ?? 'no id');
+			this.logService.info('SCMActiveRepositoryController (focusedRepository):', commands ? commands.map(c => c.title).join(', ') : 'no commands');
 		}));
 
 		this._register(autorun(reader => {
 			const repository = this._activeEditorRepository.read(reader);
-			const commands = repository?.provider.statusBarCommands.read(reader) ?? [];
+			const commands = repository?.provider.statusBarCommands.read(reader);
 
-			this.logService.info('SCMActiveRepositoryController (activeEditorRepository):', commands.map(c => c.title).join(', '));
+			this.logService.info('SCMActiveRepositoryController (activeEditorRepository):', repository?.id ?? 'no id');
+			this.logService.info('SCMActiveRepositoryController (activeEditorRepository):', commands ? commands.map(c => c.title).join(', ') : 'no commands');
 		}));
 
 		this._register(autorunWithStore((reader, store) => {
 			const repository = this._activeRepository.read(reader);
-			const commands = repository?.provider.statusBarCommands.read(reader) ?? [];
-			this.logService.info('SCMActiveRepositoryController (status bar):', commands.map(c => c.title).join(', '));
+			const commands = repository?.provider.statusBarCommands.read(reader);
 
-			this._updateStatusBar(repository, commands, store);
+			this.logService.info('SCMActiveRepositoryController (status bar):', repository?.id ?? 'no id');
+			this.logService.info('SCMActiveRepositoryController (status bar):', commands ? commands.map(c => c.title).join(', ') : 'no commands');
+
+			this._updateStatusBar(repository, commands ?? [], store);
 		}));
 
 		this._register(autorun(reader => {
