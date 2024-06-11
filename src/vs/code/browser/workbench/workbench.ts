@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { create } from 'vs/workbench/workbench.web.main';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI } from 'vs/base/common/uri';
 import {
 	IWorkbenchConstructionOptions,
 	IWorkspace,
-	IWorkspaceProvider,
 } from 'vs/workbench/browser/web.api';
 import { ISecretStorageProvider } from 'vs/platform/secrets/common/secrets';
 declare const window: any;
@@ -56,11 +55,7 @@ class SecretStorageProvider implements ISecretStorageProvider {
 
 (async function () {
 	// create workbench
-	let config: Writeable<IWorkbenchConstructionOptions> & {
-		folderUri?: UriComponents;
-		workspaceUri?: UriComponents;
-		domElementId?: string;
-	} = {};
+	let config: Writeable<IWorkbenchConstructionOptions>;
 
 	if (window.product) {
 		config = window.product;
@@ -78,32 +73,19 @@ class SecretStorageProvider implements ISecretStorageProvider {
 
 	config.additionalBuiltinExtensions = [URI.revive(extensionUrl)];
 
-	let workspace;
-	if (config.folderUri) {
-		workspace = { folderUri: URI.revive(config.folderUri) };
-	} else if (config.workspaceUri) {
-		workspace = { workspaceUri: URI.revive(config.workspaceUri) };
-	} else {
-		workspace = undefined;
-	}
+	config.workspaceProvider = {
+		workspace: { workspaceUri: URI.parse('memfs:/membrane.code-workspace') },
+		trusted: true,
+		open: async (
+			_workspace: IWorkspace,
+			_options?: { reuse?: boolean; payload?: object }
+		) => {
+			return true;
+		},
+	};
 
-	if (workspace) {
-		const workspaceProvider: IWorkspaceProvider = {
-			workspace,
-			open: async (
-				workspace: IWorkspace,
-				options?: { reuse?: boolean; payload?: object }
-			) => true,
-			trusted: true,
-		};
-		config = { ...config, workspaceProvider };
-	}
+	config.secretStorageProvider = new SecretStorageProvider();
 
-	const domElement =
-		(!!config.domElementId && document.getElementById(config.domElementId)) ||
-		document.body;
-
-	config = { ...config, secretStorageProvider: new SecretStorageProvider() };
-
+	const domElement = document.body;
 	create(domElement, config);
 })();
