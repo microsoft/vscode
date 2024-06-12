@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IChatCommandExecutionService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 
@@ -27,9 +27,11 @@ export class ChatCommandExecutionService extends Disposable implements IChatComm
 		if (!this._configurationService.getValue('github.copilot.experimental.runBestCommandMatch')) {
 			return;
 		}
-		if (!response || typeof response === 'string') {
+
+		if (!response || typeof response === 'string' || response.agent?.id !== 'vscode') {
 			return;
 		}
+
 		const responseValues = response.response.value;
 		const commandResponse = responseValues.find(value => value.kind === 'command');
 		if (!commandResponse || !commandsToRun.has(commandResponse.command.id)) {
@@ -37,15 +39,15 @@ export class ChatCommandExecutionService extends Disposable implements IChatComm
 		}
 		const grantedPermission = this._storageService.getBoolean(GRANTED_RUN_COMMAND_PERMISSION_KEY, StorageScope.WORKSPACE, false);
 		if (!grantedPermission) {
-			const message = localize('confirmAutomaticRunChatResponseCommand', "Would you like to automatically run the command in the chat response?");
-			const detail = localize('confirmAutomaticRunChatResponseCommandDetail', "Always automatically run the command.", commandResponse.command.title);
+			const message = localize('confirmAutomaticRunChatResponseCommand', "Would you like to automatically run the best matching command in the chat response?");
+			const detail = localize('runChatResponseAction', "Yes, run: {0}", commandResponse.command.title);
 			const confirmation = await this._dialogService.confirm({
 				message,
 				detail,
 				checkbox: {
-					label: localize('enableAutomaticRunningOfCommands', "Enable Automatic Running of Commands")
+					label: localize('doNotAskAgain', "Do not ask me again")
 				},
-				primaryButton: localize({ key: 'runLabel', comment: ['Indicates action'] }, "{0}", commandResponse.command.title)
+				primaryButton: localize({ key: 'runLabel', comment: ['Indicates action'] }, "{0}", commandResponse.command.title),
 			});
 
 			if (!confirmation.confirmed) {
@@ -54,7 +56,7 @@ export class ChatCommandExecutionService extends Disposable implements IChatComm
 
 			// Check for confirmation checkbox
 			if (confirmation.checkboxChecked === true) {
-				this._storageService.store(GRANTED_RUN_COMMAND_PERMISSION_KEY, true, StorageScope.WORKSPACE, StorageTarget.USER);
+				this._configurationService.updateValue('github.copilot.experimental.runBestCommandMatch', false);
 			}
 		}
 
