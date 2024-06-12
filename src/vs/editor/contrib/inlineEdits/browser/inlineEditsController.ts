@@ -13,15 +13,11 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { inlineEditVisible } from 'vs/editor/contrib/inlineEdits/browser/consts';
+import { inlineEditVisible, isPinnedContextKey } from 'vs/editor/contrib/inlineEdits/browser/consts';
 import { InlineEditsModel } from 'vs/editor/contrib/inlineEdits/browser/inlineEditsModel';
 import { InlineEditsWidget } from 'vs/editor/contrib/inlineEdits/browser/inlineEditsWidget';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { bindContextKey } from 'vs/platform/observable/common/platformObservableUtils';
 
 export class InlineEditsController extends Disposable {
@@ -60,7 +56,7 @@ export class InlineEditsController extends Disposable {
 
 	private readonly _hadInlineEdit = derivedObservableWithCache<boolean>(this, (reader, lastValue) => lastValue || this.model.read(reader)?.inlineEdit.read(reader) !== undefined);
 
-	private readonly widget = derivedDisposable(this, reader => {
+	protected readonly _widget = derivedDisposable(this, reader => {
 		if (!this._hadInlineEdit.read(reader)) { return undefined; }
 		return this._instantiationService.createInstance(
 			readHotReloadableExport(InlineEditsWidget, reader),
@@ -73,15 +69,12 @@ export class InlineEditsController extends Disposable {
 		public readonly editor: ICodeEditor,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@ICommandService private readonly _commandService: ICommandService,
 		@ILanguageFeatureDebounceService private readonly _debounceService: ILanguageFeatureDebounceService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 	) {
 		super();
 
 		this._register(bindContextKey(inlineEditVisible, this._contextKeyService, r => !!this.model.read(r)?.inlineEdit.read(r)));
+		this._register(bindContextKey(isPinnedContextKey, this._contextKeyService, r => !!this.model.read(r)?.isPinned.read(r)));
 	}
 }

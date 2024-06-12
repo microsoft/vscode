@@ -10,6 +10,7 @@ import { InlineCompletionsModel } from 'vs/editor/contrib/inlineCompletions/brow
 import { RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
+import { bindContextKey } from 'vs/platform/observable/common/platformObservableUtils';
 
 export class InlineCompletionContextKeys extends Disposable {
 	public static readonly inlineSuggestionVisible = new RawContextKey<boolean>('inlineSuggestionVisible', false, localize('inlineSuggestionVisible', "Whether an inline suggestion is visible"));
@@ -28,21 +29,25 @@ export class InlineCompletionContextKeys extends Disposable {
 	) {
 		super();
 
-		this._register(autorun(reader => {
-			/** @description update context key: inlineCompletionVisible, suppressSuggestions */
+		this._register(bindContextKey(InlineCompletionContextKeys.inlineSuggestionVisible, this.contextKeyService, reader => {
+			const model = this.model.read(reader);
+			const state = model?.state.read(reader);
+			return !!state?.inlineCompletion && state?.primaryGhostText !== undefined && !state?.primaryGhostText.isEmpty();
+		}));
+
+		this._register(bindContextKey(InlineCompletionContextKeys.suppressSuggestions, this.contextKeyService, reader => {
 			const model = this.model.read(reader);
 			const state = model?.state.read(reader);
 
-			const isInlineCompletionVisible = !!state?.inlineCompletion && state?.primaryGhostText !== undefined && !state?.primaryGhostText.isEmpty();
-			this.inlineCompletionVisible.set(isInlineCompletionVisible);
-
 			if (state?.primaryGhostText && state?.inlineCompletion) {
-				this.suppressSuggestions.set(state.inlineCompletion.inlineCompletion.source.inlineCompletions.suppressSuggestions);
+				return state.inlineCompletion.inlineCompletion.source.inlineCompletions.suppressSuggestions;
+			} else {
+				return undefined;
 			}
 		}));
 
+
 		this._register(autorun(reader => {
-			/** @description update context key: inlineCompletionSuggestsIndentation, inlineCompletionSuggestsIndentationLessThanTabSize */
 			const model = this.model.read(reader);
 
 			let startsWithIndentation = false;

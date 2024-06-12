@@ -20,12 +20,9 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IFeatureDebounceInformation } from 'vs/editor/common/services/languageFeatureDebounce';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IModelService } from 'vs/editor/common/services/model';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IModelContentChange, IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
+import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
 import { InlineCompletionItem, InlineCompletionProviderResult, provideInlineCompletions } from 'vs/editor/contrib/inlineCompletions/browser/provideInlineCompletions';
 import { InlineEdit } from 'vs/editor/contrib/inlineEdits/browser/inlineEditsWidget';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class InlineEditsModel extends Disposable {
 	private static _modelId = 0;
@@ -45,12 +42,14 @@ export class InlineEditsModel extends Disposable {
 
 	private readonly _pinnedRange = new TrackedRange(this.textModel, this._textModelVersionId);
 
+	public readonly isPinned = this._pinnedRange.range.map(range => !!range);
+
 	constructor(
 		public readonly textModel: ITextModel,
 		public readonly _textModelVersionId: IObservable<number | null, IModelContentChangedEvent | undefined>,
 		private readonly _selection: IObservable<Selection>,
-		private readonly _debounceValue: IFeatureDebounceInformation,
-		private readonly _enabled: IObservable<boolean>,
+		protected readonly _debounceValue: IFeatureDebounceInformation,
+		protected readonly _enabled: IObservable<boolean>,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IDiffProviderFactoryService private readonly _diffProviderFactoryService: IDiffProviderFactoryService,
 		@IModelService private readonly _modelService: IModelService,
@@ -192,38 +191,6 @@ export class InlineEditsModel extends Disposable {
 		r => this.selectedInlineEdit.read(r)?.inlineCompletion.source.inlineCompletions.commands ?? []
 	);
 
-	/*public readonly state = derivedOpts<{
-		edits: readonly SingleTextEdit[];
-		primaryGhostText: GhostTextOrReplacement;
-		ghostTexts: readonly GhostTextOrReplacement[];
-		suggestItem: SuggestItemInfo | undefined;
-		inlineCompletion: InlineEdit | undefined;
-	} | undefined>({
-		owner: this,
-		equalsFn: (a, b) => {
-			if (!a || !b) { return a === b; }
-			return ghostTextsOrReplacementsEqual(a.ghostTexts, b.ghostTexts)
-				&& a.inlineCompletion === b.inlineCompletion
-				&& a.suggestItem === b.suggestItem;
-		}
-	}, (reader) => {
-		const model = this.textModel;
-		if (!this._isActive.read(reader)) { return undefined; }
-		const inlineCompletion = this.selectedInlineCompletion.read(reader);
-		if (!inlineCompletion) { return undefined; }
-
-		const replacement = inlineCompletion.toSingleTextEdit(reader);
-		const mode = this._inlineSuggestMode.read(reader);
-		const positions = this._positions.read(reader);
-		const edits = [replacement, ...getSecondaryEdits(this.textModel, positions, replacement)];
-		const ghostTexts = edits
-			.map((edit, idx) => computeGhostText(edit, model, mode, positions[idx], 0))
-			.filter(isDefined);
-		if (!ghostTexts[0]) { return undefined; }
-		return { edits, primaryGhostText: ghostTexts[0], ghostTexts, inlineCompletion, suggestItem: undefined };
-	});*/
-
-
 	private async _deltaSelectedInlineCompletionIndex(delta: 1 | -1): Promise<void> {
 		await this.triggerExplicitly();
 
@@ -244,8 +211,12 @@ export class InlineEditsModel extends Disposable {
 		await this._deltaSelectedInlineCompletionIndex(-1);
 	}
 
-	public pin(): void {
-		this._pinnedRange.setRange(this._selection.get(), undefined);
+	public togglePin(): void {
+		if (this.isPinned.get()) {
+			this._pinnedRange.setRange(undefined, undefined);
+		} else {
+			this._pinnedRange.setRange(this._selection.get(), undefined);
+		}
 	}
 
 	public async accept(editor: ICodeEditor): Promise<void> {

@@ -3,28 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./inlineEditsWidget';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { autorun, constObservable, derived, IObservable, ObservableLazy } from 'vs/base/common/observable';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { LineRange } from 'vs/editor/common/core/lineRange';
-import { observableCodeEditor } from 'vs/editor/browser/observableCodeEditor';
 import { h, svgElem } from 'vs/base/browser/dom';
-import { appendRemoveOnDispose, applyStyle } from 'vs/editor/browser/widget/diffEditor/utils';
-import { Lazy } from 'vs/base/common/lazy';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { autorun, constObservable, derived, IObservable } from 'vs/base/common/observable';
+import 'vs/css!./inlineEditsWidget';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { observableCodeEditor } from 'vs/editor/browser/observableCodeEditor';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/embeddedCodeEditorWidget';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { ttPolicy } from 'vs/editor/browser/widget/diffEditor/components/diffEditorViewZones/renderLines';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { diffAddDecoration, diffAddDecorationEmpty, diffDeleteDecoration, diffDeleteDecorationEmpty, diffLineAddDecorationBackgroundWithIndicator, diffLineDeleteDecorationBackgroundWithIndicator, diffWholeLineAddDecoration, diffWholeLineDeleteDecoration } from 'vs/editor/browser/widget/diffEditor/registrations.contribution';
+import { appendRemoveOnDispose, applyStyle } from 'vs/editor/browser/widget/diffEditor/utils';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { LineRange } from 'vs/editor/common/core/lineRange';
+import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { MenuId } from 'vs/platform/actions/common/actions';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class InlineEdit {
 	constructor(
@@ -74,7 +70,7 @@ export class InlineEditsWidget extends Disposable {
 		]),
 	]);
 
-	private readonly _toolbar = this._register(this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.toolbar, MenuId.InlineEditsActions, {
+	protected readonly _toolbar = this._register(this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.toolbar, MenuId.InlineEditsActions, {
 		toolbarOptions: {
 			primaryGroup: g => g.startsWith('primary'),
 		},

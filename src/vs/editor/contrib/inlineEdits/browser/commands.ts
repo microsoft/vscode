@@ -10,11 +10,10 @@ import { asyncTransaction } from 'vs/base/common/observableInternal/base';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { inlineEditCommitId, inlineEditVisible, showNextInlineEditActionId, showPreviousInlineEditActionId } from 'vs/editor/contrib/inlineEdits/browser/consts';
+import { inlineEditCommitId, inlineEditVisible, isPinnedContextKey, showNextInlineEditActionId, showPreviousInlineEditActionId } from 'vs/editor/contrib/inlineEdits/browser/consts';
 import { InlineEditsController } from 'vs/editor/contrib/inlineEdits/browser/inlineEditsController';
-import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/suggest';
 import * as nls from 'vs/nls';
-import { MenuId } from 'vs/platform/actions/common/actions';
+import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 export class ShowNextInlineEditAction extends EditorAction {
@@ -112,17 +111,10 @@ export class AcceptInlineEdit extends EditorAction {
 export class PinInlineEdit extends EditorAction {
 	constructor() {
 		super({
-			id: inlineEditCommitId,
+			id: 'editor.action.inlineEdits.pin',
 			label: nls.localize('action.inlineEdits.pin', "Pin Inline Edit"),
 			alias: 'Pin Inline Edit',
 			precondition: inlineEditVisible,
-			menuOpts: {
-				menuId: MenuId.InlineEditsActions,
-				title: nls.localize('inlineEditsActionsPin', "Pin Inline Edit"),
-				group: 'primary',
-				order: 1,
-				icon: Codicon.pin,
-			},
 			kbOpts: {
 				primary: KeyMod.Shift | KeyCode.Space,
 				weight: 20000,
@@ -134,10 +126,33 @@ export class PinInlineEdit extends EditorAction {
 	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
 		const controller = InlineEditsController.get(editor);
 		if (controller) {
-			controller.model.get()?.pin();
+			controller.model.get()?.togglePin();
 		}
 	}
 }
+
+MenuRegistry.appendMenuItem(MenuId.InlineEditsActions, {
+	command: {
+		id: 'editor.action.inlineEdits.pin',
+		title: nls.localize('Pin', "Pin"),
+		icon: Codicon.pin,
+	},
+	group: 'primary',
+	order: 1,
+	when: isPinnedContextKey.negate(),
+});
+
+MenuRegistry.appendMenuItem(MenuId.InlineEditsActions, {
+	command: {
+		id: 'editor.action.inlineEdits.unpin',
+		title: nls.localize('Unpin', "Unpin"),
+		icon: Codicon.pinned,
+	},
+	group: 'primary',
+	order: 1,
+	when: isPinnedContextKey,
+});
+
 export class HideInlineEdit extends EditorAction {
 	public static ID = 'editor.action.inlineEdits.hide';
 

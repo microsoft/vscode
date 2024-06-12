@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equalsIfDefined, itemsEquals } from 'vs/base/common/equals';
-import { Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IObservable, ITransaction, autorun, autorunOpts, autorunWithStoreHandleChanges, derived, derivedOpts, observableFromEvent, observableSignal, observableValue, observableValueOpts } from 'vs/base/common/observable';
 import { TransactionImpl } from 'vs/base/common/observableInternal/base';

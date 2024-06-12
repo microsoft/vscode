@@ -13,3 +13,4 @@ export const showPreviousInlineEditActionId = 'editor.action.inlineEdits.showPre
 export const showNextInlineEditActionId = 'editor.action.inlineEdits.showNext';
 
 export const inlineEditVisible = new RawContextKey<boolean>('inlineEditsVisible', false, localize('inlineEditsVisible', "Whether an inline edit is visible"));
+export const isPinnedContextKey = new RawContextKey<boolean>('isPinned', false, localize('isPinned', "Whether an inline edit is visible"));
