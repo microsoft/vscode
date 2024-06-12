@@ -15,7 +15,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_HAS_PROVIDER, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_RESPONSE_TYPES, InlineChatResponseTypes } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_INNER_CURSOR_FIRST, CTX_INLINE_CHAT_INNER_CURSOR_LAST, CTX_INLINE_CHAT_RESPONSE_TYPES, InlineChatResponseTypes } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST, CTX_NOTEBOOK_CHAT_OUTER_FOCUS_POSITION, CTX_NOTEBOOK_CHAT_USER_DID_EDIT, MENU_CELL_CHAT_INPUT, MENU_CELL_CHAT_WIDGET, MENU_CELL_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/notebook/browser/controller/chat/notebookChatContext';
 import { NotebookChatController } from 'vs/workbench/contrib/notebook/browser/controller/chat/notebookChatController';
 import { CELL_TITLE_CELL_GROUP_ID, INotebookActionContext, INotebookCellActionContext, NotebookAction, NotebookCellAction, getEditorFromArgsOrActivePane } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
@@ -367,7 +367,7 @@ registerAction2(class extends NotebookAction {
 						NOTEBOOK_EDITOR_FOCUSED,
 						NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
 						ContextKeyExpr.not(InputFocusedContextKey),
-						CTX_INLINE_CHAT_HAS_PROVIDER,
+						CTX_INLINE_CHAT_HAS_AGENT,
 						ContextKeyExpr.or(
 							ContextKeyExpr.equals(`config.${NotebookSetting.cellChat}`, true),
 							ContextKeyExpr.equals(`config.${NotebookSetting.cellGenerate}`, true)
@@ -384,7 +384,7 @@ registerAction2(class extends NotebookAction {
 						order: -1,
 						when: ContextKeyExpr.and(
 							NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
-							CTX_INLINE_CHAT_HAS_PROVIDER,
+							CTX_INLINE_CHAT_HAS_AGENT,
 							ContextKeyExpr.or(
 								ContextKeyExpr.equals(`config.${NotebookSetting.cellChat}`, true),
 								ContextKeyExpr.equals(`config.${NotebookSetting.cellGenerate}`, true)
@@ -459,7 +459,7 @@ registerAction2(class extends NotebookAction {
 						order: -1,
 						when: ContextKeyExpr.and(
 							NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
-							CTX_INLINE_CHAT_HAS_PROVIDER,
+							CTX_INLINE_CHAT_HAS_AGENT,
 							ContextKeyExpr.or(
 								ContextKeyExpr.equals(`config.${NotebookSetting.cellChat}`, true),
 								ContextKeyExpr.equals(`config.${NotebookSetting.cellGenerate}`, true)
@@ -488,7 +488,7 @@ MenuRegistry.appendMenuItem(MenuId.NotebookToolbar, {
 		NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
 		ContextKeyExpr.notEquals('config.notebook.insertToolbarLocation', 'betweenCells'),
 		ContextKeyExpr.notEquals('config.notebook.insertToolbarLocation', 'hidden'),
-		CTX_INLINE_CHAT_HAS_PROVIDER,
+		CTX_INLINE_CHAT_HAS_AGENT,
 		ContextKeyExpr.or(
 			ContextKeyExpr.equals(`config.${NotebookSetting.cellChat}`, true),
 			ContextKeyExpr.equals(`config.${NotebookSetting.cellGenerate}`, true)
@@ -633,7 +633,7 @@ registerAction2(class extends NotebookCellAction {
 					order: 0,
 					when: ContextKeyExpr.and(
 						NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
-						CTX_INLINE_CHAT_HAS_PROVIDER,
+						CTX_INLINE_CHAT_HAS_AGENT,
 						NOTEBOOK_CELL_GENERATED_BY_CHAT,
 						ContextKeyExpr.equals(`config.${NotebookSetting.cellChat}`, true)
 					)

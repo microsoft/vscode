@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { mock } from 'vs/base/test/common/mock';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
@@ -13,7 +13,6 @@ import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBr
 import { NotebookOutlineEntryFactory } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineEntryFactory';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { MockDocumentSymbol } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
-import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 
 suite('Notebook Symbols', function () {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -67,7 +66,7 @@ suite('Notebook Symbols', function () {
 	test('Cell without symbols cache', function () {
 		setSymbolsForTextModel([{ name: 'var', range: {} }]);
 		const entryFactory = new NotebookOutlineEntryFactory(executionService);
-		const entries = entryFactory.getOutlineEntries(createCellViewModel(), OutlineTarget.QuickPick, 0);
+		const entries = entryFactory.getOutlineEntries(createCellViewModel(), 0);
 
 		assert.equal(entries.length, 1, 'no entries created');
 		assert.equal(entries[0].label, '# code', 'entry should fall back to first line of cell');
@@ -79,7 +78,7 @@ suite('Notebook Symbols', function () {
 		const cell = createCellViewModel();
 
 		await entryFactory.cacheSymbols(cell, outlineModelService, CancellationToken.None);
-		const entries = entryFactory.getOutlineEntries(cell, OutlineTarget.QuickPick, 0);
+		const entries = entryFactory.getOutlineEntries(cell, 0);
 
 		assert.equal(entries.length, 3, 'wrong number of outline entries');
 		assert.equal(entries[0].label, '# code');
@@ -101,7 +100,7 @@ suite('Notebook Symbols', function () {
 		const cell = createCellViewModel();
 
 		await entryFactory.cacheSymbols(cell, outlineModelService, CancellationToken.None);
-		const entries = entryFactory.getOutlineEntries(createCellViewModel(), OutlineTarget.QuickPick, 0);
+		const entries = entryFactory.getOutlineEntries(createCellViewModel(), 0);
 
 		assert.equal(entries.length, 6, 'wrong number of outline entries');
 		assert.equal(entries[0].label, '# code');
@@ -127,8 +126,8 @@ suite('Notebook Symbols', function () {
 		await entryFactory.cacheSymbols(cell1, outlineModelService, CancellationToken.None);
 		await entryFactory.cacheSymbols(cell2, outlineModelService, CancellationToken.None);
 
-		const entries1 = entryFactory.getOutlineEntries(createCellViewModel(1, '$1'), OutlineTarget.QuickPick, 0);
-		const entries2 = entryFactory.getOutlineEntries(createCellViewModel(1, '$2'), OutlineTarget.QuickPick, 0);
+		const entries1 = entryFactory.getOutlineEntries(createCellViewModel(1, '$1'), 0);
+		const entries2 = entryFactory.getOutlineEntries(createCellViewModel(1, '$2'), 0);
 
 
 		assert.equal(entries1.length, 2, 'wrong number of outline entries');

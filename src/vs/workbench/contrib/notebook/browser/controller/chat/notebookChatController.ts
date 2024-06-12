@@ -11,6 +11,7 @@ import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs
 import { LRUCache } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { MovingAverage } from 'vs/base/common/numbers';
+import { isEqual } from 'vs/base/common/resources';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
@@ -25,20 +26,20 @@ import { ICursorStateComputer, ITextModel } from 'vs/editor/common/model';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { IModelService } from 'vs/editor/common/services/model';
 import { localize } from 'vs/nls';
+import { MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { GeneratingPhrase } from 'vs/workbench/contrib/chat/browser/chat';
-import { ChatAgentLocation, IChatAgentRequest, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ChatModel, ChatRequestModel, getHistoryEntriesFromModel, IChatRequestVariableData, IChatResponseModel } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatProgress, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { ChatModel, IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
+import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { ProgressingEditsOptions } from 'vs/workbench/contrib/inlineChat/browser/inlineChatStrategies';
 import { InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
 import { asProgressiveEdit, performAsyncTextEdit } from 'vs/workbench/contrib/inlineChat/browser/utils';
+import { MENU_INLINE_CHAT_WIDGET } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { insertCell, runDeleteAction } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
-import { CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST, CTX_NOTEBOOK_CHAT_OUTER_FOCUS_POSITION, CTX_NOTEBOOK_CHAT_USER_DID_EDIT, MENU_CELL_CHAT_INPUT, MENU_CELL_CHAT_WIDGET, MENU_CELL_CHAT_WIDGET_FEEDBACK, MENU_CELL_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/notebook/browser/controller/chat/notebookChatContext';
+import { CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST, CTX_NOTEBOOK_CHAT_OUTER_FOCUS_POSITION, CTX_NOTEBOOK_CHAT_USER_DID_EDIT, MENU_CELL_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/notebook/browser/controller/chat/notebookChatContext';
 import { ICellViewModel, INotebookEditor, INotebookEditorContribution, INotebookViewZone } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -267,9 +268,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 	private _focusTracker: IFocusTracker | undefined;
 	private _widget: NotebookChatWidget | undefined;
 
-	private _notebookDefaultAgentId: string | undefined;
 	private readonly _model: MutableDisposable<ChatModel> = this._register(new MutableDisposable());
-	private _currentRequest: ChatRequestModel | undefined;
 	constructor(
 		private readonly _notebookEditor: INotebookEditor,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -279,9 +278,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@INotebookExecutionStateService private _executionStateService: INotebookExecutionStateService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
-		@IChatService private readonly _chatService: IChatService,
-
+		@IChatService private readonly _chatService: IChatService
 	) {
 		super();
 		this._ctxHasActiveRequest = CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST.bindTo(this._contextKeyService);
@@ -302,20 +299,6 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 			this._historyCandidate = '';
 			this._storageService.store(NotebookChatController._storageKey, JSON.stringify(NotebookChatController._promptHistory), StorageScope.PROFILE, StorageTarget.USER);
 		};
-
-		if (!this._initNotebookAgent()) {
-			this._register(this._chatAgentService.onDidChangeAgents(() => this._initNotebookAgent()));
-		}
-	}
-
-	private _initNotebookAgent(): boolean {
-		const notebookAgent = this._chatAgentService.getContributedDefaultAgent(ChatAgentLocation.Notebook);
-		if (notebookAgent) {
-			this._notebookDefaultAgentId = notebookAgent.id;
-			return true;
-		}
-
-		return false;
 	}
 
 	private _registerFocusTracker() {
@@ -433,10 +416,15 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 			ChatAgentLocation.Notebook,
 			{
 				telemetrySource: 'notebook-generate-cell',
-				inputMenuId: MENU_CELL_CHAT_INPUT,
-				widgetMenuId: MENU_CELL_CHAT_WIDGET,
+				inputMenuId: MenuId.ChatExecute,
+				widgetMenuId: MENU_INLINE_CHAT_WIDGET,
 				statusMenuId: MENU_CELL_CHAT_WIDGET_STATUS,
-				feedbackMenuId: MENU_CELL_CHAT_WIDGET_FEEDBACK
+				rendererOptions: {
+					renderTextEditsAsSummary: (uri) => {
+						return isEqual(uri, this._widget?.parentEditor.getModel()?.uri)
+							|| isEqual(uri, this._notebookEditor.textModel?.uri);
+					}
+				}
 			}
 		));
 		inlineChatWidget.placeholder = localize('default.placeholder', "Ask a question");
@@ -480,8 +468,9 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 			}, 0, this._store);
 
 			this._sessionCtor = createCancelablePromise<void>(async token => {
-
+				await this._startSession(token);
 				if (fakeParentEditor.hasModel()) {
+
 					if (this._widget) {
 						this._focusWidget();
 					}
@@ -496,6 +485,18 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 				}
 			});
 		});
+	}
+
+	private async _startSession(token: CancellationToken) {
+		if (!this._model.value) {
+			this._model.value = this._chatService.startSession(ChatAgentLocation.Editor, token);
+
+			if (!this._model.value) {
+				throw new Error('Failed to start chat session');
+			}
+		}
+
+		this._strategy = new EditStrategy();
 	}
 
 	private _scrollWidgetIntoView(index: number) {
@@ -531,8 +532,22 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		this._widget.updateNotebookEditorFocusNSelections();
 	}
 
+	hasSession(chatModel: IChatModel) {
+		return this._model.value === chatModel;
+	}
+
+	getSessionInputUri() {
+		return this._widget?.parentEditor.getModel()?.uri;
+	}
+
 	async acceptInput() {
 		assertType(this._widget);
+		await this._sessionCtor;
+		assertType(this._model.value);
+		assertType(this._strategy);
+
+		const model = this._model.value;
+		this._widget.inlineChatWidget.setChatModel(model);
 
 		const lastInput = this._widget.inlineChatWidget.value;
 		this._historyUpdate(lastInput);
@@ -566,103 +581,68 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 
 		this._ctxHasActiveRequest.set(true);
 
-		// Start a new session
-
-		if (!this._model.value) {
-			this._model.value = this._chatService.startSession(ChatAgentLocation.Editor, CancellationToken.None);
-			if (!this._model.value) {
-				throw new Error('Failed to start chat session');
-			}
-		}
-
-		this._strategy = new EditStrategy();
-
-		const model = this._model.value;
-		this._widget.inlineChatWidget.setChatModel(model);
-
-		const request: IParsedChatRequest = {
-			text: lastInput,
-			parts: []
-		};
-
-		const requestVarData: IChatRequestVariableData = {
-			variables: []
-		};
-
-		this._currentRequest = model.addRequest(request, requestVarData, 0);
-		const responseCreated = new DeferredPromise<IChatResponseModel>();
-		let responseCreatedComplete = false;
-		const completeResponseCreated = () => {
-			if (!responseCreatedComplete && this._currentRequest?.response) {
-				responseCreated.complete(this._currentRequest.response);
-				responseCreatedComplete = true;
-			}
-		};
-
 		this._activeRequestCts?.cancel();
 		this._activeRequestCts = new CancellationTokenSource();
 
-		const cancellationToken = new CancellationTokenSource().token;
-		const progressiveEditsQueue = new Queue();
-		const progressiveEditsClock = StopWatch.create();
-		const progressiveEditsAvgDuration = new MovingAverage();
-		const progressiveEditsCts = new CancellationTokenSource(this._activeRequestCts.token);
-		const progressCallback = (progress: IChatProgress) => {
-			if (cancellationToken.isCancellationRequested) {
-				return;
-			}
+		const store = new DisposableStore();
 
-			if (this._currentRequest) {
-				if (progress.kind === 'textEdit') {
+		try {
+			this._ctxHasActiveRequest.set(true);
+
+			const progressiveEditsQueue = new Queue();
+			const progressiveEditsClock = StopWatch.create();
+			const progressiveEditsAvgDuration = new MovingAverage();
+			const progressiveEditsCts = new CancellationTokenSource(this._activeRequestCts.token);
+
+			const responsePromise = new DeferredPromise<void>();
+			const response = await this._widget.inlineChatWidget.chatWidget.acceptInput();
+			if (response) {
+				let lastLength = 0;
+
+				store.add(response.onDidChange(e => {
+					if (response.isCanceled) {
+						progressiveEditsCts.cancel();
+						responsePromise.complete();
+						return;
+					}
+
+					if (response.isComplete) {
+						responsePromise.complete();
+						return;
+					}
+
+					const edits = response.response.value.map(part => {
+						if (part.kind === 'textEditGroup'
+							// && isEqual(part.uri, this._session?.textModelN.uri)
+						) {
+							return part.edits;
+						} else {
+							return [];
+						}
+					}).flat();
+
+					const newEdits = edits.slice(lastLength);
+					// console.log('NEW edits', newEdits, edits);
+					if (newEdits.length === 0) {
+						return; // NO change
+					}
+					lastLength = edits.length;
 					progressiveEditsAvgDuration.update(progressiveEditsClock.elapsed());
 					progressiveEditsClock.reset();
 
 					progressiveEditsQueue.queue(async () => {
-						// making changes goes into a queue because otherwise the async-progress time will
-						// influence the time it takes to receive the changes and progressive typing will
-						// become infinitely fast
-
-						await this._makeChanges(progress.edits!, false
-							? undefined
-							: { duration: progressiveEditsAvgDuration.value, token: progressiveEditsCts.token }
-						);
+						for (const edits of newEdits) {
+							await this._makeChanges(edits, {
+								duration: progressiveEditsAvgDuration.value,
+								token: progressiveEditsCts.token
+							});
+						}
 					});
-				} else {
-					model.acceptResponseProgress(this._currentRequest, progress);
-				}
-				completeResponseCreated();
+				}));
 			}
-		};
 
-		await model.waitForInitialization();
-		this._widget.inlineChatWidget.addToHistory(lastInput);
-
-		completeResponseCreated();
-
-		const agentId = this._widget.inlineChatWidget.chatWidget.lastSelectedAgent ? this._widget.inlineChatWidget.chatWidget.lastSelectedAgent.id : this._notebookDefaultAgentId!;
-		const requestProps: IChatAgentRequest = {
-			sessionId: model.sessionId,
-			requestId: this._currentRequest!.id,
-			agentId: agentId,
-			message: lastInput,
-			variables: {
-				variables: [{
-					id: '_notebookChatInput',
-					name: '_notebookChatInput',
-					value: this._widget.parentEditor.getModel()!.uri,
-				}]
-			},
-			location: ChatAgentLocation.Notebook
-		};
-		try {
-			this._ctxHasActiveRequest.set(true);
-
-			const task = this._chatAgentService.invokeAgent(agentId, requestProps, progressCallback, getHistoryEntriesFromModel(model, agentId), cancellationToken);
-			this._widget.inlineChatWidget.updateChatMessage(undefined);
-			this._widget.inlineChatWidget.updateFollowUps(undefined);
-			this._widget.inlineChatWidget.updateProgress(true);
-			this._widget.inlineChatWidget.updateInfo(GeneratingPhrase + '\u2026');
-			await task;
+			await responsePromise.p;
+			await progressiveEditsQueue.whenIdle();
 
 			this._userEditingDisposables.clear();
 			// monitor user edits
@@ -681,17 +661,13 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 			}
 		} catch (e) {
 		} finally {
+			store.dispose();
+
 			this._ctxHasActiveRequest.set(false);
 			this._widget.inlineChatWidget.updateProgress(false);
 			this._widget.inlineChatWidget.updateInfo('');
 			this._widget.inlineChatWidget.updateToolbar(true);
-			if (this._currentRequest) {
-				model.completeResponse(this._currentRequest);
-				completeResponseCreated();
-			}
 		}
-
-		return responseCreated.p;
 	}
 
 	private async _makeChanges(edits: TextEdit[], opts: ProgressingEditsOptions | undefined) {
