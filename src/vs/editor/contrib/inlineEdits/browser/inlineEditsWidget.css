@@ -7,20 +7,26 @@
 	--stop-color: rgb(37, 37, 37);
 }
 
-.monaco-editor div.inline-edits-widget .monaco-editor {
-
-	.mtk1 {
-		color: rgba(215, 215, 215, 0.452);
-	}
-	.view-overlays .current-line-exact {
-		border: none;
+.monaco-editor div.inline-edits-widget {
+	.promptEditor .monaco-editor {
+		--vscode-editor-placeholder-foreground: var(--vscode-editorGhostText-foreground);
 	}
 
-	.current-line-margin {
-		border: none;
-	}
+	.preview .monaco-editor {
 
-	--vscode-editor-background: var(--stop-color);
+		.mtk1 {
+			color: rgba(215, 215, 215, 0.452);
+		}
+		.view-overlays .current-line-exact {
+			border: none;
+		}
+
+		.current-line-margin {
+			border: none;
+		}
+
+		--vscode-editor-background: var(--stop-color);
+	}
 }
 
 .my-start {

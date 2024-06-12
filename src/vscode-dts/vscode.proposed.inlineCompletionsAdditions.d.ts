@@ -64,6 +64,10 @@ declare module 'vscode' {
 		provideInlineEdits?(document: TextDocument, range: Range, context: InlineCompletionContext, token: CancellationToken): ProviderResult<InlineCompletionItem[] | InlineCompletionList>;
 	}
 
+	export interface InlineCompletionContext {
+		readonly userPrompt?: string;
+	}
+
 	export interface PartialAcceptInfo {
 		kind: PartialAcceptTriggerKind;
 	}

@@ -1412,7 +1412,8 @@ class InlineCompletionAdapter extends InlineCompletionAdapterBase {
 						text: context.selectedSuggestionInfo.text
 					}
 					: undefined,
-			triggerKind: this.languageTriggerKindToVSCodeTriggerKind[context.triggerKind]
+			triggerKind: this.languageTriggerKindToVSCodeTriggerKind[context.triggerKind],
+			userPrompt: context.userPrompt,
 		}, token);
 
 		if (!result) {

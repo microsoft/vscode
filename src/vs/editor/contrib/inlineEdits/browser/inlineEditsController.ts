@@ -50,9 +50,10 @@ export class InlineEditsController extends Disposable {
 			this._selection,
 			this._debounceValue,
 			this._enabled,
+			this._widget.map((w, reader) => w?.userPrompt.read(reader) ?? ''),
 		);
 		return model;
-	}).recomputeInitiallyAndOnChange(this._store);
+	});
 
 	private readonly _hadInlineEdit = derivedObservableWithCache<boolean>(this, (reader, lastValue) => lastValue || this.model.read(reader)?.inlineEdit.read(reader) !== undefined);
 
@@ -63,7 +64,7 @@ export class InlineEditsController extends Disposable {
 			this.editor,
 			this.model.map((m, reader) => m?.inlineEdit.read(reader)),
 		);
-	}).recomputeInitiallyAndOnChange(this._store);
+	});
 
 	constructor(
 		public readonly editor: ICodeEditor,
@@ -76,5 +77,8 @@ export class InlineEditsController extends Disposable {
 
 		this._register(bindContextKey(inlineEditVisible, this._contextKeyService, r => !!this.model.read(r)?.inlineEdit.read(r)));
 		this._register(bindContextKey(isPinnedContextKey, this._contextKeyService, r => !!this.model.read(r)?.isPinned.read(r)));
+
+		this.model.recomputeInitiallyAndOnChange(this._store);
+		this._widget.recomputeInitiallyAndOnChange(this._store);
 	}
 }

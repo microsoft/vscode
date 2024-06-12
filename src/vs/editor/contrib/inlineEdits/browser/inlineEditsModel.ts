@@ -50,6 +50,7 @@ export class InlineEditsModel extends Disposable {
 		private readonly _selection: IObservable<Selection>,
 		protected readonly _debounceValue: IFeatureDebounceInformation,
 		protected readonly _enabled: IObservable<boolean>,
+		protected readonly _userPrompt: IObservable<string>,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IDiffProviderFactoryService private readonly _diffProviderFactoryService: IDiffProviderFactoryService,
 		@IModelService private readonly _modelService: IModelService,
@@ -130,6 +131,7 @@ export class InlineEditsModel extends Disposable {
 		const context: InlineCompletionContext = {
 			triggerKind: changeSummary.inlineCompletionTriggerKind,
 			selectedSuggestionInfo: undefined,
+			userPrompt: this._userPrompt.read(reader),
 		};
 
 		const token = cancelOnDispose(this._fetchStore);

@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { h, svgElem } from 'vs/base/browser/dom';
+import { DEFAULT_FONT_FAMILY } from 'vs/base/browser/fonts';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { autorun, constObservable, derived, IObservable } from 'vs/base/common/observable';
 import 'vs/css!./inlineEditsWidget';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { observableCodeEditor } from 'vs/editor/browser/observableCodeEditor';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/embeddedCodeEditorWidget';
 import { diffAddDecoration, diffAddDecorationEmpty, diffDeleteDecoration, diffDeleteDecorationEmpty, diffLineAddDecorationBackgroundWithIndicator, diffLineDeleteDecorationBackgroundWithIndicator, diffWholeLineAddDecoration, diffWholeLineDeleteDecoration } from 'vs/editor/browser/widget/diffEditor/registrations.contribution';
@@ -18,6 +20,9 @@ import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
+import { ContextMenuController } from 'vs/editor/contrib/contextmenu/browser/contextmenu';
+import { PlaceholderTextContribution } from 'vs/editor/contrib/placeholderText/browser/placeholderText.contribution';
+import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -45,7 +50,8 @@ export class InlineEditsWidget extends Disposable {
 	}, [
 		h('div@editorContainer', { style: { position: 'absolute', top: '0px', left: '0px', width: '500px', height: '500px', } }, [
 			h('div@toolbar', { style: { position: 'absolute', top: '-25px', left: '0px' } }),
-			h('div@editor', { style: { position: 'absolute', top: '0px', left: '0px', } })
+			h('div.promptEditor@promptEditor', { style: { position: 'absolute', top: '-25px', left: '80px', width: '300px', height: '22px' } }),
+			h('div.preview@editor', { style: { position: 'absolute', top: '0px', left: '0px', } })
 		]),
 		svgElem('svg', { style: { overflow: 'visible', pointerEvents: 'none' }, }, [
 			svgElem('defs', [
@@ -77,7 +83,7 @@ export class InlineEditsWidget extends Disposable {
 	}));
 	private readonly _previewTextModel = this._register(this._instantiationService.createInstance(
 		TextModel,
-		'',
+		'hello world',
 		PLAINTEXT_LANGUAGE_ID,
 		TextModel.DEFAULT_CREATION_OPTIONS,
 		null
@@ -88,6 +94,52 @@ export class InlineEditsWidget extends Disposable {
 		if (!edit) { return; }
 		this._previewTextModel.setValue(edit.newLines.join('\n'));
 	}).recomputeInitiallyAndOnChange(this._store);
+
+
+	private readonly _promptTextModel = this._register(this._instantiationService.createInstance(
+		TextModel,
+		'',
+		PLAINTEXT_LANGUAGE_ID,
+		TextModel.DEFAULT_CREATION_OPTIONS,
+		null
+	));
+	private readonly _promptEditor = this._register(this._instantiationService.createInstance(
+		EmbeddedCodeEditorWidget,
+		this._elements.promptEditor,
+		{
+			glyphMargin: false,
+			lineNumbers: 'off',
+			minimap: { enabled: false },
+			guides: {
+				indentation: false,
+				bracketPairs: false,
+				bracketPairsHorizontal: false,
+				highlightActiveIndentation: false,
+			},
+			folding: false,
+			selectOnLineNumbers: false,
+			selectionHighlight: false,
+			columnSelection: false,
+			overviewRulerBorder: false,
+			overviewRulerLanes: 0,
+			lineDecorationsWidth: 0,
+			lineNumbersMinChars: 0,
+			placeholder: 'Describe the change you want...',
+			fontFamily: DEFAULT_FONT_FAMILY,
+		},
+		{
+			contributions: EditorExtensionsRegistry.getSomeEditorContributions([
+				SuggestController.ID,
+				PlaceholderTextContribution.ID,
+				ContextMenuController.ID,
+			]),
+			isSimpleWidget: true
+		},
+		this._editor
+	));
+
+	private readonly _promptEditorObs = observableCodeEditor(this._promptEditor);
+	public readonly userPrompt = this._promptEditorObs.value;
 
 	private readonly _previewEditor = this._register(this._instantiationService.createInstance(
 		EmbeddedCodeEditorWidget,
@@ -219,7 +271,6 @@ export class InlineEditsWidget extends Disposable {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
-
 		this._register(applyStyle(this._elements.root, {
 			display: derived(this, reader => this._edit.read(reader) ? 'block' : 'none')
 		}));
@@ -239,6 +290,10 @@ export class InlineEditsWidget extends Disposable {
 		}));
 
 		this._previewEditor.setModel(this._previewTextModel);
+
+
+		this._promptEditor.setModel(this._promptTextModel);
+		this._promptEditor.layout();
 
 		this._register(this._previewEditorObs.setDecorations(this._decorations));
 

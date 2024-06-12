@@ -7157,6 +7157,7 @@ declare namespace monaco.languages {
 		 */
 		readonly triggerKind: InlineCompletionTriggerKind;
 		readonly selectedSuggestionInfo: SelectedSuggestionInfo | undefined;
+		readonly userPrompt?: string | undefined;
 	}
 
 	export class SelectedSuggestionInfo {
