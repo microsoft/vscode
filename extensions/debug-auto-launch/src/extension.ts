@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { exec } from 'child_process';
 import { promises as fs } from 'fs';
 import { createServer, Server } from 'net';
 import { dirname } from 'path';
@@ -63,6 +64,19 @@ export function activate(context: vscode.ExtensionContext): void {
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand(TOGGLE_COMMAND, toggleAutoAttachSetting.bind(null, context)),
+
+		// hackathon run command just to toss it somewhere and avoid more work ;)
+		vscode.commands.registerCommand('debug-auto-launch.hacky-run-command', async (cwd, command) => {
+			return new Promise((resolve, reject) => {
+				exec(command, { cwd }, (err, stdout, stderr) => {
+					if (err) {
+						reject(err);
+					} else {
+						resolve({ stdout, stderr });
+					}
+				}
+			});
+		});
 	);
 
 	context.subscriptions.push(

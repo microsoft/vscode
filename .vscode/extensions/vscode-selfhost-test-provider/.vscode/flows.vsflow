@@ -1,0 +1,167 @@
+{
+  "nodes": [
+    {
+      "node": {
+        "kind": "ownedCommand",
+        "command": "my-test-trigger.startWorkingon",
+        "label": "Fake Start Working on"
+      },
+      "x": -42,
+      "y": 35,
+      "id": 1
+    },
+    {
+      "node": {
+        "kind": "value",
+        "value": "${workspaceFolder}",
+        "inputs": [
+          {
+            "sourceId": 1,
+            "sourceIndex": 0
+          },
+          null
+        ]
+      },
+      "x": 188,
+      "y": 140,
+      "id": 2
+    },
+    {
+      "node": {
+        "kind": "value",
+        "value": "git rev-parse --abbrev-ref HEAD",
+        "inputs": [
+          null
+        ]
+      },
+      "x": 159,
+      "y": -73,
+      "id": 3
+    },
+    {
+      "node": {
+        "kind": "spawn",
+        "command": {
+          "sourceId": 3,
+          "sourceIndex": 0
+        },
+        "cwd": {
+          "sourceId": 2,
+          "sourceIndex": 0
+        }
+      },
+      "x": 363,
+      "y": 30,
+      "id": 4
+    },
+    {
+      "node": {
+        "kind": "regex",
+        "flags": "",
+        "re": "issue([0-9]+)",
+        "input": {
+          "sourceId": 4,
+          "sourceIndex": 0
+        }
+      },
+      "x": 559,
+      "y": -90,
+      "id": 5
+    },
+    {
+      "node": {
+        "kind": "value",
+        "value": "https://api.github.com/repos/microsoft/vscode/issues/{0}",
+        "inputs": [
+          {
+            "sourceId": 5,
+            "sourceIndex": 1
+          },
+          null
+        ]
+      },
+      "x": 812,
+      "y": 21,
+      "id": 6
+    },
+    {
+      "node": {
+        "kind": "fetch",
+        "url": {
+          "sourceId": 6,
+          "sourceIndex": 0
+        }
+      },
+      "x": 1038,
+      "y": -88,
+      "id": 7
+    },
+    {
+      "node": {
+        "kind": "extractJson",
+        "input": {
+          "sourceId": 12,
+          "sourceIndex": 0
+        },
+        "path": "body"
+      },
+      "x": 1223,
+      "y": -123,
+      "id": 8
+    },
+    {
+      "node": {
+        "kind": "value",
+        "value": "Please provide a concise summary of this issue, and suggest changes I might want to make to fix it:\n\n```\n{0}\n```",
+        "inputs": [
+          {
+            "sourceId": 8,
+            "sourceIndex": 0
+          },
+          null
+        ]
+      },
+      "x": 1276,
+      "y": 56,
+      "id": 9
+    },
+    {
+      "node": {
+        "kind": "startChat",
+        "query": {
+          "sourceId": 9,
+          "sourceIndex": 0
+        }
+      },
+      "x": 1548,
+      "y": -58,
+      "id": 10
+    },
+    {
+      "node": {
+        "kind": "ownedCommand",
+        "command": "test-partial-cmd",
+        "label": "Test Flow Partial"
+      },
+      "x": 542,
+      "y": 304,
+      "id": 11
+    },
+    {
+      "node": {
+        "kind": "value",
+        "value": "{\"body\":\"The debugger doesn't restart correctly!\"}",
+        "inputs": [
+          {
+            "sourceId": 11,
+            "sourceIndex": 0
+          },
+          null
+        ]
+      },
+      "x": 819,
+      "y": 277,
+      "id": 12
+    }
+  ]
+}

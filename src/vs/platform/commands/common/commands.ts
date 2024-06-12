@@ -19,10 +19,14 @@ export interface ICommandEvent {
 	args: any[];
 }
 
+export interface ICommandExecuteEvent extends ICommandEvent {
+	result: any;
+}
+
 export interface ICommandService {
 	readonly _serviceBrand: undefined;
 	onWillExecuteCommand: Event<ICommandEvent>;
-	onDidExecuteCommand: Event<ICommandEvent>;
+	onDidExecuteCommand: Event<ICommandExecuteEvent>;
 	executeCommand<T = any>(commandId: string, ...args: any[]): Promise<T | undefined>;
 }
 

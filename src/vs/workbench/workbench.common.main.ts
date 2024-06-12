@@ -196,6 +196,9 @@ import 'vs/workbench/contrib/interactive/browser/interactive.contribution';
 // Testing
 import 'vs/workbench/contrib/testing/browser/testing.contribution';
 
+// Flow
+import 'vs/workbench/contrib/flowEditor/browser/flowEditor.contribution';
+
 // Logs
 import 'vs/workbench/contrib/logs/common/logs.contribution';
 

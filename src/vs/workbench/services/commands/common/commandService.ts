@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ICommandService, ICommandEvent, CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { ICommandService, ICommandEvent, CommandsRegistry, ICommandExecuteEvent } from 'vs/platform/commands/common/commands';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -22,8 +22,8 @@ export class CommandService extends Disposable implements ICommandService {
 	private readonly _onWillExecuteCommand: Emitter<ICommandEvent> = this._register(new Emitter<ICommandEvent>());
 	public readonly onWillExecuteCommand: Event<ICommandEvent> = this._onWillExecuteCommand.event;
 
-	private readonly _onDidExecuteCommand: Emitter<ICommandEvent> = new Emitter<ICommandEvent>();
-	public readonly onDidExecuteCommand: Event<ICommandEvent> = this._onDidExecuteCommand.event;
+	private readonly _onDidExecuteCommand: Emitter<ICommandExecuteEvent> = new Emitter<ICommandExecuteEvent>();
+	public readonly onDidExecuteCommand: Event<ICommandExecuteEvent> = this._onDidExecuteCommand.event;
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -93,7 +93,7 @@ export class CommandService extends Disposable implements ICommandService {
 		try {
 			this._onWillExecuteCommand.fire({ commandId: id, args });
 			const result = this._instantiationService.invokeFunction(command.handler, ...args);
-			this._onDidExecuteCommand.fire({ commandId: id, args });
+			this._onDidExecuteCommand.fire({ commandId: id, args, result });
 			return Promise.resolve(result);
 		} catch (err) {
 			return Promise.reject(err);

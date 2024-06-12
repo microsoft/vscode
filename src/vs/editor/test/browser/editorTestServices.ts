@@ -6,7 +6,7 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { AbstractCodeEditorService, GlobalStyleSheet } from 'vs/editor/browser/services/abstractCodeEditorService';
-import { CommandsRegistry, ICommandEvent, ICommandService } from 'vs/platform/commands/common/commands';
+import { CommandsRegistry, ICommandEvent, ICommandExecuteEvent, ICommandService } from 'vs/platform/commands/common/commands';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
@@ -62,8 +62,8 @@ export class TestCommandService implements ICommandService {
 	private readonly _onWillExecuteCommand = new Emitter<ICommandEvent>();
 	public readonly onWillExecuteCommand: Event<ICommandEvent> = this._onWillExecuteCommand.event;
 
-	private readonly _onDidExecuteCommand = new Emitter<ICommandEvent>();
-	public readonly onDidExecuteCommand: Event<ICommandEvent> = this._onDidExecuteCommand.event;
+	private readonly _onDidExecuteCommand = new Emitter<ICommandExecuteEvent>();
+	public readonly onDidExecuteCommand: Event<ICommandExecuteEvent> = this._onDidExecuteCommand.event;
 
 	constructor(instantiationService: IInstantiationService) {
 		this._instantiationService = instantiationService;
@@ -78,7 +78,7 @@ export class TestCommandService implements ICommandService {
 		try {
 			this._onWillExecuteCommand.fire({ commandId: id, args });
 			const result = this._instantiationService.invokeFunction.apply(this._instantiationService, [command.handler, ...args]) as T;
-			this._onDidExecuteCommand.fire({ commandId: id, args });
+			this._onDidExecuteCommand.fire({ commandId: id, args, result });
 			return Promise.resolve(result);
 		} catch (err) {
 			return Promise.reject(err);

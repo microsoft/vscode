@@ -16,7 +16,8 @@
     }
   },
   "activationEvents": [
-    "onStartupFinished"
+    "onStartupFinished",
+    "onCommand:debug-auto-launch.hacky-run-command"
   ],
   "main": "./out/extension",
   "scripts": {

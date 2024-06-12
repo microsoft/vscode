@@ -68,6 +68,8 @@ export namespace Schemas {
 
 	export const vscodeSettings = 'vscode-settings';
 
+	export const vscodeFlow = 'vscode-flow';
+
 	export const vscodeWorkspaceTrust = 'vscode-workspace-trust';
 
 	export const vscodeTerminal = 'vscode-terminal';

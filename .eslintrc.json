@@ -872,6 +872,7 @@
 							"vs/workbench/services/*/~",
 							"vs/workbench/contrib/*/~",
 							"vscode-notebook-renderer", // Type only import
+							"litegraph.js",
 							{
 								"when": "hasBrowser",
 								"pattern": "@xterm/xterm"

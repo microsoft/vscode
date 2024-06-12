@@ -44,23 +44,6 @@
 					vscode-managed-remote-resource:
 					https://*.vscode-unpkg.net
 				;
-				require-trusted-types-for
-					'script'
-				;
-				trusted-types
-					amdLoader
-					cellRendererEditorText
-					defaultWorkerFactory
-					diffEditorWidget
-					diffReview
-					domLineBreaksComputer
-					dompurify
-					editorGhostText
-					editorViewLayer
-					notebookRenderer
-					stickyScrollViewLayer
-					tokenizeToString
-				;
 		"/>
 	</head>
 
@@ -69,6 +52,7 @@
 
 	<!-- Startup (do not modify order of script tags!) -->
 	<script src="../../../../bootstrap.js"></script>
+	<script src="../../../../../node_modules/litegraph.js/build/litegraph.js"></script>
 	<script src="../../../../vs/loader.js"></script>
 	<script src="../../../../bootstrap-window.js"></script>
 	<script src="workbench.js"></script>
