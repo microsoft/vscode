@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { CancelablePromise, disposableTimeout } from 'vs/base/common/async';
+import { disposableTimeout } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { noBreakWhitespace } from 'vs/base/common/strings';
@@ -134,7 +134,7 @@ export class InlineProgressManager extends Disposable {
 		this._currentDecorations.clear();
 	}
 
-	public async showWhile<R>(position: IPosition, title: string, promise: CancelablePromise<R>, delegate: InlineProgressDelegate): Promise<R> {
+	public async showWhile<R>(position: IPosition, title: string, promise: Promise<R>, delegate: InlineProgressDelegate): Promise<R> {
 		const operationId = this._operationIdPool++;
 		this._currentOperation = operationId;
 
