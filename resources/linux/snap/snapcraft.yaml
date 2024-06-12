@@ -41,6 +41,7 @@ parts:
       - libnss3
       - libpango-1.0-0
       - libsecret-1-0
+      - libwayland-egl1
       - libxcomposite1
       - libxdamage1
       - libxfixes3
