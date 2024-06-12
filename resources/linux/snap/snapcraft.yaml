@@ -30,9 +30,11 @@ parts:
       - libcurl3-gnutls
       - libcurl3-nss
       - libcurl4
+      - libegl1
       - libdrm2
       - libgbm1
       - libgl1
+      - libgles2
       - libglib2.0-0
       - libgtk-3-0
       - libibus-1.0-5
