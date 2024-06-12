@@ -223,7 +223,7 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 
 			store.add(index === 0 ?
 				this.statusbarService.addEntry(statusbarEntry, `status.scm.${index}`, MainThreadStatusBarAlignment.LEFT, 10000) :
-				this.statusbarService.addEntry(statusbarEntry, `status.scm.${index}`, MainThreadStatusBarAlignment.LEFT, { id: `status.scm.${index - 1}`, alignment: MainThreadStatusBarAlignment.RIGHT, compact: true })
+				this.statusbarService.addEntry(statusbarEntry, `status.scm.${index}`, MainThreadStatusBarAlignment.LEFT, { id: 'status.scm.0', alignment: MainThreadStatusBarAlignment.RIGHT, compact: true })
 			);
 		}
 	}
