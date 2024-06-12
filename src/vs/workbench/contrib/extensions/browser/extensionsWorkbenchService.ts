@@ -9,7 +9,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { firstOrDefault, index } from 'vs/base/common/arrays';
 import { CancelablePromise, Promises, ThrottledDelayer, createCancelablePromise } from 'vs/base/common/async';
 import { CancellationError, isCancellationError } from 'vs/base/common/errors';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IPager, singlePagePager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import {
@@ -18,13 +18,13 @@ import {
 	IExtensionsControlManifest, IExtensionInfo, IExtensionQueryOptions, IDeprecationInfo, isTargetPlatformCompatible, InstallExtensionInfo, EXTENSION_IDENTIFIER_REGEX,
 	InstallOptions, IProductVersion
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, DefaultIconPath, IResourceExtension } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, DefaultIconPath, IResourceExtension, extensionsConfigurationNodeBase } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, groupByExtension, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { URI } from 'vs/base/common/uri';
-import { IExtension, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey, AutoCheckUpdatesConfigurationKey, HasOutdatedExtensionsContext, AutoUpdateConfigurationValue, InstallExtensionOptions, ExtensionRuntimeState, ExtensionRuntimeActionType } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtension, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey, AutoCheckUpdatesConfigurationKey, HasOutdatedExtensionsContext, AutoUpdateConfigurationValue, InstallExtensionOptions, ExtensionRuntimeState, ExtensionRuntimeActionType, AutoRestartConfigurationKey } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IURLService, IURLHandler, IOpenURLOptions } from 'vs/platform/url/common/url';
 import { ExtensionsInput, IExtensionEditorOptions } from 'vs/workbench/contrib/extensions/common/extensionsInput';
@@ -58,6 +58,8 @@ import { isEngineValid } from 'vs/platform/extensions/common/extensionValidator'
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ShowCurrentReleaseNotesActionId } from 'vs/workbench/contrib/update/common/update';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -949,8 +951,23 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}));
 
 		urlService.registerHandler(this);
+		this.registerConfigurations();
 
 		this.whenInitialized = this.initialize();
+	}
+
+	private registerConfigurations(): void {
+		Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
+			.registerConfiguration({
+				...extensionsConfigurationNodeBase,
+				properties: {
+					[AutoRestartConfigurationKey]: {
+						type: 'boolean',
+						description: nls.localize('autoRestart', "If activated, extensions will automatically restart following an update if the window is not in focus."),
+						default: this.productService.quality !== 'stable',
+					}
+				}
+			});
 	}
 
 	private async initialize(): Promise<void> {
@@ -1011,6 +1028,25 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			if (!this.isAutoUpdateEnabled()) {
 				this.autoUpdateBuiltinExtensions();
 			}
+		}
+
+		this.registerAutoRestartListener();
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AutoRestartConfigurationKey)) {
+				this.registerAutoRestartListener();
+			}
+		}));
+	}
+
+	private readonly autoRestartListenerDisposable = this._register(new MutableDisposable());
+	private registerAutoRestartListener(): void {
+		this.autoRestartListenerDisposable.value = undefined;
+		if (this.configurationService.getValue(AutoRestartConfigurationKey) === true) {
+			this.autoRestartListenerDisposable.value = this.hostService.onDidChangeFocus(focus => {
+				if (!focus && this.configurationService.getValue(AutoRestartConfigurationKey) === true) {
+					this.updateRunningExtensions(true);
+				}
+			});
 		}
 	}
 
@@ -1263,7 +1299,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return undefined;
 	}
 
-	async updateRunningExtensions(): Promise<void> {
+	async updateRunningExtensions(auto?: boolean): Promise<void> {
 		const toAdd: ILocalExtension[] = [];
 		const toRemove: string[] = [];
 
@@ -1304,7 +1340,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 
 		if (toAdd.length || toRemove.length) {
-			if (await this.extensionService.stopExtensionHosts(nls.localize('restart', "Enable or Disable extensions"))) {
+			if (await this.extensionService.stopExtensionHosts(nls.localize('restart', "Enable or Disable extensions"), auto)) {
 				await this.extensionService.startExtensionHosts({ toAdd, toRemove });
 			}
 		}
