@@ -28,7 +28,7 @@ export class ChatCommandExecutionService extends Disposable implements IChatComm
 			return;
 		}
 
-		if (!response || typeof response === 'string' || response.agent?.id !== 'vscode') {
+		if (!response || typeof response === 'string' || response.agent?.id !== 'github.copilot.vscode') {
 			return;
 		}
 
