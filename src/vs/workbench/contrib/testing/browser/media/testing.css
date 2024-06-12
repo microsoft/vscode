@@ -267,6 +267,52 @@
 	cursor: pointer;
 }
 
+.testing-followup-action {
+	position: absolute;
+	top: 100%;
+	left: 22px;
+	right: 22px;
+	margin-top: -25px;
+	line-height: 25px;
+	overflow: hidden;
+	pointer-events: none;
+	background: linear-gradient(transparent, var(--vscode-peekViewEditor-background) 50%);
+	display: flex;
+	align-items: center;
+	gap: 14px;
+
+	&.animated {
+		animation: fadeIn 150ms ease-out;
+	}
+
+	> a {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		cursor: pointer;
+		pointer-events: auto;
+		width: fit-content;
+		flex-shrink: 0;
+
+		&, .codicon {
+			color: var(--vscode-textLink-foreground);
+		}
+
+		&:hover {
+			color: var(--vscode-textLink-activeForeground);
+		}
+
+		&[aria-disabled="true"] {
+			color: inherit;
+			cursor: default;
+
+			.codicon {
+				color: inherit;
+			}
+		}
+	}
+}
+
 /** -- filter  */
 .monaco-action-bar.testing-filter-action-bar {
 	flex-shrink: 0;

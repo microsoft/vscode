@@ -122,7 +122,7 @@ export class WorkbenchButtonBar extends ButtonBar {
 			} else {
 				tooltip = action.label;
 			}
-			this._updateStore.add(this._hoverService.setupUpdatableHover(hoverDelegate, btn.element, tooltip));
+			this._updateStore.add(this._hoverService.setupManagedHover(hoverDelegate, btn.element, tooltip));
 			this._updateStore.add(btn.onDidClick(async () => {
 				this._actionRunner.run(action);
 			}));

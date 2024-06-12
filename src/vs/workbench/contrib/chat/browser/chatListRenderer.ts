@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { Button } from 'vs/base/browser/ui/button/button';
@@ -21,13 +23,14 @@ import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { FileAccess, Schemas, matchesSomeScheme } from 'vs/base/common/network';
 import { clamp } from 'vs/base/common/numbers';
 import { autorun } from 'vs/base/common/observable';
 import { basename } from 'vs/base/common/path';
-import { basenameOrAuthority } from 'vs/base/common/resources';
+import { basenameOrAuthority, isEqual } from 'vs/base/common/resources';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
@@ -68,19 +71,17 @@ import { ChatAgentLocation, IChatAgentMetadata } from 'vs/workbench/contrib/chat
 import { CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_DETECTED_AGENT_COMMAND, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatProgressRenderableResponseContent, IChatTextEditGroup } from 'vs/workbench/contrib/chat/common/chatModel';
 import { chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatCommandButton, IChatConfirmation, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatSendRequestOptions, IChatService, IChatTask, IChatWarningMessage, ChatAgentVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { ChatAgentVoteDirection, IChatCommandButton, IChatConfirmation, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatSendRequestOptions, IChatService, IChatTask, IChatWarningMessage } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { IChatProgressMessageRenderData, IChatRenderData, IChatResponseMarkdownRenderData, IChatResponseViewModel, IChatTaskRenderData, IChatWelcomeMessageViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IWordCountResult, getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { createFileIconThemableTreeContainerScope } from 'vs/workbench/contrib/files/browser/views/explorerView';
 import { IFilesConfiguration } from 'vs/workbench/contrib/files/common/files';
-import { ITrustedDomainService } from 'vs/workbench/contrib/url/browser/trustedDomainService';
 import { IMarkdownVulnerability, annotateSpecialMarkdownContent } from '../common/annotations';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection';
 import { IChatListItemRendererOptions } from './chat';
-import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
+import { ChatMarkdownRenderer } from 'vs/workbench/contrib/chat/browser/chatMarkdownRenderer';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 
 const $ = dom.$;
 
@@ -102,6 +103,10 @@ interface IChatListItemTemplate {
 interface IItemHeightChangeParams {
 	element: ChatTreeItem;
 	height: number;
+}
+
+interface IChatMarkdownRenderResult extends IMarkdownRenderResult {
+	codeBlockCount: number;
 }
 
 const forceVerboseLayoutTracing = false;
@@ -160,13 +165,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@ICommandService private readonly commandService: ICommandService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@IModelService private readonly modelService: IModelService,
-		@ITrustedDomainService private readonly trustedDomainService: ITrustedDomainService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IChatService private readonly chatService: IChatService,
 	) {
 		super();
 
-		this.renderer = this._register(this.instantiationService.createInstance(MarkdownRenderer, {}));
+		this.renderer = this._register(this.instantiationService.createInstance(ChatMarkdownRenderer, undefined));
 		this.markdownDecorationsRenderer = this.instantiationService.createInstance(ChatMarkdownDecorationsRenderer);
 		this._editorPool = this._register(this.instantiationService.createInstance(EditorPool, editorOptions, delegate, overflowWidgetsDomNode));
 		this._diffEditorPool = this._register(this.instantiationService.createInstance(DiffEditorPool, editorOptions, delegate, overflowWidgetsDomNode));
@@ -312,8 +316,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return undefined;
 		};
 		const hoverOptions = getChatAgentHoverOptions(() => isResponseVM(template.currentElement) ? template.currentElement.agent : undefined, this.commandService);
-		templateDisposables.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('element'), user, hoverContent, hoverOptions));
-		templateDisposables.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), header, hoverContent, hoverOptions));
+		templateDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), user, hoverContent, hoverOptions));
 		templateDisposables.add(dom.addDisposableListener(user, dom.EventType.KEY_DOWN, e => {
 			const ev = new StandardKeyboardEvent(e);
 			if (ev.equals(KeyCode.Space) || ev.equals(KeyCode.Enter)) {
@@ -482,11 +485,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this.renderContentReferencesIfNeeded(element, templateData, templateData.elementDisposables);
 
 		let fileTreeIndex = 0;
+		let codeBlockIndex = 0;
 		value.forEach((data, index) => {
 			const result = data.kind === 'treeData'
 				? this.renderTreeData(data.treeData, element, templateData, fileTreeIndex++)
 				: data.kind === 'markdownContent'
-					? this.renderMarkdown(data.content, element, templateData, fillInIncompleteTokens)
+					? this.renderMarkdown(data.content, element, templateData, fillInIncompleteTokens, codeBlockIndex)
 					: data.kind === 'progressMessage' && onlyProgressMessagesAfterI(value, index) ? this.renderProgressMessage(data, false) // TODO render command
 						: data.kind === 'progressTask' ? this.renderProgressTask(data, false, element, templateData)
 							: data.kind === 'command' ? this.renderCommandButton(element, data)
@@ -498,6 +502,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			if (result) {
 				templateData.value.appendChild(result.element);
 				templateData.elementDisposables.add(result);
+
+				if ('codeBlockCount' in result) {
+					codeBlockIndex += (result as IChatMarkdownRenderResult).codeBlockCount;
+				}
 			}
 		});
 
@@ -1072,13 +1080,36 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					URI.from({ scheme: Schemas.vscodeChatCodeBlock, path: original.uri.path, query: generateUuid() }),
 					false
 				);
-				store.add(modified);
-				if (!chatTextEdit.state?.applied) {
-					for (const group of chatTextEdit.edits) {
-						const edits = group.map(TextEdit.asEditOperation);
-						modified.pushEditOperations(null, edits, () => null);
+				const modRef = await this.textModelService.createModelReference(modified.uri);
+				store.add(modRef);
+
+				const editGroups: ISingleEditOperation[][] = [];
+				if (isResponseVM(element)) {
+					const chatModel = this.chatService.getSession(element.sessionId)!;
+
+					for (const request of chatModel.getRequests()) {
+						if (!request.response) {
+							continue;
+						}
+						for (const item of request.response.response.value) {
+							if (item.kind !== 'textEditGroup' || item.state?.applied || !isEqual(item.uri, chatTextEdit.uri)) {
+								continue;
+							}
+							for (const group of item.edits) {
+								const edits = group.map(TextEdit.asEditOperation);
+								editGroups.push(edits);
+							}
+						}
+						if (request.response === element.model) {
+							break;
+						}
 					}
 				}
+
+				for (const edits of editGroups) {
+					modified.pushEditOperations(null, edits, () => null);
+				}
+
 				return {
 					modified,
 					original,
@@ -1092,19 +1123,19 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			element: ref.object.element,
 			dispose() {
 				store.dispose();
+				ref.dispose();
 			},
 		};
 	}
 
-	private renderMarkdown(markdown: IMarkdownString, element: ChatTreeItem, templateData: IChatListItemTemplate, fillInIncompleteTokens = false): IMarkdownRenderResult {
+	private renderMarkdown(markdown: IMarkdownString, element: ChatTreeItem, templateData: IChatListItemTemplate, fillInIncompleteTokens = false, codeBlockStartIndex = 0): IChatMarkdownRenderResult {
 		const disposables = new DisposableStore();
 
 		// We release editors in order so that it's more likely that the same editor will be assigned if this element is re-rendered right away, like it often is during progressive rendering
 		const orderedDisposablesList: IDisposable[] = [];
 		const codeblocks: IChatCodeBlockInfo[] = [];
-		let codeBlockIndex = 0;
+		let codeBlockIndex = codeBlockStartIndex;
 		const result = this.renderer.render(markdown, {
-			remoteImageIsAllowed: (uri) => this.trustedDomainService.isValid(uri),
 			fillInIncompleteTokens,
 			codeBlockRendererSync: (languageId, text) => {
 				const index = codeBlockIndex++;
@@ -1171,6 +1202,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		orderedDisposablesList.reverse().forEach(d => disposables.add(d));
 		return {
+			codeBlockCount: codeBlockIndex - codeBlockStartIndex,
 			element: result.element,
 			dispose() {
 				result.dispose();

@@ -65,9 +65,7 @@ import { EditorFontLigatures, EditorFontVariations } from 'vs/editor/common/conf
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { mainWindow } from 'vs/base/browser/window';
 import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
-import { IInlineChatService } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { InlineChatServiceImpl } from 'vs/workbench/contrib/inlineChat/common/inlineChatServiceImpl';
-import { INotebookCellOutlineProviderFactory, NotebookCellOutlineProviderFactory } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineProviderFactory';
+import { INotebookCellOutlineDataSourceFactory, NotebookCellOutlineDataSourceFactory } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineDataSourceFactory';
 import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
 
 export class TestCell extends NotebookCellTextModel {
@@ -201,8 +199,7 @@ export function setupInstantiationService(disposables: DisposableStore) {
 	instantiationService.stub(IKeybindingService, new MockKeybindingService());
 	instantiationService.stub(INotebookCellStatusBarService, disposables.add(new NotebookCellStatusBarService()));
 	instantiationService.stub(ICodeEditorService, disposables.add(new TestCodeEditorService(testThemeService)));
-	instantiationService.stub(IInlineChatService, instantiationService.createInstance(InlineChatServiceImpl));
-	instantiationService.stub(INotebookCellOutlineProviderFactory, instantiationService.createInstance(NotebookCellOutlineProviderFactory));
+	instantiationService.stub(INotebookCellOutlineDataSourceFactory, instantiationService.createInstance(NotebookCellOutlineDataSourceFactory));
 
 	instantiationService.stub(ILanguageDetectionService, new class MockLanguageDetectionService implements ILanguageDetectionService {
 		_serviceBrand: undefined;
@@ -233,7 +230,8 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 
 	const model = disposables.add(new NotebookEditorTestModel(notebook));
 	const notebookOptions = disposables.add(new NotebookOptions(mainWindow, instantiationService.get(IConfigurationService), instantiationService.get(INotebookExecutionStateService), instantiationService.get(ICodeEditorService), false));
-	const viewContext = new ViewContext(notebookOptions, disposables.add(new NotebookEventDispatcher()), () => ({} as IBaseCellEditorOptions));
+	const baseCellEditorOptions = new class extends mock<IBaseCellEditorOptions>() { };
+	const viewContext = new ViewContext(notebookOptions, disposables.add(new NotebookEventDispatcher()), () => baseCellEditorOptions);
 	const viewModel: NotebookViewModel = disposables.add(instantiationService.createInstance(NotebookViewModel, viewType, model.notebook, viewContext, null, { isReadOnly: false }));
 
 	const cellList = disposables.add(createNotebookCellList(instantiationService, disposables, viewContext));
@@ -464,9 +462,10 @@ export function createNotebookCellList(instantiationService: TestInstantiationSe
 		getTemplateId() { return 'template'; }
 	};
 
+	const baseCellRenderTemplate = new class extends mock<BaseCellRenderTemplate>() { };
 	const renderer: IListRenderer<CellViewModel, BaseCellRenderTemplate> = {
 		templateId: 'template',
-		renderTemplate() { return {} as BaseCellRenderTemplate; },
+		renderTemplate() { return baseCellRenderTemplate; },
 		renderElement() { },
 		disposeTemplate() { }
 	};

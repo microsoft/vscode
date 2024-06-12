@@ -34,6 +34,7 @@ import { SimpleSettingRenderer } from 'vs/workbench/contrib/markdown/browser/mar
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Schemas } from 'vs/base/common/network';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { marked } from 'vs/base/common/marked/marked';
 
 export class ReleaseNotesManager {
 	private readonly _simpleSettingRenderer: SimpleSettingRenderer;
@@ -249,7 +250,10 @@ export class ReleaseNotesManager {
 
 	private async renderBody(text: string) {
 		const nonce = generateUuid();
-		const content = await renderMarkdownDocument(text, this._extensionService, this._languageService, false, undefined, undefined, this._simpleSettingRenderer);
+		const renderer = new marked.Renderer();
+		renderer.html = this._simpleSettingRenderer.getHtmlRenderer();
+
+		const content = await renderMarkdownDocument(text, this._extensionService, this._languageService, { shouldSanitize: false, renderer });
 		const colorMap = TokenizationRegistry.getColorMap();
 		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
 		const showReleaseNotes = Boolean(this._configurationService.getValue<boolean>('update.showReleaseNotes'));

@@ -71,7 +71,7 @@ const compilations = [
 	'.vscode/extensions/vscode-selfhost-test-provider/tsconfig.json',
 ];
 
-const getBaseUrl = out => `https://ticino.blob.core.windows.net/sourcemaps/${commit}/${out}`;
+const getBaseUrl = out => `https://main.vscode-cdn.net/sourcemaps/${commit}/${out}`;
 
 const tasks = compilations.map(function (tsconfigFile) {
 	const absolutePath = path.join(root, tsconfigFile);

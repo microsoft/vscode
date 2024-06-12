@@ -35,8 +35,8 @@ declare module vsceSign {
 	export function verify(vsixFilePath: string, signatureArchiveFilePath: string, verbose: boolean): Promise<ExtensionSignatureVerificationResult>;
 }
 
-export const enum ExtensionSignatureVerificationCode {
-	'None' = 'None',
+export enum ExtensionSignatureVerificationCode {
+	'Success' = 'Success',
 	'RequiredArgumentMissing' = 'RequiredArgumentMissing',
 	'InvalidArgument' = 'InvalidArgument',
 	'PackageIsUnreadable' = 'PackageIsUnreadable',
@@ -51,7 +51,6 @@ export const enum ExtensionSignatureVerificationCode {
 	'SignatureArchiveIsInvalidZip' = 'SignatureArchiveIsInvalidZip',
 	'SignatureArchiveHasSameSignatureFile' = 'SignatureArchiveHasSameSignatureFile',
 
-	'Success' = 'Success',
 	'PackageIntegrityCheckFailed' = 'PackageIntegrityCheckFailed',
 	'SignatureIsInvalid' = 'SignatureIsInvalid',
 	'SignatureManifestIsInvalid' = 'SignatureManifestIsInvalid',
