@@ -30,7 +30,7 @@ import { IEditorProgressService, IProgressRunner } from 'vs/platform/progress/co
 import { IView, IViewDescriptorService } from 'vs/workbench/common/views';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IAccessibleViewService } from 'vs/platform/accessibility/browser/accessibleView';
-import { IChatAccessibilityService, IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
+import { IChatAccessibilityService, IChatCommandExecutionService, IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatAgentLocation, ChatAgentService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { InlineChatController, InlineChatRunOptions, State } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
@@ -63,6 +63,7 @@ import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/se
 import { RerunAction } from 'vs/workbench/contrib/inlineChat/browser/inlineChatActions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { assertType } from 'vs/base/common/types';
+import { ChatCommandExecutionService } from 'vs/workbench/contrib/chat/browser/chatCommandExecutionService';
 
 suite('InteractiveChatController', function () {
 
@@ -162,6 +163,7 @@ suite('InteractiveChatController', function () {
 			[IDiffProviderFactoryService, new SyncDescriptor(TestDiffProviderFactoryService)],
 			[IInlineChatSessionService, new SyncDescriptor(InlineChatSessionServiceImpl)],
 			[ICommandService, new SyncDescriptor(TestCommandService)],
+			[IChatCommandExecutionService, new SyncDescriptor(ChatCommandExecutionService)],
 			[IInlineChatSavingService, new class extends mock<IInlineChatSavingService>() {
 				override markChanged(session: Session): void {
 					// noop
