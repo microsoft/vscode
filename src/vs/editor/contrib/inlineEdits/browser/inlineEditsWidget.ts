@@ -49,7 +49,7 @@ export class InlineEditsWidget extends Disposable {
 		},
 	}, [
 		h('div@editorContainer', { style: { position: 'absolute', top: '0px', left: '0px', width: '500px', height: '500px', } }, [
-			h('div@toolbar', { style: { position: 'absolute', top: '-25px', left: '0px' } }),
+			h('div.toolbar@toolbar', { style: { position: 'absolute', top: '-25px', left: '0px' } }),
 			h('div.promptEditor@promptEditor', { style: { position: 'absolute', top: '-25px', left: '80px', width: '300px', height: '22px' } }),
 			h('div.preview@editor', { style: { position: 'absolute', top: '0px', left: '0px', } })
 		]),
