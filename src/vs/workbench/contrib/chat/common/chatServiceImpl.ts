@@ -670,13 +670,13 @@ export class ChatService extends Disposable implements IChatService {
 					chatSessionId: model.sessionId,
 					location
 				});
-				const rawResult: IChatAgentResult = { errorDetails: { message: err.message } };
+				this.logService.error(`Error while handling chat request: ${toErrorMessage(err, true)}`);
 				if (request) {
+					const rawResult: IChatAgentResult = { errorDetails: { message: err.message } };
 					model.setResponse(request, rawResult);
+					completeResponseCreated();
+					model.completeResponse(request);
 				}
-				completeResponseCreated();
-				this.logService.error(`Error while handling chat request: ${toErrorMessage(err)}`);
-				model.completeResponse(request);
 			} finally {
 				listener.dispose();
 			}

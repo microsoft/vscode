@@ -23,7 +23,7 @@ export function observableCodeEditor(editor: ICodeEditor): ObservableCodeEditor 
 }
 
 export class ObservableCodeEditor extends Disposable {
-	private static _map = new Map<ICodeEditor, ObservableCodeEditor>();
+	private static readonly _map = new Map<ICodeEditor, ObservableCodeEditor>();
 
 	/**
 	 * Make sure that editor is not disposed yet!

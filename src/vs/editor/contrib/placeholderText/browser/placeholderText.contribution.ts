@@ -9,7 +9,7 @@ import { derived, derivedOpts } from 'vs/base/common/observable';
 import 'vs/css!./placeholderText';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { observableCodeEditor } from 'vs/editor/browser/observableUtilities';
+import { observableCodeEditor } from 'vs/editor/browser/observableCodeEditor';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ghostTextForeground } from 'vs/editor/common/core/editorColorRegistry';
 import { Range } from 'vs/editor/common/core/range';

@@ -6,24 +6,39 @@
 import 'vs/css!./codeBlockPart';
 
 import * as dom from 'vs/base/browser/dom';
+import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Button } from 'vs/base/browser/ui/button/button';
+import { toAction } from 'vs/base/common/actions';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
+import { basename, isEqual } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
+import { TabFocus } from 'vs/editor/browser/config/tabFocus';
+import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
+import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
 import { EDITOR_FONT_DEFAULTS, EditorOption, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { IDiffEditorViewModel, ScrollType } from 'vs/editor/common/editorCommon';
+import { TextEdit } from 'vs/editor/common/languages';
 import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
+import { TextModelText } from 'vs/editor/common/model/textModelText';
 import { IModelService } from 'vs/editor/common/services/model';
+import { DefaultModelSHA1Computer } from 'vs/editor/common/services/modelService';
 import { IResolvedTextEditorModel, ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { BracketMatchingController } from 'vs/editor/contrib/bracketMatching/browser/bracketMatching';
+import { ColorDetector } from 'vs/editor/contrib/colorPicker/browser/colorDetector';
 import { ContextMenuController } from 'vs/editor/contrib/contextmenu/browser/contextmenu';
 import { GotoDefinitionAtPositionEditorContribution } from 'vs/editor/contrib/gotoSymbol/browser/link/goToDefinitionAtPosition';
+import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
+import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import { ViewportSemanticTokensContribution } from 'vs/editor/contrib/semanticTokens/browser/viewportSemanticTokens';
 import { SmartSelectController } from 'vs/editor/contrib/smartSelect/browser/smartSelect';
 import { WordHighlighterContribution } from 'vs/editor/contrib/wordHighlighter/browser/wordHighlighter';
@@ -33,36 +48,22 @@ import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { ChatTreeItem } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatRendererDelegate } from 'vs/workbench/contrib/chat/browser/chatListRenderer';
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
+import { CONTEXT_CHAT_EDIT_APPLIED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { IChatResponseModel, IChatTextEditGroup } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatResponseViewModel, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { IMarkdownVulnerability } from '../common/annotations';
-import { TabFocus } from 'vs/editor/browser/config/tabFocus';
-import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
-import { ChatTreeItem } from 'vs/workbench/contrib/chat/browser/chat';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
-import { CONTEXT_CHAT_EDIT_APPLIED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IChatResponseModel, IChatTextEditGroup } from 'vs/workbench/contrib/chat/common/chatModel';
-import { TextEdit } from 'vs/editor/common/languages';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { basename, isEqual } from 'vs/base/common/resources';
-import { DefaultModelSHA1Computer } from 'vs/editor/common/services/modelService';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { TextModelText } from 'vs/editor/common/model/textModelText';
-import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { toAction } from 'vs/base/common/actions';
 
 const $ = dom.$;
 
@@ -282,6 +283,7 @@ export class CodeBlockPart extends Disposable {
 				HoverController.ID,
 				MessageController.ID,
 				GotoDefinitionAtPositionEditorContribution.ID,
+				ColorDetector.ID
 			])
 		}));
 	}

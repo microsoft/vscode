@@ -8,7 +8,7 @@ import { DisposableStore } from "vs/base/common/lifecycle";
 import { IObservable, derivedHandleChanges } from "vs/base/common/observable";
 import { ensureNoDisposablesAreLeakedInTestSuite } from "vs/base/test/common/utils";
 import { ICodeEditor } from "vs/editor/browser/editorBrowser";
-import { ObservableCodeEditor, observableCodeEditor } from "vs/editor/browser/observableUtilities";
+import { ObservableCodeEditor, observableCodeEditor } from "vs/editor/browser/observableCodeEditor";
 import { Position } from "vs/editor/common/core/position";
 import { Range } from "vs/editor/common/core/range";
 import { ViewModel } from "vs/editor/common/viewModel/viewModelImpl";
