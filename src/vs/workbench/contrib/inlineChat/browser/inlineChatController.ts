@@ -743,11 +743,9 @@ export class InlineChatController implements IEditorContribution {
 
 		store.dispose();
 
-		// todo@jrieken we can likely remove 'trackEdit'
 		const diff = await this._editorWorkerService.computeDiff(this._session.textModel0.uri, this._session.textModelN.uri, { computeMoves: false, maxComputationTimeMs: Number.MAX_SAFE_INTEGER, ignoreTrimWhitespace: false }, 'advanced');
 		this._session.wholeRange.fixup(diff?.changes ?? []);
-
-		await this._session.hunkData.recompute(editState);
+		await this._session.hunkData.recompute(editState, diff);
 
 		this._ui.value.zone.widget.updateToolbar(true);
 		this._ui.value.zone.widget.updateProgress(false);
@@ -949,7 +947,6 @@ export class InlineChatController implements IEditorContribution {
 		};
 
 		this._inlineChatSavingService.markChanged(this._session);
-		this._session.wholeRange.trackEdits(editOperations);
 		if (opts) {
 			await this._strategy.makeProgressiveChanges(editOperations, editsObserver, opts, undoStopBefore);
 		} else {
