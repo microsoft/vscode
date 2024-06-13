@@ -271,7 +271,7 @@ extends:
             - job: CLIMacOSX64
               pool:
                 name: Azure Pipelines
-                image: macOS-11
+                image: macOS-13
                 os: macOS
               steps:
                 - template: build/azure-pipelines/darwin/cli-build-darwin.yml@self
@@ -284,7 +284,7 @@ extends:
             - job: CLIMacOSARM64
               pool:
                 name: Azure Pipelines
-                image: macOS-11
+                image: macOS-13
                 os: macOS
               steps:
                 - template: build/azure-pipelines/darwin/cli-build-darwin.yml@self
@@ -597,7 +597,7 @@ extends:
             - CompileCLI
           pool:
             name: Azure Pipelines
-            image: macOS-11
+            image: macOS-13
             os: macOS
           variables:
             BUILDSECMON_OPT_IN: true

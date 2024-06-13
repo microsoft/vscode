@@ -112,7 +112,7 @@ class ViewPaneDropOverlay extends Themable {
 		this.paneElement.appendChild(this.container);
 		this.paneElement.classList.add('dragged-over');
 		this._register(toDisposable(() => {
-			this.paneElement.removeChild(this.container);
+			this.container.remove();
 			this.paneElement.classList.remove('dragged-over');
 		}));
 
@@ -1098,6 +1098,10 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 	isViewMergedWithContainer(): boolean {
 		if (!(this.options.mergeViewWithContainerWhenSingleView && this.paneItems.length === 1)) {
+			return false;
+		}
+		if (this.paneItems[0].pane.titleDescription) {
+			// Don't merge a view with a titleDescription. See #166000
 			return false;
 		}
 		if (!this.areExtensionsReady) {

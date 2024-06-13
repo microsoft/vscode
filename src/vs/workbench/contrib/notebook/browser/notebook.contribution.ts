@@ -57,7 +57,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { NotebookRendererMessagingService } from 'vs/workbench/contrib/notebook/browser/services/notebookRendererMessagingServiceImpl';
 import { INotebookRendererMessagingService } from 'vs/workbench/contrib/notebook/common/notebookRendererMessagingService';
-import { INotebookCellOutlineProviderFactory, NotebookCellOutlineProviderFactory } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineProviderFactory';
+import { INotebookCellOutlineDataSourceFactory, NotebookCellOutlineDataSourceFactory } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineDataSourceFactory';
 
 // Editor Controller
 import 'vs/workbench/contrib/notebook/browser/controller/coreActions';
@@ -726,7 +726,7 @@ registerSingleton(INotebookExecutionStateService, NotebookExecutionStateService,
 registerSingleton(INotebookRendererMessagingService, NotebookRendererMessagingService, InstantiationType.Delayed);
 registerSingleton(INotebookKeymapService, NotebookKeymapService, InstantiationType.Delayed);
 registerSingleton(INotebookLoggingService, NotebookLoggingService, InstantiationType.Delayed);
-registerSingleton(INotebookCellOutlineProviderFactory, NotebookCellOutlineProviderFactory, InstantiationType.Delayed);
+registerSingleton(INotebookCellOutlineDataSourceFactory, NotebookCellOutlineDataSourceFactory, InstantiationType.Delayed);
 
 const schemas: IJSONSchemaMap = {};
 function isConfigurationPropertySchema(x: IConfigurationPropertySchema | { [path: string]: IConfigurationPropertySchema }): x is IConfigurationPropertySchema {

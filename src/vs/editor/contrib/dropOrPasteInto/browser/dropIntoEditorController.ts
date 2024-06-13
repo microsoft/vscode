@@ -126,7 +126,7 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 			}
 		});
 
-		this._dropProgressManager.showWhile(position, localize('dropIntoEditorProgress', "Running drop handlers. Click to cancel"), p);
+		this._dropProgressManager.showWhile(position, localize('dropIntoEditorProgress', "Running drop handlers. Click to cancel"), p, { cancel: () => p.cancel() });
 		this._currentOperation = p;
 	}
 

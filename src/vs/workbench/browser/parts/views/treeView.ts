@@ -70,7 +70,7 @@ import { TelemetryTrustedValue } from 'vs/platform/telemetry/common/telemetryUti
 import { ITreeViewsDnDService } from 'vs/editor/common/services/treeViewsDndService';
 import { DraggedTreeItemsIdentifier } from 'vs/editor/common/services/treeViewsDnd';
 import { IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
-import type { IUpdatableHoverTooltipMarkdownString } from 'vs/base/browser/ui/hover/hover';
+import type { IManagedHoverTooltipMarkdownString } from 'vs/base/browser/ui/hover/hover';
 import { parseLinkedText } from 'vs/base/common/linkedText';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
@@ -1202,7 +1202,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		return { resourceLabel, icon, checkboxContainer, actionBar, container, elementDisposable: new DisposableStore() };
 	}
 
-	private getHover(label: string | undefined, resource: URI | null, node: ITreeItem): string | IUpdatableHoverTooltipMarkdownString | undefined {
+	private getHover(label: string | undefined, resource: URI | null, node: ITreeItem): string | IManagedHoverTooltipMarkdownString | undefined {
 		if (!(node instanceof ResolvableTreeItem) || !node.hasResolve) {
 			if (resource && !node.tooltip) {
 				return undefined;

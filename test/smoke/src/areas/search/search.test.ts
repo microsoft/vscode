@@ -19,6 +19,17 @@ export function setup(logger: Logger) {
 			retry(async () => cp.execSync('git reset --hard HEAD --quiet', { cwd: app.workspacePathOrFolder }), 0, 5);
 		});
 
+		it('verifies the sidebar moves to the right', async function () {
+			const app = this.app as Application;
+			await app.workbench.search.openSearchViewlet();
+
+			await app.code.dispatchKeybinding('PageUp');
+			await app.workbench.search.hasActivityBarMoved();
+
+			await app.code.dispatchKeybinding('PageUp');
+			await app.workbench.search.hasActivityBarMoved();
+		});
+
 		it('searches for body & checks for correct result number', async function () {
 			const app = this.app as Application;
 			await app.workbench.search.openSearchViewlet();

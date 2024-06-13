@@ -26,7 +26,7 @@ import { registerContributions as searchWidgetContributions } from 'vs/workbench
 import { SymbolsQuickAccessProvider } from 'vs/workbench/contrib/search/browser/symbolsQuickAccess';
 import { ISearchHistoryService, SearchHistoryService } from 'vs/workbench/contrib/search/common/searchHistoryService';
 import { ISearchViewModelWorkbenchService, SearchViewModelWorkbenchService } from 'vs/workbench/contrib/search/browser/searchModel';
-import { SearchSortOrder, SEARCH_EXCLUDE_CONFIG, VIEWLET_ID, ViewMode, VIEW_ID } from 'vs/workbench/services/search/common/search';
+import { SearchSortOrder, SEARCH_EXCLUDE_CONFIG, VIEWLET_ID, ViewMode, VIEW_ID, DEFAULT_MAX_SEARCH_RESULTS } from 'vs/workbench/services/search/common/search';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { assertType } from 'vs/base/common/types';
 import { getWorkspaceSymbols, IWorkspaceSymbol } from 'vs/workbench/contrib/search/common/search';
@@ -183,13 +183,13 @@ configurationRegistry.registerConfiguration({
 		},
 		'search.useGlobalIgnoreFiles': {
 			type: 'boolean',
-			markdownDescription: nls.localize('useGlobalIgnoreFiles', "Controls whether to use your global gitignore file (for example, from `$HOME/.config/git/ignore`) when searching for files. Requires `#search.useIgnoreFiles#` to be enabled."),
+			markdownDescription: nls.localize('useGlobalIgnoreFiles', "Controls whether to use your global gitignore file (for example, from `$HOME/.config/git/ignore`) when searching for files. Requires {0} to be enabled.", '`#search.useIgnoreFiles#`'),
 			default: false,
 			scope: ConfigurationScope.RESOURCE
 		},
 		'search.useParentIgnoreFiles': {
 			type: 'boolean',
-			markdownDescription: nls.localize('useParentIgnoreFiles', "Controls whether to use `.gitignore` and `.ignore` files in parent directories when searching for files. Requires `#search.useIgnoreFiles#` to be enabled."),
+			markdownDescription: nls.localize('useParentIgnoreFiles', "Controls whether to use `.gitignore` and `.ignore` files in parent directories when searching for files. Requires {0} to be enabled.", '`#search.useIgnoreFiles#`'),
 			default: false,
 			scope: ConfigurationScope.RESOURCE
 		},
@@ -197,6 +197,11 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('search.quickOpen.includeSymbols', "Whether to include results from a global symbol search in the file results for Quick Open."),
 			default: false
+		},
+		'search.ripgrep.maxThreads': {
+			type: 'number',
+			description: nls.localize('search.ripgrep.maxThreads', "Number of threads to use for searching. When set to 0, the engine automatically determines this value."),
+			default: 0
 		},
 		'search.quickOpen.includeHistory': {
 			type: 'boolean',
@@ -238,7 +243,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'search.maxResults': {
 			type: ['number', 'null'],
-			default: 20000,
+			default: DEFAULT_MAX_SEARCH_RESULTS,
 			markdownDescription: nls.localize('search.maxResults', "Controls the maximum number of search results, this can be set to `null` (empty) to return unlimited results.")
 		},
 		'search.collapseResults': {

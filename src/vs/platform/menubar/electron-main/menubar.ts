@@ -25,6 +25,7 @@ import { IUpdateService, StateType } from 'vs/platform/update/common/update';
 import { INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, IWindowOpenable, hasNativeTitlebar } from 'vs/platform/window/common/window';
 import { IWindowsCountChangedEvent, IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { IWorkspacesHistoryMainService } from 'vs/platform/workspaces/electron-main/workspacesHistoryMainService';
+import { Disposable } from 'vs/base/common/lifecycle';
 
 const telemetryFrom = 'menu';
 
@@ -42,7 +43,7 @@ interface IMenuItemWithKeybinding {
 	userSettingsLabel?: string;
 }
 
-export class Menubar {
+export class Menubar extends Disposable {
 
 	private static readonly lastKnownMenubarStorageKey = 'lastKnownMenubarData';
 
@@ -78,6 +79,8 @@ export class Menubar {
 		@IProductService private readonly productService: IProductService,
 		@IAuxiliaryWindowsMainService private readonly auxiliaryWindowsMainService: IAuxiliaryWindowsMainService
 	) {
+		super();
+
 		this.menuUpdater = new RunOnceScheduler(() => this.doUpdateMenu(), 0);
 
 		this.menuGC = new RunOnceScheduler(() => { this.oldMenus = []; }, 10000);
@@ -169,12 +172,12 @@ export class Menubar {
 	private registerListeners(): void {
 
 		// Keep flag when app quits
-		this.lifecycleMainService.onWillShutdown(() => this.willShutdown = true);
+		this._register(this.lifecycleMainService.onWillShutdown(() => this.willShutdown = true));
 
 		// Listen to some events from window service to update menu
-		this.windowsMainService.onDidChangeWindowsCount(e => this.onDidChangeWindowsCount(e));
-		this.nativeHostMainService.onDidBlurMainWindow(() => this.onDidChangeWindowFocus());
-		this.nativeHostMainService.onDidFocusMainWindow(() => this.onDidChangeWindowFocus());
+		this._register(this.windowsMainService.onDidChangeWindowsCount(e => this.onDidChangeWindowsCount(e)));
+		this._register(this.nativeHostMainService.onDidBlurMainWindow(() => this.onDidChangeWindowFocus()));
+		this._register(this.nativeHostMainService.onDidFocusMainWindow(() => this.onDidChangeWindowFocus()));
 	}
 
 	private get currentEnableMenuBarMnemonics(): boolean {
