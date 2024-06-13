@@ -441,11 +441,9 @@ export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 	public getMetadataForRun(run: vscode.TestRun) {
 		for (const tracker of this.runTracker.trackers) {
 			const taskId = tracker.getTaskIdForRun(run);
-			if (!taskId) {
-				return undefined;
+			if (taskId) {
+				return { taskId, runId: tracker.id };
 			}
-
-			return { taskId, runId: tracker.id };
 		}
 
 		return undefined;
