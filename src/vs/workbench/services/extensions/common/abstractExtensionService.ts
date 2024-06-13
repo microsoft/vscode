@@ -704,11 +704,10 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		if (!veto) {
 			this._doStopExtensionHosts();
 		} else {
-			const vetoReasonsArray = Array.from(vetoReasons);
-
-			this._logService.warn(`Extension host was not stopped because of veto (stop reason: ${reason}, veto reason: ${vetoReasonsArray.join(', ')})`);
-
 			if (!auto) {
+				const vetoReasonsArray = Array.from(vetoReasons);
+
+				this._logService.warn(`Extension host was not stopped because of veto (stop reason: ${reason}, veto reason: ${vetoReasonsArray.join(', ')})`);
 				await this._dialogService.warn(
 					nls.localize('extensionStopVetoMessage', "The following operation was blocked: {0}", reason),
 					vetoReasonsArray.length === 1 ?
