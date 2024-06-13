@@ -44,8 +44,8 @@ export class ParcelWatcherInstance extends Disposable {
 	private readonly nonRecursiveSubscriptions = new Map<string, Set<(change: IFileChange) => void>>();
 	private readonly recursiveSubscriptions = new Map<string, Set<(change: IFileChange) => void>>();
 
-	private _subscriptionsCount = 0;
-	get subscriptionsCount() { return this._subscriptionsCount; }
+	public subscriptionsCount = 0;
+	public isReusingRecursiveWatcher = false;
 
 	constructor(
 		/**
@@ -66,7 +66,11 @@ export class ParcelWatcherInstance extends Disposable {
 		 * An event aggregator to coalesce events and reduce duplicates.
 		 */
 		readonly worker: RunOnceWorker<IFileChange>,
-		private readonly stopFn: () => Promise<void>
+
+		/*
+		 * The function to stop the watcher.
+		 */
+		private readonly stopFn: () => Promise<void>,
 	) {
 		super();
 	}
@@ -83,13 +87,13 @@ export class ParcelWatcherInstance extends Disposable {
 		}
 
 		subscriptions.add(callback);
-		this._subscriptionsCount++;
+		this.subscriptionsCount++;
 
 		return toDisposable(() => {
 			const subscriptions = targetSubscriptions.get(path);
 			if (subscriptions) {
 				subscriptions.delete(callback);
-				this._subscriptionsCount--;
+				this.subscriptionsCount--;
 
 				if (subscriptions.size === 0) {
 					targetSubscriptions.delete(path);
@@ -374,7 +378,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		// Path checks for symbolic links / wrong casing
 		const { realPath, realPathDiffers, realPathLength } = this.normalizePath(request);
 
-		this.doStartWatching(watcher.request, realPath, (error, parcelEvents) => {
+		this.doStartWatching(watcher, realPath, (error, parcelEvents) => {
 			if (watcher.token.isCancellationRequested) {
 				return; // return early when disposed
 			}
@@ -401,8 +405,8 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		});
 	}
 
-	private async doStartWatching(request: IRecursiveWatchRequest, realPath: string, callback: (error: Error | true | null, events: parcelWatcher.Event[]) => void): Promise<IParcelWatcherSubscription> {
-		const subscription = this.subscribe(request, (error, event) => {
+	private async doStartWatching(instance: ParcelWatcherInstance, realPath: string, callback: (error: Error | true | null, events: parcelWatcher.Event[]) => void): Promise<IParcelWatcherSubscription> {
+		const subscription = this.subscribe(instance.request, (error, event) => {
 			if (error) {
 				callback(error, []);
 			} else if (event) {
@@ -416,12 +420,14 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		if (subscription) {
 			this.trace(`reusing an existing recursive watcher for '${realPath}'`);
 
+			instance.isReusingRecursiveWatcher = true;
+
 			return { unsubscribe: async () => subscription.dispose() };
 		}
 
 		return parcelWatcher.subscribe(realPath, callback, {
 			backend: ParcelWatcher.PARCEL_WATCHER_BACKEND,
-			ignore: request.excludes
+			ignore: instance.request.excludes
 		}).then(parcelWatcher => {
 			this.trace(`Started watching: '${realPath}' with backend '${ParcelWatcher.PARCEL_WATCHER_BACKEND}'`);
 
