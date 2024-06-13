@@ -802,7 +802,7 @@ export class UninstallAction extends ExtensionAction {
 	static readonly UninstallLabel = localize('uninstallAction', "Uninstall");
 	private static readonly UninstallingLabel = localize('Uninstalling', "Uninstalling");
 
-	private static readonly UninstallClass = `${ExtensionAction.LABEL_ACTION_CLASS} uninstall`;
+	static readonly UninstallClass = `${ExtensionAction.LABEL_ACTION_CLASS} uninstall`;
 	private static readonly UnInstallingClass = `${ExtensionAction.LABEL_ACTION_CLASS} uninstall uninstalling`;
 
 	constructor(
