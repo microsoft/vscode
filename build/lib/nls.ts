@@ -396,15 +396,12 @@ module _nls {
 		return JSON.parse(smg.toString());
 	}
 
-	function parseLocalizeKeyOrValue(sourceValue: string) {
-		// sourceValue can be "foo", 'foo', `foo` or "{ .... }"
+	function parseLocalizeKeyOrValue(sourceExpression: string) {
+		// sourceValue can be "foo", 'foo', `foo` or { .... }
+		// in its evalulated form
 		// we want to return either the string or the object
-		try {
-			// eslint-disable-next-line no-eval
-			return eval(`(${sourceValue})`);
-		} catch (e) {
-			return sourceValue;
-		}
+		// eslint-disable-next-line no-eval
+		return eval(`(${sourceExpression})`);
 	}
 
 	function patch(ts: typeof import('typescript'), moduleId: string, typescript: string, javascript: string, sourcemap: sm.RawSourceMap): INlsStringResult {

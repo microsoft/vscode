@@ -298,16 +298,12 @@ var _nls;
         }
         return JSON.parse(smg.toString());
     }
-    function parseLocalizeKeyOrValue(sourceValue) {
-        // sourceValue can be "foo", 'foo', `foo` or "{ .... }"
+    function parseLocalizeKeyOrValue(sourceExpression) {
+        // sourceValue can be "foo", 'foo', `foo` or { .... }
+        // in its evalulated form
         // we want to return either the string or the object
-        try {
-            // eslint-disable-next-line no-eval
-            return eval(`(${sourceValue})`);
-        }
-        catch (e) {
-            return sourceValue;
-        }
+        // eslint-disable-next-line no-eval
+        return eval(`(${sourceExpression})`);
     }
     function patch(ts, moduleId, typescript, javascript, sourcemap) {
         const { localizeCalls } = analyze(ts, typescript, 'localize');
