@@ -109,6 +109,10 @@ export class LanguageFeatureRegistry<T> {
 		return result;
 	}
 
+	allNoModel(): T[] {
+		return this._entries.map(entry => entry.provider);
+	}
+
 	ordered(model: ITextModel): T[] {
 		const result: T[] = [];
 		this._orderedForEach(model, entry => result.push(entry.provider));

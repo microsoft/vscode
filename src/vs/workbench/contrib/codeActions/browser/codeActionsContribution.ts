@@ -8,6 +8,7 @@ import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
 import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { editorConfigurationBaseNode } from 'vs/editor/common/config/editorConfigurationSchema';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { codeActionCommandId, refactorCommandId, sourceActionCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { CodeActionKind } from 'vs/editor/contrib/codeAction/common/types';
 import * as nls from 'vs/nls';
@@ -72,14 +73,25 @@ export const editorConfiguration = Object.freeze<IConfigurationNode>({
 export class CodeActionsContribution extends Disposable implements IWorkbenchContribution {
 
 	private _contributedCodeActions: CodeActionsExtensionPoint[] = [];
+	private settings: string[] = [];
 
 	private readonly _onDidChangeContributions = this._register(new Emitter<void>());
 
 	constructor(
 		codeActionsExtensionPoint: IExtensionPoint<CodeActionsExtensionPoint[]>,
 		@IKeybindingService keybindingService: IKeybindingService,
+		@ILanguageFeaturesService languageFeatures: ILanguageFeaturesService
 	) {
 		super();
+
+		// this.updateSettingsFromCodeActionProviders(languageFeatures);
+
+		languageFeatures.codeActionProvider.onDidChange(() => {
+			this.updateSettingsFromCodeActionProviders(languageFeatures);
+			this.updateConfigurationSchemaFromContribs();
+		}, 2000);
+
+
 
 		codeActionsExtensionPoint.setHandler(extensionPoints => {
 			this._contributedCodeActions = extensionPoints.flatMap(x => x.value).filter(x => Array.isArray(x.actions));
@@ -93,10 +105,34 @@ export class CodeActionsContribution extends Disposable implements IWorkbenchCon
 		});
 	}
 
+	private updateSettingsFromCodeActionProviders(languageFeatures: ILanguageFeaturesService): void {
+		const providers = languageFeatures.codeActionProvider.allNoModel();
+		providers.forEach(provider => {
+			if (provider.providedCodeActionKinds) {
+				provider.providedCodeActionKinds.forEach(kind => {
+					if (!this.settings.includes(kind) && CodeActionKind.Source.contains(new HierarchicalKind(kind))) {
+						this.settings.push(kind);
+					}
+				});
+			}
+		});
+	}
+
 	private updateConfigurationSchema(codeActionContributions: readonly CodeActionsExtensionPoint[]) {
 		const newProperties: IJSONSchemaMap = { ...codeActionsOnSaveDefaultProperties };
 		for (const [sourceAction, props] of this.getSourceActions(codeActionContributions)) {
+			this.settings.push(sourceAction);
 			newProperties[sourceAction] = createCodeActionsAutoSave(nls.localize('codeActionsOnSave.generic', "Controls whether '{0}' actions should be run on file save.", props.title));
+		}
+		codeActionsOnSaveSchema.properties = newProperties;
+		Registry.as<IConfigurationRegistry>(Extensions.Configuration)
+			.notifyConfigurationSchemaUpdated(editorConfiguration);
+	}
+
+	private updateConfigurationSchemaFromContribs() {
+		const newProperties: IJSONSchemaMap = { ...codeActionsOnSaveDefaultProperties };
+		for (const codeActionKind of this.settings) {
+			newProperties[codeActionKind] = createCodeActionsAutoSave(nls.localize('codeActionsOnSave.generic', "Controls whether '{0}' actions should be run on file save.", codeActionKind));
 		}
 		codeActionsOnSaveSchema.properties = newProperties;
 		Registry.as<IConfigurationRegistry>(Extensions.Configuration)
