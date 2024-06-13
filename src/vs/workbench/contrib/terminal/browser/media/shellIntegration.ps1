@@ -52,7 +52,7 @@ if ($env:VSCODE_ENV_APPEND) {
 function Global:__VSCode-Escape-Value([string]$value) {
 	# NOTE: In PowerShell v6.1+, this can be written `$value -replace '…', { … }` instead of `[regex]::Replace`.
 	# Replace any non-alphanumeric characters.
-	[regex]::Replace($value, "[$([char]0x1b)\\\n;]", { param($match)
+	[regex]::Replace($value, "[$([char]0x00)-$([char]0x1f)\\\n;]", { param($match)
 			# Encode the (ascii) matches as `\x<hex>`
 			-Join (
 				[System.Text.Encoding]::UTF8.GetBytes($match.Value) | ForEach-Object { '\x{0:x2}' -f $_ }
