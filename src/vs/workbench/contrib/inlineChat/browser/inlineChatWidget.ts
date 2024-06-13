@@ -47,7 +47,7 @@ import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { IChatListItemRendererOptions } from 'vs/workbench/contrib/chat/browser/chat';
+import { IChatWidgetViewOptions } from 'vs/workbench/contrib/chat/browser/chat';
 
 
 export interface InlineChatWidgetViewState {
@@ -57,18 +57,7 @@ export interface InlineChatWidgetViewState {
 }
 
 export interface IInlineChatWidgetConstructionOptions {
-	/**
-	 * The telemetry source for all commands of this widget
-	 */
-	telemetrySource: string;
-	/**
-	 * The menu that is inside the input editor, use for send, dictation
-	 */
-	inputMenuId: MenuId;
-	/**
-	 * The menu that next to the input editor, use for close, config etc
-	 */
-	widgetMenuId: MenuId;
+
 	/**
 	 * The menu that rendered as button bar, use for accept, discard etc
 	 */
@@ -78,9 +67,10 @@ export interface IInlineChatWidgetConstructionOptions {
 	 */
 	feedbackMenuId?: MenuId;
 
-	editorOverflowWidgetsDomNode?: HTMLElement;
-
-	rendererOptions?: IChatListItemRendererOptions;
+	/**
+	 * The options for the chat widget
+	 */
+	chatWidgetViewOptions?: IChatWidgetViewOptions;
 }
 
 export interface IInlineChatMessage {
@@ -170,13 +160,7 @@ export class InlineChatWidget {
 				renderInputOnTop: true,
 				renderFollowups: true,
 				supportsFileReferences: true,
-				editorOverflowWidgetsDomNode: options.editorOverflowWidgetsDomNode,
-				rendererOptions: options.rendererOptions,
-				menus: {
-					executeToolbar: options.inputMenuId,
-					inputSideToolbar: options.widgetMenuId,
-					telemetrySource: options.telemetrySource
-				},
+				// editorOverflowWidgetsDomNode: options.editorOverflowWidgetsDomNode,
 				filter: item => {
 					if (isWelcomeVM(item)) {
 						return false;
@@ -186,6 +170,7 @@ export class InlineChatWidget {
 					}
 					return true;
 				},
+				...options.chatWidgetViewOptions
 			},
 			{
 				listForeground: editorForeground,
@@ -464,9 +449,6 @@ export class InlineChatWidget {
 		return tail(requests)?.response?.response.asString();
 	}
 
-	get usesDefaultChatModel(): boolean {
-		return this.getChatModel() === this._defaultChatModel;
-	}
 
 	getChatModel(): IChatModel {
 		return this._chatWidget.viewModel?.model ?? this._defaultChatModel;
@@ -608,7 +590,7 @@ export class EditorBasedInlineChatWidget extends InlineChatWidget {
 		@IChatService chatService: IChatService,
 		@IHoverService hoverService: IHoverService,
 	) {
-		super(location, { ...options, editorOverflowWidgetsDomNode: _parentEditor.getOverflowWidgetsDomNode() }, instantiationService, contextKeyService, keybindingService, accessibilityService, configurationService, accessibleViewService, textModelResolverService, chatService, hoverService);
+		super(location, { ...options, chatWidgetViewOptions: { editorOverflowWidgetsDomNode: _parentEditor.getOverflowWidgetsDomNode() } }, instantiationService, contextKeyService, keybindingService, accessibilityService, configurationService, accessibleViewService, textModelResolverService, chatService, hoverService);
 	}
 
 	// --- layout
