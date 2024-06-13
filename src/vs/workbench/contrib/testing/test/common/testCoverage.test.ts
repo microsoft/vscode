@@ -8,7 +8,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { SinonSandbox, createSandbox } from 'sinon';
 import { Iterable } from 'vs/base/common/iterator';
 import { URI } from 'vs/base/common/uri';

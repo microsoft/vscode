@@ -19,15 +19,6 @@ declare module 'vscode' {
 		 * @param icon An icon to display when selecting context in the picker UI.
 		 */
 		export function registerChatVariableResolver(id: string, name: string, userDescription: string, modelDescription: string | undefined, isSlow: boolean | undefined, resolver: ChatVariableResolver, fullName?: string, icon?: ThemeIcon): Disposable;
-
-		/**
-		 * Attaches a chat context with the specified name, value, and location.
-		 *
-		 * @param name - The name of the chat context.
-		 * @param value - The value of the chat context.
-		 * @param location - The location of the chat context.
-		 */
-		export function attachContext(name: string, value: string | Uri | Location | unknown, location: ChatLocation.Panel): void;
 	}
 
 	export interface ChatVariableValue {

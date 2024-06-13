@@ -5,7 +5,7 @@
 
 
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';

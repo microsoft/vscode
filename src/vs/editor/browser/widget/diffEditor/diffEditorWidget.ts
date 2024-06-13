@@ -5,7 +5,7 @@
 import { getWindow, h } from 'vs/base/browser/dom';
 import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 import { findLast } from 'vs/base/common/arraysFind';
-import { onUnexpectedError } from 'vs/base/common/errors';
+import { BugIndicatingError, onUnexpectedError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { IObservable, ITransaction, autorun, autorunWithStore, derived, observableFromEvent, observableValue, recomputeInitiallyAndOnChange, subtransaction, transaction } from 'vs/base/common/observable';
@@ -111,7 +111,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		this._contextKeyService.createKey('isInDiffEditor', true);
 
 		this._domElement.appendChild(this.elements.root);
-		this._register(toDisposable(() => this._domElement.removeChild(this.elements.root)));
+		this._register(toDisposable(() => this.elements.root.remove()));
 
 		this._rootSizeObserver = this._register(new ObservableElementSizeObserver(this.elements.root, options.dimension));
 		this._rootSizeObserver.setAutomaticLayout(options.automaticLayout ?? false);
@@ -325,6 +325,17 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 
 		this._register(autorunWithStore((reader, store) => {
 			store.add(new (readHotReloadableExport(RevertButtonsFeature, reader))(this._editors, this._diffModel, this._options, this));
+		}));
+
+		this._register(autorunWithStore((reader, store) => {
+			const model = this._diffModel.read(reader);
+			if (!model) { return; }
+			for (const m of [model.model.original, model.model.modified]) {
+				store.add(m.onWillDispose(e => {
+					onUnexpectedError(new BugIndicatingError('TextModel got disposed before DiffEditorWidget model got reset'));
+					this.setModel(null);
+				}));
+			}
 		}));
 	}
 

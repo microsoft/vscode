@@ -8,7 +8,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/uti
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ChatAgentService, IChatAgentData, IChatAgentImplementation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import * as assert from 'assert';
+import assert from 'assert';
 
 const testAgentId = 'testAgent';
 const testAgentData: IChatAgentData = {

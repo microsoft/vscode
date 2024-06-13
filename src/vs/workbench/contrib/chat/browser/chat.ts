@@ -107,8 +107,17 @@ export interface IChatWidgetViewOptions {
 	filter?: (item: ChatTreeItem) => boolean;
 	rendererOptions?: IChatListItemRendererOptions;
 	menus?: {
+		/**
+		 * The menu that is inside the input editor, use for send, dictation
+		 */
 		executeToolbar?: MenuId;
+		/**
+		 * The menu that next to the input editor, use for close, config etc
+		 */
 		inputSideToolbar?: MenuId;
+		/**
+		 * The telemetry source for all commands of this widget
+		 */
 		telemetrySource?: string;
 	};
 	defaultElementHeight?: number;
