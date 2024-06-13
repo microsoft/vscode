@@ -8,7 +8,7 @@ import { CancellationToken, cancelOnDispose } from 'vs/base/common/cancellation'
 import { itemsEquals, structuralEquals } from 'vs/base/common/equals';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, ITransaction, ObservablePromise, derived, derivedHandleChanges, derivedOpts, disposableObservableValue, observableSignal, observableValue, recomputeInitiallyAndOnChange, subtransaction } from 'vs/base/common/observable';
+import { IObservable, ISettableObservable, ITransaction, ObservablePromise, derived, derivedHandleChanges, derivedOpts, disposableObservableValue, observableSignal, observableValue, recomputeInitiallyAndOnChange, subtransaction } from 'vs/base/common/observable';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffProviderFactoryService } from 'vs/editor/browser/widget/diffEditor/diffProviderFactoryService';
@@ -44,17 +44,17 @@ export class InlineEditsModel extends Disposable {
 
 	public readonly isPinned = this._pinnedRange.range.map(range => !!range);
 
+	public readonly userPrompt: ISettableObservable<string> = observableValue<string>(this, '');
+
 	constructor(
 		public readonly textModel: ITextModel,
 		public readonly _textModelVersionId: IObservable<number | null, IModelContentChangedEvent | undefined>,
 		private readonly _selection: IObservable<Selection>,
 		protected readonly _debounceValue: IFeatureDebounceInformation,
 		protected readonly _enabled: IObservable<boolean>,
-		protected readonly _userPrompt: IObservable<string>,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IDiffProviderFactoryService private readonly _diffProviderFactoryService: IDiffProviderFactoryService,
 		@IModelService private readonly _modelService: IModelService,
-
 	) {
 		super();
 
@@ -65,10 +65,14 @@ export class InlineEditsModel extends Disposable {
 		return this._inlineEdit.read(reader)?.promiseResult.read(reader)?.data;
 	});
 
-	public readonly _inlineEdit = derived<ObservablePromise<InlineEdit> | undefined>(this, reader => {
+	public readonly _inlineEdit = derived<ObservablePromise<InlineEdit | undefined> | undefined>(this, reader => {
 		const edit = this.selectedInlineEdit.read(reader);
 		if (!edit) { return undefined; }
 		const range = edit.inlineCompletion.range;
+		if (edit.inlineCompletion.insertText.trim() === '') {
+			return undefined;
+		}
+
 		let newLines = edit.inlineCompletion.insertText.split(/\r\n|\r|\n/);
 
 		function removeIndentation(lines: string[]): string[] {
@@ -91,6 +95,10 @@ export class InlineEditsModel extends Disposable {
 				ignoreTrimWhitespace: false,
 				maxComputationTimeMs: 1000,
 			}, CancellationToken.None);
+
+			if (result.identical) {
+				return undefined;
+			}
 
 			return new InlineEdit(LineRange.fromRangeInclusive(range), removeIndentation(newLines), result.changes);
 		});
@@ -123,15 +131,19 @@ export class InlineEditsModel extends Disposable {
 		}*/
 		this._textModelVersionId.read(reader);
 
-		const selection = this._pinnedRange.range.read(reader) ?? this._selection.read(reader);
-		if (selection.isEmpty()) {
+		function mapValue<T, TOut>(value: T, fn: (value: T) => TOut): TOut {
+			return fn(value);
+		}
+
+		const selection = this._pinnedRange.range.read(reader) ?? mapValue(this._selection.read(reader), v => v.isEmpty() ? undefined : v);
+		if (!selection) {
 			this._inlineEditsFetchResult.set(undefined, undefined);
 			return undefined;
 		}
 		const context: InlineCompletionContext = {
 			triggerKind: changeSummary.inlineCompletionTriggerKind,
 			selectedSuggestionInfo: undefined,
-			userPrompt: this._userPrompt.read(reader),
+			userPrompt: this.userPrompt.read(reader),
 		};
 
 		const token = cancelOnDispose(this._fetchStore);
@@ -159,6 +171,7 @@ export class InlineEditsModel extends Disposable {
 
 	public stop(tx?: ITransaction): void {
 		subtransaction(tx, tx => {
+			this.userPrompt.set('', tx);
 			this._isActive.set(false, tx);
 			this._inlineEditsFetchResult.set(undefined, tx);
 			this._pinnedRange.setRange(undefined, tx);

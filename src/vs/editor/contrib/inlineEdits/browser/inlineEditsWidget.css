@@ -3,11 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-editor {
-	--stop-color: rgb(37, 37, 37);
-}
-
 .monaco-editor div.inline-edits-widget {
+	--widget-color: var(--vscode-notifications-background);
+
 	.promptEditor .monaco-editor {
 		--vscode-editor-placeholder-foreground: var(--vscode-editorGhostText-foreground);
 	}
@@ -25,7 +23,8 @@
 	.preview .monaco-editor {
 
 		.mtk1 {
-			color: rgba(215, 215, 215, 0.452);
+			/*color: rgba(215, 215, 215, 0.452);*/
+			color: var(--vscode-editorGhostText-foreground);
 		}
 		.view-overlays .current-line-exact {
 			border: none;
@@ -35,14 +34,16 @@
 			border: none;
 		}
 
-		--vscode-editor-background: var(--stop-color);
+		--vscode-editor-background: var(--widget-color);
 	}
-}
 
-.my-start {
-	stop-color: var(--vscode-editor-background);
-}
+	svg {
+		.my-start {
+			stop-color: var(--vscode-editor-background);
+		}
 
-.my-stop {
-	stop-color: var(--stop-color);
+		.my-stop {
+			stop-color: var(--widget-color);
+		}
+	}
 }

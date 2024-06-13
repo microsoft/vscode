@@ -7,6 +7,7 @@ import { equalsIfDefined, itemsEquals } from 'vs/base/common/equals';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IObservable, ITransaction, autorun, autorunOpts, autorunWithStoreHandleChanges, derived, derivedOpts, observableFromEvent, observableSignal, observableValue, observableValueOpts } from 'vs/base/common/observable';
 import { TransactionImpl } from 'vs/base/common/observableInternal/base';
+import { derivedWithSetter } from 'vs/base/common/observableInternal/derived';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { EditorOption, FindComputedEditorOptionValueById } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
@@ -168,7 +169,17 @@ export class ObservableCodeEditor extends Disposable {
 		};
 	}, () => this.editor.hasWidgetFocus());
 
-	public readonly value = derived(this, reader => { this.versionId.read(reader); return this.model.read(reader)?.getValue(); });
+	public readonly value = derivedWithSetter(this,
+		reader => { this.versionId.read(reader); return this.model.read(reader)?.getValue() ?? ''; },
+		(value, tx) => {
+			const model = this.model.get();
+			if (model !== null) {
+				if (value !== model.getValue()) {
+					model.setValue(value);
+				}
+			}
+		}
+	);
 	public readonly valueIsEmpty = derived(this, reader => { this.versionId.read(reader); return this.editor.getModel()?.getValueLength() === 0; });
 	public readonly cursorSelection = derivedOpts({ owner: this, equalsFn: equalsIfDefined(Selection.selectionsEqual) }, reader => this.selections.read(reader)?.[0] ?? null);
 	public readonly cursorPosition = derivedOpts({ owner: this, equalsFn: Position.equals }, reader => this.selections.read(reader)?.[0]?.getPosition() ?? null);

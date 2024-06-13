@@ -5,8 +5,8 @@
 
 import { h, svgElem } from 'vs/base/browser/dom';
 import { DEFAULT_FONT_FAMILY } from 'vs/base/browser/fonts';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { autorun, constObservable, derived, IObservable } from 'vs/base/common/observable';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { autorun, constObservable, derived, IObservable, ISettableObservable } from 'vs/base/common/observable';
 import 'vs/css!./inlineEditsWidget';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
@@ -51,7 +51,7 @@ export class InlineEditsWidget extends Disposable {
 		h('div@editorContainer', { style: { position: 'absolute', top: '0px', left: '0px', width: '500px', height: '500px', } }, [
 			h('div.toolbar@toolbar', { style: { position: 'absolute', top: '-25px', left: '0px' } }),
 			h('div.promptEditor@promptEditor', { style: { position: 'absolute', top: '-25px', left: '80px', width: '300px', height: '22px' } }),
-			h('div.preview@editor', { style: { position: 'absolute', top: '0px', left: '0px', } })
+			h('div.preview@editor', { style: { position: 'absolute', top: '0px', left: '0px' } }),
 		]),
 		svgElem('svg', { style: { overflow: 'visible', pointerEvents: 'none' }, }, [
 			svgElem('defs', [
@@ -137,9 +137,6 @@ export class InlineEditsWidget extends Disposable {
 		},
 		this._editor
 	));
-
-	private readonly _promptEditorObs = observableCodeEditor(this._promptEditor);
-	public readonly userPrompt = this._promptEditorObs.value;
 
 	private readonly _previewEditor = this._register(this._instantiationService.createInstance(
 		EmbeddedCodeEditorWidget,
@@ -268,6 +265,7 @@ export class InlineEditsWidget extends Disposable {
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _edit: IObservable<InlineEdit | undefined>,
+		private readonly _userPrompt: ISettableObservable<string>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
@@ -290,10 +288,6 @@ export class InlineEditsWidget extends Disposable {
 		}));
 
 		this._previewEditor.setModel(this._previewTextModel);
-
-
-		this._promptEditor.setModel(this._promptTextModel);
-		this._promptEditor.layout();
 
 		this._register(this._previewEditorObs.setDecorations(this._decorations));
 
@@ -336,6 +330,10 @@ export class InlineEditsWidget extends Disposable {
 			const width = this._previewEditorObs.contentWidth.read(reader);
 			this._previewEditor.layout({ height: editHeight, width });
 		}));
+
+		this._promptEditor.setModel(this._promptTextModel);
+		this._promptEditor.layout();
+		this._register(createTwoWaySync(observableCodeEditor(this._promptEditor).value, this._userPrompt));
 	}
 }
 
@@ -375,4 +373,17 @@ class PathBuilder {
 	public build(): string {
 		return this._data;
 	}
+}
+
+function createTwoWaySync<T>(main: ISettableObservable<T>, target: ISettableObservable<T>): IDisposable {
+	const store = new DisposableStore();
+	store.add(autorun(reader => {
+		const value = main.read(reader);
+		target.set(value, undefined);
+	}));
+	store.add(autorun(reader => {
+		const value = target.read(reader);
+		main.set(value, undefined);
+	}));
+	return store;
 }

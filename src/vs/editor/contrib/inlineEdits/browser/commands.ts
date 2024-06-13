@@ -121,11 +121,10 @@ export class PinInlineEdit extends EditorAction {
 		super({
 			id: 'editor.action.inlineEdits.pin',
 			...labelAndAlias(nls.localize2('action.inlineEdits.pin', "Pin Inline Edit")),
-			precondition: inlineEditVisible,
+			precondition: undefined,
 			kbOpts: {
 				primary: KeyMod.Shift | KeyCode.Space,
 				weight: 20000,
-				kbExpr: inlineEditVisible,
 			}
 		});
 	}

@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { derived, derivedObservableWithCache, observableFromEvent } from 'vs/base/common/observable';
-import { derivedDisposable } from 'vs/base/common/observableInternal/derived';
+import { derived, derivedObservableWithCache, IReader, ISettableObservable, observableFromEvent, observableValue } from 'vs/base/common/observable';
+import { derivedDisposable, derivedWithSetter } from 'vs/base/common/observableInternal/derived';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { observableCodeEditor } from 'vs/editor/browser/observableCodeEditor';
 import { readHotReloadableExport } from 'vs/editor/browser/widget/diffEditor/utils';
@@ -50,8 +50,8 @@ export class InlineEditsController extends Disposable {
 			this._selection,
 			this._debounceValue,
 			this._enabled,
-			this._widget.map((w, reader) => w?.userPrompt.read(reader) ?? ''),
 		);
+
 		return model;
 	});
 
@@ -63,6 +63,7 @@ export class InlineEditsController extends Disposable {
 			readHotReloadableExport(InlineEditsWidget, reader),
 			this.editor,
 			this.model.map((m, reader) => m?.inlineEdit.read(reader)),
+			flattenSettableObservable((reader) => this.model.read(reader)?.userPrompt ?? observableValue('empty', '')),
 		);
 	});
 
@@ -81,4 +82,13 @@ export class InlineEditsController extends Disposable {
 		this.model.recomputeInitiallyAndOnChange(this._store);
 		this._widget.recomputeInitiallyAndOnChange(this._store);
 	}
+}
+
+function flattenSettableObservable<TResult>(fn: (reader: IReader | undefined) => ISettableObservable<TResult>): ISettableObservable<TResult> {
+	return derivedWithSetter(undefined, reader => {
+		const obs = fn(reader);
+		return obs.read(reader);
+	}, (value, tx) => {
+		fn(undefined).set(value, tx);
+	});
 }
