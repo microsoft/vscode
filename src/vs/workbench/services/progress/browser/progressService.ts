@@ -27,6 +27,7 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { stripIcons } from 'vs/base/common/iconLabels';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultDialogStyles, defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
+import { IUserActivityService } from 'vs/workbench/services/userActivity/common/userActivityService';
 
 export class ProgressService extends Disposable implements IProgressService {
 
@@ -40,13 +41,23 @@ export class ProgressService extends Disposable implements IProgressService {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@ILayoutService private readonly layoutService: ILayoutService,
-		@IKeybindingService private readonly keybindingService: IKeybindingService
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IUserActivityService private readonly userActivityService: IUserActivityService,
 	) {
 		super();
 	}
 
-	async withProgress<R = unknown>(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => Promise<R>, onDidCancel?: (choice?: number) => void): Promise<R> {
+	async withProgress<R = unknown>(options: IProgressOptions, originalTask: (progress: IProgress<IProgressStep>) => Promise<R>, onDidCancel?: (choice?: number) => void): Promise<R> {
 		const { location } = options;
+
+		const task = async (progress: IProgress<IProgressStep>) => {
+			const activeLock = this.userActivityService.markActive();
+			try {
+				return await originalTask(progress);
+			} finally {
+				activeLock.dispose();
+			}
+		};
 
 		const handleStringLocation = (location: string) => {
 			const viewContainer = this.viewDescriptorService.getViewContainerById(location);

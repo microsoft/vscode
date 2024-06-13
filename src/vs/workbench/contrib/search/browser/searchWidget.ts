@@ -523,7 +523,7 @@ export class SearchWidget extends Widget {
 			}
 		}));
 
-		this.replaceInput.onKeyDown((keyboardEvent) => this.onReplaceInputKeyDown(keyboardEvent));
+		this._register(this.replaceInput.onKeyDown((keyboardEvent) => this.onReplaceInputKeyDown(keyboardEvent)));
 		this.replaceInput.setValue(options.replaceValue || '');
 		this._register(this.replaceInput.inputBox.onDidChange(() => this._onReplaceValueChanged.fire()));
 		this._register(this.replaceInput.inputBox.onDidHeightChange(() => this._onDidHeightChange.fire()));
@@ -664,6 +664,25 @@ export class SearchWidget extends Widget {
 
 		else if (keyboardEvent.equals(KeyCode.DownArrow)) {
 			stopPropagationForMultiLineDownwards(keyboardEvent, this.searchInput?.getValue() ?? '', this.searchInput?.domNode.querySelector('textarea') ?? null);
+		}
+
+		else if (keyboardEvent.equals(KeyCode.PageUp)) {
+			const inputElement = this.searchInput?.inputBox.inputElement;
+			if (inputElement) {
+				inputElement.setSelectionRange(0, 0);
+				inputElement.focus();
+				keyboardEvent.preventDefault();
+			}
+		}
+
+		else if (keyboardEvent.equals(KeyCode.PageDown)) {
+			const inputElement = this.searchInput?.inputBox.inputElement;
+			if (inputElement) {
+				const endOfText = inputElement.value.length;
+				inputElement.setSelectionRange(endOfText, endOfText);
+				inputElement.focus();
+				keyboardEvent.preventDefault();
+			}
 		}
 	}
 

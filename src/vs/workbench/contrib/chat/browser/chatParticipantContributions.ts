@@ -43,7 +43,7 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 					type: 'string'
 				},
 				name: {
-					description: localize('chatParticipantName', "User-facing name for this chat participant. The user will use '@' with this name to invoke the participant."),
+					description: localize('chatParticipantName', "User-facing name for this chat participant. The user will use '@' with this name to invoke the participant. Name must not contain whitespace."),
 					type: 'string',
 					pattern: '^[\\w0-9_-]+$'
 				},

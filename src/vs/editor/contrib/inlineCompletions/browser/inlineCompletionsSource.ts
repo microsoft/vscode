@@ -27,7 +27,7 @@ export class InlineCompletionsSource extends Disposable {
 
 	constructor(
 		private readonly textModel: ITextModel,
-		private readonly versionId: IObservable<number>,
+		private readonly versionId: IObservable<number | null>,
 		private readonly _debounceValue: IFeatureDebounceInformation,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@ILanguageConfigurationService private readonly languageConfigurationService: ILanguageConfigurationService,
@@ -62,7 +62,7 @@ export class InlineCompletionsSource extends Disposable {
 				await wait(this._debounceValue.get(this.textModel), source.token);
 			}
 
-			if (source.token.isCancellationRequested || this.textModel.getVersionId() !== request.versionId) {
+			if (source.token.isCancellationRequested || this._store.isDisposed || this.textModel.getVersionId() !== request.versionId) {
 				return false;
 			}
 
@@ -76,7 +76,7 @@ export class InlineCompletionsSource extends Disposable {
 				this.languageConfigurationService
 			);
 
-			if (source.token.isCancellationRequested || this.textModel.getVersionId() !== request.versionId) {
+			if (source.token.isCancellationRequested || this._store.isDisposed || this.textModel.getVersionId() !== request.versionId) {
 				return false;
 			}
 
@@ -182,7 +182,7 @@ export class UpToDateInlineCompletions implements IDisposable {
 		private readonly inlineCompletionProviderResult: InlineCompletionProviderResult,
 		public readonly request: UpdateRequest,
 		private readonly _textModel: ITextModel,
-		private readonly _versionId: IObservable<number>,
+		private readonly _versionId: IObservable<number | null>,
 	) {
 		const ids = _textModel.deltaDecorations([], inlineCompletionProviderResult.completions.map(i => ({
 			range: i.range,
@@ -254,7 +254,7 @@ export class InlineCompletionWithUpdatedRange {
 		public readonly inlineCompletion: InlineCompletionItem,
 		public readonly decorationId: string,
 		private readonly _textModel: ITextModel,
-		private readonly _modelVersion: IObservable<number>,
+		private readonly _modelVersion: IObservable<number | null>,
 	) {
 	}
 

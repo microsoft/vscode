@@ -202,7 +202,7 @@ export class HoverAccessibleViewProvider extends BaseHoverAccessibleViewProvider
 
 	public provideContent(): string {
 		const hoverContent = this._hoverController.markdownHoverContentAtIndex(this._markdownHoverFocusedIndex);
-		return hoverContent.length > 0 ? hoverContent : HoverAccessibilityHelpNLS.intro;
+		return hoverContent.length > 0 ? hoverContent : this._hoverController.getWidgetContent() || HoverAccessibilityHelpNLS.intro;
 	}
 
 	public get actions(): IAction[] {

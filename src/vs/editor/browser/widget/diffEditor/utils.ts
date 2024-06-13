@@ -76,14 +76,14 @@ export function applyObservableDecorations(editor: ICodeEditor, decorations: IOb
 export function appendRemoveOnDispose(parent: HTMLElement, child: HTMLElement) {
 	parent.appendChild(child);
 	return toDisposable(() => {
-		parent.removeChild(child);
+		child.remove();
 	});
 }
 
 export function prependRemoveOnDispose(parent: HTMLElement, child: HTMLElement) {
 	parent.prepend(child);
 	return toDisposable(() => {
-		parent.removeChild(child);
+		child.remove();
 	});
 }
 

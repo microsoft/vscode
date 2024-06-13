@@ -207,7 +207,9 @@ async function loadTests(opts) {
 
 	for (const consoleFn of [console.log, console.error, console.info, console.warn, console.trace, console.debug]) {
 		console[consoleFn.name] = function (msg) {
-			if (!_allowedTestOutput.some(a => a.test(msg)) && !_allowedTestsWithOutput.has(currentTest.title)) {
+			if (!currentTest) {
+				consoleFn.apply(console, arguments);
+			} else if (!_allowedTestOutput.some(a => a.test(msg)) && !_allowedTestsWithOutput.has(currentTest.title)) {
 				_testsWithUnexpectedOutput = true;
 				consoleFn.apply(console, arguments);
 			}

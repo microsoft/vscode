@@ -9,6 +9,7 @@ import type { Unicode11Addon as Unicode11AddonType } from '@xterm/addon-unicode1
 import type { WebglAddon as WebglAddonType } from '@xterm/addon-webgl';
 import type { SerializeAddon as SerializeAddonType } from '@xterm/addon-serialize';
 import type { ImageAddon as ImageAddonType } from '@xterm/addon-image';
+import type { ClipboardAddon as ClipboardAddonType, ClipboardSelectionType } from '@xterm/addon-clipboard';
 import * as dom from 'vs/base/browser/dom';
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -44,6 +45,7 @@ const enum RenderConstants {
 	SmoothScrollDuration = 125
 }
 
+let ClipboardAddon: typeof ClipboardAddonType;
 let ImageAddon: typeof ImageAddonType;
 let SearchAddon: typeof SearchAddonType;
 let SerializeAddon: typeof SerializeAddonType;
@@ -117,6 +119,9 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	private _markNavigationAddon: MarkNavigationAddon;
 	private _shellIntegrationAddon: ShellIntegrationAddon;
 	private _decorationAddon: DecorationAddon;
+
+	// Always on dynamicly imported addons
+	private _clipboardAddon?: ClipboardAddonType;
 
 	// Optional addons
 	private _searchAddon?: SearchAddonType;
@@ -273,6 +278,17 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this.raw.loadAddon(this._decorationAddon);
 		this._shellIntegrationAddon = new ShellIntegrationAddon(shellIntegrationNonce, disableShellIntegrationReporting, this._telemetryService, this._logService);
 		this.raw.loadAddon(this._shellIntegrationAddon);
+		this._getClipboardAddonConstructor().then(ClipboardAddon => {
+			this._clipboardAddon = this._instantiationService.createInstance(ClipboardAddon, undefined, {
+				async readText(type: ClipboardSelectionType): Promise<string> {
+					return _clipboardService.readText(type === 'p' ? 'selection' : 'clipboard');
+				},
+				async writeText(type: ClipboardSelectionType, text: string): Promise<void> {
+					return _clipboardService.writeText(text, type === 'p' ? 'selection' : 'clipboard');
+				}
+			});
+			this.raw.loadAddon(this._clipboardAddon);
+		});
 
 		this._anyTerminalFocusContextKey = TerminalContextKeys.focusInAny.bindTo(contextKeyService);
 		this._anyFocusedTerminalHasSelection = TerminalContextKeys.textSelectedInFocused.bindTo(contextKeyService);
@@ -325,7 +341,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			this.raw.open(container);
 		}
 
-		// TODO: Move before open to the DOM renderer doesn't initialize
+		// TODO: Move before open so the DOM renderer doesn't initialize
 		if (options.enableGpu) {
 			if (this._shouldLoadWebgl()) {
 				this._enableWebglRenderer();
@@ -708,6 +724,13 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			}
 			this._imageAddon = undefined;
 		}
+	}
+
+	protected async _getClipboardAddonConstructor(): Promise<typeof ClipboardAddonType> {
+		if (!ClipboardAddon) {
+			ClipboardAddon = (await importAMDNodeModule<typeof import('@xterm/addon-clipboard')>('@xterm/addon-clipboard', 'lib/addon-clipboard.js')).ClipboardAddon;
+		}
+		return ClipboardAddon;
 	}
 
 	protected async _getImageAddonConstructor(): Promise<typeof ImageAddonType> {
