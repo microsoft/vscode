@@ -73,7 +73,7 @@ export const editorConfiguration = Object.freeze<IConfigurationNode>({
 export class CodeActionsContribution extends Disposable implements IWorkbenchContribution {
 
 	private _contributedCodeActions: CodeActionsExtensionPoint[] = [];
-	private settings: string[] = [];
+	private settings: Set<string> = new Set<string>();
 
 	private readonly _onDidChangeContributions = this._register(new Emitter<void>());
 
@@ -84,14 +84,13 @@ export class CodeActionsContribution extends Disposable implements IWorkbenchCon
 	) {
 		super();
 
-		// this.updateSettingsFromCodeActionProviders(languageFeatures);
+		// Adds the default from codeActionsOnSaveDefaultProperties (source.fixAll)
+		this.settings.add('source.fixAll');
 
 		languageFeatures.codeActionProvider.onDidChange(() => {
 			this.updateSettingsFromCodeActionProviders(languageFeatures);
 			this.updateConfigurationSchemaFromContribs();
 		}, 2000);
-
-
 
 		codeActionsExtensionPoint.setHandler(extensionPoints => {
 			this._contributedCodeActions = extensionPoints.flatMap(x => x.value).filter(x => Array.isArray(x.actions));
@@ -110,8 +109,8 @@ export class CodeActionsContribution extends Disposable implements IWorkbenchCon
 		providers.forEach(provider => {
 			if (provider.providedCodeActionKinds) {
 				provider.providedCodeActionKinds.forEach(kind => {
-					if (!this.settings.includes(kind) && CodeActionKind.Source.contains(new HierarchicalKind(kind))) {
-						this.settings.push(kind);
+					if (!this.settings.has(kind) && CodeActionKind.Source.contains(new HierarchicalKind(kind))) {
+						this.settings.add(kind);
 					}
 				});
 			}
@@ -121,7 +120,7 @@ export class CodeActionsContribution extends Disposable implements IWorkbenchCon
 	private updateConfigurationSchema(codeActionContributions: readonly CodeActionsExtensionPoint[]) {
 		const newProperties: IJSONSchemaMap = { ...codeActionsOnSaveDefaultProperties };
 		for (const [sourceAction, props] of this.getSourceActions(codeActionContributions)) {
-			this.settings.push(sourceAction);
+			this.settings.add(sourceAction);
 			newProperties[sourceAction] = createCodeActionsAutoSave(nls.localize('codeActionsOnSave.generic', "Controls whether '{0}' actions should be run on file save.", props.title));
 		}
 		codeActionsOnSaveSchema.properties = newProperties;
@@ -130,11 +129,13 @@ export class CodeActionsContribution extends Disposable implements IWorkbenchCon
 	}
 
 	private updateConfigurationSchemaFromContribs() {
-		const newProperties: IJSONSchemaMap = { ...codeActionsOnSaveDefaultProperties };
+		const properties: IJSONSchemaMap = { ...codeActionsOnSaveSchema.properties };
 		for (const codeActionKind of this.settings) {
-			newProperties[codeActionKind] = createCodeActionsAutoSave(nls.localize('codeActionsOnSave.generic', "Controls whether '{0}' actions should be run on file save.", codeActionKind));
+			if (!properties[codeActionKind]) {
+				properties[codeActionKind] = createCodeActionsAutoSave(nls.localize('codeActionsOnSave.generic', "Controls whether '{0}' actions should be run on file save.", codeActionKind));
+			}
 		}
-		codeActionsOnSaveSchema.properties = newProperties;
+		codeActionsOnSaveSchema.properties = properties;
 		Registry.as<IConfigurationRegistry>(Extensions.Configuration)
 			.notifyConfigurationSchemaUpdated(editorConfiguration);
 	}
