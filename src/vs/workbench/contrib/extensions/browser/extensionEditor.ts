@@ -49,11 +49,11 @@ import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { ExtensionFeaturesTab } from 'vs/workbench/contrib/extensions/browser/extensionFeaturesTab';
 import {
-	ActionWithDropDownAction,
+	ButtonWithDropDownExtensionAction,
 	ClearLanguageAction,
 	DisableDropDownAction,
 	EnableDropDownAction,
-	ExtensionActionWithDropdownActionViewItem, ExtensionDropDownAction,
+	ButtonWithDropdownExtensionActionViewItem, DropDownExtensionAction,
 	ExtensionEditorManageExtensionAction,
 	ExtensionStatusAction,
 	ExtensionStatusLabelAction,
@@ -71,7 +71,8 @@ import {
 	UninstallAction,
 	UpdateAction,
 	WebInstallAction,
-	TogglePreReleaseExtensionAction
+	TogglePreReleaseExtensionAction,
+	ExtensionAction,
 } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { Delegate } from 'vs/workbench/contrib/extensions/browser/extensionsList';
 import { ExtensionData, ExtensionsGridView, ExtensionsTree, getExtensions } from 'vs/workbench/contrib/extensions/browser/extensionsViewer';
@@ -333,7 +334,7 @@ export class ExtensionEditor extends EditorPane {
 		const actions = [
 			this.instantiationService.createInstance(ExtensionRuntimeStateAction),
 			this.instantiationService.createInstance(ExtensionStatusLabelAction),
-			this.instantiationService.createInstance(ActionWithDropDownAction, 'extensions.updateActions', '',
+			this.instantiationService.createInstance(ButtonWithDropDownExtensionAction, 'extensions.updateActions', ExtensionAction.PROMINENT_LABEL_ACTION_CLASS,
 				[[this.instantiationService.createInstance(UpdateAction, true)], [this.instantiationService.createInstance(ToggleAutoUpdateForExtensionAction, true, [true, 'onlyEnabledExtensions'])]]),
 			this.instantiationService.createInstance(SetColorThemeAction),
 			this.instantiationService.createInstance(SetFileIconThemeAction),
@@ -348,7 +349,7 @@ export class ExtensionEditor extends EditorPane {
 			this.instantiationService.createInstance(WebInstallAction),
 			installAction,
 			this.instantiationService.createInstance(InstallingLabelAction),
-			this.instantiationService.createInstance(ActionWithDropDownAction, 'extensions.uninstall', UninstallAction.UninstallLabel, [
+			this.instantiationService.createInstance(ButtonWithDropDownExtensionAction, 'extensions.uninstall', ExtensionAction.LABEL_ACTION_CLASS, [
 				[
 					this.instantiationService.createInstance(MigrateDeprecatedExtensionAction, false),
 					this.instantiationService.createInstance(UninstallAction),
@@ -363,11 +364,20 @@ export class ExtensionEditor extends EditorPane {
 		const actionsAndStatusContainer = append(details, $('.actions-status-container'));
 		const extensionActionBar = this._register(new ActionBar(actionsAndStatusContainer, {
 			actionViewItemProvider: (action: IAction, options) => {
-				if (action instanceof ExtensionDropDownAction) {
+				if (action instanceof DropDownExtensionAction) {
 					return action.createActionViewItem(options);
 				}
-				if (action instanceof ActionWithDropDownAction) {
-					return new ExtensionActionWithDropdownActionViewItem(action, { ...options, icon: true, label: true, menuActionsOrProvider: { getActions: () => action.menuActions }, menuActionClassNames: (action.class || '').split(' ') }, this.contextMenuService);
+				if (action instanceof ButtonWithDropDownExtensionAction) {
+					return new ButtonWithDropdownExtensionActionViewItem(
+						action,
+						{
+							...options,
+							icon: true,
+							label: true,
+							menuActionsOrProvider: { getActions: () => action.menuActions },
+							menuActionClassNames: action.menuActionClassNames
+						},
+						this.contextMenuService);
 				}
 				if (action instanceof ToggleAutoUpdateForExtensionAction) {
 					return new CheckboxActionViewItem(undefined, action, { ...options, icon: true, label: true, checkboxStyles: defaultCheckboxStyles });
