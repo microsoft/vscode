@@ -472,6 +472,15 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		}
 	}
 
+	sendReplInput(input: string): void {
+		const session = this.tree?.getInput();
+		if (session && !this.isReadonly) {
+			session.addReplExpression(this.debugService.getViewModel().focusedStackFrame, input);
+			revealLastElement(this.tree!);
+			this.history.add(input);
+		}
+	}
+
 	getVisibleContent(): string {
 		let text = '';
 		if (this.model && this.tree) {
