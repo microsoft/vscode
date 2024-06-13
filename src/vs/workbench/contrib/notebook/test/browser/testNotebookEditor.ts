@@ -65,7 +65,7 @@ import { EditorFontLigatures, EditorFontVariations } from 'vs/editor/common/conf
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { mainWindow } from 'vs/base/browser/window';
 import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
-import { INotebookCellOutlineProviderFactory, NotebookCellOutlineProviderFactory } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineProviderFactory';
+import { INotebookCellOutlineDataSourceFactory, NotebookCellOutlineDataSourceFactory } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineDataSourceFactory';
 import { ILanguageDetectionService } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
 
 export class TestCell extends NotebookCellTextModel {
@@ -199,7 +199,7 @@ export function setupInstantiationService(disposables: DisposableStore) {
 	instantiationService.stub(IKeybindingService, new MockKeybindingService());
 	instantiationService.stub(INotebookCellStatusBarService, disposables.add(new NotebookCellStatusBarService()));
 	instantiationService.stub(ICodeEditorService, disposables.add(new TestCodeEditorService(testThemeService)));
-	instantiationService.stub(INotebookCellOutlineProviderFactory, instantiationService.createInstance(NotebookCellOutlineProviderFactory));
+	instantiationService.stub(INotebookCellOutlineDataSourceFactory, instantiationService.createInstance(NotebookCellOutlineDataSourceFactory));
 
 	instantiationService.stub(ILanguageDetectionService, new class MockLanguageDetectionService implements ILanguageDetectionService {
 		_serviceBrand: undefined;
