@@ -80,7 +80,7 @@ export class CodeActionsContribution extends Disposable implements IWorkbenchCon
 	constructor(
 		codeActionsExtensionPoint: IExtensionPoint<CodeActionsExtensionPoint[]>,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@ILanguageFeaturesService languageFeatures: ILanguageFeaturesService
+		@ILanguageFeaturesService private readonly languageFeatures: ILanguageFeaturesService
 	) {
 		super();
 
@@ -88,7 +88,7 @@ export class CodeActionsContribution extends Disposable implements IWorkbenchCon
 		this.settings.add('source.fixAll');
 
 		languageFeatures.codeActionProvider.onDidChange(() => {
-			this.updateSettingsFromCodeActionProviders(languageFeatures);
+			this.updateSettingsFromCodeActionProviders();
 			this.updateConfigurationSchemaFromContribs();
 		}, 2000);
 
@@ -104,8 +104,8 @@ export class CodeActionsContribution extends Disposable implements IWorkbenchCon
 		});
 	}
 
-	private updateSettingsFromCodeActionProviders(languageFeatures: ILanguageFeaturesService): void {
-		const providers = languageFeatures.codeActionProvider.allNoModel();
+	private updateSettingsFromCodeActionProviders(): void {
+		const providers = this.languageFeatures.codeActionProvider.allNoModel();
 		providers.forEach(provider => {
 			if (provider.providedCodeActionKinds) {
 				provider.providedCodeActionKinds.forEach(kind => {
