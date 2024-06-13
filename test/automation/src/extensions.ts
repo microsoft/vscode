@@ -52,7 +52,7 @@ export class Extensions extends Viewlet {
 	async installExtension(id: string, waitUntilEnabled: boolean): Promise<void> {
 		await this.searchForExtension(id);
 		await this.code.waitAndClick(`div.extensions-viewlet[id="workbench.view.extensions"] .monaco-list-row[data-extension-id="${id}"] .extension-list-item .monaco-action-bar .action-item:not(.disabled) .extension-action.install`);
-		await this.code.waitForElement(`.extension-editor .monaco-action-bar .action-item:not(.disabled) .extension-action.uninstall`);
+		await this.code.waitForElement(`.extension-editor .monaco-action-bar .action-item:not(.disabled) a[aria-label="Uninstall"]`);
 		if (waitUntilEnabled) {
 			await this.code.waitForElement(`.extension-editor .monaco-action-bar .action-item:not(.disabled) a[aria-label="Disable this extension"]`);
 		}
