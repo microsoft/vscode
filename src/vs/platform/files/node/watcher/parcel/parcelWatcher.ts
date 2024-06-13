@@ -69,11 +69,6 @@ export class ParcelWatcherInstance extends Disposable {
 		private readonly stopFn: () => Promise<void>
 	) {
 		super();
-
-		this._register(toDisposable(() => {
-			this.nonRecursiveSubscriptions.clear();
-			this.recursiveSubscriptions.clear();
-		}));
 	}
 
 	subscribe(request: IUniversalWatchRequest, callback: (change: IFileChange) => void): IDisposable {
@@ -150,6 +145,13 @@ export class ParcelWatcherInstance extends Disposable {
 			this._onDidStop.fire({ joinRestart });
 			this.dispose();
 		}
+	}
+
+	override dispose(): void {
+		super.dispose();
+
+		this.nonRecursiveSubscriptions.clear();
+		this.recursiveSubscriptions.clear();
 	}
 }
 
