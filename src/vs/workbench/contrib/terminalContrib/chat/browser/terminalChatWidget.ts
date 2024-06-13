@@ -58,8 +58,6 @@ export class TerminalChatWidget extends Disposable {
 			InlineChatWidget,
 			ChatAgentLocation.Terminal,
 			{
-				inputMenuId: MENU_TERMINAL_CHAT_INPUT,
-				widgetMenuId: MENU_TERMINAL_CHAT_WIDGET,
 				statusMenuId: {
 					menu: MENU_TERMINAL_CHAT_WIDGET_STATUS,
 					options: {
@@ -72,8 +70,14 @@ export class TerminalChatWidget extends Disposable {
 						}
 					}
 				},
-				telemetrySource: 'terminal-inline-chat',
-				rendererOptions: { editableCodeBlock: true }
+				chatWidgetViewOptions: {
+					rendererOptions: { editableCodeBlock: true },
+					menus: {
+						telemetrySource: 'terminal-inline-chat',
+						executeToolbar: MENU_TERMINAL_CHAT_INPUT,
+						inputSideToolbar: MENU_TERMINAL_CHAT_WIDGET,
+					}
+				}
 			}
 		);
 		this._register(Event.any(
