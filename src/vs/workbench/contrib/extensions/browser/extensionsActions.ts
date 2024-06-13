@@ -366,7 +366,7 @@ export class ButtonWithDropdownExtensionActionViewItem extends ActionWithDropdow
 
 export class InstallAction extends ExtensionAction {
 
-	private static readonly CLASS = `${ExtensionAction.LABEL_ACTION_CLASS} prominent install`;
+	static readonly CLASS = `${ExtensionAction.LABEL_ACTION_CLASS} prominent install`;
 	private static readonly HIDE = `${InstallAction.CLASS} hide`;
 
 	protected _manifest: IExtensionManifest | null = null;
@@ -610,7 +610,7 @@ export class InstallDropdownAction extends ButtonWithDropDownExtensionAction {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IExtensionsWorkbenchService extensionsWorkbenchService: IExtensionsWorkbenchService,
 	) {
-		super(`extensions.installActions`, ExtensionAction.PROMINENT_LABEL_ACTION_CLASS, [
+		super(`extensions.installActions`, InstallAction.CLASS, [
 			[
 				instantiationService.createInstance(InstallAction, { installPreReleaseVersion: extensionsWorkbenchService.preferPreReleases }),
 				instantiationService.createInstance(InstallAction, { installPreReleaseVersion: !extensionsWorkbenchService.preferPreReleases }),
@@ -802,7 +802,7 @@ export class UninstallAction extends ExtensionAction {
 	static readonly UninstallLabel = localize('uninstallAction', "Uninstall");
 	private static readonly UninstallingLabel = localize('Uninstalling', "Uninstalling");
 
-	private static readonly UninstallClass = `${ExtensionAction.LABEL_ACTION_CLASS} uninstall`;
+	static readonly UninstallClass = `${ExtensionAction.LABEL_ACTION_CLASS} uninstall`;
 	private static readonly UnInstallingClass = `${ExtensionAction.LABEL_ACTION_CLASS} uninstall uninstalling`;
 
 	constructor(
