@@ -1342,6 +1342,17 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (toAdd.length || toRemove.length) {
 			if (await this.extensionService.stopExtensionHosts(nls.localize('restart', "Enable or Disable extensions"), auto)) {
 				await this.extensionService.startExtensionHosts({ toAdd, toRemove });
+				if (auto) {
+					type ExtensionsAutoRestartClassification = {
+						owner: 'sandy081';
+						comment: 'Report when extensions are auto restarted';
+						count: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of extensions auto restarted' };
+					};
+					type ExtensionsAutoRestartEvent = {
+						count: number;
+					};
+					this.telemetryService.publicLog2<ExtensionsAutoRestartEvent, ExtensionsAutoRestartClassification>('extensions:autorestart', { count: toAdd.length + toRemove.length });
+				}
 			}
 		}
 	}
