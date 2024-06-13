@@ -31,6 +31,7 @@ import { assertType } from 'vs/base/common/types';
 import { asCssVariable, selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { defaultSelectBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 
 export function createAndFillInContextMenuActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[] }, primaryGroup?: string): void {
 	const groups = menu.getActions(options);
@@ -282,6 +283,33 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 				})
 			);
 		}
+	}
+}
+
+export class TextOnlyMenuEntryActionViewItem extends MenuEntryActionViewItem {
+
+	override render(container: HTMLElement): void {
+		this.options.label = true;
+		this.options.icon = false;
+		super.render(container);
+		container.classList.add('text-only');
+	}
+
+	protected override updateLabel() {
+		const kb = this._keybindingService.lookupKeybinding(this._action.id, this._contextKeyService);
+		if (!kb) {
+			return super.updateLabel();
+		}
+		if (this.label) {
+			this.label.textContent = localize({
+				key: 'content',
+				comment: ['A label', 'A keybinding']
+			}, '{0} ({1})', this._action.label, TextOnlyMenuEntryActionViewItem._symbolPrintEnter(kb));
+		}
+	}
+
+	private static _symbolPrintEnter(kb: ResolvedKeybinding) {
+		return kb.getLabel()?.replace(/\benter\b/gi, '\u23CE');
 	}
 }
 
