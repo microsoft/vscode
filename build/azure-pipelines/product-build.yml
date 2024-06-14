@@ -171,7 +171,7 @@ extends:
   parameters:
     sdl:
       tsa:
-        enabled: false
+        enabled: true
         config:
           codebaseName: 'devdiv_$(Build.Repository.Name)'
           serviceTreeID: '79c048b2-322f-4ed5-a1ea-252a1250e4b3'
