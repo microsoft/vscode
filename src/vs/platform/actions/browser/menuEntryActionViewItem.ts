@@ -122,7 +122,7 @@ export interface IMenuEntryActionViewItemOptions {
 	hoverDelegate?: IHoverDelegate;
 }
 
-export class MenuEntryActionViewItem extends ActionViewItem {
+export class MenuEntryActionViewItem<T extends IMenuEntryActionViewItemOptions = IMenuEntryActionViewItemOptions> extends ActionViewItem {
 
 	private _wantsAltCommand: boolean = false;
 	private readonly _itemClassDispose = this._register(new MutableDisposable());
@@ -130,7 +130,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 
 	constructor(
 		action: MenuItemAction,
-		options: IMenuEntryActionViewItemOptions | undefined,
+		protected _options: T | undefined,
 		@IKeybindingService protected readonly _keybindingService: IKeybindingService,
 		@INotificationService protected _notificationService: INotificationService,
 		@IContextKeyService protected _contextKeyService: IContextKeyService,
@@ -138,7 +138,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 		@IContextMenuService protected _contextMenuService: IContextMenuService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
-		super(undefined, action, { icon: !!(action.class || action.item.icon), label: !action.class && !action.item.icon, draggable: options?.draggable, keybinding: options?.keybinding, hoverDelegate: options?.hoverDelegate });
+		super(undefined, action, { icon: !!(action.class || action.item.icon), label: !action.class && !action.item.icon, draggable: _options?.draggable, keybinding: _options?.keybinding, hoverDelegate: _options?.hoverDelegate });
 		this._altKey = ModifierKeyEmitter.getInstance();
 	}
 
@@ -286,7 +286,11 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 	}
 }
 
-export class TextOnlyMenuEntryActionViewItem extends MenuEntryActionViewItem {
+export interface ITextOnlyMenuEntryActionViewItemOptions extends IMenuEntryActionViewItemOptions {
+	conversational?: boolean;
+}
+
+export class TextOnlyMenuEntryActionViewItem extends MenuEntryActionViewItem<ITextOnlyMenuEntryActionViewItemOptions> {
 
 	override render(container: HTMLElement): void {
 		this.options.label = true;
@@ -301,15 +305,21 @@ export class TextOnlyMenuEntryActionViewItem extends MenuEntryActionViewItem {
 			return super.updateLabel();
 		}
 		if (this.label) {
-			this.label.textContent = localize({
-				key: 'content',
-				comment: ['A label', 'A keybinding']
-			}, '{0} ({1})', this._action.label, TextOnlyMenuEntryActionViewItem._symbolPrintEnter(kb));
+			const kb2 = TextOnlyMenuEntryActionViewItem._symbolPrintEnter(kb);
+
+			if (this._options?.conversational) {
+				this.label.textContent = localize({ key: 'content2', comment: ['A label with keybindg like "ESC to dismiss"'] }, '{1} to {0}', this._action.label, kb2);
+
+			} else {
+				this.label.textContent = localize({ key: 'content', comment: ['A label', 'A keybinding'] }, '{0} ({1})', this._action.label, kb2);
+			}
 		}
 	}
 
 	private static _symbolPrintEnter(kb: ResolvedKeybinding) {
-		return kb.getLabel()?.replace(/\benter\b/gi, '\u23CE');
+		return kb.getLabel()
+			?.replace(/\benter\b/gi, '\u23CE')
+			.replace(/\bEscape\b/gi, 'Esc');
 	}
 }
 

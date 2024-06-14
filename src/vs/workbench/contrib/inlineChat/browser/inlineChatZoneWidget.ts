@@ -9,7 +9,7 @@ import { assertType } from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorLayoutInfo, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
+import { Range } from 'vs/editor/common/core/range';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -180,12 +180,6 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		return info.width - info.minimap.minimapWidth;
 	}
 
-	updateBackgroundColor(newPosition: Position, wholeRange: IRange) {
-		assertType(this.container);
-		const widgetLineNumber = newPosition.lineNumber;
-		this.container.classList.toggle('inside-selection', widgetLineNumber > wholeRange.startLineNumber && widgetLineNumber < wholeRange.endLineNumber);
-	}
-
 	private _calculateIndentationWidth(position: Position): number {
 		const viewModel = this.editor._getViewModel();
 		if (!viewModel) {
@@ -224,7 +218,6 @@ export class InlineChatZoneWidget extends ZoneWidget {
 	}
 
 	override hide(): void {
-		this.container!.classList.remove('inside-selection');
 		this._ctxCursorPosition.reset();
 		this.widget.reset();
 		this.widget.chatWidget.setVisible(false);
