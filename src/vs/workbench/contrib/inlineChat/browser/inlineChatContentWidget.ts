@@ -71,7 +71,7 @@ export class InlineChatContentWidget implements IContentWidget {
 			{
 				defaultElementHeight: 32,
 				editorOverflowWidgetsDomNode: _editor.getOverflowWidgetsDomNode(),
-				renderStyle: 'compact',
+				renderStyle: 'minimal',
 				renderInputOnTop: true,
 				renderFollowups: true,
 				supportsFileReferences: false,

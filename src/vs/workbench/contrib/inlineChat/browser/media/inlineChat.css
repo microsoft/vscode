@@ -39,7 +39,7 @@
 }
 
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-list .interactive-item-container.interactive-item-compact {
-	padding: 6px 4px;
+	padding: 6px 0;
 	gap: 6px;
 }
 

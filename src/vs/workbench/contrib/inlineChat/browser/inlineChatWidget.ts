@@ -155,7 +155,7 @@ export class InlineChatWidget {
 			{ resource: true },
 			{
 				defaultElementHeight: 32,
-				renderStyle: 'compact',
+				renderStyle: 'minimal',
 				renderInputOnTop: false,
 				renderFollowups: true,
 				supportsFileReferences: true,
