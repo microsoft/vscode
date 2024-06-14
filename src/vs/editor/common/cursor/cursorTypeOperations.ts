@@ -529,11 +529,11 @@ export class TypeOperations {
 		return result;
 	}
 
-	private static _getAutoClosingPairCounterpart(config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string, chIsAlreadyTyped: boolean): string | null {
+	private static _getAutoClosingPairCounterpart(config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string, chIsAlreadyTyped: boolean): string | undefined {
 
 		for (const selection of selections) {
 			if (!selection.isEmpty()) {
-				return null;
+				return;
 			}
 		}
 
@@ -558,7 +558,7 @@ export class TypeOperations {
 		// e.g. when having [f","] and [","], it picks [f","] if the character before is f
 		const pair = this._findAutoClosingPairOpen(config, model, positions.map(p => new Position(p.lineNumber, p.beforeColumn)), ch);
 		if (!pair) {
-			return null;
+			return;
 		}
 
 		let autoCloseConfig: EditorAutoClosingStrategy;
@@ -580,7 +580,7 @@ export class TypeOperations {
 		}
 
 		if (autoCloseConfig === 'never') {
-			return null;
+			return;
 		}
 
 		// Sometimes, it is possible to have two auto-closing pairs that have a containment relationship
@@ -607,7 +607,7 @@ export class TypeOperations {
 				const isBeforeCloseBrace = TypeOperations._isBeforeClosingBrace(config, lineAfter);
 
 				if (!isBeforeCloseBrace && !shouldAutoCloseBefore(characterAfter)) {
-					return null;
+					return;
 				}
 			}
 
@@ -617,21 +617,21 @@ export class TypeOperations {
 				if (lineBefore.length > 0) {
 					const characterBefore = lineBefore.charCodeAt(lineBefore.length - 1);
 					if (wordSeparators.get(characterBefore) === WordCharacterClass.Regular) {
-						return null;
+						return;
 					}
 				}
 			}
 
 			if (!model.tokenization.isCheapToTokenize(lineNumber)) {
 				// Do not force tokenization
-				return null;
+				return;
 			}
 
 			model.tokenization.forceTokenization(lineNumber);
 			const lineTokens = model.tokenization.getLineTokens(lineNumber);
 			const scopedLineTokens = createScopedLineTokens(lineTokens, beforeColumn - 1);
 			if (!pair.shouldAutoClose(scopedLineTokens, beforeColumn - scopedLineTokens.firstCharOffset)) {
-				return null;
+				return;
 			}
 
 			// Typing for example a quote could either start a new string, in which case auto-closing is desirable
@@ -646,7 +646,7 @@ export class TypeOperations {
 			if (neutralCharacter) {
 				const tokenType = model.tokenization.getTokenTypeIfInsertingCharacter(lineNumber, beforeColumn, neutralCharacter);
 				if (!pair.isOK(tokenType)) {
-					return null;
+					return;
 				}
 			}
 		}
@@ -664,7 +664,7 @@ export class TypeOperations {
 			return;
 		}
 		const autoClosingPairCounterpart = this._getAutoClosingPairCounterpart(config, model, selections, ch, false);
-		if (autoClosingPairCounterpart) {
+		if (autoClosingPairCounterpart !== undefined) {
 			return this._getIndentationAndAutoClosingEdits(config, model, correctedIndentationsForSelections, ch, autoClosingPairCounterpart);
 		}
 		return this._getIndentationEdits(config, model, correctedIndentationsForSelections, ch);
@@ -959,7 +959,7 @@ export class TypeOperations {
 		}
 
 		const autoClosingPairClose = this._getAutoClosingPairCounterpart(config, model, selections, ch, true);
-		if (autoClosingPairClose !== null) {
+		if (autoClosingPairClose !== undefined) {
 			return this._runAutoClosingOpenCharType(selections, ch, true, autoClosingPairClose);
 		}
 
