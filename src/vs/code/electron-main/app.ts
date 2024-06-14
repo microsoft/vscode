@@ -1398,7 +1398,6 @@ export class CodeApplication extends Disposable {
 		if (isMacintosh && app.runningUnderARM64Translation) {
 			this.windowsMainService?.sendToFocused('vscode:showTranslatedBuildWarning');
 		}
-
 	}
 
 	private async installMutex(): Promise<void> {
