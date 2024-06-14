@@ -590,7 +590,7 @@ export class EditorBasedInlineChatWidget extends InlineChatWidget {
 		@IChatService chatService: IChatService,
 		@IHoverService hoverService: IHoverService,
 	) {
-		super(location, { ...options, chatWidgetViewOptions: { editorOverflowWidgetsDomNode: _parentEditor.getOverflowWidgetsDomNode() } }, instantiationService, contextKeyService, keybindingService, accessibilityService, configurationService, accessibleViewService, textModelResolverService, chatService, hoverService);
+		super(location, { ...options, chatWidgetViewOptions: { ...options.chatWidgetViewOptions, editorOverflowWidgetsDomNode: _parentEditor.getOverflowWidgetsDomNode() } }, instantiationService, contextKeyService, keybindingService, accessibilityService, configurationService, accessibleViewService, textModelResolverService, chatService, hoverService);
 	}
 
 	// --- layout
