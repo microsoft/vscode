@@ -21,6 +21,9 @@ $Global:__LastHistoryId = -1
 $Nonce = $env:VSCODE_NONCE
 $env:VSCODE_NONCE = $null
 
+$isStable = $env:VSCODE_STABLE
+$env:VSCODE_STABLE = $null
+
 $osVersion = [System.Environment]::OSVersion.Version
 $isWindows10 = $IsWindows -and $osVersion.Major -eq 10 -and $osVersion.Minor -eq 0 -and $osVersion.Build -lt 22000
 
@@ -95,7 +98,9 @@ function Global:Prompt() {
 
 	# Prompt
 	# OSC 633 ; <Property>=<Value> ST
-	$Result += "$([char]0x1b)]633;P;Prompt=$(__VSCode-Escape-Value $OriginalPrompt)`a"
+	if ($isStable -eq "1") {
+		$Result += "$([char]0x1b)]633;P;Prompt=$(__VSCode-Escape-Value $OriginalPrompt)`a"
+	}
 
 	# Write command started
 	$Result += "$([char]0x1b)]633;B`a"

@@ -157,6 +157,7 @@ export function getShellIntegrationInjection(
 			}
 			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot, '');
+			envMixin['VSCODE_STABLE'] = productService.quality === 'stable' ? '1' : '0';
 			if (options.shellIntegration.suggestEnabled) {
 				envMixin['VSCODE_SUGGEST'] = '1';
 			}
@@ -174,6 +175,7 @@ export function getShellIntegrationInjection(
 			}
 			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot);
+			envMixin['VSCODE_STABLE'] = productService.quality === 'stable' ? '1' : '0';
 			return { newArgs, envMixin };
 		}
 		logService.warn(`Shell integration cannot be enabled for executable "${shellLaunchConfig.executable}" and args`, shellLaunchConfig.args);
@@ -195,6 +197,7 @@ export function getShellIntegrationInjection(
 			}
 			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot);
+			envMixin['VSCODE_STABLE'] = productService.quality === 'stable' ? '1' : '0';
 			return { newArgs, envMixin };
 		}
 		case 'fish': {
@@ -220,6 +223,7 @@ export function getShellIntegrationInjection(
 			}
 			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot, '');
+			envMixin['VSCODE_STABLE'] = productService.quality === 'stable' ? '1' : '0';
 			return { newArgs, envMixin };
 		}
 		case 'zsh': {
