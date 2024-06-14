@@ -1521,8 +1521,8 @@ export class DebugSession implements IDebugSession, IDisposable {
 		this.repl.removeReplExpressions();
 	}
 
-	async addReplExpression(stackFrame: IStackFrame | undefined, name: string): Promise<void> {
-		await this.repl.addReplExpression(this, stackFrame, name);
+	async addReplExpression(stackFrame: IStackFrame | undefined, expression: string): Promise<void> {
+		await this.repl.addReplExpression(this, stackFrame, expression);
 		// Evaluate all watch expressions and fetch variables again since repl evaluation might have changed some.
 		this.debugService.getViewModel().updateViews();
 	}
