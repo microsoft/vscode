@@ -81,13 +81,8 @@ export function intersection<T>(setA: Set<T>, setB: Iterable<T>): Set<T> {
 	return result;
 }
 
-interface ISetWithKeyEntry<T> {
-	key: any;
-	value: T;
-}
-
 export class SetWithKey<T> implements Set<T> {
-	private _map = new Map<any, ISetWithKeyEntry<T>>();
+	private _map = new Map<any, T>();
 
 	constructor(values: T[], private toKey: (t: T) => any) {
 		for (const value of values) {
@@ -101,7 +96,7 @@ export class SetWithKey<T> implements Set<T> {
 
 	add(value: T): this {
 		const key = this.toKey(value);
-		this._map.set(key, { value, key });
+		this._map.set(key, value);
 		return this;
 	}
 
@@ -115,7 +110,7 @@ export class SetWithKey<T> implements Set<T> {
 
 	*entries(): IterableIterator<[T, T]> {
 		for (const entry of this._map.values()) {
-			yield [entry.value, entry.value];
+			yield [entry, entry];
 		}
 	}
 
@@ -125,7 +120,7 @@ export class SetWithKey<T> implements Set<T> {
 
 	*values(): IterableIterator<T> {
 		for (const entry of this._map.values()) {
-			yield entry.value;
+			yield entry;
 		}
 	}
 
@@ -134,7 +129,7 @@ export class SetWithKey<T> implements Set<T> {
 	}
 
 	forEach(callbackfn: (value: T, value2: T, set: Set<T>) => void, thisArg?: any): void {
-		this._map.forEach(entry => callbackfn.call(thisArg, entry.value, entry.value, this));
+		this._map.forEach(entry => callbackfn.call(thisArg, entry, entry, this));
 	}
 
 	[Symbol.iterator](): IterableIterator<T> {
