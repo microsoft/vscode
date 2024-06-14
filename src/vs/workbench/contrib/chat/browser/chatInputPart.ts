@@ -211,11 +211,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 	}
 
-	initForNewChatModel(inputValue: string, inputState: Object): void {
+	initForNewChatModel(inputValue: string | undefined, inputState: Object): void {
 		this.history = this.loadHistory();
-		this.history.add({ text: inputValue, state: inputState });
+		this.history.add({ text: inputValue ?? this.history.current().text, state: inputState });
 
-		this.setValue(inputValue, false);
+		if (inputValue) {
+			this.setValue(inputValue, false);
+		}
 	}
 
 	logInputHistory(): void {

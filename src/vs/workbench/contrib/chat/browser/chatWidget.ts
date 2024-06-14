@@ -658,7 +658,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.viewModel = undefined;
 			this.onDidChangeItems();
 		}));
-		this.inputPart.initForNewChatModel(viewState.inputValue ?? '', viewState.inputState ?? this.collectInputState());
+		this.inputPart.initForNewChatModel(viewState.inputValue, viewState.inputState ?? this.collectInputState());
 		this.contribs.forEach(c => {
 			if (c.setInputState && viewState.inputState?.[c.id]) {
 				c.setInputState(viewState.inputState?.[c.id]);
