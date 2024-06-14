@@ -4,6 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
+ * A fault tolerant replacement for JSON.parse() that
+ * can deal with comments and trailing commas.
+ *
+ * @param content the content to strip comments from
+ * @returns the parsed content as JSON
+*/
+export function parse(content: string): any;
+
+/**
  * Strips single and multi line JavaScript comments from JSON
  * content. Ignores characters in strings BUT doesn't support
  * string continuation across multiple lines since it is not

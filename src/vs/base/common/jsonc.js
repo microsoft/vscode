@@ -19,7 +19,6 @@
 		/**
 		 *
 		 * @param {string} content
-		 * @returns {string}
 		 */
 		function stripComments(content) {
 			return content.replace(regexp, function (match, _m1, _m2, m3, m4, m5) {
@@ -46,11 +45,26 @@
 				}
 			});
 		}
+
+		/**
+		 *
+		 * @param {string} content
+		 */
+		function parse(content) {
+			const commentsStripped = stripComments(content);
+
+			try {
+				return JSON.parse(commentsStripped);
+			} catch (error) {
+				const trailingCommasStriped = commentsStripped.replace(/,\s*([}\]])/g, '$1');
+				return JSON.parse(trailingCommasStriped);
+			}
+		}
 		return {
-			stripComments
+			stripComments,
+			parse
 		};
 	}
-
 
 	if (typeof define === 'function') {
 		// amd
@@ -59,6 +73,6 @@
 		// commonjs
 		module.exports = factory();
 	} else {
-		console.trace('strip comments defined in UNKNOWN context (neither requirejs or commonjs)');
+		console.trace('jsonc defined in UNKNOWN context (neither requirejs or commonjs)');
 	}
 })();
