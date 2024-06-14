@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { h } from 'vs/base/browser/dom';
-import type { IUpdatableHover, IUpdatableHoverTooltipMarkdownString } from 'vs/base/browser/ui/hover/hover';
+import type { IManagedHover, IManagedHoverTooltipMarkdownString } from 'vs/base/browser/ui/hover/hover';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Lazy } from 'vs/base/common/lazy';
@@ -67,7 +67,7 @@ export class ManagedTestCoverageBars extends Disposable {
 	});
 
 	private readonly visibleStore = this._register(new DisposableStore());
-	private readonly customHovers: IUpdatableHover[] = [];
+	private readonly customHovers: IManagedHover[] = [];
 
 	/** Gets whether coverage is currently visible for the resource. */
 	public get visible() {
@@ -82,8 +82,8 @@ export class ManagedTestCoverageBars extends Disposable {
 		super();
 	}
 
-	private attachHover(target: HTMLElement, factory: (coverage: CoverageBarSource) => string | IUpdatableHoverTooltipMarkdownString | undefined) {
-		this._register(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('element'), target, () => this._coverage && factory(this._coverage)));
+	private attachHover(target: HTMLElement, factory: (coverage: CoverageBarSource) => string | IManagedHoverTooltipMarkdownString | undefined) {
+		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), target, () => this._coverage && factory(this._coverage)));
 	}
 
 	public setCoverageInfo(coverage: CoverageBarSource | undefined) {
@@ -99,7 +99,7 @@ export class ManagedTestCoverageBars extends Disposable {
 
 		if (!this._coverage) {
 			const root = this.el.value.root;
-			ds.add(toDisposable(() => this.options.container.removeChild(root)));
+			ds.add(toDisposable(() => root.remove()));
 			this.options.container.appendChild(root);
 			ds.add(this.configurationService.onDidChangeConfiguration(c => {
 				if (!this._coverage) {
@@ -165,7 +165,7 @@ const stmtCoverageText = (coverage: CoverageBarSource) => localize('statementCov
 const fnCoverageText = (coverage: CoverageBarSource) => coverage.declaration && localize('functionCoverage', '{0}/{1} functions covered ({2})', nf.format(coverage.declaration.covered), nf.format(coverage.declaration.total), coverUtils.displayPercent(coverUtils.percent(coverage.declaration)));
 const branchCoverageText = (coverage: CoverageBarSource) => coverage.branch && localize('branchCoverage', '{0}/{1} branches covered ({2})', nf.format(coverage.branch.covered), nf.format(coverage.branch.total), coverUtils.displayPercent(coverUtils.percent(coverage.branch)));
 
-const getOverallHoverText = (coverage: CoverageBarSource): IUpdatableHoverTooltipMarkdownString => {
+const getOverallHoverText = (coverage: CoverageBarSource): IManagedHoverTooltipMarkdownString => {
 	const str = [
 		stmtCoverageText(coverage),
 		fnCoverageText(coverage),

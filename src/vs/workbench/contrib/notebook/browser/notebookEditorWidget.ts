@@ -324,7 +324,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 		this._overlayContainer = document.createElement('div');
 		this.scopedContextKeyService = this._register(contextKeyService.createScoped(this._overlayContainer));
-		this.instantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService]));
+		this.instantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
 
 		this._register(_notebookService.onDidChangeOutputRenderers(() => {
 			this._updateOutputRenderers();
@@ -1826,6 +1826,19 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			return;
 		}
 
+		const whenContainerStylesLoaded = this.layoutService.whenContainerStylesLoaded(DOM.getWindow(this.getDomNode()));
+		if (whenContainerStylesLoaded) {
+			// In floating windows, we need to ensure that the
+			// container is ready for us to compute certain
+			// layout related properties.
+			whenContainerStylesLoaded.then(() => this.layoutNotebook(dimension, shadowElement, position));
+		} else {
+			this.layoutNotebook(dimension, shadowElement, position);
+		}
+
+	}
+
+	private layoutNotebook(dimension: DOM.Dimension, shadowElement?: HTMLElement, position?: DOM.IDomPosition) {
 		if (shadowElement) {
 			this.updateShadowElement(shadowElement, dimension, position);
 		}

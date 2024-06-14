@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
-import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
+import type { IManagedHover } from 'vs/base/browser/ui/hover/hover';
 import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { Codicon } from 'vs/base/common/codicons';
@@ -28,7 +28,7 @@ export class TreeItemCheckbox extends Disposable {
 	public toggle: Toggle | undefined;
 	private checkboxContainer: HTMLDivElement;
 	public isDisposed = false;
-	private hover: IUpdatableHover | undefined;
+	private hover: IManagedHover | undefined;
 
 	public static readonly checkboxClass = 'custom-view-tree-node-item-checkbox';
 
@@ -87,7 +87,7 @@ export class TreeItemCheckbox extends Disposable {
 	private setHover(checkbox: ITreeItemCheckboxState) {
 		if (this.toggle) {
 			if (!this.hover) {
-				this.hover = this._register(this.hoverService.setupUpdatableHover(this.hoverDelegate, this.toggle.domNode, this.checkboxHoverContent(checkbox)));
+				this.hover = this._register(this.hoverService.setupManagedHover(this.hoverDelegate, this.toggle.domNode, this.checkboxHoverContent(checkbox)));
 			} else {
 				this.hover.update(checkbox.tooltip);
 			}
@@ -122,7 +122,7 @@ export class TreeItemCheckbox extends Disposable {
 	private removeCheckbox() {
 		const children = this.checkboxContainer.children;
 		for (const child of children) {
-			this.checkboxContainer.removeChild(child);
+			child.remove();
 		}
 	}
 }

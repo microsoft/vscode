@@ -4,7 +4,7 @@
   "license": "MIT",
   "devDependencies": {
     "@azure/cosmos": "^3",
-    "@azure/identity": "^3.4.1",
+    "@azure/identity": "^4.2.1",
     "@azure/storage-blob": "^12.17.0",
     "@electron/get": "^2.0.0",
     "@types/ansi-colors": "^3.2.0",
@@ -44,7 +44,6 @@
     "esbuild": "0.20.0",
     "extract-zip": "^2.0.1",
     "gulp-merge-json": "^2.1.1",
-    "gulp-shell": "^0.8.0",
     "jsonc-parser": "^2.3.0",
     "mime": "^1.4.1",
     "mkdirp": "^1.0.4",

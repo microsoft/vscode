@@ -3,29 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import minimist from 'minimist';
 import * as nativeWatchdog from 'native-watchdog';
 import * as net from 'net';
-import * as minimist from 'minimist';
-import * as performance from 'vs/base/common/performance';
-import type { MessagePortMain } from 'vs/base/parts/sandbox/node/electronTypes';
+import { ProcessTimeRunOnceScheduler } from 'vs/base/common/async';
+import { VSBuffer } from 'vs/base/common/buffer';
 import { isCancellationError, isSigPipeError, onUnexpectedError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
-import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { PersistentProtocol, ProtocolConstants, BufferedEmitter } from 'vs/base/parts/ipc/common/ipc.net';
-import { NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
-import product from 'vs/platform/product/common/product';
-import { MessageType, createMessageOfType, isMessageOfType, IExtHostSocketMessage, IExtHostReadyMessage, IExtHostReduceGraceTimeMessage, ExtensionHostExitCode, IExtensionHostInitData } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
-import { ExtensionHostMain, IExitFn } from 'vs/workbench/api/common/extensionHostMain';
-import { VSBuffer } from 'vs/base/common/buffer';
+import * as performance from 'vs/base/common/performance';
 import { IURITransformer } from 'vs/base/common/uriIpc';
-import { Promises } from 'vs/base/node/pfs';
 import { realpath } from 'vs/base/node/extpath';
-import { IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
-import { ProcessTimeRunOnceScheduler } from 'vs/base/common/async';
+import { Promises } from 'vs/base/node/pfs';
+import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
+import { BufferedEmitter, PersistentProtocol, ProtocolConstants } from 'vs/base/parts/ipc/common/ipc.net';
+import { NodeSocket, WebSocketNodeSocket } from 'vs/base/parts/ipc/node/ipc.net';
+import type { MessagePortMain } from 'vs/base/parts/sandbox/node/electronTypes';
 import { boolean } from 'vs/editor/common/config/editorOptions';
+import product from 'vs/platform/product/common/product';
+import { ExtensionHostMain, IExitFn } from 'vs/workbench/api/common/extensionHostMain';
+import { IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
 import { createURITransformer } from 'vs/workbench/api/node/uriTransformer';
 import { ExtHostConnectionType, readExtHostConnection } from 'vs/workbench/services/extensions/common/extensionHostEnv';
+import { ExtensionHostExitCode, IExtHostReadyMessage, IExtHostReduceGraceTimeMessage, IExtHostSocketMessage, IExtensionHostInitData, MessageType, createMessageOfType, isMessageOfType } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 
+import { IDisposable } from 'vs/base/common/lifecycle';
 import 'vs/workbench/api/common/extHost.common.services';
 import 'vs/workbench/api/node/extHost.node.services';
 
@@ -251,12 +252,14 @@ async function createExtHostProtocol(): Promise<IMessagePassingProtocol> {
 		readonly onMessage: Event<VSBuffer> = this._onMessage.event;
 
 		private _terminating: boolean;
+		private _protocolListener: IDisposable;
 
 		constructor() {
 			this._terminating = false;
-			protocol.onMessage((msg) => {
+			this._protocolListener = protocol.onMessage((msg) => {
 				if (isMessageOfType(msg, MessageType.Terminate)) {
 					this._terminating = true;
+					this._protocolListener.dispose();
 					onTerminate('received terminate message from renderer');
 				} else {
 					this._onMessage.fire(msg);

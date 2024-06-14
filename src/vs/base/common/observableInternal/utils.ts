@@ -11,6 +11,8 @@ import { DebugNameData, Owner, getFunctionName } from 'vs/base/common/observable
 import { derived, derivedOpts } from 'vs/base/common/observableInternal/derived';
 import { getLogger } from 'vs/base/common/observableInternal/logging';
 import { IValueWithChangeEvent } from '../event';
+import { BugIndicatingError } from 'vs/base/common/errors';
+import { EqualityComparer, strictEquals } from 'vs/base/common/equals';
 
 /**
  * Represents an efficient observable whose value never changes.
@@ -54,9 +56,19 @@ export function observableFromPromise<T>(promise: Promise<T>): IObservable<{ val
 
 export function observableFromEvent<T, TArgs = unknown>(
 	event: Event<TArgs>,
-	getValue: (args: TArgs | undefined) => T
+	getValue: (args: TArgs | undefined) => T,
 ): IObservable<T> {
-	return new FromEventObservable(event, getValue);
+	return new FromEventObservable(event, getValue, () => FromEventObservable.globalTransaction, strictEquals);
+}
+
+export function observableFromEventOpts<T, TArgs = unknown>(
+	options: {
+		equalsFn?: EqualityComparer<T>;
+	},
+	event: Event<TArgs>,
+	getValue: (args: TArgs | undefined) => T,
+): IObservable<T> {
+	return new FromEventObservable(event, getValue, () => FromEventObservable.globalTransaction, options.equalsFn ?? strictEquals);
 }
 
 export class FromEventObservable<TArgs, T> extends BaseObservable<T> {
@@ -68,7 +80,9 @@ export class FromEventObservable<TArgs, T> extends BaseObservable<T> {
 
 	constructor(
 		private readonly event: Event<TArgs>,
-		public readonly _getValue: (args: TArgs | undefined) => T
+		public readonly _getValue: (args: TArgs | undefined) => T,
+		private readonly _getTransaction: () => ITransaction | undefined,
+		private readonly _equalityComparator: EqualityComparer<T>
 	) {
 		super();
 	}
@@ -90,7 +104,7 @@ export class FromEventObservable<TArgs, T> extends BaseObservable<T> {
 		const newValue = this._getValue(args);
 		const oldValue = this.value;
 
-		const didChange = !this.hasValue || oldValue !== newValue;
+		const didChange = !this.hasValue || !(this._equalityComparator(oldValue!, newValue));
 		let didRunTransaction = false;
 
 		if (didChange) {
@@ -99,7 +113,7 @@ export class FromEventObservable<TArgs, T> extends BaseObservable<T> {
 			if (this.hasValue) {
 				didRunTransaction = true;
 				subtransaction(
-					FromEventObservable.globalTransaction,
+					this._getTransaction(),
 					(tx) => {
 						getLogger()?.handleFromEventObservableTriggered(this, { oldValue, newValue, change: undefined, didChange, hadValue: this.hasValue });
 
@@ -227,6 +241,10 @@ export interface IObservableSignal<TChange> extends IObservable<void, TChange> {
 class ObservableSignal<TChange> extends BaseObservable<void, TChange> implements IObservableSignal<TChange> {
 	public get debugName() {
 		return new DebugNameData(this._owner, this._debugName, undefined).getDebugName(this) ?? 'Observable Signal';
+	}
+
+	public override toString(): string {
+		return this.debugName;
 	}
 
 	constructor(
@@ -520,4 +538,43 @@ export function observableFromValueWithChangeEvent<T>(_owner: Owner, value: IVal
 		return value.observable;
 	}
 	return observableFromEvent(value.onDidChange, () => value.value);
+}
+
+/**
+ * Creates an observable that has the latest changed value of the given observables.
+ * Initially (and when not observed), it has the value of the last observable.
+ * When observed and any of the observables change, it has the value of the last changed observable.
+ * If multiple observables change in the same transaction, the last observable wins.
+*/
+export function latestChangedValue<T extends IObservable<any>[]>(...observables: T): IObservable<ReturnType<T[number]['get']>> {
+	if (observables.length === 0) {
+		throw new BugIndicatingError();
+	}
+
+	let hasLastChangedValue = false;
+	let lastChangedValue: any = undefined;
+
+	return observableFromEvent<any, void>(cb => {
+		const store = new DisposableStore();
+		for (const o of observables) {
+			store.add(autorun(reader => {
+				hasLastChangedValue = true;
+				lastChangedValue = o.read(reader);
+				cb();
+			}));
+		}
+		store.add({
+			dispose() {
+				hasLastChangedValue = false;
+				lastChangedValue = undefined;
+			},
+		});
+		return store;
+	}, () => {
+		if (hasLastChangedValue) {
+			return lastChangedValue;
+		} else {
+			return observables[observables.length - 1].get();
+		}
+	});
 }

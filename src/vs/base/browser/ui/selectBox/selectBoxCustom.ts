@@ -9,7 +9,7 @@ import { IContentActionHandler } from 'vs/base/browser/formattedTextRenderer';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { AnchorPosition, IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
+import type { IManagedHover } from 'vs/base/browser/ui/hover/hover';
 import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { IListEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
@@ -104,7 +104,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 	private selectionDetailsPane!: HTMLElement;
 	private _skipLayout: boolean = false;
 	private _cachedMaxDetailsHeight?: number;
-	private _hover?: IUpdatableHover;
+	private _hover?: IManagedHover;
 
 	private _sticky: boolean = false; // for dev purposes only
 
@@ -153,7 +153,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 	private setTitle(title: string): void {
 		if (!this._hover && title) {
-			this._hover = this._register(getBaseLayerHoverDelegate().setupUpdatableHover(getDefaultHoverDelegate('mouse'), this.selectElement, title));
+			this._hover = this._register(getBaseLayerHoverDelegate().setupManagedHover(getDefaultHoverDelegate('mouse'), this.selectElement, title));
 		} else if (this._hover) {
 			this._hover.update(title);
 		}
@@ -520,12 +520,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		return {
 			dispose: () => {
 				// contextView will dispose itself if moving from one View to another
-				try {
-					container.removeChild(this.selectDropDownContainer); // remove to take out the CSS rules we add
-				}
-				catch (error) {
-					// Ignore, removed already by change of focus
-				}
+				this.selectDropDownContainer.remove(); // remove to take out the CSS rules we add
 			}
 		};
 	}
@@ -612,8 +607,8 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 					&& this.options.length > maxVisibleOptionsBelow
 				) {
 					this._dropDownPosition = AnchorPosition.ABOVE;
-					this.selectDropDownContainer.removeChild(this.selectDropDownListContainer);
-					this.selectDropDownContainer.removeChild(this.selectionDetailsPane);
+					this.selectDropDownListContainer.remove();
+					this.selectionDetailsPane.remove();
 					this.selectDropDownContainer.appendChild(this.selectionDetailsPane);
 					this.selectDropDownContainer.appendChild(this.selectDropDownListContainer);
 
@@ -622,8 +617,8 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 				} else {
 					this._dropDownPosition = AnchorPosition.BELOW;
-					this.selectDropDownContainer.removeChild(this.selectDropDownListContainer);
-					this.selectDropDownContainer.removeChild(this.selectionDetailsPane);
+					this.selectDropDownListContainer.remove();
+					this.selectionDetailsPane.remove();
 					this.selectDropDownContainer.appendChild(this.selectDropDownListContainer);
 					this.selectDropDownContainer.appendChild(this.selectionDetailsPane);
 
@@ -879,7 +874,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 				const tagName = child.tagName && child.tagName.toLowerCase();
 				if (tagName === 'img') {
-					element.removeChild(child);
+					child.remove();
 				} else {
 					cleanRenderedMarkdown(child);
 				}

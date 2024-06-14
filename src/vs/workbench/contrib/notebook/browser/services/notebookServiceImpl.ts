@@ -197,7 +197,7 @@ export class NotebookProviderInfoStore extends Disposable {
 					cellOptions = (options as INotebookEditorOptions | undefined)?.cellOptions;
 				}
 
-				const notebookOptions = { ...options, cellOptions } as INotebookEditorOptions;
+				const notebookOptions: INotebookEditorOptions = { ...options, cellOptions, viewState: undefined };
 				const editor = NotebookEditorInput.getOrCreate(this._instantiationService, notebookUri, preferredResource, notebookProviderInfo.id);
 				return { editor, options: notebookOptions };
 			};
@@ -695,6 +695,14 @@ export class NotebookService extends Disposable implements INotebookService {
 			throw new Error(`NO provider registered for view type: '${selected.id}'`);
 		}
 		return result;
+	}
+
+	tryGetDataProviderSync(viewType: string): SimpleNotebookProviderInfo | undefined {
+		const selected = this.notebookProviderInfoStore.get(viewType);
+		if (!selected) {
+			return undefined;
+		}
+		return this._notebookProviders.get(selected.id);
 	}
 
 
