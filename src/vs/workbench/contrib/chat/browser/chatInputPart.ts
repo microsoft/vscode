@@ -165,13 +165,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.chatCursorAtTop = CONTEXT_CHAT_INPUT_CURSOR_AT_TOP.bindTo(contextKeyService);
 		this.inputEditorHasFocus = CONTEXT_CHAT_INPUT_HAS_FOCUS.bindTo(contextKeyService);
 
-		const history = this.historyService.getHistory(this.location);
-		if (history.length === 0) {
-			history.push({ text: '' });
-		}
-
-		const historyKeyFn = (entry: IChatHistoryEntry) => JSON.stringify(entry);
-		this.history = new HistoryNavigator2(history, 50, historyKeyFn);
+		this.history = this.loadHistory();
 		this._register(this.historyService.onDidClearHistory(() => this.history = new HistoryNavigator2([{ text: '' }], 50, historyKeyFn)));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -179,6 +173,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				this.inputEditor.updateOptions({ ariaLabel: this._getAriaLabel() });
 			}
 		}));
+	}
+
+	private loadHistory(): HistoryNavigator2<IChatHistoryEntry> {
+		const history = this.historyService.getHistory(this.location);
+		if (history.length === 0) {
+			history.push({ text: '' });
+		}
+
+		return new HistoryNavigator2(history, 50, historyKeyFn);
 	}
 
 	private _getAriaLabel(): string {
@@ -190,20 +193,34 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return localize('chatInput', "Chat Input");
 	}
 
-	setState(inputValue: string | undefined, inputState: Object): void {
-		if (!this.inHistoryNavigation) {
-			// This is to prevent chat input contribs from triggering state updates due to input history navigation.
-			// There's probably a better way to avoid this.
-			this.currentInputState = inputState;
+	updateState(inputState: Object): void {
+		if (this.inHistoryNavigation) {
+			return;
 		}
 
-		if (typeof inputValue === 'string') {
-			this.setValue(inputValue, true);
-		}
+		// This is to prevent chat input contribs from triggering state updates due to input history navigation.
+		// There's probably a better way to avoid this.
+		this.currentInputState = inputState; // try to eliminate this in favor of a history entry
 
 		const newEntry = { text: this._inputEditor.getValue(), state: inputState };
-		this.history.replaceLast(newEntry);
-		this.history.resetCursor();
+
+		if (this.history.isAtEnd()) {
+			// The last history entry should always be the current input value
+			this.history.replaceLast(newEntry);
+		} else {
+			// Added a reference while in the middle of history navigation, it's a new entry
+			this.history.replaceLast(newEntry);
+			this.history.resetCursor();
+		}
+	}
+
+	initForNewChatModel(inputValue: string, inputState: Object): void {
+		this.history = this.loadHistory();
+		this.currentInputState = inputState; // get rid of this
+
+		this.history.add({ text: inputValue, state: this.currentInputState });
+
+		this.setValue(inputValue, false);
 	}
 
 	setVisible(visible: boolean): void {
@@ -596,6 +613,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.historyService.saveHistory(this.location, inputHistory);
 	}
 }
+
+const historyKeyFn = (entry: IChatHistoryEntry) => JSON.stringify(entry);
 
 function getLastPosition(model: ITextModel): IPosition {
 	return { lineNumber: model.getLineCount(), column: model.getLineLength(model.getLineCount()) + 1 };

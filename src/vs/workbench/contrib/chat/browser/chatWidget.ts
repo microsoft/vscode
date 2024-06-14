@@ -318,7 +318,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (c.onDidChangeInputState) {
 				this._register(c.onDidChangeInputState(() => {
 					const state = this.collectInputState();
-					this.inputPart.setState(undefined, state);
+					this.inputPart.updateState(state);
 				}));
 			}
 		});
@@ -658,7 +658,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.viewModel = undefined;
 			this.onDidChangeItems();
 		}));
-		this.inputPart.setState(viewState.inputValue, viewState.inputState ?? {});
+		this.inputPart.initForNewChatModel(viewState.inputValue ?? '', viewState.inputState ?? this.collectInputState());
 		this.contribs.forEach(c => {
 			if (c.setInputState && viewState.inputState?.[c.id]) {
 				c.setInputState(viewState.inputState?.[c.id]);
@@ -745,7 +745,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.inputPart.attachedContext.clear();
 				this.inputPart.acceptInput(isUserQuery);
 				this._onDidSubmitAgent.fire({ agent: result.agent, slashCommand: result.slashCommand });
-				this.inputPart.setState(undefined, this.collectInputState());
+				this.inputPart.updateState(this.collectInputState());
 				result.responseCompletePromise.then(() => {
 					const responses = this.viewModel?.getItems().filter(isResponseVM);
 					const lastResponse = responses?.[responses.length - 1];
