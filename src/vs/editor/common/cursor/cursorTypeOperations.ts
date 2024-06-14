@@ -722,12 +722,12 @@ export class TypeOperations {
 
 	private static _getEditFromIndentation(config: CursorConfiguration, model: ITextModel, indentation: string, selection: Selection, ch: string, includeChInEdit: boolean = true): { range: Range; text: string } {
 		const firstNonWhitespace = model.getLineFirstNonWhitespaceColumn(selection.startLineNumber);
-		const normalizedIndentation = config.normalizeIndentation(indentation);
 		const additionalCharacter = (includeChInEdit ? ch : '');
-		let text: string = normalizedIndentation + additionalCharacter;
+		let text: string = config.normalizeIndentation(indentation);
 		if (firstNonWhitespace !== 0) {
 			text += model.getLineContent(selection.startLineNumber).substring(firstNonWhitespace - 1, selection.startColumn - 1);
 		}
+		text += additionalCharacter;
 		const range = new Range(selection.startLineNumber, 1, selection.endLineNumber, selection.endColumn);
 		return { range, text };
 	}

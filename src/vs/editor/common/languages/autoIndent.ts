@@ -408,9 +408,17 @@ export function getIndentActionForType(
 	const previousLine = model.getLineContent(previousLineNumber);
 	if (indentRulesSupport.shouldIndentNextLine(previousLine) && indentRulesSupport.shouldIncrease(textAroundRangeWithCharacter)) {
 		const r = getInheritIndentForLine(autoIndent, model, range.startLineNumber, false, languageConfigurationService);
-		return r?.indentation ?? null;
+		const inheritedIndentation = r?.indentation ?? null;
+		if (inheritedIndentation !== null) {
+			const currentLine = model.getLineContent(range.startLineNumber);
+			const actualCurrentIndentation = strings.getLeadingWhitespace(currentLine);
+			const inferredCurrentIndentation = indentConverter.shiftIndent(inheritedIndentation);
+			// If the inferred current indentation is not equal to the actual current indentation, then the indentation has been intentionally changed
+			if (inferredCurrentIndentation === actualCurrentIndentation) {
+				return inheritedIndentation;
+			}
+		}
 	}
-
 	return null;
 }
 
