@@ -464,7 +464,7 @@ export class InlineChatWidget {
 	 */
 	addToHistory(input: string) {
 		if (this._chatWidget.viewModel?.model === this._defaultChatModel) {
-			this._chatWidget.input.acceptInput(input);
+			this._chatWidget.input.acceptInput(true);
 		}
 	}
 
