@@ -354,6 +354,10 @@
 	display: none;
 }
 
+.interactive-item-container.minimal .detail-container {
+	font-size: unset;
+}
+
 .interactive-item-container.minimal > .header {
 	position: absolute;
 	right: 0;
