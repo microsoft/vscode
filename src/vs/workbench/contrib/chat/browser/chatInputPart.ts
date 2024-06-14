@@ -41,6 +41,7 @@ import { registerAndCreateHistoryNavigationContext } from 'vs/platform/history/b
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ResourceLabels } from 'vs/workbench/browser/labels';
@@ -138,7 +139,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private inputEditorHasText: IContextKey<boolean>;
 	private chatCursorAtTop: IContextKey<boolean>;
 	private inputEditorHasFocus: IContextKey<boolean>;
-	private currentInputState: Object = {};
 
 	private cachedDimensions: dom.Dimension | undefined;
 	private cachedToolbarWidth: number | undefined;
@@ -156,6 +156,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
@@ -198,10 +199,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return;
 		}
 
-		// This is to prevent chat input contribs from triggering state updates due to input history navigation.
-		// There's probably a better way to avoid this.
-		this.currentInputState = inputState; // try to eliminate this in favor of a history entry
-
 		const newEntry = { text: this._inputEditor.getValue(), state: inputState };
 
 		if (this.history.isAtEnd()) {
@@ -216,11 +213,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	initForNewChatModel(inputValue: string, inputState: Object): void {
 		this.history = this.loadHistory();
-		this.currentInputState = inputState; // get rid of this
-
-		this.history.add({ text: inputValue, state: this.currentInputState });
+		this.history.add({ text: inputValue, state: inputState });
 
 		this.setValue(inputValue, false);
+	}
+
+	logInputHistory(): void {
+		const historyStr = [...this.history].map(entry => JSON.stringify(entry)).join('\n');
+		this.logService.info(`[${this.location}] Chat input history:`, historyStr);
 	}
 
 	setVisible(visible: boolean): void {
@@ -267,7 +267,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.setValue(historyEntry.text, true);
 		this.inHistoryNavigation = false;
 
-		this.currentInputState = historyEntry.state;
 		this._onDidLoadInputState.fire(historyEntry.state);
 		if (previous) {
 			this._inputEditor.setPosition({ lineNumber: 1, column: 1 });
@@ -312,13 +311,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		// TODO pass boolean, not string
 		if (isUserQuery) {
 			const userQuery = this._inputEditor.getValue();
-			const entry: IChatHistoryEntry = { text: userQuery, state: this.currentInputState };
+			const entry: IChatHistoryEntry = { text: userQuery, state: this.history.current().state };
 			this.history.replaceLast(entry);
 			this.history.add({ text: '' });
 		}
 
-		this.currentInputState = {};
-		this._onDidLoadInputState.fire(this.currentInputState);
+		this._onDidLoadInputState.fire({});
 		if (this.accessibilityService.isScreenReaderOptimized() && isMacintosh) {
 			this._acceptInputForVoiceover();
 		} else {

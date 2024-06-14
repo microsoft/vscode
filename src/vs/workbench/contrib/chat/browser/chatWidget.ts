@@ -711,6 +711,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this.inputPart.inputEditor.getValue();
 	}
 
+	logInputHistory(): void {
+		this.inputPart.logInputHistory();
+	}
+
 	async acceptInput(query?: string): Promise<IChatResponseModel | undefined> {
 		return this._acceptInput(query ? { query } : undefined);
 	}
