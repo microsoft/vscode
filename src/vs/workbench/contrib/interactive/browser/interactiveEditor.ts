@@ -32,7 +32,7 @@ import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/not
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindingService, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { InteractiveWindowSetting, INTERACTIVE_INPUT_CURSOR_BOUNDARY } from 'vs/workbench/contrib/interactive/browser/interactiveCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
@@ -63,6 +63,10 @@ import 'vs/css!./interactiveEditor';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { deepClone } from 'vs/base/common/objects';
 import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
+import { text } from 'stream/consumers';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
+import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
 
 const DECORATION_KEY = 'interactiveInputDecoration';
 const INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'InteractiveEditorViewState';
@@ -70,6 +74,7 @@ const INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'InteractiveEditorViewState
 const INPUT_CELL_VERTICAL_PADDING = 8;
 const INPUT_CELL_HORIZONTAL_PADDING_RIGHT = 10;
 const INPUT_EDITOR_PADDING = 8;
+
 
 export interface InteractiveEditorViewState {
 	readonly notebook?: INotebookEditorViewState;
@@ -645,11 +650,54 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 
 		const decorations: IDecorationOptions[] = [];
 
-		if (model?.getValueLength() === 0) {
+		const enterKeyEvent: IKeyboardEvent = {
+			_standardKeyboardEventBrand: true,
+			ctrlKey: false,
+			shiftKey: false,
+			altKey: false,
+			metaKey: false,
+			altGraphKey: false,
+			keyCode: KeyCode.Enter,
+			code: 'Enter'
+		};
+
+		const executeKeybindings: (IKeyboardEvent & { keybinding: 'Enter' | 'Shift+Enter' | 'Ctrl+Enter' })[] = [
+			{ ...enterKeyEvent, keybinding: 'Enter' },
+			{ ...enterKeyEvent, shiftKey: true, keybinding: 'Shift+Enter' },
+			{ ...enterKeyEvent, ctrlKey: true, keybinding: 'Ctrl+Enter' }
+		];
+
+		let foundKb: string | undefined;
+		for (let i = 0; i < executeKeybindings.length; i++) {
+			const result = this._keybindingService.softDispatch(executeKeybindings[i], this._inputEditorContainer);
+			if (result.kind === ResultKind.KbFound && result.commandId === 'interactive.execute') {
+				foundKb = executeKeybindings[i].keybinding;
+				break;
+			}
+		}
+
+		if (!foundKb) {
+			foundKb = this._keybindingService.lookupKeybinding('interactive.execute', this._contextKeyService)?.getLabel() ?? undefined;
+		}
+
+		if (model?.getValueLength() === 0 && foundKb) {
 			const transparentForeground = resolveColorValue(editorForeground, this.themeService.getColorTheme())?.transparent(0.4);
-			const languageId = model.getLanguageId();
-			const keybinding = this._keybindingService.lookupKeybinding('interactive.execute', this._contextKeyService)?.getLabel();
-			const text = nls.localize('interactiveInputPlaceHolder', "Type '{0}' code here and press {1} to run", languageId, keybinding ?? 'ctrl+enter');
+			const text = nls.localize('interactiveInputPlaceHolder', "press [[{0}]] to run", foundKb);
+
+			const hintElement = renderFormattedText(text, {
+				actionHandler: {
+					disposables: this._widgetDisposableStore,
+					callback: () => {
+
+					}
+				},
+				renderCodeSegments: false,
+			});
+			hintElement.style.fontStyle = 'italic';
+			const hintNode = DOM.$('.empty-editor-hint');
+			hintNode.append(hintElement);
+			this._inputEditorContainer.appendChild(hintNode);
+
 			decorations.push({
 				range: {
 					startLineNumber: 0,
@@ -666,7 +714,7 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 			});
 		}
 
-		this._codeEditorWidget.setDecorationsByType('interactive-decoration', DECORATION_KEY, decorations);
+		//this._codeEditorWidget.setDecorationsByType('interactive-decoration', DECORATION_KEY, decorations);
 	}
 
 	getScrollPosition(): IEditorPaneScrollPosition {
