@@ -308,7 +308,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * @param userQuery If provided, this will be added to the history. Followups and programmatic queries should not be passed.
 	 */
 	async acceptInput(isUserQuery?: boolean): Promise<void> {
-		// TODO pass boolean, not string
 		if (isUserQuery) {
 			const userQuery = this._inputEditor.getValue();
 			const entry: IChatHistoryEntry = { text: userQuery, state: this.history.current().state };
