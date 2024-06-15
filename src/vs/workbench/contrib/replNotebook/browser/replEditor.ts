@@ -21,7 +21,6 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { EditorPaneSelectionChangeReason, IEditorMemento, IEditorOpenContext, IEditorPaneScrollPosition, IEditorPaneSelectionChangeEvent, IEditorPaneWithScrolling } from 'vs/workbench/common/editor';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
-import { InteractiveEditorInput } from 'vs/workbench/contrib/interactive/browser/interactiveEditorInput';
 import { ICellViewModel, INotebookEditorOptions, INotebookEditorViewState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
@@ -29,7 +28,6 @@ import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/note
 import { GroupsOrder, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ExecutionStateCellStatusBarContrib, TimerCellStatusBarContrib } from 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/executionStatusBarItemController';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -58,11 +56,12 @@ import { ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { isEqual } from 'vs/base/common/resources';
 import { NotebookFindContrib } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindWidget';
-import { INTERACTIVE_WINDOW_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { EXECUTE_REPL_COMMAND_ID, REPL_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import 'vs/css!./interactiveEditor';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { deepClone } from 'vs/base/common/objects';
 import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
+import { ReplEditorInput } from 'vs/workbench/contrib/replNotebook/browser/replEditorInput';
 
 const DECORATION_KEY = 'interactiveInputDecoration';
 const INTERACTIVE_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'InteractiveEditorViewState';
@@ -80,7 +79,7 @@ export interface InteractiveEditorOptions extends ITextEditorOptions {
 	readonly viewState?: InteractiveEditorViewState;
 }
 
-export class InteractiveEditor extends EditorPane implements IEditorPaneWithScrolling {
+export class ReplEditor extends EditorPane implements IEditorPaneWithScrolling {
 	private _rootElement!: HTMLElement;
 	private _styleElement!: HTMLStyleElement;
 	private _notebookEditorContainer!: HTMLElement;
@@ -100,7 +99,6 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 	private _menuService: IMenuService;
 	private _contextMenuService: IContextMenuService;
 	private _editorGroupService: IEditorGroupsService;
-	private _notebookExecutionStateService: INotebookExecutionStateService;
 	private _extensionService: IExtensionService;
 	private readonly _widgetDisposableStore: DisposableStore = this._register(new DisposableStore());
 	private _lastLayoutDimensions?: { readonly dimension: DOM.Dimension; readonly position: DOM.IDomPosition };
@@ -138,7 +136,7 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 		@IExtensionService extensionService: IExtensionService,
 	) {
 		super(
-			INTERACTIVE_WINDOW_EDITOR_ID,
+			REPL_EDITOR_ID,
 			group,
 			telemetryService,
 			themeService,
@@ -154,7 +152,6 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 		this._menuService = menuService;
 		this._contextMenuService = contextMenuService;
 		this._editorGroupService = editorGroupService;
-		this._notebookExecutionStateService = notebookExecutionStateService;
 		this._extensionService = extensionService;
 
 		this._editorOptions = this._computeEditorOptions();
@@ -168,7 +165,7 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 
 		codeEditorService.registerDecorationType('interactive-decoration', DECORATION_KEY, {});
 		this._register(this._keybindingService.onDidUpdateKeybindings(this._updateInputDecoration, this));
-		this._register(this._notebookExecutionStateService.onDidChangeExecution((e) => {
+		this._register(notebookExecutionStateService.onDidChangeExecution((e) => {
 			if (e.type === NotebookExecutionType.cell && isEqual(e.notebook, this._notebookWidget.value?.viewModel?.notebookDocument.uri)) {
 				const cell = this._notebookWidget.value?.getCellByHandle(e.cellHandle);
 				if (cell && e.changed?.state) {
@@ -201,7 +198,7 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 	}
 
 	private _setupRunButtonToolbar(runButtonContainer: HTMLElement) {
-		const menu = this._register(this._menuService.createMenu(MenuId.InteractiveInputExecute, this._contextKeyService));
+		const menu = this._register(this._menuService.createMenu(MenuId.ReplInputExecute, this._contextKeyService));
 		this._runbuttonToolbar = this._register(new ToolBar(runButtonContainer, this._contextMenuService, {
 			getKeyBinding: action => this._keybindingService.lookupKeybinding(action.id),
 			actionViewItemProvider: (action, options) => {
@@ -307,7 +304,7 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 
 	override getViewState(): InteractiveEditorViewState | undefined {
 		const input = this.input;
-		if (!(input instanceof InteractiveEditorInput)) {
+		if (!(input instanceof ReplEditorInput)) {
 			return undefined;
 		}
 
@@ -316,22 +313,22 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 	}
 
 	private _saveEditorViewState(input: EditorInput | undefined): void {
-		if (this._notebookWidget.value && input instanceof InteractiveEditorInput) {
+		if (this._notebookWidget.value && input instanceof ReplEditorInput) {
 			if (this._notebookWidget.value.isDisposed) {
 				return;
 			}
 
 			const state = this._notebookWidget.value.getEditorViewState();
 			const editorState = this._codeEditorWidget.saveViewState();
-			this._editorMemento.saveEditorState(this.group, input.notebookEditorInput.resource, {
+			this._editorMemento.saveEditorState(this.group, input.resource, {
 				notebook: state,
 				input: editorState
 			});
 		}
 	}
 
-	private _loadNotebookEditorViewState(input: InteractiveEditorInput): InteractiveEditorViewState | undefined {
-		const result = this._editorMemento.loadEditorState(this.group, input.notebookEditorInput.resource);
+	private _loadNotebookEditorViewState(input: ReplEditorInput): InteractiveEditorViewState | undefined {
+		const result = this._editorMemento.loadEditorState(this.group, input.resource);
 		if (result) {
 			return result;
 		}
@@ -350,9 +347,7 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 		return;
 	}
 
-	override async setInput(input: InteractiveEditorInput, options: InteractiveEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		const notebookInput = input.notebookEditorInput;
-
+	override async setInput(input: ReplEditorInput, options: InteractiveEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		// there currently is a widget which we still own so
 		// we need to hide it before getting a new widget
 		this._notebookWidget.value?.onWillHide();
@@ -361,9 +356,10 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 
 		this._widgetDisposableStore.clear();
 
-		this._notebookWidget = <IBorrowValue<NotebookEditorWidget>>this._instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, this.group, notebookInput, {
+		this._notebookWidget = <IBorrowValue<NotebookEditorWidget>>this._instantiationService.invokeFunction(this._notebookWidgetService.retrieveWidget, this.group, input, {
 			isEmbedded: true,
 			isReadOnly: true,
+			forRepl: true,
 			contributions: NotebookEditorExtensionsRegistry.getSomeEditorContributions([
 				ExecutionStateCellStatusBarContrib.id,
 				TimerCellStatusBarContrib.id,
@@ -423,7 +419,7 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 		}
 
 		if (model === null) {
-			throw new Error('The Interactive Window model could not be resolved');
+			throw new Error('The REPL model could not be resolved');
 		}
 
 		this._notebookWidget.value?.setParentContextKeyService(this._contextKeyService);
@@ -455,9 +451,7 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 			}
 		}));
 
-		const languageId = this._notebookWidget.value?.activeKernel?.supportedLanguages[0] ?? input.language ?? PLAINTEXT_LANGUAGE_ID;
-		const editorModel = await input.resolveInput(languageId);
-		editorModel.setLanguage(languageId);
+		const editorModel = await input.resolveInput(model.notebook);
 		this._codeEditorWidget.setModel(editorModel);
 		if (viewState?.input) {
 			this._codeEditorWidget.restoreViewState(viewState.input);
@@ -528,7 +522,7 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 		this._widgetDisposableStore.add(editorModel.onDidChangeContent(() => {
 			const value = editorModel.getValue();
 			if (this.input?.resource && value !== '') {
-				(this.input as InteractiveEditorInput).historyService.replaceLast(this.input.resource, value);
+				(this.input as ReplEditorInput).historyService.replaceLast(this.input.resource, value);
 			}
 		}));
 
@@ -648,22 +642,27 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 		if (model?.getValueLength() === 0) {
 			const transparentForeground = resolveColorValue(editorForeground, this.themeService.getColorTheme())?.transparent(0.4);
 			const languageId = model.getLanguageId();
-			const keybinding = this._keybindingService.lookupKeybinding('interactive.execute', this._contextKeyService)?.getLabel();
-			const text = nls.localize('interactiveInputPlaceHolder', "Type '{0}' code here and press {1} to run", languageId, keybinding ?? 'ctrl+enter');
-			decorations.push({
-				range: {
-					startLineNumber: 0,
-					endLineNumber: 0,
-					startColumn: 0,
-					endColumn: 1
-				},
-				renderOptions: {
-					after: {
-						contentText: text,
-						color: transparentForeground ? transparentForeground.toString() : undefined
+			if (languageId !== 'plaintext') {
+				const keybinding = this._keybindingService.lookupKeybinding(EXECUTE_REPL_COMMAND_ID, this._contextKeyService)?.getLabel();
+				const text = keybinding ?
+					nls.localize('interactiveInputPlaceHolder', "Type '{0}' code here and press {1} to run", languageId, keybinding) :
+					nls.localize('interactiveInputPlaceHolderNoKeybinding', "Type '{0}' code here and click run", languageId);
+				decorations.push({
+					range: {
+						startLineNumber: 0,
+						endLineNumber: 0,
+						startColumn: 0,
+						endColumn: 1
+					},
+					renderOptions: {
+						after: {
+							contentText: text,
+							color: transparentForeground ? transparentForeground.toString() : undefined
+						}
 					}
-				}
-			});
+				});
+			}
+
 		}
 
 		this._codeEditorWidget.setDecorationsByType('interactive-decoration', DECORATION_KEY, decorations);

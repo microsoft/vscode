@@ -196,9 +196,9 @@ export async function activate(context: vscode.ExtensionContext) {
 		true
 	);
 
-	coverage.loadDetailedCoverage = async (_run, coverage) => {
+	(coverage as vscode.TestRunProfile2).loadDetailedCoverage = async (_run, coverage, _token, test) => {
 		if (coverage instanceof V8CoverageFile) {
-			return coverage.details;
+			return test ? coverage.testDetails(test) : coverage.details;
 		}
 
 		return [];
