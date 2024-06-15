@@ -805,6 +805,10 @@ function aggregateBasenameMatches(parsedPatterns: Array<ParsedStringPattern | Pa
 }
 
 export function patternsEquals(patternsA: Array<string | IRelativePattern> | undefined, patternsB: Array<string | IRelativePattern> | undefined): boolean {
+	if (!patternsA && patternsB?.length === 0 || !patternsB && patternsA?.length === 0) {
+		return true; // treat undefined as equal to empty array
+	}
+
 	return equals(patternsA, patternsB, (a, b) => {
 		if (typeof a === 'string' && typeof b === 'string') {
 			return a === b;

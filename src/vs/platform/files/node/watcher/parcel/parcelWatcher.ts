@@ -21,7 +21,7 @@ import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { realcaseSync, realpathSync } from 'vs/base/node/extpath';
 import { NodeJSFileWatcherLibrary } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
 import { FileChangeType, IFileChange } from 'vs/platform/files/common/files';
-import { coalesceEvents, IRecursiveWatchRequest, parseWatcherPatterns, IRecursiveWatcherWithSubscribe, isFiltered, IWatcherErrorEvent } from 'vs/platform/files/common/watcher';
+import { coalesceEvents, IRecursiveWatchRequest, parseWatcherPatterns, IRecursiveWatcherWithSubscribe, isFiltered, IUniversalWatchRequest, IWatcherErrorEvent } from 'vs/platform/files/common/watcher';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 
 export class ParcelWatcherInstance extends Disposable {
@@ -41,7 +41,11 @@ export class ParcelWatcherInstance extends Disposable {
 	private readonly includes = this.request.includes ? parseWatcherPatterns(this.request.path, this.request.includes) : undefined;
 	private readonly excludes = this.request.excludes ? parseWatcherPatterns(this.request.path, this.request.excludes) : undefined;
 
-	private readonly subscriptions = new Map<string, Set<(change: IFileChange) => void>>();
+	private readonly nonRecursiveSubscriptions = new Map<string, Set<(change: IFileChange) => void>>();
+	private readonly recursiveSubscriptions = new Map<string, Set<(change: IFileChange) => void>>();
+
+	public subscriptionsCount = 0;
+	public isReusingRecursiveWatcher = false;
 
 	constructor(
 		/**
@@ -62,45 +66,58 @@ export class ParcelWatcherInstance extends Disposable {
 		 * An event aggregator to coalesce events and reduce duplicates.
 		 */
 		readonly worker: RunOnceWorker<IFileChange>,
-		private readonly stopFn: () => Promise<void>
+
+		/*
+		 * The function to stop the watcher.
+		 */
+		private readonly stopFn: () => Promise<void>,
 	) {
 		super();
-
-		this._register(toDisposable(() => this.subscriptions.clear()));
 	}
 
-	subscribe(path: string, callback: (change: IFileChange) => void): IDisposable {
-		path = URI.file(path).fsPath; // make sure to store the path in `fsPath` form to match it with events later
+	subscribe(request: IUniversalWatchRequest, callback: (change: IFileChange) => void): IDisposable {
+		const path = URI.file(request.path).fsPath; // make sure to store the path in `fsPath` form to match it with events later
 
-		let subscriptions = this.subscriptions.get(path);
+		const targetSubscriptions = request.recursive ? this.recursiveSubscriptions : this.nonRecursiveSubscriptions;
+
+		let subscriptions = targetSubscriptions.get(path);
 		if (!subscriptions) {
 			subscriptions = new Set();
-			this.subscriptions.set(path, subscriptions);
+			targetSubscriptions.set(path, subscriptions);
 		}
 
 		subscriptions.add(callback);
+		this.subscriptionsCount++;
 
 		return toDisposable(() => {
-			const subscriptions = this.subscriptions.get(path);
+			const subscriptions = targetSubscriptions.get(path);
 			if (subscriptions) {
 				subscriptions.delete(callback);
+				this.subscriptionsCount--;
 
 				if (subscriptions.size === 0) {
-					this.subscriptions.delete(path);
+					targetSubscriptions.delete(path);
 				}
 			}
 		});
 	}
 
-	get subscriptionsCount(): number {
-		return this.subscriptions.size;
-	}
-
 	notifyFileChange(path: string, change: IFileChange): void {
-		const subscriptions = this.subscriptions.get(path);
-		if (subscriptions) {
-			for (const subscription of subscriptions) {
+
+		// By non-recursive subscriptions: on the exact path
+		const nonRecursiveSubscriptions = this.nonRecursiveSubscriptions.get(path);
+		if (nonRecursiveSubscriptions) {
+			for (const subscription of nonRecursiveSubscriptions) {
 				subscription(change);
+			}
+		}
+
+		// By recursive subscriptions: on parent and same paths
+		for (const [requestPath, subscriptions] of this.recursiveSubscriptions) {
+			if (isEqualOrParent(path, requestPath, !isLinux)) {
+				for (const subscription of subscriptions) {
+					subscription(change);
+				}
 			}
 		}
 	}
@@ -133,6 +150,17 @@ export class ParcelWatcherInstance extends Disposable {
 			this.dispose();
 		}
 	}
+
+	override dispose(): void {
+		super.dispose();
+
+		this.nonRecursiveSubscriptions.clear();
+		this.recursiveSubscriptions.clear();
+	}
+}
+
+interface IParcelWatcherSubscription {
+	unsubscribe(): Promise<void>;
 }
 
 export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithSubscribe {
@@ -206,6 +234,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 				requestsToStart.push(request); // start watching
 			}
 		}
+		requestsToStart.sort((r1, r2) => r1.path.length - r2.path.length); // sort by shortest path first (helps to reuse watchers that overlap)
 
 		// Logging
 		if (requestsToStart.length) {
@@ -325,7 +354,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 	private startWatching(request: IRecursiveWatchRequest, restarts = 0): void {
 		const cts = new CancellationTokenSource();
 
-		const instance = new DeferredPromise<parcelWatcher.AsyncSubscription | undefined>();
+		const instance = new DeferredPromise<IParcelWatcherSubscription | undefined>();
 
 		// Remember as watcher instance
 		const watcher: ParcelWatcherInstance = new ParcelWatcherInstance(
@@ -349,7 +378,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		// Path checks for symbolic links / wrong casing
 		const { realPath, realPathDiffers, realPathLength } = this.normalizePath(request);
 
-		parcelWatcher.subscribe(realPath, (error, parcelEvents) => {
+		this.doStartWatching(watcher, realPath, (error, parcelEvents) => {
 			if (watcher.token.isCancellationRequested) {
 				return; // return early when disposed
 			}
@@ -364,13 +393,8 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 
 			// Handle & emit events
 			this.onParcelEvents(parcelEvents, watcher, realPathDiffers, realPathLength);
-		}, {
-			backend: ParcelWatcher.PARCEL_WATCHER_BACKEND,
-			ignore: watcher.request.excludes
-		}).then(parcelWatcher => {
-			this.trace(`Started watching: '${realPath}' with backend '${ParcelWatcher.PARCEL_WATCHER_BACKEND}'`);
-
-			instance.complete(parcelWatcher);
+		}).then(subscription => {
+			instance.complete(subscription);
 		}).catch(error => {
 			this.onUnexpectedError(error, request);
 
@@ -378,6 +402,36 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 
 			watcher.notifyWatchFailed();
 			this._onDidWatchFail.fire(request);
+		});
+	}
+
+	private async doStartWatching(instance: ParcelWatcherInstance, realPath: string, callback: (error: Error | true | null, events: parcelWatcher.Event[]) => void): Promise<IParcelWatcherSubscription> {
+		const subscription = this.subscribe(instance.request, (error, event) => {
+			if (error) {
+				callback(error, []);
+			} else if (event) {
+				callback(null, [{
+					type: event.type === FileChangeType.ADDED ? 'create' : event.type === FileChangeType.DELETED ? 'delete' : 'update',
+					path: event.resource.fsPath
+				}]);
+			}
+		});
+
+		if (subscription) {
+			this.trace(`reusing an existing recursive watcher for '${realPath}'`);
+
+			instance.isReusingRecursiveWatcher = true;
+
+			return { unsubscribe: async () => subscription.dispose() };
+		}
+
+		return parcelWatcher.subscribe(realPath, callback, {
+			backend: ParcelWatcher.PARCEL_WATCHER_BACKEND,
+			ignore: instance.request.excludes
+		}).then(parcelWatcher => {
+			this.trace(`Started watching: '${realPath}' with backend '${ParcelWatcher.PARCEL_WATCHER_BACKEND}'`);
+
+			return parcelWatcher;
 		});
 	}
 
@@ -782,21 +836,34 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		return true;
 	}
 
-	subscribe(path: string, callback: (error: true | null, change?: IFileChange) => void): IDisposable | undefined {
+	subscribe(request: IUniversalWatchRequest, callback: (error: true | null, change?: IFileChange) => void): IDisposable | undefined {
 		for (const watcher of this.watchers) {
+			if (watcher.request === request) {
+				continue; // prevent subscribing to itself
+			}
+
 			if (watcher.failed) {
 				continue; // watcher has already failed
 			}
 
-			if (!isEqualOrParent(path, watcher.request.path, !isLinux)) {
+			if (!isEqualOrParent(request.path, watcher.request.path, !isLinux)) {
 				continue; // watcher does not consider this path
 			}
 
-			if (
-				watcher.exclude(path) ||
-				!watcher.include(path)
-			) {
-				continue; // parcel instance does not consider this path
+			if (request.recursive) {
+				if (
+					!patternsEquals(request.excludes, watcher.request.excludes) ||
+					!patternsEquals(request.includes, watcher.request.includes)
+				) {
+					continue; // watcher does not share same exclude/include rules
+				}
+			} else {
+				if (
+					watcher.exclude(request.path) ||
+					!watcher.include(request.path)
+				) {
+					continue; // parcel instance does not consider this path
+				}
 			}
 
 			const disposables = new DisposableStore();
@@ -810,7 +877,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 				callback(true /* error */);
 			}));
 			disposables.add(Event.once(watcher.onDidFail)(() => callback(true /* error */)));
-			disposables.add(watcher.subscribe(path, change => callback(null, change)));
+			disposables.add(watcher.subscribe(request, change => callback(null, change)));
 
 			return disposables;
 		}
