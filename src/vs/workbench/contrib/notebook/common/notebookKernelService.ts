@@ -106,7 +106,7 @@ export interface IKernelSourceActionProvider {
 	provideKernelSourceActions(): Promise<INotebookKernelSourceAction[]>;
 }
 
-export interface INotebookTextModelLike { uri: URI; viewType: string }
+export interface INotebookTextModelLike { uri: URI; notebookType: string }
 
 export const INotebookKernelService = createDecorator<INotebookKernelService>('INotebookKernelService');
 
