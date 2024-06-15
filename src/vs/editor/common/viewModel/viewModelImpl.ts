@@ -71,6 +71,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		private readonly languageConfigurationService: ILanguageConfigurationService,
 		private readonly _themeService: IThemeService,
 		private readonly _attachedView: IAttachedView,
+		private readonly _transactionalTarget: IBatchableTarget,
 	) {
 		super();
 
@@ -1069,6 +1070,9 @@ export class ViewModel extends Disposable implements IViewModel {
 	public executeCommands(commands: ICommand[], source?: string | null | undefined): void {
 		this._executeCursorEdit(eventsCollector => this._cursor.executeCommands(eventsCollector, commands, source));
 	}
+	public revealAllCursors(source: string | null | undefined, revealHorizontal: boolean, minimalReveal: boolean = false): void {
+		this._withViewEventsCollector(eventsCollector => this._cursor.revealAll(eventsCollector, source, minimalReveal, viewEvents.VerticalRevealType.Simple, revealHorizontal, ScrollType.Smooth));
+	}
 	public revealPrimaryCursor(source: string | null | undefined, revealHorizontal: boolean, minimalReveal: boolean = false): void {
 		this._withViewEventsCollector(eventsCollector => this._cursor.revealPrimary(eventsCollector, source, minimalReveal, viewEvents.VerticalRevealType.Simple, revealHorizontal, ScrollType.Smooth));
 	}
@@ -1099,12 +1103,18 @@ export class ViewModel extends Disposable implements IViewModel {
 	//#endregion
 
 	private _withViewEventsCollector<T>(callback: (eventsCollector: ViewModelEventsCollector) => T): T {
-		try {
-			const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
-			return callback(eventsCollector);
-		} finally {
-			this._eventDispatcher.endEmitViewEvents();
-		}
+		return this._transactionalTarget.batchChanges(() => {
+			try {
+				const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
+				return callback(eventsCollector);
+			} finally {
+				this._eventDispatcher.endEmitViewEvents();
+			}
+		});
+	}
+
+	public batchEvents(callback: () => void): void {
+		this._withViewEventsCollector(() => { callback(); });
 	}
 
 	normalizePosition(position: Position, affinity: PositionAffinity): Position {
@@ -1118,6 +1128,13 @@ export class ViewModel extends Disposable implements IViewModel {
 	getLineIndentColumn(lineNumber: number): number {
 		return this._lines.getLineIndentColumn(lineNumber);
 	}
+}
+
+export interface IBatchableTarget {
+	/**
+	 * Allows the target to apply the changes introduced by the callback in a batch.
+	*/
+	batchChanges<T>(cb: () => T): T;
 }
 
 class ViewportStart implements IDisposable {

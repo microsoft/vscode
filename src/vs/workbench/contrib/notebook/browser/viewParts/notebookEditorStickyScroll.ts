@@ -3,19 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize, localize2 } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { EventType as TouchEventType } from 'vs/base/browser/touch';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Disposable, DisposableStore, type IReference } from 'vs/base/common/lifecycle';
+import { MenuId } from 'vs/platform/actions/common/actions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { CellFoldingState, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { OutlineEntry } from 'vs/workbench/contrib/notebook/browser/viewModel/OutlineEntry';
-import { NotebookCellOutlineProvider } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineProvider';
+import { NotebookCellOutlineDataSource } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineDataSource';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Delayer } from 'vs/base/common/async';
 import { ThemeIcon } from 'vs/base/common/themables';
@@ -23,46 +21,9 @@ import { foldingCollapsedIcon, foldingExpandedIcon } from 'vs/editor/contrib/fol
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
 import { FoldingController } from 'vs/workbench/contrib/notebook/browser/controller/foldingController';
 import { NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
-
-type NotebookSectionArgs = {
-	notebookEditor: INotebookEditor;
-	outlineEntry: OutlineEntry;
-};
-
-export class RunInSectionStickyScroll extends Action2 {
-	constructor() {
-		super({
-			id: 'notebook.action.runInSection',
-			title: {
-				...localize2('runInSectionStickyScroll', "Run Section"),
-				mnemonicTitle: localize({ key: 'mirunInSectionStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Run Section"),
-			},
-			menu: [
-				{
-					id: MenuId.NotebookStickyScrollContext,
-					group: 'notebookExecution',
-					order: 1
-				}
-			]
-		});
-	}
-
-	override async run(accessor: ServicesAccessor, context: NotebookSectionArgs, ...args: any[]): Promise<void> {
-		const cell = context.outlineEntry.cell;
-		const idx = context.notebookEditor.getViewModel()?.getCellIndex(cell);
-		if (idx === undefined) {
-			return;
-		}
-		const length = context.notebookEditor.getViewModel()?.getFoldedLength(idx);
-		if (length === undefined) {
-			return;
-		}
-		const cells = context.notebookEditor.getCellsInRange({ start: idx, end: idx + length + 1 });
-
-		const notebookEditor: INotebookEditor = context.notebookEditor;
-		notebookEditor.executeNotebookCells(cells);
-	}
-}
+import { NotebookSectionArgs } from 'vs/workbench/contrib/notebook/browser/controller/sectionActions';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { INotebookCellOutlineDataSourceFactory } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookOutlineDataSourceFactory';
 
 export class NotebookStickyLine extends Disposable {
 	constructor(
@@ -95,7 +56,7 @@ export class NotebookStickyLine extends Disposable {
 		const headerLevel = this.entry.level;
 		const newFoldingState = (currentState === CellFoldingState.Collapsed) ? CellFoldingState.Expanded : CellFoldingState.Collapsed;
 
-		foldingController.setFoldingStateUp(index, newFoldingState, headerLevel);
+		foldingController.setFoldingStateDown(index, newFoldingState, headerLevel);
 		this.focusCell();
 	}
 
@@ -140,10 +101,10 @@ class StickyFoldingIcon {
 export class NotebookStickyScroll extends Disposable {
 	private readonly _disposables = new DisposableStore();
 	private currentStickyLines = new Map<OutlineEntry, { line: NotebookStickyLine; rendered: boolean }>();
-	private filteredOutlineEntries: OutlineEntry[] = [];
 
 	private readonly _onDidChangeNotebookStickyScroll = this._register(new Emitter<number>());
 	readonly onDidChangeNotebookStickyScroll: Event<number> = this._onDidChangeNotebookStickyScroll.event;
+	private notebookCellOutlineReference?: IReference<NotebookCellOutlineDataSource>;
 
 	getDomNode(): HTMLElement {
 		return this.domNode;
@@ -181,9 +142,9 @@ export class NotebookStickyScroll extends Disposable {
 	constructor(
 		private readonly domNode: HTMLElement,
 		private readonly notebookEditor: INotebookEditor,
-		private readonly notebookOutline: NotebookCellOutlineProvider,
 		private readonly notebookCellList: INotebookCellList,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 
@@ -229,39 +190,37 @@ export class NotebookStickyScroll extends Disposable {
 				this.init();
 			} else {
 				this._disposables.clear();
-				this.notebookOutline.dispose();
+				this.notebookCellOutlineReference?.dispose();
 				this.disposeCurrentStickyLines();
 				DOM.clearNode(this.domNode);
 				this.updateDisplay();
 			}
-		} else if (e.stickyScrollMode && this.notebookEditor.notebookOptions.getDisplayOptions().stickyScrollEnabled) {
-			this.updateContent(computeContent(this.notebookEditor, this.notebookCellList, this.filteredOutlineEntries, this.getCurrentStickyHeight()));
+		} else if (e.stickyScrollMode && this.notebookEditor.notebookOptions.getDisplayOptions().stickyScrollEnabled && this.notebookCellOutlineReference?.object) {
+			this.updateContent(computeContent(this.notebookEditor, this.notebookCellList, this.notebookCellOutlineReference?.object?.entries, this.getCurrentStickyHeight()));
 		}
 	}
 
 	private init() {
-		this.notebookOutline.init();
-		this.filteredOutlineEntries = this.notebookOutline.entries.filter(entry => entry.level !== 7);
-		this.updateContent(computeContent(this.notebookEditor, this.notebookCellList, this.filteredOutlineEntries, this.getCurrentStickyHeight()));
+		const { object: notebookCellOutline } = this.notebookCellOutlineReference = this.instantiationService.invokeFunction((accessor) => accessor.get(INotebookCellOutlineDataSourceFactory).getOrCreate(this.notebookEditor));
+		this._register(this.notebookCellOutlineReference);
+		this.updateContent(computeContent(this.notebookEditor, this.notebookCellList, notebookCellOutline.entries, this.getCurrentStickyHeight()));
 
-		this._disposables.add(this.notebookOutline.onDidChange(() => {
-			this.filteredOutlineEntries = this.notebookOutline.entries.filter(entry => entry.level !== 7);
-			const recompute = computeContent(this.notebookEditor, this.notebookCellList, this.filteredOutlineEntries, this.getCurrentStickyHeight());
+		this._disposables.add(notebookCellOutline.onDidChange(() => {
+			const recompute = computeContent(this.notebookEditor, this.notebookCellList, notebookCellOutline.entries, this.getCurrentStickyHeight());
 			if (!this.compareStickyLineMaps(recompute, this.currentStickyLines)) {
 				this.updateContent(recompute);
 			}
 		}));
 
 		this._disposables.add(this.notebookEditor.onDidAttachViewModel(() => {
-			this.notebookOutline.init();
-			this.updateContent(computeContent(this.notebookEditor, this.notebookCellList, this.filteredOutlineEntries, this.getCurrentStickyHeight()));
+			this.updateContent(computeContent(this.notebookEditor, this.notebookCellList, notebookCellOutline.entries, this.getCurrentStickyHeight()));
 		}));
 
 		this._disposables.add(this.notebookEditor.onDidScroll(() => {
 			const d = new Delayer(100);
 			d.trigger(() => {
 				d.dispose();
-				const recompute = computeContent(this.notebookEditor, this.notebookCellList, this.filteredOutlineEntries, this.getCurrentStickyHeight());
+				const recompute = computeContent(this.notebookEditor, this.notebookCellList, notebookCellOutline.entries, this.getCurrentStickyHeight());
 				if (!this.compareStickyLineMaps(recompute, this.currentStickyLines)) {
 					this.updateContent(recompute);
 				}
@@ -325,7 +284,7 @@ export class NotebookStickyScroll extends Disposable {
 
 	static computeStickyHeight(entry: OutlineEntry) {
 		let height = 0;
-		if (entry.cell.cellKind === CellKind.Markup && entry.level !== 7) {
+		if (entry.cell.cellKind === CellKind.Markup && entry.level < 7) {
 			height += 22;
 		}
 		while (entry.parent) {
@@ -341,8 +300,8 @@ export class NotebookStickyScroll extends Disposable {
 
 		const elementsToRender = [];
 		while (currentEntry) {
-			if (currentEntry.level === 7) {
-				// level 7 represents a non-header entry, which we don't want to render
+			if (currentEntry.level >= 7) {
+				// level 7+ represents a non-header entry, which we don't want to render
 				currentEntry = currentEntry.parent;
 				continue;
 			}
@@ -409,7 +368,7 @@ export class NotebookStickyScroll extends Disposable {
 	override dispose() {
 		this._disposables.dispose();
 		this.disposeCurrentStickyLines();
-		this.notebookOutline.dispose();
+		this.notebookCellOutlineReference?.dispose();
 		super.dispose();
 	}
 }
@@ -426,7 +385,7 @@ export function computeContent(notebookEditor: INotebookEditor, notebookCellList
 	if (visibleRange.start === 0) {
 		const firstCell = notebookEditor.cellAt(0);
 		const firstCellEntry = NotebookStickyScroll.getVisibleOutlineEntry(0, notebookOutlineEntries);
-		if (firstCell && firstCellEntry && firstCell.cellKind === CellKind.Markup && firstCellEntry.level !== 7) {
+		if (firstCell && firstCellEntry && firstCell.cellKind === CellKind.Markup && firstCellEntry.level < 7) {
 			if (notebookEditor.scrollTop > 22) {
 				const newMap = NotebookStickyScroll.checkCollapsedStickyLines(firstCellEntry, 100, notebookEditor);
 				return newMap;
@@ -446,7 +405,7 @@ export function computeContent(notebookEditor: INotebookEditor, notebookCellList
 		}
 		cellEntry = NotebookStickyScroll.getVisibleOutlineEntry(currentIndex, notebookOutlineEntries);
 		if (!cellEntry) {
-			return new Map();
+			continue;
 		}
 
 		const nextCell = notebookEditor.cellAt(currentIndex + 1);
@@ -458,11 +417,11 @@ export function computeContent(notebookEditor: INotebookEditor, notebookCellList
 		}
 		const nextCellEntry = NotebookStickyScroll.getVisibleOutlineEntry(currentIndex + 1, notebookOutlineEntries);
 		if (!nextCellEntry) {
-			return new Map();
+			continue;
 		}
 
 		// check next cell, if markdown with non level 7 entry, that means this is the end of the section (new header) ---------------------
-		if (nextCell.cellKind === CellKind.Markup && nextCellEntry.level !== 7) {
+		if (nextCell.cellKind === CellKind.Markup && nextCellEntry.level < 7) {
 			const sectionBottom = notebookCellList.getCellViewScrollTop(nextCell);
 			const currentSectionStickyHeight = NotebookStickyScroll.computeStickyHeight(cellEntry);
 			const nextSectionStickyHeight = NotebookStickyScroll.computeStickyHeight(nextCellEntry);
@@ -501,5 +460,3 @@ export function computeContent(notebookEditor: INotebookEditor, notebookCellList
 	const newMap = NotebookStickyScroll.checkCollapsedStickyLines(cellEntry, linesToRender, notebookEditor);
 	return newMap;
 }
-
-registerAction2(RunInSectionStickyScroll);

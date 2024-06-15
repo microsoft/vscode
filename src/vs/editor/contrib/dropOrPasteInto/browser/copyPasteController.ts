@@ -6,26 +6,29 @@
 import { addDisposableListener, getActiveDocument } from 'vs/base/browser/dom';
 import { coalesce } from 'vs/base/common/arrays';
 import { CancelablePromise, createCancelablePromise, raceCancellation } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { UriList, VSDataTransfer, createStringDataTransferItem, matchesMimeType } from 'vs/base/common/dataTransfer';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
 import * as platform from 'vs/base/common/platform';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ClipboardEventUtils } from 'vs/editor/browser/controller/textAreaInput';
 import { toExternalVSDataTransfer, toVSDataTransfer } from 'vs/editor/browser/dnd';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, PastePayload } from 'vs/editor/browser/editorBrowser';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { Handler, IEditorContribution, PastePayload } from 'vs/editor/common/editorCommon';
+import { Handler, IEditorContribution } from 'vs/editor/common/editorCommon';
 import { DocumentPasteContext, DocumentPasteEdit, DocumentPasteEditProvider, DocumentPasteTriggerKind } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { DefaultTextPasteOrDropEditProvider } from 'vs/editor/contrib/dropOrPasteInto/browser/defaultProviders';
 import { createCombinedWorkspaceEdit, sortEditsByYieldTo } from 'vs/editor/contrib/dropOrPasteInto/browser/edit';
 import { CodeEditorStateFlag, EditorStateCancellationTokenSource } from 'vs/editor/contrib/editorState/browser/editorState';
 import { InlineProgressManager } from 'vs/editor/contrib/inlineProgress/browser/inlineProgress';
+import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import { localize } from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -33,8 +36,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { PostEditWidgetManager } from './postEditWidget';
-import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
-import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
+import { isCancellationError } from 'vs/base/common/errors';
 
 export const changePasteTypeCommandId = 'editor.changePasteType';
 
@@ -53,8 +55,14 @@ type PasteEditWithProvider = DocumentPasteEdit & {
 	provider: DocumentPasteEditProvider;
 };
 
+
+interface DocumentPasteWithProviderEditsSession {
+	edits: readonly PasteEditWithProvider[];
+	dispose(): void;
+}
+
 type PastePreference =
-	| { kind: HierarchicalKind }
+	| HierarchicalKind
 	| { providerId: string };
 
 export class CopyPasteController extends Disposable implements IEditorContribution {
@@ -112,10 +120,10 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		this._postPasteWidgetManager.tryShowSelector();
 	}
 
-	public pasteAs(preferred?: { kind: HierarchicalKind } | { providerId: string }) {
+	public pasteAs(preferred?: PastePreference) {
 		this._editor.focus();
 		try {
-			this._pasteAsActionContext = { preferred: preferred };
+			this._pasteAsActionContext = { preferred };
 			getActiveDocument().execCommand('paste');
 		} finally {
 			this._pasteAsActionContext = undefined;
@@ -265,7 +273,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 				// Filter out providers that don't match the requested paste types
 				const preference = this._pasteAsActionContext?.preferred;
 				if (preference) {
-					if (provider.providedPasteEditKinds && !matchesPreference(provider, preference)) {
+					if (provider.providedPasteEditKinds && !this.providerMatchesPreference(provider, preference)) {
 						return false;
 					}
 				}
@@ -289,74 +297,98 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		if (this._pasteAsActionContext) {
 			this.showPasteAsPick(this._pasteAsActionContext.preferred, allProviders, selections, dataTransfer, metadata);
 		} else {
-			this.doPasteInline(allProviders, selections, dataTransfer, metadata);
+			this.doPasteInline(allProviders, selections, dataTransfer, metadata, e);
 		}
 	}
 
 	private showPasteAsNoEditMessage(selections: readonly Selection[], preference: PastePreference) {
-		MessageController.get(this._editor)?.showMessage(localize('pasteAsError', "No paste edits for '{0}' found", 'kind' in preference ? preference.kind.value : preference.providerId), selections[0].getStartPosition());
+		MessageController.get(this._editor)?.showMessage(localize('pasteAsError', "No paste edits for '{0}' found", preference instanceof HierarchicalKind ? preference.value : preference.providerId), selections[0].getStartPosition());
 	}
 
-	private doPasteInline(allProviders: readonly DocumentPasteEditProvider[], selections: readonly Selection[], dataTransfer: VSDataTransfer, metadata: CopyMetadata | undefined): void {
-		const p = createCancelablePromise(async (token) => {
+	private doPasteInline(allProviders: readonly DocumentPasteEditProvider[], selections: readonly Selection[], dataTransfer: VSDataTransfer, metadata: CopyMetadata | undefined, clipboardEvent: ClipboardEvent): void {
+		const editor = this._editor;
+		if (!editor.hasModel()) {
+			return;
+		}
+
+		const editorStateCts = new EditorStateCancellationTokenSource(editor, CodeEditorStateFlag.Value | CodeEditorStateFlag.Selection, undefined);
+
+		const p = createCancelablePromise(async (pToken) => {
 			const editor = this._editor;
 			if (!editor.hasModel()) {
 				return;
 			}
 			const model = editor.getModel();
 
-			const tokenSource = new EditorStateCancellationTokenSource(editor, CodeEditorStateFlag.Value | CodeEditorStateFlag.Selection, undefined, token);
+			const disposables = new DisposableStore();
+			const cts = disposables.add(new CancellationTokenSource(pToken));
+			disposables.add(editorStateCts.token.onCancellationRequested(() => cts.cancel()));
+
+			const token = cts.token;
 			try {
-				await this.mergeInDataFromCopy(dataTransfer, metadata, tokenSource.token);
-				if (tokenSource.token.isCancellationRequested) {
+				await this.mergeInDataFromCopy(dataTransfer, metadata, token);
+				if (token.isCancellationRequested) {
 					return;
 				}
 
-				// Filter out any providers the don't match the full data transfer we will send them.
-				// TODO: also filter based on kinds
-				const supportedProviders = allProviders.filter(provider => isSupportedPasteProvider(provider, dataTransfer));
+				const supportedProviders = allProviders.filter(provider => this.isSupportedPasteProvider(provider, dataTransfer));
 				if (!supportedProviders.length
-					|| (supportedProviders.length === 1 && supportedProviders[0].id === 'text') // Only our default text provider is active
+					|| (supportedProviders.length === 1 && supportedProviders[0] instanceof DefaultTextPasteOrDropEditProvider) // Only our default text provider is active
 				) {
-					await this.applyDefaultPasteHandler(dataTransfer, metadata, tokenSource.token);
-					return;
+					return this.applyDefaultPasteHandler(dataTransfer, metadata, token, clipboardEvent);
 				}
 
-				const context = {
+				const context: DocumentPasteContext = {
 					triggerKind: DocumentPasteTriggerKind.Automatic,
 				};
-				const providerEdits = await this.getPasteEdits(supportedProviders, dataTransfer, model, selections, context, tokenSource.token);
-				if (tokenSource.token.isCancellationRequested) {
+				const editSession = await this.getPasteEdits(supportedProviders, dataTransfer, model, selections, context, token);
+				disposables.add(editSession);
+				if (token.isCancellationRequested) {
 					return;
 				}
 
-				// If the only edit returned is a text edit, use the default paste handler
-				if (providerEdits.length === 1 && providerEdits[0].kind.value === 'text') {
-					await this.applyDefaultPasteHandler(dataTransfer, metadata, tokenSource.token);
-					return;
+				// If the only edit returned is our default text edit, use the default paste handler
+				if (editSession.edits.length === 1 && editSession.edits[0].provider instanceof DefaultTextPasteOrDropEditProvider) {
+					return this.applyDefaultPasteHandler(dataTransfer, metadata, token, clipboardEvent);
 				}
 
-				if (providerEdits.length) {
+				if (editSession.edits.length) {
 					const canShowWidget = editor.getOption(EditorOption.pasteAs).showPasteSelector === 'afterPaste';
-					return this._postPasteWidgetManager.applyEditAndShowIfNeeded(selections, { activeEditIndex: 0, allEdits: providerEdits }, canShowWidget, async (edit, token) => {
+					return this._postPasteWidgetManager.applyEditAndShowIfNeeded(selections, { activeEditIndex: 0, allEdits: editSession.edits }, canShowWidget, async (edit, token) => {
 						const resolved = await edit.provider.resolveDocumentPasteEdit?.(edit, token);
 						if (resolved) {
 							edit.additionalEdit = resolved.additionalEdit;
 						}
 						return edit;
-					}, tokenSource.token);
+					}, token);
 				}
 
-				await this.applyDefaultPasteHandler(dataTransfer, metadata, tokenSource.token);
+				await this.applyDefaultPasteHandler(dataTransfer, metadata, token, clipboardEvent);
 			} finally {
-				tokenSource.dispose();
+				disposables.dispose();
 				if (this._currentPasteOperation === p) {
 					this._currentPasteOperation = undefined;
 				}
 			}
 		});
 
-		this._pasteProgressManager.showWhile(selections[0].getEndPosition(), localize('pasteIntoEditorProgress', "Running paste handlers. Click to cancel"), p);
+		this._pasteProgressManager.showWhile(selections[0].getEndPosition(), localize('pasteIntoEditorProgress', "Running paste handlers. Click to cancel and do basic paste"), p, {
+			cancel: async () => {
+				try {
+					p.cancel();
+
+					if (editorStateCts.token.isCancellationRequested) {
+						return;
+					}
+
+					await this.applyDefaultPasteHandler(dataTransfer, metadata, editorStateCts.token, clipboardEvent);
+				} finally {
+					editorStateCts.dispose();
+				}
+			}
+		}).then(() => {
+			editorStateCts.dispose();
+		});
 		this._currentPasteOperation = p;
 	}
 
@@ -368,7 +400,8 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			}
 			const model = editor.getModel();
 
-			const tokenSource = new EditorStateCancellationTokenSource(editor, CodeEditorStateFlag.Value | CodeEditorStateFlag.Selection, undefined, token);
+			const disposables = new DisposableStore();
+			const tokenSource = disposables.add(new EditorStateCancellationTokenSource(editor, CodeEditorStateFlag.Value | CodeEditorStateFlag.Selection, undefined, token));
 			try {
 				await this.mergeInDataFromCopy(dataTransfer, metadata, tokenSource.token);
 				if (tokenSource.token.isCancellationRequested) {
@@ -376,45 +409,48 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 				}
 
 				// Filter out any providers the don't match the full data transfer we will send them.
-				let supportedProviders = allProviders.filter(provider => isSupportedPasteProvider(provider, dataTransfer));
+				let supportedProviders = allProviders.filter(provider => this.isSupportedPasteProvider(provider, dataTransfer, preference));
 				if (preference) {
 					// We are looking for a specific edit
-					supportedProviders = supportedProviders.filter(provider => matchesPreference(provider, preference));
+					supportedProviders = supportedProviders.filter(provider => this.providerMatchesPreference(provider, preference));
 				}
 
-				const context = {
+				const context: DocumentPasteContext = {
 					triggerKind: DocumentPasteTriggerKind.PasteAs,
-					only: preference && 'kind' in preference ? preference.kind : undefined,
+					only: preference && preference instanceof HierarchicalKind ? preference : undefined,
 				};
-				let providerEdits = await this.getPasteEdits(supportedProviders, dataTransfer, model, selections, context, tokenSource.token);
+				let editSession = disposables.add(await this.getPasteEdits(supportedProviders, dataTransfer, model, selections, context, tokenSource.token));
 				if (tokenSource.token.isCancellationRequested) {
 					return;
 				}
 
 				// Filter out any edits that don't match the requested kind
 				if (preference) {
-					providerEdits = providerEdits.filter(edit => {
-						if ('kind' in preference) {
-							return preference.kind.contains(edit.kind);
-						} else {
-							return preference.providerId === edit.provider.id;
-						}
-					});
+					editSession = {
+						edits: editSession.edits.filter(edit => {
+							if (preference instanceof HierarchicalKind) {
+								return preference.contains(edit.kind);
+							} else {
+								return preference.providerId === edit.provider.id;
+							}
+						}),
+						dispose: editSession.dispose
+					};
 				}
 
-				if (!providerEdits.length) {
+				if (!editSession.edits.length) {
 					if (context.only) {
-						this.showPasteAsNoEditMessage(selections, { kind: context.only });
+						this.showPasteAsNoEditMessage(selections, context.only);
 					}
 					return;
 				}
 
 				let pickedEdit: DocumentPasteEdit | undefined;
 				if (preference) {
-					pickedEdit = providerEdits.at(0);
+					pickedEdit = editSession.edits.at(0);
 				} else {
 					const selected = await this._quickInputService.pick(
-						providerEdits.map((edit): IQuickPickItem & { edit: DocumentPasteEdit } => ({
+						editSession.edits.map((edit): IQuickPickItem & { edit: DocumentPasteEdit } => ({
 							label: edit.title,
 							description: edit.kind?.value,
 							edit,
@@ -431,7 +467,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 				const combinedWorkspaceEdit = createCombinedWorkspaceEdit(model.uri, selections, pickedEdit);
 				await this._bulkEditService.apply(combinedWorkspaceEdit, { editor: this._editor });
 			} finally {
-				tokenSource.dispose();
+				disposables.dispose();
 				if (this._currentPasteOperation === p) {
 					this._currentPasteOperation = undefined;
 				}
@@ -502,35 +538,43 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		}
 	}
 
-	private async getPasteEdits(providers: readonly DocumentPasteEditProvider[], dataTransfer: VSDataTransfer, model: ITextModel, selections: readonly Selection[], context: DocumentPasteContext, token: CancellationToken): Promise<PasteEditWithProvider[]> {
+	private async getPasteEdits(providers: readonly DocumentPasteEditProvider[], dataTransfer: VSDataTransfer, model: ITextModel, selections: readonly Selection[], context: DocumentPasteContext, token: CancellationToken): Promise<DocumentPasteWithProviderEditsSession> {
+		const disposables = new DisposableStore();
+
 		const results = await raceCancellation(
 			Promise.all(providers.map(async provider => {
 				try {
 					const edits = await provider.provideDocumentPasteEdits?.(model, selections, dataTransfer, context, token);
-					// TODO: dispose of edits
+					if (edits) {
+						disposables.add(edits);
+					}
 					return edits?.edits?.map(edit => ({ ...edit, provider }));
 				} catch (err) {
-					console.error(err);
+					if (!isCancellationError(err)) {
+						console.error(err);
+					}
+					return undefined;
 				}
-				return undefined;
 			})),
 			token);
-		const edits = coalesce(results ?? []).flat();
-		return sortEditsByYieldTo(edits);
+		const edits = coalesce(results ?? []).flat().filter(edit => {
+			return !context.only || context.only.contains(edit.kind);
+		});
+		return {
+			edits: sortEditsByYieldTo(edits),
+			dispose: () => disposables.dispose()
+		};
 	}
 
-	private async applyDefaultPasteHandler(dataTransfer: VSDataTransfer, metadata: CopyMetadata | undefined, token: CancellationToken) {
+	private async applyDefaultPasteHandler(dataTransfer: VSDataTransfer, metadata: CopyMetadata | undefined, token: CancellationToken, clipboardEvent: ClipboardEvent) {
 		const textDataTransfer = dataTransfer.get(Mimes.text) ?? dataTransfer.get('text');
-		if (!textDataTransfer) {
-			return;
-		}
-
-		const text = await textDataTransfer.asString();
+		const text = (await textDataTransfer?.asString()) ?? '';
 		if (token.isCancellationRequested) {
 			return;
 		}
 
 		const payload: PastePayload = {
+			clipboardEvent,
 			text,
 			pasteOnNewLine: metadata?.defaultPastePayload.pasteOnNewLine ?? false,
 			multicursorText: metadata?.defaultPastePayload.multicursorText ?? null,
@@ -538,19 +582,28 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		};
 		this._editor.trigger('keyboard', Handler.Paste, payload);
 	}
-}
 
-function isSupportedPasteProvider(provider: DocumentPasteEditProvider, dataTransfer: VSDataTransfer): boolean {
-	return Boolean(provider.pasteMimeTypes?.some(type => dataTransfer.matches(type)));
-}
-
-function matchesPreference(provider: DocumentPasteEditProvider, preference: PastePreference): boolean {
-	if ('kind' in preference) {
-		if (!provider.providedPasteEditKinds) {
-			return true;
+	/**
+	 * Filter out providers if they:
+	 * - Don't handle any of the data transfer types we have
+	 * - Don't match the preferred paste kind
+	 */
+	private isSupportedPasteProvider(provider: DocumentPasteEditProvider, dataTransfer: VSDataTransfer, preference?: PastePreference): boolean {
+		if (!provider.pasteMimeTypes?.some(type => dataTransfer.matches(type))) {
+			return false;
 		}
-		return provider.providedPasteEditKinds.some(providedKind => preference.kind.contains(providedKind));
-	} else {
-		return provider.id === preference.providerId;
+
+		return !preference || this.providerMatchesPreference(provider, preference);
+	}
+
+	private providerMatchesPreference(provider: DocumentPasteEditProvider, preference: PastePreference): boolean {
+		if (preference instanceof HierarchicalKind) {
+			if (!provider.providedPasteEditKinds) {
+				return true;
+			}
+			return provider.providedPasteEditKinds.some(providedKind => preference.contains(providedKind));
+		} else {
+			return provider.id === preference.providerId;
+		}
 	}
 }

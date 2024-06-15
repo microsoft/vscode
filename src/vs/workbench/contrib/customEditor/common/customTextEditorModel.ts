@@ -72,6 +72,10 @@ export class CustomTextEditorModel extends Disposable implements ICustomEditorMo
 		return undefined;
 	}
 
+	public get canHotExit() {
+		return true; // ensured via backups from text file models
+	}
+
 	public isDirty(): boolean {
 		return this.textFileService.isDirty(this.resource);
 	}

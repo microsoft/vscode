@@ -8,7 +8,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { derived, derivedWithStore, observableValue, recomputeInitiallyAndOnChange } from 'vs/base/common/observable';
 import { readHotReloadableExport } from 'vs/editor/browser/widget/diffEditor/utils';
 import { IMultiDiffEditorModel } from 'vs/editor/browser/widget/multiDiffEditor/model';
-import { IMultiDiffEditorViewState, IMultiDiffResource, MultiDiffEditorWidgetImpl } from 'vs/editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl';
+import { IMultiDiffEditorViewState, IMultiDiffResourceId, MultiDiffEditorWidgetImpl } from 'vs/editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl';
 import { MultiDiffEditorViewModel } from './multiDiffEditorViewModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import './colors';
@@ -46,7 +46,7 @@ export class MultiDiffEditorWidget extends Disposable {
 		this._register(recomputeInitiallyAndOnChange(this._widgetImpl));
 	}
 
-	public reveal(resource: IMultiDiffResource, options?: RevealOptions): void {
+	public reveal(resource: IMultiDiffResourceId, options?: RevealOptions): void {
 		this._widgetImpl.get().reveal(resource, options);
 	}
 

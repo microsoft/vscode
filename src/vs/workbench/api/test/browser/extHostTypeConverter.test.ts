@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import * as assert from 'assert';
+import assert from 'assert';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import { MarkdownString, NotebookCellOutputItem, NotebookData, LanguageSelector, WorkspaceEdit } from 'vs/workbench/api/common/extHostTypeConverters';
 import { isEmptyObject } from 'vs/base/common/types';
@@ -90,7 +90,7 @@ suite('ExtHostTypeConverter', function () {
 
 		const d = new extHostTypes.NotebookData([]);
 		d.cells.push(new extHostTypes.NotebookCellData(extHostTypes.NotebookCellKind.Code, 'hello', 'fooLang'));
-		d.metadata = { custom: { foo: 'bar', bar: 123 } };
+		d.metadata = { foo: 'bar', bar: 123 };
 
 		const dto = NotebookData.from(d);
 

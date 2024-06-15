@@ -245,7 +245,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	private _buffer: model.ITextBuffer;
 	private _bufferDisposable: IDisposable;
 	private _options: model.TextModelResolvedOptions;
-	private _languageSelectionListener = this._register(new MutableDisposable<IDisposable>());
+	private readonly _languageSelectionListener = this._register(new MutableDisposable<IDisposable>());
 
 	private _isDisposed: boolean;
 	private __isDisposing: boolean;
@@ -381,6 +381,11 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		}));
 
 		this._languageService.requestRichLanguageFeatures(languageId);
+
+		this._register(this._languageConfigurationService.onDidChange(e => {
+			this._bracketPairs.handleLanguageConfigurationServiceChange(e);
+			this._tokenizationTextModelPart.handleLanguageConfigurationServiceChange(e);
+		}));
 	}
 
 	public override dispose(): void {
@@ -413,7 +418,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	private _assertNotDisposed(): void {
 		if (this._isDisposed) {
-			throw new Error('Model is disposed!');
+			throw new BugIndicatingError('Model is disposed!');
 		}
 	}
 
@@ -2219,12 +2224,15 @@ export class ModelDecorationGlyphMarginOptions {
 
 export class ModelDecorationMinimapOptions extends DecorationOptions {
 	readonly position: model.MinimapPosition;
+	readonly sectionHeaderStyle: model.MinimapSectionHeaderStyle | null;
+	readonly sectionHeaderText: string | null;
 	private _resolvedColor: Color | undefined;
-
 
 	constructor(options: model.IModelDecorationMinimapOptions) {
 		super(options);
 		this.position = options.position;
+		this.sectionHeaderStyle = options.sectionHeaderStyle ?? null;
+		this.sectionHeaderText = options.sectionHeaderText ?? null;
 	}
 
 	public getColor(theme: IColorTheme): Color | undefined {

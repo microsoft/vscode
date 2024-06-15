@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
@@ -14,7 +14,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { getEditOperation, testCommand } from 'vs/editor/test/browser/testCommand';
-import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
+import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/onEnterRules';
 import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 import { withEditorModel } from 'vs/editor/test/common/testTextModel';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';

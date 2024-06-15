@@ -559,7 +559,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	}
 
 	private _historyProvider: vscode.SourceControlHistoryProvider | undefined;
-	private _historyProviderDisposable = new MutableDisposable<DisposableStore>();
+	private readonly _historyProviderDisposable = new MutableDisposable<DisposableStore>();
 	private _historyProviderCurrentHistoryItemGroup: vscode.SourceControlHistoryItemGroup | undefined;
 
 	get historyProvider(): vscode.SourceControlHistoryProvider | undefined {
@@ -598,7 +598,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		this.#proxy.$updateSourceControl(this.handle, { commitTemplate });
 	}
 
-	private _acceptInputDisposables = new MutableDisposable<DisposableStore>();
+	private readonly _acceptInputDisposables = new MutableDisposable<DisposableStore>();
 	private _acceptInputCommand: vscode.Command | undefined = undefined;
 
 	get acceptInputCommand(): vscode.Command | undefined {
@@ -614,7 +614,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		this.#proxy.$updateSourceControl(this.handle, { acceptInputCommand: internal });
 	}
 
-	private _actionButtonDisposables = new MutableDisposable<DisposableStore>();
+	private readonly _actionButtonDisposables = new MutableDisposable<DisposableStore>();
 	private _actionButton: vscode.SourceControlActionButton | undefined;
 	get actionButton(): vscode.SourceControlActionButton | undefined {
 		checkProposedApiEnabled(this._extension, 'scmActionButton');
@@ -639,7 +639,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	}
 
 
-	private _statusBarDisposables = new MutableDisposable<DisposableStore>();
+	private readonly _statusBarDisposables = new MutableDisposable<DisposableStore>();
 	private _statusBarCommands: vscode.Command[] | undefined = undefined;
 
 	get statusBarCommands(): vscode.Command[] | undefined {
@@ -647,7 +647,9 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	}
 
 	set statusBarCommands(statusBarCommands: vscode.Command[] | undefined) {
+		this.logService.info('ExtHostSourceControl#statusBarCommands', (statusBarCommands ?? []).map(c => c.command).join(', '));
 		if (this._statusBarCommands && statusBarCommands && commandListEquals(this._statusBarCommands, statusBarCommands)) {
+			this.logService.info('ExtHostSourceControl#statusBarCommands are equal');
 			return;
 		}
 
@@ -675,6 +677,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		_extHostDocuments: ExtHostDocuments,
 		proxy: MainThreadSCMShape,
 		private _commands: ExtHostCommands,
+		private readonly logService: ILogService,
 		private _id: string,
 		private _label: string,
 		private _rootUri?: vscode.Uri
@@ -854,7 +857,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		});
 
 		const handle = ExtHostSCM._handlePool++;
-		const sourceControl = new ExtHostSourceControl(extension, this._extHostDocuments, this._proxy, this._commands, id, label, rootUri);
+		const sourceControl = new ExtHostSourceControl(extension, this._extHostDocuments, this._proxy, this._commands, this.logService, id, label, rootUri);
 		this._sourceControls.set(handle, sourceControl);
 
 		const sourceControls = this._sourceControlsByExtension.get(extension.identifier) || [];

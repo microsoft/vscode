@@ -99,22 +99,20 @@ let MODEL_ID = 0;
 
 export interface NotebookViewModelOptions {
 	isReadOnly: boolean;
+	inRepl?: boolean;
 }
 
 export class NotebookViewModel extends Disposable implements EditorFoldingStateDelegate, INotebookViewModel {
-	private _localStore: DisposableStore = this._register(new DisposableStore());
+	private readonly _localStore = this._register(new DisposableStore());
 	private _handleToViewCellMapping = new Map<number, CellViewModel>();
 	get options(): NotebookViewModelOptions { return this._options; }
 	private readonly _onDidChangeOptions = this._register(new Emitter<void>());
 	get onDidChangeOptions(): Event<void> { return this._onDidChangeOptions.event; }
 	private _viewCells: CellViewModel[] = [];
+	private readonly replView: boolean;
 
 	get viewCells(): ICellViewModel[] {
 		return this._viewCells;
-	}
-
-	set viewCells(_: ICellViewModel[]) {
-		throw new Error('NotebookViewModel.viewCells is readonly');
 	}
 
 	get length(): number {
@@ -177,6 +175,8 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	private readonly _instanceId: string;
 	public readonly id: string;
 	private _foldingRanges: FoldingRegions | null = null;
+	private _onDidFoldingStateChanged = new Emitter<void>();
+	onDidFoldingStateChanged: Event<void> = this._onDidFoldingStateChanged.event;
 	private _hiddenRanges: ICellRange[] = [];
 	private _focused: boolean = true;
 
@@ -204,6 +204,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		MODEL_ID++;
 		this.id = '$notebookViewModel' + MODEL_ID;
 		this._instanceId = strings.singleLetterHash(MODEL_ID);
+		this.replView = !!this.options.inRepl;
 
 		const compute = (changes: NotebookCellTextModelSplice<ICell>[], synchronous: boolean) => {
 			const diffs = changes.map(splice => {
@@ -335,9 +336,12 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			this._onDidChangeSelection.fire(e);
 		}));
 
-		this._viewCells = this._notebook.cells.map(cell => {
-			return createCellViewModel(this._instantiationService, this, cell, this._viewContext);
-		});
+
+		const viewCellCount = this.replView ? this._notebook.cells.length - 1 : this._notebook.cells.length;
+		for (let i = 0; i < viewCellCount; i++) {
+			this._viewCells.push(createCellViewModel(this._instantiationService, this, this._notebook.cells[i], this._viewContext));
+		}
+
 
 		this._viewCells.forEach(cell => {
 			this._handleToViewCellMapping.set(cell.handle, cell);
@@ -470,6 +474,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 
 		if (updateHiddenAreas || k < this._hiddenRanges.length) {
 			this._hiddenRanges = newHiddenAreas;
+			this._onDidFoldingStateChanged.fire();
 		}
 
 		this._viewCells.forEach(cell => {
@@ -907,7 +912,18 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	//#region Find
 	find(value: string, options: INotebookSearchOptions): CellFindMatchWithIndex[] {
 		const matches: CellFindMatchWithIndex[] = [];
-		this._viewCells.forEach((cell, index) => {
+		let findCells: CellViewModel[] = [];
+
+		const selectedRanges = options.selectedRanges?.map(range => this.validateRange(range)).filter(range => !!range);
+
+		if (options.searchInRanges && selectedRanges) {
+			const selectedIndexes = cellRangesToIndexes(selectedRanges);
+			findCells = selectedIndexes.map(index => this._viewCells[index]);
+		} else {
+			findCells = this._viewCells;
+		}
+
+		findCells.forEach((cell, index) => {
 			const cellMatches = cell.startFind(value, options);
 			if (cellMatches) {
 				matches.push(new CellFindMatchModel(

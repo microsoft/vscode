@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as assert from 'assert';
+import assert from 'assert';
 import { IViewsRegistry, IViewDescriptor, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, ViewContainer, ViewContainerLocationToString } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
@@ -31,7 +31,7 @@ suite('ViewDescriptorService', () => {
 	let instantiationService: TestInstantiationService;
 
 	setup(() => {
-		disposables.add(instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables));
+		disposables.add(instantiationService = workbenchInstantiationService(undefined, disposables));
 		instantiationService.stub(IContextKeyService, disposables.add(instantiationService.createInstance(ContextKeyService)));
 	});
 

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { DefaultConfiguration, PolicyConfiguration } from 'vs/platform/configuration/common/configurations';
@@ -61,7 +61,7 @@ suite('PolicyConfiguration', () => {
 	suiteTeardown(() => Registry.as<IConfigurationRegistry>(Extensions.Configuration).deregisterConfigurations([policyConfigurationNode]));
 
 	setup(async () => {
-		const defaultConfiguration = disposables.add(new DefaultConfiguration());
+		const defaultConfiguration = disposables.add(new DefaultConfiguration(new NullLogService()));
 		await defaultConfiguration.initialize();
 		fileService = disposables.add(new FileService(new NullLogService()));
 		const diskFileSystemProvider = disposables.add(new InMemoryFileSystemProvider());

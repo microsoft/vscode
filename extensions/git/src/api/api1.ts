@@ -160,10 +160,6 @@ export class ApiRepository implements Repository {
 		return this.repository.diffBetween(ref1, ref2, path);
 	}
 
-	getDiff(): Promise<string[]> {
-		return this.repository.getDiff();
-	}
-
 	hashObject(data: string): Promise<string> {
 		return this.repository.hashObject(data);
 	}
@@ -194,6 +190,10 @@ export class ApiRepository implements Repository {
 
 	getRefs(query: RefQuery, cancellationToken?: CancellationToken): Promise<Ref[]> {
 		return this.repository.getRefs(query, cancellationToken);
+	}
+
+	checkIgnore(paths: string[]): Promise<Set<string>> {
+		return this.repository.checkIgnore(paths);
 	}
 
 	getMergeBase(ref1: string, ref2: string): Promise<string | undefined> {

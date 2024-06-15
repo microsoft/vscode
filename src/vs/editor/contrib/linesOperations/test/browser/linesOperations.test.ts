@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
+import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
 import type { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -50,6 +50,25 @@ suite('Editor Contrib - Line Operations', () => {
 						'omicron'
 					]);
 					assertSelection(editor, new Selection(1, 1, 3, 7));
+				});
+		});
+
+		test('should sort lines in ascending order', function () {
+			withTestCodeEditor(
+				[
+					'omicron',
+					'beta',
+					'alpha'
+				], {}, (editor) => {
+					const model = editor.getModel()!;
+					const sortLinesAscendingAction = new SortLinesAscendingAction();
+
+					executeAction(sortLinesAscendingAction, editor);
+					assert.deepStrictEqual(model.getLinesContent(), [
+						'alpha',
+						'beta',
+						'omicron'
+					]);
 				});
 		});
 
@@ -148,7 +167,7 @@ suite('Editor Contrib - Line Operations', () => {
 	});
 
 	suite('DeleteDuplicateLinesAction', () => {
-		test('should remove duplicate lines', function () {
+		test('should remove duplicate lines within selection', function () {
 			withTestCodeEditor(
 				[
 					'alpha',
@@ -169,6 +188,29 @@ suite('Editor Contrib - Line Operations', () => {
 						'omicron',
 					]);
 					assertSelection(editor, new Selection(1, 1, 3, 7));
+				});
+		});
+
+		test('should remove duplicate lines', function () {
+			withTestCodeEditor(
+				[
+					'alpha',
+					'beta',
+					'beta',
+					'beta',
+					'alpha',
+					'omicron',
+				], {}, (editor) => {
+					const model = editor.getModel()!;
+					const deleteDuplicateLinesAction = new DeleteDuplicateLinesAction();
+
+					executeAction(deleteDuplicateLinesAction, editor);
+					assert.deepStrictEqual(model.getLinesContent(), [
+						'alpha',
+						'beta',
+						'omicron',
+					]);
+					assert.ok(editor.getSelection().isEmpty());
 				});
 		});
 

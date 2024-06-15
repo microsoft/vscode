@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { EnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import product from 'vs/platform/product/common/product';
 import { isLinux } from 'vs/base/common/platform';

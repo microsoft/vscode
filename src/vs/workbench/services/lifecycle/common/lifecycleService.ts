@@ -52,11 +52,11 @@ export abstract class AbstractLifecycleService extends Disposable implements ILi
 		this._startupKind = this.resolveStartupKind();
 
 		// Save shutdown reason to retrieve on next startup
-		this.storageService.onWillSaveState(e => {
+		this._register(this.storageService.onWillSaveState(e => {
 			if (e.reason === WillSaveStateReason.SHUTDOWN) {
 				this.storageService.store(AbstractLifecycleService.LAST_SHUTDOWN_REASON_KEY, this.shutdownReason, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 			}
-		});
+		}));
 	}
 
 	private resolveStartupKind(): StartupKind {

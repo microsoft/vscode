@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-use super::protocol::{self, PortPrivacy};
+use super::protocol::{self, PortPrivacy, PortProtocol};
 use crate::auth;
 use crate::constants::{IS_INTERACTIVE_CLI, PROTOCOL_VERSION_TAG, TUNNEL_SERVICE_USER_AGENT};
 use crate::state::{LauncherPaths, PersistedState};
@@ -221,8 +221,11 @@ impl ActiveTunnel {
 		&self,
 		port_number: u16,
 		privacy: PortPrivacy,
+		protocol: PortProtocol,
 	) -> Result<(), AnyError> {
-		self.manager.add_port_tcp(port_number, privacy).await?;
+		self.manager
+			.add_port_tcp(port_number, privacy, protocol)
+			.await?;
 		Ok(())
 	}
 
@@ -562,6 +565,10 @@ impl DevTunnels {
 
 		let tunnel = match self.get_existing_tunnel_with_name(name).await? {
 			Some(e) => {
+				if tunnel_has_host_connection(&e) {
+					return Err(CodeError::TunnelActiveAndInUse(name.to_string()).into());
+				}
+
 				let loc = TunnelLocator::try_from(&e).unwrap();
 				info!(self.log, "Adopting existing tunnel (ID={:?})", loc);
 				spanf!(
@@ -687,13 +694,7 @@ impl DevTunnels {
 
 		let recyclable = existing_tunnels
 			.iter()
-			.filter(|t| {
-				t.status
-					.as_ref()
-					.and_then(|s| s.host_connection_count.as_ref())
-					.map(|c| c.get_count())
-					.unwrap_or(0) == 0
-			})
+			.filter(|t| !tunnel_has_host_connection(t))
 			.choose(&mut rand::thread_rng());
 
 		match recyclable {
@@ -764,12 +765,9 @@ impl DevTunnels {
 	) -> Result<String, AnyError> {
 		let existing_tunnels = self.list_tunnels_with_tag(&[self.tag]).await?;
 		let is_name_free = |n: &str| {
-			!existing_tunnels.iter().any(|v| {
-				v.status
-					.as_ref()
-					.and_then(|s| s.host_connection_count.as_ref().map(|c| c.get_count()))
-					.unwrap_or(0) > 0 && v.labels.iter().any(|t| t == n)
-			})
+			!existing_tunnels
+				.iter()
+				.any(|v| tunnel_has_host_connection(v) && v.labels.iter().any(|t| t == n))
 		};
 
 		if let Some(machine_name) = preferred_name {
@@ -973,18 +971,18 @@ impl ActiveTunnelManager {
 	}
 
 	/// Adds a port for TCP/IP forwarding.
-	#[allow(dead_code)] // todo: port forwarding
 	pub async fn add_port_tcp(
 		&self,
 		port_number: u16,
 		privacy: PortPrivacy,
+		protocol: PortProtocol,
 	) -> Result<(), WrappedError> {
 		self.relay
 			.lock()
 			.await
 			.add_port(&TunnelPort {
 				port_number,
-				protocol: Some(TUNNEL_PROTOCOL_AUTO.to_owned()),
+				protocol: Some(protocol.to_contract_str().to_string()),
 				access_control: Some(privacy_to_tunnel_acl(privacy)),
 				..Default::default()
 			})
@@ -1233,6 +1231,14 @@ fn privacy_to_tunnel_acl(privacy: PortPrivacy) -> TunnelAccessControl {
 			},
 		}],
 	}
+}
+
+fn tunnel_has_host_connection(tunnel: &Tunnel) -> bool {
+	tunnel
+		.status
+		.as_ref()
+		.and_then(|s| s.host_connection_count.as_ref().map(|c| c.get_count() > 0))
+		.unwrap_or_default()
 }
 
 #[cfg(test)]

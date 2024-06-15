@@ -59,10 +59,8 @@ declare module 'vscode' {
 		 */
 		label?: string;
 
-		/**
-		 * The optional state of a comment thread, which may affect how the comment is displayed.
-		 */
-		state?: CommentThreadState;
+		// from the commentThreadRelevance proposal
+		state?: CommentThreadState | { resolved?: CommentThreadState; applicability?: CommentThreadApplicability };
 
 		/**
 		 * Dispose this comment thread.
@@ -70,6 +68,9 @@ declare module 'vscode' {
 		 * Once disposed, this comment thread will be removed from visible editors and Comment Panel when appropriate.
 		 */
 		dispose(): void;
+
+		// Part of the comment reveal proposal
+		reveal(options?: CommentThreadRevealOptions): Thenable<void>;
 	}
 
 	export interface CommentController {

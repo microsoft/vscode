@@ -26,6 +26,12 @@ steps:
         artifact: ${{ target }}
         path: $(Build.ArtifactStagingDirectory)/pkg/${{ target }}
 
+    - task: ExtractFiles@1
+      displayName: Extract artifact
+      inputs:
+        archiveFilePatterns: $(Build.ArtifactStagingDirectory)/pkg/${{ target }}/*.zip
+        destinationFolder: $(Build.ArtifactStagingDirectory)/sign/${{ target }}
+
   - script: node build/azure-pipelines/common/sign $(Agent.ToolsDirectory)/esrpclient/*/*/net6.0/esrpcli.dll sign-darwin $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(Build.ArtifactStagingDirectory)/pkg "*.zip"
     displayName: Codesign
 
@@ -40,6 +46,11 @@ steps:
         echo "##vso[task.setvariable variable=ASSET_ID]$ASSET_ID"
       displayName: Set asset id variable
 
-    - publish: $(Build.ArtifactStagingDirectory)/pkg/${{ target }}/$(ASSET_ID).zip
+    - task: 1ES.PublishPipelineArtifact@1
+      inputs:
+        targetPath: $(Build.ArtifactStagingDirectory)/pkg/${{ target }}/$(ASSET_ID).zip
+        artifactName: $(ASSET_ID)
+        sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/sign/${{ target }}
+        sbomPackageName: "VS Code macOS ${{ target }} CLI"
+        sbomPackageVersion: $(Build.SourceVersion)
       displayName: Publish signed artifact with ID $(ASSET_ID)
-      artifact: $(ASSET_ID)

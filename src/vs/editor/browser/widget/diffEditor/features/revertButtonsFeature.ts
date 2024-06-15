@@ -31,7 +31,7 @@ export class RevertButtonsFeature extends Disposable {
 		super();
 
 		this._register(autorunWithStore((reader, store) => {
-			if (!this._options.shouldRenderRevertArrows.read(reader)) { return; }
+			if (!this._options.shouldRenderOldRevertArrows.read(reader)) { return; }
 			const model = this._diffModel.read(reader);
 			const diff = model?.diff.read(reader);
 			if (!model || !diff) { return; }

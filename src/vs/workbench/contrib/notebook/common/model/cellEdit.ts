@@ -24,7 +24,7 @@ export class MoveCellEdit implements IResourceUndoRedoElement {
 	get label() {
 		return this.length === 1 ? 'Move Cell' : 'Move Cells';
 	}
-	code: string = 'undoredo.notebooks.moveCell';
+	code: string = 'undoredo.textBufferEdit';
 
 	constructor(
 		public resource: URI,
@@ -67,7 +67,7 @@ export class SpliceCellsEdit implements IResourceUndoRedoElement {
 		// Default to Insert Cell
 		return 'Insert Cell';
 	}
-	code: string = 'undoredo.notebooks.insertCell';
+	code: string = 'undoredo.textBufferEdit';
 	constructor(
 		public resource: URI,
 		private diffs: [number, NotebookCellTextModel[], NotebookCellTextModel[]][],
@@ -101,7 +101,7 @@ export class SpliceCellsEdit implements IResourceUndoRedoElement {
 export class CellMetadataEdit implements IResourceUndoRedoElement {
 	type: UndoRedoElementType.Resource = UndoRedoElementType.Resource;
 	label: string = 'Update Cell Metadata';
-	code: string = 'undoredo.notebooks.updateCellMetadata';
+	code: string = 'undoredo.textBufferEdit';
 	constructor(
 		public resource: URI,
 		readonly index: number,

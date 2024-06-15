@@ -74,7 +74,7 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 			ariaLabel: createTerminalLabel,
 			accept: () => this._commandService.executeCommand(TerminalCommandId.New)
 		});
-		const createWithProfileLabel = localize("workbench.action.terminal.newWithProfilePlus", "Create New Terminal With Profile");
+		const createWithProfileLabel = localize("workbench.action.terminal.newWithProfilePlus", "Create New Terminal With Profile...");
 		terminalPicks.push({
 			label: `$(plus) ${createWithProfileLabel}`,
 			ariaLabel: createWithProfileLabel,

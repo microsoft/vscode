@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
+import { IObservable } from 'vs/base/common/observable';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { IMenu } from 'vs/platform/actions/common/actions';
@@ -22,6 +23,7 @@ export interface ISCMHistoryProvider {
 
 	get currentHistoryItemGroup(): ISCMHistoryItemGroup | undefined;
 	set currentHistoryItemGroup(historyItemGroup: ISCMHistoryItemGroup | undefined);
+	readonly currentHistoryItemGroupObs: IObservable<ISCMHistoryItemGroup | undefined>;
 
 	provideHistoryItems(historyItemGroupId: string, options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined>;
 	provideHistoryItemSummary(historyItemId: string, historyItemParentId: string | undefined): Promise<ISCMHistoryItem | undefined>;
@@ -43,7 +45,7 @@ export interface ISCMHistoryOptions {
 
 export interface ISCMHistoryItemGroup {
 	readonly id: string;
-	readonly label: string;
+	readonly name: string;
 	readonly base?: Omit<ISCMHistoryItemGroup, 'base'>;
 }
 
@@ -69,8 +71,8 @@ export interface ISCMHistoryItemStatistics {
 export interface ISCMHistoryItem {
 	readonly id: string;
 	readonly parentIds: string[];
-	readonly label: string;
-	readonly description?: string;
+	readonly message: string;
+	readonly author?: string;
 	readonly icon?: URI | { light: URI; dark: URI } | ThemeIcon;
 	readonly timestamp?: number;
 	readonly statistics?: ISCMHistoryItemStatistics;

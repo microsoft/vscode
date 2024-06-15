@@ -174,14 +174,20 @@ export interface IStatusbarEntry {
 
 	/**
 	 * Will enable a spinning icon in front of the text to indicate progress. When `true` is
-	 * specified, `syncing` will be used.
+	 * specified, `loading` will be used.
 	 */
-	readonly showProgress?: boolean | 'syncing' | 'loading';
+	readonly showProgress?: boolean | 'loading' | 'syncing';
 
 	/**
 	 * The kind of status bar entry. This applies different colors to the entry.
 	 */
 	readonly kind?: StatusbarEntryKind;
+
+	/**
+	 * Enables the status bar entry to appear in all opened windows. Automatically will add
+	 * the entry to new auxiliary windows opening.
+	 */
+	readonly showInAllWindows?: boolean;
 }
 
 export interface IStatusbarEntryAccessor extends IDisposable {

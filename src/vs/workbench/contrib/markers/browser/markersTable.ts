@@ -30,6 +30,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Range } from 'vs/editor/common/core/range';
 import { unsupportedSchemas } from 'vs/platform/markers/common/markerService';
 import Severity from 'vs/base/common/severity';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 const $ = DOM.$;
 
@@ -118,6 +119,7 @@ class MarkerCodeColumnRenderer implements ITableRenderer<MarkerTableItem, IMarke
 	readonly templateId: string = MarkerCodeColumnRenderer.TEMPLATE_ID;
 
 	constructor(
+		@IHoverService private readonly hoverService: IHoverService,
 		@IOpenerService private readonly openerService: IOpenerService
 	) { }
 
@@ -131,7 +133,7 @@ class MarkerCodeColumnRenderer implements ITableRenderer<MarkerTableItem, IMarke
 		const codeLabel = templateDisposable.add(new HighlightedLabel(codeColumn));
 		codeLabel.element.classList.add('code-label');
 
-		const codeLink = templateDisposable.add(new Link(codeColumn, { href: '', label: '' }, {}, this.openerService));
+		const codeLink = templateDisposable.add(new Link(codeColumn, { href: '', label: '' }, {}, this.hoverService, this.openerService));
 
 		return { codeColumn, sourceLabel, codeLabel, codeLink, templateDisposable };
 	}

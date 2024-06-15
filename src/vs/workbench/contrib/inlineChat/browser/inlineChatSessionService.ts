@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
-import { EditMode, IInlineChatSession, IInlineChatResponse } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { EditMode } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IRange } from 'vs/editor/common/core/range';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -12,12 +12,13 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Session, StashedSession } from './inlineChatSession';
 import { IValidEditOperation } from 'vs/editor/common/model';
+import { IChatResponseModel } from 'vs/workbench/contrib/chat/common/chatModel';
 
 
 export type Recording = {
 	when: Date;
-	session: IInlineChatSession;
-	exchanges: { prompt: string; res: IInlineChatResponse }[];
+	session: string;
+	exchanges: { prompt: string; res: IChatResponseModel }[];
 };
 
 export interface ISessionKeyComputer {

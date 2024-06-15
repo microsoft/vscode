@@ -1233,11 +1233,11 @@ export class Repository {
 			.filter(entry => !!entry);
 	}
 
-	async bufferString(object: string, encoding: string = 'utf8', autoGuessEncoding = false): Promise<string> {
+	async bufferString(object: string, encoding: string = 'utf8', autoGuessEncoding = false, candidateGuessEncodings: string[] = []): Promise<string> {
 		const stdout = await this.buffer(object);
 
 		if (autoGuessEncoding) {
-			encoding = detectEncoding(stdout) || encoding;
+			encoding = detectEncoding(stdout, candidateGuessEncodings) || encoding;
 		}
 
 		encoding = iconv.encodingExists(encoding) ? encoding : 'utf8';
@@ -2525,7 +2525,7 @@ export class Repository {
 		// On Windows and macOS ref names are case insensitive so we add --ignore-case
 		// to handle the scenario where the user switched to a branch with incorrect
 		// casing
-		if (isWindows || isMacintosh) {
+		if (this.git.compareGitVersionTo('2.12') !== -1 && (isWindows || isMacintosh)) {
 			args.push('--ignore-case');
 		}
 

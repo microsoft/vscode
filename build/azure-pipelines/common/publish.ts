@@ -483,13 +483,14 @@ async function downloadArtifact(artifact: Artifact, downloadPath: string): Promi
 	}
 }
 
-async function unzip(packagePath: string, outputPath: string): Promise<string> {
+async function unzip(packagePath: string, outputPath: string): Promise<string[]> {
 	return new Promise((resolve, reject) => {
-		yauzl.open(packagePath, { lazyEntries: true }, (err, zipfile) => {
+		yauzl.open(packagePath, { lazyEntries: true, autoClose: true }, (err, zipfile) => {
 			if (err) {
 				return reject(err);
 			}
 
+			const result: string[] = [];
 			zipfile!.on('entry', entry => {
 				if (/\/$/.test(entry.fileName)) {
 					zipfile!.readEntry();
@@ -504,8 +505,8 @@ async function unzip(packagePath: string, outputPath: string): Promise<string> {
 
 						const ostream = fs.createWriteStream(filePath);
 						ostream.on('finish', () => {
-							zipfile!.close();
-							resolve(filePath);
+							result.push(filePath);
+							zipfile!.readEntry();
 						});
 						istream?.on('error', err => reject(err));
 						istream!.pipe(ostream);
@@ -513,6 +514,7 @@ async function unzip(packagePath: string, outputPath: string): Promise<string> {
 				}
 			});
 
+			zipfile!.on('close', () => resolve(result));
 			zipfile!.readEntry();
 		});
 	});
@@ -531,7 +533,7 @@ interface Asset {
 }
 
 // Contains all of the logic for mapping details to our actual product names in CosmosDB
-function getPlatform(product: string, os: string, arch: string, type: string): string {
+function getPlatform(product: string, os: string, arch: string, type: string, isLegacy: boolean): string {
 	switch (os) {
 		case 'win32':
 			switch (product) {
@@ -582,9 +584,12 @@ function getPlatform(product: string, os: string, arch: string, type: string): s
 						case 'client':
 							return `linux-${arch}`;
 						case 'server':
-							return `server-linux-${arch}`;
+							return isLegacy ? `server-linux-legacy-${arch}` : `server-linux-${arch}`;
 						case 'web':
-							return arch === 'standalone' ? 'web-standalone' : `server-linux-${arch}-web`;
+							if (arch === 'standalone') {
+								return 'web-standalone';
+							}
+							return isLegacy ? `server-linux-legacy-${arch}-web` : `server-linux-${arch}-web`;
 						default:
 							throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 					}
@@ -639,7 +644,7 @@ function getRealType(type: string) {
 
 async function processArtifact(artifact: Artifact, artifactFilePath: string): Promise<void> {
 	const log = (...args: any[]) => console.log(`[${artifact.name}]`, ...args);
-	const match = /^vscode_(?<product>[^_]+)_(?<os>[^_]+)_(?<arch>[^_]+)_(?<unprocessedType>[^_]+)$/.exec(artifact.name);
+	const match = /^vscode_(?<product>[^_]+)_(?<os>[^_]+)(?:_legacy)?_(?<arch>[^_]+)_(?<unprocessedType>[^_]+)$/.exec(artifact.name);
 
 	if (!match) {
 		throw new Error(`Invalid artifact name: ${artifact.name}`);
@@ -649,7 +654,8 @@ async function processArtifact(artifact: Artifact, artifactFilePath: string): Pr
 	const quality = e('VSCODE_QUALITY');
 	const commit = e('BUILD_SOURCEVERSION');
 	const { product, os, arch, unprocessedType } = match.groups!;
-	const platform = getPlatform(product, os, arch, unprocessedType);
+	const isLegacy = artifact.name.includes('_legacy');
+	const platform = getPlatform(product, os, arch, unprocessedType, isLegacy);
 	const type = getRealType(unprocessedType);
 	const size = fs.statSync(artifactFilePath).size;
 	const stream = fs.createReadStream(artifactFilePath);
@@ -670,7 +676,7 @@ async function processArtifact(artifact: Artifact, artifactFilePath: string): Pr
 	);
 
 	const asset: Asset = { platform, type, url, hash, sha256hash, size, supportsFastUpdate: true };
-	log('Creating asset...', JSON.stringify(asset));
+	log('Creating asset...', JSON.stringify(asset, undefined, 2));
 
 	await retry(async (attempt) => {
 		log(`Creating asset in Cosmos DB (attempt ${attempt})...`);
@@ -706,6 +712,7 @@ async function main() {
 	const stages = new Set<string>(['Compile', 'CompileCLI']);
 	if (e('VSCODE_BUILD_STAGE_WINDOWS') === 'True') { stages.add('Windows'); }
 	if (e('VSCODE_BUILD_STAGE_LINUX') === 'True') { stages.add('Linux'); }
+	if (e('VSCODE_BUILD_STAGE_LINUX_LEGACY_SERVER') === 'True') { stages.add('LinuxLegacyServer'); }
 	if (e('VSCODE_BUILD_STAGE_ALPINE') === 'True') { stages.add('Alpine'); }
 	if (e('VSCODE_BUILD_STAGE_MACOS') === 'True') { stages.add('macOS'); }
 	if (e('VSCODE_BUILD_STAGE_WEB') === 'True') { stages.add('Web'); }
@@ -748,13 +755,8 @@ async function main() {
 				console.log(`[${artifact.name}] Successfully downloaded after ${Math.floor(downloadDurationS)} seconds(${downloadSpeedKBS} KB/s).`);
 			});
 
-			const artifactFilePath = await unzip(artifactZipPath, e('AGENT_TEMPDIRECTORY'));
-			const artifactSize = fs.statSync(artifactFilePath).size;
-
-			if (artifactSize !== Number(artifact.resource.properties.artifactsize)) {
-				console.log(`[${artifact.name}] Artifact size mismatch.Expected ${artifact.resource.properties.artifactsize}. Actual ${artifactSize} `);
-				throw new Error(`Artifact size mismatch.`);
-			}
+			const artifactFilePaths = await unzip(artifactZipPath, e('AGENT_TEMPDIRECTORY'));
+			const artifactFilePath = artifactFilePaths.filter(p => !/_manifest/.test(p))[0];
 
 			processing.add(artifact.name);
 			const promise = new Promise<void>((resolve, reject) => {

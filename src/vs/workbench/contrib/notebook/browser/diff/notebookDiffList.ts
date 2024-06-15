@@ -248,7 +248,9 @@ export class CellDiffSideBySideRenderer implements IListRenderer<SideBySideDiffE
 			dimension: {
 				height: 0,
 				width: 0
-			}
+			},
+			renderSideBySide: true,
+			useInlineViewWhenSpaceIsLimited: false
 		}, {
 			originalEditor: getOptimizedNestedCodeEditorWidgetOptions(),
 			modifiedEditor: getOptimizedNestedCodeEditorWidgetOptions()

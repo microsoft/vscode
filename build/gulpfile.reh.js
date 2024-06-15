@@ -129,7 +129,8 @@ function getNodeChecksum(nodeVersion, platform, arch, glibcPrefix) {
 	let expectedName;
 	switch (platform) {
 		case 'win32':
-			expectedName = `win-${arch}/node.exe`;
+			expectedName = product.nodejsRepository !== 'https://nodejs.org' ?
+				`win-${arch}-node.exe` : `win-${arch}/node.exe`;
 			break;
 
 		case 'darwin':
@@ -373,7 +374,13 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 			);
 		}
 
-		if (platform === 'linux' || platform === 'alpine') {
+		if (platform === 'linux' && process.env['VSCODE_NODE_GLIBC'] === '-glibc-2.17') {
+			result = es.merge(result,
+				gulp.src(`resources/server/bin/helpers/check-requirements-linux-legacy.sh`, { base: '.' })
+					.pipe(rename(`bin/helpers/check-requirements.sh`))
+					.pipe(util.setExecutableBit())
+			);
+		} else if (platform === 'linux' || platform === 'alpine') {
 			result = es.merge(result,
 				gulp.src(`resources/server/bin/helpers/check-requirements-linux.sh`, { base: '.' })
 					.pipe(rename(`bin/helpers/check-requirements.sh`))
@@ -433,7 +440,7 @@ function tweakProductForServerWeb(product) {
 	const minifyTask = task.define(`minify-vscode-${type}`, task.series(
 		optimizeTask,
 		util.rimraf(`out-vscode-${type}-min`),
-		optimize.minifyTask(`out-vscode-${type}`, `https://ticino.blob.core.windows.net/sourcemaps/${commit}/core`)
+		optimize.minifyTask(`out-vscode-${type}`, `https://main.vscode-cdn.net/sourcemaps/${commit}/core`)
 	));
 	gulp.task(minifyTask);
 

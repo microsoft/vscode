@@ -12,7 +12,7 @@ import { ExtHostFileSystemEventServiceShape, FileSystemEvents, IMainContext, Sou
 import * as typeConverter from './extHostTypeConverters';
 import { Disposable, WorkspaceEdit } from './extHostTypes';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { FileOperation } from 'vs/platform/files/common/files';
+import { FileChangeFilter, FileOperation } from 'vs/platform/files/common/files';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
@@ -122,6 +122,10 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 			return disposable; // workspace is already watched by default, no need to watch again!
 		}
 
+		if (options?.ignoreChangeEvents && options?.ignoreCreateEvents && options?.ignoreDeleteEvents) {
+			return disposable; // no need to watch if we ignore all events
+		}
+
 		const proxy = mainContext.getProxy(MainContext.MainThreadFileSystemEventService);
 
 		let recursive = false;
@@ -129,7 +133,26 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 			recursive = true; // only watch recursively if pattern indicates the need for it
 		}
 
-		proxy.$watch(extension.identifier.value, this.session, globPattern.baseUri, { recursive, excludes: options?.excludes ?? [] }, Boolean(correlate));
+		let filter: FileChangeFilter | undefined;
+		if (correlate) {
+			if (options?.ignoreChangeEvents || options?.ignoreCreateEvents || options?.ignoreDeleteEvents) {
+				filter = FileChangeFilter.UPDATED | FileChangeFilter.ADDED | FileChangeFilter.DELETED;
+
+				if (options?.ignoreChangeEvents) {
+					filter &= ~FileChangeFilter.UPDATED;
+				}
+
+				if (options?.ignoreCreateEvents) {
+					filter &= ~FileChangeFilter.ADDED;
+				}
+
+				if (options?.ignoreDeleteEvents) {
+					filter &= ~FileChangeFilter.DELETED;
+				}
+			}
+		}
+
+		proxy.$watch(extension.identifier.value, this.session, globPattern.baseUri, { recursive, excludes: options?.excludes ?? [], filter }, Boolean(correlate));
 
 		return Disposable.from({ dispose: () => proxy.$unwatch(this.session) });
 	}

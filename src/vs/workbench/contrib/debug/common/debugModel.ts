@@ -22,7 +22,7 @@ import * as nls from 'vs/nls';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IEditorPane } from 'vs/workbench/common/editor';
-import { DEBUG_MEMORY_SCHEME, DataBreakpointSetType, DataBreakpointSource, DebugTreeItemCollapsibleState, IBaseBreakpoint, IBreakpoint, IBreakpointData, IBreakpointUpdateData, IBreakpointsChangeEvent, IDataBreakpoint, IDebugModel, IDebugSession, IDebugVisualizationTreeItem, IEnablement, IExceptionBreakpoint, IExceptionInfo, IExpression, IExpressionContainer, IFunctionBreakpoint, IInstructionBreakpoint, IMemoryInvalidationEvent, IMemoryRegion, IRawModelUpdate, IRawStoppedDetails, IScope, IStackFrame, IThread, ITreeElement, MemoryRange, MemoryRangeType, State } from 'vs/workbench/contrib/debug/common/debug';
+import { DEBUG_MEMORY_SCHEME, DataBreakpointSetType, DataBreakpointSource, DebugTreeItemCollapsibleState, IBaseBreakpoint, IBreakpoint, IBreakpointData, IBreakpointUpdateData, IBreakpointsChangeEvent, IDataBreakpoint, IDebugModel, IDebugSession, IDebugVisualizationTreeItem, IEnablement, IExceptionBreakpoint, IExceptionInfo, IExpression, IExpressionContainer, IFunctionBreakpoint, IInstructionBreakpoint, IMemoryInvalidationEvent, IMemoryRegion, IRawModelUpdate, IRawStoppedDetails, IScope, IStackFrame, IThread, ITreeElement, MemoryRange, MemoryRangeType, State, isFrameDeemphasized } from 'vs/workbench/contrib/debug/common/debug';
 import { Source, UNKNOWN_SOURCE_LABEL, getUriFromSource } from 'vs/workbench/contrib/debug/common/debugSource';
 import { DebugStorage } from 'vs/workbench/contrib/debug/common/debugStorage';
 import { IDebugVisualizerService } from 'vs/workbench/contrib/debug/common/debugVisualizers';
@@ -540,6 +540,8 @@ export class StackFrame implements IStackFrame {
 	}
 }
 
+const KEEP_SUBTLE_FRAME_AT_TOP_REASONS: readonly string[] = ['breakpoint', 'step', 'function breakpoint'];
+
 export class Thread implements IThread {
 	private callStack: IStackFrame[];
 	private staleCallStack: IStackFrame[];
@@ -578,10 +580,11 @@ export class Thread implements IThread {
 
 	getTopStackFrame(): IStackFrame | undefined {
 		const callStack = this.getCallStack();
+		const stopReason = this.stoppedDetails?.reason;
 		// Allow stack frame without source and with instructionReferencePointer as top stack frame when using disassembly view.
-		const firstAvailableStackFrame = callStack.find(sf => !!(sf &&
-			((this.stoppedDetails?.reason === 'instruction breakpoint' || (this.stoppedDetails?.reason === 'step' && this.lastSteppingGranularity === 'instruction')) && sf.instructionPointerReference) ||
-			(sf.source && sf.source.available && sf.source.presentationHint !== 'deemphasize')));
+		const firstAvailableStackFrame = callStack.find(sf => !!(
+			((stopReason === 'instruction breakpoint' || (stopReason === 'step' && this.lastSteppingGranularity === 'instruction')) && sf.instructionPointerReference) ||
+			(sf.source && sf.source.available && (KEEP_SUBTLE_FRAME_AT_TOP_REASONS.includes(stopReason!) || !isFrameDeemphasized(sf)))));
 		return firstAvailableStackFrame;
 	}
 
@@ -1896,8 +1899,8 @@ export class DebugModel extends Disposable implements IDebugModel {
 		this._onDidChangeBreakpoints.fire({ changed: changed, sessionOnly: false });
 	}
 
-	addFunctionBreakpoint(functionName: string, id?: string, mode?: string): IFunctionBreakpoint {
-		const newFunctionBreakpoint = new FunctionBreakpoint({ name: functionName, mode }, id);
+	addFunctionBreakpoint(opts: IFunctionBreakpointOptions, id?: string): IFunctionBreakpoint {
+		const newFunctionBreakpoint = new FunctionBreakpoint(opts, id);
 		this.functionBreakpoints.push(newFunctionBreakpoint);
 		this._onDidChangeBreakpoints.fire({ added: [newFunctionBreakpoint], sessionOnly: false });
 

@@ -107,6 +107,11 @@ export interface IEditorPane extends IComposite {
 	readonly onDidChangeSelection?: Event<IEditorPaneSelectionChangeEvent>;
 
 	/**
+	 * An optional event to notify when the editor inside the pane scrolled
+	 */
+	readonly onDidChangeScroll?: Event<void>;
+
+	/**
 	 * The assigned input of this editor.
 	 */
 	readonly input: EditorInput | undefined;
@@ -181,6 +186,22 @@ export interface IEditorPane extends IComposite {
 	 * selection as needed.
 	 */
 	getSelection?(): IEditorPaneSelection | undefined;
+
+	/**
+	 * An optional method to return the current scroll position
+	 * of an editor inside the pane.
+	 *
+	 * Clients of this method will typically react to the
+	 * `onDidChangeScroll` event to receive the current
+	 * scroll position as needed.
+	 */
+	getScrollPosition?(): IEditorPaneScrollPosition;
+
+	/**
+	 * An optional method to set the current scroll position
+	 * of an editor inside the pane.
+	 */
+	setScrollPosition?(scrollPosition: IEditorPaneScrollPosition): void;
 
 	/**
 	 * Finds out if this editor is visible or not.
@@ -303,6 +324,29 @@ export function isEditorPaneWithSelection(editorPane: IEditorPane | undefined): 
 	const candidate = editorPane as IEditorPaneWithSelection | undefined;
 
 	return !!candidate && typeof candidate.getSelection === 'function' && !!candidate.onDidChangeSelection;
+}
+
+export interface IEditorPaneWithScrolling extends IEditorPane {
+
+	readonly onDidChangeScroll: Event<void>;
+
+	getScrollPosition(): IEditorPaneScrollPosition;
+
+	setScrollPosition(position: IEditorPaneScrollPosition): void;
+}
+
+export function isEditorPaneWithScrolling(editorPane: IEditorPane | undefined): editorPane is IEditorPaneWithScrolling {
+	const candidate = editorPane as IEditorPaneWithScrolling | undefined;
+
+	return !!candidate && typeof candidate.getScrollPosition === 'function' && typeof candidate.setScrollPosition === 'function' && !!candidate.onDidChangeScroll;
+}
+
+/**
+ * Scroll position of a pane
+ */
+export interface IEditorPaneScrollPosition {
+	readonly scrollTop: number;
+	readonly scrollLeft?: number;
 }
 
 /**
@@ -789,13 +833,7 @@ export const enum EditorInputCapabilities {
 	 * Signals that the editor cannot be in a dirty state
 	 * and may still have unsaved changes
 	 */
-	Scratchpad = 1 << 9,
-
-	/**
-	 * Signals that the editor does not support opening in
-	 * auxiliary windows yet.
-	 */
-	AuxWindowUnsupported = 1 << 10
+	Scratchpad = 1 << 9
 }
 
 export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput | IResourceMultiDiffEditorInput | IResourceSideBySideEditorInput | IResourceMergeEditorInput;
@@ -1041,6 +1079,12 @@ export interface IEditorCommandsContext {
 	preserveFocus?: boolean;
 }
 
+export function isEditorCommandsContext(context: unknown): context is IEditorCommandsContext {
+	const candidate = context as IEditorCommandsContext | undefined;
+
+	return typeof candidate?.groupId === 'number';
+}
+
 /**
  * More information around why an editor was closed in the model.
  */
@@ -1124,6 +1168,9 @@ export const enum GroupModelChangeKind {
 	GROUP_LABEL,
 	GROUP_LOCKED,
 
+	/* Editors Change */
+	EDITORS_SELECTION,
+
 	/* Editor Changes */
 	EDITOR_OPEN,
 	EDITOR_CLOSE,
@@ -1169,6 +1216,7 @@ interface IEditorPartConfiguration {
 	tabActionLocation?: 'left' | 'right';
 	tabActionCloseVisibility?: boolean;
 	tabActionUnpinVisibility?: boolean;
+	alwaysShowEditorActions?: boolean;
 	tabSizing?: 'fit' | 'shrink' | 'fixed';
 	tabSizingFixedMinWidth?: number;
 	tabSizingFixedMaxWidth?: number;

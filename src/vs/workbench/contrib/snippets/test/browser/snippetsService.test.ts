@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { SnippetCompletion, SnippetCompletionProvider } from 'vs/workbench/contrib/snippets/browser/snippetCompletionProvider';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { createModelServices, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
@@ -563,10 +563,10 @@ suite('SnippetsService', function () {
 		assert.strictEqual(completions.items.length, 1);
 	});
 
-	test('issue #61296: VS code freezes when editing CSS file with emoji', async function () {
+	test('issue #61296: VS code freezes when editing CSS fi`le with emoji', async function () {
 		const languageConfigurationService = disposables.add(new TestLanguageConfigurationService());
 		disposables.add(languageConfigurationService.register('fooLang', {
-			wordPattern: /(#?-?\d*\.\d\w*%?)|(::?[\w-]*(?=[^,{;]*[,{]))|(([@#.!])?[\w-?]+%?|[@#!.])/g
+			wordPattern: /(#?-?\d*\.\d\w*%?)|(::?[\w-]*(?=[^,{;]*[,{]))|(([@#.!])?[\w\-?]+%?|[@#!.])/g
 		}));
 
 		snippetService = new SimpleSnippetService([new Snippet(

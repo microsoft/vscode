@@ -35,7 +35,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { asCssVariable, contrastBorder, editorFindMatchHighlightBorder, editorFindRangeHighlightBorder, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground } from 'vs/platform/theme/common/colorRegistry';
+import { asCssVariable, contrastBorder, editorFindMatchForeground, editorFindMatchHighlightBorder, editorFindMatchHighlightForeground, editorFindRangeHighlightBorder, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerIcon, widgetClose } from 'vs/platform/theme/common/iconRegistry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ThemeIcon } from 'vs/base/common/themables';
@@ -43,14 +43,14 @@ import { isHighContrast } from 'vs/platform/theme/common/theme';
 import { assertIsDefined } from 'vs/base/common/types';
 import { defaultInputBoxStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { Selection } from 'vs/editor/common/core/selection';
-import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { createInstantHoverDelegate, getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
-const findSelectionIcon = registerIcon('find-selection', Codicon.selection, nls.localize('findSelectionIcon', 'Icon for \'Find in Selection\' in the editor find widget.'));
 const findCollapsedIcon = registerIcon('find-collapsed', Codicon.chevronRight, nls.localize('findCollapsedIcon', 'Icon to indicate that the editor find widget is collapsed.'));
 const findExpandedIcon = registerIcon('find-expanded', Codicon.chevronDown, nls.localize('findExpandedIcon', 'Icon to indicate that the editor find widget is expanded.'));
 
+export const findSelectionIcon = registerIcon('find-selection', Codicon.selection, nls.localize('findSelectionIcon', 'Icon for \'Find in Selection\' in the editor find widget.'));
 export const findReplaceIcon = registerIcon('find-replace', Codicon.replace, nls.localize('findReplaceIcon', 'Icon for \'Replace\' in the editor find widget.'));
 export const findReplaceAllIcon = registerIcon('find-replace-all', Codicon.replaceAll, nls.localize('findReplaceAllIcon', 'Icon for \'Replace All\' in the editor find widget.'));
 export const findPreviousMatchIcon = registerIcon('find-previous-match', Codicon.arrowUp, nls.localize('findPreviousMatchIcon', 'Icon for \'Find Previous\' in the editor find widget.'));
@@ -172,6 +172,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		themeService: IThemeService,
 		storageService: IStorageService,
 		notificationService: INotificationService,
+		private readonly _hoverService: IHoverService,
 	) {
 		super();
 		this._codeEditor = codeEditor;
@@ -409,9 +410,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		}
 
 		// remove previous content
-		if (this._matchesCount.firstChild) {
-			this._matchesCount.removeChild(this._matchesCount.firstChild);
-		}
+		this._matchesCount.firstChild?.remove();
 
 		let label: string;
 		if (this._state.matchesCount > 0) {
@@ -1024,7 +1023,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			onTrigger: () => {
 				assertIsDefined(this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction)).run().then(undefined, onUnexpectedError);
 			}
-		}));
+		}, this._hoverService));
 
 		// Next button
 		this._nextBtn = this._register(new SimpleButton({
@@ -1034,7 +1033,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			onTrigger: () => {
 				assertIsDefined(this._codeEditor.getAction(FIND_IDS.NextMatchFindAction)).run().then(undefined, onUnexpectedError);
 			}
-		}));
+		}, this._hoverService));
 
 		const findPart = document.createElement('div');
 		findPart.className = 'find-part';
@@ -1102,7 +1101,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 					}
 				}
 			}
-		}));
+		}, this._hoverService));
 
 		// Replace input
 		this._replaceInput = this._register(new ContextScopedReplaceInput(null, undefined, {
@@ -1165,7 +1164,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 					e.preventDefault();
 				}
 			}
-		}));
+		}, this._hoverService));
 
 		// Replace all button
 		this._replaceAllBtn = this._register(new SimpleButton({
@@ -1175,7 +1174,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			onTrigger: () => {
 				this._controller.replaceAll();
 			}
-		}));
+		}, this._hoverService));
 
 		const replacePart = document.createElement('div');
 		replacePart.className = 'replace-part';
@@ -1200,7 +1199,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 				}
 				this._showViewZone();
 			}
-		}));
+		}, this._hoverService));
 		this._toggleReplaceBtn.setExpanded(this._isReplaceVisible);
 
 		// Widget
@@ -1324,7 +1323,10 @@ export class SimpleButton extends Widget {
 	private readonly _opts: ISimpleButtonOpts;
 	private readonly _domNode: HTMLElement;
 
-	constructor(opts: ISimpleButtonOpts) {
+	constructor(
+		opts: ISimpleButtonOpts,
+		hoverService: IHoverService
+	) {
 		super();
 		this._opts = opts;
 
@@ -1341,7 +1343,7 @@ export class SimpleButton extends Widget {
 		this._domNode.className = className;
 		this._domNode.setAttribute('role', 'button');
 		this._domNode.setAttribute('aria-label', this._opts.label);
-		this._register(setupCustomHover(opts.hoverDelegate ?? getDefaultHoverDelegate('element'), this._domNode, this._opts.label));
+		this._register(hoverService.setupManagedHover(opts.hoverDelegate ?? getDefaultHoverDelegate('element'), this._domNode, this._opts.label));
 
 		this.onclick(this._domNode, (e) => {
 			this._opts.onTrigger();
@@ -1404,5 +1406,13 @@ registerThemingParticipant((theme, collector) => {
 	const hcBorder = theme.getColor(contrastBorder);
 	if (hcBorder) {
 		collector.addRule(`.monaco-editor .find-widget { border: 1px solid ${hcBorder}; }`);
+	}
+	const findMatchForeground = theme.getColor(editorFindMatchForeground);
+	if (findMatchForeground) {
+		collector.addRule(`.monaco-editor .findMatchInline { color: ${findMatchForeground}; }`);
+	}
+	const findMatchHighlightForeground = theme.getColor(editorFindMatchHighlightForeground);
+	if (findMatchHighlightForeground) {
+		collector.addRule(`.monaco-editor .currentFindMatchInline { color: ${findMatchHighlightForeground}; }`);
 	}
 });

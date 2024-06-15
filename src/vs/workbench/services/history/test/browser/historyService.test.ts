@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from 'vs/base/test/common/utils';
 import { URI } from 'vs/base/common/uri';
-import { workbenchInstantiationService, TestFileEditorInput, registerTestEditor, createEditorPart, registerTestFileEditor, TestServiceAccessor, TestTextFileEditor, workbenchTeardown } from 'vs/workbench/test/browser/workbenchTestServices';
+import { workbenchInstantiationService, TestFileEditorInput, registerTestEditor, createEditorPart, registerTestFileEditor, TestServiceAccessor, TestTextFileEditor, workbenchTeardown, registerTestSideBySideEditor } from 'vs/workbench/test/browser/workbenchTestServices';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IEditorGroupsService, GroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -28,13 +28,14 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 
 suite('HistoryService', function () {
 
 	const TEST_EDITOR_ID = 'MyTestEditorForEditorHistory';
 	const TEST_EDITOR_INPUT_ID = 'testEditorInputForHistoyService';
 
-	async function createServices(scope = GoScope.DEFAULT): Promise<[EditorPart, HistoryService, EditorService, ITextFileService, IInstantiationService]> {
+	async function createServices(scope = GoScope.DEFAULT, configureSearchExclude = false): Promise<[EditorPart, HistoryService, EditorService, ITextFileService, IInstantiationService, TestConfigurationService]> {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 
 		const part = await createEditorPart(instantiationService, disposables);
@@ -49,6 +50,9 @@ suite('HistoryService', function () {
 		} else if (scope === GoScope.EDITOR) {
 			configurationService.setUserConfiguration('workbench.editor.navigationScope', 'editor');
 		}
+		if (configureSearchExclude) {
+			configurationService.setUserConfiguration('search', { exclude: { "**/node_modules/**": true } });
+		}
 		instantiationService.stub(IConfigurationService, configurationService);
 
 		const historyService = disposables.add(instantiationService.createInstance(HistoryService));
@@ -56,13 +60,14 @@ suite('HistoryService', function () {
 
 		const accessor = instantiationService.createInstance(TestServiceAccessor);
 
-		return [part, historyService, editorService, accessor.textFileService, instantiationService];
+		return [part, historyService, editorService, accessor.textFileService, instantiationService, configurationService];
 	}
 
 	const disposables = new DisposableStore();
 
 	setup(() => {
 		disposables.add(registerTestEditor(TEST_EDITOR_ID, [new SyncDescriptor(TestFileEditorInput)]));
+		disposables.add(registerTestSideBySideEditor());
 		disposables.add(registerTestFileEditor());
 	});
 
@@ -660,12 +665,12 @@ suite('HistoryService', function () {
 			}
 		}
 
-		const [part, historyService, , , instantiationService] = await createServices();
+		const [part, historyService, editorService, , instantiationService] = await createServices(undefined, true);
 
 		let history = historyService.getHistory();
 		assert.strictEqual(history.length, 0);
 
-		const input1 = disposables.add(new TestFileEditorInput(URI.parse('foo://bar1'), TEST_EDITOR_INPUT_ID));
+		const input1 = disposables.add(new TestFileEditorInput(URI.parse('foo://bar1/node_modules/test.txt'), TEST_EDITOR_INPUT_ID));
 		await part.activeGroup.openEditor(input1, { pinned: true });
 
 		const input2 = disposables.add(new TestFileEditorInput(URI.parse('foo://bar2'), TEST_EDITOR_INPUT_ID));
@@ -692,6 +697,23 @@ suite('HistoryService', function () {
 		history = historyService.getHistory();
 		assert.strictEqual(history.length, 3);
 		assert.strictEqual(history[0].resource?.toString(), input4.resource.toString());
+
+		input1.dispose(); // disposing the editor will apply `search.exclude` rules
+		history = historyService.getHistory();
+		assert.strictEqual(history.length, 2);
+
+		// side by side
+		const input5 = disposables.add(new TestFileEditorInputWithUntyped(URI.parse('file://bar5'), TEST_EDITOR_INPUT_ID));
+		const input6 = disposables.add(new TestFileEditorInputWithUntyped(URI.file('file://bar1/node_modules/test.txt'), TEST_EDITOR_INPUT_ID));
+		const input7 = new SideBySideEditorInput(undefined, undefined, input6, input5, editorService);
+		await part.activeGroup.openEditor(input7, { pinned: true });
+
+		history = historyService.getHistory();
+		assert.strictEqual(history.length, 3);
+		input7.dispose();
+
+		history = historyService.getHistory();
+		assert.strictEqual(history.length, 3); // only input5 survived, input6 is excluded via search.exclude
 
 		return workbenchTeardown(instantiationService);
 	});

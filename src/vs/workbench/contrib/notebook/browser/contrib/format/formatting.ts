@@ -14,7 +14,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { FormattingMode, formatDocumentWithSelectedProvider, getDocumentFormattingEditsUntilResult } from 'vs/editor/contrib/format/browser/format';
+import { FormattingMode, formatDocumentWithSelectedProvider, getDocumentFormattingEditsWithSelectedProvider } from 'vs/editor/contrib/format/browser/format';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -32,6 +32,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchContributionsExtensions } from 'vs/workbench/common/contributions';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { CodeActionParticipantUtils } from 'vs/workbench/contrib/notebook/browser/contrib/saveParticipants/saveParticipants';
 
 // format notebook
 registerAction2(class extends Action2 {
@@ -63,6 +64,7 @@ registerAction2(class extends Action2 {
 		const editorWorkerService = accessor.get(IEditorWorkerService);
 		const languageFeaturesService = accessor.get(ILanguageFeaturesService);
 		const bulkEditService = accessor.get(IBulkEditService);
+		const instantiationService = accessor.get(IInstantiationService);
 
 		const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
 		if (!editor || !editor.hasModel()) {
@@ -70,37 +72,41 @@ registerAction2(class extends Action2 {
 		}
 
 		const notebook = editor.textModel;
+
+		const formatApplied: boolean = await instantiationService.invokeFunction(CodeActionParticipantUtils.checkAndRunFormatCodeAction, notebook, Progress.None, CancellationToken.None);
+
 		const disposable = new DisposableStore();
 		try {
-			const allCellEdits = await Promise.all(notebook.cells.map(async cell => {
-				const ref = await textModelService.createModelReference(cell.uri);
-				disposable.add(ref);
+			if (!formatApplied) {
+				const allCellEdits = await Promise.all(notebook.cells.map(async cell => {
+					const ref = await textModelService.createModelReference(cell.uri);
+					disposable.add(ref);
 
-				const model = ref.object.textEditorModel;
+					const model = ref.object.textEditorModel;
 
-				const formatEdits = await getDocumentFormattingEditsUntilResult(
-					editorWorkerService,
-					languageFeaturesService,
-					model,
-					model.getOptions(),
-					CancellationToken.None
-				);
+					const formatEdits = await getDocumentFormattingEditsWithSelectedProvider(
+						editorWorkerService,
+						languageFeaturesService,
+						model,
+						FormattingMode.Explicit,
+						CancellationToken.None
+					);
 
-				const edits: ResourceTextEdit[] = [];
+					const edits: ResourceTextEdit[] = [];
 
-				if (formatEdits) {
-					for (const edit of formatEdits) {
-						edits.push(new ResourceTextEdit(model.uri, edit, model.getVersionId()));
+					if (formatEdits) {
+						for (const edit of formatEdits) {
+							edits.push(new ResourceTextEdit(model.uri, edit, model.getVersionId()));
+						}
+
+						return edits;
 					}
 
-					return edits;
-				}
+					return [];
+				}));
 
-				return [];
-			}));
-
-			await bulkEditService.apply(/* edit */allCellEdits.flat(), { label: localize('label', "Format Notebook"), code: 'undoredo.formatNotebook', });
-
+				await bulkEditService.apply(/* edit */allCellEdits.flat(), { label: localize('label', "Format Notebook"), code: 'undoredo.formatNotebook', });
+			}
 		} finally {
 			disposable.dispose();
 		}
@@ -177,12 +183,11 @@ class FormatOnCellExecutionParticipant implements ICellExecutionParticipant {
 
 				const model = ref.object.textEditorModel;
 
-				// todo: eventually support cancellation. potential leak if cell deleted mid execution
-				const formatEdits = await getDocumentFormattingEditsUntilResult(
+				const formatEdits = await getDocumentFormattingEditsWithSelectedProvider(
 					this.editorWorkerService,
 					this.languageFeaturesService,
 					model,
-					model.getOptions(),
+					FormattingMode.Silent,
 					CancellationToken.None
 				);
 

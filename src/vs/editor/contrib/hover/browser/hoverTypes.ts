@@ -94,19 +94,7 @@ export interface IEditorHoverColorPickerWidget {
 	layout(): void;
 }
 
-export interface IEditorHoverRenderContext {
-	/**
-	 * The fragment where dom elements should be attached.
-	 */
-	readonly fragment: DocumentFragment;
-	/**
-	 * The status bar for actions for this hover.
-	 */
-	readonly statusBar: IEditorHoverStatusBar;
-	/**
-	 * Set if the hover will render a color picker widget.
-	 */
-	setColorPicker(widget: IEditorHoverColorPickerWidget): void;
+export interface IEditorHoverContext {
 	/**
 	 * The contents rendered inside the fragment have been changed, which means that the hover should relayout.
 	 */
@@ -121,6 +109,17 @@ export interface IEditorHoverRenderContext {
 	hide(): void;
 }
 
+export interface IEditorHoverRenderContext extends IEditorHoverContext {
+	/**
+	 * The fragment where dom elements should be attached.
+	 */
+	readonly fragment: DocumentFragment;
+	/**
+	 * The status bar for actions for this hover.
+	 */
+	readonly statusBar: IEditorHoverStatusBar;
+}
+
 export interface IEditorHoverParticipant<T extends IHoverPart = IHoverPart> {
 	readonly hoverOrdinal: number;
 	suggestHoverAnchor?(mouseEvent: IEditorMouseEvent): HoverAnchor | null;
@@ -128,6 +127,7 @@ export interface IEditorHoverParticipant<T extends IHoverPart = IHoverPart> {
 	computeAsync?(anchor: HoverAnchor, lineDecorations: IModelDecoration[], token: CancellationToken): AsyncIterableObject<T>;
 	createLoadingMessage?(anchor: HoverAnchor): T | null;
 	renderHoverParts(context: IEditorHoverRenderContext, hoverParts: T[]): IDisposable;
+	handleResize?(): void;
 }
 
 export type IEditorHoverParticipantCtor = IConstructorSignature<IEditorHoverParticipant, [ICodeEditor]>;
@@ -145,3 +145,17 @@ export const HoverParticipantRegistry = (new class HoverParticipantRegistry {
 	}
 
 }());
+
+export interface IHoverWidget {
+	/**
+	 * Returns whether the hover widget is shown or should show in the future.
+	 * If the widget should show, this triggers the display.
+	 * @param mouseEvent editor mouse event
+	 */
+	showsOrWillShow(mouseEvent: IEditorMouseEvent): boolean;
+
+	/**
+	 * Hides the hover.
+	 */
+	hide(): void;
+}

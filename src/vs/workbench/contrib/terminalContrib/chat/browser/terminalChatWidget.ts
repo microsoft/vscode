@@ -3,21 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Dimension, IFocusTracker, trackFocus } from 'vs/base/browser/dom';
-import { Disposable } from 'vs/base/common/lifecycle';
+import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
+import { Dimension, getActiveWindow, IFocusTracker, trackFocus } from 'vs/base/browser/dom';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { MicrotaskDelay } from 'vs/base/common/symbols';
 import 'vs/css!./media/terminalChatWidget';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatProgress } from 'vs/workbench/contrib/chat/common/chatService';
 import { InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
-import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { MENU_TERMINAL_CHAT_INPUT, MENU_TERMINAL_CHAT_WIDGET, MENU_TERMINAL_CHAT_WIDGET_FEEDBACK, MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatContextKeys } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
+import { ITerminalInstance, type IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { MENU_TERMINAL_CHAT_INPUT, MENU_TERMINAL_CHAT_WIDGET, MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatCommandId, TerminalChatContextKeys } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
+import { TerminalStickyScrollContribution } from 'vs/workbench/contrib/terminalContrib/stickyScroll/browser/terminalStickyScrollContribution';
+
+const enum Constants {
+	HorizontalMargin = 10
+}
 
 export class TerminalChatWidget extends Disposable {
 
 	private readonly _container: HTMLElement;
+
+	private readonly _onDidHide = this._register(new Emitter<void>());
+	readonly onDidHide = this._onDidHide.event;
 
 	private readonly _inlineChatWidget: InlineChatWidget;
 	public get inlineChatWidget(): InlineChatWidget { return this._inlineChatWidget; }
@@ -28,11 +39,11 @@ export class TerminalChatWidget extends Disposable {
 	private readonly _visibleContextKey: IContextKey<boolean>;
 
 	constructor(
-		terminalElement: HTMLElement,
+		private readonly _terminalElement: HTMLElement,
 		private readonly _instance: ITerminalInstance,
+		private readonly _xterm: IXtermTerminal & { raw: RawXtermTerminal },
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService
 	) {
 		super();
 
@@ -41,22 +52,82 @@ export class TerminalChatWidget extends Disposable {
 
 		this._container = document.createElement('div');
 		this._container.classList.add('terminal-inline-chat');
-		terminalElement.appendChild(this._container);
+		_terminalElement.appendChild(this._container);
 
 		this._inlineChatWidget = this._instantiationService.createInstance(
 			InlineChatWidget,
+			ChatAgentLocation.Terminal,
 			{
-				inputMenuId: MENU_TERMINAL_CHAT_INPUT,
-				widgetMenuId: MENU_TERMINAL_CHAT_WIDGET,
-				statusMenuId: MENU_TERMINAL_CHAT_WIDGET_STATUS,
-				feedbackMenuId: MENU_TERMINAL_CHAT_WIDGET_FEEDBACK,
-				telemetrySource: 'terminal-inline-chat'
+				statusMenuId: {
+					menu: MENU_TERMINAL_CHAT_WIDGET_STATUS,
+					options: {
+						buttonConfigProvider: action => {
+							if (action.id === TerminalChatCommandId.ViewInChat || action.id === TerminalChatCommandId.RunCommand || action.id === TerminalChatCommandId.RunFirstCommand) {
+								return { isSecondary: false };
+							} else {
+								return { isSecondary: true };
+							}
+						}
+					}
+				},
+				chatWidgetViewOptions: {
+					rendererOptions: { editableCodeBlock: true },
+					menus: {
+						telemetrySource: 'terminal-inline-chat',
+						executeToolbar: MENU_TERMINAL_CHAT_INPUT,
+						inputSideToolbar: MENU_TERMINAL_CHAT_WIDGET,
+					}
+				}
 			}
 		);
+		this._register(Event.any(
+			this._inlineChatWidget.onDidChangeHeight,
+			this._instance.onDimensionsChanged,
+			this._inlineChatWidget.chatWidget.onDidChangeContentHeight,
+			Event.debounce(this._xterm.raw.onCursorMove, () => void 0, MicrotaskDelay),
+		)(() => this._relayout()));
+
+		const observer = new ResizeObserver(() => this._relayout());
+		observer.observe(this._terminalElement);
+		this._register(toDisposable(() => observer.disconnect()));
+
 		this._reset();
 		this._container.appendChild(this._inlineChatWidget.domNode);
 
 		this._focusTracker = this._register(trackFocus(this._container));
+		this._register(this._focusTracker.onDidBlur(() => {
+			if (!this.inlineChatWidget.responseContent) {
+				this.hide();
+			}
+		}));
+		this.hide();
+	}
+
+	private _dimension?: Dimension;
+
+	private _relayout() {
+		if (this._dimension) {
+			this._doLayout(this._inlineChatWidget.contentHeight);
+		}
+	}
+
+	private _doLayout(heightInPixel: number) {
+		const xtermElement = this._xterm.raw!.element;
+		if (!xtermElement) {
+			return;
+		}
+		const style = getActiveWindow().getComputedStyle(xtermElement);
+		const xtermPadding = parseInt(style.paddingLeft) + parseInt(style.paddingRight);
+		const width = Math.min(640, xtermElement.clientWidth - 12/* padding */ - 2/* border */ - Constants.HorizontalMargin - xtermPadding);
+		const height = Math.min(480, heightInPixel, this._getTerminalWrapperHeight() ?? Number.MAX_SAFE_INTEGER);
+		if (width === 0 || height === 0) {
+			return;
+		}
+		this._container.style.paddingLeft = style.paddingLeft;
+		this._dimension = new Dimension(width, height);
+		this._inlineChatWidget.layout(this._dimension);
+
+		this._updateVerticalPosition();
 	}
 
 	private _reset() {
@@ -65,58 +136,71 @@ export class TerminalChatWidget extends Disposable {
 	}
 
 	reveal(): void {
-		this._inlineChatWidget.layout(new Dimension(640, 150));
+		this._doLayout(this._inlineChatWidget.contentHeight);
 		this._container.classList.remove('hide');
 		this._focusedContextKey.set(true);
 		this._visibleContextKey.set(true);
 		this._inlineChatWidget.focus();
-		this.layoutVertically();
-		this._updateWidth();
-		this._register(this._instance.onDimensionsChanged(() => this._updateWidth()));
+		this._instance.scrollToBottom();
 	}
 
-	layoutVertically(): void {
+	private _updateVerticalPosition(): void {
 		const font = this._instance.xterm?.getFont();
 		if (!font?.charHeight) {
 			return;
 		}
+		const terminalWrapperHeight = this._getTerminalWrapperHeight() ?? 0;
+		const cellHeight = font.charHeight * font.lineHeight;
+		const topPadding = terminalWrapperHeight - (this._instance.rows * cellHeight);
 		const cursorY = (this._instance.xterm?.raw.buffer.active.cursorY ?? 0) + 1;
-		const height = font.charHeight * font.lineHeight;
-		const top = cursorY * height + 12;
+		const top = topPadding + cursorY * cellHeight;
 		this._container.style.top = `${top}px`;
-		const terminalHeight = this._instance.domElement.clientHeight;
-		if (terminalHeight && top > terminalHeight - this._inlineChatWidget.getHeight()) {
-			this._container.style.top = '';
+		const widgetHeight = this._inlineChatWidget.contentHeight;
+		if (!terminalWrapperHeight) {
+			return;
+		}
+		if (top > terminalWrapperHeight - widgetHeight && terminalWrapperHeight - widgetHeight > 0) {
+			this._setTerminalOffset(top - (terminalWrapperHeight - widgetHeight));
+		} else {
+			this._setTerminalOffset(undefined);
+		}
+		if (terminalWrapperHeight - widgetHeight < 0) {
+			this._dimension = new Dimension(this._dimension!.width, terminalWrapperHeight - top - 20);
+			this._inlineChatWidget.layout(this._dimension!);
 		}
 	}
 
-	private _updateWidth() {
-		const terminalWidth = this._instance.domElement.clientWidth;
-		if (terminalWidth && terminalWidth < 640) {
-			this._inlineChatWidget.layout(new Dimension(terminalWidth - 40, this._inlineChatWidget.getHeight()));
-		}
+	private _getTerminalWrapperHeight(): number | undefined {
+		return this._terminalElement.clientHeight;
 	}
 
 	hide(): void {
 		this._container.classList.add('hide');
 		this._reset();
 		this._inlineChatWidget.updateChatMessage(undefined);
-		this._inlineChatWidget.updateFollowUps(undefined);
 		this._inlineChatWidget.updateProgress(false);
 		this._inlineChatWidget.updateToolbar(false);
+		this._inlineChatWidget.reset();
 		this._focusedContextKey.set(false);
 		this._visibleContextKey.set(false);
 		this._inlineChatWidget.value = '';
 		this._instance.focus();
+		this._setTerminalOffset(undefined);
+		this._onDidHide.fire();
+	}
+	private _setTerminalOffset(offset: number | undefined) {
+		if (offset === undefined || this._container.classList.contains('hide')) {
+			this._terminalElement.style.position = '';
+			this._terminalElement.style.bottom = '';
+			TerminalStickyScrollContribution.get(this._instance)?.hideUnlock();
+		} else {
+			this._terminalElement.style.position = 'relative';
+			this._terminalElement.style.bottom = `${offset}px`;
+			TerminalStickyScrollContribution.get(this._instance)?.hideLock();
+		}
 	}
 	focus(): void {
 		this._inlineChatWidget.focus();
-	}
-	focusResponse(): void {
-		const responseElement = this._inlineChatWidget.domNode.querySelector(ChatElementSelectors.ResponseEditor) || this._inlineChatWidget.domNode.querySelector(ChatElementSelectors.ResponseMessage);
-		if (responseElement instanceof HTMLElement) {
-			responseElement.focus();
-		}
 	}
 	hasFocus(): boolean {
 		return this._inlineChatWidget.hasFocus();
@@ -124,31 +208,24 @@ export class TerminalChatWidget extends Disposable {
 	input(): string {
 		return this._inlineChatWidget.value;
 	}
+	addToHistory(input: string): void {
+		this._inlineChatWidget.addToHistory(input);
+		this._inlineChatWidget.saveState();
+		this._inlineChatWidget.value = input;
+		this._inlineChatWidget.selectAll(true);
+	}
 	setValue(value?: string) {
 		this._inlineChatWidget.value = value ?? '';
 	}
-	acceptCommand(shouldExecute: boolean): void {
-		const editor = this._codeEditorService.getFocusedCodeEditor() || this._codeEditorService.getActiveCodeEditor();
-		if (!editor) {
-			return;
-		}
-		const model = editor.getModel();
-		if (!model) {
-			return;
-		}
-		const code = editor.getValue();
+	acceptCommand(code: string, shouldExecute: boolean): void {
 		this._instance.runCommand(code, shouldExecute);
 		this.hide();
 	}
+
 	updateProgress(progress?: IChatProgress): void {
-		this._inlineChatWidget.updateProgress(progress?.kind === 'content' || progress?.kind === 'markdownContent');
+		this._inlineChatWidget.updateProgress(progress?.kind === 'markdownContent');
 	}
 	public get focusTracker(): IFocusTracker {
 		return this._focusTracker;
 	}
-}
-
-const enum ChatElementSelectors {
-	ResponseEditor = '.chatMessageContent textarea',
-	ResponseMessage = '.chatMessageContent',
 }

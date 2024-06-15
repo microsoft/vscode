@@ -7,3 +7,5 @@
 // to touch terminalContrib either.
 // eslint-disable-next-line local/code-import-patterns
 export { TerminalChatController } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatController';
+// eslint-disable-next-line local/code-import-patterns
+export { TerminalChatContextKeys } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';

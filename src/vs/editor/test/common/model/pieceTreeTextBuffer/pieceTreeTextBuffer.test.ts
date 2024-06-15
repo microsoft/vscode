@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { WordCharacterClassifier } from 'vs/editor/common/core/wordCharacterClassifier';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -1817,6 +1817,22 @@ suite('buffer api', () => {
 		assert.strictEqual(pieceTable.getLineCharCode(2, 3), 'e'.charCodeAt(0), 'e');
 		assert.strictEqual(pieceTable.getLineCharCode(2, 4), '2'.charCodeAt(0), '2');
 	});
+
+	test('getNearestChunk', () => {
+		const pieceTree = createTextBuffer(['012345678']);
+		ds.add(pieceTree);
+		const pt = pieceTree.getPieceTree();
+
+		pt.insert(3, 'ABC');
+		assert.equal(pt.getLineContent(1), '012ABC345678');
+		assert.equal(pt.getNearestChunk(3), 'ABC');
+		assert.equal(pt.getNearestChunk(6), '345678');
+
+		pt.delete(9, 1);
+		assert.equal(pt.getLineContent(1), '012ABC34578');
+		assert.equal(pt.getNearestChunk(6), '345');
+		assert.equal(pt.getNearestChunk(9), '78');
+	});
 });
 
 suite('search offset cache', () => {
@@ -2056,7 +2072,7 @@ suite('chunk based search', () => {
 		ds.add(pieceTree);
 		const pieceTable = pieceTree.getPieceTree();
 		pieceTable.delete(0, 1);
-		const ret = pieceTree.findMatchesLineByLine(new Range(1, 1, 1, 1), new SearchData(/abc/, new WordCharacterClassifier(',./'), 'abc'), true, 1000);
+		const ret = pieceTree.findMatchesLineByLine(new Range(1, 1, 1, 1), new SearchData(/abc/, new WordCharacterClassifier(',./', []), 'abc'), true, 1000);
 		assert.strictEqual(ret.length, 0);
 	});
 
@@ -2078,7 +2094,7 @@ suite('chunk based search', () => {
 		pieceTable.delete(16, 1);
 
 		pieceTable.insert(16, ' ');
-		const ret = pieceTable.findMatchesLineByLine(new Range(1, 1, 4, 13), new SearchData(/\[/gi, new WordCharacterClassifier(',./'), '['), true, 1000);
+		const ret = pieceTable.findMatchesLineByLine(new Range(1, 1, 4, 13), new SearchData(/\[/gi, new WordCharacterClassifier(',./', []), '['), true, 1000);
 		assert.strictEqual(ret.length, 3);
 
 		assert.deepStrictEqual(ret[0].range, new Range(2, 3, 2, 4));

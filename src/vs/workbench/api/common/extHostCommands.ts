@@ -292,7 +292,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		type ExtensionActionTelemetryMeta = {
 			extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the extension handling the command, informing which extensions provide most-used functionality.' };
 			id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the command, to understand which specific extension features are most popular.' };
-			duration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The duration of the command execution, to detect performance issues' };
+			duration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The duration of the command execution, to detect performance issues' };
 			owner: 'digitarald';
 			comment: 'Used to gain insight on the most popular commands used from extensions';
 		};

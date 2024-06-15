@@ -76,6 +76,13 @@ export interface IEditorOptions {
 	 */
 	rulers?: (number | IRulerOption)[];
 	/**
+	 * Locales used for segmenting lines into words when doing word related navigations or operations.
+	 *
+	 * Specify the BCP 47 language tag of the word you wish to recognize (e.g., ja, zh-CN, zh-Hant-TW, etc.).
+	 * Defaults to empty array
+	 */
+	wordSegmenterLocales?: string | string[];
+	/**
 	 * A string containing the word separators used when doing word navigation.
 	 * Defaults to `~!@#$%^&*()-=+[{]}\\|;:\'",.<>/?
 	 */
@@ -685,6 +692,13 @@ export interface IEditorOptions {
 	 * Defaults to false.
 	 */
 	peekWidgetDefaultFocus?: 'tree' | 'editor';
+
+	/**
+	 * Sets a placeholder for the editor.
+	 * If set, the placeholder is shown if the editor is empty.
+	*/
+	placeholder?: string | undefined;
+
 	/**
 	 * Controls whether the definition link opens element in the peek widget.
 	 * Defaults to false.
@@ -803,6 +817,10 @@ export interface IDiffEditorBaseOptions {
 	 * Default to true.
 	 */
 	renderMarginRevertIcon?: boolean;
+	/**
+	 * Indicates if the gutter menu should be rendered.
+	*/
+	renderGutterMenu?: boolean;
 	/**
 	 * Original model should be editable?
 	 * Defaults to false.
@@ -2749,7 +2767,7 @@ export type EditorLightbulbOptions = Readonly<Required<IEditorLightbulbOptions>>
 class EditorLightbulb extends BaseEditorOption<EditorOption.lightbulb, IEditorLightbulbOptions, EditorLightbulbOptions> {
 
 	constructor() {
-		const defaults: EditorLightbulbOptions = { enabled: ShowLightbulbIconMode.OnCode };
+		const defaults: EditorLightbulbOptions = { enabled: ShowLightbulbIconMode.On };
 		super(
 			EditorOption.lightbulb, 'lightbulb', defaults,
 			{
@@ -3048,6 +3066,22 @@ export interface IEditorMinimapOptions {
 	 * Relative size of the font in the minimap. Defaults to 1.
 	 */
 	scale?: number;
+	/**
+	 * Whether to show named regions as section headers. Defaults to true.
+	 */
+	showRegionSectionHeaders?: boolean;
+	/**
+	 * Whether to show MARK: comments as section headers. Defaults to true.
+	 */
+	showMarkSectionHeaders?: boolean;
+	/**
+	 * Font size of section headers. Defaults to 9.
+	 */
+	sectionHeaderFontSize?: number;
+	/**
+	 * Spacing between the section header characters (in CSS px). Defaults to 1.
+	 */
+	sectionHeaderLetterSpacing?: number;
 }
 
 /**
@@ -3067,6 +3101,10 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 			renderCharacters: true,
 			maxColumn: 120,
 			scale: 1,
+			showRegionSectionHeaders: true,
+			showMarkSectionHeaders: true,
+			sectionHeaderFontSize: 9,
+			sectionHeaderLetterSpacing: 1,
 		};
 		super(
 			EditorOption.minimap, 'minimap', defaults,
@@ -3121,6 +3159,26 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 					type: 'number',
 					default: defaults.maxColumn,
 					description: nls.localize('minimap.maxColumn', "Limit the width of the minimap to render at most a certain number of columns.")
+				},
+				'editor.minimap.showRegionSectionHeaders': {
+					type: 'boolean',
+					default: defaults.showRegionSectionHeaders,
+					description: nls.localize('minimap.showRegionSectionHeaders', "Controls whether named regions are shown as section headers in the minimap.")
+				},
+				'editor.minimap.showMarkSectionHeaders': {
+					type: 'boolean',
+					default: defaults.showMarkSectionHeaders,
+					description: nls.localize('minimap.showMarkSectionHeaders', "Controls whether MARK: comments are shown as section headers in the minimap.")
+				},
+				'editor.minimap.sectionHeaderFontSize': {
+					type: 'number',
+					default: defaults.sectionHeaderFontSize,
+					description: nls.localize('minimap.sectionHeaderFontSize', "Controls the font size of section headers in the minimap.")
+				},
+				'editor.minimap.sectionHeaderLetterSpacing': {
+					type: 'number',
+					default: defaults.sectionHeaderLetterSpacing,
+					description: nls.localize('minimap.sectionHeaderLetterSpacing', "Controls the amount of space (in pixels) between characters of section header. This helps the readability of the header in small font sizes.")
 				}
 			}
 		);
@@ -3140,6 +3198,10 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 			renderCharacters: boolean(input.renderCharacters, this.defaultValue.renderCharacters),
 			scale: EditorIntOption.clampedInt(input.scale, 1, 1, 3),
 			maxColumn: EditorIntOption.clampedInt(input.maxColumn, this.defaultValue.maxColumn, 1, 10000),
+			showRegionSectionHeaders: boolean(input.showRegionSectionHeaders, this.defaultValue.showRegionSectionHeaders),
+			showMarkSectionHeaders: boolean(input.showMarkSectionHeaders, this.defaultValue.showMarkSectionHeaders),
+			sectionHeaderFontSize: EditorFloatOption.clamp(input.sectionHeaderFontSize ?? this.defaultValue.sectionHeaderFontSize, 4, 32),
+			sectionHeaderLetterSpacing: EditorFloatOption.clamp(input.sectionHeaderLetterSpacing ?? this.defaultValue.sectionHeaderLetterSpacing, 0, 5),
 		};
 	}
 }
@@ -3292,6 +3354,25 @@ class EditorPixelRatio extends ComputedEditorOption<EditorOption.pixelRatio, num
 
 //#endregion
 
+//#region
+
+class PlaceholderOption extends BaseEditorOption<EditorOption.placeholder, string | undefined, string | undefined> {
+	constructor() {
+		super(EditorOption.placeholder, 'placeholder', undefined);
+	}
+
+	public validate(input: any): string | undefined {
+		if (typeof input === 'undefined') {
+			return this.defaultValue;
+		}
+		if (typeof input === 'string') {
+			return input;
+		}
+		return this.defaultValue;
+	}
+}
+//#endregion
+
 //#region quickSuggestions
 
 export type QuickSuggestionsValue = 'on' | 'inline' | 'off';
@@ -3350,7 +3431,7 @@ class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggesti
 				},
 			},
 			default: defaults,
-			markdownDescription: nls.localize('quickSuggestions', "Controls whether suggestions should automatically show up while typing. This can be controlled for typing in comments, strings, and other code. Quick suggestion can be configured to show as ghost text or with the suggest widget. Also be aware of the '{0}'-setting which controls if suggestions are triggered by special characters.", `#editor.suggestOnTriggerCharacters#`)
+			markdownDescription: nls.localize('quickSuggestions', "Controls whether suggestions should automatically show up while typing. This can be controlled for typing in comments, strings, and other code. Quick suggestion can be configured to show as ghost text or with the suggest widget. Also be aware of the {0}-setting which controls if suggestions are triggered by special characters.", '`#editor.suggestOnTriggerCharacters#`')
 		});
 		this.defaultValue = defaults;
 	}
@@ -4603,7 +4684,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 						nls.localize('suggest.insertMode.whenQuickSuggestion', "Select a suggestion only when triggering IntelliSense as you type."),
 					],
 					default: defaults.selectionMode,
-					markdownDescription: nls.localize('suggest.selectionMode', "Controls whether a suggestion is selected when the widget shows. Note that this only applies to automatically triggered suggestions (`#editor.quickSuggestions#` and `#editor.suggestOnTriggerCharacters#`) and that a suggestion is always selected when explicitly invoked, e.g via `Ctrl+Space`.")
+					markdownDescription: nls.localize('suggest.selectionMode', "Controls whether a suggestion is selected when the widget shows. Note that this only applies to automatically triggered suggestions ({0} and {1}) and that a suggestion is always selected when explicitly invoked, e.g via `Ctrl+Space`.", '`#editor.quickSuggestions#`', '`#editor.suggestOnTriggerCharacters#`')
 				},
 				'editor.suggest.snippetsPreventQuickSuggestions': {
 					type: 'boolean',
@@ -4890,6 +4971,63 @@ class SmartSelect extends BaseEditorOption<EditorOption.smartSelect, ISmartSelec
 		};
 	}
 }
+
+//#endregion
+
+//#region wordSegmenterLocales
+
+/**
+ * Locales used for segmenting lines into words when doing word related navigations or operations.
+ *
+ * Specify the BCP 47 language tag of the word you wish to recognize (e.g., ja, zh-CN, zh-Hant-TW, etc.).
+ */
+class WordSegmenterLocales extends BaseEditorOption<EditorOption.wordSegmenterLocales, string | string[], string[]> {
+	constructor() {
+		const defaults: string[] = [];
+
+		super(
+			EditorOption.wordSegmenterLocales, 'wordSegmenterLocales', defaults,
+			{
+				anyOf: [
+					{
+						description: nls.localize('wordSegmenterLocales', "Locales to be used for word segmentation when doing word related navigations or operations. Specify the BCP 47 language tag of the word you wish to recognize (e.g., ja, zh-CN, zh-Hant-TW, etc.)."),
+						type: 'string',
+					}, {
+						description: nls.localize('wordSegmenterLocales', "Locales to be used for word segmentation when doing word related navigations or operations. Specify the BCP 47 language tag of the word you wish to recognize (e.g., ja, zh-CN, zh-Hant-TW, etc.)."),
+						type: 'array',
+						items: {
+							type: 'string'
+						}
+					}
+				]
+			}
+		);
+	}
+
+	public validate(input: any): string[] {
+		if (typeof input === 'string') {
+			input = [input];
+		}
+		if (Array.isArray(input)) {
+			const validLocales: string[] = [];
+			for (const locale of input) {
+				if (typeof locale === 'string') {
+					try {
+						if (Intl.Segmenter.supportedLocalesOf(locale).length > 0) {
+							validLocales.push(locale);
+						}
+					} catch {
+						// ignore invalid locales
+					}
+				}
+			}
+			return validLocales;
+		}
+
+		return this.defaultValue;
+	}
+}
+
 
 //#endregion
 
@@ -5242,6 +5380,7 @@ export const enum EditorOption {
 	pasteAs,
 	parameterHints,
 	peekWidgetDefaultFocus,
+	placeholder,
 	definitionLinkOpensInPeek,
 	quickSuggestions,
 	quickSuggestionsDelay,
@@ -5284,6 +5423,7 @@ export const enum EditorOption {
 	useShadowDOM,
 	useTabStops,
 	wordBreak,
+	wordSegmenterLocales,
 	wordSeparators,
 	wordWrap,
 	wordWrapBreakAfterCharacters,
@@ -5536,7 +5676,7 @@ export const EditorOptions = {
 				nls.localize('cursorSurroundingLinesStyle.default', "`cursorSurroundingLines` is enforced only when triggered via the keyboard or API."),
 				nls.localize('cursorSurroundingLinesStyle.all', "`cursorSurroundingLines` is enforced always.")
 			],
-			markdownDescription: nls.localize('cursorSurroundingLinesStyle', "Controls when `#cursorSurroundingLines#` should be enforced.")
+			markdownDescription: nls.localize('cursorSurroundingLinesStyle', "Controls when `#editor.cursorSurroundingLines#` should be enforced.")
 		}
 	)),
 	cursorWidth: register(new EditorIntOption(
@@ -5771,6 +5911,7 @@ export const EditorOptions = {
 			description: nls.localize('peekWidgetDefaultFocus', "Controls whether to focus the inline editor or the tree in the peek widget.")
 		}
 	)),
+	placeholder: register(new PlaceholderOption()),
 	definitionLinkOpensInPeek: register(new EditorBooleanOption(
 		EditorOption.definitionLinkOpensInPeek, 'definitionLinkOpensInPeek', false,
 		{ description: nls.localize('definitionLinkOpensInPeek', "Controls whether the Go to Definition mouse gesture always opens the peek widget.") }
@@ -6001,6 +6142,7 @@ export const EditorOptions = {
 			description: nls.localize('wordBreak', "Controls the word break rules used for Chinese/Japanese/Korean (CJK) text.")
 		}
 	)),
+	wordSegmenterLocales: register(new WordSegmenterLocales()),
 	wordSeparators: register(new EditorStringOption(
 		EditorOption.wordSeparators, 'wordSeparators', USUAL_WORD_SEPARATORS,
 		{ description: nls.localize('wordSeparators', "Characters that will be used as word separators when doing word related navigations or operations.") }
