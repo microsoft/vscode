@@ -132,5 +132,8 @@ for (let dir of dirs) {
 	yarnInstall(dir, opts);
 }
 
-cp.execSync('git config pull.rebase merges');
-cp.execSync('git config blame.ignoreRevsFile .git-blame-ignore-revs');
+// This commands don't play well with being ran inside a submodule so just skip them in that context
+if (!process.cwd().includes("mnode")) {
+	cp.execSync('git config pull.rebase merges');
+	cp.execSync('git config blame.ignoreRevsFile .git-blame-ignore-revs');
+}
