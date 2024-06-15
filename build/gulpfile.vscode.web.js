@@ -19,7 +19,7 @@ const { getProductionDependencies } = require('./lib/dependencies');
 const vfs = require('vinyl-fs');
 const replace = require('gulp-replace');
 const packageJson = require('../package.json');
-const { compileBuildTask } = require('./gulpfile.compile');
+const { compileBuildTask, compileBuildTaskPullRequest } = require('./gulpfile.compile');
 const extensions = require('./lib/extensions');
 
 const REPO_ROOT = path.dirname(__dirname);
@@ -254,10 +254,7 @@ const dashed = (/** @type {string} */ str) => (str ? `-${str}` : ``);
 	gulp.task(vscodeWebTaskCI);
 
 	const vscodeWebTask = task.define(`vscode-web${dashed(minified)}`, task.series(
-		// MEMBRANE: Use this instead of `compileBuildTask` to speed up local builds
-		// by skipping the mangle step (~15min)
-		// compileBuildTaskPullRequest,
-		compileBuildTask,
+		minified ? compileBuildTask : compileBuildTaskPullRequest,
 		vscodeWebTaskCI
 	));
 	gulp.task(vscodeWebTask);
