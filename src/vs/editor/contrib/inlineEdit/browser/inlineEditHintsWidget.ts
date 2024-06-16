@@ -27,7 +27,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export class InlineEditHintsWidget extends Disposable {
-	private readonly alwaysShowToolbar = observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineEdit).showToolbar === 'always');
+	private readonly alwaysShowToolbar = observableFromEvent(this, this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineEdit).showToolbar === 'always');
 
 	private sessionPosition: Position | undefined = undefined;
 

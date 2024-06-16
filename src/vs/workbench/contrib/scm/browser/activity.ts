@@ -33,17 +33,17 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 export class SCMActiveRepositoryController extends Disposable implements IWorkbenchContribution {
 	private readonly _countBadgeConfig = observableConfigValue<'all' | 'focused' | 'off'>('scm.countBadge', 'all', this.configurationService);
 
-	private readonly _repositories = observableFromEvent(
+	private readonly _repositories = observableFromEvent(this,
 		Event.any(this.scmService.onDidAddRepository, this.scmService.onDidRemoveRepository),
 		() => this.scmService.repositories);
 
 	private readonly _focusedRepository = observableFromEventOpts<ISCMRepository | undefined>(
-		{ equalsFn: () => false },
+		{ owner: this, equalsFn: () => false },
 		this.scmViewService.onDidFocusRepository,
 		() => this.scmViewService.focusedRepository);
 
 	private readonly _activeEditor = observableFromEventOpts(
-		{ equalsFn: () => false },
+		{ owner: this, equalsFn: () => false },
 		this.editorService.onDidActiveEditorChange,
 		() => this.editorService.activeEditor);
 
@@ -71,9 +71,9 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 	 * The focused repository takes precedence over the active editor repository when the observable
 	 * values are updated in the same transaction (or during the initial read of the observable value).
 	 */
-	private readonly _activeRepository = latestChangedValue(this._activeEditorRepository, this._focusedRepository);
+	private readonly _activeRepository = latestChangedValue(this, [this._activeEditorRepository, this._focusedRepository]);
 
-	private readonly _countBadgeRepositories = derived(reader => {
+	private readonly _countBadgeRepositories = derived(this, reader => {
 		switch (this._countBadgeConfig.read(reader)) {
 			case 'all': {
 				const repositories = this._repositories.read(reader);
@@ -90,7 +90,7 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 		}
 	});
 
-	private readonly _countBadge = derived(reader => {
+	private readonly _countBadge = derived(this, reader => {
 		let total = 0;
 
 		for (const repository of this._countBadgeRepositories.read(reader)) {
@@ -171,7 +171,7 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 	}
 
 	private _getRepositoryResourceCount(repository: ISCMRepository): IObservable<number> {
-		return observableFromEvent(repository.provider.onDidChangeResources, () => getRepositoryResourceCount(repository.provider));
+		return observableFromEvent(this, repository.provider.onDidChangeResources, () => /** @description repositoryResourceCount */ getRepositoryResourceCount(repository.provider));
 	}
 
 	private _updateActivityCountBadge(count: number, store: DisposableStore): void {

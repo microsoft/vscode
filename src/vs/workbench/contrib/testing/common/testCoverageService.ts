@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { Iterable } from 'vs/base/common/iterator';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IObservable, ISettableObservable, observableValue, transaction } from 'vs/base/common/observable';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -89,7 +90,7 @@ export class TestCoverageService extends Disposable implements ITestCoverageServ
 		this._register(bindContextKey(
 			TestingContextKeys.hasPerTestCoverage,
 			contextKeyService,
-			reader => !!this.selected.read(reader)?.perTestCoverageIDs.size,
+			reader => !Iterable.isEmpty(this.selected.read(reader)?.allPerTestIDs()),
 		));
 
 		this._register(bindContextKey(

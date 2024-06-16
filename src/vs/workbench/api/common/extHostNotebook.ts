@@ -36,7 +36,7 @@ import { IExtHostSearch } from 'vs/workbench/api/common/extHostSearch';
 import { CellSearchModel } from 'vs/workbench/contrib/search/common/cellSearchModel';
 import { INotebookCellMatchNoModel, INotebookFileMatchNoModel, IRawClosedNotebookFileMatch, genericCellMatchesToTextSearchMatches } from 'vs/workbench/contrib/search/common/searchNotebookHelpers';
 import { NotebookPriorityInfo } from 'vs/workbench/contrib/search/common/search';
-import { globMatchesResource } from 'vs/workbench/services/editor/common/editorResolverService';
+import { globMatchesResource, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { ILogService } from 'vs/platform/log/common/log';
 
 export class ExtHostNotebookController implements ExtHostNotebookShape {
@@ -163,7 +163,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			providerDisplayName: extension.displayName || extension.name,
 			displayName: registration.displayName,
 			filenamePattern: viewOptionsFilenamePattern,
-			exclusive: registration.exclusive || false
+			priority: registration.exclusive ? RegisteredEditorPriority.exclusive : undefined
 		};
 	}
 

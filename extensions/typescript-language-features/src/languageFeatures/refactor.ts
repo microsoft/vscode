@@ -541,11 +541,12 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 			return undefined;
 		}
 
-		const response = await this.client.interruptGetErr(() => {
+		const response = await this.interruptGetErrIfNeeded(context, () => {
 			const file = this.client.toOpenTsFilePath(document);
 			if (!file) {
 				return undefined;
 			}
+
 			this.formattingOptionsManager.ensureConfigurationForDocument(document, token);
 
 			const args: Proto.GetApplicableRefactorsRequestArgs = {
@@ -593,6 +594,17 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 		}
 
 		return this.pruneInvalidActions(this.appendInvalidActions(actions), context.only, /* numberOfInvalid = */ 5);
+	}
+
+	private interruptGetErrIfNeeded<R>(context: vscode.CodeActionContext, f: () => R): R {
+		// Only interrupt diagnostics computation when code actions are explicitly
+		// (such as using the refactor command or a keybinding). This is a clear
+		// user action so we want to return results as quickly as possible.
+		if (context.triggerKind === vscode.CodeActionTriggerKind.Invoke) {
+			return this.client.interruptGetErr(f);
+		} else {
+			return f();
+		}
 	}
 
 	public async resolveCodeAction(
