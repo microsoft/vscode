@@ -160,13 +160,12 @@ export function localize(key: string, message: string, ...args: (string | number
 /**
  * @skipMangle
  */
-export function localize(data: ILocalizeInfo | string | [string, number], message: string, ...args: (string | number | boolean | undefined | null)[]): string {
-	if (Array.isArray(data)) {
-		try {
-			message = globalThis._VSCODE_NLS.messages[data[0]][data[1]];
-		} catch (error) {
-			console.warn(error.message, data[0], data[1]);
-			message = `Unable to load message with key: ${data[0]} and index: ${data[1]}`;
+export function localize(data: ILocalizeInfo | string | number, message: string, ...args: (string | number | boolean | undefined | null)[]): string {
+	if (typeof data === 'number') {
+		message = globalThis._VSCODE_NLS[data];
+		if (typeof message !== 'string') {
+			console.warn(`Unable to load message with index: ${data}`);
+			message = `Unable to load message with index: ${data}`;
 		}
 	}
 	return _format(message, args);
@@ -205,13 +204,12 @@ export function localize2(key: string, message: string, ...args: (string | numbe
 /**
  * @skipMangle
  */
-export function localize2(data: ILocalizeInfo | string | [string, number], message: string, ...args: (string | number | boolean | undefined | null)[]): ILocalizedString {
-	if (Array.isArray(data)) {
-		try {
-			message = globalThis._VSCODE_NLS.messages[data[0]][data[1]];
-		} catch (error) {
-			console.error(error, data[0], data[1]);
-			message = `Unable to load message with key: ${data[0]} and index: ${data[1]}`;
+export function localize2(data: ILocalizeInfo | string | number, message: string, ...args: (string | number | boolean | undefined | null)[]): ILocalizedString {
+	if (typeof data === 'number') {
+		message = globalThis._VSCODE_NLS[data];
+		if (typeof message !== 'string') {
+			console.warn(`Unable to load message with index: ${data}`);
+			message = `Unable to load message with index: ${data}`;
 		}
 	}
 	const original = _format(message, args);

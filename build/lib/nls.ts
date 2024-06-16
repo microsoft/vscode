@@ -85,6 +85,19 @@ export function nls(): NodeJS.ReadWriteStream {
 			base,
 			path: base + '/nls.metadata.json'
 		}));
+
+		this.emit('data', new File({
+			contents: Buffer.from(JSON.stringify(_nls.allNLSValues)),
+			base,
+			path: base + '/nls.messages.json'
+		}));
+
+		this.emit('data', new File({
+			contents: Buffer.from(JSON.stringify(_nls.allNLSModulesAndKeys)),
+			base,
+			path: base + '/nls.keys.json'
+		}));
+
 		this.emit('end');
 	}));
 
@@ -99,6 +112,9 @@ module _nls {
 
 	export const moduleToNLSKeys: { [name: string]: string[] } = {};
 	export const moduleToNLSValues: { [name: string]: string[] } = {};
+	export const allNLSValues: string[] = [];
+	export const allNLSModulesAndKeys: Array<[string /* module ID */, string[] /* keys */]> = [];
+	let allNLSValuesIndex = 0;
 
 	interface INlsStringResult {
 		javascript: string;
@@ -404,7 +420,7 @@ module _nls {
 		return eval(`(${sourceExpression})`);
 	}
 
-	function patch(ts: typeof import('typescript'), moduleId: string, typescript: string, javascript: string, sourcemap: sm.RawSourceMap): INlsStringResult {
+	function patch(ts: typeof import('typescript'), typescript: string, javascript: string, sourcemap: sm.RawSourceMap): INlsStringResult {
 		const { localizeCalls } = analyze(ts, typescript, 'localize');
 		const { localizeCalls: localize2Calls } = analyze(ts, typescript, 'localize2');
 
@@ -424,10 +440,9 @@ module _nls {
 			return { span: { start, end }, content: c.content };
 		};
 
-		let i = 0;
 		const localizePatches = lazy(localizeCalls)
 			.map(lc => ([
-				{ range: lc.keySpan, content: `['${moduleId}', ${i++}]` },
+				{ range: lc.keySpan, content: `${allNLSValuesIndex++}` },
 				{ range: lc.valueSpan, content: 'null' }
 			]))
 			.flatten()
@@ -435,7 +450,7 @@ module _nls {
 
 		const localize2Patches = lazy(localize2Calls)
 			.map(lc => (
-				{ range: lc.keySpan, content: `['${moduleId}', ${i++}]` }
+				{ range: lc.keySpan, content: `${allNLSValuesIndex++}` }
 			))
 			.map(toPatch);
 
@@ -470,7 +485,6 @@ module _nls {
 
 		const { javascript, sourcemap, nlsKeys, nls } = patch(
 			ts,
-			moduleId,
 			typescript,
 			javascriptFile.contents.toString(),
 			(<any>javascriptFile).sourceMap
@@ -481,10 +495,12 @@ module _nls {
 
 		if (nlsKeys) {
 			moduleToNLSValues[moduleId] = nlsKeys;
+			allNLSModulesAndKeys.push([moduleId, nlsKeys]);
 		}
 
 		if (nls) {
 			moduleToNLSKeys[moduleId] = nls;
+			allNLSValues.push(...nls);
 		}
 
 		return result;

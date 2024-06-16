@@ -126,6 +126,7 @@ let nlsConfigurationPromise = undefined;
 const resolved = app.getPreferredSystemLanguages()?.[0] ?? 'en';
 const osLocale = processZhLocale(resolved.toLowerCase());
 const metaDataFile = path.join(__dirname, 'nls.metadata.json');
+const nlsMessagesFile = path.join(__dirname, 'nls.messages.json');
 const locale = getUserDefinedLocale(argvConfig);
 if (locale) {
 	const { getNLSConfiguration } = require('./vs/base/node/languagePacks');
@@ -170,7 +171,7 @@ app.once('ready', function () {
 function startup(codeCachePath, nlsConfig) {
 	nlsConfig._languagePackSupport = true;
 
-	process.env['VSCODE_NLS_CONFIG'] = JSON.stringify({ ...nlsConfig, metaDataFile });
+	process.env['VSCODE_NLS_CONFIG'] = JSON.stringify({ ...nlsConfig, nlsMessagesFile });
 	process.env['VSCODE_CODE_CACHE_PATH'] = codeCachePath || '';
 
 	// Load main in AMD

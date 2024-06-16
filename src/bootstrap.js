@@ -131,7 +131,7 @@
 				if (nlsConfig._resolvedLanguagePackCoreLocation) {
 					metaDataFile.push(nlsConfig._resolvedLanguagePackCoreLocation, `nls.metadata.json`);
 				} else {
-					metaDataFile.push(nlsConfig.metaDataFile);
+					metaDataFile.push(nlsConfig.nlsMessagesFile);
 				}
 			} catch (e) {
 				console.error(`Error resolving NLS metadata file: ${e}`);

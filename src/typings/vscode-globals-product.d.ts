@@ -16,7 +16,7 @@ declare global {
 	 */
 	var _VSCODE_PACKAGE_JSON: Record<string, any>;
 
-	var _VSCODE_NLS: { messages: Record<string, string[]>; };
+	var _VSCODE_NLS: string[];
 }
 
 // fake export to make global work

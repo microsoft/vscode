@@ -71,6 +71,16 @@ function nls() {
             base,
             path: base + '/nls.metadata.json'
         }));
+        this.emit('data', new File({
+            contents: Buffer.from(JSON.stringify(_nls.allNLSValues)),
+            base,
+            path: base + '/nls.messages.json'
+        }));
+        this.emit('data', new File({
+            contents: Buffer.from(JSON.stringify(_nls.allNLSModulesAndKeys)),
+            base,
+            path: base + '/nls.keys.json'
+        }));
         this.emit('end');
     }));
     return (0, event_stream_1.duplex)(input, output);
@@ -82,6 +92,9 @@ var _nls;
 (function (_nls) {
     _nls.moduleToNLSKeys = {};
     _nls.moduleToNLSValues = {};
+    _nls.allNLSValues = [];
+    _nls.allNLSModulesAndKeys = [];
+    let allNLSValuesIndex = 0;
     function fileFrom(file, contents, path = file.path) {
         return new File({
             contents: Buffer.from(contents),
@@ -305,7 +318,7 @@ var _nls;
         // eslint-disable-next-line no-eval
         return eval(`(${sourceExpression})`);
     }
-    function patch(ts, moduleId, typescript, javascript, sourcemap) {
+    function patch(ts, typescript, javascript, sourcemap) {
         const { localizeCalls } = analyze(ts, typescript, 'localize');
         const { localizeCalls: localize2Calls } = analyze(ts, typescript, 'localize2');
         if (localizeCalls.length === 0 && localize2Calls.length === 0) {
@@ -321,16 +334,15 @@ var _nls;
             const end = lcFrom(smc.generatedPositionFor(positionFrom(c.range.end)));
             return { span: { start, end }, content: c.content };
         };
-        let i = 0;
         const localizePatches = lazy(localizeCalls)
             .map(lc => ([
-            { range: lc.keySpan, content: `['${moduleId}', ${i++}]` },
+            { range: lc.keySpan, content: `${allNLSValuesIndex++}` },
             { range: lc.valueSpan, content: 'null' }
         ]))
             .flatten()
             .map(toPatch);
         const localize2Patches = lazy(localize2Calls)
-            .map(lc => ({ range: lc.keySpan, content: `['${moduleId}', ${i++}]` }))
+            .map(lc => ({ range: lc.keySpan, content: `${allNLSValuesIndex++}` }))
             .map(toPatch);
         // Sort patches by their start position
         const patches = localizePatches.concat(localize2Patches).toArray().sort((a, b) => {
@@ -360,14 +372,16 @@ var _nls;
         const moduleId = javascriptFile.relative
             .replace(/\.js$/, '')
             .replace(/\\/g, '/');
-        const { javascript, sourcemap, nlsKeys, nls } = patch(ts, moduleId, typescript, javascriptFile.contents.toString(), javascriptFile.sourceMap);
+        const { javascript, sourcemap, nlsKeys, nls } = patch(ts, typescript, javascriptFile.contents.toString(), javascriptFile.sourceMap);
         const result = [fileFrom(javascriptFile, javascript)];
         result[0].sourceMap = sourcemap;
         if (nlsKeys) {
             _nls.moduleToNLSValues[moduleId] = nlsKeys;
+            _nls.allNLSModulesAndKeys.push([moduleId, nlsKeys]);
         }
         if (nls) {
             _nls.moduleToNLSKeys[moduleId] = nls;
+            _nls.allNLSValues.push(...nls);
         }
         return result;
     }
