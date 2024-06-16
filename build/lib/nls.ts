@@ -75,11 +75,11 @@ export function nls(): NodeJS.ReadWriteStream {
 		}
 
 		base = f.base;
-		_nls.patchFiles(f, typescript).forEach(f => this.emit('data', f));
+		this.emit('data', _nls.patchFile(f, typescript));
 	}, function () {
 		this.emit('data', new File({
 			contents: Buffer.from(JSON.stringify({
-				keys: _nls.moduleToNLSValues,
+				keys: _nls.moduleToNLSMessages,
 				messages: _nls.moduleToNLSKeys,
 			}, null, '\t')),
 			base,
@@ -87,7 +87,7 @@ export function nls(): NodeJS.ReadWriteStream {
 		}));
 
 		this.emit('data', new File({
-			contents: Buffer.from(JSON.stringify(_nls.allNLSValues)),
+			contents: Buffer.from(JSON.stringify(_nls.allNLSMessages)),
 			base,
 			path: base + '/nls.messages.json'
 		}));
@@ -110,16 +110,16 @@ function isImportNode(ts: typeof import('typescript'), node: ts.Node): boolean {
 
 module _nls {
 
-	export const moduleToNLSKeys: { [name: string]: string[] } = {};
-	export const moduleToNLSValues: { [name: string]: string[] } = {};
-	export const allNLSValues: string[] = [];
+	export const moduleToNLSKeys: { [name: string /* module ID */]: string[] /* keys */ } = {};
+	export const moduleToNLSMessages: { [name: string /* module ID */]: string[] /* messages */ } = {};
+	export const allNLSMessages: string[] = [];
 	export const allNLSModulesAndKeys: Array<[string /* module ID */, string[] /* keys */]> = [];
-	let allNLSValuesIndex = 0;
+	let allNLSMessagesIndex = 0;
 
-	interface INlsStringResult {
+	interface INlsPatchResult {
 		javascript: string;
 		sourcemap: sm.RawSourceMap;
-		nls?: string[];
+		nlsMessages?: string[];
 		nlsKeys?: string[];
 	}
 
@@ -420,7 +420,7 @@ module _nls {
 		return eval(`(${sourceExpression})`);
 	}
 
-	function patch(ts: typeof import('typescript'), typescript: string, javascript: string, sourcemap: sm.RawSourceMap): INlsStringResult {
+	function patch(ts: typeof import('typescript'), typescript: string, javascript: string, sourcemap: sm.RawSourceMap): INlsPatchResult {
 		const { localizeCalls } = analyze(ts, typescript, 'localize');
 		const { localizeCalls: localize2Calls } = analyze(ts, typescript, 'localize2');
 
@@ -429,7 +429,7 @@ module _nls {
 		}
 
 		const nlsKeys = localizeCalls.map(lc => parseLocalizeKeyOrValue(lc.key)).concat(localize2Calls.map(lc => parseLocalizeKeyOrValue(lc.key)));
-		const nls = localizeCalls.map(lc => parseLocalizeKeyOrValue(lc.value)).concat(localize2Calls.map(lc => parseLocalizeKeyOrValue(lc.value)));
+		const nlsMessages = localizeCalls.map(lc => parseLocalizeKeyOrValue(lc.value)).concat(localize2Calls.map(lc => parseLocalizeKeyOrValue(lc.value)));
 		const smc = new sm.SourceMapConsumer(sourcemap);
 		const positionFrom = mappedPositionFrom.bind(null, sourcemap.sources[0]);
 
@@ -442,7 +442,7 @@ module _nls {
 
 		const localizePatches = lazy(localizeCalls)
 			.map(lc => ([
-				{ range: lc.keySpan, content: `${allNLSValuesIndex++}` },
+				{ range: lc.keySpan, content: `${allNLSMessagesIndex++}` }, // localize('key', "message") => localize(<index>, null)
 				{ range: lc.valueSpan, content: 'null' }
 			]))
 			.flatten()
@@ -450,7 +450,7 @@ module _nls {
 
 		const localize2Patches = lazy(localize2Calls)
 			.map(lc => (
-				{ range: lc.keySpan, content: `${allNLSValuesIndex++}` }
+				{ range: lc.keySpan, content: `${allNLSMessagesIndex++}` } // localize2('key', "message") => localize(<index>, "message")
 			))
 			.map(toPatch);
 
@@ -473,34 +473,34 @@ module _nls {
 
 		sourcemap = patchSourcemap(patches, sourcemap, smc);
 
-		return { javascript, sourcemap, nlsKeys, nls };
+		return { javascript, sourcemap, nlsKeys, nlsMessages };
 	}
 
-	export function patchFiles(javascriptFile: File, typescript: string): File[] {
+	export function patchFile(javascriptFile: File, typescript: string): File {
 		const ts = require('typescript') as typeof import('typescript');
 		// hack?
 		const moduleId = javascriptFile.relative
 			.replace(/\.js$/, '')
 			.replace(/\\/g, '/');
 
-		const { javascript, sourcemap, nlsKeys, nls } = patch(
+		const { javascript, sourcemap, nlsKeys, nlsMessages } = patch(
 			ts,
 			typescript,
 			javascriptFile.contents.toString(),
 			(<any>javascriptFile).sourceMap
 		);
 
-		const result: File[] = [fileFrom(javascriptFile, javascript)];
-		(<any>result[0]).sourceMap = sourcemap;
+		const result = fileFrom(javascriptFile, javascript);
+		(<any>result).sourceMap = sourcemap;
 
 		if (nlsKeys) {
-			moduleToNLSValues[moduleId] = nlsKeys;
+			moduleToNLSMessages[moduleId] = nlsKeys;
 			allNLSModulesAndKeys.push([moduleId, nlsKeys]);
 		}
 
-		if (nls) {
-			moduleToNLSKeys[moduleId] = nls;
-			allNLSValues.push(...nls);
+		if (nlsMessages) {
+			moduleToNLSKeys[moduleId] = nlsMessages;
+			allNLSMessages.push(...nlsMessages);
 		}
 
 		return result;

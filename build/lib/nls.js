@@ -61,18 +61,18 @@ function nls() {
             return this.emit('error', new Error(`File ${f.relative} does not have the original content in the source map.`));
         }
         base = f.base;
-        _nls.patchFiles(f, typescript).forEach(f => this.emit('data', f));
+        this.emit('data', _nls.patchFile(f, typescript));
     }, function () {
         this.emit('data', new File({
             contents: Buffer.from(JSON.stringify({
-                keys: _nls.moduleToNLSValues,
+                keys: _nls.moduleToNLSMessages,
                 messages: _nls.moduleToNLSKeys,
             }, null, '\t')),
             base,
             path: base + '/nls.metadata.json'
         }));
         this.emit('data', new File({
-            contents: Buffer.from(JSON.stringify(_nls.allNLSValues)),
+            contents: Buffer.from(JSON.stringify(_nls.allNLSMessages)),
             base,
             path: base + '/nls.messages.json'
         }));
@@ -91,10 +91,10 @@ function isImportNode(ts, node) {
 var _nls;
 (function (_nls) {
     _nls.moduleToNLSKeys = {};
-    _nls.moduleToNLSValues = {};
-    _nls.allNLSValues = [];
+    _nls.moduleToNLSMessages = {};
+    _nls.allNLSMessages = [];
     _nls.allNLSModulesAndKeys = [];
-    let allNLSValuesIndex = 0;
+    let allNLSMessagesIndex = 0;
     function fileFrom(file, contents, path = file.path) {
         return new File({
             contents: Buffer.from(contents),
@@ -325,7 +325,7 @@ var _nls;
             return { javascript, sourcemap };
         }
         const nlsKeys = localizeCalls.map(lc => parseLocalizeKeyOrValue(lc.key)).concat(localize2Calls.map(lc => parseLocalizeKeyOrValue(lc.key)));
-        const nls = localizeCalls.map(lc => parseLocalizeKeyOrValue(lc.value)).concat(localize2Calls.map(lc => parseLocalizeKeyOrValue(lc.value)));
+        const nlsMessages = localizeCalls.map(lc => parseLocalizeKeyOrValue(lc.value)).concat(localize2Calls.map(lc => parseLocalizeKeyOrValue(lc.value)));
         const smc = new sm.SourceMapConsumer(sourcemap);
         const positionFrom = mappedPositionFrom.bind(null, sourcemap.sources[0]);
         // build patches
@@ -336,13 +336,14 @@ var _nls;
         };
         const localizePatches = lazy(localizeCalls)
             .map(lc => ([
-            { range: lc.keySpan, content: `${allNLSValuesIndex++}` },
+            { range: lc.keySpan, content: `${allNLSMessagesIndex++}` }, // localize('key', "message") => localize(<index>, null)
             { range: lc.valueSpan, content: 'null' }
         ]))
             .flatten()
             .map(toPatch);
         const localize2Patches = lazy(localize2Calls)
-            .map(lc => ({ range: lc.keySpan, content: `${allNLSValuesIndex++}` }))
+            .map(lc => ({ range: lc.keySpan, content: `${allNLSMessagesIndex++}` } // localize2('key', "message") => localize(<index>, "message")
+        ))
             .map(toPatch);
         // Sort patches by their start position
         const patches = localizePatches.concat(localize2Patches).toArray().sort((a, b) => {
@@ -364,27 +365,27 @@ var _nls;
         });
         javascript = patchJavascript(patches, javascript);
         sourcemap = patchSourcemap(patches, sourcemap, smc);
-        return { javascript, sourcemap, nlsKeys, nls };
+        return { javascript, sourcemap, nlsKeys, nlsMessages };
     }
-    function patchFiles(javascriptFile, typescript) {
+    function patchFile(javascriptFile, typescript) {
         const ts = require('typescript');
         // hack?
         const moduleId = javascriptFile.relative
             .replace(/\.js$/, '')
             .replace(/\\/g, '/');
-        const { javascript, sourcemap, nlsKeys, nls } = patch(ts, typescript, javascriptFile.contents.toString(), javascriptFile.sourceMap);
-        const result = [fileFrom(javascriptFile, javascript)];
-        result[0].sourceMap = sourcemap;
+        const { javascript, sourcemap, nlsKeys, nlsMessages } = patch(ts, typescript, javascriptFile.contents.toString(), javascriptFile.sourceMap);
+        const result = fileFrom(javascriptFile, javascript);
+        result.sourceMap = sourcemap;
         if (nlsKeys) {
-            _nls.moduleToNLSValues[moduleId] = nlsKeys;
+            _nls.moduleToNLSMessages[moduleId] = nlsKeys;
             _nls.allNLSModulesAndKeys.push([moduleId, nlsKeys]);
         }
-        if (nls) {
-            _nls.moduleToNLSKeys[moduleId] = nls;
-            _nls.allNLSValues.push(...nls);
+        if (nlsMessages) {
+            _nls.moduleToNLSKeys[moduleId] = nlsMessages;
+            _nls.allNLSMessages.push(...nlsMessages);
         }
         return result;
     }
-    _nls.patchFiles = patchFiles;
+    _nls.patchFile = patchFile;
 })(_nls || (_nls = {}));
 //# sourceMappingURL=nls.js.map
