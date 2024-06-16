@@ -13,7 +13,7 @@ use std::{
 	str::FromStr,
 };
 
-use serde::{de::DeserializeOwned, Deserialize};
+use serde::{de::SerializeOwned, Serialize};
 use serde_json::Value;
 
 fn main() {
