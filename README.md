@@ -28,8 +28,13 @@ Read our to learn about our development process, how to propose bugfixes and imp
 
 We welcome contributions from the community! Whether you're fixing a bug, improving the documentation, or adding a new feature, we appreciate your help in making PearAI better. To help you get your feet wet and become familiar with our contribution process, we have a list of [good first issues](https://github.com/trypear/pearai-app/issues?q=is%3Aopen+is%3Aissue+label%3A%22good+first+issue%22) that contains things with a relatively limited scope. This is a great place to get started!
 
-
 **Please review our [Contributing Guide](CONTRIBUTING.md) to get started.** For any questions, join the [PearAI Discord](https://discord.gg/7QMraJUsQt)!
+
+Curious about our stack?
+- PearAI is in TypeScript/Electron.js
+- PearAI landing page is Next.js/React with Supabase auth (TailwindCSS + Shadcn)
+- PearAI backend is a Python Flask server with Supabase database
+- Logging/Telemetry is done with Axiom
 
 ## License
 Pear OSS is licensed under the Apache 2.0 license. See the LICENSE file for details.
