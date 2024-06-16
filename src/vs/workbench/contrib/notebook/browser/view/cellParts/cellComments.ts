@@ -158,9 +158,11 @@ export class CellComments extends CellContentPart {
 		if (element.cellKind === CellKind.Code) {
 			this.currentElement = element as CodeCellViewModel;
 			this.initialize(element);
-			this._bindListeners();
+		} else if (element.cellKind === CellKind.Markup) {
+			this.currentElement = element as MarkupCellViewModel;
+			this.initialize(element);
 		}
-
+		this._bindListeners();
 	}
 
 	override prepareLayout(): void {
