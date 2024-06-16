@@ -76,7 +76,7 @@ export function autorunWithStoreHandleChanges<TChangeSummary>(
 		{
 			owner: options.owner,
 			debugName: options.debugName,
-			debugReferenceFn: options.debugReferenceFn,
+			debugReferenceFn: options.debugReferenceFn ?? fn,
 			createEmptyChangeSummary: options.createEmptyChangeSummary,
 			handleChange: options.handleChange,
 		},
