@@ -155,7 +155,7 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 		return undefined;
 	}
 
-	private readonly _parsedTemplateExpression = /\$\{(dirname|filename|extname\((?<extnameN>[-+]?\d+)\)|dirname\((?<dirnameN>[-+]?\d+)\))\}/g;
+	private readonly _parsedTemplateExpression = /\$\{(dirname|filename|extname|extname\((?<extnameN>[-+]?\d+)\)|dirname\((?<dirnameN>[-+]?\d+)\))\}/g;
 	private applyTemplate(template: string, resource: URI, relevantPath: string): string {
 		let parsedPath: undefined | ParsedPath;
 		return template.replace(this._parsedTemplateExpression, (match: string, variable: string, ...args: any[]) => {
@@ -171,7 +171,9 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 				const n = parseInt(extnameN);
 				const extensionName = parsedPath.base;
 				const nthExtname = this.getNthExtname(extensionName, n);
-				return nthExtname ?? variable;
+				if (nthExtname) {
+					return nthExtname;
+				}
 			} else if (variable.startsWith('dirname')) {
 				const n = parseInt(dirnameN);
 				const nthDir = this.getNthDirname(dirname(relevantPath), n);
