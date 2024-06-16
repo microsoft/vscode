@@ -1064,14 +1064,14 @@ function shadowCaretRangeFromPoint(shadowRoot: ShadowRoot, x: number, y: number)
 	const range = document.createRange();
 
 	// Get the element under the point
-	let el: Element | null = (<any>shadowRoot).elementFromPoint(x, y);
-
-	if (el !== null) {
+	let el: HTMLElement | null = (<any>shadowRoot).elementFromPoint(x, y);
+	// When el is not null, it may be div.monaco-mouse-cursor-text Element, which has not childNodes, we don't need to handle it.
+	if (el?.hasChildNodes()) {
 		// Get the last child of the element until its firstChild is a text node
 		// This assumes that the pointer is on the right of the line, out of the tokens
 		// and that we want to get the offset of the last token of the line
 		while (el && el.firstChild && el.firstChild.nodeType !== el.firstChild.TEXT_NODE && el.lastChild && el.lastChild.firstChild) {
-			el = <Element>el.lastChild;
+			el = <HTMLElement>el.lastChild;
 		}
 
 		// Grab its rect
@@ -1088,7 +1088,7 @@ function shadowCaretRangeFromPoint(shadowRoot: ShadowRoot, x: number, y: number)
 		const font = `${fontStyle} ${fontVariant} ${fontWeight} ${fontSize}/${lineHeight} ${fontFamily}`;
 
 		// And also its txt content
-		const text = (el as any).innerText;
+		const text = el.innerText;
 
 		// Position the pixel cursor at the left of the element
 		let pixelCursor = rect.left;
