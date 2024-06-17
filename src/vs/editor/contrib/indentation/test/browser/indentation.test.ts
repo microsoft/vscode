@@ -1397,6 +1397,8 @@ suite('Auto Indent On Type - Ruby', () => {
 			viewModel.model.setValue("");
 			viewModel.type("  # in");
 			assert.strictEqual(model.getValue(), "  # in");
+			// viewModel.type(" ", 'keyboard');
+			// assert.strictEqual(model.getValue(), "  # in ");
 		});
 	});
 

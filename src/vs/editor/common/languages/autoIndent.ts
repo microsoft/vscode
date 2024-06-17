@@ -413,7 +413,7 @@ export function getIndentActionForType(
 			const currentLine = model.getLineContent(range.startLineNumber);
 			const actualCurrentIndentation = strings.getLeadingWhitespace(currentLine);
 			const inferredCurrentIndentation = indentConverter.shiftIndent(inheritedIndentation);
-			// If the inferred current indentation is not equal to the actual current indentation, then the indentation has been intentionally changed
+			// If the inferred current indentation is not equal to the actual current indentation, then the indentation has been intentionally changed, in that case keep it
 			if (inferredCurrentIndentation === actualCurrentIndentation) {
 				return inheritedIndentation;
 			}
