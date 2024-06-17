@@ -157,6 +157,7 @@ export interface IChatWidget {
 	getFocus(): ChatTreeItem | undefined;
 	setInput(query?: string): void;
 	getInput(): string;
+	logInputHistory(): void;
 	acceptInput(query?: string): Promise<IChatResponseModel | undefined>;
 	acceptInputWithPrefix(prefix: string): void;
 	setInputPlaceholder(placeholder: string): void;

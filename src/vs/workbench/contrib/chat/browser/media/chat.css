@@ -40,6 +40,7 @@
 	display: flex;
 	align-items: center;
 	gap: 8px;
+	overflow: hidden;
 }
 
 .interactive-item-container .header .username {

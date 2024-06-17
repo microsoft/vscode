@@ -69,6 +69,8 @@ export interface IChatWidgetContrib extends IDisposable {
 	 */
 	getInputState?(): any;
 
+	onDidChangeInputState?: Event<void>;
+
 	/**
 	 * Called with the result of getInputState when navigating input history.
 	 */
@@ -111,7 +113,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private readonly _onDidChangeContentHeight = new Emitter<void>();
 	readonly onDidChangeContentHeight: Event<void> = this._onDidChangeContentHeight.event;
 
-	private contribs: IChatWidgetContrib[] = [];
+	private contribs: ReadonlyArray<IChatWidgetContrib> = [];
 
 	private tree!: WorkbenchObjectTree<ChatTreeItem>;
 	private renderer!: ChatListItemRenderer;
@@ -311,6 +313,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				return undefined;
 			}
 		}).filter(isDefined);
+
+		this.contribs.forEach(c => {
+			if (c.onDidChangeInputState) {
+				this._register(c.onDidChangeInputState(() => {
+					const state = this.collectInputState();
+					this.inputPart.updateState(state);
+				}));
+			}
+		});
 	}
 
 	getContrib<T extends IChatWidgetContrib>(id: string): T | undefined {
@@ -552,8 +563,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this._register(this.inputPart.onDidLoadInputState(state => {
 			this.contribs.forEach(c => {
-				if (c.setInputState && typeof state === 'object' && state?.[c.id]) {
-					c.setInputState(state[c.id]);
+				if (c.setInputState) {
+					const contribState = (typeof state === 'object' && state?.[c.id]) ?? {};
+					c.setInputState(contribState);
 				}
 			});
 		}));
@@ -646,7 +658,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.viewModel = undefined;
 			this.onDidChangeItems();
 		}));
-		this.inputPart.setState(viewState.inputValue);
+		this.inputPart.initForNewChatModel(viewState.inputValue, viewState.inputState ?? this.collectInputState());
 		this.contribs.forEach(c => {
 			if (c.setInputState && viewState.inputState?.[c.id]) {
 				c.setInputState(viewState.inputState?.[c.id]);
@@ -692,11 +704,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	setInput(value = ''): void {
-		this.inputPart.setValue(value);
+		this.inputPart.setValue(value, false);
 	}
 
 	getInput(): string {
 		return this.inputPart.inputEditor.getValue();
+	}
+
+	logInputHistory(): void {
+		this.inputPart.logInputHistory();
 	}
 
 	async acceptInput(query?: string): Promise<IChatResponseModel | undefined> {
@@ -731,9 +747,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			if (result) {
 				this.inputPart.attachedContext.clear();
-				const inputState = this.collectInputState();
-				this.inputPart.acceptInput(isUserQuery ? input : undefined, isUserQuery ? inputState : undefined);
+				this.inputPart.acceptInput(isUserQuery);
 				this._onDidSubmitAgent.fire({ agent: result.agent, slashCommand: result.slashCommand });
+				this.inputPart.updateState(this.collectInputState());
 				result.responseCompletePromise.then(() => {
 					const responses = this.viewModel?.getItems().filter(isResponseVM);
 					const lastResponse = responses?.[responses.length - 1];
