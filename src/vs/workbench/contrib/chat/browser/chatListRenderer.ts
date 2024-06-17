@@ -7,13 +7,12 @@ import * as dom from 'vs/base/browser/dom';
 import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { alert } from 'vs/base/browser/ui/aria/aria';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { IAction } from 'vs/base/common/actions';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { distinct } from 'vs/base/common/arrays';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
@@ -25,18 +24,12 @@ import { FileAccess, Schemas, matchesSomeScheme } from 'vs/base/common/network';
 import { clamp } from 'vs/base/common/numbers';
 import { autorun } from 'vs/base/common/observable';
 import { basename } from 'vs/base/common/path';
-import { basenameOrAuthority, isEqual } from 'vs/base/common/resources';
+import { basenameOrAuthority } from 'vs/base/common/resources';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
 import { IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
-import { TextEdit } from 'vs/editor/common/languages';
-import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
-import { IModelService } from 'vs/editor/common/services/model';
-import { DefaultModelSHA1Computer } from 'vs/editor/common/services/modelService';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { localize } from 'vs/nls';
 import { IMenuEntryActionViewItemOptions, MenuEntryActionViewItem, createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -60,18 +53,20 @@ import { ChatAgentHover, getChatAgentHoverOptions } from 'vs/workbench/contrib/c
 import { IDisposableReference, ResourcePool } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatCollections';
 import { ChatCommandButtonContentPart } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatCommandContentPart';
 import { ChatConfirmationContentPart } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatConfirmationContentPart';
+import { ChatProgressContentPart } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatProgressContentPart';
+import { ChatTextEditContentPart, DiffEditorPool } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatTextEditContentPart';
 import { ChatTreeContentPart, TreePool } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatTreeContentPart';
 import { ChatWarningContentPart } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatWarningContentPart';
 import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
 import { ChatMarkdownDecorationsRenderer } from 'vs/workbench/contrib/chat/browser/chatMarkdownDecorationsRenderer';
 import { ChatMarkdownRenderer } from 'vs/workbench/contrib/chat/browser/chatMarkdownRenderer';
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
-import { ChatCodeBlockContentProvider, CodeBlockPart, CodeCompareBlockPart, ICodeBlockData, ICodeCompareBlockData, ICodeCompareBlockDiffData, localFileLanguageId, parseLocalFileData } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
+import { ChatCodeBlockContentProvider, CodeBlockPart, ICodeBlockData, localFileLanguageId, parseLocalFileData } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { ChatAgentLocation, IChatAgentMetadata } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_DETECTED_AGENT_COMMAND, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatProgressRenderableResponseContent, IChatTextEditGroup } from 'vs/workbench/contrib/chat/common/chatModel';
 import { chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { ChatAgentVoteDirection, IChatCommandButton, IChatConfirmation, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatService, IChatTask, IChatWarningMessage } from 'vs/workbench/contrib/chat/common/chatService';
+import { ChatAgentVoteDirection, IChatCommandButton, IChatConfirmation, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatTask, IChatWarningMessage } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { IChatProgressMessageRenderData, IChatRenderData, IChatResponseMarkdownRenderData, IChatResponseViewModel, IChatTaskRenderData, IChatWelcomeMessageViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IWordCountResult, getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
@@ -79,7 +74,6 @@ import { createFileIconThemableTreeContainerScope } from 'vs/workbench/contrib/f
 import { IMarkdownVulnerability, annotateSpecialMarkdownContent } from '../common/annotations';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection';
 import { IChatListItemRendererOptions } from './chat';
-import { distinct } from 'vs/base/common/arrays';
 
 const $ = dom.$;
 
@@ -162,9 +156,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@IThemeService private readonly themeService: IThemeService,
 		@ICommandService private readonly commandService: ICommandService,
 		@ITextModelService private readonly textModelService: ITextModelService,
-		@IModelService private readonly modelService: IModelService,
 		@IHoverService private readonly hoverService: IHoverService,
-		@IChatService private readonly chatService: IChatService,
 	) {
 		super();
 
@@ -489,7 +481,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				? this.renderTreeData(data.treeData, element, templateData, fileTreeIndex++)
 				: data.kind === 'markdownContent'
 					? this.renderMarkdown(data.content, element, templateData, fillInIncompleteTokens, codeBlockIndex)
-					: data.kind === 'progressMessage' && onlyProgressMessagesAfterI(value, index) ? this.renderProgressMessage(data, false) // TODO render command
+					: data.kind === 'progressMessage' && onlyProgressMessagesAfterI(value, index) ? this.renderProgressMessage(data, false)
 						: data.kind === 'progressTask' ? this.renderProgressTask(data, false, element, templateData)
 							: data.kind === 'command' ? this.instantiationService.createInstance(ChatCommandButtonContentPart, data, element)
 								: data.kind === 'textEditGroup' ? this.renderTextEdit(element, data, templateData)
@@ -763,6 +755,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const store = new DisposableStore();
 		const treePart = store.add(this.instantiationService.createInstance(ChatTreeContentPart, data, element, this._treePool, treeDataIndex));
 
+		store.add(treePart.onDidChangeHeight(() => {
+			this.updateItemHeight(templateData);
+		}));
+
 		if (isResponseVM(element)) {
 			const fileTreeFocusInfo = {
 				treeDataId: data.uri.toString(),
@@ -902,17 +898,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private renderProgressMessage(progress: IChatProgressMessage | IChatTask, showSpinner: boolean): IMarkdownRenderResult {
-		if (showSpinner) {
-			// this step is in progress, communicate it to SR users
-			alert(progress.content.value);
-		}
-		const codicon = showSpinner ? ThemeIcon.modify(Codicon.loading, 'spin').id : Codicon.check.id;
-		const markdown = new MarkdownString(`$(${codicon}) ${progress.content.value}`, {
-			supportThemeIcons: true
-		});
-		const result = this.renderer.render(markdown);
-		result.element.classList.add('progress-step');
-		return result;
+		return this.instantiationService.createInstance(ChatProgressContentPart, progress, showSpinner, this.renderer);
 	}
 
 	private renderConfirmation(element: ChatTreeItem, confirmation: IChatConfirmation, templateData: IChatListItemTemplate): IMarkdownRenderResult | undefined {
@@ -926,114 +912,20 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private renderTextEdit(element: ChatTreeItem, chatTextEdit: IChatTextEditGroup, templateData: IChatListItemTemplate): IMarkdownRenderResult | undefined {
-
-		// TODO@jrieken move this into the CompareCodeBlock and properly say what kind of changes happen
-		if (this.rendererOptions.renderTextEditsAsSummary?.(chatTextEdit.uri)) {
-			if (isResponseVM(element) && element.response.value.every(item => item.kind === 'textEditGroup')) {
-				return {
-					element: $('.interactive-edits-summary', undefined, !element.isComplete ? localize('editsSummary1', "Making changes...") : localize('editsSummary', "Made changes.")),
-					dispose() { }
-				};
-			}
-			return undefined;
+		if (this.rendererOptions.renderTextEditsAsSummary?.(chatTextEdit.uri) && !(isResponseVM(element) && element.response.value.every(item => item.kind === 'textEditGroup'))) {
+			return;
 		}
 
 		const store = new DisposableStore();
-		const cts = new CancellationTokenSource();
-
-		let isDisposed = false;
-		store.add(toDisposable(() => {
-			isDisposed = true;
-			cts.dispose(true);
-		}));
-
-		const ref = this._diffEditorPool.get();
-
-		// Attach this after updating text/layout of the editor, so it should only be fired when the size updates later (horizontal scrollbar, wrapping)
-		// not during a renderElement OR a progressive render (when we will be firing this event anyway at the end of the render)
-		store.add(ref.object.onDidChangeContentHeight(() => {
-			ref.object.layout(this._currentLayoutWidth);
+		const textEditPart = store.add(this.instantiationService.createInstance(ChatTextEditContentPart, chatTextEdit, element, this.rendererOptions, this._diffEditorPool, this._currentLayoutWidth));
+		store.add(textEditPart.onDidChangeHeight(() => {
+			textEditPart.layout(this._currentLayoutWidth);
 			this.updateItemHeight(templateData);
 		}));
 
-		const data: ICodeCompareBlockData = {
-			element,
-			edit: chatTextEdit,
-			diffData: (async () => {
-
-				const ref = await this.textModelService.createModelReference(chatTextEdit.uri);
-
-				if (isDisposed) {
-					ref.dispose();
-					return;
-				}
-
-				store.add(ref);
-
-				const original = ref.object.textEditorModel;
-				let originalSha1: string = '';
-
-				if (chatTextEdit.state) {
-					originalSha1 = chatTextEdit.state.sha1;
-				} else {
-					const sha1 = new DefaultModelSHA1Computer();
-					if (sha1.canComputeSHA1(original)) {
-						originalSha1 = sha1.computeSHA1(original);
-						chatTextEdit.state = { sha1: originalSha1, applied: 0 };
-					}
-				}
-
-				const modified = this.modelService.createModel(
-					createTextBufferFactoryFromSnapshot(original.createSnapshot()),
-					{ languageId: original.getLanguageId(), onDidChange: Event.None },
-					URI.from({ scheme: Schemas.vscodeChatCodeBlock, path: original.uri.path, query: generateUuid() }),
-					false
-				);
-				const modRef = await this.textModelService.createModelReference(modified.uri);
-				store.add(modRef);
-
-				const editGroups: ISingleEditOperation[][] = [];
-				if (isResponseVM(element)) {
-					const chatModel = this.chatService.getSession(element.sessionId)!;
-
-					for (const request of chatModel.getRequests()) {
-						if (!request.response) {
-							continue;
-						}
-						for (const item of request.response.response.value) {
-							if (item.kind !== 'textEditGroup' || item.state?.applied || !isEqual(item.uri, chatTextEdit.uri)) {
-								continue;
-							}
-							for (const group of item.edits) {
-								const edits = group.map(TextEdit.asEditOperation);
-								editGroups.push(edits);
-							}
-						}
-						if (request.response === element.model) {
-							break;
-						}
-					}
-				}
-
-				for (const edits of editGroups) {
-					modified.pushEditOperations(null, edits, () => null);
-				}
-
-				return {
-					modified,
-					original,
-					originalSha1
-				} satisfies ICodeCompareBlockDiffData;
-			})()
-		};
-		ref.object.render(data, this._currentLayoutWidth, cts.token);
-
 		return {
-			element: ref.object.element,
-			dispose() {
-				store.dispose();
-				ref.dispose();
-			},
+			element: textEditPart.element,
+			dispose() { store.dispose(); }
 		};
 	}
 
@@ -1210,41 +1102,6 @@ class EditorPool extends Disposable {
 	}
 
 	get(): IDisposableReference<CodeBlockPart> {
-		const codeBlock = this._pool.get();
-		let stale = false;
-		return {
-			object: codeBlock,
-			isStale: () => stale,
-			dispose: () => {
-				codeBlock.reset();
-				stale = true;
-				this._pool.release(codeBlock);
-			}
-		};
-	}
-}
-
-class DiffEditorPool extends Disposable {
-
-	private readonly _pool: ResourcePool<CodeCompareBlockPart>;
-
-	public inUse(): Iterable<CodeCompareBlockPart> {
-		return this._pool.inUse;
-	}
-
-	constructor(
-		options: ChatEditorOptions,
-		delegate: IChatRendererDelegate,
-		overflowWidgetsDomNode: HTMLElement | undefined,
-		@IInstantiationService instantiationService: IInstantiationService,
-	) {
-		super();
-		this._pool = this._register(new ResourcePool(() => {
-			return instantiationService.createInstance(CodeCompareBlockPart, options, MenuId.ChatCompareBlock, delegate, overflowWidgetsDomNode);
-		}));
-	}
-
-	get(): IDisposableReference<CodeCompareBlockPart> {
 		const codeBlock = this._pool.get();
 		let stale = false;
 		return {
