@@ -208,7 +208,7 @@ export class WordOperations {
 		return 0;
 	}
 
-	public static moveWordLeft(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, position: Position, wordNavigationType: WordNavigationType): Position {
+	public static moveWordLeft(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, position: Position, wordNavigationType: WordNavigationType, hasMulticursor: boolean): Position {
 		let lineNumber = position.lineNumber;
 		let column = position.column;
 
@@ -227,7 +227,8 @@ export class WordOperations {
 
 		if (wordNavigationType === WordNavigationType.WordStartFast) {
 			if (
-				prevWordOnLine
+				!hasMulticursor // avoid having multiple cursors stop at different locations when doing word start
+				&& prevWordOnLine
 				&& prevWordOnLine.wordType === WordType.Separator
 				&& prevWordOnLine.end - prevWordOnLine.start === 1
 				&& prevWordOnLine.nextCharClass === WordCharacterClass.Regular
@@ -830,10 +831,10 @@ export class WordPartOperations extends WordOperations {
 		return candidates[0];
 	}
 
-	public static moveWordPartLeft(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, position: Position): Position {
+	public static moveWordPartLeft(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, position: Position, hasMulticursor: boolean): Position {
 		const candidates = enforceDefined([
-			WordOperations.moveWordLeft(wordSeparators, model, position, WordNavigationType.WordStart),
-			WordOperations.moveWordLeft(wordSeparators, model, position, WordNavigationType.WordEnd),
+			WordOperations.moveWordLeft(wordSeparators, model, position, WordNavigationType.WordStart, hasMulticursor),
+			WordOperations.moveWordLeft(wordSeparators, model, position, WordNavigationType.WordEnd, hasMulticursor),
 			WordOperations._moveWordPartLeft(model, position)
 		]);
 		candidates.sort(Position.compare);

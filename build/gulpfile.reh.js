@@ -129,7 +129,8 @@ function getNodeChecksum(nodeVersion, platform, arch, glibcPrefix) {
 	let expectedName;
 	switch (platform) {
 		case 'win32':
-			expectedName = `win-${arch}/node.exe`;
+			expectedName = product.nodejsRepository !== 'https://nodejs.org' ?
+				`win-${arch}-node.exe` : `win-${arch}/node.exe`;
 			break;
 
 		case 'darwin':

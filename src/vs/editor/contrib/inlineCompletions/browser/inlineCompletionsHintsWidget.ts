@@ -36,7 +36,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 
 export class InlineCompletionsHintsWidget extends Disposable {
-	private readonly alwaysShowToolbar = observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).showToolbar === 'always');
+	private readonly alwaysShowToolbar = observableFromEvent(this, this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).showToolbar === 'always');
 
 	private sessionPosition: Position | undefined = undefined;
 

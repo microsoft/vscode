@@ -166,6 +166,9 @@ export class SearchView extends ViewPane {
 
 	private _onSearchResultChangedDisposable: IDisposable | undefined;
 
+	private _stashedQueryDetailsVisibility: boolean | undefined = undefined;
+	private _stashedReplaceVisibility: boolean | undefined = undefined;
+
 	constructor(
 		options: IViewPaneOptions,
 		@IFileService private readonly fileService: IFileService,
@@ -327,7 +330,32 @@ export class SearchView extends ViewPane {
 		if (visible === this.aiResultsVisible) {
 			return;
 		}
+
+		if (visible) {
+			this._stashedQueryDetailsVisibility = this._queryDetailsHidden();
+			this._stashedReplaceVisibility = this.searchWidget.isReplaceShown();
+
+			this.searchWidget.toggleReplace(false);
+			this.toggleQueryDetailsButton.style.display = 'none';
+
+			this.searchWidget.replaceButtonVisibility = false;
+			this.toggleQueryDetails(undefined, false);
+		} else {
+			this.toggleQueryDetailsButton.style.display = '';
+			this.searchWidget.replaceButtonVisibility = true;
+
+			if (this._stashedReplaceVisibility) {
+				this.searchWidget.toggleReplace(this._stashedReplaceVisibility);
+			}
+
+			if (this._stashedQueryDetailsVisibility) {
+				this.toggleQueryDetails(undefined, this._stashedQueryDetailsVisibility);
+			}
+		}
+
 		this.aiResultsVisible = visible;
+
+
 		if (this.viewModel.searchResult.isEmpty()) {
 			return;
 		}
@@ -336,9 +364,8 @@ export class SearchView extends ViewPane {
 		this.model.cancelAISearch();
 		if (visible) {
 			await this.model.addAIResults();
-		} else {
-			this.searchWidget.toggleReplace(false);
 		}
+
 		this.onSearchResultsChanged();
 		this.onSearchComplete(() => { }, undefined, undefined, this.viewModel.searchResult.getCachedSearchComplete(visible));
 	}
@@ -1480,6 +1507,10 @@ export class SearchView extends ViewPane {
 		if (!skipLayout && this.size) {
 			this.reLayout();
 		}
+	}
+
+	private _queryDetailsHidden() {
+		return this.queryDetails.classList.contains('more');
 	}
 
 	searchInFolders(folderPaths: string[] = []): void {
