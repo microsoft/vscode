@@ -19,7 +19,7 @@ import { IDisposableReference, ResourcePool } from 'vs/workbench/contrib/chat/br
 import { IChatRendererDelegate } from 'vs/workbench/contrib/chat/browser/chatListRenderer';
 import { ChatMarkdownDecorationsRenderer } from 'vs/workbench/contrib/chat/browser/chatMarkdownDecorationsRenderer';
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
-import { CodeBlockPart, CodeCompareBlockPart, ICodeBlockData, localFileLanguageId, parseLocalFileData } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
+import { CodeBlockPart, ICodeBlockData, localFileLanguageId, parseLocalFileData } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { IMarkdownVulnerability } from 'vs/workbench/contrib/chat/common/annotations';
 import { isRequestVM, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { CodeBlockModelCollection } from 'vs/workbench/contrib/chat/common/codeBlockModelCollection';
@@ -28,7 +28,7 @@ const $ = dom.$;
 
 export class ChatMarkdownContentPart extends Disposable {
 	public readonly element: HTMLElement;
-	private readonly ref: IDisposableReference<CodeCompareBlockPart> | undefined;
+	private readonly allRefs: IDisposableReference<CodeBlockPart>[] = [];
 
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
@@ -88,12 +88,11 @@ export class ChatMarkdownContentPart extends Disposable {
 
 				const hideToolbar = isResponseVM(element) && element.errorDetails?.responseIsFiltered;
 				const ref = this.renderCodeBlock({ languageId, textModel, codeBlockIndex: index, element, range, hideToolbar, parentContextKeyService: contextKeyService, vulns }, text, currentWidth, rendererOptions.editableCodeBlock);
+				this.allRefs.push(ref);
 
 				// Attach this after updating text/layout of the editor, so it should only be fired when the size updates later (horizontal scrollbar, wrapping)
 				// not during a renderElement OR a progressive render (when we will be firing this event anyway at the end of the render)
-				this._register(ref.object.onDidChangeContentHeight(() => {
-					this._onDidChangeHeight.fire();
-				}));
+				this._register(ref.object.onDidChangeContentHeight(() => this._onDidChangeHeight.fire()));
 
 				if (isResponseVM(element)) {
 					const info: IChatCodeBlockInfo = {
@@ -133,7 +132,7 @@ export class ChatMarkdownContentPart extends Disposable {
 	}
 
 	layout(width: number): void {
-		this.ref?.object.layout(width);
+		this.allRefs.forEach(ref => ref.object.layout(width));
 	}
 }
 
