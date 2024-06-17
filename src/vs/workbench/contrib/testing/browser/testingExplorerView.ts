@@ -30,7 +30,7 @@ import 'vs/css!./media/testing';
 import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
 import { localize } from 'vs/nls';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
-import { MenuEntryActionViewItem, createActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { MenuEntryActionViewItem, createActionViewItem, createAndFillInActionBarActions, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -115,6 +115,7 @@ export class TestingExplorerView extends ViewPane {
 		@IHoverService hoverService: IHoverService,
 		@ITestProfileService private readonly testProfileService: ITestProfileService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IMenuService private readonly menuService: IMenuService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 
@@ -349,9 +350,19 @@ export class TestingExplorerView extends ViewPane {
 			}
 		}
 
-		// If there's only one group, don't add a heading for it in the dropdown.
-		if (participatingGroups === 1) {
-			profileActions.shift();
+		const menuActions: IAction[] = [];
+
+		const key = this.contextKeyService.createOverlay([]);
+		const menu = this.menuService.createMenu(MenuId.TestPythonConfigMenu, key);
+		const actions = menu.getActions({ renderShortTitle: true }).flatMap(entry => entry[1]);
+		if (actions.length > 0) {
+			// fill if there are any actions
+			try {
+				createAndFillInContextMenuActions(menu, undefined, menuActions);
+			} finally {
+				menu.dispose();
+			}
+
 		}
 
 		const postActions: IAction[] = [];
@@ -375,7 +386,10 @@ export class TestingExplorerView extends ViewPane {
 			));
 		}
 
-		return Separator.join(profileActions, postActions);
+		// show menu actions if there are any otherwise don't
+		return menuActions.length > 0
+			? Separator.join(profileActions, menuActions, postActions)
+			: Separator.join(profileActions, postActions);
 	}
 
 	/**
