@@ -1,5 +1,10 @@
 # yaml-language-server: $schema=https://aka.ms/configuration-dsc-schema/0.2
-# Reference: https://github.com/microsoft/vscode/wiki/How-to-Contribute
+# Reference: https://github.com/mic
+
+
+
+rosoft/vscode/
+wiki/How-to-Contribute
 properties:
   resources:
     - resource: Microsoft.WinGet.DSC/WinGetPackage
@@ -7,7 +12,7 @@ properties:
         description: Install Git
         allowPrerelease: true
       settings:
-        id: Git.Git
+        id: Git.Githttps://github.com/andy-portmen/native-client/releases
         source: winget
     - resource: Microsoft.WinGet.DSC/WinGetPackage
       id: npm
