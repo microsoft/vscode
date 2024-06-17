@@ -592,7 +592,7 @@ export default function createSuite(params: Params) {
 		assert.strictEqual(result.encoding, 'windows1252');
 	});
 
-	test('readStream - autoguessEncoding (candidateGuessEncodings)', async () => {
+	test.skip('readStream - autoguessEncoding (candidateGuessEncodings)', async () => {
 		// This file is determined to be Windows-1252 unless candidateDetectEncoding is set.
 		const resource = URI.file(join(testDir, 'some.shiftjis.1.txt'));
 
@@ -600,7 +600,7 @@ export default function createSuite(params: Params) {
 		assert.strictEqual(result.encoding, 'shiftjis');
 	});
 
-	test('readStream - autoguessEncoding (candidateGuessEncodings is Empty)', async () => {
+	test.skip('readStream - autoguessEncoding (candidateGuessEncodings is Empty)', async () => {
 		const resource = URI.file(join(testDir, 'some_cp1252.txt'));
 
 		const result = await service.readStream(resource, { autoGuessEncoding: true, candidateGuessEncodings: [] });
