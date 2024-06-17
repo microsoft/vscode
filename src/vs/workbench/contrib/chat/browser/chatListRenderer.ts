@@ -10,14 +10,9 @@ import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewI
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { ITreeCompressionDelegate } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
-import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
-import { IAsyncDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
+import { ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { IAction } from 'vs/base/common/actions';
-import { distinct } from 'vs/base/common/arrays';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -36,6 +31,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { TextEdit } from 'vs/editor/common/languages';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
@@ -49,39 +45,41 @@ import { MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { FileKind, FileType } from 'vs/platform/files/common/files';
+import { FileKind } from 'vs/platform/files/common/files';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { WorkbenchCompressibleAsyncDataTree, WorkbenchList } from 'vs/platform/list/browser/listService';
+import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { ChatTreeItem, GeneratingPhrase, IChatCodeBlockInfo, IChatFileTreeInfo } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatAgentHover, getChatAgentHoverOptions } from 'vs/workbench/contrib/chat/browser/chatAgentHover';
-import { ChatConfirmationWidget } from 'vs/workbench/contrib/chat/browser/chatConfirmationWidget';
+import { IDisposableReference, ResourcePool } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatCollections';
+import { ChatCommandButtonContentPart } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatCommandContentPart';
+import { ChatConfirmationContentPart } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatConfirmationContentPart';
+import { ChatTreeContentPart, TreePool } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatTreeContentPart';
+import { ChatWarningContentPart } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatWarningContentPart';
 import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
 import { ChatMarkdownDecorationsRenderer } from 'vs/workbench/contrib/chat/browser/chatMarkdownDecorationsRenderer';
+import { ChatMarkdownRenderer } from 'vs/workbench/contrib/chat/browser/chatMarkdownRenderer';
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
 import { ChatCodeBlockContentProvider, CodeBlockPart, CodeCompareBlockPart, ICodeBlockData, ICodeCompareBlockData, ICodeCompareBlockDiffData, localFileLanguageId, parseLocalFileData } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { ChatAgentLocation, IChatAgentMetadata } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_DETECTED_AGENT_COMMAND, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatProgressRenderableResponseContent, IChatTextEditGroup } from 'vs/workbench/contrib/chat/common/chatModel';
 import { chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { ChatAgentVoteDirection, IChatCommandButton, IChatConfirmation, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatSendRequestOptions, IChatService, IChatTask, IChatWarningMessage } from 'vs/workbench/contrib/chat/common/chatService';
+import { ChatAgentVoteDirection, IChatCommandButton, IChatConfirmation, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatService, IChatTask, IChatWarningMessage } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { IChatProgressMessageRenderData, IChatRenderData, IChatResponseMarkdownRenderData, IChatResponseViewModel, IChatTaskRenderData, IChatWelcomeMessageViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IWordCountResult, getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { createFileIconThemableTreeContainerScope } from 'vs/workbench/contrib/files/browser/views/explorerView';
-import { IFilesConfiguration } from 'vs/workbench/contrib/files/common/files';
 import { IMarkdownVulnerability, annotateSpecialMarkdownContent } from '../common/annotations';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection';
 import { IChatListItemRendererOptions } from './chat';
-import { ChatMarkdownRenderer } from 'vs/workbench/contrib/chat/browser/chatMarkdownRenderer';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
+import { distinct } from 'vs/base/common/arrays';
 
 const $ = dom.$;
 
@@ -493,9 +491,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					? this.renderMarkdown(data.content, element, templateData, fillInIncompleteTokens, codeBlockIndex)
 					: data.kind === 'progressMessage' && onlyProgressMessagesAfterI(value, index) ? this.renderProgressMessage(data, false) // TODO render command
 						: data.kind === 'progressTask' ? this.renderProgressTask(data, false, element, templateData)
-							: data.kind === 'command' ? this.renderCommandButton(element, data)
+							: data.kind === 'command' ? this.instantiationService.createInstance(ChatCommandButtonContentPart, data, element)
 								: data.kind === 'textEditGroup' ? this.renderTextEdit(element, data, templateData)
-									: data.kind === 'warning' ? this.renderNotification('warning', data.content)
+									: data.kind === 'warning' ? this.instantiationService.createInstance(ChatWarningContentPart, 'warning', data.content, this.renderer)
 										: data.kind === 'confirmation' ? this.renderConfirmation(element, data, templateData)
 											: undefined;
 
@@ -510,7 +508,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		});
 
 		if (isResponseVM(element) && element.errorDetails?.message) {
-			const renderedError = this.renderNotification(element.errorDetails.responseIsFiltered ? 'info' : 'error', new MarkdownString(element.errorDetails.message));
+			const renderedError = this.instantiationService.createInstance(ChatWarningContentPart, element.errorDetails.responseIsFiltered ? 'info' : 'error', new MarkdownString(element.errorDetails.message), this.renderer);
 			templateData.elementDisposables.add(renderedError);
 			templateData.value.appendChild(renderedError.element);
 		}
@@ -705,13 +703,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					} else if (isProgressTaskRenderData(partToRender)) {
 						result = this.renderProgressTask(partToRender.task, !partToRender.isSettled, element, templateData);
 					} else if (isCommandButtonRenderData(partToRender)) {
-						result = this.renderCommandButton(element, partToRender);
+						result = this.instantiationService.createInstance(ChatCommandButtonContentPart, partToRender, element);
 					} else if (isTextEditRenderData(partToRender)) {
 						result = this.renderTextEdit(element, partToRender, templateData);
 					} else if (isConfirmationRenderData(partToRender)) {
 						result = this.renderConfirmation(element, partToRender, templateData);
 					} else if (isWarningRenderData(partToRender)) {
-						result = this.renderNotification('warning', partToRender.content);
+						result = this.instantiationService.createInstance(ChatWarningContentPart, 'warning', partToRender.content, this.renderer);
 					}
 
 					// Avoid doing progressive rendering for multiple markdown parts simultaneously
@@ -762,54 +760,32 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private renderTreeData(data: IChatResponseProgressFileTreeData, element: ChatTreeItem, templateData: IChatListItemTemplate, treeDataIndex: number): { element: HTMLElement; dispose: () => void } {
-		const treeDisposables = new DisposableStore();
-		const ref = treeDisposables.add(this._treePool.get());
-		const tree = ref.object;
-
-		treeDisposables.add(tree.onDidOpen((e) => {
-			if (e.element && !('children' in e.element)) {
-				this.openerService.open(e.element.uri);
-			}
-		}));
-		treeDisposables.add(tree.onDidChangeCollapseState(() => {
-			this.updateItemHeight(templateData);
-		}));
-		treeDisposables.add(tree.onContextMenu((e) => {
-			e.browserEvent.preventDefault();
-			e.browserEvent.stopPropagation();
-		}));
-
-		tree.setInput(data).then(() => {
-			if (!ref.isStale()) {
-				tree.layout();
-				this.updateItemHeight(templateData);
-			}
-		});
+		const store = new DisposableStore();
+		const treePart = store.add(this.instantiationService.createInstance(ChatTreeContentPart, data, element, this._treePool, treeDataIndex));
 
 		if (isResponseVM(element)) {
 			const fileTreeFocusInfo = {
 				treeDataId: data.uri.toString(),
 				treeIndex: treeDataIndex,
 				focus() {
-					tree.domFocus();
+					treePart.domFocus();
 				}
 			};
 
-			treeDisposables.add(tree.onDidFocus(() => {
+			// TODO@roblourens there's got to be a better way to navigate trees
+			store.add(treePart.onDidFocus(() => {
 				this.focusedFileTreesByResponseId.set(element.id, fileTreeFocusInfo.treeIndex);
 			}));
 
 			const fileTrees = this.fileTreesByResponseId.get(element.id) ?? [];
 			fileTrees.push(fileTreeFocusInfo);
 			this.fileTreesByResponseId.set(element.id, distinct(fileTrees, (v) => v.treeDataId));
-			treeDisposables.add(toDisposable(() => this.fileTreesByResponseId.set(element.id, fileTrees.filter(v => v.treeDataId !== data.uri.toString()))));
+			store.add(toDisposable(() => this.fileTreesByResponseId.set(element.id, fileTrees.filter(v => v.treeDataId !== data.uri.toString()))));
 		}
 
 		return {
-			element: tree.getHTMLElement().parentElement!,
-			dispose: () => {
-				treeDisposables.dispose();
-			}
+			element: treePart.element,
+			dispose: () => store.dispose()
 		};
 	}
 
@@ -939,79 +915,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return result;
 	}
 
-	private renderCommandButton(element: ChatTreeItem, commandButton: IChatCommandButton): IMarkdownRenderResult {
-		const container = $('.chat-command-button');
-		const disposables = new DisposableStore();
-		const enabled = !isResponseVM(element) || !element.isStale;
-		const tooltip = enabled ?
-			commandButton.command.tooltip :
-			localize('commandButtonDisabled', "Button not available in restored chat");
-		const button = disposables.add(new Button(container, { ...defaultButtonStyles, supportIcons: true, title: tooltip }));
-		button.label = commandButton.command.title;
-		button.enabled = enabled;
-
-		// TODO still need telemetry for command buttons
-		disposables.add(button.onDidClick(() => this.commandService.executeCommand(commandButton.command.id, ...(commandButton.command.arguments ?? []))));
-		return {
-			dispose() {
-				disposables.dispose();
-			},
-			element: container
-		};
-	}
-
-	private renderNotification(kind: 'info' | 'warning' | 'error', content: IMarkdownString): IMarkdownRenderResult {
-		const container = $('.chat-notification-widget');
-		let icon;
-		let iconClass;
-		switch (kind) {
-			case 'warning':
-				icon = Codicon.warning;
-				iconClass = '.chat-warning-codicon';
-				break;
-			case 'error':
-				icon = Codicon.error;
-				iconClass = '.chat-error-codicon';
-				break;
-			case 'info':
-				icon = Codicon.info;
-				iconClass = '.chat-info-codicon';
-				break;
-		}
-		container.appendChild($(iconClass, undefined, renderIcon(icon)));
-		const markdownContent = this.renderer.render(content);
-		container.appendChild(markdownContent.element);
-		return {
-			element: container,
-			dispose() { markdownContent.dispose(); }
-		};
-	}
-
 	private renderConfirmation(element: ChatTreeItem, confirmation: IChatConfirmation, templateData: IChatListItemTemplate): IMarkdownRenderResult | undefined {
 		const store = new DisposableStore();
-		const confirmationWidget = store.add(this.instantiationService.createInstance(ChatConfirmationWidget, confirmation.title, confirmation.message, [
-			{ label: localize('accept', "Accept"), data: confirmation.data },
-			{ label: localize('dismiss', "Dismiss"), data: confirmation.data, isSecondary: true },
-		]));
-		confirmationWidget.setShowButtons(!confirmation.isUsed);
-
-		store.add(confirmationWidget.onDidClick(async e => {
-			if (isResponseVM(element)) {
-				const prompt = `${e.label}: "${confirmation.title}"`;
-				const data: IChatSendRequestOptions = e.isSecondary ?
-					{ rejectedConfirmationData: [e.data] } :
-					{ acceptedConfirmationData: [e.data] };
-				data.agentId = element.agent?.id;
-				if (await this.chatService.sendRequest(element.sessionId, prompt, data)) {
-					confirmation.isUsed = true;
-					confirmationWidget.setShowButtons(false);
-					this.updateItemHeight(templateData);
-				}
-			}
-		}));
-
+		const part = store.add(this.instantiationService.createInstance(ChatConfirmationContentPart, confirmation, element));
+		store.add(part.onDidChangeHeight(() => this.updateItemHeight(templateData)));
 		return {
-			element: confirmationWidget.domNode,
+			element: part.element,
 			dispose() { store.dispose(); }
 		};
 	}
@@ -1280,12 +1189,6 @@ export class ChatListDelegate implements IListVirtualDelegate<ChatTreeItem> {
 	}
 }
 
-
-interface IDisposableReference<T> extends IDisposable {
-	object: T;
-	isStale: () => boolean;
-}
-
 class EditorPool extends Disposable {
 
 	private readonly _pool: ResourcePool<CodeBlockPart>;
@@ -1351,67 +1254,6 @@ class DiffEditorPool extends Disposable {
 				codeBlock.reset();
 				stale = true;
 				this._pool.release(codeBlock);
-			}
-		};
-	}
-}
-
-class TreePool extends Disposable {
-	private _pool: ResourcePool<WorkbenchCompressibleAsyncDataTree<IChatResponseProgressFileTreeData, IChatResponseProgressFileTreeData, void>>;
-
-	public get inUse(): ReadonlySet<WorkbenchCompressibleAsyncDataTree<IChatResponseProgressFileTreeData, IChatResponseProgressFileTreeData, void>> {
-		return this._pool.inUse;
-	}
-
-	constructor(
-		private _onDidChangeVisibility: Event<boolean>,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IConfigurationService private readonly configService: IConfigurationService,
-		@IThemeService private readonly themeService: IThemeService,
-	) {
-		super();
-		this._pool = this._register(new ResourcePool(() => this.treeFactory()));
-	}
-
-	private treeFactory(): WorkbenchCompressibleAsyncDataTree<IChatResponseProgressFileTreeData, IChatResponseProgressFileTreeData, void> {
-		const resourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility }));
-
-		const container = $('.interactive-response-progress-tree');
-		this._register(createFileIconThemableTreeContainerScope(container, this.themeService));
-
-		const tree = this.instantiationService.createInstance(
-			WorkbenchCompressibleAsyncDataTree<IChatResponseProgressFileTreeData, IChatResponseProgressFileTreeData>,
-			'ChatListRenderer',
-			container,
-			new ChatListTreeDelegate(),
-			new ChatListTreeCompressionDelegate(),
-			[new ChatListTreeRenderer(resourceLabels, this.configService.getValue('explorer.decorations'))],
-			new ChatListTreeDataSource(),
-			{
-				collapseByDefault: () => false,
-				expandOnlyOnTwistieClick: () => false,
-				identityProvider: {
-					getId: (e: IChatResponseProgressFileTreeData) => e.uri.toString()
-				},
-				accessibilityProvider: {
-					getAriaLabel: (element: IChatResponseProgressFileTreeData) => element.label,
-					getWidgetAriaLabel: () => localize('treeAriaLabel', "File Tree")
-				},
-				alwaysConsumeMouseWheel: false
-			});
-
-		return tree;
-	}
-
-	get(): IDisposableReference<WorkbenchCompressibleAsyncDataTree<IChatResponseProgressFileTreeData, IChatResponseProgressFileTreeData, void>> {
-		const object = this._pool.get();
-		let stale = false;
-		return {
-			object,
-			isStale: () => stale,
-			dispose: () => {
-				stale = true;
-				this._pool.release(object);
 			}
 		};
 	}
@@ -1586,116 +1428,10 @@ class ContentReferencesListRenderer implements IListRenderer<IChatContentReferen
 	}
 }
 
-class ResourcePool<T extends IDisposable> extends Disposable {
-	private readonly pool: T[] = [];
-
-	private _inUse = new Set<T>;
-	public get inUse(): ReadonlySet<T> {
-		return this._inUse;
-	}
-
-	constructor(
-		private readonly _itemFactory: () => T,
-	) {
-		super();
-	}
-
-	get(): T {
-		if (this.pool.length > 0) {
-			const item = this.pool.pop()!;
-			this._inUse.add(item);
-			return item;
-		}
-
-		const item = this._register(this._itemFactory());
-		this._inUse.add(item);
-		return item;
-	}
-
-	release(item: T): void {
-		this._inUse.delete(item);
-		this.pool.push(item);
-	}
-}
-
 class ChatVoteButton extends MenuEntryActionViewItem {
 	override render(container: HTMLElement): void {
 		super.render(container);
 		container.classList.toggle('checked', this.action.checked);
-	}
-}
-
-class ChatListTreeDelegate implements IListVirtualDelegate<IChatResponseProgressFileTreeData> {
-	static readonly ITEM_HEIGHT = 22;
-
-	getHeight(element: IChatResponseProgressFileTreeData): number {
-		return ChatListTreeDelegate.ITEM_HEIGHT;
-	}
-
-	getTemplateId(element: IChatResponseProgressFileTreeData): string {
-		return 'chatListTreeTemplate';
-	}
-}
-
-class ChatListTreeCompressionDelegate implements ITreeCompressionDelegate<IChatResponseProgressFileTreeData> {
-	isIncompressible(element: IChatResponseProgressFileTreeData): boolean {
-		return !element.children;
-	}
-}
-
-interface IChatListTreeRendererTemplate {
-	templateDisposables: DisposableStore;
-	label: IResourceLabel;
-}
-
-class ChatListTreeRenderer implements ICompressibleTreeRenderer<IChatResponseProgressFileTreeData, void, IChatListTreeRendererTemplate> {
-	templateId: string = 'chatListTreeTemplate';
-
-	constructor(private labels: ResourceLabels, private decorations: IFilesConfiguration['explorer']['decorations']) { }
-
-	renderCompressedElements(element: ITreeNode<ICompressedTreeNode<IChatResponseProgressFileTreeData>, void>, index: number, templateData: IChatListTreeRendererTemplate, height: number | undefined): void {
-		templateData.label.element.style.display = 'flex';
-		const label = element.element.elements.map((e) => e.label);
-		templateData.label.setResource({ resource: element.element.elements[0].uri, name: label }, {
-			title: element.element.elements[0].label,
-			fileKind: element.children ? FileKind.FOLDER : FileKind.FILE,
-			extraClasses: ['explorer-item'],
-			fileDecorations: this.decorations
-		});
-	}
-	renderTemplate(container: HTMLElement): IChatListTreeRendererTemplate {
-		const templateDisposables = new DisposableStore();
-		const label = templateDisposables.add(this.labels.create(container, { supportHighlights: true }));
-		return { templateDisposables, label };
-	}
-	renderElement(element: ITreeNode<IChatResponseProgressFileTreeData, void>, index: number, templateData: IChatListTreeRendererTemplate, height: number | undefined): void {
-		templateData.label.element.style.display = 'flex';
-		if (!element.children.length && element.element.type !== FileType.Directory) {
-			templateData.label.setFile(element.element.uri, {
-				fileKind: FileKind.FILE,
-				hidePath: true,
-				fileDecorations: this.decorations,
-			});
-		} else {
-			templateData.label.setResource({ resource: element.element.uri, name: element.element.label }, {
-				title: element.element.label,
-				fileKind: FileKind.FOLDER,
-				fileDecorations: this.decorations
-			});
-		}
-	}
-	disposeTemplate(templateData: IChatListTreeRendererTemplate): void {
-		templateData.templateDisposables.dispose();
-	}
-}
-
-class ChatListTreeDataSource implements IAsyncDataSource<IChatResponseProgressFileTreeData, IChatResponseProgressFileTreeData> {
-	hasChildren(element: IChatResponseProgressFileTreeData): boolean {
-		return !!element.children;
-	}
-
-	async getChildren(element: IChatResponseProgressFileTreeData): Promise<Iterable<IChatResponseProgressFileTreeData>> {
-		return element.children ?? [];
 	}
 }
 
