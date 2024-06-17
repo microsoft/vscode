@@ -21,7 +21,7 @@ import { getIndentationAtPosition } from 'vs/editor/common/languages/languageCon
 import { IElectricAction } from 'vs/editor/common/languages/supports/electricCharacter';
 import { EditorAutoClosingStrategy, EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 import { createScopedLineTokens } from 'vs/editor/common/languages/supports';
-import { getIndentActionForType, getIndentForEnter, getInheritIndentForLine, IIndentConverter } from 'vs/editor/common/languages/autoIndent';
+import { getIndentActionForType, getIndentForEnter, getInheritIndentForLine } from 'vs/editor/common/languages/autoIndent';
 import { getEnterAction } from 'vs/editor/common/languages/enterAction';
 
 export class TypeOperations {
@@ -398,27 +398,29 @@ export class TypeOperations {
 		for (const selection of selections) {
 			const indentation = this._findActualIndentationForSelection(config, model, selection, ch);
 			if (indentation === null) {
+				// Auto indentation failed
 				return;
 			}
 			indentationForSelections.push({ selection, indentation });
 		}
 		const autoClosingPairClose = this._getAutoClosingPairClose(config, model, selections, ch, false);
-		return this._getIndentationEdits(config, model, indentationForSelections, ch, autoClosingPairClose);
+		return this._getIndentationAndAutoClosingPairEdits(config, model, indentationForSelections, ch, autoClosingPairClose);
 	}
 
 	private static _findActualIndentationForSelection(config: CursorConfiguration, model: ITextModel, selection: Selection, ch: string): string | null {
-		const indentConverter: IIndentConverter = {
+		const actualIndentation = getIndentActionForType(config.autoIndent, model, selection, ch, {
 			shiftIndent: (indentation) => {
 				return TypeOperations.shiftIndent(config, indentation);
 			},
 			unshiftIndent: (indentation) => {
 				return TypeOperations.unshiftIndent(config, indentation);
 			},
-		};
-		const actualIndentation = getIndentActionForType(config.autoIndent, model, selection, ch, indentConverter, config.languageConfigurationService);
+		}, config.languageConfigurationService);
+
 		if (actualIndentation === null) {
 			return null;
 		}
+
 		const currentIndentation = getIndentationAtPosition(model, selection.startLineNumber, selection.startColumn);
 		if (actualIndentation === config.normalizeIndentation(currentIndentation)) {
 			return null;
@@ -426,14 +428,16 @@ export class TypeOperations {
 		return actualIndentation;
 	}
 
-	private static _getIndentationEdits(config: CursorConfiguration, model: ITextModel, indentationForSelections: { selection: Selection; indentation: string }[], ch: string, autoClosingPairClose: string | null): EditOperationResult {
+	private static _getIndentationAndAutoClosingPairEdits(config: CursorConfiguration, model: ITextModel, indentationForSelections: { selection: Selection; indentation: string }[], ch: string, autoClosingPairClose: string | null): EditOperationResult {
 		const commands: ICommand[] = indentationForSelections.map(({ selection, indentation }) => {
 			if (autoClosingPairClose !== null) {
-				const edit = this._getEditFromIndentationAndSelection(config, model, indentation, selection, ch, false);
-				return new TypeWithIndentationAndAutoClosingCommand(edit, selection, ch, autoClosingPairClose);
+				// Apply both auto closing pair edits and auto indentation edits
+				const indentationEdit = this._getEditFromIndentationAndSelection(config, model, indentation, selection, ch, false);
+				return new TypeWithIndentationAndAutoClosingCommand(indentationEdit, selection, ch, autoClosingPairClose);
 			} else {
-				const edit = this._getEditFromIndentationAndSelection(config, model, indentation, selection, ch, true);
-				return TypeOperations._typeCommand(edit.range, edit.text, false);
+				// Apply only auto indentation edits
+				const indentationEdit = this._getEditFromIndentationAndSelection(config, model, indentation, selection, ch, true);
+				return TypeOperations._typeCommand(indentationEdit.range, indentationEdit.text, false);
 			}
 		});
 		const editOptions = { shouldPushStackElementBefore: true, shouldPushStackElementAfter: false };

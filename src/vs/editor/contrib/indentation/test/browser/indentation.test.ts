@@ -22,7 +22,10 @@ import { goIndentationRules, htmlIndentationRules, javascriptIndentationRules, l
 import { cppOnEnterRules, htmlOnEnterRules, javascriptOnEnterRules, phpOnEnterRules } from 'vs/editor/test/common/modes/supports/onEnterRules';
 import { TypeOperations } from 'vs/editor/common/cursor/cursorTypeOperations';
 import { cppBracketRules, goBracketRules, htmlBracketRules, latexBracketRules, luaBracketRules, phpBracketRules, rubyBracketRules, typescriptBracketRules, vbBracketRules } from 'vs/editor/test/common/modes/supports/bracketRules';
-import { latexAutoClosingPairsRules } from 'vs/editor/test/common/modes/supports/autoClosingPairsRules';
+import { javascriptAutoClosingPairsRules, latexAutoClosingPairsRules } from 'vs/editor/test/common/modes/supports/autoClosingPairsRules';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
+import { LanguageService } from 'vs/editor/common/services/languageService';
 
 export enum Language {
 	TypeScript = 'ts-test',
@@ -63,6 +66,7 @@ export function registerLanguageConfiguration(instantiationService: TestInstanti
 					blockComment: ['/*', '*/']
 				},
 				indentationRules: javascriptIndentationRules,
+				autoClosingPairs: javascriptAutoClosingPairsRules,
 				onEnterRules: javascriptOnEnterRules
 			});
 		case Language.Ruby:
@@ -1071,6 +1075,54 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 				'indentation done for {',
 				'',
 				'*/'
+			].join('\n'));
+		});
+	});
+
+	test('issue #209802: allman style braces in JavaScript', () => {
+
+		// https://github.com/microsoft/vscode/issues/209802
+
+		const model = createTextModel([
+			'if (/*condition*/)',
+		].join('\n'), languageId, {});
+		disposables.add(model);
+		const languageService = new LanguageService();
+		languageService.registerLanguage({ id: languageId });
+		const languageConfigurationService = new TestLanguageConfigurationService();
+		disposables.add(languageConfigurationService.register(languageId, {
+			brackets: typescriptBracketRules,
+			comments: {
+				lineComment: '//',
+				blockComment: ['/*', '*/']
+			},
+			indentationRules: javascriptIndentationRules,
+			autoClosingPairs: javascriptAutoClosingPairsRules,
+			autoCloseBefore: ";:.,=}])>` \n\t",
+			onEnterRules: javascriptOnEnterRules
+		}));
+
+		const serviceCollection = new ServiceCollection([ILanguageConfigurationService, languageConfigurationService], [ILanguageService, languageService]);
+
+		withTestCodeEditor(model, { autoIndent: "full", serviceCollection }, (editor, viewModel) => {
+			editor.setSelection(new Selection(1, 19, 1, 19));
+			viewModel.type("\n", 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'if (/*condition*/)',
+				'    '
+			].join('\n'));
+			viewModel.type("{", 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'if (/*condition*/)',
+				'{}'
+			].join('\n'));
+			editor.setSelection(new Selection(2, 2, 2, 2));
+			viewModel.type("\n", 'keyboard');
+			assert.strictEqual(model.getValue(), [
+				'if (/*condition*/)',
+				'{',
+				'    ',
+				'}'
 			].join('\n'));
 		});
 	});

@@ -407,9 +407,9 @@ export function getIndentActionForType(
 	const previousLineNumber = range.startLineNumber - 1;
 	const previousLine = model.getLineContent(previousLineNumber);
 	if (indentRulesSupport.shouldIndentNextLine(previousLine) && indentRulesSupport.shouldIncrease(textAroundRangeWithCharacter)) {
-		const r = getInheritIndentForLine(autoIndent, model, range.startLineNumber, false, languageConfigurationService);
-		const inheritedIndentation = r?.indentation ?? null;
-		if (inheritedIndentation !== null) {
+		const inheritedIndentationData = getInheritIndentForLine(autoIndent, model, range.startLineNumber, false, languageConfigurationService);
+		const inheritedIndentation = inheritedIndentationData?.indentation;
+		if (inheritedIndentation !== undefined) {
 			const currentLine = model.getLineContent(range.startLineNumber);
 			const actualCurrentIndentation = strings.getLeadingWhitespace(currentLine);
 			const inferredCurrentIndentation = indentConverter.shiftIndent(inheritedIndentation);
