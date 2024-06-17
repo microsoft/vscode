@@ -81,8 +81,8 @@ export class CodeCoverageDecorations extends Disposable implements IEditorContri
 
 		this.summaryWidget = new Lazy(() => this._register(instantiationService.createInstance(CoverageToolbarWidget, this.editor)));
 
-		const modelObs = observableFromEvent(editor.onDidChangeModel, () => editor.getModel());
-		const configObs = observableFromEvent(editor.onDidChangeConfiguration, i => i);
+		const modelObs = observableFromEvent(this, editor.onDidChangeModel, () => editor.getModel());
+		const configObs = observableFromEvent(this, editor.onDidChangeConfiguration, i => i);
 
 		const fileCoverage = derived(reader => {
 			const report = coverage.selected.read(reader);

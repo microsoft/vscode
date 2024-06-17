@@ -271,17 +271,42 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (this.rendererOptions.noPadding) {
 			rowContainer.classList.add('no-padding');
 		}
-		const header = dom.append(rowContainer, $('.header'));
+
+		let headerParent = rowContainer;
+		let referencesListParent = rowContainer;
+		let valueParent = rowContainer;
+		let detailContainerParent: HTMLElement | undefined;
+		let toolbarParent: HTMLElement | undefined;
+
+		if (this.rendererOptions.renderStyle === 'minimal') {
+			rowContainer.classList.add('interactive-item-compact');
+			rowContainer.classList.add('minimal');
+			// -----------------------------------------------------
+			//  icon | details
+			//       | references
+			//       | value
+			// -----------------------------------------------------
+			const lhsContainer = dom.append(rowContainer, $('.column.left'));
+			const rhsContainer = dom.append(rowContainer, $('.column'));
+
+			headerParent = lhsContainer;
+			detailContainerParent = rhsContainer;
+			referencesListParent = rhsContainer;
+			valueParent = rhsContainer;
+			toolbarParent = dom.append(rowContainer, $('.header'));
+		}
+
+		const header = dom.append(headerParent, $('.header'));
 		const user = dom.append(header, $('.user'));
 		user.tabIndex = 0;
 		user.role = 'toolbar';
 		const avatarContainer = dom.append(user, $('.avatar-container'));
 		const username = dom.append(user, $('h3.username'));
-		const detailContainer = dom.append(user, $('span.detail-container'));
+		const detailContainer = dom.append(detailContainerParent ?? user, $('span.detail-container'));
 		const detail = dom.append(detailContainer, $('span.detail'));
 		dom.append(detailContainer, $('span.chat-animated-ellipsis'));
-		const referencesListContainer = dom.append(rowContainer, $('.referencesListContainer'));
-		const value = dom.append(rowContainer, $('.value'));
+		const referencesListContainer = dom.append(referencesListParent, $('.referencesListContainer'));
+		const value = dom.append(valueParent, $('.value'));
 		const elementDisposables = new DisposableStore();
 
 		const contextKeyService = templateDisposables.add(this.contextKeyService.createScoped(rowContainer));
@@ -290,7 +315,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (this.rendererOptions.noHeader) {
 			header.classList.add('hidden');
 		} else {
-			titleToolbar = templateDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, header, MenuId.ChatMessageTitle, {
+			titleToolbar = templateDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, toolbarParent ?? header, MenuId.ChatMessageTitle, {
 				menuOptions: {
 					shouldForwardArgs: true
 				},
@@ -308,7 +333,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		const agentHover = templateDisposables.add(this.instantiationService.createInstance(ChatAgentHover));
 		const hoverContent = () => {
-			if (isResponseVM(template.currentElement) && template.currentElement.agent) {
+			if (isResponseVM(template.currentElement) && template.currentElement.agent && !template.currentElement.agent.isDefault) {
 				agentHover.setAgent(template.currentElement.agent.id);
 				return agentHover.domNode;
 			}
@@ -684,7 +709,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				disposables.clear();
 				this.basicRenderElement(renderableResponse, element, index, templateData);
 			} else if (!isFullyRendered) {
-				disposables.clear();
 				this.renderContentReferencesIfNeeded(element, templateData, disposables);
 				let hasRenderedOneMarkdownBlock = false;
 				partsToRender.forEach((partToRender, index) => {

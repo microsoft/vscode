@@ -140,7 +140,7 @@ export class ObservableCodeEditor extends Disposable {
 	private readonly _model = observableValue(this, this.editor.getModel());
 	public readonly model: IObservable<ITextModel | null> = this._model;
 
-	public readonly isReadonly = observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.readOnly));
+	public readonly isReadonly = observableFromEvent(this, this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.readOnly));
 
 	private readonly _versionId = observableValueOpts<number | null, IModelContentChangedEvent | undefined>({ owner: this, lazy: true }, this.editor.getModel()?.getVersionId() ?? null);
 	public readonly versionId: IObservable<number | null, IModelContentChangedEvent | undefined> = this._versionId;
@@ -157,7 +157,7 @@ export class ObservableCodeEditor extends Disposable {
 		reader => this.selections.read(reader)?.map(s => s.getStartPosition()) ?? null
 	);
 
-	public readonly isFocused = observableFromEvent(e => {
+	public readonly isFocused = observableFromEvent(this, e => {
 		const d1 = this.editor.onDidFocusEditorWidget(e);
 		const d2 = this.editor.onDidBlurEditorWidget(e);
 		return {
@@ -175,7 +175,7 @@ export class ObservableCodeEditor extends Disposable {
 	public readonly onDidType = observableSignal<string>(this);
 
 	public getOption<T extends EditorOption>(id: T): IObservable<FindComputedEditorOptionValueById<T>> {
-		return observableFromEvent(cb => this.editor.onDidChangeConfiguration(e => {
+		return observableFromEvent(this, cb => this.editor.onDidChangeConfiguration(e => {
 			if (e.hasChanged(id)) { cb(undefined); }
 		}), () => this.editor.getOption(id));
 	}
