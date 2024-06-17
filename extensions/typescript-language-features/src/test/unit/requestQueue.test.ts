@@ -119,3 +119,4 @@ suite('RequestQueue', () => {
 		}
 	});
 });
+
