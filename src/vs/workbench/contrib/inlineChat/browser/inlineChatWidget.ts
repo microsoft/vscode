@@ -30,14 +30,14 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { asCssVariable, asCssVariableName, editorBackground, editorForeground, inputBackground } from 'vs/platform/theme/common/colorRegistry';
+import { asCssVariable, asCssVariableName, editorBackground, inputBackground } from 'vs/platform/theme/common/colorRegistry';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IAccessibleViewService } from 'vs/platform/accessibility/browser/accessibleView';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 import { ChatModel, IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { HunkInformation, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
-import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_FOCUSED, inlineChatBackground, InlineChatConfigKeys } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_FOCUSED, inlineChatBackground, InlineChatConfigKeys, inlineChatForeground } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { chatRequestBackground } from 'vs/workbench/contrib/chat/common/chatColors';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -163,7 +163,7 @@ export class InlineChatWidget {
 				...options.chatWidgetViewOptions
 			},
 			{
-				listForeground: editorForeground,
+				listForeground: inlineChatForeground,
 				listBackground: inlineChatBackground,
 				inputEditorBackground: inputBackground,
 				resultEditorBackground: editorBackground
