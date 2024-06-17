@@ -348,6 +348,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	render(container: HTMLElement, initialValue: string, widget: IChatWidget) {
+		console.log('render in ChatInputPart');
+		console.log('this.options.editorOverflowWidgetsDomNode : ', this.options.editorOverflowWidgetsDomNode);
 		this.container = dom.append(container, $('.interactive-input-part'));
 		this.container.classList.toggle('compact', this.options.renderStyle === 'compact');
 

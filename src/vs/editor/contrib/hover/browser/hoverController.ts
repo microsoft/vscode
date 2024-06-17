@@ -114,6 +114,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 
 		this._listenersStore.add(this._editor.onMouseLeave((e) => this._onEditorMouseLeave(e)));
 		this._listenersStore.add(this._editor.onDidChangeModel(() => {
+			console.log('onDidChangeModel');
 			this._cancelScheduler();
 			this._hideWidgets();
 		}));
@@ -131,12 +132,14 @@ export class HoverController extends Disposable implements IEditorContribution {
 	}
 
 	private _onEditorScrollChanged(e: IScrollEvent): void {
+		console.log('_onEditorScrollChanged');
 		if (e.scrollTopChanged || e.scrollLeftChanged) {
 			this._hideWidgets();
 		}
 	}
 
 	private _onEditorMouseDown(mouseEvent: IEditorMouseEvent): void {
+		console.log('_onEditorMouseDown');
 
 		this._hoverState.mouseDown = true;
 
@@ -180,6 +183,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 	}
 
 	private _onEditorMouseLeave(mouseEvent: IPartialEditorMouseEvent): void {
+		console.log('_onEditorMouseLeave');
 		if (this.shouldKeepOpenOnEditorMouseMoveOrLeave) {
 			return;
 		}
@@ -232,6 +236,8 @@ export class HoverController extends Disposable implements IEditorContribution {
 	}
 
 	private _onEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
+		console.log('_onEditorMouseMove');
+
 		if (this.shouldKeepOpenOnEditorMouseMoveOrLeave) {
 			return;
 		}
@@ -269,8 +275,10 @@ export class HoverController extends Disposable implements IEditorContribution {
 	}
 
 	private _reactToEditorMouseMove(mouseEvent: IEditorMouseEvent | undefined): void {
-
+		console.log('_reactToEditorMouseMove');
+		console.log('mouseEvent : ', mouseEvent);
 		if (!mouseEvent) {
+			console.log('return 1');
 			return;
 		}
 
@@ -291,25 +299,31 @@ export class HoverController extends Disposable implements IEditorContribution {
 			)
 		) {
 			this._hideWidgets();
+			console.log('return 2');
 			return;
 		}
 
 		const contentHoverShowsOrWillShow = this._tryShowHoverWidget(mouseEvent, HoverWidgetType.Content);
+		console.log('contentHoverShowsOrWillShow : ', contentHoverShowsOrWillShow);
 		if (contentHoverShowsOrWillShow) {
+			console.log('return 3');
 			return;
 		}
 
 		const glyphWidgetShowsOrWillShow = this._tryShowHoverWidget(mouseEvent, HoverWidgetType.Glyph);
 		if (glyphWidgetShowsOrWillShow) {
+			console.log('return 4');
 			return;
 		}
 		if (_sticky) {
+			console.log('return 5');
 			return;
 		}
 		this._hideWidgets();
 	}
 
 	private _tryShowHoverWidget(mouseEvent: IEditorMouseEvent, hoverWidgetType: HoverWidgetType): boolean {
+		console.log('_tryShowHoverWidget');
 		const contentWidget: IHoverWidget = this._getOrCreateContentWidget();
 		const glyphWidget: IHoverWidget = this._getOrCreateGlyphWidget();
 		let currentWidget: IHoverWidget;
@@ -328,6 +342,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 		}
 
 		const showsOrWillShow = currentWidget.showsOrWillShow(mouseEvent);
+		console.log('showsOrWillShow : ', showsOrWillShow);
 		if (showsOrWillShow) {
 			otherWidget.hide();
 		}
@@ -335,6 +350,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 	}
 
 	private _onKeyDown(e: IKeyboardEvent): void {
+		console.log('_onKeyDown');
 		if (!this._editor.hasModel()) {
 			return;
 		}
@@ -369,6 +385,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 	}
 
 	private _hideWidgets(): void {
+		console.log('_hideWidgets');
 		if (_sticky) {
 			return;
 		}
@@ -399,6 +416,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 	}
 
 	public hideContentHover(): void {
+		console.log('hideContentHover');
 		this._hideWidgets();
 	}
 
