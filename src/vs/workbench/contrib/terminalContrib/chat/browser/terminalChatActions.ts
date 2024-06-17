@@ -291,7 +291,7 @@ registerActiveXtermAction({
 		id: MENU_TERMINAL_CHAT_WIDGET_STATUS,
 		group: '0_main',
 		order: 1,
-		when: ContextKeyExpr.and(TerminalChatContextKeys.responseContainsCodeBlock.negate(), TerminalChatContextKeys.requestActive.negate()),
+		when: ContextKeyExpr.and(TerminalChatContextKeys.responseContainsCodeBlock, TerminalChatContextKeys.requestActive.negate()),
 	},
 	{
 		id: MENU_TERMINAL_CHAT_WIDGET,
