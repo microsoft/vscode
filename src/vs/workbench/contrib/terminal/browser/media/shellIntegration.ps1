@@ -212,7 +212,19 @@ function Send-Completions {
 		$completions = TabExpansion2 -inputScript $completionPrefix -cursorColumn $cursorIndex
 		if ($null -ne $completions.CompletionMatches) {
 			$result += ";$($completions.ReplacementIndex);$($completions.ReplacementLength);$($cursorIndex);"
-			$result += $completions.CompletionMatches | ConvertTo-Json -Compress
+			if ($completions.CompletionMatches.Count -gt 0 -and $completions.CompletionMatches.Where({ $_.ResultType -eq 3 -or $_.ResultType -eq 4 })) {
+				$json = [System.Collections.ArrayList]@($completions.CompletionMatches)
+				# Add . and .. to the completions list
+				$json.Add([System.Management.Automation.CompletionResult]::new(
+					'.', '.', [System.Management.Automation.CompletionResultType]::ProviderContainer, (Get-Location).Path)
+				)
+				$json.Add([System.Management.Automation.CompletionResult]::new(
+					'..', '..', [System.Management.Automation.CompletionResultType]::ProviderContainer, (Split-Path (Get-Location) -Parent))
+				)
+				$result += $json | ConvertTo-Json -Compress
+			} else {
+				$result += $completions.CompletionMatches | ConvertTo-Json -Compress
+			}
 		}
 	}
 	# If there is no space, get completions using CompletionCompleters as it gives us more
