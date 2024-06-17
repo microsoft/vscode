@@ -19,8 +19,8 @@ link_path="$app_dir/extensions/pearai-ref"
 
 # Check if the symbolic link exists
 if [ ! -L "$link_path" ]; then
-	echo -e "\nCreating symbolic link 'extensions/pearai-submodule/extensions/vscode' -> 'extensions/pearai-ref'"
-
+	# Print message about creating a symbolic link from link_path to target_path
+	echo -e "\nCreating symbolic link '$link_path' -> '$target_path'"
 	# Create the symbolic link
 	ln -s "$target_path" "$link_path"
 fi
