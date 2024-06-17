@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
@@ -23,8 +23,11 @@ import { cppOnEnterRules, htmlOnEnterRules, javascriptOnEnterRules, phpOnEnterRu
 import { TypeOperations } from 'vs/editor/common/cursor/cursorTypeOperations';
 import { cppBracketRules, goBracketRules, htmlBracketRules, latexBracketRules, luaBracketRules, phpBracketRules, rubyBracketRules, typescriptBracketRules, vbBracketRules } from 'vs/editor/test/common/modes/supports/bracketRules';
 import { latexAutoClosingPairsRules } from 'vs/editor/test/common/modes/supports/autoClosingPairsRules';
+import { LanguageService } from 'vs/editor/common/services/languageService';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { TestLanguageConfigurationService } from 'vs/editor/test/common/modes/testLanguageConfigurationService';
 
-enum Language {
+export enum Language {
 	TypeScript = 'ts-test',
 	Ruby = 'ruby-test',
 	PHP = 'php-test',
@@ -44,16 +47,11 @@ function testIndentationToTabsCommand(lines: string[], selection: Selection, tab
 	testCommand(lines, null, selection, (accessor, sel) => new IndentationToTabsCommand(sel, tabSize), expectedLines, expectedSelection);
 }
 
-function registerLanguage(instantiationService: TestInstantiationService, language: Language): IDisposable {
-	const disposables = new DisposableStore();
-	const languageService = instantiationService.get(ILanguageService);
-	disposables.add(registerLanguageConfiguration(instantiationService, language));
-	disposables.add(languageService.registerLanguage({ id: language }));
-	return disposables;
+export function registerLanguage(languageService: ILanguageService, language: Language): IDisposable {
+	return languageService.registerLanguage({ id: language });
 }
 
-function registerLanguageConfiguration(instantiationService: TestInstantiationService, language: Language): IDisposable {
-	const languageConfigurationService = instantiationService.get(ILanguageConfigurationService);
+export function registerLanguageConfiguration(languageConfigurationService: ILanguageConfigurationService, language: Language): IDisposable {
 	switch (language) {
 		case Language.TypeScript:
 			return languageConfigurationService.register(language, {
@@ -110,12 +108,12 @@ function registerLanguageConfiguration(instantiationService: TestInstantiationSe
 	}
 }
 
-interface StandardTokenTypeData {
+export interface StandardTokenTypeData {
 	startIndex: number;
 	standardTokenType: StandardTokenType;
 }
 
-function registerTokenizationSupport(instantiationService: TestInstantiationService, tokens: StandardTokenTypeData[][], languageId: string): IDisposable {
+export function registerTokenizationSupport(instantiationService: TestInstantiationService, tokens: StandardTokenTypeData[][], languageId: Language): IDisposable {
 	let lineIndex = 0;
 	const languageService = instantiationService.get(ILanguageService);
 	const tokenizationSupport: ITokenizationSupport = {
@@ -317,9 +315,20 @@ suite('Indent With Tab - TypeScript/JavaScript', () => {
 
 	const languageId = Language.TypeScript;
 	let disposables: DisposableStore;
+	let serviceCollection: ServiceCollection;
 
 	setup(() => {
 		disposables = new DisposableStore();
+		const languageService = new LanguageService();
+		const languageConfigurationService = new TestLanguageConfigurationService();
+		disposables.add(languageService);
+		disposables.add(languageConfigurationService);
+		disposables.add(registerLanguage(languageService, languageId));
+		disposables.add(registerLanguageConfiguration(languageConfigurationService, languageId));
+		serviceCollection = new ServiceCollection(
+			[ILanguageService, languageService],
+			[ILanguageConfigurationService, languageConfigurationService]
+		);
 	});
 
 	teardown(() => {
@@ -343,9 +352,7 @@ suite('Indent With Tab - TypeScript/JavaScript', () => {
 		].join('\n'), languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
-
-			disposables.add(registerLanguage(instantiationService, languageId));
+		withTestCodeEditor(model, { autoIndent: "full", serviceCollection }, (editor, viewModel, instantiationService) => {
 			editor.setSelection(new Selection(1, 1, 3, 5));
 			editor.executeCommands('editor.action.indentLines', TypeOperations.indent(viewModel.cursorConfig, editor.getModel(), editor.getSelections()));
 			assert.strictEqual(model.getValue(), [
@@ -369,9 +376,7 @@ suite('Indent With Tab - TypeScript/JavaScript', () => {
 		].join('\n'), languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
-
-			disposables.add(registerLanguage(instantiationService, languageId));
+		withTestCodeEditor(model, { autoIndent: "full", serviceCollection }, (editor, viewModel, instantiationService) => {
 			editor.setSelection(new Selection(1, 1, 5, 2));
 			editor.executeCommands('editor.action.indentLines', TypeOperations.indent(viewModel.cursorConfig, editor.getModel(), editor.getSelections()));
 			assert.strictEqual(model.getValue(), [
@@ -389,9 +394,20 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 
 	const languageId = Language.TypeScript;
 	let disposables: DisposableStore;
+	let serviceCollection: ServiceCollection;
 
 	setup(() => {
 		disposables = new DisposableStore();
+		const languageService = new LanguageService();
+		const languageConfigurationService = new TestLanguageConfigurationService();
+		disposables.add(languageService);
+		disposables.add(languageConfigurationService);
+		disposables.add(registerLanguage(languageService, languageId));
+		disposables.add(registerLanguageConfiguration(languageConfigurationService, languageId));
+		serviceCollection = new ServiceCollection(
+			[ILanguageService, languageService],
+			[ILanguageConfigurationService, languageConfigurationService]
+		);
 	});
 
 	teardown(() => {
@@ -405,7 +421,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 		const model = createTextModel("", languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: 'full' }, (editor, viewModel, instantiationService) => {
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel, instantiationService) => {
 			const pasteText = [
 				'/**',
 				' * JSDoc',
@@ -439,7 +455,6 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 					{ startIndex: 15, standardTokenType: StandardTokenType.Other },
 				]
 			];
-			disposables.add(registerLanguage(instantiationService, languageId));
 			disposables.add(registerTokenizationSupport(instantiationService, tokens, languageId));
 			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
 			viewModel.paste(pasteText, true, undefined, 'keyboard');
@@ -453,7 +468,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 		const model = createTextModel("", languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: 'full' }, (editor, viewModel, instantiationService) => {
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel, instantiationService) => {
 
 			// no need for tokenization because there are no comments
 			const pasteText = [
@@ -470,7 +485,6 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 				'}'
 			].join('\n');
 
-			disposables.add(registerLanguage(instantiationService, languageId));
 			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
 			viewModel.paste(pasteText, true, undefined, 'keyboard');
 			autoIndentOnPasteController.trigger(new Range(1, 1, 11, 2));
@@ -488,8 +502,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 		].join('\n'), languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: 'full' }, (editor, viewModel, instantiationService) => {
-			disposables.add(registerLanguage(instantiationService, languageId));
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel, instantiationService) => {
 			editor.setSelection(new Selection(2, 6, 2, 6));
 			const text = ', null';
 			viewModel.paste(text, true, undefined, 'keyboard');
@@ -516,8 +529,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 		].join('\n'), languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: 'full' }, (editor, viewModel, instantiationService) => {
-			disposables.add(registerLanguage(instantiationService, languageId));
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel, instantiationService) => {
 			editor.setSelection(new Selection(5, 24, 5, 34));
 			const text = 'IMacLinuxKeyMapping';
 			viewModel.paste(text, true, undefined, 'keyboard');
@@ -541,8 +553,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 		const model = createTextModel('', languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: 'full' }, (editor, viewModel, instantiationService) => {
-			disposables.add(registerLanguage(instantiationService, languageId));
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel, instantiationService) => {
 			const text = [
 				'/*----------------',
 				' *  Copyright (c) ',
@@ -556,6 +567,42 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 		});
 	});
 
+	test('issue #209859: do not do change indentation when pasted inside of a string', () => {
+
+		// issue: https://github.com/microsoft/vscode/issues/209859
+		// issue: https://github.com/microsoft/vscode/issues/209418
+
+		const initialText = [
+			'const foo = "some text',
+			'         which is strangely',
+			'    indented"'
+		].join('\n');
+		const model = createTextModel(initialText, languageId, {});
+		disposables.add(model);
+
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel, instantiationService) => {
+			const tokens: StandardTokenTypeData[][] = [
+				[
+					{ startIndex: 0, standardTokenType: StandardTokenType.Other },
+					{ startIndex: 12, standardTokenType: StandardTokenType.String },
+				],
+				[
+					{ startIndex: 0, standardTokenType: StandardTokenType.String },
+				],
+				[
+					{ startIndex: 0, standardTokenType: StandardTokenType.String },
+				]
+			];
+			disposables.add(registerTokenizationSupport(instantiationService, tokens, languageId));
+
+			editor.setSelection(new Selection(2, 10, 2, 15));
+			viewModel.paste('which', true, undefined, 'keyboard');
+			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
+			autoIndentOnPasteController.trigger(new Range(2, 1, 2, 28));
+			assert.strictEqual(model.getValue(), initialText);
+		});
+	});
+
 	// Failing tests found in issues...
 
 	test.skip('issue #181065: Incorrect paste of object within comment', () => {
@@ -565,7 +612,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 		const model = createTextModel("", languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: 'full' }, (editor, viewModel, instantiationService) => {
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel, instantiationService) => {
 			const text = [
 				'/**',
 				' * @typedef {',
@@ -597,7 +644,6 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 					{ startIndex: 3, standardTokenType: StandardTokenType.Other },
 				]
 			];
-			disposables.add(registerLanguage(instantiationService, languageId));
 			disposables.add(registerTokenizationSupport(instantiationService, tokens, languageId));
 			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
 			viewModel.paste(text, true, undefined, 'keyboard');
@@ -617,7 +663,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 		].join('\n'), languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: 'full' }, (editor, viewModel, instantiationService) => {
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel, instantiationService) => {
 			editor.setSelection(new Selection(2, 1, 2, 1));
 			const text = [
 				'() => {',
@@ -625,7 +671,6 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 				'}',
 				''
 			].join('\n');
-			disposables.add(registerLanguage(instantiationService, languageId));
 			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
 			viewModel.paste(text, true, undefined, 'keyboard');
 			autoIndentOnPasteController.trigger(new Range(2, 1, 5, 1));
@@ -659,7 +704,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 		].join('\n'), languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: 'full' }, (editor, viewModel, instantiationService) => {
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel, instantiationService) => {
 			editor.setSelection(new Selection(2, 5, 2, 5));
 			const text = [
 				'() => {',
@@ -667,7 +712,6 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 				'}',
 				' '
 			].join('\n');
-			disposables.add(registerLanguage(instantiationService, languageId));
 			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
 			viewModel.paste(text, true, undefined, 'keyboard');
 			// todo@aiday-mar, make sure range is correct, and make test work as in real life
@@ -690,7 +734,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 		const model = createTextModel('', languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: 'full' }, (editor, viewModel, instantiationService) => {
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel, instantiationService) => {
 			editor.setSelection(new Selection(2, 5, 2, 5));
 			const text = [
 				'function makeSub(a,b) {',
@@ -698,7 +742,6 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 				'return subsent;',
 				'}',
 			].join('\n');
-			disposables.add(registerLanguage(instantiationService, languageId));
 			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
 			viewModel.paste(text, true, undefined, 'keyboard');
 			// todo@aiday-mar, make sure range is correct, and make test work as in real life
@@ -723,7 +766,7 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 		].join('\n'), languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: 'full' }, (editor, viewModel, instantiationService) => {
+		withTestCodeEditor(model, { autoIndent: 'full', serviceCollection }, (editor, viewModel, instantiationService) => {
 			const tokens: StandardTokenTypeData[][] = [
 				[
 					{ startIndex: 0, standardTokenType: StandardTokenType.Other },
@@ -754,7 +797,6 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 					{ startIndex: 0, standardTokenType: StandardTokenType.Other },
 					{ startIndex: 1, standardTokenType: StandardTokenType.Other }]
 			];
-			disposables.add(registerLanguage(instantiationService, languageId));
 			disposables.add(registerTokenizationSupport(instantiationService, tokens, languageId));
 
 			editor.setSelection(new Selection(2, 1, 2, 1));
@@ -762,7 +804,6 @@ suite('Auto Indent On Paste - TypeScript/JavaScript', () => {
 				'// comment',
 				'const foo = 42',
 			].join('\n');
-			disposables.add(registerLanguage(instantiationService, languageId));
 			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
 			viewModel.paste(text, true, undefined, 'keyboard');
 			autoIndentOnPasteController.trigger(new Range(2, 1, 3, 15));
@@ -780,9 +821,20 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 
 	const languageId = Language.TypeScript;
 	let disposables: DisposableStore;
+	let serviceCollection: ServiceCollection;
 
 	setup(() => {
 		disposables = new DisposableStore();
+		const languageService = new LanguageService();
+		const languageConfigurationService = new TestLanguageConfigurationService();
+		disposables.add(languageService);
+		disposables.add(languageConfigurationService);
+		disposables.add(registerLanguage(languageService, languageId));
+		disposables.add(registerLanguageConfiguration(languageConfigurationService, languageId));
+		serviceCollection = new ServiceCollection(
+			[ILanguageService, languageService],
+			[ILanguageConfigurationService, languageConfigurationService]
+		);
 	});
 
 	teardown(() => {
@@ -800,8 +852,7 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 		const model = createTextModel("", languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
-			disposables.add(registerLanguage(instantiationService, languageId));
+		withTestCodeEditor(model, { autoIndent: "full", serviceCollection }, (editor, viewModel) => {
 			viewModel.type('const add1 = (n) =>');
 			viewModel.type("\n", 'keyboard');
 			assert.strictEqual(model.getValue(), [
@@ -822,8 +873,7 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 		].join('\n'), languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
-			disposables.add(registerLanguage(instantiationService, languageId));
+		withTestCodeEditor(model, { autoIndent: "full", serviceCollection }, (editor, viewModel) => {
 			editor.setSelection(new Selection(3, 9, 3, 9));
 			viewModel.type("\n", 'keyboard');
 			assert.strictEqual(model.getValue(), [
@@ -842,10 +892,7 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 		const model = createTextModel("", languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
-
-			disposables.add(registerLanguage(instantiationService, languageId));
-
+		withTestCodeEditor(model, { autoIndent: "full", serviceCollection }, (editor, viewModel) => {
 			viewModel.type([
 				'const add1 = (n) =>',
 				'    n + 1;',
@@ -871,9 +918,7 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 		].join('\n'), languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
-
-			disposables.add(registerLanguage(instantiationService, languageId));
+		withTestCodeEditor(model, { autoIndent: "full", serviceCollection }, (editor, viewModel) => {
 			editor.setSelection(new Selection(3, 1, 3, 1));
 			viewModel.type('\n', 'keyboard');
 			assert.strictEqual(model.getValue(), [
@@ -902,8 +947,7 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 		].join('\n'), languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: 'advanced' }, (editor, viewModel, instantiationService) => {
-			disposables.add(registerLanguage(instantiationService, languageId));
+		withTestCodeEditor(model, { autoIndent: 'advanced', serviceCollection }, (editor, viewModel) => {
 			editor.setSelection(new Selection(7, 6, 7, 6));
 			viewModel.type('\n', 'keyboard');
 			assert.strictEqual(model.getValue(),
@@ -933,8 +977,7 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 		].join('\n'), languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: 'advanced' }, (editor, viewModel, instantiationService) => {
-			disposables.add(registerLanguage(instantiationService, languageId));
+		withTestCodeEditor(model, { autoIndent: 'advanced', serviceCollection }, (editor, viewModel) => {
 			editor.setSelection(new Selection(1, 4, 1, 4));
 			viewModel.type('\n', 'keyboard');
 			assert.strictEqual(model.getValue(),
@@ -959,8 +1002,7 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 		].join('\n'), languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
-			disposables.add(registerLanguage(instantiationService, languageId));
+		withTestCodeEditor(model, { autoIndent: "full", serviceCollection }, (editor, viewModel) => {
 			editor.setSelection(new Selection(2, 12, 2, 12));
 			viewModel.type("\n", 'keyboard');
 			assert.strictEqual(model.getValue(), [
@@ -983,9 +1025,7 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 		].join('\n'), languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
-
-			disposables.add(registerLanguage(instantiationService, languageId));
+		withTestCodeEditor(model, { autoIndent: "full", serviceCollection }, (editor, viewModel) => {
 			editor.setSelection(new Selection(2, 19, 2, 19));
 			viewModel.type("\n", 'keyboard');
 			assert.strictEqual(model.getValue(), [
@@ -1007,9 +1047,7 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 		});
 	});
 
-	// Failing tests...
-
-	test.skip('issue #208232: incorrect indentation inside of comments', () => {
+	test('issue #208232: incorrect indentation inside of comments', () => {
 
 		// https://github.com/microsoft/vscode/issues/208232
 
@@ -1020,9 +1058,13 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 		].join('\n'), languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
-
-			disposables.add(registerLanguage(instantiationService, languageId));
+		withTestCodeEditor(model, { autoIndent: "full", serviceCollection }, (editor, viewModel, instantiationService) => {
+			const tokens: StandardTokenTypeData[][] = [
+				[{ startIndex: 0, standardTokenType: StandardTokenType.Comment }],
+				[{ startIndex: 0, standardTokenType: StandardTokenType.Comment }],
+				[{ startIndex: 0, standardTokenType: StandardTokenType.Comment }]
+			];
+			disposables.add(registerTokenizationSupport(instantiationService, tokens, languageId));
 			editor.setSelection(new Selection(2, 23, 2, 23));
 			viewModel.type("\n", 'keyboard');
 			assert.strictEqual(model.getValue(), [
@@ -1033,6 +1075,8 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 			].join('\n'));
 		});
 	});
+
+	// Failing tests...
 
 	test.skip('issue #43244: indent after equal sign is detected', () => {
 
@@ -1047,8 +1091,7 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 		].join('\n'), languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
-			disposables.add(registerLanguage(instantiationService, languageId));
+		withTestCodeEditor(model, { autoIndent: "full", serviceCollection }, (editor, viewModel) => {
 			editor.setSelection(new Selection(1, 14, 1, 14));
 			viewModel.type("\n", 'keyboard');
 			assert.strictEqual(model.getValue(), [
@@ -1071,8 +1114,7 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 		].join('\n'), languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
-			disposables.add(registerLanguage(instantiationService, languageId));
+		withTestCodeEditor(model, { autoIndent: "full", serviceCollection }, (editor, viewModel) => {
 			editor.setSelection(new Selection(2, 7, 2, 7));
 			viewModel.type("\n", 'keyboard');
 			assert.strictEqual(model.getValue(), [
@@ -1095,8 +1137,7 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 		].join('\n'), languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
-			disposables.add(registerLanguage(instantiationService, languageId));
+		withTestCodeEditor(model, { autoIndent: "full", serviceCollection }, (editor, viewModel) => {
 			editor.setSelection(new Selection(2, 7, 2, 7));
 			viewModel.type("\n", 'keyboard');
 			viewModel.type(".");
@@ -1120,8 +1161,7 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 		].join('\n'), languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
-			disposables.add(registerLanguage(instantiationService, languageId));
+		withTestCodeEditor(model, { autoIndent: "full", serviceCollection }, (editor, viewModel) => {
 			editor.setSelection(new Selection(2, 24, 2, 24));
 			viewModel.type("\n", 'keyboard');
 			assert.strictEqual(model.getValue(), [
@@ -1146,8 +1186,7 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 		].join('\n'), languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
-			disposables.add(registerLanguage(instantiationService, languageId));
+		withTestCodeEditor(model, { autoIndent: "full", serviceCollection }, (editor, viewModel) => {
 			editor.setSelection(new Selection(3, 5, 3, 5));
 			viewModel.type(".");
 			assert.strictEqual(model.getValue(), [
@@ -1170,8 +1209,7 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 		].join('\n'), languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
-			disposables.add(registerLanguage(instantiationService, languageId));
+		withTestCodeEditor(model, { autoIndent: "full", serviceCollection }, (editor, viewModel) => {
 			editor.setSelection(new Selection(2, 25, 2, 25));
 			viewModel.type("\n", 'keyboard');
 			assert.strictEqual(model.getValue(), [
@@ -1190,10 +1228,7 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 		const model = createTextModel('function foo() {}', languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
-
-			disposables.add(registerLanguage(instantiationService, languageId));
-
+		withTestCodeEditor(model, { autoIndent: "full", serviceCollection }, (editor, viewModel) => {
 			editor.setSelection(new Selection(1, 17, 1, 17));
 			viewModel.type("\n", 'keyboard');
 			assert.strictEqual(model.getValue(), [
@@ -1224,9 +1259,7 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 		].join('\n'), languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
-
-			disposables.add(registerLanguage(instantiationService, languageId));
+		withTestCodeEditor(model, { autoIndent: "full", serviceCollection }, (editor, viewModel) => {
 			editor.setSelection(new Selection(3, 14, 3, 14));
 			viewModel.type("\n", 'keyboard');
 			assert.strictEqual(model.getValue(), [
@@ -1252,9 +1285,7 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 		].join('\n'), languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
-
-			disposables.add(registerLanguage(instantiationService, languageId));
+		withTestCodeEditor(model, { autoIndent: "full", serviceCollection }, (editor, viewModel) => {
 			editor.setSelection(new Selection(4, 1, 4, 1));
 			viewModel.type("}", 'keyboard');
 			assert.strictEqual(model.getValue(), [
@@ -1276,16 +1307,13 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 		].join('\n'), languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
-
-			disposables.add(registerLanguage(instantiationService, languageId));
+		withTestCodeEditor(model, { autoIndent: "full", serviceCollection }, (editor, viewModel) => {
 			editor.setSelection(new Selection(2, 5, 2, 5));
 			viewModel.type("{}", 'keyboard');
 			assert.strictEqual(model.getValue(), [
 				'if (true)',
 				'{}',
 			].join('\n'));
-
 			editor.setSelection(new Selection(2, 2, 2, 2));
 			viewModel.type("\n", 'keyboard');
 			assert.strictEqual(model.getValue(), [
@@ -1307,8 +1335,7 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 		].join('\n'), languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: "keep" }, (editor, viewModel, instantiationService) => {
-			disposables.add(registerLanguage(instantiationService, languageId));
+		withTestCodeEditor(model, { autoIndent: "keep", serviceCollection }, (editor, viewModel) => {
 			editor.setSelection(new Selection(2, 5, 2, 5));
 			viewModel.type("}", 'keyboard');
 			assert.strictEqual(model.getValue(), [
@@ -1323,9 +1350,20 @@ suite('Auto Indent On Type - Ruby', () => {
 
 	const languageId = Language.Ruby;
 	let disposables: DisposableStore;
+	let serviceCollection: ServiceCollection;
 
 	setup(() => {
 		disposables = new DisposableStore();
+		const languageService = new LanguageService();
+		const languageConfigurationService = new TestLanguageConfigurationService();
+		disposables.add(languageService);
+		disposables.add(languageConfigurationService);
+		disposables.add(registerLanguage(languageService, languageId));
+		disposables.add(registerLanguageConfiguration(languageConfigurationService, languageId));
+		serviceCollection = new ServiceCollection(
+			[ILanguageService, languageService],
+			[ILanguageConfigurationService, languageConfigurationService]
+		);
 	});
 
 	teardown(() => {
@@ -1341,10 +1379,7 @@ suite('Auto Indent On Type - Ruby', () => {
 		const model = createTextModel("", languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
-
-			disposables.add(registerLanguage(instantiationService, languageId));
-
+		withTestCodeEditor(model, { autoIndent: "full", serviceCollection }, (editor, viewModel) => {
 			viewModel.type("def foo\n        i");
 			viewModel.type("n", 'keyboard');
 			assert.strictEqual(model.getValue(), "def foo\n        in");
@@ -1369,10 +1404,7 @@ suite('Auto Indent On Type - Ruby', () => {
 		const model = createTextModel("", languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
-
-			disposables.add(registerLanguage(instantiationService, languageId));
-
+		withTestCodeEditor(model, { autoIndent: "full", serviceCollection }, (editor, viewModel) => {
 			viewModel.type("method('#foo') do");
 			viewModel.type("\n", 'keyboard');
 			assert.strictEqual(model.getValue(), [
@@ -1387,9 +1419,20 @@ suite('Auto Indent On Type - PHP', () => {
 
 	const languageId = Language.PHP;
 	let disposables: DisposableStore;
+	let serviceCollection: ServiceCollection;
 
 	setup(() => {
 		disposables = new DisposableStore();
+		const languageService = new LanguageService();
+		const languageConfigurationService = new TestLanguageConfigurationService();
+		disposables.add(languageService);
+		disposables.add(languageConfigurationService);
+		disposables.add(registerLanguage(languageService, languageId));
+		disposables.add(registerLanguageConfiguration(languageConfigurationService, languageId));
+		serviceCollection = new ServiceCollection(
+			[ILanguageService, languageService],
+			[ILanguageConfigurationService, languageConfigurationService]
+		);
 	});
 
 	teardown(() => {
@@ -1398,24 +1441,26 @@ suite('Auto Indent On Type - PHP', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('temp issue because there should be at least one passing test in a suite', () => {
-		assert.ok(true);
-	});
-
-	test.skip('issue #199050: should not indent after { detected in a string', () => {
+	test('issue #199050: should not indent after { detected in a string', () => {
 
 		// https://github.com/microsoft/vscode/issues/199050
 
-		const model = createTextModel("$phrase = preg_replace('#(\{1|%s).*#su', '', $phrase);", languageId, {});
+		const model = createTextModel("preg_replace('{');", languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
-
-			disposables.add(registerLanguage(instantiationService, languageId));
+		withTestCodeEditor(model, { autoIndent: "full", serviceCollection }, (editor, viewModel, instantiationService) => {
+			const tokens: StandardTokenTypeData[][] = [
+				[
+					{ startIndex: 0, standardTokenType: StandardTokenType.Other },
+					{ startIndex: 13, standardTokenType: StandardTokenType.String },
+					{ startIndex: 16, standardTokenType: StandardTokenType.Other },
+				]
+			];
+			disposables.add(registerTokenizationSupport(instantiationService, tokens, languageId));
 			editor.setSelection(new Selection(1, 54, 1, 54));
 			viewModel.type("\n", 'keyboard');
 			assert.strictEqual(model.getValue(), [
-				"$phrase = preg_replace('#(\{1|%s).*#su', '', $phrase);",
+				"preg_replace('{');",
 				""
 			].join('\n'));
 		});
@@ -1426,9 +1471,20 @@ suite('Auto Indent On Paste - Go', () => {
 
 	const languageId = Language.Go;
 	let disposables: DisposableStore;
+	let serviceCollection: ServiceCollection;
 
 	setup(() => {
 		disposables = new DisposableStore();
+		const languageService = new LanguageService();
+		const languageConfigurationService = new TestLanguageConfigurationService();
+		disposables.add(languageService);
+		disposables.add(languageConfigurationService);
+		disposables.add(registerLanguage(languageService, languageId));
+		disposables.add(registerLanguageConfiguration(languageConfigurationService, languageId));
+		serviceCollection = new ServiceCollection(
+			[ILanguageService, languageService],
+			[ILanguageConfigurationService, languageConfigurationService]
+		);
 	});
 
 	teardown(() => {
@@ -1453,8 +1509,7 @@ suite('Auto Indent On Paste - Go', () => {
 		].join('\n'), languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
-			disposables.add(registerLanguage(instantiationService, languageId));
+		withTestCodeEditor(model, { autoIndent: "full", serviceCollection }, (editor, viewModel) => {
 			editor.setSelection(new Selection(3, 1, 3, 1));
 			const text = '  ';
 			const autoIndentOnPasteController = editor.registerAndInstantiateContribution(AutoIndentOnPaste.ID, AutoIndentOnPaste);
@@ -1474,9 +1529,20 @@ suite('Auto Indent On Type - CPP', () => {
 
 	const languageId = Language.CPP;
 	let disposables: DisposableStore;
+	let serviceCollection: ServiceCollection;
 
 	setup(() => {
 		disposables = new DisposableStore();
+		const languageService = new LanguageService();
+		const languageConfigurationService = new TestLanguageConfigurationService();
+		disposables.add(languageService);
+		disposables.add(languageConfigurationService);
+		disposables.add(registerLanguage(languageService, languageId));
+		disposables.add(registerLanguageConfiguration(languageConfigurationService, languageId));
+		serviceCollection = new ServiceCollection(
+			[ILanguageService, languageService],
+			[ILanguageConfigurationService, languageConfigurationService]
+		);
 	});
 
 	teardown(() => {
@@ -1499,8 +1565,7 @@ suite('Auto Indent On Type - CPP', () => {
 		].join('\n'), languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
-			disposables.add(registerLanguage(instantiationService, languageId));
+		withTestCodeEditor(model, { autoIndent: "full", serviceCollection }, (editor, viewModel) => {
 			editor.setSelection(new Selection(2, 20, 2, 20));
 			viewModel.type("\n", 'keyboard');
 			assert.strictEqual(model.getValue(), [
@@ -1522,8 +1587,7 @@ suite('Auto Indent On Type - CPP', () => {
 		].join('\n'), languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
-			disposables.add(registerLanguage(instantiationService, languageId));
+		withTestCodeEditor(model, { autoIndent: "full", serviceCollection }, (editor, viewModel) => {
 			editor.setSelection(new Selection(1, 20, 1, 20));
 			viewModel.type("\n", 'keyboard');
 			assert.strictEqual(model.getValue(), [
@@ -1544,9 +1608,7 @@ suite('Auto Indent On Type - CPP', () => {
 		].join('\n'), languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: "none" }, (editor, viewModel, instantiationService) => {
-
-			disposables.add(registerLanguage(instantiationService, languageId));
+		withTestCodeEditor(model, { autoIndent: "none", serviceCollection }, (editor, viewModel) => {
 			editor.setSelection(new Selection(2, 3, 2, 3));
 			viewModel.type("}", 'keyboard');
 			assert.strictEqual(model.getValue(), [
@@ -1562,9 +1624,20 @@ suite('Auto Indent On Type - HTML', () => {
 
 	const languageId = Language.HTML;
 	let disposables: DisposableStore;
+	let serviceCollection: ServiceCollection;
 
 	setup(() => {
 		disposables = new DisposableStore();
+		const languageService = new LanguageService();
+		const languageConfigurationService = new TestLanguageConfigurationService();
+		disposables.add(languageService);
+		disposables.add(languageConfigurationService);
+		disposables.add(registerLanguage(languageService, languageId));
+		disposables.add(registerLanguageConfiguration(languageConfigurationService, languageId));
+		serviceCollection = new ServiceCollection(
+			[ILanguageService, languageService],
+			[ILanguageConfigurationService, languageConfigurationService]
+		);
 	});
 
 	teardown(() => {
@@ -1588,8 +1661,7 @@ suite('Auto Indent On Type - HTML', () => {
 		].join('\n'), languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
-			disposables.add(registerLanguage(instantiationService, languageId));
+		withTestCodeEditor(model, { autoIndent: "full", serviceCollection }, (editor, viewModel) => {
 			editor.setSelection(new Selection(2, 48, 2, 48));
 			viewModel.type("\n", 'keyboard');
 			assert.strictEqual(model.getValue(), [
@@ -1606,9 +1678,20 @@ suite('Auto Indent On Type - Visual Basic', () => {
 
 	const languageId = Language.VB;
 	let disposables: DisposableStore;
+	let serviceCollection: ServiceCollection;
 
 	setup(() => {
 		disposables = new DisposableStore();
+		const languageService = new LanguageService();
+		const languageConfigurationService = new TestLanguageConfigurationService();
+		disposables.add(languageService);
+		disposables.add(languageConfigurationService);
+		disposables.add(registerLanguage(languageService, languageId));
+		disposables.add(registerLanguageConfiguration(languageConfigurationService, languageId));
+		serviceCollection = new ServiceCollection(
+			[ILanguageService, languageService],
+			[ILanguageConfigurationService, languageConfigurationService]
+		);
 	});
 
 	teardown(() => {
@@ -1632,8 +1715,7 @@ suite('Auto Indent On Type - Visual Basic', () => {
 		].join('\n'), languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
-			disposables.add(registerLanguage(instantiationService, languageId));
+		withTestCodeEditor(model, { autoIndent: "full", serviceCollection }, (editor, viewModel, instantiationService) => {
 			editor.setSelection(new Selection(3, 10, 3, 10));
 			viewModel.type("f", 'keyboard');
 			assert.strictEqual(model.getValue(), [
@@ -1650,9 +1732,20 @@ suite('Auto Indent On Type - Latex', () => {
 
 	const languageId = Language.Latex;
 	let disposables: DisposableStore;
+	let serviceCollection: ServiceCollection;
 
 	setup(() => {
 		disposables = new DisposableStore();
+		const languageService = new LanguageService();
+		const languageConfigurationService = new TestLanguageConfigurationService();
+		disposables.add(languageService);
+		disposables.add(languageConfigurationService);
+		disposables.add(registerLanguage(languageService, languageId));
+		disposables.add(registerLanguageConfiguration(languageConfigurationService, languageId));
+		serviceCollection = new ServiceCollection(
+			[ILanguageService, languageService],
+			[ILanguageConfigurationService, languageConfigurationService]
+		);
 	});
 
 	teardown(() => {
@@ -1675,8 +1768,7 @@ suite('Auto Indent On Type - Latex', () => {
 		].join('\n'), languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
-			disposables.add(registerLanguage(instantiationService, languageId));
+		withTestCodeEditor(model, { autoIndent: "full", serviceCollection }, (editor, viewModel) => {
 			editor.setSelection(new Selection(2, 9, 2, 9));
 			viewModel.type("{", 'keyboard');
 			assert.strictEqual(model.getValue(), [
@@ -1691,9 +1783,20 @@ suite('Auto Indent On Type - Lua', () => {
 
 	const languageId = Language.Lua;
 	let disposables: DisposableStore;
+	let serviceCollection: ServiceCollection;
 
 	setup(() => {
 		disposables = new DisposableStore();
+		const languageService = new LanguageService();
+		const languageConfigurationService = new TestLanguageConfigurationService();
+		disposables.add(languageService);
+		disposables.add(languageConfigurationService);
+		disposables.add(registerLanguage(languageService, languageId));
+		disposables.add(registerLanguageConfiguration(languageConfigurationService, languageId));
+		serviceCollection = new ServiceCollection(
+			[ILanguageService, languageService],
+			[ILanguageConfigurationService, languageConfigurationService]
+		);
 	});
 
 	teardown(() => {
@@ -1715,8 +1818,7 @@ suite('Auto Indent On Type - Lua', () => {
 		].join('\n'), languageId, {});
 		disposables.add(model);
 
-		withTestCodeEditor(model, { autoIndent: "full" }, (editor, viewModel, instantiationService) => {
-			disposables.add(registerLanguage(instantiationService, languageId));
+		withTestCodeEditor(model, { autoIndent: "full", serviceCollection }, (editor, viewModel) => {
 			editor.setSelection(new Selection(1, 28, 1, 28));
 			viewModel.type("\n", 'keyboard');
 			assert.strictEqual(model.getValue(), [
@@ -1726,4 +1828,3 @@ suite('Auto Indent On Type - Lua', () => {
 		});
 	});
 });
-

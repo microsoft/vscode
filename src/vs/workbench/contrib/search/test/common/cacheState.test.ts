@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import * as errors from 'vs/base/common/errors';
 import { QueryType, IFileQuery } from 'vs/workbench/services/search/common/search';
 import { FileQueryCacheState } from 'vs/workbench/contrib/search/common/cacheState';

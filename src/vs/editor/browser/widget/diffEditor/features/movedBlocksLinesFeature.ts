@@ -26,8 +26,8 @@ export class MovedBlocksLinesFeature extends Disposable {
 	public static readonly movedCodeBlockPadding = 4;
 
 	private readonly _element: SVGElement;
-	private readonly _originalScrollTop = observableFromEvent(this._editors.original.onDidScrollChange, () => this._editors.original.getScrollTop());
-	private readonly _modifiedScrollTop = observableFromEvent(this._editors.modified.onDidScrollChange, () => this._editors.modified.getScrollTop());
+	private readonly _originalScrollTop = observableFromEvent(this, this._editors.original.onDidScrollChange, () => this._editors.original.getScrollTop());
+	private readonly _modifiedScrollTop = observableFromEvent(this, this._editors.modified.onDidScrollChange, () => this._editors.modified.getScrollTop());
 	private readonly _viewZonesChanged = observableSignalFromEvent('onDidChangeViewZones', this._editors.modified.onDidChangeViewZones);
 
 	public readonly width = observableValue(this, 0);

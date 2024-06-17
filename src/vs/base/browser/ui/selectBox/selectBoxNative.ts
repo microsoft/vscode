@@ -148,6 +148,10 @@ export class SelectBoxNative extends Disposable implements ISelectBoxDelegate {
 		}
 	}
 
+	public setEnabled(enable: boolean): void {
+		this.selectElement.disabled = !enable;
+	}
+
 	public setFocusable(focusable: boolean): void {
 		this.selectElement.tabIndex = focusable ? 0 : -1;
 	}

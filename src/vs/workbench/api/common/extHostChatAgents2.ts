@@ -263,6 +263,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		mainContext: IMainContext,
 		private readonly _logService: ILogService,
 		private readonly commands: ExtHostCommands,
+		private readonly quality: string | undefined
 	) {
 		super();
 		this._proxy = mainContext.getProxy(MainContext.MainThreadChatAgents2);
@@ -274,16 +275,19 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 
 	createChatAgent(extension: IExtensionDescription, id: string, handler: vscode.ChatExtendedRequestHandler): vscode.ChatParticipant {
 		const handle = ExtHostChatAgents2._idPool++;
-		const agent = new ExtHostChatAgent(extension, id, this._proxy, handle, handler);
+		const agent = new ExtHostChatAgent(extension, this.quality, id, this._proxy, handle, handler);
 		this._agents.set(handle, agent);
 
-		this._proxy.$registerAgent(handle, extension.identifier, id, {}, undefined);
+		if (agent.isAgentEnabled()) {
+			this._proxy.$registerAgent(handle, extension.identifier, id, {}, undefined);
+		}
+
 		return agent.apiAgent;
 	}
 
 	createDynamicChatAgent(extension: IExtensionDescription, id: string, dynamicProps: vscode.DynamicChatParticipantProps, handler: vscode.ChatExtendedRequestHandler): vscode.ChatParticipant {
 		const handle = ExtHostChatAgents2._idPool++;
-		const agent = new ExtHostChatAgent(extension, id, this._proxy, handle, handler);
+		const agent = new ExtHostChatAgent(extension, this.quality, id, this._proxy, handle, handler);
 		this._agents.set(handle, agent);
 
 		this._proxy.$registerAgent(handle, extension.identifier, id, { isSticky: true } satisfies IExtensionChatAgentMetadata, dynamicProps);
@@ -330,10 +334,19 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 						responseIsIncomplete: true
 					};
 				}
+				if (errorDetails?.responseIsRedacted) {
+					checkProposedApiEnabled(agent.extension, 'chatParticipantPrivate');
+				}
+
 				return { errorDetails, timings: stream.timings, metadata: result?.metadata } satisfies IChatAgentResult;
 			}), token);
 		} catch (e) {
 			this._logService.error(e, agent.extension);
+
+			if (e instanceof extHostTypes.LanguageModelError && e.cause) {
+				e = e.cause;
+			}
+
 			return { errorDetails: { message: toErrorMessage(e), responseIsIncomplete: true } };
 
 		} finally {
@@ -485,6 +498,7 @@ class ExtHostChatAgent {
 
 	constructor(
 		public readonly extension: IExtensionDescription,
+		private readonly quality: string | undefined,
 		public readonly id: string,
 		private readonly _proxy: MainThreadChatAgentsShape2,
 		private readonly _handle: number,
@@ -505,6 +519,11 @@ class ExtHostChatAgent {
 		}
 
 		return await this._agentVariableProvider.provider.provideCompletionItems(query, token) ?? [];
+	}
+
+	public isAgentEnabled() {
+		// If in stable and this extension doesn't have the right proposed API, then don't register the agent
+		return !(this.quality === 'stable' && !isProposedApiEnabled(this.extension, 'chatParticipantPrivate'));
 	}
 
 	async provideFollowups(result: vscode.ChatResult, context: vscode.ChatContext, token: CancellationToken): Promise<vscode.ChatFollowup[]> {
@@ -564,6 +583,10 @@ class ExtHostChatAgent {
 			}
 			updateScheduled = true;
 			queueMicrotask(() => {
+				if (!that.isAgentEnabled()) {
+					return;
+				}
+
 				this._proxy.$updateAgent(this._handle, {
 					icon: !this._iconPath ? undefined :
 						this._iconPath instanceof URI ? this._iconPath :
@@ -658,11 +681,11 @@ class ExtHostChatAgent {
 				updateMetadataSoon();
 			},
 			get supportIssueReporting() {
-				checkProposedApiEnabled(that.extension, 'chatParticipantAdditions');
+				checkProposedApiEnabled(that.extension, 'chatParticipantPrivate');
 				return that._supportIssueReporting;
 			},
 			set supportIssueReporting(v) {
-				checkProposedApiEnabled(that.extension, 'chatParticipantAdditions');
+				checkProposedApiEnabled(that.extension, 'chatParticipantPrivate');
 				that._supportIssueReporting = v;
 				updateMetadataSoon();
 			},
@@ -677,9 +700,9 @@ class ExtHostChatAgent {
 						throw new Error('triggerCharacters are required');
 					}
 
-					that._proxy.$registerAgentCompletionsProvider(that._handle, v.triggerCharacters);
+					that._proxy.$registerAgentCompletionsProvider(that._handle, that.id, v.triggerCharacters);
 				} else {
-					that._proxy.$unregisterAgentCompletionsProvider(that._handle);
+					that._proxy.$unregisterAgentCompletionsProvider(that._handle, that.id);
 				}
 			},
 			get participantVariableProvider() {
@@ -707,10 +730,12 @@ class ExtHostChatAgent {
 				return that._requester;
 			},
 			set supportsSlowReferences(v) {
+				checkProposedApiEnabled(that.extension, 'chatParticipantPrivate');
 				that._supportsSlowReferences = v;
 				updateMetadataSoon();
 			},
 			get supportsSlowReferences() {
+				checkProposedApiEnabled(that.extension, 'chatParticipantPrivate');
 				return that._supportsSlowReferences;
 			},
 			dispose() {

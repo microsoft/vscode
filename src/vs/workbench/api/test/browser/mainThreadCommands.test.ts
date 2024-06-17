@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { MainThreadCommands } from 'vs/workbench/api/browser/mainThreadCommands';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { SingleProxyRPCProtocol } from 'vs/workbench/api/test/common/testRPCProtocol';

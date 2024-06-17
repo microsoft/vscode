@@ -13,7 +13,7 @@ import { Lazy } from 'vs/base/common/lazy';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
-import { isEqual } from 'vs/base/common/resources';
+import { basename, isEqual } from 'vs/base/common/resources';
 import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
@@ -34,12 +34,14 @@ import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebo
 import { NotebookOutputRendererInfo, NotebookStaticPreloadInfo as NotebookStaticPreloadInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
 import { NotebookEditorDescriptor, NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { DiffEditorInputFactoryFunction, EditorInputFactoryFunction, EditorInputFactoryObject, IEditorResolverService, IEditorType, RegisteredEditorInfo, RegisteredEditorPriority, UntitledEditorInputFactoryFunction } from 'vs/workbench/services/editor/common/editorResolverService';
+import { DiffEditorInputFactoryFunction, EditorInputFactoryFunction, EditorInputFactoryObject, IEditorResolverService, IEditorType, RegisteredEditorInfo, RegisteredEditorPriority, UntitledEditorInputFactoryFunction, type MergeEditorInputFactoryFunction } from 'vs/workbench/services/editor/common/editorResolverService';
 import { IExtensionService, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { InstallRecommendedExtensionAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { INotebookDocument, INotebookDocumentService } from 'vs/workbench/services/notebook/common/notebookDocumentService';
+import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
+import type { EditorInputWithOptions, IResourceMergeEditorInput } from 'vs/workbench/common/editor';
 
 export class NotebookProviderInfoStore extends Disposable {
 
@@ -130,7 +132,6 @@ export class NotebookProviderInfoStore extends Disposable {
 					selectors: notebookContribution.selector || [],
 					priority: this._convertPriority(notebookContribution.priority),
 					providerDisplayName: extension.description.displayName ?? extension.description.identifier.value,
-					exclusive: false
 				}));
 			}
 		}
@@ -169,7 +170,7 @@ export class NotebookProviderInfoStore extends Disposable {
 				id: notebookProviderInfo.id,
 				label: notebookProviderInfo.displayName,
 				detail: notebookProviderInfo.providerDisplayName,
-				priority: notebookProviderInfo.exclusive ? RegisteredEditorPriority.exclusive : notebookProviderInfo.priority,
+				priority: notebookProviderInfo.priority,
 			};
 			const notebookEditorOptions = {
 				canHandleDiff: () => !!this._configurationService.getValue(NotebookSetting.textDiffEditorPreview) && !this._accessibilityService.isScreenReaderOptimized(),
@@ -195,7 +196,7 @@ export class NotebookProviderInfoStore extends Disposable {
 					cellOptions = (options as INotebookEditorOptions | undefined)?.cellOptions;
 				}
 
-				const notebookOptions = { ...options, cellOptions } as INotebookEditorOptions;
+				const notebookOptions: INotebookEditorOptions = { ...options, cellOptions, viewState: undefined };
 				const editor = NotebookEditorInput.getOrCreate(this._instantiationService, notebookUri, preferredResource, notebookProviderInfo.id);
 				return { editor, options: notebookOptions };
 			};
@@ -214,11 +215,33 @@ export class NotebookProviderInfoStore extends Disposable {
 			const notebookDiffEditorInputFactory: DiffEditorInputFactoryFunction = ({ modified, original, label, description }) => {
 				return { editor: NotebookDiffEditorInput.create(this._instantiationService, modified.resource!, label, description, original.resource!, notebookProviderInfo.id) };
 			};
+			const mergeEditorInputFactory: MergeEditorInputFactoryFunction = (mergeEditor: IResourceMergeEditorInput): EditorInputWithOptions => {
+				return {
+					editor: this._instantiationService.createInstance(
+						MergeEditorInput,
+						mergeEditor.base.resource,
+						{
+							uri: mergeEditor.input1.resource,
+							title: mergeEditor.input1.label ?? basename(mergeEditor.input1.resource),
+							description: mergeEditor.input1.description ?? '',
+							detail: mergeEditor.input1.detail
+						},
+						{
+							uri: mergeEditor.input2.resource,
+							title: mergeEditor.input2.label ?? basename(mergeEditor.input2.resource),
+							description: mergeEditor.input2.description ?? '',
+							detail: mergeEditor.input2.detail
+						},
+						mergeEditor.result.resource
+					)
+				};
+			};
 
 			const notebookFactoryObject: EditorInputFactoryObject = {
 				createEditorInput: notebookEditorInputFactory,
 				createDiffEditorInput: notebookDiffEditorInputFactory,
 				createUntitledEditorInput: notebookUntitledEditorFactory,
+				createMergeEditorInput: mergeEditorInputFactory
 			};
 			const notebookCellFactoryObject: EditorInputFactoryObject = {
 				createEditorInput: notebookEditorInputFactory,
@@ -615,8 +638,7 @@ export class NotebookService extends Disposable implements INotebookService {
 			id: viewType,
 			displayName: data.displayName,
 			providerDisplayName: data.providerDisplayName,
-			exclusive: data.exclusive,
-			priority: RegisteredEditorPriority.default,
+			priority: data.priority || RegisteredEditorPriority.default,
 			selectors: []
 		});
 
@@ -671,6 +693,14 @@ export class NotebookService extends Disposable implements INotebookService {
 			throw new Error(`NO provider registered for view type: '${selected.id}'`);
 		}
 		return result;
+	}
+
+	tryGetDataProviderSync(viewType: string): SimpleNotebookProviderInfo | undefined {
+		const selected = this.notebookProviderInfoStore.get(viewType);
+		if (!selected) {
+			return undefined;
+		}
+		return this._notebookProviders.get(selected.id);
 	}
 
 

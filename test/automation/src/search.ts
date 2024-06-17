@@ -61,6 +61,21 @@ export class Search extends Viewlet {
 		await this.submitSearch();
 	}
 
+	async hasActivityBarMoved() {
+		await this.code.waitForElement('.activitybar');
+
+		const elementBoundingBox = await this.code.driver.getElementXY('.activitybar');
+		return elementBoundingBox !== null && elementBoundingBox.x === 48 && elementBoundingBox.y === 375;
+	}
+
+	async waitForPageUp(): Promise<void> {
+		await this.code.dispatchKeybinding('PageUp');
+	}
+
+	async waitForPageDown(): Promise<void> {
+		await this.code.dispatchKeybinding('PageDown');
+	}
+
 	async submitSearch(): Promise<void> {
 		await this.waitForInputFocus(INPUT);
 

@@ -40,6 +40,7 @@
 	display: flex;
 	align-items: center;
 	gap: 8px;
+	overflow: hidden;
 }
 
 .interactive-item-container .header .username {
@@ -48,12 +49,12 @@
 	font-weight: 600;
 }
 
-.interactive-item-container .header .detail-container {
+.interactive-item-container .detail-container {
 	font-size: 12px;
 	color: var(--vscode-descriptionForeground);
 }
 
-.interactive-item-container .header .detail-container .detail .agentOrSlashCommandDetected A {
+.interactive-item-container .detail-container .detail .agentOrSlashCommandDetected A {
 	cursor: pointer;
 	color: var(--vscode-textLink-foreground);
 }
@@ -271,6 +272,10 @@
 	line-height: 1.3rem;
 }
 
+.interactive-item-container .value .rendered-markdown img {
+	max-width: 100%;
+}
+
 .interactive-item-container .monaco-tokenized-source,
 .interactive-item-container code {
 	font-family: var(--monaco-monospace-font);
@@ -335,6 +340,28 @@
 
 .interactive-item-container.interactive-item-compact .value .rendered-markdown h3 {
 	margin: 8px 0;
+}
+
+.interactive-item-container.minimal {
+	flex-direction: row;
+}
+
+.interactive-item-container.minimal .column.left {
+	width: 20px;
+	padding-top: 2px;
+}
+
+.interactive-item-container.minimal .user > .username {
+	display: none;
+}
+
+.interactive-item-container.minimal .detail-container {
+	font-size: unset;
+}
+
+.interactive-item-container.minimal > .header {
+	position: absolute;
+	right: 0;
 }
 
 .interactive-session .interactive-input-and-execute-toolbar {
@@ -489,13 +516,26 @@
 	align-items: center;
 }
 
-.interactive-session .chat-attached-context .chat-attached-context-attachment .codicon {
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label-container {
+	display: flex;
+}
+
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label-container .monaco-highlighted-label {
+	display: flex !important;
+	align-items: center !important;
+}
+
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label .monaco-button.codicon.codicon-close,
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button.codicon.codicon-close {
 	color: var(--vscode-descriptionForeground);
+}
+
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label .codicon {
+	padding-left: 4px;
 }
 
 .interactive-session .chat-attached-context {
 	padding: 0 0 8px 0;
-	border-radius: 6px;
 	display: flex;
 	gap: 4px;
 	flex-wrap: wrap;
@@ -504,8 +544,9 @@
 .interactive-session .chat-attached-context .chat-attached-context-attachment {
 	padding: 2px;
 	border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
-	border-radius: 5px;
+	border-radius: 4px;
 	height: 18px;
+	max-width: 100%;
 }
 
 .interactive-session-followups {
@@ -537,6 +578,12 @@
 	display: block;
 	color: var(--vscode-textLink-foreground);
 	font-size: 12px;
+
+	/* clamp to max 3 lines */
+	display: -webkit-box;
+	-webkit-line-clamp: 3;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
 }
 
 .interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups code {
