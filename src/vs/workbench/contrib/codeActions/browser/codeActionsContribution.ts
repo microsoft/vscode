@@ -35,15 +35,11 @@ const createCodeActionsAutoSave = (description: string): IJSONSchema => {
 	};
 };
 
-const codeActionsOnSaveDefaultProperties = Object.freeze<IJSONSchemaMap>({
-	'source.fixAll': createCodeActionsAutoSave(nls.localize('codeActionsOnSave.fixAll', "Controls whether auto fix action should be run on file save.")),
-});
 
 const codeActionsOnSaveSchema: IConfigurationPropertySchema = {
 	oneOf: [
 		{
 			type: 'object',
-			properties: codeActionsOnSaveDefaultProperties,
 			additionalProperties: {
 				type: 'string'
 			},
@@ -84,8 +80,7 @@ export class CodeActionsContribution extends Disposable implements IWorkbenchCon
 	) {
 		super();
 
-		// Adds the default from codeActionsOnSaveDefaultProperties (source.fixAll)
-		this.settings.add('source.fixAll');
+		// TODO: @justschen caching of code actions based on extensions loaded: https://github.com/microsoft/vscode/issues/216019
 
 		languageFeatures.codeActionProvider.onDidChange(() => {
 			this.updateSettingsFromCodeActionProviders();
@@ -118,7 +113,7 @@ export class CodeActionsContribution extends Disposable implements IWorkbenchCon
 	}
 
 	private updateConfigurationSchema(codeActionContributions: readonly CodeActionsExtensionPoint[]) {
-		const newProperties: IJSONSchemaMap = { ...codeActionsOnSaveDefaultProperties };
+		const newProperties: IJSONSchemaMap = {};
 		for (const [sourceAction, props] of this.getSourceActions(codeActionContributions)) {
 			this.settings.add(sourceAction);
 			newProperties[sourceAction] = createCodeActionsAutoSave(nls.localize('codeActionsOnSave.generic', "Controls whether '{0}' actions should be run on file save.", props.title));
@@ -141,15 +136,11 @@ export class CodeActionsContribution extends Disposable implements IWorkbenchCon
 	}
 
 	private getSourceActions(contributions: readonly CodeActionsExtensionPoint[]) {
-		const defaultKinds = Object.keys(codeActionsOnSaveDefaultProperties).map(value => new HierarchicalKind(value));
 		const sourceActions = new Map<string, { readonly title: string }>();
 		for (const contribution of contributions) {
 			for (const action of contribution.actions) {
 				const kind = new HierarchicalKind(action.kind);
-				if (CodeActionKind.Source.contains(kind)
-					// Exclude any we already included by default
-					&& !defaultKinds.some(defaultKind => defaultKind.contains(kind))
-				) {
+				if (CodeActionKind.Source.contains(kind)) {
 					sourceActions.set(kind.value, action);
 				}
 			}
