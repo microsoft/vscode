@@ -508,3 +508,4 @@ suite('Notebook builtin output renderer', () => {
 	});
 
 });
+
