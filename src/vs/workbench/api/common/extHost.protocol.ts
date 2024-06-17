@@ -2192,6 +2192,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideTypeHierarchySubtypes(handle: number, sessionId: string, itemId: string, token: CancellationToken): Promise<ITypeHierarchyItemDto[] | undefined>;
 	$releaseTypeHierarchy(handle: number, sessionId: string): void;
 	$provideDocumentOnDropEdits(handle: number, requestId: number, resource: UriComponents, position: IPosition, dataTransferDto: DataTransferDTO, token: CancellationToken): Promise<IDocumentDropEditDto[] | undefined>;
+	$releaseDocumentOnDropEdits(handle: number, cacheId: number): void;
 	$provideMappedEdits(handle: number, document: UriComponents, codeBlocks: string[], context: IMappedEditsContextDto, token: CancellationToken): Promise<IWorkspaceEditDto | null>;
 	$provideInlineEdit(handle: number, document: UriComponents, context: languages.IInlineEditContext, token: CancellationToken): Promise<IdentifiableInlineEdit | undefined>;
 	$freeInlineEdit(handle: number, pid: number): void;
