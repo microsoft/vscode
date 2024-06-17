@@ -101,8 +101,11 @@ export interface IUserDataProfileImportExportService {
 
 	resolveProfileTemplate(uri: URI): Promise<IUserDataProfileTemplate | null>;
 	exportProfile(profile: IUserDataProfile): Promise<void>;
+	exportProfile2(): Promise<void>;
 	importProfile(uri: URI, options?: IProfileImportOptions): Promise<void>;
+	showProfileContents(): Promise<void>;
 	createProfile(from?: IUserDataProfile | URI): Promise<void>;
+	editProfile(profile: IUserDataProfile): Promise<void>;
 	createFromProfile(from: IUserDataProfile, options: IUserDataProfileCreateOptions, token: CancellationToken): Promise<IUserDataProfile | undefined>;
 	createProfileFromTemplate(profileTemplate: IUserDataProfileTemplate, options: IUserDataProfileCreateOptions, token: CancellationToken): Promise<IUserDataProfile | undefined>;
 	createTroubleshootProfile(): Promise<void>;

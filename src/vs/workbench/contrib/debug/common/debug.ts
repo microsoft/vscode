@@ -547,7 +547,8 @@ export interface IStackFrame extends ITreeElement {
 }
 
 export function isFrameDeemphasized(frame: IStackFrame): boolean {
-	return frame.source.presentationHint === 'deemphasize' || frame.presentationHint === 'deemphasize' || frame.presentationHint === 'subtle';
+	const hint = frame.presentationHint ?? frame.source.presentationHint;
+	return hint === 'deemphasize' || hint === 'subtle';
 }
 
 export interface IEnablement extends ITreeElement {
@@ -787,6 +788,7 @@ export interface IDebugConfiguration {
 	};
 	autoExpandLazyVariables: boolean;
 	enableStatusBarColor: boolean;
+	showVariableTypes: boolean;
 }
 
 export interface IGlobalConfig {

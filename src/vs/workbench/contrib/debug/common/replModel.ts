@@ -269,10 +269,10 @@ export class ReplModel {
 		return this.replElements;
 	}
 
-	async addReplExpression(session: IDebugSession, stackFrame: IStackFrame | undefined, name: string): Promise<void> {
-		this.addReplElement(new ReplEvaluationInput(name));
-		const result = new ReplEvaluationResult(name);
-		await result.evaluateExpression(name, session, stackFrame, 'repl');
+	async addReplExpression(session: IDebugSession, stackFrame: IStackFrame | undefined, expression: string): Promise<void> {
+		this.addReplElement(new ReplEvaluationInput(expression));
+		const result = new ReplEvaluationResult(expression);
+		await result.evaluateExpression(expression, session, stackFrame, 'repl');
 		this.addReplElement(result);
 	}
 
