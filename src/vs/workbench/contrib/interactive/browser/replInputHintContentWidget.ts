@@ -16,7 +16,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { editorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { editorActiveLinkForeground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { resolveColorValue } from 'vs/platform/theme/common/colorUtils';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
@@ -96,6 +96,7 @@ export class ReplInputHintContentWidget extends Disposable implements IContentWi
 			return '';
 		}
 		const transparentForeground = resolveColorValue(editorForeground, this.themeService.getColorTheme())?.transparent(0.4);
+		const linkForeground = this.themeService.getColorTheme().getColor(editorActiveLinkForeground);
 
 		const hintElement = dom.$('empty-hint-text');
 		hintElement.style.display = 'block';
@@ -106,7 +107,7 @@ export class ReplInputHintContentWidget extends Disposable implements IContentWi
 		const keybindingHintLabel = keybinding?.getLabel();
 
 		if (keybinding && keybindingHintLabel) {
-			const actionPart = localize('emptyHintText', 'Press {0} to execute. ', keybindingHintLabel);
+			const actionPart = localize('emptyHintText', 'Enter code and press {0} to execute. ', keybindingHintLabel);
 
 			const [before, after] = actionPart.split(keybindingHintLabel).map((fragment) => {
 				const hintPart = dom.$('span', undefined, fragment);
@@ -116,22 +117,20 @@ export class ReplInputHintContentWidget extends Disposable implements IContentWi
 
 			hintElement.appendChild(before);
 
-			const label = new KeybindingLabel(hintElement, OS);
+			const configLink = dom.$('a', { href: '#' });
+			configLink.style.color = linkForeground?.toString() || '';
+			configLink.onclick = (e) => {
+				e.preventDefault();
+				this.commandService.executeCommand('workbench.action.openSettings', { query: '@tag:replExecute' });
+			};
+			hintElement.appendChild(configLink);
+
+			const label = new KeybindingLabel(configLink, OS);
 			label.set(keybinding);
 			label.element.style.width = 'min-content';
 			label.element.style.display = 'inline';
 
 			hintElement.appendChild(after);
-
-			const configLink = dom.$('a', { href: '#' });
-			configLink.classList.add('codicon', 'codicon-settings-gear');
-			configLink.style.color = transparentForeground?.toString() || '';
-			configLink.onclick = (e) => {
-				e.preventDefault();
-				this.commandService.executeCommand('workbench.action.openSettings', { query: '@tag:replExecute' });
-			};
-
-			hintElement.appendChild(configLink);
 
 			this.domNode.append(hintElement);
 			return '';
