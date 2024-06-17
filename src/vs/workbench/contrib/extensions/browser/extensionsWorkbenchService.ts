@@ -30,7 +30,7 @@ import { IURLService, IURLHandler, IOpenURLOptions } from 'vs/platform/url/commo
 import { ExtensionsInput, IExtensionEditorOptions } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProgressOptions, IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService, NotificationPriority, Severity } from 'vs/platform/notification/common/notification';
 import * as resources from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -1345,6 +1345,13 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (toAdd.length || toRemove.length) {
 			if (await this.extensionService.stopExtensionHosts(nls.localize('restart', "Enable or Disable extensions"), auto)) {
 				await this.extensionService.startExtensionHosts({ toAdd, toRemove });
+				if (auto) {
+					this.notificationService.notify({
+						severity: Severity.Info,
+						message: nls.localize('extensionsAutoRestart', "Extensions were auto restarted to enable updates."),
+						priority: NotificationPriority.SILENT
+					});
+				}
 				type ExtensionsAutoRestartClassification = {
 					owner: 'sandy081';
 					comment: 'Report when extensions are auto restarted';
