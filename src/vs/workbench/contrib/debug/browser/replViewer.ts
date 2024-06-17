@@ -237,6 +237,7 @@ export class ReplVariablesRenderer extends AbstractExpressionsRenderer<IExpressi
 
 	public renderElement(node: ITreeNode<IExpression | ReplVariableElement, FuzzyScore>, _index: number, data: IExpressionTemplateData): void {
 		const element = node.element;
+		data.elementDisposable.clear();
 		super.renderExpressionElement(element instanceof ReplVariableElement ? element.expression : element, node, data);
 	}
 

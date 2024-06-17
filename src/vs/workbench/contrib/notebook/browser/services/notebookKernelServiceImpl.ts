@@ -37,12 +37,12 @@ class KernelInfo {
 
 class NotebookTextModelLikeId {
 	static str(k: INotebookTextModelLike): string {
-		return `${k.viewType}/${k.uri.toString()}`;
+		return `${k.notebookType}/${k.uri.toString()}`;
 	}
 	static obj(s: string): INotebookTextModelLike {
 		const idx = s.indexOf('/');
 		return {
-			viewType: s.substring(0, idx),
+			notebookType: s.substring(0, idx),
 			uri: URI.parse(s.substring(idx + 1))
 		};
 	}
@@ -178,7 +178,7 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 	private static _score(kernel: INotebookKernel, notebook: INotebookTextModelLike): number {
 		if (kernel.viewType === '*') {
 			return 5;
-		} else if (kernel.viewType === notebook.viewType) {
+		} else if (kernel.viewType === notebook.notebookType) {
 			return 10;
 		} else {
 			return 0;
@@ -343,7 +343,7 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 					const stateChangeListener = sourceAction.onDidChangeState(() => {
 						this._onDidChangeSourceActions.fire({
 							notebook: document.uri,
-							viewType: document.viewType,
+							viewType: document.notebookType,
 						});
 					});
 					sourceActions.push([sourceAction, stateChangeListener]);
@@ -351,7 +351,7 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 			});
 			info.actions = sourceActions;
 			this._kernelSources.set(id, info);
-			this._onDidChangeSourceActions.fire({ notebook: document.uri, viewType: document.viewType });
+			this._onDidChangeSourceActions.fire({ notebook: document.uri, viewType: document.notebookType });
 		};
 
 		this._kernelSourceActionsUpdates.get(id)?.dispose();
@@ -382,7 +382,7 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 	}
 
 	getKernelDetectionTasks(notebook: INotebookTextModelLike): INotebookKernelDetectionTask[] {
-		return this._kernelDetectionTasks.get(notebook.viewType) ?? [];
+		return this._kernelDetectionTasks.get(notebook.notebookType) ?? [];
 	}
 
 	registerKernelSourceActionProvider(viewType: string, provider: IKernelSourceActionProvider): IDisposable {
@@ -411,7 +411,7 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 	 * Get kernel source actions from providers
 	 */
 	getKernelSourceActions2(notebook: INotebookTextModelLike): Promise<INotebookKernelSourceAction[]> {
-		const viewType = notebook.viewType;
+		const viewType = notebook.notebookType;
 		const providers = this._kernelSourceActionProviders.get(viewType) ?? [];
 		const promises = providers.map(provider => provider.provideKernelSourceActions());
 		return Promise.all(promises).then(actions => {

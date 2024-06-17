@@ -9,7 +9,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { firstOrDefault, index } from 'vs/base/common/arrays';
 import { CancelablePromise, Promises, ThrottledDelayer, createCancelablePromise } from 'vs/base/common/async';
 import { CancellationError, isCancellationError } from 'vs/base/common/errors';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IPager, singlePagePager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import {
@@ -24,7 +24,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { URI } from 'vs/base/common/uri';
-import { IExtension, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey, AutoCheckUpdatesConfigurationKey, HasOutdatedExtensionsContext, AutoUpdateConfigurationValue, InstallExtensionOptions, ExtensionRuntimeState, ExtensionRuntimeActionType } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtension, ExtensionState, IExtensionsWorkbenchService, AutoUpdateConfigurationKey, AutoCheckUpdatesConfigurationKey, HasOutdatedExtensionsContext, AutoUpdateConfigurationValue, InstallExtensionOptions, ExtensionRuntimeState, ExtensionRuntimeActionType, AutoRestartConfigurationKey } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IURLService, IURLHandler, IOpenURLOptions } from 'vs/platform/url/common/url';
 import { ExtensionsInput, IExtensionEditorOptions } from 'vs/workbench/contrib/extensions/common/extensionsInput';
@@ -1012,6 +1012,25 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				this.autoUpdateBuiltinExtensions();
 			}
 		}
+
+		this.registerAutoRestartListener();
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AutoRestartConfigurationKey)) {
+				this.registerAutoRestartListener();
+			}
+		}));
+	}
+
+	private readonly autoRestartListenerDisposable = this._register(new MutableDisposable());
+	private registerAutoRestartListener(): void {
+		this.autoRestartListenerDisposable.value = undefined;
+		if (this.configurationService.getValue(AutoRestartConfigurationKey) === true) {
+			this.autoRestartListenerDisposable.value = this.hostService.onDidChangeFocus(focus => {
+				if (!focus && this.configurationService.getValue(AutoRestartConfigurationKey) === true) {
+					this.updateRunningExtensions(true);
+				}
+			});
+		}
 	}
 
 	private reportInstalledExtensionsTelemetry() {
@@ -1263,7 +1282,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return undefined;
 	}
 
-	async updateRunningExtensions(): Promise<void> {
+	async updateRunningExtensions(auto: boolean = false): Promise<void> {
 		const toAdd: ILocalExtension[] = [];
 		const toRemove: string[] = [];
 
@@ -1304,8 +1323,19 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 
 		if (toAdd.length || toRemove.length) {
-			if (await this.extensionService.stopExtensionHosts(nls.localize('restart', "Enable or Disable extensions"))) {
+			if (await this.extensionService.stopExtensionHosts(nls.localize('restart', "Enable or Disable extensions"), auto)) {
 				await this.extensionService.startExtensionHosts({ toAdd, toRemove });
+				type ExtensionsAutoRestartClassification = {
+					owner: 'sandy081';
+					comment: 'Report when extensions are auto restarted';
+					count: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of extensions auto restarted' };
+					auto: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the restart was triggered automatically' };
+				};
+				type ExtensionsAutoRestartEvent = {
+					count: number;
+					auto: boolean;
+				};
+				this.telemetryService.publicLog2<ExtensionsAutoRestartEvent, ExtensionsAutoRestartClassification>('extensions:autorestart', { count: toAdd.length + toRemove.length, auto });
 			}
 		}
 	}
@@ -1618,6 +1648,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 						operation: InstallOperation.Update,
 						installPreReleaseVersion: extension.local?.isPreReleaseVersion,
 						profileLocation: this.userDataProfileService.currentProfile.extensionsResource,
+						isApplicationScoped: extension.local?.isApplicationScoped,
 					}
 				});
 			}

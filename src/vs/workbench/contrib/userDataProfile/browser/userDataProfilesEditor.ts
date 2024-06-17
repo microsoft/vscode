@@ -460,6 +460,7 @@ class ProfileWidget extends Disposable {
 	private copyFromOptions: (ISelectOptionItem & { id?: string; source?: IUserDataProfile | URI })[] = [];
 
 	private readonly contentsTreeHeader: HTMLElement;
+	private readonly inheritLabelElement: HTMLElement;
 	private readonly resourcesTree: WorkbenchAsyncDataTree<AbstractUserDataProfileElement, ProfileResourceTreeElement>;
 
 	private _templates: IProfileTemplateInfo[] = [];
@@ -556,7 +557,7 @@ class ProfileWidget extends Disposable {
 		this.copyFromSelectBox.render(append(this.copyFromContainer, $('.profile-select-container')));
 
 		this.useAsDefaultProfileContainer = append(body, $('.profile-use-as-default-container'));
-		const useAsDefaultProfileTitle = localize('enable for new windows', "Use this profile for new windows");
+		const useAsDefaultProfileTitle = localize('enable for new windows', "Use this profile as default for new windows");
 		this.useAsDefaultProfileCheckbox = this._register(new Checkbox(useAsDefaultProfileTitle, false, defaultCheckboxStyles));
 		append(this.useAsDefaultProfileContainer, this.useAsDefaultProfileCheckbox.domNode);
 		const useAsDefaultProfileLabel = append(this.useAsDefaultProfileContainer, $('.profile-use-as-default-label', undefined, useAsDefaultProfileTitle));
@@ -572,9 +573,11 @@ class ProfileWidget extends Disposable {
 		}));
 
 		this.contentsTreeHeader = append(body, $('.profile-content-tree-header'));
+		this.inheritLabelElement = $('.inherit-label', undefined, localize('default profile', "Use Default Profile"));
 		append(this.contentsTreeHeader,
 			$(''),
-			$('.inherit-label', undefined, localize('default profile', "Use Default Profile")),
+			$(''),
+			this.inheritLabelElement,
 			$('.actions-label', undefined, localize('actions', "Actions")),
 		);
 		const delegate = new ProfileResourceTreeElementDelegate();
@@ -703,6 +706,8 @@ class ProfileWidget extends Disposable {
 	}
 
 	render(profileElement: AbstractUserDataProfileElement): void {
+		this.resourcesTree.setInput(profileElement);
+
 		const disposables = new DisposableStore();
 		this._profileElement.value = { element: profileElement, dispose: () => disposables.dispose() };
 
@@ -713,7 +718,6 @@ class ProfileWidget extends Disposable {
 		this.profileTitle.classList.toggle('hide', !profile?.isDefault);
 		this.nameInput.element.classList.toggle('hide', !!profile?.isDefault);
 
-		this.resourcesTree.setInput(profileElement);
 		disposables.add(profileElement.onDidChange(e => {
 			if (e.flags || e.copyFrom || e.copyFlags || e.disabled) {
 				const viewState = this.resourcesTree.getViewState();
@@ -727,6 +731,23 @@ class ProfileWidget extends Disposable {
 		const [primaryTitleButtons, secondatyTitleButtons] = profileElement.titleButtons;
 		if (primaryTitleButtons?.length || secondatyTitleButtons?.length) {
 			this.buttonContainer.classList.remove('hide');
+
+			if (secondatyTitleButtons?.length) {
+				for (const action of secondatyTitleButtons) {
+					const button = disposables.add(new Button(this.buttonContainer, {
+						...defaultButtonStyles,
+						secondary: true
+					}));
+					button.label = action.label;
+					button.enabled = action.enabled;
+					disposables.add(button.onDidClick(() => this.editorProgressService.showWhile(action.run())));
+					disposables.add(action.onDidChange((e) => {
+						if (!isUndefined(e.enabled)) {
+							button.enabled = action.enabled;
+						}
+					}));
+				}
+			}
 
 			if (primaryTitleButtons?.length) {
 				for (const action of primaryTitleButtons) {
@@ -745,23 +766,6 @@ class ProfileWidget extends Disposable {
 						if (e.message) {
 							button.setTitle(profileElement.message ?? action.label);
 							button.element.classList.toggle('error', !!profileElement.message);
-						}
-					}));
-				}
-			}
-
-			if (secondatyTitleButtons?.length) {
-				for (const action of secondatyTitleButtons) {
-					const button = disposables.add(new Button(this.buttonContainer, {
-						...defaultButtonStyles,
-						secondary: true
-					}));
-					button.label = action.label;
-					button.enabled = action.enabled;
-					disposables.add(button.onDidClick(() => this.editorProgressService.showWhile(action.run())));
-					disposables.add(action.onDidChange((e) => {
-						if (!isUndefined(e.enabled)) {
-							button.enabled = action.enabled;
 						}
 					}));
 				}
@@ -794,7 +798,8 @@ class ProfileWidget extends Disposable {
 			this.iconElement.className = ThemeIcon.asClassName(ThemeIcon.fromId(DEFAULT_ICON.id));
 		}
 		if (profileElement instanceof NewProfileElement) {
-			this.contentsTreeHeader.classList.add('hide');
+			this.contentsTreeHeader.classList.add('new-profile');
+			this.inheritLabelElement.textContent = localize('options', "Options");
 			this.useAsDefaultProfileContainer.classList.add('hide');
 			this.copyFromContainer.classList.remove('hide');
 			this.copyFromOptions = this.getCopyFromOptions();
@@ -811,7 +816,8 @@ class ProfileWidget extends Disposable {
 				this.copyFromSelectBox.setEnabled(false);
 			}
 		} else if (profileElement instanceof UserDataProfileElement) {
-			this.contentsTreeHeader.classList.toggle('hide', profileElement.profile.isDefault);
+			this.contentsTreeHeader.classList.remove('new-profile');
+			this.inheritLabelElement.textContent = profileElement.profile.isDefault ? '' : localize('default profile', "Use Default Profile");
 			this.useAsDefaultProfileContainer.classList.remove('hide');
 			this.useAsDefaultProfileCheckbox.checked = profileElement.isNewWindowProfile;
 			this.copyFromContainer.classList.add('hide');

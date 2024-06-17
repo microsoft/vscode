@@ -128,7 +128,7 @@ export class EmptyTextEditorHintContribution implements IEditorContribution {
 		}
 
 		const hasEditorAgents = Boolean(this.chatAgentService.getDefaultAgent(ChatAgentLocation.Editor));
-		const shouldRenderDefaultHint = model?.uri.scheme === Schemas.untitled && languageId === PLAINTEXT_LANGUAGE_ID && hasEditorAgents;
+		const shouldRenderDefaultHint = model?.uri.scheme === Schemas.untitled && languageId === PLAINTEXT_LANGUAGE_ID;
 		return hasEditorAgents || shouldRenderDefaultHint;
 	}
 

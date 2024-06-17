@@ -111,13 +111,13 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 		};
 
 		templateData.elementDisposables.add(autorun(reader => {
-			const commands = repository.provider.statusBarCommandsObs.read(reader) ?? [];
+			const commands = repository.provider.statusBarCommands.read(reader) ?? [];
 			statusPrimaryActions = commands.map(c => new StatusBarAction(c, this.commandService));
 			updateToolbar();
 		}));
 
 		templateData.elementDisposables.add(autorun(reader => {
-			const count = repository.provider.countObs.read(reader) ?? getRepositoryResourceCount(repository.provider);
+			const count = repository.provider.count.read(reader) ?? getRepositoryResourceCount(repository.provider);
 			templateData.countContainer.setAttribute('data-count', String(count));
 			templateData.count.setCount(count);
 		}));

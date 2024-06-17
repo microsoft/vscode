@@ -825,7 +825,7 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			this.newProfileElement = disposables.add(this.instantiationService.createInstance(NewProfileElement,
 				copyFrom ? '' : localize('untitled', "Untitled"),
 				copyFrom,
-				[[createAction], [previewProfileAction, cancelAction]],
+				[[createAction], [cancelAction, previewProfileAction]],
 				[[], []],
 				[[cancelAction], []],
 			));

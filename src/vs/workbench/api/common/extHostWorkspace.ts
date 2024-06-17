@@ -132,7 +132,7 @@ class ExtHostWorkspaceImpl extends Workspace {
 
 	constructor(id: string, private _name: string, folders: vscode.WorkspaceFolder[], transient: boolean, configuration: URI | null, private _isUntitled: boolean, ignorePathCasing: (key: URI) => boolean) {
 		super(id, folders.map(f => new WorkspaceFolder(f)), transient, configuration, ignorePathCasing);
-		this._structure = TernarySearchTree.forUris<vscode.WorkspaceFolder>(ignorePathCasing);
+		this._structure = TernarySearchTree.forUris<vscode.WorkspaceFolder>(ignorePathCasing, () => true);
 
 		// setup the workspace folder data structure
 		folders.forEach(folder => {
