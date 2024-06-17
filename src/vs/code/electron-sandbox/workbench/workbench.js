@@ -14,10 +14,10 @@
 	// Add a perf entry right from the top
 	performance.mark('code/didStartRenderer');
 
-	// Load workbench main JS, CSS and NLS all in parallel. This is an
+	// Load workbench main JS and CSS all in parallel. This is an
 	// optimization to prevent a waterfall of loading to happen, because
 	// we know for a fact that workbench.desktop.main will depend on
-	// the related CSS and NLS counterparts.
+	// the related CSS counterpart.
 	bootstrapWindow.load([
 		'vs/workbench/workbench.desktop.main',
 		'vs/css!vs/workbench/workbench.desktop.main'

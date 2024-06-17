@@ -15,7 +15,10 @@ declare global {
 	 * @deprecated You MUST use `IProductService` whenever possible.
 	 */
 	var _VSCODE_PACKAGE_JSON: Record<string, any>;
-
+	/**
+	 * All NLS messages produced by `localize` and `localize2` calls
+	 * under `src/vs`.
+	 */
 	var _VSCODE_NLS: string[];
 }
 

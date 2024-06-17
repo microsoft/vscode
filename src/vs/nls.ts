@@ -160,15 +160,25 @@ export function localize(key: string, message: string, ...args: (string | number
 /**
  * @skipMangle
  */
-export function localize(data: ILocalizeInfo | string | number, message: string, ...args: (string | number | boolean | undefined | null)[]): string {
+export function localize(data: ILocalizeInfo | string /* | number when built */, message: string, ...args: (string | number | boolean | undefined | null)[]): string {
 	if (typeof data === 'number') {
-		message = globalThis._VSCODE_NLS[data];
-		if (typeof message !== 'string') {
-			console.warn(`Unable to load message with index: ${data}`);
-			message = `Unable to load message with index: ${data}`;
-		}
+		return _format(lookupMessage(data), args);
 	}
 	return _format(message, args);
+}
+
+/**
+ * Only used when built: Looks up the message in the global NLS table.
+ * This table is being made available as a global through bootstrapping
+ * depending on the target context.
+ */
+function lookupMessage(index: number): string {
+	let message = globalThis._VSCODE_NLS?.[index];
+	if (typeof message !== 'string') {
+		message = `!!! NLS MISSING: ${index} !!!`;
+		console.error(message);
+	}
+	return message;
 }
 
 /**
@@ -204,15 +214,8 @@ export function localize2(key: string, message: string, ...args: (string | numbe
 /**
  * @skipMangle
  */
-export function localize2(data: ILocalizeInfo | string | number, message: string, ...args: (string | number | boolean | undefined | null)[]): ILocalizedString {
-	if (typeof data === 'number') {
-		message = globalThis._VSCODE_NLS[data];
-		if (typeof message !== 'string') {
-			console.warn(`Unable to load message with index: ${data}`);
-			message = `Unable to load message with index: ${data}`;
-		}
-	}
-	const original = _format(message, args);
+export function localize2(data: ILocalizeInfo | string /* | number when built */, message: string, ...args: (string | number | boolean | undefined | null)[]): ILocalizedString {
+	const original = typeof data === 'number' ? _format(lookupMessage(data), args) : _format(message, args);
 	return {
 		value: original,
 		original
