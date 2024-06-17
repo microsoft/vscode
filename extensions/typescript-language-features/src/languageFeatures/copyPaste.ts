@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import { DocumentSelector } from '../configuration/documentSelector';
 import * as typeConverters from '../typeConverters';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
-import { conditionalRegistration, requireMinVersion, requireSomeCapability } from './util/dependentRegistration';
+import { conditionalRegistration, requireGlobalConfiguration, requireMinVersion, requireSomeCapability } from './util/dependentRegistration';
 import protocol from '../tsServer/protocol/protocol';
 import { API } from '../tsServer/api';
 import { LanguageDescription } from '../configuration/languageDescription';
@@ -38,6 +38,8 @@ class CopyMetadata {
 	}
 }
 
+const settingId = 'experimental.updateImportsOnPaste';
+
 class DocumentPasteProvider implements vscode.DocumentPasteEditProvider {
 
 	static readonly kind = vscode.DocumentDropOrPasteEditKind.Empty.append('text', 'jsts', 'pasteWithImports');
@@ -61,7 +63,7 @@ class DocumentPasteProvider implements vscode.DocumentPasteEditProvider {
 		token: vscode.CancellationToken,
 	): Promise<vscode.DocumentPasteEdit[] | undefined> {
 		const config = vscode.workspace.getConfiguration(this._modeId, document.uri);
-		if (!config.get('experimental.updateImportsOnPaste', false)) {
+		if (!config.get(settingId, false)) {
 			return;
 		}
 
@@ -131,6 +133,7 @@ export function register(selector: DocumentSelector, language: LanguageDescripti
 	return conditionalRegistration([
 		requireSomeCapability(client, ClientCapability.Semantic),
 		requireMinVersion(client, API.v560),
+		requireGlobalConfiguration(language.id, settingId),
 	], () => {
 		return vscode.languages.registerDocumentPasteEditProvider(selector.semantic, new DocumentPasteProvider(language.id, client), {
 			providedPasteEditKinds: [DocumentPasteProvider.kind],
