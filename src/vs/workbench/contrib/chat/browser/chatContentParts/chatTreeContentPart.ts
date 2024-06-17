@@ -21,7 +21,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { ChatTreeItem } from 'vs/workbench/contrib/chat/browser/chat';
 import { IDisposableReference, ResourcePool } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatCollections';
-import { IChatCommandButton, IChatResponseProgressFileTreeData } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatResponseProgressFileTreeData } from 'vs/workbench/contrib/chat/common/chatService';
 import { createFileIconThemableTreeContainerScope } from 'vs/workbench/contrib/files/browser/views/explorerView';
 import { IFilesConfiguration } from 'vs/workbench/contrib/files/common/files';
 
@@ -75,15 +75,6 @@ export class ChatTreeContentPart extends Disposable {
 
 	domFocus() {
 		this.tree.domFocus();
-	}
-
-	isDifferent(command: IChatCommandButton): boolean {
-		// This chat type can't be updated in the model
-		return false;
-	}
-
-	update(command: IChatCommandButton): void {
-		// This chat type can't be updated in the model
 	}
 }
 

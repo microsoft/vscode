@@ -9,7 +9,6 @@ import { Codicon } from 'vs/base/common/codicons';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
-import { IChatCommandButton } from 'vs/workbench/contrib/chat/common/chatService';
 
 const $ = dom.$;
 
@@ -44,14 +43,5 @@ export class ChatWarningContentPart extends Disposable {
 		const markdownContent = renderer.render(content);
 		this.element.appendChild(markdownContent.element);
 
-	}
-
-	isDifferent(command: IChatCommandButton): boolean {
-		// This chat type can't be updated in the model
-		return false;
-	}
-
-	update(command: IChatCommandButton): void {
-		// This chat type can't be updated in the model
 	}
 }

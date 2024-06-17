@@ -26,7 +26,7 @@ import { IChatRendererDelegate } from 'vs/workbench/contrib/chat/browser/chatLis
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
 import { CodeCompareBlockPart, ICodeCompareBlockData, ICodeCompareBlockDiffData } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { IChatTextEditGroup } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChatCommandButton, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 
 const $ = dom.$;
@@ -153,15 +153,6 @@ export class ChatTextEditContentPart extends Disposable {
 
 	layout(width: number): void {
 		this.ref?.object.layout(width);
-	}
-
-	isDifferent(command: IChatCommandButton): boolean {
-		// This chat type can't be updated in the model
-		return false;
-	}
-
-	update(command: IChatCommandButton): void {
-		// This chat type can't be updated in the model
 	}
 }
 

@@ -9,7 +9,7 @@ import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ChatTreeItem } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatConfirmationWidget } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatConfirmationWidget';
-import { IChatCommandButton, IChatConfirmation, IChatSendRequestOptions, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatConfirmation, IChatSendRequestOptions, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 
 export class ChatConfirmationContentPart extends Disposable {
@@ -48,14 +48,5 @@ export class ChatConfirmationContentPart extends Disposable {
 		}));
 
 		this.element = confirmationWidget.domNode;
-	}
-
-	isDifferent(command: IChatCommandButton): boolean {
-		// This chat type can't be updated in the model
-		return false;
-	}
-
-	update(command: IChatCommandButton): void {
-		// This chat type can't be updated in the model
 	}
 }

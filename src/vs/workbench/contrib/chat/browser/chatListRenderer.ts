@@ -25,12 +25,9 @@ import { clamp } from 'vs/base/common/numbers';
 import { autorun } from 'vs/base/common/observable';
 import { basename } from 'vs/base/common/path';
 import { basenameOrAuthority } from 'vs/base/common/resources';
-import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
-import { Range } from 'vs/editor/common/core/range';
-import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { localize } from 'vs/nls';
 import { IMenuEntryActionViewItemOptions, MenuEntryActionViewItem, createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
@@ -53,6 +50,7 @@ import { ChatAgentHover, getChatAgentHoverOptions } from 'vs/workbench/contrib/c
 import { IDisposableReference, ResourcePool } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatCollections';
 import { ChatCommandButtonContentPart } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatCommandContentPart';
 import { ChatConfirmationContentPart } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatConfirmationContentPart';
+import { ChatMarkdownContentPart, EditorPool } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatMarkdownContentPart';
 import { ChatProgressContentPart } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatProgressContentPart';
 import { ChatTextEditContentPart, DiffEditorPool } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatTextEditContentPart';
 import { ChatTreeContentPart, TreePool } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatTreeContentPart';
@@ -61,7 +59,7 @@ import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
 import { ChatMarkdownDecorationsRenderer } from 'vs/workbench/contrib/chat/browser/chatMarkdownDecorationsRenderer';
 import { ChatMarkdownRenderer } from 'vs/workbench/contrib/chat/browser/chatMarkdownRenderer';
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
-import { ChatCodeBlockContentProvider, CodeBlockPart, ICodeBlockData, localFileLanguageId, parseLocalFileData } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
+import { ChatCodeBlockContentProvider } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { ChatAgentLocation, IChatAgentMetadata } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_DETECTED_AGENT_COMMAND, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatProgressRenderableResponseContent, IChatTextEditGroup } from 'vs/workbench/contrib/chat/common/chatModel';
@@ -71,7 +69,7 @@ import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVari
 import { IChatProgressMessageRenderData, IChatRenderData, IChatResponseMarkdownRenderData, IChatResponseViewModel, IChatTaskRenderData, IChatWelcomeMessageViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IWordCountResult, getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { createFileIconThemableTreeContainerScope } from 'vs/workbench/contrib/files/browser/views/explorerView';
-import { IMarkdownVulnerability, annotateSpecialMarkdownContent } from '../common/annotations';
+import { annotateSpecialMarkdownContent } from '../common/annotations';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection';
 import { IChatListItemRendererOptions } from './chat';
 
@@ -87,6 +85,7 @@ interface IChatListItemTemplate {
 	readonly value: HTMLElement;
 	readonly referencesListContainer: HTMLElement;
 	readonly contextKeyService: IContextKeyService;
+	readonly instantiationService: IInstantiationService;
 	readonly templateDisposables: IDisposable;
 	readonly elementDisposables: DisposableStore;
 	readonly agentHover: ChatAgentHover;
@@ -155,7 +154,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IThemeService private readonly themeService: IThemeService,
 		@ICommandService private readonly commandService: ICommandService,
-		@ITextModelService private readonly textModelService: ITextModelService,
 		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super();
@@ -318,7 +316,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				this.hoverService.hideHover();
 			}
 		}));
-		const template: IChatListItemTemplate = { avatarContainer, username, detail, referencesListContainer, value, rowContainer, elementDisposables, titleToolbar, templateDisposables, contextKeyService, agentHover };
+		const template: IChatListItemTemplate = { avatarContainer, username, detail, referencesListContainer, value, rowContainer, elementDisposables, titleToolbar, templateDisposables, contextKeyService, instantiationService: scopedInstantiationService, agentHover };
 		return template;
 	}
 
@@ -395,7 +393,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		} else if (isRequestVM(element)) {
 			const markdown = 'message' in element.message ?
 				element.message.message :
-				this.markdownDecorationsRenderer.convertParsedRequestToMarkdown(element.message);
+				this.markdownDecorationsRenderer.convertParsedRequestToMarkdown(element.message); // TODO@roblourens can be a ChatMarkdownContentPart
 			this.basicRenderElement([{ content: new MarkdownString(markdown), kind: 'markdownContent' }], element, index, templateData);
 		} else {
 			this.renderWelcomeMessage(element, templateData);
@@ -930,98 +928,31 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private renderMarkdown(markdown: IMarkdownString, element: ChatTreeItem, templateData: IChatListItemTemplate, fillInIncompleteTokens = false, codeBlockStartIndex = 0): IChatMarkdownRenderResult {
-		const disposables = new DisposableStore();
+		const store = new DisposableStore();
+		// TODO@roblourens too many parameters
+		const markdownPart = store.add(this.instantiationService.createInstance(ChatMarkdownContentPart, markdown, element, this._editorPool, fillInIncompleteTokens, codeBlockStartIndex, this.renderer, this._currentLayoutWidth, this.codeBlockModelCollection, this.rendererOptions));
+		store.add(markdownPart.onDidChangeHeight(() => {
+			markdownPart.layout(this._currentLayoutWidth);
+			this.updateItemHeight(templateData);
+		}));
+		this.codeBlocksByResponseId.set(element.id, markdownPart.codeblocks);
+		store.add(toDisposable(() => this.codeBlocksByResponseId.delete(element.id)));
 
-		// We release editors in order so that it's more likely that the same editor will be assigned if this element is re-rendered right away, like it often is during progressive rendering
-		const orderedDisposablesList: IDisposable[] = [];
-		const codeblocks: IChatCodeBlockInfo[] = [];
-		let codeBlockIndex = codeBlockStartIndex;
-		const result = this.renderer.render(markdown, {
-			fillInIncompleteTokens,
-			codeBlockRendererSync: (languageId, text) => {
-				const index = codeBlockIndex++;
-				let textModel: Promise<IResolvedTextEditorModel>;
-				let range: Range | undefined;
-				let vulns: readonly IMarkdownVulnerability[] | undefined;
-				if (equalsIgnoreCase(languageId, localFileLanguageId)) {
-					try {
-						const parsedBody = parseLocalFileData(text);
-						range = parsedBody.range && Range.lift(parsedBody.range);
-						textModel = this.textModelService.createModelReference(parsedBody.uri).then(ref => ref.object);
-					} catch (e) {
-						return $('div');
-					}
-				} else {
-					if (!isRequestVM(element) && !isResponseVM(element)) {
-						console.error('Trying to render code block in welcome', element.id, index);
-						return $('div');
-					}
-
-					const sessionId = isResponseVM(element) || isRequestVM(element) ? element.sessionId : '';
-					const modelEntry = this.codeBlockModelCollection.getOrCreate(sessionId, element, index);
-					vulns = modelEntry.vulns;
-					textModel = modelEntry.model;
-				}
-
-				const hideToolbar = isResponseVM(element) && element.errorDetails?.responseIsFiltered;
-				const ref = this.renderCodeBlock({ languageId, textModel, codeBlockIndex: index, element, range, hideToolbar, parentContextKeyService: templateData.contextKeyService, vulns }, text);
-
-				// Attach this after updating text/layout of the editor, so it should only be fired when the size updates later (horizontal scrollbar, wrapping)
-				// not during a renderElement OR a progressive render (when we will be firing this event anyway at the end of the render)
-				disposables.add(ref.object.onDidChangeContentHeight(() => {
-					ref.object.layout(this._currentLayoutWidth);
-					this.updateItemHeight(templateData);
-				}));
-
-				if (isResponseVM(element)) {
-					const info: IChatCodeBlockInfo = {
-						codeBlockIndex: index,
-						element,
-						focus() {
-							ref.object.focus();
-						}
-					};
-					codeblocks.push(info);
-					if (ref.object.uri) {
-						const uri = ref.object.uri;
-						this.codeBlocksByEditorUri.set(uri, info);
-						disposables.add(toDisposable(() => this.codeBlocksByEditorUri.delete(uri)));
-					}
-				}
-				orderedDisposablesList.push(ref);
-				return ref.object.element;
-			},
-			asyncRenderCallback: () => this.updateItemHeight(templateData),
+		markdownPart.codeblocks.forEach(info => {
+			if (info.uri) {
+				const uri = info.uri;
+				this.codeBlocksByEditorUri.set(uri, info);
+				this._register(toDisposable(() => this.codeBlocksByEditorUri.delete(uri)));
+			}
 		});
 
-		if (isResponseVM(element)) {
-			this.codeBlocksByResponseId.set(element.id, codeblocks);
-			disposables.add(toDisposable(() => this.codeBlocksByResponseId.delete(element.id)));
-		}
-
-		disposables.add(this.markdownDecorationsRenderer.walkTreeAndAnnotateReferenceLinks(result.element));
-
-		orderedDisposablesList.reverse().forEach(d => disposables.add(d));
 		return {
-			codeBlockCount: codeBlockIndex - codeBlockStartIndex,
-			element: result.element,
+			codeBlockCount: markdownPart.codeBlockCount,
+			element: markdownPart.element,
 			dispose() {
-				result.dispose();
-				disposables.dispose();
+				store.dispose();
 			}
 		};
-	}
-
-	private renderCodeBlock(data: ICodeBlockData, text: string): IDisposableReference<CodeBlockPart> {
-		const ref = this._editorPool.get();
-		const editorInfo = ref.object;
-		if (isResponseVM(data.element)) {
-			this.codeBlockModelCollection.update(data.element.sessionId, data.element, data.codeBlockIndex, { text, languageId: data.languageId });
-		}
-
-		editorInfo.render(data, this._currentLayoutWidth, this.rendererOptions.editableCodeBlock);
-
-		return ref;
 	}
 
 	private getDataForProgressiveRender(element: IChatResponseViewModel, data: IMarkdownString, renderData: Pick<IChatResponseMarkdownRenderData, 'lastRenderTime' | 'renderedWordCount'>): IWordCountResult & { rate: number } | undefined {
@@ -1078,41 +1009,6 @@ export class ChatListDelegate implements IListVirtualDelegate<ChatTreeItem> {
 
 	hasDynamicHeight(element: ChatTreeItem): boolean {
 		return true;
-	}
-}
-
-class EditorPool extends Disposable {
-
-	private readonly _pool: ResourcePool<CodeBlockPart>;
-
-	public inUse(): Iterable<CodeBlockPart> {
-		return this._pool.inUse;
-	}
-
-	constructor(
-		options: ChatEditorOptions,
-		delegate: IChatRendererDelegate,
-		overflowWidgetsDomNode: HTMLElement | undefined,
-		@IInstantiationService instantiationService: IInstantiationService,
-	) {
-		super();
-		this._pool = this._register(new ResourcePool(() => {
-			return instantiationService.createInstance(CodeBlockPart, options, MenuId.ChatCodeBlock, delegate, overflowWidgetsDomNode);
-		}));
-	}
-
-	get(): IDisposableReference<CodeBlockPart> {
-		const codeBlock = this._pool.get();
-		let stale = false;
-		return {
-			object: codeBlock,
-			isStale: () => stale,
-			dispose: () => {
-				codeBlock.reset();
-				stale = true;
-				this._pool.release(codeBlock);
-			}
-		};
 	}
 }
 

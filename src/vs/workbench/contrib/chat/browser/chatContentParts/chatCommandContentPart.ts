@@ -37,13 +37,4 @@ export class ChatCommandButtonContentPart extends Disposable {
 		// TODO still need telemetry for command buttons
 		this._register(button.onDidClick(() => this.commandService.executeCommand(commandButton.command.id, ...(commandButton.command.arguments ?? []))));
 	}
-
-	isDifferent(command: IChatCommandButton): boolean {
-		// This chat type can't be updated in the model
-		return false;
-	}
-
-	update(command: IChatCommandButton): void {
-		// This chat type can't be updated in the model
-	}
 }
