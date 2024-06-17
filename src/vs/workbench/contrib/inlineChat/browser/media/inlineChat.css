@@ -164,7 +164,7 @@
 
 .monaco-workbench .inline-chat .status .actions > .monaco-button,
 .monaco-workbench .inline-chat .status .actions > .monaco-button-dropdown {
-	margin-right: 6px;
+	margin-right: 4px;
 }
 
 .monaco-workbench .inline-chat .status .actions > .monaco-button-dropdown > .monaco-dropdown-button {
@@ -182,7 +182,7 @@
 }
 
 .monaco-workbench .inline-chat .status .actions .monaco-text-button {
-	padding: 2px 4px;
+	padding: 0 2px;
 	white-space: nowrap;
 }
 

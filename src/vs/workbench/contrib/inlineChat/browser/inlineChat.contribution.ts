@@ -57,6 +57,7 @@ const cancelActionMenuItem: IMenuItem = {
 	command: {
 		id: CancelAction.ID,
 		title: localize('cancel', "Cancel Request"),
+		shortTitle: localize('cancelShort', "Cancel"),
 	},
 	when: ContextKeyExpr.and(
 		CTX_INLINE_CHAT_REQUEST_IN_PROGRESS,
