@@ -164,9 +164,14 @@ export class TerminalChatWidget extends Disposable {
 		} else {
 			this._setTerminalOffset(undefined);
 		}
-		if (terminalWrapperHeight - widgetHeight < 0) {
+		if (terminalWrapperHeight - widgetHeight < 0 && terminalWrapperHeight - top > 20) {
 			this._dimension = new Dimension(this._dimension!.width, terminalWrapperHeight - top - 20);
 			this._inlineChatWidget.layout(this._dimension!);
+		} else if (terminalWrapperHeight - widgetHeight < 0) {
+			const widgetHeight = terminalWrapperHeight - 30;
+			this._dimension = new Dimension(this._dimension!.width, widgetHeight);
+			this._inlineChatWidget.layout(this._dimension!);
+			this._setTerminalOffset(widgetHeight);
 		}
 	}
 
