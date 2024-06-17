@@ -29,7 +29,6 @@ registerActiveXtermAction({
 	category: AbstractInlineChatAction.category,
 	precondition: ContextKeyExpr.and(
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-		// TODO: This needs to change to check for a terminal location capable agent
 		TerminalChatContextKeys.hasChatAgent
 	),
 	run: (_xterm, _accessor, activeInstance, opts?: unknown) => {

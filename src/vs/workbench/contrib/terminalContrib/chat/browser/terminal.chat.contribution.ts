@@ -11,15 +11,14 @@ import { TerminalChatController } from 'vs/workbench/contrib/terminalContrib/cha
 
 registerTerminalContribution(TerminalChatController.ID, TerminalChatController, false);
 
-registerWorkbenchContribution2(TerminalChatEnabler.Id, TerminalChatEnabler, WorkbenchPhase.AfterRestored);
-
-
 // #endregion
 
 // #region Contributions
 
 AccessibleViewRegistry.register(new TerminalInlineChatAccessibleView());
 AccessibleViewRegistry.register(new TerminalChatAccessibilityHelp());
+
+registerWorkbenchContribution2(TerminalChatEnabler.Id, TerminalChatEnabler, WorkbenchPhase.AfterRestored);
 
 // #endregion
 
