@@ -18,7 +18,7 @@ import {
 	IExtensionsControlManifest, IExtensionInfo, IExtensionQueryOptions, IDeprecationInfo, isTargetPlatformCompatible, InstallExtensionInfo, EXTENSION_IDENTIFIER_REGEX,
 	InstallOptions, IProductVersion
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, DefaultIconPath, IResourceExtension, extensionsConfigurationNodeBase } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, DefaultIconPath, IResourceExtension } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, groupByExtension, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -58,8 +58,6 @@ import { isEngineValid } from 'vs/platform/extensions/common/extensionValidator'
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ShowCurrentReleaseNotesActionId } from 'vs/workbench/contrib/update/common/update';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -951,23 +949,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}));
 
 		urlService.registerHandler(this);
-		this.registerConfigurations();
 
 		this.whenInitialized = this.initialize();
-	}
-
-	private registerConfigurations(): void {
-		Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
-			.registerConfiguration({
-				...extensionsConfigurationNodeBase,
-				properties: {
-					[AutoRestartConfigurationKey]: {
-						type: 'boolean',
-						description: nls.localize('autoRestart', "If activated, extensions will automatically restart following an update if the window is not in focus."),
-						default: this.productService.quality !== 'stable',
-					}
-				}
-			});
 	}
 
 	private async initialize(): Promise<void> {
