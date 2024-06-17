@@ -77,26 +77,28 @@ export function nls(): NodeJS.ReadWriteStream {
 		base = f.base;
 		this.emit('data', _nls.patchFile(f, typescript));
 	}, function () {
-		this.emit('data', new File({
-			contents: Buffer.from(JSON.stringify({
-				keys: _nls.moduleToNLSMessages,
-				messages: _nls.moduleToNLSKeys,
-			}, null, '\t')),
-			base,
-			path: base + '/nls.metadata.json'
-		}));
-
-		this.emit('data', new File({
-			contents: Buffer.from(JSON.stringify(_nls.allNLSMessages)),
-			base,
-			path: base + '/nls.messages.json'
-		}));
-
-		this.emit('data', new File({
-			contents: Buffer.from(JSON.stringify(_nls.allNLSModulesAndKeys)),
-			base,
-			path: base + '/nls.keys.json'
-		}));
+		for (const file of [
+			new File({
+				contents: Buffer.from(JSON.stringify({
+					keys: _nls.moduleToNLSMessages,
+					messages: _nls.moduleToNLSKeys,
+				}, null, '\t')),
+				base,
+				path: `${base}/nls.metadata.json`
+			}),
+			new File({
+				contents: Buffer.from(JSON.stringify(_nls.allNLSMessages)),
+				base,
+				path: `${base}/nls.messages.json`
+			}),
+			new File({
+				contents: Buffer.from(JSON.stringify(_nls.allNLSModulesAndKeys)),
+				base,
+				path: `${base}/nls.keys.json`
+			})
+		]) {
+			this.emit('data', file);
+		}
 
 		this.emit('end');
 	}));
