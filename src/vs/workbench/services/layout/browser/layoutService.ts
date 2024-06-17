@@ -318,7 +318,7 @@ export function shouldShowCustomTitleBar(configurationService: IConfigurationSer
 	}
 
 	if (zenModeActive) {
-		return false;
+		return !configurationService.getValue<boolean>(ZenModeSettings.FULLSCREEN);
 	}
 
 	const inFullscreen = isFullscreen(window);

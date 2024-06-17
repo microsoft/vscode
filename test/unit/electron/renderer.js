@@ -215,6 +215,22 @@ async function loadTests(opts) {
 	// 		}
 	// 	};
 	// }
+	// const _allowedSuitesWithOutput = new Set([
+	// 	'InteractiveChatController'
+	// ]);
+
+	// let _testsWithUnexpectedOutput = false;
+
+	// for (const consoleFn of [console.log, console.error, console.info, console.warn, console.trace, console.debug]) {
+	// 	console[consoleFn.name] = function (msg) {
+	// 		if (!currentTest) {
+	// 			consoleFn.apply(console, arguments);
+	// 		} else if (!_allowedTestOutput.some(a => a.test(msg)) && !_allowedTestsWithOutput.has(currentTest.title) && !_allowedSuitesWithOutput.has(currentTest.parent?.title)) {
+	// 			_testsWithUnexpectedOutput = true;
+	// 			consoleFn.apply(console, arguments);
+	// 		}
+	// 	};
+	// }
 
 	//#endregion
 

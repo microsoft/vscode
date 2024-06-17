@@ -557,7 +557,7 @@ class ProfileWidget extends Disposable {
 		this.copyFromSelectBox.render(append(this.copyFromContainer, $('.profile-select-container')));
 
 		this.useAsDefaultProfileContainer = append(body, $('.profile-use-as-default-container'));
-		const useAsDefaultProfileTitle = localize('enable for new windows', "Use this profile for new windows");
+		const useAsDefaultProfileTitle = localize('enable for new windows', "Use this profile as default for new windows");
 		this.useAsDefaultProfileCheckbox = this._register(new Checkbox(useAsDefaultProfileTitle, false, defaultCheckboxStyles));
 		append(this.useAsDefaultProfileContainer, this.useAsDefaultProfileCheckbox.domNode);
 		const useAsDefaultProfileLabel = append(this.useAsDefaultProfileContainer, $('.profile-use-as-default-label', undefined, useAsDefaultProfileTitle));
