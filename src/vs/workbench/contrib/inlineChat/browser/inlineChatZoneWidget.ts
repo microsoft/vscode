@@ -9,7 +9,7 @@ import { assertType } from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorLayoutInfo, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
+import { Range } from 'vs/editor/common/core/range';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -75,13 +75,23 @@ export class InlineChatZoneWidget extends ZoneWidget {
 				}
 			}
 		});
+		this._disposables.add(this.widget);
+
+		let scrollState: StableEditorBottomScrollState | undefined;
+		this._disposables.add(this.widget.chatWidget.onWillMaybeChangeHeight(() => {
+			if (this.position) {
+				scrollState = StableEditorBottomScrollState.capture(this.editor);
+			}
+		}));
 		this._disposables.add(this.widget.onDidChangeHeight(() => {
 			if (this.position) {
 				// only relayout when visible
+				scrollState ??= StableEditorBottomScrollState.capture(this.editor);
 				this._relayout(this._computeHeight().linesValue);
+				scrollState.restore(this.editor);
 			}
 		}));
-		this._disposables.add(this.widget);
+
 		this.create();
 
 		this._disposables.add(addDisposableListener(this.domNode, 'click', e => {
@@ -172,18 +182,14 @@ export class InlineChatZoneWidget extends ZoneWidget {
 	}
 
 	override updatePositionAndHeight(position: Position): void {
+		const scrollState = StableEditorBottomScrollState.capture(this.editor);
 		super.updatePositionAndHeight(position, this._computeHeight().linesValue);
 		this._setWidgetMargins(position);
+		scrollState.restore(this.editor);
 	}
 
 	protected override _getWidth(info: EditorLayoutInfo): number {
 		return info.width - info.minimap.minimapWidth;
-	}
-
-	updateBackgroundColor(newPosition: Position, wholeRange: IRange) {
-		assertType(this.container);
-		const widgetLineNumber = newPosition.lineNumber;
-		this.container.classList.toggle('inside-selection', widgetLineNumber > wholeRange.startLineNumber && widgetLineNumber < wholeRange.endLineNumber);
 	}
 
 	private _calculateIndentationWidth(position: Position): number {
@@ -224,11 +230,12 @@ export class InlineChatZoneWidget extends ZoneWidget {
 	}
 
 	override hide(): void {
-		this.container!.classList.remove('inside-selection');
+		const scrollState = StableEditorBottomScrollState.capture(this.editor);
 		this._ctxCursorPosition.reset();
 		this.widget.reset();
 		this.widget.chatWidget.setVisible(false);
 		super.hide();
 		aria.status(localize('inlineChatClosed', 'Closed inline chat widget'));
+		scrollState.restore(this.editor);
 	}
 }
