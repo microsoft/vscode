@@ -75,13 +75,23 @@ export class InlineChatZoneWidget extends ZoneWidget {
 				}
 			}
 		});
+		this._disposables.add(this.widget);
+
+		let scrollState: StableEditorBottomScrollState | undefined;
+		this._disposables.add(this.widget.chatWidget.onWillMaybeChangeHeight(() => {
+			if (this.position) {
+				scrollState = StableEditorBottomScrollState.capture(this.editor);
+			}
+		}));
 		this._disposables.add(this.widget.onDidChangeHeight(() => {
 			if (this.position) {
 				// only relayout when visible
+				scrollState ??= StableEditorBottomScrollState.capture(this.editor);
 				this._relayout(this._computeHeight().linesValue);
+				scrollState.restore(this.editor);
 			}
 		}));
-		this._disposables.add(this.widget);
+
 		this.create();
 
 		this._disposables.add(addDisposableListener(this.domNode, 'click', e => {
@@ -172,8 +182,10 @@ export class InlineChatZoneWidget extends ZoneWidget {
 	}
 
 	override updatePositionAndHeight(position: Position): void {
+		const scrollState = StableEditorBottomScrollState.capture(this.editor);
 		super.updatePositionAndHeight(position, this._computeHeight().linesValue);
 		this._setWidgetMargins(position);
+		scrollState.restore(this.editor);
 	}
 
 	protected override _getWidth(info: EditorLayoutInfo): number {
@@ -218,10 +230,12 @@ export class InlineChatZoneWidget extends ZoneWidget {
 	}
 
 	override hide(): void {
+		const scrollState = StableEditorBottomScrollState.capture(this.editor);
 		this._ctxCursorPosition.reset();
 		this.widget.reset();
 		this.widget.chatWidget.setVisible(false);
 		super.hide();
 		aria.status(localize('inlineChatClosed', 'Closed inline chat widget'));
+		scrollState.restore(this.editor);
 	}
 }
