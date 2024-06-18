@@ -14,34 +14,23 @@ import { WordCharacterClass, getMapForWordSeparators } from 'vs/editor/common/co
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
-import { ICommand, ICursorStateComputerData } from 'vs/editor/common/editorCommon';
+import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { EnterAction, IndentAction, StandardAutoClosingPairConditional } from 'vs/editor/common/languages/languageConfiguration';
 import { getIndentationAtPosition } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { IElectricAction } from 'vs/editor/common/languages/supports/electricCharacter';
 import { EditorAutoClosingStrategy, EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions';
 import { createScopedLineTokens } from 'vs/editor/common/languages/supports';
-import { getIndentActionForType, getIndentForEnter, getInheritIndentForLine } from 'vs/editor/common/languages/autoIndent';
+import { getIndentActionForType, getIndentForEnter, getInheritIndentForLine, IIndentConverter } from 'vs/editor/common/languages/autoIndent';
 import { getEnterAction } from 'vs/editor/common/languages/enterAction';
 
 export class AutoIndentOperation {
 
 	public static getEdits(config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string, isDoingComposition: boolean): EditOperationResult | undefined {
 		if (!isDoingComposition && this._isAutoIndentType(config, model, selections)) {
-			const commands: Array<ICommand | null> = [];
-			let autoIndentFails = false;
-			for (let i = 0, len = selections.length; i < len; i++) {
-				commands[i] = this._runAutoIndentType(config, model, selections[i], ch);
-				if (!commands[i]) {
-					autoIndentFails = true;
-					break;
-				}
-			}
-			if (!autoIndentFails) {
-				return new EditOperationResult(EditOperationType.TypingOther, commands, {
-					shouldPushStackElementBefore: true,
-					shouldPushStackElementAfter: false,
-				});
+			const autoIndentationEdit = this._runAutoIndentType(config, model, selections, ch);
+			if (autoIndentationEdit) {
+				return autoIndentationEdit;
 			}
 		}
 		return;
@@ -59,39 +48,78 @@ export class AutoIndentOperation {
 		return true;
 	}
 
-	private static _runAutoIndentType(config: CursorConfiguration, model: ITextModel, range: Range, ch: string): ICommand | null {
-		const currentIndentation = getIndentationAtPosition(model, range.startLineNumber, range.startColumn);
-		const actualIndentation = getIndentActionForType(config.autoIndent, model, range, ch, {
+	private static _runAutoIndentType(config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string): EditOperationResult | undefined {
+		const correctedIndentationsForSelections = this._findCorrectedIndentationForSelections(config, model, selections, ch);
+		if (correctedIndentationsForSelections === undefined) {
+			return;
+		}
+		const autoClosingPairCounterpart = AutoClosingOpenCharTypeOperation.getAutoClosingPairClose(config, model, selections, ch, false);
+		if (autoClosingPairCounterpart) {
+			return this._getIndentationAndAutoClosingEdits(config, model, correctedIndentationsForSelections, ch, autoClosingPairCounterpart);
+		}
+		return this._getIndentationEdits(config, model, correctedIndentationsForSelections, ch);
+	}
+
+	private static _findCorrectedIndentationForSelections(config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string): { selection: Selection; indentation: string }[] | undefined {
+		const indentationForSelections: { selection: Selection; indentation: string }[] = [];
+		for (let i = 0, len = selections.length; i < len; i++) {
+			const selection = selections[i];
+			const indentation = this._findCorrectedIndentationForSelection(config, model, selection, ch);
+			if (indentation === undefined) {
+				return;
+			}
+			indentationForSelections.push({ selection, indentation });
+		}
+		return indentationForSelections;
+	}
+
+	private static _findCorrectedIndentationForSelection(config: CursorConfiguration, model: ITextModel, selection: Selection, ch: string): string | undefined {
+		const indentConverter: IIndentConverter = {
 			shiftIndent: (indentation) => {
 				return shiftIndent(config, indentation);
 			},
 			unshiftIndent: (indentation) => {
 				return unshiftIndent(config, indentation);
 			},
-		}, config.languageConfigurationService);
-
-		if (actualIndentation === null) {
-			return null;
+		};
+		const correctedIndetation = getIndentActionForType(config, model, selection, ch, indentConverter, config.languageConfigurationService);
+		if (correctedIndetation === null) {
+			return;
 		}
-
-		if (actualIndentation !== config.normalizeIndentation(currentIndentation)) {
-			const firstNonWhitespace = model.getLineFirstNonWhitespaceColumn(range.startLineNumber);
-			if (firstNonWhitespace === 0) {
-				return typeCommand(
-					new Range(range.startLineNumber, 1, range.endLineNumber, range.endColumn),
-					config.normalizeIndentation(actualIndentation) + ch,
-					false
-				);
-			} else {
-				return typeCommand(
-					new Range(range.startLineNumber, 1, range.endLineNumber, range.endColumn),
-					config.normalizeIndentation(actualIndentation) +
-					model.getLineContent(range.startLineNumber).substring(firstNonWhitespace - 1, range.startColumn - 1) + ch,
-					false
-				);
-			}
+		const currentIndentation = getIndentationAtPosition(model, selection.startLineNumber, selection.startColumn);
+		if (correctedIndetation === config.normalizeIndentation(currentIndentation)) {
+			return;
 		}
-		return null;
+		return correctedIndetation;
+	}
+
+	private static _getIndentationAndAutoClosingEdits(config: CursorConfiguration, model: ITextModel, indentationForSelections: { selection: Selection; indentation: string }[], ch: string, autoClosingPairCounterpart: string): EditOperationResult {
+		const commands: ICommand[] = indentationForSelections.map(editPerSelection => {
+			const selection = editPerSelection.selection;
+			const edit = this._getEditFromIndentation(config, model, editPerSelection.indentation, selection, ch, false);
+			return new TypeWithIndentationAndAutoClosingCommand(edit, selection, ch, autoClosingPairCounterpart);
+		});
+		const editOptions = { shouldPushStackElementBefore: true, shouldPushStackElementAfter: false };
+		return new EditOperationResult(EditOperationType.TypingOther, commands, editOptions);
+	}
+
+	private static _getIndentationEdits(config: CursorConfiguration, model: ITextModel, indentationForSelections: { selection: Selection; indentation: string }[], ch: string): EditOperationResult {
+		const edits = indentationForSelections.map(el => this._getEditFromIndentation(config, model, el.indentation, el.selection, ch, true));
+		const commands = edits.map((edit) => typeCommand(edit.range, edit.text, false));
+		const editOptions = { shouldPushStackElementBefore: true, shouldPushStackElementAfter: false };
+		return new EditOperationResult(EditOperationType.TypingOther, commands, editOptions);
+	}
+
+	private static _getEditFromIndentation(config: CursorConfiguration, model: ITextModel, indentation: string, selection: Selection, ch: string, includeChInEdit: boolean = true): { range: Range; text: string } {
+		const firstNonWhitespace = model.getLineFirstNonWhitespaceColumn(selection.startLineNumber);
+		const normalizedIndentation = config.normalizeIndentation(indentation);
+		const additionalCharacter = (includeChInEdit ? ch : '');
+		let text: string = normalizedIndentation + additionalCharacter;
+		if (firstNonWhitespace !== 0) {
+			text += model.getLineContent(selection.startLineNumber).substring(firstNonWhitespace - 1, selection.startColumn - 1);
+		}
+		const range = new Range(selection.startLineNumber, 1, selection.endLineNumber, selection.endColumn);
+		return { range, text };
 	}
 }
 
@@ -138,7 +166,7 @@ export class AutoClosingOpenCharTypeOperation {
 
 	public static getEdits(config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string, chIsAlreadyTyped: boolean, isDoingComposition: boolean): EditOperationResult | undefined {
 		if (!isDoingComposition) {
-			const autoClosingPairClose = this._getAutoClosingPairClose(config, model, selections, ch, chIsAlreadyTyped);
+			const autoClosingPairClose = this.getAutoClosingPairClose(config, model, selections, ch, chIsAlreadyTyped);
 			if (autoClosingPairClose !== null) {
 				return this._runAutoClosingOpenCharType(selections, ch, chIsAlreadyTyped, autoClosingPairClose);
 			}
@@ -158,7 +186,7 @@ export class AutoClosingOpenCharTypeOperation {
 		});
 	}
 
-	private static _getAutoClosingPairClose(config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string, chIsAlreadyTyped: boolean): string | null {
+	public static getAutoClosingPairClose(config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string, chIsAlreadyTyped: boolean): string | null {
 		for (const selection of selections) {
 			if (!selection.isEmpty()) {
 				return null;
@@ -843,27 +871,70 @@ export class TabOperation {
 	}
 }
 
-export class TypeWithAutoClosingCommand extends ReplaceCommandWithOffsetCursorState {
+export class BaseTypeWithAutoClosingCommand extends ReplaceCommandWithOffsetCursorState {
 
 	private readonly _openCharacter: string;
 	private readonly _closeCharacter: string;
-	public closeCharacterRange: Range | null;
-	public enclosingRange: Range | null;
+	public closeCharacterRange: Range | undefined;
+	public enclosingRange: Range | undefined;
 
-	constructor(selection: Selection, openCharacter: string, insertOpenCharacter: boolean, closeCharacter: string) {
-		super(selection, (insertOpenCharacter ? openCharacter : '') + closeCharacter, 0, -closeCharacter.length);
+	constructor(range: Range, text: string, lineNumberDeltaOffset: number, columnDeltaOffset: number, openCharacter: string, closeCharacter: string) {
+		super(range, text, lineNumberDeltaOffset, columnDeltaOffset);
 		this._openCharacter = openCharacter;
 		this._closeCharacter = closeCharacter;
-		this.closeCharacterRange = null;
-		this.enclosingRange = null;
+	}
+
+	protected _computeCursorStateWithRange(model: ITextModel, range: Range, helper: ICursorStateComputerData): Selection {
+		this.closeCharacterRange = new Range(range.startLineNumber, range.endColumn - this._closeCharacter.length, range.endLineNumber, range.endColumn);
+		this.enclosingRange = new Range(range.startLineNumber, range.endColumn - this._openCharacter.length - this._closeCharacter.length, range.endLineNumber, range.endColumn);
+		return super.computeCursorState(model, helper);
+	}
+}
+
+class TypeWithAutoClosingCommand extends BaseTypeWithAutoClosingCommand {
+
+	constructor(selection: Selection, openCharacter: string, insertOpenCharacter: boolean, closeCharacter: string) {
+		const text = (insertOpenCharacter ? openCharacter : '') + closeCharacter;
+		const lineNumberDeltaOffset = 0;
+		const columnDeltaOffset = -closeCharacter.length;
+		super(selection, text, lineNumberDeltaOffset, columnDeltaOffset, openCharacter, closeCharacter);
 	}
 
 	public override computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
 		const inverseEditOperations = helper.getInverseEditOperations();
 		const range = inverseEditOperations[0].range;
-		this.closeCharacterRange = new Range(range.startLineNumber, range.endColumn - this._closeCharacter.length, range.endLineNumber, range.endColumn);
-		this.enclosingRange = new Range(range.startLineNumber, range.endColumn - this._openCharacter.length - this._closeCharacter.length, range.endLineNumber, range.endColumn);
-		return super.computeCursorState(model, helper);
+		return this._computeCursorStateWithRange(model, range, helper);
+	}
+}
+
+class TypeWithIndentationAndAutoClosingCommand extends BaseTypeWithAutoClosingCommand {
+
+	private readonly _autoIndentationEdit: { range: Range; text: string };
+	private readonly _autoClosingEdit: { range: Range; text: string };
+
+	constructor(autoIndentationEdit: { range: Range; text: string }, selection: Selection, openCharacter: string, closeCharacter: string) {
+		const text = openCharacter + closeCharacter;
+		const lineNumberDeltaOffset = 0;
+		const columnDeltaOffset = openCharacter.length;
+		super(selection, text, lineNumberDeltaOffset, columnDeltaOffset, openCharacter, closeCharacter);
+		this._autoClosingEdit = { range: selection, text };
+		this._autoIndentationEdit = autoIndentationEdit;
+	}
+
+	public override getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
+		builder.addTrackedEditOperation(this._autoIndentationEdit.range, this._autoIndentationEdit.text);
+		builder.addTrackedEditOperation(this._autoClosingEdit.range, this._autoClosingEdit.text);
+	}
+
+	public override computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
+		const inverseEditOperations = helper.getInverseEditOperations();
+		if (inverseEditOperations.length !== 2) {
+			throw new Error('Not two inverse edit operations!');
+		}
+		const range1 = inverseEditOperations[0].range;
+		const range2 = inverseEditOperations[1].range;
+		const range = range1.plusRange(range2);
+		return this._computeCursorStateWithRange(model, range, helper);
 	}
 }
 
