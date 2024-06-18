@@ -30,6 +30,6 @@ declare module 'vscode' {
 	}
 
 	export interface ChatTool {
-		invoke(parameters: any, token: CancellationToken): ProviderResult<string>;
+		invoke(parameters: any, token: CancellationToken): Thenable<string>;
 	}
 }
