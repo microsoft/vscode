@@ -25,7 +25,6 @@ import { events as macos_bash_echo_simple } from 'vs/workbench/contrib/terminalC
 import { events as macos_bash_echo_multiline } from 'vs/workbench/contrib/terminalContrib/suggest/test/browser/recordings/macos_bash_echo_multiline';
 import { events as windows11_pwsh_getcontent_delete_ghost } from 'vs/workbench/contrib/terminalContrib/suggest/test/browser/recordings/windows11_pwsh_getcontent_delete_ghost';
 import { events as windows11_pwsh_getcontent_file } from 'vs/workbench/contrib/terminalContrib/suggest/test/browser/recordings/windows11_pwsh_getcontent_file';
-import { events as windows11_pwsh_getcontent_wrapped } from 'vs/workbench/contrib/terminalContrib/suggest/test/browser/recordings/windows11_pwsh_getcontent_wrapped';
 import { events as windows11_pwsh_input_ls_complete_ls } from 'vs/workbench/contrib/terminalContrib/suggest/test/browser/recordings/windows11_pwsh_input_ls_complete_ls';
 import { events as windows11_pwsh_namespace_completion } from 'vs/workbench/contrib/terminalContrib/suggest/test/browser/recordings/windows11_pwsh_namespace_completion';
 import { events as windows11_pwsh_type_before_prompt } from 'vs/workbench/contrib/terminalContrib/suggest/test/browser/recordings/windows11_pwsh_type_before_prompt';
@@ -37,7 +36,6 @@ const recordedTestCases: { name: string; events: RecordedSessionEvent[] }[] = [
 	{ name: 'macos_bash_echo_multiline', events: macos_bash_echo_multiline as any as RecordedSessionEvent[] },
 	{ name: 'windows11_pwsh_getcontent_delete_ghost', events: windows11_pwsh_getcontent_delete_ghost as any as RecordedSessionEvent[] },
 	{ name: 'windows11_pwsh_getcontent_file', events: windows11_pwsh_getcontent_file as any as RecordedSessionEvent[] },
-	{ name: 'windows11_pwsh_getcontent_wrapped', events: windows11_pwsh_getcontent_wrapped as any as RecordedSessionEvent[] },
 	{ name: 'windows11_pwsh_input_ls_complete_ls', events: windows11_pwsh_input_ls_complete_ls as any as RecordedSessionEvent[] },
 	{ name: 'windows11_pwsh_namespace_completion', events: windows11_pwsh_namespace_completion as any as RecordedSessionEvent[] },
 	{ name: 'windows11_pwsh_type_before_prompt', events: windows11_pwsh_type_before_prompt as any as RecordedSessionEvent[] },
