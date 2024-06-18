@@ -29,7 +29,7 @@ export class MainThreadChatTools extends Disposable implements MainThreadChatToo
 		return Array.from(this._chatToolsService.getTools());
 	}
 
-	$invokeTool(name: string, parameters: any, token: CancellationToken): Promise<void> {
+	$invokeTool(name: string, parameters: any, token: CancellationToken): Promise<string> {
 		return this._chatToolsService.invokeTool(name, parameters, token);
 	}
 

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtHostChatToolsShape, IMainContext, MainContext, MainThreadChatToolsShape } from 'vs/workbench/api/common/extHost.protocol';
@@ -29,7 +28,7 @@ export class ExtHostChatTools implements ExtHostChatToolsShape {
 		});
 	}
 
-	async invokeTool(name: string, parameters: any, token: CancellationToken): Promise<any> {
+	async invokeTool(name: string, parameters: any, token: CancellationToken): Promise<string> {
 		// Making the round trip here because not all tools were necessarily registered in this EH
 		return await this._proxy.$invokeTool(name, parameters, token);
 	}
@@ -48,16 +47,13 @@ export class ExtHostChatTools implements ExtHostChatToolsShape {
 		return Array.from(this._allTools.values());
 	}
 
-	async $invokeTool(name: string, parameters: any, token: CancellationToken): Promise<any> {
-		const item = this._registeredTools.get(name);
+	async $invokeTool(id: string, parameters: any, token: CancellationToken): Promise<string> {
+		const item = this._registeredTools.get(id);
 		if (!item) {
-			return;
+			throw new Error(`Unknown tool ${id}`);
 		}
-		try {
-			return await item.tool.invoke(parameters, token);
-		} catch (err) {
-			onUnexpectedExternalError(err);
-		}
+
+		return await item.tool.invoke(parameters, token);
 	}
 
 	registerChatTool(extension: IExtensionDescription, tool: vscode.ChatTool): IDisposable {

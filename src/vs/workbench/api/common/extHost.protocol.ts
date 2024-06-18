@@ -1297,14 +1297,14 @@ export interface MainThreadChatVariablesShape extends IDisposable {
 
 export interface MainThreadChatToolsShape extends IDisposable {
 	$getTools(): Promise<IChatToolData[]>;
-	$invokeTool(name: string, parameters: any, token: CancellationToken): Promise<any | undefined>;
+	$invokeTool(name: string, parameters: any, token: CancellationToken): Promise<string>;
 	$registerTool(data: IChatToolData): void;
 	$unregisterTool(name: string): void;
 }
 
 export interface MainThreadChatToolsShape extends IDisposable {
 	$getTools(): Promise<IChatToolData[]>;
-	$invokeTool(name: string, parameters: any, token: CancellationToken): Promise<any | undefined>;
+	$invokeTool(name: string, parameters: any, token: CancellationToken): Promise<string>;
 	$registerTool(data: IChatToolData): void;
 	$unregisterTool(name: string): void;
 }
@@ -1317,23 +1317,7 @@ export interface ExtHostChatVariablesShape {
 
 export interface ExtHostChatToolsShape {
 	$acceptToolDelta(delta: IChatToolDelta): Promise<void>;
-	$invokeTool(name: string, parameters: any, token: CancellationToken): Promise<any | undefined>;
-}
-
-export interface MainThreadInlineChatShape extends IDisposable {
-	$registerInteractiveEditorProvider(handle: number, label: string, debugName: string, supportsFeedback: boolean, supportsFollowups: boolean, supportsIssueReporting: boolean): Promise<void>;
-	$handleProgressChunk(requestId: string, chunk: Dto<IInlineChatProgressItem>): Promise<void>;
-	$unregisterInteractiveEditorProvider(handle: number): Promise<void>;
-}
-
-export type IInlineChatResponseDto = Dto<IInlineChatEditResponse | Omit<IInlineChatBulkEditResponse, 'edits'> & { edits: IWorkspaceEditDto }>;
-
-export interface ExtHostInlineChatShape {
-	$prepareSession(handle: number, uri: UriComponents, range: ISelection, token: CancellationToken): Promise<IInlineChatSession | undefined>;
-	$provideResponse(handle: number, session: IInlineChatSession, request: IInlineChatRequest, token: CancellationToken): Promise<IInlineChatResponseDto | undefined>;
-	$provideFollowups(handle: number, sessionId: number, responseId: number, token: CancellationToken): Promise<IInlineChatFollowup[] | undefined>;
-	$handleFeedback(handle: number, sessionId: number, responseId: number, kind: InlineChatResponseFeedbackKind): void;
-	$releaseSession(handle: number, sessionId: number): void;
+	$invokeTool(id: string, parameters: any, token: CancellationToken): Promise<string>;
 }
 
 export interface MainThreadUrlsShape extends IDisposable {

@@ -16,7 +16,7 @@ export interface IChatToolData {
 }
 
 export interface IChatTool extends IChatToolData {
-	invoke(parameters: any, token: CancellationToken): Promise<any | undefined>;
+	invoke(parameters: any, token: CancellationToken): Promise<string>;
 }
 
 export const IChatToolsService = createDecorator<IChatToolsService>('IChatToolsService');
@@ -31,7 +31,7 @@ export interface IChatToolsService {
 	onDidChangeTools: Event<IChatToolDelta>;
 	registerTool(tool: IChatTool): IDisposable;
 	getTools(): Iterable<Readonly<IChatToolData>>;
-	invokeTool(name: string, parameters: any, token: CancellationToken): Promise<any>;
+	invokeTool(name: string, parameters: any, token: CancellationToken): Promise<string>;
 }
 
 export class ChatToolsService implements IChatToolsService {
@@ -60,7 +60,7 @@ export class ChatToolsService implements IChatToolsService {
 		return this._tools.values();
 	}
 
-	invokeTool(name: string, parameters: any, token: CancellationToken): Promise<any> {
+	invokeTool(name: string, parameters: any, token: CancellationToken): Promise<string> {
 		const tool = this._tools.get(name);
 		if (!tool) {
 			throw new Error(`Tool ${name} not found`);

@@ -10,7 +10,7 @@ declare module 'vscode' {
 		 * TODO@API Most details are statically registered
 		 * TODO@API canBeInvokedExplicitlyByUser: whether the tool shows up in the chat input suggest widget
 		 */
-		export function registerTool(tool: ChatTool, options: { canBeInvokedExplicitlyByUser: boolean }): Disposable;
+		export function registerTool(tool: ChatTool, options?: { canBeInvokedExplicitlyByUser?: boolean }): Disposable;
 
 		export const tools: ReadonlyArray<ChatToolDescription>;
 
@@ -21,7 +21,7 @@ declare module 'vscode' {
 	}
 
 	export interface ChatToolDescription {
-		id: string;
+		id: string; // id here vs name in lmTools
 		displayName: string;
 		description: string;
 		parametersSchema: JSONSchema; // From lmTools
@@ -33,8 +33,12 @@ declare module 'vscode' {
 		invoke(parameters: any, token: CancellationToken): ProviderResult<any>;
 	}
 
-	// TODO@API name? "invoker"??
+	// TODO@API name? "invoker"?
 	export interface ChatToolAccessor {
-		invokeTool(toolId: string, parameters: Object, token: CancellationToken): Thenable<any>;
+		invokeTool(toolId: string, parameters: Object, token: CancellationToken): Thenable<string>;
+	}
+
+	export interface ChatContext {
+		toolAccessor: ChatToolAccessor;
 	}
 }
