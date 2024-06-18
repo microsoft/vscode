@@ -125,7 +125,7 @@
 }
 
 .profiles-editor .contents-container .profile-title-container .monaco-inputbox {
-	max-width: 340px;
+	margin-right: 10px;
 	flex: 1;
 }
 
