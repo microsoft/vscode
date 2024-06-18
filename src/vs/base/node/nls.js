@@ -77,6 +77,13 @@
 		//#endregion
 
 		/**
+		 * The `languagepacks.json` file is a JSON file that contains all metadata
+		 * about installed language extensions per language. Specifically, for
+		 * core (`vscode`) and all extensions it supports, it points to the related
+		 * translation files.
+		 *
+		 * The file is updated whenever a new language pack is installed or removed.
+		 *
 		 * @param {string} userDataPath
 		 * @returns {Promise<ILanguagePacks | undefined>}
 		 */
