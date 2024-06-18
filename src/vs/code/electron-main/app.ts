@@ -542,7 +542,7 @@ export class CodeApplication extends Disposable {
 			}
 		}
 
-		if (typeof path !== 'string' || !isAbsolute(path) || !isEqualOrParent(path, this.environmentMainService.appRoot, !isLinux)) {
+		if (typeof path !== 'string' || !isAbsolute(path) || (!isEqualOrParent(path, this.environmentMainService.appRoot, !isLinux) && !isEqualOrParent(path, this.environmentMainService.cachedLanguagesPath, !isLinux))) {
 			return undefined;
 		}
 

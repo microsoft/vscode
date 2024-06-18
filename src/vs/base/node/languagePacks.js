@@ -164,7 +164,6 @@
 						const packId = packConfig.hash + '.' + locale;
 						const cacheRoot = path.join(userDataPath, 'clp', packId);
 						const coreLocation = path.join(cacheRoot, commit);
-						const nlsMetaDataFile = path.join(coreLocation, 'nls.metadata.json');
 						const translationsConfigFile = path.join(cacheRoot, 'tcf.json');
 						const corruptedFile = path.join(cacheRoot, 'corrupted.info');
 						const result = {
@@ -198,66 +197,34 @@
 									}).then(values => {
 										const metadata = JSON.parse(values[0]);
 										const packData = JSON.parse(values[1]).contents;
-										const target = Object.create(null);
-										for (const module of Object.keys(packData)) {
-											const keys = metadata.keys[module];
-											if (!keys) {
-												console.error('No keys found for module', module);
-												continue;
-											}
-											const defaultMessages = metadata.messages[module];
-											const translations = packData[module];
-											let targetStrings;
-											if (translations) {
-												targetStrings = [];
-												for (let i = 0; i < keys.length; i++) {
-													const elem = keys[i];
-													const key = typeof elem === 'string' ? elem : elem.key;
-													let translatedMessage = translations[key];
-													if (translatedMessage === undefined) {
-														translatedMessage = defaultMessages[i];
-													}
-													if (translatedMessage === undefined) {
-														translatedMessage = `TODO: Bug`;
-													}
-													targetStrings.push(translatedMessage);
-												}
-											} else {
-												targetStrings = defaultMessages;
-											}
-											target[module] = targetStrings;
-										}
-
-										// const bundles = Object.keys(metadata.bundles);
-										// for (const bundle of bundles) {
-										// 	const modules = metadata.bundles[bundle];
-										// 	const bundleTarget = Object.create(null);
-										// 	for (const module of modules) {
-										// 		const keys = metadata.keys[module];
-										// 		const defaultMessages = metadata.messages[module];
-										// 		const translations = packData[module];
-										// 		let targetStrings;
-										// 		if (translations) {
-										// 			targetStrings = [];
-										// 			for (let i = 0; i < keys.length; i++) {
-										// 				const elem = keys[i];
-										// 				const key = typeof elem === 'string' ? elem : elem.key;
-										// 				let translatedMessage = translations[key];
-										// 				if (translatedMessage === undefined) {
-										// 					translatedMessage = defaultMessages[i];
-										// 				}
-										// 				targetStrings.push(translatedMessage);
-										// 			}
-										// 		} else {
-										// 			targetStrings = defaultMessages;
-										// 		}
-										// 		target[module] = targetStrings;
-										// 		bundleTarget[module] = targetStrings;
-										// 	}
-										// 	writes.push(writeFile(path.join(coreLocation, bundle.replace(/\//g, '!') + '.nls.json'), JSON.stringify(bundleTarget)));
-										// }
+										const bundles = Object.keys(metadata.bundles);
 										const writes = [];
-										writes.push(writeFile(nlsMetaDataFile, JSON.stringify({ messages: target })));
+										for (const bundle of bundles) {
+											const modules = metadata.bundles[bundle];
+											const target = Object.create(null);
+											for (const module of modules) {
+												const keys = metadata.keys[module];
+												const defaultMessages = metadata.messages[module];
+												const translations = packData[module];
+												let targetStrings;
+												if (translations) {
+													targetStrings = [];
+													for (let i = 0; i < keys.length; i++) {
+														const elem = keys[i];
+														const key = typeof elem === 'string' ? elem : elem.key;
+														let translatedMessage = translations[key];
+														if (translatedMessage === undefined) {
+															translatedMessage = defaultMessages[i];
+														}
+														targetStrings.push(translatedMessage);
+													}
+												} else {
+													targetStrings = defaultMessages;
+												}
+												target[module] = targetStrings;
+											}
+											writes.push(writeFile(path.join(coreLocation, bundle.replace(/\//g, '!') + '.nls.json'), JSON.stringify(target)));
+										}
 										writes.push(writeFile(translationsConfigFile, JSON.stringify(packConfig.translations)));
 										return Promise.all(writes);
 									}).then(() => {
