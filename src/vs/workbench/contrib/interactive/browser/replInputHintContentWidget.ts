@@ -26,7 +26,6 @@ export class ReplInputHintContentWidget extends Disposable implements IContentWi
 	private static readonly ID = 'replInput.widget.emptyHint';
 
 	private domNode: HTMLElement | undefined;
-	private isVisible = false;
 	private ariaLabel: string = '';
 
 	constructor(
@@ -44,7 +43,7 @@ export class ReplInputHintContentWidget extends Disposable implements IContentWi
 		}));
 		const onDidFocusEditorText = Event.debounce(this.editor.onDidFocusEditorText, () => undefined, 500);
 		this._register(onDidFocusEditorText(() => {
-			if (this.editor.hasTextFocus() && this.isVisible && this.ariaLabel && configurationService.getValue(AccessibilityVerbositySettingId.ReplInputHint)) {
+			if (this.editor.hasTextFocus() && this.ariaLabel && configurationService.getValue(AccessibilityVerbositySettingId.ReplInputHint)) {
 				status(this.ariaLabel);
 			}
 		}));
@@ -98,7 +97,7 @@ export class ReplInputHintContentWidget extends Disposable implements IContentWi
 		hintElement.style.display = 'block';
 		hintElement.style.color = transparentForeground?.toString() || '';
 		hintElement.style.cursor = 'text';
-		hintElement.style.overflow = 'hidden';
+		hintElement.style.whiteSpace = 'nowrap';
 
 		const keybinding = this.getKeybinding();
 		const keybindingHintLabel = keybinding?.getLabel();
