@@ -9,7 +9,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { observableValue } from 'vs/base/common/observable';
 import { IDisposable, DisposableStore, combinedDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, IInputValidation, ISCMViewService, InputValidationType, ISCMActionButtonDescriptor } from 'vs/workbench/contrib/scm/common/scm';
-import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceSplices, SCMGroupFeatures, MainContext, SCMHistoryItemGroupDto } from '../common/extHost.protocol';
+import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceSplices, SCMGroupFeatures, MainContext, SCMHistoryItemGroupDto, SCMHistoryItemDto } from '../common/extHost.protocol';
 import { Command } from 'vs/editor/common/languages';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -41,6 +41,13 @@ function getIconFromIconDto(iconDto?: UriComponents | { light: UriComponents; da
 		const icon = iconDto as { light: UriComponents; dark: UriComponents };
 		return { light: URI.revive(icon.light), dark: URI.revive(icon.dark) };
 	}
+}
+
+function toISCMHistoryItem(historyItemDto: SCMHistoryItemDto): ISCMHistoryItem {
+	const icon = getIconFromIconDto(historyItemDto.icon);
+	const labels = historyItemDto.labels?.map(l => ({ title: l.title, icon: getIconFromIconDto(l.icon) }));
+
+	return { ...historyItemDto, icon, labels };
 }
 
 class SCMInputBoxContentProvider extends Disposable implements ITextModelContentProvider {
@@ -177,17 +184,17 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 
 	async provideHistoryItems(historyItemGroupId: string, options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined> {
 		const historyItems = await this.proxy.$provideHistoryItems(this.handle, historyItemGroupId, options, CancellationToken.None);
-		return historyItems?.map(historyItem => ({ ...historyItem, icon: getIconFromIconDto(historyItem.icon) }));
+		return historyItems?.map(historyItem => toISCMHistoryItem(historyItem));
 	}
 
 	async provideHistoryItems2(options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined> {
 		const historyItems = await this.proxy.$provideHistoryItems2(this.handle, options, CancellationToken.None);
-		return historyItems?.map(historyItem => ({ ...historyItem, icon: getIconFromIconDto(historyItem.icon) }));
+		return historyItems?.map(historyItem => toISCMHistoryItem(historyItem));
 	}
 
 	async provideHistoryItemSummary(historyItemId: string, historyItemParentId: string | undefined): Promise<ISCMHistoryItem | undefined> {
 		const historyItem = await this.proxy.$provideHistoryItemSummary(this.handle, historyItemId, historyItemParentId, CancellationToken.None);
-		return historyItem ? { ...historyItem, icon: getIconFromIconDto(historyItem.icon) } : undefined;
+		return historyItem ? toISCMHistoryItem(historyItem) : undefined;
 	}
 
 	async provideHistoryItemChanges(historyItemId: string, historyItemParentId: string | undefined): Promise<ISCMHistoryItemChange[] | undefined> {

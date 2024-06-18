@@ -25,13 +25,12 @@ function createPath(stroke: string): SVGPathElement {
 	return path;
 }
 
-function drawCircle(index: number, radius: number, stroke: string, fill: string): SVGCircleElement {
+function drawCircle(index: number, radius: number, fill: string): SVGCircleElement {
 	const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
 	circle.setAttribute('cx', `${SWIMLANE_WIDTH * (index + 1)}`);
 	circle.setAttribute('cy', `${SWIMLANE_WIDTH}`);
 	circle.setAttribute('r', `${radius}`);
 	circle.setAttribute('fill', fill);
-	circle.setAttribute('stroke', stroke);
 
 	return circle;
 }
@@ -170,17 +169,14 @@ export function renderSCMHistoryItemGraph(historyItemViewModel: ISCMHistoryItemV
 	// Draw *
 	if (historyItem.parentIds.length > 1) {
 		// Multi-parent node
-		// TODO@lszomoru - remove hardcoded color
-		const circleOuter = drawCircle(circleIndex, CIRCLE_RADIUS + 1, '#f8f8f8', graphColors[circleColorIndex]);
+		const circleOuter = drawCircle(circleIndex, CIRCLE_RADIUS + 1, graphColors[circleColorIndex]);
 		svg.append(circleOuter);
 
-		// TODO@lszomoru - remove hardcoded color
-		const circleInner = drawCircle(circleIndex, CIRCLE_RADIUS - 1, '#f8f8f8', graphColors[circleColorIndex]);
+		const circleInner = drawCircle(circleIndex, CIRCLE_RADIUS - 1, graphColors[circleColorIndex]);
 		svg.append(circleInner);
 	} else {
 		// Node
-		// TODO@lszomoru - remove hardcoded color
-		const circle = drawCircle(circleIndex, CIRCLE_RADIUS, '#f8f8f8', graphColors[circleColorIndex]);
+		const circle = drawCircle(circleIndex, CIRCLE_RADIUS, graphColors[circleColorIndex]);
 		svg.append(circle);
 	}
 

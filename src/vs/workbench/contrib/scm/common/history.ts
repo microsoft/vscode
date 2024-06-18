@@ -43,6 +43,7 @@ export interface ISCMHistoryProviderCacheEntry {
 export interface ISCMHistoryOptions {
 	readonly cursor?: string;
 	readonly limit?: number | { id?: string };
+	readonly historyItemGroupIds?: readonly string[];
 }
 
 export interface ISCMHistoryItemGroup {
@@ -70,6 +71,11 @@ export interface ISCMHistoryItemStatistics {
 	readonly deletions: number;
 }
 
+export interface ISCMHistoryItemLabel {
+	readonly title: string;
+	readonly icon?: URI | { light: URI; dark: URI } | ThemeIcon;
+}
+
 export interface ISCMHistoryItem {
 	readonly id: string;
 	readonly parentIds: string[];
@@ -78,7 +84,7 @@ export interface ISCMHistoryItem {
 	readonly icon?: URI | { light: URI; dark: URI } | ThemeIcon;
 	readonly timestamp?: number;
 	readonly statistics?: ISCMHistoryItemStatistics;
-	readonly labels?: string[];
+	readonly labels?: ISCMHistoryItemLabel[];
 }
 
 export interface ISCMHistoryItemGraphNode2 {

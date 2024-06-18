@@ -1018,6 +1018,10 @@ class HistoryItem2Renderer implements ICompressibleTreeRenderer<ISCMHistoryItemV
 	static readonly TEMPLATE_ID = 'history-item-2';
 	get templateId(): string { return HistoryItem2Renderer.TEMPLATE_ID; }
 
+	constructor(
+		@IHoverService private readonly hoverService: IHoverService
+	) { }
+
 	renderTemplate(container: HTMLElement): HistoryItem2Template {
 		// hack
 		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-no-twistie');
@@ -1047,19 +1051,12 @@ class HistoryItem2Renderer implements ICompressibleTreeRenderer<ISCMHistoryItemV
 		templateData.labelContainer.textContent = '';
 		if (historyItem.labels) {
 			for (const label of historyItem.labels) {
-				// HACK
-				const iconLabel = new IconLabel(templateData.labelContainer, { supportIcons: true });
-				if (label === 'HEAD') {
-					iconLabel.setLabel('$(target)', undefined, { title: 'HEAD' });
-				} else if (label.startsWith('tag: ')) {
-					iconLabel.setLabel('$(tag)', undefined, { title: label.substring(5) });
-				} else if (label.startsWith('origin/')) {
-					iconLabel.setLabel('$(cloud)', undefined, { title: label });
-				} else {
-					iconLabel.setLabel('$(git-branch)', undefined, { title: label });
-				}
+				if (label.icon && ThemeIcon.isThemeIcon(label.icon)) {
+					const icon = append(templateData.labelContainer, $('div.label'));
+					icon.classList.add(...ThemeIcon.asClassNameArray(label.icon));
 
-				templateData.elementDisposables.add(iconLabel);
+					templateData.elementDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), icon, label.title));
+				}
 			}
 		}
 	}
@@ -1602,7 +1599,7 @@ MenuRegistry.appendMenuItem(MenuId.SCMTitle, {
 MenuRegistry.appendMenuItem(MenuId.SCMTitle, {
 	title: localize('scmChanges', "Incoming & Outgoing"),
 	submenu: Menus.ChangesSettings,
-	when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_PANE_ID), ContextKeys.RepositoryCount.notEqualsTo(0)),
+	when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_PANE_ID), ContextKeys.RepositoryCount.notEqualsTo(0), ContextKeyExpr.equals('config.scm.showHistoryGraph', true).negate()),
 	group: '0_view&sort',
 	order: 2
 });
@@ -3788,8 +3785,8 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			// History items
 			const historyItems = await this.getHistoryItems2(inputOrElement);
 			if (historyItems.length > 0) {
-				const label = localize('syncSeparatorHeader', "Incoming/Outgoing");
-				const ariaLabel = localize('syncSeparatorHeaderAriaLabel', "Incoming and outgoing changes");
+				const label = localize('historySeparatorHeader', "History");
+				const ariaLabel = localize('historySeparatorHeaderAriaLabel', "History");
 
 				children.push({ label, ariaLabel, repository: inputOrElement, type: 'separator' } satisfies SCMViewSeparatorElement);
 			}
@@ -3830,13 +3827,13 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 	}
 
 	private async getHistoryItemGroups(element: ISCMRepository): Promise<SCMHistoryItemGroupTreeElement[]> {
-		const { showIncomingChanges, showOutgoingChanges, showChangesGraph } = this.getConfiguration();
+		const { showIncomingChanges, showOutgoingChanges, showHistoryGraph } = this.getConfiguration();
 
 		const scmProvider = element.provider;
 		const historyProvider = scmProvider.historyProvider;
 		const currentHistoryItemGroup = historyProvider?.currentHistoryItemGroup;
 
-		if (!historyProvider || !currentHistoryItemGroup || (showIncomingChanges === 'never' && showOutgoingChanges === 'never') || showChangesGraph) {
+		if (!historyProvider || !currentHistoryItemGroup || (showIncomingChanges === 'never' && showOutgoingChanges === 'never') || showHistoryGraph) {
 			return [];
 		}
 
@@ -3952,13 +3949,13 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 	}
 
 	private async getHistoryItems2(element: ISCMRepository): Promise<ISCMHistoryItemViewModel[]> {
-		const { showIncomingChanges, showOutgoingChanges, showChangesGraph } = this.getConfiguration();
+		const { showHistoryGraph } = this.getConfiguration();
 
 		const graphController = element.graphController;
 		const historyProvider = element.provider.historyProvider;
 		const currentHistoryItemGroup = historyProvider?.currentHistoryItemGroup;
 
-		if (!currentHistoryItemGroup || (showIncomingChanges === 'never' && showOutgoingChanges === 'never') || !showChangesGraph) {
+		if (!currentHistoryItemGroup || !showHistoryGraph) {
 			return [];
 		}
 
@@ -3967,12 +3964,8 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 		const historyItemsMap = historyProviderCacheEntry.historyItems2;
 
 		if (!historyItemsElement) {
-			// const ancestor = await historyProvider.resolveHistoryItemGroupCommonAncestor(currentHistoryItemGroup.id, currentHistoryItemGroup.base?.id);
-			// if (!ancestor || (ancestor.ahead === 0 && ancestor.behind === 0)) {
-			// 	return [];
-			// }
-
-			historyItemsElement = await historyProvider.provideHistoryItems2({}) ?? [];
+			const historyItemGroupIds = [currentHistoryItemGroup.id, ...currentHistoryItemGroup.base ? [currentHistoryItemGroup.base.id] : []];
+			historyItemsElement = await historyProvider.provideHistoryItems2({ historyItemGroupIds }) ?? [];
 
 			this.historyProviderCache.set(element, {
 				...historyProviderCacheEntry,
@@ -4083,7 +4076,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 		showChangesSummary: boolean;
 		showIncomingChanges: ShowChangesSetting;
 		showOutgoingChanges: ShowChangesSetting;
-		showChangesGraph: boolean;
+		showHistoryGraph: boolean;
 	} {
 		return {
 			alwaysShowRepositories: this.configurationService.getValue<boolean>('scm.alwaysShowRepositories'),
@@ -4091,7 +4084,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			showChangesSummary: this.configurationService.getValue<boolean>('scm.showChangesSummary'),
 			showIncomingChanges: this.configurationService.getValue<ShowChangesSetting>('scm.showIncomingChanges'),
 			showOutgoingChanges: this.configurationService.getValue<ShowChangesSetting>('scm.showOutgoingChanges'),
-			showChangesGraph: this.configurationService.getValue<boolean>('scm.showChangesGraph')
+			showHistoryGraph: this.configurationService.getValue<boolean>('scm.showHistoryGraph')
 		};
 	}
 

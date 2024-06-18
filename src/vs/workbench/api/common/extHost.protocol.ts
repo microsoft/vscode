@@ -1512,6 +1512,15 @@ export interface SCMHistoryItemDto {
 	readonly author?: string;
 	readonly icon?: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon;
 	readonly timestamp?: number;
+	readonly statistics?: {
+		readonly files: number;
+		readonly insertions: number;
+		readonly deletions: number;
+	};
+	readonly labels?: {
+		readonly title: string;
+		readonly icon?: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon;
+	}[];
 }
 
 export interface SCMHistoryItemChangeDto {

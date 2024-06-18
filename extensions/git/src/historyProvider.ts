@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryItemGroup, SourceControlHistoryOptions, SourceControlHistoryProvider, ThemeIcon, Uri, window, LogOutputChannel } from 'vscode';
+import { Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryItemGroup, SourceControlHistoryOptions, SourceControlHistoryProvider, ThemeIcon, Uri, window, LogOutputChannel, SourceControlHistoryItemLabel } from 'vscode';
 import { Repository, Resource } from './repository';
 import { IDisposable, dispose, filterEvent } from './util';
 import { toGitUri } from './uri';
 import { Branch, RefType, UpstreamRef } from './api/git';
 import { emojify, ensureEmojis } from './emoji';
 import { Operation } from './operation';
+import { Commit } from './git';
 
 export class GitHistoryProvider implements SourceControlHistoryProvider, FileDecorationProvider, IDisposable {
 
@@ -113,31 +114,23 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 	}
 
 	async provideHistoryItems2(options: SourceControlHistoryOptions): Promise<SourceControlHistoryItem[]> {
-		if (!this.currentHistoryItemGroup) {
+		if (!this.currentHistoryItemGroup || !options.historyItemGroupIds?.length) {
 			return [];
 		}
 
-		const refNames = new Set<string>();
-		if (this.currentHistoryItemGroup?.name) {
-			refNames.add(this.currentHistoryItemGroup.name);
-		}
-		if (this.currentHistoryItemGroup?.base?.name) {
-			refNames.add(this.currentHistoryItemGroup.base.name);
-		}
-
-		// TODO@lszomoru - handle the scenario in which there is no default branch
-		const defaultBranch = await this.repository.getDefaultBranch();
-		if (!defaultBranch) {
+		const baseBranch = await this.repository.getBranchBase(this.currentHistoryItemGroup.name);
+		if (!baseBranch) {
 			return [];
 		}
 
-		const defaultBranchName = `${defaultBranch.remote}/${defaultBranch.name}`;
-		const ancestor = await this.repository.getMergeBase(this.currentHistoryItemGroup?.name, defaultBranchName);
+		const baseBranchName = `${baseBranch.remote}/${baseBranch.name}`;
+		const ancestor = await this.repository.getMergeBase(this.currentHistoryItemGroup.name, baseBranchName);
 		if (!ancestor) {
 			return [];
 		}
 
-		refNames.add(defaultBranchName);
+		// TODO@lszomoru - we need to sort the commits
+		const refNames = new Set<string>([...options.historyItemGroupIds, baseBranchName]);
 		const commits = await this.repository.log({ range: `${ancestor}^..`, refNames: Array.from(refNames) });
 
 		await ensureEmojis();
@@ -147,24 +140,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			const newLineIndex = commit.message.indexOf('\n');
 			const subject = newLineIndex !== -1 ? commit.message.substring(0, newLineIndex) : commit.message;
 
-			const labels: string[] = [];
-			for (const label of commit.refNames) {
-				if (label === 'origin/HEAD') {
-					continue;
-				}
-
-				if (label !== '') {
-					if (label.startsWith('HEAD -> ')) {
-						labels.push('HEAD');
-						labels.push(label.substring(8));
-						continue;
-					}
-
-					if (refNames.has(label)) {
-						labels.push(label);
-					}
-				}
-			}
+			const labels = this.resolveHistoryItemLabels(commit, refNames);
 
 			return {
 				id: commit.hash,
@@ -258,6 +234,47 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 
 	provideFileDecoration(uri: Uri): FileDecoration | undefined {
 		return this.historyItemDecorations.get(uri.toString());
+	}
+
+	private resolveHistoryItemLabels(commit: Commit, refNames: Set<string>): SourceControlHistoryItemLabel[] {
+		const labels: SourceControlHistoryItemLabel[] = [];
+
+		for (const label of commit.refNames) {
+			if (label === 'origin/HEAD' || label === '') {
+				continue;
+			}
+
+			if (label.startsWith('HEAD -> ')) {
+				labels.push(
+					{
+						title: label.substring(8),
+						icon: new ThemeIcon('git-branch')
+					}
+				);
+				continue;
+			}
+
+			if (refNames.has(label)) {
+				if (label.startsWith('tag: ')) {
+					labels.push({
+						title: label.substring(5),
+						icon: new ThemeIcon('tag')
+					});
+				} else if (label.startsWith('origin/')) {
+					labels.push({
+						title: label,
+						icon: new ThemeIcon('cloud')
+					});
+				} else {
+					labels.push({
+						title: label,
+						icon: new ThemeIcon('git-branch')
+					});
+				}
+			}
+		}
+
+		return labels;
 	}
 
 	private async resolveHistoryItemGroupBase(historyItemId: string): Promise<UpstreamRef | undefined> {
