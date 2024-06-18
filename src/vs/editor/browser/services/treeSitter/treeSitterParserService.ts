@@ -149,7 +149,7 @@ export class TreeSitterParserService extends Disposable implements ITreeSitterPa
 		do {
 			const timer = performance.now();
 			try {
-				tree = treeSitterTree.parser.parse((index: number, position?: Parser.Point) => this._parseCallback(model, index, position, treeSitterTree));
+				tree = treeSitterTree.parser.parse((index: number, position?: Parser.Point) => this._parseCallback(model, index, position, treeSitterTree), treeSitterTree.tree);
 			} catch (e) {
 				// parsing can fail when the timeout is reached, will resume upon next loop
 			} finally {
