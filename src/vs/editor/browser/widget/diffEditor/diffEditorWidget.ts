@@ -5,7 +5,7 @@
 import { getWindow, h } from 'vs/base/browser/dom';
 import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 import { findLast } from 'vs/base/common/arraysFind';
-import { onUnexpectedError } from 'vs/base/common/errors';
+import { BugIndicatingError, onUnexpectedError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { IObservable, ITransaction, autorun, autorunWithStore, derived, observableFromEvent, observableValue, recomputeInitiallyAndOnChange, subtransaction, transaction } from 'vs/base/common/observable';
@@ -56,7 +56,7 @@ export interface IDiffCodeEditorWidgetOptions {
 export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 	public static ENTIRE_DIFF_OVERVIEW_WIDTH = OverviewRulerFeature.ENTIRE_DIFF_OVERVIEW_WIDTH;
 
-	private readonly elements = h('div.monaco-diff-editor.side-by-side', { style: { position: 'relative' } }, [
+	private readonly elements = h('div.monaco-diff-editor.side-by-side', { style: { position: 'relative', height: '100%' } }, [
 		h('div.editor.original@original', { style: { position: 'absolute', height: '100%', } }),
 		h('div.editor.modified@modified', { style: { position: 'absolute', height: '100%', } }),
 		h('div.accessibleDiffViewer@accessibleDiffViewer', { style: { position: 'absolute', height: '100%' } }),
@@ -111,7 +111,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		this._contextKeyService.createKey('isInDiffEditor', true);
 
 		this._domElement.appendChild(this.elements.root);
-		this._register(toDisposable(() => this._domElement.removeChild(this.elements.root)));
+		this._register(toDisposable(() => this.elements.root.remove()));
 
 		this._rootSizeObserver = this._register(new ObservableElementSizeObserver(this.elements.root, options.dimension));
 		this._rootSizeObserver.setAutomaticLayout(options.automaticLayout ?? false);
@@ -326,6 +326,17 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		this._register(autorunWithStore((reader, store) => {
 			store.add(new (readHotReloadableExport(RevertButtonsFeature, reader))(this._editors, this._diffModel, this._options, this));
 		}));
+
+		this._register(autorunWithStore((reader, store) => {
+			const model = this._diffModel.read(reader);
+			if (!model) { return; }
+			for (const m of [model.model.original, model.model.modified]) {
+				store.add(m.onWillDispose(e => {
+					onUnexpectedError(new BugIndicatingError('TextModel got disposed before DiffEditorWidget model got reset'));
+					this.setModel(null);
+				}));
+			}
+		}));
 	}
 
 	public getViewWidth(): number {
@@ -344,7 +355,12 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 	private readonly _layoutInfo = derived(this, reader => {
 		const fullWidth = this._rootSizeObserver.width.read(reader);
 		const fullHeight = this._rootSizeObserver.height.read(reader);
-		this.elements.root.style.height = fullHeight + 'px';
+
+		if (this._rootSizeObserver.automaticLayout) {
+			this.elements.root.style.height = '100%';
+		} else {
+			this.elements.root.style.height = fullHeight + 'px';
+		}
 
 		const sash = this._sash.read(reader);
 

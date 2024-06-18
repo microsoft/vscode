@@ -513,10 +513,12 @@ export interface IExtensionService {
 	 * @param reason a human readable reason for stopping the extension hosts. This maybe
 	 * can be presented to the user when showing dialogs.
 	 *
+	 * @param auto indicates if the operation was triggered by an automatic action
+	 *
 	 * @returns a promise that resolves to `true` if the extension hosts were stopped, `false`
 	 * if the operation was vetoed by listeners of the `onWillStop` event.
 	 */
-	stopExtensionHosts(reason: string): Promise<boolean>;
+	stopExtensionHosts(reason: string, auto?: boolean): Promise<boolean>;
 
 	/**
 	 * Starts the extension hosts. If updates are provided, the extension hosts are started with the given updates.
@@ -556,16 +558,18 @@ export function toExtension(extensionDescription: IExtensionDescription): IExten
 }
 
 export function toExtensionDescription(extension: IExtension, isUnderDevelopment?: boolean): IExtensionDescription {
+	const id = getExtensionId(extension.manifest.publisher, extension.manifest.name);
 	return {
-		identifier: new ExtensionIdentifier(getExtensionId(extension.manifest.publisher, extension.manifest.name)),
+		id,
+		identifier: new ExtensionIdentifier(id),
 		isBuiltin: extension.type === ExtensionType.System,
 		isUserBuiltin: extension.type === ExtensionType.User && extension.isBuiltin,
 		isUnderDevelopment: !!isUnderDevelopment,
 		extensionLocation: extension.location,
-		...extension.manifest,
 		uuid: extension.identifier.uuid,
 		targetPlatform: extension.targetPlatform,
 		publisherDisplayName: extension.publisherDisplayName,
+		...extension.manifest,
 	};
 }
 

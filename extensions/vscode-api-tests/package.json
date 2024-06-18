@@ -8,6 +8,7 @@
     "activeComment",
     "authSession",
     "defaultChatParticipant",
+    "chatParticipantPrivate",
     "chatVariableResolver",
     "contribViewsRemote",
     "contribStatusBarItems",

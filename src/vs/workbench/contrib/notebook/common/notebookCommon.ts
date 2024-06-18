@@ -33,11 +33,15 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IFileReadLimits } from 'vs/platform/files/common/files';
 import { parse as parseUri, generate as generateUri } from 'vs/workbench/services/notebook/common/notebookDocumentService';
 import { ICellExecutionError } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { INotebookTextModelLike } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 
 export const NOTEBOOK_EDITOR_ID = 'workbench.editor.notebook';
 export const NOTEBOOK_DIFF_EDITOR_ID = 'workbench.editor.notebookTextDiffEditor';
 export const INTERACTIVE_WINDOW_EDITOR_ID = 'workbench.editor.interactive';
+export const REPL_EDITOR_ID = 'workbench.editor.repl';
 
+export const EXECUTE_REPL_COMMAND_ID = 'replNotebook.input.execute';
 
 export enum CellKind {
 	Markup = 1,
@@ -252,7 +256,8 @@ export interface ICell {
 	onDidChangeInternalMetadata: Event<CellInternalMetadataChangedEvent>;
 }
 
-export interface INotebookTextModel {
+export interface INotebookTextModel extends INotebookTextModelLike {
+	readonly notebookType: string;
 	readonly viewType: string;
 	metadata: NotebookDocumentMetadata;
 	readonly transientOptions: TransientOptions;
@@ -551,7 +556,7 @@ export interface INotebookContributionData {
 	providerDisplayName: string;
 	displayName: string;
 	filenamePattern: (string | glob.IRelativePattern | INotebookExclusiveDocumentFilter)[];
-	exclusive: boolean;
+	priority?: RegisteredEditorPriority;
 }
 
 
@@ -776,6 +781,11 @@ export interface INotebookLoadOptions {
 	readonly limits?: IFileReadLimits;
 }
 
+export type NotebookEditorModelCreationOptions = {
+	limits?: IFileReadLimits;
+	scratchpad?: boolean;
+};
+
 export interface IResolvedNotebookEditorModel extends INotebookEditorModel {
 	notebook: NotebookTextModel;
 }
@@ -827,6 +837,8 @@ export interface INotebookSearchOptions {
 	includeMarkupPreview?: boolean;
 	includeCodeInput?: boolean;
 	includeOutput?: boolean;
+	searchInRanges?: boolean;
+	selectedRanges?: ICellRange[];
 }
 
 export interface INotebookExclusiveDocumentFilter {
@@ -951,7 +963,8 @@ export const NotebookSetting = {
 	outputFontSize: 'notebook.output.fontSize',
 	outputFontFamilyDeprecated: 'notebook.outputFontFamily',
 	outputFontFamily: 'notebook.output.fontFamily',
-	findScope: 'notebook.find.scope',
+	findFilters: 'notebook.find.filters',
+	findScope: 'notebook.experimental.find.scope.enabled',
 	logging: 'notebook.logging',
 	confirmDeleteRunningCell: 'notebook.confirmDeleteRunningCell',
 	remoteSaving: 'notebook.experimental.remoteSave',

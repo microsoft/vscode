@@ -151,7 +151,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 
 		this.menu = menuService.createMenu(MenuId.DebugConsoleContext, contextKeyService);
 		this._register(this.menu);
-		this.history = new HistoryNavigator(JSON.parse(this.storageService.get(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')), 50);
+		this.history = new HistoryNavigator(JSON.parse(this.storageService.get(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')), 100);
 		this.filter = new ReplFilter();
 		this.filter.filterQuery = filterText;
 		this.multiSessionRepl = CONTEXT_MULTI_SESSION_REPL.bindTo(contextKeyService);
@@ -472,6 +472,15 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		}
 	}
 
+	sendReplInput(input: string): void {
+		const session = this.tree?.getInput();
+		if (session && !this.isReadonly) {
+			session.addReplExpression(this.debugService.getViewModel().focusedStackFrame, input);
+			revealLastElement(this.tree!);
+			this.history.add(input);
+		}
+	}
+
 	getVisibleContent(): string {
 		let text = '';
 		if (this.model && this.tree) {
@@ -687,7 +696,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		};
 		CONTEXT_IN_DEBUG_REPL.bindTo(this.scopedContextKeyService).set(true);
 
-		this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService]));
+		this.scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
 		const options = getSimpleEditorOptions(this.configurationService);
 		options.readOnly = true;
 		options.suggest = { showStatusBar: true };

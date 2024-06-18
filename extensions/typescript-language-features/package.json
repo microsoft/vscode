@@ -1316,14 +1316,14 @@
           "scope": "window"
         },
         "javascript.experimental.updateImportsOnPaste": {
-          "scope": "resource",
+          "scope": "window",
           "type": "boolean",
           "default": false,
           "description": "%configuration.updateImportsOnPaste%",
           "tags": ["experimental"]
         },
         "typescript.experimental.updateImportsOnPaste": {
-          "scope": "resource",
+          "scope": "window",
           "type": "boolean",
           "default": false,
           "description": "%configuration.updateImportsOnPaste%",

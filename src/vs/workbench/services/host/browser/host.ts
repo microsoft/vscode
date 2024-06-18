@@ -19,7 +19,6 @@ export interface IHostService {
 
 	readonly _serviceBrand: undefined;
 
-
 	//#region Focus
 
 	/**
@@ -55,7 +54,6 @@ export interface IHostService {
 	focus(targetWindow: Window, options?: { force: boolean }): Promise<void>;
 
 	//#endregion
-
 
 	//#region Window
 
@@ -121,6 +119,12 @@ export interface IHostService {
 	 * in progress, attempts to quit the application will not be vetoed with a dialog.
 	 */
 	withExpectedShutdown<T>(expectedShutdownTask: () => Promise<T>): Promise<T>;
+
+	//#endregion
+
+	//#region File
+
+	getPathForFile(file: File): string | undefined;
 
 	//#endregion
 }

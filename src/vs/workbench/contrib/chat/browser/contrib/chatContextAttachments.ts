@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IChatWidget } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatWidget, IChatWidgetContrib } from 'vs/workbench/contrib/chat/browser/chatWidget';
@@ -11,6 +12,9 @@ import { IChatRequestVariableEntry } from 'vs/workbench/contrib/chat/common/chat
 export class ChatContextAttachments extends Disposable implements IChatWidgetContrib {
 
 	private _attachedContext = new Set<IChatRequestVariableEntry>();
+
+	private readonly _onDidChangeInputState = this._register(new Emitter<void>());
+	readonly onDidChangeInputState = this._onDidChangeInputState.event;
 
 	public static readonly ID = 'chatContextAttachments';
 
@@ -30,13 +34,18 @@ export class ChatContextAttachments extends Disposable implements IChatWidgetCon
 		}));
 	}
 
-	getInputState?() {
+	getInputState(): IChatRequestVariableEntry[] {
 		return [...this._attachedContext.values()];
 	}
 
-	setInputState?(s: any): void {
+	setInputState(s: any): void {
 		if (!Array.isArray(s)) {
-			return;
+			s = [];
+		}
+
+		this._attachedContext.clear();
+		for (const attachment of s) {
+			this._attachedContext.add(attachment);
 		}
 
 		this.widget.setContext(true, ...s);
@@ -55,10 +64,12 @@ export class ChatContextAttachments extends Disposable implements IChatWidgetCon
 		}
 
 		this.widget.setContext(overwrite, ...attachments);
+		this._onDidChangeInputState.fire();
 	}
 
 	private _removeContext(attachment: IChatRequestVariableEntry) {
 		this._attachedContext.delete(attachment);
+		this._onDidChangeInputState.fire();
 	}
 
 	private _clearAttachedContext() {

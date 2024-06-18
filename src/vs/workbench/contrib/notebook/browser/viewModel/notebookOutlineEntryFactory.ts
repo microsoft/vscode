@@ -14,7 +14,6 @@ import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { IRange } from 'vs/editor/common/core/range';
 import { SymbolKind } from 'vs/editor/common/languages';
-import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 
 export const enum NotebookOutlineConstants {
 	NonHeaderOutlineLevel = 7,
@@ -50,7 +49,7 @@ export class NotebookOutlineEntryFactory {
 		private readonly executionStateService: INotebookExecutionStateService
 	) { }
 
-	public getOutlineEntries(cell: ICellViewModel, target: OutlineTarget, index: number): OutlineEntry[] {
+	public getOutlineEntries(cell: ICellViewModel, index: number): OutlineEntry[] {
 		const entries: OutlineEntry[] = [];
 
 		const isMarkdown = cell.cellKind === CellKind.Markup;

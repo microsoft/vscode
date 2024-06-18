@@ -19,6 +19,8 @@ import { URI } from 'vs/base/common/uri';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { InteractiveWindowOpen } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 
 export class NotebookEditorWidgetService implements INotebookEditorService {
 
@@ -39,7 +41,8 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 	constructor(
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IEditorService editorService: IEditorService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 
 		const groupListener = new Map<number, IDisposable[]>();
@@ -182,9 +185,13 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 
 		if (!value) {
 			// NEW widget
-			const instantiationService = accessor.get(IInstantiationService);
+			const editorGroupContextKeyService = accessor.get(IContextKeyService);
+			const editorGroupEditorProgressService = accessor.get(IEditorProgressService);
+			const notebookInstantiationService = this.instantiationService.createChild(new ServiceCollection(
+				[IContextKeyService, editorGroupContextKeyService],
+				[IEditorProgressService, editorGroupEditorProgressService]));
 			const ctorOptions = creationOptions ?? getDefaultNotebookCreationOptions();
-			const widget = instantiationService.createInstance(NotebookEditorWidget, {
+			const widget = notebookInstantiationService.createInstance(NotebookEditorWidget, {
 				...ctorOptions,
 				codeWindow: codeWindow ?? ctorOptions.codeWindow,
 			}, initialDimension);

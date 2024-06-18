@@ -328,6 +328,10 @@
 	flex-shrink: 0;
 	flex-grow: 0;
 
+	& > div {
+		position: absolute;
+	}
+
 	.gutterItem {
 		opacity: 0;
 		transition: opacity 0.7s;
