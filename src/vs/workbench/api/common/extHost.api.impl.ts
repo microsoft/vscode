@@ -1439,22 +1439,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'chatParticipantPrivate');
 				return extHostChatAgents2.createDynamicChatAgent(extension, id, dynamicProps, handler);
 			},
-			registerTool(skill: vscode.ChatTool) {
-				checkProposedApiEnabled(extension, 'chatVariableResolver');
-				return extHostChatSkills.registerChatSkill(extension, skill);
-			},
-			invokeTool(skillName: string, parameters: Object, token: vscode.CancellationToken) {
-				checkProposedApiEnabled(extension, 'chatVariableResolver');
-				return extHostChatSkills.invokeSkill(skillName, parameters, token);
-			},
-			get tools() {
-				checkProposedApiEnabled(extension, 'chatVariableResolver');
-				return extHostChatSkills.skills;
-			},
-			attachContext(name: string, value: string | vscode.Uri | vscode.Location | unknown, location: vscode.ChatLocation.Panel) {
-				checkProposedApiEnabled(extension, 'chatVariableResolver');
-				return extHostChatVariables.attachContext(name, value, location);
-			}
 		};
 
 		// namespace: lm
@@ -1497,7 +1481,19 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				} else {
 					return extHostEmbeddings.computeEmbeddings(embeddingsModel, input, token);
 				}
-			}
+			},
+			registerTool(skill: vscode.ChatTool) {
+				checkProposedApiEnabled(extension, 'chatVariableResolver');
+				return extHostChatSkills.registerChatSkill(extension, skill);
+			},
+			invokeTool(skillName: string, parameters: Object, token: vscode.CancellationToken) {
+				checkProposedApiEnabled(extension, 'chatVariableResolver');
+				return extHostChatSkills.invokeSkill(skillName, parameters, token);
+			},
+			get tools() {
+				checkProposedApiEnabled(extension, 'chatVariableResolver');
+				return extHostChatSkills.skills;
+			},
 		};
 
 		// namespace: speech
