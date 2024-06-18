@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+/// <reference path="../../../typings/require.d.ts" />
 
 //@ts-check
+'use strict';
+
 
 (function () {
 	function factory(path, os, productName, cwd) {
