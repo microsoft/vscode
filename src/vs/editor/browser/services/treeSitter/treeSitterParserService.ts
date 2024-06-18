@@ -11,7 +11,6 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ITextModel, ITextSnapshot } from 'vs/editor/common/model';
 import { IFileService } from 'vs/platform/files/common/files';
-import { Position } from 'vs/editor/common/core/position';
 import { IModelContentChangedEvent, IModelLanguageChangedEvent } from 'vs/editor/common/textModelEvents';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -241,36 +240,7 @@ export class TreeSitterParserService extends Disposable implements ITreeSitterPa
 	}
 
 	private _parseCallback(textModel: ITextModel, index: number, position?: Parser.Point, treeSitterTree?: TreeSitterTree): string | null {
-		if (treeSitterTree?.snapshot) {
-			for (let i = 0; i < treeSitterTree.snapshotChunks.length; i++) {
-				const snapshotChunk = treeSitterTree.snapshotChunks[i];
-				if ((snapshotChunk.startOffset <= index) && (index < (snapshotChunk.chunk.length + snapshotChunk.startOffset))) {
-					return snapshotChunk.chunk.substring(index - snapshotChunk.startOffset);
-				}
-			}
-
-			let readValue = treeSitterTree.snapshot.read();
-			if (readValue === null) {
-				treeSitterTree.clearSnapshot();
-			} else {
-				const startOffset = treeSitterTree.snapshotChunks.length === 0 ? 0 : treeSitterTree.snapshotChunks[treeSitterTree.snapshotChunks.length - 1].startOffset + treeSitterTree.snapshotChunks[treeSitterTree.snapshotChunks.length - 1].chunk.length;
-				treeSitterTree.addSnapshotChunk(readValue, startOffset);
-				readValue = readValue.substring(index - startOffset);
-			}
-			return readValue;
-		}
-		try {
-			const modelPositionStart: Position = position ? new Position(position.row + 1, position.column + 1) : textModel.getPositionAt(index);
-			const lineContent = textModel.getLineContent(modelPositionStart.lineNumber);
-			let value = lineContent.substring(modelPositionStart.column - 1);
-			if (value.length === 0 && (lineContent.length <= modelPositionStart.column)) { // When we hit the end of the line the value is an empty string, we need to get the next character.
-				const modelPositionEnd = textModel.getPositionAt(index + 2);
-				value = textModel.getValueInRange(Range.fromPositions(modelPositionStart, modelPositionEnd));
-			}
-			return value;
-		} catch (e) {
-			return null;
-		}
+		return textModel.getTextBuffer().getNearestChunk(index);
 	}
 
 	public initTreeSitter(): Promise<void> {
