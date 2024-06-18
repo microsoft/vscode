@@ -40,7 +40,7 @@ declare module 'vscode' {
 	/**
 	 * Options common to file and text search
 	 */
-	export interface SearchOptions {
+	export interface SearchProviderOptions {
 		/**
 		 * The root folder to search within.
 		 */
@@ -113,7 +113,7 @@ declare module 'vscode' {
 	/**
 	 * Options that apply to text search.
 	 */
-	export interface TextSearchOptions extends SearchOptions {
+	export interface TextSearchProviderOptions extends SearchProviderOptions {
 
 		/**
 		 * Options to specify the size of the result text preview.
@@ -183,7 +183,7 @@ declare module 'vscode' {
 	export interface TextSearchComplete {
 		/**
 		 * Whether the search hit the limit on the maximum number of search results.
-		 * `maxResults` on {@linkcode TextSearchOptions} specifies the max number of results.
+		 * `maxResults` on {@linkcode TextSearchProviderOptions} specifies the max number of results.
 		 * - If exactly that number of matches exist, this should be false.
 		 * - If `maxResults` matches are returned and more exist, this should be true.
 		 * - If search hits an internal limit which is less than `maxResults`, this should be true.
@@ -260,7 +260,7 @@ declare module 'vscode' {
 		 * @param progress A progress callback that must be invoked for all results.
 		 * @param token A cancellation token.
 		 */
-		provideTextSearchResults(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): ProviderResult<TextSearchComplete>;
+		provideTextSearchResults(query: TextSearchQuery, options: TextSearchProviderOptions, progress: Progress<TextSearchResult>, token: CancellationToken): ProviderResult<TextSearchComplete>;
 	}
 
 	export namespace workspace {

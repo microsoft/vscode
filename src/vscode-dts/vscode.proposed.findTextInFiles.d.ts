@@ -10,54 +10,13 @@ declare module 'vscode' {
 	/**
 	 * Options that can be set on a findTextInFiles search.
 	 */
-	export interface FindTextInFilesOptions {
+	export interface FindTextInFilesOptions extends FindFiles2Options {
 		/**
 		 * A {@link GlobPattern glob pattern} that defines the files to search for. The glob pattern
 		 * will be matched against the file paths of files relative to their workspace. Use a {@link RelativePattern relative pattern}
 		 * to restrict the search results to a {@link WorkspaceFolder workspace folder}.
 		 */
 		include?: GlobPattern;
-
-		/**
-		 * A {@link GlobPattern glob pattern} that defines files and folders to exclude. The glob pattern
-		 * will be matched against the file paths of resulting matches relative to their workspace. When `undefined`, default excludes will
-		 * apply.
-		 */
-		exclude?: GlobPattern;
-
-		/**
-		 * Whether to use the default and user-configured excludes. Defaults to true.
-		 */
-		useDefaultExcludes?: boolean;
-
-		/**
-		 * The maximum number of results to search for
-		 */
-		maxResults?: number;
-
-		/**
-		 * Whether external files that exclude files, like .gitignore, should be respected.
-		 * See the vscode setting `"search.useIgnoreFiles"`.
-		 */
-		useIgnoreFiles?: boolean;
-
-		/**
-		 * Whether global files that exclude files, like .gitignore, should be respected.
-		 * See the vscode setting `"search.useGlobalIgnoreFiles"`.
-		 */
-		useGlobalIgnoreFiles?: boolean;
-
-		/**
-		 * Whether files in parent directories that exclude files, like .gitignore, should be respected.
-		 * See the vscode setting `"search.useParentIgnoreFiles"`.
-		 */
-		useParentIgnoreFiles?: boolean;
-
-		/**
-		 * Whether symlinks should be followed while searching.
-		 * See the vscode setting `"search.followSymlinks"`.
-		 */
-		followSymlinks?: boolean;
 
 		/**
 		 * Interpret files using this encoding.
@@ -71,14 +30,21 @@ declare module 'vscode' {
 		previewOptions?: TextSearchPreviewOptions;
 
 		/**
-		 * Number of lines of context to include before each match.
+		 * Number of lines of context to include before and after each match.
 		 */
-		beforeContext?: number;
+		surroundingContext: number;
+
+		/**
+		 * Number of lines of context to include before each match.
+		 * @deprecated
+		 */
+		beforeContext: number;
 
 		/**
 		 * Number of lines of context to include after each match.
+		 * @deprecated
 		 */
-		afterContext?: number;
+		afterContext: number;
 	}
 
 	export namespace workspace {
