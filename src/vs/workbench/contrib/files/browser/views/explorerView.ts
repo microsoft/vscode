@@ -240,7 +240,8 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	}
 
 	get name(): string {
-		return this.labelService.getWorkspaceLabel(this.contextService.getWorkspace());
+		// MEMBRANE: We only ever use one (virtual) workspace so here we show a more helpful title for the file explorer.
+		return 'PROGRAM FILES';
 	}
 
 	override get title(): string {
