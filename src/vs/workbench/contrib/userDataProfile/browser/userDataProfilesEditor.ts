@@ -137,6 +137,7 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 		}, Sizing.Distribute, undefined, true);
 
 		this.registerListeners();
+		this.updateStyles();
 
 		this.userDataProfileManagementService.getBuiltinProfileTemplates().then(templates => {
 			this.templates = templates;
@@ -717,6 +718,8 @@ class ProfileWidget extends Disposable {
 		const profile = profileElement instanceof UserDataProfileElement ? profileElement.profile : undefined;
 		this.profileTitle.classList.toggle('hide', !profile?.isDefault);
 		this.nameInput.element.classList.toggle('hide', !!profile?.isDefault);
+		this.iconElement.classList.toggle('disabled', !!profile?.isDefault);
+		this.iconElement.setAttribute('tabindex', profile?.isDefault ? '' : '0');
 
 		disposables.add(profileElement.onDidChange(e => {
 			if (e.flags || e.copyFrom || e.copyFlags || e.disabled) {
