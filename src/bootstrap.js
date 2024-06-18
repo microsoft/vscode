@@ -144,10 +144,6 @@
 	async function doSetupNLS() {
 		const process = safeProcess();
 
-		if (process?.env['VSCODE_DEV']) {
-			return undefined; // no NLS support in dev mode
-		}
-
 		/** @type {INLSConfiguration | undefined} */
 		let nlsConfig = undefined;
 
@@ -169,7 +165,10 @@
 			}
 		}
 
-		if (messagesFile.length === 0) {
+		if (
+			process?.env['VSCODE_DEV'] ||	// no NLS support in dev mode
+			messagesFile.length === 0		// no NLS messages file
+		) {
 			return undefined;
 		}
 
