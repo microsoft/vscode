@@ -196,13 +196,8 @@ export async function activate(context: vscode.ExtensionContext) {
 		true
 	);
 
-	(coverage as vscode.TestRunProfile2).loadDetailedCoverage = async (_run, coverage, _token, test) => {
-		if (coverage instanceof V8CoverageFile) {
-			return test ? coverage.testDetails(test) : coverage.details;
-		}
-
-		return [];
-	};
+	coverage.loadDetailedCoverage = async (_run, coverage) => coverage instanceof V8CoverageFile ? coverage.details : [];
+	coverage.loadDetailedCoverageForTest = async (_run, coverage, test) => coverage instanceof V8CoverageFile ? coverage.testDetails(test) : [];
 
 	for (const [name, arg] of browserArgs) {
 		const cfg = ctrl.createRunProfile(
