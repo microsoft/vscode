@@ -156,3 +156,8 @@
 	box-sizing: border-box;
 	border-bottom: solid 1px var(--vscode-chat-requestBorder);
 }
+
+.interactive-result-code-block.compare.no-diff .interactive-result-header,
+.interactive-result-code-block.compare.no-diff .interactive-result-editor {
+	display: none;
+}
