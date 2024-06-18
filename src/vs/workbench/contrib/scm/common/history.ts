@@ -87,7 +87,7 @@ export interface ISCMHistoryItem {
 	readonly labels?: ISCMHistoryItemLabel[];
 }
 
-export interface ISCMHistoryItemGraphNode2 {
+export interface ISCMHistoryItemGraphNode {
 	readonly id: string;
 	readonly color: number;
 }
@@ -95,8 +95,8 @@ export interface ISCMHistoryItemGraphNode2 {
 export interface ISCMHistoryItemViewModel {
 	readonly repository: ISCMRepository;
 	readonly historyItem: ISCMHistoryItem;
-	readonly inputSwimlanes: ISCMHistoryItemGraphNode2[];
-	readonly outputSwimlanes: ISCMHistoryItemGraphNode2[];
+	readonly inputSwimlanes: ISCMHistoryItemGraphNode[];
+	readonly outputSwimlanes: ISCMHistoryItemGraphNode[];
 	readonly type: 'historyItem2';
 }
 

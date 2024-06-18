@@ -5,7 +5,7 @@
 
 import { lastOrDefault } from 'vs/base/common/arrays';
 import { deepClone } from 'vs/base/common/objects';
-import { ISCMHistoryItem, ISCMHistoryItemGraphNode2, ISCMHistoryItemViewModel } from 'vs/workbench/contrib/scm/common/history';
+import { ISCMHistoryItem, ISCMHistoryItemGraphNode, ISCMHistoryItemViewModel } from 'vs/workbench/contrib/scm/common/history';
 import { ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
 
 const SWIMLANE_HEIGHT = 22;
@@ -42,7 +42,7 @@ function drawVerticalLine(x1: number, y1: number, y2: number, color: string): SV
 	return path;
 }
 
-function findLastIndex(nodes: ISCMHistoryItemGraphNode2[], id: string): number {
+function findLastIndex(nodes: ISCMHistoryItemGraphNode[], id: string): number {
 	for (let i = nodes.length - 1; i >= 0; i--) {
 		if (nodes[i].id === id) {
 			return i;
@@ -208,7 +208,7 @@ export class SCMRepositoryGraphController implements ISCMRepositoryGraphControll
 
 			const outputSwimlanesFromPreviousItem = lastOrDefault(this.historyItems)?.outputSwimlanes ?? [];
 			const inputSwimlanes = outputSwimlanesFromPreviousItem.map(i => deepClone(i));
-			const outputSwimlanes: ISCMHistoryItemGraphNode2[] = [];
+			const outputSwimlanes: ISCMHistoryItemGraphNode[] = [];
 
 			if (historyItem.parentIds.length > 0) {
 				let firstParentAdded = false;
