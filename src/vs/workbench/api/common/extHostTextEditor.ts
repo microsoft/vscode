@@ -11,7 +11,7 @@ import { IRange } from 'vs/editor/common/core/range';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate, MainThreadTextEditorsShape } from 'vs/workbench/api/common/extHost.protocol';
 import * as TypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import { EndOfLine, Position, Range, Selection, SnippetString, TextEditorLineNumbersStyle, TextEditorRevealType } from 'vs/workbench/api/common/extHostTypes';
+import { EndOfLine, getDebugDescriptionOfSelection, Position, Range, Selection, SnippetString, TextEditorLineNumbersStyle, TextEditorRevealType } from 'vs/workbench/api/common/extHostTypes';
 import type * as vscode from 'vscode';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Lazy } from 'vs/base/common/lazy';
@@ -566,6 +566,9 @@ export class ExtHostTextEditor {
 			},
 			hide() {
 				_proxy.$tryHideEditor(id);
+			},
+			[Symbol.for('debug.description')]() {
+				return `TextEditor(${this.document.uri.toString()}, ${this.selections.map(s => getDebugDescriptionOfSelection(s)).join(', ')})`;
 			}
 		});
 	}
