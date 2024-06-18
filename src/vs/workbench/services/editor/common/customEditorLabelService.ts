@@ -156,6 +156,7 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 	}
 
 	private readonly _parsedTemplateExpression = /\$\{(dirname|filename|extname|extname\((?<extnameN>[-+]?\d+)\)|dirname\((?<dirnameN>[-+]?\d+)\))\}/g;
+	private readonly _filenameCaptureExpression = /(?<filename>^\.*[^.]*)/;
 	private applyTemplate(template: string, resource: URI, relevantPath: string): string {
 		let parsedPath: undefined | ParsedPath;
 		return template.replace(this._parsedTemplateExpression, (match: string, variable: string, ...args: any[]) => {
@@ -164,12 +165,18 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 			const { dirnameN = '0', extnameN = '0' }: { dirnameN?: string; extnameN?: string } = args.pop();
 
 			if (variable === 'filename') {
-				return parsedPath.name;
+				const { filename } = this._filenameCaptureExpression.exec(parsedPath.base)?.groups ?? {};
+				if (filename) {
+					return filename;
+				}
 			} else if (variable === 'extname') {
-				return parsedPath.base.split('.').slice(1).join('.');
+				const extension = this.removeLeadingDot(parsedPath.base).split('.').slice(1).join('.');
+				if (extension) {
+					return extension;
+				}
 			} else if (variable.startsWith('extname')) {
 				const n = parseInt(extnameN);
-				const extensionName = parsedPath.base;
+				const extensionName = this.removeLeadingDot(parsedPath.base);
 				const nthExtname = this.getNthExtname(extensionName, n);
 				if (nthExtname) {
 					return nthExtname;
@@ -184,6 +191,14 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 
 			return match;
 		});
+	}
+
+	private removeLeadingDot(path: string): string {
+		let withoutLeadingDot = path;
+		while (withoutLeadingDot.startsWith('.')) {
+			withoutLeadingDot = withoutLeadingDot.slice(1);
+		}
+		return withoutLeadingDot;
 	}
 
 	private getNthDirname(path: string, n: number): string | undefined {
