@@ -7,14 +7,14 @@ declare module 'vscode' {
 
 	export namespace lm {
 		/**
-		 * Register a ChatTool. The tool must also be registered in the package.json `languageModelTools` contribution point.
+		 * Register a LanguageModelTool. The tool must also be registered in the package.json `languageModelTools` contribution point.
 		 */
-		export function registerTool(toolId: string, tool: ChatTool): Disposable;
+		export function registerTool(toolId: string, tool: LanguageModelTool): Disposable;
 
 		/**
 		 * A list of all available tools.
 		 */
-		export const tools: ReadonlyArray<ChatToolDescription>;
+		export const tools: ReadonlyArray<LanguageModelToolDescription>;
 
 		/**
 		 * Invoke a tool with the given parameters.
@@ -22,14 +22,14 @@ declare module 'vscode' {
 		export function invokeTool(toolId: string, parameters: Object, token: CancellationToken): Thenable<string>;
 	}
 
-	export interface ChatToolDescription {
+	export interface LanguageModelToolDescription {
 		id: string;
 		description: string;
 		parametersSchema?: JSONSchema;
 		displayName?: string;
 	}
 
-	export interface ChatTool {
+	export interface LanguageModelTool {
 		invoke(parameters: any, token: CancellationToken): Thenable<string>;
 	}
 }

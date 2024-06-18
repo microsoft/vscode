@@ -12,7 +12,7 @@ import type * as vscode from 'vscode';
 
 export class ExtHostChatTools implements ExtHostChatToolsShape {
 	/** A map of tools that were registered in this EH */
-	private readonly _registeredTools = new Map<string, { extension: IExtensionDescription; tool: vscode.ChatTool }>();
+	private readonly _registeredTools = new Map<string, { extension: IExtensionDescription; tool: vscode.LanguageModelTool }>();
 	private readonly _proxy: MainThreadChatToolsShape;
 
 	/** A map of all known tools, from other EHs or registered in vscode core */
@@ -43,7 +43,7 @@ export class ExtHostChatTools implements ExtHostChatToolsShape {
 		}
 	}
 
-	get tools(): vscode.ChatToolDescription[] {
+	get tools(): vscode.LanguageModelToolDescription[] {
 		return Array.from(this._allTools.values());
 	}
 
@@ -56,7 +56,7 @@ export class ExtHostChatTools implements ExtHostChatToolsShape {
 		return await item.tool.invoke(parameters, token);
 	}
 
-	registerChatTool(extension: IExtensionDescription, id: string, tool: vscode.ChatTool): IDisposable {
+	registerChatTool(extension: IExtensionDescription, id: string, tool: vscode.LanguageModelTool): IDisposable {
 		this._registeredTools.set(id, { extension, tool });
 		this._proxy.$registerTool(id);
 
