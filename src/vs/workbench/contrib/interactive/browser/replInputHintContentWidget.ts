@@ -117,7 +117,14 @@ export class ReplInputHintContentWidget extends Disposable implements IContentWi
 
 			hintElement.appendChild(before);
 
-			const configLink = dom.$('a', { href: '#' });
+			const label = new KeybindingLabel(hintElement, OS);
+			label.set(keybinding);
+			label.element.style.width = 'min-content';
+			label.element.style.display = 'inline';
+
+			hintElement.appendChild(after);
+
+			const configLink = dom.$('a', { href: '#' }, localize('settings link', 'Update execution settings.'));
 			configLink.style.color = linkForeground?.toString() || '';
 			configLink.onclick = (e) => {
 				e.preventDefault();
@@ -125,12 +132,6 @@ export class ReplInputHintContentWidget extends Disposable implements IContentWi
 			};
 			hintElement.appendChild(configLink);
 
-			const label = new KeybindingLabel(configLink, OS);
-			label.set(keybinding);
-			label.element.style.width = 'min-content';
-			label.element.style.display = 'inline';
-
-			hintElement.appendChild(after);
 
 			this.domNode.append(hintElement);
 			return '';
