@@ -120,7 +120,7 @@ export class AutoClosingOvertypeOperation {
 	}
 }
 
-export class AutoClosingOvertypeOperationWithInterceptors {
+export class AutoClosingOvertypeWithInterceptorsOperation {
 
 	public static getEdits(config: CursorConfiguration, model: ITextModel, selections: Selection[], autoClosedCharacters: Range[], ch: string): EditOperationResult | undefined {
 		if (isAutoClosingOvertype(config, model, selections, autoClosedCharacters, ch)) {
@@ -141,7 +141,7 @@ export class AutoClosingOpenCharTypeOperation {
 		if (!isDoingComposition) {
 			const autoClosingPairClose = this._getAutoClosingPairClose(config, model, selections, ch, chIsAlreadyTyped);
 			if (autoClosingPairClose !== null) {
-				return this._runAutoClosingOpenCharType(selections, ch, true, autoClosingPairClose);
+				return this._runAutoClosingOpenCharType(selections, ch, chIsAlreadyTyped, autoClosingPairClose);
 			}
 		}
 		return;
@@ -587,11 +587,9 @@ export class EnterOperation {
 		if (model === null || selections === null) {
 			return [];
 		}
-
 		const commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
 			let lineNumber = selections[i].positionLineNumber;
-
 			if (lineNumber === 1) {
 				commands[i] = new ReplaceCommandWithoutChangingPosition(new Range(1, 1, 1, 1), '\n');
 			} else {
@@ -608,7 +606,6 @@ export class EnterOperation {
 		if (model === null || selections === null) {
 			return [];
 		}
-
 		const commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const lineNumber = selections[i].positionLineNumber;

@@ -12,7 +12,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
 import { ICommand, ICursorStateComputerData } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { AutoClosingOpenCharTypeOperation, AutoClosingOvertypeOperation, AutoClosingOvertypeOperationWithInterceptors, AutoIndentOperation, CompositionOperation, EnterOperation, InterceptorElectricCharOperation, PasteOperation, shouldSurroundChar, SimpleCharacterTypeOperation, SurroundSelectionOperation, TabOperation, TypeWithoutInterceptorsOperation } from 'vs/editor/common/cursor/cursorTypeEditOperations';
+import { AutoClosingOpenCharTypeOperation, AutoClosingOvertypeOperation, AutoClosingOvertypeWithInterceptorsOperation, AutoIndentOperation, CompositionOperation, EnterOperation, InterceptorElectricCharOperation, PasteOperation, shouldSurroundChar, SimpleCharacterTypeOperation, SurroundSelectionOperation, TabOperation, TypeWithoutInterceptorsOperation } from 'vs/editor/common/cursor/cursorTypeEditOperations';
 
 export class TypeOperations {
 
@@ -152,7 +152,7 @@ export class TypeOperations {
 			});
 		}
 
-		const autoClosingOvertypeEdits = AutoClosingOvertypeOperationWithInterceptors.getEdits(config, model, selections, autoClosedCharacters, ch);
+		const autoClosingOvertypeEdits = AutoClosingOvertypeWithInterceptorsOperation.getEdits(config, model, selections, autoClosedCharacters, ch);
 		if (autoClosingOvertypeEdits !== undefined) {
 			return autoClosingOvertypeEdits;
 		}
