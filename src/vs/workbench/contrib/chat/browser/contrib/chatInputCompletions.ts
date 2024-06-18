@@ -209,7 +209,7 @@ class AgentCompletions extends Disposable {
 				const getFilterText = (agent: IChatAgentData, command: string) => {
 					// This is hacking the filter algorithm to make @terminal /explain match worse than @workspace /explain by making its match index later in the string.
 					// When I type `/exp`, the workspace one should be sorted over the terminal one.
-					const dummyPrefix = agent.id === 'github.copilot.terminal' ? `0000` : ``;
+					const dummyPrefix = agent.id === 'github.copilot.terminalPanel' ? `0000` : ``;
 					return `${chatSubcommandLeader}${dummyPrefix}${agent.name}.${command}`;
 				};
 

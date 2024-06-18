@@ -137,6 +137,7 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 		}, Sizing.Distribute, undefined, true);
 
 		this.registerListeners();
+		this.updateStyles();
 
 		this.userDataProfileManagementService.getBuiltinProfileTemplates().then(templates => {
 			this.templates = templates;
@@ -557,7 +558,7 @@ class ProfileWidget extends Disposable {
 		this.copyFromSelectBox.render(append(this.copyFromContainer, $('.profile-select-container')));
 
 		this.useAsDefaultProfileContainer = append(body, $('.profile-use-as-default-container'));
-		const useAsDefaultProfileTitle = localize('enable for new windows', "Use this profile for new windows");
+		const useAsDefaultProfileTitle = localize('enable for new windows', "Use this profile as default for new windows");
 		this.useAsDefaultProfileCheckbox = this._register(new Checkbox(useAsDefaultProfileTitle, false, defaultCheckboxStyles));
 		append(this.useAsDefaultProfileContainer, this.useAsDefaultProfileCheckbox.domNode);
 		const useAsDefaultProfileLabel = append(this.useAsDefaultProfileContainer, $('.profile-use-as-default-label', undefined, useAsDefaultProfileTitle));
@@ -717,6 +718,8 @@ class ProfileWidget extends Disposable {
 		const profile = profileElement instanceof UserDataProfileElement ? profileElement.profile : undefined;
 		this.profileTitle.classList.toggle('hide', !profile?.isDefault);
 		this.nameInput.element.classList.toggle('hide', !!profile?.isDefault);
+		this.iconElement.classList.toggle('disabled', !!profile?.isDefault);
+		this.iconElement.setAttribute('tabindex', profile?.isDefault ? '' : '0');
 
 		disposables.add(profileElement.onDidChange(e => {
 			if (e.flags || e.copyFrom || e.copyFlags || e.disabled) {

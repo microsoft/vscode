@@ -578,7 +578,7 @@ export class LiveStrategy extends EditModeStrategy {
 			message = localize('change.0', "Nothing changed.");
 		} else if (remaining === 1) {
 			message = needsReview
-				? localize('review.1', "$(info) Accept or discard 1 change")
+				? localize('review.1', "$(info) Accept or discard change")
 				: localize('change.1', "1 change");
 		} else {
 			message = needsReview

@@ -95,7 +95,7 @@ export class UserDataSyncClient extends Disposable {
 
 		const storageService = this._register(new TestStorageService(userDataProfilesService.defaultProfile));
 		this.instantiationService.stub(IStorageService, this._register(storageService));
-		this.instantiationService.stub(IUserDataProfileStorageService, this._register(new TestUserDataProfileStorageService(storageService)));
+		this.instantiationService.stub(IUserDataProfileStorageService, this._register(new TestUserDataProfileStorageService(false, storageService)));
 
 		const configurationService = this._register(new ConfigurationService(userDataProfilesService.defaultProfile.settingsResource, fileService, new NullPolicyService(), logService));
 		await configurationService.initialize();
