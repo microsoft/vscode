@@ -86,7 +86,7 @@ suite('Custom Editor Label Service', () => {
 		assert.strictEqual(customLabelService.getName(URI.file('.file')), '.file');
 		assert.strictEqual(customLabelService.getName(URI.file('.file.txt')), '.file');
 		assert.strictEqual(customLabelService.getName(URI.file('.file.txt1.txt2')), '.file');
-		assert.strictEqual(customLabelService.getName(URI.file('folder/file.txt1.txt2')), '.file');
+		assert.strictEqual(customLabelService.getName(URI.file('folder/.file.txt1.txt2')), '.file');
 	});
 
 	test('Custom Labels: extname(N)', async () => {
