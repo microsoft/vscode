@@ -157,7 +157,7 @@ export class TypeOperations {
 			return autoClosingOvertypeEdits;
 		}
 
-		const autoClosingOpenCharEdits = AutoClosingOpenCharTypeOperation.getEdits(prevEditOperationType, config, model, selections, ch, true, false);
+		const autoClosingOpenCharEdits = AutoClosingOpenCharTypeOperation.getEdits(config, model, selections, ch, true, false);
 		if (autoClosingOpenCharEdits !== undefined) {
 			return autoClosingOpenCharEdits;
 		}
@@ -182,12 +182,12 @@ export class TypeOperations {
 			return autoClosingOverTypeEdits;
 		}
 
-		const autoClosingOpenCharEdits = AutoClosingOpenCharTypeOperation.getEdits(prevEditOperationType, config, model, selections, ch, false, isDoingComposition);
+		const autoClosingOpenCharEdits = AutoClosingOpenCharTypeOperation.getEdits(config, model, selections, ch, false, isDoingComposition);
 		if (autoClosingOpenCharEdits !== undefined) {
 			return autoClosingOpenCharEdits;
 		}
 
-		const surroundSelectionEdits = SurroundSelectionOperation.getEdits(prevEditOperationType, config, model, selections, ch, isDoingComposition);
+		const surroundSelectionEdits = SurroundSelectionOperation.getEdits(config, model, selections, ch, isDoingComposition);
 		if (surroundSelectionEdits !== undefined) {
 			return surroundSelectionEdits;
 		}
