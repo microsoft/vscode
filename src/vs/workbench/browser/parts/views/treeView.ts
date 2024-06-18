@@ -709,6 +709,21 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 			dnd: this.treeViewDnd,
 			overrideStyles: getLocationBasedViewColors(this.viewLocation).listOverrideStyles
 		}) as WorkbenchAsyncDataTree<ITreeItem, ITreeItem, FuzzyScore>);
+		this.treeDisposables.add(this.tree.onMouseOver(e => {
+			if (e.element) {
+				this.tree?.rerender(e.element);
+			}
+		}));
+		this.treeDisposables.add(this.tree.contextKeyService.onDidChangeContext(e => {
+			const selection = this.tree?.getSelection();
+			if (selection?.length) {
+				selection.map(item => this.tree?.rerender(item));
+			}
+			const focus = this.tree?.getFocus();
+			if (focus?.length) {
+				focus.map(item => this.tree?.rerender(item));
+			}
+		}));
 		this.treeDisposables.add(this.tree);
 		treeMenus.setContextKeyService(this.tree.contextKeyService);
 		aligner.tree = this.tree;
@@ -1317,7 +1332,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 
 		templateData.actionBar.context = { $treeViewId: this.treeViewId, $treeItemHandle: node.handle } satisfies TreeViewItemHandleArg;
 
-		const menuActions = this.menus.getResourceActions([node], templateData.elementDisposable);
+		const menuActions = this.menus.getResourceActions([node]);
 		templateData.actionBar.push(menuActions.actions, { icon: true, label: false });
 
 		if (this._actionRunner) {
@@ -1584,8 +1599,8 @@ class TreeMenus implements IDisposable {
 		@IMenuService private readonly menuService: IMenuService
 	) { }
 
-	getResourceActions(elements: ITreeItem[], disposableStore: DisposableStore): { actions: IAction[] } {
-		const actions = this.getActions(MenuId.ViewItemContext, elements, disposableStore);
+	getResourceActions(elements: ITreeItem[]): { actions: IAction[] } {
+		const actions = this.getActions(MenuId.ViewItemContext, elements);
 		return { actions: actions.primary };
 	}
 
@@ -1637,7 +1652,7 @@ class TreeMenus implements IDisposable {
 		return groups;
 	}
 
-	private getActions(menuId: MenuId, elements: ITreeItem[], listen?: DisposableStore): { primary: IAction[]; secondary: IAction[] } {
+	private getActions(menuId: MenuId, elements: ITreeItem[]): { primary: IAction[]; secondary: IAction[] } {
 		if (!this.contextKeyService) {
 			return { primary: [], secondary: [] };
 		}
@@ -1663,12 +1678,7 @@ class TreeMenus implements IDisposable {
 				this.filterNonUniversalActions(primaryGroups, result.primary);
 				this.filterNonUniversalActions(secondaryGroups, result.secondary);
 			}
-			if (listen && elements.length === 1) {
-				listen.add(menu.onDidChange(() => this._onDidChange.fire(element)));
-				listen.add(menu);
-			} else {
-				menu.dispose();
-			}
+			menu.dispose();
 		}
 
 		return { primary: this.buildMenu(primaryGroups), secondary: this.buildMenu(secondaryGroups) };
