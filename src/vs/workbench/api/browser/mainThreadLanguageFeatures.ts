@@ -1124,7 +1124,7 @@ class MainThreadDocumentOnDropEditProvider implements languages.DocumentDropEdit
 		}
 	}
 
-	async provideDocumentDropEdits(model: ITextModel, position: IPosition, dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<languages.DocumentDropEdit[] | undefined> {
+	async provideDocumentDropEdits(model: ITextModel, position: IPosition, dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<languages.DocumentDropEditsSession | undefined> {
 		const request = this.dataTransfers.add(dataTransfer);
 		try {
 			const dataTransferDto = await typeConvert.DataTransfer.from(dataTransfer);
@@ -1137,14 +1137,19 @@ class MainThreadDocumentOnDropEditProvider implements languages.DocumentDropEdit
 				return;
 			}
 
-			return edits.map(edit => {
-				return {
-					...edit,
-					yieldTo: edit.yieldTo?.map(x => ({ kind: new HierarchicalKind(x) })),
-					kind: edit.kind ? new HierarchicalKind(edit.kind) : undefined,
-					additionalEdit: reviveWorkspaceEditDto(edit.additionalEdit, this._uriIdentService, dataId => this.resolveDocumentOnDropFileData(request.id, dataId)),
-				};
-			});
+			return {
+				edits: edits.map(edit => {
+					return {
+						...edit,
+						yieldTo: edit.yieldTo?.map(x => ({ kind: new HierarchicalKind(x) })),
+						kind: edit.kind ? new HierarchicalKind(edit.kind) : undefined,
+						additionalEdit: reviveWorkspaceEditDto(edit.additionalEdit, this._uriIdentService, dataId => this.resolveDocumentOnDropFileData(request.id, dataId)),
+					};
+				}),
+				dispose: () => {
+					this._proxy.$releaseDocumentOnDropEdits(this._handle, request.id);
+				},
+			};
 		} finally {
 			request.dispose();
 		}

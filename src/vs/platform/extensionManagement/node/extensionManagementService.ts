@@ -484,6 +484,17 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 	}
 }
 
+type UpdateMetadataErrorClassification = {
+	owner: 'sandy081';
+	comment: 'Update metadata error';
+	extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'extension identifier' };
+	code?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'result code of the verification' };
+};
+type UpdateMetadataErrorEvent = {
+	extensionId: string;
+	code?: string;
+};
+
 export class ExtensionsScanner extends Disposable {
 
 	private readonly uninstalledResource: URI;
@@ -501,6 +512,7 @@ export class ExtensionsScanner extends Disposable {
 		@IExtensionsScannerService private readonly extensionsScannerService: IExtensionsScannerService,
 		@IExtensionsProfileScannerService private readonly extensionsProfileScannerService: IExtensionsProfileScannerService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
@@ -582,7 +594,8 @@ export class ExtensionsScanner extends Disposable {
 			try {
 				await this.extensionsScannerService.updateMetadata(extensionLocation, metadata);
 			} catch (error) {
-				throw toExtensionManagementError(error, ExtensionManagementErrorCode.UpdateMetadata);
+				this.telemetryService.publicLog2<UpdateMetadataErrorEvent, UpdateMetadataErrorClassification>('extension:extract', { extensionId: extensionKey.id, code: error.code });
+				throw toExtensionManagementError(error, ExtensionManagementErrorCode.UpdateExistingMetadata);
 			}
 		} else {
 			try {
@@ -602,6 +615,7 @@ export class ExtensionsScanner extends Disposable {
 				try {
 					await this.extensionsScannerService.updateMetadata(tempLocation, metadata);
 				} catch (error) {
+					this.telemetryService.publicLog2<UpdateMetadataErrorEvent, UpdateMetadataErrorClassification>('extension:extract', { extensionId: extensionKey.id, code: error.code });
 					throw toExtensionManagementError(error, ExtensionManagementErrorCode.UpdateMetadata);
 				}
 
@@ -657,6 +671,7 @@ export class ExtensionsScanner extends Disposable {
 				await this.extensionsScannerService.updateMetadata(local.location, metadata);
 			}
 		} catch (error) {
+			this.telemetryService.publicLog2<UpdateMetadataErrorEvent, UpdateMetadataErrorClassification>('extension:extract', { extensionId: local.identifier.id, code: error.code });
 			throw toExtensionManagementError(error, ExtensionManagementErrorCode.UpdateMetadata);
 		}
 		return this.scanLocalExtension(local.location, local.type, profileLocation);

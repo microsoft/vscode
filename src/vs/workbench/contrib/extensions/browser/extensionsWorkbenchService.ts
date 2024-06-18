@@ -30,7 +30,7 @@ import { IURLService, IURLHandler, IOpenURLOptions } from 'vs/platform/url/commo
 import { ExtensionsInput, IExtensionEditorOptions } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProgressOptions, IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService, NotificationPriority, Severity } from 'vs/platform/notification/common/notification';
 import * as resources from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -951,12 +951,15 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}));
 
 		urlService.registerHandler(this);
-		this.registerConfigurations();
+
+		if (this.productService.quality !== 'stable') {
+			this.registerAutoRestartConfig();
+		}
 
 		this.whenInitialized = this.initialize();
 	}
 
-	private registerConfigurations(): void {
+	private registerAutoRestartConfig(): void {
 		Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			.registerConfiguration({
 				...extensionsConfigurationNodeBase,
@@ -964,7 +967,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 					[AutoRestartConfigurationKey]: {
 						type: 'boolean',
 						description: nls.localize('autoRestart', "If activated, extensions will automatically restart following an update if the window is not in focus."),
-						default: this.productService.quality !== 'stable',
+						default: false,
 					}
 				}
 			});
@@ -1299,7 +1302,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return undefined;
 	}
 
-	async updateRunningExtensions(auto?: boolean): Promise<void> {
+	async updateRunningExtensions(auto: boolean = false): Promise<void> {
 		const toAdd: ILocalExtension[] = [];
 		const toRemove: string[] = [];
 
@@ -1343,16 +1346,23 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			if (await this.extensionService.stopExtensionHosts(nls.localize('restart', "Enable or Disable extensions"), auto)) {
 				await this.extensionService.startExtensionHosts({ toAdd, toRemove });
 				if (auto) {
-					type ExtensionsAutoRestartClassification = {
-						owner: 'sandy081';
-						comment: 'Report when extensions are auto restarted';
-						count: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of extensions auto restarted' };
-					};
-					type ExtensionsAutoRestartEvent = {
-						count: number;
-					};
-					this.telemetryService.publicLog2<ExtensionsAutoRestartEvent, ExtensionsAutoRestartClassification>('extensions:autorestart', { count: toAdd.length + toRemove.length });
+					this.notificationService.notify({
+						severity: Severity.Info,
+						message: nls.localize('extensionsAutoRestart', "Extensions were auto restarted to enable updates."),
+						priority: NotificationPriority.SILENT
+					});
 				}
+				type ExtensionsAutoRestartClassification = {
+					owner: 'sandy081';
+					comment: 'Report when extensions are auto restarted';
+					count: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of extensions auto restarted' };
+					auto: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the restart was triggered automatically' };
+				};
+				type ExtensionsAutoRestartEvent = {
+					count: number;
+					auto: boolean;
+				};
+				this.telemetryService.publicLog2<ExtensionsAutoRestartEvent, ExtensionsAutoRestartClassification>('extensions:autorestart', { count: toAdd.length + toRemove.length, auto });
 			}
 		}
 	}

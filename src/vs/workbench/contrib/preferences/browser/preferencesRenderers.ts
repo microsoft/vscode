@@ -500,6 +500,7 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 		this._register(this.editor.getModel()!.onDidChangeContent(() => this.delayedRender()));
 		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.source === ConfigurationTarget.DEFAULT)(() => this.delayedRender()));
 		this._register(languageFeaturesService.codeActionProvider.register({ pattern: settingsEditorModel.uri.path }, this));
+		this._register(userDataProfileService.onDidChangeCurrentProfile(() => this.delayedRender()));
 	}
 
 	private delayedRender(): void {
