@@ -686,8 +686,10 @@ export class UserDataProfilesEditorModel extends EditorModel {
 	}
 
 	private onDidChangeProfiles(e: DidChangeProfilesEvent): void {
+		let changed = false;
 		for (const profile of e.added) {
 			if (!profile.isTransient && profile.name !== this.newProfileElement?.name) {
+				changed = true;
 				this._profiles.push(this.createProfileElement(profile));
 			}
 		}
@@ -697,10 +699,13 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			}
 			const index = this._profiles.findIndex(([p]) => p instanceof UserDataProfileElement && p.profile.id === profile.id);
 			if (index !== -1) {
+				changed = true;
 				this._profiles.splice(index, 1).map(([, disposables]) => disposables.dispose());
 			}
 		}
-		this._onDidChange.fire(undefined);
+		if (changed) {
+			this._onDidChange.fire(undefined);
+		}
 	}
 
 	private createProfileElement(profile: IUserDataProfile): [UserDataProfileElement, DisposableStore] {
