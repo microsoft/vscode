@@ -5,36 +5,36 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
-import { ExtHostChatToolsShape, ExtHostContext, MainContext, MainThreadChatToolsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IChatToolData, IChatToolsService } from 'vs/workbench/contrib/chat/common/chatToolsService';
+import { ExtHostLanguageModelToolsShape, ExtHostContext, MainContext, MainThreadLanguageModelToolsShape } from 'vs/workbench/api/common/extHost.protocol';
+import { IToolData, ILanguageModelToolsService } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
-@extHostNamedCustomer(MainContext.MainThreadChatTools)
-export class MainThreadChatTools extends Disposable implements MainThreadChatToolsShape {
+@extHostNamedCustomer(MainContext.MainThreadLanguageModelTools)
+export class MainThreadLanguageModelTools extends Disposable implements MainThreadLanguageModelToolsShape {
 
-	private readonly _proxy: ExtHostChatToolsShape;
+	private readonly _proxy: ExtHostLanguageModelToolsShape;
 	private readonly _tools = this._register(new DisposableMap<string>());
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IChatToolsService private readonly _chatToolsService: IChatToolsService,
+		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService,
 	) {
 		super();
-		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatTools);
+		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostLanguageModelTools);
 
-		this._register(this._chatToolsService.onDidChangeTools(e => this._proxy.$acceptToolDelta(e)));
+		this._register(this._languageModelToolsService.onDidChangeTools(e => this._proxy.$acceptToolDelta(e)));
 	}
 
-	async $getTools(): Promise<IChatToolData[]> {
-		return Array.from(this._chatToolsService.getTools());
+	async $getTools(): Promise<IToolData[]> {
+		return Array.from(this._languageModelToolsService.getTools());
 	}
 
 	$invokeTool(name: string, parameters: any, token: CancellationToken): Promise<string> {
-		return this._chatToolsService.invokeTool(name, parameters, token);
+		return this._languageModelToolsService.invokeTool(name, parameters, token);
 	}
 
 	$registerTool(id: string): void {
-		const disposable = this._chatToolsService.registerToolImplementation(
+		const disposable = this._languageModelToolsService.registerToolImplementation(
 			id,
 			{
 				invoke: async (parameters, token) => {

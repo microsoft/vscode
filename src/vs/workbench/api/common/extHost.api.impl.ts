@@ -107,7 +107,7 @@ import { checkProposedApiEnabled, isProposedApiEnabled } from 'vs/workbench/serv
 import { ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { TextSearchCompleteMessageType } from 'vs/workbench/services/search/common/searchExtTypes';
 import type * as vscode from 'vscode';
-import { ExtHostChatTools } from 'vs/workbench/api/common/extHostChatTool';
+import { ExtHostLanguageModelTools } from 'vs/workbench/api/common/extHostLanguageModelTools';
 
 export interface IExtensionRegistries {
 	mine: ExtensionDescriptionRegistry;
@@ -212,7 +212,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	rpcProtocol.set(ExtHostContext.ExtHostInteractive, new ExtHostInteractive(rpcProtocol, extHostNotebook, extHostDocumentsAndEditors, extHostCommands, extHostLogService));
 	const extHostChatAgents2 = rpcProtocol.set(ExtHostContext.ExtHostChatAgents2, new ExtHostChatAgents2(rpcProtocol, extHostLogService, extHostCommands, initData.quality));
 	const extHostChatVariables = rpcProtocol.set(ExtHostContext.ExtHostChatVariables, new ExtHostChatVariables(rpcProtocol));
-	const extHostChatTools = rpcProtocol.set(ExtHostContext.ExtHostChatTools, new ExtHostChatTools(rpcProtocol));
+	const extHostLanguageModelTools = rpcProtocol.set(ExtHostContext.ExtHostLanguageModelTools, new ExtHostLanguageModelTools(rpcProtocol));
 	const extHostAiRelatedInformation = rpcProtocol.set(ExtHostContext.ExtHostAiRelatedInformation, new ExtHostRelatedInformation(rpcProtocol));
 	const extHostAiEmbeddingVector = rpcProtocol.set(ExtHostContext.ExtHostAiEmbeddingVector, new ExtHostAiEmbeddingVector(rpcProtocol));
 	const extHostStatusBar = rpcProtocol.set(ExtHostContext.ExtHostStatusBar, new ExtHostStatusBar(rpcProtocol, extHostCommands.converter));
@@ -1484,15 +1484,15 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			registerTool(toolId: string, tool: vscode.LanguageModelTool) {
 				checkProposedApiEnabled(extension, 'chatVariableResolver');
-				return extHostChatTools.registerChatTool(extension, toolId, tool);
+				return extHostLanguageModelTools.registerTool(extension, toolId, tool);
 			},
 			invokeTool(toolId: string, parameters: Object, token: vscode.CancellationToken) {
 				checkProposedApiEnabled(extension, 'chatVariableResolver');
-				return extHostChatTools.invokeTool(toolId, parameters, token);
+				return extHostLanguageModelTools.invokeTool(toolId, parameters, token);
 			},
 			get tools() {
 				checkProposedApiEnabled(extension, 'chatVariableResolver');
-				return extHostChatTools.tools;
+				return extHostLanguageModelTools.tools;
 			},
 		};
 

@@ -9,7 +9,7 @@ import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Iterable } from 'vs/base/common/iterator';
 
-export interface IChatToolData {
+export interface IToolData {
 	id: string;
 	displayName?: string;
 	description: string;
@@ -17,39 +17,39 @@ export interface IChatToolData {
 }
 
 interface IToolEntry {
-	data: IChatToolData;
-	impl?: IChatToolImpl;
+	data: IToolData;
+	impl?: IToolImpl;
 }
 
-export interface IChatToolImpl {
+export interface IToolImpl {
 	invoke(parameters: any, token: CancellationToken): Promise<string>;
 }
 
-export const IChatToolsService = createDecorator<IChatToolsService>('IChatToolsService');
+export const ILanguageModelToolsService = createDecorator<ILanguageModelToolsService>('ILanguageModelToolsService');
 
-export interface IChatToolDelta {
-	added?: IChatToolData;
+export interface IToolDelta {
+	added?: IToolData;
 	removed?: string;
 }
 
-export interface IChatToolsService {
+export interface ILanguageModelToolsService {
 	_serviceBrand: undefined;
-	onDidChangeTools: Event<IChatToolDelta>;
-	registerToolData(toolData: IChatToolData): IDisposable;
-	registerToolImplementation(id: string, tool: IChatToolImpl): IDisposable;
-	getTools(): Iterable<Readonly<IChatToolData>>;
+	onDidChangeTools: Event<IToolDelta>;
+	registerToolData(toolData: IToolData): IDisposable;
+	registerToolImplementation(id: string, tool: IToolImpl): IDisposable;
+	getTools(): Iterable<Readonly<IToolData>>;
 	invokeTool(name: string, parameters: any, token: CancellationToken): Promise<string>;
 }
 
-export class ChatToolsService implements IChatToolsService {
+export class LanguageModelToolsService implements ILanguageModelToolsService {
 	_serviceBrand: undefined;
 
-	private _onDidChangeTools = new Emitter<IChatToolDelta>();
+	private _onDidChangeTools = new Emitter<IToolDelta>();
 	readonly onDidChangeTools = this._onDidChangeTools.event;
 
 	private _tools = new Map<string, IToolEntry>();
 
-	registerToolData(toolData: IChatToolData): IDisposable {
+	registerToolData(toolData: IToolData): IDisposable {
 		if (this._tools.has(toolData.id)) {
 			throw new Error(`Tool "${toolData.id}" is already registered.`);
 		}
@@ -64,7 +64,7 @@ export class ChatToolsService implements IChatToolsService {
 
 	}
 
-	registerToolImplementation(id: string, tool: IChatToolImpl): IDisposable {
+	registerToolImplementation(id: string, tool: IToolImpl): IDisposable {
 		const entry = this._tools.get(id);
 		if (!entry) {
 			throw new Error(`Tool "${id}" was not contributed.`);
@@ -80,7 +80,7 @@ export class ChatToolsService implements IChatToolsService {
 		});
 	}
 
-	getTools(): Iterable<Readonly<IChatToolData>> {
+	getTools(): Iterable<Readonly<IToolData>> {
 		return Iterable.map(this._tools.values(), i => i.data);
 	}
 

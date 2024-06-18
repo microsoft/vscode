@@ -9,7 +9,7 @@ import { DisposableMap } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IChatToolsService } from 'vs/workbench/contrib/chat/common/chatToolsService';
+import { ILanguageModelToolsService } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
 import * as extensionsRegistry from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
 interface IRawToolContribution {
@@ -62,12 +62,12 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 	private _registrationDisposables = new DisposableMap<string>();
 
 	constructor(
-		@IChatToolsService chatToolsService: IChatToolsService
+		@ILanguageModelToolsService languageModelToolsService: ILanguageModelToolsService
 	) {
 		languageModelToolsExtensionPoint.setHandler((extensions, delta) => {
 			for (const extension of delta.added) {
 				for (const tool of extension.value) {
-					const disposable = chatToolsService.registerToolData(tool);
+					const disposable = languageModelToolsService.registerToolData(tool);
 					this._registrationDisposables.set(toToolKey(extension.description.identifier, tool.id), disposable);
 				}
 			}

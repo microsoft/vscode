@@ -6,20 +6,20 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ExtHostChatToolsShape, IMainContext, MainContext, MainThreadChatToolsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IChatToolData, IChatToolDelta } from 'vs/workbench/contrib/chat/common/chatToolsService';
+import { ExtHostLanguageModelToolsShape, IMainContext, MainContext, MainThreadLanguageModelToolsShape } from 'vs/workbench/api/common/extHost.protocol';
+import { IToolData, IToolDelta } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
 import type * as vscode from 'vscode';
 
-export class ExtHostChatTools implements ExtHostChatToolsShape {
+export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape {
 	/** A map of tools that were registered in this EH */
 	private readonly _registeredTools = new Map<string, { extension: IExtensionDescription; tool: vscode.LanguageModelTool }>();
-	private readonly _proxy: MainThreadChatToolsShape;
+	private readonly _proxy: MainThreadLanguageModelToolsShape;
 
 	/** A map of all known tools, from other EHs or registered in vscode core */
-	private readonly _allTools = new Map<string, IChatToolData>();
+	private readonly _allTools = new Map<string, IToolData>();
 
 	constructor(mainContext: IMainContext) {
-		this._proxy = mainContext.getProxy(MainContext.MainThreadChatTools);
+		this._proxy = mainContext.getProxy(MainContext.MainThreadLanguageModelTools);
 
 		this._proxy.$getTools().then(tools => {
 			for (const tool of tools) {
@@ -33,7 +33,7 @@ export class ExtHostChatTools implements ExtHostChatToolsShape {
 		return await this._proxy.$invokeTool(name, parameters, token);
 	}
 
-	async $acceptToolDelta(delta: IChatToolDelta): Promise<void> {
+	async $acceptToolDelta(delta: IToolDelta): Promise<void> {
 		if (delta.added) {
 			this._allTools.set(delta.added.id, delta.added);
 		}
@@ -56,7 +56,7 @@ export class ExtHostChatTools implements ExtHostChatToolsShape {
 		return await item.tool.invoke(parameters, token);
 	}
 
-	registerChatTool(extension: IExtensionDescription, id: string, tool: vscode.LanguageModelTool): IDisposable {
+	registerTool(extension: IExtensionDescription, id: string, tool: vscode.LanguageModelTool): IDisposable {
 		this._registeredTools.set(id, { extension, tool });
 		this._proxy.$registerTool(id);
 
