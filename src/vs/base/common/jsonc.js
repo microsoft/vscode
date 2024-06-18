@@ -8,7 +8,6 @@
 //@ts-check
 'use strict';
 
-
 (function () {
 	function factory(path, os, productName, cwd) {
 		// First group matches a double quoted string
