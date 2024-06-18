@@ -7,6 +7,12 @@
 
 //@ts-check
 
+/**
+ * @typedef {import('../../nls').INLSConfiguration} INLSConfiguration
+ * @typedef {import('./nls').ILanguagePacks} ILanguagePacks
+ * @typedef {import('./nls').IResolveNLSConfigurationContext} IResolveNLSConfigurationContext
+ */
+
 (function () {
 
 	/**
@@ -72,7 +78,7 @@
 
 		/**
 		 * @param {string} userDataPath
-		 * @returns {Promise<import('./nls').ILanguagePacks | undefined>}
+		 * @returns {Promise<ILanguagePacks | undefined>}
 		 */
 		async function getLanguagePackConfigurations(userDataPath) {
 			const configFile = path.join(userDataPath, 'languagepacks.json');
@@ -84,7 +90,7 @@
 		}
 
 		/**
-		 * @param {import('./nls').ILanguagePacks} languagePacks
+		 * @param {ILanguagePacks} languagePacks
 		 * @param {string | undefined} locale
 		 */
 		function resolveLanguagePackLocale(languagePacks, locale) {
@@ -113,7 +119,7 @@
 		 * @param {string} osLocale
 		 * @param {string} nlsMetadataPath
 		 * @param {boolean} [pseudo]
-		 * @returns {import('./nls').INLSConfiguration}
+		 * @returns {INLSConfiguration}
 		 */
 		function defaultNLSConfiguration(userLocale, osLocale, nlsMetadataPath, pseudo) {
 			perf.mark('code/didGenerateNls');
@@ -128,8 +134,8 @@
 		}
 
 		/**
-		 * @param {import('./nls').IResolveNLSConfigurationContext} context
-		 * @returns {Promise<import('./nls').INLSConfiguration>}
+		 * @param {IResolveNLSConfigurationContext} context
+		 * @returns {Promise<INLSConfiguration>}
 		 */
 		async function resolveNLSConfiguration({ userLocale, osLocale, userDataPath, commit, nlsMetadataPath }) {
 			perf.mark('code/willGenerateNls');
@@ -166,7 +172,7 @@
 					typeof mainLanguagePackPath !== 'string' ||
 					!(await exists(mainLanguagePackPath))
 				) {
-					return defaultNLSConfiguration(initialUserLocale, osLocale);
+					return defaultNLSConfiguration(initialUserLocale, osLocale, nlsMetadataPath);
 				}
 
 				const languagePackId = `${languagePack.hash}.${userLocale}`;
@@ -180,7 +186,7 @@
 					await rimraf(globalLanguagePackCachePath); // delete corrupted cache folder
 				}
 
-				/** @type {import('./nls').INLSConfiguration} */
+				/** @type {INLSConfiguration} */
 				const result = {
 					userLocale: initialUserLocale,
 					osLocale,

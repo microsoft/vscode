@@ -7,7 +7,7 @@
 'use strict';
 
 /**
- * @typedef {import('./vs/base/node/nls').INLSConfiguration} INLSConfiguration
+ * @typedef {import('./vs/nls').INLSConfiguration} INLSConfiguration
  */
 
 // Simple module style to support node.js and browser environments

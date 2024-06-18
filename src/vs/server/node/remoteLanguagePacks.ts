@@ -5,7 +5,8 @@
 
 import { FileAccess } from 'vs/base/common/network';
 import { join } from 'vs/base/common/path';
-import { resolveNLSConfiguration, INLSConfiguration } from 'vs/base/node/nls';
+import type { INLSConfiguration } from 'vs/nls';
+import { resolveNLSConfiguration } from 'vs/base/node/nls';
 import { Promises } from 'vs/base/node/pfs';
 import product from 'vs/platform/product/common/product';
 

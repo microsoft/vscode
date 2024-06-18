@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-// eslint-disable-next-line local/code-import-patterns, local/code-layering
-import type { INLSConfiguration } from 'vs/base/node/nls'; // type only import to prevent duplicating types
 
 export const LANGUAGE_DEFAULT = 'en';
 
@@ -85,7 +83,7 @@ if (typeof nodeProcess === 'object') {
 	const rawNlsConfig = nodeProcess.env['VSCODE_NLS_CONFIG'];
 	if (rawNlsConfig) {
 		try {
-			const nlsConfig: INLSConfiguration = JSON.parse(rawNlsConfig);
+			const nlsConfig: nls.INLSConfiguration = JSON.parse(rawNlsConfig);
 			const resolved = nlsConfig.availableLanguages['*'];
 			_locale = nlsConfig.userLocale;
 			_platformLocale = nlsConfig.osLocale;

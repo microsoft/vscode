@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { INLSConfiguration } from 'vs/nls';
+
 interface IExtensionIdentifier {
 	readonly id: string;
 	readonly uuid?: string;
@@ -19,49 +21,6 @@ export interface ILanguagePack {
 }
 
 export type ILanguagePacks = Record<string, ILanguagePack | undefined>;
-
-export interface INLSLanguagePackConfiguration {
-
-	/**
-	 * The path to the translations config file that contains pointers to
-	 * all message bundles for `main` and extensions.
-	 */
-	readonly translationsConfigFile: string;
-
-	/**
-	 * The path to the file containing the translations for this language
-	 * pack as flat string array.
-	 */
-	readonly messagesFile: string;
-
-	/**
-	 * The path to the file that can be used to signal a corrupt language
-	 * pack, for example when reading the `messagesFile` fails. This will
-	 * instruct the application to re-create the cache on next startup.
-	 */
-	readonly corruptMarkerFile: string;
-}
-
-export interface INLSConfiguration {
-	readonly userLocale: string;
-	readonly osLocale: string;
-
-	readonly availableLanguages: Record<string, string | undefined>;
-
-	/**
-	 * Defined if a language pack is used that is not the
-	 * default english language pack.
-	 */
-	readonly languagePack?: INLSLanguagePackConfiguration;
-
-	/**
-	 * The path to the file containing the default english messages
-	 * as flat string array.
-	 */
-	readonly defaultMessagesFile: string;
-
-	readonly pseudo?: boolean;
-}
 
 export interface IResolveNLSConfigurationContext {
 
