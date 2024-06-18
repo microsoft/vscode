@@ -935,9 +935,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private renderTextEdit(element: ChatTreeItem, chatTextEdit: IChatTextEditGroup, templateData: IChatListItemTemplate): IMarkdownRenderResult | undefined {
-		if (this.rendererOptions.renderTextEditsAsSummary?.(chatTextEdit.uri) && !(isResponseVM(element) && element.response.value.every(item => item.kind === 'textEditGroup'))) {
-			return;
-		}
 
 		const store = new DisposableStore();
 		const textEditPart = store.add(this.instantiationService.createInstance(ChatTextEditContentPart, chatTextEdit, element, this.rendererOptions, this._diffEditorPool, this._currentLayoutWidth));
