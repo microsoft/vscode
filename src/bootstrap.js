@@ -179,11 +179,22 @@
 		} catch (error) {
 			console.error(`Error reading NLS messages file ${messagesFile.join(path?.sep)}: ${error}`);
 
+			// Mark as corrupt: this will re-create the language pack cache next startup
 			if (nlsConfig?.languagePack?.corruptMarkerFile) {
 				try {
 					await safeWriteNlsFile(nlsConfig.languagePack.corruptMarkerFile, 'corrupted');
 				} catch (error) {
 					console.error(`Error writing corrupted NLS marker file: ${error}`);
+				}
+			}
+
+			// Fallback to the default message file to ensure english translation at least
+			if (nlsConfig?.defaultMessagesFile) {
+				try {
+					// VSCODE_GLOBALS: NLS
+					globalThis._VSCODE_NLS = JSON.parse(await safeReadNlsFile(nlsConfig.defaultMessagesFile));
+				} catch (error) {
+					console.error(`Error reading default NLS messages file ${nlsConfig.defaultMessagesFile}: ${error}`);
 				}
 			}
 		}
