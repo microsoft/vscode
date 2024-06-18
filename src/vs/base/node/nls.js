@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+//@ts-check
 'use strict';
 
 /// <reference path="../../../typings/require.d.ts" />
-
-//@ts-check
 
 (function () {
 
@@ -211,7 +210,7 @@
 				for (const [moduleId, nlsKeys] of nlsDefaultKeys) {
 					const moduleTranslations = nlsPackdata.contents[moduleId];
 					for (const nlsKey of nlsKeys) {
-						nlsResult.push(moduleTranslations[nlsKey] || nlsDefaultMessages[nlsIndex]);
+						nlsResult.push(moduleTranslations?.[nlsKey] || nlsDefaultMessages[nlsIndex]);
 						nlsIndex++;
 					}
 				}
