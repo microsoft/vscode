@@ -80,6 +80,7 @@ export interface IChatAccessibilityService {
 export interface IChatCodeBlockInfo {
 	codeBlockIndex: number;
 	element: IChatResponseViewModel;
+	uri: URI | undefined;
 	focus(): void;
 }
 
@@ -92,7 +93,7 @@ export interface IChatFileTreeInfo {
 export type ChatTreeItem = IChatRequestViewModel | IChatResponseViewModel | IChatWelcomeMessageViewModel;
 
 export interface IChatListItemRendererOptions {
-	readonly renderStyle?: 'default' | 'compact';
+	readonly renderStyle?: 'default' | 'compact' | 'minimal';
 	readonly noHeader?: boolean;
 	readonly noPadding?: boolean;
 	readonly editableCodeBlock?: boolean;
@@ -102,7 +103,7 @@ export interface IChatListItemRendererOptions {
 export interface IChatWidgetViewOptions {
 	renderInputOnTop?: boolean;
 	renderFollowups?: boolean;
-	renderStyle?: 'default' | 'compact';
+	renderStyle?: 'default' | 'compact' | 'minimal';
 	supportsFileReferences?: boolean;
 	filter?: (item: ChatTreeItem) => boolean;
 	rendererOptions?: IChatListItemRendererOptions;
