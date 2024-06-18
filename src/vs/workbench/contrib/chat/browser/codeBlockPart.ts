@@ -7,15 +7,13 @@ import 'vs/css!./codeBlockPart';
 
 import * as dom from 'vs/base/browser/dom';
 import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Button } from 'vs/base/browser/ui/button/button';
-import { toAction } from 'vs/base/common/actions';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
-import { basename, isEqual } from 'vs/base/common/resources';
+import { isEqual } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { TabFocus } from 'vs/editor/browser/config/tabFocus';
@@ -64,6 +62,8 @@ import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreve
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { IMarkdownVulnerability } from '../common/annotations';
+import { ResourceLabel } from 'vs/workbench/browser/labels';
+import { FileKind } from 'vs/platform/files/common/files';
 
 const $ = dom.$;
 
@@ -460,7 +460,7 @@ export interface ICodeCompareBlockData {
 	readonly diffData: Promise<ICodeCompareBlockDiffData | undefined>;
 
 	readonly parentContextKeyService?: IContextKeyService;
-	readonly hideToolbar?: boolean;
+	// readonly hideToolbar?: boolean;
 }
 
 
@@ -470,8 +470,8 @@ export class CodeCompareBlockPart extends Disposable {
 
 	private readonly contextKeyService: IContextKeyService;
 	private readonly diffEditor: DiffEditorWidget;
-	private readonly toolbar1: ActionBar;
-	private readonly toolbar2: MenuWorkbenchToolBar;
+	private readonly resourceLabel: ResourceLabel;
+	private readonly toolbar: MenuWorkbenchToolBar;
 	readonly element: HTMLElement;
 	private readonly messageElement: HTMLElement;
 
@@ -501,6 +501,7 @@ export class CodeCompareBlockPart extends Disposable {
 
 		this.contextKeyService = this._register(contextKeyService.createScoped(this.element));
 		const scopedInstantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, this.contextKeyService]));
+		const editorHeader = dom.append(this.element, $('.interactive-result-header.show-file-icons'));
 		const editorElement = dom.append(this.element, $('.interactive-result-editor'));
 		this.diffEditor = this.createDiffEditor(scopedInstantiationService, editorElement, {
 			...getSimpleEditorOptions(this.configurationService),
@@ -527,22 +528,14 @@ export class CodeCompareBlockPart extends Disposable {
 			...this.getEditorOptionsFromConfig(),
 		});
 
-		const toolbarElement = dom.append(this.element, $('.interactive-result-code-block-toolbar'));
+		this.resourceLabel = this._register(scopedInstantiationService.createInstance(ResourceLabel, editorHeader, { supportIcons: true }));
 
-		// this.resourceLabel = this._register(scopedInstantiationService.createInstance(ResourceLabel, toolbarElement, { supportIcons: true }));
-
-		const editorScopedService = this.diffEditor.getModifiedEditor().contextKeyService.createScoped(toolbarElement);
+		const editorScopedService = this.diffEditor.getModifiedEditor().contextKeyService.createScoped(editorHeader);
 		const editorScopedInstantiationService = scopedInstantiationService.createChild(new ServiceCollection([IContextKeyService, editorScopedService]));
-		this.toolbar1 = this._register(new ActionBar(toolbarElement, {}));
-		this.toolbar2 = this._register(editorScopedInstantiationService.createInstance(MenuWorkbenchToolBar, toolbarElement, menuId, {
+		this.toolbar = this._register(editorScopedInstantiationService.createInstance(MenuWorkbenchToolBar, editorHeader, menuId, {
 			menuOptions: {
 				shouldForwardArgs: true
 			}
-		}));
-
-
-		this._register(this.toolbar2.onDidChangeDropdownVisibility(e => {
-			toolbarElement.classList.toggle('force-visibility', e);
 		}));
 
 		this._configureForScreenReader();
@@ -639,7 +632,7 @@ export class CodeCompareBlockPart extends Disposable {
 	}
 
 	private _configureForScreenReader(): void {
-		const toolbarElt = this.toolbar2.getElement();
+		const toolbarElt = this.toolbar.getElement();
 		if (this.accessibilityService.isScreenReaderOptimized()) {
 			toolbarElt.style.display = 'block';
 			toolbarElt.ariaLabel = this.configurationService.getValue(AccessibilityVerbositySettingId.Chat) ? localize('chat.codeBlock.toolbarVerbose', 'Toolbar for code block which can be reached via tab') : localize('chat.codeBlock.toolbar', 'Code block toolbar');
@@ -692,21 +685,10 @@ export class CodeCompareBlockPart extends Disposable {
 		this.layout(width);
 		this.diffEditor.updateOptions({ ariaLabel: localize('chat.compareCodeBlockLabel', "Code Edits") });
 
-		this.toolbar1.clear();
-		this.toolbar1.push(toAction({
-			label: basename(data.edit.uri),
-			tooltip: localize('chat.edit.tooltip', "Open '{0}'", this.labelService.getUriLabel(data.edit.uri, { relative: true })),
-			run: () => {
-				this.openerService.open(data.edit.uri, { fromUserGesture: true, allowCommands: false });
-			},
-			id: '',
-		}), { icon: false, label: true });
-
-		if (data.hideToolbar) {
-			dom.hide(this.toolbar2.getElement());
-		} else {
-			dom.show(this.toolbar2.getElement());
-		}
+		this.resourceLabel.element.setFile(data.edit.uri, {
+			fileKind: FileKind.FILE,
+			fileDecorations: { colors: true, badges: false }
+		});
 	}
 
 	reset() {
@@ -734,10 +716,14 @@ export class CodeCompareBlockPart extends Disposable {
 
 			const uriLabel = this.labelService.getUriLabel(data.edit.uri, { relative: true, noPrefix: true });
 
-			const template = data.edit.state.applied > 1
-				? localize('chat.edits.N', "Made {0} changes in [[``{1}``]]", data.edit.state.applied, uriLabel)
-				: localize('chat.edits.1', "Made 1 change in [[``{0}``]]", uriLabel);
-
+			let template: string;
+			if (data.edit.state.applied === 1) {
+				template = localize('chat.edits.1', "Made 1 change in [[``{0}``]]", uriLabel);
+			} else if (data.edit.state.applied < 0) {
+				template = localize('chat.edits.rejected', "Edits in [[``{0}``]] have been rejected", uriLabel);
+			} else {
+				template = localize('chat.edits.N', "Made {0} changes in [[``{1}``]]", data.edit.state.applied, uriLabel);
+			}
 
 			const message = renderFormattedText(template, {
 				renderCodeSegments: true,
@@ -778,7 +764,7 @@ export class CodeCompareBlockPart extends Disposable {
 			this._lastDiffEditorViewModel.value = undefined;
 		}
 
-		this.toolbar2.context = {
+		this.toolbar.context = {
 			edit: data.edit,
 			element: data.element,
 			diffEditor: this.diffEditor,
@@ -889,5 +875,19 @@ export class DefaultChatTextEditor {
 			}
 		}
 		return true;
+	}
+
+	discard(response: IChatResponseModel | IChatResponseViewModel, item: IChatTextEditGroup) {
+		if (!response.response.value.includes(item)) {
+			// bogous item
+			return;
+		}
+
+		if (item.state?.applied) {
+			// already applied
+			return;
+		}
+
+		response.setEditApplied(item, -1);
 	}
 }

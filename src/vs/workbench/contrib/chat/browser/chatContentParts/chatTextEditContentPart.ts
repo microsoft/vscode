@@ -54,101 +54,105 @@ export class ChatTextEditContentPart extends Disposable {
 		if (rendererOptions.renderTextEditsAsSummary?.(chatTextEdit.uri)) {
 			if (isResponseVM(element) && element.response.value.every(item => item.kind === 'textEditGroup')) {
 				this.element = $('.interactive-edits-summary', undefined, !element.isComplete ? localize('editsSummary1', "Making changes...") : localize('editsSummary', "Made changes."));
+			} else {
+				this.element = $('div');
 			}
 
 			// TODO@roblourens this case is now handled outside this Part in ChatListRenderer, but can it be cleaned up?
 			// return;
-		}
+		} else {
 
-		const cts = new CancellationTokenSource();
 
-		let isDisposed = false;
-		this._register(toDisposable(() => {
-			isDisposed = true;
-			cts.dispose(true);
-		}));
+			const cts = new CancellationTokenSource();
 
-		this.ref = this._register(diffEditorPool.get());
+			let isDisposed = false;
+			this._register(toDisposable(() => {
+				isDisposed = true;
+				cts.dispose(true);
+			}));
 
-		// Attach this after updating text/layout of the editor, so it should only be fired when the size updates later (horizontal scrollbar, wrapping)
-		// not during a renderElement OR a progressive render (when we will be firing this event anyway at the end of the render)
-		this._register(this.ref.object.onDidChangeContentHeight(() => {
-			this._onDidChangeHeight.fire();
-		}));
+			this.ref = this._register(diffEditorPool.get());
 
-		const data: ICodeCompareBlockData = {
-			element,
-			edit: chatTextEdit,
-			diffData: (async () => {
+			// Attach this after updating text/layout of the editor, so it should only be fired when the size updates later (horizontal scrollbar, wrapping)
+			// not during a renderElement OR a progressive render (when we will be firing this event anyway at the end of the render)
+			this._register(this.ref.object.onDidChangeContentHeight(() => {
+				this._onDidChangeHeight.fire();
+			}));
 
-				const ref = await this.textModelService.createModelReference(chatTextEdit.uri);
+			const data: ICodeCompareBlockData = {
+				element,
+				edit: chatTextEdit,
+				diffData: (async () => {
 
-				if (isDisposed) {
-					ref.dispose();
-					return;
-				}
+					const ref = await this.textModelService.createModelReference(chatTextEdit.uri);
 
-				this._register(ref);
-
-				const original = ref.object.textEditorModel;
-				let originalSha1: string = '';
-
-				if (chatTextEdit.state) {
-					originalSha1 = chatTextEdit.state.sha1;
-				} else {
-					const sha1 = new DefaultModelSHA1Computer();
-					if (sha1.canComputeSHA1(original)) {
-						originalSha1 = sha1.computeSHA1(original);
-						chatTextEdit.state = { sha1: originalSha1, applied: 0 };
+					if (isDisposed) {
+						ref.dispose();
+						return;
 					}
-				}
 
-				const modified = this.modelService.createModel(
-					createTextBufferFactoryFromSnapshot(original.createSnapshot()),
-					{ languageId: original.getLanguageId(), onDidChange: Event.None },
-					URI.from({ scheme: Schemas.vscodeChatCodeBlock, path: original.uri.path, query: generateUuid() }),
-					false
-				);
-				const modRef = await this.textModelService.createModelReference(modified.uri);
-				this._register(modRef);
+					this._register(ref);
 
-				const editGroups: ISingleEditOperation[][] = [];
-				if (isResponseVM(element)) {
-					const chatModel = this.chatService.getSession(element.sessionId)!;
+					const original = ref.object.textEditorModel;
+					let originalSha1: string = '';
 
-					for (const request of chatModel.getRequests()) {
-						if (!request.response) {
-							continue;
+					if (chatTextEdit.state) {
+						originalSha1 = chatTextEdit.state.sha1;
+					} else {
+						const sha1 = new DefaultModelSHA1Computer();
+						if (sha1.canComputeSHA1(original)) {
+							originalSha1 = sha1.computeSHA1(original);
+							chatTextEdit.state = { sha1: originalSha1, applied: 0 };
 						}
-						for (const item of request.response.response.value) {
-							if (item.kind !== 'textEditGroup' || item.state?.applied || !isEqual(item.uri, chatTextEdit.uri)) {
+					}
+
+					const modified = this.modelService.createModel(
+						createTextBufferFactoryFromSnapshot(original.createSnapshot()),
+						{ languageId: original.getLanguageId(), onDidChange: Event.None },
+						URI.from({ scheme: Schemas.vscodeChatCodeBlock, path: original.uri.path, query: generateUuid() }),
+						false
+					);
+					const modRef = await this.textModelService.createModelReference(modified.uri);
+					this._register(modRef);
+
+					const editGroups: ISingleEditOperation[][] = [];
+					if (isResponseVM(element)) {
+						const chatModel = this.chatService.getSession(element.sessionId)!;
+
+						for (const request of chatModel.getRequests()) {
+							if (!request.response) {
 								continue;
 							}
-							for (const group of item.edits) {
-								const edits = group.map(TextEdit.asEditOperation);
-								editGroups.push(edits);
+							for (const item of request.response.response.value) {
+								if (item.kind !== 'textEditGroup' || item.state?.applied || !isEqual(item.uri, chatTextEdit.uri)) {
+									continue;
+								}
+								for (const group of item.edits) {
+									const edits = group.map(TextEdit.asEditOperation);
+									editGroups.push(edits);
+								}
+							}
+							if (request.response === element.model) {
+								break;
 							}
 						}
-						if (request.response === element.model) {
-							break;
-						}
 					}
-				}
 
-				for (const edits of editGroups) {
-					modified.pushEditOperations(null, edits, () => null);
-				}
+					for (const edits of editGroups) {
+						modified.pushEditOperations(null, edits, () => null);
+					}
 
-				return {
-					modified,
-					original,
-					originalSha1
-				} satisfies ICodeCompareBlockDiffData;
-			})()
-		};
-		this.ref.object.render(data, currentWidth, cts.token);
+					return {
+						modified,
+						original,
+						originalSha1
+					} satisfies ICodeCompareBlockDiffData;
+				})()
+			};
+			this.ref.object.render(data, currentWidth, cts.token);
 
-		this.element = this.ref.object.element;
+			this.element = this.ref.object.element;
+		}
 	}
 
 	layout(width: number): void {
