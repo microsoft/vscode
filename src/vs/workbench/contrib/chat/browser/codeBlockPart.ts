@@ -716,10 +716,14 @@ export class CodeCompareBlockPart extends Disposable {
 
 			const uriLabel = this.labelService.getUriLabel(data.edit.uri, { relative: true, noPrefix: true });
 
-			const template = data.edit.state.applied > 1
-				? localize('chat.edits.N', "Made {0} changes in [[``{1}``]]", data.edit.state.applied, uriLabel)
-				: localize('chat.edits.1', "Made 1 change in [[``{0}``]]", uriLabel);
-
+			let template: string;
+			if (data.edit.state.applied === 1) {
+				template = localize('chat.edits.1', "Made 1 change in [[``{0}``]]", uriLabel);
+			} else if (data.edit.state.applied < 0) {
+				template = localize('chat.edits.rejected', "Edits in [[``{0}``]] have been rejected", uriLabel);
+			} else {
+				template = localize('chat.edits.N', "Made {0} changes in [[``{1}``]]", data.edit.state.applied, uriLabel);
+			}
 
 			const message = renderFormattedText(template, {
 				renderCodeSegments: true,
@@ -871,5 +875,19 @@ export class DefaultChatTextEditor {
 			}
 		}
 		return true;
+	}
+
+	discard(response: IChatResponseModel | IChatResponseViewModel, item: IChatTextEditGroup) {
+		if (!response.response.value.includes(item)) {
+			// bogous item
+			return;
+		}
+
+		if (item.state?.applied) {
+			// already applied
+			return;
+		}
+
+		response.setEditApplied(item, -1);
 	}
 }
