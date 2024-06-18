@@ -124,10 +124,24 @@
 
 	//#region NLS helpers
 
+	/** @type {Promise<INLSConfiguration | undefined> | undefined} */
+	let setupNLSResult = undefined;
+
 	/**
 	 * @returns {Promise<INLSConfiguration | undefined>}
 	 */
 	async function setupNLS() {
+		if (!setupNLSResult) {
+			setupNLSResult = doSetupNLS();
+		}
+
+		return setupNLSResult;
+	}
+
+	/**
+	 * @returns {Promise<INLSConfiguration | undefined>}
+	 */
+	async function doSetupNLS() {
 		const process = safeProcess();
 
 		if (process?.env['VSCODE_DEV']) {
