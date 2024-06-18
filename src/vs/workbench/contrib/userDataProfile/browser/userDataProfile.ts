@@ -178,9 +178,9 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 
 	private registerOpenProfileSubMenu(): void {
 		MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-			title: localize('open profile', "Open Profile"),
+			title: localize('New Profile Window', "New Window with Profile"),
 			submenu: OpenProfileMenu,
-			group: '2_open',
+			group: '1_new',
 			order: 4,
 			when: HAS_PROFILES_CONTEXT,
 		});
