@@ -5,7 +5,7 @@
 
 import { addDisposableListener, getActiveDocument } from 'vs/base/browser/dom';
 import { coalesce } from 'vs/base/common/arrays';
-import { CancelablePromise, createCancelablePromise, raceCancellation } from 'vs/base/common/async';
+import { CancelablePromise, createCancelablePromise, DeferredPromise, raceCancellation } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { UriList, VSDataTransfer, createStringDataTransferItem, matchesMimeType } from 'vs/base/common/dataTransfer';
 import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
@@ -36,7 +36,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { PostEditWidgetManager } from './postEditWidget';
-import { isCancellationError } from 'vs/base/common/errors';
+import { CancellationError, isCancellationError } from 'vs/base/common/errors';
 
 export const changePasteTypeCommandId = 'editor.changePasteType';
 
@@ -354,12 +354,27 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 
 				if (editSession.edits.length) {
 					const canShowWidget = editor.getOption(EditorOption.pasteAs).showPasteSelector === 'afterPaste';
-					return this._postPasteWidgetManager.applyEditAndShowIfNeeded(selections, { activeEditIndex: 0, allEdits: editSession.edits }, canShowWidget, async (edit, token) => {
-						const resolved = await edit.provider.resolveDocumentPasteEdit?.(edit, token);
-						if (resolved) {
-							edit.additionalEdit = resolved.additionalEdit;
-						}
-						return edit;
+					return this._postPasteWidgetManager.applyEditAndShowIfNeeded(selections, { activeEditIndex: 0, allEdits: editSession.edits }, canShowWidget, (edit, token) => {
+						return new Promise<PasteEditWithProvider>((resolve, reject) => {
+							(async () => {
+								try {
+									const resolveP = edit.provider.resolveDocumentPasteEdit?.(edit, token);
+									const showP = new DeferredPromise<void>();
+									const resolved = resolveP && await this._pasteProgressManager.showWhile(selections[0].getEndPosition(), localize('resolveProcess', "Resolving paste edit. Click to cancel"), Promise.race([showP.p, resolveP]), {
+										cancel: () => {
+											showP.cancel();
+											return reject(new CancellationError());
+										}
+									}, 0);
+									if (resolved) {
+										edit.additionalEdit = resolved.additionalEdit;
+									}
+									return resolve(edit);
+								} catch (err) {
+									return reject(err);
+								}
+							})();
+						});
 					}, token);
 				}
 
