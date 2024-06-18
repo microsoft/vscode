@@ -653,7 +653,7 @@ async function resolveNlsConfiguration() {
 	// If it fails we try the app locale.
 	// If that fails we fall back to English.
 
-	let nlsConfiguration = nlsConfigurationPromise ? await nlsConfigurationPromise : undefined;
+	const nlsConfiguration = nlsConfigurationPromise ? await nlsConfigurationPromise : undefined;
 	if (nlsConfiguration) {
 		return nlsConfiguration;
 	}
@@ -675,15 +675,13 @@ async function resolveNlsConfiguration() {
 	userLocale = processZhLocale(userLocale.toLowerCase());
 
 	const { resolveNLSConfiguration } = require('./vs/base/node/nls');
-	nlsConfiguration = await resolveNLSConfiguration({
+	return resolveNLSConfiguration({
 		userLocale,
 		osLocale,
 		commit: product.commit,
 		userDataPath,
 		nlsMetadataPath: __dirname
 	});
-
-	return nlsConfiguration ?? { locale: 'en', osLocale, availableLanguages: {} };
 }
 
 /**
