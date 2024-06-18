@@ -121,13 +121,13 @@
 
 	//#region NLS helpers
 
-	async function setupNLSForESM() {
+	async function setupNLS() {
 		const metaDataFile = [];
 
 		const process = safeProcess();
 		if (process && process.env['VSCODE_NLS_CONFIG']) {
 			try {
-				/** @type {{ nlsMessagesFile: string; availableLanguages: {}; loadBundle?: (bundle: string, language: string, cb: (err: Error | undefined, result: string | undefined) => void) => void; _resolvedLanguagePackCoreLocation?: string; _corruptedFile?: string }} */
+				/** @type {{ nlsMessagesFile: string; availableLanguages: {}; _resolvedLanguagePackCoreLocation?: string; _corruptedFile?: string }} */
 				const nlsConfig = JSON.parse(process.env['VSCODE_NLS_CONFIG']);
 				if (nlsConfig._resolvedLanguagePackCoreLocation) {
 					metaDataFile.push(nlsConfig._resolvedLanguagePackCoreLocation, `nls.messages.json`);
@@ -154,60 +154,6 @@
 			// 	safeWriteNlsFile(nlsConfig._corruptedFile, 'corrupted').catch(function (error) { console.error(error); });
 			// }
 		}
-	}
-
-	/**
-	 * @returns {{locale?: string, availableLanguages: {[lang: string]: string;}, pseudo?: boolean } | undefined}
-	 */
-	function setupNLS() {
-
-		// Get the nls configuration as early as possible.
-		const process = safeProcess();
-		/** @type {{ availableLanguages: {}; loadBundle?: (bundle: string, language: string, cb: (err: Error | undefined, result: string | undefined) => void) => void; _resolvedLanguagePackCoreLocation?: string; _corruptedFile?: string }} */
-		let nlsConfig = { availableLanguages: {} };
-		if (process && process.env['VSCODE_NLS_CONFIG']) {
-			try {
-				nlsConfig = JSON.parse(process.env['VSCODE_NLS_CONFIG']);
-			} catch (e) {
-				// Ignore
-			}
-		}
-
-		if (nlsConfig._resolvedLanguagePackCoreLocation) {
-			const bundles = Object.create(null);
-
-			/**
-			 * @param {string} bundle
-			 * @param {string} language
-			 * @param {(err: Error | undefined, result: string | undefined) => void} cb
-			 */
-			nlsConfig.loadBundle = function (bundle, language, cb) {
-				const result = bundles[bundle];
-				if (result) {
-					cb(undefined, result);
-
-					return;
-				}
-
-				// @ts-ignore
-				safeReadNlsFile(nlsConfig._resolvedLanguagePackCoreLocation, `${bundle.replace(/\//g, '!')}.nls.json`).then(function (content) {
-					const json = JSON.parse(content);
-					bundles[bundle] = json;
-
-					cb(undefined, json);
-				}).catch((error) => {
-					try {
-						if (nlsConfig._corruptedFile) {
-							safeWriteNlsFile(nlsConfig._corruptedFile, 'corrupted').catch(function (error) { console.error(error); });
-						}
-					} finally {
-						cb(error, undefined);
-					}
-				});
-			};
-		}
-
-		return nlsConfig;
 	}
 
 	/**
@@ -265,30 +211,29 @@
 		throw new Error('Unsupported operation (read NLS files)');
 	}
 
-	/**
-	 * @param {string} path
-	 * @param {string} content
-	 * @returns {Promise<void>}
-	 */
-	function safeWriteNlsFile(path, content) {
-		const ipcRenderer = safeIpcRenderer();
-		if (ipcRenderer) {
-			return ipcRenderer.invoke('vscode:writeNlsFile', path, content);
-		}
+	// /**
+	//  * @param {string} path
+	//  * @param {string} content
+	//  * @returns {Promise<void>}
+	//  */
+	// function safeWriteNlsFile(path, content) {
+	// 	const ipcRenderer = safeIpcRenderer();
+	// 	if (ipcRenderer) {
+	// 		return ipcRenderer.invoke('vscode:writeNlsFile', path, content);
+	// 	}
 
-		if (fs && util) {
-			return util.promisify(fs.writeFile)(path, content);
-		}
+	// 	if (fs && util) {
+	// 		return util.promisify(fs.writeFile)(path, content);
+	// 	}
 
-		throw new Error('Unsupported operation (write NLS files)');
-	}
+	// 	throw new Error('Unsupported operation (write NLS files)');
+	// }
 
 	//#endregion
 
 	return {
 		enableASARSupport,
 		setupNLS,
-		setupNLSForESM,
 		fileUriFromPath
 	};
 }));
