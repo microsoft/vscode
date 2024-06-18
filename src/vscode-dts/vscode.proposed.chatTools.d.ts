@@ -13,7 +13,7 @@ declare module 'vscode' {
 		/**
 		 * For non-chat AI actions to invoke tools arbitrarily
 		 */
-		export function invokeTool(toolId: string, parameters: Object, token: CancellationToken): Thenable<any>;
+		export function invokeTool(toolId: string, parameters: Object, token: CancellationToken): Thenable<string>;
 	}
 
 	export interface ChatToolDescription {
@@ -24,6 +24,6 @@ declare module 'vscode' {
 	}
 
 	export interface ChatTool {
-		invoke(parameters: any, token: CancellationToken): ProviderResult<any>;
+		invoke(parameters: any, token: CancellationToken): ProviderResult<string>;
 	}
 }
