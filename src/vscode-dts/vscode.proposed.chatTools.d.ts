@@ -6,12 +6,18 @@
 declare module 'vscode' {
 
 	export namespace lm {
-		export function registerTool(id: string, tool: ChatTool): Disposable;
+		/**
+		 * Register a ChatTool. The tool must also be registered in the package.json `languageModelTools` contribution point.
+		 */
+		export function registerTool(toolId: string, tool: ChatTool): Disposable;
 
+		/**
+		 * A list of all available tools.
+		 */
 		export const tools: ReadonlyArray<ChatToolDescription>;
 
 		/**
-		 * For non-chat AI actions to invoke tools arbitrarily
+		 * Invoke a tool with the given parameters.
 		 */
 		export function invokeTool(toolId: string, parameters: Object, token: CancellationToken): Thenable<string>;
 	}

@@ -1482,13 +1482,13 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					return extHostEmbeddings.computeEmbeddings(embeddingsModel, input, token);
 				}
 			},
-			registerTool(id: string, tool: vscode.ChatTool) {
+			registerTool(toolId: string, tool: vscode.ChatTool) {
 				checkProposedApiEnabled(extension, 'chatVariableResolver');
-				return extHostChatTools.registerChatTool(extension, id, tool);
+				return extHostChatTools.registerChatTool(extension, toolId, tool);
 			},
-			invokeTool(toolName: string, parameters: Object, token: vscode.CancellationToken) {
+			invokeTool(toolId: string, parameters: Object, token: vscode.CancellationToken) {
 				checkProposedApiEnabled(extension, 'chatVariableResolver');
-				return extHostChatTools.invokeTool(toolName, parameters, token);
+				return extHostChatTools.invokeTool(toolId, parameters, token);
 			},
 			get tools() {
 				checkProposedApiEnabled(extension, 'chatVariableResolver');
