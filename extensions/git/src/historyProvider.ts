@@ -113,7 +113,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 	}
 
 	async provideHistoryItems2(options: SourceControlHistoryOptions): Promise<SourceControlHistoryItem[]> {
-		if (!options.cursor) {
+		if (!this.currentHistoryItemGroup) {
 			return [];
 		}
 
@@ -125,17 +125,25 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			refNames.add(this.currentHistoryItemGroup.base.name);
 		}
 
-		// TODO@lszomoru - see if there is a better to do this
-		const [incoming, outgoing, ancestor] = await Promise.all([
-			this.repository.log({ range: `${this.currentHistoryItemGroup?.name}..${this.currentHistoryItemGroup?.base?.name}`, refNames: Array.from(refNames) }),
-			this.repository.log({ range: `${this.currentHistoryItemGroup?.base?.name}..${this.currentHistoryItemGroup?.name}`, refNames: Array.from(refNames) }),
-			this.repository.getCommit(options.cursor)
-		]);
+		// TODO@lszomoru - handle the scenario in which there is no default branch
+		const defaultBranch = await this.repository.getDefaultBranch();
+		if (!defaultBranch) {
+			return [];
+		}
+
+		const defaultBranchName = `${defaultBranch.remote}/${defaultBranch.name}`;
+		const ancestor = await this.repository.getMergeBase(this.currentHistoryItemGroup?.name, defaultBranchName);
+		if (!ancestor) {
+			return [];
+		}
+
+		refNames.add(defaultBranchName);
+		const commits = await this.repository.log({ range: `${ancestor}^..`, refNames: Array.from(refNames) });
 
 		await ensureEmojis();
 
 		const historyItems: SourceControlHistoryItem[] = [];
-		historyItems.push(...[...outgoing, ...incoming, ancestor].map(commit => {
+		historyItems.push(...commits.map(commit => {
 			const newLineIndex = commit.message.indexOf('\n');
 			const subject = newLineIndex !== -1 ? commit.message.substring(0, newLineIndex) : commit.message;
 
@@ -152,7 +160,9 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 						continue;
 					}
 
-					labels.push(label);
+					if (refNames.has(label)) {
+						labels.push(label);
+					}
 				}
 			}
 

@@ -1499,7 +1499,7 @@ export class Repository implements Disposable {
 		return undefined;
 	}
 
-	private async getDefaultBranch(): Promise<Branch | undefined> {
+	async getDefaultBranch(): Promise<Branch | undefined> {
 		try {
 			const defaultBranchResult = await this.repository.exec(['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']);
 			if (defaultBranchResult.stdout.trim() === '' || defaultBranchResult.stderr) {

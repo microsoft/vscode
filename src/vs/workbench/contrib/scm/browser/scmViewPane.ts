@@ -3967,12 +3967,12 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 		const historyItemsMap = historyProviderCacheEntry.historyItems2;
 
 		if (!historyItemsElement) {
-			const ancestor = await historyProvider.resolveHistoryItemGroupCommonAncestor(currentHistoryItemGroup.id, currentHistoryItemGroup.base?.id);
-			if (!ancestor || (ancestor.ahead === 0 && ancestor.behind === 0)) {
-				return [];
-			}
+			// const ancestor = await historyProvider.resolveHistoryItemGroupCommonAncestor(currentHistoryItemGroup.id, currentHistoryItemGroup.base?.id);
+			// if (!ancestor || (ancestor.ahead === 0 && ancestor.behind === 0)) {
+			// 	return [];
+			// }
 
-			historyItemsElement = await historyProvider.provideHistoryItems2({ cursor: ancestor.id }) ?? [];
+			historyItemsElement = await historyProvider.provideHistoryItems2({}) ?? [];
 
 			this.historyProviderCache.set(element, {
 				...historyProviderCacheEntry,
