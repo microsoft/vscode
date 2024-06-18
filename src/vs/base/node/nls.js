@@ -191,18 +191,27 @@
 					return result;
 				}
 
-				await mkdirp(commitLanguagePackCachePath);
+				/** @type {[unknown, Array<[string, string[]]>, string[], { contents: Record<string, Record<string, string>> }]} */
+				//                          ^moduleId ^nlsKeys                               ^moduleId      ^nlsKey ^nlsValue
+				const [
+					,
+					nlsDefaultKeys,
+					nlsDefaultMessages,
+					nlsPackdata
+				] = await Promise.all([
+					mkdirp(commitLanguagePackCachePath),
+					JSON.parse(await readFile(path.join(nlsMetadataPath, 'nls.keys.json'))),
+					JSON.parse(await readFile(path.join(nlsMetadataPath, 'nls.messages.json'))),
+					JSON.parse(await readFile(mainLanguagePackPath))
+				]);
 
-				/** @type {Array<[string, string[]]>} */
-				// 				  ^moduleId ^nlsKeys
-				const nlsDefaultKeys = JSON.parse(await readFile(path.join(nlsMetadataPath, 'nls.keys.json')));
-				/** @type {string[]} */
-				const nlsDefaultMessages = JSON.parse(await readFile(path.join(nlsMetadataPath, 'nls.messages.json')));
-				/** @type {{ contents: Record<string, Record<string, string>> }} */
-				// 							  ^moduleId      ^nlsKey ^nlsValue
-				const nlsPackdata = JSON.parse(await readFile(mainLanguagePackPath));
 				/** @type {string[]} */
 				const nlsResult = [];
+
+				// We expect NLS messages to be in a flat array in sorted order as they
+				// where produced during build time. We use `nls.keys.json` to know the
+				// right order and then lookup the related message from the translation.
+				// If a translation does not exist, we fallback to the default message.
 
 				let nlsIndex = 0;
 				for (const [moduleId, nlsKeys] of nlsDefaultKeys) {
@@ -213,8 +222,10 @@
 					}
 				}
 
-				await writeFile(translationMessagesFile, JSON.stringify(nlsResult));
-				await writeFile(translationsConfigFile, JSON.stringify(languagePack.translations));
+				await Promise.all([
+					writeFile(translationMessagesFile, JSON.stringify(nlsResult)),
+					writeFile(translationsConfigFile, JSON.stringify(languagePack.translations))
+				]);
 
 				perf.mark('code/didGenerateNls');
 
