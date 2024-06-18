@@ -285,7 +285,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 			replacementIndex = parseInt(args[0]);
 			replacementLength = parseInt(args[1]);
 			const firstCompletion = completions[0]?.completion;
-			this._leadingLineContent = (firstCompletion?.completionText ?? firstCompletion.label).slice(0, replacementLength) ?? '';
+			this._leadingLineContent = (firstCompletion?.completionText ?? firstCompletion?.label)?.slice(0, replacementLength) ?? '';
 		} else {
 			completions.push(...this._cachedPwshCommands);
 		}
