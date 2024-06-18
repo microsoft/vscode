@@ -3,16 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ReplaceCommandWithOffsetCursorState } from 'vs/editor/common/commands/replaceCommand';
 import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
 import { CompositionSurroundSelectionCommand } from 'vs/editor/common/commands/surroundSelectionCommand';
 import { CursorConfiguration, EditOperationResult, EditOperationType, ICursorSimpleModel, isQuote } from 'vs/editor/common/cursorCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
-import { ICommand, ICursorStateComputerData } from 'vs/editor/common/editorCommon';
+import { ICommand } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { AutoClosingOpenCharTypeOperation, AutoClosingOvertypeOperation, AutoClosingOvertypeWithInterceptorsOperation, AutoIndentOperation, CompositionOperation, EnterOperation, InterceptorElectricCharOperation, PasteOperation, shouldSurroundChar, SimpleCharacterTypeOperation, SurroundSelectionOperation, TabOperation, TypeWithoutInterceptorsOperation } from 'vs/editor/common/cursor/cursorTypeEditOperations';
+import { AutoClosingOpenCharTypeOperation, AutoClosingOvertypeOperation, AutoClosingOvertypeWithInterceptorsOperation, AutoIndentOperation, CompositionOperation, EnterOperation, InterceptorElectricCharOperation, PasteOperation, shiftIndent, shouldSurroundChar, SimpleCharacterTypeOperation, SurroundSelectionOperation, TabOperation, TypeWithoutInterceptorsOperation, unshiftIndent } from 'vs/editor/common/cursor/cursorTypeEditOperations';
 
 export class TypeOperations {
 
@@ -51,13 +50,11 @@ export class TypeOperations {
 	}
 
 	public static shiftIndent(config: CursorConfiguration, indentation: string, count?: number): string {
-		count = count || 1;
-		return ShiftCommand.shiftIndent(indentation, indentation.length + count, config.tabSize, config.indentSize, config.insertSpaces);
+		return shiftIndent(config, indentation, count);
 	}
 
 	public static unshiftIndent(config: CursorConfiguration, indentation: string, count?: number): string {
-		count = count || 1;
-		return ShiftCommand.unshiftIndent(indentation, indentation.length + count, config.tabSize, config.indentSize, config.insertSpaces);
+		return unshiftIndent(config, indentation, count);
 	}
 
 	public static paste(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[], text: string, pasteOnNewLine: boolean, multicursorText: string[]): EditOperationResult {
@@ -202,30 +199,6 @@ export class TypeOperations {
 
 	public static typeWithoutInterceptors(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], str: string): EditOperationResult {
 		return TypeWithoutInterceptorsOperation.getEdits(prevEditOperationType, selections, str);
-	}
-}
-
-export class TypeWithAutoClosingCommand extends ReplaceCommandWithOffsetCursorState {
-
-	private readonly _openCharacter: string;
-	private readonly _closeCharacter: string;
-	public closeCharacterRange: Range | null;
-	public enclosingRange: Range | null;
-
-	constructor(selection: Selection, openCharacter: string, insertOpenCharacter: boolean, closeCharacter: string) {
-		super(selection, (insertOpenCharacter ? openCharacter : '') + closeCharacter, 0, -closeCharacter.length);
-		this._openCharacter = openCharacter;
-		this._closeCharacter = closeCharacter;
-		this.closeCharacterRange = null;
-		this.enclosingRange = null;
-	}
-
-	public override computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
-		const inverseEditOperations = helper.getInverseEditOperations();
-		const range = inverseEditOperations[0].range;
-		this.closeCharacterRange = new Range(range.startLineNumber, range.endColumn - this._closeCharacter.length, range.endLineNumber, range.endColumn);
-		this.enclosingRange = new Range(range.startLineNumber, range.endColumn - this._openCharacter.length - this._closeCharacter.length, range.endLineNumber, range.endColumn);
-		return super.computeCursorState(model, helper);
 	}
 }
 

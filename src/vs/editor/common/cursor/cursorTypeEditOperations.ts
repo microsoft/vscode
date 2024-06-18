@@ -14,7 +14,7 @@ import { WordCharacterClass, getMapForWordSeparators } from 'vs/editor/common/co
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
-import { ICommand } from 'vs/editor/common/editorCommon';
+import { ICommand, ICursorStateComputerData } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { EnterAction, IndentAction, StandardAutoClosingPairConditional } from 'vs/editor/common/languages/languageConfiguration';
 import { getIndentationAtPosition } from 'vs/editor/common/languages/languageConfigurationRegistry';
@@ -23,7 +23,6 @@ import { EditorAutoClosingStrategy, EditorAutoIndentStrategy } from 'vs/editor/c
 import { createScopedLineTokens } from 'vs/editor/common/languages/supports';
 import { getIndentActionForType, getIndentForEnter, getInheritIndentForLine } from 'vs/editor/common/languages/autoIndent';
 import { getEnterAction } from 'vs/editor/common/languages/enterAction';
-import { TypeOperations, TypeWithAutoClosingCommand } from 'vs/editor/common/cursor/cursorTypeOperations';
 
 export class AutoIndentOperation {
 
@@ -64,10 +63,10 @@ export class AutoIndentOperation {
 		const currentIndentation = getIndentationAtPosition(model, range.startLineNumber, range.startColumn);
 		const actualIndentation = getIndentActionForType(config.autoIndent, model, range, ch, {
 			shiftIndent: (indentation) => {
-				return TypeOperations.shiftIndent(config, indentation);
+				return shiftIndent(config, indentation);
 			},
 			unshiftIndent: (indentation) => {
-				return TypeOperations.unshiftIndent(config, indentation);
+				return unshiftIndent(config, indentation);
 			},
 		}, config.languageConfigurationService);
 
@@ -534,7 +533,7 @@ export class EnterOperation {
 					return new ReplaceCommandWithOffsetCursorState(range, typeText, -1, increasedIndent.length - normalIndent.length, true);
 				}
 			} else if (r.indentAction === IndentAction.Outdent) {
-				const actualIndentation = TypeOperations.unshiftIndent(config, r.indentation);
+				const actualIndentation = unshiftIndent(config, r.indentation);
 				return typeCommand(range, '\n' + config.normalizeIndentation(actualIndentation + r.appendText), keepPosition);
 			}
 		}
@@ -545,10 +544,10 @@ export class EnterOperation {
 		if (config.autoIndent >= EditorAutoIndentStrategy.Full) {
 			const ir = getIndentForEnter(config.autoIndent, model, range, {
 				unshiftIndent: (indent) => {
-					return TypeOperations.unshiftIndent(config, indent);
+					return unshiftIndent(config, indent);
 				},
 				shiftIndent: (indent) => {
-					return TypeOperations.shiftIndent(config, indent);
+					return shiftIndent(config, indent);
 				},
 				normalizeIndentation: (indent) => {
 					return config.normalizeIndentation(indent);
@@ -814,10 +813,10 @@ export class TabOperation {
 		}
 		if (action) {
 			if (action === IndentAction.Indent) {
-				indentation = TypeOperations.shiftIndent(config, indentation);
+				indentation = shiftIndent(config, indentation);
 			}
 			if (action === IndentAction.Outdent) {
-				indentation = TypeOperations.unshiftIndent(config, indentation);
+				indentation = unshiftIndent(config, indentation);
 			}
 			indentation = config.normalizeIndentation(indentation);
 		}
@@ -841,6 +840,30 @@ export class TabOperation {
 			typeText = '\t';
 		}
 		return new ReplaceCommand(selection, typeText, insertsAutoWhitespace);
+	}
+}
+
+export class TypeWithAutoClosingCommand extends ReplaceCommandWithOffsetCursorState {
+
+	private readonly _openCharacter: string;
+	private readonly _closeCharacter: string;
+	public closeCharacterRange: Range | null;
+	public enclosingRange: Range | null;
+
+	constructor(selection: Selection, openCharacter: string, insertOpenCharacter: boolean, closeCharacter: string) {
+		super(selection, (insertOpenCharacter ? openCharacter : '') + closeCharacter, 0, -closeCharacter.length);
+		this._openCharacter = openCharacter;
+		this._closeCharacter = closeCharacter;
+		this.closeCharacterRange = null;
+		this.enclosingRange = null;
+	}
+
+	public override computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
+		const inverseEditOperations = helper.getInverseEditOperations();
+		const range = inverseEditOperations[0].range;
+		this.closeCharacterRange = new Range(range.startLineNumber, range.endColumn - this._closeCharacter.length, range.endLineNumber, range.endColumn);
+		this.enclosingRange = new Range(range.startLineNumber, range.endColumn - this._openCharacter.length - this._closeCharacter.length, range.endLineNumber, range.endColumn);
+		return super.computeCursorState(model, helper);
 	}
 }
 
@@ -929,6 +952,16 @@ function typeCommand(range: Range, text: string, keepPosition: boolean): IComman
 	} else {
 		return new ReplaceCommand(range, text, true);
 	}
+}
+
+export function shiftIndent(config: CursorConfiguration, indentation: string, count?: number): string {
+	count = count || 1;
+	return ShiftCommand.shiftIndent(indentation, indentation.length + count, config.tabSize, config.indentSize, config.insertSpaces);
+}
+
+export function unshiftIndent(config: CursorConfiguration, indentation: string, count?: number): string {
+	count = count || 1;
+	return ShiftCommand.unshiftIndent(indentation, indentation.length + count, config.tabSize, config.indentSize, config.insertSpaces);
 }
 
 export function shouldSurroundChar(config: CursorConfiguration, ch: string): boolean {
