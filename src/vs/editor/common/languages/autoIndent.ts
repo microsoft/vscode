@@ -407,25 +407,28 @@ export function getIndentActionForType(
 	}
 
 	const previousLineNumber = range.startLineNumber - 1;
-	const previousLine = model.getLineContent(previousLineNumber);
-	if (indentRulesSupport.shouldIndentNextLine(previousLine) && indentRulesSupport.shouldIncrease(textAroundRangeWithCharacter)) {
-		const inheritedIndentationData = getInheritIndentForLine(autoIndent, model, range.startLineNumber, false, languageConfigurationService);
-		const inheritedIndentation = inheritedIndentationData?.indentation;
-		if (inheritedIndentation !== undefined) {
-			const currentLine = model.getLineContent(range.startLineNumber);
-			const actualCurrentIndentation = strings.getLeadingWhitespace(currentLine);
-			const inferredCurrentIndentation = indentConverter.shiftIndent(inheritedIndentation);
-			// If the inferred current indentation is not equal to the actual current indentation, then the indentation has been intentionally changed, in that case keep it
-			const inferredIndentationEqualsActual = inferredCurrentIndentation === actualCurrentIndentation;
-			const textAroundRangeContainsOnlyWhitespace = /^\s*$/.test(textAroundRange);
-			const autoClosingPairs = cursorConfig.autoClosingPairs.autoClosingPairsOpenByEnd.get(ch);
-			const autoClosingPairExists = autoClosingPairs && autoClosingPairs.length > 0;
-			const isChFirstNonWhitespaceCharacterAndInAutoClosingPair = autoClosingPairExists && textAroundRangeContainsOnlyWhitespace;
-			if (inferredIndentationEqualsActual && isChFirstNonWhitespaceCharacterAndInAutoClosingPair) {
-				return inheritedIndentation;
+	if (previousLineNumber > 0) {
+		const previousLine = model.getLineContent(previousLineNumber);
+		if (indentRulesSupport.shouldIndentNextLine(previousLine) && indentRulesSupport.shouldIncrease(textAroundRangeWithCharacter)) {
+			const inheritedIndentationData = getInheritIndentForLine(autoIndent, model, range.startLineNumber, false, languageConfigurationService);
+			const inheritedIndentation = inheritedIndentationData?.indentation;
+			if (inheritedIndentation !== undefined) {
+				const currentLine = model.getLineContent(range.startLineNumber);
+				const actualCurrentIndentation = strings.getLeadingWhitespace(currentLine);
+				const inferredCurrentIndentation = indentConverter.shiftIndent(inheritedIndentation);
+				// If the inferred current indentation is not equal to the actual current indentation, then the indentation has been intentionally changed, in that case keep it
+				const inferredIndentationEqualsActual = inferredCurrentIndentation === actualCurrentIndentation;
+				const textAroundRangeContainsOnlyWhitespace = /^\s*$/.test(textAroundRange);
+				const autoClosingPairs = cursorConfig.autoClosingPairs.autoClosingPairsOpenByEnd.get(ch);
+				const autoClosingPairExists = autoClosingPairs && autoClosingPairs.length > 0;
+				const isChFirstNonWhitespaceCharacterAndInAutoClosingPair = autoClosingPairExists && textAroundRangeContainsOnlyWhitespace;
+				if (inferredIndentationEqualsActual && isChFirstNonWhitespaceCharacterAndInAutoClosingPair) {
+					return inheritedIndentation;
+				}
 			}
 		}
 	}
+
 	return null;
 }
 
