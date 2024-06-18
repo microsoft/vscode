@@ -6,6 +6,10 @@
 //@ts-check
 'use strict';
 
+/**
+ * @typedef {import('./vs/base/node/nls').INLSConfiguration} INLSConfiguration
+ */
+
 // Simple module style to support node.js and browser environments
 (function (globalThis, factory) {
 
@@ -23,7 +27,6 @@
 	const Module = typeof require === 'function' ? require('module') : undefined;
 	const path = typeof require === 'function' ? require('path') : undefined;
 	const fs = typeof require === 'function' ? require('fs') : undefined;
-	const util = typeof require === 'function' ? require('util') : undefined;
 
 	//#region global bootstrapping
 
@@ -121,18 +124,24 @@
 
 	//#region NLS helpers
 
+	/**
+	 * @returns {Promise<INLSConfiguration | undefined>}
+	 */
 	async function setupNLS() {
-		const metaDataFile = [];
-
 		const process = safeProcess();
+
+		/** @type {INLSConfiguration | undefined} */
+		let nlsConfig = undefined;
+
+		const metaDataFile = [];
 		if (process && process.env['VSCODE_NLS_CONFIG']) {
 			try {
-				/** @type {{ nlsMessagesFile: string; availableLanguages: {}; _resolvedLanguagePackCoreLocation?: string; _corruptedFile?: string }} */
-				const nlsConfig = JSON.parse(process.env['VSCODE_NLS_CONFIG']);
-				if (nlsConfig._resolvedLanguagePackCoreLocation) {
-					metaDataFile.push(nlsConfig._resolvedLanguagePackCoreLocation, `nls.messages.json`);
-				} else {
-					metaDataFile.push(nlsConfig.nlsMessagesFile);
+				/** @type {INLSConfiguration} */
+				nlsConfig = JSON.parse(process.env['VSCODE_NLS_CONFIG']);
+				if (nlsConfig?.languagePack?.messagesFile) {
+					metaDataFile.push(nlsConfig.languagePack.messagesFile);
+				} else if (nlsConfig?.defaultMessagesFile) {
+					metaDataFile.push(nlsConfig.defaultMessagesFile);
 				}
 			} catch (e) {
 				console.error(`Error resolving NLS metadata file: ${e}`);
@@ -140,7 +149,7 @@
 		}
 
 		if (metaDataFile.length === 0) {
-			return;
+			return undefined;
 		}
 
 		// VSCODE_GLOBALS: NLS
@@ -149,11 +158,16 @@
 		} catch (e) {
 			console.error(`Error reading NLS metadata file: ${e}`);
 
-			// TODO
-			// if (nlsConfig._corruptedFile) {
-			// 	safeWriteNlsFile(nlsConfig._corruptedFile, 'corrupted').catch(function (error) { console.error(error); });
-			// }
+			if (nlsConfig?.languagePack?.corruptMarkerFile) {
+				try {
+					await safeWriteNlsFile(nlsConfig.languagePack.corruptMarkerFile, 'corrupted');
+				} catch (error) {
+					console.error(`Error writing corrupted NLS metadata file: ${error}`);
+				}
+			}
 		}
+
+		return nlsConfig;
 	}
 
 	/**
@@ -204,30 +218,30 @@
 			return ipcRenderer.invoke('vscode:readNlsFile', ...pathSegments);
 		}
 
-		if (fs && path && util) {
-			return (await util.promisify(fs.readFile)(path.join(...pathSegments))).toString();
+		if (fs && path) {
+			return (await fs.promises.readFile(path.join(...pathSegments))).toString();
 		}
 
 		throw new Error('Unsupported operation (read NLS files)');
 	}
 
-	// /**
-	//  * @param {string} path
-	//  * @param {string} content
-	//  * @returns {Promise<void>}
-	//  */
-	// function safeWriteNlsFile(path, content) {
-	// 	const ipcRenderer = safeIpcRenderer();
-	// 	if (ipcRenderer) {
-	// 		return ipcRenderer.invoke('vscode:writeNlsFile', path, content);
-	// 	}
+	/**
+	 * @param {string} path
+	 * @param {string} content
+	 * @returns {Promise<void>}
+	 */
+	function safeWriteNlsFile(path, content) {
+		const ipcRenderer = safeIpcRenderer();
+		if (ipcRenderer) {
+			return ipcRenderer.invoke('vscode:writeNlsFile', path, content);
+		}
 
-	// 	if (fs && util) {
-	// 		return util.promisify(fs.writeFile)(path, content);
-	// 	}
+		if (fs) {
+			return fs.promises.writeFile(path, content);
+		}
 
-	// 	throw new Error('Unsupported operation (write NLS files)');
-	// }
+		throw new Error('Unsupported operation (write NLS files)');
+	}
 
 	//#endregion
 

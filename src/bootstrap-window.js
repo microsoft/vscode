@@ -82,17 +82,16 @@
 
 		// Get the nls configuration into the process.env as early as possible
 		// @ts-ignore
-		await globalThis.MonacoBootstrap.setupNLS();
+		const nlsConfig = await globalThis.MonacoBootstrap.setupNLS();
 
-		// TODO
-		// let locale = nlsConfig.availableLanguages['*'] || 'en';
-		// if (locale === 'zh-tw') {
-		// 	locale = 'zh-Hant';
-		// } else if (locale === 'zh-cn') {
-		// 	locale = 'zh-Hans';
-		// }
+		let locale = nlsConfig.availableLanguages['*'] || 'en';
+		if (locale === 'zh-tw') {
+			locale = 'zh-Hant';
+		} else if (locale === 'zh-cn') {
+			locale = 'zh-Hans';
+		}
 
-		// window.document.documentElement.setAttribute('lang', locale);
+		window.document.documentElement.setAttribute('lang', locale);
 
 		window['MonacoEnvironment'] = {};
 

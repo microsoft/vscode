@@ -2,7 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import * as nls from 'vs/nls';
+// eslint-disable-next-line local/code-import-patterns, local/code-layering
+import type { INLSConfiguration } from 'vs/base/node/nls'; // type only import to prevent duplicating types
 
 export const LANGUAGE_DEFAULT = 'en';
 
@@ -21,13 +24,6 @@ let _language: string = LANGUAGE_DEFAULT;
 let _platformLocale: string = LANGUAGE_DEFAULT;
 let _translationsConfigFile: string | undefined = undefined;
 let _userAgent: string | undefined = undefined;
-
-interface NLSConfig {
-	locale: string;
-	osLocale: string;
-	availableLanguages: { [key: string]: string };
-	_translationsConfigFile: string;
-}
 
 export interface IProcessEnvironment {
 	[key: string]: string | undefined;
@@ -89,13 +85,13 @@ if (typeof nodeProcess === 'object') {
 	const rawNlsConfig = nodeProcess.env['VSCODE_NLS_CONFIG'];
 	if (rawNlsConfig) {
 		try {
-			const nlsConfig: NLSConfig = JSON.parse(rawNlsConfig);
+			const nlsConfig: INLSConfiguration = JSON.parse(rawNlsConfig);
 			const resolved = nlsConfig.availableLanguages['*'];
-			_locale = nlsConfig.locale;
+			_locale = nlsConfig.userLocale;
 			_platformLocale = nlsConfig.osLocale;
 			// VSCode's default language is 'en'
 			_language = resolved ? resolved : LANGUAGE_DEFAULT;
-			_translationsConfigFile = nlsConfig._translationsConfigFile;
+			_translationsConfigFile = nlsConfig.languagePack?.translationsConfigFile;
 		} catch (e) {
 		}
 	}

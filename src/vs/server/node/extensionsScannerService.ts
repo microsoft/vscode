@@ -14,7 +14,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
-import { getNLSConfiguration, InternalNLSConfiguration } from 'vs/server/node/remoteLanguagePacks';
+import { getNLSConfiguration } from 'vs/server/node/remoteLanguagePacks';
 
 export class ExtensionsScannerService extends AbstractExtensionsScannerService implements IExtensionsScannerService {
 
@@ -38,9 +38,9 @@ export class ExtensionsScannerService extends AbstractExtensionsScannerService i
 
 	protected async getTranslations(language: string): Promise<Translations> {
 		const config = await getNLSConfiguration(language, this.nativeEnvironmentService.userDataPath);
-		if (InternalNLSConfiguration.is(config)) {
+		if (config.languagePack) {
 			try {
-				const content = await this.fileService.readFile(URI.file(config._translationsConfigFile));
+				const content = await this.fileService.readFile(URI.file(config.languagePack.translationsConfigFile));
 				return JSON.parse(content.value.toString());
 			} catch (err) { /* Ignore error */ }
 		}

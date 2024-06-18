@@ -111,13 +111,20 @@
 		/**
 		 * @param {string} userLocale
 		 * @param {string} osLocale
+		 * @param {string} nlsMetadataPath
 		 * @param {boolean} [pseudo]
 		 * @returns {import('./nls').INLSConfiguration}
 		 */
-		function defaultNLSConfiguration(userLocale, osLocale, pseudo) {
+		function defaultNLSConfiguration(userLocale, osLocale, nlsMetadataPath, pseudo) {
 			perf.mark('code/didGenerateNls');
 
-			return { userLocale, osLocale, availableLanguages: {}, pseudo };
+			return {
+				userLocale,
+				osLocale,
+				availableLanguages: {},
+				defaultMessagesFile: path.join(nlsMetadataPath, 'nls.messages.json'),
+				pseudo
+			};
 		}
 
 		/**
@@ -133,18 +140,18 @@
 				userLocale === 'en' || userLocale === 'en-us' ||
 				!commit
 			) {
-				return defaultNLSConfiguration(userLocale, osLocale, userLocale === 'pseudo' ? true : undefined);
+				return defaultNLSConfiguration(userLocale, osLocale, nlsMetadataPath, userLocale === 'pseudo' ? true : undefined);
 			}
 
 			try {
 				const languagePacks = await getLanguagePackConfigurations(userDataPath);
 				if (!languagePacks) {
-					return defaultNLSConfiguration(userLocale, osLocale);
+					return defaultNLSConfiguration(userLocale, osLocale, nlsMetadataPath);
 				}
 
 				const resolvedLocale = resolveLanguagePackLocale(languagePacks, userLocale);
 				if (!resolvedLocale) {
-					return defaultNLSConfiguration(userLocale, osLocale);
+					return defaultNLSConfiguration(userLocale, osLocale, nlsMetadataPath);
 				}
 
 				const initialUserLocale = userLocale;
@@ -165,24 +172,25 @@
 				const languagePackId = `${languagePack.hash}.${userLocale}`;
 				const globalLanguagePackCachePath = path.join(userDataPath, 'clp', languagePackId);
 				const commitLanguagePackCachePath = path.join(globalLanguagePackCachePath, commit);
-				const translationMessagesFile = path.join(commitLanguagePackCachePath, 'nls.messages.json');
+				const languagePackMessagesFile = path.join(commitLanguagePackCachePath, 'nls.messages.json');
 				const translationsConfigFile = path.join(globalLanguagePackCachePath, 'tcf.json');
-				const languagePackCorruptedFile = path.join(globalLanguagePackCachePath, 'corrupted.info');
+				const languagePackCorruptMarkerFile = path.join(globalLanguagePackCachePath, 'corrupted.info');
 
-				if (await exists(languagePackCorruptedFile)) {
+				if (await exists(languagePackCorruptMarkerFile)) {
 					await rimraf(globalLanguagePackCachePath); // delete corrupted cache folder
 				}
 
-				/** @type {import('./nls').IInternalNLSConfiguration} */
+				/** @type {import('./nls').INLSConfiguration} */
 				const result = {
 					userLocale: initialUserLocale,
 					osLocale,
 					availableLanguages: { '*': userLocale },
-					_languagePackId: languagePackId,
-					_translationsConfigFile: translationsConfigFile,
-					_cacheRoot: globalLanguagePackCachePath,
-					_resolvedLanguagePackCoreLocation: commitLanguagePackCachePath,
-					_corruptedFile: languagePackCorruptedFile
+					defaultMessagesFile: path.join(nlsMetadataPath, 'nls.messages.json'),
+					languagePack: {
+						translationsConfigFile,
+						messagesFile: languagePackMessagesFile,
+						corruptMarkerFile: languagePackCorruptMarkerFile
+					}
 				};
 
 				if (await exists(commitLanguagePackCachePath)) {
@@ -223,7 +231,7 @@
 				}
 
 				await Promise.all([
-					writeFile(translationMessagesFile, JSON.stringify(nlsResult)),
+					writeFile(languagePackMessagesFile, JSON.stringify(nlsResult)),
 					writeFile(translationsConfigFile, JSON.stringify(languagePack.translations))
 				]);
 
@@ -234,7 +242,7 @@
 				console.error('Generating translation files failed.', error);
 			}
 
-			return defaultNLSConfiguration(userLocale, osLocale);
+			return defaultNLSConfiguration(userLocale, osLocale, nlsMetadataPath);
 		}
 
 		return {

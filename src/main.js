@@ -663,7 +663,7 @@ async function resolveNlsConfiguration() {
 
 	let userLocale = app.getLocale();
 	if (!userLocale) {
-		return { userLocale: 'en', osLocale, availableLanguages: {} };
+		return { userLocale: 'en', osLocale, availableLanguages: {}, defaultMessagesFile: path.join(__dirname, 'nls.messages.json')};
 	}
 
 	// See above the comment about the loader and case sensitiveness
