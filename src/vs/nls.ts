@@ -240,7 +240,7 @@ export function getConfiguredDefaultLocale(_: string): string | undefined {
 /**
  * @skipMangle
  */
-export function setPseudoTranslation(value: boolean) {
+export function setPseudoTranslation(value: boolean) { // TODO support this
 	isPseudo = value;
 }
 

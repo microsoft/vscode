@@ -32,15 +32,11 @@ const loader = require('./vs/loader');
 const bootstrap = require('./bootstrap');
 const performance = require('./vs/base/common/performance');
 
-// Bootstrap: NLS
-const nlsConfig = bootstrap.setupNLS();
-
 // Bootstrap: Loader
 loader.config({
 	baseUrl: bootstrap.fileUriFromPath(__dirname, { isWindows: process.platform === 'win32' }),
 	catchError: true,
 	nodeRequire,
-	'vs/nls': nlsConfig,
 	amdModulesPattern: /^vs\//,
 	recordStats: true
 });
@@ -49,13 +45,6 @@ loader.config({
 if (process.env['ELECTRON_RUN_AS_NODE'] || process.versions['electron']) {
 	loader.define('fs', ['original-fs'], function (/** @type {import('fs')} */originalFS) {
 		return originalFS;  // replace the patched electron fs with the original node fs for all AMD code
-	});
-}
-
-// Pseudo NLS support
-if (nlsConfig && nlsConfig.pseudo) {
-	loader(['vs/nls'], function (/** @type {import('vs/nls')} */nlsPlugin) {
-		nlsPlugin.setPseudoTranslation(!!nlsConfig.pseudo);
 	});
 }
 

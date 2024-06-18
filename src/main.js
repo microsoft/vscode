@@ -186,7 +186,7 @@ async function onReady() {
  * @param {INLSConfiguration} nlsConfig
  */
 function startup(codeCachePath, nlsConfig) {
-	process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
+	process.env['VSCODE_NLS_CONFIG'] = JSON.stringify({...nlsConfig, nlsMessagesFile: path.join(__dirname, 'nls.messages.json')});
 	process.env['VSCODE_CODE_CACHE_PATH'] = codeCachePath || '';
 
 	// Load main in AMD

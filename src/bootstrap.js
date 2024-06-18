@@ -127,9 +127,10 @@
 		const process = safeProcess();
 		if (process && process.env['VSCODE_NLS_CONFIG']) {
 			try {
+				/** @type {{ nlsMessagesFile: string; availableLanguages: {}; loadBundle?: (bundle: string, language: string, cb: (err: Error | undefined, result: string | undefined) => void) => void; _resolvedLanguagePackCoreLocation?: string; _corruptedFile?: string }} */
 				const nlsConfig = JSON.parse(process.env['VSCODE_NLS_CONFIG']);
 				if (nlsConfig._resolvedLanguagePackCoreLocation) {
-					metaDataFile.push(nlsConfig._resolvedLanguagePackCoreLocation, `nls.metadata.json`);
+					metaDataFile.push(nlsConfig._resolvedLanguagePackCoreLocation, `nls.messages.json`);
 				} else {
 					metaDataFile.push(nlsConfig.nlsMessagesFile);
 				}
@@ -147,6 +148,11 @@
 			globalThis._VSCODE_NLS = JSON.parse(await safeReadNlsFile(...metaDataFile));
 		} catch (e) {
 			console.error(`Error reading NLS metadata file: ${e}`);
+
+			// TODO
+			// if (nlsConfig._corruptedFile) {
+			// 	safeWriteNlsFile(nlsConfig._corruptedFile, 'corrupted').catch(function (error) { console.error(error); });
+			// }
 		}
 	}
 

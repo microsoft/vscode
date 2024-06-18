@@ -82,18 +82,17 @@
 
 		// Get the nls configuration into the process.env as early as possible
 		// @ts-ignore
-		const nlsConfig = globalThis.MonacoBootstrap.setupNLS();
-		// @ts-ignore
 		await globalThis.MonacoBootstrap.setupNLSForESM();
 
-		let locale = nlsConfig.availableLanguages['*'] || 'en';
-		if (locale === 'zh-tw') {
-			locale = 'zh-Hant';
-		} else if (locale === 'zh-cn') {
-			locale = 'zh-Hans';
-		}
+		// TODO
+		// let locale = nlsConfig.availableLanguages['*'] || 'en';
+		// if (locale === 'zh-tw') {
+		// 	locale = 'zh-Hant';
+		// } else if (locale === 'zh-cn') {
+		// 	locale = 'zh-Hans';
+		// }
 
-		window.document.documentElement.setAttribute('lang', locale);
+		// window.document.documentElement.setAttribute('lang', locale);
 
 		window['MonacoEnvironment'] = {};
 
@@ -103,7 +102,6 @@
 		/** @type {LoaderConfig} */
 		const loaderConfig = {
 			baseUrl: `${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out`,
-			'vs/nls': nlsConfig,
 			preferScriptTags: true
 		};
 
@@ -146,13 +144,6 @@
 
 		// Configure loader
 		require.config(loaderConfig);
-
-		// Handle pseudo NLS
-		if (nlsConfig.pseudo) {
-			require(['vs/nls'], function (nlsPlugin) {
-				nlsPlugin.setPseudoTranslation(nlsConfig.pseudo);
-			});
-		}
 
 		// Signal before require()
 		if (typeof options?.beforeRequire === 'function') {
