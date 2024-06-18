@@ -112,17 +112,19 @@ function isImportNode(ts: typeof import('typescript'), node: ts.Node): boolean {
 
 module _nls {
 
-	export const moduleToNLSKeys: { [name: string /* module ID */]: string[] /* keys */ } = {};
+	export const moduleToNLSKeys: { [name: string /* module ID */]: ILocalizeKey[] /* keys */ } = {};
 	export const moduleToNLSMessages: { [name: string /* module ID */]: string[] /* messages */ } = {};
 	export const allNLSMessages: string[] = [];
 	export const allNLSModulesAndKeys: Array<[string /* module ID */, string[] /* keys */]> = [];
 	let allNLSMessagesIndex = 0;
 
+	type ILocalizeKey = string | { key: string }; // key might contain metadata for translators and then is not just a string
+
 	interface INlsPatchResult {
 		javascript: string;
 		sourcemap: sm.RawSourceMap;
 		nlsMessages?: string[];
-		nlsKeys?: string[];
+		nlsKeys?: ILocalizeKey[];
 	}
 
 	interface ISpan {
@@ -496,12 +498,12 @@ module _nls {
 		(<any>result).sourceMap = sourcemap;
 
 		if (nlsKeys) {
-			moduleToNLSMessages[moduleId] = nlsKeys;
-			allNLSModulesAndKeys.push([moduleId, nlsKeys]);
+			moduleToNLSKeys[moduleId] = nlsKeys;
+			allNLSModulesAndKeys.push([moduleId, nlsKeys.map(nlsKey => typeof nlsKey === 'string' ? nlsKey : nlsKey.key)]);
 		}
 
 		if (nlsMessages) {
-			moduleToNLSKeys[moduleId] = nlsMessages;
+			moduleToNLSMessages[moduleId] = nlsMessages;
 			allNLSMessages.push(...nlsMessages);
 		}
 

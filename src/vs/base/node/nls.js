@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-//@ts-check
 'use strict';
 
-/// <reference path="../../../typings/require.d.ts" />
+//@ts-check
 
 (function () {
 
@@ -80,10 +79,8 @@
 			try {
 				return JSON.parse(await readFile(configFile));
 			} catch (err) {
-				// Do nothing. If we can't read the file we have no language pack config.
+				return undefined; // Do nothing. If we can't read the file we have no language pack config.
 			}
-
-			return undefined;
 		}
 
 		/**
@@ -115,9 +112,9 @@
 		 * @param {string} userLocale
 		 * @param {string} osLocale
 		 * @param {boolean} [pseudo]
-		 * @returns {Promise<import('./nls').INLSConfiguration>}
+		 * @returns {import('./nls').INLSConfiguration}
 		 */
-		async function defaultNLSConfiguration(userLocale, osLocale, pseudo) {
+		function defaultNLSConfiguration(userLocale, osLocale, pseudo) {
 			perf.mark('code/didGenerateNls');
 
 			return { userLocale, osLocale, availableLanguages: {}, pseudo };
@@ -131,8 +128,8 @@
 			perf.mark('code/willGenerateNls');
 
 			if (
-				userLocale === 'pseudo' ||
 				process.env['VSCODE_DEV'] ||
+				userLocale === 'pseudo' ||
 				userLocale === 'en' || userLocale === 'en-us' ||
 				!commit
 			) {

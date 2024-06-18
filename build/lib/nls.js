@@ -381,11 +381,11 @@ var _nls;
         const result = fileFrom(javascriptFile, javascript);
         result.sourceMap = sourcemap;
         if (nlsKeys) {
-            _nls.moduleToNLSMessages[moduleId] = nlsKeys;
-            _nls.allNLSModulesAndKeys.push([moduleId, nlsKeys]);
+            _nls.moduleToNLSKeys[moduleId] = nlsKeys;
+            _nls.allNLSModulesAndKeys.push([moduleId, nlsKeys.map(nlsKey => typeof nlsKey === 'string' ? nlsKey : nlsKey.key)]);
         }
         if (nlsMessages) {
-            _nls.moduleToNLSKeys[moduleId] = nlsMessages;
+            _nls.moduleToNLSMessages[moduleId] = nlsMessages;
             _nls.allNLSMessages.push(...nlsMessages);
         }
         return result;
