@@ -151,37 +151,39 @@
 		/** @type {INLSConfiguration | undefined} */
 		let nlsConfig = undefined;
 
-		const metaDataFileParts = [];
-		if (process && process.env['VSCODE_NLS_CONFIG']) {
+		const messagesFile = [];
+		if (process?.env['VSCODE_NLS_CONFIG']) {
 			try {
 				/** @type {INLSConfiguration} */
 				nlsConfig = JSON.parse(process.env['VSCODE_NLS_CONFIG']);
 				if (nlsConfig?.languagePack?.messagesFile) {
-					metaDataFileParts.push(nlsConfig.languagePack.messagesFile);
+					messagesFile.push(nlsConfig.languagePack.messagesFile);
 				} else if (nlsConfig?.defaultMessagesFile) {
-					metaDataFileParts.push(nlsConfig.defaultMessagesFile);
+					messagesFile.push(nlsConfig.defaultMessagesFile);
 				}
+
+				// VSCODE_GLOBALS: NLS
+				globalThis._VSCODE_NLS_PSEUDO = nlsConfig?.userLocale === 'pseudo' ? true : undefined;
 			} catch (e) {
-				console.error(`Error resolving NLS metadata file: ${e}`);
+				console.error(`Error reading VSCODE_NLS_CONFIG from environment: ${e}`);
 			}
 		}
 
-		if (metaDataFileParts.length === 0) {
+		if (messagesFile.length === 0) {
 			return undefined;
 		}
 
-		// VSCODE_GLOBALS: NLS
 		try {
-			globalThis._VSCODE_NLS_PSEUDO = nlsConfig?.userLocale === 'pseudo' ? true : undefined;
-			globalThis._VSCODE_NLS = JSON.parse(await safeReadNlsFile(...metaDataFileParts));
-		} catch (e) {
-			console.error(`Error reading NLS metadata file: ${e}`);
+			// VSCODE_GLOBALS: NLS
+			globalThis._VSCODE_NLS = JSON.parse(await safeReadNlsFile(...messagesFile));
+		} catch (error) {
+			console.error(`Error reading NLS messages file ${messagesFile.join(path?.sep)}: ${error}`);
 
 			if (nlsConfig?.languagePack?.corruptMarkerFile) {
 				try {
 					await safeWriteNlsFile(nlsConfig.languagePack.corruptMarkerFile, 'corrupted');
 				} catch (error) {
-					console.error(`Error writing corrupted NLS metadata file: ${error}`);
+					console.error(`Error writing corrupted NLS marker file: ${error}`);
 				}
 			}
 		}
