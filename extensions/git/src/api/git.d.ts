@@ -122,6 +122,7 @@ export interface RepositoryState {
 	readonly mergeChanges: Change[];
 	readonly indexChanges: Change[];
 	readonly workingTreeChanges: Change[];
+	readonly untrackedChanges: Change[];
 
 	readonly onDidChange: Event<void>;
 }
