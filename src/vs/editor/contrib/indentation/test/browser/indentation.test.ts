@@ -1085,22 +1085,6 @@ suite('Auto Indent On Type - TypeScript/JavaScript', () => {
 			'if (/*condition*/)',
 		].join('\n'), languageId, {});
 		disposables.add(model);
-		const languageService = new LanguageService();
-		languageService.registerLanguage({ id: languageId });
-		const languageConfigurationService = new TestLanguageConfigurationService();
-		disposables.add(languageConfigurationService.register(languageId, {
-			brackets: typescriptBracketRules,
-			comments: {
-				lineComment: '//',
-				blockComment: ['/*', '*/']
-			},
-			indentationRules: javascriptIndentationRules,
-			autoClosingPairs: javascriptAutoClosingPairsRules,
-			autoCloseBefore: ";:.,=}])>` \n\t",
-			onEnterRules: javascriptOnEnterRules
-		}));
-
-		const serviceCollection = new ServiceCollection([ILanguageConfigurationService, languageConfigurationService], [ILanguageService, languageService]);
 
 		withTestCodeEditor(model, { autoIndent: "full", serviceCollection }, (editor, viewModel) => {
 			editor.setSelection(new Selection(1, 19, 1, 19));

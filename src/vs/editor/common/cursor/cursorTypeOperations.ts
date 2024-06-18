@@ -408,7 +408,7 @@ export class TypeOperations {
 	}
 
 	private static _findActualIndentationForSelection(config: CursorConfiguration, model: ITextModel, selection: Selection, ch: string): string | null {
-		const actualIndentation = getIndentActionForType(config.autoIndent, model, selection, ch, {
+		const actualIndentation = getIndentActionForType(config, model, selection, ch, {
 			shiftIndent: (indentation) => {
 				return TypeOperations.shiftIndent(config, indentation);
 			},
