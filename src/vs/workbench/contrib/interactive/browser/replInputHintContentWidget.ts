@@ -73,9 +73,7 @@ export class ReplInputHintContentWidget extends Disposable implements IContentWi
 			this.domNode.style.width = 'max-content';
 			this.domNode.style.paddingLeft = '4px';
 
-			const ariaLabel = this.setHint();
-
-			this.ariaLabel = ariaLabel.concat(localize('disableHint', ' Toggle {0} in settings to disable this hint.', AccessibilityVerbositySettingId.ReplInputHint));
+			this.setHint();
 
 			this._register(dom.addDisposableListener(this.domNode, 'click', () => {
 				this.editor.focus();
@@ -89,7 +87,10 @@ export class ReplInputHintContentWidget extends Disposable implements IContentWi
 
 	private setHint() {
 		if (!this.domNode) {
-			return '';
+			return;
+		}
+		while (this.domNode.firstChild) {
+			this.domNode.removeChild(this.domNode.firstChild);
 		}
 		const transparentForeground = resolveColorValue(editorForeground, this.themeService.getColorTheme())?.transparent(0.4);
 
@@ -120,9 +121,8 @@ export class ReplInputHintContentWidget extends Disposable implements IContentWi
 
 			hintElement.appendChild(after);
 			this.domNode.append(hintElement);
-			return '';
-		} else {
-			return '';
+
+			this.ariaLabel = actionPart.concat(localize('disableHint', ' Toggle {0} in settings to disable this hint.', AccessibilityVerbositySettingId.ReplInputHint));
 		}
 	}
 
