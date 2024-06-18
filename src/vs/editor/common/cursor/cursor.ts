@@ -10,7 +10,7 @@ import { CursorConfiguration, CursorState, EditOperationResult, EditOperationTyp
 import { CursorContext } from 'vs/editor/common/cursor/cursorContext';
 import { DeleteOperations } from 'vs/editor/common/cursor/cursorDeleteOperations';
 import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
-import { CompositionOutcome, TypeOperations, TypeWithAutoClosingCommand } from 'vs/editor/common/cursor/cursorTypeOperations';
+import { CompositionOutcome, TypeOperations } from 'vs/editor/common/cursor/cursorTypeOperations';
 import { Position } from 'vs/editor/common/core/position';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { ISelection, Selection, SelectionDirection } from 'vs/editor/common/core/selection';
@@ -21,6 +21,7 @@ import { VerticalRevealType, ViewCursorStateChangedEvent, ViewRevealRangeRequest
 import { dispose, Disposable } from 'vs/base/common/lifecycle';
 import { ICoordinatesConverter } from 'vs/editor/common/viewModel';
 import { CursorStateChangedEvent, ViewModelEventsCollector } from 'vs/editor/common/viewModelEventDispatcher';
+import { TypeWithAutoClosingCommand } from 'vs/editor/common/cursor/cursorTypeEditOperations';
 
 export class CursorsController extends Disposable {
 
