@@ -759,6 +759,7 @@ export class UserDataProfilesEditorModel extends EditorModel {
 		));
 
 		const titlePrimaryActions: IAction[] = [];
+		titlePrimaryActions.push(newWindowAction);
 		const titleSecondaryActions: IAction[] = [];
 		titleSecondaryActions.push(copyFromProfileAction);
 		titleSecondaryActions.push(exportAction);
@@ -782,7 +783,7 @@ export class UserDataProfilesEditorModel extends EditorModel {
 
 		const profileElement = disposables.add(this.instantiationService.createInstance(UserDataProfileElement,
 			profile,
-			[[newWindowAction], []],
+			[[], []],
 			[titlePrimaryActions, titleSecondaryActions],
 			[primaryActions, secondaryActions]
 		));
@@ -816,7 +817,7 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			const cancelAction = disposables.add(new Action(
 				'userDataProfile.cancel',
 				localize('cancel', "Cancel"),
-				ThemeIcon.asClassName(Codicon.close),
+				ThemeIcon.asClassName(Codicon.trash),
 				true,
 				() => this.discardNewProfile()
 			));
