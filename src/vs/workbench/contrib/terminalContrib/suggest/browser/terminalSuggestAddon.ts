@@ -267,6 +267,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (!Array.isArray(completionList)) {
 			completionList = [completionList];
 		}
+
 		const completions = completionList.map((e: any) => {
 			return new SimpleCompletionItem({
 				label: e.ListItemText,
@@ -277,6 +278,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		});
 
 		this._leadingLineContent = this._promptInputModel.value.substring(0, this._promptInputModel.cursorIndex);
+
 
 		// If there's no space it means this is a command, add cached commands list to completions
 		const firstChar = this._leadingLineContent.length === 0 ? '' : this._leadingLineContent[0];
@@ -502,6 +504,12 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		const completion = suggestion.item.completion;
 		const completionText = completion.completionText ?? completion.label;
 		const finalCompletionRightSide = completionText.substring((this._leadingLineContent?.length ?? 0) - (lastSpaceIndex === -1 ? 0 : lastSpaceIndex + 1));
+
+		// Hide the widget if there is no change
+		if (finalCompletionRightSide === additionalInput) {
+			this.hideSuggestWidget();
+			return;
+		}
 
 		// Get the final completion on the right side of the cursor if it differs from the initial
 		// propmt input state
