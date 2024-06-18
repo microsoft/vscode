@@ -17,6 +17,7 @@ function exists(file: string) {
 	return new Promise(c => fs.exists(file, c));
 }
 
+// TODO convert to vs/base/node/nls
 export function getNLSConfiguration(language: string, userDataPath: string): Promise<lp.NLSConfiguration> {
 	return exists(metaData).then((fileExists) => {
 		if (!fileExists || !product.commit) {
