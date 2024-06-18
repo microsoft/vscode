@@ -173,6 +173,7 @@
 					await rimraf(globalLanguagePackCachePath); // delete corrupted cache folder
 				}
 
+				/** @type {import('./nls').IInternalNLSConfiguration} */
 				const result = {
 					userLocale: initialUserLocale,
 					osLocale,
