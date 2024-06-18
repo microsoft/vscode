@@ -25,10 +25,6 @@ declare module 'vscode' {
 		displayName: string;
 		description: string;
 		parametersSchema: JSONSchema; // From lmTools
-
-		// TODO@API Is output only a string, or can it be structured data? Both?
-		// Does it stream?
-		returnValueSchema: any; // JSON schema
 	}
 
 	export interface ChatTool extends ChatToolDescription {

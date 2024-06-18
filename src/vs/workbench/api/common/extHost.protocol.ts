@@ -53,7 +53,7 @@ import { CallHierarchyItem } from 'vs/workbench/contrib/callHierarchy/common/cal
 import { ChatAgentLocation, IChatAgentMetadata, IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatProgressResponseContent } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatFollowup, IChatProgress, IChatResponseErrorDetails, IChatTask, IChatTaskDto, IChatUserActionEvent, ChatAgentVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
-import { IChatSkillData, IChatSkillDelta } from 'vs/workbench/contrib/chat/common/chatSkillsService';
+import { IChatToolData, IChatToolDelta } from 'vs/workbench/contrib/chat/common/chatToolsService';
 import { IChatRequestVariableValue, IChatVariableData, IChatVariableResolverProgress } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { IChatMessage, IChatResponseFragment, ILanguageModelChatMetadata, ILanguageModelChatSelector, ILanguageModelsChangeEvent } from 'vs/workbench/contrib/chat/common/languageModels';
 import { DebugConfigurationProviderTriggerKind, IAdapterDescriptor, IConfig, IDebugSessionReplMode, IDebugTestRunReference, IDebugVisualization, IDebugVisualizationContext, IDebugVisualizationTreeItem, MainThreadDebugVisualization } from 'vs/workbench/contrib/debug/common/debug';
@@ -1295,18 +1295,18 @@ export interface MainThreadChatVariablesShape extends IDisposable {
 	$unregisterVariable(handle: number): void;
 }
 
-export interface MainThreadChatSkillsShape extends IDisposable {
-	$getSkills(): Promise<IChatSkillData[]>;
-	$invokeSkill(name: string, parameters: any, token: CancellationToken): Promise<any | undefined>;
-	$registerSkill(data: IChatSkillData): void;
-	$unregisterSkill(name: string): void;
+export interface MainThreadChatToolsShape extends IDisposable {
+	$getTools(): Promise<IChatToolData[]>;
+	$invokeTool(name: string, parameters: any, token: CancellationToken): Promise<any | undefined>;
+	$registerTool(data: IChatToolData): void;
+	$unregisterTool(name: string): void;
 }
 
-export interface MainThreadChatSkillsShape extends IDisposable {
-	$getSkills(): Promise<IChatSkillData[]>;
-	$invokeSkill(name: string, parameters: any, token: CancellationToken): Promise<any | undefined>;
-	$registerSkill(data: IChatSkillData): void;
-	$unregisterSkill(name: string): void;
+export interface MainThreadChatToolsShape extends IDisposable {
+	$getTools(): Promise<IChatToolData[]>;
+	$invokeTool(name: string, parameters: any, token: CancellationToken): Promise<any | undefined>;
+	$registerTool(data: IChatToolData): void;
+	$unregisterTool(name: string): void;
 }
 
 export type IChatRequestVariableValueDto = Dto<IChatRequestVariableValue>;
@@ -1315,9 +1315,9 @@ export interface ExtHostChatVariablesShape {
 	$resolveVariable(handle: number, requestId: string, messageText: string, token: CancellationToken): Promise<IChatRequestVariableValueDto | undefined>;
 }
 
-export interface ExtHostChatSkillsShape {
-	$acceptSkillDelta(delta: IChatSkillDelta): Promise<void>;
-	$invokeSkill(name: string, parameters: any, token: CancellationToken): Promise<any | undefined>;
+export interface ExtHostChatToolsShape {
+	$acceptToolDelta(delta: IChatToolDelta): Promise<void>;
+	$invokeTool(name: string, parameters: any, token: CancellationToken): Promise<any | undefined>;
 }
 
 export interface MainThreadInlineChatShape extends IDisposable {
@@ -2850,7 +2850,7 @@ export const MainContext = {
 	MainThreadEmbeddings: createProxyIdentifier<MainThreadEmbeddingsShape>('MainThreadEmbeddings'),
 	MainThreadChatAgents2: createProxyIdentifier<MainThreadChatAgentsShape2>('MainThreadChatAgents2'),
 	MainThreadChatVariables: createProxyIdentifier<MainThreadChatVariablesShape>('MainThreadChatVariables'),
-	MainThreadChatSkills: createProxyIdentifier<MainThreadChatSkillsShape>('MainThreadChatSkills'),
+	MainThreadChatTools: createProxyIdentifier<MainThreadChatToolsShape>('MainThreadChatSkills'),
 	MainThreadClipboard: createProxyIdentifier<MainThreadClipboardShape>('MainThreadClipboard'),
 	MainThreadCommands: createProxyIdentifier<MainThreadCommandsShape>('MainThreadCommands'),
 	MainThreadComments: createProxyIdentifier<MainThreadCommentsShape>('MainThreadComments'),
@@ -2970,7 +2970,7 @@ export const ExtHostContext = {
 	ExtHostInteractive: createProxyIdentifier<ExtHostInteractiveShape>('ExtHostInteractive'),
 	ExtHostChatAgents2: createProxyIdentifier<ExtHostChatAgentsShape2>('ExtHostChatAgents'),
 	ExtHostChatVariables: createProxyIdentifier<ExtHostChatVariablesShape>('ExtHostChatVariables'),
-	ExtHostChatSkills: createProxyIdentifier<ExtHostChatSkillsShape>('ExtHostChatSkills'),
+	ExtHostChatTools: createProxyIdentifier<ExtHostChatToolsShape>('ExtHostChatSkills'),
 	ExtHostChatProvider: createProxyIdentifier<ExtHostLanguageModelsShape>('ExtHostChatProvider'),
 	ExtHostSpeech: createProxyIdentifier<ExtHostSpeechShape>('ExtHostSpeech'),
 	ExtHostEmbeddings: createProxyIdentifier<ExtHostEmbeddingsShape>('ExtHostEmbeddings'),
