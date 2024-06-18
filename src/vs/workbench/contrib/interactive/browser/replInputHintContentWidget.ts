@@ -12,11 +12,9 @@ import { OS } from 'vs/base/common/platform';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { localize } from 'vs/nls';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { editorActiveLinkForeground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { resolveColorValue } from 'vs/platform/theme/common/colorUtils';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
@@ -35,9 +33,7 @@ export class ReplInputHintContentWidget extends Disposable implements IContentWi
 		private readonly editor: ICodeEditor,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IThemeService private readonly themeService: IThemeService,
-		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 
@@ -96,18 +92,18 @@ export class ReplInputHintContentWidget extends Disposable implements IContentWi
 			return '';
 		}
 		const transparentForeground = resolveColorValue(editorForeground, this.themeService.getColorTheme())?.transparent(0.4);
-		const linkForeground = this.themeService.getColorTheme().getColor(editorActiveLinkForeground);
 
 		const hintElement = dom.$('empty-hint-text');
 		hintElement.style.display = 'block';
 		hintElement.style.color = transparentForeground?.toString() || '';
 		hintElement.style.cursor = 'text';
+		hintElement.style.overflow = 'hidden';
 
 		const keybinding = this.getKeybinding();
 		const keybindingHintLabel = keybinding?.getLabel();
 
 		if (keybinding && keybindingHintLabel) {
-			const actionPart = localize('emptyHintText', 'Enter code and press {0} to execute. ', keybindingHintLabel);
+			const actionPart = localize('emptyHintText', 'Press {0} to execute. ', keybindingHintLabel);
 
 			const [before, after] = actionPart.split(keybindingHintLabel).map((fragment) => {
 				const hintPart = dom.$('span', undefined, fragment);
@@ -123,16 +119,6 @@ export class ReplInputHintContentWidget extends Disposable implements IContentWi
 			label.element.style.display = 'inline';
 
 			hintElement.appendChild(after);
-
-			const configLink = dom.$('a', { href: '#' }, localize('settings link', 'Update execution settings.'));
-			configLink.style.color = linkForeground?.toString() || '';
-			configLink.onclick = (e) => {
-				e.preventDefault();
-				this.commandService.executeCommand('workbench.action.openSettings', { query: '@tag:replExecute' });
-			};
-			hintElement.appendChild(configLink);
-
-
 			this.domNode.append(hintElement);
 			return '';
 		} else {
@@ -151,13 +137,18 @@ export class ReplInputHintContentWidget extends Disposable implements IContentWi
 				return keybinding;
 			}
 		} else {
-			const keybinding = keybindings.find(kb => kb.getLabel() === 'Enter');
+			let keybinding = keybindings.find(kb => kb.getLabel() === 'Enter');
+			if (keybinding) {
+				return keybinding;
+			}
+			keybinding = this.keybindingService.lookupKeybindings('python.execInREPLEnter')
+				.find(kb => kb.getLabel() === 'Enter');
 			if (keybinding) {
 				return keybinding;
 			}
 		}
 
-		return this.keybindingService.lookupKeybinding('interactive.execute', this.contextKeyService);
+		return undefined;
 	}
 
 	override dispose(): void {
