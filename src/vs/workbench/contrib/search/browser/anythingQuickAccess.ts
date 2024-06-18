@@ -325,7 +325,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		// Return early if we have editor symbol picks. We support this by:
 		// - having a previously active global pick (e.g. a file)
 		// - the user typing `@` to start the local symbol query
-		if (options.enableEditorSymbolSearch && options.includeSymbols) {
+		if (options.enableEditorSymbolSearch && options.includeSymbols !== false) {
 			const editorSymbolPicks = this.getEditorSymbolPicks(query, disposables, token);
 			if (editorSymbolPicks) {
 				return editorSymbolPicks;
