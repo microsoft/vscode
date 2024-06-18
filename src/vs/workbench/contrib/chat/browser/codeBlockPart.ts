@@ -6,24 +6,39 @@
 import 'vs/css!./codeBlockPart';
 
 import * as dom from 'vs/base/browser/dom';
+import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Button } from 'vs/base/browser/ui/button/button';
+import { toAction } from 'vs/base/common/actions';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
+import { basename, isEqual } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
+import { TabFocus } from 'vs/editor/browser/config/tabFocus';
+import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
+import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
 import { EDITOR_FONT_DEFAULTS, EditorOption, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { IDiffEditorViewModel, ScrollType } from 'vs/editor/common/editorCommon';
+import { TextEdit } from 'vs/editor/common/languages';
 import { EndOfLinePreference, ITextModel } from 'vs/editor/common/model';
+import { TextModelText } from 'vs/editor/common/model/textModelText';
 import { IModelService } from 'vs/editor/common/services/model';
+import { DefaultModelSHA1Computer } from 'vs/editor/common/services/modelService';
 import { IResolvedTextEditorModel, ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { BracketMatchingController } from 'vs/editor/contrib/bracketMatching/browser/bracketMatching';
+import { ColorDetector } from 'vs/editor/contrib/colorPicker/browser/colorDetector';
 import { ContextMenuController } from 'vs/editor/contrib/contextmenu/browser/contextmenu';
 import { GotoDefinitionAtPositionEditorContribution } from 'vs/editor/contrib/gotoSymbol/browser/link/goToDefinitionAtPosition';
+import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
+import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import { ViewportSemanticTokensContribution } from 'vs/editor/contrib/semanticTokens/browser/viewportSemanticTokens';
 import { SmartSelectController } from 'vs/editor/contrib/smartSelect/browser/smartSelect';
 import { WordHighlighterContribution } from 'vs/editor/contrib/wordHighlighter/browser/wordHighlighter';
@@ -33,34 +48,22 @@ import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { ChatTreeItem } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatRendererDelegate } from 'vs/workbench/contrib/chat/browser/chatListRenderer';
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
+import { CONTEXT_CHAT_EDIT_APPLIED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { IChatResponseModel, IChatTextEditGroup } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatResponseViewModel, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { IMarkdownVulnerability } from '../common/annotations';
-import { TabFocus } from 'vs/editor/browser/config/tabFocus';
-import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
-import { ChatTreeItem } from 'vs/workbench/contrib/chat/browser/chat';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
-import { CONTEXT_CHAT_EDIT_APPLIED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IChatResponseModel, IChatTextEditGroup } from 'vs/workbench/contrib/chat/common/chatModel';
-import { TextEdit } from 'vs/editor/common/languages';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { isEqual } from 'vs/base/common/resources';
-import { DefaultModelSHA1Computer } from 'vs/editor/common/services/modelService';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { TextModelText } from 'vs/editor/common/model/textModelText';
-import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 
 const $ = dom.$;
 
@@ -280,6 +283,7 @@ export class CodeBlockPart extends Disposable {
 				HoverController.ID,
 				MessageController.ID,
 				GotoDefinitionAtPositionEditorContribution.ID,
+				ColorDetector.ID
 			])
 		}));
 	}
@@ -466,7 +470,8 @@ export class CodeCompareBlockPart extends Disposable {
 
 	private readonly contextKeyService: IContextKeyService;
 	private readonly diffEditor: DiffEditorWidget;
-	private readonly toolbar: MenuWorkbenchToolBar;
+	private readonly toolbar1: ActionBar;
+	private readonly toolbar2: MenuWorkbenchToolBar;
 	readonly element: HTMLElement;
 	private readonly messageElement: HTMLElement;
 
@@ -523,16 +528,20 @@ export class CodeCompareBlockPart extends Disposable {
 		});
 
 		const toolbarElement = dom.append(this.element, $('.interactive-result-code-block-toolbar'));
+
+		// this.resourceLabel = this._register(scopedInstantiationService.createInstance(ResourceLabel, toolbarElement, { supportIcons: true }));
+
 		const editorScopedService = this.diffEditor.getModifiedEditor().contextKeyService.createScoped(toolbarElement);
 		const editorScopedInstantiationService = scopedInstantiationService.createChild(new ServiceCollection([IContextKeyService, editorScopedService]));
-		this.toolbar = this._register(editorScopedInstantiationService.createInstance(MenuWorkbenchToolBar, toolbarElement, menuId, {
+		this.toolbar1 = this._register(new ActionBar(toolbarElement, {}));
+		this.toolbar2 = this._register(editorScopedInstantiationService.createInstance(MenuWorkbenchToolBar, toolbarElement, menuId, {
 			menuOptions: {
 				shouldForwardArgs: true
 			}
 		}));
 
 
-		this._register(this.toolbar.onDidChangeDropdownVisibility(e => {
+		this._register(this.toolbar2.onDidChangeDropdownVisibility(e => {
 			toolbarElement.classList.toggle('force-visibility', e);
 		}));
 
@@ -609,6 +618,7 @@ export class CodeCompareBlockPart extends Disposable {
 			isInEmbeddedEditor: true,
 			useInlineViewWhenSpaceIsLimited: false,
 			hideUnchangedRegions: { enabled: true, contextLineCount: 1 },
+			renderGutterMenu: false,
 			...options
 		}, { originalEditor: widgetOptions, modifiedEditor: widgetOptions }));
 	}
@@ -629,7 +639,7 @@ export class CodeCompareBlockPart extends Disposable {
 	}
 
 	private _configureForScreenReader(): void {
-		const toolbarElt = this.toolbar.getElement();
+		const toolbarElt = this.toolbar2.getElement();
 		if (this.accessibilityService.isScreenReaderOptimized()) {
 			toolbarElt.style.display = 'block';
 			toolbarElt.ariaLabel = this.configurationService.getValue(AccessibilityVerbositySettingId.Chat) ? localize('chat.codeBlock.toolbarVerbose', 'Toolbar for code block which can be reached via tab') : localize('chat.codeBlock.toolbar', 'Code block toolbar');
@@ -682,10 +692,20 @@ export class CodeCompareBlockPart extends Disposable {
 		this.layout(width);
 		this.diffEditor.updateOptions({ ariaLabel: localize('chat.compareCodeBlockLabel', "Code Edits") });
 
+		this.toolbar1.clear();
+		this.toolbar1.push(toAction({
+			label: basename(data.edit.uri),
+			tooltip: localize('chat.edit.tooltip', "Open '{0}'", this.labelService.getUriLabel(data.edit.uri, { relative: true })),
+			run: () => {
+				this.openerService.open(data.edit.uri, { fromUserGesture: true, allowCommands: false });
+			},
+			id: '',
+		}), { icon: false, label: true });
+
 		if (data.hideToolbar) {
-			dom.hide(this.toolbar.getElement());
+			dom.hide(this.toolbar2.getElement());
 		} else {
-			dom.show(this.toolbar.getElement());
+			dom.show(this.toolbar2.getElement());
 		}
 	}
 
@@ -715,11 +735,12 @@ export class CodeCompareBlockPart extends Disposable {
 			const uriLabel = this.labelService.getUriLabel(data.edit.uri, { relative: true, noPrefix: true });
 
 			const template = data.edit.state.applied > 1
-				? localize('chat.edits.N', "Made {0} changes in [[{1}]]", data.edit.state.applied, uriLabel)
-				: localize('chat.edits.1', "Made 1 change in [[{0}]]", uriLabel);
+				? localize('chat.edits.N', "Made {0} changes in [[``{1}``]]", data.edit.state.applied, uriLabel)
+				: localize('chat.edits.1', "Made 1 change in [[``{0}``]]", uriLabel);
 
 
 			const message = renderFormattedText(template, {
+				renderCodeSegments: true,
 				actionHandler: {
 					callback: () => {
 						this.openerService.open(data.edit.uri, { fromUserGesture: true, allowCommands: false });
@@ -757,7 +778,7 @@ export class CodeCompareBlockPart extends Disposable {
 			this._lastDiffEditorViewModel.value = undefined;
 		}
 
-		this.toolbar.context = {
+		this.toolbar2.context = {
 			edit: data.edit,
 			element: data.element,
 			diffEditor: this.diffEditor,
@@ -775,7 +796,7 @@ export class DefaultChatTextEditor {
 		@IDialogService private readonly dialogService: IDialogService,
 	) { }
 
-	async apply(response: IChatResponseModel | IChatResponseViewModel, item: IChatTextEditGroup): Promise<void> {
+	async apply(response: IChatResponseModel | IChatResponseViewModel, item: IChatTextEditGroup, diffEditor: IDiffEditor | undefined): Promise<void> {
 
 		if (!response.response.value.includes(item)) {
 			// bogous item
@@ -787,15 +808,16 @@ export class DefaultChatTextEditor {
 			return;
 		}
 
-		let diffEditor: IDiffEditor | undefined;
-		for (const candidate of this.editorService.listDiffEditors()) {
-			if (!candidate.getContainerDomNode().isConnected) {
-				continue;
-			}
-			const model = candidate.getModel();
-			if (!model || !isEqual(model.original.uri, item.uri) || model.modified.uri.scheme !== Schemas.vscodeChatCodeCompareBlock) {
-				diffEditor = candidate;
-				break;
+		if (!diffEditor) {
+			for (const candidate of this.editorService.listDiffEditors()) {
+				if (!candidate.getContainerDomNode().isConnected) {
+					continue;
+				}
+				const model = candidate.getModel();
+				if (!model || !isEqual(model.original.uri, item.uri) || model.modified.uri.scheme !== Schemas.vscodeChatCodeCompareBlock) {
+					diffEditor = candidate;
+					break;
+				}
 			}
 		}
 

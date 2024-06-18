@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
+import type { IManagedHover } from 'vs/base/browser/ui/hover/hover';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { fromNow } from 'vs/base/common/date';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -18,7 +18,7 @@ export class TimestampWidget extends Disposable {
 	private _timestamp: Date | undefined;
 	private _useRelativeTime: boolean;
 
-	private hover: IUpdatableHover;
+	private hover: IManagedHover;
 
 	constructor(
 		private configurationService: IConfigurationService,
@@ -30,7 +30,7 @@ export class TimestampWidget extends Disposable {
 		this._date = dom.append(container, dom.$('span.timestamp'));
 		this._date.style.display = 'none';
 		this._useRelativeTime = this.useRelativeTimeSetting;
-		this.hover = this._register(hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), this._date, ''));
+		this.hover = this._register(hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this._date, ''));
 		this.setTimestamp(timeStamp);
 	}
 

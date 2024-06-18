@@ -50,6 +50,8 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 
 	public readonly hoverOrdinal: number = 2;
 
+	private _colorPicker: ColorPickerWidget | undefined;
+
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IThemeService private readonly _themeService: IThemeService,
@@ -87,7 +89,17 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 	}
 
 	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: ColorHover[]): IDisposable {
-		return renderHoverParts(this, this._editor, this._themeService, hoverParts, context);
+		const { disposables, colorPicker } = renderHoverParts(this, this._editor, this._themeService, hoverParts, context);
+		this._colorPicker = colorPicker;
+		return disposables;
+	}
+
+	public handleResize(): void {
+		this._colorPicker?.layout();
+	}
+
+	public isColorPickerVisible(): boolean {
+		return !!this._colorPicker;
 	}
 }
 
@@ -146,7 +158,7 @@ export class StandaloneColorPickerParticipant {
 		}
 	}
 
-	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: ColorHover[] | StandaloneColorPickerHover[]): IDisposable {
+	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: ColorHover[] | StandaloneColorPickerHover[]): { disposables: IDisposable; colorPicker: ColorPickerWidget | undefined } {
 		return renderHoverParts(this, this._editor, this._themeService, hoverParts, context);
 	}
 
@@ -178,9 +190,9 @@ async function _createColorHover(participant: ColorHoverParticipant | Standalone
 	}
 }
 
-function renderHoverParts(participant: ColorHoverParticipant | StandaloneColorPickerParticipant, editor: ICodeEditor, themeService: IThemeService, hoverParts: ColorHover[] | StandaloneColorPickerHover[], context: IEditorHoverRenderContext) {
+function renderHoverParts(participant: ColorHoverParticipant | StandaloneColorPickerParticipant, editor: ICodeEditor, themeService: IThemeService, hoverParts: ColorHover[] | StandaloneColorPickerHover[], context: IEditorHoverRenderContext): { disposables: IDisposable; colorPicker: ColorPickerWidget | undefined } {
 	if (hoverParts.length === 0 || !editor.hasModel()) {
-		return Disposable.None;
+		return { disposables: Disposable.None, colorPicker: undefined };
 	}
 	if (context.setMinimumDimensions) {
 		const minimumHeight = editor.getOption(EditorOption.lineHeight) + 8;
@@ -191,8 +203,7 @@ function renderHoverParts(participant: ColorHoverParticipant | StandaloneColorPi
 	const colorHover = hoverParts[0];
 	const editorModel = editor.getModel();
 	const model = colorHover.model;
-	const widget = disposables.add(new ColorPickerWidget(context.fragment, model, editor.getOption(EditorOption.pixelRatio), themeService, participant instanceof StandaloneColorPickerParticipant));
-	context.setColorPicker(widget);
+	const colorPicker = disposables.add(new ColorPickerWidget(context.fragment, model, editor.getOption(EditorOption.pixelRatio), themeService, participant instanceof StandaloneColorPickerParticipant));
 
 	let editorUpdatedByColorPicker = false;
 	let range = new Range(colorHover.range.startLineNumber, colorHover.range.startColumn, colorHover.range.endLineNumber, colorHover.range.endColumn);
@@ -221,7 +232,7 @@ function renderHoverParts(participant: ColorHoverParticipant | StandaloneColorPi
 			editor.focus();
 		}
 	}));
-	return disposables;
+	return { disposables, colorPicker };
 }
 
 function _updateEditorModel(editor: IActiveCodeEditor, range: Range, model: ColorPickerModel): Range {

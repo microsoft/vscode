@@ -7,7 +7,7 @@
 (function () {
 	'use strict';
 
-	const { ipcRenderer, webFrame, contextBridge } = require('electron');
+	const { ipcRenderer, webFrame, contextBridge, webUtils } = require('electron');
 
 	//#region Utilities
 
@@ -238,6 +238,19 @@
 		},
 
 		/**
+		 * Support for subset of Electron's `webUtils` type.
+		 */
+		webUtils: {
+
+			/**
+			 * @param {File} file
+			 */
+			getPathForFile(file) {
+				return webUtils.getPathForFile(file);
+			}
+		},
+
+		/**
 		 * Support for a subset of access to node.js global `process`.
 		 *
 		 * Note: when `sandbox` is enabled, the only properties available
@@ -248,7 +261,6 @@
 		 * @type {ISandboxNodeProcess}
 		 */
 		process: {
-			get pid() { return process.pid; },
 			get platform() { return process.platform; },
 			get arch() { return process.arch; },
 			get env() { return { ...process.env }; },

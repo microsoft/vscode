@@ -78,10 +78,10 @@ export interface ITestRunProfile {
  * and extension host.
  */
 export interface ResolvedTestRunRequest {
+	group: TestRunProfileBitset;
 	targets: {
 		testIds: string[];
 		controllerId: string;
-		profileGroup: TestRunProfileBitset;
 		profileId: number;
 	}[];
 	exclude?: string[];
@@ -573,7 +573,7 @@ export namespace ICoverageCount {
 export interface IFileCoverage {
 	id: string;
 	uri: URI;
-	testId?: TestId;
+	testIds?: string[];
 	statement: ICoverageCount;
 	branch?: ICoverageCount;
 	declaration?: ICoverageCount;
@@ -583,7 +583,7 @@ export namespace IFileCoverage {
 	export interface Serialized {
 		id: string;
 		uri: UriComponents;
-		testId: string | undefined;
+		testIds: string[] | undefined;
 		statement: ICoverageCount;
 		branch?: ICoverageCount;
 		declaration?: ICoverageCount;
@@ -594,7 +594,7 @@ export namespace IFileCoverage {
 		statement: original.statement,
 		branch: original.branch,
 		declaration: original.declaration,
-		testId: original.testId?.toString(),
+		testIds: original.testIds,
 		uri: original.uri.toJSON(),
 	});
 
@@ -603,14 +603,13 @@ export namespace IFileCoverage {
 		statement: serialized.statement,
 		branch: serialized.branch,
 		declaration: serialized.declaration,
-		testId: serialized.testId ? TestId.fromString(serialized.testId) : undefined,
+		testIds: serialized.testIds,
 		uri: uriIdentity.asCanonicalUri(URI.revive(serialized.uri)),
 	});
 
 	export const empty = (id: string, uri: URI): IFileCoverage => ({
 		id,
 		uri,
-		testId: undefined,
 		statement: ICoverageCount.empty(),
 	});
 }

@@ -516,11 +516,11 @@
 				"git": {
 					"name": "nodejs",
 					"repositoryUrl": "https://github.com/nodejs/node",
-					"commitHash": "22f383dcd529d6bf790856db614a35fea78e825f"
+					"commitHash": "9b1bf44ea9e7785e38c93b7d22d32dbca262df6c"
 				}
 			},
 			"isOnlyProductionDependency": true,
-			"version": "20.9.0"
+			"version": "20.11.1"
 		},
 		{
 			"component": {
