@@ -44,7 +44,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.tests.registerTestFollowupProvider({
 		async provideFollowup(_result, test, taskIndex, messageIndex, _token) {
 			return [{
-				title: '$(sparkle) Ask copilot for help',
+				title: '$(sparkle) Fix with Copilot',
 				command: 'github.copilot.tests.fixTestFailure',
 				arguments: [{ source: 'peekFollowup', test, message: test.taskStates[taskIndex].messages[messageIndex] }]
 			}];
