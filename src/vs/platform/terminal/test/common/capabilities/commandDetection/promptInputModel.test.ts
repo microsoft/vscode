@@ -469,6 +469,26 @@ suite('PromptInputModel', () => {
 		});
 	});
 
+	suite('wrapped line (non-continuation)', () => {
+		test('basic wrapped line', async () => {
+			xterm.resize(5, 10);
+
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise('ech');
+			await assertPromptInput(`ech|`);
+
+			await writePromise('o ');
+			await assertPromptInput(`echo |`);
+
+			await writePromise('"a"');
+			// HACK: Trailing whitespace is due to flaky detection in wrapped lines (but it doesn't matter much)
+			await assertPromptInput(`echo "a"| `);
+		});
+	});
+
 	// To "record a session" for these tests:
 	// - Enable debug logging
 	// - Open and clear Terminal output channel
