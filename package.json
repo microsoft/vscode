@@ -98,7 +98,6 @@
     "native-is-elevated": "0.7.0",
     "native-keymap": "^3.3.5",
     "native-watchdog": "^1.4.1",
-    "node-abi": "^3.65.0",
     "node-pty": "1.1.0-beta11",
     "tas-client-umd": "0.2.0",
     "v8-inspect-profiler": "^0.1.1",
