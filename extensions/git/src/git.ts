@@ -1167,8 +1167,6 @@ export class Repository {
 
 		if (options?.refNames) {
 			args.push('--topo-order');
-			// args.push('--all');
-			// args.push('--branches=*');
 			args.push(...options.refNames);
 		}
 
