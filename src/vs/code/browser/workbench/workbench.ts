@@ -74,6 +74,8 @@ class SecretStorageProvider implements ISecretStorageProvider {
 	config.additionalBuiltinExtensions = [URI.revive(extensionUrl)];
 
 	config.workspaceProvider = {
+		// IMPORTANT: this filename must match the filename used in `memfs.ts`.
+		// TODO: Somehow use product.json to configure that globally
 		workspace: { workspaceUri: URI.parse('memfs:/membrane.code-workspace') },
 		trusted: true,
 		open: async (
