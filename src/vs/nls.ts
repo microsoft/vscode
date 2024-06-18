@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-let isPseudo = (typeof document !== 'undefined' && document.location && document.location.hash.indexOf('pseudo=true') >= 0);
+const isPseudo = globalThis._VSCODE_NLS_PSEUDO || (typeof document !== 'undefined' && document.location && document.location.hash.indexOf('pseudo=true') >= 0);
 
 export interface ILocalizeInfo {
 	key: string;
@@ -158,13 +158,6 @@ export function getConfiguredDefaultLocale(_: string): string | undefined {
 	return undefined;
 }
 
-/**
- * @skipMangle
- */
-export function setPseudoTranslation(value: boolean) { // TODO support this
-	isPseudo = value;
-}
-
 export interface INLSLanguagePackConfiguration {
 
 	/**
@@ -206,6 +199,4 @@ export interface INLSConfiguration {
 	 * versions of the application.
 	 */
 	readonly defaultMessagesFile: string;
-
-	readonly pseudo?: boolean;
 }

@@ -172,6 +172,7 @@
 
 		// VSCODE_GLOBALS: NLS
 		try {
+			globalThis._VSCODE_NLS_PSEUDO = nlsConfig?.userLocale === 'pseudo' ? true : undefined;
 			globalThis._VSCODE_NLS = JSON.parse(await safeReadNlsFile(...metaDataFileParts));
 		} catch (e) {
 			console.error(`Error reading NLS metadata file: ${e}`);

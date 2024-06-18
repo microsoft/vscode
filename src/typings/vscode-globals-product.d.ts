@@ -20,6 +20,10 @@ declare global {
 	 * under `src/vs`.
 	 */
 	var _VSCODE_NLS: string[];
+	/**
+	 * Whether the running instance should use a pseudo-locale.
+	 */
+	var _VSCODE_NLS_PSEUDO: true | undefined;
 }
 
 // fake export to make global work

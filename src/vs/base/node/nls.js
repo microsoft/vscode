@@ -125,18 +125,16 @@
 		 * @param {string} userLocale
 		 * @param {string} osLocale
 		 * @param {string} nlsMetadataPath
-		 * @param {boolean} [pseudo]
 		 * @returns {INLSConfiguration}
 		 */
-		function defaultNLSConfiguration(userLocale, osLocale, nlsMetadataPath, pseudo) {
+		function defaultNLSConfiguration(userLocale, osLocale, nlsMetadataPath) {
 			perf.mark('code/didGenerateNls');
 
 			return {
 				userLocale,
 				osLocale,
 				availableLanguages: {},
-				defaultMessagesFile: path.join(nlsMetadataPath, 'nls.messages.json'),
-				pseudo
+				defaultMessagesFile: path.join(nlsMetadataPath, 'nls.messages.json')
 			};
 		}
 
@@ -153,7 +151,7 @@
 				userLocale === 'en' || userLocale === 'en-us' ||
 				!commit
 			) {
-				return defaultNLSConfiguration(userLocale, osLocale, nlsMetadataPath, userLocale === 'pseudo' ? true : undefined);
+				return defaultNLSConfiguration(userLocale, osLocale, nlsMetadataPath);
 			}
 
 			try {
