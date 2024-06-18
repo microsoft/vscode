@@ -126,7 +126,7 @@ export class TreeSitterParserService extends Disposable implements ITreeSitterPa
 		disposables.add(model.onDidChangeContent(e => this._onDidChangeContent(model, e)));
 		disposables.add(model.onDidChangeLanguage(e => this._onDidChangeLanguage(model, e)));
 		const parser = new Parser();
-		parser.setTimeoutMicros(300 * 1000); // 300 ms
+		parser.setTimeoutMicros(50 * 1000); // 50 ms
 		const treeSitterTree = new TreeSitterTree(parser, disposables);
 		this._treeSitterTrees.set(model, treeSitterTree);
 		this._setLanguageAndTree(model, treeSitterTree);
