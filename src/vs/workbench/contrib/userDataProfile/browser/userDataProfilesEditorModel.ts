@@ -761,8 +761,6 @@ export class UserDataProfilesEditorModel extends EditorModel {
 		const titlePrimaryActions: IAction[] = [];
 		titlePrimaryActions.push(newWindowAction);
 		const titleSecondaryActions: IAction[] = [];
-		titleSecondaryActions.push(activateAction);
-		titleSecondaryActions.push(new Separator());
 		titleSecondaryActions.push(copyFromProfileAction);
 		titleSecondaryActions.push(exportAction);
 		if (!profile.isDefault) {
