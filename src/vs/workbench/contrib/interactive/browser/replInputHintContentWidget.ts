@@ -93,11 +93,10 @@ export class ReplInputHintContentWidget extends Disposable implements IContentWi
 		}
 		const transparentForeground = resolveColorValue(editorForeground, this.themeService.getColorTheme())?.transparent(0.4);
 
-		const hintElement = dom.$('empty-hint-text');
-		hintElement.style.display = 'block';
-		hintElement.style.color = transparentForeground?.toString() || '';
+		const hintElement = dom.$('div.empty-hint-text');
 		hintElement.style.cursor = 'text';
 		hintElement.style.whiteSpace = 'nowrap';
+		hintElement.style.color = transparentForeground?.toString() || '';
 
 		const keybinding = this.getKeybinding();
 		const keybindingHintLabel = keybinding?.getLabel();
@@ -126,7 +125,6 @@ export class ReplInputHintContentWidget extends Disposable implements IContentWi
 	}
 
 	private getKeybinding() {
-
 		const keybindings = this.keybindingService.lookupKeybindings('interactive.execute');
 		const shiftEnterConfig = this.configurationService.getValue(InteractiveWindowSetting.executeWithShiftEnter);
 

@@ -648,19 +648,17 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 			return;
 		}
 
-		setTimeout(() => {
-			const shouldHide =
-				!this._codeEditorWidget.hasModel() ||
-				this._configurationService.getValue<boolean>(InteractiveWindowSetting.showExecutionHint) === false ||
-				this._codeEditorWidget.getModel()!.getValueLength() !== 0;
+		const shouldHide =
+			!this._codeEditorWidget.hasModel() ||
+			this._configurationService.getValue<boolean>(InteractiveWindowSetting.showExecutionHint) === false ||
+			this._codeEditorWidget.getModel()!.getValueLength() !== 0;
 
-			if (!this._hintElement && !shouldHide) {
-				this._hintElement = this._instantiationService.createInstance(ReplInputHintContentWidget, this._codeEditorWidget);
-			} else if (this._hintElement && shouldHide) {
-				this._hintElement.dispose();
-				this._hintElement = undefined;
-			}
-		}, 0);
+		if (!this._hintElement && !shouldHide) {
+			this._hintElement = this._instantiationService.createInstance(ReplInputHintContentWidget, this._codeEditorWidget);
+		} else if (this._hintElement && shouldHide) {
+			this._hintElement.dispose();
+			this._hintElement = undefined;
+		}
 	}
 
 	getScrollPosition(): IEditorPaneScrollPosition {

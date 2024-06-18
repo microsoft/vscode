@@ -846,13 +846,13 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		[InteractiveWindowSetting.executeWithShiftEnter]: {
 			type: 'boolean',
 			default: false,
-			markdownDescription: localize('interactiveWindow.executeWithShiftEnter', "Execute the interactive window (REPL) input box with shift+enter, so that enter can be used to create a newline."),
+			markdownDescription: localize('interactiveWindow.executeWithShiftEnter', "Execute the Interactive Window (REPL) input box with shift+enter, so that enter can be used to create a newline."),
 			tags: ['replExecute']
 		},
 		[InteractiveWindowSetting.showExecutionHint]: {
 			type: 'boolean',
 			default: true,
-			markdownDescription: localize('interactiveWindow.showExecutionHint', "Display a hint under the interactive window (REPL) input box to indicate how to execute code."),
+			markdownDescription: localize('interactiveWindow.showExecutionHint', "Display a hint in the Interactive Window (REPL) input box to indicate how to execute code."),
 			tags: ['replExecute']
 		}
 	}
