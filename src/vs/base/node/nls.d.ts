@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 interface IExtensionIdentifier {
-	id: string;
-	uuid?: string;
+	readonly id: string;
+	readonly uuid?: string;
 }
 
 export interface ILanguagePack {
-	hash: string;
-	label: string | undefined;
-	extensions: {
-		extensionIdentifier: IExtensionIdentifier;
-		version: string;
+	readonly hash: string;
+	readonly label: string | undefined;
+	readonly extensions: {
+		readonly extensionIdentifier: IExtensionIdentifier;
+		readonly version: string;
 	}[];
-	translations: Record<string, string | undefined>;
+	readonly translations: Record<string, string | undefined>;
 }
 
 export type ILanguagePacks = Record<string, ILanguagePack | undefined>;
@@ -44,8 +44,16 @@ export interface IResolveNLSConfigurationContext {
 	 */
 	readonly nlsMetadataPath: string;
 
+	/**
+	 * Path to the user data directory. Used as a cache for
+	 * language packs converted to the format we need.
+	 */
 	readonly userDataPath: string;
 
+	/**
+	 * Commit of the running application. Can be `undefined`
+	 * when not built.
+	 */
 	readonly commit: string | undefined;
 
 	/**
