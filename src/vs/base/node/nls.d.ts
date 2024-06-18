@@ -27,6 +27,15 @@ export interface INLSConfiguration {
 	readonly pseudo?: boolean;
 }
 
+export interface IInternalNLSConfiguration extends INLSConfiguration {
+	readonly _languagePackId: string;
+	readonly _translationsConfigFile: string;
+	readonly _cacheRoot: string;
+	readonly _resolvedLanguagePackCoreLocation: string;
+	readonly _corruptedFile: string;
+	_languagePackSupport?: boolean;
+}
+
 export interface IResolveNLSConfigurationContext {
 
 	/**
