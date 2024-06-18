@@ -11,11 +11,12 @@ import { Promises } from 'vs/base/node/pfs';
 import product from 'vs/platform/product/common/product';
 
 const nlsMetadataPath = join(FileAccess.asFileUri('').fsPath);
+const defaultMessagesFile = join(nlsMetadataPath, 'nls.messages.json');
 const nlsConfigurationCache = new Map<string, Promise<INLSConfiguration>>();
 
 export async function getNLSConfiguration(language: string, userDataPath: string): Promise<INLSConfiguration> {
-	if (!product.commit || !(await Promises.exists(nlsMetadataPath))) {
-		return { userLocale: 'en', osLocale: 'en', availableLanguages: {}, defaultMessagesFile: join(nlsMetadataPath, 'nls.messages.json') };
+	if (!product.commit || !(await Promises.exists(defaultMessagesFile))) {
+		return { userLocale: 'en', osLocale: 'en', availableLanguages: {}, defaultMessagesFile };
 	}
 
 	const cacheKey = `${language}||${userDataPath}`;

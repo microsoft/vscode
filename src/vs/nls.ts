@@ -195,13 +195,15 @@ export interface INLSConfiguration {
 
 	/**
 	 * Defined if a language pack is used that is not the
-	 * default english language pack.
+	 * default english language pack. This requires a language
+	 * pack to be installed as extension.
 	 */
 	readonly languagePack?: INLSLanguagePackConfiguration;
 
 	/**
 	 * The path to the file containing the default english messages
-	 * as flat string array.
+	 * as flat string array. The file is only present in built
+	 * versions of the application.
 	 */
 	readonly defaultMessagesFile: string;
 

@@ -130,31 +130,35 @@
 	async function setupNLS() {
 		const process = safeProcess();
 
+		if (process?.env['VSCODE_DEV']) {
+			return undefined; // no NLS support in dev mode
+		}
+
 		/** @type {INLSConfiguration | undefined} */
 		let nlsConfig = undefined;
 
-		const metaDataFile = [];
+		const metaDataFileParts = [];
 		if (process && process.env['VSCODE_NLS_CONFIG']) {
 			try {
 				/** @type {INLSConfiguration} */
 				nlsConfig = JSON.parse(process.env['VSCODE_NLS_CONFIG']);
 				if (nlsConfig?.languagePack?.messagesFile) {
-					metaDataFile.push(nlsConfig.languagePack.messagesFile);
+					metaDataFileParts.push(nlsConfig.languagePack.messagesFile);
 				} else if (nlsConfig?.defaultMessagesFile) {
-					metaDataFile.push(nlsConfig.defaultMessagesFile);
+					metaDataFileParts.push(nlsConfig.defaultMessagesFile);
 				}
 			} catch (e) {
 				console.error(`Error resolving NLS metadata file: ${e}`);
 			}
 		}
 
-		if (metaDataFile.length === 0) {
+		if (metaDataFileParts.length === 0) {
 			return undefined;
 		}
 
 		// VSCODE_GLOBALS: NLS
 		try {
-			globalThis._VSCODE_NLS = JSON.parse(await safeReadNlsFile(...metaDataFile));
+			globalThis._VSCODE_NLS = JSON.parse(await safeReadNlsFile(...metaDataFileParts));
 		} catch (e) {
 			console.error(`Error reading NLS metadata file: ${e}`);
 
