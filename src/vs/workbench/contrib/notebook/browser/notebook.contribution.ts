@@ -187,8 +187,8 @@ class NotebookDiffEditorSerializer implements IEditorSerializer {
 }
 type SerializedNotebookEditorData = { resource: URI; preferredResource: URI; viewType: string; options?: NotebookEditorInputOptions };
 class NotebookEditorSerializer implements IEditorSerializer {
-	canSerialize(): boolean {
-		return true;
+	canSerialize(input: EditorInput): boolean {
+		return input.typeId === NotebookEditorInput.ID;
 	}
 	serialize(input: EditorInput): string {
 		assertType(input instanceof NotebookEditorInput);
@@ -644,7 +644,7 @@ class SimpleNotebookWorkingCopyEditorHandler extends Disposable implements IWork
 
 	private handlesSync(workingCopy: IWorkingCopyIdentifier): string /* viewType */ | undefined {
 		const viewType = this._getViewType(workingCopy);
-		if (!viewType || viewType === 'interactive') {
+		if (!viewType || viewType === 'interactive' || extname(workingCopy.resource) === '.replNotebook') {
 			return undefined;
 		}
 

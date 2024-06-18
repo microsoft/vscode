@@ -4,7 +4,7 @@
   "license": "MIT",
   "devDependencies": {
     "@azure/cosmos": "^3",
-    "@azure/identity": "^3.4.1",
+    "@azure/identity": "^4.2.1",
     "@azure/storage-blob": "^12.17.0",
     "@electron/get": "^2.0.0",
     "@types/ansi-colors": "^3.2.0",
