@@ -6,11 +6,7 @@
 declare module 'vscode' {
 
 	export namespace lm {
-		/**
-		 * TODO@API Most details are statically registered
-		 * TODO@API canBeInvokedExplicitlyByUser: whether the tool shows up in the chat input suggest widget
-		 */
-		export function registerTool(tool: ChatTool, options?: { canBeInvokedExplicitlyByUser?: boolean }): Disposable;
+		export function registerTool(id: string, tool: ChatTool): Disposable;
 
 		export const tools: ReadonlyArray<ChatToolDescription>;
 
@@ -21,24 +17,13 @@ declare module 'vscode' {
 	}
 
 	export interface ChatToolDescription {
-		id: string; // id here vs name in lmTools
-		displayName: string;
+		id: string;
 		description: string;
-		parametersSchema: JSONSchema; // From lmTools
+		parametersSchema?: JSONSchema;
+		displayName?: string;
 	}
 
-	export interface ChatTool extends ChatToolDescription {
-		// How does it ask for confirmation? This resolver could get some other resolver/accessor object that lets it ask to render some confirm dialog in chat.
-		// Or, a tool declares whether it needs confirmation, and vscode will ask for user confirmation before invoking it.
+	export interface ChatTool {
 		invoke(parameters: any, token: CancellationToken): ProviderResult<any>;
-	}
-
-	// TODO@API name? "invoker"?
-	export interface ChatToolAccessor {
-		invokeTool(toolId: string, parameters: Object, token: CancellationToken): Thenable<string>;
-	}
-
-	export interface ChatContext {
-		toolAccessor: ChatToolAccessor;
 	}
 }

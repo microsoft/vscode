@@ -33,14 +33,15 @@ export class MainThreadChatTools extends Disposable implements MainThreadChatToo
 		return this._chatToolsService.invokeTool(name, parameters, token);
 	}
 
-	$registerTool(data: IChatToolData): void {
-		const disposable = this._chatToolsService.registerTool({
-			...data,
-			invoke: async (parameters, token) => {
-				return await this._proxy.$invokeTool(data.id, parameters, token);
-			},
-		});
-		this._tools.set(data.id, disposable);
+	$registerTool(id: string): void {
+		const disposable = this._chatToolsService.registerToolImplementation(
+			id,
+			{
+				invoke: async (parameters, token) => {
+					return await this._proxy.$invokeTool(id, parameters, token);
+				},
+			});
+		this._tools.set(id, disposable);
 	}
 
 	$unregisterTool(id: string): void {

@@ -1298,14 +1298,7 @@ export interface MainThreadChatVariablesShape extends IDisposable {
 export interface MainThreadChatToolsShape extends IDisposable {
 	$getTools(): Promise<IChatToolData[]>;
 	$invokeTool(name: string, parameters: any, token: CancellationToken): Promise<string>;
-	$registerTool(data: IChatToolData): void;
-	$unregisterTool(name: string): void;
-}
-
-export interface MainThreadChatToolsShape extends IDisposable {
-	$getTools(): Promise<IChatToolData[]>;
-	$invokeTool(name: string, parameters: any, token: CancellationToken): Promise<string>;
-	$registerTool(data: IChatToolData): void;
+	$registerTool(id: string): void;
 	$unregisterTool(name: string): void;
 }
 

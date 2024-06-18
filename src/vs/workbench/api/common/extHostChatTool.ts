@@ -56,13 +56,13 @@ export class ExtHostChatTools implements ExtHostChatToolsShape {
 		return await item.tool.invoke(parameters, token);
 	}
 
-	registerChatTool(extension: IExtensionDescription, tool: vscode.ChatTool): IDisposable {
-		this._registeredTools.set(tool.id, { extension, tool });
-		this._proxy.$registerTool(tool);
+	registerChatTool(extension: IExtensionDescription, id: string, tool: vscode.ChatTool): IDisposable {
+		this._registeredTools.set(id, { extension, tool });
+		this._proxy.$registerTool(id);
 
 		return toDisposable(() => {
-			this._registeredTools.delete(tool.id);
-			this._proxy.$unregisterTool(tool.id);
+			this._registeredTools.delete(id);
+			this._proxy.$unregisterTool(id);
 		});
 	}
 }
