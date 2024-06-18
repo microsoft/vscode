@@ -1317,7 +1317,7 @@ export class SCMTreeSorter implements ITreeSorter<TreeElement> {
 		}
 
 		if (isSCMViewSeparator(one)) {
-			return 0;// isSCMResourceGroup(other) ? 1 : -1;
+			return isSCMResourceGroup(other) ? 1 : -1;
 		}
 
 		if (isSCMHistoryItemGroupTreeElement(one)) {
@@ -1325,7 +1325,11 @@ export class SCMTreeSorter implements ITreeSorter<TreeElement> {
 		}
 
 		if (isSCMHistoryItemTreeElement(one)) {
-			return isSCMHistoryItemTreeElement(other) ? 0 : 1;
+			if (!isSCMHistoryItemTreeElement(other)) {
+				throw new Error('Invalid comparison');
+			}
+
+			return 0;
 		}
 
 		if (isSCMHistoryItemViewModel(one)) {
@@ -1468,8 +1472,9 @@ function getSCMResourceId(element: TreeElement): string {
 		const provider = element.repository.provider;
 		return `historyItemGroup:${provider.id}/${element.id}`;
 	} else if (isSCMHistoryItemTreeElement(element)) {
-		const provider = element.historyItemGroup.repository.provider;
-		return `historyItem:${provider.id}/${element.id}/${element.parentIds.join(',')}`;
+		const historyItemGroup = element.historyItemGroup;
+		const provider = historyItemGroup.repository.provider;
+		return `historyItem:${provider.id}/${historyItemGroup.id}/${element.id}/${element.parentIds.join(',')}`;
 	} else if (isSCMHistoryItemViewModel(element)) {
 		const provider = element.repository.provider;
 		return `historyItem2:${provider.id}/${element.historyItem.id}/${element.historyItem.parentIds.join(',')}`;
@@ -1485,7 +1490,7 @@ function getSCMResourceId(element: TreeElement): string {
 		return `folder:${provider.id}/${historyItemGroup.id}/${historyItem.id}/$FOLDER/${element.uri.toString()}`;
 	} else if (isSCMViewSeparator(element)) {
 		const provider = element.repository.provider;
-		return `separator:${provider.id}/${element.label}`;
+		return `separator:${provider.id}`;
 	} else {
 		throw new Error('Invalid tree element');
 	}
@@ -3384,12 +3389,12 @@ export class SCMViewPane extends ViewPane {
 				createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, actions);
 			}
 		} else if (isSCMHistoryItemTreeElement(element)) {
-			// const menus = this.scmViewService.menus.getRepositoryMenus(element.historyItemGroup.repository.provider);
-			// const menu = menus.historyProviderMenu?.getHistoryItemMenu(element);
-			// if (menu) {
-			// 	actionRunner = new HistoryItemActionRunner();
-			// 	actions = collectContextMenuActions(menu);
-			// }
+			const menus = this.scmViewService.menus.getRepositoryMenus(element.historyItemGroup.repository.provider);
+			const menu = menus.historyProviderMenu?.getHistoryItemMenu(element);
+			if (menu) {
+				actionRunner = new HistoryItemActionRunner();
+				actions = collectContextMenuActions(menu);
+			}
 		}
 
 		actionRunner.onWillRun(() => this.tree.domFocus());
@@ -3713,7 +3718,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 		} else if (isSCMHistoryItemGroupTreeElement(inputOrElement)) {
 			return true;
 		} else if (isSCMHistoryItemTreeElement(inputOrElement)) {
-			return false;
+			return true;
 		} else if (isSCMHistoryItemViewModel(inputOrElement)) {
 			return false;
 		} else if (isSCMHistoryItemChangeTreeElement(inputOrElement)) {
