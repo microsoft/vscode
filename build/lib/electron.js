@@ -54,7 +54,7 @@ function darwinBundleDocumentType(extensions, icon, nameOrSuffix, utis) {
         role: 'Editor',
         ostypes: ['TEXT', 'utxt', 'TUTX', '****'],
         extensions,
-        iconFile: 'resources/darwin/' + icon + '.icns',
+        iconFile: 'resources/darwin/' + icon.toLowerCase() + '.icns',
         utis
     };
 }

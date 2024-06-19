@@ -818,8 +818,6 @@
 		"--vscode-hover-maxWidth",
 		"--vscode-hover-sourceWhiteSpace",
 		"--vscode-hover-whiteSpace",
-		"--vscode-inline-chat-quick-voice-height",
-		"--vscode-inline-chat-quick-voice-width",
 		"--vscode-editor-dictation-widget-height",
 		"--vscode-editor-dictation-widget-width",
 		"--vscode-interactive-session-foreground",

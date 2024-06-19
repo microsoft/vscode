@@ -64,7 +64,8 @@ suite('ExtHostTelemetry', function () {
 		publisher: 'vscode',
 		version: '1.0.0',
 		engines: { vscode: '*' },
-		extensionLocation: URI.parse('fake')
+		extensionLocation: URI.parse('fake'),
+		enabledApiProposals: undefined,
 	};
 
 	const createExtHostTelemetry = () => {

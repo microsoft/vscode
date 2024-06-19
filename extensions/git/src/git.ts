@@ -1165,6 +1165,12 @@ export class Repository {
 			args.push(`--author="${options.author}"`);
 		}
 
+		if (options?.refNames) {
+			args.push('--topo-order');
+			args.push('--decorate=full');
+			args.push(...options.refNames);
+		}
+
 		if (options?.path) {
 			args.push('--', options.path);
 		}
