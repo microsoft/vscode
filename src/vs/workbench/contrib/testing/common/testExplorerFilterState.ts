@@ -199,6 +199,7 @@ export const enum TestFilterTerm {
 	Failed = '@failed',
 	Executed = '@executed',
 	CurrentDoc = '@doc',
+	OpenedFiles = '@openedFiles',
 	Hidden = '@hidden',
 }
 
@@ -206,5 +207,6 @@ const allTestFilterTerms: readonly TestFilterTerm[] = [
 	TestFilterTerm.Failed,
 	TestFilterTerm.Executed,
 	TestFilterTerm.CurrentDoc,
+	TestFilterTerm.OpenedFiles,
 	TestFilterTerm.Hidden,
 ];

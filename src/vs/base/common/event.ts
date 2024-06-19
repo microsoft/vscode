@@ -831,13 +831,15 @@ export function setGlobalLeakWarningThreshold(n: number): IDisposable {
 
 class LeakageMonitor {
 
+	private static _idPool = 1;
+
 	private _stacks: Map<string, number> | undefined;
 	private _warnCountdown: number = 0;
 
 	constructor(
 		private readonly _errorHandler: (err: Error) => void,
 		readonly threshold: number,
-		readonly name: string = Math.random().toString(18).slice(2, 5),
+		readonly name: string = (LeakageMonitor._idPool++).toString(16).padStart(3, '0')
 	) { }
 
 	dispose(): void {

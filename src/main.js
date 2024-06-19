@@ -21,7 +21,7 @@ const os = require('os');
 const bootstrap = require('./bootstrap');
 const bootstrapNode = require('./bootstrap-node');
 const { getUserDataPath } = require('./vs/platform/environment/node/userDataPath');
-const { stripComments } = require('./vs/base/common/stripComments');
+const { parse } = require('./vs/base/common/jsonc');
 const { getUNCHost, addUNCHostToAllowlist } = require('./vs/base/node/unc');
 /** @type {Partial<IProductConfiguration>} */
 // @ts-ignore
@@ -316,7 +316,7 @@ function readArgvConfigSync() {
 	const argvConfigPath = getArgvConfigPath();
 	let argvConfig;
 	try {
-		argvConfig = JSON.parse(stripComments(fs.readFileSync(argvConfigPath).toString()));
+		argvConfig = parse(fs.readFileSync(argvConfigPath).toString());
 	} catch (error) {
 		if (error && error.code === 'ENOENT') {
 			createDefaultArgvConfigSync(argvConfigPath);

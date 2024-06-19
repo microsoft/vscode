@@ -26,7 +26,6 @@ import { ICursorStateComputer, ITextModel } from 'vs/editor/common/model';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { IModelService } from 'vs/editor/common/services/model';
 import { localize } from 'vs/nls';
-import { MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -415,14 +414,17 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 			InlineChatWidget,
 			ChatAgentLocation.Notebook,
 			{
-				telemetrySource: 'notebook-generate-cell',
-				inputMenuId: MenuId.ChatExecute,
-				widgetMenuId: MENU_INLINE_CHAT_WIDGET,
 				statusMenuId: MENU_CELL_CHAT_WIDGET_STATUS,
-				rendererOptions: {
-					renderTextEditsAsSummary: (uri) => {
-						return isEqual(uri, this._widget?.parentEditor.getModel()?.uri)
-							|| isEqual(uri, this._notebookEditor.textModel?.uri);
+				chatWidgetViewOptions: {
+					rendererOptions: {
+						renderTextEditsAsSummary: (uri) => {
+							return isEqual(uri, this._widget?.parentEditor.getModel()?.uri)
+								|| isEqual(uri, this._notebookEditor.textModel?.uri);
+						}
+					},
+					menus: {
+						telemetrySource: 'notebook-generate-cell',
+						inputSideToolbar: MENU_INLINE_CHAT_WIDGET,
 					}
 				}
 			}
@@ -469,6 +471,10 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 
 			this._sessionCtor = createCancelablePromise<void>(async token => {
 				await this._startSession(token);
+				assertType(this._model.value);
+				const model = this._model.value;
+				this._widget?.inlineChatWidget.setChatModel(model);
+
 				if (fakeParentEditor.hasModel()) {
 
 					if (this._widget) {
@@ -545,9 +551,6 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		await this._sessionCtor;
 		assertType(this._model.value);
 		assertType(this._strategy);
-
-		const model = this._model.value;
-		this._widget.inlineChatWidget.setChatModel(model);
 
 		const lastInput = this._widget.inlineChatWidget.value;
 		this._historyUpdate(lastInput);

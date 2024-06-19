@@ -13,6 +13,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { localize } from 'vs/nls';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
@@ -209,7 +210,7 @@ class AgentCompletions extends Disposable {
 				const getFilterText = (agent: IChatAgentData, command: string) => {
 					// This is hacking the filter algorithm to make @terminal /explain match worse than @workspace /explain by making its match index later in the string.
 					// When I type `/exp`, the workspace one should be sorted over the terminal one.
-					const dummyPrefix = agent.id === 'github.copilot.terminal' ? `0000` : ``;
+					const dummyPrefix = agent.id === 'github.copilot.terminalPanel' ? `0000` : ``;
 					return `${chatSubcommandLeader}${dummyPrefix}${agent.name}.${command}`;
 				};
 
@@ -361,6 +362,7 @@ class VariableCompletions extends Disposable {
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatVariablesService private readonly chatVariablesService: IChatVariablesService,
+		@IConfigurationService configService: IConfigurationService,
 	) {
 		super();
 
@@ -369,8 +371,17 @@ class VariableCompletions extends Disposable {
 			triggerCharacters: [chatVariableLeader],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
 
+				const locations = new Set<ChatAgentLocation>();
+				locations.add(ChatAgentLocation.Panel);
+
+				for (const value of Object.values(ChatAgentLocation)) {
+					if (typeof value === 'string' && configService.getValue<boolean>(`chat.experimental.variables.${value}`)) {
+						locations.add(value);
+					}
+				}
+
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
-				if (!widget || widget.location !== ChatAgentLocation.Panel /* TODO@jrieken - enable when agents are adopted*/) {
+				if (!widget || !locations.has(widget.location)) {
 					return null;
 				}
 

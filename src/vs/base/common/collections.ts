@@ -80,3 +80,61 @@ export function intersection<T>(setA: Set<T>, setB: Iterable<T>): Set<T> {
 	}
 	return result;
 }
+
+export class SetWithKey<T> implements Set<T> {
+	private _map = new Map<any, T>();
+
+	constructor(values: T[], private toKey: (t: T) => any) {
+		for (const value of values) {
+			this.add(value);
+		}
+	}
+
+	get size(): number {
+		return this._map.size;
+	}
+
+	add(value: T): this {
+		const key = this.toKey(value);
+		this._map.set(key, value);
+		return this;
+	}
+
+	delete(value: T): boolean {
+		return this._map.delete(this.toKey(value));
+	}
+
+	has(value: T): boolean {
+		return this._map.has(this.toKey(value));
+	}
+
+	*entries(): IterableIterator<[T, T]> {
+		for (const entry of this._map.values()) {
+			yield [entry, entry];
+		}
+	}
+
+	keys(): IterableIterator<T> {
+		return this.values();
+	}
+
+	*values(): IterableIterator<T> {
+		for (const entry of this._map.values()) {
+			yield entry;
+		}
+	}
+
+	clear(): void {
+		this._map.clear();
+	}
+
+	forEach(callbackfn: (value: T, value2: T, set: Set<T>) => void, thisArg?: any): void {
+		this._map.forEach(entry => callbackfn.call(thisArg, entry, entry, this));
+	}
+
+	[Symbol.iterator](): IterableIterator<T> {
+		return this.values();
+	}
+
+	[Symbol.toStringTag]: string = 'SetWithKey';
+}
