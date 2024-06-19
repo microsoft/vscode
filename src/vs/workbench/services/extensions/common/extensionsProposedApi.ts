@@ -5,10 +5,10 @@
 
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { allApiProposals, ApiProposalName } from 'vs/platform/extensions/common/extensionsApiProposals';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ApiProposalName, allApiProposals } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
 
 export class ExtensionsProposedApi {
 
@@ -54,12 +54,9 @@ export class ExtensionsProposedApi {
 		}
 	}
 
-	private doUpdateEnabledApiProposals(_extension: IExtensionDescription): void {
+	private doUpdateEnabledApiProposals(extension: IExtensionDescription): void {
 
-		// this is a trick to make the extension description writeable...
-		type Writeable<T> = { -readonly [P in keyof T]: Writeable<T[P]> };
-		const extension = <Writeable<IExtensionDescription>>_extension;
-		const key = ExtensionIdentifier.toKey(_extension.identifier);
+		const key = ExtensionIdentifier.toKey(extension.identifier);
 
 		// warn about invalid proposal and remove them from the list
 		if (isNonEmptyArray(extension.enabledApiProposals)) {
