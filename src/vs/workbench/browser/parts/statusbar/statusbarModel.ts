@@ -279,7 +279,7 @@ export class StatusbarViewModel extends Disposable {
 
 					if (!entries) {
 						entries = [];
-						mapEntryWithRelativePriority.set(entry.priority.primary.id, entries);
+						mapEntryWithRelativePriority.set(primaryId, entries);
 					}
 				}
 				entries.push(entry);
