@@ -13,6 +13,7 @@
 
 const path = require('path');
 /** @type {Partial<IProductConfiguration>} */
+// @ts-ignore
 const product = require('../product.json');
 const { resolveNLSConfiguration } = require('./vs/base/node/nls');
 

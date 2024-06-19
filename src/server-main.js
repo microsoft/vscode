@@ -14,6 +14,7 @@
 const perf = require('./vs/base/common/performance');
 const performance = require('perf_hooks').performance;
 /** @type {Partial<IProductConfiguration>} */
+// @ts-ignore
 const product = require('../product.json');
 const readline = require('readline');
 const http = require('http');
