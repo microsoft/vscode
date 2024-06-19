@@ -443,7 +443,7 @@ ipcRenderer.on('run', async (e, opts) => {
 		// messages file, because all `nls.localize` calls have their
 		// english values removed and replaced by an index.
 		// VSCODE_GLOBALS: NLS
-		globalThis._VSCODE_NLS = JSON.parse((await fs.promises.readFile(path.join(__dirname, '..', '..', '..', outdir, 'nls.messages.json'), 'utf8')));
+		globalThis._VSCODE_NLS = JSON.parse((await fs.promises.readFile(path.join(__dirname, '..', '..', '..', 'out-build', 'nls.messages.json'), 'utf8')));
 	}
 	initLoader(opts);
 	runTests(opts).catch(err => {
