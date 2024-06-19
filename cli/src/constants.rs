@@ -13,7 +13,7 @@ use crate::options::Quality;
 
 pub const CONTROL_PORT: u16 = 31545;
 
-/// Protocol version sent to clients. This can be used to indiciate new or
+/// Protocol version sent to clients. This can be used to indicate new or
 /// changed capabilities that clients may wish to leverage.
 ///  1 - Initial protocol version
 ///  2 - Addition of `serve.compressed` property to control whether servermsg's
