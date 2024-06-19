@@ -437,7 +437,13 @@ function runTests(opts) {
 	});
 }
 
-ipcRenderer.on('run', (e, opts) => {
+ipcRenderer.on('run', async (e, opts) => {
+	if (opts.build) {
+		// when running from `out-build`, ensure to load the default
+		// messages file, because all `nls.localize` calls have their
+		// english values removed and replaced by an index.
+		globalThis._VSCODE_NLS = JSON.parse((await fs.promises.readFile(path.join(__dirname, '..', '..', '..', outdir, 'nls.messages.json'), 'utf8')));
+	}
 	initLoader(opts);
 	runTests(opts).catch(err => {
 		if (typeof err !== 'string') {
