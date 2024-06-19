@@ -24,6 +24,9 @@ import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IManagedHover } from 'vs/base/browser/ui/hover/hover';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
 export class RepositoryActionRunner extends ActionRunner {
 	constructor(private readonly getSelectedRepositories: () => ISCMRepository[]) {
@@ -44,6 +47,7 @@ export class RepositoryActionRunner extends ActionRunner {
 
 interface RepositoryTemplate {
 	readonly label: HTMLElement;
+	readonly labelCustomHover: IManagedHover;
 	readonly name: HTMLElement;
 	readonly description: HTMLElement;
 	readonly countContainer: HTMLElement;
@@ -65,6 +69,7 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 		@ICommandService private commandService: ICommandService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
+		@IHoverService private hoverService: IHoverService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IMenuService private menuService: IMenuService,
 		@ITelemetryService private telemetryService: ITelemetryService
@@ -78,6 +83,7 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 
 		const provider = append(container, $('.scm-provider'));
 		const label = append(provider, $('.label'));
+		const labelCustomHover = this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), label, '', {});
 		const name = append(label, $('span.name'));
 		const description = append(label, $('span.description'));
 		const actions = append(provider, $('.actions'));
@@ -86,9 +92,9 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 		const count = new CountBadge(countContainer, {}, defaultCountBadgeStyles);
 		const visibilityDisposable = toolBar.onDidChangeDropdownVisibility(e => provider.classList.toggle('active', e));
 
-		const templateDisposable = combinedDisposable(visibilityDisposable, toolBar);
+		const templateDisposable = combinedDisposable(labelCustomHover, visibilityDisposable, toolBar);
 
-		return { label, name, description, countContainer, count, toolBar, elementDisposables: new DisposableStore(), templateDisposable };
+		return { label, labelCustomHover, name, description, countContainer, count, toolBar, elementDisposables: new DisposableStore(), templateDisposable };
 	}
 
 	renderElement(arg: ISCMRepository | ITreeNode<ISCMRepository, FuzzyScore>, index: number, templateData: RepositoryTemplate, height: number | undefined): void {
@@ -96,10 +102,10 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 
 		templateData.name.textContent = repository.provider.name;
 		if (repository.provider.rootUri) {
-			templateData.label.title = `${repository.provider.label}: ${repository.provider.rootUri.fsPath}`;
+			templateData.labelCustomHover.update(`${repository.provider.label}: ${repository.provider.rootUri.fsPath}`);
 			templateData.description.textContent = repository.provider.label;
 		} else {
-			templateData.label.title = repository.provider.label;
+			templateData.labelCustomHover.update(repository.provider.label);
 			templateData.description.textContent = '';
 		}
 

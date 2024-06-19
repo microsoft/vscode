@@ -68,8 +68,8 @@ export class DeleteWordPartRight extends DeleteWordCommand {
 }
 
 export class WordPartLeftCommand extends MoveWordCommand {
-	protected _move(wordSeparators: WordCharacterClassifier, model: ITextModel, position: Position, wordNavigationType: WordNavigationType): Position {
-		return WordPartOperations.moveWordPartLeft(wordSeparators, model, position);
+	protected _move(wordSeparators: WordCharacterClassifier, model: ITextModel, position: Position, wordNavigationType: WordNavigationType, hasMulticursor: boolean): Position {
+		return WordPartOperations.moveWordPartLeft(wordSeparators, model, position, hasMulticursor);
 	}
 }
 export class CursorWordPartLeft extends WordPartLeftCommand {
@@ -111,7 +111,7 @@ export class CursorWordPartLeftSelect extends WordPartLeftCommand {
 CommandsRegistry.registerCommandAlias('cursorWordPartStartLeftSelect', 'cursorWordPartLeftSelect');
 
 export class WordPartRightCommand extends MoveWordCommand {
-	protected _move(wordSeparators: WordCharacterClassifier, model: ITextModel, position: Position, wordNavigationType: WordNavigationType): Position {
+	protected _move(wordSeparators: WordCharacterClassifier, model: ITextModel, position: Position, wordNavigationType: WordNavigationType, hasMulticursor: boolean): Position {
 		return WordPartOperations.moveWordPartRight(wordSeparators, model, position);
 	}
 }

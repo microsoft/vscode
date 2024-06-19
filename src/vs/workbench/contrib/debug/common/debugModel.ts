@@ -22,7 +22,7 @@ import * as nls from 'vs/nls';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IEditorPane } from 'vs/workbench/common/editor';
-import { DEBUG_MEMORY_SCHEME, DataBreakpointSetType, DataBreakpointSource, DebugTreeItemCollapsibleState, IBaseBreakpoint, IBreakpoint, IBreakpointData, IBreakpointUpdateData, IBreakpointsChangeEvent, IDataBreakpoint, IDebugModel, IDebugSession, IDebugVisualizationTreeItem, IEnablement, IExceptionBreakpoint, IExceptionInfo, IExpression, IExpressionContainer, IFunctionBreakpoint, IInstructionBreakpoint, IMemoryInvalidationEvent, IMemoryRegion, IRawModelUpdate, IRawStoppedDetails, IScope, IStackFrame, IThread, ITreeElement, MemoryRange, MemoryRangeType, State, isFrameDeemphasized } from 'vs/workbench/contrib/debug/common/debug';
+import { DEBUG_MEMORY_SCHEME, DataBreakpointSetType, DataBreakpointSource, DebugTreeItemCollapsibleState, IBaseBreakpoint, IBreakpoint, IBreakpointData, IBreakpointUpdateData, IBreakpointsChangeEvent, IDataBreakpoint, IDebugEvaluatePosition, IDebugModel, IDebugSession, IDebugVisualizationTreeItem, IEnablement, IExceptionBreakpoint, IExceptionInfo, IExpression, IExpressionContainer, IFunctionBreakpoint, IInstructionBreakpoint, IMemoryInvalidationEvent, IMemoryRegion, IRawModelUpdate, IRawStoppedDetails, IScope, IStackFrame, IThread, ITreeElement, MemoryRange, MemoryRangeType, State, isFrameDeemphasized } from 'vs/workbench/contrib/debug/common/debug';
 import { Source, UNKNOWN_SOURCE_LABEL, getUriFromSource } from 'vs/workbench/contrib/debug/common/debugSource';
 import { DebugStorage } from 'vs/workbench/contrib/debug/common/debugStorage';
 import { IDebugVisualizerService } from 'vs/workbench/contrib/debug/common/debugVisualizers';
@@ -198,7 +198,9 @@ export class ExpressionContainer implements IExpressionContainer {
 		session: IDebugSession | undefined,
 		stackFrame: IStackFrame | undefined,
 		context: string,
-		keepLazyVars = false): Promise<boolean> {
+		keepLazyVars = false,
+		location?: IDebugEvaluatePosition,
+	): Promise<boolean> {
 
 		if (!session || (!stackFrame && context !== 'repl')) {
 			this.value = context === 'repl' ? nls.localize('startDebugFirst', "Please start a debug session to evaluate expressions") : Expression.DEFAULT_VALUE;
@@ -208,7 +210,7 @@ export class ExpressionContainer implements IExpressionContainer {
 
 		this.session = session;
 		try {
-			const response = await session.evaluate(expression, stackFrame ? stackFrame.frameId : undefined, context);
+			const response = await session.evaluate(expression, stackFrame ? stackFrame.frameId : undefined, context, location);
 
 			if (response && response.body) {
 				this.value = response.body.result || '';
@@ -306,8 +308,8 @@ export class Expression extends ExpressionContainer implements IExpression {
 		}
 	}
 
-	async evaluate(session: IDebugSession | undefined, stackFrame: IStackFrame | undefined, context: string, keepLazyVars?: boolean): Promise<void> {
-		this.available = await this.evaluateExpression(this.name, session, stackFrame, context, keepLazyVars);
+	async evaluate(session: IDebugSession | undefined, stackFrame: IStackFrame | undefined, context: string, keepLazyVars?: boolean, location?: IDebugEvaluatePosition): Promise<void> {
+		this.available = await this.evaluateExpression(this.name, session, stackFrame, context, keepLazyVars, location);
 	}
 
 	override toString(): string {
@@ -540,6 +542,8 @@ export class StackFrame implements IStackFrame {
 	}
 }
 
+const KEEP_SUBTLE_FRAME_AT_TOP_REASONS: readonly string[] = ['breakpoint', 'step', 'function breakpoint'];
+
 export class Thread implements IThread {
 	private callStack: IStackFrame[];
 	private staleCallStack: IStackFrame[];
@@ -578,10 +582,11 @@ export class Thread implements IThread {
 
 	getTopStackFrame(): IStackFrame | undefined {
 		const callStack = this.getCallStack();
+		const stopReason = this.stoppedDetails?.reason;
 		// Allow stack frame without source and with instructionReferencePointer as top stack frame when using disassembly view.
 		const firstAvailableStackFrame = callStack.find(sf => !!(
-			((this.stoppedDetails?.reason === 'instruction breakpoint' || (this.stoppedDetails?.reason === 'step' && this.lastSteppingGranularity === 'instruction')) && sf.instructionPointerReference) ||
-			(sf.source && sf.source.available && !isFrameDeemphasized(sf))));
+			((stopReason === 'instruction breakpoint' || (stopReason === 'step' && this.lastSteppingGranularity === 'instruction')) && sf.instructionPointerReference) ||
+			(sf.source && sf.source.available && (KEEP_SUBTLE_FRAME_AT_TOP_REASONS.includes(stopReason!) || !isFrameDeemphasized(sf)))));
 		return firstAvailableStackFrame;
 	}
 
@@ -1544,7 +1549,13 @@ export class DebugModel extends Disposable implements IDebugModel {
 			let topCallStack = Promise.resolve();
 			const wholeCallStack = new Promise<void>((c, e) => {
 				topCallStack = thread.fetchCallStack(1).then(() => {
-					if (!this.schedulers.has(thread.getId()) && fetchFullStack) {
+					if (!fetchFullStack) {
+						c();
+						this._onDidChangeCallStack.fire();
+						return;
+					}
+
+					if (!this.schedulers.has(thread.getId())) {
 						const deferred = new DeferredPromise<void>();
 						this.schedulers.set(thread.getId(), {
 							completeDeferred: deferred,

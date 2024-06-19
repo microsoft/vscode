@@ -451,8 +451,10 @@ interface IDebugHoverComputeResult {
 }
 
 class DebugHoverComputer {
-	private _currentRange: Range | undefined;
-	private _currentExpression: string | undefined;
+	private _current?: {
+		range: Range;
+		expression: string;
+	};
 
 	constructor(
 		private editor: ICodeEditor,
@@ -474,30 +476,35 @@ class DebugHoverComputer {
 		}
 
 		const { range, matchingExpression } = result;
-		const rangeChanged = this._currentRange ?
-			!this._currentRange.equalsRange(range) :
-			true;
-		this._currentExpression = matchingExpression;
-		this._currentRange = Range.lift(range);
-		return { rangeChanged, range: this._currentRange };
+		const rangeChanged = !this._current?.range.equalsRange(range);
+		this._current = { expression: matchingExpression, range: Range.lift(range) };
+		return { rangeChanged, range: this._current.range };
 	}
 
 	async evaluate(session: IDebugSession): Promise<IExpression | undefined> {
-		if (!this._currentExpression) {
+		if (!this._current) {
 			this.logService.error('No expression to evaluate');
 			return;
 		}
 
+		const textModel = this.editor.getModel();
+		const debugSource = textModel && session.getSourceForUri(textModel?.uri);
+
 		if (session.capabilities.supportsEvaluateForHovers) {
-			const expression = new Expression(this._currentExpression);
-			await expression.evaluate(session, this.debugService.getViewModel().focusedStackFrame, 'hover');
+			const expression = new Expression(this._current.expression);
+			await expression.evaluate(session, this.debugService.getViewModel().focusedStackFrame, 'hover', undefined, debugSource ? {
+				line: this._current.range.startLineNumber,
+				column: this._current.range.startColumn,
+				source: debugSource.raw,
+			} : undefined);
 			return expression;
 		} else {
 			const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
 			if (focusedStackFrame) {
 				return await findExpressionInStackFrame(
 					focusedStackFrame,
-					coalesce(this._currentExpression.split('.').map(word => word.trim())));
+					coalesce(this._current.expression.split('.').map(word => word.trim()))
+				);
 			}
 		}
 

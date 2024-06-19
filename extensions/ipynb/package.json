@@ -15,7 +15,8 @@
   ],
   "activationEvents": [
     "onNotebook:jupyter-notebook",
-    "onNotebookSerializer:interactive"
+    "onNotebookSerializer:interactive",
+    "onNotebookSerializer:repl"
   ],
   "extensionKind": [
     "workspace",

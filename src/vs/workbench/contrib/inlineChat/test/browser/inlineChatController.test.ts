@@ -31,7 +31,7 @@ import { IView, IViewDescriptorService } from 'vs/workbench/common/views';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IAccessibleViewService } from 'vs/platform/accessibility/browser/accessibleView';
 import { IChatAccessibilityService, IChatWidget, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { ChatAgentLocation, ChatAgentService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { ChatAgentLocation, ChatAgentService, IChatAgentData, IChatAgentNameService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { InlineChatController, InlineChatRunOptions, State } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 import { Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
@@ -156,6 +156,11 @@ suite('InteractiveChatController', function () {
 			[IChatWidgetService, new SyncDescriptor(ChatWidgetService)],
 			[IChatSlashCommandService, new SyncDescriptor(ChatSlashCommandService)],
 			[IChatService, new SyncDescriptor(ChatService)],
+			[IChatAgentNameService, new class extends mock<IChatAgentNameService>() {
+				override getAgentNameRestriction(chatAgentData: IChatAgentData): boolean {
+					return false;
+				}
+			}],
 			[IEditorWorkerService, new SyncDescriptor(TestWorkerService)],
 			[IContextKeyService, contextKeyService],
 			[IChatAgentService, new SyncDescriptor(ChatAgentService)],
@@ -323,6 +328,7 @@ suite('InteractiveChatController', function () {
 		assert.ok(session);
 		assert.deepStrictEqual(session.wholeRange.value, new Range(3, 1, 3, 3)); // initial
 
+		ctrl.chatWidget.setInput('GENGEN');
 		ctrl.acceptInput();
 		assert.strictEqual(await ctrl.awaitStates([State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]), undefined);
 
@@ -540,6 +546,7 @@ suite('InteractiveChatController', function () {
 
 		// REQUEST 2
 		const p2 = ctrl.awaitStates([State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
+		ctrl.chatWidget.setInput('1');
 		await ctrl.acceptInput();
 		assert.strictEqual(await p2, undefined);
 
@@ -623,6 +630,7 @@ suite('InteractiveChatController', function () {
 
 		// REQUEST 2
 		const p2 = ctrl.awaitStates([State.SHOW_REQUEST, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
+		ctrl.chatWidget.setInput('1');
 		await ctrl.acceptInput();
 		assert.strictEqual(await p2, undefined);
 
