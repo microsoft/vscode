@@ -471,6 +471,10 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 
 			this._sessionCtor = createCancelablePromise<void>(async token => {
 				await this._startSession(token);
+				assertType(this._model.value);
+				const model = this._model.value;
+				this._widget?.inlineChatWidget.setChatModel(model);
+
 				if (fakeParentEditor.hasModel()) {
 
 					if (this._widget) {
@@ -547,9 +551,6 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 		await this._sessionCtor;
 		assertType(this._model.value);
 		assertType(this._strategy);
-
-		const model = this._model.value;
-		this._widget.inlineChatWidget.setChatModel(model);
 
 		const lastInput = this._widget.inlineChatWidget.value;
 		this._historyUpdate(lastInput);

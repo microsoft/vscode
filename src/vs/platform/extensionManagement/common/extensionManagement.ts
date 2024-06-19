@@ -443,6 +443,7 @@ export const enum ExtensionManagementErrorCode {
 	Download = 'Download',
 	DownloadSignature = 'DownloadSignature',
 	DownloadFailedWriting = ExtensionGalleryErrorCode.DownloadFailedWriting,
+	UpdateExistingMetadata = 'UpdateExistingMetadata',
 	UpdateMetadata = 'UpdateMetadata',
 	Extract = 'Extract',
 	Scanning = 'Scanning',
