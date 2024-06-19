@@ -372,7 +372,7 @@ export function areApiProposalsCompatible(apiProposals: string[], arg1?: any): b
 			if (existingProposal.version) {
 				incompatibleNotices.push(nls.localize('apiProposalMismatch', "Extension is not compatible with API proposal {0}. Extension requires version {1} but product has version {2}.", proposalName, version, existingProposal.version));
 			} else {
-				incompatibleNotices.push(nls.localize('apiProposalMismatchNoVersion', "Extension is not compatible with API proposal {0}. Extension requires version {1} but product has no version.", proposalName, version));
+				incompatibleNotices.push(nls.localize('apiProposalMismatchNoVersion', "Extension is not compatible with API proposal {0}. Extension requires version {1} but product has no version defined.", proposalName, version));
 			}
 		}
 	}
