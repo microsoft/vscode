@@ -982,8 +982,8 @@ export function toExtensionDescription(extension: IScannedExtension, isUnderDeve
 		uuid: extension.identifier.uuid,
 		targetPlatform: extension.targetPlatform,
 		publisherDisplayName: extension.publisherDisplayName,
-		enabledApiProposalNames: extension.manifest.enabledApiProposals ? parseEnabledApiProposalNames([...extension.manifest.enabledApiProposals]) : undefined,
 		...extension.manifest,
+		enabledApiProposals: extension.manifest.enabledApiProposals ? parseEnabledApiProposalNames([...extension.manifest.enabledApiProposals]) : undefined,
 	};
 }
 

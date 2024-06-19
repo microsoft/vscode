@@ -59,8 +59,8 @@ export class ExtensionsProposedApi {
 		const key = ExtensionIdentifier.toKey(extension.identifier);
 
 		// warn about invalid proposal and remove them from the list
-		if (isNonEmptyArray(extension.enabledApiProposalNames)) {
-			extension.enabledApiProposalNames = extension.enabledApiProposalNames.filter(name => {
+		if (isNonEmptyArray(extension.enabledApiProposals)) {
+			extension.enabledApiProposals = extension.enabledApiProposals.filter(name => {
 				const result = Boolean(allApiProposals[<ApiProposalName>name]);
 				if (!result) {
 					this._logService.error(`Extension '${key}' wants API proposal '${name}' but that proposal DOES NOT EXIST. Likely, the proposal has been finalized (check 'vscode.d.ts') or was abandoned.`);
@@ -79,7 +79,7 @@ export class ExtensionsProposedApi {
 
 			// check for difference between product.json-declaration and package.json-declaration
 			const productSet = new Set(productEnabledProposals);
-			const extensionSet = new Set(extension.enabledApiProposalNames);
+			const extensionSet = new Set(extension.enabledApiProposals);
 			const diff = new Set([...extensionSet].filter(a => !productSet.has(a)));
 			if (diff.size > 0) {
 				this._logService.error(`Extension '${key}' appears in product.json but enables LESS API proposals than the extension wants.\npackage.json (LOSES): ${[...extensionSet].join(', ')}\nproduct.json (WINS): ${[...productSet].join(', ')}`);
@@ -90,7 +90,7 @@ export class ExtensionsProposedApi {
 				}
 			}
 
-			extension.enabledApiProposalNames = productEnabledProposals;
+			extension.enabledApiProposals = productEnabledProposals;
 			return;
 		}
 
@@ -100,10 +100,10 @@ export class ExtensionsProposedApi {
 			return;
 		}
 
-		if (!extension.isBuiltin && isNonEmptyArray(extension.enabledApiProposalNames)) {
+		if (!extension.isBuiltin && isNonEmptyArray(extension.enabledApiProposals)) {
 			// restrictive: extension cannot use proposed API in this context and its declaration is nulled
-			this._logService.error(`Extension '${extension.identifier.value} CANNOT USE these API proposals '${extension.enabledApiProposalNames?.join(', ') || '*'}'. You MUST start in extension development mode or use the --enable-proposed-api command line flag`);
-			extension.enabledApiProposalNames = [];
+			this._logService.error(`Extension '${extension.identifier.value} CANNOT USE these API proposals '${extension.enabledApiProposals?.join(', ') || '*'}'. You MUST start in extension development mode or use the --enable-proposed-api command line flag`);
+			extension.enabledApiProposals = [];
 		}
 	}
 }

@@ -312,10 +312,10 @@ function extensionDescriptionArrayToMap(extensions: IExtensionDescription[]): Ex
 }
 
 export function isProposedApiEnabled(extension: IExtensionDescription, proposal: ApiProposalName): boolean {
-	if (!extension.enabledApiProposalNames) {
+	if (!extension.enabledApiProposals) {
 		return false;
 	}
-	return extension.enabledApiProposalNames.includes(proposal);
+	return extension.enabledApiProposals.includes(proposal);
 }
 
 export function checkProposedApiEnabled(extension: IExtensionDescription, proposal: ApiProposalName): void {
@@ -569,8 +569,8 @@ export function toExtensionDescription(extension: IExtension, isUnderDevelopment
 		uuid: extension.identifier.uuid,
 		targetPlatform: extension.targetPlatform,
 		publisherDisplayName: extension.publisherDisplayName,
-		enabledApiProposalNames: extension.manifest.enabledApiProposals ? parseEnabledApiProposalNames([...extension.manifest.enabledApiProposals]) : undefined,
 		...extension.manifest,
+		enabledApiProposals: extension.manifest.enabledApiProposals ? parseEnabledApiProposalNames([...extension.manifest.enabledApiProposals]) : undefined,
 	};
 }
 

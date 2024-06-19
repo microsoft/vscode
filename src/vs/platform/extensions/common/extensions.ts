@@ -471,7 +471,7 @@ export interface IRelaxedExtensionDescription extends IRelaxedExtensionManifest 
 }
 
 export type IExtensionDescription = Readonly<IRelaxedExtensionDescription> & {
-	enabledApiProposalNames?: string[]; // Parsed `enabledApiProposals` which can be updated.
+	enabledApiProposals: string[] | undefined; // This needs to be updated while validating & updating the proposals.
 };
 
 export function isApplicationScopedExtension(manifest: IExtensionManifest): boolean {
