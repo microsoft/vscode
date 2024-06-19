@@ -8,13 +8,14 @@
 declare global {
 
 	/**
-	 * @deprecated You MUST use `IProductService` whenever possible.
+	 * All NLS messages produced by `localize` and `localize2` calls
+	 * under `src/vs`.
 	 */
-	var _VSCODE_PRODUCT_JSON: Record<string, any>;
+	var _VSCODE_NLS: string[];
 	/**
-	 * @deprecated You MUST use `IProductService` whenever possible.
+	 * Whether the running instance should use a pseudo-locale.
 	 */
-	var _VSCODE_PACKAGE_JSON: Record<string, any>;
+	var _VSCODE_NLS_PSEUDO: true | undefined;
 }
 
 // fake export to make global work

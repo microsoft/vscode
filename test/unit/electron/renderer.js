@@ -442,6 +442,7 @@ ipcRenderer.on('run', async (e, opts) => {
 		// when running from `out-build`, ensure to load the default
 		// messages file, because all `nls.localize` calls have their
 		// english values removed and replaced by an index.
+		// VSCODE_GLOBALS: NLS
 		globalThis._VSCODE_NLS = JSON.parse((await fs.promises.readFile(path.join(__dirname, '..', '..', '..', outdir, 'nls.messages.json'), 'utf8')));
 	}
 	initLoader(opts);

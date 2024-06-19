@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// VSCODE_GLOBALS: NLS
 const isPseudo = globalThis._VSCODE_NLS_PSEUDO || (typeof document !== 'undefined' && document.location && document.location.hash.indexOf('pseudo=true') >= 0);
 
 export interface ILocalizeInfo {
@@ -86,6 +87,7 @@ export function localize(data: ILocalizeInfo | string /* | number when built */,
  * depending on the target context.
  */
 function lookupMessage(index: number): string {
+	// VSCODE_GLOBALS: NLS
 	let message = globalThis._VSCODE_NLS?.[index];
 	if (typeof message !== 'string') {
 		message = `!!! NLS MISSING: ${index} !!!`;
