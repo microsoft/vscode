@@ -6,7 +6,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { parseEnabledApiProposalNames } from 'vs/platform/extensions/common/extensions';
 
-suite('Extension Version Validator', () => {
+suite('Parsing Enabled Api Proposals', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
