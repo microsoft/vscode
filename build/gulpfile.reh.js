@@ -58,6 +58,10 @@ const serverResources = [
 	'out-build/bootstrap-amd.js',
 	'out-build/bootstrap-node.js',
 
+	// NLS
+	'out-build/nls.messages.json',
+	'out-build/nls.keys.json',
+
 	// Performance
 	'out-build/vs/base/common/performance.js',
 

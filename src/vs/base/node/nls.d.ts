@@ -25,8 +25,7 @@ export type ILanguagePacks = Record<string, ILanguagePack | undefined>;
 export interface IResolveNLSConfigurationContext {
 
 	/**
-	 * Location where `nls.metadata.json`, `nls.messages.json`
-	 * and `nls.keys.json` are stored.
+	 * Location where `nls.messages.json` and `nls.keys.json` are stored.
 	 */
 	readonly nlsMetadataPath: string;
 

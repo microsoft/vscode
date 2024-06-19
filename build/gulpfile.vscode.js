@@ -56,7 +56,6 @@ const vscodeResources = [
 	'out-build/bootstrap-amd.js',
 	'out-build/bootstrap-node.js',
 	'out-build/bootstrap-window.js',
-	'out-build/nls.metadata.json',
 	'out-build/nls.messages.json',
 	'out-build/nls.keys.json',
 	'out-build/vs/**/*.{svg,png,html,jpg,mp3}',
@@ -499,7 +498,7 @@ gulp.task(task.define(
 		core,
 		compileExtensionsBuildTask,
 		function () {
-			const pathToMetadata = './out-vscode/nls.metadata.json';
+			const pathToMetadata = './out-build/nls.metadata.json';
 			const pathToRehWebMetadata = './out-vscode-reh-web/nls.metadata.json';
 			const pathToExtensions = '.build/extensions/*';
 			const pathToSetup = 'build/win32/i18n/messages.en.isl';
