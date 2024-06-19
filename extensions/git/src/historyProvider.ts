@@ -131,7 +131,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		}
 
 		// Deduplicate refNames
-		const refNames = new Set<string>(options.historyItemGroupIds);
+		const refNames = Array.from(new Set<string>(options.historyItemGroupIds));
 
 		// Get the merge base of the refNames
 		const refsMergeBase = await this.resolveHistoryItemGroupsMergeBase(refNames);
@@ -140,7 +140,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		}
 
 		// Get the commits
-		const commits = await this.repository.log({ range: `${refsMergeBase}^..`, refNames: Array.from(refNames) });
+		const commits = await this.repository.log({ range: `${refsMergeBase}^..`, refNames });
 
 		await ensureEmojis();
 
@@ -245,31 +245,23 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		return this.historyItemDecorations.get(uri.toString());
 	}
 
-	private async resolveHistoryItemGroupsMergeBase(refNames: Set<string>): Promise<string | undefined> {
-		let refsMergeBase: string | undefined = undefined;
+	private async resolveHistoryItemGroupsMergeBase(refNames: string[]): Promise<string | undefined> {
+		if (refNames.length < 2) {
+			return undefined;
+		}
 
-		for (const refName of refNames) {
-			if (refsMergeBase === undefined) {
-				const commit = await this.repository.revParse(refName);
-				refsMergeBase = commit ?? refName;
-				continue;
-			}
-
-			const newMergeBase = await this.repository.getMergeBase(refsMergeBase, refName);
-			refsMergeBase = newMergeBase ?? refsMergeBase;
+		let refsMergeBase = refNames[0];
+		for (let index = 1; index < refNames.length; index++) {
+			refsMergeBase = await this.repository.getMergeBase(refsMergeBase, refNames[index]) ?? refsMergeBase;
 		}
 
 		return refsMergeBase;
 	}
 
-	private resolveHistoryItemLabels(commit: Commit, refNames: Set<string>): SourceControlHistoryItemLabel[] {
+	private resolveHistoryItemLabels(commit: Commit, refNames: string[]): SourceControlHistoryItemLabel[] {
 		const labels: SourceControlHistoryItemLabel[] = [];
 
 		for (const label of commit.refNames) {
-			if (label === 'refs/remotes/origin/HEAD' || label === '') {
-				continue;
-			}
-
 			if (label.startsWith('HEAD -> ')) {
 				labels.push(
 					{
@@ -280,23 +272,25 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 				continue;
 			}
 
-			if (refNames.has(label)) {
-				if (label.startsWith('refs/tags/')) {
-					labels.push({
-						title: label.substring(10),
-						icon: new ThemeIcon('tag')
-					});
-				} else if (label.startsWith('refs/remotes/')) {
-					labels.push({
-						title: label.substring(13),
-						icon: new ThemeIcon('cloud')
-					});
-				} else {
-					labels.push({
-						title: label.substring(11),
-						icon: new ThemeIcon('git-branch')
-					});
-				}
+			if (!refNames.includes(label)) {
+				continue;
+			}
+
+			if (label.startsWith('refs/tags/')) {
+				labels.push({
+					title: label.substring(10),
+					icon: new ThemeIcon('tag')
+				});
+			} else if (label.startsWith('refs/remotes/')) {
+				labels.push({
+					title: label.substring(13),
+					icon: new ThemeIcon('cloud')
+				});
+			} else {
+				labels.push({
+					title: label.substring(11),
+					icon: new ThemeIcon('git-branch')
+				});
 			}
 		}
 
