@@ -56,7 +56,6 @@ suite('NotebookProviderInfoStore', function () {
 			displayName: 'foo',
 			selectors: [{ filenamePattern: '*.foo' }],
 			priority: RegisteredEditorPriority.default,
-			exclusive: false,
 			providerDisplayName: 'foo',
 		});
 		const barInfo = new NotebookProviderInfo({
@@ -65,7 +64,6 @@ suite('NotebookProviderInfoStore', function () {
 			displayName: 'bar',
 			selectors: [{ filenamePattern: '*.bar' }],
 			priority: RegisteredEditorPriority.default,
-			exclusive: false,
 			providerDisplayName: 'bar',
 		});
 

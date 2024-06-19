@@ -171,6 +171,8 @@ export class MenuId {
 	static readonly InteractiveCellDelete = new MenuId('InteractiveCellDelete');
 	static readonly InteractiveCellExecute = new MenuId('InteractiveCellExecute');
 	static readonly InteractiveInputExecute = new MenuId('InteractiveInputExecute');
+	static readonly InteractiveInputConfig = new MenuId('InteractiveInputConfig');
+	static readonly ReplInputExecute = new MenuId('ReplInputExecute');
 	static readonly IssueReporter = new MenuId('IssueReporter');
 	static readonly NotebookToolbar = new MenuId('NotebookToolbar');
 	static readonly NotebookStickyScrollContext = new MenuId('NotebookStickyScrollContext');

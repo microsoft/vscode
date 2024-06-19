@@ -215,6 +215,10 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		return this._alternativeVersionId;
 	}
 
+	get notebookType() {
+		return this.viewType;
+	}
+
 	constructor(
 		readonly viewType: string,
 		readonly uri: URI,

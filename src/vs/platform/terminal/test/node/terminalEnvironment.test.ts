@@ -186,7 +186,8 @@ suite('platform - terminalEnvironment', () => {
 								`${repoRoot}/out/vs/workbench/contrib/terminal/browser/media/shellIntegration-bash.sh`
 							],
 							envMixin: {
-								VSCODE_INJECTION: '1'
+								VSCODE_INJECTION: '1',
+								VSCODE_STABLE: '0'
 							}
 						});
 						deepStrictEqual(getShellIntegrationInjection({ executable: 'bash', args: [] }, enabledProcessOptions, defaultEnvironment, logService, productService), enabledExpectedResult);
@@ -201,7 +202,8 @@ suite('platform - terminalEnvironment', () => {
 							],
 							envMixin: {
 								VSCODE_INJECTION: '1',
-								VSCODE_SHELL_LOGIN: '1'
+								VSCODE_SHELL_LOGIN: '1',
+								VSCODE_STABLE: '0'
 							}
 						});
 						test('when array', () => {

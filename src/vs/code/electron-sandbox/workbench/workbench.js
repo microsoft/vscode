@@ -45,6 +45,7 @@
 				showSplash(windowConfig);
 			},
 			beforeLoaderConfig: function (loaderConfig) {
+				// @ts-ignore
 				loaderConfig.recordStats = true;
 			},
 			beforeRequire: function (windowConfig) {
@@ -81,7 +82,7 @@
 	 * @returns {{
 	 *   load: (
 	 *     modules: string[],
-	 *     resultCallback: (result, configuration: INativeWindowConfiguration & NativeParsedArgs) => unknown,
+	 *     resultCallback: (result: any, configuration: INativeWindowConfiguration & NativeParsedArgs) => unknown,
 	 *     options?: {
 	 *       configureDeveloperSettings?: (config: INativeWindowConfiguration & NativeParsedArgs) => {
 	 * 			forceDisableShowDevtoolsOnError?: boolean,
@@ -129,7 +130,9 @@
 		}
 
 		// minimal color configuration (works with or without persisted data)
-		let baseTheme, shellBackground, shellForeground;
+		let baseTheme;
+		let shellBackground;
+		let shellForeground;
 		if (data) {
 			baseTheme = data.baseTheme;
 			shellBackground = data.colorInfo.editorBackground;
@@ -162,7 +165,9 @@
 		style.textContent = `body { background-color: ${shellBackground}; color: ${shellForeground}; margin: 0; padding: 0; }`;
 
 		// set zoom level as soon as possible
+		// @ts-ignore
 		if (typeof data?.zoomLevel === 'number' && typeof globalThis.vscode?.webFrame?.setZoomLevel === 'function') {
+			// @ts-ignore
 			globalThis.vscode.webFrame.setZoomLevel(data.zoomLevel);
 		}
 
@@ -172,9 +177,9 @@
 
 			const splash = document.createElement('div');
 			splash.id = 'monaco-parts-splash';
-			splash.className = baseTheme;
+			splash.className = baseTheme ?? 'vs-dark';
 
-			if (layoutInfo.windowBorder) {
+			if (layoutInfo.windowBorder && colorInfo.windowBorder) {
 				splash.style.position = 'relative';
 				splash.style.height = 'calc(100vh - 2px)';
 				splash.style.width = 'calc(100vw - 2px)';
