@@ -159,6 +159,7 @@ export interface IGalleryExtensionProperties {
 	dependencies?: string[];
 	extensionPack?: string[];
 	engine?: string;
+	enabledApiProposals?: string[];
 	localizedLanguages?: string[];
 	targetPlatform: TargetPlatform;
 	isPreReleaseVersion: boolean;
@@ -437,6 +438,7 @@ export const enum ExtensionManagementErrorCode {
 	Deprecated = 'Deprecated',
 	Malicious = 'Malicious',
 	Incompatible = 'Incompatible',
+	IncompatibleApi = 'IncompatibleApi',
 	IncompatibleTargetPlatform = 'IncompatibleTargetPlatform',
 	ReleaseVersionNotFound = 'ReleaseVersionNotFound',
 	Invalid = 'Invalid',

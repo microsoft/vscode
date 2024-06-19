@@ -494,6 +494,13 @@ export function isResolverExtension(manifest: IExtensionManifest, remoteAuthorit
 	return false;
 }
 
+export function parseApiProposals(enabledApiProposals: string[]): { proposalName: string; version?: number }[] {
+	return enabledApiProposals.map(proposal => {
+		const [proposalName, version] = proposal.split('@');
+		return { proposalName, version: version ? parseInt(version) : undefined };
+	});
+}
+
 export function parseEnabledApiProposalNames(enabledApiProposals: string[]): string[] {
 	return enabledApiProposals.map(proposal => proposal.split('@')[0]);
 }
