@@ -5,8 +5,8 @@
 
 import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { toISCMHistoryItemViewModelArray } from 'vs/workbench/contrib/scm/browser/scmHistory';
 import { ISCMHistoryItem } from 'vs/workbench/contrib/scm/common/history';
-import { toISCMHistoryItemViewModelArray } from 'vs/workbench/contrib/scm/common/scmHistory';
 
 suite('toISCMHistoryItemViewModelArray', () => {
 
