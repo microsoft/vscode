@@ -242,7 +242,7 @@ function generateApiProposalNames() {
         eol = os.EOL;
     }
     const pattern = /vscode\.proposed\.([a-zA-Z\d]+)\.d\.ts$/;
-    const versionPattern = /^\s*\/\/\s*version\s*:\s*(\d+)\s*$/m;
+    const versionPattern = /^\s*\/\/\s*version\s*:\s*(\d+)\s*$/mi;
     const proposals = new Map();
     const input = es.through();
     const output = input
