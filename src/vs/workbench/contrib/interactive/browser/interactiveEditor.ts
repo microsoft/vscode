@@ -88,6 +88,7 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 	private _inputCellContainer!: HTMLElement;
 	private _inputFocusIndicator!: HTMLElement;
 	private _inputRunButtonContainer!: HTMLElement;
+	private _inputConfigContainer!: HTMLElement;
 	private _inputEditorContainer!: HTMLElement;
 	private _codeEditorWidget!: CodeEditorWidget;
 	private _notebookWidgetService: INotebookEditorService;
@@ -198,7 +199,34 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 		this._inputRunButtonContainer = DOM.append(this._inputCellContainer, DOM.$('.run-button-container'));
 		this._setupRunButtonToolbar(this._inputRunButtonContainer);
 		this._inputEditorContainer = DOM.append(this._inputCellContainer, DOM.$('.input-editor-container'));
+		this._setupConfigButtonToolbar();
 		this._createLayoutStyles();
+	}
+
+	private _setupConfigButtonToolbar() {
+		this._inputConfigContainer = DOM.append(this._inputEditorContainer, DOM.$('.input-toolbar-container'));
+		this._inputConfigContainer.style.position = 'absolute';
+		this._inputConfigContainer.style.right = '0';
+		this._inputConfigContainer.style.marginTop = '6px';
+		this._inputConfigContainer.style.marginRight = '12px';
+		this._inputConfigContainer.style.zIndex = '1';
+		this._inputConfigContainer.style.display = 'none';
+
+		const menu = this._register(this._menuService.createMenu(MenuId.InteractiveInputConfig, this._contextKeyService));
+		const toolbar = this._register(new ToolBar(this._inputConfigContainer, this._contextMenuService, {
+			getKeyBinding: action => this._keybindingService.lookupKeybinding(action.id),
+			actionViewItemProvider: (action, options) => {
+				return createActionViewItem(this._instantiationService, action, options);
+			},
+			renderDropdownAsChildElement: true
+		}));
+
+		const primary: IAction[] = [];
+		const secondary: IAction[] = [];
+		const result = { primary, secondary };
+
+		createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, result);
+		toolbar.setActions([...primary, ...secondary]);
 	}
 
 	private _setupRunButtonToolbar(runButtonContainer: HTMLElement) {
@@ -655,9 +683,11 @@ export class InteractiveEditor extends EditorPane implements IEditorPaneWithScro
 
 		if (!this._hintElement && !shouldHide) {
 			this._hintElement = this._instantiationService.createInstance(ReplInputHintContentWidget, this._codeEditorWidget);
+			this._inputConfigContainer.style.display = 'block';
 		} else if (this._hintElement && shouldHide) {
 			this._hintElement.dispose();
 			this._hintElement = undefined;
+			this._inputConfigContainer.style.display = 'none';
 		}
 	}
 
