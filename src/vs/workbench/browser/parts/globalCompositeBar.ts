@@ -337,16 +337,16 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 		}));
 
 		this._register(this.authenticationService.onDidChangeSessions(async e => {
+			if (e.event.removed) {
+				for (const removed of e.event.removed) {
+					this.removeAccount(e.providerId, removed.account);
+				}
+			}
 			for (const changed of [...(e.event.changed ?? []), ...(e.event.added ?? [])]) {
 				try {
 					await this.addOrUpdateAccount(e.providerId, changed.account);
 				} catch (e) {
 					this.logService.error(e);
-				}
-			}
-			if (e.event.removed) {
-				for (const removed of e.event.removed) {
-					this.removeAccount(e.providerId, removed.account);
 				}
 			}
 		}));

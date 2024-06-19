@@ -39,6 +39,7 @@ export class ChatConfirmationContentPart extends Disposable {
 					{ rejectedConfirmationData: [e.data] } :
 					{ acceptedConfirmationData: [e.data] };
 				data.agentId = element.agent?.id;
+				data.slashCommand = element.slashCommand?.name;
 				if (await this.chatService.sendRequest(element.sessionId, prompt, data)) {
 					confirmation.isUsed = true;
 					confirmationWidget.setShowButtons(false);

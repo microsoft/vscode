@@ -40,7 +40,7 @@
 	display: flex;
 	align-items: center;
 	gap: 8px;
-	overflow: hidden;
+	width: 100%;
 }
 
 .interactive-item-container .header .username {
@@ -52,6 +52,7 @@
 .interactive-item-container .detail-container {
 	font-size: 12px;
 	color: var(--vscode-descriptionForeground);
+	overflow: hidden;
 }
 
 .interactive-item-container .detail-container .detail .agentOrSlashCommandDetected A {

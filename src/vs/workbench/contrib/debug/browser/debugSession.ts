@@ -685,12 +685,12 @@ export class DebugSession implements IDebugSession, IDisposable {
 		return this.raw.variables({ variablesReference, filter, start, count }, token);
 	}
 
-	evaluate(expression: string, frameId: number, context?: string): Promise<DebugProtocol.EvaluateResponse | undefined> {
+	evaluate(expression: string, frameId: number, context?: string, location?: { line: number; column: number; source: DebugProtocol.Source }): Promise<DebugProtocol.EvaluateResponse | undefined> {
 		if (!this.raw) {
 			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'evaluate'));
 		}
 
-		return this.raw.evaluate({ expression, frameId, context });
+		return this.raw.evaluate({ expression, frameId, context, line: location?.line, column: location?.column, source: location?.source });
 	}
 
 	async restartFrame(frameId: number, threadId: number): Promise<void> {
