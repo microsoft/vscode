@@ -29,7 +29,6 @@ export interface ISCMHistoryProvider {
 	provideHistoryItems2(options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined>;
 	provideHistoryItemSummary(historyItemId: string, historyItemParentId: string | undefined): Promise<ISCMHistoryItem | undefined>;
 	provideHistoryItemChanges(historyItemId: string, historyItemParentId: string | undefined): Promise<ISCMHistoryItemChange[] | undefined>;
-	resolveHistoryItemGroupBase(historyItemGroupId: string): Promise<ISCMHistoryItemGroup | undefined>;
 	resolveHistoryItemGroupCommonAncestor(historyItemGroupId1: string, historyItemGroupId2: string | undefined): Promise<{ id: string; ahead: number; behind: number } | undefined>;
 }
 
@@ -50,7 +49,8 @@ export interface ISCMHistoryOptions {
 export interface ISCMHistoryItemGroup {
 	readonly id: string;
 	readonly name: string;
-	readonly base?: Omit<ISCMHistoryItemGroup, 'base'>;
+	readonly base?: Omit<Omit<ISCMHistoryItemGroup, 'base'>, 'remote'>;
+	readonly remote?: Omit<Omit<ISCMHistoryItemGroup, 'base'>, 'remote'>;
 }
 
 export interface SCMHistoryItemGroupTreeElement {

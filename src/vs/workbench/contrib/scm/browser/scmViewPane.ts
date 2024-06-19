@@ -3855,16 +3855,16 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 
 		if (!incomingHistoryItemGroup && !outgoingHistoryItemGroup) {
 			// Common ancestor, ahead, behind
-			const ancestor = await historyProvider.resolveHistoryItemGroupCommonAncestor(currentHistoryItemGroup.id, currentHistoryItemGroup.base?.id);
+			const ancestor = await historyProvider.resolveHistoryItemGroupCommonAncestor(currentHistoryItemGroup.id, currentHistoryItemGroup.remote?.id);
 			if (!ancestor) {
 				return [];
 			}
 
 			// Only show "Incoming" node if there is a base branch
-			incomingHistoryItemGroup = currentHistoryItemGroup.base ? {
-				id: currentHistoryItemGroup.base.id,
-				label: currentHistoryItemGroup.base.name,
-				ariaLabel: localize('incomingChangesAriaLabel', "Incoming changes from {0}", currentHistoryItemGroup.base.name),
+			incomingHistoryItemGroup = currentHistoryItemGroup.remote ? {
+				id: currentHistoryItemGroup.remote.id,
+				label: currentHistoryItemGroup.remote.name,
+				ariaLabel: localize('incomingChangesAriaLabel', "Incoming changes from {0}", currentHistoryItemGroup.remote.name),
 				icon: Codicon.arrowCircleDown,
 				direction: 'incoming',
 				ancestor: ancestor.id,
@@ -3973,11 +3973,10 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 		const historyItemsMap = historyProviderCacheEntry.historyItems2;
 
 		if (!historyItemsElement) {
-			const historyItemGroupBase = await historyProvider.resolveHistoryItemGroupBase(currentHistoryItemGroup.id);
 			const historyItemGroupIds = [
 				currentHistoryItemGroup.id,
+				...currentHistoryItemGroup.remote ? [currentHistoryItemGroup.remote.id] : [],
 				...currentHistoryItemGroup.base ? [currentHistoryItemGroup.base.id] : [],
-				...historyItemGroupBase ? [historyItemGroupBase.id] : []
 			];
 
 			historyItemsElement = await historyProvider.provideHistoryItems2({ historyItemGroupIds }) ?? [];
