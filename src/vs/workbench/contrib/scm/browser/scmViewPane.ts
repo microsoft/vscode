@@ -1013,7 +1013,7 @@ interface HistoryItem2Template {
 	readonly disposables: IDisposable;
 }
 
-class HistoryItem2Renderer implements ICompressibleTreeRenderer<ISCMHistoryItemViewModel, LabelFuzzyScore, HistoryItem2Template> {
+class HistoryItem2Renderer implements ICompressibleTreeRenderer<SCMHistoryItemViewModelTreeElement, LabelFuzzyScore, HistoryItem2Template> {
 
 	static readonly TEMPLATE_ID = 'history-item-2';
 	get templateId(): string { return HistoryItem2Renderer.TEMPLATE_ID; }
@@ -1037,8 +1037,8 @@ class HistoryItem2Renderer implements ICompressibleTreeRenderer<ISCMHistoryItemV
 		return { graphContainer, label: iconLabel, labelContainer, elementDisposables: new DisposableStore(), disposables: new DisposableStore() };
 	}
 
-	renderElement(node: ITreeNode<ISCMHistoryItemViewModel, LabelFuzzyScore>, index: number, templateData: HistoryItem2Template, height: number | undefined): void {
-		const historyItemViewModel = node.element;
+	renderElement(node: ITreeNode<SCMHistoryItemViewModelTreeElement, LabelFuzzyScore>, index: number, templateData: HistoryItem2Template, height: number | undefined): void {
+		const historyItemViewModel = node.element.historyItemViewModel;
 		const historyItem = historyItemViewModel.historyItem;
 
 		templateData.graphContainer.textContent = '';
@@ -1061,7 +1061,7 @@ class HistoryItem2Renderer implements ICompressibleTreeRenderer<ISCMHistoryItemV
 		}
 	}
 
-	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ISCMHistoryItemViewModel>, LabelFuzzyScore>, index: number, templateData: HistoryItem2Template, height: number | undefined): void {
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<SCMHistoryItemViewModelTreeElement>, LabelFuzzyScore>, index: number, templateData: HistoryItem2Template, height: number | undefined): void {
 		throw new Error('Should never happen since node is incompressible');
 	}
 
@@ -1094,7 +1094,7 @@ class HistoryItem2Renderer implements ICompressibleTreeRenderer<ISCMHistoryItemV
 		];
 	}
 
-	disposeElement(element: ITreeNode<ISCMHistoryItemViewModel, LabelFuzzyScore>, index: number, templateData: HistoryItem2Template, height: number | undefined): void {
+	disposeElement(element: ITreeNode<SCMHistoryItemViewModelTreeElement, LabelFuzzyScore>, index: number, templateData: HistoryItem2Template, height: number | undefined): void {
 		templateData.elementDisposables.clear();
 	}
 
