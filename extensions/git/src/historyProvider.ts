@@ -68,7 +68,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		this.currentHistoryItemGroup = {
 			id: `refs/heads/${this.repository.HEAD.name ?? ''}`,
 			name: this.repository.HEAD.name ?? '',
-			base: this.repository.HEAD.upstream ?
+			remote: this.repository.HEAD.upstream ?
 				{
 					id: `refs/remotes/${this.repository.HEAD.upstream.remote}/${this.repository.HEAD.upstream.name}`,
 					name: `${this.repository.HEAD.upstream.remote}/${this.repository.HEAD.upstream.name}`,
