@@ -150,7 +150,8 @@
 				process.env['VSCODE_DEV'] ||
 				userLocale === 'pseudo' ||
 				userLocale === 'en' || userLocale === 'en-us' ||
-				!commit
+				!commit ||
+				!userDataPath
 			) {
 				return defaultNLSConfiguration(userLocale, osLocale, nlsMetadataPath);
 			}
