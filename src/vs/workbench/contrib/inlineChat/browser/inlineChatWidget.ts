@@ -204,6 +204,7 @@ export class InlineChatWidget {
 			// TEXT-ONLY bar
 			const statusToolbarMenu = scopedInstaService.createInstance(MenuWorkbenchToolBar, this._elements.statusToolbar, statusMenuId, {
 				hiddenItemStrategy: HiddenItemStrategy.NoHide,
+				telemetrySource: options.chatWidgetViewOptions?.menus?.telemetrySource,
 				actionViewItemProvider: action => action instanceof MenuItemAction ? this._instantiationService.createInstance(TextOnlyMenuEntryActionViewItem, action, { conversational: true }) : undefined,
 				toolbarOptions: { primaryGroup: '0_main' },
 				menuOptions: { renderShortTitle: true },
@@ -218,6 +219,7 @@ export class InlineChatWidget {
 			const statusMenuOptions = options.statusMenuId instanceof MenuId ? undefined : options.statusMenuId.options;
 			const statusButtonBar = scopedInstaService.createInstance(MenuWorkbenchButtonBar, this._elements.statusToolbar, statusMenuId, {
 				toolbarOptions: { primaryGroup: '0_main' },
+				telemetrySource: options.chatWidgetViewOptions?.menus?.telemetrySource,
 				menuOptions: { renderShortTitle: true },
 				...statusMenuOptions,
 			});
