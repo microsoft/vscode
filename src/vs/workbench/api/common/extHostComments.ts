@@ -215,7 +215,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 				} else if (rangesResult) {
 					ranges = {
 						ranges: rangesResult.ranges || [],
-						fileComments: rangesResult.fileComments || false
+						fileComments: rangesResult.enableFileComments || false
 					};
 				} else {
 					ranges = rangesResult ?? undefined;
