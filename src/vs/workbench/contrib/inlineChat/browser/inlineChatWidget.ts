@@ -537,6 +537,8 @@ export class InlineChatWidget {
 		this._elements.feedbackToolbar.classList.add('hidden');
 		this.updateInfo('');
 
+		this.chatWidget.setModel(this._defaultChatModel, {});
+
 		this._elements.accessibleViewer.classList.toggle('hidden', true);
 		this._onDidChangeHeight.fire();
 	}

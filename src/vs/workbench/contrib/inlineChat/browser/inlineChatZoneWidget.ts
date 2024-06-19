@@ -28,7 +28,6 @@ export class InlineChatZoneWidget extends ZoneWidget {
 
 	private readonly _ctxCursorPosition: IContextKey<'above' | 'below' | ''>;
 	private _dimension?: Dimension;
-	private _indentationWidth: number | undefined;
 
 	constructor(
 		location: ChatAgentLocation,
@@ -87,8 +86,11 @@ export class InlineChatZoneWidget extends ZoneWidget {
 			if (this.position) {
 				// only relayout when visible
 				scrollState ??= StableEditorBottomScrollState.capture(this.editor);
-				this._relayout(this._computeHeight().linesValue);
+				const height = this._computeHeight();
+				this._relayout(height.linesValue);
 				scrollState.restore(this.editor);
+				scrollState = undefined;
+				this._revealTopOfZoneWidget(this.position, height);
 			}
 		}));
 
@@ -122,16 +124,14 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		container.appendChild(this.widget.domNode);
 	}
 
-
 	protected override _doLayout(heightInPixel: number): void {
-		const width = Math.min(640, this._availableSpaceGivenIndentation(this._indentationWidth));
+
+		const info = this.editor.getLayoutInfo();
+		let width = info.contentWidth - (info.glyphMarginWidth + info.decorationsWidth);
+		width = Math.min(640, width);
+
 		this._dimension = new Dimension(width, heightInPixel);
 		this.widget.layout(this._dimension);
-	}
-
-	private _availableSpaceGivenIndentation(indentationWidth: number | undefined): number {
-		const info = this.editor.getLayoutInfo();
-		return info.contentWidth - (info.glyphMarginWidth + info.decorationsWidth + (indentationWidth ?? 0));
 	}
 
 	private _computeHeight(): { linesValue: number; pixelsValue: number } {
@@ -159,74 +159,48 @@ export class InlineChatZoneWidget extends ZoneWidget {
 
 		const height = this._computeHeight();
 		super.show(position, height.linesValue);
-		this._setWidgetMargins(position);
 		this.widget.chatWidget.setVisible(true);
 		this.widget.focus();
 
 		scrollState.restore(this.editor);
 
-		if (position.lineNumber > 1) {
-			this.editor.revealRangeNearTopIfOutsideViewport(Range.fromPositions(position.delta(-1)), ScrollType.Immediate);
-		} else {
-			// reveal top of zone widget
-			const lineTop = this.editor.getTopForLineNumber(position.lineNumber);
-			const zoneTop = lineTop - height.pixelsValue;
-			const spaceBelowLine = this.editor.getScrollHeight() - this.editor.getBottomForLineNumber(position.lineNumber);
-			const minTop = this.editor.getScrollTop() - spaceBelowLine;
-			const newTop = Math.max(zoneTop, minTop);
-
-			if (newTop < this.editor.getScrollTop()) {
-				this.editor.setScrollTop(newTop, ScrollType.Immediate);
-			}
-		}
+		this._revealTopOfZoneWidget(position, height);
 	}
 
 	override updatePositionAndHeight(position: Position): void {
 		const scrollState = StableEditorBottomScrollState.capture(this.editor);
-		super.updatePositionAndHeight(position, this._computeHeight().linesValue);
-		this._setWidgetMargins(position);
+		const height = this._computeHeight();
+		super.updatePositionAndHeight(position, height.linesValue);
 		scrollState.restore(this.editor);
+
+		this._revealTopOfZoneWidget(position, height);
+	}
+
+	private _revealTopOfZoneWidget(position: Position, height: { linesValue: number; pixelsValue: number }) {
+
+		// reveal top of zone widget
+
+		const lineNumber = position.lineNumber <= 1 ? 1 : 1 + position.lineNumber;
+
+		const lineTop = this.editor.getTopForLineNumber(lineNumber);
+		const zoneTop = lineTop - height.pixelsValue;
+		// const spaceBelowLine = this.editor.getScrollHeight() - this.editor.getBottomForLineNumber(position.lineNumber);
+		// const minTop = this.editor.getScrollTop() - spaceBelowLine;
+		// const newTop = Math.max(zoneTop, minTop);
+		const newTop = zoneTop;
+		const currentTop = this.editor.getScrollTop();
+
+		if (newTop < currentTop) {
+			this.editor.setScrollTop(newTop, ScrollType.Immediate);
+		}
+	}
+
+	protected override revealRange(range: Range, isLastLine: boolean): void {
+		// noop
 	}
 
 	protected override _getWidth(info: EditorLayoutInfo): number {
 		return info.width - info.minimap.minimapWidth;
-	}
-
-	private _calculateIndentationWidth(position: Position): number {
-		const viewModel = this.editor._getViewModel();
-		if (!viewModel) {
-			return 0;
-		}
-
-		const visibleRange = viewModel.getCompletelyVisibleViewRange();
-		if (!visibleRange.containsPosition(position)) {
-			// this is needed because `getOffsetForColumn` won't work when the position
-			// isn't visible/rendered
-			return 0;
-		}
-
-		let indentationLevel = viewModel.getLineFirstNonWhitespaceColumn(position.lineNumber);
-		let indentationLineNumber = position.lineNumber;
-		for (let lineNumber = position.lineNumber; lineNumber >= visibleRange.startLineNumber; lineNumber--) {
-			const currentIndentationLevel = viewModel.getLineFirstNonWhitespaceColumn(lineNumber);
-			if (currentIndentationLevel !== 0) {
-				indentationLineNumber = lineNumber;
-				indentationLevel = currentIndentationLevel;
-				break;
-			}
-		}
-
-		return Math.max(0, this.editor.getOffsetForColumn(indentationLineNumber, indentationLevel)); // double-guard against invalie getOffsetForColumn-calls
-	}
-
-	private _setWidgetMargins(position: Position): void {
-		const indentationWidth = this._calculateIndentationWidth(position);
-		if (this._indentationWidth === indentationWidth) {
-			return;
-		}
-		this._indentationWidth = this._availableSpaceGivenIndentation(indentationWidth) > 400 ? indentationWidth : 0;
-		this.widget.domNode.style.marginLeft = `${this._indentationWidth}px`;
-		this.widget.domNode.style.marginRight = `${this.editor.getLayoutInfo().minimap.minimapWidth}px`;
 	}
 
 	override hide(): void {
