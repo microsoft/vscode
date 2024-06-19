@@ -1167,6 +1167,7 @@ export class Repository {
 
 		if (options?.refNames) {
 			args.push('--topo-order');
+			args.push('--decorate=full');
 			args.push(...options.refNames);
 		}
 

@@ -22,6 +22,8 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 	readonly onDidChangeFileDecorations: Event<Uri[]> = this._onDidChangeDecorations.event;
 
 	private _HEAD: Branch | undefined;
+	private _HEADMergeBase: Branch | undefined;
+
 	private _currentHistoryItemGroup: SourceControlHistoryItemGroup | undefined;
 	get currentHistoryItemGroup(): SourceControlHistoryItemGroup | undefined { return this._currentHistoryItemGroup; }
 	set currentHistoryItemGroup(value: SourceControlHistoryItemGroup | undefined) {
@@ -44,18 +46,25 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		this.logger.trace('GitHistoryProvider:onDidRunGitStatus - HEAD:', JSON.stringify(this._HEAD));
 		this.logger.trace('GitHistoryProvider:onDidRunGitStatus - repository.HEAD:', JSON.stringify(this.repository.HEAD));
 
+		// Get the merge base of the current history item group
+		const mergeBase = await this.resolveHEADMergeBase();
+
 		// Check if HEAD has changed
 		if (!force &&
 			this._HEAD?.name === this.repository.HEAD?.name &&
 			this._HEAD?.commit === this.repository.HEAD?.commit &&
 			this._HEAD?.upstream?.name === this.repository.HEAD?.upstream?.name &&
 			this._HEAD?.upstream?.remote === this.repository.HEAD?.upstream?.remote &&
-			this._HEAD?.upstream?.commit === this.repository.HEAD?.upstream?.commit) {
+			this._HEAD?.upstream?.commit === this.repository.HEAD?.upstream?.commit &&
+			this._HEADMergeBase?.name === mergeBase?.name &&
+			this._HEADMergeBase?.remote === mergeBase?.remote &&
+			this._HEADMergeBase?.commit === mergeBase?.commit) {
 			this.logger.trace('GitHistoryProvider:onDidRunGitStatus - HEAD has not changed');
 			return;
 		}
 
 		this._HEAD = this.repository.HEAD;
+		this._HEADMergeBase = mergeBase;
 
 		// Check if HEAD does not support incoming/outgoing (detached commit, tag)
 		if (!this.repository.HEAD?.name || !this.repository.HEAD?.commit || this.repository.HEAD.type === RefType.Tag) {
@@ -72,7 +81,11 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 				{
 					id: `refs/remotes/${this.repository.HEAD.upstream.remote}/${this.repository.HEAD.upstream.name}`,
 					name: `${this.repository.HEAD.upstream.remote}/${this.repository.HEAD.upstream.name}`,
-				} : undefined
+				} : undefined,
+			base: mergeBase ? {
+				id: `refs/remotes/${mergeBase.remote}/${mergeBase.name}`,
+				name: `${mergeBase.remote}/${mergeBase.name}`,
+			} : undefined
 		};
 
 		this.logger.trace(`GitHistoryProvider:onDidRunGitStatus - currentHistoryItemGroup (${force}): ${JSON.stringify(this.currentHistoryItemGroup)}`);
@@ -268,14 +281,14 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		const labels: SourceControlHistoryItemLabel[] = [];
 
 		for (const label of commit.refNames) {
-			if (label === 'origin/HEAD' || label === '') {
+			if (label === 'refs/remotes/origin/HEAD' || label === '') {
 				continue;
 			}
 
 			if (label.startsWith('HEAD -> ')) {
 				labels.push(
 					{
-						title: label.substring(8),
+						title: label.substring(19),
 						icon: new ThemeIcon('git-branch')
 					}
 				);
@@ -283,19 +296,19 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			}
 
 			if (refNames.has(label)) {
-				if (label.startsWith('tag: ')) {
+				if (label.startsWith('refs/tags/')) {
 					labels.push({
-						title: label.substring(5),
+						title: label.substring(10),
 						icon: new ThemeIcon('tag')
 					});
-				} else if (label.startsWith('origin/')) {
+				} else if (label.startsWith('refs/remotes/')) {
 					labels.push({
-						title: label,
+						title: label.substring(13),
 						icon: new ThemeIcon('cloud')
 					});
 				} else {
 					labels.push({
-						title: label,
+						title: label.substring(11),
 						icon: new ThemeIcon('git-branch')
 					});
 				}
@@ -331,6 +344,15 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		}
 
 		return undefined;
+	}
+
+	private async resolveHEADMergeBase(): Promise<Branch | undefined> {
+		if (this.repository.HEAD?.type !== RefType.Head || !this.repository.HEAD?.name) {
+			return undefined;
+		}
+
+		const mergeBase = await this.repository.getBranchBase(this.repository.HEAD.name);
+		return mergeBase;
 	}
 
 	dispose(): void {

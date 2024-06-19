@@ -3973,11 +3973,10 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 		const historyItemsMap = historyProviderCacheEntry.historyItems2;
 
 		if (!historyItemsElement) {
-			const historyItemGroupBase = await historyProvider.resolveHistoryItemGroupBase(currentHistoryItemGroup.id);
 			const historyItemGroupIds = [
 				currentHistoryItemGroup.id,
 				...currentHistoryItemGroup.remote ? [currentHistoryItemGroup.remote.id] : [],
-				...historyItemGroupBase ? [historyItemGroupBase.id] : []
+				...currentHistoryItemGroup.base ? [currentHistoryItemGroup.base.id] : [],
 			];
 
 			historyItemsElement = await historyProvider.provideHistoryItems2({ historyItemGroupIds }) ?? [];

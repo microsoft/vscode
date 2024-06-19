@@ -50,7 +50,8 @@ export interface ISCMHistoryOptions {
 export interface ISCMHistoryItemGroup {
 	readonly id: string;
 	readonly name: string;
-	readonly remote?: Omit<ISCMHistoryItemGroup, 'remote'>;
+	readonly base?: Omit<Omit<ISCMHistoryItemGroup, 'base'>, 'remote'>;
+	readonly remote?: Omit<Omit<ISCMHistoryItemGroup, 'base'>, 'remote'>;
 }
 
 export interface SCMHistoryItemGroupTreeElement {

@@ -1515,7 +1515,8 @@ export type SCMRawResourceSplices = [
 export interface SCMHistoryItemGroupDto {
 	readonly id: string;
 	readonly name: string;
-	readonly remote?: Omit<SCMHistoryItemGroupDto, 'remote'>;
+	readonly base?: Omit<Omit<SCMHistoryItemGroupDto, 'base'>, 'remote'>;
+	readonly remote?: Omit<Omit<SCMHistoryItemGroupDto, 'base'>, 'remote'>;
 }
 
 export interface SCMHistoryItemDto {
