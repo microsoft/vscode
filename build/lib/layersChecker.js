@@ -176,7 +176,7 @@ const RULES = [
         target: '**/vs/base/parts/sandbox/electron-sandbox/preload.js',
         allowedTypes: [
             ...CORE_TYPES,
-            // Safe access to process and friends
+            // Safe access to a very small subset of node.js
             'process',
             'NodeJS'
         ],
