@@ -265,10 +265,22 @@ export class StatusbarViewModel extends Disposable {
 			if (typeof entry.priority.primary === 'number') {
 				mapEntryWithNumberedPriorityToIndex.set(entry, i);
 			} else {
-				let entries = mapEntryWithRelativePriority.get(entry.priority.primary.id);
+				const primaryId = entry.priority.primary.id;
+				let entries = mapEntryWithRelativePriority.get(primaryId);
 				if (!entries) {
-					entries = [];
-					mapEntryWithRelativePriority.set(entry.priority.primary.id, entries);
+					// Go through all groups and see if any of the groups contains
+					// the entry next to which the current entry needs to be placed
+					for (const group of mapEntryWithRelativePriority.values()) {
+						if (group.find(e => e.id === primaryId)) {
+							entries = group;
+							break;
+						}
+					}
+
+					if (!entries) {
+						entries = [];
+						mapEntryWithRelativePriority.set(entry.priority.primary.id, entries);
+					}
 				}
 				entries.push(entry);
 			}
