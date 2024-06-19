@@ -6,7 +6,6 @@
 import { lastOrDefault } from 'vs/base/common/arrays';
 import { deepClone } from 'vs/base/common/objects';
 import { ISCMHistoryItem, ISCMHistoryItemGraphNode, ISCMHistoryItemViewModel } from 'vs/workbench/contrib/scm/common/history';
-import { ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
 
 const SWIMLANE_HEIGHT = 22;
 const SWIMLANE_WIDTH = 11;
@@ -187,75 +186,53 @@ export function renderSCMHistoryItemGraph(historyItemViewModel: ISCMHistoryItemV
 	return svg;
 }
 
-export interface ISCMRepositoryGraphController {
-	readonly historyItems: ISCMHistoryItemViewModel[];
+export function toISCMHistoryItemViewModelArray(historyItems: ISCMHistoryItem[]): ISCMHistoryItemViewModel[] {
+	let colorIndex = -1;
+	const viewModels: ISCMHistoryItemViewModel[] = [];
 
-	appendHistoryItems(historyItems: ISCMHistoryItem[]): void;
-	clearHistoryItems(): void;
-}
+	for (let index = 0; index < historyItems.length; index++) {
+		const historyItem = historyItems[index];
 
-export class SCMRepositoryGraphController implements ISCMRepositoryGraphController {
-	private readonly _historyItems: ISCMHistoryItemViewModel[] = [];
-	get historyItems(): ISCMHistoryItemViewModel[] { return this._historyItems; }
+		const outputSwimlanesFromPreviousItem = lastOrDefault(viewModels)?.outputSwimlanes ?? [];
+		const inputSwimlanes = outputSwimlanesFromPreviousItem.map(i => deepClone(i));
+		const outputSwimlanes: ISCMHistoryItemGraphNode[] = [];
 
-	private _colorIndex: number = -1;
+		if (historyItem.parentIds.length > 0) {
+			let firstParentAdded = false;
 
-	constructor(private readonly _repository: ISCMRepository) { }
-
-	appendHistoryItems(historyItems: ISCMHistoryItem[]): void {
-		for (let index = 0; index < historyItems.length; index++) {
-			const historyItem = historyItems[index];
-
-			const outputSwimlanesFromPreviousItem = lastOrDefault(this.historyItems)?.outputSwimlanes ?? [];
-			const inputSwimlanes = outputSwimlanesFromPreviousItem.map(i => deepClone(i));
-			const outputSwimlanes: ISCMHistoryItemGraphNode[] = [];
-
-			if (historyItem.parentIds.length > 0) {
-				let firstParentAdded = false;
-
-				// Add first parent to the output
-				for (const node of inputSwimlanes) {
-					if (node.id === historyItem.id) {
-						if (!firstParentAdded) {
-							outputSwimlanes.push({
-								...deepClone(node),
-								id: historyItem.parentIds[0]
-							});
-							firstParentAdded = true;
-						}
-
-						continue;
+			// Add first parent to the output
+			for (const node of inputSwimlanes) {
+				if (node.id === historyItem.id) {
+					if (!firstParentAdded) {
+						outputSwimlanes.push({
+							...deepClone(node),
+							id: historyItem.parentIds[0]
+						});
+						firstParentAdded = true;
 					}
 
-					outputSwimlanes.push(deepClone(node));
+					continue;
 				}
 
-				// Add unprocessed parent(s) to the output
-				for (let i = firstParentAdded ? 1 : 0; i < historyItem.parentIds.length; i++) {
-					outputSwimlanes.push({
-						id: historyItem.parentIds[i],
-						color: this.getGraphColorIndex()
-					});
-				}
+				outputSwimlanes.push(deepClone(node));
 			}
 
-			this._historyItems.push({
-				historyItem,
-				inputSwimlanes,
-				outputSwimlanes,
-				repository: this._repository,
-				type: 'historyItem2'
-			});
+			// Add unprocessed parent(s) to the output
+			for (let i = firstParentAdded ? 1 : 0; i < historyItem.parentIds.length; i++) {
+				colorIndex = colorIndex < graphColors.length - 1 ? colorIndex + 1 : 1;
+				outputSwimlanes.push({
+					id: historyItem.parentIds[i],
+					color: colorIndex
+				});
+			}
 		}
+
+		viewModels.push({
+			historyItem,
+			inputSwimlanes,
+			outputSwimlanes,
+		});
 	}
 
-	clearHistoryItems(): void {
-		this._colorIndex = -1;
-		this._historyItems.length = 0;
-	}
-
-	private getGraphColorIndex(): number {
-		this._colorIndex = this._colorIndex < graphColors.length - 1 ? this._colorIndex + 1 : 1;
-		return this._colorIndex;
-	}
+	return viewModels;
 }

@@ -10,7 +10,7 @@ import { IDisposable, Disposable, DisposableStore, combinedDisposable, dispose, 
 import { ViewPane, IViewPaneOptions, ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { append, $, Dimension, asCSSUrl, trackFocus, clearNode, prepend, isPointerEvent, isActiveElement } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryItemViewModel, ISCMHistoryProviderCacheEntry, SCMHistoryItemChangeTreeElement, SCMHistoryItemGroupTreeElement, SCMHistoryItemTreeElement, SCMViewSeparatorElement } from 'vs/workbench/contrib/scm/common/history';
+import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryItemViewModel, SCMHistoryItemViewModelTreeElement, ISCMHistoryProviderCacheEntry, SCMHistoryItemChangeTreeElement, SCMHistoryItemGroupTreeElement, SCMHistoryItemTreeElement, SCMViewSeparatorElement } from 'vs/workbench/contrib/scm/common/history';
 import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, SCMInputChangeReason, VIEW_PANE_ID, ISCMActionButton, ISCMActionButtonDescriptor, ISCMRepositorySortKey, ISCMInputValueProviderContext, ISCMProvider } from 'vs/workbench/contrib/scm/common/scm';
 import { ResourceLabels, IResourceLabel, IFileLabelOptions } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
@@ -24,7 +24,7 @@ import { MenuItemAction, IMenuService, registerAction2, MenuId, IAction2Options,
 import { IAction, ActionRunner, Action, Separator, IActionRunner } from 'vs/base/common/actions';
 import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService, IFileIconTheme } from 'vs/platform/theme/common/themeService';
-import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, getActionViewItemProvider, isSCMActionButton, isSCMViewService, isSCMHistoryItemGroupTreeElement, isSCMHistoryItemTreeElement, isSCMHistoryItemChangeTreeElement, toDiffEditorArguments, isSCMResourceNode, isSCMHistoryItemChangeNode, isSCMViewSeparator, connectPrimaryMenu, isSCMHistoryItemViewModel } from './util';
+import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, getActionViewItemProvider, isSCMActionButton, isSCMViewService, isSCMHistoryItemGroupTreeElement, isSCMHistoryItemTreeElement, isSCMHistoryItemChangeTreeElement, toDiffEditorArguments, isSCMResourceNode, isSCMHistoryItemChangeNode, isSCMViewSeparator, connectPrimaryMenu, isSCMHistoryItemViewModelTreeElement } from './util';
 import { WorkbenchCompressibleAsyncDataTree, IOpenEvent } from 'vs/platform/list/browser/listService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { disposableTimeout, Sequencer, ThrottledDelayer, Throttler } from 'vs/base/common/async';
@@ -109,7 +109,7 @@ import { OpenScmGroupAction } from 'vs/workbench/contrib/multiDiffEditor/browser
 import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
 import { ITextModel } from 'vs/editor/common/model';
 import { autorun } from 'vs/base/common/observable';
-import { renderSCMHistoryItemGraph } from 'vs/workbench/contrib/scm/common/scmHistory';
+import { renderSCMHistoryItemGraph, toISCMHistoryItemViewModelArray } from 'vs/workbench/contrib/scm/common/scmHistory';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
 // type SCMResourceTreeNode = IResourceNode<ISCMResource, ISCMResourceGroup>;
@@ -123,7 +123,7 @@ type TreeElement =
 	IResourceNode<ISCMResource, ISCMResourceGroup> |
 	SCMHistoryItemGroupTreeElement |
 	SCMHistoryItemTreeElement |
-	ISCMHistoryItemViewModel |
+	SCMHistoryItemViewModelTreeElement |
 	SCMHistoryItemChangeTreeElement |
 	IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement> |
 	SCMViewSeparatorElement;
@@ -1253,7 +1253,7 @@ class ListDelegate implements IListVirtualDelegate<TreeElement> {
 			return HistoryItemGroupRenderer.TEMPLATE_ID;
 		} else if (isSCMHistoryItemTreeElement(element)) {
 			return HistoryItemRenderer.TEMPLATE_ID;
-		} else if (isSCMHistoryItemViewModel(element)) {
+		} else if (isSCMHistoryItemViewModelTreeElement(element)) {
 			return HistoryItem2Renderer.TEMPLATE_ID;
 		} else if (isSCMHistoryItemChangeTreeElement(element) || isSCMHistoryItemChangeNode(element)) {
 			return HistoryItemChangeRenderer.TEMPLATE_ID;
@@ -1335,8 +1335,8 @@ export class SCMTreeSorter implements ITreeSorter<TreeElement> {
 			return 0;
 		}
 
-		if (isSCMHistoryItemViewModel(one)) {
-			return isSCMHistoryItemViewModel(other) ? 0 : 1;
+		if (isSCMHistoryItemViewModelTreeElement(one)) {
+			return isSCMHistoryItemViewModelTreeElement(other) ? 0 : 1;
 		}
 
 		if (isSCMHistoryItemChangeTreeElement(one) || isSCMHistoryItemChangeNode(one)) {
@@ -1423,11 +1423,11 @@ export class SCMTreeKeyboardNavigationLabelProvider implements ICompressibleKeyb
 			// the author. A match in the message takes precedence over
 			// a match in the author.
 			return [element.message, element.author];
-		} else if (isSCMHistoryItemViewModel(element)) {
+		} else if (isSCMHistoryItemViewModelTreeElement(element)) {
 			// For a history item we want to match both the message and
 			// the author. A match in the message takes precedence over
 			// a match in the author.
-			return [element.historyItem.message, element.historyItem.author];
+			return [element.historyItemViewModel.historyItem.message, element.historyItemViewModel.historyItem.author];
 		} else if (isSCMViewSeparator(element)) {
 			return element.label;
 		} else {
@@ -1478,9 +1478,10 @@ function getSCMResourceId(element: TreeElement): string {
 		const historyItemGroup = element.historyItemGroup;
 		const provider = historyItemGroup.repository.provider;
 		return `historyItem:${provider.id}/${historyItemGroup.id}/${element.id}/${element.parentIds.join(',')}`;
-	} else if (isSCMHistoryItemViewModel(element)) {
+	} else if (isSCMHistoryItemViewModelTreeElement(element)) {
 		const provider = element.repository.provider;
-		return `historyItem2:${provider.id}/${element.historyItem.id}/${element.historyItem.parentIds.join(',')}`;
+		const historyItem = element.historyItemViewModel.historyItem;
+		return `historyItem2:${provider.id}/${historyItem.id}/${historyItem.parentIds.join(',')}`;
 	} else if (isSCMHistoryItemChangeTreeElement(element)) {
 		const historyItem = element.historyItem;
 		const historyItemGroup = historyItem.historyItemGroup;
@@ -1531,8 +1532,9 @@ export class SCMAccessibilityProvider implements IListAccessibilityProvider<Tree
 			return element.ariaLabel ?? `${element.label.trim()}${element.description ? `, ${element.description}` : ''}`;
 		} else if (isSCMHistoryItemTreeElement(element)) {
 			return `${stripIcons(element.message).trim()}${element.author ? `, ${element.author}` : ''}`;
-		} else if (isSCMHistoryItemViewModel(element)) {
-			return `${stripIcons(element.historyItem.message).trim()}${element.historyItem.author ? `, ${element.historyItem.author}` : ''}`;
+		} else if (isSCMHistoryItemViewModelTreeElement(element)) {
+			const historyItem = element.historyItemViewModel.historyItem;
+			return `${stripIcons(historyItem.message).trim()}${historyItem.author ? `, ${historyItem.author}` : ''}`;
 		} else if (isSCMHistoryItemChangeTreeElement(element)) {
 			const result = [basename(element.uri)];
 			const path = this.labelService.getUriLabel(dirname(element.uri), { relative: true, noPrefix: true });
@@ -3722,7 +3724,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			return true;
 		} else if (isSCMHistoryItemTreeElement(inputOrElement)) {
 			return true;
-		} else if (isSCMHistoryItemViewModel(inputOrElement)) {
+		} else if (isSCMHistoryItemViewModelTreeElement(inputOrElement)) {
 			return false;
 		} else if (isSCMHistoryItemChangeTreeElement(inputOrElement)) {
 			return false;
@@ -3956,10 +3958,9 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 		return children;
 	}
 
-	private async getHistoryItems2(element: ISCMRepository): Promise<ISCMHistoryItemViewModel[]> {
+	private async getHistoryItems2(element: ISCMRepository): Promise<SCMHistoryItemViewModelTreeElement[]> {
 		const { showHistoryGraph } = this.getConfiguration();
 
-		const graphController = element.graphController;
 		const historyProvider = element.provider.historyProvider;
 		const currentHistoryItemGroup = historyProvider?.currentHistoryItemGroup;
 
@@ -3981,10 +3982,12 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			});
 		}
 
-		graphController.clearHistoryItems();
-		graphController.appendHistoryItems(historyItemsElement);
-
-		return graphController.historyItems;
+		return toISCMHistoryItemViewModelArray(historyItemsElement)
+			.map(v => ({
+				repository: element,
+				historyItemViewModel: v,
+				type: 'historyItem2'
+			}) satisfies SCMHistoryItemViewModelTreeElement);
 	}
 
 	private async getHistoryItemChanges(element: SCMHistoryItemTreeElement): Promise<(SCMHistoryItemChangeTreeElement | IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement>)[]> {

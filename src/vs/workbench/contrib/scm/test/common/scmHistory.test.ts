@@ -6,22 +6,14 @@
 import * as assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ISCMHistoryItem } from 'vs/workbench/contrib/scm/common/history';
-import { ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
-import { SCMRepositoryGraphController } from 'vs/workbench/contrib/scm/common/scmHistory';
+import { toISCMHistoryItemViewModelArray } from 'vs/workbench/contrib/scm/common/scmHistory';
 
-suite('SCMRepositoryGraphController', () => {
+suite('toISCMHistoryItemViewModelArray', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	const controller = new SCMRepositoryGraphController({} as ISCMRepository);
-
-	teardown(() => {
-		controller.clearHistoryItems();
-	});
-
 	test('empty graph', () => {
-		controller.appendHistoryItems([]);
-		const viewModels = controller.historyItems;
+		const viewModels = toISCMHistoryItemViewModelArray([]);
 
 		assert.strictEqual(viewModels.length, 0);
 	});
@@ -36,8 +28,7 @@ suite('SCMRepositoryGraphController', () => {
 			{ id: 'a', parentIds: [], message: '' },
 		] as ISCMHistoryItem[];
 
-		controller.appendHistoryItems(models);
-		const viewModels = controller.historyItems;
+		const viewModels = toISCMHistoryItemViewModelArray(models);
 
 		assert.strictEqual(viewModels.length, 1);
 
@@ -61,8 +52,7 @@ suite('SCMRepositoryGraphController', () => {
 			{ id: 'e', parentIds: [] },
 		] as ISCMHistoryItem[];
 
-		controller.appendHistoryItems(models);
-		const viewModels = controller.historyItems;
+		const viewModels = toISCMHistoryItemViewModelArray(models);
 
 		assert.strictEqual(viewModels.length, 5);
 
@@ -126,8 +116,7 @@ suite('SCMRepositoryGraphController', () => {
 			{ id: 'e', parentIds: ['f'] },
 		] as ISCMHistoryItem[];
 
-		controller.appendHistoryItems(models);
-		const viewModels = controller.historyItems;
+		const viewModels = toISCMHistoryItemViewModelArray(models);
 
 		assert.strictEqual(viewModels.length, 5);
 
@@ -202,8 +191,7 @@ suite('SCMRepositoryGraphController', () => {
 			{ id: 'd', parentIds: ['g'] },
 		] as ISCMHistoryItem[];
 
-		controller.appendHistoryItems(models);
-		const viewModels = controller.historyItems;
+		const viewModels = toISCMHistoryItemViewModelArray(models);
 
 		assert.strictEqual(viewModels.length, 6);
 
@@ -301,8 +289,7 @@ suite('SCMRepositoryGraphController', () => {
 			{ id: 'd', parentIds: ['h'] },
 		] as ISCMHistoryItem[];
 
-		controller.appendHistoryItems(models);
-		const viewModels = controller.historyItems;
+		const viewModels = toISCMHistoryItemViewModelArray(models);
 
 		assert.strictEqual(viewModels.length, 6);
 
@@ -408,8 +395,7 @@ suite('SCMRepositoryGraphController', () => {
 			{ id: 'g', parentIds: ['h'] },
 		] as ISCMHistoryItem[];
 
-		controller.appendHistoryItems(models);
-		const viewModels = controller.historyItems;
+		const viewModels = toISCMHistoryItemViewModelArray(models);
 
 		assert.strictEqual(viewModels.length, 7);
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as path from 'vs/base/common/path';
-import { ISCMHistoryItemViewModel, SCMHistoryItemChangeTreeElement, SCMHistoryItemGroupTreeElement, SCMHistoryItemTreeElement, SCMViewSeparatorElement } from 'vs/workbench/contrib/scm/common/history';
+import { SCMHistoryItemChangeTreeElement, SCMHistoryItemGroupTreeElement, SCMHistoryItemTreeElement, SCMHistoryItemViewModelTreeElement, SCMViewSeparatorElement } from 'vs/workbench/contrib/scm/common/history';
 import { ISCMResource, ISCMRepository, ISCMResourceGroup, ISCMInput, ISCMActionButton, ISCMViewService, ISCMProvider } from 'vs/workbench/contrib/scm/common/scm';
 import { IMenu, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -62,8 +62,8 @@ export function isSCMHistoryItemTreeElement(element: any): element is SCMHistory
 		(element as SCMHistoryItemTreeElement).type === 'historyItem';
 }
 
-export function isSCMHistoryItemViewModel(element: any): element is ISCMHistoryItemViewModel {
-	return (element as ISCMHistoryItemViewModel).type === 'historyItem2';
+export function isSCMHistoryItemViewModelTreeElement(element: any): element is SCMHistoryItemViewModelTreeElement {
+	return (element as SCMHistoryItemViewModelTreeElement).type === 'historyItem2';
 }
 
 export function isSCMHistoryItemChangeTreeElement(element: any): element is SCMHistoryItemChangeTreeElement {

@@ -93,10 +93,14 @@ export interface ISCMHistoryItemGraphNode {
 }
 
 export interface ISCMHistoryItemViewModel {
-	readonly repository: ISCMRepository;
 	readonly historyItem: ISCMHistoryItem;
 	readonly inputSwimlanes: ISCMHistoryItemGraphNode[];
 	readonly outputSwimlanes: ISCMHistoryItemGraphNode[];
+}
+
+export interface SCMHistoryItemViewModelTreeElement {
+	readonly repository: ISCMRepository;
+	readonly historyItemViewModel: ISCMHistoryItemViewModel;
 	readonly type: 'historyItem2';
 }
 

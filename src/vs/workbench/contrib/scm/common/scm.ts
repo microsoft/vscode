@@ -16,7 +16,6 @@ import { ResourceTree } from 'vs/base/common/resourceTree';
 import { ISCMHistoryProvider, ISCMHistoryProviderMenus } from 'vs/workbench/contrib/scm/common/history';
 import { ITextModel } from 'vs/editor/common/model';
 import { IObservable } from 'vs/base/common/observable';
-import { ISCMRepositoryGraphController } from 'vs/workbench/contrib/scm/common/scmHistory';
 
 export const VIEWLET_ID = 'workbench.view.scm';
 export const VIEW_PANE_ID = 'workbench.scm';
@@ -163,7 +162,6 @@ export interface ISCMRepository extends IDisposable {
 	readonly id: string;
 	readonly provider: ISCMProvider;
 	readonly input: ISCMInput;
-	readonly graphController: ISCMRepositoryGraphController;
 }
 
 export interface ISCMService {

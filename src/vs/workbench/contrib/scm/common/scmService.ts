@@ -17,7 +17,6 @@ import { Iterable } from 'vs/base/common/iterator';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Schemas } from 'vs/base/common/network';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { ISCMRepositoryGraphController, SCMRepositoryGraphController } from 'vs/workbench/contrib/scm/common/scmHistory';
 
 class SCMInput extends Disposable implements ISCMInput {
 
@@ -185,7 +184,6 @@ class SCMRepository implements ISCMRepository {
 	readonly onDidChangeSelection: Event<boolean> = this._onDidChangeSelection.event;
 
 	readonly input: ISCMInput;
-	readonly graphController: ISCMRepositoryGraphController;
 
 	constructor(
 		public readonly id: string,
@@ -194,7 +192,6 @@ class SCMRepository implements ISCMRepository {
 		inputHistory: SCMInputHistory
 	) {
 		this.input = new SCMInput(this, inputHistory);
-		this.graphController = new SCMRepositoryGraphController(this);
 	}
 
 	setSelected(selected: boolean): void {
