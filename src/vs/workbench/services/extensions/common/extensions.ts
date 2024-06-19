@@ -29,6 +29,7 @@ export const nullExtensionDescription = Object.freeze<IExtensionDescription>({
 	targetPlatform: TargetPlatform.UNDEFINED,
 	isUserBuiltin: false,
 	isUnderDevelopment: false,
+	enabledApiProposals: undefined,
 });
 
 export type WebWorkerExtHostConfigValue = boolean | 'auto';

@@ -458,7 +458,7 @@ export class ExtensionIdentifierMap<T> {
 	}
 }
 
-export interface IRelaxedExtensionDescription extends IRelaxedExtensionManifest {
+interface IRelaxedExtensionDescription extends IRelaxedExtensionManifest {
 	id?: string;
 	identifier: ExtensionIdentifier;
 	uuid?: string;
