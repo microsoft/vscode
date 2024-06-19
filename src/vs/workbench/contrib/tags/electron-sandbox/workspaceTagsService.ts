@@ -74,24 +74,26 @@ const ModulesToLookFor = [
 	'@google-cloud/common',
 	'heroku-cli',
 	'@huggingface/inference',
-	'humanloop'
+	'humanloop',
 	'langchain',
+	'@langchain/anthropic',
 	'langsmith',
 	'llamaindex',
 	'milvus',
 	'mongodb',
 	'neo4j-driver',
 	'ollama',
-        'onnxruntime-node'
+        'onnxruntime-node',
+	'onnxruntime-web',
 	'openai',
 	'pinecone',
-	'pg'
+	'pg',
 	'postgresql',	
 	'qdrant',
 	'redis',
 	'@supabase/supabase-js',
 	'@tensorflow/tfjs',
-	'@xenova/transformers'
+	'@xenova/transformers',
 	'tika',
 	'weaviate-client',
 	'@zilliz/milvus2-sdk-node',	
@@ -341,17 +343,18 @@ const PyModulesToLookFor = [
 	'playwright',
 	'transformers',
 	'langchain',
-	'langchain-huggingface'
-	'langchain-fireworks'	
+	'langchain-anthropic',	
+	'langchain-huggingface',
+	'langchain-fireworks',	
 	'llama-index',
 	'guidance',
-	'ollama'
+	'ollama',
 	'openai',
-	'pgvector'
+	'pgvector',
 	'semantic-kernel',
 	'sentence-transformers',
 	'tika',
-	'trulens'
+	'trulens',
 	'trulens-eval',
 	'wandb'
 ];
@@ -524,6 +527,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
    			"workspace.npm.@datastax/astra-db-ts" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
       			"workspace.npm.humanloop" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.langchain" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+   			"workspace.npm.@langchain/anthropic" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
    			"workspace.npm.langsmith' : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.llamaindex" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.milvus" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -531,6 +535,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			"workspace.npm.neo4j-driver" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.ollama" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.onnxruntime-node" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+   			"workspace.npm.onnxruntime-web" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.openai" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.pinecone" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
    			"workspace.npm.postgresql" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -821,6 +826,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			"workspace.py.transformers" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
    			"workspace.py.humanloop" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.langchain" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+   	                "workspace.py.langchain-anthropic" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
    			"workspace.py.langchain-fireworks" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
       			"workspace.py.langchain-huggingface" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.llama-index" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
