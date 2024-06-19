@@ -591,7 +591,7 @@ class TestRunTracker extends Disposable {
 	}
 
 	/** Gets details for a previously-emitted coverage object. */
-	public getCoverageDetails(id: string, testId: string | undefined, token: CancellationToken) {
+	public async getCoverageDetails(id: string, testId: string | undefined, token: CancellationToken): Promise<vscode.FileCoverageDetail[]> {
 		const [, taskId] = TestId.fromString(id).path; /** runId, taskId, URI */
 		const coverage = this.publishedCoverage.get(id);
 		if (!coverage) {
@@ -613,7 +613,11 @@ class TestRunTracker extends Disposable {
 			testItem = report.fromTests[index];
 		}
 
-		return (this.profile as vscode.TestRunProfile2)?.loadDetailedCoverage?.(task.run, report, token, testItem) ?? [];
+		const details = testItem
+			? this.profile?.loadDetailedCoverageForTest?.(task.run, report, testItem, token)
+			: this.profile?.loadDetailedCoverage?.(task.run, report, token);
+
+		return (await details) ?? [];
 	}
 
 	/** Creates the public test run interface to give to extensions. */

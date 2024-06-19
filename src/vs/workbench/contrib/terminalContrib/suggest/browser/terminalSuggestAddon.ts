@@ -279,13 +279,13 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 
 		this._leadingLineContent = this._promptInputModel.value.substring(0, this._promptInputModel.cursorIndex);
 
-
 		// If there's no space it means this is a command, add cached commands list to completions
 		const firstChar = this._leadingLineContent.length === 0 ? '' : this._leadingLineContent[0];
 		if (this._leadingLineContent.trim().includes(' ') || firstChar === '[') {
 			replacementIndex = parseInt(args[0]);
 			replacementLength = parseInt(args[1]);
-			this._leadingLineContent = completions[0]?.completion.label.slice(0, replacementLength) ?? '';
+			const firstCompletion = completions[0]?.completion;
+			this._leadingLineContent = (firstCompletion?.completionText ?? firstCompletion?.label)?.slice(0, replacementLength) ?? '';
 		} else {
 			completions.push(...this._cachedPwshCommands);
 		}
@@ -407,7 +407,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._leadingLineContent = completions[0].completion.label.slice(0, replacementLength);
 		const model = new SimpleCompletionModel(completions, new LineContext(this._leadingLineContent, replacementIndex), replacementIndex, replacementLength);
 		if (completions.length === 1) {
-			const insertText = completions[0].completion.label.substring(replacementLength);
+			const insertText = (completions[0].completion.completionText ?? completions[0].completion.label).substring(replacementLength);
 			if (insertText.length === 0) {
 				this._onBell.fire();
 				return;

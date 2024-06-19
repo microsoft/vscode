@@ -22,7 +22,7 @@ import * as nls from 'vs/nls';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IEditorPane } from 'vs/workbench/common/editor';
-import { DEBUG_MEMORY_SCHEME, DataBreakpointSetType, DataBreakpointSource, DebugTreeItemCollapsibleState, IBaseBreakpoint, IBreakpoint, IBreakpointData, IBreakpointUpdateData, IBreakpointsChangeEvent, IDataBreakpoint, IDebugModel, IDebugSession, IDebugVisualizationTreeItem, IEnablement, IExceptionBreakpoint, IExceptionInfo, IExpression, IExpressionContainer, IFunctionBreakpoint, IInstructionBreakpoint, IMemoryInvalidationEvent, IMemoryRegion, IRawModelUpdate, IRawStoppedDetails, IScope, IStackFrame, IThread, ITreeElement, MemoryRange, MemoryRangeType, State, isFrameDeemphasized } from 'vs/workbench/contrib/debug/common/debug';
+import { DEBUG_MEMORY_SCHEME, DataBreakpointSetType, DataBreakpointSource, DebugTreeItemCollapsibleState, IBaseBreakpoint, IBreakpoint, IBreakpointData, IBreakpointUpdateData, IBreakpointsChangeEvent, IDataBreakpoint, IDebugEvaluatePosition, IDebugModel, IDebugSession, IDebugVisualizationTreeItem, IEnablement, IExceptionBreakpoint, IExceptionInfo, IExpression, IExpressionContainer, IFunctionBreakpoint, IInstructionBreakpoint, IMemoryInvalidationEvent, IMemoryRegion, IRawModelUpdate, IRawStoppedDetails, IScope, IStackFrame, IThread, ITreeElement, MemoryRange, MemoryRangeType, State, isFrameDeemphasized } from 'vs/workbench/contrib/debug/common/debug';
 import { Source, UNKNOWN_SOURCE_LABEL, getUriFromSource } from 'vs/workbench/contrib/debug/common/debugSource';
 import { DebugStorage } from 'vs/workbench/contrib/debug/common/debugStorage';
 import { IDebugVisualizerService } from 'vs/workbench/contrib/debug/common/debugVisualizers';
@@ -198,7 +198,9 @@ export class ExpressionContainer implements IExpressionContainer {
 		session: IDebugSession | undefined,
 		stackFrame: IStackFrame | undefined,
 		context: string,
-		keepLazyVars = false): Promise<boolean> {
+		keepLazyVars = false,
+		location?: IDebugEvaluatePosition,
+	): Promise<boolean> {
 
 		if (!session || (!stackFrame && context !== 'repl')) {
 			this.value = context === 'repl' ? nls.localize('startDebugFirst', "Please start a debug session to evaluate expressions") : Expression.DEFAULT_VALUE;
@@ -208,7 +210,7 @@ export class ExpressionContainer implements IExpressionContainer {
 
 		this.session = session;
 		try {
-			const response = await session.evaluate(expression, stackFrame ? stackFrame.frameId : undefined, context);
+			const response = await session.evaluate(expression, stackFrame ? stackFrame.frameId : undefined, context, location);
 
 			if (response && response.body) {
 				this.value = response.body.result || '';
@@ -306,8 +308,8 @@ export class Expression extends ExpressionContainer implements IExpression {
 		}
 	}
 
-	async evaluate(session: IDebugSession | undefined, stackFrame: IStackFrame | undefined, context: string, keepLazyVars?: boolean): Promise<void> {
-		this.available = await this.evaluateExpression(this.name, session, stackFrame, context, keepLazyVars);
+	async evaluate(session: IDebugSession | undefined, stackFrame: IStackFrame | undefined, context: string, keepLazyVars?: boolean, location?: IDebugEvaluatePosition): Promise<void> {
+		this.available = await this.evaluateExpression(this.name, session, stackFrame, context, keepLazyVars, location);
 	}
 
 	override toString(): string {
