@@ -50,9 +50,13 @@ export class ProgressService extends Disposable implements IProgressService {
 	async withProgress<R = unknown>(options: IProgressOptions, originalTask: (progress: IProgress<IProgressStep>) => Promise<R>, onDidCancel?: (choice?: number) => void): Promise<R> {
 		const { location } = options;
 
-		const task = (progress: IProgress<IProgressStep>) => {
+		const task = async (progress: IProgress<IProgressStep>) => {
 			const activeLock = this.userActivityService.markActive();
-			return originalTask(progress).finally(() => activeLock.dispose());
+			try {
+				return await originalTask(progress);
+			} finally {
+				activeLock.dispose();
+			}
 		};
 
 		const handleStringLocation = (location: string) => {

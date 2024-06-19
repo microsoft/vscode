@@ -107,6 +107,7 @@ import { checkProposedApiEnabled, isProposedApiEnabled } from 'vs/workbench/serv
 import { ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { TextSearchCompleteMessageType } from 'vs/workbench/services/search/common/searchExtTypes';
 import type * as vscode from 'vscode';
+import { ExtHostLanguageModelTools } from 'vs/workbench/api/common/extHostLanguageModelTools';
 
 export interface IExtensionRegistries {
 	mine: ExtensionDescriptionRegistry;
@@ -211,6 +212,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	rpcProtocol.set(ExtHostContext.ExtHostInteractive, new ExtHostInteractive(rpcProtocol, extHostNotebook, extHostDocumentsAndEditors, extHostCommands, extHostLogService));
 	const extHostChatAgents2 = rpcProtocol.set(ExtHostContext.ExtHostChatAgents2, new ExtHostChatAgents2(rpcProtocol, extHostLogService, extHostCommands, initData.quality));
 	const extHostChatVariables = rpcProtocol.set(ExtHostContext.ExtHostChatVariables, new ExtHostChatVariables(rpcProtocol));
+	const extHostLanguageModelTools = rpcProtocol.set(ExtHostContext.ExtHostLanguageModelTools, new ExtHostLanguageModelTools(rpcProtocol));
 	const extHostAiRelatedInformation = rpcProtocol.set(ExtHostContext.ExtHostAiRelatedInformation, new ExtHostRelatedInformation(rpcProtocol));
 	const extHostAiEmbeddingVector = rpcProtocol.set(ExtHostContext.ExtHostAiEmbeddingVector, new ExtHostAiEmbeddingVector(rpcProtocol));
 	const extHostStatusBar = rpcProtocol.set(ExtHostContext.ExtHostStatusBar, new ExtHostStatusBar(rpcProtocol, extHostCommands.converter));
@@ -287,11 +289,18 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				if (typeof options?.forceNewSession === 'object' && options.forceNewSession.learnMore) {
 					checkProposedApiEnabled(extension, 'authLearnMore');
 				}
+				if (options?.account) {
+					checkProposedApiEnabled(extension, 'authGetSessions');
+				}
 				return extHostAuthentication.getSession(extension, providerId, scopes, options as any);
 			},
 			getSessions(providerId: string, scopes: readonly string[]) {
 				checkProposedApiEnabled(extension, 'authGetSessions');
 				return extHostAuthentication.getSessions(extension, providerId, scopes);
+			},
+			getAccounts(providerId: string) {
+				checkProposedApiEnabled(extension, 'authGetSessions');
+				return extHostAuthentication.getAccounts(providerId);
 			},
 			// TODO: remove this after GHPR and Codespaces move off of it
 			async hasSession(providerId: string, scopes: readonly string[]) {
@@ -1429,7 +1438,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			createDynamicChatParticipant(id: string, dynamicProps: vscode.DynamicChatParticipantProps, handler: vscode.ChatExtendedRequestHandler): vscode.ChatParticipant {
 				checkProposedApiEnabled(extension, 'chatParticipantPrivate');
 				return extHostChatAgents2.createDynamicChatAgent(extension, id, dynamicProps, handler);
-			}
+			},
 		};
 
 		// namespace: lm
@@ -1472,7 +1481,19 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				} else {
 					return extHostEmbeddings.computeEmbeddings(embeddingsModel, input, token);
 				}
-			}
+			},
+			registerTool(toolId: string, tool: vscode.LanguageModelTool) {
+				checkProposedApiEnabled(extension, 'chatVariableResolver');
+				return extHostLanguageModelTools.registerTool(extension, toolId, tool);
+			},
+			invokeTool(toolId: string, parameters: Object, token: vscode.CancellationToken) {
+				checkProposedApiEnabled(extension, 'chatVariableResolver');
+				return extHostLanguageModelTools.invokeTool(toolId, parameters, token);
+			},
+			get tools() {
+				checkProposedApiEnabled(extension, 'chatVariableResolver');
+				return extHostLanguageModelTools.tools;
+			},
 		};
 
 		// namespace: speech

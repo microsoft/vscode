@@ -780,6 +780,7 @@ class FollowupActionWidget extends Disposable {
 
 	constructor(
 		private readonly container: HTMLElement,
+		private readonly editor: ICodeEditor | undefined,
 		@ITestService private readonly testService: ITestService,
 		@IQuickInputService private readonly quickInput: IQuickInputService,
 	) {
@@ -871,6 +872,10 @@ class FollowupActionWidget extends Disposable {
 		if (link.ariaDisabled !== 'true') {
 			link.ariaDisabled = 'true';
 			fu.execute();
+
+			if (this.editor) {
+				TestingOutputPeekController.get(this.editor)?.removePeek();
+			}
 		}
 	}
 }
@@ -917,7 +922,7 @@ class TestResultsViewContent extends Disposable {
 		const { historyVisible, showRevealLocationOnMessages } = this.options;
 		const isInPeekView = this.editor !== undefined;
 		const messageContainer = this.messageContainer = dom.append(containerElement, dom.$('.test-output-peek-message-container'));
-		this.followupWidget = this._register(this.instantiationService.createInstance(FollowupActionWidget, messageContainer));
+		this.followupWidget = this._register(this.instantiationService.createInstance(FollowupActionWidget, messageContainer, this.editor));
 		this.contentProviders = [
 			this._register(this.instantiationService.createInstance(DiffContentProvider, this.editor, messageContainer)),
 			this._register(this.instantiationService.createInstance(MarkdownTestMessagePeek, messageContainer)),

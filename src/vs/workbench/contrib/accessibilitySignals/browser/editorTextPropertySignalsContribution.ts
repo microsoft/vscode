@@ -35,7 +35,7 @@ export class EditorTextPropertySignalsContribution extends Disposable implements
 			.some(signal => observableFromValueWithChangeEvent(this, this._accessibilitySignalService.getEnabledState(signal, false)).read(reader))
 	);
 
-	private readonly _activeEditorObservable = observableFromEvent(
+	private readonly _activeEditorObservable = observableFromEvent(this,
 		this._editorService.onDidActiveEditorChange,
 		(_) => {
 			const activeTextEditorControl = this._editorService.activeTextEditorControl;

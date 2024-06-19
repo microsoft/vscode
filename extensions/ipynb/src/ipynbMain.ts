@@ -117,13 +117,6 @@ export function activate(context: vscode.ExtensionContext) {
 		context.subscriptions.push(cleaner);
 	}
 
-	// Update new file contribution
-	vscode.extensions.onDidChange(() => {
-		vscode.commands.executeCommand('setContext', 'jupyterEnabled', vscode.extensions.getExtension('ms-toolsai.jupyter'));
-	});
-	vscode.commands.executeCommand('setContext', 'jupyterEnabled', vscode.extensions.getExtension('ms-toolsai.jupyter'));
-
-
 	return {
 		get dropCustomMetadata() {
 			return !useCustomPropertyInMetadata();
