@@ -7,7 +7,7 @@ import { coalesce } from 'vs/base/common/arrays';
 import { CancelablePromise, createCancelablePromise, raceCancellation } from 'vs/base/common/async';
 import { VSDataTransfer, matchesMimeType } from 'vs/base/common/dataTransfer';
 import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { toExternalVSDataTransfer } from 'vs/editor/browser/dnd';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -84,8 +84,9 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 		editor.setPosition(position);
 
 		const p = createCancelablePromise(async (token) => {
-			const tokenSource = new EditorStateCancellationTokenSource(editor, CodeEditorStateFlag.Value, undefined, token);
+			const disposables = new DisposableStore();
 
+			const tokenSource = disposables.add(new EditorStateCancellationTokenSource(editor, CodeEditorStateFlag.Value, undefined, token));
 			try {
 				const ourDataTransfer = await this.extractDataTransferData(dragEvent);
 				if (ourDataTransfer.size === 0 || tokenSource.token.isCancellationRequested) {
@@ -107,34 +108,39 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 						return provider.dropMimeTypes.some(mime => ourDataTransfer.matches(mime));
 					});
 
-				const edits = await this.getDropEdits(providers, model, position, ourDataTransfer, tokenSource);
+				const editSession = disposables.add(await this.getDropEdits(providers, model, position, ourDataTransfer, tokenSource));
 				if (tokenSource.token.isCancellationRequested) {
 					return;
 				}
 
-				if (edits.length) {
-					const activeEditIndex = this.getInitialActiveEditIndex(model, edits);
+				if (editSession.edits.length) {
+					const activeEditIndex = this.getInitialActiveEditIndex(model, editSession.edits);
 					const canShowWidget = editor.getOption(EditorOption.dropIntoEditor).showDropSelector === 'afterDrop';
 					// Pass in the parent token here as it tracks cancelling the entire drop operation
-					await this._postDropWidgetManager.applyEditAndShowIfNeeded([Range.fromPositions(position)], { activeEditIndex, allEdits: edits }, canShowWidget, async edit => edit, token);
+					await this._postDropWidgetManager.applyEditAndShowIfNeeded([Range.fromPositions(position)], { activeEditIndex, allEdits: editSession.edits }, canShowWidget, async edit => edit, token);
 				}
 			} finally {
-				tokenSource.dispose();
+				disposables.dispose();
 				if (this._currentOperation === p) {
 					this._currentOperation = undefined;
 				}
 			}
 		});
 
-		this._dropProgressManager.showWhile(position, localize('dropIntoEditorProgress', "Running drop handlers. Click to cancel"), p);
+		this._dropProgressManager.showWhile(position, localize('dropIntoEditorProgress', "Running drop handlers. Click to cancel"), p, { cancel: () => p.cancel() });
 		this._currentOperation = p;
 	}
 
 	private async getDropEdits(providers: readonly DocumentDropEditProvider[], model: ITextModel, position: IPosition, dataTransfer: VSDataTransfer, tokenSource: EditorStateCancellationTokenSource) {
+		const disposables = new DisposableStore();
+
 		const results = await raceCancellation(Promise.all(providers.map(async provider => {
 			try {
 				const edits = await provider.provideDocumentDropEdits(model, position, dataTransfer, tokenSource.token);
-				return edits?.map(edit => ({ ...edit, providerId: provider.id }));
+				if (edits) {
+					disposables.add(edits);
+				}
+				return edits?.edits.map(edit => ({ ...edit, providerId: provider.id }));
 			} catch (err) {
 				console.error(err);
 			}
@@ -142,7 +148,10 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 		})), tokenSource.token);
 
 		const edits = coalesce(results ?? []).flat();
-		return sortEditsByYieldTo(edits);
+		return {
+			edits: sortEditsByYieldTo(edits),
+			dispose: () => disposables.dispose()
+		};
 	}
 
 	private getInitialActiveEditIndex(model: ITextModel, edits: ReadonlyArray<DocumentDropEdit & { readonly providerId?: string }>) {

@@ -211,7 +211,7 @@ export class GettingStartedDetailsRenderer {
 	private async readAndCacheStepMarkdown(path: URI, base: URI): Promise<string> {
 		if (!this.mdCache.has(path)) {
 			const contents = await this.readContentsOfPath(path);
-			const markdownContents = await renderMarkdownDocument(transformUris(contents, base), this.extensionService, this.languageService, true, true);
+			const markdownContents = await renderMarkdownDocument(transformUris(contents, base), this.extensionService, this.languageService, { allowUnknownProtocols: true });
 			this.mdCache.set(path, markdownContents);
 		}
 		return assertIsDefined(this.mdCache.get(path));

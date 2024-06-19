@@ -33,6 +33,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { ChatModel, IChatRequestModel, IChatResponseModel, IChatTextEditGroupState } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IChatAgent } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IDocumentDiff } from 'vs/editor/common/diff/documentDiffProvider';
 
 
 export type TelemetryData = {
@@ -86,15 +87,6 @@ export class SessionWholeRange {
 		if (!this._textModel.isDisposed()) {
 			this._textModel.deltaDecorations(this._decorationIds, []);
 		}
-	}
-
-	trackEdits(edits: ISingleEditOperation[]): void {
-		const newDeco: IModelDeltaDecoration[] = [];
-		for (const edit of edits) {
-			newDeco.push({ range: edit.range, options: SessionWholeRange._options });
-		}
-		this._decorationIds.push(...this._textModel.deltaDecorations([], newDeco));
-		this._onDidChange.fire(this);
 	}
 
 	fixup(changes: readonly DetailedLineRangeMapping[]): void {
@@ -555,9 +547,9 @@ export class HunkData {
 		this._textModel0.pushEditOperations(null, edits, () => null);
 	}
 
-	async recompute(editState: IChatTextEditGroupState) {
+	async recompute(editState: IChatTextEditGroupState, diff?: IDocumentDiff | null) {
 
-		const diff = await this._editorWorkerService.computeDiff(this._textModel0.uri, this._textModelN.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: Number.MAX_SAFE_INTEGER, computeMoves: false }, 'advanced');
+		diff ??= await this._editorWorkerService.computeDiff(this._textModel0.uri, this._textModelN.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: Number.MAX_SAFE_INTEGER, computeMoves: false }, 'advanced');
 
 		if (!diff || diff.changes.length === 0) {
 			// return new HunkData([], session);

@@ -122,6 +122,7 @@ export interface RepositoryState {
 	readonly mergeChanges: Change[];
 	readonly indexChanges: Change[];
 	readonly workingTreeChanges: Change[];
+	readonly untrackedChanges: Change[];
 
 	readonly onDidChange: Event<void>;
 }
@@ -144,6 +145,7 @@ export interface LogOptions {
 	readonly sortByAuthorDate?: boolean;
 	readonly shortStats?: boolean;
 	readonly author?: string;
+	readonly refNames?: string[];
 }
 
 export interface CommitOptions {

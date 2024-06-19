@@ -8,7 +8,8 @@ import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import * as semver from 'vs/base/common/semver/semver';
-import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { IExtensionManifest, parseApiProposals } from 'vs/platform/extensions/common/extensions';
+import { allApiProposals } from 'vs/platform/extensions/common/extensionsApiProposals';
 
 export interface IParsedVersion {
 	hasCaret: boolean;
@@ -314,12 +315,22 @@ export function validateExtensionManifest(productVersion: string, productDate: P
 	}
 
 	const notices: string[] = [];
-	const isValid = isValidExtensionVersion(productVersion, productDate, extensionManifest, extensionIsBuiltin, notices);
-	if (!isValid) {
+	const validExtensionVersion = isValidExtensionVersion(productVersion, productDate, extensionManifest, extensionIsBuiltin, notices);
+	if (!validExtensionVersion) {
 		for (const notice of notices) {
 			validations.push([Severity.Error, notice]);
 		}
 	}
+
+	if (extensionManifest.enabledApiProposals?.length) {
+		const incompatibleNotices: string[] = [];
+		if (!areApiProposalsCompatible([...extensionManifest.enabledApiProposals], incompatibleNotices)) {
+			for (const notice of incompatibleNotices) {
+				validations.push([Severity.Error, notice]);
+			}
+		}
+	}
+
 	return validations;
 }
 
@@ -336,6 +347,38 @@ export function isValidExtensionVersion(productVersion: string, productDate: Pro
 export function isEngineValid(engine: string, version: string, date: ProductDate): boolean {
 	// TODO@joao: discuss with alex '*' doesn't seem to be a valid engine version
 	return engine === '*' || isVersionValid(version, date, engine);
+}
+
+export function areApiProposalsCompatible(apiProposals: string[]): boolean;
+export function areApiProposalsCompatible(apiProposals: string[], notices: string[]): boolean;
+export function areApiProposalsCompatible(apiProposals: string[], productApiProposals: Readonly<{ [proposalName: string]: Readonly<{ proposal: string; version?: number }> }>): boolean;
+export function areApiProposalsCompatible(apiProposals: string[], arg1?: any): boolean {
+	if (apiProposals.length === 0) {
+		return true;
+	}
+	const notices: string[] | undefined = Array.isArray(arg1) ? arg1 : undefined;
+	const productApiProposals: Readonly<{ [proposalName: string]: Readonly<{ proposal: string; version?: number }> }> = (notices ? undefined : arg1) ?? allApiProposals;
+	const incompatibleNotices: string[] = [];
+	const parsedProposals = parseApiProposals(apiProposals);
+	for (const { proposalName, version } of parsedProposals) {
+		const existingProposal = productApiProposals[proposalName];
+		if (!existingProposal) {
+			continue;
+		}
+		if (!version) {
+			continue;
+		}
+		if (existingProposal.version !== version) {
+			if (existingProposal.version) {
+				incompatibleNotices.push(nls.localize('apiProposalMismatch', "Extension is not compatible with API proposal {0}. Extension requires version {1} but product has version {2}.", proposalName, version, existingProposal.version));
+			} else {
+				incompatibleNotices.push(nls.localize('apiProposalMismatchNoVersion', "Extension is not compatible with API proposal {0}. Extension requires version {1} but product has no version defined.", proposalName, version));
+			}
+		}
+	}
+	notices?.push(...incompatibleNotices);
+	return incompatibleNotices.length === 0;
+
 }
 
 function isVersionValid(currentVersion: string, date: ProductDate, requestedVersion: string, notices: string[] = []): boolean {

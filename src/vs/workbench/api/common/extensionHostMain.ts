@@ -11,7 +11,7 @@ import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { MainContext, MainThreadConsoleShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IExtensionHostInitData } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { RPCProtocol } from 'vs/workbench/services/extensions/common/rpcProtocol';
-import { ExtensionIdentifier, IExtensionDescription, IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { getSingletonServiceDescriptors } from 'vs/platform/instantiation/common/extensions';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -195,7 +195,7 @@ export class ExtensionHostMain {
 
 	private static _transform(initData: IExtensionHostInitData, rpcProtocol: RPCProtocol): IExtensionHostInitData {
 		initData.extensions.allExtensions.forEach((ext) => {
-			(<Mutable<IRelaxedExtensionDescription>>ext).extensionLocation = URI.revive(rpcProtocol.transformIncomingURIs(ext.extensionLocation));
+			(<Mutable<IExtensionDescription>>ext).extensionLocation = URI.revive(rpcProtocol.transformIncomingURIs(ext.extensionLocation));
 		});
 		initData.environment.appRoot = URI.revive(rpcProtocol.transformIncomingURIs(initData.environment.appRoot));
 		const extDevLocs = initData.environment.extensionDevelopmentLocationURI;
