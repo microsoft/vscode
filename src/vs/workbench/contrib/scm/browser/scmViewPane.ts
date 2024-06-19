@@ -3221,6 +3221,19 @@ export class SCMViewPane extends ViewPane {
 		} else if (isSCMHistoryItemTreeElement(e.element)) {
 			this.scmViewService.focus(e.element.historyItemGroup.repository);
 			return;
+		} else if (isSCMHistoryItemViewModelTreeElement(e.element)) {
+			const historyItem = e.element.historyItemViewModel.historyItem;
+			const historyItemParentId = historyItem.parentIds.length > 0 ? historyItem.parentIds[0] : undefined;
+
+			const historyProvider = e.element.repository.provider.historyProvider;
+			const historyItemChanges = await historyProvider?.provideHistoryItemChanges(historyItem.id, historyItemParentId);
+			if (historyItemChanges) {
+				const title = `${historyItem.id.substring(0, 8)} - ${historyItem.message}`;
+				await this.commandService.executeCommand('_workbench.openMultiDiffEditor', { title, resources: historyItemChanges });
+			}
+
+			this.scmViewService.focus(e.element.repository);
+			return;
 		} else if (isSCMHistoryItemChangeTreeElement(e.element)) {
 			if (e.element.originalUri && e.element.modifiedUri) {
 				await this.commandService.executeCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, ...toDiffEditorArguments(e.element.uri, e.element.originalUri, e.element.modifiedUri), e);
