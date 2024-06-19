@@ -214,20 +214,6 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		return historyItemChanges;
 	}
 
-	async resolveHistoryItemGroupBase(historyItemGroupId: string): Promise<SourceControlHistoryItemGroup | undefined> {
-		// Base (config -> reflog -> default)
-		const remoteBranch = await this.repository.getBranchBase(historyItemGroupId);
-		if (!remoteBranch?.remote || !remoteBranch?.name || !remoteBranch?.commit || remoteBranch?.type !== RefType.RemoteHead) {
-			this.logger.info(`GitHistoryProvider:resolveHistoryItemGroupBase - Failed to resolve history item group base for '${historyItemGroupId}'`);
-			return undefined;
-		}
-
-		return {
-			id: `refs/remotes/${remoteBranch.remote}/${remoteBranch.name}`,
-			name: `${remoteBranch.remote}/${remoteBranch.name}`,
-		};
-	}
-
 	async resolveHistoryItemGroupCommonAncestor(historyItemId1: string, historyItemId2: string | undefined): Promise<{ id: string; ahead: number; behind: number } | undefined> {
 		if (!historyItemId2) {
 			const upstreamRef = await this.resolveHistoryItemGroupUpstreamOrBase(historyItemId1);
