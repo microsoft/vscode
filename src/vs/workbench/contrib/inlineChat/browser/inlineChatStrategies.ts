@@ -531,7 +531,6 @@ export class LiveStrategy extends EditModeStrategy {
 
 			if (widgetData) {
 				this._zone.updatePositionAndHeight(widgetData.position);
-				this._editor.revealPositionInCenterIfOutsideViewport(widgetData.position);
 
 				const remainingHunks = this._session.hunkData.pending;
 				this._updateSummaryMessage(remainingHunks, this._session.hunkData.size);
