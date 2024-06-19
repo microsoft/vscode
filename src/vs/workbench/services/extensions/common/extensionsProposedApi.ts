@@ -5,10 +5,10 @@
 
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { allApiProposals, ApiProposalName } from 'vs/platform/extensions/common/extensionsApiProposals';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ApiProposalName, allApiProposals } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
 
 export class ExtensionsProposedApi {
 
@@ -54,16 +54,13 @@ export class ExtensionsProposedApi {
 		}
 	}
 
-	private doUpdateEnabledApiProposals(_extension: IExtensionDescription): void {
+	private doUpdateEnabledApiProposals(extension: IExtensionDescription): void {
 
-		// this is a trick to make the extension description writeable...
-		type Writeable<T> = { -readonly [P in keyof T]: Writeable<T[P]> };
-		const extension = <Writeable<IExtensionDescription>>_extension;
-		const key = ExtensionIdentifier.toKey(_extension.identifier);
+		const key = ExtensionIdentifier.toKey(extension.identifier);
 
 		// warn about invalid proposal and remove them from the list
-		if (isNonEmptyArray(extension.enabledApiProposals)) {
-			extension.enabledApiProposals = extension.enabledApiProposals.filter(name => {
+		if (isNonEmptyArray(extension.enabledApiProposalNames)) {
+			extension.enabledApiProposalNames = extension.enabledApiProposalNames.filter(name => {
 				const result = Boolean(allApiProposals[<ApiProposalName>name]);
 				if (!result) {
 					this._logService.error(`Extension '${key}' wants API proposal '${name}' but that proposal DOES NOT EXIST. Likely, the proposal has been finalized (check 'vscode.d.ts') or was abandoned.`);
@@ -82,7 +79,7 @@ export class ExtensionsProposedApi {
 
 			// check for difference between product.json-declaration and package.json-declaration
 			const productSet = new Set(productEnabledProposals);
-			const extensionSet = new Set(extension.enabledApiProposals);
+			const extensionSet = new Set(extension.enabledApiProposalNames);
 			const diff = new Set([...extensionSet].filter(a => !productSet.has(a)));
 			if (diff.size > 0) {
 				this._logService.error(`Extension '${key}' appears in product.json but enables LESS API proposals than the extension wants.\npackage.json (LOSES): ${[...extensionSet].join(', ')}\nproduct.json (WINS): ${[...productSet].join(', ')}`);
@@ -93,7 +90,7 @@ export class ExtensionsProposedApi {
 				}
 			}
 
-			extension.enabledApiProposals = productEnabledProposals;
+			extension.enabledApiProposalNames = productEnabledProposals;
 			return;
 		}
 
@@ -103,10 +100,10 @@ export class ExtensionsProposedApi {
 			return;
 		}
 
-		if (!extension.isBuiltin && isNonEmptyArray(extension.enabledApiProposals)) {
+		if (!extension.isBuiltin && isNonEmptyArray(extension.enabledApiProposalNames)) {
 			// restrictive: extension cannot use proposed API in this context and its declaration is nulled
-			this._logService.error(`Extension '${extension.identifier.value} CANNOT USE these API proposals '${extension.enabledApiProposals?.join(', ') || '*'}'. You MUST start in extension development mode or use the --enable-proposed-api command line flag`);
-			extension.enabledApiProposals = [];
+			this._logService.error(`Extension '${extension.identifier.value} CANNOT USE these API proposals '${extension.enabledApiProposalNames?.join(', ') || '*'}'. You MUST start in extension development mode or use the --enable-proposed-api command line flag`);
+			extension.enabledApiProposalNames = [];
 		}
 	}
 }

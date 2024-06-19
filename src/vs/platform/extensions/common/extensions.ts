@@ -470,7 +470,9 @@ export interface IRelaxedExtensionDescription extends IRelaxedExtensionManifest 
 	extensionLocation: URI;
 }
 
-export type IExtensionDescription = Readonly<IRelaxedExtensionDescription>;
+export type IExtensionDescription = Readonly<IRelaxedExtensionDescription> & {
+	enabledApiProposalNames?: string[]; // Parsed `enabledApiProposals` which can be updated.
+};
 
 export function isApplicationScopedExtension(manifest: IExtensionManifest): boolean {
 	return isLanguagePackExtension(manifest);
@@ -490,6 +492,10 @@ export function isResolverExtension(manifest: IExtensionManifest, remoteAuthorit
 		return !!manifest.activationEvents?.includes(activationEvent);
 	}
 	return false;
+}
+
+export function parseEnabledApiProposalNames(enabledApiProposals: string[]): string[] {
+	return enabledApiProposals.map(proposal => proposal.split('@')[0]);
 }
 
 export const IBuiltinExtensionsScannerService = createDecorator<IBuiltinExtensionsScannerService>('IBuiltinExtensionsScannerService');

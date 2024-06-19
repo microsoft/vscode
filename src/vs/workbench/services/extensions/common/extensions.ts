@@ -9,13 +9,13 @@ import { URI } from 'vs/base/common/uri';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { getExtensionId, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ImplicitActivationEvents } from 'vs/platform/extensionManagement/common/implicitActivationEvents';
-import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, ExtensionType, IExtension, IExtensionContributions, IExtensionDescription, TargetPlatform } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, ExtensionType, IExtension, IExtensionContributions, IExtensionDescription, parseEnabledApiProposalNames, TargetPlatform } from 'vs/platform/extensions/common/extensions';
+import { ApiProposalName } from 'vs/platform/extensions/common/extensionsApiProposals';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IV8Profile } from 'vs/platform/profiling/common/profiling';
 import { ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensionHostKind';
 import { IExtensionDescriptionDelta, IExtensionDescriptionSnapshot } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { ExtensionRunningLocation } from 'vs/workbench/services/extensions/common/extensionRunningLocation';
-import { ApiProposalName } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
 import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
 export const nullExtensionDescription = Object.freeze<IExtensionDescription>({
@@ -312,10 +312,10 @@ function extensionDescriptionArrayToMap(extensions: IExtensionDescription[]): Ex
 }
 
 export function isProposedApiEnabled(extension: IExtensionDescription, proposal: ApiProposalName): boolean {
-	if (!extension.enabledApiProposals) {
+	if (!extension.enabledApiProposalNames) {
 		return false;
 	}
-	return extension.enabledApiProposals.includes(proposal);
+	return extension.enabledApiProposalNames.includes(proposal);
 }
 
 export function checkProposedApiEnabled(extension: IExtensionDescription, proposal: ApiProposalName): void {
@@ -569,6 +569,7 @@ export function toExtensionDescription(extension: IExtension, isUnderDevelopment
 		uuid: extension.identifier.uuid,
 		targetPlatform: extension.targetPlatform,
 		publisherDisplayName: extension.publisherDisplayName,
+		enabledApiProposalNames: extension.manifest.enabledApiProposals ? parseEnabledApiProposalNames([...extension.manifest.enabledApiProposals]) : undefined,
 		...extension.manifest,
 	};
 }

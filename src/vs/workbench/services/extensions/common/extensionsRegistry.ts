@@ -13,10 +13,10 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IMessage } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtensionDescription, EXTENSION_CATEGORIES, ExtensionIdentifierSet } from 'vs/platform/extensions/common/extensions';
 import { ExtensionKind } from 'vs/platform/environment/common/environment';
-import { allApiProposals } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
 import { productSchemaId } from 'vs/platform/product/common/productService';
 import { ImplicitActivationEvents, IActivationEventsGenerator } from 'vs/platform/extensionManagement/common/implicitActivationEvents';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { allApiProposals } from 'vs/platform/extensions/common/extensionsApiProposals';
 
 const schemaRegistry = Registry.as<IJSONContributionRegistry>(Extensions.JSONContribution);
 
@@ -242,8 +242,8 @@ export const schema: IJSONSchema = {
 			uniqueItems: true,
 			items: {
 				type: 'string',
-				enum: Object.keys(allApiProposals),
-				markdownEnumDescriptions: Object.values(allApiProposals)
+				enum: Object.keys(allApiProposals).map(proposalName => allApiProposals[proposalName].version ? `${proposalName}@${allApiProposals[proposalName].version}` : proposalName),
+				markdownEnumDescriptions: Object.values(allApiProposals).map(value => value.proposal)
 			}
 		},
 		api: {
@@ -652,7 +652,7 @@ schemaRegistry.registerSchema(productSchemaId, {
 					items: {
 						type: 'string',
 						enum: Object.keys(allApiProposals),
-						markdownEnumDescriptions: Object.values(allApiProposals)
+						markdownEnumDescriptions: Object.values(allApiProposals).map(value => value.proposal)
 					}
 				}]
 			}

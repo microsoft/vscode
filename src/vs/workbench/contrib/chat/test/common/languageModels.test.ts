@@ -34,7 +34,7 @@ suite('LanguageModels', function () {
 		const ext = ExtensionsRegistry.getExtensionPoints().find(e => e.name === languageModelExtensionPoint.name)!;
 
 		ext.acceptUsers([{
-			description: { ...nullExtensionDescription, enabledApiProposals: ['chatProvider'] },
+			description: { ...nullExtensionDescription, enabledApiProposalNames: ['chatProvider'] },
 			value: { vendor: 'test-vendor' },
 			collector: null!
 		}]);

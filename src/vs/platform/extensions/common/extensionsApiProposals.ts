@@ -5,7 +5,7 @@
 
 // THIS IS A GENERATED FILE. DO NOT EDIT DIRECTLY.
 
-export const allApiProposals = Object.freeze({
+const _allApiProposals = {
 	activeComment: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.activeComment.d.ts',
 	},
@@ -35,6 +35,7 @@ export const allApiProposals = Object.freeze({
 	},
 	chatParticipantPrivate: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.chatParticipantPrivate.d.ts',
+		version: 1
 	},
 	chatProvider: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.chatProvider.d.ts',
@@ -372,5 +373,6 @@ export const allApiProposals = Object.freeze({
 	workspaceTrust: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.workspaceTrust.d.ts',
 	}
-});
-export type ApiProposalName = keyof typeof allApiProposals;
+};
+export const allApiProposals = Object.freeze<{ [proposalName: string]: Readonly<{ proposal: string; version?: number }> }>(_allApiProposals);
+export type ApiProposalName = keyof typeof _allApiProposals;
