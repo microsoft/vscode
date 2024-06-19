@@ -14,9 +14,6 @@ import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { editorForeground } from 'vs/platform/theme/common/colorRegistry';
-import { resolveColorValue } from 'vs/platform/theme/common/colorUtils';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { InteractiveWindowSetting } from 'vs/workbench/contrib/interactive/browser/interactiveCommon';
 
@@ -32,7 +29,6 @@ export class ReplInputHintContentWidget extends Disposable implements IContentWi
 		private readonly editor: ICodeEditor,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@IThemeService private readonly themeService: IThemeService,
 	) {
 		super();
 
@@ -68,7 +64,7 @@ export class ReplInputHintContentWidget extends Disposable implements IContentWi
 
 	getDomNode(): HTMLElement {
 		if (!this.domNode) {
-			this.domNode = dom.$('.repl-input-hint');
+			this.domNode = dom.$('.empty-editor-hint');
 			this.domNode.style.width = 'max-content';
 			this.domNode.style.paddingLeft = '4px';
 
@@ -91,12 +87,10 @@ export class ReplInputHintContentWidget extends Disposable implements IContentWi
 		while (this.domNode.firstChild) {
 			this.domNode.removeChild(this.domNode.firstChild);
 		}
-		const transparentForeground = resolveColorValue(editorForeground, this.themeService.getColorTheme())?.transparent(0.4);
 
 		const hintElement = dom.$('div.empty-hint-text');
 		hintElement.style.cursor = 'text';
 		hintElement.style.whiteSpace = 'nowrap';
-		hintElement.style.color = transparentForeground?.toString() || '';
 
 		const keybinding = this.getKeybinding();
 		const keybindingHintLabel = keybinding?.getLabel();
