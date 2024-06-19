@@ -77,11 +77,10 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		this.currentHistoryItemGroup = {
 			id: `refs/heads/${this.repository.HEAD.name ?? ''}`,
 			name: this.repository.HEAD.name ?? '',
-			remote: this.repository.HEAD.upstream ?
-				{
-					id: `refs/remotes/${this.repository.HEAD.upstream.remote}/${this.repository.HEAD.upstream.name}`,
-					name: `${this.repository.HEAD.upstream.remote}/${this.repository.HEAD.upstream.name}`,
-				} : undefined,
+			remote: this.repository.HEAD.upstream ? {
+				id: `refs/remotes/${this.repository.HEAD.upstream.remote}/${this.repository.HEAD.upstream.name}`,
+				name: `${this.repository.HEAD.upstream.remote}/${this.repository.HEAD.upstream.name}`,
+			} : undefined,
 			base: mergeBase ? {
 				id: `refs/remotes/${mergeBase.remote}/${mergeBase.name}`,
 				name: `${mergeBase.remote}/${mergeBase.name}`,
@@ -216,7 +215,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 
 	async resolveHistoryItemGroupCommonAncestor(historyItemId1: string, historyItemId2: string | undefined): Promise<{ id: string; ahead: number; behind: number } | undefined> {
 		if (!historyItemId2) {
-			const upstreamRef = await this.resolveHistoryItemGroupUpstreamOrBase(historyItemId1);
+			const upstreamRef = await this.resolveHistoryItemGroupMergeBase(historyItemId1);
 			if (!upstreamRef) {
 				this.logger.info(`GitHistoryProvider:resolveHistoryItemGroupCommonAncestor - Failed to resolve history item group base for '${historyItemId1}'`);
 				return undefined;
@@ -304,7 +303,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		return labels;
 	}
 
-	private async resolveHistoryItemGroupUpstreamOrBase(historyItemId: string): Promise<UpstreamRef | undefined> {
+	private async resolveHistoryItemGroupMergeBase(historyItemId: string): Promise<UpstreamRef | undefined> {
 		try {
 			// Upstream
 			const branch = await this.repository.getBranch(historyItemId);
