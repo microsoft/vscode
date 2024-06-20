@@ -95,6 +95,14 @@ export function nls(): NodeJS.ReadWriteStream {
 				contents: Buffer.from(JSON.stringify(_nls.allNLSModulesAndKeys)),
 				base,
 				path: `${base}/nls.keys.json`
+			}),
+			new File({
+				contents: Buffer.from(`/*---------------------------------------------------------
+ * Copyright (C) Microsoft Corporation. All rights reserved.
+ *--------------------------------------------------------*/
+globalThis._VSCODE_NLS=${JSON.stringify(_nls.allNLSMessages)};`),
+				base,
+				path: `${base}/nls.messages.js`
 			})
 		]) {
 			this.emit('data', file);
