@@ -8,6 +8,7 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { DisposableMap } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ILanguageModelToolsService } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
 import * as extensionsRegistry from 'vs/workbench/services/extensions/common/extensionsRegistry';
@@ -67,11 +68,17 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 	private _registrationDisposables = new DisposableMap<string>();
 
 	constructor(
-		@ILanguageModelToolsService languageModelToolsService: ILanguageModelToolsService
+		@ILanguageModelToolsService languageModelToolsService: ILanguageModelToolsService,
+		@ILogService logService: ILogService,
 	) {
 		languageModelToolsExtensionPoint.setHandler((extensions, delta) => {
 			for (const extension of delta.added) {
 				for (const tool of extension.value) {
+					if (!tool.name || !tool.description) {
+						logService.warn(`Invalid tool contribution from ${extension.description.identifier.value}: ${JSON.stringify(tool)}`);
+						continue;
+					}
+
 					const disposable = languageModelToolsService.registerToolData(tool);
 					this._registrationDisposables.set(toToolKey(extension.description.identifier, tool.name), disposable);
 				}
