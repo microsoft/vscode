@@ -59,8 +59,7 @@ const serverResources = [
 	'out-build/bootstrap-node.js',
 
 	// NLS
-	'out-build/nls.messages.json',
-	'out-build/nls.keys.json',
+	'out-build/nls.messages.js',
 
 	// Performance
 	'out-build/vs/base/common/performance.js',
