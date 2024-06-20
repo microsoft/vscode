@@ -714,6 +714,7 @@
 		"--vscode-terminalOverviewRuler-cursorForeground",
 		"--vscode-terminalOverviewRuler-findMatchForeground",
 		"--vscode-terminalStickyScroll-background",
+		"--vscode-terminalStickyScroll-border",
 		"--vscode-terminalStickyScrollHover-background",
 		"--vscode-testing-coverCountBadgeBackground",
 		"--vscode-testing-coverCountBadgeForeground",
