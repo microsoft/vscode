@@ -35,16 +35,22 @@
 }
 
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-list {
-	padding: 4px 0 0 0;
+	padding: 2px 0 0 0;
 }
 
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-list .interactive-item-container.interactive-item-compact {
-	padding: 6px 0;
+	padding: 2px 0;
 	gap: 6px;
 }
 
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-list .interactive-item-container.interactive-item-compact .header .avatar {
 	outline-offset: -1px;
+}
+
+.monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-list .interactive-item-container.interactive-item-compact .chat-notification-widget {
+	margin-bottom: 0;
+	padding: 0;
+	border: none;
 }
 
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-list .interactive-request {
@@ -151,7 +157,6 @@
 	font-size: 12px;
 	line-height: 16px;
 	padding: 2px;
-	margin: 2px 0;
 	border-radius: 2px;
 }
 
