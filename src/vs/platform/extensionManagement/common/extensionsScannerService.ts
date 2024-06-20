@@ -554,14 +554,18 @@ type NlsConfiguration = {
 
 class ExtensionsScanner extends Disposable {
 
+	private readonly extensionsEnabledWithApiProposalVersion: string[];
+
 	constructor(
 		private readonly obsoleteFile: URI,
 		@IExtensionsProfileScannerService protected readonly extensionsProfileScannerService: IExtensionsProfileScannerService,
 		@IUriIdentityService protected readonly uriIdentityService: IUriIdentityService,
 		@IFileService protected readonly fileService: IFileService,
+		@IProductService productService: IProductService,
 		@ILogService protected readonly logService: ILogService
 	) {
 		super();
+		this.extensionsEnabledWithApiProposalVersion = productService.extensionsEnabledWithApiProposalVersion?.map(id => id.toLowerCase()) ?? [];
 	}
 
 	async scanExtensions(input: ExtensionScannerInput): Promise<IRelaxedScannedExtension[]> {
@@ -653,6 +657,9 @@ class ExtensionsScanner extends Disposable {
 				const type = metadata?.isSystem ? ExtensionType.System : input.type;
 				const isBuiltin = type === ExtensionType.System || !!metadata?.isBuiltin;
 				manifest = await this.translateManifest(input.location, manifest, ExtensionScannerInput.createNlsConfiguration(input));
+				if (manifest.enabledApiProposals && !this.extensionsEnabledWithApiProposalVersion?.includes(id.toLowerCase())) {
+					manifest.enabledApiProposals = parseEnabledApiProposalNames([...manifest.enabledApiProposals]);
+				}
 				const extension: IRelaxedScannedExtension = {
 					type,
 					identifier,
@@ -689,7 +696,7 @@ class ExtensionsScanner extends Disposable {
 		return extension;
 	}
 
-	async scanExtensionManifest(extensionLocation: URI): Promise<IScannedExtensionManifest | null> {
+	private async scanExtensionManifest(extensionLocation: URI): Promise<IScannedExtensionManifest | null> {
 		const manifestLocation = joinPath(extensionLocation, 'package.json');
 		let content;
 		try {
@@ -878,9 +885,10 @@ class CachedExtensionsScanner extends ExtensionsScanner {
 		@IExtensionsProfileScannerService extensionsProfileScannerService: IExtensionsProfileScannerService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IFileService fileService: IFileService,
+		@IProductService productService: IProductService,
 		@ILogService logService: ILogService
 	) {
-		super(obsoleteFile, extensionsProfileScannerService, uriIdentityService, fileService, logService);
+		super(obsoleteFile, extensionsProfileScannerService, uriIdentityService, fileService, productService, logService);
 	}
 
 	override async scanExtensions(input: ExtensionScannerInput): Promise<IRelaxedScannedExtension[]> {
@@ -983,7 +991,6 @@ export function toExtensionDescription(extension: IScannedExtension, isUnderDeve
 		targetPlatform: extension.targetPlatform,
 		publisherDisplayName: extension.publisherDisplayName,
 		...extension.manifest,
-		enabledApiProposals: extension.manifest.enabledApiProposals ? parseEnabledApiProposalNames([...extension.manifest.enabledApiProposals]) : undefined,
 	};
 }
 

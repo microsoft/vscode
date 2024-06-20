@@ -173,6 +173,7 @@ export interface IProductConfiguration {
 	readonly extensionPointExtensionKind?: { readonly [extensionPointId: string]: ('ui' | 'workspace' | 'web')[] };
 	readonly extensionSyncedKeys?: { readonly [extensionId: string]: string[] };
 
+	readonly extensionsEnabledWithApiProposalVersion?: string[];
 	readonly extensionEnabledApiProposals?: { readonly [extensionId: string]: string[] };
 	readonly extensionUntrustedWorkspaceSupport?: { readonly [extensionId: string]: ExtensionUntrustedWorkspaceSupport };
 	readonly extensionVirtualWorkspacesSupport?: { readonly [extensionId: string]: ExtensionVirtualWorkspaceSupport };
