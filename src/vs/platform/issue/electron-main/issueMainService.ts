@@ -14,17 +14,14 @@ import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { localize } from 'vs/nls';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { IIssueMainService, IssueReporterData, IssueReporterWindowConfiguration, ProcessExplorerData, ProcessExplorerWindowConfiguration } from 'vs/platform/issue/common/issue';
+import { IIssueMainService, IssueReporterData, IssueReporterWindowConfiguration } from 'vs/platform/issue/common/issue';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
 import product from 'vs/platform/product/common/product';
 import { IIPCObjectUrl, IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
-import { IStateService } from 'vs/platform/state/node/state';
 import { zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
 import { ICodeWindow, IWindowState } from 'vs/platform/window/electron-main/window';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
-
-const processExplorerWindowState = 'issue.processExplorerWindowState';
 
 interface IBrowserWindowOptions {
 	backgroundColor: string | undefined;
@@ -44,9 +41,6 @@ export class IssueMainService implements IIssueMainService {
 	private issueReporterWindow: BrowserWindow | null = null;
 	private issueReporterParentWindow: BrowserWindow | null = null;
 
-	private processExplorerWindow: BrowserWindow | null = null;
-	private processExplorerParentWindow: BrowserWindow | null = null;
-
 	constructor(
 		private userEnv: IProcessEnvironment,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
@@ -54,7 +48,6 @@ export class IssueMainService implements IIssueMainService {
 		@IDialogMainService private readonly dialogMainService: IDialogMainService,
 		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService,
 		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
-		@IStateService private readonly stateService: IStateService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 	) { }
 
@@ -112,79 +105,6 @@ export class IssueMainService implements IIssueMainService {
 
 		else if (this.issueReporterWindow) {
 			this.focusWindow(this.issueReporterWindow);
-		}
-	}
-
-	async openProcessExplorer(data: ProcessExplorerData): Promise<void> {
-		if (!this.processExplorerWindow) {
-			this.processExplorerParentWindow = BrowserWindow.getFocusedWindow();
-			if (this.processExplorerParentWindow) {
-				const processExplorerDisposables = new DisposableStore();
-
-				const processExplorerWindowConfigUrl = processExplorerDisposables.add(this.protocolMainService.createIPCObjectUrl<ProcessExplorerWindowConfiguration>());
-
-				const savedPosition = this.stateService.getItem<IWindowState>(processExplorerWindowState, undefined);
-				const position = isStrictWindowState(savedPosition) ? savedPosition : this.getWindowPosition(this.processExplorerParentWindow, 800, 500);
-
-				this.processExplorerWindow = this.createBrowserWindow(position, processExplorerWindowConfigUrl, {
-					backgroundColor: data.styles.backgroundColor,
-					title: localize('processExplorer', "Process Explorer"),
-					zoomLevel: data.zoomLevel,
-					alwaysOnTop: true
-				}, 'process-explorer');
-
-				// Store into config object URL
-				processExplorerWindowConfigUrl.update({
-					appRoot: this.environmentMainService.appRoot,
-					windowId: this.processExplorerWindow.id,
-					userEnv: this.userEnv,
-					data,
-					product
-				});
-
-				this.processExplorerWindow.loadURL(
-					FileAccess.asBrowserUri(`vs/code/electron-sandbox/processExplorer/processExplorer${this.environmentMainService.isBuilt ? '' : '-dev'}.html`).toString(true)
-				);
-
-				this.processExplorerWindow.on('close', () => {
-					this.processExplorerWindow = null;
-					processExplorerDisposables.dispose();
-				});
-
-				this.processExplorerParentWindow.on('close', () => {
-					if (this.processExplorerWindow) {
-						this.processExplorerWindow.close();
-						this.processExplorerWindow = null;
-
-						processExplorerDisposables.dispose();
-					}
-				});
-
-				const storeState = () => {
-					if (!this.processExplorerWindow) {
-						return;
-					}
-					const size = this.processExplorerWindow.getSize();
-					const position = this.processExplorerWindow.getPosition();
-					if (!size || !position) {
-						return;
-					}
-					const state: IWindowState = {
-						width: size[0],
-						height: size[1],
-						x: position[0],
-						y: position[1]
-					};
-					this.stateService.setItem(processExplorerWindowState, state);
-				};
-
-				this.processExplorerWindow.on('moved', storeState);
-				this.processExplorerWindow.on('resized', storeState);
-			}
-		}
-
-		if (this.processExplorerWindow) {
-			this.focusWindow(this.processExplorerWindow);
 		}
 	}
 
@@ -374,16 +294,4 @@ export class IssueMainService implements IIssueMainService {
 
 		return state;
 	}
-}
-
-function isStrictWindowState(obj: unknown): obj is IStrictWindowState {
-	if (typeof obj !== 'object' || obj === null) {
-		return false;
-	}
-	return (
-		'x' in obj &&
-		'y' in obj &&
-		'width' in obj &&
-		'height' in obj
-	);
 }

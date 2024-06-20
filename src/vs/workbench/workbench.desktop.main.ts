@@ -118,8 +118,8 @@ import 'vs/workbench/contrib/extensions/electron-sandbox/extensions.contribution
 // Issues
 import 'vs/workbench/contrib/issue/electron-sandbox/issue.contribution';
 
-// // Process
-// import 'vs/workbench/contrib/issue/electron-sandbox/process.contribution';
+// Process
+import 'vs/workbench/contrib/issue/electron-sandbox/process.contribution';
 
 // Remote
 import 'vs/workbench/contrib/remote/electron-sandbox/remote.contribution';
