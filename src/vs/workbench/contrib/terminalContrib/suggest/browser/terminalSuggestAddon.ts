@@ -220,11 +220,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 		// TODO: What do frozen and auto do?
 		const xtermBox = this._screen!.getBoundingClientRect();
-		const panelBox = this._panel!.offsetParent!.getBoundingClientRect();
 
 		this._suggestWidget.showSuggestions(0, false, false, {
-			left: (xtermBox.left - panelBox.left) + this._terminal.buffer.active.cursorX * dimensions.width,
-			top: (xtermBox.top - panelBox.top) + this._terminal.buffer.active.cursorY * dimensions.height,
+			left: xtermBox.left + this._terminal.buffer.active.cursorX * dimensions.width,
+			top: xtermBox.top + this._terminal.buffer.active.cursorY * dimensions.height,
 			height: dimensions.height
 		});
 	}
@@ -435,7 +434,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 		// TODO: What do frozen and auto do?
 		const xtermBox = this._screen!.getBoundingClientRect();
-		const panelBox = this._panel!.offsetParent!.getBoundingClientRect();
 		this._initialPromptInputState = {
 			value: this._promptInputModel.value,
 			cursorIndex: this._promptInputModel.cursorIndex,
@@ -443,8 +441,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		};
 		suggestWidget.setCompletionModel(model);
 		suggestWidget.showSuggestions(0, false, false, {
-			left: (xtermBox.left - panelBox.left) + this._terminal.buffer.active.cursorX * dimensions.width,
-			top: (xtermBox.top - panelBox.top) + this._terminal.buffer.active.cursorY * dimensions.height,
+			left: xtermBox.left + this._terminal.buffer.active.cursorX * dimensions.width,
+			top: xtermBox.top + this._terminal.buffer.active.cursorY * dimensions.height,
 			height: dimensions.height
 		});
 	}
