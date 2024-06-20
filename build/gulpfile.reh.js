@@ -60,6 +60,7 @@ const serverResources = [
 
 	// NLS
 	'out-build/nls.messages.js',
+	'out-build/nls.messages.json',
 
 	// Performance
 	'out-build/vs/base/common/performance.js',

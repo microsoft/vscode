@@ -36,40 +36,46 @@
 	<script src="{{WORKBENCH_WEB_BASE_URL}}/out/vs/loader.js"></script>
 	<script src="{{WORKBENCH_WEB_BASE_URL}}/out/vs/webPackagePaths.js"></script>
 	<script>
+
+		// Packages
 		const baseUrl = new URL('{{WORKBENCH_WEB_BASE_URL}}', window.location.origin).toString();
 		Object.keys(self.webPackagePaths).map(function (key, index) {
 			self.webPackagePaths[key] = `${baseUrl}/node_modules/${key}/${self.webPackagePaths[key]}`;
 		});
 
-		// Set up nls if the user is not using the default language (English)
-		// TODO adopt new NLS story
-		const nlsConfig = {};
-		// Normalize locale to lowercase because translationServiceUrl is case-sensitive.
-		// ref: https://github.com/microsoft/vscode/issues/187795
+		// NLS
 		const locale = localStorage.getItem('vscode.nls.locale') || navigator.language.toLowerCase();
 		if (!locale.startsWith('en')) {
-			nlsConfig['vs/nls'] = {
-				availableLanguages: {
-					'*': locale
-				},
-				translationServiceUrl: '{{WORKBENCH_NLS_BASE_URL}}'
-			};
-		}
-
-		require.config({
-			baseUrl: `${baseUrl}/out`,
-			recordStats: true,
-			trustedTypesPolicy: window.trustedTypes?.createPolicy('amdLoader', {
-				createScriptURL(value) {
-					if(value.startsWith(window.location.origin)) {
-						return value;
-					}
-					throw new Error(`Invalid script url: ${value}`)
+			function endWithSlash(path) {
+				if (path.charAt(path.length - 1) === '/') {
+					return path;
 				}
-			}),
-			paths: self.webPackagePaths,
-			...nlsConfig
-		});
+				return path + '/';
+			}
+
+			const scriptElement = document.createElement("script");
+			scriptElement.src = endWithSlash('{{WORKBENCH_NLS_BASE_URL}}') + endWithSlash(locale) + 'nls.messages.js';
+
+			document.head.appendChild(scriptElement);
+
+			// AMD Loader
+			require.config({
+				baseUrl: `${baseUrl}/out`,
+				recordStats: true,
+				trustedTypesPolicy: window.trustedTypes?.createPolicy('amdLoader', {
+					createScriptURL(value) {
+						if(value.startsWith(window.location.origin)) {
+							return value;
+						}
+						throw new Error(`Invalid script url: ${value}`)
+					}
+				}),
+				paths: self.webPackagePaths
+			});
+		}
+	</script>
+	<script>
+
 	</script>
 	<script>
 		performance.mark('code/willLoadWorkbenchMain');
