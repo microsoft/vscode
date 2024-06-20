@@ -170,14 +170,13 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 					return filename;
 				}
 			} else if (variable === 'extname') {
-				const extension = this.removeLeadingDot(parsedPath.base).split('.').slice(1).join('.');
+				const extension = this.getExtnames(parsedPath.base);
 				if (extension) {
 					return extension;
 				}
 			} else if (variable.startsWith('extname')) {
 				const n = parseInt(extnameN);
-				const extensionName = this.removeLeadingDot(parsedPath.base);
-				const nthExtname = this.getNthExtname(extensionName, n);
+				const nthExtname = this.getNthExtname(parsedPath.base, n);
 				if (nthExtname) {
 					return nthExtname;
 				}
@@ -209,9 +208,13 @@ export class CustomEditorLabelService extends Disposable implements ICustomEdito
 		return this.getNthFragment(pathFragments, n);
 	}
 
+	private getExtnames(fullFileName: string): string {
+		return this.removeLeadingDot(fullFileName).split('.').slice(1).join('.');
+	}
+
 	private getNthExtname(fullFileName: string, n: number): string | undefined {
 		// file.ext1.ext2.ext3 -> [file, ext1, ext2, ext3]
-		const extensionNameFragments = fullFileName.split('.');
+		const extensionNameFragments = this.removeLeadingDot(fullFileName).split('.');
 		extensionNameFragments.shift(); // remove the first element which is the file name
 
 		return this.getNthFragment(extensionNameFragments, n);
