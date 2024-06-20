@@ -145,21 +145,6 @@ export function localize2(data: ILocalizeInfo | string /* | number when built */
 	};
 }
 
-/**
- *
- * @param stringFromLocalizeCall You must pass in a string that was returned from a `nls.localize()` call
- * in order to ensure the loader plugin has been initialized before this function is called.
- */
-export function getConfiguredDefaultLocale(stringFromLocalizeCall: string): string | undefined;
-/**
- * @skipMangle
- */
-export function getConfiguredDefaultLocale(_: string): string | undefined {
-	// This returns undefined because this implementation isn't used and is overwritten by the loader
-	// when loaded.
-	return undefined;
-}
-
 export interface INLSLanguagePackConfiguration {
 
 	/**
