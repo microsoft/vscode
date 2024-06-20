@@ -67,6 +67,10 @@ export function connectProxyResolver(
 				certs.then(certs => extHostLogService.trace('ProxyResolver#loadAdditionalCertificates: Loaded certificates from main process', certs.length));
 				promises.push(certs);
 			}
+			if (initData.environment.extensionTestsLocationURI && (https.globalAgent as any).testCertificates?.length) {
+				extHostLogService.trace('ProxyResolver#loadAdditionalCertificates: Loading test certificates');
+				promises.push(Promise.resolve((https.globalAgent as any).testCertificates as string[]));
+			}
 			return (await Promise.all(promises)).flat();
 		},
 		env: process.env,
