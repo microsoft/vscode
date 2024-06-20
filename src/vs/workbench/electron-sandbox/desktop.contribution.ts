@@ -360,6 +360,10 @@ import { MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL } from 'vs/platform/window/electron-sand
 				type: 'boolean',
 				description: localize('argv.disableLcdText', 'Disables LCD font antialiasing.')
 			},
+			'proxy-bypass-list': {
+				type: 'string',
+				description: localize('argv.proxyBypassList', 'Bypass any specified proxy for the given semi-colon-separated list of hosts.')
+			},
 			'disable-hardware-acceleration': {
 				type: 'boolean',
 				description: localize('argv.disableHardwareAcceleration', 'Disables hardware acceleration. ONLY change this option if you encounter graphic issues.')
