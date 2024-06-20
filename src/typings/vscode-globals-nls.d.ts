@@ -19,7 +19,7 @@ declare global {
 	/**
 	 * The locale the NLS messages are translated to.
 	 */
-	var _VSCODE_NLS_LOCALE: string;
+	var _VSCODE_NLS_LOCALE: string | undefined;
 }
 
 // fake export to make global work
