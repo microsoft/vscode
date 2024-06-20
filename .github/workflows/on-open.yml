@@ -16,11 +16,6 @@ jobs:
       - name: Install Actions
         run: npm install --production --prefix ./actions
 
-      - name: Check for Validity
-        uses: ./actions/validity-checker
-        with:
-          token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
-
       - name: Run CopyCat (VSCodeTriageBot/testissues)
         uses: ./actions/copycat
         with:
