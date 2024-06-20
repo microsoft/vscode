@@ -1186,7 +1186,7 @@ export class CodeApplication extends Disposable {
 		const issueChannel = ProxyChannel.fromService(accessor.get(IIssueMainService), disposables);
 		mainProcessElectronServer.registerChannel('issue', issueChannel);
 
-		// Issues
+		// Process
 		const processChannel = ProxyChannel.fromService(accessor.get(IProcessMainService), disposables);
 		mainProcessElectronServer.registerChannel('process', processChannel);
 
