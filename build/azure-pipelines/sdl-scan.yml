@@ -130,18 +130,18 @@ steps:
       flattenFolders: true
     condition: succeeded()
 
-  - task: APIScan@2
-    inputs:
-      softwareFolder: $(agent.builddirectory)\scanbin
-      softwareName: 'vscode-client'
-      softwareVersionNum: '1'
-      symbolsFolder: 'SRV*http://symweb;$(agent.builddirectory)\symbols'
-      isLargeApp: false
-      toolVersion: 'Latest'
-    displayName: Run ApiScan
-    condition: succeeded()
-    env:
-      AzureServicesAuthConnectionString: $(apiscan-connectionstring)
+  # - task: APIScan@2
+  #   inputs:
+  #     softwareFolder: $(agent.builddirectory)\scanbin
+  #     softwareName: 'vscode-client'
+  #     softwareVersionNum: '1'
+  #     symbolsFolder: 'SRV*http://symweb;$(agent.builddirectory)\symbols'
+  #     isLargeApp: false
+  #     toolVersion: 'Latest'
+  #   displayName: Run ApiScan
+  #   condition: succeeded()
+  #   env:
+  #     AzureServicesAuthConnectionString: $(apiscan-connectionstring)
 
   - task: PublishSecurityAnalysisLogs@3
     inputs:
