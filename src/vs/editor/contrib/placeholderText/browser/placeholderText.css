@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-editor {
-	--vscode-editor-placeholder-foreground: rgba(0, 0, 0, 0.5);
+	--vscode-editor-placeholder-foreground: var(--vscode-editorGhostText-foreground);
 }
 
 .monaco-editor .placeholder-text {
