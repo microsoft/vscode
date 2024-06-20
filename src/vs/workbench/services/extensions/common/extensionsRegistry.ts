@@ -242,7 +242,7 @@ export const schema: IJSONSchema = {
 			uniqueItems: true,
 			items: {
 				type: 'string',
-				enum: Object.keys(allApiProposals).map(proposalName => allApiProposals[proposalName].version ? `${proposalName}@${allApiProposals[proposalName].version}` : proposalName),
+				enum: Object.keys(allApiProposals).map(proposalName => proposalName),
 				markdownEnumDescriptions: Object.values(allApiProposals).map(value => value.proposal)
 			}
 		},
