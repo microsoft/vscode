@@ -331,7 +331,7 @@ const PyModulesToLookFor = [
 	'anthropic',
 	'aporia',
 	'arize',
-	'deepchecks'
+	'deepchecks',
 	'fireworks-ai',
 	'langchain-fireworks',
 	'humanloop',
