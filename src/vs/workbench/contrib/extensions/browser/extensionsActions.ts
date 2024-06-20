@@ -1140,7 +1140,7 @@ async function getContextMenuActionsGroups(extension: IExtension | undefined | n
 			cksOverlay.push(['isDefaultApplicationScopedExtension', extension.local && isApplicationScopedExtension(extension.local.manifest)]);
 			cksOverlay.push(['isApplicationScopedExtension', extension.local && extension.local.isApplicationScoped]);
 			cksOverlay.push(['isWorkspaceScopedExtension', extension.isWorkspaceScoped]);
-			cksOverlay.push(['isGalleryExtension', !!extension.gallery]);
+			cksOverlay.push(['isGalleryExtension', !!extension.identifier.uuid]);
 			if (extension.local) {
 				cksOverlay.push(['extensionSource', extension.local.source]);
 			}
@@ -1434,7 +1434,7 @@ export class InstallAnotherVersionAction extends ExtensionAction {
 	}
 
 	update(): void {
-		this.enabled = !!this.extension && !this.extension.isBuiltin && !!this.extension.gallery && !this.extension.deprecationInfo;
+		this.enabled = !!this.extension && !this.extension.isBuiltin && !!this.extension.identifier.uuid && !this.extension.deprecationInfo;
 		if (this.enabled && this.whenInstalled) {
 			this.enabled = !!this.extension?.local && !!this.extension.server && this.extension.state === ExtensionState.Installed;
 		}
@@ -1444,11 +1444,11 @@ export class InstallAnotherVersionAction extends ExtensionAction {
 		if (!this.enabled) {
 			return;
 		}
-		if (!this.extension?.gallery) {
+		if (!this.extension) {
 			return;
 		}
 		const targetPlatform = this.extension.server ? await this.extension.server.extensionManagementService.getTargetPlatform() : await this.extensionManagementService.getTargetPlatform();
-		const allVersions = await this.extensionGalleryService.getAllCompatibleVersions(this.extension.gallery, this.extension.local?.preRelease ?? this.extension.gallery.properties.isPreReleaseVersion, targetPlatform);
+		const allVersions = await this.extensionGalleryService.getAllCompatibleVersions(this.extension.identifier, this.extension.local?.preRelease ?? this.extension.gallery?.properties.isPreReleaseVersion ?? false, targetPlatform);
 		if (!allVersions.length) {
 			await this.dialogService.info(localize('no versions', "This extension has no other versions."));
 			return;

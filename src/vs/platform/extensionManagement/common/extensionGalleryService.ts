@@ -1165,15 +1165,15 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		return '';
 	}
 
-	async getAllCompatibleVersions(extension: IGalleryExtension, includePreRelease: boolean, targetPlatform: TargetPlatform): Promise<IGalleryExtensionVersion[]> {
+	async getAllCompatibleVersions(extensionIdentifier: IExtensionIdentifier, includePreRelease: boolean, targetPlatform: TargetPlatform): Promise<IGalleryExtensionVersion[]> {
 		let query = new Query()
 			.withFlags(Flags.IncludeVersions, Flags.IncludeCategoryAndTags, Flags.IncludeFiles, Flags.IncludeVersionProperties)
 			.withPage(1, 1);
 
-		if (extension.identifier.uuid) {
-			query = query.withFilter(FilterType.ExtensionId, extension.identifier.uuid);
+		if (extensionIdentifier.uuid) {
+			query = query.withFilter(FilterType.ExtensionId, extensionIdentifier.uuid);
 		} else {
-			query = query.withFilter(FilterType.ExtensionName, extension.identifier.id);
+			query = query.withFilter(FilterType.ExtensionName, extensionIdentifier.id);
 		}
 
 		const { galleryExtensions } = await this.queryRawGalleryExtensions(query, CancellationToken.None);
@@ -1191,7 +1191,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 			try {
 				if (
 					(await this.isValidVersion(
-						extension.identifier.id,
+						extensionIdentifier.id,
 						version, includePreRelease ? 'any' : 'release',
 						true,
 						allTargetPlatforms,
