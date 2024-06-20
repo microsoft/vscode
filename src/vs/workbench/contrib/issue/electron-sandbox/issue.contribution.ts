@@ -5,7 +5,7 @@
 
 import { localize, localize2 } from 'vs/nls';
 import { MenuRegistry, MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { IWorkbenchIssueService } from 'vs/workbench/contrib/issue/common/issue';
+import { IWorkbenchIssueService, IWorkbenchProcessService } from 'vs/workbench/contrib/issue/common/issue';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { BaseIssueContribution } from 'vs/workbench/contrib/issue/common/issue.contribution';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -18,13 +18,14 @@ import { INativeEnvironmentService } from 'vs/platform/environment/common/enviro
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
-import { IIssueMainService, IssueType } from 'vs/platform/issue/common/issue';
+import { IProcessMainService, IssueType } from 'vs/platform/issue/common/issue';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
 import { IssueQuickAccess } from 'vs/workbench/contrib/issue/browser/issueQuickAccess';
 import 'vs/workbench/contrib/issue/electron-sandbox/issueMainService';
 import 'vs/workbench/contrib/issue/electron-sandbox/issueService';
+import 'vs/workbench/contrib/issue/electron-sandbox/processService';
 import 'vs/workbench/contrib/issue/browser/issueTroubleshoot';
 
 
@@ -87,15 +88,15 @@ class ReportPerformanceIssueUsingReporterAction extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		const issueService = accessor.get(IWorkbenchIssueService);
+		const issueService = accessor.get(IWorkbenchIssueService); // later can just get IIssueFormService
 
 		return issueService.openReporter({ issueType: IssueType.PerformanceIssue });
 	}
 }
 
-//#endregion
+// #endregion
 
-//#region Commands
+// #region Commands
 
 class OpenProcessExplorer extends Action2 {
 
@@ -111,9 +112,9 @@ class OpenProcessExplorer extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		const issueService = accessor.get(IWorkbenchIssueService);
+		const processService = accessor.get(IWorkbenchProcessService);
 
-		return issueService.openProcessExplorer();
+		return processService.openProcessExplorer();
 	}
 }
 registerAction2(OpenProcessExplorer);
@@ -140,7 +141,7 @@ class StopTracing extends Action2 {
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
-		const issueService = accessor.get(IIssueMainService);
+		const processService = accessor.get(IProcessMainService);
 		const environmentService = accessor.get(INativeEnvironmentService);
 		const dialogService = accessor.get(IDialogService);
 		const nativeHostService = accessor.get(INativeHostService);
@@ -162,12 +163,13 @@ class StopTracing extends Action2 {
 			title: localize('stopTracing.title', "Creating trace file..."),
 			cancellable: false,
 			detail: localize('stopTracing.detail', "This can take up to one minute to complete.")
-		}, () => issueService.stopTracing());
+		}, () => processService.stopTracing());
 	}
 }
 registerAction2(StopTracing);
 
 CommandsRegistry.registerCommand('_issues.getSystemStatus', (accessor) => {
-	return accessor.get(IIssueMainService).getSystemStatus();
+	return accessor.get(IProcessMainService).getSystemStatus();
 });
+
 //#endregion
