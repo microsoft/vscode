@@ -84,7 +84,7 @@
 		// @ts-ignore
 		const nlsConfig = await globalThis.MonacoBootstrap.setupNLS();
 
-		let locale = nlsConfig?.availableLanguages['*'] || 'en';
+		let locale = nlsConfig?.resolvedLocale || 'en';
 		if (locale === 'zh-tw') {
 			locale = 'zh-Hant';
 		} else if (locale === 'zh-cn') {

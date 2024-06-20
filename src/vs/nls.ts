@@ -168,10 +168,22 @@ export interface INLSLanguagePackConfiguration {
 }
 
 export interface INLSConfiguration {
+
+	/**
+	 * Locale as defined in `argv.json` or `app.getLocale()`.
+	 */
 	readonly userLocale: string;
+
+	/**
+	 * Locale as defined by the OS (e.g. `app.getPreferredSystemLanguages()`).
+	 */
 	readonly osLocale: string;
 
-	readonly availableLanguages: Record<string, string | undefined>;
+	/**
+	 * The actual locale that ends up being used considering `userLocale`
+	 * and `osLocale`.
+	 */
+	readonly resolvedLocale: string;
 
 	/**
 	 * Defined if a language pack is used that is not the

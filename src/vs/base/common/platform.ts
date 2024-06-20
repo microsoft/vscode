@@ -84,11 +84,9 @@ if (typeof nodeProcess === 'object') {
 	if (rawNlsConfig) {
 		try {
 			const nlsConfig: nls.INLSConfiguration = JSON.parse(rawNlsConfig);
-			const resolved = nlsConfig.availableLanguages['*'];
 			_locale = nlsConfig.userLocale;
 			_platformLocale = nlsConfig.osLocale;
-			// VSCode's default language is 'en'
-			_language = resolved ? resolved : LANGUAGE_DEFAULT;
+			_language = nlsConfig.resolvedLocale || LANGUAGE_DEFAULT;
 			_translationsConfigFile = nlsConfig.languagePack?.translationsConfigFile;
 		} catch (e) {
 		}

@@ -666,7 +666,7 @@ async function resolveNlsConfiguration() {
 		return {
 			userLocale: 'en',
 			osLocale,
-			availableLanguages: {},
+			resolvedLocale: 'en',
 			defaultMessagesFile: path.join(__dirname, 'nls.messages.json')
 		};
 	}
