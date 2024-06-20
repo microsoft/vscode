@@ -3808,8 +3808,8 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			// History items
 			const historyItems = await this.getHistoryItems2(inputOrElement);
 			if (historyItems.length > 0) {
-				const label = localize('historySeparatorHeader', "History");
-				const ariaLabel = localize('historySeparatorHeaderAriaLabel', "History");
+				const label = localize('syncSeparatorHeader', "Incoming/Outgoing");
+				const ariaLabel = localize('syncSeparatorHeaderAriaLabel', "Incoming and outgoing changes");
 
 				children.push({ label, ariaLabel, repository: inputOrElement, type: 'separator' } satisfies SCMViewSeparatorElement);
 			}
@@ -3998,6 +3998,13 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 				...historyProviderCacheEntry,
 				historyItems2: historyItemsMap.set(element.id, historyItemsElement)
 			});
+		}
+
+		// If we only have one history item that matches
+		// the current history item group, don't show it
+		if (historyItemsElement.length === 1 &&
+			historyItemsElement[0].labels?.find(l => l.title === currentHistoryItemGroup.name)) {
+			return [];
 		}
 
 		// Create the color map
