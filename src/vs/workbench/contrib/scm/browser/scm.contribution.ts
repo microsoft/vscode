@@ -10,7 +10,7 @@ import { DirtyDiffWorkbenchController } from './dirtydiffDecorator';
 import { VIEWLET_ID, ISCMService, VIEW_PANE_ID, ISCMProvider, ISCMViewService, REPOSITORIES_VIEW_PANE_ID } from 'vs/workbench/contrib/scm/common/scm';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
-import { SCMActiveRepositoryContextKeyController, SCMActiveResourceContextKeyController, SCMStatusController } from './activity';
+import { SCMActiveResourceContextKeyController, SCMActiveRepositoryController } from './activity';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -24,7 +24,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { SCMViewPane } from 'vs/workbench/contrib/scm/browser/scmViewPane';
+import { ContextKeys, SCMViewPane } from 'vs/workbench/contrib/scm/browser/scmViewPane';
 import { SCMViewService } from 'vs/workbench/contrib/scm/browser/scmViewService';
 import { SCMRepositoriesViewPane } from 'vs/workbench/contrib/scm/browser/scmRepositoriesViewPane';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -34,6 +34,7 @@ import { IQuickDiffService } from 'vs/workbench/contrib/scm/common/quickDiff';
 import { QuickDiffService } from 'vs/workbench/contrib/scm/common/quickDiffService';
 import { getActiveElement } from 'vs/base/browser/dom';
 import { SCMWorkingSetController } from 'vs/workbench/contrib/scm/browser/workingSet';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 
 ModesRegistry.registerLanguage({
 	id: 'scminput',
@@ -112,13 +113,10 @@ viewsRegistry.registerViews([{
 }], viewContainer);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
+	.registerWorkbenchContribution(SCMActiveRepositoryController, LifecyclePhase.Restored);
+
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(SCMActiveResourceContextKeyController, LifecyclePhase.Restored);
-
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(SCMActiveRepositoryContextKeyController, LifecyclePhase.Restored);
-
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
-	.registerWorkbenchContribution(SCMStatusController, LifecyclePhase.Restored);
 
 registerWorkbenchContribution2(
 	SCMWorkingSetController.ID,
@@ -351,6 +349,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			],
 			description: localize('scm.workingSets.default', "Controls the default working set to use when switching to a source control history item group that does not have a working set."),
 			default: 'current'
+		},
+		'scm.experimental.showHistoryGraph': {
+			type: 'boolean',
+			description: localize('scm.experimental.showHistoryGraph', "Controls whether to show the history graph instead of incoming/outgoing changes in the Source Control view."),
+			default: false
 		}
 	}
 });
@@ -382,6 +385,22 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const commandService = accessor.get(ICommandService);
 
 		return commandService.executeCommand(id, ...(args || []));
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'scm.clearInput',
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ContextKeyExpr.and(ContextKeyExpr.has('scmRepository'), SuggestContext.Visible.toNegated()),
+	primary: KeyCode.Escape,
+	handler: async (accessor) => {
+		const scmService = accessor.get(ISCMService);
+		const contextKeyService = accessor.get(IContextKeyService);
+
+		const context = contextKeyService.getContext(getActiveElement());
+		const repositoryId = context.getValue<string | undefined>('scmRepository');
+		const repository = repositoryId ? scmService.getRepository(repositoryId) : undefined;
+		repository?.input.setValue('', true);
 	}
 });
 
@@ -473,6 +492,56 @@ MenuRegistry.appendMenuItem(MenuId.SCMSourceControl, {
 		title: localize('open in integrated terminal', "Open in Integrated Terminal")
 	},
 	when: ContextKeyExpr.and(ContextKeyExpr.equals('scmProviderHasRootUri', true), ContextKeyExpr.or(ContextKeyExpr.equals('config.terminal.sourceControlRepositoriesKind', 'integrated'), ContextKeyExpr.equals('config.terminal.sourceControlRepositoriesKind', 'both')))
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'workbench.scm.action.focusPreviousInput',
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ContextKeys.RepositoryVisibilityCount.notEqualsTo(0),
+	handler: async accessor => {
+		const viewsService = accessor.get(IViewsService);
+		const scmView = await viewsService.openView<SCMViewPane>(VIEW_PANE_ID);
+		if (scmView) {
+			scmView.focusPreviousInput();
+		}
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'workbench.scm.action.focusNextInput',
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ContextKeys.RepositoryVisibilityCount.notEqualsTo(0),
+	handler: async accessor => {
+		const viewsService = accessor.get(IViewsService);
+		const scmView = await viewsService.openView<SCMViewPane>(VIEW_PANE_ID);
+		if (scmView) {
+			scmView.focusNextInput();
+		}
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'workbench.scm.action.focusPreviousResourceGroup',
+	weight: KeybindingWeight.WorkbenchContrib,
+	handler: async accessor => {
+		const viewsService = accessor.get(IViewsService);
+		const scmView = await viewsService.openView<SCMViewPane>(VIEW_PANE_ID);
+		if (scmView) {
+			scmView.focusPreviousResourceGroup();
+		}
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'workbench.scm.action.focusNextResourceGroup',
+	weight: KeybindingWeight.WorkbenchContrib,
+	handler: async accessor => {
+		const viewsService = accessor.get(IViewsService);
+		const scmView = await viewsService.openView<SCMViewPane>(VIEW_PANE_ID);
+		if (scmView) {
+			scmView.focusNextResourceGroup();
+		}
+	}
 });
 
 registerSingleton(ISCMService, SCMService, InstantiationType.Delayed);

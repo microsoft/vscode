@@ -70,6 +70,7 @@ export interface RenderOptions {
 	readonly outputScrolling: boolean;
 	readonly outputWordWrap: boolean;
 	readonly linkifyFilePaths: boolean;
+	readonly minimalError: boolean;
 }
 
 interface PreloadContext {
@@ -89,7 +90,7 @@ declare function __import(path: string): Promise<any>;
 
 async function webviewPreloads(ctx: PreloadContext) {
 
-	/* eslint-disable no-restricted-globals */
+	/* eslint-disable no-restricted-globals, no-restricted-syntax */
 
 	// The use of global `window` should be fine in this context, even
 	// with aux windows. This code is running from within an `iframe`
@@ -195,7 +196,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		const id = lastFocusedOutput?.id;
-		if (id && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
+		if (id && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA' || activeElement.tagName === 'SELECT')) {
 			postNotebookMessage<webviewMessages.IOutputInputFocusMessage>('outputInputFocus', { inputFocused: true, id });
 
 			activeElement.addEventListener('blur', () => {
@@ -1424,9 +1425,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 		return offset + getSelectionOffsetRelativeTo(parentElement, currentNode.parentNode);
 	}
 
-	const find = (query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean; shouldGetSearchPreviewInfo: boolean; ownerID: string }) => {
+	const find = (query: string, options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean; shouldGetSearchPreviewInfo: boolean; ownerID: string; findIds: string[] }) => {
 		let find = true;
-		const matches: IFindMatch[] = [];
+		let matches: IFindMatch[] = [];
 
 		const range = document.createRange();
 		range.selectNodeContents(window.document.getElementById('findStart')!);
@@ -1552,6 +1553,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 			console.log(e);
 		}
 
+
+		matches = matches.filter(match => options.findIds.length ? options.findIds.includes(match.cellId) : true);
 		_highlighter.addHighlights(matches, options.ownerID);
 		window.document.getSelection()?.removeAllRanges();
 
@@ -1575,7 +1578,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			// copyImage can be called from outside of the webview, which means this function may be running whilst the webview is gaining focus.
 			// Since navigator.clipboard.write requires the document to be focused, we need to wait for focus.
 			// We cannot use a listener, as there is a high chance the focus is gained during the setup of the listener resulting in us missing it.
-			setTimeout(() => { copyOutputImage(outputId, altOutputId, retries - 1); }, 20);
+			setTimeout(() => { copyOutputImage(outputId, altOutputId, retries - 1); }, 50);
 			return;
 		}
 
@@ -1911,6 +1914,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 					get outputScrolling() { return currentRenderOptions.outputScrolling; },
 					get outputWordWrap() { return currentRenderOptions.outputWordWrap; },
 					get linkifyFilePaths() { return currentRenderOptions.linkifyFilePaths; },
+					get minimalError() { return currentRenderOptions.minimalError; },
 				},
 				get onDidChangeSettings() { return settingChange.event; }
 			};
@@ -3065,7 +3069,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			});
 
 			if (this.dragOverlay) {
-				window.document.body.removeChild(this.dragOverlay);
+				this.dragOverlay.remove();
 				this.dragOverlay = undefined;
 			}
 

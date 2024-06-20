@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isLinux } from 'vs/base/common/platform';
-import { stripComments } from 'vs/base/common/stripComments';
+import { parse } from 'vs/base/common/jsonc';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -34,7 +34,7 @@ class EncryptionContribution implements IWorkbenchContribution {
 		}
 		try {
 			const content = await this.fileService.readFile(this.environmentService.argvResource);
-			const argv = JSON.parse(stripComments(content.value.toString()));
+			const argv = parse(content.value.toString());
 			if (argv['password-store'] === 'gnome' || argv['password-store'] === 'gnome-keyring') {
 				this.jsonEditingService.write(this.environmentService.argvResource, [{ path: ['password-store'], value: 'gnome-libsecret' }], true);
 			}

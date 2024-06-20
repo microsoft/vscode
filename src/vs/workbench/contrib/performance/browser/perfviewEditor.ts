@@ -17,7 +17,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { writeTransientState } from 'vs/workbench/contrib/codeEditor/browser/toggleWordWrap';
-import { LoaderStats, isESM } from 'vs/base/common/amd';
+import { LoaderEventType, LoaderStats, isESM } from 'vs/base/common/amd';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';

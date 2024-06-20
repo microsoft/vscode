@@ -13,7 +13,7 @@ import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list
 import { ElementsDragAndDropData, ListViewTargetSector } from 'vs/base/browser/ui/list/listView';
 import { IAsyncDataSource, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeDragOverReaction, ITreeNode, ITreeRenderer, TreeDragOverBubble } from 'vs/base/browser/ui/tree/tree';
 import { CollapseAllAction } from 'vs/base/browser/ui/tree/treeDefaults';
-import { ActionRunner, IAction } from 'vs/base/common/actions';
+import { ActionRunner, IAction, Separator } from 'vs/base/common/actions';
 import { timeout } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
@@ -33,7 +33,7 @@ import 'vs/css!./media/views';
 import { VSDataTransfer } from 'vs/base/common/dataTransfer';
 import { localize } from 'vs/nls';
 import { createActionViewItem, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { Action2, IMenu, IMenuService, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Action2, IMenuService, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -61,7 +61,6 @@ import { Extensions, ITreeItem, ITreeItemLabel, ITreeView, ITreeViewDataProvider
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IHoverService, WorkbenchHoverDelegate } from 'vs/platform/hover/browser/hover';
-import { ITreeViewsService } from 'vs/workbench/services/views/browser/treeViewsService';
 import { CodeDataTransfers, LocalSelectionTransfer } from 'vs/platform/dnd/browser/dnd';
 import { toExternalVSDataTransfer } from 'vs/editor/browser/dnd';
 import { CheckboxStateHandler, TreeItemCheckbox } from 'vs/workbench/browser/parts/views/checkbox';
@@ -71,7 +70,7 @@ import { TelemetryTrustedValue } from 'vs/platform/telemetry/common/telemetryUti
 import { ITreeViewsDnDService } from 'vs/editor/common/services/treeViewsDndService';
 import { DraggedTreeItemsIdentifier } from 'vs/editor/common/services/treeViewsDnd';
 import { IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
-import type { IUpdatableHoverTooltipMarkdownString } from 'vs/base/browser/ui/hover/hover';
+import type { IManagedHoverTooltipMarkdownString } from 'vs/base/browser/ui/hover/hover';
 import { parseLinkedText } from 'vs/base/common/linkedText';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
@@ -346,6 +345,9 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 
 	set dataProvider(dataProvider: ITreeViewDataProvider | undefined) {
 		if (dataProvider) {
+			if (this.visible) {
+				this.activate();
+			}
 			const self = this;
 			this._dataProvider = new class implements ITreeViewDataProvider {
 				private _isEmpty: boolean = true;
@@ -800,7 +802,12 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		event.stopPropagation();
 
 		this.tree!.setFocus([node]);
-		const actions = treeMenus.getResourceContextActions(node);
+		let selected = this.canSelectMany ? this.getSelection() : [];
+		if (!selected.find(item => item.handle === node.handle)) {
+			selected = [node];
+		}
+
+		const actions = treeMenus.getResourceContextActions(selected);
 		if (!actions.length) {
 			return;
 		}
@@ -823,7 +830,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 				}
 			},
 
-			getActionsContext: () => (<TreeViewItemHandleArg>{ $treeViewId: this.id, $treeItemHandle: node.handle }),
+			getActionsContext: () => ({ $treeViewId: this.id, $treeItemHandle: node.handle } satisfies TreeViewItemHandleArg),
 
 			actionRunner
 		});
@@ -870,7 +877,7 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 		const container = document.createElement('div');
 		container.classList.add('rendered-message');
 		for (const child of result) {
-			if (child instanceof HTMLElement) {
+			if (DOM.isHTMLElement(child)) {
 				container.appendChild(child);
 			} else {
 				container.appendChild(child.element);
@@ -1160,7 +1167,6 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		@IThemeService private readonly themeService: IThemeService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILabelService private readonly labelService: ILabelService,
-		@ITreeViewsService private readonly treeViewsService: ITreeViewsService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -1196,7 +1202,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		return { resourceLabel, icon, checkboxContainer, actionBar, container, elementDisposable: new DisposableStore() };
 	}
 
-	private getHover(label: string | undefined, resource: URI | null, node: ITreeItem): string | IUpdatableHoverTooltipMarkdownString | undefined {
+	private getHover(label: string | undefined, resource: URI | null, node: ITreeItem): string | IManagedHoverTooltipMarkdownString | undefined {
 		if (!(node instanceof ResolvableTreeItem) || !node.hasResolve) {
 			if (resource && !node.tooltip) {
 				return undefined;
@@ -1309,16 +1315,15 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			}
 		}
 
-		templateData.actionBar.context = <TreeViewItemHandleArg>{ $treeViewId: this.treeViewId, $treeItemHandle: node.handle };
+		templateData.actionBar.context = { $treeViewId: this.treeViewId, $treeItemHandle: node.handle } satisfies TreeViewItemHandleArg;
 
-		const menuActions = this.menus.getResourceActions(node, templateData.elementDisposable);
+		const menuActions = this.menus.getResourceActions([node], templateData.elementDisposable);
 		templateData.actionBar.push(menuActions.actions, { icon: true, label: false });
 
 		if (this._actionRunner) {
 			templateData.actionBar.actionRunner = this._actionRunner;
 		}
 		this.setAlignment(templateData.container, node);
-		this.treeViewsService.addRenderedTreeItemElement(node.handle, templateData.container);
 
 		// remember rendered element, an element can be rendered multiple times
 		const renderedItems = this._renderedElements.get(element.element.handle) ?? [];
@@ -1479,8 +1484,6 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			itemRenders.splice(renderedIndex, 1);
 		}
 
-		this.treeViewsService.removeRenderedTreeItemElement(resource.element.handle);
-
 		templateData.checkbox?.dispose();
 		templateData.checkbox = undefined;
 	}
@@ -1563,7 +1566,7 @@ class MultipleSelectionActionRunner extends ActionRunner {
 			});
 		}
 
-		if (!actionInSelected) {
+		if (!actionInSelected && selectionHandleArgs) {
 			selectionHandleArgs = undefined;
 		}
 
@@ -1581,41 +1584,94 @@ class TreeMenus implements IDisposable {
 		@IMenuService private readonly menuService: IMenuService
 	) { }
 
-	getResourceActions(element: ITreeItem, disposableStore: DisposableStore): { menu?: IMenu; actions: IAction[] } {
-		const actions = this.getActions(MenuId.ViewItemContext, element, disposableStore);
-		return { menu: actions.menu, actions: actions.primary };
+	getResourceActions(elements: ITreeItem[], disposableStore: DisposableStore): { actions: IAction[] } {
+		const actions = this.getActions(MenuId.ViewItemContext, elements, disposableStore);
+		return { actions: actions.primary };
 	}
 
-	getResourceContextActions(element: ITreeItem): IAction[] {
-		return this.getActions(MenuId.ViewItemContext, element).secondary;
+	getResourceContextActions(elements: ITreeItem[]): IAction[] {
+		return this.getActions(MenuId.ViewItemContext, elements).secondary;
 	}
 
 	public setContextKeyService(service: IContextKeyService) {
 		this.contextKeyService = service;
 	}
 
-	private getActions(menuId: MenuId, element: ITreeItem, listen?: DisposableStore): { menu?: IMenu; primary: IAction[]; secondary: IAction[] } {
+	private filterNonUniversalActions(groups: Map<string, IAction>[], newActions: IAction[]) {
+		const newActionsSet: Set<string> = new Set(newActions.map(a => a.id));
+		for (const group of groups) {
+			const actions = group.keys();
+			for (const action of actions) {
+				if (!newActionsSet.has(action)) {
+					group.delete(action);
+				}
+			}
+		}
+	}
+
+	private buildMenu(groups: Map<string, IAction>[]): IAction[] {
+		const result: IAction[] = [];
+		for (const group of groups) {
+			if (group.size > 0) {
+				if (result.length) {
+					result.push(new Separator());
+				}
+				result.push(...group.values());
+			}
+		}
+		return result;
+	}
+
+	private createGroups(actions: IAction[]): Map<string, IAction>[] {
+		const groups: Map<string, IAction>[] = [];
+		let group: Map<string, IAction> = new Map();
+		for (const action of actions) {
+			if (action instanceof Separator) {
+				groups.push(group);
+				group = new Map();
+			} else {
+				group.set(action.id, action);
+			}
+		}
+		groups.push(group);
+		return groups;
+	}
+
+	private getActions(menuId: MenuId, elements: ITreeItem[], listen?: DisposableStore): { primary: IAction[]; secondary: IAction[] } {
 		if (!this.contextKeyService) {
 			return { primary: [], secondary: [] };
 		}
 
-		const contextKeyService = this.contextKeyService.createOverlay([
-			['view', this.id],
-			['viewItem', element.contextValue]
-		]);
+		let primaryGroups: Map<string, IAction>[] = [];
+		let secondaryGroups: Map<string, IAction>[] = [];
+		for (let i = 0; i < elements.length; i++) {
+			const element = elements[i];
+			const contextKeyService = this.contextKeyService.createOverlay([
+				['view', this.id],
+				['viewItem', element.contextValue]
+			]);
 
-		const menu = this.menuService.createMenu(menuId, contextKeyService);
-		const primary: IAction[] = [];
-		const secondary: IAction[] = [];
-		const result = { primary, secondary, menu };
-		createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, 'inline');
-		if (listen) {
-			listen.add(menu.onDidChange(() => this._onDidChange.fire(element)));
-			listen.add(menu);
-		} else {
-			menu.dispose();
+			const menu = this.menuService.createMenu(menuId, contextKeyService);
+			const primary: IAction[] = [];
+			const secondary: IAction[] = [];
+			const result = { primary, secondary, menu };
+			createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, 'inline');
+			if (i === 0) {
+				primaryGroups = this.createGroups(result.primary);
+				secondaryGroups = this.createGroups(result.secondary);
+			} else {
+				this.filterNonUniversalActions(primaryGroups, result.primary);
+				this.filterNonUniversalActions(secondaryGroups, result.secondary);
+			}
+			if (listen && elements.length === 1) {
+				listen.add(menu.onDidChange(() => this._onDidChange.fire(element)));
+				listen.add(menu);
+			} else {
+				menu.dispose();
+			}
 		}
-		return result;
+
+		return { primary: this.buildMenu(primaryGroups), secondary: this.buildMenu(secondaryGroups) };
 	}
 
 	dispose() {

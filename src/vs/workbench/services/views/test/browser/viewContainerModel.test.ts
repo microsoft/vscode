@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import * as assert from 'assert';
+import assert from 'assert';
 import * as sinon from 'sinon';
 import { IViewsRegistry, IViewDescriptor, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewContainerModel, IViewDescriptorService, ViewContainer } from 'vs/workbench/common/views';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -51,7 +51,7 @@ suite('ViewContainerModel', () => {
 	let storageService: IStorageService;
 
 	setup(() => {
-		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposableStore);
+		const instantiationService: TestInstantiationService = workbenchInstantiationService(undefined, disposableStore);
 		contextKeyService = disposableStore.add(instantiationService.createInstance(ContextKeyService));
 		instantiationService.stub(IContextKeyService, contextKeyService);
 		storageService = instantiationService.get(IStorageService);

@@ -8,12 +8,13 @@ import { getStructuralKey } from 'vs/base/common/equals';
 import { Event, IValueWithChangeEvent } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { FileAccess } from 'vs/base/common/network';
-import { derived, IObservable, observableFromEvent } from 'vs/base/common/observable';
+import { derived, observableFromEvent } from 'vs/base/common/observable';
 import { ValueWithChangeEventFromObservable } from 'vs/base/common/observableInternal/utils';
 import { localize } from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { observableConfigValue } from 'vs/platform/observable/common/platformObservableUtils';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 export const IAccessibilitySignalService = createDecorator<IAccessibilitySignalService>('accessibilitySignalService');
@@ -25,7 +26,7 @@ export interface IAccessibilitySignalService {
 	playSignalLoop(signal: AccessibilitySignal, milliseconds: number): IDisposable;
 
 	getEnabledState(signal: AccessibilitySignal, userGesture: boolean, modality?: AccessibilityModality | undefined): IValueWithChangeEvent<boolean>;
-
+	getDelayMs(signal: AccessibilitySignal, modality: AccessibilityModality, mode: 'line' | 'positional'): number;
 	/**
 	 * Avoid this method and prefer `.playSignal`!
 	 * Only use it when you want to play the sound regardless of enablement, e.g. in the settings quick pick.
@@ -66,7 +67,7 @@ export interface IAccessbilitySignalOptions {
 export class AccessibilitySignalService extends Disposable implements IAccessibilitySignalService {
 	readonly _serviceBrand: undefined;
 	private readonly sounds: Map<string, HTMLAudioElement> = new Map();
-	private readonly screenReaderAttached = observableFromEvent(
+	private readonly screenReaderAttached = observableFromEvent(this,
 		this.accessibilityService.onDidChangeScreenReaderOptimized,
 		() => /** @description accessibilityService.onDidChangeScreenReaderOptimized */ this.accessibilityService.isScreenReaderOptimized()
 	);
@@ -201,7 +202,7 @@ export class AccessibilitySignalService extends Disposable implements IAccessibi
 	private readonly _signalConfigValue = new CachedFunction((signal: AccessibilitySignal) => observableConfigValue<{
 		sound: EnabledState;
 		announcement: EnabledState;
-	}>(signal.settingsKey, this.configurationService));
+	}>(signal.settingsKey, { sound: 'off', announcement: 'off' }, this.configurationService));
 
 	private readonly _signalEnabledState = new CachedFunction(
 		{ getCacheKey: getStructuralKey },
@@ -211,17 +212,17 @@ export class AccessibilitySignalService extends Disposable implements IAccessibi
 				const setting = this._signalConfigValue.get(arg.signal).read(reader);
 
 				if (arg.modality === 'sound' || arg.modality === undefined) {
-					if (!checkEnabledState(setting.sound, () => this.screenReaderAttached.read(reader), arg.userGesture)) {
-						return false;
+					if (checkEnabledState(setting.sound, () => this.screenReaderAttached.read(reader), arg.userGesture)) {
+						return true;
 					}
 				}
 				if (arg.modality === 'announcement' || arg.modality === undefined) {
-					if (!checkEnabledState(setting.announcement, () => this.screenReaderAttached.read(reader), arg.userGesture)) {
-						return false;
+					if (checkEnabledState(setting.announcement, () => this.screenReaderAttached.read(reader), arg.userGesture)) {
+						return true;
 					}
 				}
-				return true;
-			});
+				return false;
+			}).recomputeInitiallyAndOnChange(this._store);
 		}
 	);
 
@@ -238,6 +239,21 @@ export class AccessibilitySignalService extends Disposable implements IAccessibi
 
 	public onSoundEnabledChanged(signal: AccessibilitySignal): Event<void> {
 		return this.getEnabledState(signal, false).onDidChange;
+	}
+
+	public getDelayMs(signal: AccessibilitySignal, modality: AccessibilityModality, mode: 'line' | 'positional'): number {
+		if (!this.configurationService.getValue('accessibility.signalOptions.debouncePositionChanges')) {
+			return 0;
+		}
+		let value: { sound: number; announcement: number };
+		if (signal.name === AccessibilitySignal.errorAtPosition.name && mode === 'positional') {
+			value = this.configurationService.getValue('accessibility.signalOptions.experimental.delays.errorAtPosition');
+		} else if (signal.name === AccessibilitySignal.warningAtPosition.name && mode === 'positional') {
+			value = this.configurationService.getValue('accessibility.signalOptions.experimental.delays.warningAtPosition');
+		} else {
+			value = this.configurationService.getValue('accessibility.signalOptions.experimental.delays.general');
+		}
+		return modality === 'sound' ? value.sound : value.announcement;
 	}
 }
 
@@ -279,6 +295,7 @@ export class Sound {
 
 	public static readonly error = Sound.register({ fileName: 'error.mp3' });
 	public static readonly warning = Sound.register({ fileName: 'warning.mp3' });
+	public static readonly success = Sound.register({ fileName: 'success.mp3' });
 	public static readonly foldedArea = Sound.register({ fileName: 'foldedAreas.mp3' });
 	public static readonly break = Sound.register({ fileName: 'break.mp3' });
 	public static readonly quickFixes = Sound.register({ fileName: 'quickFixes.mp3' });
@@ -318,29 +335,6 @@ export class SoundSource {
 	}
 }
 
-export const enum AccessibilityAlertSettingId {
-	Save = 'accessibility.alert.save',
-	Format = 'accessibility.alert.format',
-	Clear = 'accessibility.alert.clear',
-	Breakpoint = 'accessibility.alert.breakpoint',
-	Error = 'accessibility.alert.error',
-	Warning = 'accessibility.alert.warning',
-	FoldedArea = 'accessibility.alert.foldedArea',
-	TerminalQuickFix = 'accessibility.alert.terminalQuickFix',
-	TerminalBell = 'accessibility.alert.terminalBell',
-	TerminalCommandFailed = 'accessibility.alert.terminalCommandFailed',
-	TaskCompleted = 'accessibility.alert.taskCompleted',
-	TaskFailed = 'accessibility.alert.taskFailed',
-	ChatRequestSent = 'accessibility.alert.chatRequestSent',
-	NotebookCellCompleted = 'accessibility.alert.notebookCellCompleted',
-	NotebookCellFailed = 'accessibility.alert.notebookCellFailed',
-	OnDebugBreak = 'accessibility.alert.onDebugBreak',
-	NoInlayHints = 'accessibility.alert.noInlayHints',
-	LineHasBreakpoint = 'accessibility.alert.lineHasBreakpoint',
-	Progress = 'accessibility.alert.chatResponseProgress'
-}
-
-
 export class AccessibilitySignal {
 	private constructor(
 		public readonly sound: SoundSource,
@@ -349,6 +343,7 @@ export class AccessibilitySignal {
 		public readonly settingsKey: string,
 		public readonly legacyAnnouncementSettingsKey: string | undefined,
 		public readonly announcementMessage: string | undefined,
+		public readonly delaySettingsKey: string | undefined
 	) { }
 
 	private static _signals = new Set<AccessibilitySignal>();
@@ -363,8 +358,9 @@ export class AccessibilitySignal {
 		};
 		legacySoundSettingsKey?: string;
 		settingsKey: string;
-		legacyAnnouncementSettingsKey?: AccessibilityAlertSettingId;
+		legacyAnnouncementSettingsKey?: string;
 		announcementMessage?: string;
+		delaySettingsKey?: string;
 	}): AccessibilitySignal {
 		const soundSource = new SoundSource('randomOneOf' in options.sound ? options.sound.randomOneOf : [options.sound]);
 		const signal = new AccessibilitySignal(
@@ -374,6 +370,7 @@ export class AccessibilitySignal {
 			options.settingsKey,
 			options.legacyAnnouncementSettingsKey,
 			options.announcementMessage,
+			options.delaySettingsKey
 		);
 		AccessibilitySignal._signals.add(signal);
 		return signal;
@@ -388,19 +385,21 @@ export class AccessibilitySignal {
 		sound: Sound.error,
 		announcementMessage: localize('accessibility.signals.positionHasError', 'Error'),
 		settingsKey: 'accessibility.signals.positionHasError',
+		delaySettingsKey: 'accessibility.signalOptions.delays.errorAtPosition'
 	});
 	public static readonly warningAtPosition = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.positionHasWarning.name', 'Warning at Position'),
 		sound: Sound.warning,
 		announcementMessage: localize('accessibility.signals.positionHasWarning', 'Warning'),
 		settingsKey: 'accessibility.signals.positionHasWarning',
+		delaySettingsKey: 'accessibility.signalOptions.delays.warningAtPosition'
 	});
 
 	public static readonly errorOnLine = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.lineHasError.name', 'Error on Line'),
 		sound: Sound.error,
 		legacySoundSettingsKey: 'audioCues.lineHasError',
-		legacyAnnouncementSettingsKey: AccessibilityAlertSettingId.Error,
+		legacyAnnouncementSettingsKey: 'accessibility.alert.error',
 		announcementMessage: localize('accessibility.signals.lineHasError', 'Error on Line'),
 		settingsKey: 'accessibility.signals.lineHasError',
 	});
@@ -409,7 +408,7 @@ export class AccessibilitySignal {
 		name: localize('accessibilitySignals.lineHasWarning.name', 'Warning on Line'),
 		sound: Sound.warning,
 		legacySoundSettingsKey: 'audioCues.lineHasWarning',
-		legacyAnnouncementSettingsKey: AccessibilityAlertSettingId.Warning,
+		legacyAnnouncementSettingsKey: 'accessibility.alert.warning',
 		announcementMessage: localize('accessibility.signals.lineHasWarning', 'Warning on Line'),
 		settingsKey: 'accessibility.signals.lineHasWarning',
 	});
@@ -417,7 +416,7 @@ export class AccessibilitySignal {
 		name: localize('accessibilitySignals.lineHasFoldedArea.name', 'Folded Area on Line'),
 		sound: Sound.foldedArea,
 		legacySoundSettingsKey: 'audioCues.lineHasFoldedArea',
-		legacyAnnouncementSettingsKey: AccessibilityAlertSettingId.FoldedArea,
+		legacyAnnouncementSettingsKey: 'accessibility.alert.foldedArea',
 		announcementMessage: localize('accessibility.signals.lineHasFoldedArea', 'Folded'),
 		settingsKey: 'accessibility.signals.lineHasFoldedArea',
 	});
@@ -425,7 +424,7 @@ export class AccessibilitySignal {
 		name: localize('accessibilitySignals.lineHasBreakpoint.name', 'Breakpoint on Line'),
 		sound: Sound.break,
 		legacySoundSettingsKey: 'audioCues.lineHasBreakpoint',
-		legacyAnnouncementSettingsKey: AccessibilityAlertSettingId.Breakpoint,
+		legacyAnnouncementSettingsKey: 'accessibility.alert.breakpoint',
 		announcementMessage: localize('accessibility.signals.lineHasBreakpoint', 'Breakpoint'),
 		settingsKey: 'accessibility.signals.lineHasBreakpoint',
 	});
@@ -440,7 +439,7 @@ export class AccessibilitySignal {
 		name: localize('accessibilitySignals.terminalQuickFix.name', 'Terminal Quick Fix'),
 		sound: Sound.quickFixes,
 		legacySoundSettingsKey: 'audioCues.terminalQuickFix',
-		legacyAnnouncementSettingsKey: AccessibilityAlertSettingId.TerminalQuickFix,
+		legacyAnnouncementSettingsKey: 'accessibility.alert.terminalQuickFix',
 		announcementMessage: localize('accessibility.signals.terminalQuickFix', 'Quick Fix'),
 		settingsKey: 'accessibility.signals.terminalQuickFix',
 	});
@@ -449,7 +448,7 @@ export class AccessibilitySignal {
 		name: localize('accessibilitySignals.onDebugBreak.name', 'Debugger Stopped on Breakpoint'),
 		sound: Sound.break,
 		legacySoundSettingsKey: 'audioCues.onDebugBreak',
-		legacyAnnouncementSettingsKey: AccessibilityAlertSettingId.OnDebugBreak,
+		legacyAnnouncementSettingsKey: 'accessibility.alert.onDebugBreak',
 		announcementMessage: localize('accessibility.signals.onDebugBreak', 'Breakpoint'),
 		settingsKey: 'accessibility.signals.onDebugBreak',
 	});
@@ -458,7 +457,7 @@ export class AccessibilitySignal {
 		name: localize('accessibilitySignals.noInlayHints', 'No Inlay Hints on Line'),
 		sound: Sound.error,
 		legacySoundSettingsKey: 'audioCues.noInlayHints',
-		legacyAnnouncementSettingsKey: AccessibilityAlertSettingId.NoInlayHints,
+		legacyAnnouncementSettingsKey: 'accessibility.alert.noInlayHints',
 		announcementMessage: localize('accessibility.signals.noInlayHints', 'No Inlay Hints'),
 		settingsKey: 'accessibility.signals.noInlayHints',
 	});
@@ -467,7 +466,7 @@ export class AccessibilitySignal {
 		name: localize('accessibilitySignals.taskCompleted', 'Task Completed'),
 		sound: Sound.taskCompleted,
 		legacySoundSettingsKey: 'audioCues.taskCompleted',
-		legacyAnnouncementSettingsKey: AccessibilityAlertSettingId.TaskCompleted,
+		legacyAnnouncementSettingsKey: 'accessibility.alert.taskCompleted',
 		announcementMessage: localize('accessibility.signals.taskCompleted', 'Task Completed'),
 		settingsKey: 'accessibility.signals.taskCompleted',
 	});
@@ -476,7 +475,7 @@ export class AccessibilitySignal {
 		name: localize('accessibilitySignals.taskFailed', 'Task Failed'),
 		sound: Sound.taskFailed,
 		legacySoundSettingsKey: 'audioCues.taskFailed',
-		legacyAnnouncementSettingsKey: AccessibilityAlertSettingId.TaskFailed,
+		legacyAnnouncementSettingsKey: 'accessibility.alert.taskFailed',
 		announcementMessage: localize('accessibility.signals.taskFailed', 'Task Failed'),
 		settingsKey: 'accessibility.signals.taskFailed',
 	});
@@ -485,16 +484,23 @@ export class AccessibilitySignal {
 		name: localize('accessibilitySignals.terminalCommandFailed', 'Terminal Command Failed'),
 		sound: Sound.error,
 		legacySoundSettingsKey: 'audioCues.terminalCommandFailed',
-		legacyAnnouncementSettingsKey: AccessibilityAlertSettingId.TerminalCommandFailed,
+		legacyAnnouncementSettingsKey: 'accessibility.alert.terminalCommandFailed',
 		announcementMessage: localize('accessibility.signals.terminalCommandFailed', 'Command Failed'),
 		settingsKey: 'accessibility.signals.terminalCommandFailed',
+	});
+
+	public static readonly terminalCommandSucceeded = AccessibilitySignal.register({
+		name: localize('accessibilitySignals.terminalCommandSucceeded', 'Terminal Command Succeeded'),
+		sound: Sound.success,
+		announcementMessage: localize('accessibility.signals.terminalCommandSucceeded', 'Command Succeeded'),
+		settingsKey: 'accessibility.signals.terminalCommandSucceeded',
 	});
 
 	public static readonly terminalBell = AccessibilitySignal.register({
 		name: localize('accessibilitySignals.terminalBell', 'Terminal Bell'),
 		sound: Sound.terminalBell,
 		legacySoundSettingsKey: 'audioCues.terminalBell',
-		legacyAnnouncementSettingsKey: AccessibilityAlertSettingId.TerminalBell,
+		legacyAnnouncementSettingsKey: 'accessibility.alert.terminalBell',
 		announcementMessage: localize('accessibility.signals.terminalBell', 'Terminal Bell'),
 		settingsKey: 'accessibility.signals.terminalBell',
 	});
@@ -503,7 +509,7 @@ export class AccessibilitySignal {
 		name: localize('accessibilitySignals.notebookCellCompleted', 'Notebook Cell Completed'),
 		sound: Sound.taskCompleted,
 		legacySoundSettingsKey: 'audioCues.notebookCellCompleted',
-		legacyAnnouncementSettingsKey: AccessibilityAlertSettingId.NotebookCellCompleted,
+		legacyAnnouncementSettingsKey: 'accessibility.alert.notebookCellCompleted',
 		announcementMessage: localize('accessibility.signals.notebookCellCompleted', 'Notebook Cell Completed'),
 		settingsKey: 'accessibility.signals.notebookCellCompleted',
 	});
@@ -512,7 +518,7 @@ export class AccessibilitySignal {
 		name: localize('accessibilitySignals.notebookCellFailed', 'Notebook Cell Failed'),
 		sound: Sound.taskFailed,
 		legacySoundSettingsKey: 'audioCues.notebookCellFailed',
-		legacyAnnouncementSettingsKey: AccessibilityAlertSettingId.NotebookCellFailed,
+		legacyAnnouncementSettingsKey: 'accessibility.alert.notebookCellFailed',
 		announcementMessage: localize('accessibility.signals.notebookCellFailed', 'Notebook Cell Failed'),
 		settingsKey: 'accessibility.signals.notebookCellFailed',
 	});
@@ -542,7 +548,7 @@ export class AccessibilitySignal {
 		name: localize('accessibilitySignals.chatRequestSent', 'Chat Request Sent'),
 		sound: Sound.chatRequestSent,
 		legacySoundSettingsKey: 'audioCues.chatRequestSent',
-		legacyAnnouncementSettingsKey: AccessibilityAlertSettingId.ChatRequestSent,
+		legacyAnnouncementSettingsKey: 'accessibility.alert.chatRequestSent',
 		announcementMessage: localize('accessibility.signals.chatRequestSent', 'Chat Request Sent'),
 		settingsKey: 'accessibility.signals.chatRequestSent',
 	});
@@ -565,7 +571,7 @@ export class AccessibilitySignal {
 		name: localize('accessibilitySignals.progress', 'Progress'),
 		sound: Sound.progress,
 		legacySoundSettingsKey: 'audioCues.chatResponsePending',
-		legacyAnnouncementSettingsKey: AccessibilityAlertSettingId.Progress,
+		legacyAnnouncementSettingsKey: 'accessibility.alert.progress',
 		announcementMessage: localize('accessibility.signals.progress', 'Progress'),
 		settingsKey: 'accessibility.signals.progress'
 	});
@@ -574,7 +580,7 @@ export class AccessibilitySignal {
 		name: localize('accessibilitySignals.clear', 'Clear'),
 		sound: Sound.clear,
 		legacySoundSettingsKey: 'audioCues.clear',
-		legacyAnnouncementSettingsKey: AccessibilityAlertSettingId.Clear,
+		legacyAnnouncementSettingsKey: 'accessibility.alert.clear',
 		announcementMessage: localize('accessibility.signals.clear', 'Clear'),
 		settingsKey: 'accessibility.signals.clear'
 	});
@@ -583,7 +589,7 @@ export class AccessibilitySignal {
 		name: localize('accessibilitySignals.save', 'Save'),
 		sound: Sound.save,
 		legacySoundSettingsKey: 'audioCues.save',
-		legacyAnnouncementSettingsKey: AccessibilityAlertSettingId.Save,
+		legacyAnnouncementSettingsKey: 'accessibility.alert.save',
 		announcementMessage: localize('accessibility.signals.save', 'Save'),
 		settingsKey: 'accessibility.signals.save'
 	});
@@ -592,7 +598,7 @@ export class AccessibilitySignal {
 		name: localize('accessibilitySignals.format', 'Format'),
 		sound: Sound.format,
 		legacySoundSettingsKey: 'audioCues.format',
-		legacyAnnouncementSettingsKey: AccessibilityAlertSettingId.Format,
+		legacyAnnouncementSettingsKey: 'accessibility.alert.format',
 		announcementMessage: localize('accessibility.signals.format', 'Format'),
 		settingsKey: 'accessibility.signals.format'
 	});
@@ -612,13 +618,3 @@ export class AccessibilitySignal {
 	});
 }
 
-export function observableConfigValue<T>(key: string, configurationService: IConfigurationService): IObservable<T> {
-	return observableFromEvent(
-		(handleChange) => configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(key)) {
-				handleChange(e);
-			}
-		}),
-		() => configurationService.getValue<T>(key),
-	);
-}

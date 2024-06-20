@@ -212,6 +212,11 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}, options);
 	}
 
+	async isFullScreen(windowId: number | undefined, options?: INativeHostOptions): Promise<boolean> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		return window?.isFullScreen ?? false;
+	}
+
 	async toggleFullScreen(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
 		const window = this.windowById(options?.targetWindowId, windowId);
 		window?.toggleFullScreen();
@@ -495,7 +500,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	async isAdmin(): Promise<boolean> {
 		let isAdmin: boolean;
 		if (isWindows) {
-			isAdmin = (await import('native-is-elevated'))();
+			isAdmin = (await import('native-is-elevated')).default();
 		} else {
 			isAdmin = process.getuid?.() === 0;
 		}
@@ -609,6 +614,11 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 
 	//#region Process
+
+	async getProcessId(windowId: number | undefined): Promise<number | undefined> {
+		const window = this.windowById(undefined, windowId);
+		return window?.win?.webContents.getOSProcessId();
+	}
 
 	async killProcess(windowId: number | undefined, pid: number, code: string): Promise<void> {
 		process.kill(pid, code);

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Emitter } from 'vs/base/common/event';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -36,11 +37,15 @@ export interface IExplorerFileContributionRegistry {
 }
 
 class ExplorerFileContributionRegistry implements IExplorerFileContributionRegistry {
+	private readonly _onDidRegisterDescriptor = new Emitter<IExplorerFileContributionDescriptor>();
+	public readonly onDidRegisterDescriptor = this._onDidRegisterDescriptor.event;
+
 	private readonly descriptors: IExplorerFileContributionDescriptor[] = [];
 
 	/** @inheritdoc */
 	public register(descriptor: IExplorerFileContributionDescriptor): void {
 		this.descriptors.push(descriptor);
+		this._onDidRegisterDescriptor.fire(descriptor);
 	}
 
 	/**

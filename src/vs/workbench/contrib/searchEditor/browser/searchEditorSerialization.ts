@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce, flatten } from 'vs/base/common/arrays';
+import { coalesce } from 'vs/base/common/arrays';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/searchEditor';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
@@ -255,10 +255,9 @@ export const serializeSearchResultForEditor =
 
 		const allResults =
 			flattenSearchResultSerializations(
-				flatten(
-					searchResult.folderMatches().sort(matchComparer)
-						.map(folderMatch => folderMatch.allDownstreamFileMatches().sort(matchComparer)
-							.flatMap(fileMatch => fileMatchToSearchResultFormat(fileMatch, labelFormatter)))));
+				searchResult.folderMatches().sort(matchComparer)
+					.map(folderMatch => folderMatch.allDownstreamFileMatches().sort(matchComparer)
+						.flatMap(fileMatch => fileMatchToSearchResultFormat(fileMatch, labelFormatter))).flat());
 
 		return {
 			matchRanges: allResults.matchRanges.map(translateRangeLines(info.length)),

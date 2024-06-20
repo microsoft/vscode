@@ -132,7 +132,7 @@ class ExtHostWorkspaceImpl extends Workspace {
 
 	constructor(id: string, private _name: string, folders: vscode.WorkspaceFolder[], transient: boolean, configuration: URI | null, private _isUntitled: boolean, ignorePathCasing: (key: URI) => boolean) {
 		super(id, folders.map(f => new WorkspaceFolder(f)), transient, configuration, ignorePathCasing);
-		this._structure = TernarySearchTree.forUris<vscode.WorkspaceFolder>(ignorePathCasing);
+		this._structure = TernarySearchTree.forUris<vscode.WorkspaceFolder>(ignorePathCasing, () => true);
 
 		// setup the workspace folder data structure
 		folders.forEach(folder => {
@@ -418,7 +418,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 				configuration: this._actualWorkspace.configuration,
 				folders,
 				isUntitled: this._actualWorkspace.isUntitled
-			} as IWorkspaceData, this._actualWorkspace, undefined, this._extHostFileSystemInfo).workspace || undefined;
+			}, this._actualWorkspace, undefined, this._extHostFileSystemInfo).workspace || undefined;
 		}
 	}
 
@@ -488,7 +488,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		const excludePattern = (typeof options.exclude === 'string') ? options.exclude :
 			options.exclude ? options.exclude.pattern : undefined;
 
-		const fileQueries = <IFileQueryBuilderOptions>{
+		const fileQueries: IFileQueryBuilderOptions = {
 			ignoreSymlinks: typeof options.followSymlinks === 'boolean' ? !options.followSymlinks : undefined,
 			disregardIgnoreFiles: typeof options.useIgnoreFiles === 'boolean' ? !options.useIgnoreFiles : undefined,
 			disregardGlobalIgnoreFiles: typeof options.useGlobalIgnoreFiles === 'boolean' ? !options.useGlobalIgnoreFiles : undefined,
@@ -561,7 +561,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			p.results!.forEach(rawResult => {
 				const result: ITextSearchResult<URI> = revive(rawResult);
 				if (resultIsMatch(result)) {
-					callback(<vscode.TextSearchMatch>{
+					callback({
 						uri,
 						preview: {
 							text: result.preview.text,
@@ -572,13 +572,13 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 						ranges: mapArrayOrNot(
 							result.ranges,
 							r => new Range(r.startLineNumber, r.startColumn, r.endLineNumber, r.endColumn))
-					});
+					} satisfies vscode.TextSearchMatch);
 				} else {
-					callback(<vscode.TextSearchContext>{
+					callback({
 						uri,
 						text: result.text,
 						lineNumber: result.lineNumber
-					});
+					} satisfies vscode.TextSearchContext);
 				}
 			});
 		};

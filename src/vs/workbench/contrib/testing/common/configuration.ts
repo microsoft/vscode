@@ -23,6 +23,7 @@ export const enum TestingConfigKeys {
 	CoveragePercent = 'testing.displayedCoveragePercent',
 	ShowCoverageInExplorer = 'testing.showCoverageInExplorer',
 	CoverageBarThresholds = 'testing.coverageBarThresholds',
+	CoverageToolbarEnabled = 'testing.coverageToolbarEnabled',
 }
 
 export const enum AutoOpenTesting {
@@ -158,7 +159,7 @@ export const testingConfiguration: IConfigurationNode = {
 			description: localize('testing.openTesting', "Controls when the testing view should open.")
 		},
 		[TestingConfigKeys.AlwaysRevealTestOnStateChange]: {
-			markdownDescription: localize('testing.alwaysRevealTestOnStateChange', "Always reveal the executed test when `#testing.followRunningTest#` is on. If this setting is turned off, only failed tests will be revealed."),
+			markdownDescription: localize('testing.alwaysRevealTestOnStateChange', "Always reveal the executed test when {0} is on. If this setting is turned off, only failed tests will be revealed.", '`#testing.followRunningTest#`'),
 			type: 'boolean',
 			default: false,
 		},
@@ -190,6 +191,11 @@ export const testingConfiguration: IConfigurationNode = {
 				green: { type: 'number', minimum: 0, maximum: 100, default: 90 },
 			},
 		},
+		[TestingConfigKeys.CoverageToolbarEnabled]: {
+			description: localize('testing.coverageToolbarEnabled', 'Controls whether the coverage toolbar is shown in the editor.'),
+			type: 'boolean',
+			default: false, // todo@connor4312: disabled by default until UI sync
+		},
 	}
 };
 
@@ -214,6 +220,7 @@ export interface ITestingConfiguration {
 	[TestingConfigKeys.CoveragePercent]: TestingDisplayedCoveragePercent;
 	[TestingConfigKeys.ShowCoverageInExplorer]: boolean;
 	[TestingConfigKeys.CoverageBarThresholds]: ITestingCoverageBarThresholds;
+	[TestingConfigKeys.CoverageToolbarEnabled]: boolean;
 }
 
 export const getTestingConfiguration = <K extends TestingConfigKeys>(config: IConfigurationService, key: K) => config.getValue<ITestingConfiguration[K]>(key);

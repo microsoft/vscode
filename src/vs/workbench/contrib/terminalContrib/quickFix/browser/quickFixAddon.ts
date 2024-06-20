@@ -36,8 +36,12 @@ import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 
+const enum QuickFixDecorationSelector {
+	QuickFix = 'quick-fix'
+}
+
 const quickFixClasses = [
-	DecorationSelector.QuickFix,
+	QuickFixDecorationSelector.QuickFix,
 	DecorationSelector.Codicon,
 	DecorationSelector.CommandDecoration,
 	DecorationSelector.XtermDecoration
@@ -114,19 +118,15 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			return;
 		}
 
-		// TODO: What's documentation do? Need a vscode command?
 		const actions = this._currentRenderContext.quickFixes.map(f => new TerminalQuickFixItem(f, f.type, f.source, f.label, f.kind));
-		const documentation = this._currentRenderContext.quickFixes.map(f => { return { id: f.source, title: f.label, tooltip: f.source }; });
 		const actionSet = {
-			// TODO: Documentation and actions are separate?
-			documentation,
 			allActions: actions,
 			hasAutoFix: false,
 			hasAIFix: false,
 			allAIFixes: false,
 			validActions: actions,
 			dispose: () => { }
-		} as ActionSet<TerminalQuickFixItem>;
+		} satisfies ActionSet<TerminalQuickFixItem>;
 		const delegate = {
 			onSelect: async (fix: TerminalQuickFixItem) => {
 				fix.action?.run();
@@ -268,7 +268,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 				height: rect.height
 			};
 
-			if (e.classList.contains(DecorationSelector.QuickFix)) {
+			if (e.classList.contains(QuickFixDecorationSelector.QuickFix)) {
 				if (this._currentRenderContext) {
 					this._currentRenderContext.anchor = anchor;
 				}

@@ -55,7 +55,7 @@ import { ConsoleLogger, ILogService } from 'vs/platform/log/common/log';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustTransitionParticipant, IWorkspaceTrustUriInfo } from 'vs/platform/workspace/common/workspaceTrust';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { IContextMenuService, IContextViewDelegate, IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IContextMenuService, IContextViewDelegate, IContextViewService, IOpenContextView } from 'vs/platform/contextview/browser/contextView';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
 import { LanguageService } from 'vs/editor/common/services/languageService';
 import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
@@ -251,7 +251,7 @@ class StandaloneDialogService implements IDialogService {
 		return {
 			confirmed,
 			checkboxChecked: false // unsupported
-		} as IConfirmationResult;
+		};
 	}
 
 	private doConfirm(message: string, detail?: string): boolean {
@@ -792,6 +792,7 @@ class StandaloneTelemetryService implements ITelemetryService {
 	readonly sessionId = 'someValue.sessionId';
 	readonly machineId = 'someValue.machineId';
 	readonly sqmId = 'someValue.sqmId';
+	readonly devDeviceId = 'someValue.devDeviceId';
 	readonly firstSessionDate = 'someValue.firstSessionDate';
 	readonly sendErrorTelemetry = false;
 	setEnabled(): void { }
@@ -989,7 +990,7 @@ class StandaloneContextViewService extends ContextViewService {
 		super(layoutService);
 	}
 
-	override showContextView(delegate: IContextViewDelegate, container?: HTMLElement, shadowRoot?: boolean): IDisposable {
+	override showContextView(delegate: IContextViewDelegate, container?: HTMLElement, shadowRoot?: boolean): IOpenContextView {
 		if (!container) {
 			const codeEditor = this._codeEditorService.getFocusedCodeEditor() || this._codeEditorService.getActiveCodeEditor();
 			if (codeEditor) {
@@ -1081,6 +1082,10 @@ class StandaloneAccessbilitySignalService implements IAccessibilitySignalService
 
 	getEnabledState(signal: AccessibilitySignal, userGesture: boolean, modality?: AccessibilityModality | undefined): IValueWithChangeEvent<boolean> {
 		return ValueWithChangeEvent.const(false);
+	}
+
+	getDelayMs(signal: AccessibilitySignal, modality: AccessibilityModality): number {
+		return 0;
 	}
 
 	isSoundEnabled(cue: AccessibilitySignal): boolean {

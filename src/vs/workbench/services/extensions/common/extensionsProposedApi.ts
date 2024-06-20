@@ -4,11 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { localize } from 'vs/nls';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { ExtensionIdentifier, IExtensionDescription, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { allApiProposals, ApiProposalName } from 'vs/platform/extensions/common/extensionsApiProposals';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ApiProposalName, allApiProposals } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
+import { Extensions, IExtensionFeatureMarkdownRenderer, IExtensionFeaturesRegistry, IRenderedData } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
+import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
+import { Mutable } from 'vs/base/common/types';
 
 export class ExtensionsProposedApi {
 
@@ -54,12 +61,9 @@ export class ExtensionsProposedApi {
 		}
 	}
 
-	private doUpdateEnabledApiProposals(_extension: IExtensionDescription): void {
+	private doUpdateEnabledApiProposals(extension: Mutable<IExtensionDescription>): void {
 
-		// this is a trick to make the extension description writeable...
-		type Writeable<T> = { -readonly [P in keyof T]: Writeable<T[P]> };
-		const extension = <Writeable<IExtensionDescription>>_extension;
-		const key = ExtensionIdentifier.toKey(_extension.identifier);
+		const key = ExtensionIdentifier.toKey(extension.identifier);
 
 		// warn about invalid proposal and remove them from the list
 		if (isNonEmptyArray(extension.enabledApiProposals)) {
@@ -110,3 +114,35 @@ export class ExtensionsProposedApi {
 		}
 	}
 }
+
+class ApiProposalsMarkdowneRenderer extends Disposable implements IExtensionFeatureMarkdownRenderer {
+
+	readonly type = 'markdown';
+
+	shouldRender(manifest: IExtensionManifest): boolean {
+		return !!manifest.enabledApiProposals?.length;
+	}
+
+	render(manifest: IExtensionManifest): IRenderedData<IMarkdownString> {
+		const enabledApiProposals = manifest.enabledApiProposals || [];
+		const data = new MarkdownString();
+		if (enabledApiProposals.length) {
+			for (const proposal of enabledApiProposals) {
+				data.appendMarkdown(`- \`${proposal}\`\n`);
+			}
+		}
+		return {
+			data,
+			dispose: () => { }
+		};
+	}
+}
+
+Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).registerExtensionFeature({
+	id: 'enabledApiProposals',
+	label: localize('enabledProposedAPIs', "API Proposals"),
+	access: {
+		canToggle: false
+	},
+	renderer: new SyncDescriptor(ApiProposalsMarkdowneRenderer),
+});

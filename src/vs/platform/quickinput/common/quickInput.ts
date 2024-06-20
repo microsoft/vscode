@@ -205,9 +205,23 @@ export interface IQuickInputHideEvent {
 }
 
 /**
+ * A collection of the different types of QuickInput
+ */
+export const enum QuickInputType {
+	QuickPick = 'quickPick',
+	InputBox = 'inputBox',
+	QuickWidget = 'quickWidget'
+}
+
+/**
  * Represents a quick input control that allows users to make selections or provide input quickly.
  */
 export interface IQuickInput extends IDisposable {
+
+	/**
+	 * The type of the quick input.
+	 */
+	readonly type: QuickInputType;
 
 	/**
 	 * An event that is fired when the quick input is hidden.
@@ -304,6 +318,12 @@ export interface IQuickInput extends IDisposable {
 }
 
 export interface IQuickWidget extends IQuickInput {
+
+	/**
+	 * The type of the quick input.
+	 */
+	readonly type: QuickInputType.QuickWidget;
+
 	/**
 	 * Should be an HTMLElement (TODO: move this entire file into browser)
 	 * @override
@@ -354,9 +374,56 @@ export enum ItemActivation {
 }
 
 /**
+ * Represents the focus options for a quick pick.
+ */
+export enum QuickPickFocus {
+	/**
+	 * Focus the first item in the list.
+	 */
+	First = 1,
+	/**
+	 * Focus the second item in the list.
+	 */
+	Second,
+	/**
+	 * Focus the last item in the list.
+	 */
+	Last,
+	/**
+	 * Focus the next item in the list.
+	 */
+	Next,
+	/**
+	 * Focus the previous item in the list.
+	 */
+	Previous,
+	/**
+	 * Focus the next page in the list.
+	 */
+	NextPage,
+	/**
+	 * Focus the previous page in the list.
+	 */
+	PreviousPage,
+	/**
+	 * Focus the first item under the next separator.
+	 */
+	NextSeparator,
+	/**
+	 * Focus the first item under the current separator.
+	 */
+	PreviousSeparator
+}
+
+/**
  * Represents a quick pick control that allows the user to select an item from a list of options.
  */
 export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
+
+	/**
+	 * The type of the quick input.
+	 */
+	readonly type: QuickInputType.QuickPick;
 
 	/**
 	 * The current value of the quick pick input.
@@ -556,6 +623,18 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 	 * The toggle buttons to be added to the input box.
 	 */
 	toggles: IQuickInputToggle[] | undefined;
+
+	/**
+	 * Focus a particular item in the list. Used internally for keyboard navigation.
+	 * @param focus The focus behavior.
+	 */
+	focus(focus: QuickPickFocus): void;
+
+	/**
+	 * Programmatically accepts an item. Used internally for keyboard navigation.
+	 * @param inBackground Whether you are accepting an item in the background and keeping the picker open.
+	 */
+	accept(inBackground?: boolean): void;
 }
 
 /**
@@ -573,6 +652,11 @@ export interface IQuickInputToggle {
  * Represents an input box in a quick input dialog.
  */
 export interface IInputBox extends IQuickInput {
+
+	/**
+	 * The type of the quick input.
+	 */
+	readonly type: QuickInputType.InputBox;
 
 	/**
 	 * Value shown in the input box.
@@ -814,4 +898,9 @@ export interface IQuickInputService {
 	 * Cancels quick input and closes it.
 	 */
 	cancel(): Promise<void>;
+
+	/**
+	 * The current quick pick that is visible. Undefined if none is open.
+	 */
+	currentQuickInput: IQuickInput | undefined;
 }

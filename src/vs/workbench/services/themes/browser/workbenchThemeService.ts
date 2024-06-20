@@ -136,6 +136,8 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		this.currentProductIconTheme = ProductIconThemeData.createUnloadedTheme('');
 		this.productIconThemeSequencer = new Sequencer();
 
+		this._register(this.onDidColorThemeChange(theme => getColorRegistry().notifyThemeUpdate(theme)));
+
 		// In order to avoid paint flashing for tokens, because
 		// themes are loaded asynchronously, we need to initialize
 		// a color theme document with good defaults until the theme is loaded
@@ -254,6 +256,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 				|| e.affectsConfiguration(ThemeSettings.PREFERRED_HC_LIGHT_THEME)
 				|| e.affectsConfiguration(ThemeSettings.DETECT_COLOR_SCHEME)
 				|| e.affectsConfiguration(ThemeSettings.DETECT_HC)
+				|| e.affectsConfiguration(ThemeSettings.SYSTEM_COLOR_THEME)
 			) {
 				this.restoreColorTheme();
 			}
@@ -357,7 +360,11 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 	// preferred scheme handling
 
 	private installPreferredSchemeListener() {
-		this._register(this.hostColorService.onDidChangeColorScheme(() => this.restoreColorTheme()));
+		this._register(this.hostColorService.onDidChangeColorScheme(() => {
+			if (this.settings.isDetectingColorScheme()) {
+				this.restoreColorTheme();
+			}
+		}));
 	}
 
 	public hasUpdatedDefaultThemes(): boolean {

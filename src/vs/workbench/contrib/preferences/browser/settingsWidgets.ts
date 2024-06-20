@@ -497,7 +497,7 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 				const dragImage = this.getDragImage(item);
 				rowElement.ownerDocument.body.appendChild(dragImage);
 				ev.dataTransfer.setDragImage(dragImage, -10, -10);
-				setTimeout(() => rowElement.ownerDocument.body.removeChild(dragImage), 0);
+				setTimeout(() => dragImage.remove(), 0);
 			}
 		}));
 		this.listDisposables.add(DOM.addDisposableListener(rowElement, DOM.EventType.DRAG_OVER, (ev) => {
@@ -684,7 +684,7 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 			: localize('listSiblingHintLabel', "List item `{0}` with sibling `${1}`", value.data, sibling);
 
 		const { rowElement } = rowElementGroup;
-		this.listDisposables.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), rowElement, title));
+		this.listDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), rowElement, title));
 		rowElement.setAttribute('aria-label', title);
 	}
 
@@ -744,7 +744,7 @@ export class ExcludeSettingWidget extends ListSettingWidget {
 			: localize('excludeSiblingHintLabel', "Exclude files matching `{0}`, only when a file matching `{1}` is present", value.data, sibling);
 
 		const { rowElement } = rowElementGroup;
-		this.listDisposables.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), rowElement, title));
+		this.listDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), rowElement, title));
 		rowElement.setAttribute('aria-label', title);
 	}
 
@@ -774,7 +774,7 @@ export class IncludeSettingWidget extends ListSettingWidget {
 			: localize('includeSiblingHintLabel', "Include files matching `{0}`, only when a file matching `{1}` is present", value.data, sibling);
 
 		const { rowElement } = rowElementGroup;
-		this.listDisposables.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), rowElement, title));
+		this.listDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), rowElement, title));
 		rowElement.setAttribute('aria-label', title);
 	}
 
@@ -894,32 +894,35 @@ export class ObjectSettingDropdownWidget extends AbstractListSettingWidget<IObje
 	}
 
 	protected getActionsForItem(item: IObjectDataItem, idx: number): IAction[] {
-		const actions = [
+		const actions: IAction[] = [
 			{
 				class: ThemeIcon.asClassName(settingsEditIcon),
 				enabled: true,
 				id: 'workbench.action.editListItem',
+				label: '',
 				tooltip: this.getLocalizedStrings().editActionTooltip,
 				run: () => this.editSetting(idx)
 			},
-		] as IAction[];
+		];
 
 		if (item.removable) {
 			actions.push({
 				class: ThemeIcon.asClassName(settingsRemoveIcon),
 				enabled: true,
 				id: 'workbench.action.removeListItem',
+				label: '',
 				tooltip: this.getLocalizedStrings().deleteActionTooltip,
 				run: () => this._onDidChangeList.fire({ originalItem: item, item: undefined, targetIndex: idx })
-			} as IAction);
+			});
 		} else {
 			actions.push({
 				class: ThemeIcon.asClassName(settingsDiscardIcon),
 				enabled: true,
 				id: 'workbench.action.resetListItem',
+				label: '',
 				tooltip: this.getLocalizedStrings().resetActionTooltip,
 				run: () => this._onDidChangeList.fire({ originalItem: item, item: undefined, targetIndex: idx })
-			} as IAction);
+			});
 		}
 
 		return actions;
@@ -1181,10 +1184,10 @@ export class ObjectSettingDropdownWidget extends AbstractListSettingWidget<IObje
 		const accessibleDescription = localize('objectPairHintLabel', "The property `{0}` is set to `{1}`.", item.key.data, item.value.data);
 
 		const keyDescription = this.getEnumDescription(item.key) ?? item.keyDescription ?? accessibleDescription;
-		this.listDisposables.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), keyElement, keyDescription));
+		this.listDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), keyElement, keyDescription));
 
 		const valueDescription = this.getEnumDescription(item.value) ?? accessibleDescription;
-		this.listDisposables.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), valueElement!, valueDescription));
+		this.listDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), valueElement!, valueDescription));
 
 		rowElement.setAttribute('aria-label', accessibleDescription);
 	}
@@ -1344,7 +1347,7 @@ export class ObjectSettingCheckboxWidget extends AbstractListSettingWidget<IObje
 		const title = item.keyDescription ?? accessibleDescription;
 		const { rowElement, keyElement, valueElement } = rowElementGroup;
 
-		this.listDisposables.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), keyElement, title));
+		this.listDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), keyElement, title));
 		valueElement!.setAttribute('aria-label', accessibleDescription);
 		rowElement.setAttribute('aria-label', accessibleDescription);
 	}

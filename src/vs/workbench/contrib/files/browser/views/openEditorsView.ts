@@ -256,7 +256,7 @@ export class OpenEditorsView extends ViewPane {
 		this.readonlyEditorFocusedContext = OpenEditorsReadonlyEditorContext.bindTo(this.contextKeyService);
 
 		this._register(this.list.onContextMenu(e => this.onListContextMenu(e)));
-		this.list.onDidChangeFocus(e => {
+		this._register(this.list.onDidChangeFocus(e => {
 			this.resourceContext.reset();
 			this.groupFocusedContext.reset();
 			this.dirtyEditorFocusedContext.reset();
@@ -270,7 +270,7 @@ export class OpenEditorsView extends ViewPane {
 			} else if (!!element) {
 				this.groupFocusedContext.set(true);
 			}
-		});
+		}));
 
 		// Open when selecting via keyboard
 		this._register(this.list.onMouseMiddleClick(e => {
@@ -744,7 +744,7 @@ class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGro
 				return false;
 			} else {
 				// Allow droping files to open them
-				return { accept: true, effect: { type: ListDragOverEffectType.Move }, feedback: [-1] } as IListDragOverReaction;
+				return { accept: true, effect: { type: ListDragOverEffectType.Move }, feedback: [-1] };
 			}
 		}
 
@@ -758,7 +758,7 @@ class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGro
 				dropEffectPosition = ListDragOverEffectPosition.After; break;
 		}
 
-		return { accept: true, effect: { type: ListDragOverEffectType.Move, position: dropEffectPosition }, feedback: [_targetIndex] } as IListDragOverReaction;
+		return { accept: true, effect: { type: ListDragOverEffectType.Move, position: dropEffectPosition }, feedback: [_targetIndex] };
 	}
 
 	drop(data: IDragAndDropData, targetElement: OpenEditor | IEditorGroup | undefined, _targetIndex: number, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): void {

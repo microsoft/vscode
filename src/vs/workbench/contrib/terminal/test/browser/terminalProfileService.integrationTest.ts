@@ -107,7 +107,7 @@ class TestTerminalInstanceService implements Partial<ITerminalInstanceService> {
 					return [];
 				}
 			}
-		} as Partial<ITerminalBackend> as any;
+		} satisfies Partial<ITerminalBackend> as any;
 	}
 	setProfiles(remoteAuthority: string | undefined, profiles: ITerminalProfile[]) {
 		this._profiles.set(remoteAuthority ?? '', profiles);
@@ -123,7 +123,7 @@ class TestRemoteAgentService implements Partial<IRemoteAgentService> {
 		this._os = os;
 	}
 	async getEnvironment(): Promise<IRemoteAgentEnvironment | null> {
-		return { os: this._os } as IRemoteAgentEnvironment;
+		return { os: this._os } satisfies Partial<IRemoteAgentEnvironment> as any;
 	}
 }
 
@@ -167,7 +167,7 @@ suite('TerminalProfileService', () => {
 		remoteAgentService = new TestRemoteAgentService();
 		terminalInstanceService = new TestTerminalInstanceService();
 		extensionService = new TestTerminalExtensionService();
-		environmentService = { remoteAuthority: undefined } as IWorkbenchEnvironmentService;
+		environmentService = { remoteAuthority: undefined } satisfies Partial<IWorkbenchEnvironmentService> as any;
 
 		const themeService = new TestThemeService();
 		const terminalContributionService = new TestTerminalContributionService();
@@ -266,7 +266,7 @@ suite('TerminalProfileService', () => {
 	});
 
 	test('should get profiles from remoteTerminalService when there is a remote authority', async () => {
-		environmentService = { remoteAuthority: 'fakeremote' } as IWorkbenchEnvironmentService;
+		environmentService = { remoteAuthority: 'fakeremote' } satisfies Partial<IWorkbenchEnvironmentService> as any;
 		instantiationService.stub(IWorkbenchEnvironmentService, environmentService);
 		terminalProfileService = store.add(instantiationService.createInstance(TestTerminalProfileService));
 		await terminalProfileService.hasRefreshedProfiles;

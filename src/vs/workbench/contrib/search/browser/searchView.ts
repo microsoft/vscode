@@ -166,6 +166,9 @@ export class SearchView extends ViewPane {
 
 	private _onSearchResultChangedDisposable: IDisposable | undefined;
 
+	private _stashedQueryDetailsVisibility: boolean | undefined = undefined;
+	private _stashedReplaceVisibility: boolean | undefined = undefined;
+
 	constructor(
 		options: IViewPaneOptions,
 		@IFileService private readonly fileService: IFileService,
@@ -237,8 +240,8 @@ export class SearchView extends ViewPane {
 		this.inputPatternExclusionsFocused = Constants.SearchContext.PatternExcludesFocusedKey.bindTo(this.contextKeyService);
 		this.isEditableItem = Constants.SearchContext.IsEditableItemKey.bindTo(this.contextKeyService);
 
-		this.instantiationService = this.instantiationService.createChild(
-			new ServiceCollection([IContextKeyService, this.contextKeyService]));
+		this.instantiationService = this._register(this.instantiationService.createChild(
+			new ServiceCollection([IContextKeyService, this.contextKeyService])));
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('search.sortOrder')) {
@@ -327,7 +330,32 @@ export class SearchView extends ViewPane {
 		if (visible === this.aiResultsVisible) {
 			return;
 		}
+
+		if (visible) {
+			this._stashedQueryDetailsVisibility = this._queryDetailsHidden();
+			this._stashedReplaceVisibility = this.searchWidget.isReplaceShown();
+
+			this.searchWidget.toggleReplace(false);
+			this.toggleQueryDetailsButton.style.display = 'none';
+
+			this.searchWidget.replaceButtonVisibility = false;
+			this.toggleQueryDetails(undefined, false);
+		} else {
+			this.toggleQueryDetailsButton.style.display = '';
+			this.searchWidget.replaceButtonVisibility = true;
+
+			if (this._stashedReplaceVisibility) {
+				this.searchWidget.toggleReplace(this._stashedReplaceVisibility);
+			}
+
+			if (this._stashedQueryDetailsVisibility) {
+				this.toggleQueryDetails(undefined, this._stashedQueryDetailsVisibility);
+			}
+		}
+
 		this.aiResultsVisible = visible;
+
+
 		if (this.viewModel.searchResult.isEmpty()) {
 			return;
 		}
@@ -336,9 +364,8 @@ export class SearchView extends ViewPane {
 		this.model.cancelAISearch();
 		if (visible) {
 			await this.model.addAIResults();
-		} else {
-			this.searchWidget.toggleReplace(false);
 		}
+
 		this.onSearchResultsChanged();
 		this.onSearchComplete(() => { }, undefined, undefined, this.viewModel.searchResult.getCachedSearchComplete(visible));
 	}
@@ -455,7 +482,7 @@ export class SearchView extends ViewPane {
 		// Toggle query details button
 		this.toggleQueryDetailsButton = dom.append(this.queryDetails,
 			$('.more' + ThemeIcon.asCSSSelector(searchDetailsIcon), { tabindex: 0, role: 'button' }));
-		this._register(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('element'), this.toggleQueryDetailsButton, nls.localize('moreSearch', "Toggle Search Details")));
+		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this.toggleQueryDetailsButton, nls.localize('moreSearch', "Toggle Search Details")));
 
 		this._register(dom.addDisposableListener(this.toggleQueryDetailsButton, dom.EventType.CLICK, e => {
 			dom.EventHelper.stop(e);
@@ -758,9 +785,9 @@ export class SearchView extends ViewPane {
 			return this.createFolderIterator(folderMatches[0], collapseResults, true);
 		}
 
-		return Iterable.map(folderMatches, folderMatch => {
+		return Iterable.map(folderMatches, (folderMatch): ICompressedTreeElement<RenderableMatch> => {
 			const children = this.createFolderIterator(folderMatch, collapseResults, true);
-			return <ICompressedTreeElement<RenderableMatch>>{ element: folderMatch, children, incompressible: true }; // roots should always be incompressible
+			return { element: folderMatch, children, incompressible: true }; // roots should always be incompressible
 		});
 	}
 
@@ -770,7 +797,7 @@ export class SearchView extends ViewPane {
 		const matchArray = this.isTreeLayoutViewVisible ? folderMatch.matches() : folderMatch.allDownstreamFileMatches();
 		const matches = matchArray.sort((a, b) => searchMatchComparer(a, b, sortOrder));
 
-		return Iterable.map(matches, match => {
+		return Iterable.map(matches, (match): ICompressedTreeElement<RenderableMatch> => {
 			let children;
 			if (match instanceof FileMatch) {
 				children = this.createFileIterator(match);
@@ -780,7 +807,7 @@ export class SearchView extends ViewPane {
 
 			const collapsed = (collapseResults === 'alwaysCollapse' || (match.count() > 10 && collapseResults !== 'alwaysExpand')) ? ObjectTreeElementCollapseState.PreserveOrCollapsed : ObjectTreeElementCollapseState.PreserveOrExpanded;
 
-			return <ICompressedTreeElement<RenderableMatch>>{ element: match, children, collapsed, incompressible: (match instanceof FileMatch) ? true : childFolderIncompressible };
+			return { element: match, children, collapsed, incompressible: (match instanceof FileMatch) ? true : childFolderIncompressible };
 		});
 	}
 
@@ -790,7 +817,7 @@ export class SearchView extends ViewPane {
 		if (!this.aiResultsVisible) {
 			matches = matches.filter(e => !e.aiContributed);
 		}
-		return Iterable.map(matches, r => (<ICompressedTreeElement<RenderableMatch>>{ element: r, incompressible: true }));
+		return Iterable.map(matches, (r): ICompressedTreeElement<RenderableMatch> => ({ element: r, incompressible: true }));
 	}
 
 	private createIterator(match: FolderMatch | FileMatch | SearchResult, collapseResults: ISearchConfigurationProperties['collapseResults']): Iterable<ICompressedTreeElement<RenderableMatch>> {
@@ -1480,6 +1507,10 @@ export class SearchView extends ViewPane {
 		if (!skipLayout && this.size) {
 			this.reLayout();
 		}
+	}
+
+	private _queryDetailsHidden() {
+		return this.queryDetails.classList.contains('more');
 	}
 
 	searchInFolders(folderPaths: string[] = []): void {
@@ -2222,7 +2253,7 @@ class SearchLinkButton extends Disposable {
 	constructor(label: string, handler: (e: dom.EventLike) => unknown, hoverService: IHoverService, tooltip?: string) {
 		super();
 		this.element = $('a.pointer', { tabindex: 0 }, label);
-		this._register(hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), this.element, tooltip));
+		this._register(hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this.element, tooltip));
 		this.addEventHandlers(handler);
 	}
 
