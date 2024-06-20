@@ -15,39 +15,42 @@ type Writeable<T> = { -readonly [P in keyof T]: T[P] };
 
 class SecretStorageProvider implements ISecretStorageProvider {
 	public type: 'persisted';
+
 	constructor() {
 		this.type = 'persisted';
 	}
-	async get(key: any): Promise<string | undefined> {
-		const secret = JSON.parse(key);
+
+	async get(key: string): Promise<string | undefined> {
+		let extensionKey;
+		try {
+			// Check if the key is for an extension
+			extensionKey = JSON.parse(key);
+		} catch (err) {
+			// Only keys for extensions are stored as JSON so this must not be an extension secret.
+		}
 		if (
-			secret.extensionId === 'membrane.membrane' &&
-			secret.key === 'membraneApiToken'
+			extensionKey?.extensionId === 'membrane.membrane' &&
+			extensionKey?.key === 'membraneApiToken'
 		) {
-			const allKeys = Object.keys(localStorage);
-			// Find the first key that matches the pattern of auth0 React
-			const filteredKeys = allKeys.filter((key) =>
+			// HACK: Find the first key that matches the pattern of auth0 React
+			const localStorageKey = Object.keys(localStorage).find((key) =>
 				key.includes('::default::openid')
 			);
-			if (filteredKeys.length > 0) {
-				const firstMatchingKey = filteredKeys[0];
-				const values = localStorage.getItem(firstMatchingKey);
-				const value = JSON.parse(values!);
+			if (localStorageKey) {
+				const json = localStorage.getItem(localStorageKey);
+				const value = JSON.parse(json!);
 				return value.body.access_token;
 			} else {
-				console.log('No matching keys found for', key);
-				throw new Error('SecretStorageProvider: No matching keys found');
+				throw new Error('Failed to read Membrane API token');
 			}
 		}
-		const value = localStorage.getItem(secret.key);
-		if (!value) {
-			throw new Error('Secret not found');
-		}
-		return value;
+		return localStorage.getItem(key) ?? undefined;
 	}
+
 	async set(key: string, value: string): Promise<void> {
 		localStorage.setItem(key, value);
 	}
+
 	async delete(key: string): Promise<void> {
 		localStorage.removeItem(key);
 	}
@@ -87,6 +90,13 @@ class SecretStorageProvider implements ISecretStorageProvider {
 	};
 
 	config.secretStorageProvider = new SecretStorageProvider();
+	config.defaultLayout = {
+		force: true,
+		views: [
+			{ id: 'membrane.explorer' },
+			{ id: 'membrane.logs' },
+		]
+	};
 
 	const domElement = document.body;
 	create(domElement, config);
