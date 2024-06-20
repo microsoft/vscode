@@ -72,6 +72,11 @@ steps:
         }
       displayName: Build integration tests
 
+    - powershell: .\build\azure-pipelines\win32\listprocesses.bat
+      displayName: Diagnostics before integration test runs
+      continueOnError: true
+      condition: succeededOrFailed()
+
     - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
       - powershell: .\scripts\test-integration.bat --tfs "Integration Tests"
         displayName: Run integration tests (Electron)
@@ -120,6 +125,11 @@ steps:
           exec { .\scripts\test-remote-integration.bat }
         displayName: Run integration tests (Remote)
         timeoutInMinutes: 20
+
+      - powershell: .\build\azure-pipelines\win32\listprocesses.bat
+        displayName: Diagnostics after integration test runs
+        continueOnError: true
+        condition: succeededOrFailed()
 
   - ${{ if eq(parameters.VSCODE_RUN_SMOKE_TESTS, true) }}:
     - powershell: .\build\azure-pipelines\win32\listprocesses.bat

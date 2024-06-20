@@ -64,7 +64,8 @@ suite('Debug - Debugger', () => {
 			'debuggers': [
 				debuggerContribution
 			]
-		}
+		},
+		enabledApiProposals: undefined,
 	};
 
 	const extensionDescriptor1 = {
@@ -89,7 +90,8 @@ suite('Debug - Debugger', () => {
 					args: ['parg']
 				}
 			]
-		}
+		},
+		enabledApiProposals: undefined,
 	};
 
 	const extensionDescriptor2 = {
@@ -122,7 +124,8 @@ suite('Debug - Debugger', () => {
 					}
 				}
 			]
-		}
+		},
+		enabledApiProposals: undefined,
 	};
 
 

@@ -134,7 +134,7 @@ export class InlineProgressManager extends Disposable {
 		this._currentDecorations.clear();
 	}
 
-	public async showWhile<R>(position: IPosition, title: string, promise: Promise<R>, delegate: InlineProgressDelegate): Promise<R> {
+	public async showWhile<R>(position: IPosition, title: string, promise: Promise<R>, delegate: InlineProgressDelegate, delayOverride?: number): Promise<R> {
 		const operationId = this._operationIdPool++;
 		this._currentOperation = operationId;
 
@@ -150,7 +150,7 @@ export class InlineProgressManager extends Disposable {
 			if (decorationIds.length > 0) {
 				this._currentWidget.value = this._instantiationService.createInstance(InlineProgressWidget, this.id, this._editor, range, title, delegate);
 			}
-		}, this._showDelay);
+		}, delayOverride ?? this._showDelay);
 
 		try {
 			return await promise;
