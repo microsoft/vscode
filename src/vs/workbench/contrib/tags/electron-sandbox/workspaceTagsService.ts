@@ -69,7 +69,7 @@ const ModulesToLookFor = [
 	'@datastax/astra-db-ts',
 	'faiss',
 	'firebase',
-	'fireworks-js'
+	'fireworks-js',
 	'@google-cloud/aiplatform',
 	'@google-cloud/common',
 	'heroku-cli',
