@@ -4000,10 +4000,22 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			});
 		}
 
-		return toISCMHistoryItemViewModelArray(historyItemsElement)
-			.map(v => ({
+		// Create the color map
+		// TODO@lszomoru - use theme colors
+		const colorMap = new Map<string, number>([
+			[currentHistoryItemGroup.name, 0]
+		]);
+		if (currentHistoryItemGroup.remote) {
+			colorMap.set(currentHistoryItemGroup.remote.name, 1);
+		}
+		if (currentHistoryItemGroup.base) {
+			colorMap.set(currentHistoryItemGroup.base.name, 2);
+		}
+
+		return toISCMHistoryItemViewModelArray(historyItemsElement, colorMap)
+			.map(historyItemViewModel => ({
 				repository: element,
-				historyItemViewModel: v,
+				historyItemViewModel,
 				type: 'historyItem2'
 			}) satisfies SCMHistoryItemViewModelTreeElement);
 	}

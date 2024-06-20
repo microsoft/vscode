@@ -14,6 +14,10 @@ const SWIMLANE_CURVE_RADIUS = 5;
 
 const graphColors = ['#007ACC', '#BC3FBC', '#BF8803', '#CC6633', '#F14C4C', '#16825D'];
 
+function getNextColorIndex(colorIndex: number): number {
+	return colorIndex < graphColors.length - 1 ? colorIndex + 1 : 1;
+}
+
 function createPath(stroke: string): SVGPathElement {
 	const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
 	path.setAttribute('fill', 'none');
@@ -186,7 +190,7 @@ export function renderSCMHistoryItemGraph(historyItemViewModel: ISCMHistoryItemV
 	return svg;
 }
 
-export function toISCMHistoryItemViewModelArray(historyItems: ISCMHistoryItem[]): ISCMHistoryItemViewModel[] {
+export function toISCMHistoryItemViewModelArray(historyItems: ISCMHistoryItem[], colorMap = new Map<string, number>()): ISCMHistoryItemViewModel[] {
 	let colorIndex = -1;
 	const viewModels: ISCMHistoryItemViewModel[] = [];
 
@@ -219,7 +223,16 @@ export function toISCMHistoryItemViewModelArray(historyItems: ISCMHistoryItem[])
 
 			// Add unprocessed parent(s) to the output
 			for (let i = firstParentAdded ? 1 : 0; i < historyItem.parentIds.length; i++) {
-				colorIndex = colorIndex < graphColors.length - 1 ? colorIndex + 1 : 1;
+				// Get color index based on the label
+				let labelColorIndex: number | undefined = undefined;
+				for (const label of historyItem.labels ?? []) {
+					labelColorIndex = colorMap.get(label.title);
+					if (labelColorIndex !== undefined) {
+						break;
+					}
+				}
+
+				colorIndex = labelColorIndex ?? getNextColorIndex(colorIndex);
 				outputSwimlanes.push({
 					id: historyItem.parentIds[i],
 					color: colorIndex
