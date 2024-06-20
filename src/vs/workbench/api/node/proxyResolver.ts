@@ -79,7 +79,7 @@ export function connectProxyResolver(
 function createPatchedModules(params: ProxyAgentParams, resolveProxy: ReturnType<typeof createProxyResolver>) {
 
 	function mergeModules(module: any, patch: any) {
-		return Object.assign({}, module, patch);
+		return Object.assign(module.default || module, patch);
 	}
 
 	return {
