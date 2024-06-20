@@ -51,7 +51,7 @@ suite('LanguageModels', function () {
 				maxInputTokens: 100,
 				maxOutputTokens: 100,
 			},
-			provideChatResponse: async () => {
+			sendChatRequest: async () => {
 				throw new Error();
 			},
 			provideTokenCount: async () => {
@@ -70,7 +70,7 @@ suite('LanguageModels', function () {
 				maxInputTokens: 100,
 				maxOutputTokens: 100,
 			},
-			provideChatResponse: async () => {
+			sendChatRequest: async () => {
 				throw new Error();
 			},
 			provideTokenCount: async () => {
