@@ -26,7 +26,26 @@ function main(): Promise<void> {
 	return new Promise((c, e) => {
 
 		es.merge(
-			vfs.src('out-vscode-web-min/nls.metadata.json', { base: 'out-vscode-web-min' }),
+			// vscode
+			es.merge(
+				vfs.src('out-vscode-web-min/nls.keys.json', { base: 'out-vscode-web-min' }),
+				vfs.src('out-vscode-web-min/nls.messages.json', { base: 'out-vscode-web-min' }))
+				.pipe(merge({
+					fileName: 'vscode.json',
+					jsonSpace: '',
+					concatArrays: true,
+					edit: (parsedJson, file) => {
+						if (file.base === 'out-vscode-web-min') {
+							if (file.basename === 'nls.keys.json') {
+								return { keys: parsedJson };
+							} else {
+								return { messages: parsedJson };
+							}
+						}
+					}
+				})),
+
+			// extensions
 			vfs.src('.build/extensions/**/nls.metadata.json', { base: '.build/extensions' }),
 			vfs.src('.build/extensions/**/nls.metadata.header.json', { base: '.build/extensions' }),
 			vfs.src('.build/extensions/**/package.nls.json', { base: '.build/extensions' }))
@@ -35,7 +54,7 @@ function main(): Promise<void> {
 				jsonSpace: '',
 				concatArrays: true,
 				edit: (parsedJson, file) => {
-					if (file.base === 'out-vscode-web-min') {
+					if (file.basename === 'vscode.json') {
 						return { vscode: parsedJson };
 					}
 

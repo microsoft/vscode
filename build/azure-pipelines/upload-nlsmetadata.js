@@ -16,13 +16,32 @@ const commit = process.env['BUILD_SOURCEVERSION'];
 const credential = new identity_1.ClientSecretCredential(process.env['AZURE_TENANT_ID'], process.env['AZURE_CLIENT_ID'], process.env['AZURE_CLIENT_SECRET']);
 function main() {
     return new Promise((c, e) => {
-        es.merge(vfs.src('out-vscode-web-min/nls.metadata.json', { base: 'out-vscode-web-min' }), vfs.src('.build/extensions/**/nls.metadata.json', { base: '.build/extensions' }), vfs.src('.build/extensions/**/nls.metadata.header.json', { base: '.build/extensions' }), vfs.src('.build/extensions/**/package.nls.json', { base: '.build/extensions' }))
+        es.merge(
+        // vscode
+        es.merge(vfs.src('out-vscode-web-min/nls.keys.json', { base: 'out-vscode-web-min' }), vfs.src('out-vscode-web-min/nls.messages.json', { base: 'out-vscode-web-min' }))
+            .pipe(merge({
+            fileName: 'vscode.json',
+            jsonSpace: '',
+            concatArrays: true,
+            edit: (parsedJson, file) => {
+                if (file.base === 'out-vscode-web-min') {
+                    if (file.basename === 'nls.keys.json') {
+                        return { keys: parsedJson };
+                    }
+                    else {
+                        return { messages: parsedJson };
+                    }
+                }
+            }
+        })), 
+        // extensions
+        vfs.src('.build/extensions/**/nls.metadata.json', { base: '.build/extensions' }), vfs.src('.build/extensions/**/nls.metadata.header.json', { base: '.build/extensions' }), vfs.src('.build/extensions/**/package.nls.json', { base: '.build/extensions' }))
             .pipe(merge({
             fileName: 'combined.nls.metadata.json',
             jsonSpace: '',
             concatArrays: true,
             edit: (parsedJson, file) => {
-                if (file.base === 'out-vscode-web-min') {
+                if (file.basename === 'vscode.json') {
                     return { vscode: parsedJson };
                 }
                 // Handle extensions and follow the same structure as the Core nls file.

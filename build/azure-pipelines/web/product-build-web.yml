@@ -152,7 +152,7 @@ steps:
 
   - script: |
       set -e
-      AZURE_STORAGE_ACCOUNT="ticino" \
+      AZURE_STORAGE_ACCOUNT="vscodeweb" \
       AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
       AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
       AZURE_CLIENT_SECRET="$(AZURE_CLIENT_SECRET)" \
