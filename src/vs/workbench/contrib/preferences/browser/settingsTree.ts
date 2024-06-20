@@ -1946,10 +1946,10 @@ export class SettingsExtensionToggleRenderer extends AbstractSettingRenderer imp
 	}
 }
 
-export class SettingTreeRenderers {
+export class SettingTreeRenderers extends Disposable {
 	readonly onDidClickOverrideElement: Event<ISettingOverrideClickEvent>;
 
-	private readonly _onDidChangeSetting = new Emitter<ISettingChangeEvent>();
+	private readonly _onDidChangeSetting = this._register(new Emitter<ISettingChangeEvent>());
 	readonly onDidChangeSetting: Event<ISettingChangeEvent>;
 
 	readonly onDidOpenSettings: Event<string>;
@@ -1973,6 +1973,7 @@ export class SettingTreeRenderers {
 		@IUserDataProfilesService private readonly _userDataProfilesService: IUserDataProfilesService,
 		@IUserDataSyncEnablementService private readonly _userDataSyncEnablementService: IUserDataSyncEnablementService,
 	) {
+		super();
 		this.settingActions = [
 			new Action('settings.resetSetting', localize('resetSettingLabel', "Reset Setting"), undefined, undefined, async context => {
 				if (context instanceof SettingsTreeSettingElement) {
@@ -2077,6 +2078,20 @@ export class SettingTreeRenderers {
 	getIdForDOMElementInSetting(element: HTMLElement): string | null {
 		const settingElement = this.getSettingDOMElementForDOMElement(element);
 		return settingElement && settingElement.getAttribute(AbstractSettingRenderer.SETTING_ID_ATTR);
+	}
+
+	override dispose(): void {
+		super.dispose();
+		this.settingActions.forEach(action => {
+			if (isDisposable(action)) {
+				action.dispose();
+			}
+		});
+		this.allRenderers.forEach(renderer => {
+			if (isDisposable(renderer)) {
+				renderer.dispose();
+			}
+		});
 	}
 }
 
