@@ -2748,7 +2748,7 @@ export namespace DebugTreeItem {
 export namespace LanguageModelToolDescription {
 	export function to(item: IToolData): vscode.LanguageModelToolDescription {
 		return {
-			name: item.id,
+			name: item.name,
 			description: item.description,
 			parametersSchema: item.parametersSchema,
 		};

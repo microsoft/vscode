@@ -24,7 +24,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 
 		this._proxy.$getTools().then(tools => {
 			for (const tool of tools) {
-				this._allTools.set(tool.id, tool);
+				this._allTools.set(tool.name, tool);
 			}
 		});
 	}
@@ -36,7 +36,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 
 	async $acceptToolDelta(delta: IToolDelta): Promise<void> {
 		if (delta.added) {
-			this._allTools.set(delta.added.id, delta.added);
+			this._allTools.set(delta.added.name, delta.added);
 		}
 
 		if (delta.removed) {
@@ -49,22 +49,22 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			.map(tool => typeConvert.LanguageModelToolDescription.to(tool));
 	}
 
-	async $invokeTool(id: string, parameters: any, token: CancellationToken): Promise<string> {
-		const item = this._registeredTools.get(id);
+	async $invokeTool(name: string, parameters: any, token: CancellationToken): Promise<string> {
+		const item = this._registeredTools.get(name);
 		if (!item) {
-			throw new Error(`Unknown tool ${id}`);
+			throw new Error(`Unknown tool ${name}`);
 		}
 
 		return await item.tool.invoke(parameters, token);
 	}
 
-	registerTool(extension: IExtensionDescription, id: string, tool: vscode.LanguageModelTool): IDisposable {
-		this._registeredTools.set(id, { extension, tool });
-		this._proxy.$registerTool(id);
+	registerTool(extension: IExtensionDescription, name: string, tool: vscode.LanguageModelTool): IDisposable {
+		this._registeredTools.set(name, { extension, tool });
+		this._proxy.$registerTool(name);
 
 		return toDisposable(() => {
-			this._registeredTools.delete(id);
-			this._proxy.$unregisterTool(id);
+			this._registeredTools.delete(name);
+			this._proxy.$unregisterTool(name);
 		});
 	}
 }
