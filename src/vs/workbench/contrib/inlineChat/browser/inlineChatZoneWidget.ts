@@ -184,11 +184,20 @@ export class InlineChatZoneWidget extends ZoneWidget {
 
 		const lineTop = this.editor.getTopForLineNumber(lineNumber);
 		const zoneTop = lineTop - height.pixelsValue;
-		// const spaceBelowLine = this.editor.getScrollHeight() - this.editor.getBottomForLineNumber(position.lineNumber);
-		// const minTop = this.editor.getScrollTop() - spaceBelowLine;
-		// const newTop = Math.max(zoneTop, minTop);
-		const newTop = zoneTop;
+
+		const editorHeight = this.editor.getLayoutInfo().height;
+		const newLineBottom = this.editor.getBottomForLineNumber(lineNumber);
+
+		let newTop: number;
+		if (newLineBottom > editorHeight) {
+			newTop = newLineBottom - editorHeight;
+		} else {
+			newTop = zoneTop;
+		}
+
 		const currentTop = this.editor.getScrollTop();
+
+		// console.log('REVEAL ZONE TOP', { zoneTop, newLineBottom, editorHeight, currentTop, newTop });
 
 		if (newTop < currentTop) {
 			this.editor.setScrollTop(newTop, ScrollType.Immediate);
