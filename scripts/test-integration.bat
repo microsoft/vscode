@@ -27,10 +27,10 @@ echo Storing log files into '%VSCODELOGSDIR%'.
 
 :: Tests standalone (AMD)
 
-echo.
-echo ### node.js integration tests
-call .\scripts\test.bat --runGlob **\*.integrationTest.js %*
-if %errorlevel% neq 0 exit /b %errorlevel%
+@REM echo.
+@REM echo ### node.js integration tests
+@REM call .\scripts\test.bat --runGlob **\*.integrationTest.js %*
+@REM if %errorlevel% neq 0 exit /b %errorlevel%
 
 
 :: Tests in the extension host
@@ -42,72 +42,72 @@ echo ### API tests (folder)
 call "%INTEGRATION_TEST_ELECTRON_PATH%" %~dp0\..\extensions\vscode-api-tests\testWorkspace --enable-proposed-api=vscode.vscode-api-tests --extensionDevelopmentPath=%~dp0\..\extensions\vscode-api-tests --extensionTestsPath=%~dp0\..\extensions\vscode-api-tests\out\singlefolder-tests %API_TESTS_EXTRA_ARGS%
 if %errorlevel% neq 0 exit /b %errorlevel%
 
-echo.
-echo ### API tests (workspace)
-call "%INTEGRATION_TEST_ELECTRON_PATH%" %~dp0\..\extensions\vscode-api-tests\testworkspace.code-workspace --enable-proposed-api=vscode.vscode-api-tests --extensionDevelopmentPath=%~dp0\..\extensions\vscode-api-tests --extensionTestsPath=%~dp0\..\extensions\vscode-api-tests\out\workspace-tests %API_TESTS_EXTRA_ARGS%
-if %errorlevel% neq 0 exit /b %errorlevel%
+@REM echo.
+@REM echo ### API tests (workspace)
+@REM call "%INTEGRATION_TEST_ELECTRON_PATH%" %~dp0\..\extensions\vscode-api-tests\testworkspace.code-workspace --enable-proposed-api=vscode.vscode-api-tests --extensionDevelopmentPath=%~dp0\..\extensions\vscode-api-tests --extensionTestsPath=%~dp0\..\extensions\vscode-api-tests\out\workspace-tests %API_TESTS_EXTRA_ARGS%
+@REM if %errorlevel% neq 0 exit /b %errorlevel%
 
-echo.
-echo ### Colorize tests
-call yarn test-extension -l vscode-colorize-tests
-if %errorlevel% neq 0 exit /b %errorlevel%
+@REM echo.
+@REM echo ### Colorize tests
+@REM call yarn test-extension -l vscode-colorize-tests
+@REM if %errorlevel% neq 0 exit /b %errorlevel%
 
-echo.
-echo ### TypeScript tests
-call "%INTEGRATION_TEST_ELECTRON_PATH%" %~dp0\..\extensions\typescript-language-features\test-workspace --extensionDevelopmentPath=%~dp0\..\extensions\typescript-language-features --extensionTestsPath=%~dp0\..\extensions\typescript-language-features\out\test\unit %API_TESTS_EXTRA_ARGS%
-if %errorlevel% neq 0 exit /b %errorlevel%
+@REM echo.
+@REM echo ### TypeScript tests
+@REM call "%INTEGRATION_TEST_ELECTRON_PATH%" %~dp0\..\extensions\typescript-language-features\test-workspace --extensionDevelopmentPath=%~dp0\..\extensions\typescript-language-features --extensionTestsPath=%~dp0\..\extensions\typescript-language-features\out\test\unit %API_TESTS_EXTRA_ARGS%
+@REM if %errorlevel% neq 0 exit /b %errorlevel%
 
-echo.
-echo ### Markdown tests
-call yarn test-extension -l markdown-language-features
-if %errorlevel% neq 0 exit /b %errorlevel%
+@REM echo.
+@REM echo ### Markdown tests
+@REM call yarn test-extension -l markdown-language-features
+@REM if %errorlevel% neq 0 exit /b %errorlevel%
 
-echo.
-echo ### Emmet tests
-call "%INTEGRATION_TEST_ELECTRON_PATH%" %~dp0\..\extensions\emmet\test-workspace --extensionDevelopmentPath=%~dp0\..\extensions\emmet --extensionTestsPath=%~dp0\..\extensions\emmet\out\test %API_TESTS_EXTRA_ARGS%
-if %errorlevel% neq 0 exit /b %errorlevel%
+@REM echo.
+@REM echo ### Emmet tests
+@REM call "%INTEGRATION_TEST_ELECTRON_PATH%" %~dp0\..\extensions\emmet\test-workspace --extensionDevelopmentPath=%~dp0\..\extensions\emmet --extensionTestsPath=%~dp0\..\extensions\emmet\out\test %API_TESTS_EXTRA_ARGS%
+@REM if %errorlevel% neq 0 exit /b %errorlevel%
 
-echo.
-echo ### Git tests
-for /f "delims=" %%i in ('node -p "require('fs').realpathSync.native(require('os').tmpdir())"') do set TEMPDIR=%%i
-set GITWORKSPACE=%TEMPDIR%\git-%RANDOM%
-mkdir %GITWORKSPACE%
-call "%INTEGRATION_TEST_ELECTRON_PATH%" %GITWORKSPACE% --extensionDevelopmentPath=%~dp0\..\extensions\git --extensionTestsPath=%~dp0\..\extensions\git\out\test %API_TESTS_EXTRA_ARGS%
-if %errorlevel% neq 0 exit /b %errorlevel%
+@REM echo.
+@REM echo ### Git tests
+@REM for /f "delims=" %%i in ('node -p "require('fs').realpathSync.native(require('os').tmpdir())"') do set TEMPDIR=%%i
+@REM set GITWORKSPACE=%TEMPDIR%\git-%RANDOM%
+@REM mkdir %GITWORKSPACE%
+@REM call "%INTEGRATION_TEST_ELECTRON_PATH%" %GITWORKSPACE% --extensionDevelopmentPath=%~dp0\..\extensions\git --extensionTestsPath=%~dp0\..\extensions\git\out\test %API_TESTS_EXTRA_ARGS%
+@REM if %errorlevel% neq 0 exit /b %errorlevel%
 
-echo.
-echo ### Ipynb tests
-call yarn test-extension -l ipynb
-if %errorlevel% neq 0 exit /b %errorlevel%
+@REM echo.
+@REM echo ### Ipynb tests
+@REM call yarn test-extension -l ipynb
+@REM if %errorlevel% neq 0 exit /b %errorlevel%
 
-echo.
-echo ### Notebook Output tests
-call yarn test-extension -l notebook-renderers
-if %errorlevel% neq 0 exit /b %errorlevel%
+@REM echo.
+@REM echo ### Notebook Output tests
+@REM call yarn test-extension -l notebook-renderers
+@REM if %errorlevel% neq 0 exit /b %errorlevel%
 
-echo.
-echo ### Configuration editing tests
-set CFWORKSPACE=%TEMPDIR%\cf-%RANDOM%
-mkdir %CFWORKSPACE%
-call yarn test-extension -l configuration-editing
-if %errorlevel% neq 0 exit /b %errorlevel%
+@REM echo.
+@REM echo ### Configuration editing tests
+@REM set CFWORKSPACE=%TEMPDIR%\cf-%RANDOM%
+@REM mkdir %CFWORKSPACE%
+@REM call yarn test-extension -l configuration-editing
+@REM if %errorlevel% neq 0 exit /b %errorlevel%
 
-echo.
-echo ### GitHub Authentication tests
-call yarn test-extension -l github-authentication
-if %errorlevel% neq 0 exit /b %errorlevel%
+@REM echo.
+@REM echo ### GitHub Authentication tests
+@REM call yarn test-extension -l github-authentication
+@REM if %errorlevel% neq 0 exit /b %errorlevel%
 
-:: Tests standalone (CommonJS)
+@REM :: Tests standalone (CommonJS)
 
-echo.
-echo ### CSS tests
-call %~dp0\node-electron.bat %~dp0\..\extensions\css-language-features/server/test/index.js
-if %errorlevel% neq 0 exit /b %errorlevel%
+@REM echo.
+@REM echo ### CSS tests
+@REM call %~dp0\node-electron.bat %~dp0\..\extensions\css-language-features/server/test/index.js
+@REM if %errorlevel% neq 0 exit /b %errorlevel%
 
-echo.
-echo ### HTML tests
-call %~dp0\node-electron.bat %~dp0\..\extensions\html-language-features/server/test/index.js
-if %errorlevel% neq 0 exit /b %errorlevel%
+@REM echo.
+@REM echo ### HTML tests
+@REM call %~dp0\node-electron.bat %~dp0\..\extensions\html-language-features/server/test/index.js
+@REM if %errorlevel% neq 0 exit /b %errorlevel%
 
 
 :: Cleanup

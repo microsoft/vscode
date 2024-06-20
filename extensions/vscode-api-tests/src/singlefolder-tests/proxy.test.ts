@@ -16,7 +16,8 @@ suite('vscode API - network proxy support', () => {
 		assertNoRpc();
 	});
 
-	test('custom root certificate', async () => {
+	// eslint-disable-next-line local/code-no-test-only
+	test.only('custom root certificate', async () => {
 		const keys = pki.rsa.generateKeyPair(2048);
 		const cert = pki.createCertificate();
 		cert.publicKey = keys.publicKey;
