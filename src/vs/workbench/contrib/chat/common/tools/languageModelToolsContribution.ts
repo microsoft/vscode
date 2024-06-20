@@ -21,6 +21,11 @@ interface IRawToolContribution {
 
 const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IRawToolContribution[]>({
 	extensionPoint: 'languageModelTools',
+	activationEventsGenerator: (contributions: IRawToolContribution[], result) => {
+		for (const contrib of contributions) {
+			result.push(`onLanguageModelTool:${contrib.id}`);
+		}
+	},
 	jsonSchema: {
 		description: localize('vscode.extension.contributes.tools', 'Contributes a tool that can be invoked by a language model.'),
 		type: 'array',
