@@ -27,14 +27,14 @@ function main(): Promise<void> {
 		const combinedMetadataJson = es.merge(
 			// vscode
 			es.merge(
-				vfs.src('out-vscode-web-min/nls.keys.json', { base: 'out-vscode-web-min' }),
-				vfs.src('out-vscode-web-min/nls.messages.json', { base: 'out-vscode-web-min' }))
+				vfs.src('out-build/nls.keys.json', { base: 'out-build' }),
+				vfs.src('out-build/nls.messages.json', { base: 'out-build' }))
 				.pipe(merge({
 					fileName: 'vscode.json',
 					jsonSpace: '',
 					concatArrays: true,
 					edit: (parsedJson, file) => {
-						if (file.base === 'out-vscode-web-min') {
+						if (file.base === 'out-build') {
 							if (file.basename === 'nls.keys.json') {
 								return { keys: parsedJson };
 							} else {
