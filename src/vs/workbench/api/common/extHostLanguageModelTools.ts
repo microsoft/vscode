@@ -7,6 +7,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtHostLanguageModelToolsShape, IMainContext, MainContext, MainThreadLanguageModelToolsShape } from 'vs/workbench/api/common/extHost.protocol';
+import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import { IToolData, IToolDelta } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
 import type * as vscode from 'vscode';
 
@@ -44,7 +45,8 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 	}
 
 	get tools(): vscode.LanguageModelToolDescription[] {
-		return Array.from(this._allTools.values());
+		return Array.from(this._allTools.values())
+			.map(tool => typeConvert.LanguageModelToolDescription.to(tool));
 	}
 
 	async $invokeTool(id: string, parameters: any, token: CancellationToken): Promise<string> {
