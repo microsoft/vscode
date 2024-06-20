@@ -766,7 +766,7 @@ export function lcut(text: string, n: number, prefix = '') {
 
 // Escape codes, compiled from https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h3-Functions-using-CSI-_-ordered-by-the-final-character_s_
 // Plus additional markers for custom `\x1b]...\x07` instructions.
-const CSI_SEQUENCE = /(:?(:?\x1b\[|\x9B)[=?>!]?[\d;:]*["$#'* ]?[a-zA-Z@^`{}|~])|(:?\x1b\].*?\x07)/g;
+const CSI_SEQUENCE = /(?:(?:\x1b\[|\x9B)[=?>!]?[\d;:]*["$#'* ]?[a-zA-Z@^`{}|~])|(:?\x1b\].*?\x07)/g;
 
 /** Iterates over parts of a string with CSI sequences */
 export function* forAnsiStringParts(str: string) {
@@ -1249,6 +1249,16 @@ export class AmbiguousCharacters {
 		return this.confusableDictionary.has(codePoint);
 	}
 
+	public containsAmbiguousCharacter(str: string): boolean {
+		for (let i = 0; i < str.length; i++) {
+			const codePoint = str.codePointAt(i);
+			if (typeof codePoint === 'number' && this.isAmbiguous(codePoint)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	/**
 	 * Returns the non basic ASCII code point that the given code point can be confused,
 	 * or undefined if such code point does note exist.
@@ -1279,6 +1289,17 @@ export class InvisibleCharacters {
 
 	public static isInvisibleCharacter(codePoint: number): boolean {
 		return InvisibleCharacters.getData().has(codePoint);
+	}
+
+	public static containsInvisibleCharacter(str: string): boolean {
+		for (let i = 0; i < str.length; i++) {
+			const codePoint = str.codePointAt(i);
+			if (typeof codePoint === 'number' && InvisibleCharacters.isInvisibleCharacter(codePoint)) {
+				return true;
+			}
+		}
+		return false;
+
 	}
 
 	public static get codePoints(): ReadonlySet<number> {

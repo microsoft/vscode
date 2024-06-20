@@ -10,9 +10,8 @@ import { IDimension } from 'vs/editor/common/core/dimension';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IPosition, Position } from 'vs/editor/common/core/position';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { inlineChatBackground } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { inlineChatBackground, MENU_INLINE_CHAT_CONTENT_STATUS } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
@@ -22,6 +21,10 @@ import { Range } from 'vs/editor/common/core/range';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { ScrollType } from 'vs/editor/common/editorCommon';
+import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { MenuItemAction } from 'vs/platform/actions/common/actions';
+import { TextOnlyMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 
 export class InlineChatContentWidget implements IContentWidget {
 
@@ -31,7 +34,7 @@ export class InlineChatContentWidget implements IContentWidget {
 	private readonly _store = new DisposableStore();
 	private readonly _domNode = document.createElement('div');
 	private readonly _inputContainer = document.createElement('div');
-	private readonly _messageContainer = document.createElement('div');
+	private readonly _toolbarContainer = document.createElement('div');
 
 	private _position?: IPosition;
 
@@ -45,6 +48,7 @@ export class InlineChatContentWidget implements IContentWidget {
 	private readonly _widget: ChatWidget;
 
 	constructor(
+		location: ChatAgentLocation,
 		private readonly _editor: ICodeEditor,
 		@IInstantiationService instaService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -56,17 +60,18 @@ export class InlineChatContentWidget implements IContentWidget {
 			new ServiceCollection([
 				IContextKeyService,
 				this._store.add(contextKeyService.createScoped(this._domNode))
-			])
+			]),
+			this._store
 		);
 
 		this._widget = scopedInstaService.createInstance(
 			ChatWidget,
-			ChatAgentLocation.Editor,
+			location,
 			{ resource: true },
 			{
 				defaultElementHeight: 32,
 				editorOverflowWidgetsDomNode: _editor.getOverflowWidgetsDomNode(),
-				renderStyle: 'compact',
+				renderStyle: 'minimal',
 				renderInputOnTop: true,
 				renderFollowups: true,
 				supportsFileReferences: false,
@@ -85,20 +90,26 @@ export class InlineChatContentWidget implements IContentWidget {
 		this._store.add(this._widget);
 		this._widget.render(this._inputContainer);
 		this._widget.setModel(this._defaultChatModel, {});
-		this._store.add(this._widget.inputEditor.onDidContentSizeChange(() => _editor.layoutContentWidget(this)));
+		this._store.add(this._widget.onDidChangeContentHeight(() => _editor.layoutContentWidget(this)));
 
 		this._domNode.tabIndex = -1;
 		this._domNode.className = 'inline-chat-content-widget interactive-session';
 
 		this._domNode.appendChild(this._inputContainer);
 
-		this._messageContainer.classList.add('hidden', 'message');
-		this._domNode.appendChild(this._messageContainer);
+		this._toolbarContainer.classList.add('toolbar');
+		this._domNode.appendChild(this._toolbarContainer);
 
+		this._store.add(scopedInstaService.createInstance(MenuWorkbenchToolBar, this._toolbarContainer, MENU_INLINE_CHAT_CONTENT_STATUS, {
+			actionViewItemProvider: action => action instanceof MenuItemAction ? instaService.createInstance(TextOnlyMenuEntryActionViewItem, action, { conversational: true }) : undefined,
+			toolbarOptions: { primaryGroup: '0_main' },
+			icon: false,
+			label: true,
+		}));
 
 		const tracker = dom.trackFocus(this._domNode);
 		this._store.add(tracker.onDidBlur(() => {
-			if (this._visible
+			if (this._visible && this._widget.inputEditor.getModel()?.getValueLength() === 0
 				// && !"ON"
 			) {
 				this._onDidBlur.fire();
@@ -134,7 +145,7 @@ export class InlineChatContentWidget implements IContentWidget {
 		const maxHeight = this._widget.input.inputEditor.getOption(EditorOption.lineHeight) * 5;
 		const inputEditorHeight = this._widget.contentHeight;
 
-		this._widget.layout(Math.min(maxHeight, inputEditorHeight), 360);
+		this._widget.layout(Math.min(maxHeight, inputEditorHeight), 390);
 
 		// const actualHeight = this._widget.inputPartHeight;
 		// return new dom.Dimension(width, actualHeight);
@@ -167,7 +178,7 @@ export class InlineChatContentWidget implements IContentWidget {
 			this._visible = true;
 			this._focusNext = true;
 
-			this._editor.revealRangeNearTopIfOutsideViewport(Range.fromPositions(position));
+			this._editor.revealRangeNearTopIfOutsideViewport(Range.fromPositions(position), ScrollType.Immediate);
 			this._widget.inputEditor.setValue('');
 
 			const wordInfo = this._editor.getModel()?.getWordAtPosition(position);
@@ -189,16 +200,6 @@ export class InlineChatContentWidget implements IContentWidget {
 
 	setSession(session: Session): void {
 		this._widget.setModel(session.chatModel, {});
-		this._widget.setInputPlaceholder(session.session.placeholder ?? '');
-		this._updateMessage(session.session.message ?? '');
-	}
-
-	private _updateMessage(message: string) {
-		if (message) {
-			const renderedMessage = renderLabelWithIcons(message);
-			dom.reset(this._messageContainer, ...renderedMessage);
-		}
-		this._messageContainer.style.display = message ? 'inherit' : 'none';
-		this._editor.layoutContentWidget(this);
+		this._widget.setInputPlaceholder(session.agent.description ?? '');
 	}
 }

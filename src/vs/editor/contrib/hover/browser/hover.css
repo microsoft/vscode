@@ -7,6 +7,12 @@
 	background-color: var(--vscode-editor-hoverHighlightBackground);
 }
 
+.monaco-editor .monaco-hover-content {
+	padding-right: 2px;
+	padding-bottom: 2px;
+	box-sizing: border-box;
+}
+
 .monaco-editor .monaco-hover {
 	color: var(--vscode-editorHoverWidget-foreground);
 	background-color: var(--vscode-editorHoverWidget-background);

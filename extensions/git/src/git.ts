@@ -1165,6 +1165,12 @@ export class Repository {
 			args.push(`--author="${options.author}"`);
 		}
 
+		if (options?.refNames) {
+			args.push('--topo-order');
+			args.push('--decorate=full');
+			args.push(...options.refNames);
+		}
+
 		if (options?.path) {
 			args.push('--', options.path);
 		}
@@ -1233,11 +1239,11 @@ export class Repository {
 			.filter(entry => !!entry);
 	}
 
-	async bufferString(object: string, encoding: string = 'utf8', autoGuessEncoding = false): Promise<string> {
+	async bufferString(object: string, encoding: string = 'utf8', autoGuessEncoding = false, candidateGuessEncodings: string[] = []): Promise<string> {
 		const stdout = await this.buffer(object);
 
 		if (autoGuessEncoding) {
-			encoding = detectEncoding(stdout) || encoding;
+			encoding = detectEncoding(stdout, candidateGuessEncodings) || encoding;
 		}
 
 		encoding = iconv.encodingExists(encoding) ? encoding : 'utf8';

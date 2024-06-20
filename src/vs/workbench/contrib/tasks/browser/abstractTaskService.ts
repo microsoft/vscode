@@ -388,7 +388,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		// update tasks so an incomplete list isn't returned when getWorkspaceTasks is called
 		this._workspaceTasksPromise = undefined;
 		this._onDidRegisterSupportedExecutions.fire();
-		if (custom && shell && process) {
+		if (Platform.isWeb || (custom && shell && process)) {
 			this._onDidRegisterAllSupportedExecutions.fire();
 		}
 	}
@@ -3241,7 +3241,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		let configFileCreated = false;
 		this._fileService.stat(resource).then((stat) => stat, () => undefined).then(async (stat) => {
 			const fileExists: boolean = !!stat;
-			const configValue = this._configurationService.inspect<TaskConfig.IExternalTaskRunnerConfiguration>('tasks');
+			const configValue = this._configurationService.inspect<TaskConfig.IExternalTaskRunnerConfiguration>('tasks', { resource });
 			let tasksExistInFile: boolean;
 			let target: ConfigurationTarget;
 			switch (taskSource) {

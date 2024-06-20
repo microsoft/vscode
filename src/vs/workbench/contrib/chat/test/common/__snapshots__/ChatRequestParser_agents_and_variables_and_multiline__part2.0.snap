@@ -18,7 +18,7 @@
           value: "nullExtensionDescription",
           _lower: "nullextensiondescription"
         },
-        extensionPublisherDisplayName: "",
+        publisherDisplayName: "",
         extensionDisplayName: "",
         extensionPublisherId: "",
         locations: [ "panel" ],
@@ -59,6 +59,7 @@
       },
       variableName: "selection",
       variableArg: "",
+      variableId: "copilot.selection",
       kind: "var"
     },
     {
@@ -88,6 +89,7 @@
       },
       variableName: "debugConsole",
       variableArg: "",
+      variableId: "copilot.debugConsole",
       kind: "var"
     }
   ],

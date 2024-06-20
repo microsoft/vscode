@@ -29,9 +29,9 @@ declare module 'vscode' {
 		 * });
 		 * function summarizeCommandLine(commandLine: TerminalShellExecutionCommandLine) {
 		 *   return [
-		 *     `  Command line: ${command.ommandLine.value}`,
-		 *     `  Confidence: ${command.ommandLine.confidence}`,
-		 *     `  Trusted: ${command.ommandLine.isTrusted}
+		 *     `  Command line: ${command.commandLine.value}`,
+		 *     `  Confidence: ${command.commandLine.confidence}`,
+		 *     `  Trusted: ${command.commandLine.isTrusted}
 		 *   ].join('\n');
 		 * }
 		 */
@@ -125,7 +125,7 @@ declare module 'vscode' {
 		/**
 		 * An object that contains [shell integration](https://code.visualstudio.com/docs/terminal/shell-integration)-powered
 		 * features for the terminal. This will always be `undefined` immediately after the terminal
-		 * is created. Listen to {@link window.onDidActivateTerminalShellIntegration} to be notified
+		 * is created. Listen to {@link window.onDidChangeTerminalShellIntegration} to be notified
 		 * when shell integration is activated for a terminal.
 		 *
 		 * Note that this object may remain undefined if shell integation never activates. For
@@ -155,11 +155,13 @@ declare module 'vscode' {
 		 * @example
 		 * // Execute a command in a terminal immediately after being created
 		 * const myTerm = window.createTerminal();
-		 * window.onDidActivateTerminalShellIntegration(async ({ terminal, shellIntegration }) => {
+		 * window.onDidChangeTerminalShellIntegration(async ({ terminal, shellIntegration }) => {
 		 *   if (terminal === myTerm) {
-		 *     const command = shellIntegration.executeCommand('echo "Hello world"');
-		 *     const code = await command.exitCode;
-		 *     console.log(`Command exited with code ${code}`);
+		 *     const execution = shellIntegration.executeCommand('echo "Hello world"');
+		 *     window.onDidEndTerminalShellExecution(event => {
+		 *     if (event.execution === execution) {
+		 *       console.log(`Command exited with code ${event.exitCode}`);
+		 *     }
 		 *   }
 		 * }));
 		 * // Fallback to sendText if there is no shell integration within 3 seconds of launching
@@ -175,9 +177,11 @@ declare module 'vscode' {
 		 * // Send command to terminal that has been alive for a while
 		 * const commandLine = 'echo "Hello world"';
 		 * if (term.shellIntegration) {
-		 *   const command = term.shellIntegration.executeCommand({ commandLine });
-		 *   const code = await command.exitCode;
-		 *   console.log(`Command exited with code ${code}`);
+		 *   const execution = shellIntegration.executeCommand({ commandLine });
+		 *   window.onDidEndTerminalShellExecution(event => {
+		 *   if (event.execution === execution) {
+		 *     console.log(`Command exited with code ${event.exitCode}`);
+		 *   }
 		 * } else {
 		 *   term.sendText(commandLine);
 		 *   // Without shell integration, we can't know when the command has finished or what the
@@ -284,8 +288,29 @@ declare module 'vscode' {
 		readonly execution: TerminalShellExecution;
 
 		/**
-		 * The exit code reported by the shell. `undefined` means the shell did not report an exit
-		 * code or the shell reported a command started before the command finished.
+		 * The exit code reported by the shell.
+		 *
+		 * Note that `undefined` means the shell either did not report an exit  code (ie. the shell
+		 * integration script is misbehaving) or the shell reported a command started before the command
+		 * finished (eg. a sub-shell was opened). Generally this should not happen, depending on the use
+		 * case, it may be best to treat this as a failure.
+		 *
+		 * @example
+		 * const execution = shellIntegration.executeCommand({
+		 *   command: 'echo',
+		 *   args: ['Hello world']
+		 * });
+		 * window.onDidEndTerminalShellExecution(event => {
+		 *   if (event.execution === execution) {
+		 *     if (event.exitCode === undefined) {
+		 * 	     console.log('Command finished but exit code is unknown');
+		 *     } else if (event.exitCode === 0) {
+		 * 	     console.log('Command succeeded');
+		 *     } else {
+		 * 	     console.log('Command failed');
+		 *     }
+		 *   }
+		 * });
 		 */
 		readonly exitCode: number | undefined;
 	}

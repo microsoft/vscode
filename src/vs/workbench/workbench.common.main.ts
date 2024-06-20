@@ -117,7 +117,6 @@ import 'vs/editor/common/services/treeViewsDndService';
 import 'vs/workbench/services/textMate/browser/textMateTokenizationFeature.contribution';
 import 'vs/workbench/services/userActivity/common/userActivityService';
 import 'vs/workbench/services/userActivity/browser/userActivityBrowser';
-import 'vs/workbench/services/issue/browser/issueTroubleshoot';
 import 'vs/workbench/services/editor/browser/editorPaneService';
 import 'vs/workbench/services/editor/common/customEditorLabelService';
 
@@ -193,6 +192,9 @@ import 'vs/workbench/contrib/inlineChat/browser/inlineChat.contribution';
 
 // Interactive
 import 'vs/workbench/contrib/interactive/browser/interactive.contribution';
+
+// repl
+import 'vs/workbench/contrib/replNotebook/browser/repl.contribution';
 
 // Testing
 import 'vs/workbench/contrib/testing/browser/testing.contribution';

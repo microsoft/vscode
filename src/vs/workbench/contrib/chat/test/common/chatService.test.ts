@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
 import { assertSnapshot } from 'vs/base/test/common/snapshot';
@@ -35,7 +35,7 @@ const chatAgentWithUsedContext: IChatAgent = {
 	id: chatAgentWithUsedContextId,
 	name: chatAgentWithUsedContextId,
 	extensionId: nullExtensionDescription.identifier,
-	extensionPublisherDisplayName: '',
+	publisherDisplayName: '',
 	extensionPublisherId: '',
 	extensionDisplayName: '',
 	locations: [ChatAgentLocation.Panel],
@@ -92,10 +92,10 @@ suite('ChatService', () => {
 				return {};
 			},
 		} satisfies IChatAgentImplementation;
-		testDisposables.add(chatAgentService.registerAgent('testAgent', { name: 'testAgent', id: 'testAgent', isDefault: true, extensionId: nullExtensionDescription.identifier, extensionPublisherId: '', extensionPublisherDisplayName: '', extensionDisplayName: '', locations: [ChatAgentLocation.Panel], metadata: {}, slashCommands: [] }));
-		testDisposables.add(chatAgentService.registerAgent(chatAgentWithUsedContextId, { name: chatAgentWithUsedContextId, id: chatAgentWithUsedContextId, extensionId: nullExtensionDescription.identifier, extensionPublisherId: '', extensionPublisherDisplayName: '', extensionDisplayName: '', locations: [ChatAgentLocation.Panel], metadata: {}, slashCommands: [] }));
+		testDisposables.add(chatAgentService.registerAgent('testAgent', { name: 'testAgent', id: 'testAgent', isDefault: true, extensionId: nullExtensionDescription.identifier, extensionPublisherId: '', publisherDisplayName: '', extensionDisplayName: '', locations: [ChatAgentLocation.Panel], metadata: {}, slashCommands: [] }));
+		testDisposables.add(chatAgentService.registerAgent(chatAgentWithUsedContextId, { name: chatAgentWithUsedContextId, id: chatAgentWithUsedContextId, extensionId: nullExtensionDescription.identifier, extensionPublisherId: '', publisherDisplayName: '', extensionDisplayName: '', locations: [ChatAgentLocation.Panel], metadata: {}, slashCommands: [] }));
 		testDisposables.add(chatAgentService.registerAgentImplementation('testAgent', agent));
-		chatAgentService.updateAgent('testAgent', { requester: { name: 'test' }, fullName: 'test' });
+		chatAgentService.updateAgent('testAgent', { requester: { name: 'test' } });
 	});
 
 	test('retrieveSession', async () => {
@@ -130,9 +130,20 @@ suite('ChatService', () => {
 		assert.strictEqual(model.getRequests()[0].response?.response.asString(), 'test response');
 	});
 
+	test('sendRequest fails', async () => {
+		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
+
+		const model = testDisposables.add(testService.startSession(ChatAgentLocation.Panel, CancellationToken.None));
+		const response = await testService.sendRequest(model.sessionId, `@${chatAgentWithUsedContextId} test request`);
+		assert(response);
+		await response.responseCompletePromise;
+
+		await assertSnapshot(model.toExport());
+	});
+
 	test('can serialize', async () => {
 		testDisposables.add(chatAgentService.registerAgentImplementation(chatAgentWithUsedContextId, chatAgentWithUsedContext));
-		chatAgentService.updateAgent(chatAgentWithUsedContextId, { requester: { name: 'test' }, fullName: 'test' });
+		chatAgentService.updateAgent(chatAgentWithUsedContextId, { requester: { name: 'test' } });
 		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
 
 		const model = testDisposables.add(testService.startSession(ChatAgentLocation.Panel, CancellationToken.None));

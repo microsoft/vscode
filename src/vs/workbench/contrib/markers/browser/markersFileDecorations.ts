@@ -111,7 +111,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	'type': 'object',
 	'properties': {
 		'problems.decorations.enabled': {
-			'markdownDescription': localize('markers.showOnFile', "Show Errors & Warnings on files and folder. Overwritten by `#problems.visibility#` when it is off."),
+			'markdownDescription': localize('markers.showOnFile', "Show Errors & Warnings on files and folder. Overwritten by {0} when it is off.", '`#problems.visibility#`'),
 			'type': 'boolean',
 			'default': true
 		}

@@ -56,23 +56,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	}
 	get cwd(): string | undefined { return this._cwd; }
 	get promptTerminator(): string | undefined { return this._promptTerminator; }
-	private get _isInputting(): boolean {
-		return !!(this._currentCommand.commandStartMarker && !this._currentCommand.commandExecutedMarker);
-	}
-
-	get hasInput(): boolean | undefined {
-		if (!this._isInputting || !this._currentCommand?.commandStartMarker) {
-			return undefined;
-		}
-		if (this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY === this._currentCommand.commandStartMarker?.line) {
-			const line = this._terminal.buffer.active.getLine(this._terminal.buffer.active.cursorY)?.translateToString(true, this._currentCommand.commandStartX);
-			if (line === undefined) {
-				return undefined;
-			}
-			return line.length > 0;
-		}
-		return true;
-	}
 
 	private readonly _onCommandStarted = this._register(new Emitter<ITerminalCommand>());
 	readonly onCommandStarted = this._onCommandStarted.event;
@@ -203,6 +186,13 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 
 	setContinuationPrompt(value: string): void {
 		this._promptInputModel.setContinuationPrompt(value);
+	}
+
+	// TODO: Simplify this, can everything work off the last line?
+	setPromptTerminator(promptTerminator: string, lastPromptLine: string) {
+		this._logService.debug('CommandDetectionCapability#setPromptTerminator', promptTerminator);
+		this._promptTerminator = promptTerminator;
+		this._promptInputModel.setLastPromptLine(lastPromptLine);
 	}
 
 	setCwd(value: string) {
@@ -453,11 +443,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
 			this._onCommandFinished.fire(newCommand);
 		}
-	}
-
-	setPromptTerminator(promptTerminator: string) {
-		this._logService.debug('CommandDetectionCapability#setPromptTerminator', promptTerminator);
-		this._promptTerminator = promptTerminator;
 	}
 }
 

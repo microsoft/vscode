@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { Part } from 'vs/workbench/browser/part';
 import { isEmptyObject } from 'vs/base/common/types';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
@@ -115,7 +115,7 @@ suite('Workbench parts', () => {
 	});
 
 	teardown(() => {
-		mainWindow.document.body.removeChild(fixture);
+		fixture.remove();
 		disposables.clear();
 	});
 

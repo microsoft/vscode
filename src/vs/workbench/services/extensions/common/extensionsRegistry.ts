@@ -13,9 +13,10 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IMessage } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtensionDescription, EXTENSION_CATEGORIES, ExtensionIdentifierSet } from 'vs/platform/extensions/common/extensions';
 import { ExtensionKind } from 'vs/platform/environment/common/environment';
-import { allApiProposals } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
 import { productSchemaId } from 'vs/platform/product/common/productService';
 import { ImplicitActivationEvents, IActivationEventsGenerator } from 'vs/platform/extensionManagement/common/implicitActivationEvents';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { allApiProposals } from 'vs/platform/extensions/common/extensionsApiProposals';
 
 const schemaRegistry = Registry.as<IJSONContributionRegistry>(Extensions.JSONContribution);
 
@@ -67,7 +68,7 @@ export type IExtensionPointHandler<T> = (extensions: readonly IExtensionPointUse
 
 export interface IExtensionPoint<T> {
 	readonly name: string;
-	setHandler(handler: IExtensionPointHandler<T>): void;
+	setHandler(handler: IExtensionPointHandler<T>): IDisposable;
 	readonly defaultExtensionKind: ExtensionKind[] | undefined;
 }
 
@@ -121,12 +122,18 @@ export class ExtensionPoint<T> implements IExtensionPoint<T> {
 		this._delta = null;
 	}
 
-	setHandler(handler: IExtensionPointHandler<T>): void {
+	setHandler(handler: IExtensionPointHandler<T>): IDisposable {
 		if (this._handler !== null) {
 			throw new Error('Handler already set!');
 		}
 		this._handler = handler;
 		this._handle();
+
+		return {
+			dispose: () => {
+				this._handler = null;
+			}
+		};
 	}
 
 	acceptUsers(users: IExtensionPointUser<T>[]): void {
@@ -235,8 +242,8 @@ export const schema: IJSONSchema = {
 			uniqueItems: true,
 			items: {
 				type: 'string',
-				enum: Object.keys(allApiProposals),
-				markdownEnumDescriptions: Object.values(allApiProposals)
+				enum: Object.keys(allApiProposals).map(proposalName => proposalName),
+				markdownEnumDescriptions: Object.values(allApiProposals).map(value => value.proposal)
 			}
 		},
 		api: {
@@ -377,6 +384,16 @@ export const schema: IJSONSchema = {
 						label: 'onIssueReporterOpened',
 						body: 'onIssueReporterOpened',
 						description: nls.localize('vscode.extension.activationEvents.onIssueReporterOpened', 'An activation event emitted when the issue reporter is opened.'),
+					},
+					{
+						label: 'onChatParticipant',
+						body: 'onChatParticipant:${1:participantId}',
+						description: nls.localize('vscode.extension.activationEvents.onChatParticipant', 'An activation event emitted when the specified chat participant is invoked.'),
+					},
+					{
+						label: 'onLanguageModelTool',
+						body: 'onLanguageModelTool:${1:toolName}',
+						description: nls.localize('vscode.extension.activationEvents.onLanguageModelTool', 'An activation event emitted when the specified language model tool is invoked.'),
 					},
 					{
 						label: '*',
@@ -645,7 +662,7 @@ schemaRegistry.registerSchema(productSchemaId, {
 					items: {
 						type: 'string',
 						enum: Object.keys(allApiProposals),
-						markdownEnumDescriptions: Object.values(allApiProposals)
+						markdownEnumDescriptions: Object.values(allApiProposals).map(value => value.proposal)
 					}
 				}]
 			}

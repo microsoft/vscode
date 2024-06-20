@@ -1,7 +1,7 @@
 {
   requesterUsername: "test",
   requesterAvatarIconUri: undefined,
-  responderUsername: "test",
+  responderUsername: "",
   responderAvatarIconUri: undefined,
   initialLocation: "panel",
   welcomeMessage: undefined,

@@ -277,7 +277,7 @@ class HoverAdapter {
 			if (!previousHover) {
 				throw new Error(`Hover with id ${previousHoverId} not found`);
 			}
-			const hoverContext: vscode.HoverContext = { action: context.verbosityRequest.action, previousHover };
+			const hoverContext: vscode.HoverContext = { verbosityDelta: context.verbosityRequest.verbosityDelta, previousHover };
 			value = await this._provider.provideHover(doc, pos, token, hoverContext);
 		} else {
 			value = await this._provider.provideHover(doc, pos, token);
@@ -501,9 +501,9 @@ class CodeActionAdapter {
 			} else {
 				if (codeActionContext.only) {
 					if (!candidate.kind) {
-						this._logService.warn(`${this._extension.identifier.value} - Code actions of kind '${codeActionContext.only.value} 'requested but returned code action does not have a 'kind'. Code action will be dropped. Please set 'CodeAction.kind'.`);
+						this._logService.warn(`${this._extension.identifier.value} - Code actions of kind '${codeActionContext.only.value}' requested but returned code action does not have a 'kind'. Code action will be dropped. Please set 'CodeAction.kind'.`);
 					} else if (!codeActionContext.only.contains(candidate.kind)) {
-						this._logService.warn(`${this._extension.identifier.value} - Code actions of kind '${codeActionContext.only.value} 'requested but returned code action is of kind '${candidate.kind.value}'. Code action will be dropped. Please check 'CodeActionContext.only' to only return requested code actions.`);
+						this._logService.warn(`${this._extension.identifier.value} - Code actions of kind '${codeActionContext.only.value}' requested but returned code action is of kind '${candidate.kind.value}'. Code action will be dropped. Please check 'CodeActionContext.only' to only return requested code actions.`);
 					}
 				}
 
@@ -2196,6 +2196,10 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return ext.displayName || ext.name;
 	}
 
+	private static _extId(ext: IExtensionDescription): string {
+		return ext.identifier.value;
+	}
+
 	// --- outline
 
 	registerDocumentSymbolProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.DocumentSymbolProvider, metadata?: vscode.DocumentSymbolProviderMetadata): vscode.Disposable {
@@ -2385,18 +2389,18 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return this._withAdapter(handle, ReferenceAdapter, adapter => adapter.provideReferences(URI.revive(resource), position, context, token), undefined, token);
 	}
 
-	// --- quick fix
+	// --- code actions
 
 	registerCodeActionProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.CodeActionProvider, metadata?: vscode.CodeActionProviderMetadata): vscode.Disposable {
 		const store = new DisposableStore();
 		const handle = this._addNewAdapter(new CodeActionAdapter(this._documents, this._commands.converter, this._diagnostics, provider, this._logService, extension, this._apiDeprecation), extension);
-		this._proxy.$registerQuickFixSupport(handle, this._transformDocumentSelector(selector, extension), {
+		this._proxy.$registerCodeActionSupport(handle, this._transformDocumentSelector(selector, extension), {
 			providedKinds: metadata?.providedCodeActionKinds?.map(kind => kind.value),
 			documentation: metadata?.documentation?.map(x => ({
 				kind: x.kind.value,
 				command: this._commands.converter.toInternal(x.command, store),
 			}))
-		}, ExtHostLanguageFeatures._extLabel(extension), Boolean(provider.resolveCodeAction));
+		}, ExtHostLanguageFeatures._extLabel(extension), ExtHostLanguageFeatures._extId(extension), Boolean(provider.resolveCodeAction));
 		store.add(this._createDisposable(handle));
 		return store;
 	}
@@ -2802,7 +2806,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		return this._withAdapter(handle, DocumentDropEditAdapter, adapter => adapter.resolveDropEdit(id, token), {}, undefined);
 	}
 
-	$releaseDropEdits(handle: number, cacheId: number): void {
+	$releaseDocumentOnDropEdits(handle: number, cacheId: number): void {
 		this._withAdapter(handle, DocumentDropEditAdapter, adapter => Promise.resolve(adapter.releaseDropEdits(cacheId)), undefined, undefined);
 	}
 

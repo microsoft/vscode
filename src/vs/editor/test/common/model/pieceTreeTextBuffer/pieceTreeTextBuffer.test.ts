@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { WordCharacterClassifier } from 'vs/editor/common/core/wordCharacterClassifier';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -1816,6 +1816,22 @@ suite('buffer api', () => {
 		assert.strictEqual(pieceTable.getLineCharCode(2, 2), 'n'.charCodeAt(0), 'n');
 		assert.strictEqual(pieceTable.getLineCharCode(2, 3), 'e'.charCodeAt(0), 'e');
 		assert.strictEqual(pieceTable.getLineCharCode(2, 4), '2'.charCodeAt(0), '2');
+	});
+
+	test('getNearestChunk', () => {
+		const pieceTree = createTextBuffer(['012345678']);
+		ds.add(pieceTree);
+		const pt = pieceTree.getPieceTree();
+
+		pt.insert(3, 'ABC');
+		assert.equal(pt.getLineContent(1), '012ABC345678');
+		assert.equal(pt.getNearestChunk(3), 'ABC');
+		assert.equal(pt.getNearestChunk(6), '345678');
+
+		pt.delete(9, 1);
+		assert.equal(pt.getLineContent(1), '012ABC34578');
+		assert.equal(pt.getNearestChunk(6), '345');
+		assert.equal(pt.getNearestChunk(9), '78');
 	});
 });
 

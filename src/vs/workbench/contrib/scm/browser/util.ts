@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as path from 'vs/base/common/path';
-import { SCMHistoryItemChangeTreeElement, SCMHistoryItemGroupTreeElement, SCMHistoryItemTreeElement, SCMViewSeparatorElement } from 'vs/workbench/contrib/scm/common/history';
+import { SCMHistoryItemChangeTreeElement, SCMHistoryItemGroupTreeElement, SCMHistoryItemTreeElement, SCMHistoryItemViewModelTreeElement, SCMViewSeparatorElement } from 'vs/workbench/contrib/scm/common/history';
 import { ISCMResource, ISCMRepository, ISCMResourceGroup, ISCMInput, ISCMActionButton, ISCMViewService, ISCMProvider } from 'vs/workbench/contrib/scm/common/scm';
 import { IMenu, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -60,6 +60,10 @@ export function isSCMHistoryItemGroupTreeElement(element: any): element is SCMHi
 export function isSCMHistoryItemTreeElement(element: any): element is SCMHistoryItemTreeElement {
 	return (element as SCMHistoryItemTreeElement).type === 'allChanges' ||
 		(element as SCMHistoryItemTreeElement).type === 'historyItem';
+}
+
+export function isSCMHistoryItemViewModelTreeElement(element: any): element is SCMHistoryItemViewModelTreeElement {
+	return (element as SCMHistoryItemViewModelTreeElement).type === 'historyItem2';
 }
 
 export function isSCMHistoryItemChangeTreeElement(element: any): element is SCMHistoryItemChangeTreeElement {
@@ -172,4 +176,8 @@ export function getActionViewItemProvider(instaService: IInstantiationService): 
 
 export function getProviderKey(provider: ISCMProvider): string {
 	return `${provider.contextValue}:${provider.label}${provider.rootUri ? `:${provider.rootUri.toString()}` : ''}`;
+}
+
+export function getRepositoryResourceCount(provider: ISCMProvider): number {
+	return provider.groups.reduce<number>((r, g) => r + g.resources.length, 0);
 }

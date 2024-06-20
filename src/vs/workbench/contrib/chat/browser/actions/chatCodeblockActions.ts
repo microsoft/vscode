@@ -610,7 +610,8 @@ export function registerChatCodeCompareBlockActions() {
 				precondition: ContextKeyExpr.and(EditorContextKeys.hasChanges, CONTEXT_CHAT_EDIT_APPLIED.negate()),
 				menu: {
 					id: MenuId.ChatCompareBlock,
-					group: 'navigation'
+					group: 'navigation',
+					order: 1,
 				}
 			});
 		}
@@ -621,12 +622,36 @@ export function registerChatCodeCompareBlockActions() {
 			const instaService = accessor.get(IInstantiationService);
 
 			const editor = instaService.createInstance(DefaultChatTextEditor);
-			await editor.apply(context.element, context.edit);
+			await editor.apply(context.element, context.edit, context.diffEditor);
 
 			await editorService.openEditor({
 				resource: context.edit.uri,
 				options: { revealIfVisible: true },
 			});
+		}
+	});
+
+	registerAction2(class DiscardEditsCompareBlockAction extends ChatCompareCodeBlockAction {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.discardCompareEdits',
+				title: localize2('interactive.compare.discard', "Discard Edits"),
+				f1: false,
+				category: CHAT_CATEGORY,
+				icon: Codicon.trash,
+				precondition: ContextKeyExpr.and(EditorContextKeys.hasChanges, CONTEXT_CHAT_EDIT_APPLIED.negate()),
+				menu: {
+					id: MenuId.ChatCompareBlock,
+					group: 'navigation',
+					order: 2,
+				}
+			});
+		}
+
+		async runWithContext(accessor: ServicesAccessor, context: ICodeCompareBlockActionContext): Promise<any> {
+			const instaService = accessor.get(IInstantiationService);
+			const editor = instaService.createInstance(DefaultChatTextEditor);
+			editor.discard(context.element, context.edit);
 		}
 	});
 }
