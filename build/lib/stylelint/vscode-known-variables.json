@@ -94,6 +94,7 @@
 		"--vscode-debugTokenExpression-name",
 		"--vscode-debugTokenExpression-number",
 		"--vscode-debugTokenExpression-string",
+		"--vscode-debugTokenExpression-type",
 		"--vscode-debugTokenExpression-value",
 		"--vscode-debugToolBar-background",
 		"--vscode-debugToolBar-border",
@@ -852,6 +853,7 @@
 		"--z-index-notebook-scrollbar",
 		"--z-index-run-button-container",
 		"--zoom-factor",
-		"--test-bar-width"
+		"--test-bar-width",
+		"--widget-color"
 	]
 }
