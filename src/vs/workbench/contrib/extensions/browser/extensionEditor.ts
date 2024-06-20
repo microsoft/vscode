@@ -353,7 +353,7 @@ export class ExtensionEditor extends EditorPane {
 				[
 					this.instantiationService.createInstance(MigrateDeprecatedExtensionAction, false),
 					this.instantiationService.createInstance(UninstallAction),
-					this.instantiationService.createInstance(InstallAnotherVersionAction),
+					this.instantiationService.createInstance(InstallAnotherVersionAction, null, true),
 				]
 			]),
 			this.instantiationService.createInstance(TogglePreReleaseExtensionAction),
