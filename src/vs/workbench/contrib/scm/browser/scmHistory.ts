@@ -5,6 +5,7 @@
 
 import { lastOrDefault } from 'vs/base/common/arrays';
 import { deepClone } from 'vs/base/common/objects';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { ISCMHistoryItem, ISCMHistoryItemGraphNode, ISCMHistoryItemViewModel } from 'vs/workbench/contrib/scm/common/history';
 
 const SWIMLANE_HEIGHT = 22;
@@ -178,6 +179,13 @@ export function renderSCMHistoryItemGraph(historyItemViewModel: ISCMHistoryItemV
 		const circleInner = drawCircle(circleIndex, CIRCLE_RADIUS - 1, graphColors[circleColorIndex]);
 		svg.append(circleInner);
 	} else {
+		// HEAD
+		// TODO@lszomoru - implement a better way to determine if the commit is HEAD
+		if (historyItem.labels?.some(l => ThemeIcon.isThemeIcon(l.icon) && l.icon.id === 'target')) {
+			const outerCircle = drawCircle(circleIndex, CIRCLE_RADIUS + 2, graphColors[circleColorIndex]);
+			svg.append(outerCircle);
+		}
+
 		// Node
 		const circle = drawCircle(circleIndex, CIRCLE_RADIUS, graphColors[circleColorIndex]);
 		svg.append(circle);
