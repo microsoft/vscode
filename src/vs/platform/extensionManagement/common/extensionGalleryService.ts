@@ -598,6 +598,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 	private readonly extensionsControlUrl: string | undefined;
 
 	private readonly commonHeadersPromise: Promise<IStringDictionary<string>>;
+	private readonly extensionsEnabledWithApiProposalVersion: string[];
 
 	constructor(
 		storageService: IStorageService | undefined,
@@ -614,6 +615,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		this.extensionsGalleryUrl = isPPEEnabled ? config.servicePPEUrl : config?.serviceUrl;
 		this.extensionsGallerySearchUrl = isPPEEnabled ? undefined : config?.searchUrl;
 		this.extensionsControlUrl = config?.controlUrl;
+		this.extensionsEnabledWithApiProposalVersion = productService.extensionsEnabledWithApiProposalVersion?.map(id => id.toLowerCase()) ?? [];
 		this.commonHeadersPromise = resolveMarketplaceHeaders(
 			productService.version,
 			productService,
@@ -717,11 +719,21 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 			return false;
 		}
 
-		if (!areApiProposalsCompatible(extension.properties.enabledApiProposals ?? [])) {
+		if (!this.areApiProposalsCompatible(extension.identifier, extension.properties.enabledApiProposals)) {
 			return false;
 		}
 
 		return true;
+	}
+
+	private areApiProposalsCompatible(extensionIdentifier: IExtensionIdentifier, enabledApiProposals: string[] | undefined): boolean {
+		if (!enabledApiProposals) {
+			return true;
+		}
+		if (!this.extensionsEnabledWithApiProposalVersion.includes(extensionIdentifier.id.toLowerCase())) {
+			return true;
+		}
+		return areApiProposalsCompatible(enabledApiProposals);
 	}
 
 	private async isValidVersion(extension: string, rawGalleryExtensionVersion: IRawGalleryExtensionVersion, versionType: 'release' | 'prerelease' | 'any', compatible: boolean, allTargetPlatforms: TargetPlatform[], targetPlatform: TargetPlatform, productVersion: IProductVersion = { version: this.productService.version, date: this.productService.date }): Promise<boolean> {
@@ -933,7 +945,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 			}
 			// Allow any version if includePreRelease flag is set otherwise only release versions are allowed
 			if (await this.isValidVersion(
-				getGalleryExtensionId(rawGalleryExtension.publisher.publisherName, rawGalleryExtension.extensionName),
+				extensionIdentifier.id,
 				rawGalleryExtensionVersion,
 				includePreRelease ? 'any' : 'release',
 				criteria.compatible,
@@ -941,7 +953,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 				criteria.targetPlatform,
 				criteria.productVersion)
 			) {
-				if (criteria.compatible && !areApiProposalsCompatible(getEnabledApiProposals(rawGalleryExtensionVersion))) {
+				if (criteria.compatible && !this.areApiProposalsCompatible(extensionIdentifier, getEnabledApiProposals(rawGalleryExtensionVersion))) {
 					return null;
 				}
 				return toExtension(rawGalleryExtension, rawGalleryExtensionVersion, allTargetPlatforms, queryContext);
@@ -1196,7 +1208,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 						true,
 						allTargetPlatforms,
 						targetPlatform))
-					&& areApiProposalsCompatible(getEnabledApiProposals(version))
+					&& this.areApiProposalsCompatible(extensionIdentifier, getEnabledApiProposals(version))
 				) {
 					validVersions.push(version);
 				}
