@@ -333,8 +333,8 @@ const PyModulesToLookFor = [
 	'arize',
 	'deepchecks'
 	'fireworks-ai',
-	'langchain-fireworks'
-	'humanloop'
+	'langchain-fireworks',
+	'humanloop',
 	'pydocumentdb',
 	'pymongo',
 	'botbuilder-core',
@@ -349,6 +349,7 @@ const PyModulesToLookFor = [
 	'llama-index',
 	'guidance',
 	'ollama',
+	'onnxruntime',	
 	'openai',
 	'pgvector',
 	'semantic-kernel',
@@ -832,6 +833,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			"workspace.py.llama-index" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.guidance" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
    			"workspace.py.ollama" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+                        "workspace.py.onnxruntime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.openai" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
    			"workspace.py.pymongo" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
       			"workspace.py.pgvector" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
