@@ -219,7 +219,7 @@ export class SettingsEditor2 extends EditorPane {
 
 	private installedExtensionIds: string[] = [];
 
-	private inputChangeListener: MutableDisposable<IDisposable>
+	private readonly inputChangeListener: MutableDisposable<IDisposable>;
 
 	constructor(
 		group: IEditorGroup,
@@ -291,7 +291,7 @@ export class SettingsEditor2 extends EditorPane {
 		if (ENABLE_LANGUAGE_FILTER && !SettingsEditor2.SUGGESTIONS.includes(`@${LANGUAGE_SETTING_TAG}`)) {
 			SettingsEditor2.SUGGESTIONS.push(`@${LANGUAGE_SETTING_TAG}`);
 		}
-		this.inputChangeListener = this._register(new MutableDisposable())
+		this.inputChangeListener = this._register(new MutableDisposable());
 	}
 
 	override get minimumWidth(): number { return SettingsEditor2.EDITOR_MIN_WIDTH; }
@@ -355,10 +355,9 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	override async setInput(input: SettingsEditor2Input, options: ISettingsEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		this.inputChangeListener.clear()
+		this.inputChangeListener.clear();
 		this.inSettingsEditorContextKey.set(true);
 		await super.setInput(input, options, context, token);
-		this.input?.onWillDispose
 		if (!this.input) {
 			return;
 		}
