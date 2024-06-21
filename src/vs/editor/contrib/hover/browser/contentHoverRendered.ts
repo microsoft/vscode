@@ -51,8 +51,8 @@ export class RenderedContentHover extends Disposable {
 			editor,
 			participants,
 			parts,
-			context,
-			keybindingService
+			keybindingService,
+			context
 		));
 		const { showAtPosition, showAtSecondaryPosition } = RenderedContentHover.computeHoverPositions(editor, anchor.range, parts);
 		this.shouldAppearBeforeContent = parts.some(m => m.isBeforeContent);
@@ -203,6 +203,7 @@ class RenderedContentHoverParts extends Disposable {
 
 	private readonly _renderedParts: IRenderedContentHoverPartOrStatusBar[] = [];
 	private readonly _fragment: DocumentFragment;
+	private readonly _context: IEditorHoverContext;
 
 	private _markdownHoverParticipant: MarkdownHoverParticipant | undefined;
 	private _colorHoverParticipant: ColorHoverParticipant | undefined;
@@ -212,10 +213,11 @@ class RenderedContentHoverParts extends Disposable {
 		editor: ICodeEditor,
 		participants: IEditorHoverParticipant<IHoverPart>[],
 		hoverParts: IHoverPart[],
-		context: IEditorHoverContext,
-		keybindingService: IKeybindingService
+		keybindingService: IKeybindingService,
+		context: IEditorHoverContext
 	) {
 		super();
+		this._context = context;
 		this._fragment = document.createDocumentFragment();
 		this._register(this._renderParts(participants, hoverParts, context, keybindingService));
 		this._register(this._registerListenersOnRenderedParts());
@@ -343,7 +345,17 @@ class RenderedContentHoverParts extends Disposable {
 		if (normalizedMarkdownHoverIndex === undefined) {
 			return;
 		}
-		this._markdownHoverParticipant.updateMarkdownHoverVerbosityLevel(action, normalizedMarkdownHoverIndex, focus);
+		const renderedPart = await this._markdownHoverParticipant.updateMarkdownHoverVerbosityLevel(action, normalizedMarkdownHoverIndex, focus);
+		if (!renderedPart) {
+			return;
+		}
+		this._renderedParts[index] = {
+			type: 'hoverPart',
+			participant: this._markdownHoverParticipant,
+			hoverPart: renderedPart.hoverPart,
+			hoverElement: renderedPart.hoverElement,
+		};
+		this._context.onContentsChanged();
 	}
 
 	public doesHoverAtIndexSupportVerbosityAction(index: number, action: HoverVerbosityAction): boolean {
