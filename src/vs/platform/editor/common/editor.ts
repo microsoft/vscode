@@ -223,6 +223,13 @@ export interface IEditorOptions {
 	revealIfOpened?: boolean;
 
 	/**
+	 * Controls whether editors opened from Quick Open will always open in the currently active editor group.
+	 * Similar to setting the 'revealIfOpened' setting to false, this will open multiple copies of an editor in
+	 * different editor groups.
+	 */
+	alwaysOpenInActiveGroupFromQuickOpen?: boolean;
+
+	/**
 	 * An editor that is pinned remains in the editor stack even when another editor is being opened.
 	 * An editor that is not pinned will always get replaced by another editor that is not pinned.
 	 */
