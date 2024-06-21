@@ -276,6 +276,8 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		const handle = ExtHostChatAgents2._idPool++;
 		const agent = new ExtHostChatAgent(extension, id, this._proxy, handle, handler);
 		this._agents.set(handle, agent);
+
+		this._proxy.$registerAgent(handle, extension.identifier, id, {}, undefined);
 		return agent.apiAgent;
 	}
 
