@@ -18,7 +18,7 @@ import { Action, IAction } from 'vs/base/common/actions';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { labelForHoverVerbosityAction } from 'vs/editor/contrib/hover/browser/markdownHoverParticipant';
 
@@ -97,7 +97,6 @@ abstract class BaseHoverAccessibleViewProvider extends Disposable implements IAc
 	public readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 
 	protected _focusedHoverPartIndex: number = -1;
-	private _onHoverContentsChanged: IDisposable | undefined;
 
 	constructor(protected readonly _hoverController: HoverController) {
 		super();
@@ -109,7 +108,7 @@ abstract class BaseHoverAccessibleViewProvider extends Disposable implements IAc
 		}
 		this._hoverController.shouldKeepOpenOnEditorMouseMoveOrLeave = true;
 		this._focusedHoverPartIndex = this._hoverController.focusedHoverPartIndex();
-		this._onHoverContentsChanged = this._register(this._hoverController.onHoverContentsChanged(() => {
+		this._register(this._hoverController.onHoverContentsChanged(() => {
 			this._onDidChangeContent.fire();
 		}));
 	}
@@ -121,7 +120,7 @@ abstract class BaseHoverAccessibleViewProvider extends Disposable implements IAc
 		this._focusedHoverPartIndex = -1;
 		this._hoverController.focus();
 		this._hoverController.shouldKeepOpenOnEditorMouseMoveOrLeave = false;
-		this._onHoverContentsChanged?.dispose();
+		this.dispose();
 	}
 
 	provideContentAtIndex(focusedHoverIndex: number, includeVerbosityActions: boolean): string {
