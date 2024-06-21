@@ -11,7 +11,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { inlineChatBackground, InlineChatConfigKeys, MENU_INLINE_CHAT_CONTENT_STATUS } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { inlineChatBackground, InlineChatConfigKeys, MENU_INLINE_CHAT_CONTENT_STATUS, MENU_INLINE_CHAT_EXECUTE } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
@@ -78,7 +78,8 @@ export class InlineChatContentWidget implements IContentWidget {
 				renderFollowups: true,
 				supportsFileReferences: false,
 				menus: {
-					telemetrySource: 'inlineChat-content'
+					telemetrySource: 'inlineChat-content',
+					executeToolbar: MENU_INLINE_CHAT_EXECUTE,
 				},
 				filter: _item => false
 			},
