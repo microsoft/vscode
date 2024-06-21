@@ -458,13 +458,21 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		this.layoutChange({ outputHeight: true });
 	}
 
-	updateOutputHeight(index: number, height: number, source?: string) {
+	updateOutputHeight(index: number, height: number, source?: string, isEmpty?: boolean) {
 		if (index >= this._outputCollection.length) {
 			throw new Error('Output index out of range!');
 		}
 
 		this._ensureOutputsTop();
-		if (height < 28 && this._outputViewModels[index].hasMultiMimeType()) {
+
+		const shouldShow = index === 0 || (this._outputViewModels[index].hasContent?.get() ?? true);
+		if (this._outputViewModels[index].hasContent && !shouldShow && !isEmpty) {
+			this._outputViewModels[index].hasContent.set(true, undefined);
+		}
+
+		if (!shouldShow) {
+			height = 0;
+		} else if (height < 28 && shouldShow) {
 			height = 28;
 		}
 

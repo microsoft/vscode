@@ -85,7 +85,7 @@ export interface INotebookDelegateForWebview {
 	toggleNotebookCellSelection(cell: IGenericCellViewModel, selectFromPrevious: boolean): void;
 	getCellByInfo(cellInfo: ICommonCellInfo): IGenericCellViewModel;
 	focusNextNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output'): Promise<void>;
-	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, height: number, isInit: boolean, source?: string): void;
+	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, height: number, isInit: boolean, source?: string, isEmptyOrWhitespace?: boolean): void;
 	scheduleOutputHeightAck(cellInfo: ICommonCellInfo, outputId: string, height: number): void;
 	updateMarkupCellHeight(cellId: string, height: number, isInit: boolean): void;
 	setMarkupCellEditState(cellId: string, editState: CellEditState): void;
@@ -620,7 +620,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 							const resolvedResult = this.resolveOutputId(update.id);
 							if (resolvedResult) {
 								const { cellInfo, output } = resolvedResult;
-								this.notebookEditor.updateOutputHeight(cellInfo, output, height, !!update.init, 'webview#dimension');
+								this.notebookEditor.updateOutputHeight(cellInfo, output, height, !!update.init, 'webview#dimension', update.isEmptyOutput);
 								this.notebookEditor.scheduleOutputHeightAck(cellInfo, update.id, height);
 							} else if (update.init) {
 								// might be idle render request's ack
@@ -635,7 +635,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 									const cellInfo = inset.cellInfo;
 									this.reversedInsetMapping.set(update.id, outputRequest);
 									this.insetMapping.set(outputRequest, inset);
-									this.notebookEditor.updateOutputHeight(cellInfo, outputRequest, height, !!update.init, 'webview#dimension');
+									this.notebookEditor.updateOutputHeight(cellInfo, outputRequest, height, !!update.init, 'webview#dimension', update.isEmptyOutput);
 									this.notebookEditor.scheduleOutputHeightAck(cellInfo, update.id, height);
 
 								}

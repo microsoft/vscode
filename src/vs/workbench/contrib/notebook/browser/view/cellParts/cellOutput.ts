@@ -35,6 +35,7 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { COPY_OUTPUT_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/controller/cellOutputActions';
 import { CLEAR_CELL_OUTPUTS_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/controller/editActions';
 import { TEXT_BASED_MIMETYPES } from 'vs/workbench/contrib/notebook/browser/contrib/clipboard/cellOutputClipboard';
+import { autorun } from 'vs/base/common/observable';
 
 interface IMimeTypeRenderer extends IQuickPickItem {
 	index: number;
@@ -207,7 +208,16 @@ class CellOutputElement extends Disposable {
 		}
 
 		const innerContainer = this._generateInnerOutputContainer(previousSibling, selectedPresentation);
-		this._attachToolbar(innerContainer, notebookTextModel, this.notebookEditor.activeKernel, index, mimeTypes);
+		if (index === 0) {
+			this._attachToolbar(innerContainer, notebookTextModel, this.notebookEditor.activeKernel, index, mimeTypes);
+		} else {
+			const observer = autorun((reader) => {
+				if (this.output.hasContent && reader.readObservable(this.output.hasContent)) {
+					this._attachToolbar(innerContainer, notebookTextModel, this.notebookEditor.activeKernel, index, mimeTypes);
+					observer.dispose();
+				}
+			});
+		}
 
 		this.renderedOutputContainer = DOM.append(innerContainer, DOM.$('.rendered-output'));
 

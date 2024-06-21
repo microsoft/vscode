@@ -3031,12 +3031,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	//#endregion
 
 	//#region BacklayerWebview delegate
-	private _updateOutputHeight(cellInfo: ICommonCellInfo, output: ICellOutputViewModel, outputHeight: number, isInit: boolean, source?: string): void {
+	private _updateOutputHeight(cellInfo: ICommonCellInfo, output: ICellOutputViewModel, outputHeight: number, isInit: boolean, source?: string, isEmpty?: boolean): void {
 		const cell = this.viewModel?.viewCells.find(vc => vc.handle === cellInfo.cellHandle);
 		if (cell && cell instanceof CodeCellViewModel) {
 			const outputIndex = cell.outputsViewModels.indexOf(output);
 			this._debug('update cell output', cell.handle, outputHeight);
-			cell.updateOutputHeight(outputIndex, outputHeight, source);
+			cell.updateOutputHeight(outputIndex, outputHeight, source, isEmpty);
 			this.layoutNotebookCell(cell, cell.layoutInfo.totalHeight);
 
 			if (isInit) {

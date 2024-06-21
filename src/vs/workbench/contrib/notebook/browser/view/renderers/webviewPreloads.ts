@@ -449,7 +449,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 	const dimensionUpdater = new class {
 		private readonly pending = new Map<string, webviewMessages.DimensionUpdate>();
 
-		updateHeight(id: string, height: number, options: { init?: boolean; isOutput?: boolean }) {
+		updateHeight(id: string, height: number, options: { init?: boolean; isOutput?: boolean; isEmptyOutput?: boolean }) {
 			if (!this.pending.size) {
 				setTimeout(() => {
 					this.updateImmediately();
@@ -462,6 +462,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 					height,
 					init: update.init,
 					isOutput: update.isOutput,
+					isEmptyOutput: options.isEmptyOutput
 				});
 			} else {
 				this.pending.set(id, {
@@ -524,6 +525,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 						(newHeight !== 0 && observedElementInfo.lastKnownPadding === 0) ||
 						(newHeight === 0 && observedElementInfo.lastKnownPadding !== 0);
 
+					const isEmptyOutput = entry.target.innerText.trim() === '';
 					if (shouldUpdatePadding) {
 						// Do not update dimension in resize observer
 						window.requestAnimationFrame(() => {
@@ -532,20 +534,21 @@ async function webviewPreloads(ctx: PreloadContext) {
 							} else {
 								entry.target.style.padding = `0px`;
 							}
-							this.updateHeight(observedElementInfo, entry.target.offsetHeight);
+							this.updateHeight(observedElementInfo, entry.target.offsetHeight, isEmptyOutput);
 						});
 					} else {
-						this.updateHeight(observedElementInfo, entry.target.offsetHeight);
+						this.updateHeight(observedElementInfo, entry.target.offsetHeight, isEmptyOutput);
 					}
 				}
 			});
 		}
 
-		private updateHeight(observedElementInfo: IObservedElement, offsetHeight: number) {
+		private updateHeight(observedElementInfo: IObservedElement, offsetHeight: number, isEmptyOutput?: boolean) {
 			if (observedElementInfo.lastKnownHeight !== offsetHeight) {
 				observedElementInfo.lastKnownHeight = offsetHeight;
 				dimensionUpdater.updateHeight(observedElementInfo.id, offsetHeight, {
-					isOutput: observedElementInfo.output
+					isOutput: observedElementInfo.output,
+					isEmptyOutput
 				});
 			}
 		}
@@ -2758,6 +2761,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 			dimensionUpdater.updateHeight(outputId, outputContainer.element.offsetHeight, {
 				isOutput: true,
+				isEmptyOutput: outputContainer.outputNode?.isEmptyOrWhitespace
 			});
 		}
 
@@ -2876,6 +2880,16 @@ async function webviewPreloads(ctx: PreloadContext) {
 			readonly preloadErrors: ReadonlyArray<Error | undefined>;
 		};
 		private hasResizeObserver = false;
+		private _hasContent = false;
+		get isEmptyOrWhitespace() {
+			if (this._hasContent || this.element.innerText.trim() !== '') {
+				this._hasContent = true;
+				return false;
+			}
+
+			return true;
+		}
+
 
 		private renderTaskAbort?: AbortController;
 
@@ -2947,6 +2961,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				dimensionUpdater.updateHeight(this.outputId, offsetHeight + ctx.style.outputNodePadding * 2, {
 					isOutput: true,
 					init: true,
+					isEmptyOutput: this.isEmptyOrWhitespace
 				});
 
 				this.element.style.padding = `${ctx.style.outputNodePadding}px ${ctx.style.outputNodePadding}px ${ctx.style.outputNodePadding}px ${ctx.style.outputNodeLeftPadding}`;
@@ -2954,6 +2969,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				dimensionUpdater.updateHeight(this.outputId, this.element.offsetHeight, {
 					isOutput: true,
 					init: true,
+					isEmptyOutput: this.isEmptyOrWhitespace
 				});
 			}
 

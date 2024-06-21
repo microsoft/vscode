@@ -20,6 +20,7 @@ export interface DimensionUpdate {
 	readonly init?: boolean;
 	readonly height: number;
 	readonly isOutput?: boolean;
+	readonly isEmptyOutput?: boolean;
 }
 
 export interface IDimensionMessage extends BaseToWebviewMessage {

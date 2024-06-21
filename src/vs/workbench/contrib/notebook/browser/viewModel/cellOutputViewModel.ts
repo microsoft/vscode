@@ -5,6 +5,7 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { observableValue } from 'vs/base/common/observableInternal/base';
 import { ICellOutputViewModel, IGenericCellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { ICellOutput, IOrderedMimeType, RENDERER_NOT_AVAILABLE } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -14,6 +15,9 @@ let handle = 0;
 export class CellOutputViewModel extends Disposable implements ICellOutputViewModel {
 	private _onDidResetRendererEmitter = this._register(new Emitter<void>());
 	readonly onDidResetRenderer = this._onDidResetRendererEmitter.event;
+
+	hasContent = observableValue<boolean>('excecutionError', false);
+
 	outputHandle = handle++;
 	get model(): ICellOutput {
 		return this._outputRawData;
