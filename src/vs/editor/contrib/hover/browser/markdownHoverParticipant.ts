@@ -196,7 +196,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 	}
 
 	public getAccessibleContent(hoverPart: MarkdownHover): string {
-		return hoverPart.contents.map(content => content.value).join('\n');
+		return this._renderedHoverParts?.getAccessibleContent(hoverPart) ?? '';
 	}
 
 	public doesMarkdownHoverAtIndexSupportVerbosityAction(index: number, action: HoverVerbosityAction): boolean {
@@ -368,6 +368,19 @@ class MarkdownRenderedHoverParts implements IRenderedHoverParts<MarkdownHover> {
 			hoverPart: newHoverPart,
 			hoverElement: newHoverRenderedPart.hoverElement
 		};
+	}
+
+	public getAccessibleContent(hoverPart: MarkdownHover): string | undefined {
+		const renderedHoverPartIndex = this.renderedHoverParts.findIndex(renderedHoverPart => renderedHoverPart.hoverPart === hoverPart);
+		if (renderedHoverPartIndex === -1) {
+			return undefined;
+		}
+		const renderedHoverPart = this._getRenderedHoverPartAtIndex(renderedHoverPartIndex);
+		if (!renderedHoverPart) {
+			return undefined;
+		}
+		const accessibleContent = renderedHoverPart.hoverElement.innerText.trim();
+		return accessibleContent;
 	}
 
 	public doesMarkdownHoverAtIndexSupportVerbosityAction(index: number, action: HoverVerbosityAction): boolean {
