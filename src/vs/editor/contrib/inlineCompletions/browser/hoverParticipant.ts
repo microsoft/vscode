@@ -12,7 +12,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IModelDecoration } from 'vs/editor/common/model';
-import { HoverAnchor, HoverAnchorType, HoverForeignElementAnchor, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverPart, IRenderedHoverParts, RenderedHoverParts } from 'vs/editor/contrib/hover/browser/hoverTypes';
+import { HoverAnchor, HoverAnchorType, HoverForeignElementAnchor, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
 import { InlineSuggestionHintsContentWidget } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsHintsWidget';
 import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
@@ -94,7 +94,7 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 		return [];
 	}
 
-	renderHoverParts(context: IEditorHoverRenderContext, hoverParts: InlineCompletionsHover[]): IRenderedHoverParts<InlineCompletionsHover> {
+	renderHoverParts(context: IEditorHoverRenderContext, hoverParts: InlineCompletionsHover[]): IRenderedHoverPart<InlineCompletionsHover>[] {
 		const disposables = new DisposableStore();
 		const part = hoverParts[0];
 
@@ -124,13 +124,10 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 		const renderedHoverPart: IRenderedHoverPart<InlineCompletionsHover> = {
 			hoverPart: part,
 			hoverElement: widgetNode,
+			hoverAccessibleContent: nls.localize('hoverAccessibilityStatusBar', 'There are inline completions here'),
 			dispose() { disposables.dispose(); }
 		};
-		return new RenderedHoverParts([renderedHoverPart]);
-	}
-
-	getAccessibleContent(hoverPart: InlineCompletionsHover): string {
-		return nls.localize('hoverAccessibilityStatusBar', 'There are inline completions here');
+		return [renderedHoverPart];
 	}
 
 	private renderScreenReaderText(context: IEditorHoverRenderContext, part: InlineCompletionsHover): IDisposable {

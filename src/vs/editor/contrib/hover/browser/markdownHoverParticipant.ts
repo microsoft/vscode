@@ -15,7 +15,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecoration, ITextModel } from 'vs/editor/common/model';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { HoverAnchor, HoverAnchorType, HoverRangeAnchor, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverPart, IRenderedHoverParts, RenderedHoverParts } from 'vs/editor/contrib/hover/browser/hoverTypes';
+import { HoverAnchor, HoverAnchorType, HoverRangeAnchor, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -178,8 +178,8 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		return markdownHovers;
 	}
 
-	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: MarkdownHover[]): IRenderedHoverParts<MarkdownHover> {
-		this._renderedHoverParts = new MarkdownRenderedHoverParts(
+	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: MarkdownHover[]): IRenderedHoverPart<MarkdownHover>[] {
+		const markdownRenderedHoverParts = new MarkdownRenderedHoverParts(
 			hoverParts,
 			context.fragment,
 			this._editor,
@@ -191,11 +191,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 			this._configurationService,
 			context.onContentsChanged
 		);
-		return this._renderedHoverParts;
-	}
-
-	public getAccessibleContent(hoverPart: MarkdownHover): string {
-		return this._renderedHoverParts?.getAccessibleContent(hoverPart) ?? '';
+		return markdownRenderedHoverParts.renderedHoverParts;
 	}
 
 	public doesMarkdownHoverAtIndexSupportVerbosityAction(index: number, action: HoverVerbosityAction): boolean {
@@ -216,12 +212,16 @@ class RenderedMarkdownHoverPart implements IRenderedHoverPart<MarkdownHover> {
 		public readonly disposables: DisposableStore,
 	) { }
 
+	get hoverAccessibleContent(): string {
+		return this.hoverElement.innerText.trim();
+	}
+
 	dispose(): void {
 		this.disposables.dispose();
 	}
 }
 
-class MarkdownRenderedHoverParts implements IRenderedHoverParts<MarkdownHover> {
+class MarkdownRenderedHoverParts {
 
 	public renderedHoverParts: RenderedMarkdownHoverPart[];
 
@@ -368,19 +368,6 @@ class MarkdownRenderedHoverParts implements IRenderedHoverParts<MarkdownHover> {
 		this._onFinishedRendering();
 	}
 
-	public getAccessibleContent(hoverPart: MarkdownHover): string | undefined {
-		const renderedHoverPartIndex = this.renderedHoverParts.findIndex(renderedHoverPart => renderedHoverPart.hoverPart === hoverPart);
-		if (renderedHoverPartIndex === -1) {
-			return undefined;
-		}
-		const renderedHoverPart = this._getRenderedHoverPartAtIndex(renderedHoverPartIndex);
-		if (!renderedHoverPart) {
-			return undefined;
-		}
-		const accessibleContent = renderedHoverPart.hoverElement.innerText.trim();
-		return accessibleContent;
-	}
-
 	public markdownHoverContentAtIndex(index: number): string {
 		const hoverRenderedPart = this._getRenderedHoverPartAtIndex(index);
 		return hoverRenderedPart?.hoverElement.innerText ?? '';
@@ -456,7 +443,7 @@ export function renderMarkdownHovers(
 	editor: ICodeEditor,
 	languageService: ILanguageService,
 	openerService: IOpenerService,
-): IRenderedHoverParts<MarkdownHover> {
+): IRenderedHoverPart<MarkdownHover>[] {
 
 	// Sort hover parts to keep them stable since they might come in async, out-of-order
 	hoverParts.sort(compareBy(hover => hover.ordinal, numberComparator));
@@ -472,7 +459,7 @@ export function renderMarkdownHovers(
 			context.onContentsChanged,
 		));
 	}
-	return new RenderedHoverParts(renderedHoverParts);
+	return renderedHoverParts;
 }
 
 function renderMarkdownInContainer(
@@ -505,6 +492,7 @@ function renderMarkdownInContainer(
 	const renderedHoverPart: IRenderedHoverPart<MarkdownHover> = {
 		hoverPart: initialHoverPart,
 		hoverElement: contentsWrapper,
+		hoverAccessibleContent: contentsWrapper.innerText.trim(),
 		dispose() { disposables.dispose(); }
 	};
 	return renderedHoverPart;

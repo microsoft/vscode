@@ -22,7 +22,7 @@ import { UnicodeHighlighterOptions, UnicodeHighlighterReason, UnicodeHighlighter
 import { IEditorWorkerService, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { isModelDecorationInComment, isModelDecorationInString, isModelDecorationVisible } from 'vs/editor/common/viewModel/viewModelDecorations';
-import { HoverAnchor, HoverAnchorType, HoverParticipantRegistry, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverParts } from 'vs/editor/contrib/hover/browser/hoverTypes';
+import { HoverAnchor, HoverAnchorType, HoverParticipantRegistry, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { MarkdownHover, renderMarkdownHovers } from 'vs/editor/contrib/hover/browser/markdownHoverParticipant';
 import { BannerController } from 'vs/editor/contrib/unicodeHighlighter/browser/bannerController';
 import * as nls from 'vs/nls';
@@ -506,12 +506,8 @@ export class UnicodeHighlighterHoverParticipant implements IEditorHoverParticipa
 		return result;
 	}
 
-	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: MarkdownHover[]): IRenderedHoverParts<MarkdownHover> {
+	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: MarkdownHover[]): IRenderedHoverPart<MarkdownHover>[] {
 		return renderMarkdownHovers(context, hoverParts, this._editor, this._languageService, this._openerService);
-	}
-
-	public getAccessibleContent(hoverPart: MarkdownHover): string {
-		return hoverPart.contents.map(content => content.value).join('');
 	}
 }
 

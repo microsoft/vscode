@@ -301,10 +301,6 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		return this._renderedContentHover?.doesHoverAtIndexSupportVerbosityAction(index, action) ?? false;
 	}
 
-	public get isColorPickerVisible(): boolean {
-		return this._renderedContentHover?.isColorPickerVisible() ?? false;
-	}
-
 	public getAccessibleWidgetContent(): string | undefined {
 		return this._renderedContentHover?.getAccessibleWidgetContent();
 	}
@@ -361,6 +357,10 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		this._computer.anchor = null;
 		this._hoverOperation.cancel();
 		this._setCurrentResult(null);
+	}
+
+	public get isColorPickerVisible(): boolean {
+		return this._renderedContentHover?.isColorPickerVisible() ?? false;
 	}
 
 	public get isVisibleFromKeyboard(): boolean {

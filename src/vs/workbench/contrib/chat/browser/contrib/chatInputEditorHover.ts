@@ -7,7 +7,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecoration } from 'vs/editor/common/model';
-import { HoverAnchor, HoverAnchorType, HoverParticipantRegistry, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverPart, IRenderedHoverParts, RenderedHoverParts } from 'vs/editor/contrib/hover/browser/hoverTypes';
+import { HoverAnchor, HoverAnchorType, HoverParticipantRegistry, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
@@ -50,9 +50,9 @@ export class ChatAgentHoverParticipant implements IEditorHoverParticipant<ChatAg
 		return [];
 	}
 
-	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: ChatAgentHoverPart[]): IRenderedHoverParts<ChatAgentHoverPart> {
+	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: ChatAgentHoverPart[]): IRenderedHoverPart<ChatAgentHoverPart>[] {
 		if (!hoverParts.length) {
-			return new RenderedHoverParts([]);
+			return [];
 		}
 
 		const disposables = new DisposableStore();
@@ -69,13 +69,10 @@ export class ChatAgentHoverParticipant implements IEditorHoverParticipant<ChatAg
 		const renderedHoverPart: IRenderedHoverPart<ChatAgentHoverPart> = {
 			hoverPart,
 			hoverElement: wrapperNode,
+			hoverAccessibleContent: nls.localize('hoverAccessibilityChatAgent', 'There is a chat agent hover part here.'),
 			dispose() { disposables.dispose(); }
 		};
-		return new RenderedHoverParts([renderedHoverPart]);
-	}
-
-	public getAccessibleContent(hoverPart: ChatAgentHoverPart): string {
-		return nls.localize('hoverAccessibilityChatAgent', 'There is a chat agent hover part here.');
+		return [renderedHoverPart];
 	}
 }
 

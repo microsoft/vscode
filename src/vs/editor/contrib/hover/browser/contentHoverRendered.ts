@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEditorHoverContext, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
+import { IEditorHoverContext, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedAccessibleHoverPart, IRenderedHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ContentHoverComputer } from 'vs/editor/contrib/hover/browser/contentHoverComputer';
 import { EditorHoverStatusBar } from 'vs/editor/contrib/hover/browser/contentHoverStatusBar';
@@ -15,11 +15,11 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { HoverResult } from 'vs/editor/contrib/hover/browser/contentHoverTypes';
 import * as dom from 'vs/base/browser/dom';
-import * as nls from 'vs/nls';
 import { HoverVerbosityAction } from 'vs/editor/common/languages';
 import { MarkdownHoverParticipant } from 'vs/editor/contrib/hover/browser/markdownHoverParticipant';
 import { InlayHintsHover } from 'vs/editor/contrib/inlayHints/browser/inlayHintsHover';
 import { ColorHoverParticipant } from 'vs/editor/contrib/colorPicker/browser/colorHoverParticipant';
+import { localize } from 'vs/nls';
 
 export class RenderedContentHover extends Disposable {
 
@@ -76,11 +76,11 @@ export class RenderedContentHover extends Disposable {
 	}
 
 	public getAccessibleWidgetContent(): string | undefined {
-		return this._renderedHoverParts.getAccessibleWidgetContent();
+		return this._renderedHoverParts.getAccessibleContent();
 	}
 
 	public getAccessibleWidgetContentAtIndex(index: number): string {
-		return this._renderedHoverParts.getAccessibleWidgetContentAtIndex(index);
+		return this._renderedHoverParts.getAccessibleHoverContentAtIndex(index);
 	}
 
 	public async updateHoverVerbosityLevel(action: HoverVerbosityAction, index: number, focus?: boolean): Promise<void> {
@@ -146,43 +146,25 @@ export class RenderedContentHover extends Disposable {
 	}
 }
 
-interface IRenderedContentHoverPart extends IDisposable {
-	element: HTMLElement;
-	getAccessibleContent(): string;
-}
-
-class RenderedContentHoverPart implements IRenderedContentHoverPart {
+class RenderedStatusBar implements IDisposable, IRenderedAccessibleHoverPart {
 
 	constructor(
-		readonly renderedPart: IRenderedHoverPart<IHoverPart>,
-		readonly participant: IEditorHoverParticipant<IHoverPart>
-	) { }
-
-	get element(): HTMLElement {
-		return this.renderedPart.hoverElement;
+		private readonly _statusBar: EditorHoverStatusBar
+	) {
 	}
 
-	getAccessibleContent(): string {
-		const hoverPart = this.renderedPart.hoverPart;
-		return this.participant.getAccessibleContent(hoverPart);
+	get hoverAccessibleContent(): string {
+		return localize('hoverAccessibilityStatusBar', "This is a hover status bar.");
 	}
 
-	dispose(): void {
-		this.renderedPart.dispose();
+	get hoverElement(): HTMLElement {
+		return this._statusBar.hoverElement;
+	}
+
+	dispose() {
+		this._statusBar.dispose();
 	}
 }
-
-class RenderedContentHoverStatusBar implements IRenderedContentHoverPart {
-
-	constructor(readonly element: HTMLElement) { }
-
-	getAccessibleContent(): string {
-		return nls.localize('hoverAccessibilityStatusBar', 'There is a status bar here.');
-	}
-
-	dispose(): void { }
-}
-
 
 class RenderedContentHoverParts extends Disposable {
 
@@ -192,13 +174,10 @@ class RenderedContentHoverParts extends Disposable {
 	});
 
 	private readonly _participants: IEditorHoverParticipant<IHoverPart>[];
-	private readonly _renderedParts: IRenderedContentHoverPart[] = [];
+	private readonly _renderedParts: (IRenderedHoverPart<IHoverPart> | RenderedStatusBar)[] = [];
 	private readonly _fragment: DocumentFragment;
 
-	private _markdownParticipantInfo: {
-		participant: MarkdownHoverParticipant;
-		range: { start: number; end: number };
-	} | undefined;
+	private _markdownParticipantInfo: { participant: MarkdownHoverParticipant; indexRange: { start: number; end: number } } | undefined;
 	private _colorHoverParticipant: ColorHoverParticipant | undefined;
 	private _focusedHoverPartIndex: number = -1;
 
@@ -236,13 +215,38 @@ class RenderedContentHoverParts extends Disposable {
 		});
 	}
 
-	private _renderParts(hoverParts: IHoverPart[], context: IEditorHoverContext, keybindingService: IKeybindingService): IDisposable {
+	private _renderParts(hoverParts: IHoverPart[], hoverContext: IEditorHoverContext, keybindingService: IKeybindingService): IDisposable {
 		const statusBar = new EditorHoverStatusBar(keybindingService);
-		const hoverContext: IEditorHoverRenderContext = { fragment: this._fragment, statusBar, ...context };
-		const renderedHoverParts = this._renderHoverParts(hoverContext, hoverParts);
-		this._renderedParts.push(...renderedHoverParts);
-		const renderedHoverStatusBar = this._renderStatusBar(this._fragment, statusBar);
-		if (renderedHoverStatusBar) { this._renderedParts.push(renderedHoverStatusBar); }
+		const hoverRenderingContext: IEditorHoverRenderContext = { fragment: this._fragment, statusBar, ...hoverContext };
+		let offset = 0;
+		const renderedHoverParts: IRenderedHoverPart<IHoverPart>[] = [];
+		for (const participant of this._participants) {
+			const hoverPartsForParticipant = hoverParts.filter(hoverPart => hoverPart.owner === participant);
+			const hasHoverPartsForParticipant = hoverPartsForParticipant.length > 0;
+			if (!hasHoverPartsForParticipant) {
+				continue;
+			}
+			const renderedHoverPartsForParticipant = participant.renderHoverParts(hoverRenderingContext, hoverPartsForParticipant);
+			renderedHoverParts.push(...renderedHoverPartsForParticipant);
+			const renderedHoverPartsForParticipantLength = renderedHoverPartsForParticipant.length;
+			if (participant instanceof MarkdownHoverParticipant && !(participant instanceof InlayHintsHover)) {
+				this._markdownParticipantInfo = {
+					participant,
+					indexRange: {
+						start: offset,
+						end: offset + renderedHoverPartsForParticipantLength - 1
+					}
+				};
+			}
+			if (participant instanceof ColorHoverParticipant) {
+				this._colorHoverParticipant = participant;
+			}
+			offset += renderedHoverPartsForParticipantLength;
+		}
+		const renderedStatusBar = this._renderStatusBar(this._fragment, statusBar);
+		if (renderedStatusBar) {
+			this._renderedParts.push(renderedStatusBar);
+		}
 		return toDisposable(() => {
 			this._renderedParts.forEach((renderedPart) => {
 				renderedPart.dispose();
@@ -250,50 +254,19 @@ class RenderedContentHoverParts extends Disposable {
 		});
 	}
 
-	private _renderHoverParts(context: IEditorHoverRenderContext, hoverParts: IHoverPart[]): IRenderedContentHoverPart[] {
-		let offset = 0;
-		const renderedContentHoverParts: IRenderedContentHoverPart[] = [];
-		for (const participant of this._participants) {
-			const hoverPartsForParticipant = hoverParts.filter(hoverPart => hoverPart.owner === participant);
-			const hasHoverPartsForParticipant = hoverPartsForParticipant.length > 0;
-			if (!hasHoverPartsForParticipant) {
-				continue;
-			}
-			const renderedHoverPartsForParticipant = participant.renderHoverParts(context, hoverPartsForParticipant);
-			const renderedHoverPartsForParticipantLength = renderedHoverPartsForParticipant.renderedHoverParts.length;
-			if (participant instanceof MarkdownHoverParticipant && !(participant instanceof InlayHintsHover)) {
-				this._markdownParticipantInfo = {
-					participant,
-					range: { start: offset, end: offset + renderedHoverPartsForParticipantLength - 1 }
-				};
-			}
-			if (participant instanceof ColorHoverParticipant) {
-				this._colorHoverParticipant = participant;
-			}
-			offset += renderedHoverPartsForParticipantLength;
-			// Disposable issue here, need to fix
-			const renderedContentHoverPartsForParticipant = renderedHoverPartsForParticipant.renderedHoverParts.map(renderedHoverPart => {
-				return new RenderedContentHoverPart(renderedHoverPart, participant);
-			});
-			renderedContentHoverParts.push(...renderedContentHoverPartsForParticipant);
-		}
-		return renderedContentHoverParts;
-	}
-
-	private _renderStatusBar(fragment: DocumentFragment, statusBar: EditorHoverStatusBar): IRenderedContentHoverPart | undefined {
+	private _renderStatusBar(fragment: DocumentFragment, statusBar: EditorHoverStatusBar): RenderedStatusBar | undefined {
 		if (!statusBar.hasContent) {
 			return undefined;
 		}
-		const element = statusBar.hoverElement;
-		fragment.appendChild(element);
-		return new RenderedContentHoverStatusBar(element);
+		return new RenderedStatusBar(statusBar);
 	}
 
 	private _registerListenersOnRenderedParts(): IDisposable {
 		const disposables = new DisposableStore();
-		this._renderedParts.map((renderedPart: IRenderedContentHoverPart, index: number) => {
-			const element = renderedPart.element;
+		this._renderedParts.forEach((renderedPart: (IRenderedHoverPart<IHoverPart> | RenderedStatusBar), index: number) => {
+			const element = renderedPart.hoverElement;
 			element.tabIndex = 0;
+			const disposables = new DisposableStore();
 			disposables.add(dom.addDisposableListener(element, dom.EventType.FOCUS_IN, (event: Event) => {
 				event.stopPropagation();
 				this._focusedHoverPartIndex = index;
@@ -306,24 +279,23 @@ class RenderedContentHoverParts extends Disposable {
 		return disposables;
 	}
 
-	public getAccessibleWidgetContent(): string | undefined {
+	public getAccessibleContent(): string | undefined {
 		const content: string[] = [];
 		for (let i = 0; i < this._renderedParts.length; i++) {
-			content.push(this.getAccessibleWidgetContentAtIndex(i));
+			content.push(this.getAccessibleHoverContentAtIndex(i));
 		}
 		return content.join('\n\n');
 	}
 
-	public getAccessibleWidgetContentAtIndex(index: number): string {
-		const renderedHoverPart = this._renderedParts[index];
-		return renderedHoverPart.getAccessibleContent();
+	public getAccessibleHoverContentAtIndex(index: number): string {
+		return this._renderedParts[index].hoverAccessibleContent;
 	}
 
 	public async updateHoverVerbosityLevel(action: HoverVerbosityAction, index: number, focus?: boolean): Promise<void> {
 		if (!this._markdownParticipantInfo) {
 			return;
 		}
-		const normalizedMarkdownHoverIndex = this.normalizedIndexToRange(this._markdownParticipantInfo.range, index);
+		const normalizedMarkdownHoverIndex = this.normalizedIndexToRange(this._markdownParticipantInfo.indexRange, index);
 		if (normalizedMarkdownHoverIndex === undefined) {
 			return;
 		}
@@ -334,7 +306,7 @@ class RenderedContentHoverParts extends Disposable {
 		if (!this._markdownParticipantInfo) {
 			return false;
 		}
-		const normalizedMarkdownHoverIndex = this.normalizedIndexToRange(this._markdownParticipantInfo.range, index);
+		const normalizedMarkdownHoverIndex = this.normalizedIndexToRange(this._markdownParticipantInfo.indexRange, index);
 		if (normalizedMarkdownHoverIndex === undefined) {
 			return false;
 		}
