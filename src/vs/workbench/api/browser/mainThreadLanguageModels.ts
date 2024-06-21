@@ -5,6 +5,7 @@
 
 import { AsyncIterableSource, DeferredPromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { SerializedError, transformErrorForSerialization, transformErrorFromSerialization } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
@@ -77,20 +78,21 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		this._providerRegistrations.set(handle, dipsosables);
 	}
 
-	async $handleResponsePart(requestId: number, chunk: IChatResponseFragment): Promise<void> {
+	async $reportResponsePart(requestId: number, chunk: IChatResponseFragment): Promise<void> {
 		this._pendingProgress.get(requestId)?.stream.emitOne(chunk);
 	}
 
-	async $handleResponseDone(requestId: number, error: any | undefined): Promise<void> {
+	async $reportResponseDone(requestId: number, err: SerializedError | undefined): Promise<void> {
 		const data = this._pendingProgress.get(requestId);
 		if (data) {
 			this._pendingProgress.delete(requestId);
-			if (error) {
-				data.defer.error(error);
+			if (err) {
+				const error = transformErrorFromSerialization(err);
 				data.stream.reject(error);
+				data.defer.error(error);
 			} else {
-				data.defer.complete(undefined);
 				data.stream.resolve();
+				data.defer.complete(undefined);
 			}
 		}
 	}
@@ -123,7 +125,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 				}
 			} catch (err) {
 				this._logService.error('[CHAT] extension request ERRORED in STREAM', err, extension.value, requestId);
-				this._proxy.$acceptResponseDone(requestId, err);
+				this._proxy.$acceptResponseDone(requestId, transformErrorForSerialization(err));
 			}
 		})();
 
@@ -133,7 +135,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 			this._proxy.$acceptResponseDone(requestId, undefined);
 		}, err => {
 			this._logService.error('[CHAT] extension request ERRORED', err, extension.value, requestId);
-			this._proxy.$acceptResponseDone(requestId, err);
+			this._proxy.$acceptResponseDone(requestId, transformErrorForSerialization(err));
 		});
 	}
 

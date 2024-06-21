@@ -146,7 +146,7 @@ suite('lm', function () {
 			assert.ok(false, 'EXPECTED error');
 		} catch (error) {
 			assert.ok(error);
-			// assert.ok(error instanceof Error); todo@jrieken make sure error is an Error
+			// assert.ok(error instanceof Error); // todo@jrieken requires one more insiders
 		}
 	});
 });
