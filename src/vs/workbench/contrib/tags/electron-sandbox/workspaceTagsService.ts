@@ -360,7 +360,18 @@ const PyModulesToLookFor = [
 	'tika',
 	'trulens',
 	'trulens-eval',
-	'wandb'
+	'wandb',
+	// Azure AI Services
+	'azure-ai-contentsafety',
+	'azure-ai-documentintelligence',
+	'azure-ai-translation-text',
+	'azure-ai-vision',
+	'azure-cognitiveservices-language-luis',
+	'azure-cognitiveservices-speech',
+	'azure-cognitiveservices-vision-contentmoderator',
+	'azure-cognitiveservices-vision-face',
+	'azure-mgmt-cognitiveservices',
+	'azure-mgmt-search'
 ];
 
 const GoModulesToLookFor = [
@@ -707,6 +718,16 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			"workspace.py.azure-ai-language-conversations" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.azure-ai-language-questionanswering" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.azure-ai-ml" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-ai-contentsafety" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-ai-documentintelligence" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-ai-translation-text" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-ai-vision" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-cognitiveservices-language-luis" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-cognitiveservices-speech" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-cognitiveservices-vision-contentmoderator" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-cognitiveservices-vision-face" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-mgmt-cognitiveservices" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.py.azure-mgmt-search" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.azure-ai-translation-document" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.azure-cognitiveservices" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.py.azure-core" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
