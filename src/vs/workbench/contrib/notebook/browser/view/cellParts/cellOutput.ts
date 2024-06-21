@@ -33,9 +33,9 @@ import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKe
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { COPY_OUTPUT_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/controller/cellOutputActions';
-import { CLEAR_CELL_OUTPUTS_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/controller/editActions';
 import { TEXT_BASED_MIMETYPES } from 'vs/workbench/contrib/notebook/browser/contrib/clipboard/cellOutputClipboard';
-import { autorun } from 'vs/base/common/observable';
+import { autorun, observableValue } from 'vs/base/common/observable';
+import { NOTEBOOK_CELL_HAS_HIDDEN_OUTPUTS, NOTEBOOK_CELL_IS_FIRST_OUTPUT } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 
 interface IMimeTypeRenderer extends IQuickPickItem {
 	index: number;
@@ -208,15 +208,17 @@ class CellOutputElement extends Disposable {
 		}
 
 		const innerContainer = this._generateInnerOutputContainer(previousSibling, selectedPresentation);
-		if (index === 0) {
+		if (index === 0 || this.output.shouldShow.get()) {
 			this._attachToolbar(innerContainer, notebookTextModel, this.notebookEditor.activeKernel, index, mimeTypes);
 		} else {
-			const observer = autorun((reader) => {
-				if (this.output.hasContent && reader.readObservable(this.output.hasContent)) {
+			const listener = autorun(reader => {
+				if (reader.readObservable(this.output.shouldShow)) {
 					this._attachToolbar(innerContainer, notebookTextModel, this.notebookEditor.activeKernel, index, mimeTypes);
-					observer.dispose();
+					this.cellOutputContainer.checkForHiddenOutputs();
+					listener.dispose();
 				}
 			});
+			this.cellOutputContainer.hasHiddenOutputs.set(true, undefined);
 		}
 
 		this.renderedOutputContainer = DOM.append(innerContainer, DOM.$('.rendered-output'));
@@ -301,8 +303,6 @@ class CellOutputElement extends Disposable {
 			return;
 		}
 
-		const useConsolidatedButton = this.notebookEditor.notebookOptions.getDisplayOptions().consolidatedOutputButton;
-
 		outputItemDiv.style.position = 'relative';
 		const mimeTypePicker = DOM.$('.cell-output-toolbar');
 
@@ -323,17 +323,19 @@ class CellOutputElement extends Disposable {
 		const pickAction = new Action('notebook.output.pickMimetype', nls.localize('pickMimeType', "Change Presentation"), ThemeIcon.asClassName(mimetypeIcon), undefined,
 			async _context => this._pickActiveMimeTypeRenderer(outputItemDiv, notebookTextModel, kernel, this.output));
 
-		const menu = this._renderDisposableStore.add(this.menuService.createMenu(MenuId.NotebookOutputToolbar, this.contextKeyService));
+		const menuContextKeyService = this.contextKeyService.createScoped(outputItemDiv);
+		const hasHiddenOutputs = NOTEBOOK_CELL_HAS_HIDDEN_OUTPUTS.bindTo(menuContextKeyService);
+		const isFirstCellOutput = NOTEBOOK_CELL_IS_FIRST_OUTPUT.bindTo(menuContextKeyService);
+		isFirstCellOutput.set(index === 0);
+		autorun((reader) => { hasHiddenOutputs.set(reader.readObservable(this.cellOutputContainer.hasHiddenOutputs)); });
+		const menu = this._renderDisposableStore.add(this.menuService.createMenu(MenuId.NotebookOutputToolbar, menuContextKeyService));
+
 		const updateMenuToolbar = () => {
 			const primary: IAction[] = [];
 			let secondary: IAction[] = [];
 			const result = { primary, secondary };
 
 			createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, result, () => false);
-			if (index > 0 || !useConsolidatedButton) {
-				// clear outputs should only appear in the first output item's menu
-				secondary = secondary.filter((action) => action.id !== CLEAR_CELL_OUTPUTS_COMMAND_ID);
-			}
 			if (!isCopyEnabled) {
 				secondary = secondary.filter((action) => action.id !== COPY_OUTPUT_COMMAND_ID);
 			}
@@ -488,6 +490,15 @@ const enum CellOutputUpdateContext {
 export class CellOutputContainer extends CellContentPart {
 	private _outputEntries: OutputEntryViewHandler[] = [];
 	private _hasStaleOutputs: boolean = false;
+
+	hasHiddenOutputs = observableValue<boolean>('hasHiddenOutputs', false);
+	checkForHiddenOutputs() {
+		if (this._outputEntries.find(entry => { return !entry.model.shouldShow.get(); })) {
+			this.hasHiddenOutputs.set(true, undefined);
+		} else {
+			this.hasHiddenOutputs.set(false, undefined);
+		}
+	}
 
 	get renderedOutputEntries() {
 		return this._outputEntries;

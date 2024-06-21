@@ -5,7 +5,7 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { observableValue } from 'vs/base/common/observableInternal/base';
+import { observableValue } from 'vs/base/common/observable';
 import { ICellOutputViewModel, IGenericCellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { ICellOutput, IOrderedMimeType, RENDERER_NOT_AVAILABLE } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -16,7 +16,18 @@ export class CellOutputViewModel extends Disposable implements ICellOutputViewMo
 	private _onDidResetRendererEmitter = this._register(new Emitter<void>());
 	readonly onDidResetRenderer = this._onDidResetRendererEmitter.event;
 
-	hasContent = observableValue<boolean>('excecutionError', false);
+	isHidden = true;
+	private _onDidHiddenChange = this._register(new Emitter<boolean>());
+	readonly onDidHiddenChange = this._onDidHiddenChange.event;
+
+	show() {
+		if (this.isHidden) {
+			this.isHidden = false;
+			this._onDidHiddenChange.fire(false);
+		}
+	}
+
+	shouldShow = observableValue<boolean>('shouldShowOutput', false);
 
 	outputHandle = handle++;
 	get model(): ICellOutput {
