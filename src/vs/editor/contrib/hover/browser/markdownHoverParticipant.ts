@@ -301,12 +301,8 @@ class MarkdownRenderedHoverParts implements IRenderedHoverParts {
 		markdownContent: IMarkdownString[],
 		onFinishedRendering: () => void
 	): IRenderedHoverPart {
-		const renderedMarkdown = $('div.hover-row');
-		const renderedMarkdownContents = $('div.hover-row-contents');
-		renderedMarkdown.appendChild(renderedMarkdownContents);
 		const renderedMarkdownHover = renderMarkdownInContainer(
 			this._editor,
-			renderedMarkdownContents,
 			markdownContent,
 			this._languageService,
 			this._openerService,
@@ -436,7 +432,6 @@ export function renderMarkdownHovers(
 	for (const hoverPart of hoverParts) {
 		renderedHoverParts.push(renderMarkdownInContainer(
 			editor,
-			context.fragment,
 			hoverPart.contents,
 			languageService,
 			openerService,
@@ -448,15 +443,15 @@ export function renderMarkdownHovers(
 
 function renderMarkdownInContainer(
 	editor: ICodeEditor,
-	container: DocumentFragment | HTMLElement,
 	markdownStrings: IMarkdownString[],
 	languageService: ILanguageService,
 	openerService: IOpenerService,
 	onFinishedRendering: () => void,
 ): IRenderedHoverPart {
 	const disposables = new DisposableStore();
-	const contentsWrapper = $('div.hover-contents-wrapper');
-	container.appendChild(contentsWrapper);
+	const renderedMarkdown = $('div.hover-row');
+	const renderedMarkdownContents = $('div.hover-row-contents');
+	renderedMarkdown.appendChild(renderedMarkdownContents);
 	for (const markdownString of markdownStrings) {
 		if (isEmptyMarkdownString(markdownString)) {
 			continue;
@@ -470,11 +465,11 @@ function renderMarkdownInContainer(
 		}));
 		const renderedContents = disposables.add(renderer.render(markdownString));
 		hoverContentsElement.appendChild(renderedContents.element);
-		contentsWrapper.appendChild(markdownHoverElement);
+		renderedMarkdownContents.appendChild(markdownHoverElement);
 	}
 	const renderedHoverPart: IRenderedHoverPart = {
-		hoverElement: contentsWrapper,
-		hoverAccessibleContent: contentsWrapper.innerText.trim(),
+		hoverElement: renderedMarkdown,
+		hoverAccessibleContent: renderedMarkdown.innerText.trim(),
 		dispose() { disposables.dispose(); }
 	};
 	return renderedHoverPart;
