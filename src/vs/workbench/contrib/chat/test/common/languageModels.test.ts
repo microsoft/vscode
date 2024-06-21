@@ -79,6 +79,33 @@ suite('LanguageModels', function () {
 				throw new Error();
 			}
 		}));
+	});
+
+	teardown(function () {
+		languageModels.dispose();
+		activationEvents.clear();
+		store.clear();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('empty selector returns all', async function () {
+
+		const result1 = await languageModels.selectLanguageModels({});
+		assert.deepStrictEqual(result1.length, 2);
+		assert.deepStrictEqual(result1[0], '1');
+		assert.deepStrictEqual(result1[1], '12');
+	});
+
+	test('no warning that a matching model was not found #213716', async function () {
+		const result1 = await languageModels.selectLanguageModels({ vendor: 'test-vendor' });
+		assert.deepStrictEqual(result1.length, 2);
+
+		const result2 = await languageModels.selectLanguageModels({ vendor: 'test-vendor', family: 'FAKE' });
+		assert.deepStrictEqual(result2.length, 0);
+	});
+
+	test('sendChatRequest returns a response-stream', async function () {
 
 		store.add(languageModels.registerLanguageModelChat('actual', {
 			metadata: {
@@ -114,33 +141,6 @@ suite('LanguageModels', function () {
 				throw new Error();
 			}
 		}));
-	});
-
-	teardown(function () {
-		languageModels.dispose();
-		activationEvents.clear();
-		store.clear();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('empty selector returns all', async function () {
-
-		const result1 = await languageModels.selectLanguageModels({});
-		assert.deepStrictEqual(result1.length, 2);
-		assert.deepStrictEqual(result1[0], '1');
-		assert.deepStrictEqual(result1[1], '12');
-	});
-
-	test('no warning that a matching model was not found #213716', async function () {
-		const result1 = await languageModels.selectLanguageModels({ vendor: 'test-vendor' });
-		assert.deepStrictEqual(result1.length, 2);
-
-		const result2 = await languageModels.selectLanguageModels({ vendor: 'test-vendor', family: 'FAKE' });
-		assert.deepStrictEqual(result2.length, 0);
-	});
-
-	test('sendChatRequest returns a response-stream', async function () {
 
 		const models = await languageModels.selectLanguageModels({ identifier: 'actual-lm' });
 		assert.ok(models.length === 1);
