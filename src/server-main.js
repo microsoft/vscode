@@ -13,6 +13,10 @@ import * as  perf from './vs/base/common/performance.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
 
+/**
+ * @import { IServerAPI } from './vs/server/node/remoteExtensionHostAgentServer'
+ */
+
 const performance = require('perf_hooks').performance;
 const product = require('../product.json');
 const readline = require('readline');
@@ -52,9 +56,6 @@ async function start() {
 		return;
 	}
 
-	/**
-	 * @typedef { import('./vs/server/node/remoteExtensionHostAgentServer').IServerAPI } IServerAPI
-	 */
 	/** @type {IServerAPI | null} */
 	let _remoteExtensionHostAgentServer = null;
 	/** @type {Promise<IServerAPI> | null} */
@@ -275,8 +276,8 @@ async function loadCode() {
 	} else {
 		delete process.env['VSCODE_INJECT_NODE_MODULE_LOOKUP_PATH'];
 	}
-	const module = await import('./vs/server/node/server.main.js')
-	return module
+	const module = await import('./vs/server/node/server.main.js');
+	return module;
 }
 
 function hasStdinWithoutTty() {

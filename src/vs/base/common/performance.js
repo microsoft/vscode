@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 //@ts-check
+'use strict';
 
 /**
  * @returns {{mark(name:string):void, getMarks():{name:string, startTime:number}[]}}

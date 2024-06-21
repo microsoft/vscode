@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+/// <reference path="../../../typings/require.d.ts" />
 
 //@ts-check
+'use strict';
 
 // First group matches a double quoted string
 // Second group matches a single quoted string

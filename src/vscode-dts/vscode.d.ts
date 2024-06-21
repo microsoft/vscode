@@ -16183,6 +16183,13 @@ declare module 'vscode' {
 		 * When true, the debug viewlet will not be automatically revealed for this session.
 		 */
 		suppressDebugView?: boolean;
+
+		/**
+		 * Signals to the editor that the debug session was started from a test run
+		 * request. This is used to link the lifecycle of the debug session and
+		 * test run in UI actions.
+		 */
+		testRun?: TestRun;
 	}
 
 	/**

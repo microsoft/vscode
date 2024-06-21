@@ -6,9 +6,9 @@
 //@ts-check
 
 /**
- * @typedef {import('./vs/base/common/product').IProductConfiguration} IProductConfiguration
- * @typedef {import('./vs/base/node/languagePacks').NLSConfiguration} NLSConfiguration
- * @typedef {import('./vs/platform/environment/common/argv').NativeParsedArgs} NativeParsedArgs
+ * @import { IProductConfiguration } from './vs/base/common/product'
+ * @import { NLSConfiguration } from './vs/base/node/languagePacks'
+ * @import { NativeParsedArgs } from './vs/platform/environment/common/argv'
  */
 
 import { createRequire } from 'module';
@@ -29,6 +29,14 @@ import { getUserDataPath } from './vs/platform/environment/node/userDataPath.js'
 
 const bootstrap = require('./bootstrap.cjs');
 const bootstrapNode = require('./bootstrap-node.cjs');
+const path = require('path');
+const fs = require('fs');
+const os = require('os');
+const bootstrap = require('./bootstrap');
+const bootstrapNode = require('./bootstrap-node');
+const { getUserDataPath } = require('./vs/platform/environment/node/userDataPath');
+const { parse } = require('./vs/base/common/jsonc');
+const { getUNCHost, addUNCHostToAllowlist } = require('./vs/base/node/unc');
 /** @type {Partial<IProductConfiguration>} */
 // @ts-ignore
 import { Menu, app, crashReporter, protocol } from 'electron';
@@ -216,7 +224,10 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		'force-color-profile',
 
 		// disable LCD font rendering, a Chromium flag
-		'disable-lcd-text'
+		'disable-lcd-text',
+
+		// bypass any specified proxy for the given semi-colon-separated list of hosts
+		'proxy-bypass-list'
 	];
 
 	if (process.platform === 'linux') {
@@ -327,7 +338,7 @@ function readArgvConfigSync() {
 	const argvConfigPath = getArgvConfigPath();
 	let argvConfig;
 	try {
-		argvConfig = JSON.parse(stripComments(fs.readFileSync(argvConfigPath).toString()));
+		argvConfig = parse(fs.readFileSync(argvConfigPath).toString());
 	} catch (error) {
 		if (error && error.code === 'ENOENT') {
 			createDefaultArgvConfigSync(argvConfigPath);

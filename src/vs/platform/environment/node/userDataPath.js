@@ -22,6 +22,13 @@ function factory(path, os, cwd) {
 	 * @param {string} productName
 	 *
 	 * @returns {string}
+	 * @import { NativeParsedArgs } from '../../environment/common/argv'
+	 */
+
+	/**
+	 * @param {typeof import('path')} path
+	 * @param {typeof import('os')} os
+	 * @param {string} cwd
 	 */
 	function getUserDataPath(cliArgs, productName) {
 		const userDataPath = doGetUserDataPath(cliArgs, productName);

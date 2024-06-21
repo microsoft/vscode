@@ -14,7 +14,7 @@ import { URI } from 'vs/base/common/uri';
 import { mock, mockObject, MockObject } from 'vs/base/test/common/mock';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import * as editorRange from 'vs/editor/common/core/range';
-import { ExtensionIdentifier, IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { MainThreadTestingShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
@@ -637,7 +637,7 @@ suite('ExtHost Testing', () => {
 		let req: TestRunRequest;
 
 		let dto: TestRunDto;
-		const ext: IRelaxedExtensionDescription = {} as any;
+		const ext: IExtensionDescription = {} as any;
 
 		teardown(() => {
 			for (const { id } of c.trackers) {

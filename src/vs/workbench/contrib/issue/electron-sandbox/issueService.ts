@@ -4,20 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getZoomLevel } from 'vs/base/browser/browser';
-import { platform } from 'vs/base/common/process';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionIdentifier, ExtensionType, ExtensionIdentifierSet } from 'vs/platform/extensions/common/extensions';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IIssueMainService, IssueReporterData, IssueReporterExtensionData, IssueReporterStyles, ProcessExplorerData } from 'vs/platform/issue/common/issue';
-import { IProductService } from 'vs/platform/product/common/productService';
-import { activeContrastBorder, buttonBackground, buttonForeground, buttonHoverBackground, editorBackground, editorForeground, foreground, inputActiveOptionBorder, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, listActiveSelectionBackground, listActiveSelectionForeground, listFocusBackground, listFocusForeground, listFocusOutline, listHoverBackground, listHoverForeground, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IIssueMainService, IssueReporterData, IssueReporterExtensionData, IssueReporterStyles } from 'vs/platform/issue/common/issue';
+import { buttonBackground, buttonForeground, buttonHoverBackground, foreground, inputActiveOptionBorder, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
 import { IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
 import { IWorkbenchIssueService } from 'vs/workbench/contrib/issue/common/issue';
@@ -34,9 +31,7 @@ export class NativeIssueService implements IWorkbenchIssueService {
 		@IThemeService private readonly themeService: IThemeService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
-		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
-		@IProductService private readonly productService: IProductService,
 		@IWorkbenchAssignmentService private readonly experimentService: IWorkbenchAssignmentService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@IIntegrityService private readonly integrityService: IIntegrityService,
@@ -152,34 +147,6 @@ export class NativeIssueService implements IWorkbenchIssueService {
 		}
 		return this.issueMainService.openReporter(issueReporterData);
 	}
-
-	openProcessExplorer(): Promise<void> {
-		const theme = this.themeService.getColorTheme();
-		const data: ProcessExplorerData = {
-			pid: this.environmentService.mainPid,
-			zoomLevel: getZoomLevel(mainWindow),
-			styles: {
-				backgroundColor: getColor(theme, editorBackground),
-				color: getColor(theme, editorForeground),
-				listHoverBackground: getColor(theme, listHoverBackground),
-				listHoverForeground: getColor(theme, listHoverForeground),
-				listFocusBackground: getColor(theme, listFocusBackground),
-				listFocusForeground: getColor(theme, listFocusForeground),
-				listFocusOutline: getColor(theme, listFocusOutline),
-				listActiveSelectionBackground: getColor(theme, listActiveSelectionBackground),
-				listActiveSelectionForeground: getColor(theme, listActiveSelectionForeground),
-				listHoverOutline: getColor(theme, activeContrastBorder),
-				scrollbarShadowColor: getColor(theme, scrollbarShadow),
-				scrollbarSliderActiveBackgroundColor: getColor(theme, scrollbarSliderActiveBackground),
-				scrollbarSliderBackgroundColor: getColor(theme, scrollbarSliderBackground),
-				scrollbarSliderHoverBackgroundColor: getColor(theme, scrollbarSliderHoverBackground),
-			},
-			platform: platform,
-			applicationName: this.productService.applicationName
-		};
-		return this.issueMainService.openProcessExplorer(data);
-	}
-
 
 }
 

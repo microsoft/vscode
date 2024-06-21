@@ -34,6 +34,7 @@ export const enum DiagnosticKind {
 	Syntax,
 	Semantic,
 	Suggestion,
+	RegionSemantic,
 }
 
 class FileDiagnostics {
@@ -48,7 +49,8 @@ class FileDiagnostics {
 	public updateDiagnostics(
 		language: DiagnosticLanguage,
 		kind: DiagnosticKind,
-		diagnostics: ReadonlyArray<vscode.Diagnostic>
+		diagnostics: ReadonlyArray<vscode.Diagnostic>,
+		ranges: ReadonlyArray<vscode.Range> | undefined
 	): boolean {
 		if (language !== this.language) {
 			this._diagnostics.clear();
@@ -61,6 +63,9 @@ class FileDiagnostics {
 			return false;
 		}
 
+		if (kind === DiagnosticKind.RegionSemantic) {
+			return this.updateRegionDiagnostics(diagnostics, ranges!);
+		}
 		this._diagnostics.set(kind, diagnostics);
 		return true;
 	}
@@ -81,6 +86,23 @@ class FileDiagnostics {
 		for (const [type, diags] of this._diagnostics) {
 			this._diagnostics.set(type, diags.filter(diag => !diagnosticsEquals(diag, toDelete)));
 		}
+	}
+
+	/**
+	 * @param ranges The ranges whose diagnostics were updated.
+	 */
+	private updateRegionDiagnostics(
+		diagnostics: ReadonlyArray<vscode.Diagnostic>,
+		ranges: ReadonlyArray<vscode.Range>): boolean {
+		if (!this._diagnostics.get(DiagnosticKind.Semantic)) {
+			this._diagnostics.set(DiagnosticKind.Semantic, diagnostics);
+			return true;
+		}
+		const oldDiagnostics = this._diagnostics.get(DiagnosticKind.Semantic)!;
+		const newDiagnostics = oldDiagnostics.filter(diag => !ranges.some(range => diag.range.intersection(range)));
+		newDiagnostics.push(...diagnostics);
+		this._diagnostics.set(DiagnosticKind.Semantic, newDiagnostics);
+		return true;
 	}
 
 	private getSuggestionDiagnostics(settings: DiagnosticSettings) {
@@ -284,15 +306,16 @@ export class DiagnosticsManager extends Disposable {
 		file: vscode.Uri,
 		language: DiagnosticLanguage,
 		kind: DiagnosticKind,
-		diagnostics: ReadonlyArray<vscode.Diagnostic>
+		diagnostics: ReadonlyArray<vscode.Diagnostic>,
+		ranges: ReadonlyArray<vscode.Range> | undefined,
 	): void {
 		let didUpdate = false;
 		const entry = this._diagnostics.get(file);
 		if (entry) {
-			didUpdate = entry.updateDiagnostics(language, kind, diagnostics);
+			didUpdate = entry.updateDiagnostics(language, kind, diagnostics, ranges);
 		} else if (diagnostics.length) {
 			const fileDiagnostics = new FileDiagnostics(file, language);
-			fileDiagnostics.updateDiagnostics(language, kind, diagnostics);
+			fileDiagnostics.updateDiagnostics(language, kind, diagnostics, ranges);
 			this._diagnostics.set(file, fileDiagnostics);
 			didUpdate = true;
 		}

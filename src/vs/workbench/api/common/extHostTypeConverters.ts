@@ -53,6 +53,7 @@ import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/ed
 import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import type * as vscode from 'vscode';
 import * as types from './extHostTypes';
+import { IToolData } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
 
 export namespace Command {
 
@@ -2740,6 +2741,16 @@ export namespace DebugTreeItem {
 			canEdit: item.canEdit,
 			collapsibleState: (item.collapsibleState || DebugTreeItemCollapsibleState.None) as DebugTreeItemCollapsibleState,
 			contextValue: item.contextValue,
+		};
+	}
+}
+
+export namespace LanguageModelToolDescription {
+	export function to(item: IToolData): vscode.LanguageModelToolDescription {
+		return {
+			name: item.name,
+			description: item.description,
+			parametersSchema: item.parametersSchema,
 		};
 	}
 }

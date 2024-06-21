@@ -345,6 +345,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	get onDidChangeSelection(): Event<ITreeEvent<T>> { return Event.map(this.tree.onDidChangeSelection, asTreeEvent); }
 
 	get onKeyDown(): Event<KeyboardEvent> { return this.tree.onKeyDown; }
+	get onMouseOver(): Event<ITreeMouseEvent<T>> { return Event.map(this.tree.onMouseOver, asTreeMouseEvent); }
 	get onMouseClick(): Event<ITreeMouseEvent<T>> { return Event.map(this.tree.onMouseClick, asTreeMouseEvent); }
 	get onMouseDblClick(): Event<ITreeMouseEvent<T>> { return Event.map(this.tree.onMouseDblClick, asTreeMouseEvent); }
 	get onContextMenu(): Event<ITreeContextMenuEvent<T>> { return Event.map(this.tree.onContextMenu, asTreeContextMenuEvent); }
@@ -567,10 +568,6 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 	resort(element: TInput | T = this.root.element, recursive = true): void {
 		this.tree.resort(this.getDataNode(element), recursive);
-	}
-
-	hasElement(element: TInput | T): boolean {
-		return this.tree.hasElement(this.getDataNode(element));
 	}
 
 	hasNode(element: TInput | T): boolean {

@@ -49,6 +49,14 @@ export interface IPromptInputModelState {
 	readonly ghostTextIndex: number;
 }
 
+export interface ISerializedPromptInputModel {
+	readonly modelState: IPromptInputModelState;
+	readonly commandStartX: number;
+	readonly lastPromptLine: string | undefined;
+	readonly continuationPrompt: string | undefined;
+	readonly lastUserInput: string;
+}
+
 export class PromptInputModel extends Disposable implements IPromptInputModel {
 	private _state: PromptInputState = PromptInputState.Unknown;
 
@@ -142,6 +150,26 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 		return result;
 	}
 
+	serialize(): ISerializedPromptInputModel {
+		return {
+			modelState: this._createStateObject(),
+			commandStartX: this._commandStartX,
+			lastPromptLine: this._lastPromptLine,
+			continuationPrompt: this._continuationPrompt,
+			lastUserInput: this._lastUserInput
+		};
+	}
+
+	deserialize(serialized: ISerializedPromptInputModel): void {
+		this._value = serialized.modelState.value;
+		this._cursorIndex = serialized.modelState.cursorIndex;
+		this._ghostTextIndex = serialized.modelState.ghostTextIndex;
+		this._commandStartX = serialized.commandStartX;
+		this._lastPromptLine = serialized.lastPromptLine;
+		this._continuationPrompt = serialized.continuationPrompt;
+		this._lastUserInput = serialized.lastUserInput;
+	}
+
 	private _handleCommandStart(command: { marker: IMarker }) {
 		if (this._state === PromptInputState.Input) {
 			return;
@@ -220,8 +248,13 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 
 		const absoluteCursorY = buffer.baseY + buffer.cursorY;
 		let value = commandLine;
-		let cursorIndex = absoluteCursorY === commandStartY ? this._getRelativeCursorIndex(this._commandStartX, buffer, line) : commandLine.trimEnd().length + 1;
 		let ghostTextIndex = -1;
+		let cursorIndex: number;
+		if (absoluteCursorY === commandStartY) {
+			cursorIndex = this._getRelativeCursorIndex(this._commandStartX, buffer, line);
+		} else {
+			cursorIndex = commandLine.trimEnd().length;
+		}
 
 		// Detect ghost text by looking for italic or dim text in or after the cursor and
 		// non-italic/dim text in the cell closest non-whitespace cell before the cursor
@@ -235,15 +268,25 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 			line = buffer.getLine(y);
 			const lineText = line?.translateToString(true);
 			if (lineText && line) {
+				// Check if the line wrapped without a new line (continuation)
+				if (line.isWrapped) {
+					value += lineText;
+					const relativeCursorIndex = this._getRelativeCursorIndex(0, buffer, line);
+					if (absoluteCursorY === y) {
+						cursorIndex += relativeCursorIndex;
+					} else {
+						cursorIndex += lineText.length;
+					}
+				}
 				// Verify continuation prompt if we have it, if this line doesn't have it then the
-				// user likely just pressed enter
-				if (this._continuationPrompt === undefined || this._lineContainsContinuationPrompt(lineText)) {
+				// user likely just pressed enter.
+				else if (this._continuationPrompt === undefined || this._lineContainsContinuationPrompt(lineText)) {
 					const trimmedLineText = this._trimContinuationPrompt(lineText);
 					value += `\n${trimmedLineText}`;
 					if (absoluteCursorY === y) {
 						const continuationCellWidth = this._getContinuationPromptCellWidth(line, lineText);
 						const relativeCursorIndex = this._getRelativeCursorIndex(continuationCellWidth, buffer, line);
-						cursorIndex += relativeCursorIndex;
+						cursorIndex += relativeCursorIndex + 1;
 					} else {
 						cursorIndex += trimmedLineText.length + 1;
 					}
