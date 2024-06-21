@@ -112,10 +112,20 @@
 	font-size: large;
 	padding: 4px;
 	margin-right: 8px;
+	border-radius: 5px;
+}
+
+.profiles-editor .contents-container .profile-title-container .codicon.disabled {
+	cursor: default;
+}
+
+.profiles-editor .contents-container .profile-title-container .codicon:not(.disabled):hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	outline: 1px dashed var(--vscode-toolbar-hoverOutline);
 }
 
 .profiles-editor .contents-container .profile-title-container .monaco-inputbox {
-	max-width: 340px;
+	margin-right: 10px;
 	flex: 1;
 }
 

@@ -129,6 +129,31 @@
 	align-items: center;
 }
 
+.scm-view .monaco-list-row .history-item > .graph-container {
+	display: flex;
+	flex-shrink: 0;
+	height: 22px;
+}
+
+.scm-view .monaco-list-row .history-item > .graph-container > .graph > circle {
+	stroke: var(--vscode-sideBar-background);
+}
+
+.scm-view .monaco-list-row .history-item > .label-container {
+	display: flex;
+	opacity: 0.75;
+	flex-shrink: 0;
+	gap: 4px;
+}
+
+.scm-view .monaco-list-row .history-item > .label-container > .codicon {
+	font-size: 14px;
+	border: 1px solid var(--vscode-scm-historyItemStatisticsBorder);
+	border-radius: 2px;
+	margin: 1px 0;
+	padding: 2px
+}
+
 .scm-view .monaco-list-row .history-item .stats-container {
 	display: flex;
 	font-size: 11px;

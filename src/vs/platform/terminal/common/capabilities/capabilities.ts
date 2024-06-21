@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import type { IPromptInputModel } from 'vs/platform/terminal/common/capabilities/commandDetection/promptInputModel';
+import type { IPromptInputModel, ISerializedPromptInputModel } from 'vs/platform/terminal/common/capabilities/commandDetection/promptInputModel';
 import { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetection/terminalCommand';
 import { ITerminalOutputMatch, ITerminalOutputMatcher } from 'vs/platform/terminal/common/terminal';
 import { ReplayEntry } from 'vs/platform/terminal/common/terminalProcess';
@@ -301,6 +301,7 @@ export interface IMarkProperties {
 export interface ISerializedCommandDetectionCapability {
 	isWindowsPty: boolean;
 	commands: ISerializedTerminalCommand[];
+	promptInputModel: ISerializedPromptInputModel | undefined;
 }
 export interface IPtyHostProcessReplayEvent {
 	events: ReplayEntry[];

@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { AsyncIterableSource, DeferredPromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IProgress, Progress } from 'vs/platform/progress/common/progress';
 import { ExtHostLanguageModelsShape, ExtHostContext, MainContext, MainThreadLanguageModelsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ILanguageModelStatsService } from 'vs/workbench/contrib/chat/common/languageModelStats';
-import { ILanguageModelChatMetadata, IChatResponseFragment, ILanguageModelsService, IChatMessage, ILanguageModelChatSelector } from 'vs/workbench/contrib/chat/common/languageModels';
+import { ILanguageModelChatMetadata, IChatResponseFragment, ILanguageModelsService, IChatMessage, ILanguageModelChatSelector, ILanguageModelChatResponse } from 'vs/workbench/contrib/chat/common/languageModels';
 import { IAuthenticationAccessService } from 'vs/workbench/services/authentication/browser/authenticationAccessService';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationService, INTERNAL_AUTH_PROVIDER_PREFIX } from 'vs/workbench/services/authentication/common/authentication';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
@@ -24,7 +24,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 	private readonly _proxy: ExtHostLanguageModelsShape;
 	private readonly _store = new DisposableStore();
 	private readonly _providerRegistrations = new DisposableMap<number>();
-	private readonly _pendingProgress = new Map<number, IProgress<IChatResponseFragment>>();
+	private readonly _pendingProgress = new Map<number, { defer: DeferredPromise<any>; stream: AsyncIterableSource<IChatResponseFragment> }>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -49,14 +49,23 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		const dipsosables = new DisposableStore();
 		dipsosables.add(this._chatProviderService.registerLanguageModelChat(identifier, {
 			metadata,
-			provideChatResponse: async (messages, from, options, progress, token) => {
+			sendChatRequest: async (messages, from, options, token) => {
 				const requestId = (Math.random() * 1e6) | 0;
-				this._pendingProgress.set(requestId, progress);
+				const defer = new DeferredPromise<any>();
+				const stream = new AsyncIterableSource<IChatResponseFragment>();
+
 				try {
-					await this._proxy.$provideLanguageModelResponse(handle, requestId, from, messages, options, token);
-				} finally {
+					this._pendingProgress.set(requestId, { defer, stream });
+					await this._proxy.$startChatRequest(handle, requestId, from, messages, options, token);
+				} catch (err) {
 					this._pendingProgress.delete(requestId);
+					throw err;
 				}
+
+				return {
+					result: defer.p,
+					stream: stream.asyncIterable
+				} satisfies ILanguageModelChatResponse;
 			},
 			provideTokenCount: (str, token) => {
 				return this._proxy.$provideTokenLength(handle, str, token);
@@ -68,8 +77,22 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		this._providerRegistrations.set(handle, dipsosables);
 	}
 
-	async $handleProgressChunk(requestId: number, chunk: IChatResponseFragment): Promise<void> {
-		this._pendingProgress.get(requestId)?.report(chunk);
+	async $handleResponsePart(requestId: number, chunk: IChatResponseFragment): Promise<void> {
+		this._pendingProgress.get(requestId)?.stream.emitOne(chunk);
+	}
+
+	async $handleResponseDone(requestId: number, error: any | undefined): Promise<void> {
+		const data = this._pendingProgress.get(requestId);
+		if (data) {
+			this._pendingProgress.delete(requestId);
+			if (error) {
+				data.defer.error(error);
+				data.stream.reject(error);
+			} else {
+				data.defer.complete(undefined);
+				data.stream.resolve();
+			}
+		}
 	}
 
 	$unregisterProvider(handle: number): void {
@@ -84,21 +107,34 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		this._languageModelStatsService.update(identifier, extensionId, participant, tokenCount);
 	}
 
-	async $fetchResponse(extension: ExtensionIdentifier, providerId: string, requestId: number, messages: IChatMessage[], options: {}, token: CancellationToken): Promise<any> {
+	async $tryStartChatRequest(extension: ExtensionIdentifier, providerId: string, requestId: number, messages: IChatMessage[], options: {}, token: CancellationToken): Promise<any> {
 		this._logService.debug('[CHAT] extension request STARTED', extension.value, requestId);
 
-		const task = this._chatProviderService.makeLanguageModelChatRequest(providerId, extension, messages, options, new Progress(value => {
-			this._proxy.$handleResponseFragment(requestId, value);
-		}), token);
+		const response = await this._chatProviderService.sendChatRequest(providerId, extension, messages, options, token);
 
-		task.catch(err => {
-			this._logService.error('[CHAT] extension request ERRORED', err, extension.value, requestId);
-			throw err;
-		}).finally(() => {
+		// !!! IMPORTANT !!!
+		// This method must return before the response is done (has streamed all parts)
+		// and because of that we consume the stream without awaiting
+		// !!! IMPORTANT !!!
+		(async () => {
+			try {
+				for await (const part of response.stream) {
+					await this._proxy.$acceptResponsePart(requestId, part);
+				}
+			} catch (err) {
+				this._logService.error('[CHAT] extension request ERRORED in STREAM', err, extension.value, requestId);
+				this._proxy.$acceptResponseDone(requestId, err);
+			}
+		})();
+
+		// When the response is done (signaled via its result) we tell the EH
+		response.result.then(() => {
 			this._logService.debug('[CHAT] extension request DONE', extension.value, requestId);
+			this._proxy.$acceptResponseDone(requestId, undefined);
+		}, err => {
+			this._logService.error('[CHAT] extension request ERRORED', err, extension.value, requestId);
+			this._proxy.$acceptResponseDone(requestId, err);
 		});
-
-		return task;
 	}
 
 

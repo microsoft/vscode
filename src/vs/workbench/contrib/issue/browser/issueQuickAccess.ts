@@ -11,7 +11,7 @@ import { IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { Codicon } from 'vs/base/common/codicons';
 import { IssueSource } from 'vs/platform/issue/common/issue';
@@ -107,7 +107,7 @@ export class IssueQuickAccess extends PickerQuickAccessProvider<IPickerQuickAcce
 		return [...issuePicksConst, ...issuePicksParts];
 	}
 
-	private _createPick(filter: string, action?: MenuItemAction | SubmenuItemAction | undefined, extension?: IRelaxedExtensionDescription): IPickerQuickAccessItem | undefined {
+	private _createPick(filter: string, action?: MenuItemAction | SubmenuItemAction | undefined, extension?: IExtensionDescription): IPickerQuickAccessItem | undefined {
 		const buttons = [{
 			iconClass: ThemeIcon.asClassName(Codicon.info),
 			tooltip: localize('contributedIssuePage', "Open Extension Page")

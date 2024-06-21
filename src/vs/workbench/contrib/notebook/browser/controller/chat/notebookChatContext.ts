@@ -17,3 +17,5 @@ export const MENU_CELL_CHAT_WIDGET = MenuId.for('cellChatWidget');
 export const MENU_CELL_CHAT_WIDGET_STATUS = MenuId.for('cellChatWidget.status');
 export const MENU_CELL_CHAT_WIDGET_FEEDBACK = MenuId.for('cellChatWidget.feedback');
 export const MENU_CELL_CHAT_WIDGET_TOOLBAR = MenuId.for('cellChatWidget.toolbar');
+
+export const CTX_NOTEBOOK_CHAT_HAS_AGENT = new RawContextKey<boolean>('notebookChatAgentRegistered', false, localize('notebookChatAgentRegistered', "Whether a chat agent for notebook is registered"));

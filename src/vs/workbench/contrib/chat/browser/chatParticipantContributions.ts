@@ -63,6 +63,10 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 					description: localize('chatSampleRequest', "When the user clicks this participant in `/help`, this text will be submitted to the participant."),
 					type: 'string'
 				},
+				when: {
+					description: localize('chatParticipantWhen', "A condition which must be true to enable this participant."),
+					type: 'string'
+				},
 				commands: {
 					markdownDescription: localize('chatCommandsDescription', "Commands available for this chat participant, which the user can invoke with a `/`."),
 					type: 'array',
@@ -221,11 +225,6 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 					const store = new DisposableStore();
 					if (providerDescriptor.isDefault && (!providerDescriptor.locations || providerDescriptor.locations?.includes(ChatAgentLocation.Panel))) {
 						store.add(this.registerDefaultParticipantView(providerDescriptor));
-					}
-
-					if (providerDescriptor.when && !isProposedApiEnabled(extension.description, 'chatParticipantAdditions')) {
-						this.logService.error(`Extension '${extension.description.identifier.value}' CANNOT use API proposal: chatParticipantAdditions.`);
-						continue;
 					}
 
 					store.add(this._chatAgentService.registerAgent(

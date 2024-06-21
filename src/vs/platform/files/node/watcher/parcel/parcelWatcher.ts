@@ -226,7 +226,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 			if (request.pollingInterval) {
 				this.startPolling(request, request.pollingInterval);
 			} else {
-				this.startWatching(request);
+				await this.startWatching(request);
 			}
 		}
 	}
@@ -322,7 +322,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		pollingWatcher.schedule(0);
 	}
 
-	private startWatching(request: IRecursiveWatchRequest, restarts = 0): void {
+	private async startWatching(request: IRecursiveWatchRequest, restarts = 0): Promise<void> {
 		const cts = new CancellationTokenSource();
 
 		const instance = new DeferredPromise<parcelWatcher.AsyncSubscription | undefined>();
@@ -349,36 +349,38 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 		// Path checks for symbolic links / wrong casing
 		const { realPath, realPathDiffers, realPathLength } = this.normalizePath(request);
 
-		parcelWatcher.subscribe(realPath, (error, parcelEvents) => {
-			if (watcher.token.isCancellationRequested) {
-				return; // return early when disposed
-			}
+		try {
+			const parcelWatcherInstance = await parcelWatcher.subscribe(realPath, (error, parcelEvents) => {
+				if (watcher.token.isCancellationRequested) {
+					return; // return early when disposed
+				}
 
-			// In any case of an error, treat this like a unhandled exception
-			// that might require the watcher to restart. We do not really know
-			// the state of parcel at this point and as such will try to restart
-			// up to our maximum of restarts.
-			if (error) {
-				this.onUnexpectedError(error, request);
-			}
+				// In any case of an error, treat this like a unhandled exception
+				// that might require the watcher to restart. We do not really know
+				// the state of parcel at this point and as such will try to restart
+				// up to our maximum of restarts.
+				if (error) {
+					this.onUnexpectedError(error, request);
+				}
 
-			// Handle & emit events
-			this.onParcelEvents(parcelEvents, watcher, realPathDiffers, realPathLength);
-		}, {
-			backend: ParcelWatcher.PARCEL_WATCHER_BACKEND,
-			ignore: watcher.request.excludes
-		}).then(parcelWatcher => {
+				// Handle & emit events
+				this.onParcelEvents(parcelEvents, watcher, realPathDiffers, realPathLength);
+			}, {
+				backend: ParcelWatcher.PARCEL_WATCHER_BACKEND,
+				ignore: watcher.request.excludes
+			});
+
 			this.trace(`Started watching: '${realPath}' with backend '${ParcelWatcher.PARCEL_WATCHER_BACKEND}'`);
 
-			instance.complete(parcelWatcher);
-		}).catch(error => {
+			instance.complete(parcelWatcherInstance);
+		} catch (error) {
 			this.onUnexpectedError(error, request);
 
 			instance.complete(undefined);
 
 			watcher.notifyWatchFailed();
 			this._onDidWatchFail.fire(request);
-		});
+		}
 	}
 
 	private onParcelEvents(parcelEvents: parcelWatcher.Event[], watcher: ParcelWatcherInstance, realPathDiffers: boolean, realPathLength: number): void {
@@ -662,7 +664,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 				if (watcher.request.pollingInterval) {
 					this.startPolling(watcher.request, watcher.request.pollingInterval, watcher.restarts + 1);
 				} else {
-					this.startWatching(watcher.request, watcher.restarts + 1);
+					await this.startWatching(watcher.request, watcher.restarts + 1);
 				}
 			} finally {
 				restartPromise.complete();
