@@ -8,12 +8,13 @@ import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { DisposableMap } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ILanguageModelToolsService } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
 import * as extensionsRegistry from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
 interface IRawToolContribution {
-	id: string;
+	name: string;
 	displayName?: string;
 	description: string;
 	parametersSchema?: IJSONSchema;
@@ -23,7 +24,7 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 	extensionPoint: 'languageModelTools',
 	activationEventsGenerator: (contributions: IRawToolContribution[], result) => {
 		for (const contrib of contributions) {
-			result.push(`onLanguageModelTool:${contrib.id}`);
+			result.push(`onLanguageModelTool:${contrib.name}`);
 		}
 	},
 	jsonSchema: {
@@ -32,11 +33,11 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 		items: {
 			additionalProperties: false,
 			type: 'object',
-			defaultSnippets: [{ body: { id: '', description: '' } }],
-			required: ['id', 'description'],
+			defaultSnippets: [{ body: { name: '', description: '' } }],
+			required: ['name', 'description'],
 			properties: {
-				id: {
-					description: localize('toolId', "A unique id for this tool."),
+				name: {
+					description: localize('toolname', "A name for this tool which must be unique across all tools."),
 					type: 'string'
 				},
 				description: {
@@ -57,8 +58,8 @@ const languageModelToolsExtensionPoint = extensionsRegistry.ExtensionsRegistry.r
 	}
 });
 
-function toToolKey(extensionIdentifier: ExtensionIdentifier, toolId: string) {
-	return `${extensionIdentifier.value}/${toolId}`;
+function toToolKey(extensionIdentifier: ExtensionIdentifier, toolName: string) {
+	return `${extensionIdentifier.value}/${toolName}`;
 }
 
 export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContribution {
@@ -67,19 +68,25 @@ export class LanguageModelToolsExtensionPointHandler implements IWorkbenchContri
 	private _registrationDisposables = new DisposableMap<string>();
 
 	constructor(
-		@ILanguageModelToolsService languageModelToolsService: ILanguageModelToolsService
+		@ILanguageModelToolsService languageModelToolsService: ILanguageModelToolsService,
+		@ILogService logService: ILogService,
 	) {
 		languageModelToolsExtensionPoint.setHandler((extensions, delta) => {
 			for (const extension of delta.added) {
 				for (const tool of extension.value) {
+					if (!tool.name || !tool.description) {
+						logService.warn(`Invalid tool contribution from ${extension.description.identifier.value}: ${JSON.stringify(tool)}`);
+						continue;
+					}
+
 					const disposable = languageModelToolsService.registerToolData(tool);
-					this._registrationDisposables.set(toToolKey(extension.description.identifier, tool.id), disposable);
+					this._registrationDisposables.set(toToolKey(extension.description.identifier, tool.name), disposable);
 				}
 			}
 
 			for (const extension of delta.removed) {
 				for (const tool of extension.value) {
-					this._registrationDisposables.deleteAndDispose(toToolKey(extension.description.identifier, tool.id));
+					this._registrationDisposables.deleteAndDispose(toToolKey(extension.description.identifier, tool.name));
 				}
 			}
 		});

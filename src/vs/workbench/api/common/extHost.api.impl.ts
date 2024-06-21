@@ -1483,15 +1483,15 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				}
 			},
 			registerTool(toolId: string, tool: vscode.LanguageModelTool) {
-				checkProposedApiEnabled(extension, 'chatVariableResolver');
+				checkProposedApiEnabled(extension, 'lmTools');
 				return extHostLanguageModelTools.registerTool(extension, toolId, tool);
 			},
 			invokeTool(toolId: string, parameters: Object, token: vscode.CancellationToken) {
-				checkProposedApiEnabled(extension, 'chatVariableResolver');
+				checkProposedApiEnabled(extension, 'lmTools');
 				return extHostLanguageModelTools.invokeTool(toolId, parameters, token);
 			},
 			get tools() {
-				checkProposedApiEnabled(extension, 'chatVariableResolver');
+				checkProposedApiEnabled(extension, 'lmTools');
 				return extHostLanguageModelTools.tools;
 			},
 		};
