@@ -525,7 +525,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 						(newHeight !== 0 && observedElementInfo.lastKnownPadding === 0) ||
 						(newHeight === 0 && observedElementInfo.lastKnownPadding !== 0);
 
-					const isEmptyOutput = entry.target.innerText.trim() === '';
+					const isEmptyOutput = newHeight < 2;
 					if (shouldUpdatePadding) {
 						// Do not update dimension in resize observer
 						window.requestAnimationFrame(() => {
