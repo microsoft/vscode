@@ -35,7 +35,7 @@ import { filterIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIc
 import { NotebookFindFilters } from 'vs/workbench/contrib/notebook/browser/contrib/find/findFilters';
 import { isSafari } from 'vs/base/common/platform';
 import { ISashEvent, Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
-import { INotebookDeltaDecoration, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ICellModelDecorations, ICellModelDeltaDecorations, ICellViewModel, INotebookDeltaDecoration, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { defaultInputBoxStyles, defaultProgressBarStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { IToggleStyles, Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -321,7 +321,8 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	private _filters: NotebookFindFilters;
 
 	private readonly inSelectionToggle: Toggle;
-	private selectionDecorationIds: string[] = [];
+	private cellSelectionDecorationIds: string[] = [];
+	private textSelectionDecorationIds: ICellModelDecorations[] = [];
 
 	constructor(
 		@IContextViewService private readonly _contextViewService: IContextViewService,
@@ -493,6 +494,8 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 					this._filters.findScopeType = NotebookFindScopeType.Text;
 					this._filters.selectedCellRanges = cellSelection;
 					this._filters.selectedTextRanges = textSelection;
+					this.setTextSelectionDecorations(textSelection, this._notebookEditor.getSelectionViewModels()[0]);
+					// this._state.change({ searchScope: textSelection }, true);
 
 				} else {
 					this._filters.findScopeType = NotebookFindScopeType.Cells;
@@ -504,6 +507,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 				this._filters.selectedCellRanges = undefined;
 				this._filters.selectedTextRanges = undefined;
 				this.clearCellSelectionDecorations();
+				this.clearTextSelectionDecorations();
 			}
 		});
 
@@ -714,11 +718,37 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 				options: { className: 'nb-multiCellHighlight', outputClassName: 'nb-multiCellHighlight' }
 			} satisfies INotebookDeltaDecoration);
 		}
-		this.selectionDecorationIds = this._notebookEditor.deltaCellDecorations([], decorations);
+		this.cellSelectionDecorationIds = this._notebookEditor.deltaCellDecorations([], decorations);
 	}
 
 	private clearCellSelectionDecorations() {
-		this._notebookEditor.deltaCellDecorations(this.selectionDecorationIds, []);
+		this._notebookEditor.deltaCellDecorations(this.cellSelectionDecorationIds, []);
+	}
+
+	private setTextSelectionDecorations(textRanges: Range[], cell: ICellViewModel) {
+		this._notebookEditor.changeModelDecorations(changeAccessor => {
+			const decorations: ICellModelDeltaDecorations[] = [];
+			for (const range of textRanges) {
+				decorations.push({
+					ownerId: cell.handle,
+					decorations: [{
+						range: range,
+						options: {
+							description: 'text search range for notebook search scope',
+							isWholeLine: true,
+							className: 'nb-findScope'
+						}
+					}]
+				});
+			}
+			this.textSelectionDecorationIds = changeAccessor.deltaDecorations([], decorations);
+		});
+	}
+
+	private clearTextSelectionDecorations() {
+		this._notebookEditor.changeModelDecorations(changeAccessor => {
+			changeAccessor.deltaDecorations(this.textSelectionDecorationIds, []);
+		});
 	}
 
 	protected _updateMatchesCount(): void {
@@ -821,7 +851,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	public hide(): void {
 		if (this._isVisible) {
 			this.inSelectionToggle.checked = false;
-			this._notebookEditor.deltaCellDecorations(this.selectionDecorationIds, []);
+			this._notebookEditor.deltaCellDecorations(this.cellSelectionDecorationIds, []);
 
 			this._domNode.classList.remove('visible-transition');
 			this._domNode.setAttribute('aria-hidden', 'true');
