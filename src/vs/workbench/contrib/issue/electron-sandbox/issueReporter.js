@@ -7,6 +7,10 @@
 (function () {
 	'use strict';
 
+	/**
+	 * @import { ISandboxConfiguration } from '../../../../base/parts/sandbox/common/sandboxTypes'
+	 */
+
 	const bootstrapWindow = bootstrapWindowLib();
 
 	// Load issue reporter into window
@@ -24,8 +28,6 @@
 	);
 
 	/**
-	 * @typedef {import('../../../../base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration} ISandboxConfiguration
-	 *
 	 * @returns {{
 	 *   load: (
 	 *     modules: string[],

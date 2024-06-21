@@ -7,9 +7,9 @@
 'use strict';
 
 /**
- * @typedef {import('./vs/base/common/product').IProductConfiguration} IProductConfiguration
- * @typedef {import('./vs/base/node/languagePacks').NLSConfiguration} NLSConfiguration
- * @typedef {import('./vs/platform/environment/common/argv').NativeParsedArgs} NativeParsedArgs
+ * @import { IProductConfiguration } from './vs/base/common/product'
+ * @import { NLSConfiguration } from './vs/base/node/languagePacks'
+ * @import { NativeParsedArgs } from './vs/platform/environment/common/argv'
  */
 
 const perf = require('./vs/base/common/performance');
