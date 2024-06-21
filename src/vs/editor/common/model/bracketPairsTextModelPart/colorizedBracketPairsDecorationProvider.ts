@@ -12,7 +12,31 @@ import { BracketInfo } from 'vs/editor/common/textModelBracketPairs';
 import { DecorationProvider } from 'vs/editor/common/model/decorationProvider';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import {
-	editorBracketHighlightingForeground1, editorBracketHighlightingForeground2, editorBracketHighlightingForeground3, editorBracketHighlightingForeground4, editorBracketHighlightingForeground5, editorBracketHighlightingForeground6, editorBracketHighlightingUnexpectedBracketForeground
+	editorBracketHighlightingUnexpectedBracketForeground,
+	editorBracketHighlightingForeground1,
+	editorBracketHighlightingForeground2,
+	editorBracketHighlightingForeground3,
+	editorBracketHighlightingForeground4,
+	editorBracketHighlightingForeground5,
+	editorBracketHighlightingForeground6,
+	editorBracketHighlightingForeground7,
+	editorBracketHighlightingForeground8,
+	editorBracketHighlightingForeground9,
+	editorBracketHighlightingForeground10,
+	editorBracketHighlightingForeground11,
+	editorBracketHighlightingForeground12,
+	editorBracketHighlightingForeground13,
+	editorBracketHighlightingForeground14,
+	editorBracketHighlightingForeground15,
+	editorBracketHighlightingForeground16,
+	editorBracketHighlightingForeground17,
+	editorBracketHighlightingForeground18,
+	editorBracketHighlightingForeground19,
+	editorBracketHighlightingForeground20,
+	editorBracketHighlightingForeground21,
+	editorBracketHighlightingForeground22,
+	editorBracketHighlightingForeground23,
+	editorBracketHighlightingForeground24,
 } from 'vs/editor/common/core/editorColorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IModelOptionsChangedEvent } from 'vs/editor/common/textModelEvents';
@@ -99,6 +123,7 @@ class ColorProvider {
 		// To support a dynamic amount of colors up to 6 colors,
 		// we use a number that is a lcm of all numbers from 1 to 6.
 		return `bracket-highlighting-${level % 30}`;
+		// return `bracket-highlighting-${level % 5_354_228_880}`; // necessary to go this high? this is the lcm of all numbers from 1 to 24
 	}
 }
 
@@ -109,7 +134,25 @@ registerThemingParticipant((theme, collector) => {
 		editorBracketHighlightingForeground3,
 		editorBracketHighlightingForeground4,
 		editorBracketHighlightingForeground5,
-		editorBracketHighlightingForeground6
+		editorBracketHighlightingForeground6,
+		editorBracketHighlightingForeground7,
+		editorBracketHighlightingForeground8,
+		editorBracketHighlightingForeground9,
+		editorBracketHighlightingForeground10,
+		editorBracketHighlightingForeground11,
+		editorBracketHighlightingForeground12,
+		editorBracketHighlightingForeground13,
+		editorBracketHighlightingForeground14,
+		editorBracketHighlightingForeground15,
+		editorBracketHighlightingForeground16,
+		editorBracketHighlightingForeground17,
+		editorBracketHighlightingForeground18,
+		editorBracketHighlightingForeground19,
+		editorBracketHighlightingForeground20,
+		editorBracketHighlightingForeground21,
+		editorBracketHighlightingForeground22,
+		editorBracketHighlightingForeground23,
+		editorBracketHighlightingForeground24,
 	];
 	const colorProvider = new ColorProvider();
 
