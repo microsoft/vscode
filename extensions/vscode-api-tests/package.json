@@ -53,7 +53,8 @@
     "treeViewActiveItem",
     "treeViewReveal",
     "workspaceTrust",
-    "telemetry"
+    "telemetry",
+    "lmTools"
   ],
   "private": true,
   "activationEvents": [],

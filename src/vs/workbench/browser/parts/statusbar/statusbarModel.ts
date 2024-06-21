@@ -258,19 +258,34 @@ export class StatusbarViewModel extends Disposable {
 		// - those with `priority: number` that can be compared
 		// - those with `priority: string` that must be sorted
 		//   relative to another entry if possible
-		const mapEntryWithNumberedPriorityToIndex = new Map<IStatusbarViewModelEntry, number /* index of entry */>();
-		const mapEntryWithRelativePriority = new Map<string /* priority of entry */, IStatusbarViewModelEntry[]>();
+		const mapEntryWithNumberedPriorityToIndex = new Map<IStatusbarViewModelEntry, number /* priority of entry as number */>();
+		const mapEntryWithRelativePriority = new Map<string /* id of entry to position after */, Map<string, IStatusbarViewModelEntry>>();
 		for (let i = 0; i < this._entries.length; i++) {
 			const entry = this._entries[i];
 			if (typeof entry.priority.primary === 'number') {
 				mapEntryWithNumberedPriorityToIndex.set(entry, i);
 			} else {
-				let entries = mapEntryWithRelativePriority.get(entry.priority.primary.id);
+				const referenceEntryId = entry.priority.primary.id;
+				let entries = mapEntryWithRelativePriority.get(referenceEntryId);
 				if (!entries) {
-					entries = [];
-					mapEntryWithRelativePriority.set(entry.priority.primary.id, entries);
+
+					// It is possible that this entry references another entry
+					// that itself references an entry. In that case, we want
+					// to add it to the entries of the referenced entry.
+
+					for (const relativeEntries of mapEntryWithRelativePriority.values()) {
+						if (relativeEntries.has(referenceEntryId)) {
+							entries = relativeEntries;
+							break;
+						}
+					}
+
+					if (!entries) {
+						entries = new Map();
+						mapEntryWithRelativePriority.set(referenceEntryId, entries);
+					}
 				}
-				entries.push(entry);
+				entries.set(entry.id, entry);
 			}
 		}
 
@@ -311,7 +326,8 @@ export class StatusbarViewModel extends Disposable {
 			sortedEntries = [];
 
 			for (const entry of sortedEntriesWithNumberedPriority) {
-				const relativeEntries = mapEntryWithRelativePriority.get(entry.id);
+				const relativeEntriesMap = mapEntryWithRelativePriority.get(entry.id);
+				const relativeEntries = relativeEntriesMap ? Array.from(relativeEntriesMap.values()) : undefined;
 
 				// Fill relative entries to LEFT
 				if (relativeEntries) {
@@ -333,7 +349,7 @@ export class StatusbarViewModel extends Disposable {
 			// Finally, just append all entries that reference another entry
 			// that does not exist to the end of the list
 			for (const [, entries] of mapEntryWithRelativePriority) {
-				sortedEntries.push(...entries);
+				sortedEntries.push(...entries.values());
 			}
 		}
 

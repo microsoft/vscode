@@ -368,7 +368,7 @@ export class CloseAction extends AbstractInlineChatAction {
 				group: '0_main',
 				order: 1,
 				when: ContextKeyExpr.and(
-					CTX_INLINE_CHAT_CONFIG_TXT_BTNS,
+					// CTX_INLINE_CHAT_CONFIG_TXT_BTNS,
 					ContextKeyExpr.or(
 						CTX_INLINE_CHAT_RESPONSE_TYPE.isEqualTo(InlineChatResponseType.Messages),
 						CTX_INLINE_CHAT_EDIT_MODE.isEqualTo(EditMode.Preview)

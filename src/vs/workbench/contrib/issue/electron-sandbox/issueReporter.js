@@ -29,7 +29,7 @@
 	 * @returns {{
 	 *   load: (
 	 *     modules: string[],
-	 *     resultCallback: (result, configuration: ISandboxConfiguration) => unknown,
+	 *     resultCallback: (result: any, configuration: ISandboxConfiguration) => unknown,
 	 *     options?: {
 	 *       configureDeveloperSettings?: (config: ISandboxConfiguration) => {
 	 * 			forceEnableDeveloperKeybindings?: boolean,

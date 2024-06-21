@@ -1967,23 +1967,23 @@
         {
           "command": "git.pushRef",
           "group": "navigation",
-          "when": "scmProvider == git && scmHistoryItemGroupHasUpstream"
+          "when": "scmProvider == git && scmHistoryItemGroupHasRemote"
         },
         {
           "command": "git.publish",
           "group": "navigation",
-          "when": "scmProvider == git && !scmHistoryItemGroupHasUpstream"
+          "when": "scmProvider == git && !scmHistoryItemGroupHasRemote"
         }
       ],
       "scm/outgoingChanges/context": [
         {
           "command": "git.pushRef",
-          "when": "scmProvider == git && scmHistoryItemGroupHasUpstream",
+          "when": "scmProvider == git && scmHistoryItemGroupHasRemote",
           "group": "1_modification@1"
         },
         {
           "command": "git.publish",
-          "when": "scmProvider == git && !scmHistoryItemGroupHasUpstream",
+          "when": "scmProvider == git && !scmHistoryItemGroupHasRemote",
           "group": "1_modification@1"
         }
       ],
