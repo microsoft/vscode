@@ -52,8 +52,9 @@ import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemPro
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IIssueMainService } from 'vs/platform/issue/common/issue';
+import { IIssueMainService, IProcessMainService } from 'vs/platform/issue/common/issue';
 import { IssueMainService } from 'vs/platform/issue/electron-main/issueMainService';
+import { ProcessMainService } from 'vs/platform/issue/electron-main/processMainService';
 import { IKeyboardLayoutMainService, KeyboardLayoutMainService } from 'vs/platform/keyboardLayout/electron-main/keyboardLayoutMainService';
 import { ILaunchMainService, LaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
 import { ILifecycleMainService, LifecycleMainPhase, ShutdownReason } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
@@ -121,7 +122,6 @@ import { Lazy } from 'vs/base/common/lazy';
 import { IAuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindows';
 import { AuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindowsMainService';
 import { normalizeNFC } from 'vs/base/common/normalization';
-
 /**
  * The main VS Code application. There will only ever be one instance,
  * even if the user starts many instances (e.g. from the command line).
@@ -1051,6 +1051,9 @@ export class CodeApplication extends Disposable {
 		// Issues
 		services.set(IIssueMainService, new SyncDescriptor(IssueMainService, [this.userEnv]));
 
+		// Process
+		services.set(IProcessMainService, new SyncDescriptor(ProcessMainService, [this.userEnv]));
+
 		// Encryption
 		services.set(IEncryptionMainService, new SyncDescriptor(EncryptionMainService));
 
@@ -1182,6 +1185,10 @@ export class CodeApplication extends Disposable {
 		// Issues
 		const issueChannel = ProxyChannel.fromService(accessor.get(IIssueMainService), disposables);
 		mainProcessElectronServer.registerChannel('issue', issueChannel);
+
+		// Process
+		const processChannel = ProxyChannel.fromService(accessor.get(IProcessMainService), disposables);
+		mainProcessElectronServer.registerChannel('process', processChannel);
 
 		// Encryption
 		const encryptionChannel = ProxyChannel.fromService(accessor.get(IEncryptionMainService), disposables);

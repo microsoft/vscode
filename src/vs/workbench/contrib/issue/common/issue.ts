@@ -10,5 +10,12 @@ export const IWorkbenchIssueService = createDecorator<IWorkbenchIssueService>('w
 export interface IWorkbenchIssueService {
 	readonly _serviceBrand: undefined;
 	openReporter(dataOverrides?: Partial<IssueReporterData>): Promise<void>;
+}
+
+export const IWorkbenchProcessService = createDecorator<IWorkbenchProcessService>('workbenchProcessService');
+
+export interface IWorkbenchProcessService {
+	readonly _serviceBrand: undefined;
 	openProcessExplorer(): Promise<void>;
 }
+
