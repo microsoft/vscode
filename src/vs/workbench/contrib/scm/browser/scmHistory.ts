@@ -75,13 +75,14 @@ export function renderSCMHistoryItemGraph(historyItemViewModel: ISCMHistoryItemV
 	const inputSwimlanes = historyItemViewModel.inputSwimlanes;
 	const outputSwimlanes = historyItemViewModel.outputSwimlanes;
 
+	// Find the history item in the input swimlanes
 	const inputIndex = inputSwimlanes.findIndex(node => node.id === historyItem.id);
-	const outputIndex = historyItem.parentIds.length === 0 ? -1 : findLastIndex(outputSwimlanes, historyItem.parentIds[0]);
 
+	// Circle index - use the input swimlane index if present, otherwise add it to the end
 	const circleIndex = inputIndex !== -1 ? inputIndex : inputSwimlanes.length;
-	const circleColorIndex =
-		outputIndex !== -1 ? outputSwimlanes[outputIndex].color :
-			inputIndex !== -1 ? inputSwimlanes[inputIndex].color : 0;
+
+	// Circle color - use the output swimlane color if present, otherwise the input swimlane color
+	const circleColorIndex = circleIndex < outputSwimlanes.length ? outputSwimlanes[circleIndex].color : inputSwimlanes[circleIndex].color;
 
 	let outputSwimlaneIndex = 0;
 	for (let index = 0; index < inputSwimlanes.length; index++) {
@@ -173,8 +174,8 @@ export function renderSCMHistoryItemGraph(historyItemViewModel: ISCMHistoryItemV
 	}
 
 	// Draw | from *
-	if (outputIndex !== -1) {
-		const path = drawVerticalLine(SWIMLANE_WIDTH * (circleIndex + 1), SWIMLANE_HEIGHT / 2, SWIMLANE_HEIGHT, graphColors[outputSwimlanes[outputIndex].color]);
+	if (historyItem.parentIds.length > 0) {
+		const path = drawVerticalLine(SWIMLANE_WIDTH * (circleIndex + 1), SWIMLANE_HEIGHT / 2, SWIMLANE_HEIGHT, graphColors[circleColorIndex]);
 		svg.append(path);
 	}
 
