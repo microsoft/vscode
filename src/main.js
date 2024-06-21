@@ -205,7 +205,10 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		'force-color-profile',
 
 		// disable LCD font rendering, a Chromium flag
-		'disable-lcd-text'
+		'disable-lcd-text',
+
+		// bypass any specified proxy for the given semi-colon-separated list of hosts
+		'proxy-bypass-list'
 	];
 
 	if (process.platform === 'linux') {
