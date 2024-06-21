@@ -110,6 +110,8 @@ export interface ICellOutputViewModel extends IDisposable {
 	hasMultiMimeType(): boolean;
 	readonly onDidResetRenderer: Event<void>;
 	shouldShow: ISettableObservable<boolean>;
+	show(force?: boolean): void;
+	hide(): void;
 	resetRenderer(): void;
 	toRawJSON(): any;
 }

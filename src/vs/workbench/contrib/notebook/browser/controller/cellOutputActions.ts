@@ -40,7 +40,8 @@ registerAction2(class ShowAllOutputsAction extends Action2 {
 		if (cell && cell.cellKind === CellKind.Code) {
 
 			for (let i = 1; i < cell.outputsViewModels.length; i++) {
-				(cell as CodeCellViewModel).updateOutputHeight(i, 1, 'command', false);
+				context.outputViewModel.show(true);
+				(cell as CodeCellViewModel).updateOutputHeight(i, 1, 'command');
 			}
 		}
 	}

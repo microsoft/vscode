@@ -16,17 +16,19 @@ export class CellOutputViewModel extends Disposable implements ICellOutputViewMo
 	private _onDidResetRendererEmitter = this._register(new Emitter<void>());
 	readonly onDidResetRenderer = this._onDidResetRendererEmitter.event;
 
-	isHidden = true;
-	private _onDidHiddenChange = this._register(new Emitter<boolean>());
-	readonly onDidHiddenChange = this._onDidHiddenChange.event;
+	private alwaysShow = false;
 
-	show() {
-		if (this.isHidden) {
-			this.isHidden = false;
-			this._onDidHiddenChange.fire(false);
+	show(force = false) {
+		if (force) {
+			this.alwaysShow = true;
+		}
+		this.shouldShow.set(true, undefined);
+	}
+	hide() {
+		if (!this.alwaysShow) {
+			this.shouldShow.set(false, undefined);
 		}
 	}
-
 	shouldShow = observableValue<boolean>('shouldShowOutput', false);
 
 	outputHandle = handle++;

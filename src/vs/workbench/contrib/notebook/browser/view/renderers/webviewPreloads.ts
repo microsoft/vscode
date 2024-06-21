@@ -525,7 +525,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 						(newHeight !== 0 && observedElementInfo.lastKnownPadding === 0) ||
 						(newHeight === 0 && observedElementInfo.lastKnownPadding !== 0);
 
-					const isEmptyOutput = newHeight < 2;
+					// 2.1 px would be slightly larger than the top and bottom border of the output node
+					const isEmptyOutput = newHeight < 2.1;
 					if (shouldUpdatePadding) {
 						// Do not update dimension in resize observer
 						window.requestAnimationFrame(() => {
@@ -2758,11 +2759,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 			this.element.style.visibility = '';
 			this.element.style.top = `${top}px`;
-
-			dimensionUpdater.updateHeight(outputId, outputContainer.element.offsetHeight, {
-				isOutput: true,
-				isEmptyOutput: outputContainer.outputNode?.isEmptyOrWhitespace
-			});
 		}
 
 		public hide() {
@@ -2955,6 +2951,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 			const offsetHeight = this.element.offsetHeight;
 			const cps = document.defaultView!.getComputedStyle(this.element);
+			const verticalPadding = parseFloat(cps.paddingTop) + parseFloat(cps.paddingBottom);
+			const contentHeight = offsetHeight - verticalPadding;
 			if (offsetHeight !== 0 && cps.padding === '0px') {
 				// we set padding to zero if the output height is zero (then we can have a zero-height output DOM node)
 				// thus we need to ensure the padding is accounted when updating the init height of the output
@@ -2965,11 +2963,17 @@ async function webviewPreloads(ctx: PreloadContext) {
 				});
 
 				this.element.style.padding = `${ctx.style.outputNodePadding}px ${ctx.style.outputNodePadding}px ${ctx.style.outputNodePadding}px ${ctx.style.outputNodeLeftPadding}`;
-			} else {
+			} else if (contentHeight !== 0) {
 				dimensionUpdater.updateHeight(this.outputId, this.element.offsetHeight, {
 					isOutput: true,
 					init: true,
 					isEmptyOutput: this.isEmptyOrWhitespace
+				});
+			} else {
+				// we have a zero-height output DOM node
+				dimensionUpdater.updateHeight(this.outputId, 0, {
+					isOutput: true,
+					init: true,
 				});
 			}
 
