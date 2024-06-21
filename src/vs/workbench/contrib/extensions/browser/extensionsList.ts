@@ -16,10 +16,9 @@ import { IExtension, ExtensionContainers, ExtensionState, IExtensionsWorkbenchSe
 import { ManageExtensionAction, ExtensionRuntimeStateAction, ExtensionStatusLabelAction, RemoteInstallAction, ExtensionStatusAction, LocalInstallAction, ButtonWithDropDownExtensionAction, InstallDropdownAction, InstallingLabelAction, ButtonWithDropdownExtensionActionViewItem, DropDownExtensionAction, WebInstallAction, MigrateDeprecatedExtensionAction, SetLanguageAction, ClearLanguageAction, UpdateAction, ToggleAutoUpdateForExtensionAction, ExtensionAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { RatingsWidget, InstallCountWidget, RecommendationWidget, RemoteBadgeWidget, ExtensionPackCountWidget as ExtensionPackBadgeWidget, SyncIgnoredWidget, ExtensionHoverWidget, ExtensionActivationStatusWidget, PreReleaseBookmarkWidget, extensionVerifiedPublisherIconColor, VerifiedPublisherWidget } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
-import { IExtensionService, toExtension } from 'vs/workbench/services/extensions/common/extensions';
-import { IExtensionManagementServerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
 import { registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
@@ -69,8 +68,8 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 	) { }
 
@@ -194,23 +193,8 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 		data.extensionDisposables = dispose(data.extensionDisposables);
 
-		const computeEnablement = async () => {
-			if (extension.state === ExtensionState.Uninstalled) {
-				if (!!extension.deprecationInfo) {
-					return true;
-				}
-				if (this.extensionsWorkbenchService.canSetLanguage(extension)) {
-					return false;
-				}
-				return !(await this.extensionsWorkbenchService.canInstall(extension));
-			} else if (extension.local && !isLanguagePackExtension(extension.local.manifest)) {
-				const runningExtension = this.extensionService.extensions.filter(e => areSameExtensions({ id: e.identifier.value }, extension.identifier))[0];
-				return !(runningExtension && extension.server === this.extensionManagementServerService.getExtensionManagementServer(toExtension(runningExtension)));
-			}
-			return false;
-		};
-		const updateEnablement = async () => {
-			const disabled = await computeEnablement();
+		const updateEnablement = () => {
+			const disabled = extension.local && !this.extensionEnablementService.isEnabled(extension.local);
 			const deprecated = !!extension.deprecationInfo;
 			data.element.classList.toggle('deprecated', deprecated);
 			data.root.classList.toggle('disabled', disabled);
