@@ -771,7 +771,19 @@ export class InlineChatController implements IEditorContribution {
 			// real response -> complex...
 			this._ui.value.zone.widget.updateStatus('');
 
-			newPosition = await this._strategy.renderChanges(response);
+			const position = await this._strategy.renderChanges(response);
+			if (position) {
+				// if the selection doesn't start far off we keep the widget at its current position
+				// because it makes reading this nicer
+				const selection = this._editor.getSelection();
+				if (selection?.containsPosition(position)) {
+					if (position.lineNumber - selection.startLineNumber > 8) {
+						newPosition = position;
+					}
+				} else {
+					newPosition = position;
+				}
+			}
 		}
 		this._showWidget(false, newPosition);
 

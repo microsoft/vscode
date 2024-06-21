@@ -11,7 +11,7 @@ import { Iterable } from 'vs/base/common/iterator';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export interface IToolData {
-	id: string;
+	name: string;
 	displayName?: string;
 	description: string;
 	parametersSchema?: Object;
@@ -37,7 +37,7 @@ export interface ILanguageModelToolsService {
 	_serviceBrand: undefined;
 	onDidChangeTools: Event<IToolDelta>;
 	registerToolData(toolData: IToolData): IDisposable;
-	registerToolImplementation(id: string, tool: IToolImpl): IDisposable;
+	registerToolImplementation(name: string, tool: IToolImpl): IDisposable;
 	getTools(): Iterable<Readonly<IToolData>>;
 	invokeTool(name: string, parameters: any, token: CancellationToken): Promise<string>;
 }
@@ -55,28 +55,28 @@ export class LanguageModelToolsService implements ILanguageModelToolsService {
 	) { }
 
 	registerToolData(toolData: IToolData): IDisposable {
-		if (this._tools.has(toolData.id)) {
-			throw new Error(`Tool "${toolData.id}" is already registered.`);
+		if (this._tools.has(toolData.name)) {
+			throw new Error(`Tool "${toolData.name}" is already registered.`);
 		}
 
-		this._tools.set(toolData.id, { data: toolData });
+		this._tools.set(toolData.name, { data: toolData });
 		this._onDidChangeTools.fire({ added: toolData });
 
 		return toDisposable(() => {
-			this._tools.delete(toolData.id);
-			this._onDidChangeTools.fire({ removed: toolData.id });
+			this._tools.delete(toolData.name);
+			this._onDidChangeTools.fire({ removed: toolData.name });
 		});
 
 	}
 
-	registerToolImplementation(id: string, tool: IToolImpl): IDisposable {
-		const entry = this._tools.get(id);
+	registerToolImplementation(name: string, tool: IToolImpl): IDisposable {
+		const entry = this._tools.get(name);
 		if (!entry) {
-			throw new Error(`Tool "${id}" was not contributed.`);
+			throw new Error(`Tool "${name}" was not contributed.`);
 		}
 
 		if (entry.impl) {
-			throw new Error(`Tool "${id}" already has an implementation.`);
+			throw new Error(`Tool "${name}" already has an implementation.`);
 		}
 
 		entry.impl = tool;

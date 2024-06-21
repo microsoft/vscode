@@ -49,9 +49,8 @@ import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
 const NLS_PREVIOUS_MATCH_BTN_LABEL = nls.localize('label.previousMatchButton', "Previous Match");
-// const NLS_FILTER_BTN_LABEL = nls.localize('label.findFilterButton', "Search in View");
 const NLS_NEXT_MATCH_BTN_LABEL = nls.localize('label.nextMatchButton', "Next Match");
-const NLS_FIND_IN_CELL_SELECTION_BTN_LABEL = nls.localize('label.findInCellSelectionButton', "Find in Cell Selection");
+const NLS_TOGGLE_SELECTION_FIND_TITLE = nls.localize('label.toggleSelectionFind', "Find in Selection");
 const NLS_CLOSE_BTN_LABEL = nls.localize('label.closeButton', "Close");
 const NLS_TOGGLE_REPLACE_MODE_BTN_LABEL = nls.localize('label.toggleReplaceButton', "Toggle Replace");
 const NLS_REPLACE_INPUT_LABEL = nls.localize('label.replace', "Replace");
@@ -66,7 +65,7 @@ const NOTEBOOK_FIND_IN_MARKUP_PREVIEW = nls.localize('notebook.find.filter.findI
 const NOTEBOOK_FIND_IN_CODE_INPUT = nls.localize('notebook.find.filter.findInCodeInput', "Code Cell Source");
 const NOTEBOOK_FIND_IN_CODE_OUTPUT = nls.localize('notebook.find.filter.findInCodeOutput', "Code Cell Output");
 
-const NOTEBOOK_FIND_WIDGET_INITIAL_WIDTH = 318;
+const NOTEBOOK_FIND_WIDGET_INITIAL_WIDTH = 419;
 const NOTEBOOK_FIND_WIDGET_INITIAL_HORIZONTAL_PADDING = 4;
 class NotebookFindFilterActionViewItem extends DropdownMenuActionViewItem {
 	constructor(readonly filters: NotebookFindFilters, action: IAction, options: IActionViewItemOptions, actionRunner: IActionRunner, @IContextMenuService contextMenuService: IContextMenuService) {
@@ -386,6 +385,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 			null,
 			this._contextViewService,
 			{
+				// width:FIND_INPUT_AREA_WIDTH,
 				label: NLS_FIND_INPUT_LABEL,
 				placeholder: NLS_FIND_INPUT_PLACEHOLDER,
 				validation: (value: string): InputBoxMessage | null => {
@@ -462,7 +462,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 
 		this.inSelectionToggle = this._register(new Toggle({
 			icon: findSelectionIcon,
-			title: NLS_FIND_IN_CELL_SELECTION_BTN_LABEL,
+			title: NLS_TOGGLE_SELECTION_FIND_TITLE,
 			isChecked: false,
 			inputActiveOptionBackground: asCssVariable(inputActiveOptionBackground),
 			inputActiveOptionBorder: asCssVariable(inputActiveOptionBorder),

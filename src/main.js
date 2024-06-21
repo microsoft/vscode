@@ -7,9 +7,9 @@
 'use strict';
 
 /**
- * @typedef {import('./vs/base/common/product').IProductConfiguration} IProductConfiguration
- * @typedef {import('./vs/base/node/languagePacks').NLSConfiguration} NLSConfiguration
- * @typedef {import('./vs/platform/environment/common/argv').NativeParsedArgs} NativeParsedArgs
+ * @import { IProductConfiguration } from './vs/base/common/product'
+ * @import { NLSConfiguration } from './vs/base/node/languagePacks'
+ * @import { NativeParsedArgs } from './vs/platform/environment/common/argv'
  */
 
 const perf = require('./vs/base/common/performance');
@@ -205,7 +205,10 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		'force-color-profile',
 
 		// disable LCD font rendering, a Chromium flag
-		'disable-lcd-text'
+		'disable-lcd-text',
+
+		// bypass any specified proxy for the given semi-colon-separated list of hosts
+		'proxy-bypass-list'
 	];
 
 	if (process.platform === 'linux') {
