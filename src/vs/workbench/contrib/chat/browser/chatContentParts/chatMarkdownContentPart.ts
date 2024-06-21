@@ -16,18 +16,20 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ChatTreeItem, IChatCodeBlockInfo, IChatListItemRendererOptions } from 'vs/workbench/contrib/chat/browser/chat';
 import { IDisposableReference, ResourcePool } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatCollections';
+import { IChatContentPart } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatContentParts';
 import { IChatRendererDelegate } from 'vs/workbench/contrib/chat/browser/chatListRenderer';
 import { ChatMarkdownDecorationsRenderer } from 'vs/workbench/contrib/chat/browser/chatMarkdownDecorationsRenderer';
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
 import { CodeBlockPart, ICodeBlockData, localFileLanguageId, parseLocalFileData } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { IMarkdownVulnerability } from 'vs/workbench/contrib/chat/common/annotations';
+import { IChatProgressRenderableResponseContent } from 'vs/workbench/contrib/chat/common/chatModel';
 import { isRequestVM, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { CodeBlockModelCollection } from 'vs/workbench/contrib/chat/common/codeBlockModelCollection';
 
 const $ = dom.$;
 
-export class ChatMarkdownContentPart extends Disposable {
-	public readonly element: HTMLElement;
+export class ChatMarkdownContentPart extends Disposable implements IChatContentPart {
+	public readonly domNode: HTMLElement;
 	private readonly allRefs: IDisposableReference<CodeBlockPart>[] = [];
 
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
@@ -38,7 +40,7 @@ export class ChatMarkdownContentPart extends Disposable {
 	public readonly codeBlockCount: number;
 
 	constructor(
-		markdown: IMarkdownString,
+		private readonly markdown: IMarkdownString,
 		element: ChatTreeItem,
 		private readonly editorPool: EditorPool,
 		fillInIncompleteTokens = false,
@@ -115,7 +117,7 @@ export class ChatMarkdownContentPart extends Disposable {
 		this._register(markdownDecorationsRenderer.walkTreeAndAnnotateReferenceLinks(result.element));
 
 		orderedDisposablesList.reverse().forEach(d => this._register(d));
-		this.element = result.element;
+		this.domNode = result.element;
 		this.codeBlockCount = codeBlockIndex - codeBlockStartIndex;
 	}
 
@@ -129,6 +131,10 @@ export class ChatMarkdownContentPart extends Disposable {
 		editorInfo.render(data, currentWidth, editableCodeBlock);
 
 		return ref;
+	}
+
+	hasSameContent(other: IChatProgressRenderableResponseContent): boolean {
+		return other.kind === 'markdownContent' && other.content.value === this.markdown.value;
 	}
 
 	layout(width: number): void {

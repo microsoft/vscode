@@ -9,10 +9,12 @@ import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
+import { IChatContentPart } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatContentParts';
+import { IChatProgressRenderableResponseContent } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatProgressMessage, IChatTask } from 'vs/workbench/contrib/chat/common/chatService';
 
-export class ChatProgressContentPart extends Disposable {
-	public readonly element: HTMLElement;
+export class ChatProgressContentPart extends Disposable implements IChatContentPart {
+	public readonly domNode: HTMLElement;
 
 	constructor(
 		progress: IChatProgressMessage | IChatTask,
@@ -33,6 +35,11 @@ export class ChatProgressContentPart extends Disposable {
 		const result = this._register(renderer.render(markdown));
 		result.element.classList.add('progress-step');
 
-		this.element = result.element;
+		this.domNode = result.element;
+	}
+
+	hasSameContent(other: IChatProgressRenderableResponseContent): boolean {
+		// No other change allowed for this content type
+		return other.kind === 'progressMessage';
 	}
 }

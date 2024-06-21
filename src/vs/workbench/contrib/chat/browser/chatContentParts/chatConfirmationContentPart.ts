@@ -9,11 +9,13 @@ import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ChatTreeItem } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatConfirmationWidget } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatConfirmationWidget';
+import { IChatContentPart } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatContentParts';
+import { IChatProgressRenderableResponseContent } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatConfirmation, IChatSendRequestOptions, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 
-export class ChatConfirmationContentPart extends Disposable {
-	public readonly element: HTMLElement;
+export class ChatConfirmationContentPart extends Disposable implements IChatContentPart {
+	public readonly domNode: HTMLElement;
 
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
@@ -48,6 +50,11 @@ export class ChatConfirmationContentPart extends Disposable {
 			}
 		}));
 
-		this.element = confirmationWidget.domNode;
+		this.domNode = confirmationWidget.domNode;
+	}
+
+	hasSameContent(other: IChatProgressRenderableResponseContent): boolean {
+		// No other change allowed for this content type
+		return other.kind === 'confirmation';
 	}
 }

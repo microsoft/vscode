@@ -22,17 +22,18 @@ import { MenuId } from 'vs/platform/actions/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ChatTreeItem, IChatListItemRendererOptions } from 'vs/workbench/contrib/chat/browser/chat';
 import { IDisposableReference, ResourcePool } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatCollections';
+import { IChatContentPart } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatContentParts';
 import { IChatRendererDelegate } from 'vs/workbench/contrib/chat/browser/chatListRenderer';
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
 import { CodeCompareBlockPart, ICodeCompareBlockData, ICodeCompareBlockDiffData } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
-import { IChatTextEditGroup } from 'vs/workbench/contrib/chat/common/chatModel';
+import { IChatProgressRenderableResponseContent, IChatTextEditGroup } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 
 const $ = dom.$;
 
-export class ChatTextEditContentPart extends Disposable {
-	public readonly element: HTMLElement;
+export class ChatTextEditContentPart extends Disposable implements IChatContentPart {
+	public readonly domNode: HTMLElement;
 	private readonly ref: IDisposableReference<CodeCompareBlockPart> | undefined;
 
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
@@ -53,9 +54,9 @@ export class ChatTextEditContentPart extends Disposable {
 		// TODO@jrieken move this into the CompareCodeBlock and properly say what kind of changes happen
 		if (rendererOptions.renderTextEditsAsSummary?.(chatTextEdit.uri)) {
 			if (isResponseVM(element) && element.response.value.every(item => item.kind === 'textEditGroup')) {
-				this.element = $('.interactive-edits-summary', undefined, !element.isComplete ? localize('editsSummary1', "Making changes...") : localize('editsSummary', "Made changes."));
+				this.domNode = $('.interactive-edits-summary', undefined, !element.isComplete ? localize('editsSummary1', "Making changes...") : localize('editsSummary', "Made changes."));
 			} else {
-				this.element = $('div');
+				this.domNode = $('div');
 			}
 
 			// TODO@roblourens this case is now handled outside this Part in ChatListRenderer, but can it be cleaned up?
@@ -151,12 +152,17 @@ export class ChatTextEditContentPart extends Disposable {
 			};
 			this.ref.object.render(data, currentWidth, cts.token);
 
-			this.element = this.ref.object.element;
+			this.domNode = this.ref.object.element;
 		}
 	}
 
 	layout(width: number): void {
 		this.ref?.object.layout(width);
+	}
+
+	hasSameContent(other: IChatProgressRenderableResponseContent): boolean {
+		// No other change allowed for this content type
+		return other.kind === 'textEditGroup';
 	}
 }
 
