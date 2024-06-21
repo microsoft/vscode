@@ -1311,7 +1311,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		const malicious: IExtensionIdentifier[] = [];
 		const deprecated: IStringDictionary<IDeprecationInfo> = {};
 		const search: ISearchPrefferedResults[] = [];
-		const extensionsEnabledWithPreRelease: string[] = ['sandy081.998-test-incompatible'];
+		const extensionsEnabledWithPreRelease: string[] = [];
 		if (result) {
 			for (const id of result.malicious) {
 				malicious.push({ id });
