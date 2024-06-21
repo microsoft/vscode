@@ -181,7 +181,6 @@ const RULES = [
             '@types/node' // no node.js
         ]
     },
-<<<<<<< HEAD
     {
         target: '**/vs/workbench/api/node/extHostExtensionService.ts',
         allowedTypes: [
@@ -190,10 +189,7 @@ const RULES = [
         disallowedTypes: NATIVE_TYPES,
         disallowedDefinitions: []
     },
-    // Common: vs/workbench/api/common/extHostTypes.ts
-=======
     // Common: vs/base/parts/sandbox/electron-sandbox/preload.js
->>>>>>> origin/main
     {
         target: '**/vs/base/parts/sandbox/electron-sandbox/preload.js',
         allowedTypes: [
