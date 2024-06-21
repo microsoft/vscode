@@ -500,16 +500,11 @@ gulp.task(task.define(
 		compileExtensionsBuildTask,
 		function () {
 			const pathToMetadata = './out-build/nls.metadata.json';
-			const pathToRehWebMetadata = './out-vscode-reh-web/nls.metadata.json';
 			const pathToExtensions = '.build/extensions/*';
 			const pathToSetup = 'build/win32/i18n/messages.en.isl';
 
 			return es.merge(
-				gulp.src([pathToMetadata, pathToRehWebMetadata]).pipe(merge({
-					fileName: 'nls.metadata.json',
-					jsonSpace: '',
-					concatArrays: true
-				})).pipe(i18n.createXlfFilesForCoreBundle()),
+				gulp.src(pathToMetadata).pipe(i18n.createXlfFilesForCoreBundle()),
 				gulp.src(pathToSetup).pipe(i18n.createXlfFilesForIsl()),
 				gulp.src(pathToExtensions).pipe(i18n.createXlfFilesForExtensions())
 			).pipe(vfs.dest('../vscode-translations-export'));

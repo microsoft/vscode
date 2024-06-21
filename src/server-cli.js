@@ -7,8 +7,7 @@
 'use strict';
 
 /**
- * @typedef {import('./vs/nls').INLSConfiguration} INLSConfiguration
- * @typedef {import('./vs/base/common/product').IProductConfiguration} IProductConfiguration
+ * @import { IProductConfiguration } from './vs/base/common/product'
  */
 
 const path = require('path');

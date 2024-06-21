@@ -7,8 +7,8 @@
 'use strict';
 
 /**
- * @typedef {import('./vs/base/common/product').IProductConfiguration} IProductConfiguration
- * @typedef {import('./vs/nls').INLSConfiguration} INLSConfiguration
+ * @import { IProductConfiguration } from './vs/base/common/product'
+ * @import { INLSConfiguration } from './vs/nls'
  */
 
 const perf = require('./vs/base/common/performance');
