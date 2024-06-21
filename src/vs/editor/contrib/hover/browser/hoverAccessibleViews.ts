@@ -134,9 +134,8 @@ abstract class BaseHoverAccessibleViewProvider extends Disposable implements IAc
 				return '';
 			}
 			const contents: string[] = [];
-			if (includeVerbosityActions && focusedHoverIndex !== -1) {
-				const actionsDescriptions = this._descriptionsOfVerbosityActionsForIndex(focusedHoverIndex);
-				contents.push(...actionsDescriptions);
+			if (includeVerbosityActions) {
+				contents.push(...this._descriptionsOfVerbosityActionsForIndex(focusedHoverIndex));
 			}
 			contents.push(HoverAccessibilityHelpNLS.introHoverPart);
 			contents.push(accessibleContent);
@@ -146,10 +145,10 @@ abstract class BaseHoverAccessibleViewProvider extends Disposable implements IAc
 			if (accessibleContent === undefined) {
 				return '';
 			}
-			return [
-				HoverAccessibilityHelpNLS.introHoverFull,
-				accessibleContent
-			].join('\n\n');
+			const contents: string[] = [];
+			contents.push(HoverAccessibilityHelpNLS.introHoverFull);
+			contents.push(accessibleContent);
+			return contents.join('\n\n');
 		}
 	}
 

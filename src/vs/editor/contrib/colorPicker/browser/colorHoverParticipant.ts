@@ -16,7 +16,7 @@ import { getColorPresentations, getColors } from 'vs/editor/contrib/colorPicker/
 import { ColorDetector } from 'vs/editor/contrib/colorPicker/browser/colorDetector';
 import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/browser/colorPickerModel';
 import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/browser/colorPickerWidget';
-import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
+import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverPart, IRenderedHoverParts, RenderedHoverParts } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
@@ -89,19 +89,18 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 		return [];
 	}
 
-	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: ColorHover[]): IRenderedHoverPart<ColorHover>[] {
+	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: ColorHover[]): IRenderedHoverParts {
 		const renderedPart = renderHoverParts(this, this._editor, this._themeService, hoverParts, context);
 		if (!renderedPart) {
-			return [];
+			return new RenderedHoverParts([]);
 		}
 		this._colorPicker = renderedPart.colorPicker;
-		const renderedHoverPart: IRenderedHoverPart<ColorHover> = {
-			hoverPart: renderedPart.hoverPart,
+		const renderedHoverPart: IRenderedHoverPart = {
 			hoverElement: this._colorPicker.domNode,
 			hoverAccessibleContent: nls.localize('hoverAccessibilityColorParticipant', 'There is a color picker here.'),
 			dispose() { renderedPart.disposables.dispose(); }
 		};
-		return [renderedHoverPart];
+		return new RenderedHoverParts([renderedHoverPart]);
 	}
 
 	public handleResize(): void {

@@ -9,7 +9,7 @@ import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/brows
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecoration } from 'vs/editor/common/model';
-import { HoverAnchor, HoverAnchorType, HoverForeignElementAnchor, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
+import { HoverAnchor, HoverAnchorType, HoverForeignElementAnchor, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverPart, IRenderedHoverParts, RenderedHoverParts } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { InlineEditController } from 'vs/editor/contrib/inlineEdit/browser/inlineEditController';
@@ -87,7 +87,7 @@ export class InlineEditHoverParticipant implements IEditorHoverParticipant<Inlin
 		return [];
 	}
 
-	renderHoverParts(context: IEditorHoverRenderContext, hoverParts: InlineEditHover[]): IRenderedHoverPart<InlineEditHover>[] {
+	renderHoverParts(context: IEditorHoverRenderContext, hoverParts: InlineEditHover[]): IRenderedHoverParts {
 		const disposables = new DisposableStore();
 
 		this._telemetryService.publicLog2<{}, {
@@ -98,14 +98,13 @@ export class InlineEditHoverParticipant implements IEditorHoverParticipant<Inlin
 		const w = this._instantiationService.createInstance(InlineEditHintsContentWidget, this._editor, false,
 			constObservable(null),
 		);
-		const widgetNode: HTMLElement = w.getDomNode();
 		disposables.add(w);
-		const renderedHoverPart: IRenderedHoverPart<InlineEditHover> = {
-			hoverPart: hoverParts[0],
+		const widgetNode: HTMLElement = w.getDomNode();
+		const renderedHoverPart: IRenderedHoverPart = {
 			hoverElement: widgetNode,
 			hoverAccessibleContent: nls.localize('hoverAccessibilityInlineEdits', 'There are inline edits here.'),
 			dispose: () => disposables.dispose()
 		};
-		return [renderedHoverPart];
+		return new RenderedHoverParts([renderedHoverPart]);
 	}
 }

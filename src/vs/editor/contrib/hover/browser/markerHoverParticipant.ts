@@ -20,7 +20,7 @@ import { getCodeActions, quickFixCommandId } from 'vs/editor/contrib/codeAction/
 import { CodeActionController } from 'vs/editor/contrib/codeAction/browser/codeActionController';
 import { CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
 import { MarkerController, NextMarkerAction } from 'vs/editor/contrib/gotoError/browser/gotoError';
-import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
+import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverPart, IRenderedHoverParts, RenderedHoverParts } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import * as nls from 'vs/nls';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IMarker, IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
@@ -90,12 +90,12 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 		return result;
 	}
 
-	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: MarkerHover[]): IRenderedHoverPart<MarkerHover>[] {
+	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: MarkerHover[]): IRenderedHoverParts {
 		if (!hoverParts.length) {
-			return [];
+			return new RenderedHoverParts([]);
 		}
 		const disposables = new DisposableStore();
-		const renderedHoverParts: IRenderedHoverPart<MarkerHover>[] = [];
+		const renderedHoverParts: IRenderedHoverPart[] = [];
 		hoverParts.forEach(hoverPart => {
 			const renderedMarkerHover = this._renderMarkerHover(hoverPart);
 			context.fragment.appendChild(renderedMarkerHover.hoverElement);
@@ -103,10 +103,10 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 		});
 		const markerHoverForStatusbar = hoverParts.length === 1 ? hoverParts[0] : hoverParts.sort((a, b) => MarkerSeverity.compare(a.marker.severity, b.marker.severity))[0];
 		this.renderMarkerStatusbar(context, markerHoverForStatusbar, disposables);
-		return renderedHoverParts;
+		return new RenderedHoverParts(renderedHoverParts);
 	}
 
-	private _renderMarkerHover(markerHover: MarkerHover): IRenderedHoverPart<MarkerHover> {
+	private _renderMarkerHover(markerHover: MarkerHover): IRenderedHoverPart {
 		const disposables: DisposableStore = new DisposableStore();
 		const hoverElement = $('div.hover-row');
 		const markerElement = dom.append(hoverElement, $('div.marker.hover-contents'));
@@ -171,8 +171,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 			}
 		}
 
-		const renderedHoverPart: IRenderedHoverPart<MarkerHover> = {
-			hoverPart: markerHover,
+		const renderedHoverPart: IRenderedHoverPart = {
 			hoverElement,
 			hoverAccessibleContent: markerHover.marker.message,
 			dispose: () => disposables.dispose()
