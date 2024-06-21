@@ -85,7 +85,6 @@ export class HoverAccessibilityHelp implements IAccessibleViewImplentation {
 	}
 }
 
-
 abstract class BaseHoverAccessibleViewProvider extends Disposable implements IAccessibleViewContentProvider {
 
 	abstract provideContent(): string;
@@ -100,9 +99,7 @@ abstract class BaseHoverAccessibleViewProvider extends Disposable implements IAc
 	protected _focusedHoverPartIndex: number = -1;
 	private _onHoverContentsChanged: IDisposable | undefined;
 
-	constructor(
-		protected readonly _hoverController: HoverController,
-	) {
+	constructor(protected readonly _hoverController: HoverController) {
 		super();
 	}
 

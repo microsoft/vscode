@@ -90,12 +90,12 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 		return result;
 	}
 
-	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: MarkerHover[]): IRenderedHoverParts {
+	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: MarkerHover[]): IRenderedHoverParts<MarkerHover> {
 		if (!hoverParts.length) {
 			return new RenderedHoverParts([]);
 		}
 		const disposables = new DisposableStore();
-		const renderedHoverParts: IRenderedHoverPart[] = [];
+		const renderedHoverParts: IRenderedHoverPart<MarkerHover>[] = [];
 		hoverParts.forEach(hoverPart => {
 			const renderedMarkerHover = this._renderMarkerHover(hoverPart);
 			context.fragment.appendChild(renderedMarkerHover.hoverElement);
@@ -106,7 +106,11 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 		return new RenderedHoverParts(renderedHoverParts);
 	}
 
-	private _renderMarkerHover(markerHover: MarkerHover): IRenderedHoverPart {
+	public getAccessibleContent(hoverPart: MarkerHover): string {
+		return hoverPart.marker.message;
+	}
+
+	private _renderMarkerHover(markerHover: MarkerHover): IRenderedHoverPart<MarkerHover> {
 		const disposables: DisposableStore = new DisposableStore();
 		const hoverElement = $('div.hover-row');
 		const markerElement = dom.append(hoverElement, $('div.marker.hover-contents'));
@@ -171,9 +175,9 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 			}
 		}
 
-		const renderedHoverPart: IRenderedHoverPart = {
+		const renderedHoverPart: IRenderedHoverPart<MarkerHover> = {
+			hoverPart: markerHover,
 			hoverElement,
-			hoverAccessibleContent: markerHover.marker.message,
 			dispose: () => disposables.dispose()
 		};
 		return renderedHoverPart;

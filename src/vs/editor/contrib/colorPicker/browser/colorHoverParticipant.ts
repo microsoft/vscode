@@ -89,18 +89,22 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 		return [];
 	}
 
-	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: ColorHover[]): IRenderedHoverParts {
+	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: ColorHover[]): IRenderedHoverParts<ColorHover> {
 		const renderedPart = renderHoverParts(this, this._editor, this._themeService, hoverParts, context);
 		if (!renderedPart) {
 			return new RenderedHoverParts([]);
 		}
 		this._colorPicker = renderedPart.colorPicker;
-		const renderedHoverPart: IRenderedHoverPart = {
+		const renderedHoverPart: IRenderedHoverPart<ColorHover> = {
+			hoverPart: renderedPart.hoverPart,
 			hoverElement: this._colorPicker.domNode,
-			hoverAccessibleContent: nls.localize('hoverAccessibilityColorParticipant', 'There is a color picker here.'),
 			dispose() { renderedPart.disposables.dispose(); }
 		};
 		return new RenderedHoverParts([renderedHoverPart]);
+	}
+
+	public getAccessibleContent(hoverPart: ColorHover): string {
+		return nls.localize('hoverAccessibilityColorParticipant', 'There is a color picker here.');
 	}
 
 	public handleResize(): void {

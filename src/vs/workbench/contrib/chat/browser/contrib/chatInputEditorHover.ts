@@ -50,7 +50,7 @@ export class ChatAgentHoverParticipant implements IEditorHoverParticipant<ChatAg
 		return [];
 	}
 
-	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: ChatAgentHoverPart[]): IRenderedHoverParts {
+	public renderHoverParts(context: IEditorHoverRenderContext, hoverParts: ChatAgentHoverPart[]): IRenderedHoverParts<ChatAgentHoverPart> {
 		if (!hoverParts.length) {
 			return new RenderedHoverParts([]);
 		}
@@ -66,12 +66,17 @@ export class ChatAgentHoverParticipant implements IEditorHoverParticipant<ChatAg
 		const wrapper = this.instantiationService.createInstance(ChatEditorHoverWrapper, hover.domNode, actions);
 		const wrapperNode = wrapper.domNode;
 		context.fragment.appendChild(wrapperNode);
-		const renderedHoverPart: IRenderedHoverPart = {
+		const renderedHoverPart: IRenderedHoverPart<ChatAgentHoverPart> = {
+			hoverPart,
 			hoverElement: wrapperNode,
-			hoverAccessibleContent: nls.localize('hoverAccessibilityChatAgent', 'There is a chat agent hover part here.'),
 			dispose() { disposables.dispose(); }
 		};
 		return new RenderedHoverParts([renderedHoverPart]);
+	}
+
+	public getAccessibleContent(hoverPart: ChatAgentHoverPart): string {
+		return nls.localize('hoverAccessibilityChatAgent', 'There is a chat agent hover part here.');
+
 	}
 }
 

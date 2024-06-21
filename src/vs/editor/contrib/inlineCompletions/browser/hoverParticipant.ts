@@ -94,7 +94,7 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 		return [];
 	}
 
-	renderHoverParts(context: IEditorHoverRenderContext, hoverParts: InlineCompletionsHover[]): IRenderedHoverParts {
+	renderHoverParts(context: IEditorHoverRenderContext, hoverParts: InlineCompletionsHover[]): IRenderedHoverParts<InlineCompletionsHover> {
 		const disposables = new DisposableStore();
 		const part = hoverParts[0];
 
@@ -121,12 +121,16 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 		model.triggerExplicitly();
 
 		disposables.add(w);
-		const renderedHoverPart: IRenderedHoverPart = {
+		const renderedHoverPart: IRenderedHoverPart<InlineCompletionsHover> = {
+			hoverPart: part,
 			hoverElement: widgetNode,
-			hoverAccessibleContent: nls.localize('hoverAccessibilityStatusBar', 'There are inline completions here'),
 			dispose() { disposables.dispose(); }
 		};
 		return new RenderedHoverParts([renderedHoverPart]);
+	}
+
+	getAccessibleContent(hoverPart: InlineCompletionsHover): string {
+		return nls.localize('hoverAccessibilityStatusBar', 'There are inline completions here');
 	}
 
 	private renderScreenReaderText(context: IEditorHoverRenderContext, part: InlineCompletionsHover): IDisposable {
