@@ -703,7 +703,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const verticalPadding = parseInt(computedStyle.paddingTop) + parseInt(computedStyle.paddingBottom);
 		TerminalInstance._lastKnownCanvasDimensions = new dom.Dimension(
 			Math.min(Constants.MaxCanvasWidth, width - horizontalPadding),
-			height + (this._hasScrollBar && !this._horizontalScrollbar ? -5/* scroll bar height */ : 0) - 2/* bottom padding */ - verticalPadding);
+			height - verticalPadding + (this._hasScrollBar && this._horizontalScrollbar ? -5/* scroll bar height */ : 0));
 		return TerminalInstance._lastKnownCanvasDimensions;
 	}
 
