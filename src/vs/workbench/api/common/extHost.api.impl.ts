@@ -210,7 +210,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostUriOpeners = rpcProtocol.set(ExtHostContext.ExtHostUriOpeners, new ExtHostUriOpeners(rpcProtocol));
 	const extHostProfileContentHandlers = rpcProtocol.set(ExtHostContext.ExtHostProfileContentHandlers, new ExtHostProfileContentHandlers(rpcProtocol));
 	rpcProtocol.set(ExtHostContext.ExtHostInteractive, new ExtHostInteractive(rpcProtocol, extHostNotebook, extHostDocumentsAndEditors, extHostCommands, extHostLogService));
-	const extHostChatAgents2 = rpcProtocol.set(ExtHostContext.ExtHostChatAgents2, new ExtHostChatAgents2(rpcProtocol, extHostLogService, extHostCommands, initData.quality));
+	const extHostChatAgents2 = rpcProtocol.set(ExtHostContext.ExtHostChatAgents2, new ExtHostChatAgents2(rpcProtocol, extHostLogService, extHostCommands));
 	const extHostChatVariables = rpcProtocol.set(ExtHostContext.ExtHostChatVariables, new ExtHostChatVariables(rpcProtocol));
 	const extHostLanguageModelTools = rpcProtocol.set(ExtHostContext.ExtHostLanguageModelTools, new ExtHostLanguageModelTools(rpcProtocol));
 	const extHostAiRelatedInformation = rpcProtocol.set(ExtHostContext.ExtHostAiRelatedInformation, new ExtHostRelatedInformation(rpcProtocol));
@@ -1444,17 +1444,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 		// namespace: lm
 		const lm: typeof vscode.lm = {
 			selectChatModels: (selector) => {
-				if (initData.quality === 'stable') {
-					console.warn(`[${ExtensionIdentifier.toKey(extension.identifier)}] This API is disabled in '${initData.environment.appName}'-stable.`);
-					return Promise.resolve([]);
-				}
 				return extHostLanguageModels.selectLanguageModels(extension, selector ?? {});
 			},
 			onDidChangeChatModels: (listener, thisArgs?, disposables?) => {
-				if (initData.quality === 'stable') {
-					console.warn(`[${ExtensionIdentifier.toKey(extension.identifier)}] This API is disabled in '${initData.environment.appName}'-stable.`);
-					return Event.None(listener, thisArgs, disposables);
-				}
 				return extHostLanguageModels.onDidChangeProviders(listener, thisArgs, disposables);
 			},
 			registerChatModelProvider: (id, provider, metadata) => {
