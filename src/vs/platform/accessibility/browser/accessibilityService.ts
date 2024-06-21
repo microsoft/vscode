@@ -24,6 +24,9 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 	protected _systemMotionReduced: boolean;
 	protected readonly _onDidChangeReducedMotion = new Emitter<void>();
 
+	private _linkUnderlinesEnabled: boolean;
+	protected readonly _onDidChangeLinkUnderline = new Emitter<void>();
+
 	constructor(
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ILayoutService private readonly _layoutService: ILayoutService,
@@ -50,7 +53,10 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 		this._systemMotionReduced = reduceMotionMatcher.matches;
 		this._configMotionReduced = this._configurationService.getValue<'auto' | 'on' | 'off'>('workbench.reduceMotion');
 
+		this._linkUnderlinesEnabled = this._configurationService.getValue('accessibility.underlineLinks');
+
 		this.initReducedMotionListeners(reduceMotionMatcher);
+		this.initLinkUnderlineListeners();
 	}
 
 	private initReducedMotionListeners(reduceMotionMatcher: MediaQueryList) {
@@ -70,6 +76,29 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 
 		updateRootClasses();
 		this._register(this.onDidChangeReducedMotion(() => updateRootClasses()));
+	}
+
+	private initLinkUnderlineListeners() {
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('accessibility.underlineLinks')) {
+				const linkUnderlinesEnabled = this._configurationService.getValue<boolean>('accessibility.underlineLinks');
+				this._linkUnderlinesEnabled = linkUnderlinesEnabled;
+				this._onDidChangeLinkUnderline.fire();
+			}
+		}));
+
+		const updateLinkUnderlineClasses = () => {
+			const underlineLinks = this._linkUnderlinesEnabled;
+			this._layoutService.mainContainer.classList.toggle('underline-links', underlineLinks);
+		};
+
+		updateLinkUnderlineClasses();
+
+		this._register(this.onDidChangeLinkUnderlines(() => updateLinkUnderlineClasses()));
+	}
+
+	public onDidChangeLinkUnderlines(listener: () => void) {
+		return this._onDidChangeLinkUnderline.event(listener);
 	}
 
 	get onDidChangeScreenReaderOptimized(): Event<void> {
