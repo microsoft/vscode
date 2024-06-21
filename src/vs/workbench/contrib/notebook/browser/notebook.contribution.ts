@@ -1055,11 +1055,18 @@ configurationRegistry.registerConfiguration({
 			},
 			tags: ['notebookLayout']
 		},
-		[NotebookSetting.findScope]: {
-			markdownDescription: nls.localize('notebook.experimental.find.scope.enabled', "Enables the user to search within a selection of cells in the notebook. When enabled, the user will see a \"Find in Cell Selection\" icon in the notebook find widget."),
-			type: 'boolean',
-			default: false,
-		},
+		// [NotebookSetting.autoFindInSelection]: {
+		// 	markdownDescription: nls.localize('notebook.find.autoFindInSelection', "Controls whether or not the Notebook Find Widget will automatically use the selected content to restrict the search."),
+		// 	type: 'string',
+		// 	enum: ['always', 'multiLine', 'multiCell', 'never'],
+		// 	markdownEnumDescriptions: [
+		// 		nls.localize('notebook.find.autoFindInSelection.always.description', 'Can search within a selection of cells or text in the notebook.'),
+		// 		nls.localize('notebook.find.autoFindInSelection.multiLine.description', 'Can search within a selection of text in the notebook.'),
+		// 		nls.localize('notebook.find.autoFindInSelection.multiCell.description', 'Can search within a selection of cells in the notebook.'),
+		// 		nls.localize('notebook.find.autoFindInSelection.never.description', 'Can search within a selection of cells in the notebook.'),
+		// 	],
+		// 	default: 'never',
+		// },
 		[NotebookSetting.remoteSaving]: {
 			markdownDescription: nls.localize('notebook.remoteSaving', "Enables the incremental saving of notebooks between processes and across Remote connections. When enabled, only the changes to the notebook are sent to the extension host, improving performance for large notebooks and slow network connections."),
 			type: 'boolean',

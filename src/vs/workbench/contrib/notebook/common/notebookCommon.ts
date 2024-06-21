@@ -35,6 +35,7 @@ import { parse as parseUri, generate as generateUri } from 'vs/workbench/service
 import { ICellExecutionError } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookTextModelLike } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
+import { Range } from 'vs/editor/common/core/range';
 
 export const NOTEBOOK_EDITOR_ID = 'workbench.editor.notebook';
 export const NOTEBOOK_DIFF_EDITOR_ID = 'workbench.editor.notebookTextDiffEditor';
@@ -828,7 +829,7 @@ export enum NotebookEditorPriority {
 	option = 'option',
 }
 
-export interface INotebookSearchOptions {
+export interface INotebookFindOptions {
 	regex?: boolean;
 	wholeWord?: boolean;
 	caseSensitive?: boolean;
@@ -837,8 +838,15 @@ export interface INotebookSearchOptions {
 	includeMarkupPreview?: boolean;
 	includeCodeInput?: boolean;
 	includeOutput?: boolean;
-	searchInRanges?: boolean;
-	selectedRanges?: ICellRange[];
+	findScopeType?: NotebookFindScopeType;
+	selectedCellRanges?: ICellRange[];
+	selectedTextRanges?: Range[];
+}
+
+export enum NotebookFindScopeType {
+	Cells = 'cells',
+	Text = 'text',
+	None = 'none'
 }
 
 export interface INotebookExclusiveDocumentFilter {
@@ -964,7 +972,7 @@ export const NotebookSetting = {
 	outputFontFamilyDeprecated: 'notebook.outputFontFamily',
 	outputFontFamily: 'notebook.output.fontFamily',
 	findFilters: 'notebook.find.filters',
-	findScope: 'notebook.experimental.find.scope.enabled',
+	// autoFindInSelection: 'notebook.find.autoFindInSelection',
 	logging: 'notebook.logging',
 	confirmDeleteRunningCell: 'notebook.confirmDeleteRunningCell',
 	remoteSaving: 'notebook.experimental.remoteSave',

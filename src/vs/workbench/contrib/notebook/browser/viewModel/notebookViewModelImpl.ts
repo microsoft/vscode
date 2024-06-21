@@ -29,7 +29,7 @@ import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewM
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellKind, ICell, INotebookSearchOptions, ISelectionState, NotebookCellsChangeType, NotebookCellTextModelSplice, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, ICell, INotebookFindOptions, ISelectionState, NotebookCellsChangeType, NotebookCellTextModelSplice, NotebookFindScopeType, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { cellIndexesToRanges, cellRangesToIndexes, ICellRange, reduceCellRanges } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { NotebookLayoutInfo, NotebookMetadataChangedEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { CellFindMatchModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findModel';
@@ -910,13 +910,12 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	}
 
 	//#region Find
-	find(value: string, options: INotebookSearchOptions): CellFindMatchWithIndex[] {
+	find(value: string, options: INotebookFindOptions): CellFindMatchWithIndex[] {
 		const matches: CellFindMatchWithIndex[] = [];
 		let findCells: CellViewModel[] = [];
 
-		const selectedRanges = options.selectedRanges?.map(range => this.validateRange(range)).filter(range => !!range);
-
-		if (options.searchInRanges && selectedRanges) {
+		if (options.findScopeType === NotebookFindScopeType.Cells || options.findScopeType === NotebookFindScopeType.Text) {
+			const selectedRanges = options.selectedCellRanges?.map(range => this.validateRange(range)).filter(range => !!range) ?? [];
 			const selectedIndexes = cellRangesToIndexes(selectedRanges);
 			findCells = selectedIndexes.map(index => this._viewCells[index]);
 		} else {

@@ -39,10 +39,12 @@ import { INotebookDeltaDecoration, INotebookEditor } from 'vs/workbench/contrib/
 import { defaultInputBoxStyles, defaultProgressBarStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { IToggleStyles, Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookFindScopeType, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { asCssVariable, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IShowNotebookFindWidgetOptions } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindWidget';
+import { Range } from 'vs/editor/common/core/range';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 
 
@@ -319,7 +321,6 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	private _filters: NotebookFindFilters;
 
 	private readonly inSelectionToggle: Toggle;
-	private searchInSelectionEnabled: boolean;
 	private selectionDecorationIds: string[] = [];
 
 	constructor(
@@ -341,7 +342,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 			codeOutput: boolean;
 		}>(NotebookSetting.findFilters) ?? { markupSource: true, markupPreview: true, codeSource: true, codeOutput: true };
 
-		this._filters = new NotebookFindFilters(findFilters.markupSource, findFilters.markupPreview, findFilters.codeSource, findFilters.codeOutput, false, []);
+		this._filters = new NotebookFindFilters(findFilters.markupSource, findFilters.markupPreview, findFilters.codeSource, findFilters.codeOutput, false, NotebookFindScopeType.None);
 		this._state.change({ filters: this._filters }, false);
 
 		this._filters.onDidChange(() => {
@@ -468,15 +469,40 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 			inputActiveOptionBorder: asCssVariable(inputActiveOptionBorder),
 			inputActiveOptionForeground: asCssVariable(inputActiveOptionForeground),
 		}));
+		this.inSelectionToggle.domNode.style.display = 'inline';
 
 		this.inSelectionToggle.onChange(() => {
 			const checked = this.inSelectionToggle.checked;
-			this._filters.searchInRanges = checked;
+			this._filters.findInSelection = checked;
 			if (checked) {
-				this._filters.selectedRanges = this._notebookEditor.getSelections();
-				this.setCellSelectionDecorations();
+				// selection logic:
+				// 1. if there are multiple cells, do that.
+				// 2. if there is only one cell, do the following:
+				// 		- if there is a multi-line range highlighted, textual in selection
+				// 		- if there is no range, cell in selection for that cell
+
+				const cellSelection: ICellRange[] = this._notebookEditor.getSelections();
+				const textSelection: Range[] = this._notebookEditor.getSelectionViewModels()[0].getSelections();
+
+				if (cellSelection.length > 1 || cellSelection.some(range => range.end - range.start > 1)) {
+					this._filters.findScopeType = NotebookFindScopeType.Cells;
+					this._filters.selectedCellRanges = cellSelection;
+					this.setCellSelectionDecorations();
+
+				} else if (textSelection.length > 1 || textSelection.some(range => range.endLineNumber - range.startLineNumber >= 1)) {
+					this._filters.findScopeType = NotebookFindScopeType.Text;
+					this._filters.selectedCellRanges = cellSelection;
+					this._filters.selectedTextRanges = textSelection;
+
+				} else {
+					this._filters.findScopeType = NotebookFindScopeType.Cells;
+					this._filters.selectedCellRanges = cellSelection;
+					this.setCellSelectionDecorations();
+				}
 			} else {
-				this._filters.selectedRanges = [];
+				this._filters.findScopeType = NotebookFindScopeType.None;
+				this._filters.selectedCellRanges = undefined;
+				this._filters.selectedTextRanges = undefined;
 				this.clearCellSelectionDecorations();
 			}
 		});
@@ -495,22 +521,6 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this._innerFindDomNode.appendChild(this.nextBtn.domNode);
 		this._innerFindDomNode.appendChild(this.inSelectionToggle.domNode);
 		this._innerFindDomNode.appendChild(closeBtn.domNode);
-
-		this.searchInSelectionEnabled = this._configurationService.getValue<boolean>(NotebookSetting.findScope);
-		this.inSelectionToggle.domNode.style.display = this.searchInSelectionEnabled ? 'inline' : 'none';
-
-		this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(NotebookSetting.findScope)) {
-				this.searchInSelectionEnabled = this._configurationService.getValue<boolean>(NotebookSetting.findScope);
-				if (this.searchInSelectionEnabled) {
-					this.inSelectionToggle.domNode.style.display = 'inline';
-				} else {
-					this.inSelectionToggle.domNode.style.display = 'none';
-					this.inSelectionToggle.checked = false;
-					this.clearCellSelectionDecorations();
-				}
-			}
-		});
 
 		// _domNode wraps _innerDomNode, ensuring that
 		this._domNode.appendChild(this._innerFindDomNode);
@@ -748,18 +758,19 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this._findInput.focus();
 	}
 
-	public show(initialInput?: string, options?: { focus?: boolean; searchInRanges?: boolean; selectedRanges?: ICellRange[] }): void {
+	public show(initialInput?: string, options?: IShowNotebookFindWidgetOptions): void {
 		if (initialInput) {
 			this._findInput.setValue(initialInput);
 		}
 
-		if (this.searchInSelectionEnabled && options?.searchInRanges !== undefined) {
-			this._filters.searchInRanges = options.searchInRanges;
-			this.inSelectionToggle.checked = options.searchInRanges;
-			if (options.searchInRanges && options.selectedRanges) {
-				this._filters.selectedRanges = options.selectedRanges;
-				this.setCellSelectionDecorations();
-			}
+		if (options?.findScopeType === NotebookFindScopeType.Cells || options?.findScopeType === NotebookFindScopeType.Text) {
+			this.inSelectionToggle.checked = true;
+
+			this._filters.findInSelection = true;
+			this._filters.selectedCellRanges = options.selectedCellRanges;
+			this._filters.selectedTextRanges = options.selectedTextRanges;
+
+			this.setCellSelectionDecorations();
 		}
 
 		this._isVisible = true;

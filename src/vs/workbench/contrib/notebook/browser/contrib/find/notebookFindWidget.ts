@@ -25,6 +25,7 @@ import { NotebookFindFilters } from 'vs/workbench/contrib/notebook/browser/contr
 import { FindModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findModel';
 import { SimpleFindReplaceWidget } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindReplaceWidget';
 import { CellEditState, ICellViewModel, INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { NotebookFindScopeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 
@@ -40,8 +41,9 @@ export interface IShowNotebookFindWidgetOptions {
 	matchIndex?: number;
 	focus?: boolean;
 	searchStringSeededFrom?: { cell: ICellViewModel; range: Range };
-	searchInRanges?: boolean;
-	selectedRanges?: ICellRange[];
+	findScopeType?: NotebookFindScopeType;
+	selectedCellRanges?: ICellRange[];
+	selectedTextRanges?: Range[];
 }
 
 export class NotebookFindContrib extends Disposable implements INotebookEditorContribution {

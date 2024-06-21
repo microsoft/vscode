@@ -21,7 +21,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { IShowNotebookFindWidgetOptions, NotebookFindContrib } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindWidget';
 import { getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
-import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellUri, NotebookFindScopeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INTERACTIVE_WINDOW_IS_ACTIVE_EDITOR, KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -79,11 +79,14 @@ registerAction2(class extends NotebookMultiCellAction {
 
 		const controller = editor.getContribution<NotebookFindContrib>(NotebookFindContrib.id);
 
-		if (context.selectedCells.length > 1) {
-			controller.show(undefined, { searchInRanges: true, selectedRanges: editor.getSelections() });
-		} else {
-			controller.show(undefined, { searchInRanges: false, selectedRanges: [] });
-		}
+		// const autoFindInSelection = accessor.get(IConfigurationService).getValue<string>(NotebookSetting.autoFindInSelection) === 'always';
+		// if (autoFindInSelection) {
+		// 	controller.show(undefined, { findScopeType: NotebookFindScopeType.Cells, selectedCellRanges: editor.getSelections() });
+		// } else {
+		// 	controller.show(undefined, { findScopeType: NotebookFindScopeType.None });
+		// }
+
+		controller.show(undefined, { findScopeType: NotebookFindScopeType.None });
 	}
 });
 

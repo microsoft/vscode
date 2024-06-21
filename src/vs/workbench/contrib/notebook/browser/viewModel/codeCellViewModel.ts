@@ -16,7 +16,7 @@ import { CellEditState, CellFindMatch, CodeCellLayoutChangeEvent, CodeCellLayout
 import { CellOutputViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/cellOutputViewModel';
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, INotebookSearchOptions, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, INotebookFindOptions, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { BaseCellViewModel } from './baseCellViewModel';
@@ -518,7 +518,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	private readonly _hasFindResult = this._register(new Emitter<boolean>());
 	public readonly hasFindResult: Event<boolean> = this._hasFindResult.event;
 
-	startFind(value: string, options: INotebookSearchOptions): CellFindMatch | null {
+	startFind(value: string, options: INotebookFindOptions): CellFindMatch | null {
 		const matches = super.cellStartFind(value, options);
 
 		if (matches === null) {

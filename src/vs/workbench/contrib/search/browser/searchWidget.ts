@@ -44,6 +44,7 @@ import { GroupModelChangeKind } from 'vs/workbench/common/editor';
 import { SearchFindInput } from 'vs/workbench/contrib/search/browser/searchFindInput';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { NotebookFindScopeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 /** Specified in searchview.css */
 const SingleLineInputHeight = 26;
@@ -206,7 +207,7 @@ export class SearchWidget extends Widget {
 				notebookOptions.isInNotebookCellInput,
 				notebookOptions.isInNotebookCellOutput,
 				false,
-				[]
+				NotebookFindScopeType.None
 			));
 
 		this._register(
