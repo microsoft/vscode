@@ -1202,12 +1202,10 @@ export interface ExtHostSpeechShape {
 export interface MainThreadLanguageModelsShape extends IDisposable {
 	$registerLanguageModelProvider(handle: number, identifier: string, metadata: ILanguageModelChatMetadata): void;
 	$unregisterProvider(handle: number): void;
-	$handleProgressChunk(requestId: number, chunk: IChatResponseFragment): Promise<void>;
-
+	$tryStartChatRequest(extension: ExtensionIdentifier, provider: string, requestId: number, messages: IChatMessage[], options: {}, token: CancellationToken): Promise<void>;
+	$handleResponsePart(requestId: number, chunk: IChatResponseFragment): Promise<void>;
+	$handleResponseDone(requestId: number, error: any | undefined): Promise<void>;
 	$selectChatModels(selector: ILanguageModelChatSelector): Promise<string[]>;
-
-	$fetchResponse(extension: ExtensionIdentifier, provider: string, requestId: number, messages: IChatMessage[], options: {}, token: CancellationToken): Promise<any>;
-
 	$whenLanguageModelChatRequestMade(identifier: string, extension: ExtensionIdentifier, participant?: string, tokenCount?: number): void;
 	$countTokens(provider: string, value: string | IChatMessage, token: CancellationToken): Promise<number>;
 }
@@ -1215,8 +1213,9 @@ export interface MainThreadLanguageModelsShape extends IDisposable {
 export interface ExtHostLanguageModelsShape {
 	$acceptChatModelMetadata(data: ILanguageModelsChangeEvent): void;
 	$updateModelAccesslist(data: { from: ExtensionIdentifier; to: ExtensionIdentifier; enabled: boolean }[]): void;
-	$provideLanguageModelResponse(handle: number, requestId: number, from: ExtensionIdentifier, messages: IChatMessage[], options: { [name: string]: any }, token: CancellationToken): Promise<any>;
-	$handleResponseFragment(requestId: number, chunk: IChatResponseFragment): Promise<void>;
+	$startChatRequest(handle: number, requestId: number, from: ExtensionIdentifier, messages: IChatMessage[], options: { [name: string]: any }, token: CancellationToken): Promise<void>;
+	$acceptResponsePart(requestId: number, chunk: IChatResponseFragment): Promise<void>;
+	$acceptResponseDone(requestId: number, error: any | undefined): Promise<void>;
 	$provideTokenLength(handle: number, value: string | IChatMessage, token: CancellationToken): Promise<number>;
 }
 
@@ -2190,6 +2189,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$resolveCompletionItem(handle: number, id: ChainedCacheId, token: CancellationToken): Promise<ISuggestDataDto | undefined>;
 	$releaseCompletionItems(handle: number, id: number): void;
 	$provideInlineCompletions(handle: number, resource: UriComponents, position: IPosition, context: languages.InlineCompletionContext, token: CancellationToken): Promise<IdentifiableInlineCompletions | undefined>;
+	$provideInlineEdits(handle: number, resource: UriComponents, range: IRange, context: languages.InlineCompletionContext, token: CancellationToken): Promise<IdentifiableInlineCompletions | undefined>;
 	$handleInlineCompletionDidShow(handle: number, pid: number, idx: number, updatedInsertText: string): void;
 	$handleInlineCompletionPartialAccept(handle: number, pid: number, idx: number, acceptedCharacters: number, info: languages.PartialAcceptInfo): void;
 	$freeInlineCompletionsList(handle: number, pid: number): void;

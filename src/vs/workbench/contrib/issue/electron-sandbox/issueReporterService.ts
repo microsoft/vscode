@@ -19,7 +19,7 @@ import { URI } from 'vs/base/common/uri';
 import { IssueReporterModel, IssueReporterData as IssueReporterModelData } from 'vs/workbench/contrib/issue/browser/issueReporterModel';
 import { localize } from 'vs/nls';
 import { isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
-import { IIssueMainService, IssueReporterData, IssueReporterExtensionData, IssueReporterStyles, IssueReporterWindowConfiguration, IssueType } from 'vs/platform/issue/common/issue';
+import { IIssueMainService, IProcessMainService, IssueReporterData, IssueReporterExtensionData, IssueReporterStyles, IssueReporterWindowConfiguration, IssueType } from 'vs/platform/issue/common/issue';
 import { normalizeGitHubUrl } from 'vs/platform/issue/common/issueReporterUtil';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { getIconsStyleSheet } from 'vs/platform/theme/browser/iconsStyleSheet';
@@ -59,7 +59,8 @@ export class IssueReporter extends Disposable {
 	constructor(
 		private readonly configuration: IssueReporterWindowConfiguration,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
-		@IIssueMainService private readonly issueMainService: IIssueMainService
+		@IIssueMainService private readonly issueMainService: IIssueMainService,
+		@IProcessMainService private readonly processMainService: IProcessMainService
 	) {
 		super();
 		const targetExtension = configuration.data.extensionId ? configuration.data.enabledExtensions.find(extension => extension.id.toLocaleLowerCase() === configuration.data.extensionId?.toLocaleLowerCase()) : undefined;
@@ -107,7 +108,7 @@ export class IssueReporter extends Disposable {
 			}
 		}
 
-		this.issueMainService.$getSystemInfo().then(info => {
+		this.processMainService.$getSystemInfo().then(info => {
 			this.issueReporterModel.update({ systemInfo: info });
 			this.receivedSystemInfo = true;
 
@@ -115,7 +116,7 @@ export class IssueReporter extends Disposable {
 			this.updatePreviewButtonState();
 		});
 		if (configuration.data.issueType === IssueType.PerformanceIssue) {
-			this.issueMainService.$getPerformanceInfo().then(info => {
+			this.processMainService.$getPerformanceInfo().then(info => {
 				this.updatePerformanceInfo(info as Partial<IssueReporterData>);
 			});
 		}
@@ -286,7 +287,7 @@ export class IssueReporter extends Disposable {
 			const issueType = parseInt((<HTMLInputElement>event.target).value);
 			this.issueReporterModel.update({ issueType: issueType });
 			if (issueType === IssueType.PerformanceIssue && !this.receivedPerformanceInfo) {
-				this.issueMainService.$getPerformanceInfo().then(info => {
+				this.processMainService.$getPerformanceInfo().then(info => {
 					this.updatePerformanceInfo(info as Partial<IssueReporterData>);
 				});
 			}

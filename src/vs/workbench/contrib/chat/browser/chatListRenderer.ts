@@ -436,13 +436,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		dom.clearNode(templateData.detail);
 
 		if (element.slashCommand && element.agentOrSlashCommandDetected) {
-			let msg: string = '';
 			const usingMsg = `${chatSubcommandLeader}${element.slashCommand.name}`;
-			if (element.isComplete) {
-				msg = localize('usedAgent', "used {0} [[(rerun without)]]", usingMsg);
-			} else {
-				msg = localize('usingAgent', "using {0}", usingMsg);
-			}
+			const msg = localize('usedAgent', "used {0} [[(rerun without)]]", usingMsg);
+
 			dom.reset(templateData.detail, renderFormattedText(msg, {
 				className: 'agentOrSlashCommandDetected',
 				inline: true,
