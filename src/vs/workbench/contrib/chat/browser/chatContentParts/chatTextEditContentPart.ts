@@ -20,9 +20,9 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { localize } from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ChatTreeItem, IChatListItemRendererOptions } from 'vs/workbench/contrib/chat/browser/chat';
+import { IChatListItemRendererOptions } from 'vs/workbench/contrib/chat/browser/chat';
 import { IDisposableReference, ResourcePool } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatCollections';
-import { IChatContentPart } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatContentParts';
+import { IChatContentPart, IChatContentPartRenderContext } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatContentParts';
 import { IChatRendererDelegate } from 'vs/workbench/contrib/chat/browser/chatListRenderer';
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
 import { CodeCompareBlockPart, ICodeCompareBlockData, ICodeCompareBlockDiffData } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
@@ -41,7 +41,7 @@ export class ChatTextEditContentPart extends Disposable implements IChatContentP
 
 	constructor(
 		chatTextEdit: IChatTextEditGroup,
-		element: ChatTreeItem,
+		context: IChatContentPartRenderContext,
 		rendererOptions: IChatListItemRendererOptions,
 		diffEditorPool: DiffEditorPool,
 		currentWidth: number,
@@ -50,6 +50,7 @@ export class ChatTextEditContentPart extends Disposable implements IChatContentP
 		@IChatService private readonly chatService: IChatService,
 	) {
 		super();
+		const element = context.element;
 
 		// TODO@jrieken move this into the CompareCodeBlock and properly say what kind of changes happen
 		if (rendererOptions.renderTextEditsAsSummary?.(chatTextEdit.uri)) {

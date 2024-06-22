@@ -9,8 +9,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { ChatTreeItem } from 'vs/workbench/contrib/chat/browser/chat';
-import { IChatContentPart } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatContentParts';
+import { IChatContentPart, IChatContentPartRenderContext } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatContentParts';
 import { IChatProgressRenderableResponseContent } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatCommandButton } from 'vs/workbench/contrib/chat/common/chatService';
 import { isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
@@ -22,13 +21,13 @@ export class ChatCommandButtonContentPart extends Disposable implements IChatCon
 
 	constructor(
 		commandButton: IChatCommandButton,
-		element: ChatTreeItem,
+		context: IChatContentPartRenderContext,
 		@ICommandService private readonly commandService: ICommandService
 	) {
 		super();
 
 		this.domNode = $('.chat-command-button');
-		const enabled = !isResponseVM(element) || !element.isStale;
+		const enabled = !isResponseVM(context.element) || !context.element.isStale;
 		const tooltip = enabled ?
 			commandButton.command.tooltip :
 			localize('commandButtonDisabled', "Button not available in restored chat");
