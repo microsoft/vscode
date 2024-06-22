@@ -275,7 +275,6 @@ export function registerChatCodeBlockActions() {
 			let mappedEdits: WorkspaceEdit | null = null;
 
 			if (mappedEditsProviders.length > 0) {
-				const mostRelevantProvider = mappedEditsProviders[0]; // TODO@ulugbekna: should we try all providers?
 
 				// 0th sub-array - editor selections array if there are any selections
 				// 1st sub-array - array with documents used to get the chat reply
@@ -302,13 +301,17 @@ export function registerChatCodeBlockActions() {
 					docRefs.push(usedDocuments);
 				}
 
-				const cancellationTokenSource = new CancellationTokenSource();
+				let i = 0;
+				do {
+					const cancellationTokenSource = new CancellationTokenSource();
 
-				mappedEdits = await mostRelevantProvider.provideMappedEdits(
-					activeModel,
-					[codeBlockActionContext.code],
-					{ documents: docRefs },
-					cancellationTokenSource.token);
+					mappedEdits = await mappedEditsProviders[i].provideMappedEdits(
+						activeModel,
+						[codeBlockActionContext.code],
+						{ documents: docRefs },
+						cancellationTokenSource.token);
+
+				} while (!mappedEdits && ++i < mappedEditsProviders.length);
 			}
 
 			if (mappedEdits) {
