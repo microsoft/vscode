@@ -82,14 +82,6 @@ globalThis._VSCODE_NODE_MODULES = new Proxy(Object.create(null), { get: (_target
 globalThis._VSCODE_PRODUCT_JSON = (require.__$__nodeRequire ?? require)('../../../product.json');
 globalThis._VSCODE_PACKAGE_JSON = (require.__$__nodeRequire ?? require)('../../../package.json');
 
-if (opts.build) {
-	// when running from `out-build`, ensure to load the default
-	// messages file, because all `nls.localize` calls have their
-	// english values removed and replaced by an index.
-	// VSCODE_GLOBALS: NLS
-	globalThis._VSCODE_NLS = (require.__$__nodeRequire ?? require)(path.join(__dirname, '..', '..', '..', 'out-build', 'nls.messages.json'));
-}
-
 // Test file operations that are common across platforms. Used for test infra, namely snapshot tests
 Object.assign(globalThis, {
 	__analyzeSnapshotInTests: takeSnapshotAndCountClasses,
@@ -104,6 +96,16 @@ const IS_CI = !!process.env.BUILD_ARTIFACTSTAGINGDIRECTORY;
 const _tests_glob = '**/test/**/*.test.js';
 let loader;
 let _out;
+
+function initNls(opts) {
+	if (opts.build) {
+		// when running from `out-build`, ensure to load the default
+		// messages file, because all `nls.localize` calls have their
+		// english values removed and replaced by an index.
+		// VSCODE_GLOBALS: NLS
+		globalThis._VSCODE_NLS = (require.__$__nodeRequire ?? require)(path.join(__dirname, '..', '..', '..', 'out-build', 'nls.messages.json'));
+	}
+}
 
 function initLoader(opts) {
 	const outdir = opts.build ? 'out-build' : 'out';
@@ -446,6 +448,7 @@ function runTests(opts) {
 }
 
 ipcRenderer.on('run', (e, opts) => {
+	initNls(opts);
 	initLoader(opts);
 	runTests(opts).catch(err => {
 		if (typeof err !== 'string') {
