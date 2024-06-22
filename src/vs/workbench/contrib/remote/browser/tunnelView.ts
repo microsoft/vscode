@@ -1562,24 +1562,25 @@ namespace SetTunnelProtocolAction {
 	export const LABEL_HTTP = nls.localize('remote.tunnel.protocolHttp', "HTTP");
 	export const LABEL_HTTPS = nls.localize('remote.tunnel.protocolHttps', "HTTPS");
 
-	async function handler(arg: any, protocol: TunnelProtocol, remoteExplorerService: IRemoteExplorerService) {
+	async function handler(arg: any, protocol: TunnelProtocol, remoteExplorerService: IRemoteExplorerService, environmentService: IWorkbenchEnvironmentService) {
 		if (isITunnelItem(arg)) {
 			const attributes: Partial<Attributes> = {
 				protocol
 			};
-			return remoteExplorerService.tunnelModel.configPortsAttributes.addAttributes(arg.remotePort, attributes, ConfigurationTarget.USER_REMOTE);
+			const target = environmentService.remoteAuthority ? ConfigurationTarget.USER_REMOTE : ConfigurationTarget.USER_LOCAL;
+			return remoteExplorerService.tunnelModel.configPortsAttributes.addAttributes(arg.remotePort, attributes, target);
 		}
 	}
 
 	export function handlerHttp(): ICommandHandler {
 		return async (accessor, arg) => {
-			return handler(arg, TunnelProtocol.Http, accessor.get(IRemoteExplorerService));
+			return handler(arg, TunnelProtocol.Http, accessor.get(IRemoteExplorerService), accessor.get(IWorkbenchEnvironmentService));
 		};
 	}
 
 	export function handlerHttps(): ICommandHandler {
 		return async (accessor, arg) => {
-			return handler(arg, TunnelProtocol.Https, accessor.get(IRemoteExplorerService));
+			return handler(arg, TunnelProtocol.Https, accessor.get(IRemoteExplorerService), accessor.get(IWorkbenchEnvironmentService));
 		};
 	}
 }

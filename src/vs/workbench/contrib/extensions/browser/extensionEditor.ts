@@ -49,11 +49,11 @@ import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { ExtensionFeaturesTab } from 'vs/workbench/contrib/extensions/browser/extensionFeaturesTab';
 import {
-	ActionWithDropDownAction,
+	ButtonWithDropDownExtensionAction,
 	ClearLanguageAction,
 	DisableDropDownAction,
 	EnableDropDownAction,
-	ExtensionActionWithDropdownActionViewItem, ExtensionDropDownAction,
+	ButtonWithDropdownExtensionActionViewItem, DropDownExtensionAction,
 	ExtensionEditorManageExtensionAction,
 	ExtensionStatusAction,
 	ExtensionStatusLabelAction,
@@ -71,7 +71,8 @@ import {
 	UninstallAction,
 	UpdateAction,
 	WebInstallAction,
-	TogglePreReleaseExtensionAction
+	TogglePreReleaseExtensionAction,
+	ExtensionAction,
 } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { Delegate } from 'vs/workbench/contrib/extensions/browser/extensionsList';
 import { ExtensionData, ExtensionsGridView, ExtensionsTree, getExtensions } from 'vs/workbench/contrib/extensions/browser/extensionsViewer';
@@ -200,7 +201,7 @@ class VersionWidget extends ExtensionWithDifferentGalleryVersionWidget {
 	) {
 		super();
 		this.element = append(container, $('code.version'));
-		this._register(hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), this.element, localize('extension version', "Extension Version")));
+		this._register(hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this.element, localize('extension version', "Extension Version")));
 		this.render();
 	}
 	render(): void {
@@ -287,11 +288,11 @@ export class ExtensionEditor extends EditorPane {
 		const details = append(header, $('.details'));
 		const title = append(details, $('.title'));
 		const name = append(title, $('span.name.clickable', { role: 'heading', tabIndex: 0 }));
-		this._register(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), name, localize('name', "Extension name")));
+		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), name, localize('name', "Extension name")));
 		const versionWidget = new VersionWidget(title, this.hoverService);
 
 		const preview = append(title, $('span.preview'));
-		this._register(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), preview, localize('preview', "Preview")));
+		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), preview, localize('preview', "Preview")));
 		preview.textContent = localize('preview', "Preview");
 
 		const builtin = append(title, $('span.builtin'));
@@ -299,7 +300,7 @@ export class ExtensionEditor extends EditorPane {
 
 		const subtitle = append(details, $('.subtitle'));
 		const publisher = append(append(subtitle, $('.subtitle-entry')), $('.publisher.clickable', { tabIndex: 0 }));
-		this._register(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), publisher, localize('publisher', "Publisher")));
+		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), publisher, localize('publisher', "Publisher")));
 		publisher.setAttribute('role', 'button');
 		const publisherDisplayName = append(publisher, $('.publisher-name'));
 		const verifiedPublisherWidget = this.instantiationService.createInstance(VerifiedPublisherWidget, append(publisher, $('.verified-publisher')), false);
@@ -308,11 +309,11 @@ export class ExtensionEditor extends EditorPane {
 		resource.setAttribute('role', 'button');
 
 		const installCount = append(append(subtitle, $('.subtitle-entry')), $('span.install', { tabIndex: 0 }));
-		this._register(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), installCount, localize('install count', "Install count")));
+		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), installCount, localize('install count', "Install count")));
 		const installCountWidget = this.instantiationService.createInstance(InstallCountWidget, installCount, false);
 
 		const rating = append(append(subtitle, $('.subtitle-entry')), $('span.rating.clickable', { tabIndex: 0 }));
-		this._register(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), rating, localize('rating', "Rating")));
+		this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), rating, localize('rating', "Rating")));
 		rating.setAttribute('role', 'link'); // #132645
 		const ratingsWidget = this.instantiationService.createInstance(RatingsWidget, rating, false);
 
@@ -333,7 +334,7 @@ export class ExtensionEditor extends EditorPane {
 		const actions = [
 			this.instantiationService.createInstance(ExtensionRuntimeStateAction),
 			this.instantiationService.createInstance(ExtensionStatusLabelAction),
-			this.instantiationService.createInstance(ActionWithDropDownAction, 'extensions.updateActions', '',
+			this.instantiationService.createInstance(ButtonWithDropDownExtensionAction, 'extensions.updateActions', ExtensionAction.PROMINENT_LABEL_ACTION_CLASS,
 				[[this.instantiationService.createInstance(UpdateAction, true)], [this.instantiationService.createInstance(ToggleAutoUpdateForExtensionAction, true, [true, 'onlyEnabledExtensions'])]]),
 			this.instantiationService.createInstance(SetColorThemeAction),
 			this.instantiationService.createInstance(SetFileIconThemeAction),
@@ -348,11 +349,11 @@ export class ExtensionEditor extends EditorPane {
 			this.instantiationService.createInstance(WebInstallAction),
 			installAction,
 			this.instantiationService.createInstance(InstallingLabelAction),
-			this.instantiationService.createInstance(ActionWithDropDownAction, 'extensions.uninstall', UninstallAction.UninstallLabel, [
+			this.instantiationService.createInstance(ButtonWithDropDownExtensionAction, 'extensions.uninstall', UninstallAction.UninstallClass, [
 				[
 					this.instantiationService.createInstance(MigrateDeprecatedExtensionAction, false),
 					this.instantiationService.createInstance(UninstallAction),
-					this.instantiationService.createInstance(InstallAnotherVersionAction),
+					this.instantiationService.createInstance(InstallAnotherVersionAction, null, true),
 				]
 			]),
 			this.instantiationService.createInstance(TogglePreReleaseExtensionAction),
@@ -363,11 +364,20 @@ export class ExtensionEditor extends EditorPane {
 		const actionsAndStatusContainer = append(details, $('.actions-status-container'));
 		const extensionActionBar = this._register(new ActionBar(actionsAndStatusContainer, {
 			actionViewItemProvider: (action: IAction, options) => {
-				if (action instanceof ExtensionDropDownAction) {
+				if (action instanceof DropDownExtensionAction) {
 					return action.createActionViewItem(options);
 				}
-				if (action instanceof ActionWithDropDownAction) {
-					return new ExtensionActionWithDropdownActionViewItem(action, { ...options, icon: true, label: true, menuActionsOrProvider: { getActions: () => action.menuActions }, menuActionClassNames: (action.class || '').split(' ') }, this.contextMenuService);
+				if (action instanceof ButtonWithDropDownExtensionAction) {
+					return new ButtonWithDropdownExtensionActionViewItem(
+						action,
+						{
+							...options,
+							icon: true,
+							label: true,
+							menuActionsOrProvider: { getActions: () => action.menuActions },
+							menuActionClassNames: action.menuActionClassNames
+						},
+						this.contextMenuService);
 				}
 				if (action instanceof ToggleAutoUpdateForExtensionAction) {
 					return new CheckboxActionViewItem(undefined, action, { ...options, icon: true, label: true, checkboxStyles: defaultCheckboxStyles });
@@ -552,14 +562,14 @@ export class ExtensionEditor extends EditorPane {
 			const workspaceFolder = this.contextService.getWorkspaceFolder(location);
 			if (workspaceFolder && extension.isWorkspaceScoped) {
 				template.resource.parentElement?.classList.add('clickable');
-				this.transientDisposables.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), template.resource, this.uriIdentityService.extUri.relativePath(workspaceFolder.uri, location)));
+				this.transientDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), template.resource, this.uriIdentityService.extUri.relativePath(workspaceFolder.uri, location)));
 				template.resource.textContent = localize('workspace extension', "Workspace Extension");
 				this.transientDisposables.add(onClick(template.resource, () => {
 					this.viewsService.openView(EXPLORER_VIEW_ID, true).then(() => this.explorerService.select(location, true));
 				}));
 			} else {
 				template.resource.parentElement?.classList.remove('clickable');
-				this.transientDisposables.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), template.resource, location.path));
+				this.transientDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), template.resource, location.path));
 				template.resource.textContent = localize('local extension', "Local Extension");
 			}
 		}
@@ -774,7 +784,7 @@ export class ExtensionEditor extends EditorPane {
 			return '';
 		}
 
-		const content = await renderMarkdownDocument(contents, this.extensionService, this.languageService, extension.type !== ExtensionType.System, false, token);
+		const content = await renderMarkdownDocument(contents, this.extensionService, this.languageService, { shouldSanitize: extension.type !== ExtensionType.System, token });
 		if (token?.isCancellationRequested) {
 			return '';
 		}
@@ -968,7 +978,7 @@ export class ExtensionEditor extends EditorPane {
 			for (const [label, uri] of resources) {
 				const resource = append(resourcesElement, $('a.resource', { tabindex: '0' }, label));
 				this.transientDisposables.add(onClick(resource, () => this.openerService.open(uri)));
-				this.transientDisposables.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), resource, uri.toString()));
+				this.transientDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), resource, uri.toString()));
 			}
 		}
 	}

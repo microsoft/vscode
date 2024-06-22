@@ -43,10 +43,12 @@ import { ChatCodeBlockContextProviderService } from 'vs/workbench/contrib/chat/b
 import 'vs/workbench/contrib/chat/browser/contrib/chatInputEditorContrib';
 import 'vs/workbench/contrib/chat/browser/contrib/chatContextAttachments';
 import 'vs/workbench/contrib/chat/browser/contrib/chatInputCompletions';
+import 'vs/workbench/contrib/chat/browser/contrib/chatInputEditorHover';
 import { ChatAgentLocation, ChatAgentNameService, ChatAgentService, IChatAgentNameService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { chatVariableLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { ChatService } from 'vs/workbench/contrib/chat/common/chatServiceImpl';
+import { LanguageModelToolsService, ILanguageModelToolsService } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
 import { ChatSlashCommandService, IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { ChatWidgetHistoryService, IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
@@ -57,6 +59,8 @@ import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/s
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import '../common/chatColors';
 import { registerChatContextActions } from 'vs/workbench/contrib/chat/browser/actions/chatContextActions';
+import { registerChatDeveloperActions } from 'vs/workbench/contrib/chat/browser/actions/chatDeveloperActions';
+import { LanguageModelToolsExtensionPointHandler } from 'vs/workbench/contrib/chat/common/tools/languageModelToolsContribution';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -97,10 +101,23 @@ configurationRegistry.registerConfiguration({
 			deprecated: true,
 			default: false
 		},
+		'chat.experimental.variables.editor': {
+			type: 'boolean',
+			description: nls.localize('chat.experimental.variables.editor', "Enables variables for editor chat."),
+			default: false
+		},
+		'chat.experimental.variables.notebook': {
+			type: 'boolean',
+			description: nls.localize('chat.experimental.variables.notebook', "Enables variables for notebook chat."),
+			default: false
+		},
+		'chat.experimental.variables.terminal': {
+			type: 'boolean',
+			description: nls.localize('chat.experimental.variables.terminal', "Enables variables for terminal chat."),
+			default: false
+		},
 	}
 });
-
-
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
 		ChatEditor,
@@ -236,6 +253,7 @@ registerWorkbenchContribution2(ChatResolverContribution.ID, ChatResolverContribu
 workbenchContributionsRegistry.registerWorkbenchContribution(ChatSlashStaticSlashCommandsContribution, LifecyclePhase.Eventually);
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(ChatEditorInput.TypeID, ChatEditorInputSerializer);
 registerWorkbenchContribution2(ChatExtensionPointHandler.ID, ChatExtensionPointHandler, WorkbenchPhase.BlockStartup);
+registerWorkbenchContribution2(LanguageModelToolsExtensionPointHandler.ID, LanguageModelToolsExtensionPointHandler, WorkbenchPhase.Eventually);
 
 registerChatActions();
 registerChatCopyActions();
@@ -249,6 +267,7 @@ registerChatExportActions();
 registerMoveActions();
 registerNewChatActions();
 registerChatContextActions();
+registerChatDeveloperActions();
 
 registerSingleton(IChatService, ChatService, InstantiationType.Delayed);
 registerSingleton(IChatWidgetService, ChatWidgetService, InstantiationType.Delayed);
@@ -261,5 +280,6 @@ registerSingleton(IChatSlashCommandService, ChatSlashCommandService, Instantiati
 registerSingleton(IChatAgentService, ChatAgentService, InstantiationType.Delayed);
 registerSingleton(IChatAgentNameService, ChatAgentNameService, InstantiationType.Delayed);
 registerSingleton(IChatVariablesService, ChatVariablesService, InstantiationType.Delayed);
+registerSingleton(ILanguageModelToolsService, LanguageModelToolsService, InstantiationType.Delayed);
 registerSingleton(IVoiceChatService, VoiceChatService, InstantiationType.Delayed);
 registerSingleton(IChatCodeBlockContextProviderService, ChatCodeBlockContextProviderService, InstantiationType.Delayed);

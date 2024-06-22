@@ -612,6 +612,9 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 			provideInlineCompletions: async (model: ITextModel, position: EditorPosition, context: languages.InlineCompletionContext, token: CancellationToken): Promise<IdentifiableInlineCompletions | undefined> => {
 				return this._proxy.$provideInlineCompletions(handle, model.uri, position, context, token);
 			},
+			provideInlineEdits: async (model: ITextModel, range: EditorRange, context: languages.InlineCompletionContext, token: CancellationToken): Promise<IdentifiableInlineCompletions | undefined> => {
+				return this._proxy.$provideInlineEdits(handle, model.uri, range, context, token);
+			},
 			handleItemDidShow: async (completions: IdentifiableInlineCompletions, item: IdentifiableInlineCompletion, updatedInsertText: string): Promise<void> => {
 				if (supportsHandleEvents) {
 					await this._proxy.$handleInlineCompletionDidShow(handle, completions.pid, item.idx, updatedInsertText);
@@ -1124,7 +1127,7 @@ class MainThreadDocumentOnDropEditProvider implements languages.DocumentDropEdit
 		}
 	}
 
-	async provideDocumentDropEdits(model: ITextModel, position: IPosition, dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<languages.DocumentDropEdit[] | undefined> {
+	async provideDocumentDropEdits(model: ITextModel, position: IPosition, dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<languages.DocumentDropEditsSession | undefined> {
 		const request = this.dataTransfers.add(dataTransfer);
 		try {
 			const dataTransferDto = await typeConvert.DataTransfer.from(dataTransfer);
@@ -1137,14 +1140,19 @@ class MainThreadDocumentOnDropEditProvider implements languages.DocumentDropEdit
 				return;
 			}
 
-			return edits.map(edit => {
-				return {
-					...edit,
-					yieldTo: edit.yieldTo?.map(x => ({ kind: new HierarchicalKind(x) })),
-					kind: edit.kind ? new HierarchicalKind(edit.kind) : undefined,
-					additionalEdit: reviveWorkspaceEditDto(edit.additionalEdit, this._uriIdentService, dataId => this.resolveDocumentOnDropFileData(request.id, dataId)),
-				};
-			});
+			return {
+				edits: edits.map(edit => {
+					return {
+						...edit,
+						yieldTo: edit.yieldTo?.map(x => ({ kind: new HierarchicalKind(x) })),
+						kind: edit.kind ? new HierarchicalKind(edit.kind) : undefined,
+						additionalEdit: reviveWorkspaceEditDto(edit.additionalEdit, this._uriIdentService, dataId => this.resolveDocumentOnDropFileData(request.id, dataId)),
+					};
+				}),
+				dispose: () => {
+					this._proxy.$releaseDocumentOnDropEdits(this._handle, request.id);
+				},
+			};
 		} finally {
 			request.dispose();
 		}

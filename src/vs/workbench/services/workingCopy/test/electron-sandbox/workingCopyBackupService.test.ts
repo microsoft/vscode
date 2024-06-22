@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { isWindows } from 'vs/base/common/platform';
 import { insert } from 'vs/base/common/arrays';
 import { hash } from 'vs/base/common/hash';

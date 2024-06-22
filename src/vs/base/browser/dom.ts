@@ -18,6 +18,7 @@ import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { hash } from 'vs/base/common/hash';
 import { CodeWindow, ensureCodeWindow, mainWindow } from 'vs/base/browser/window';
+import { isPointWithinTriangle } from 'vs/base/common/numbers';
 
 export interface IRegisteredCodeWindow {
 	readonly window: CodeWindow;
@@ -967,7 +968,7 @@ export function createStyleSheet(container: HTMLElement = mainWindow.document.he
 	container.appendChild(style);
 
 	if (disposableStore) {
-		disposableStore.add(toDisposable(() => container.removeChild(style)));
+		disposableStore.add(toDisposable(() => style.remove()));
 	}
 
 	// With <head> as container, the stylesheet becomes global and is tracked
@@ -1004,7 +1005,7 @@ function cloneGlobalStyleSheet(globalStylesheet: HTMLStyleElement, globalStylesh
 
 	const clone = globalStylesheet.cloneNode(true) as HTMLStyleElement;
 	targetWindow.document.head.appendChild(clone);
-	disposables.add(toDisposable(() => targetWindow.document.head.removeChild(clone)));
+	disposables.add(toDisposable(() => clone.remove()));
 
 	for (const rule of getDynamicStyleSheetRules(globalStylesheet)) {
 		clone.sheet?.insertRule(rule.cssText, clone.sheet?.cssRules.length);
@@ -1726,7 +1727,7 @@ export function triggerDownload(dataOrUri: Uint8Array | URI, name: string): void
 	anchor.click();
 
 	// Ensure to remove the element from DOM eventually
-	setTimeout(() => activeWindow.document.body.removeChild(anchor));
+	setTimeout(() => anchor.remove());
 }
 
 export function triggerUpload(): Promise<FileList | undefined> {
@@ -1749,7 +1750,7 @@ export function triggerUpload(): Promise<FileList | undefined> {
 		input.click();
 
 		// Ensure to remove the element from DOM eventually
-		setTimeout(() => activeWindow.document.body.removeChild(input));
+		setTimeout(() => input.remove());
 	});
 }
 
@@ -2372,6 +2373,107 @@ export function h(tag: string, ...args: [] | [attributes: { $: string } & Partia
 	return result;
 }
 
+export function svgElem<TTag extends string>
+	(tag: TTag):
+	TagToRecord<TTag> extends infer Y ? { [TKey in keyof Y]: Y[TKey] } : never;
+
+export function svgElem<TTag extends string, T extends Child[]>
+	(tag: TTag, children: [...T]):
+	(ArrayToObj<T> & TagToRecord<TTag>) extends infer Y ? { [TKey in keyof Y]: Y[TKey] } : never;
+
+export function svgElem<TTag extends string>
+	(tag: TTag, attributes: Partial<ElementAttributes<TagToElement<TTag>>>):
+	TagToRecord<TTag> extends infer Y ? { [TKey in keyof Y]: Y[TKey] } : never;
+
+export function svgElem<TTag extends string, T extends Child[]>
+	(tag: TTag, attributes: Partial<ElementAttributes<TagToElement<TTag>>>, children: [...T]):
+	(ArrayToObj<T> & TagToRecord<TTag>) extends infer Y ? { [TKey in keyof Y]: Y[TKey] } : never;
+
+export function svgElem(tag: string, ...args: [] | [attributes: { $: string } & Partial<ElementAttributes<HTMLElement>> | Record<string, any>, children?: any[]] | [children: any[]]): Record<string, HTMLElement> {
+	let attributes: { $?: string } & Partial<ElementAttributes<HTMLElement>>;
+	let children: (Record<string, HTMLElement> | HTMLElement)[] | undefined;
+
+	if (Array.isArray(args[0])) {
+		attributes = {};
+		children = args[0];
+	} else {
+		attributes = args[0] as any || {};
+		children = args[1];
+	}
+
+	const match = H_REGEX.exec(tag);
+
+	if (!match || !match.groups) {
+		throw new Error('Bad use of h');
+	}
+
+	const tagName = match.groups['tag'] || 'div';
+	const el = document.createElementNS('http://www.w3.org/2000/svg', tagName) as any as HTMLElement;
+
+	if (match.groups['id']) {
+		el.id = match.groups['id'];
+	}
+
+	const classNames = [];
+	if (match.groups['class']) {
+		for (const className of match.groups['class'].split('.')) {
+			if (className !== '') {
+				classNames.push(className);
+			}
+		}
+	}
+	if (attributes.className !== undefined) {
+		for (const className of attributes.className.split('.')) {
+			if (className !== '') {
+				classNames.push(className);
+			}
+		}
+	}
+	if (classNames.length > 0) {
+		el.className = classNames.join(' ');
+	}
+
+	const result: Record<string, HTMLElement> = {};
+
+	if (match.groups['name']) {
+		result[match.groups['name']] = el;
+	}
+
+	if (children) {
+		for (const c of children) {
+			if (isHTMLElement(c)) {
+				el.appendChild(c);
+			} else if (typeof c === 'string') {
+				el.append(c);
+			} else if ('root' in c) {
+				Object.assign(result, c);
+				el.appendChild(c.root);
+			}
+		}
+	}
+
+	for (const [key, value] of Object.entries(attributes)) {
+		if (key === 'className') {
+			continue;
+		} else if (key === 'style') {
+			for (const [cssKey, cssValue] of Object.entries(value)) {
+				el.style.setProperty(
+					camelCaseToHyphenCase(cssKey),
+					typeof cssValue === 'number' ? cssValue + 'px' : '' + cssValue
+				);
+			}
+		} else if (key === 'tabIndex') {
+			el.tabIndex = value;
+		} else {
+			el.setAttribute(camelCaseToHyphenCase(key), value.toString());
+		}
+	}
+
+	result['root'] = el;
+
+	return result;
+}
+
 function camelCaseToHyphenCase(str: string) {
 	return str.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
 }
@@ -2407,4 +2509,54 @@ export function trackAttributes(from: Element, to: Element, filter?: string[]): 
 	}));
 
 	return disposables;
+}
+
+/**
+ * Helper for calculating the "safe triangle" occluded by hovers to avoid early dismissal.
+ * @see https://www.smashingmagazine.com/2023/08/better-context-menus-safe-triangles/ for example
+ */
+export class SafeTriangle {
+	// 4 triangles, 2 points (x, y) stored for each
+	private triangles: number[] = [];
+
+	constructor(
+		private readonly originX: number,
+		private readonly originY: number,
+		target: HTMLElement
+	) {
+		const { top, left, right, bottom } = target.getBoundingClientRect();
+		const t = this.triangles;
+		let i = 0;
+
+		t[i++] = left;
+		t[i++] = top;
+		t[i++] = right;
+		t[i++] = top;
+
+		t[i++] = left;
+		t[i++] = top;
+		t[i++] = left;
+		t[i++] = bottom;
+
+		t[i++] = right;
+		t[i++] = top;
+		t[i++] = right;
+		t[i++] = bottom;
+
+		t[i++] = left;
+		t[i++] = bottom;
+		t[i++] = right;
+		t[i++] = bottom;
+	}
+
+	public contains(x: number, y: number) {
+		const { triangles, originX, originY } = this;
+		for (let i = 0; i < 4; i++) {
+			if (isPointWithinTriangle(x, y, originX, originY, triangles[2 * i], triangles[2 * i + 1], triangles[2 * i + 2], triangles[2 * i + 3])) {
+				return true;
+			}
+		}
+
+		return false;
+	}
 }

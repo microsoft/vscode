@@ -30,6 +30,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IViewModel } from 'vs/editor/common/viewModel';
 import { ISelection } from 'vs/editor/common/core/selection';
 import { getActiveElement } from 'vs/base/browser/dom';
+import { EnterOperation } from 'vs/editor/common/cursor/cursorTypeEditOperations';
 
 const CORE_WEIGHT = KeybindingWeight.EditorCore;
 
@@ -74,7 +75,7 @@ export namespace EditorScroll_ {
 		return true;
 	};
 
-	export const metadata = <ICommandMetadata>{
+	export const metadata: ICommandMetadata = {
 		description: 'Scroll editor in the given direction',
 		args: [
 			{
@@ -252,7 +253,7 @@ export namespace RevealLine_ {
 		return true;
 	};
 
-	export const metadata = <ICommandMetadata>{
+	export const metadata: ICommandMetadata = {
 		description: 'Reveal the given line at the given logical position',
 		args: [
 			{
@@ -1988,7 +1989,7 @@ export namespace CoreEditingCommands {
 
 		public runCoreEditingCommand(editor: ICodeEditor, viewModel: IViewModel, args: unknown): void {
 			editor.pushUndoStop();
-			editor.executeCommands(this.id, TypeOperations.lineBreakInsert(viewModel.cursorConfig, viewModel.model, viewModel.getCursorStates().map(s => s.modelState.selection)));
+			editor.executeCommands(this.id, EnterOperation.lineBreakInsert(viewModel.cursorConfig, viewModel.model, viewModel.getCursorStates().map(s => s.modelState.selection)));
 		}
 	});
 

@@ -761,7 +761,7 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 		let groupRegisteredContextKeys = this.registeredContextKeys.get(group.id);
 		if (!groupRegisteredContextKeys) {
 			groupRegisteredContextKeys = new Map<string, IContextKey>();
-			this.scopedContextKeys.set(group.id, groupRegisteredContextKeys);
+			this.registeredContextKeys.set(group.id, groupRegisteredContextKeys);
 		}
 
 		let scopedRegisteredContextKey = groupRegisteredContextKeys.get(provider.contextKey.key);

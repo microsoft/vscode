@@ -275,7 +275,6 @@ export function registerChatCodeBlockActions() {
 			let mappedEdits: WorkspaceEdit | null = null;
 
 			if (mappedEditsProviders.length > 0) {
-				const mostRelevantProvider = mappedEditsProviders[0]; // TODO@ulugbekna: should we try all providers?
 
 				// 0th sub-array - editor selections array if there are any selections
 				// 1st sub-array - array with documents used to get the chat reply
@@ -302,13 +301,17 @@ export function registerChatCodeBlockActions() {
 					docRefs.push(usedDocuments);
 				}
 
-				const cancellationTokenSource = new CancellationTokenSource();
+				let i = 0;
+				do {
+					const cancellationTokenSource = new CancellationTokenSource();
 
-				mappedEdits = await mostRelevantProvider.provideMappedEdits(
-					activeModel,
-					[codeBlockActionContext.code],
-					{ documents: docRefs },
-					cancellationTokenSource.token);
+					mappedEdits = await mappedEditsProviders[i].provideMappedEdits(
+						activeModel,
+						[codeBlockActionContext.code],
+						{ documents: docRefs },
+						cancellationTokenSource.token);
+
+				} while (!mappedEdits && ++i < mappedEditsProviders.length);
 			}
 
 			if (mappedEdits) {
@@ -610,7 +613,8 @@ export function registerChatCodeCompareBlockActions() {
 				precondition: ContextKeyExpr.and(EditorContextKeys.hasChanges, CONTEXT_CHAT_EDIT_APPLIED.negate()),
 				menu: {
 					id: MenuId.ChatCompareBlock,
-					group: 'navigation'
+					group: 'navigation',
+					order: 1,
 				}
 			});
 		}
@@ -627,6 +631,30 @@ export function registerChatCodeCompareBlockActions() {
 				resource: context.edit.uri,
 				options: { revealIfVisible: true },
 			});
+		}
+	});
+
+	registerAction2(class DiscardEditsCompareBlockAction extends ChatCompareCodeBlockAction {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.discardCompareEdits',
+				title: localize2('interactive.compare.discard', "Discard Edits"),
+				f1: false,
+				category: CHAT_CATEGORY,
+				icon: Codicon.trash,
+				precondition: ContextKeyExpr.and(EditorContextKeys.hasChanges, CONTEXT_CHAT_EDIT_APPLIED.negate()),
+				menu: {
+					id: MenuId.ChatCompareBlock,
+					group: 'navigation',
+					order: 2,
+				}
+			});
+		}
+
+		async runWithContext(accessor: ServicesAccessor, context: ICodeCompareBlockActionContext): Promise<any> {
+			const instaService = accessor.get(IInstantiationService);
+			const editor = instaService.createInstance(DefaultChatTextEditor);
+			editor.discard(context.element, context.edit);
 		}
 	});
 }

@@ -3,8 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// HACK: Ignore warnings, technically this requires browser/ but it's run on renderer.html anyway so
+// it's fine in tests. Importing @xterm/headless appears to prevent `yarn test-browser` from running
+// at all.
 // eslint-disable-next-line local/code-import-patterns, local/code-amd-node-module
-import { Terminal } from '@xterm/headless';
+import { Terminal } from '@xterm/xterm';
 
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { NullLogService } from 'vs/platform/log/common/log';
@@ -466,6 +469,26 @@ suite('PromptInputModel', () => {
 
 			await writePromise('\x1b[D');
 			await assertPromptInput(`echo "foo\n|bar`);
+		});
+	});
+
+	suite('wrapped line (non-continuation)', () => {
+		test('basic wrapped line', async () => {
+			xterm.resize(5, 10);
+
+			await writePromise('$ ');
+			fireCommandStart();
+			await assertPromptInput('|');
+
+			await writePromise('ech');
+			await assertPromptInput(`ech|`);
+
+			await writePromise('o ');
+			await assertPromptInput(`echo |`);
+
+			await writePromise('"a"');
+			// HACK: Trailing whitespace is due to flaky detection in wrapped lines (but it doesn't matter much)
+			await assertPromptInput(`echo "a"| `);
 		});
 	});
 

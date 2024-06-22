@@ -18,7 +18,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { getTargetPlatform, IExtensionGalleryService, IExtensionIdentifier, IExtensionInfo, IGalleryExtension, IGalleryExtensionAsset, IGalleryExtensionAssets, IGalleryExtensionVersion, InstallOperation, IQueryOptions, IExtensionsControlManifest, isNotWebExtensionInWebTargetPlatform, isTargetPlatformCompatible, ITranslation, SortBy, SortOrder, StatisticType, toTargetPlatform, WEB_EXTENSION_TAG, IExtensionQueryOptions, IDeprecationInfo, ISearchPrefferedResults, ExtensionGalleryError, ExtensionGalleryErrorCode, IProductVersion } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { adoptToGalleryExtensionId, areSameExtensions, getGalleryExtensionId, getGalleryExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExtensionManifest, TargetPlatform } from 'vs/platform/extensions/common/extensions';
-import { isEngineValid } from 'vs/platform/extensions/common/extensionValidator';
+import { areApiProposalsCompatible, isEngineValid } from 'vs/platform/extensions/common/extensionValidator';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -209,6 +209,7 @@ const PropertyType = {
 	ExtensionPack: 'Microsoft.VisualStudio.Code.ExtensionPack',
 	Engine: 'Microsoft.VisualStudio.Code.Engine',
 	PreRelease: 'Microsoft.VisualStudio.Code.PreRelease',
+	EnabledApiProposals: 'Microsoft.VisualStudio.Code.EnabledApiProposals',
 	LocalizedLanguages: 'Microsoft.VisualStudio.Code.LocalizedLanguages',
 	WebExtension: 'Microsoft.VisualStudio.Code.WebExtension',
 	SponsorLink: 'Microsoft.VisualStudio.Code.SponsorLink',
@@ -430,6 +431,12 @@ function isPreReleaseVersion(version: IRawGalleryExtensionVersion): boolean {
 	return values.length > 0 && values[0].value === 'true';
 }
 
+function getEnabledApiProposals(version: IRawGalleryExtensionVersion): string[] {
+	const values = version.properties ? version.properties.filter(p => p.key === PropertyType.EnabledApiProposals) : [];
+	const value = (values.length > 0 && values[0].value) || '';
+	return value ? value.split(',') : [];
+}
+
 function getLocalizedLanguages(version: IRawGalleryExtensionVersion): string[] {
 	const values = version.properties ? version.properties.filter(p => p.key === PropertyType.LocalizedLanguages) : [];
 	const value = (values.length > 0 && values[0].value) || '';
@@ -548,6 +555,7 @@ function toExtension(galleryExtension: IRawGalleryExtension, version: IRawGaller
 			dependencies: getExtensions(version, PropertyType.Dependency),
 			extensionPack: getExtensions(version, PropertyType.ExtensionPack),
 			engine: getEngine(version),
+			enabledApiProposals: getEnabledApiProposals(version),
 			localizedLanguages: getLocalizedLanguages(version),
 			targetPlatform: getTargetPlatformForExtensionVersion(version),
 			isPreReleaseVersion: isPreReleaseVersion(version)
@@ -579,6 +587,7 @@ interface IRawExtensionsControlManifest {
 		additionalInfo?: string;
 	}>;
 	search?: ISearchPrefferedResults[];
+	extensionsEnabledWithPreRelease?: string[];
 }
 
 abstract class AbstractExtensionGalleryService implements IExtensionGalleryService {
@@ -590,6 +599,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 	private readonly extensionsControlUrl: string | undefined;
 
 	private readonly commonHeadersPromise: Promise<IStringDictionary<string>>;
+	private readonly extensionsEnabledWithApiProposalVersion: string[];
 
 	constructor(
 		storageService: IStorageService | undefined,
@@ -606,6 +616,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		this.extensionsGalleryUrl = isPPEEnabled ? config.servicePPEUrl : config?.serviceUrl;
 		this.extensionsGallerySearchUrl = isPPEEnabled ? undefined : config?.searchUrl;
 		this.extensionsControlUrl = config?.controlUrl;
+		this.extensionsEnabledWithApiProposalVersion = productService.extensionsEnabledWithApiProposalVersion?.map(id => id.toLowerCase()) ?? [];
 		this.commonHeadersPromise = resolveMarketplaceHeaders(
 			productService.version,
 			productService,
@@ -704,7 +715,26 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 			}
 			engine = manifest.engines.vscode;
 		}
-		return isEngineValid(engine, productVersion.version, productVersion.date);
+
+		if (!isEngineValid(engine, productVersion.version, productVersion.date)) {
+			return false;
+		}
+
+		if (!this.areApiProposalsCompatible(extension.identifier, extension.properties.enabledApiProposals)) {
+			return false;
+		}
+
+		return true;
+	}
+
+	private areApiProposalsCompatible(extensionIdentifier: IExtensionIdentifier, enabledApiProposals: string[] | undefined): boolean {
+		if (!enabledApiProposals) {
+			return true;
+		}
+		if (!this.extensionsEnabledWithApiProposalVersion.includes(extensionIdentifier.id.toLowerCase())) {
+			return true;
+		}
+		return areApiProposalsCompatible(enabledApiProposals);
 	}
 
 	private async isValidVersion(extension: string, rawGalleryExtensionVersion: IRawGalleryExtensionVersion, versionType: 'release' | 'prerelease' | 'any', compatible: boolean, allTargetPlatforms: TargetPlatform[], targetPlatform: TargetPlatform, productVersion: IProductVersion = { version: this.productService.version, date: this.productService.date }): Promise<boolean> {
@@ -915,7 +945,18 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 				continue;
 			}
 			// Allow any version if includePreRelease flag is set otherwise only release versions are allowed
-			if (await this.isValidVersion(getGalleryExtensionId(rawGalleryExtension.publisher.publisherName, rawGalleryExtension.extensionName), rawGalleryExtensionVersion, includePreRelease ? 'any' : 'release', criteria.compatible, allTargetPlatforms, criteria.targetPlatform, criteria.productVersion)) {
+			if (await this.isValidVersion(
+				extensionIdentifier.id,
+				rawGalleryExtensionVersion,
+				includePreRelease ? 'any' : 'release',
+				criteria.compatible,
+				allTargetPlatforms,
+				criteria.targetPlatform,
+				criteria.productVersion)
+			) {
+				if (criteria.compatible && !this.areApiProposalsCompatible(extensionIdentifier, getEnabledApiProposals(rawGalleryExtensionVersion))) {
+					return null;
+				}
 				return toExtension(rawGalleryExtension, rawGalleryExtensionVersion, allTargetPlatforms, queryContext);
 			}
 			if (version && rawGalleryExtensionVersion.version === version) {
@@ -1137,15 +1178,15 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		return '';
 	}
 
-	async getAllCompatibleVersions(extension: IGalleryExtension, includePreRelease: boolean, targetPlatform: TargetPlatform): Promise<IGalleryExtensionVersion[]> {
+	async getAllCompatibleVersions(extensionIdentifier: IExtensionIdentifier, includePreRelease: boolean, targetPlatform: TargetPlatform): Promise<IGalleryExtensionVersion[]> {
 		let query = new Query()
 			.withFlags(Flags.IncludeVersions, Flags.IncludeCategoryAndTags, Flags.IncludeFiles, Flags.IncludeVersionProperties)
 			.withPage(1, 1);
 
-		if (extension.identifier.uuid) {
-			query = query.withFilter(FilterType.ExtensionId, extension.identifier.uuid);
+		if (extensionIdentifier.uuid) {
+			query = query.withFilter(FilterType.ExtensionId, extensionIdentifier.uuid);
 		} else {
-			query = query.withFilter(FilterType.ExtensionName, extension.identifier.id);
+			query = query.withFilter(FilterType.ExtensionName, extensionIdentifier.id);
 		}
 
 		const { galleryExtensions } = await this.queryRawGalleryExtensions(query, CancellationToken.None);
@@ -1161,7 +1202,15 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		const validVersions: IRawGalleryExtensionVersion[] = [];
 		await Promise.all(galleryExtensions[0].versions.map(async (version) => {
 			try {
-				if (await this.isValidVersion(extension.identifier.id, version, includePreRelease ? 'any' : 'release', true, allTargetPlatforms, targetPlatform)) {
+				if (
+					(await this.isValidVersion(
+						extensionIdentifier.id,
+						version, includePreRelease ? 'any' : 'release',
+						true,
+						allTargetPlatforms,
+						targetPlatform))
+					&& this.areApiProposalsCompatible(extensionIdentifier, getEnabledApiProposals(version))
+				) {
 					validVersions.push(version);
 				}
 			} catch (error) { /* Ignore error and skip version */ }
@@ -1262,6 +1311,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		const malicious: IExtensionIdentifier[] = [];
 		const deprecated: IStringDictionary<IDeprecationInfo> = {};
 		const search: ISearchPrefferedResults[] = [];
+		const extensionsEnabledWithPreRelease: string[] = [];
 		if (result) {
 			for (const id of result.malicious) {
 				malicious.push({ id });
@@ -1293,9 +1343,14 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 					search.push(s);
 				}
 			}
+			if (Array.isArray(result.extensionsEnabledWithPreRelease)) {
+				for (const id of result.extensionsEnabledWithPreRelease) {
+					extensionsEnabledWithPreRelease.push(id.toLowerCase());
+				}
+			}
 		}
 
-		return { malicious, deprecated, search };
+		return { malicious, deprecated, search, extensionsEnabledWithPreRelease };
 	}
 }
 

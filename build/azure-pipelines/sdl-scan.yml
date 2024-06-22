@@ -1,296 +1,151 @@
-trigger: none
-pr: none
-
 parameters:
   - name: NPM_REGISTRY
     displayName: "Custom NPM Registry"
     type: string
     default: "https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/npm/registry/"
-  - name: SCAN_WINDOWS
-    displayName: "Scan Windows"
-    type: boolean
-    default: true
-  - name: SCAN_LINUX
-    displayName: "Scan Linux"
-    type: boolean
-    default: false
-
-variables:
-  - name: NPM_REGISTRY
-    value: ${{ parameters.NPM_REGISTRY }}
-  - name: SCAN_WINDOWS
-    value: ${{ eq(parameters.SCAN_WINDOWS, true) }}
-  - name: SCAN_LINUX
-    value: ${{ eq(parameters.SCAN_LINUX, true) }}
-  - name: VSCODE_MIXIN_REPO
-    value: microsoft/vscode-distro
-  - name: skipComponentGovernanceDetection
-    value: true
   - name: NPM_ARCH
-    value: x64
+    type: string
+    default: x64
   - name: VSCODE_ARCH
-    value: x64
-  - name: Codeql.enabled
-    value: true
-  - name: Codeql.TSAEnabled
-    value: true
-  - name: Codeql.TSAOptionsPath
-    value: '$(Build.SourcesDirectory)\build\azure-pipelines\config\tsaoptions.json'
+    type: string
+    default: x64
 
-stages:
-  - stage: Windows
-    condition: eq(variables.SCAN_WINDOWS, 'true')
-    pool: 1es-windows-2019-x64
-    jobs:
-      - job: WindowsJob
-        timeoutInMinutes: 0
-        steps:
-          - task: CredScan@3
-            continueOnError: true
-            inputs:
-              scanFolder: "$(Build.SourcesDirectory)"
-              outputFormat: "pre"
+steps:
+  - task: NodeTool@0
+    inputs:
+      versionSource: fromFile
+      versionFilePath: .nvmrc
+      nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
-          - task: NodeTool@0
-            inputs:
-              versionSource: fromFile
-              versionFilePath: .nvmrc
-              nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
+  - template: ./distro/download-distro.yml
 
-          - template: ./distro/download-distro.yml
+  - task: AzureKeyVault@1
+    displayName: "Azure Key Vault: Get Secrets"
+    inputs:
+      azureSubscription: "vscode-builds-subscription"
+      KeyVaultName: vscode-build-secrets
+      SecretsFilter: "github-distro-mixin-password"
 
-          - task: AzureKeyVault@1
-            displayName: "Azure Key Vault: Get Secrets"
-            inputs:
-              azureSubscription: "vscode-builds-subscription"
-              KeyVaultName: vscode-build-secrets
-              SecretsFilter: "github-distro-mixin-password"
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      exec { npm config set registry "${{ parameters.NPM_REGISTRY }}" --location=project }
+      # npm >v7 deprecated the `always-auth` config option, refs npm/cli@72a7eeb
+      # following is a workaround for yarn to send authorization header
+      # for GET requests to the registry.
+      exec { Add-Content -Path .npmrc -Value "always-auth=true" }
+      exec { yarn config set registry "${{ parameters.NPM_REGISTRY }}" }
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne('${{ parameters.NPM_REGISTRY }}', 'none'))
+    displayName: Setup NPM & Yarn
 
-          - powershell: |
-              . build/azure-pipelines/win32/exec.ps1
-              $ErrorActionPreference = "Stop"
-              exec { npm config set registry "$env:NPM_REGISTRY" --location=project }
-              # npm >v7 deprecated the `always-auth` config option, refs npm/cli@72a7eeb
-              # following is a workaround for yarn to send authorization header
-              # for GET requests to the registry.
-              exec { Add-Content -Path .npmrc -Value "always-auth=true" }
-              exec { yarn config set registry "$env:NPM_REGISTRY" }
-            condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
-            displayName: Setup NPM & Yarn
+  - task: npmAuthenticate@0
+    inputs:
+      workingFile: .npmrc
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne('${{ parameters.NPM_REGISTRY }}', 'none'))
+    displayName: Setup NPM Authentication
 
-          - task: npmAuthenticate@0
-            inputs:
-              workingFile: .npmrc
-            condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
-            displayName: Setup NPM Authentication
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      exec { node build/setup-npm-registry.js "${{ parameters.NPM_REGISTRY }}" }
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne('${{ parameters.NPM_REGISTRY }}', 'none'))
+    displayName: Setup NPM Registry
 
-          - powershell: |
-              . build/azure-pipelines/win32/exec.ps1
-              $ErrorActionPreference = "Stop"
-              exec { node build/setup-npm-registry.js $env:NPM_REGISTRY }
-            condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
-            displayName: Setup NPM Registry
+  - pwsh: |
+      $includes = @'
+        {
+          'target_defaults': {
+            'conditions': [
+              ['OS=="win"', {
+                'msvs_configuration_attributes': {
+                  'SpectreMitigation': 'Spectre'
+                },
+                'msvs_settings': {
+                  'VCCLCompilerTool': {
+                    'AdditionalOptions': [
+                      '/Zi',
+                      '/FS'
+                    ],
+                  },
+                  'VCLinkerTool': {
+                    'AdditionalOptions': [
+                      '/profile'
+                    ]
+                  }
+                }
+              }]
+            ]
+          }
+        }
+      '@
 
-          - task: CodeQL3000Init@0
-            displayName: CodeQL Initialize
-            condition: eq(variables['Codeql.enabled'], 'True')
+      if (!(Test-Path "~/.gyp")) {
+        mkdir "~/.gyp"
+      }
+      echo $includes > "~/.gyp/include.gypi"
+    displayName: Create include.gypi
 
-          - powershell: |
-              . build/azure-pipelines/win32/exec.ps1
-              . build/azure-pipelines/win32/retry.ps1
-              $ErrorActionPreference = "Stop"
-              # TODO: remove custom node-gyp when updating to Node v20,
-              # refs https://github.com/npm/cli/releases/tag/v10.2.3 which is available with Node >= 20.10.0
-              $nodeGypDir = "$(Agent.TempDirectory)/custom-packages"
-              mkdir "$nodeGypDir"
-              npm install node-gyp@10.0.1 -g --prefix "$nodeGypDir"
-              $env:npm_config_node_gyp = "${nodeGypDir}/node_modules/node-gyp/bin/node-gyp.js"
-              $env:npm_config_arch = "$(NPM_ARCH)"
-              retry { exec { yarn --frozen-lockfile --check-files } }
-            env:
-              PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-              GITHUB_TOKEN: "$(github-distro-mixin-password)"
-              CHILD_CONCURRENCY: 1
-            displayName: Install dependencies
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      . build/azure-pipelines/win32/retry.ps1
+      $ErrorActionPreference = "Stop"
+      retry { exec { yarn --frozen-lockfile --check-files } }
+    env:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+      CHILD_CONCURRENCY: 1
+    displayName: Install dependencies
 
-          - script: node build/azure-pipelines/distro/mixin-npm
-            displayName: Mixin distro node modules
+  - script: node build/azure-pipelines/distro/mixin-npm
+    displayName: Mixin distro node modules
 
-          - script: node build/azure-pipelines/distro/mixin-quality
-            displayName: Mixin distro quality
-            env:
-              VSCODE_QUALITY: stable
+  - script: node build/azure-pipelines/distro/mixin-quality
+    displayName: Mixin distro quality
+    env:
+      VSCODE_QUALITY: stable
 
-          - powershell: yarn compile
-            displayName: Compile
+  - powershell: yarn compile
+    displayName: Compile
 
-          - task: CodeQL3000Finalize@0
-            displayName: CodeQL Finalize
-            condition: eq(variables['Codeql.enabled'], 'True')
+  - powershell: yarn gulp "vscode-symbols-win32-${{ parameters.VSCODE_ARCH }}"
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+    displayName: Download Symbols
 
-          - powershell: yarn gulp "vscode-symbols-win32-$(VSCODE_ARCH)"
-            env:
-              GITHUB_TOKEN: "$(github-distro-mixin-password)"
-            displayName: Download Symbols
+  - task: BinSkim@4
+    inputs:
+      InputType: "Basic"
+      Function: "analyze"
+      TargetPattern: "guardianGlob"
+      AnalyzeIgnorePdbLoadError: true
+      AnalyzeTargetGlob: '$(agent.builddirectory)\scanbin\**.dll;$(agent.builddirectory)\scanbin\**.exe;$(agent.builddirectory)\scanbin\**.node'
+      AnalyzeLocalSymbolDirectories: '$(agent.builddirectory)\scanbin\VSCode-win32-${{ parameters.VSCODE_ARCH }}\pdb'
 
-          - task: PSScriptAnalyzer@1
-            inputs:
-              Path: '$(Build.SourcesDirectory)'
-              Settings: required
-              Recurse: true
+  - task: CopyFiles@2
+    displayName: 'Collect Symbols for API Scan'
+    inputs:
+      SourceFolder: $(Agent.BuildDirectory)
+      Contents: 'scanbin\**\*.pdb'
+      TargetFolder: '$(agent.builddirectory)\symbols'
+      flattenFolders: true
+    condition: succeeded()
 
-          - task: BinSkim@4
-            inputs:
-              InputType: "Basic"
-              Function: "analyze"
-              TargetPattern: "guardianGlob"
-              AnalyzeIgnorePdbLoadError: true
-              AnalyzeTargetGlob: '$(agent.builddirectory)\scanbin\**.dll;$(agent.builddirectory)\scanbin\**.exe;$(agent.builddirectory)\scanbin\**.node'
-              AnalyzeLocalSymbolDirectories: '$(agent.builddirectory)\scanbin\VSCode-win32-$(VSCODE_ARCH)\pdb'
+  # - task: APIScan@2
+  #   inputs:
+  #     softwareFolder: $(agent.builddirectory)\scanbin
+  #     softwareName: 'vscode-client'
+  #     softwareVersionNum: '1'
+  #     symbolsFolder: 'SRV*http://symweb;$(agent.builddirectory)\symbols'
+  #     isLargeApp: false
+  #     toolVersion: 'Latest'
+  #   displayName: Run ApiScan
+  #   condition: succeeded()
+  #   env:
+  #     AzureServicesAuthConnectionString: $(apiscan-connectionstring)
 
-          - task: AntiMalware@4
-            inputs:
-              InputType: Basic
-              ScanType: CustomScan
-              FileDirPath: '$(Build.SourcesDirectory)'
-              EnableServices: true
-              SupportLogOnError: false
-              TreatSignatureUpdateFailureAs: 'Warning'
-              SignatureFreshness: 'OneDay'
-              TreatStaleSignatureAs: 'Error'
-
-          - task: PublishSecurityAnalysisLogs@3
-            inputs:
-              ArtifactName: CodeAnalysisLogs
-              ArtifactType: Container
-              PublishProcessedResults: false
-              AllTools: true
-
-          - task: TSAUpload@2
-            inputs:
-              GdnPublishTsaOnboard: true
-              GdnPublishTsaConfigFile: '$(Build.SourcesDirectory)\build\azure-pipelines\config\tsaoptions.json'
-
-  - stage: Linux
-    dependsOn: []
-    condition: eq(variables.SCAN_LINUX, 'true')
-    pool:
-      vmImage: "Ubuntu-18.04"
-    jobs:
-      - job: LinuxJob
-        steps:
-          - task: CredScan@2
-            inputs:
-              toolMajorVersion: "V2"
-          - task: NodeTool@0
-            inputs:
-              versionSource: fromFile
-              versionFilePath: .nvmrc
-              nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
-
-          - template: ./distro/download-distro.yml
-
-          - task: AzureKeyVault@1
-            displayName: "Azure Key Vault: Get Secrets"
-            inputs:
-              azureSubscription: "vscode-builds-subscription"
-              KeyVaultName: vscode-build-secrets
-              SecretsFilter: "github-distro-mixin-password"
-
-          - script: |
-              set -e
-              npm config set registry "$NPM_REGISTRY" --location=project
-              # npm >v7 deprecated the `always-auth` config option, refs npm/cli@72a7eeb
-              # following is a workaround for yarn to send authorization header
-              # for GET requests to the registry.
-              echo "always-auth=true" >> .npmrc
-              yarn config set registry "$NPM_REGISTRY"
-            condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
-            displayName: Setup NPM & Yarn
-
-          - task: npmAuthenticate@0
-            inputs:
-              workingFile: .npmrc
-            condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
-            displayName: Setup NPM Authentication
-
-          - script: node build/setup-npm-registry.js $NPM_REGISTRY
-            condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
-            displayName: Setup NPM Registry
-
-          - script: |
-              set -e
-              for i in {1..5}; do # try 5 times
-                yarn --cwd build --frozen-lockfile --check-files && break
-                if [ $i -eq 3 ]; then
-                  echo "Yarn failed too many times" >&2
-                  exit 1
-                fi
-                echo "Yarn failed $i, trying again..."
-              done
-            displayName: Install build dependencies
-
-          - script: |
-              set -e
-              export npm_config_arch=$(NPM_ARCH)
-
-              if [ -z "$CC" ] || [ -z "$CXX" ]; then
-                # Download clang based on chromium revision used by vscode
-                curl -s https://raw.githubusercontent.com/chromium/chromium/96.0.4664.110/tools/clang/scripts/update.py | python - --output-dir=$PWD/.build/CR_Clang --host-os=linux
-                # Download libcxx headers and objects from upstream electron releases
-                DEBUG=libcxx-fetcher \
-                VSCODE_LIBCXX_OBJECTS_DIR=$PWD/.build/libcxx-objects \
-                VSCODE_LIBCXX_HEADERS_DIR=$PWD/.build/libcxx_headers  \
-                VSCODE_LIBCXXABI_HEADERS_DIR=$PWD/.build/libcxxabi_headers \
-                VSCODE_ARCH="$(NPM_ARCH)" \
-                node build/linux/libcxx-fetcher.js
-                # Set compiler toolchain
-                export CC=$PWD/.build/CR_Clang/bin/clang
-                export CXX=$PWD/.build/CR_Clang/bin/clang++
-                export CXXFLAGS="-std=c++17 -nostdinc++ -D__NO_INLINE__ -I$PWD/.build/libcxx_headers -isystem$PWD/.build/libcxx_headers/include -isystem$PWD/.build/libcxxabi_headers/include -fPIC -flto=thin -fsplit-lto-unit -D_LIBCPP_ABI_NAMESPACE=Cr"
-                export LDFLAGS="-stdlib=libc++ -fuse-ld=lld -flto=thin -fsplit-lto-unit -L$PWD/.build/libcxx-objects -lc++abi"
-                export VSCODE_REMOTE_CC=$(which gcc)
-                export VSCODE_REMOTE_CXX=$(which g++)
-              fi
-
-              for i in {1..5}; do # try 5 times
-                yarn --frozen-lockfile --check-files && break
-                if [ $i -eq 3 ]; then
-                  echo "Yarn failed too many times" >&2
-                  exit 1
-                fi
-                echo "Yarn failed $i, trying again..."
-              done
-            env:
-              PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-              GITHUB_TOKEN: "$(github-distro-mixin-password)"
-            displayName: Install dependencies
-
-          - script: yarn --frozen-lockfile --check-files
-            workingDirectory: .build/distro/npm
-            env:
-              npm_config_arch: $(NPM_ARCH)
-            displayName: Install distro node modules
-
-          - script: node build/azure-pipelines/distro/mixin-npm
-            displayName: Mixin distro node modules
-
-          - script: node build/azure-pipelines/distro/mixin-quality
-            displayName: Mixin distro quality
-            env:
-              VSCODE_QUALITY: stable
-
-          - script: yarn gulp vscode-symbols-linux-$(VSCODE_ARCH)
-            env:
-              GITHUB_TOKEN: "$(github-distro-mixin-password)"
-            displayName: Build
-
-          - task: BinSkim@3
-            inputs:
-              toolVersion: Latest
-              InputType: CommandLine
-              arguments: analyze $(agent.builddirectory)\scanbin\exe\*.* --recurse --local-symbol-directories $(agent.builddirectory)\scanbin\VSCode-linux-$(VSCODE_ARCH)\pdb
-
-          - task: TSAUpload@2
-            inputs:
-              GdnPublishTsaConfigFile: '$(Build.SourceDirectory)\build\azure-pipelines\config\tsaoptions.json'
+  - task: PublishSecurityAnalysisLogs@3
+    inputs:
+      ArtifactName: CodeAnalysisLogs
+      ArtifactType: Container
+      PublishProcessedResults: false
+      AllTools: true

@@ -24,7 +24,7 @@ export class UserDataProfileStorageService extends AbstractUserDataProfileStorag
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@ILogService private readonly logService: ILogService,
 	) {
-		super(storageService);
+		super(true, storageService);
 		const disposables = this._register(new DisposableStore());
 		this._register(Event.filter(storageService.onDidChangeTarget, e => e.scope === StorageScope.PROFILE, disposables)(() => this.onDidChangeStorageTargetInCurrentProfile()));
 		this._register(storageService.onDidChangeValue(StorageScope.PROFILE, undefined, disposables)(e => this.onDidChangeStorageValueInCurrentProfile(e)));

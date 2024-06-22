@@ -44,7 +44,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.tests.registerTestFollowupProvider({
 		async provideFollowup(_result, test, taskIndex, messageIndex, _token) {
 			return [{
-				title: '$(sparkle) Ask copilot for help',
+				title: '$(sparkle) Fix with Copilot',
 				command: 'github.copilot.tests.fixTestFailure',
 				arguments: [{ source: 'peekFollowup', test, message: test.taskStates[taskIndex].messages[messageIndex] }]
 			}];
@@ -119,7 +119,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				map,
 				task,
 				kind === vscode.TestRunProfileKind.Debug
-					? await runner.debug(currentArgs, req.include)
+					? await runner.debug(task, currentArgs, req.include)
 					: await runner.run(currentArgs, req.include),
 				coverageDir,
 				cancellationToken
@@ -196,13 +196,8 @@ export async function activate(context: vscode.ExtensionContext) {
 		true
 	);
 
-	coverage.loadDetailedCoverage = async (_run, coverage) => {
-		if (coverage instanceof V8CoverageFile) {
-			return coverage.details;
-		}
-
-		return [];
-	};
+	coverage.loadDetailedCoverage = async (_run, coverage) => coverage instanceof V8CoverageFile ? coverage.details : [];
+	coverage.loadDetailedCoverageForTest = async (_run, coverage, test) => coverage instanceof V8CoverageFile ? coverage.testDetails(test) : [];
 
 	for (const [name, arg] of browserArgs) {
 		const cfg = ctrl.createRunProfile(

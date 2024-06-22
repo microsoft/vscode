@@ -240,26 +240,6 @@ export class BaseIssueReporterService extends Disposable {
 	}
 
 	public setEventHandlers(): void {
-		this.addEventListener('issue-type', 'change', (event: Event) => {
-			const issueType = parseInt((<HTMLInputElement>event.target).value);
-			this.issueReporterModel.update({ issueType: issueType });
-			if (issueType === IssueType.PerformanceIssue && !this.receivedPerformanceInfo) {
-				this.issueMainService.$getPerformanceInfo().then(info => {
-					this.updatePerformanceInfo(info as Partial<IssueReporterData>);
-				});
-			}
-
-			// Resets placeholder
-			const descriptionTextArea = <HTMLInputElement>this.getElementById('issue-title');
-			if (descriptionTextArea) {
-				descriptionTextArea.placeholder = localize('undefinedPlaceholder', "Please enter a title");
-			}
-
-			this.updatePreviewButtonState();
-			this.setSourceOptions();
-			this.render();
-		});
-
 		(['includeSystemInfo', 'includeProcessInfo', 'includeWorkspaceInfo', 'includeExtensions', 'includeExperiments', 'includeExtensionData'] as const).forEach(elementId => {
 			this.addEventListener(elementId, 'click', (event: Event) => {
 				event.stopPropagation();
@@ -1076,7 +1056,7 @@ export class BaseIssueReporterService extends Disposable {
 		const showLoading = this.getElementById('ext-loading')!;
 		show(showLoading);
 		while (showLoading.firstChild) {
-			showLoading.removeChild(showLoading.firstChild);
+			showLoading.firstChild.remove();
 		}
 		showLoading.append(element);
 
@@ -1097,7 +1077,7 @@ export class BaseIssueReporterService extends Disposable {
 		const hideLoading = this.getElementById('ext-loading')!;
 		hide(hideLoading);
 		if (hideLoading.firstChild) {
-			hideLoading.removeChild(element);
+			element.remove();
 		}
 		this.renderBlocks();
 	}
@@ -1202,5 +1182,3 @@ export function hide(el: Element | undefined | null) {
 export function show(el: Element | undefined | null) {
 	el?.classList.remove('hidden');
 }
-
-

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ISCMService, ISCMProvider, ISCMInput, ISCMRepository, IInputValidator, ISCMInputChangeEvent, SCMInputChangeReason, InputValidationType, IInputValidation } from './scm';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -15,8 +15,10 @@ import { ResourceMap } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
 import { Iterable } from 'vs/base/common/iterator';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { Schemas } from 'vs/base/common/network';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
-class SCMInput implements ISCMInput {
+class SCMInput extends Disposable implements ISCMInput {
 
 	private _value = '';
 
@@ -104,9 +106,11 @@ class SCMInput implements ISCMInput {
 		readonly repository: ISCMRepository,
 		private readonly history: SCMInputHistory
 	) {
+		super();
+
 		if (this.repository.provider.rootUri) {
 			this.historyNavigator = history.getHistory(this.repository.provider.label, this.repository.provider.rootUri);
-			this.history.onWillSaveHistory(event => {
+			this._register(this.history.onWillSaveHistory(event => {
 				if (this.historyNavigator.isAtEnd()) {
 					this.saveValue();
 				}
@@ -116,7 +120,7 @@ class SCMInput implements ISCMInput {
 				}
 
 				this.didChangeHistory = false;
-			});
+			}));
 		} else { // in memory only
 			this.historyNavigator = new HistoryNavigator2([''], 100);
 		}
@@ -130,7 +134,7 @@ class SCMInput implements ISCMInput {
 		}
 
 		if (!transient) {
-			this.historyNavigator.add(this._value);
+			this.historyNavigator.replaceLast(this._value);
 			this.historyNavigator.add(value);
 			this.didChangeHistory = true;
 		}
@@ -362,7 +366,8 @@ export class SCMService implements ISCMService {
 		@ILogService private readonly logService: ILogService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IStorageService storageService: IStorageService
+		@IStorageService storageService: IStorageService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		this.inputHistory = new SCMInputHistory(storageService, workspaceContextService);
 		this.providerCount = contextKeyService.createKey('scm.providerCount', 0);
@@ -389,8 +394,36 @@ export class SCMService implements ISCMService {
 		return repository;
 	}
 
-	getRepository(id: string): ISCMRepository | undefined {
-		return this._repositories.get(id);
-	}
+	getRepository(id: string): ISCMRepository | undefined;
+	getRepository(resource: URI): ISCMRepository | undefined;
+	getRepository(idOrResource: string | URI): ISCMRepository | undefined {
+		if (typeof idOrResource === 'string') {
+			return this._repositories.get(idOrResource);
+		}
 
+		if (idOrResource.scheme !== Schemas.file &&
+			idOrResource.scheme !== Schemas.vscodeRemote) {
+			return undefined;
+		}
+
+		let bestRepository: ISCMRepository | undefined = undefined;
+		let bestMatchLength = Number.POSITIVE_INFINITY;
+
+		for (const repository of this.repositories) {
+			const root = repository.provider.rootUri;
+
+			if (!root) {
+				continue;
+			}
+
+			const path = this.uriIdentityService.extUri.relativePath(root, idOrResource);
+
+			if (path && !/^\.\./.test(path) && path.length < bestMatchLength) {
+				bestRepository = repository;
+				bestMatchLength = path.length;
+			}
+		}
+
+		return bestRepository;
+	}
 }

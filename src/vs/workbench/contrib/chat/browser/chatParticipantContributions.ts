@@ -63,6 +63,10 @@ const chatParticipantExtensionPoint = extensionsRegistry.ExtensionsRegistry.regi
 					description: localize('chatSampleRequest', "When the user clicks this participant in `/help`, this text will be submitted to the participant."),
 					type: 'string'
 				},
+				when: {
+					description: localize('chatParticipantWhen', "A condition which must be true to enable this participant."),
+					type: 'string'
+				},
 				commands: {
 					markdownDescription: localize('chatCommandsDescription', "Commands available for this chat participant, which the user can invoke with a `/`."),
 					type: 'array',
@@ -181,11 +185,6 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 					continue;
 				}
 
-				if (this.productService.quality === 'stable' && !isProposedApiEnabled(extension.description, 'chatParticipantPrivate')) {
-					this.logService.warn(`Chat participants are not yet enabled in VS Code Stable (${extension.description.identifier.value})`);
-					continue;
-				}
-
 				for (const providerDescriptor of extension.value) {
 					if (!providerDescriptor.name.match(/^[\w0-9_-]+$/)) {
 						this.logService.error(`Extension '${extension.description.identifier.value}' CANNOT register participant with invalid name: ${providerDescriptor.name}. Name must match /^[\\w0-9_-]+$/.`);
@@ -221,11 +220,6 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 					const store = new DisposableStore();
 					if (providerDescriptor.isDefault && (!providerDescriptor.locations || providerDescriptor.locations?.includes(ChatAgentLocation.Panel))) {
 						store.add(this.registerDefaultParticipantView(providerDescriptor));
-					}
-
-					if (providerDescriptor.when && !isProposedApiEnabled(extension.description, 'chatParticipantAdditions')) {
-						this.logService.error(`Extension '${extension.description.identifier.value}' CANNOT use API proposal: chatParticipantAdditions.`);
-						continue;
 					}
 
 					store.add(this._chatAgentService.registerAgent(

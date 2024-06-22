@@ -7,7 +7,8 @@ import { asPromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { ExtensionIdentifier, IExtensionDescription, IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { Disposable as DisposableCls, toDisposable } from 'vs/base/common/lifecycle';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -25,11 +26,11 @@ import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import type * as vscode from 'vscode';
 import { IExtHostConfiguration } from '../common/extHostConfiguration';
 import { IExtHostVariableResolverProvider } from './extHostVariableResolverService';
-import { toDisposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon as ThemeIconUtils } from 'vs/base/common/themables';
 import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import * as Convert from 'vs/workbench/api/common/extHostTypeConverters';
 import { coalesce } from 'vs/base/common/arrays';
+import { IExtHostTesting } from 'vs/workbench/api/common/extHostTesting';
 
 export const IExtHostDebugService = createDecorator<IExtHostDebugService>('IExtHostDebugService');
 
@@ -60,7 +61,7 @@ export interface IExtHostDebugService extends ExtHostDebugServiceShape {
 	asDebugSourceUri(source: vscode.DebugProtocolSource, session?: vscode.DebugSession): vscode.Uri;
 }
 
-export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, ExtHostDebugServiceShape {
+export abstract class ExtHostDebugServiceBase extends DisposableCls implements IExtHostDebugService, ExtHostDebugServiceShape {
 
 	readonly _serviceBrand: undefined;
 
@@ -123,7 +124,10 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 		@IExtHostEditorTabs protected _editorTabs: IExtHostEditorTabs,
 		@IExtHostVariableResolverProvider private _variableResolver: IExtHostVariableResolverProvider,
 		@IExtHostCommands private _commands: IExtHostCommands,
+		@IExtHostTesting private _testing: IExtHostTesting,
 	) {
+		super();
+
 		this._configProviderHandleCounter = 0;
 		this._configProviders = [];
 
@@ -136,25 +140,25 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 		this._debugAdapters = new Map();
 		this._debugAdaptersTrackers = new Map();
 
-		this._onDidStartDebugSession = new Emitter<vscode.DebugSession>();
-		this._onDidTerminateDebugSession = new Emitter<vscode.DebugSession>();
-		this._onDidChangeActiveDebugSession = new Emitter<vscode.DebugSession | undefined>();
-		this._onDidReceiveDebugSessionCustomEvent = new Emitter<vscode.DebugSessionCustomEvent>();
+		this._onDidStartDebugSession = this._register(new Emitter<vscode.DebugSession>());
+		this._onDidTerminateDebugSession = this._register(new Emitter<vscode.DebugSession>());
+		this._onDidChangeActiveDebugSession = this._register(new Emitter<vscode.DebugSession | undefined>());
+		this._onDidReceiveDebugSessionCustomEvent = this._register(new Emitter<vscode.DebugSessionCustomEvent>());
 
 		this._debugServiceProxy = extHostRpcService.getProxy(MainContext.MainThreadDebugService);
 
-		this._onDidChangeBreakpoints = new Emitter<vscode.BreakpointsChangeEvent>();
+		this._onDidChangeBreakpoints = this._register(new Emitter<vscode.BreakpointsChangeEvent>());
 
-		this._onDidChangeActiveStackItem = new Emitter<vscode.DebugThread | vscode.DebugStackFrame | undefined>();
+		this._onDidChangeActiveStackItem = this._register(new Emitter<vscode.DebugThread | vscode.DebugStackFrame | undefined>());
 
 		this._activeDebugConsole = new ExtHostDebugConsole(this._debugServiceProxy);
 
 		this._breakpoints = new Map<string, vscode.Breakpoint>();
 
 		this._extensionService.getExtensionRegistry().then((extensionRegistry: ExtensionDescriptionRegistry) => {
-			extensionRegistry.onDidChange(_ => {
+			this._register(extensionRegistry.onDidChange(_ => {
 				this.registerAllDebugTypes(extensionRegistry);
-			});
+			}));
 			this.registerAllDebugTypes(extensionRegistry);
 		});
 	}
@@ -169,7 +173,7 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 		return item ? this.convertVisualizerTreeItem(treeId, item) : undefined;
 	}
 
-	public registerDebugVisualizationTree<T extends vscode.DebugTreeItem>(manifest: Readonly<IRelaxedExtensionDescription>, id: string, provider: vscode.DebugVisualizationTree<T>): vscode.Disposable {
+	public registerDebugVisualizationTree<T extends vscode.DebugTreeItem>(manifest: IExtensionDescription, id: string, provider: vscode.DebugVisualizationTree<T>): vscode.Disposable {
 		const extensionId = ExtensionIdentifier.toKey(manifest.identifier);
 		const key = this.extensionVisKey(extensionId, id);
 		if (this._debugVisualizationProviders.has(key)) {
@@ -464,6 +468,8 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 	}
 
 	public startDebugging(folder: vscode.WorkspaceFolder | undefined, nameOrConfig: string | vscode.DebugConfiguration, options: vscode.DebugSessionOptions): Promise<boolean> {
+		const testRunMeta = options.testRun && this._testing.getMetadataForRun(options.testRun);
+
 		return this._debugServiceProxy.$startDebugging(folder ? folder.uri : undefined, nameOrConfig, {
 			parentSessionID: options.parentSession ? options.parentSession.id : undefined,
 			lifecycleManagedByParent: options.lifecycleManagedByParent,
@@ -471,6 +477,10 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 			noDebug: options.noDebug,
 			compact: options.compact,
 			suppressSaveBeforeStart: options.suppressSaveBeforeStart,
+			testRun: testRunMeta && {
+				runId: testRunMeta.runId,
+				taskId: testRunMeta.taskId,
+			},
 
 			// Check debugUI for back-compat, #147264
 			suppressDebugStatusbar: options.suppressDebugStatusbar ?? (options as any).debugUI?.simple,
@@ -1245,8 +1255,9 @@ export class WorkerExtHostDebugService extends ExtHostDebugServiceBase {
 		@IExtHostConfiguration configurationService: IExtHostConfiguration,
 		@IExtHostEditorTabs editorTabs: IExtHostEditorTabs,
 		@IExtHostVariableResolverProvider variableResolver: IExtHostVariableResolverProvider,
-		@IExtHostCommands commands: IExtHostCommands
+		@IExtHostCommands commands: IExtHostCommands,
+		@IExtHostTesting testing: IExtHostTesting,
 	) {
-		super(extHostRpcService, workspaceService, extensionService, configurationService, editorTabs, variableResolver, commands);
+		super(extHostRpcService, workspaceService, extensionService, configurationService, editorTabs, variableResolver, commands, testing);
 	}
 }

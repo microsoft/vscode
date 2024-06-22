@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { Emitter, Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { InMemoryStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest, Storage } from 'vs/base/parts/storage/common/storage';
@@ -43,7 +43,6 @@ export class TestUserDataProfileStorageService extends AbstractUserDataProfileSt
 		return this.createStorageDatabase(profile);
 	}
 
-	protected override async closeAndDispose(): Promise<void> { }
 }
 
 suite('ProfileStorageService', () => {
@@ -54,7 +53,7 @@ suite('ProfileStorageService', () => {
 	let storage: Storage;
 
 	setup(async () => {
-		testObject = disposables.add(new TestUserDataProfileStorageService(disposables.add(new InMemoryStorageService())));
+		testObject = disposables.add(new TestUserDataProfileStorageService(false, disposables.add(new InMemoryStorageService())));
 		storage = disposables.add(new Storage(await testObject.setupStorageDatabase(profile)));
 		await storage.init();
 	});

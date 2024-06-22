@@ -27,6 +27,7 @@ import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompou
 import { IDataBreakpointOptions, IFunctionBreakpointOptions, IInstructionBreakpointOptions } from 'vs/workbench/contrib/debug/common/debugModel';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { ITaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
+import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export const VIEWLET_ID = 'workbench.view.debug';
@@ -219,6 +220,11 @@ export interface LoadedSourceEvent {
 
 export type IDebugSessionReplMode = 'separate' | 'mergeWithParent';
 
+export interface IDebugTestRunReference {
+	runId: string;
+	taskId: string;
+}
+
 export interface IDebugSessionOptions {
 	noDebug?: boolean;
 	parentSession?: IDebugSession;
@@ -231,6 +237,11 @@ export interface IDebugSessionOptions {
 	suppressDebugToolbar?: boolean;
 	suppressDebugStatusbar?: boolean;
 	suppressDebugView?: boolean;
+	/**
+	 * Set if the debug session is correlated with a test run. Stopping/restarting
+	 * the session will instead stop/restart the test run.
+	 */
+	testRun?: IDebugTestRunReference;
 }
 
 export interface IDataBreakpointInfoResponse {
@@ -335,6 +346,12 @@ export interface INewReplElementData {
 	source?: IReplElementSource;
 }
 
+export interface IDebugEvaluatePosition {
+	line: number;
+	column: number;
+	source: DebugProtocol.Source;
+}
+
 
 export interface IDebugSession extends ITreeElement {
 
@@ -353,6 +370,8 @@ export interface IDebugSession extends ITreeElement {
 	readonly suppressDebugStatusbar: boolean;
 	readonly suppressDebugView: boolean;
 	readonly lifecycleManagedByParent: boolean;
+	/** Test run this debug session was spawned by */
+	readonly correlatedTestRun?: LiveTestResult;
 
 	setSubId(subId: string | undefined): void;
 
@@ -418,7 +437,7 @@ export interface IDebugSession extends ITreeElement {
 	exceptionInfo(threadId: number): Promise<IExceptionInfo | undefined>;
 	scopes(frameId: number, threadId: number): Promise<DebugProtocol.ScopesResponse | undefined>;
 	variables(variablesReference: number, threadId: number | undefined, filter: 'indexed' | 'named' | undefined, start: number | undefined, count: number | undefined): Promise<DebugProtocol.VariablesResponse | undefined>;
-	evaluate(expression: string, frameId?: number, context?: string): Promise<DebugProtocol.EvaluateResponse | undefined>;
+	evaluate(expression: string, frameId?: number, context?: string, location?: IDebugEvaluatePosition): Promise<DebugProtocol.EvaluateResponse | undefined>;
 	customRequest(request: string, args: any): Promise<DebugProtocol.Response | undefined>;
 	cancel(progressId: string): Promise<DebugProtocol.CancelResponse | undefined>;
 	disassemble(memoryReference: string, offset: number, instructionOffset: number, instructionCount: number): Promise<DebugProtocol.DisassembledInstruction[] | undefined>;
@@ -534,7 +553,8 @@ export interface IStackFrame extends ITreeElement {
 }
 
 export function isFrameDeemphasized(frame: IStackFrame): boolean {
-	return frame.source.presentationHint === 'deemphasize' || frame.presentationHint === 'deemphasize' || frame.presentationHint === 'subtle';
+	const hint = frame.presentationHint ?? frame.source.presentationHint;
+	return hint === 'deemphasize' || hint === 'subtle';
 }
 
 export interface IEnablement extends ITreeElement {
@@ -774,6 +794,7 @@ export interface IDebugConfiguration {
 	};
 	autoExpandLazyVariables: boolean;
 	enableStatusBarColor: boolean;
+	showVariableTypes: boolean;
 }
 
 export interface IGlobalConfig {
