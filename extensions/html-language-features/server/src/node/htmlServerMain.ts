@@ -14,8 +14,8 @@ const server = createServer(connection);
 connection.onInitialize(params => {
 	return server.initialize(
 		params,
-		getLanguageServicePlugins(),
 		createHtmlProject([htmlLanguagePlugin]),
+		getLanguageServicePlugins(),
 		{ pullModelDiagnostics: !!params.capabilities.textDocument?.diagnostic }
 	);
 });

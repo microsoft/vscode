@@ -31,7 +31,7 @@ suite('HTML Embedded Formatting', () => {
 			formatOptions = FormattingOptions.create(2, true);
 		}
 
-		const result = await languageService.format(URI.parse(document.uri), formatOptions, range, undefined);
+		const result = await languageService.getDocumentFormattingEdits(URI.parse(document.uri), formatOptions, range, undefined);
 		const actual = TextDocument.applyEdits(document, result ?? []);
 		assert.strictEqual(actual, expected, message);
 	}

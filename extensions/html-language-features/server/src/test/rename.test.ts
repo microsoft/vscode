@@ -14,7 +14,7 @@ async function testRename(value: string, newName: string, expectedDocContent: st
 
 	const { languageService, document } = await getTestService({ content: value });
 	const position = document.positionAt(offset);
-	const workspaceEdit = await languageService.doRename(URI.parse(document.uri), position, newName);
+	const workspaceEdit = await languageService.getRenameEdits(URI.parse(document.uri), position, newName);
 
 	if (!workspaceEdit || !workspaceEdit.changes) {
 		assert.fail('No workspace edits');
@@ -35,7 +35,7 @@ async function testNoRename(value: string, newName: string): Promise<void> {
 
 	const { languageService, document } = await getTestService({ content: value });
 	const position = document.positionAt(offset);
-	const workspaceEdit = await languageService.doRename(URI.parse(document.uri), position, newName);
+	const workspaceEdit = await languageService.getRenameEdits(URI.parse(document.uri), position, newName);
 
 	assert.ok(workspaceEdit?.changes === undefined, 'Should not rename but rename happened');
 }

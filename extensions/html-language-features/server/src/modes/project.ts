@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LanguagePlugin, Project } from '@volar/language-server';
+import { LanguagePlugin, LanguageServer, LanguageServerProject } from '@volar/language-server';
 import { createLanguageServiceEnvironment, createUriConverter } from '@volar/language-server/node';
 import { createLanguage, createLanguageService, createUriMap, LanguageService } from '@volar/language-service';
 import { createLanguageServiceHost, resolveFileLanguageId } from '@volar/typescript';
@@ -12,14 +12,18 @@ import { TextDocument } from 'vscode-html-languageservice';
 import { URI } from 'vscode-uri';
 import { createProjectHost } from './projectHost';
 
-export function createHtmlProject(languagePlugins: LanguagePlugin<URI>[]): Project {
+export function createHtmlProject(languagePlugins: LanguagePlugin<URI>[]): LanguageServerProject {
+	let server: LanguageServer;
 	let languageService: LanguageService | undefined;
 	let currentDocument: [URI, string, TextDocument, ts.IScriptSnapshot] | undefined;
 
 	const { asFileName, asUri } = createUriConverter();
 
 	return {
-		getLanguageService(server, uri) {
+		setup(_server) {
+			server = _server;
+		},
+		getLanguageService(uri) {
 			const document = server.documents.get(server.getSyncedDocumentKey(uri) ?? uri.toString())!;
 			currentDocument = [uri, asFileName(uri), document, document.getSnapshot()];
 			if (!languageService) {

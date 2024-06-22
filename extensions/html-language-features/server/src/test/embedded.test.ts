@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { forEachEmbeddedCode, SourceMap, VirtualCode } from '@volar/language-core';
+import { forEachEmbeddedCode, defaultMapperFactory, VirtualCode } from '@volar/language-core';
 import * as assert from 'assert';
 import 'mocha';
 import { getLanguageService } from 'vscode-html-languageservice';
@@ -22,14 +22,14 @@ suite('HTML Embedded Support', () => {
 			getText: (start, end) => value.substring(start, end),
 			getLength: () => value.length,
 			getChangeRange: () => undefined,
-		});
+		}, { getAssociatedScript: () => undefined });
 		assert(!!virtualCode);
 
 		let mappedCode: VirtualCode | undefined;
 
 		for (const embeddedCode of [...forEachEmbeddedCode(virtualCode)].reverse()) {
-			const map = new SourceMap(embeddedCode.mappings);
-			for (const _mapped of map.getGeneratedOffsets(offset)) {
+			const map = defaultMapperFactory(embeddedCode.mappings);
+			for (const _mapped of map.toGeneratedLocation(offset)) {
 				mappedCode = embeddedCode;
 				break;
 			}
