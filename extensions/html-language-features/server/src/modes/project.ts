@@ -27,6 +27,7 @@ export function createHtmlProject(languagePlugins: LanguagePlugin<URI>[]): Langu
 			const document = server.documents.get(server.getSyncedDocumentKey(uri) ?? uri.toString())!;
 			currentDocument = [uri, asFileName(uri), document, document.getSnapshot()];
 			if (!languageService) {
+				const projectHost = createProjectHost(() => currentDocument!);
 				const language = createLanguage(
 					[
 						{ getLanguageId: uri => server.documents.get(server.getSyncedDocumentKey(uri) ?? uri.toString())?.languageId },
@@ -35,10 +36,20 @@ export function createHtmlProject(languagePlugins: LanguagePlugin<URI>[]): Langu
 					],
 					createUriMap(),
 					uri => {
-						const key = server.getSyncedDocumentKey(uri);
-						const document = !!key && server.documents.get(key);
-						if (document) {
-							language.scripts.set(uri, document.getSnapshot());
+						const documentUri = server.getSyncedDocumentKey(uri);
+						const syncedDocument = documentUri ? server.documents.get(documentUri) : undefined;
+
+						let snapshot: ts.IScriptSnapshot | undefined;
+
+						if (syncedDocument) {
+							snapshot = syncedDocument.getSnapshot();
+						}
+						else {
+							snapshot = projectHost.getScriptSnapshot(asFileName(uri));
+						}
+
+						if (snapshot) {
+							language.scripts.set(uri, snapshot);
 						}
 						else {
 							language.scripts.delete(uri);
@@ -50,7 +61,7 @@ export function createHtmlProject(languagePlugins: LanguagePlugin<URI>[]): Langu
 					sys: ts.sys,
 					asFileName: asFileName,
 					asScriptId: asUri,
-					...createLanguageServiceHost(ts, ts.sys, language, asUri, createProjectHost(() => currentDocument!)),
+					...createLanguageServiceHost(ts, ts.sys, language, asUri, projectHost),
 				};
 				languageService = createLanguageService(
 					language,
