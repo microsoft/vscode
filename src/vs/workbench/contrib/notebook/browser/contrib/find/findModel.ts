@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { findFirstIdxMonotonousOrArrLen } from 'vs/base/common/arraysFind';
 import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/common/async';
-import { INotebookEditor, CellEditState, CellFindMatchWithIndex, CellWebviewFindMatch, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
 import { FindMatch } from 'vs/editor/common/model';
 import { PrefixSumComputer } from 'vs/editor/common/model/prefixSumComputer';
 import { FindReplaceState, FindReplaceStateChangedEvent } from 'vs/editor/contrib/find/browser/findState';
-import { CellKind, INotebookFindOptions, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { findFirstIdxMonotonousOrArrLen } from 'vs/base/common/arraysFind';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CancellationToken } from 'vs/base/common/cancellation';
 import { NotebookFindFilters } from 'vs/workbench/contrib/notebook/browser/contrib/find/findFilters';
 import { FindMatchDecorationModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findMatchDecorationModel';
+import { CellEditState, CellFindMatchWithIndex, CellWebviewFindMatch, ICellViewModel, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
+import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
+import { CellKind, INotebookFindOptions, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class CellFindMatchModel implements CellFindMatchWithIndex {
 	readonly cell: ICellViewModel;
