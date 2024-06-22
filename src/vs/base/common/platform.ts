@@ -103,7 +103,8 @@ else if (typeof navigator === 'object' && !isElectronRenderer) {
 	_isLinux = _userAgent.indexOf('Linux') >= 0;
 	_isMobile = _userAgent?.indexOf('Mobi') >= 0;
 	_isWeb = true;
-	_locale = localStorage.getItem('vscode.nls.locale') || navigator.language.toLowerCase() || LANGUAGE_DEFAULT;
+	// VSCODE_GLOBALS: NLS
+	_locale = globalThis._VSCODE_NLS_LOCALE || navigator.language.toLowerCase() || LANGUAGE_DEFAULT;
 	_language = _locale;
 	_platformLocale = navigator.language;
 }

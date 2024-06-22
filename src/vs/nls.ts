@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 // VSCODE_GLOBALS: NLS
-const isPseudo = globalThis._VSCODE_NLS_PSEUDO || (typeof document !== 'undefined' && document.location && document.location.hash.indexOf('pseudo=true') >= 0);
+const isPseudo = globalThis._VSCODE_NLS_LOCALE === 'pseudo' || (typeof document !== 'undefined' && document.location && document.location.hash.indexOf('pseudo=true') >= 0);
 
 export interface ILocalizeInfo {
 	key: string;

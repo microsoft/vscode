@@ -13,9 +13,11 @@ declare global {
 	 */
 	var _VSCODE_NLS: string[];
 	/**
-	 * Whether the running instance should use a pseudo-locale.
+	 * Depending on the runtime context:
+	 * - browser: the `locale` value of the https://www.vscode-unpkg.net/nls/ call
+	 * - native: the `userLocale` as configured in `argv.json` or `app.getLocale()`
 	 */
-	var _VSCODE_NLS_PSEUDO: true | undefined;
+	var _VSCODE_NLS_LOCALE: string | undefined;
 }
 
 // fake export to make global work

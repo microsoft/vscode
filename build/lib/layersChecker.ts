@@ -100,9 +100,7 @@ const RULES: IRule[] = [
 			...CORE_TYPES,
 
 			// Safe access to postMessage() and friends
-			'MessageEvent',
-			'localStorage',
-			'Storage'
+			'MessageEvent'
 		],
 		disallowedTypes: NATIVE_TYPES,
 		disallowedDefinitions: [
