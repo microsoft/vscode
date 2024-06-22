@@ -494,6 +494,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 				} else if (textSelection.length > 1 || textSelection.some(range => range.endLineNumber - range.startLineNumber >= 1)) {
 					this._filters.findScope = {
 						findScopeType: NotebookFindScopeType.Text,
+						selectedCellRanges: cellSelection,
 						selectedTextRanges: textSelection
 					};
 					this.setTextSelectionDecorations(textSelection, this._notebookEditor.getSelectionViewModels()[0]);
@@ -855,6 +856,9 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		if (this._isVisible) {
 			this.inSelectionToggle.checked = false;
 			this._notebookEditor.deltaCellDecorations(this.cellSelectionDecorationIds, []);
+			this._notebookEditor.changeModelDecorations(changeAccessor => {
+				changeAccessor.deltaDecorations(this.textSelectionDecorationIds, []);
+			});
 
 			this._domNode.classList.remove('visible-transition');
 			this._domNode.setAttribute('aria-hidden', 'true');
