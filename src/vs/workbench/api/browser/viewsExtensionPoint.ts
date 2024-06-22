@@ -349,12 +349,18 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 					return;
 				}
 				switch (key) {
-					case 'activitybar':
-						activityBarOrder = this.registerCustomViewContainers(value, description, activityBarOrder, existingViewContainers, ViewContainerLocation.Sidebar);
+					case 'activitybar': {
+						// MEMBRANE: ensure Navigator is first in activity bar (left sidebar)
+						const order = value?.some(v => v.id === 'membraneContainer') ? 0 : activityBarOrder;
+						activityBarOrder = this.registerCustomViewContainers(value, description, order, existingViewContainers, ViewContainerLocation.Sidebar);
 						break;
-					case 'panel':
-						panelOrder = this.registerCustomViewContainers(value, description, panelOrder, existingViewContainers, ViewContainerLocation.Panel);
+					}
+					case 'panel': {
+						// MEMBRANE: ensure Logs are first in panel (bottom pane)
+						const order = description.identifier.value === 'membrane.membrane' ? 0 : panelOrder;
+						panelOrder = this.registerCustomViewContainers(value, description, order, existingViewContainers, ViewContainerLocation.Panel);
 						break;
+					}
 				}
 			});
 		}
@@ -411,10 +417,13 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 		containers.forEach(descriptor => {
 			const themeIcon = ThemeIcon.fromString(descriptor.icon);
 
+			// MEMBRANE: move Packages to auxiliary bar (right-side bar)
+			const overridenLocation = descriptor.id === 'membraneAuxContainer' ? ViewContainerLocation.AuxiliaryBar : location;
+
 			const icon = themeIcon || resources.joinPath(extension.extensionLocation, descriptor.icon);
 			const id = `workbench.view.extension.${descriptor.id}`;
 			const title = descriptor.title || id;
-			const viewContainer = this.registerCustomViewContainer(id, title, icon, order++, extension.identifier, location);
+			const viewContainer = this.registerCustomViewContainer(id, title, icon, order++, extension.identifier, overridenLocation);
 
 			// Move those views that belongs to this container
 			if (existingViewContainers.length) {
