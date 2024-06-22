@@ -33,7 +33,6 @@ export function getLanguageServicePlugins(options: {
 		},
 	];
 	const baseHtmlPlugin = createHtmlPlugin({
-		documentSelector: ['html', 'handlebars'],
 		async isFormattingEnabled(_document, context) {
 			return await context.env.getConfiguration?.('html.format.enable') ?? true;
 		},

@@ -19,14 +19,8 @@ export const htmlLanguagePlugin: LanguagePlugin<URI> = {
 		}
 		return undefined;
 	},
-	createVirtualCode(_uri, languageId, snapshot) {
-		if (languageId === 'html') {
-			return createHtmlVirtualCode(snapshot);
-		}
-		return undefined;
-	},
-	updateVirtualCode(_uri, _virtualCode, newSnapshot) {
-		return createHtmlVirtualCode(newSnapshot);
+	createVirtualCode(_uri, _languageId, snapshot) {
+		return createHtmlVirtualCode(snapshot);
 	},
 	typescript: {
 		extraFileExtensions: [],
