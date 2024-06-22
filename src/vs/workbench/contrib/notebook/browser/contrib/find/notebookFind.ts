@@ -78,14 +78,6 @@ registerAction2(class extends NotebookMultiCellAction {
 		}
 
 		const controller = editor.getContribution<NotebookFindContrib>(NotebookFindContrib.id);
-
-		// const autoFindInSelection = accessor.get(IConfigurationService).getValue<string>(NotebookSetting.autoFindInSelection) === 'always';
-		// if (autoFindInSelection) {
-		// 	controller.show(undefined, { findScopeType: NotebookFindScopeType.Cells, selectedCellRanges: editor.getSelections() });
-		// } else {
-		// 	controller.show(undefined, { findScopeType: NotebookFindScopeType.None });
-		// }
-
 		controller.show(undefined, { findScope: { findScopeType: NotebookFindScopeType.None } });
 	}
 });

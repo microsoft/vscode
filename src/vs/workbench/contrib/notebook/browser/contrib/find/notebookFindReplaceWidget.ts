@@ -797,16 +797,6 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 			this._findInput.setValue(initialInput);
 		}
 
-		// if (options?.findScopeType === NotebookFindScopeType.Cells || options?.findScopeType === NotebookFindScopeType.Text) {
-		// 	this.inSelectionToggle.checked = true;
-
-		// 	this._filters.findInSelection = true;
-		// 	this._filters.selectedCellRanges = options.selectedCellRanges;
-		// 	this._filters.selectedTextRanges = options.selectedTextRanges;
-
-		// 	this.setCellSelectionDecorations();
-		// }
-
 		this._isVisible = true;
 
 		setTimeout(() => {
