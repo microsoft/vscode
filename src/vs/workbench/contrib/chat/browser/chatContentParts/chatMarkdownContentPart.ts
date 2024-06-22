@@ -133,6 +133,10 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	layout(width: number): void {
 		this.allRefs.forEach(ref => ref.object.layout(width));
 	}
+
+	addDisposable(disposable: IDisposable): void {
+		this._register(disposable);
+	}
 }
 
 export class EditorPool extends Disposable {

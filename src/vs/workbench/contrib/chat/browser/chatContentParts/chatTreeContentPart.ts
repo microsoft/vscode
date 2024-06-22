@@ -10,7 +10,7 @@ import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTre
 import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
 import { IAsyncDataSource, ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { FileKind, FileType } from 'vs/platform/files/common/files';
@@ -82,6 +82,10 @@ export class ChatTreeContentPart extends Disposable implements IChatContentPart 
 	hasSameContent(other: IChatProgressRenderableResponseContent): boolean {
 		// No other change allowed for this content type
 		return other.kind === 'treeData';
+	}
+
+	addDisposable(disposable: IDisposable): void {
+		this._register(disposable);
 	}
 }
 

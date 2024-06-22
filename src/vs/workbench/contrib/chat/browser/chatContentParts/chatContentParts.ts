@@ -4,10 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { ChatTreeItem } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatProgressRenderableResponseContent } from 'vs/workbench/contrib/chat/common/chatModel';
 
 export interface IChatContentPart extends IDisposable {
 	domNode: HTMLElement;
 
-	hasSameContent(other: IChatProgressRenderableResponseContent, followingContent: IChatProgressRenderableResponseContent[]): boolean;
+	hasSameContent(other: IChatProgressRenderableResponseContent, followingContent: IChatProgressRenderableResponseContent[], element: ChatTreeItem): boolean;
+	addDisposable?(disposable: IDisposable): void;
+}
+
+export interface IChatContentPartRenderContext {
+	element: ChatTreeItem;
+	index: number;
+	content: ReadonlyArray<IChatProgressRenderableResponseContent>;
+	preceedingContentParts: ReadonlyArray<IChatContentPart>;
 }

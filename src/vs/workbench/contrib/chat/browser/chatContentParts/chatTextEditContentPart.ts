@@ -6,7 +6,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
@@ -163,6 +163,10 @@ export class ChatTextEditContentPart extends Disposable implements IChatContentP
 	hasSameContent(other: IChatProgressRenderableResponseContent): boolean {
 		// No other change allowed for this content type
 		return other.kind === 'textEditGroup';
+	}
+
+	addDisposable(disposable: IDisposable): void {
+		this._register(disposable);
 	}
 }
 
