@@ -121,8 +121,7 @@ let nlsConfigurationPromise = undefined;
 // The API might return an empty array on Linux, such as when
 // the 'C' locale is the user's only configured locale.
 // No matter the OS, if the array is empty, default back to 'en'.
-const resolved = app.getPreferredSystemLanguages()?.[0] ?? 'en';
-const osLocale = processZhLocale(resolved.toLowerCase());
+const osLocale = processZhLocale((app.getPreferredSystemLanguages()?.[0] ?? 'en').toLowerCase());
 const userLocale = getUserDefinedLocale(argvConfig);
 if (userLocale) {
 	const { resolveNLSConfiguration } = require('./vs/base/node/nls');
