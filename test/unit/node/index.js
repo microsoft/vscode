@@ -75,7 +75,7 @@ if (majorRequiredNodeVersion !== currentMajorNodeVersion) {
 	process.exit(1);
 }
 
-async function main() {
+function main() {
 
 	// VSCODE_GLOBALS: node_modules
 	globalThis._VSCODE_NODE_MODULES = new Proxy(Object.create(null), { get: (_target, mod) => require(String(mod)) });
@@ -89,7 +89,7 @@ async function main() {
 		// messages file, because all `nls.localize` calls have their
 		// english values removed and replaced by an index.
 		// VSCODE_GLOBALS: NLS
-		globalThis._VSCODE_NLS = JSON.parse((await fs.promises.readFile(path.join(__dirname, '..', '..', '..', out, 'nls.messages.json'), 'utf8')));
+		globalThis._VSCODE_NLS = require(path.join(__dirname, '..', '..', '..', out, 'nls.messages.json'));
 	}
 
 	// Test file operations that are common across platforms. Used for test infra, namely snapshot tests
