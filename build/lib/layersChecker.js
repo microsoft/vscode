@@ -95,6 +95,8 @@ const RULES = [
             ...CORE_TYPES,
             // Safe access to postMessage() and friends
             'MessageEvent',
+            'localStorage',
+            'Storage'
         ],
         disallowedTypes: NATIVE_TYPES,
         disallowedDefinitions: [
