@@ -18,15 +18,6 @@ namespace CustomDataContent {
 	export const type: RequestType<string, string, any> = new RequestType('html/customDataContent');
 }
 
-export interface RuntimeEnvironment {
-	configureHttpRequests?(proxy: string | undefined, strictSSL: boolean): void;
-	readonly timer: {
-		setImmediate(callback: (...args: any[]) => void, ...args: any[]): Disposable;
-		setTimeout(callback: (...args: any[]) => void, ms: number, ...args: any[]): Disposable;
-	};
-}
-
-
 export interface CustomDataRequestService {
 	getContent(uri: string): Promise<string>;
 }

@@ -14,6 +14,7 @@ import { AsyncDisposable, LanguageClientConstructor, startClient } from '../html
 let telemetry: TelemetryReporter | undefined;
 let client: AsyncDisposable | undefined;
 
+// this method is called when vs code is activated
 export async function activate(context: ExtensionContext) {
 
 	const clientPackageJSON = getPackageInfo(context);

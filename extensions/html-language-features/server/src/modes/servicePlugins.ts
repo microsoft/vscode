@@ -65,6 +65,12 @@ export function getLanguageServicePlugins(options: {
 				async isFormattingEnabled(_document, context) {
 					return await context.env.getConfiguration?.('html.format.enable') ?? true;
 				},
+				async getLanguageSettings(document, context) {
+					return {
+						...await context.env.getConfiguration?.(document.languageId),
+						validate: await context.env.getConfiguration?.('html.validate.scripts') ?? true,
+					};
+				},
 			}),
 		);
 	}
@@ -73,6 +79,9 @@ export function getLanguageServicePlugins(options: {
 			...createTypeScriptPlugins(ts, {
 				async isFormattingEnabled(_document, context) {
 					return await context.env.getConfiguration?.('html.format.enable') ?? true;
+				},
+				async isValidationEnabled(_document, context) {
+					return await context.env.getConfiguration?.('html.validate.scripts') ?? true;
 				},
 			}),
 		);
