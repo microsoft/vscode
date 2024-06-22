@@ -838,7 +838,11 @@ export interface INotebookFindOptions {
 	includeMarkupPreview?: boolean;
 	includeCodeInput?: boolean;
 	includeOutput?: boolean;
-	findScopeType?: NotebookFindScopeType;
+	findScope?: INotebookFindScope;
+}
+
+export interface INotebookFindScope {
+	findScopeType: NotebookFindScopeType;
 	selectedCellRanges?: ICellRange[];
 	selectedTextRanges?: Range[];
 }

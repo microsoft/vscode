@@ -2578,7 +2578,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 		const findMatches = this._notebookViewModel.find(query, options).filter(match => match.length > 0);
 
-		if ((!options.includeMarkupPreview && !options.includeOutput) || options.findScopeType === NotebookFindScopeType.Text) {
+		if ((!options.includeMarkupPreview && !options.includeOutput) || options.findScope?.findScopeType === NotebookFindScopeType.Text) {
 			this._webview?.findStop(ownerID);
 			return findMatches;
 		}
@@ -2603,8 +2603,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			}
 
 			let findIds: string[] = [];
-			if (options.findScopeType === NotebookFindScopeType.Cells && options.selectedCellRanges) {
-				const selectedIndexes = cellRangesToIndexes(options.selectedCellRanges);
+			if (options.findScope && options.findScope.findScopeType === NotebookFindScopeType.Cells && options.findScope.selectedCellRanges) {
+				const selectedIndexes = cellRangesToIndexes(options.findScope.selectedCellRanges);
 				findIds = selectedIndexes.map<string>(index => this._notebookViewModel?.viewCells[index].id ?? '');
 			}
 

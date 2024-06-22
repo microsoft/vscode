@@ -9,7 +9,7 @@ import { Mimes } from 'vs/base/common/mime';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IPosition } from 'vs/editor/common/core/position';
-import { IRange, Range } from 'vs/editor/common/core/range';
+import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as model from 'vs/editor/common/model';
@@ -656,14 +656,14 @@ export abstract class BaseCellViewModel extends Disposable {
 		if (this.assertTextModelAttached()) {
 			cellMatches = this.textModel!.findMatches(
 				value,
-				options.selectedTextRanges as IRange[] ?? false,
+				options.findScope?.selectedTextRanges ?? [],
 				options.regex || false,
 				options.caseSensitive || false,
 				options.wholeWord ? options.wordSeparators || null : null,
 				options.regex || false);
 		} else {
 			const lineCount = this.textBuffer.getLineCount();
-			const searchRange = options.selectedTextRanges ?? new Range(1, 1, lineCount, this.textBuffer.getLineLength(lineCount) + 1);
+			const searchRange = options.findScope?.selectedTextRanges ?? new Range(1, 1, lineCount, this.textBuffer.getLineLength(lineCount) + 1);
 			const searchParams = new SearchParams(value, options.regex || false, options.caseSensitive || false, options.wholeWord ? options.wordSeparators || null : null,);
 			const searchData = searchParams.parseSearchRequest();
 

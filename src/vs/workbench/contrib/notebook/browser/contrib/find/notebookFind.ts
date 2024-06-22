@@ -86,7 +86,7 @@ registerAction2(class extends NotebookMultiCellAction {
 		// 	controller.show(undefined, { findScopeType: NotebookFindScopeType.None });
 		// }
 
-		controller.show(undefined, { findScopeType: NotebookFindScopeType.None });
+		controller.show(undefined, { findScope: { findScopeType: NotebookFindScopeType.None } });
 	}
 });
 

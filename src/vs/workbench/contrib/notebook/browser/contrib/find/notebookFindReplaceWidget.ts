@@ -342,7 +342,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 			codeOutput: boolean;
 		}>(NotebookSetting.findFilters) ?? { markupSource: true, markupPreview: true, codeSource: true, codeOutput: true };
 
-		this._filters = new NotebookFindFilters(findFilters.markupSource, findFilters.markupPreview, findFilters.codeSource, findFilters.codeOutput, false, NotebookFindScopeType.None);
+		this._filters = new NotebookFindFilters(findFilters.markupSource, findFilters.markupPreview, findFilters.codeSource, findFilters.codeOutput, { findScopeType: NotebookFindScopeType.None });
 		this._state.change({ filters: this._filters }, false);
 
 		this._filters.onDidChange(() => {
@@ -474,7 +474,6 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 
 		this.inSelectionToggle.onChange(() => {
 			const checked = this.inSelectionToggle.checked;
-			this._filters.findInSelection = checked;
 			if (checked) {
 				// selection logic:
 				// 1. if there are multiple cells, do that.
@@ -486,26 +485,30 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 				const textSelection: Range[] = this._notebookEditor.getSelectionViewModels()[0].getSelections();
 
 				if (cellSelection.length > 1 || cellSelection.some(range => range.end - range.start > 1)) {
-					this._filters.findScopeType = NotebookFindScopeType.Cells;
-					this._filters.selectedCellRanges = cellSelection;
+					this._filters.findScope = {
+						findScopeType: NotebookFindScopeType.Cells,
+						selectedCellRanges: cellSelection
+					};
 					this.setCellSelectionDecorations();
 
 				} else if (textSelection.length > 1 || textSelection.some(range => range.endLineNumber - range.startLineNumber >= 1)) {
-					this._filters.findScopeType = NotebookFindScopeType.Text;
-					this._filters.selectedCellRanges = cellSelection;
-					this._filters.selectedTextRanges = textSelection;
+					this._filters.findScope = {
+						findScopeType: NotebookFindScopeType.Text,
+						selectedTextRanges: textSelection
+					};
 					this.setTextSelectionDecorations(textSelection, this._notebookEditor.getSelectionViewModels()[0]);
-					// this._state.change({ searchScope: textSelection }, true);
 
 				} else {
-					this._filters.findScopeType = NotebookFindScopeType.Cells;
-					this._filters.selectedCellRanges = cellSelection;
+					this._filters.findScope = {
+						findScopeType: NotebookFindScopeType.Cells,
+						selectedCellRanges: cellSelection
+					};
 					this.setCellSelectionDecorations();
 				}
 			} else {
-				this._filters.findScopeType = NotebookFindScopeType.None;
-				this._filters.selectedCellRanges = undefined;
-				this._filters.selectedTextRanges = undefined;
+				this._filters.findScope = {
+					findScopeType: NotebookFindScopeType.None
+				};
 				this.clearCellSelectionDecorations();
 				this.clearTextSelectionDecorations();
 			}
@@ -793,15 +796,15 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 			this._findInput.setValue(initialInput);
 		}
 
-		if (options?.findScopeType === NotebookFindScopeType.Cells || options?.findScopeType === NotebookFindScopeType.Text) {
-			this.inSelectionToggle.checked = true;
+		// if (options?.findScopeType === NotebookFindScopeType.Cells || options?.findScopeType === NotebookFindScopeType.Text) {
+		// 	this.inSelectionToggle.checked = true;
 
-			this._filters.findInSelection = true;
-			this._filters.selectedCellRanges = options.selectedCellRanges;
-			this._filters.selectedTextRanges = options.selectedTextRanges;
+		// 	this._filters.findInSelection = true;
+		// 	this._filters.selectedCellRanges = options.selectedCellRanges;
+		// 	this._filters.selectedTextRanges = options.selectedTextRanges;
 
-			this.setCellSelectionDecorations();
-		}
+		// 	this.setCellSelectionDecorations();
+		// }
 
 		this._isVisible = true;
 

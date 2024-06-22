@@ -115,7 +115,7 @@ export class FindModel extends Disposable {
 	}
 
 	private _updateCellStates(e: FindReplaceStateChangedEvent) {
-		if (!this._state.filters?.markupInput || !this._state.filters?.markupPreview || !this._state.filters?.findInSelection) {
+		if (!this._state.filters?.markupInput || !this._state.filters?.markupPreview || !this._state.filters?.findScope) {
 			return;
 		}
 
@@ -136,9 +136,7 @@ export class FindModel extends Disposable {
 				includeCodeInput: false,
 				includeMarkupPreview: false,
 				includeOutput: false,
-				findScopeType: this._state.filters?.findScopeType,
-				selectedCellRanges: this._state.filters?.selectedCellRanges,
-				selectedTextRanges: this._state.filters?.selectedTextRanges,
+				findScope: this._state.filters?.findScope,
 			};
 
 			const contentMatches = viewModel.find(this._state.searchString, options);
@@ -486,9 +484,7 @@ export class FindModel extends Disposable {
 			includeCodeInput: this._state.filters?.codeInput ?? true,
 			includeMarkupPreview: !!this._state.filters?.markupPreview,
 			includeOutput: !!this._state.filters?.codeOutput,
-			findScopeType: this._state.filters?.findScopeType,
-			selectedCellRanges: this._state.filters?.selectedCellRanges,
-			selectedTextRanges: this._state.filters?.selectedTextRanges,
+			findScope: this._state.filters?.findScope,
 		};
 
 		ret = await this._notebookEditor.find(val, options, token);

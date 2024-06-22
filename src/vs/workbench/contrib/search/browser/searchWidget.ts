@@ -206,8 +206,7 @@ export class SearchWidget extends Widget {
 				notebookOptions.isInNotebookMarkdownPreview,
 				notebookOptions.isInNotebookCellInput,
 				notebookOptions.isInNotebookCellOutput,
-				false,
-				NotebookFindScopeType.None
+				{ findScopeType: NotebookFindScopeType.None }
 			));
 
 		this._register(

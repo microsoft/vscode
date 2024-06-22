@@ -3,18 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
-import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { Range } from 'vs/editor/common/core/range';
-import { NotebookFindScopeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookFindScope, NotebookFindScopeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export interface INotebookFindChangeEvent {
 	markupInput?: boolean;
 	markupPreview?: boolean;
 	codeInput?: boolean;
 	codeOutput?: boolean;
-	findInSelection?: boolean;
+	findScope?: boolean;
 }
 
 export class NotebookFindFilters extends Disposable {
@@ -72,57 +70,19 @@ export class NotebookFindFilters extends Disposable {
 		}
 	}
 
-	private _findInSelection: boolean = false;
+	private _findScope: INotebookFindScope = { findScopeType: NotebookFindScopeType.None };
 
-	get findInSelection(): boolean {
-		return this._findInSelection;
+	get findScope(): INotebookFindScope {
+		return this._findScope;
 	}
 
-	set findInSelection(value: boolean) {
-		if (this._findInSelection !== value) {
-			this._findInSelection = value;
-			this._onDidChange.fire({ findInSelection: value });
+	set findScope(value: INotebookFindScope) {
+		if (this._findScope !== value) {
+			this._findScope = value;
+			this._onDidChange.fire({ findScope: true });
 		}
 	}
 
-	private _findScopeType: NotebookFindScopeType = NotebookFindScopeType.Cells;
-
-	get findScopeType(): NotebookFindScopeType {
-		return this._findScopeType;
-	}
-
-	set findScopeType(value: NotebookFindScopeType) {
-		if (this._findScopeType !== value) {
-			this._findScopeType = value;
-			this._onDidChange.fire({ findInSelection: this._findInSelection });
-		}
-	}
-
-	private _selectedCellRanges: ICellRange[] | undefined = undefined;
-
-	get selectedCellRanges(): ICellRange[] | undefined {
-		return this._selectedCellRanges;
-	}
-
-	set selectedCellRanges(value: ICellRange[] | undefined) {
-		if (this._selectedCellRanges !== value) {
-			this._selectedCellRanges = value;
-			this._onDidChange.fire({ findInSelection: this._findInSelection });
-		}
-	}
-
-	private _selectedTextRanges: Range[] | undefined = undefined;
-
-	get selectedTextRanges(): Range[] | undefined {
-		return this._selectedTextRanges;
-	}
-
-	set selectedTextRanges(value: Range[] | undefined) {
-		if (this._selectedTextRanges !== value) {
-			this._selectedTextRanges = value;
-			this._onDidChange.fire({ findInSelection: this._findInSelection });
-		}
-	}
 
 	private readonly _initialMarkupInput: boolean;
 	private readonly _initialMarkupPreview: boolean;
@@ -134,10 +94,7 @@ export class NotebookFindFilters extends Disposable {
 		markupPreview: boolean,
 		codeInput: boolean,
 		codeOutput: boolean,
-		findInSelection: boolean,
-		searchScopeType: NotebookFindScopeType,
-		selectedCellRanges?: ICellRange[],
-		selectedTextRanges?: Range[]
+		findScope: INotebookFindScope
 	) {
 		super();
 
@@ -145,10 +102,7 @@ export class NotebookFindFilters extends Disposable {
 		this._markupPreview = markupPreview;
 		this._codeInput = codeInput;
 		this._codeOutput = codeOutput;
-		this._findInSelection = findInSelection;
-		this._findScopeType = searchScopeType;
-		this._selectedCellRanges = selectedCellRanges;
-		this._selectedTextRanges = selectedTextRanges;
+		this._findScope = findScope;
 
 		this._initialMarkupInput = markupInput;
 		this._initialMarkupPreview = markupPreview;
@@ -171,9 +125,6 @@ export class NotebookFindFilters extends Disposable {
 		this._markupPreview = v.markupPreview;
 		this._codeInput = v.codeInput;
 		this._codeOutput = v.codeOutput;
-		this._findInSelection = v.findInSelection;
-		this._findScopeType = v.findScopeType;
-		this._selectedCellRanges = v.selectedCellRanges;
-		this._selectedTextRanges = v.selectedTextRanges;
+		this._findScope = v.findScope;
 	}
 }
