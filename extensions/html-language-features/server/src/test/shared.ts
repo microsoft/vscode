@@ -22,7 +22,10 @@ const serviceEnv: LanguageServiceEnvironment = {
 	fs,
 };
 
-export const languageServicePlugins = getLanguageServicePlugins();
+export const languageServicePlugins = getLanguageServicePlugins({
+	supportedLanguages: { css: true, javascript: true },
+	getCustomData: () => [],
+});
 
 export async function getTestService({
 	uri = 'test://test/test.html',

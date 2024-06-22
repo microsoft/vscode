@@ -17,6 +17,7 @@
     "volar-service-html": "0.0.52",
     "volar-service-typescript": "0.0.52",
     "vscode-html-languageservice": "^5.2.0",
+    "vscode-jsonrpc": "^8.2.1",
     "vscode-uri": "^3.0.8"
   },
   "devDependencies": {

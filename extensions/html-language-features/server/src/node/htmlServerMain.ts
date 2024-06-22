@@ -3,25 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createServer, createConnection } from '@volar/language-server/node';
-import { htmlLanguagePlugin } from '../modes/languagePlugin';
-import { createHtmlProject } from '../modes/project';
-import { getLanguageServicePlugins } from '../modes/servicePlugins';
+import { createConnection, createServer } from '@volar/language-server/node';
+import { startServer } from '../htmlServer';
 
 const connection = createConnection();
 const server = createServer(connection);
 
-connection.onInitialize(params => {
-	return server.initialize(
-		params,
-		createHtmlProject([htmlLanguagePlugin]),
-		getLanguageServicePlugins(),
-		{ pullModelDiagnostics: !!params.capabilities.textDocument?.diagnostic }
-	);
-});
-
-connection.onInitialized(server.initialized);
-
-connection.onShutdown(server.shutdown);
-
-connection.listen();
+startServer(server, connection);
