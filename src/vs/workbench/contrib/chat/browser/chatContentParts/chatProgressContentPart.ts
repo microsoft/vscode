@@ -18,7 +18,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 
 	constructor(
 		progress: IChatProgressMessage | IChatTask,
-		showSpinner: boolean,
+		private showSpinner: boolean,
 		renderer: MarkdownRenderer,
 	) {
 		super();
@@ -38,8 +38,9 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 		this.domNode = result.element;
 	}
 
-	hasSameContent(other: IChatProgressRenderableResponseContent): boolean {
-		// No other change allowed for this content type
-		return other.kind === 'progressMessage';
+	hasSameContent(other: IChatProgressRenderableResponseContent, followingContent: IChatProgressRenderableResponseContent[]): boolean {
+		// Needs rerender when spinner state changes
+		const showSpinner = followingContent.length === 0;
+		return other.kind === 'progressMessage' && this.showSpinner === showSpinner;
 	}
 }

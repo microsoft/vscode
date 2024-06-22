@@ -9,5 +9,5 @@ import { IChatProgressRenderableResponseContent } from 'vs/workbench/contrib/cha
 export interface IChatContentPart extends IDisposable {
 	domNode: HTMLElement;
 
-	hasSameContent(other: IChatProgressRenderableResponseContent): boolean;
+	hasSameContent(other: IChatProgressRenderableResponseContent, followingContent: IChatProgressRenderableResponseContent[]): boolean;
 }

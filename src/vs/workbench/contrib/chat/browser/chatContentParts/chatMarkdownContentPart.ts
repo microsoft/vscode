@@ -35,9 +35,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
-	// TODO@roblourens this is weird, why are IChatCodeBlockInfo only for responses?
 	public readonly codeblocks: IChatCodeBlockInfo[] = [];
-	public readonly codeBlockCount: number;
 
 	constructor(
 		private readonly markdown: IMarkdownString,
@@ -59,7 +57,6 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 
 		// We release editors in order so that it's more likely that the same editor will be assigned if this element is re-rendered right away, like it often is during progressive rendering
 		const orderedDisposablesList: IDisposable[] = [];
-		const codeblocks: IChatCodeBlockInfo[] = [];
 		let codeBlockIndex = codeBlockStartIndex;
 		const result = this._register(renderer.render(markdown, {
 			fillInIncompleteTokens,
@@ -96,18 +93,15 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				// not during a renderElement OR a progressive render (when we will be firing this event anyway at the end of the render)
 				this._register(ref.object.onDidChangeContentHeight(() => this._onDidChangeHeight.fire()));
 
-				if (isResponseVM(element)) {
-					const info: IChatCodeBlockInfo = {
-						codeBlockIndex: index,
-						element,
-						focus() {
-							ref.object.focus();
-						},
-						uri: ref.object.uri
-					};
-					codeblocks.push(info);
-
-				}
+				const info: IChatCodeBlockInfo = {
+					codeBlockIndex: index,
+					element,
+					focus() {
+						ref.object.focus();
+					},
+					uri: ref.object.uri
+				};
+				this.codeblocks.push(info);
 				orderedDisposablesList.push(ref);
 				return ref.object.element;
 			},
@@ -118,7 +112,6 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 
 		orderedDisposablesList.reverse().forEach(d => this._register(d));
 		this.domNode = result.element;
-		this.codeBlockCount = codeBlockIndex - codeBlockStartIndex;
 	}
 
 	private renderCodeBlock(data: ICodeBlockData, text: string, currentWidth: number, editableCodeBlock: boolean | undefined): IDisposableReference<CodeBlockPart> {

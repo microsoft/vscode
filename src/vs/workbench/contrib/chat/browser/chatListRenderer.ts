@@ -498,20 +498,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		this.renderContentReferencesIfNeeded(element, templateData, templateData.elementDisposables);
 
-		// let fileTreeIndex = 0;
-		// let codeBlockIndex = 0;
 		const parts: IChatContentPart[] = [];
 		value.forEach((data, index) => {
-			const newPart = this.renderChatContentPart(data, element, templateData);
-
+			const newPart = this.renderChatContentPart(data, element, templateData, parts, value.slice(index + 1));
 			if (newPart) {
 				templateData.value.appendChild(newPart.domNode);
 				parts.push(newPart);
-
-				// TODO
-				// if ('codeBlockCount' in result) {
-				// 	codeBlockIndex += (result as IChatMarkdownRenderResult).codeBlockCount;
-				// }
 			}
 		});
 		templateData.renderedParts = parts;
@@ -563,7 +555,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						undefined,
 						followup => this._onDidClickFollowup.fire(followup)));
 			} else {
-				const result = this.renderMarkdown(item, element, templateData);
+				const result = this.renderMarkdown(item, element, templateData, []);
 				templateData.value.appendChild(result.domNode);
 				templateData.elementDisposables.add(result);
 			}
@@ -614,34 +606,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			} else if (!isFullyRendered) {
 				this.traceLayout('doNextProgressiveRender', `doing progressive render, ${partsToRender.length} parts to render`);
 				this.renderContentReferencesIfNeeded(element, templateData, disposables);
-
-				const renderedParts = templateData.renderedParts ?? [];
-				templateData.renderedParts = renderedParts;
-				partsToRender.forEach((partToRender, index) => {
-					if (!partToRender) {
-						// null=no change
-						return;
-					}
-
-					const alreadyRenderedPart = templateData.renderedParts?.[index];
-					if (alreadyRenderedPart) {
-						alreadyRenderedPart.dispose();
-					}
-
-					const newPart = this.renderChatContentPart(partToRender, element, templateData);
-					if (newPart) {
-						// Maybe the part can't be rendered in this context, but this shouldn't really happen
-						if (alreadyRenderedPart) {
-							alreadyRenderedPart.domNode.replaceWith(newPart.domNode); // can throw...
-						} else {
-							templateData.value.appendChild(newPart.domNode);
-						}
-
-						renderedParts[index] = newPart;
-					} else if (alreadyRenderedPart) {
-						alreadyRenderedPart.domNode.remove();
-					}
-				});
+				this.renderChatContentDiff(partsToRender, contentForThisTurn, element, templateData);
 			} else {
 				// Nothing new to render, not done, keep waiting
 				return false;
@@ -656,6 +621,42 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		return isFullyRendered;
+	}
+
+	private renderChatContentDiff(partsToRender: ReadonlyArray<IChatProgressRenderableResponseContent | null>, contentForThisTurn: IChatProgressRenderableResponseContent[], element: IChatResponseViewModel, templateData: IChatListItemTemplate): void {
+		const renderedParts = templateData.renderedParts ?? [];
+		templateData.renderedParts = renderedParts;
+		partsToRender.forEach((partToRender, index) => {
+			if (!partToRender) {
+				// null=no change
+				return;
+			}
+
+			const alreadyRenderedPart = templateData.renderedParts?.[index];
+			if (alreadyRenderedPart) {
+				alreadyRenderedPart.dispose();
+			}
+
+			const preceedingContentParts = renderedParts.slice(0, index);
+			const newPart = this.renderChatContentPart(partToRender, element, templateData, preceedingContentParts, contentForThisTurn.slice(index + 1));
+			if (newPart) {
+				// Maybe the part can't be rendered in this context, but this shouldn't really happen
+				if (alreadyRenderedPart) {
+					try {
+						// This method can throw HierarchyRequestError
+						alreadyRenderedPart.domNode.replaceWith(newPart.domNode);
+					} catch (err) {
+						this.logService.error('ChatListItemRenderer#renderChatContentDiff: error replacing part', err);
+					}
+				} else {
+					templateData.value.appendChild(newPart.domNode);
+				}
+
+				renderedParts[index] = newPart;
+			} else if (alreadyRenderedPart) {
+				alreadyRenderedPart.domNode.remove();
+			}
+		});
 	}
 
 	private getNextProgressiveRenderContent(element: IChatResponseViewModel): IChatProgressRenderableResponseContent[] {
@@ -690,8 +691,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				this.traceLayout('getNextProgressiveRenderContent', `  Want to render ${numNeededWords} words and found ${wordCountResult.returnedWordCount} words. Total words in chunk: ${wordCountResult.totalWordCount}`);
 				numNeededWords -= wordCountResult.returnedWordCount;
 			} else {
-				// TODO- does the logic to diff model messages live somewhere else? Or do we actually diff/update with the rendered ContentParts?
-				// onlyProgressMessagesAfterI
 				partsToRender.push(part);
 			}
 		}
@@ -732,9 +731,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const part = partsToRender[i];
 			const renderedPart = renderedParts[i];
 
-			// TODO
-			// progress message may need to be rerendered
-			if (!renderedPart || !renderedPart.hasSameContent(part)) {
+			if (!renderedPart || !renderedPart.hasSameContent(part, partsToRender.slice(i + 1))) {
 				diff.push(part);
 			} else {
 				diff.push(null);
@@ -744,11 +741,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return diff;
 	}
 
-	private renderChatContentPart(contentPart: IChatProgressRenderableResponseContent, element: ChatTreeItem, templateData: IChatListItemTemplate): IChatContentPart | undefined {
+	private renderChatContentPart(contentPart: IChatProgressRenderableResponseContent, element: ChatTreeItem, templateData: IChatListItemTemplate, preceedingContentParts: IChatContentPart[], followingContent: IChatProgressRenderableResponseContent[]): IChatContentPart | undefined {
 		if (contentPart.kind === 'treeData') {
-			return this.renderTreeData(contentPart, element, templateData, 0); // TODO, count inside this method somehow
+			return this.renderTreeData(contentPart, element, templateData, preceedingContentParts); // TODO, count inside this method somehow
 		} else if (contentPart.kind === 'progressMessage') {
-			return this.renderProgressMessage(contentPart, true); // TODO
+			return this.renderProgressMessage(element, contentPart, followingContent);
 		} else if (contentPart.kind === 'progressTask') {
 			return this.renderProgressTask(contentPart, !contentPart.isSettled, element, templateData);
 		} else if (contentPart.kind === 'command') {
@@ -760,15 +757,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		} else if (contentPart.kind === 'warning') {
 			return this.instantiationService.createInstance(ChatWarningContentPart, 'warning', contentPart.content, this.renderer);
 		} else if (contentPart.kind === 'markdownContent') {
-			return this.renderMarkdown(contentPart.content, element, templateData, true); // TODO
+			return this.renderMarkdown(contentPart.content, element, templateData, preceedingContentParts, true); // TODO
 		}
 
 		return undefined;
 	}
 
-	private renderTreeData(content: IChatTreeData, element: ChatTreeItem, templateData: IChatListItemTemplate, treeDataIndex: number): IChatContentPart {
+	private renderTreeData(content: IChatTreeData, element: ChatTreeItem, templateData: IChatListItemTemplate, preceedingContentParts: IChatContentPart[]): IChatContentPart {
 		const data = content.treeData;
 		const store = new DisposableStore();
+		const treeDataIndex = preceedingContentParts.filter(part => part instanceof ChatTreeContentPart).length;
 		const treePart = store.add(this.instantiationService.createInstance(ChatTreeContentPart, data, element, this._treePool, treeDataIndex));
 
 		store.add(treePart.onDidChangeHeight(() => {
@@ -915,11 +913,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			};
 		}
 
-		return this.renderProgressMessage(task, showSpinner);
+		return this.renderProgressMessage(element, task, [], showSpinner);
 	}
 
-	private renderProgressMessage(progress: IChatProgressMessage | IChatTask, showSpinner: boolean): IChatContentPart {
-		return this.instantiationService.createInstance(ChatProgressContentPart, progress, showSpinner, this.renderer);
+	private renderProgressMessage(element: ChatTreeItem, progress: IChatProgressMessage | IChatTask, followingContent: IChatProgressRenderableResponseContent[], showSpinner?: boolean): IChatContentPart | undefined {
+		const hasOtherContentFollowing = followingContent.some(part => part.kind !== 'progressMessage');
+		if (hasOtherContentFollowing) {
+			return;
+		} else {
+			showSpinner = showSpinner ?? (isResponseVM(element) && !element.isComplete && followingContent.length === 0);
+			return this.instantiationService.createInstance(ChatProgressContentPart, progress, showSpinner, this.renderer);
+		}
 	}
 
 	private renderConfirmation(element: ChatTreeItem, confirmation: IChatConfirmation, templateData: IChatListItemTemplate): IChatContentPart {
@@ -940,9 +944,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return textEditPart; // TODO disposables
 	}
 
-	private renderMarkdown(markdown: IMarkdownString, element: ChatTreeItem, templateData: IChatListItemTemplate, fillInIncompleteTokens = false, codeBlockStartIndex = 0): IChatContentPart {
+	private renderMarkdown(markdown: IMarkdownString, element: ChatTreeItem, templateData: IChatListItemTemplate, preceedingContentParts: IChatContentPart[], fillInIncompleteTokens = false): IChatContentPart {
 		const store = new DisposableStore();
 		// TODO@roblourens too many parameters
+		const codeBlockStartIndex = preceedingContentParts.reduce((acc, part) => acc + (part instanceof ChatMarkdownContentPart ? part.codeblocks.length : 0), 0);
 		const markdownPart = store.add(this.instantiationService.createInstance(ChatMarkdownContentPart, markdown, element, this._editorPool, fillInIncompleteTokens, codeBlockStartIndex, this.renderer, this._currentLayoutWidth, this.codeBlockModelCollection, this.rendererOptions));
 		store.add(markdownPart.onDidChangeHeight(() => {
 			markdownPart.layout(this._currentLayoutWidth);
