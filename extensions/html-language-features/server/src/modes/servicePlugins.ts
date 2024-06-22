@@ -37,9 +37,9 @@ export function getLanguageServicePlugins(options: {
 			return await context.env.getConfiguration?.('html.format.enable') ?? true;
 		},
 		getCustomData: options.getCustomData,
-		onDidChangeCustomData: options.customDataEmitter ? (listener) => {
-			return options.customDataEmitter!.event(listener);
-		} : undefined,
+		onDidChangeCustomData: options.customDataEmitter
+			? listener => options.customDataEmitter!.event(listener)
+			: undefined,
 	});
 	plugins.push({
 		...baseHtmlPlugin,

@@ -19,8 +19,11 @@ export const htmlLanguagePlugin: LanguagePlugin<URI> = {
 		}
 		return undefined;
 	},
-	createVirtualCode(_uri, _languageId, snapshot) {
-		return createHtmlVirtualCode(snapshot);
+	createVirtualCode(_uri, languageId, snapshot) {
+		if (languageId !== 'typescript' && languageId !== 'javascript' && languageId !== 'typescriptreact' && languageId !== 'javascriptreact' && languageId !== 'json') {
+			return createHtmlVirtualCode(snapshot);
+		}
+		return undefined;
 	},
 	typescript: {
 		extraFileExtensions: [],
