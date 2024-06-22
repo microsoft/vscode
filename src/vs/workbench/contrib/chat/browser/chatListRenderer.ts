@@ -953,14 +953,22 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			markdownPart.layout(this._currentLayoutWidth);
 			this.updateItemHeight(templateData);
 		}));
-		this.codeBlocksByResponseId.set(element.id, markdownPart.codeblocks);
-		store.add(toDisposable(() => this.codeBlocksByResponseId.delete(element.id)));
 
-		markdownPart.codeblocks.forEach(info => {
+		const codeBlocksByResponseId = this.codeBlocksByResponseId.get(element.id) ?? [];
+		this.codeBlocksByResponseId.set(element.id, codeBlocksByResponseId);
+		store.add(toDisposable(() => {
+			const codeBlocksByResponseId = this.codeBlocksByResponseId.get(element.id);
+			if (codeBlocksByResponseId) {
+				markdownPart.codeblocks.forEach((info, i) => delete codeBlocksByResponseId[codeBlockStartIndex + i]);
+			}
+		}));
+
+		markdownPart.codeblocks.forEach((info, i) => {
+			codeBlocksByResponseId[codeBlockStartIndex + i] = info;
 			if (info.uri) {
 				const uri = info.uri;
 				this.codeBlocksByEditorUri.set(uri, info);
-				this._register(toDisposable(() => this.codeBlocksByEditorUri.delete(uri)));
+				store.add(toDisposable(() => this.codeBlocksByEditorUri.delete(uri)));
 			}
 		});
 
