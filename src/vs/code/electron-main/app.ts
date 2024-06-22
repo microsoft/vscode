@@ -496,8 +496,8 @@ export class CodeApplication extends Disposable {
 			return this.resolveShellEnvironment(args, env, false);
 		});
 
-		validatedIpcMain.handle('vscode:writeNlsFile', (event, path: unknown, data: unknown) => {
-			const uri = this.validateNlsPath([path]);
+		validatedIpcMain.handle('vscode:writeNlsFile', (event, nlsFile: unknown, data: unknown) => {
+			const uri = this.validateNlsPath(nlsFile);
 			if (!uri || typeof data !== 'string') {
 				throw new Error('Invalid operation (vscode:writeNlsFile)');
 			}
@@ -505,8 +505,8 @@ export class CodeApplication extends Disposable {
 			return this.fileService.writeFile(uri, VSBuffer.fromString(data));
 		});
 
-		validatedIpcMain.handle('vscode:readNlsFile', async (event, ...paths: unknown[]) => {
-			const uri = this.validateNlsPath(paths);
+		validatedIpcMain.handle('vscode:readNlsFile', async (event, messagesFile: unknown) => {
+			const uri = this.validateNlsPath(messagesFile);
 			if (!uri) {
 				throw new Error('Invalid operation (vscode:readNlsFile)');
 			}
@@ -529,24 +529,12 @@ export class CodeApplication extends Disposable {
 		//#endregion
 	}
 
-	private validateNlsPath(pathSegments: unknown[]): URI | undefined {
-		let path: string | undefined = undefined;
-
-		for (const pathSegment of pathSegments) {
-			if (typeof pathSegment === 'string') {
-				if (typeof path !== 'string') {
-					path = pathSegment;
-				} else {
-					path = join(path, pathSegment);
-				}
-			}
-		}
-
-		if (typeof path !== 'string' || !isAbsolute(path) || (!isEqualOrParent(path, this.environmentMainService.appRoot, !isLinux) && !isEqualOrParent(path, this.environmentMainService.cachedLanguagesPath, !isLinux))) {
+	private validateNlsPath(messagesFile: unknown): URI | undefined {
+		if (typeof messagesFile !== 'string' || !isAbsolute(messagesFile) || (!isEqualOrParent(messagesFile, this.environmentMainService.appRoot, !isLinux) && !isEqualOrParent(messagesFile, this.environmentMainService.cachedLanguagesPath, !isLinux))) {
 			return undefined;
 		}
 
-		return URI.file(path);
+		return URI.file(messagesFile);
 	}
 
 	private onUnexpectedError(error: Error): void {

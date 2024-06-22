@@ -130,7 +130,7 @@
 	/**
 	 * @returns {Promise<INLSConfiguration | undefined>}
 	 */
-	async function setupNLS() {
+	function setupNLS() {
 		if (!setupNLSResult) {
 			setupNLSResult = doSetupNLS();
 		}
@@ -147,15 +147,16 @@
 		/** @type {INLSConfiguration | undefined} */
 		let nlsConfig = undefined;
 
-		const messagesFile = [];
+		/** @type {string | undefined} */
+		let messagesFile;
 		if (process?.env['VSCODE_NLS_CONFIG']) {
 			try {
 				/** @type {INLSConfiguration} */
 				nlsConfig = JSON.parse(process.env['VSCODE_NLS_CONFIG']);
 				if (nlsConfig?.languagePack?.messagesFile) {
-					messagesFile.push(nlsConfig.languagePack.messagesFile);
+					messagesFile = nlsConfig.languagePack.messagesFile;
 				} else if (nlsConfig?.defaultMessagesFile) {
-					messagesFile.push(nlsConfig.defaultMessagesFile);
+					messagesFile = nlsConfig.defaultMessagesFile;
 				}
 
 				// VSCODE_GLOBALS: NLS
@@ -168,16 +169,16 @@
 
 		if (
 			process?.env['VSCODE_DEV'] ||	// no NLS support in dev mode
-			messagesFile.length === 0		// no NLS messages file
+			!messagesFile					// no NLS messages file
 		) {
 			return undefined;
 		}
 
 		try {
 			// VSCODE_GLOBALS: NLS
-			globalThis._VSCODE_NLS = JSON.parse(await safeReadNlsFile(...messagesFile));
+			globalThis._VSCODE_NLS = JSON.parse(await safeReadNlsFile(messagesFile));
 		} catch (error) {
-			console.error(`Error reading NLS messages file ${messagesFile.join(path?.sep)}: ${error}`);
+			console.error(`Error reading NLS messages file ${messagesFile}: ${error}`);
 
 			// Mark as corrupt: this will re-create the language pack cache next startup
 			if (nlsConfig?.languagePack?.corruptMarkerFile) {
@@ -241,35 +242,35 @@
 	}
 
 	/**
-	 * @param {string[]} pathSegments
+	 * @param {string} messagesFile
 	 * @returns {Promise<string>}
 	 */
-	async function safeReadNlsFile(...pathSegments) {
+	async function safeReadNlsFile(messagesFile) {
 		const ipcRenderer = safeIpcRenderer();
 		if (ipcRenderer) {
-			return ipcRenderer.invoke('vscode:readNlsFile', ...pathSegments);
+			return ipcRenderer.invoke('vscode:readNlsFile', messagesFile);
 		}
 
-		if (fs && path) {
-			return (await fs.promises.readFile(path.join(...pathSegments))).toString();
+		if (fs) {
+			return (await fs.promises.readFile(messagesFile)).toString();
 		}
 
 		throw new Error('Unsupported operation (read NLS files)');
 	}
 
 	/**
-	 * @param {string} path
+	 * @param {string} nlsFile
 	 * @param {string} content
 	 * @returns {Promise<void>}
 	 */
-	function safeWriteNlsFile(path, content) {
+	function safeWriteNlsFile(nlsFile, content) {
 		const ipcRenderer = safeIpcRenderer();
 		if (ipcRenderer) {
-			return ipcRenderer.invoke('vscode:writeNlsFile', path, content);
+			return ipcRenderer.invoke('vscode:writeNlsFile', nlsFile, content);
 		}
 
 		if (fs) {
-			return fs.promises.writeFile(path, content);
+			return fs.promises.writeFile(nlsFile, content);
 		}
 
 		throw new Error('Unsupported operation (write NLS files)');
