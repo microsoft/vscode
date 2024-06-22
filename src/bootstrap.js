@@ -161,7 +161,6 @@
 
 				// VSCODE_GLOBALS: NLS
 				globalThis._VSCODE_NLS_PSEUDO = nlsConfig?.userLocale === 'pseudo' ? true : undefined;
-				globalThis._VSCODE_NLS_LOCALE = nlsConfig?.userLocale;
 			} catch (e) {
 				console.error(`Error reading VSCODE_NLS_CONFIG from environment: ${e}`);
 			}

@@ -16,10 +16,6 @@ declare global {
 	 * Whether the running instance should use a pseudo-locale.
 	 */
 	var _VSCODE_NLS_PSEUDO: true | undefined;
-	/**
-	 * The locale the NLS messages are translated to.
-	 */
-	var _VSCODE_NLS_LOCALE: string | undefined;
 }
 
 // fake export to make global work
