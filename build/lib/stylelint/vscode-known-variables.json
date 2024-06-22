@@ -854,6 +854,7 @@
 		"--z-index-run-button-container",
 		"--zoom-factor",
 		"--test-bar-width",
-		"--widget-color"
+		"--widget-color",
+		"--text-link-decoration"
 	]
 }

@@ -971,16 +971,15 @@ class InstallExtensionInProfileTask extends AbstractExtensionTask<ILocalExtensio
 						throw new Error(nls.localize('restartCode', "Please restart VS Code before reinstalling {0}.", this.manifest.displayName || this.manifest.name));
 					}
 				}
-			} else {
-				// Remove the extension with same version if it is already uninstalled.
-				// Installing a VSIX extension shall replace the existing extension always.
-				const existingWithSameVersion = await this.unsetIfUninstalled(this.extensionKey);
-				if (existingWithSameVersion) {
-					try {
-						await this.extensionsScanner.removeExtension(existingWithSameVersion, 'existing');
-					} catch (e) {
-						throw new Error(nls.localize('restartCode', "Please restart VS Code before reinstalling {0}.", this.manifest.displayName || this.manifest.name));
-					}
+			}
+			// Remove the extension with same version if it is already uninstalled.
+			// Installing a VSIX extension shall replace the existing extension always.
+			const existingWithSameVersion = await this.unsetIfUninstalled(this.extensionKey);
+			if (existingWithSameVersion) {
+				try {
+					await this.extensionsScanner.removeExtension(existingWithSameVersion, 'existing');
+				} catch (e) {
+					throw new Error(nls.localize('restartCode', "Please restart VS Code before reinstalling {0}.", this.manifest.displayName || this.manifest.name));
 				}
 			}
 

@@ -11,6 +11,10 @@
  * @import { INLSConfiguration } from './vs/nls'
  */
 
+/**
+ * @import { IServerAPI } from './vs/server/node/remoteExtensionHostAgentServer'
+ */
+
 const perf = require('./vs/base/common/performance');
 const performance = require('perf_hooks').performance;
 /** @type {Partial<IProductConfiguration>} */
@@ -56,9 +60,6 @@ async function start() {
 		return;
 	}
 
-	/**
-	 * @typedef { import('./vs/server/node/remoteExtensionHostAgentServer').IServerAPI } IServerAPI
-	 */
 	/** @type {IServerAPI | null} */
 	let _remoteExtensionHostAgentServer = null;
 	/** @type {Promise<IServerAPI> | null} */
