@@ -23,16 +23,17 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 
 	constructor(
 		progress: IChatProgressMessage | IChatTask,
-		forceShowSpinner: boolean | undefined,
 		renderer: MarkdownRenderer,
-		context: IChatContentPartRenderContext
+		context: IChatContentPartRenderContext,
+		forceShowSpinner?: boolean,
+		forceShowMessage?: boolean
 	) {
 		super();
 
 		const followingContent = context.content.slice(context.index + 1);
 		this.showSpinner = forceShowSpinner ?? shouldShowSpinner(followingContent, context.element);
-		const hasNonProgressContentFollowing = followingContent.some(part => part.kind !== 'progressMessage');
-		if (hasNonProgressContentFollowing) {
+		const hideMessage = forceShowMessage !== true && followingContent.some(part => part.kind !== 'progressMessage');
+		if (hideMessage) {
 			// Placeholder, don't show the progress message
 			this.domNode = $('');
 			return;

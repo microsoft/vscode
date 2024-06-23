@@ -10,8 +10,12 @@ import { IChatProgressRenderableResponseContent } from 'vs/workbench/contrib/cha
 export interface IChatContentPart extends IDisposable {
 	domNode: HTMLElement;
 
+	/**
+	 * Returns true if the other content is equivalent to what is already rendered in this content part.
+	 * Returns false if a rerender is needed.
+	 * followingContent is all the content that will be rendered after this content part (to support progress messages' behavior).
+	 */
 	hasSameContent(other: IChatProgressRenderableResponseContent, followingContent: IChatProgressRenderableResponseContent[], element: ChatTreeItem): boolean;
-	addDisposable?(disposable: IDisposable): void;
 }
 
 export interface IChatContentPartRenderContext {

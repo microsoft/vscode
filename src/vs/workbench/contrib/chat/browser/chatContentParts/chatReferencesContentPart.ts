@@ -23,8 +23,6 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { ColorScheme } from 'vs/workbench/browser/web.api';
 import { IDisposableReference, ResourcePool } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatCollections';
-import { IChatContentPart } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatContentParts';
-import { IChatProgressRenderableResponseContent } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatContentReference, IChatWarningMessage } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
@@ -32,7 +30,8 @@ import { createFileIconThemableTreeContainerScope } from 'vs/workbench/contrib/f
 
 const $ = dom.$;
 
-export class ChatReferencesContentPart extends Disposable implements IChatContentPart {
+// Not yet a real IChatContentPart
+export class ChatReferencesContentPart extends Disposable {
 	public readonly domNode: HTMLElement;
 
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
@@ -118,11 +117,6 @@ export class ChatReferencesContentPart extends Disposable implements IChatConten
 
 	private updateAriaLabel(element: HTMLElement, label: string, expanded?: boolean): void {
 		element.ariaLabel = expanded ? localize('usedReferencesExpanded', "{0}, expanded", label) : localize('usedReferencesCollapsed', "{0}, collapsed", label);
-	}
-
-	hasSameContent(other: IChatProgressRenderableResponseContent): boolean {
-		// No other change allowed for this content type
-		return other.kind === 'command';
 	}
 
 	addDisposable(disposable: IDisposable): void {

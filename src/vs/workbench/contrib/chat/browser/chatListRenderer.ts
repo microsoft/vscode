@@ -64,6 +64,7 @@ import { getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { annotateSpecialMarkdownContent } from '../common/annotations';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection';
 import { IChatListItemRendererOptions } from './chat';
+import { ChatTaskContentPart } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatTaskContentPart';
 
 const $ = dom.$;
 
@@ -754,9 +755,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (contentPart.kind === 'treeData') {
 			return this.renderTreeData(contentPart, templateData, context);
 		} else if (contentPart.kind === 'progressMessage') {
-			return this.instantiationService.createInstance(ChatProgressContentPart, contentPart, undefined, this.renderer, context);
+			return this.instantiationService.createInstance(ChatProgressContentPart, contentPart, this.renderer, context);
 		} else if (contentPart.kind === 'progressTask') {
-			return this.renderProgressTask(contentPart, !contentPart.isSettled, templateData, context);
+			return this.renderProgressTask(contentPart, templateData, context);
 		} else if (contentPart.kind === 'command') {
 			return this.instantiationService.createInstance(ChatCommandButtonContentPart, contentPart, context);
 		} else if (contentPart.kind === 'textEditGroup') {
@@ -819,7 +820,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 	}
 
-	private renderContentReferencesListData(data: ReadonlyArray<IChatContentReference | IChatWarningMessage>, labelOverride: string | undefined, element: IChatResponseViewModel, templateData: IChatListItemTemplate): IChatContentPart {
+	private renderContentReferencesListData(data: ReadonlyArray<IChatContentReference | IChatWarningMessage>, labelOverride: string | undefined, element: IChatResponseViewModel, templateData: IChatListItemTemplate): ChatReferencesContentPart {
 		const referencesPart = this.instantiationService.createInstance(ChatReferencesContentPart, data, labelOverride, element, this._contentReferencesListPool);
 		referencesPart.addDisposable(referencesPart.onDidChangeHeight(() => {
 			this.updateItemHeight(templateData);
@@ -828,24 +829,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return referencesPart;
 	}
 
-	private renderProgressTask(task: IChatTask, showSpinner: boolean, templateData: IChatListItemTemplate, context: IChatContentPartRenderContext): IChatContentPart | undefined {
+	private renderProgressTask(task: IChatTask, templateData: IChatListItemTemplate, context: IChatContentPartRenderContext): IChatContentPart | undefined {
 		if (!isResponseVM(context.element)) {
 			return;
 		}
 
-		if (task.progress.length) {
-			const refs = this.renderContentReferencesListData(task.progress, task.content.value, context.element, templateData);
-			const node = dom.$('.chat-progress-task');
-			node.appendChild(refs.domNode);
-			return {
-				domNode: node, dispose: refs.dispose.bind(refs), hasSameContent(other) {
-					return other.kind === 'progressTask';
-				},
-			};
-		}
-
-		// TODO, can't diff
-		return this.instantiationService.createInstance(ChatProgressContentPart, task, showSpinner, this.renderer, context);
+		const taskPart = this.instantiationService.createInstance(ChatTaskContentPart, task, this._contentReferencesListPool, this.renderer, context);
+		taskPart.addDisposable(taskPart.onDidChangeHeight(() => {
+			this.updateItemHeight(templateData);
+		}));
+		return taskPart;
 	}
 
 	private renderConfirmation(context: IChatContentPartRenderContext, confirmation: IChatConfirmation, templateData: IChatListItemTemplate): IChatContentPart {
