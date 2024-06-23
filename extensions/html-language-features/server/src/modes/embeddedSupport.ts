@@ -7,6 +7,7 @@ import { LanguageService, TokenType } from 'vscode-html-languageservice';
 
 export interface HTMLDocumentRegions {
 	getEmbeddedRegions(): EmbeddedRegion[];
+	getImportedScripts(): string[];
 }
 
 export const CSS_STYLE_RULE = '__';
@@ -29,6 +30,7 @@ export function getDocumentRegions(languageService: LanguageService, text: strin
 	let lastAttributeName: string | null = null;
 	let languageIdFromType: string | undefined = undefined;
 	let isModuleScript = false;
+	const importedScripts: string[] = [];
 
 	let token = scanner.scan();
 	while (token !== TokenType.EOS) {
@@ -51,31 +53,28 @@ export function getDocumentRegions(languageService: LanguageService, text: strin
 				lastAttributeName = scanner.getTokenText();
 				break;
 			case TokenType.AttributeValue:
-				let type = scanner.getTokenText();
-				if (type.startsWith('\'') && type.endsWith('\'') || type.startsWith('"') && type.endsWith('"')) {
-					type = type.slice(1, -1);
+				let value = scanner.getTokenText();
+				if (value.startsWith('\'') && value.endsWith('\'') || value.startsWith('"') && value.endsWith('"')) {
+					value = value.slice(1, -1);
 				}
 				if (lastAttributeName === 'src' && lastTagName.toLowerCase() === 'script') {
-					let value = scanner.getTokenText();
-					if (value[0] === '\'' || value[0] === '"') {
-						value = value.substr(1, value.length - 1);
-					}
+					importedScripts.push(value);
 				} else if (lastAttributeName === 'type' && lastTagName.toLowerCase() === 'script') {
-					if (/(module|(text|application)\/(java|ecma)script|text\/babel)/.test(type)) {
+					if (/(module|(text|application)\/(java|ecma)script|text\/babel)/.test(value)) {
 						languageIdFromType = 'javascript';
 						isModuleScript = true;
-					} else if (/text\/typescript/.test(type)) {
+					} else if (/text\/typescript/.test(value)) {
 						languageIdFromType = 'typescript';
 						isModuleScript = true;
-					} else if (/application\/json/.test(type)) {
+					} else if (/application\/json/.test(value)) {
 						languageIdFromType = 'json';
 					} else {
 						languageIdFromType = undefined;
 					}
 				} else if (lastAttributeName === 'type' && lastTagName.toLowerCase() === 'style') {
-					if (/text\/scss/.test(type)) {
+					if (/text\/scss/.test(value)) {
 						languageIdFromType = 'scss';
-					} else if (/text\/less/.test(type)) {
+					} else if (/text\/less/.test(value)) {
 						languageIdFromType = 'less';
 					}
 				} else {
@@ -98,6 +97,7 @@ export function getDocumentRegions(languageService: LanguageService, text: strin
 	}
 	return {
 		getEmbeddedRegions: () => regions,
+		getImportedScripts: () => importedScripts,
 	};
 
 	function createEmbeddedRegion(languageId: string | undefined, start: number, end: number, attributeValue?: boolean) {

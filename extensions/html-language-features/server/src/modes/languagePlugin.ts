@@ -8,7 +8,7 @@ import type { CodeMapping, LanguagePlugin, TypeScriptExtraServiceScript, Virtual
 import type * as ts from 'typescript';
 import { getLanguageService } from 'vscode-html-languageservice';
 import { URI } from 'vscode-uri';
-import { EmbeddedRegion, getDocumentRegions } from './embeddedSupport';
+import { EmbeddedRegion, getDocumentRegions, HTMLDocumentRegions } from './embeddedSupport';
 
 const htmlLanguageService = getLanguageService();
 
@@ -64,11 +64,12 @@ export const htmlLanguagePlugin: LanguagePlugin<URI> = {
 	},
 };
 
-function createHtmlVirtualCode(snapshot: ts.IScriptSnapshot): VirtualCode {
+function createHtmlVirtualCode(snapshot: ts.IScriptSnapshot): VirtualCode & { documentRegions: HTMLDocumentRegions } {
 	const documentRegions = getDocumentRegions(htmlLanguageService, snapshot.getText(0, snapshot.getLength()));
 	const indexMap: Record<string, number> = {};
 
 	return {
+		documentRegions,
 		id: 'root',
 		languageId: 'html',
 		snapshot,
