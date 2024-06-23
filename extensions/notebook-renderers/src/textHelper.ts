@@ -71,22 +71,27 @@ function generateNestedViewAllElement(outputId: string) {
 
 function truncatedArrayOfString(id: string, buffer: string[], linesLimit: number, linkOptions: LinkOptions) {
 	const container = document.createElement('div');
+	container.setAttribute('data-vscode-context', JSON.stringify({
+		webviewSection: 'text',
+		outputId: id,
+		'preventDefaultContextMenuItems': true
+	}));
 	const lineCount = buffer.length;
 
 	if (lineCount <= linesLimit) {
-		const spanElement = handleANSIOutput(buffer.join('\n'), linkOptions, id);
+		const spanElement = handleANSIOutput(buffer.join('\n'), linkOptions);
 		container.appendChild(spanElement);
 		return container;
 	}
 
-	container.appendChild(handleANSIOutput(buffer.slice(0, linesLimit - 5).join('\n'), linkOptions, id));
+	container.appendChild(handleANSIOutput(buffer.slice(0, linesLimit - 5).join('\n'), linkOptions));
 
 	// truncated piece
 	const elipses = document.createElement('div');
 	elipses.innerText = '...';
 	container.appendChild(elipses);
 
-	container.appendChild(handleANSIOutput(buffer.slice(lineCount - 5).join('\n'), linkOptions, id));
+	container.appendChild(handleANSIOutput(buffer.slice(lineCount - 5).join('\n'), linkOptions));
 
 	container.appendChild(generateViewMoreElement(id));
 
@@ -95,11 +100,16 @@ function truncatedArrayOfString(id: string, buffer: string[], linesLimit: number
 
 function scrollableArrayOfString(id: string, buffer: string[], linkOptions: LinkOptions) {
 	const element = document.createElement('div');
+	element.setAttribute('data-vscode-context', JSON.stringify({
+		webviewSection: 'text',
+		outputId: id,
+		'preventDefaultContextMenuItems': true
+	}));
 	if (buffer.length > softScrollableLineLimit) {
 		element.appendChild(generateNestedViewAllElement(id));
 	}
 
-	element.appendChild(handleANSIOutput(buffer.slice(-1 * softScrollableLineLimit).join('\n'), linkOptions, id));
+	element.appendChild(handleANSIOutput(buffer.slice(-1 * softScrollableLineLimit).join('\n'), linkOptions));
 
 	return element;
 }
@@ -118,7 +128,7 @@ function appendScrollableOutput(element: HTMLElement, id: string, appended: stri
 		return false;
 	}
 	else {
-		element.appendChild(handleANSIOutput(buffer.join('\n'), linkOptions, id));
+		element.appendChild(handleANSIOutput(buffer.join('\n'), linkOptions));
 		outputLengths[id] = appendedLength;
 	}
 	return true;
