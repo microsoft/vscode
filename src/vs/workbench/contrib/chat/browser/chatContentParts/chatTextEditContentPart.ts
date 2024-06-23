@@ -6,7 +6,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
@@ -20,19 +20,20 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { localize } from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ChatTreeItem, IChatListItemRendererOptions } from 'vs/workbench/contrib/chat/browser/chat';
+import { IChatListItemRendererOptions } from 'vs/workbench/contrib/chat/browser/chat';
 import { IDisposableReference, ResourcePool } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatCollections';
+import { IChatContentPart, IChatContentPartRenderContext } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatContentParts';
 import { IChatRendererDelegate } from 'vs/workbench/contrib/chat/browser/chatListRenderer';
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
 import { CodeCompareBlockPart, ICodeCompareBlockData, ICodeCompareBlockDiffData } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
-import { IChatTextEditGroup } from 'vs/workbench/contrib/chat/common/chatModel';
+import { IChatProgressRenderableResponseContent, IChatTextEditGroup } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 
 const $ = dom.$;
 
-export class ChatTextEditContentPart extends Disposable {
-	public readonly element: HTMLElement;
+export class ChatTextEditContentPart extends Disposable implements IChatContentPart {
+	public readonly domNode: HTMLElement;
 	private readonly ref: IDisposableReference<CodeCompareBlockPart> | undefined;
 
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
@@ -40,7 +41,7 @@ export class ChatTextEditContentPart extends Disposable {
 
 	constructor(
 		chatTextEdit: IChatTextEditGroup,
-		element: ChatTreeItem,
+		context: IChatContentPartRenderContext,
 		rendererOptions: IChatListItemRendererOptions,
 		diffEditorPool: DiffEditorPool,
 		currentWidth: number,
@@ -49,13 +50,14 @@ export class ChatTextEditContentPart extends Disposable {
 		@IChatService private readonly chatService: IChatService,
 	) {
 		super();
+		const element = context.element;
 
 		// TODO@jrieken move this into the CompareCodeBlock and properly say what kind of changes happen
 		if (rendererOptions.renderTextEditsAsSummary?.(chatTextEdit.uri)) {
 			if (isResponseVM(element) && element.response.value.every(item => item.kind === 'textEditGroup')) {
-				this.element = $('.interactive-edits-summary', undefined, !element.isComplete ? localize('editsSummary1', "Making changes...") : localize('editsSummary', "Made changes."));
+				this.domNode = $('.interactive-edits-summary', undefined, !element.isComplete ? localize('editsSummary1', "Making changes...") : localize('editsSummary', "Made changes."));
 			} else {
-				this.element = $('div');
+				this.domNode = $('div');
 			}
 
 			// TODO@roblourens this case is now handled outside this Part in ChatListRenderer, but can it be cleaned up?
@@ -151,12 +153,21 @@ export class ChatTextEditContentPart extends Disposable {
 			};
 			this.ref.object.render(data, currentWidth, cts.token);
 
-			this.element = this.ref.object.element;
+			this.domNode = this.ref.object.element;
 		}
 	}
 
 	layout(width: number): void {
 		this.ref?.object.layout(width);
+	}
+
+	hasSameContent(other: IChatProgressRenderableResponseContent): boolean {
+		// No other change allowed for this content type
+		return other.kind === 'textEditGroup';
+	}
+
+	addDisposable(disposable: IDisposable): void {
+		this._register(disposable);
 	}
 }
 
