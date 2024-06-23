@@ -584,15 +584,17 @@ export class SuggestController implements IEditorContribution {
 		}
 	}
 
-	triggerSuggest(onlyFrom?: Set<CompletionItemProvider>, auto?: boolean, noFilter?: boolean): void {
+	triggerSuggest(onlyFrom?: Set<CompletionItemProvider>, auto?: boolean, noFilter?: boolean): void | Promise<void> {
+		let triggerPromise: void | Promise<void>;
 		if (this.editor.hasModel()) {
-			this.model.trigger({
+			triggerPromise = this.model.trigger({
 				auto: auto ?? false,
 				completionOptions: { providerFilter: onlyFrom, kindFilter: noFilter ? new Set() : undefined }
 			});
 			this.editor.revealPosition(this.editor.getPosition(), ScrollType.Smooth);
 			this.editor.focus();
 		}
+		return triggerPromise;
 	}
 
 	triggerSuggestAndAcceptBest(arg: { fallback: string }): void {
@@ -797,7 +799,7 @@ export class TriggerSuggestAction extends EditorAction {
 		});
 	}
 
-	run(_accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+	async run(_accessor: ServicesAccessor, editor: ICodeEditor, args: any): Promise<void> {
 		const controller = SuggestController.get(editor);
 
 		if (!controller) {
@@ -812,7 +814,7 @@ export class TriggerSuggestAction extends EditorAction {
 			}
 		}
 
-		controller.triggerSuggest(undefined, auto, undefined);
+		await controller.triggerSuggest(undefined, auto, undefined);
 	}
 }
 

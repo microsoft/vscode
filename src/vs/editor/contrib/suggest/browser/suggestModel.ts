@@ -441,7 +441,7 @@ export class SuggestModel implements IDisposable {
 		this._onNewContext(ctx);
 	}
 
-	trigger(options: SuggestTriggerOptions): void {
+	trigger(options: SuggestTriggerOptions): Promise<void> | void {
 		if (!this._editor.hasModel()) {
 			return;
 		}
@@ -497,7 +497,7 @@ export class SuggestModel implements IDisposable {
 			this._requestToken.token
 		);
 
-		Promise.all([completions, wordDistance]).then(async ([completions, wordDistance]) => {
+		return Promise.all([completions, wordDistance]).then(async ([completions, wordDistance]) => {
 
 			this._requestToken?.dispose();
 
