@@ -11,13 +11,14 @@ export interface HTMLDocumentRegions {
 
 export const CSS_STYLE_RULE = '__';
 
-interface EmbeddedRegion {
+export interface EmbeddedRegion {
 	languageId: string | undefined;
 	content: string;
 	start: number;
 	generatedStart: number;
 	length: number;
 	attributeValue?: boolean;
+	moduleScript?: boolean;
 }
 
 
@@ -27,6 +28,7 @@ export function getDocumentRegions(languageService: LanguageService, text: strin
 	let lastTagName: string = '';
 	let lastAttributeName: string | null = null;
 	let languageIdFromType: string | undefined = undefined;
+	let isModuleScript = false;
 
 	let token = scanner.scan();
 	while (token !== TokenType.EOS) {
@@ -34,13 +36,16 @@ export function getDocumentRegions(languageService: LanguageService, text: strin
 			case TokenType.StartTag:
 				lastTagName = scanner.getTokenText();
 				lastAttributeName = null;
+				isModuleScript = false;
 				languageIdFromType = lastTagName === 'style' ? 'css' : 'javascript';
 				break;
 			case TokenType.Styles:
 				regions.push(createEmbeddedRegion(languageIdFromType, scanner.getTokenOffset(), scanner.getTokenEnd()));
 				break;
 			case TokenType.Script:
-				regions.push(createEmbeddedRegion(languageIdFromType, scanner.getTokenOffset(), scanner.getTokenEnd()));
+				const region = createEmbeddedRegion(languageIdFromType, scanner.getTokenOffset(), scanner.getTokenEnd());
+				region.moduleScript = isModuleScript;
+				regions.push(region);
 				break;
 			case TokenType.AttributeName:
 				lastAttributeName = scanner.getTokenText();
@@ -54,8 +59,10 @@ export function getDocumentRegions(languageService: LanguageService, text: strin
 				} else if (lastAttributeName === 'type' && lastTagName.toLowerCase() === 'script') {
 					if (/["'](module|(text|application)\/(java|ecma)script|text\/babel)["']/.test(scanner.getTokenText())) {
 						languageIdFromType = 'javascript';
+						isModuleScript = true;
 					} else if (/["']text\/typescript["']/.test(scanner.getTokenText())) {
 						languageIdFromType = 'typescript';
+						isModuleScript = true;
 					} else if (/["']application\/json["']/.test(scanner.getTokenText())) {
 						languageIdFromType = 'json';
 					} else {
