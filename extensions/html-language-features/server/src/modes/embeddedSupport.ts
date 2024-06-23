@@ -64,6 +64,8 @@ export function getDocumentRegions(languageService: LanguageService, text: strin
 				} else if (lastAttributeName === 'type' && lastTagName.toLowerCase() === 'style') {
 					if (/["']text\/scss["']/.test(scanner.getTokenText())) {
 						languageIdFromType = 'scss';
+					} else if (/["']text\/less["']/.test(scanner.getTokenText())) {
+						languageIdFromType = 'less';
 					}
 				} else {
 					const attributeLanguageId = getAttributeLanguage(lastAttributeName!);
