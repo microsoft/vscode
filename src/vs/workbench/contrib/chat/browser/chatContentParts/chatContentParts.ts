@@ -5,7 +5,7 @@
 
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ChatTreeItem } from 'vs/workbench/contrib/chat/browser/chat';
-import { IChatProgressRenderableResponseContent } from 'vs/workbench/contrib/chat/common/chatModel';
+import { IChatRendererContent } from 'vs/workbench/contrib/chat/common/chatViewModel';
 
 export interface IChatContentPart extends IDisposable {
 	domNode: HTMLElement;
@@ -15,12 +15,12 @@ export interface IChatContentPart extends IDisposable {
 	 * Returns false if a rerender is needed.
 	 * followingContent is all the content that will be rendered after this content part (to support progress messages' behavior).
 	 */
-	hasSameContent(other: IChatProgressRenderableResponseContent, followingContent: IChatProgressRenderableResponseContent[], element: ChatTreeItem): boolean;
+	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean;
 }
 
 export interface IChatContentPartRenderContext {
 	element: ChatTreeItem;
 	index: number;
-	content: ReadonlyArray<IChatProgressRenderableResponseContent>;
+	content: ReadonlyArray<IChatRendererContent>;
 	preceedingContentParts: ReadonlyArray<IChatContentPart>;
 }

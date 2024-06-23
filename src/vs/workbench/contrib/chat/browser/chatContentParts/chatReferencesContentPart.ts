@@ -22,23 +22,24 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { ColorScheme } from 'vs/workbench/browser/web.api';
+import { ChatTreeItem } from 'vs/workbench/contrib/chat/browser/chat';
 import { IDisposableReference, ResourcePool } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatCollections';
+import { IChatContentPart } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatContentParts';
 import { IChatContentReference, IChatWarningMessage } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
-import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { IChatRendererContent, IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { createFileIconThemableTreeContainerScope } from 'vs/workbench/contrib/files/browser/views/explorerView';
 
 const $ = dom.$;
 
-// Not yet a real IChatContentPart
-export class ChatReferencesContentPart extends Disposable {
+export class ChatReferencesContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
 
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
 	constructor(
-		data: ReadonlyArray<IChatContentReference | IChatWarningMessage>,
+		private readonly data: ReadonlyArray<IChatContentReference | IChatWarningMessage>,
 		labelOverride: string | undefined,
 		element: IChatResponseViewModel,
 		contentReferencesListPool: ContentReferencesListPool,
@@ -113,6 +114,10 @@ export class ChatReferencesContentPart extends Disposable {
 		list.layout(height);
 		list.getHTMLElement().style.height = `${height}px`;
 		list.splice(0, list.length, data);
+	}
+
+	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
+		return other.kind === 'references' && other.references.length === this.data.length;
 	}
 
 	private updateAriaLabel(element: HTMLElement, label: string, expanded?: boolean): void {

@@ -12,9 +12,8 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
 import { ChatTreeItem } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatContentPart, IChatContentPartRenderContext } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatContentParts';
-import { IChatProgressRenderableResponseContent } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatProgressMessage, IChatTask } from 'vs/workbench/contrib/chat/common/chatService';
-import { isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { IChatRendererContent, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 
 export class ChatProgressContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -54,13 +53,13 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 		this.domNode = result.element;
 	}
 
-	hasSameContent(other: IChatProgressRenderableResponseContent, followingContent: IChatProgressRenderableResponseContent[], element: ChatTreeItem): boolean {
+	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
 		// Needs rerender when spinner state changes
 		const showSpinner = shouldShowSpinner(followingContent, element);
 		return other.kind === 'progressMessage' && this.showSpinner === showSpinner;
 	}
 }
 
-function shouldShowSpinner(followingContent: IChatProgressRenderableResponseContent[], element: ChatTreeItem): boolean {
+function shouldShowSpinner(followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
 	return isResponseVM(element) && !element.isComplete && followingContent.length === 0;
 }

@@ -109,11 +109,24 @@ export interface IChatTaskRenderData {
 }
 
 export interface IChatResponseRenderData {
-	renderedParts: IChatProgressRenderableResponseContent[];
+	renderedParts: IChatRendererContent[];
 
 	renderedWordCount: number;
 	lastRenderTime: number;
 }
+
+/**
+ * Content type for references used during rendering, not in the model
+ */
+export interface IChatReferences {
+	references: ReadonlyArray<IChatContentReference>;
+	kind: 'references';
+}
+
+/**
+ * Type for content parts rendered by IChatListRenderer
+ */
+export type IChatRendererContent = IChatProgressRenderableResponseContent | IChatReferences;
 
 export interface IChatLiveUpdateData {
 	loadingStartTime: number;
