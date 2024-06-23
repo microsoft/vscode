@@ -3,83 +3,67 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LanguagePlugin, LanguageServer, LanguageServerProject } from '@volar/language-server';
-import { createLanguageServiceEnvironment, createUriConverter } from '@volar/language-server/node';
-import { createLanguage, createLanguageService, createUriMap, LanguageService } from '@volar/language-service';
-import { createLanguageServiceHost, resolveFileLanguageId } from '@volar/typescript';
+import { LanguageServer, LanguageServerProject } from '@volar/language-server';
+import { createLanguageServiceEnvironment, createUriConverter, getWorkspaceFolder } from '@volar/language-server/browser';
+import { createTypeScriptLS, TypeScriptProjectLS } from '@volar/language-server/lib/project/typescriptProjectLs';
+import { createUriMap, LanguagePlugin } from '@volar/language-service';
 import * as ts from 'typescript';
-import { TextDocument } from 'vscode-html-languageservice';
 import { URI } from 'vscode-uri';
-import { createProjectHost } from './projectHost';
+import { JQUERY_PATH } from './javascriptLibs';
 
 export function createHtmlProject(languagePlugins: LanguagePlugin<URI>[]): LanguageServerProject {
 	let server: LanguageServer;
-	let languageService: LanguageService | undefined;
-	let currentDocument: [URI, string, TextDocument, ts.IScriptSnapshot] | undefined;
+	let tsLocalized: any;
 
 	const { asFileName, asUri } = createUriConverter();
+	const inferredProjects = createUriMap<Promise<TypeScriptProjectLS>>();
 
 	return {
 		setup(_server) {
 			server = _server;
-		},
-		getLanguageService(uri) {
-			const document = server.documents.get(server.getSyncedDocumentKey(uri) ?? uri.toString())!;
-			currentDocument = [uri, asFileName(uri), document, document.getSnapshot()];
-			if (!languageService) {
-				const projectHost = createProjectHost(() => currentDocument!);
-				const language = createLanguage(
-					[
-						{ getLanguageId: uri => server.documents.get(server.getSyncedDocumentKey(uri) ?? uri.toString())?.languageId },
-						...languagePlugins,
-						{ getLanguageId: uri => resolveFileLanguageId(uri.path) },
-					],
-					createUriMap(),
-					uri => {
-						const documentUri = server.getSyncedDocumentKey(uri);
-						const syncedDocument = documentUri ? server.documents.get(documentUri) : undefined;
-
-						let snapshot: ts.IScriptSnapshot | undefined;
-
-						if (syncedDocument) {
-							snapshot = syncedDocument.getSnapshot();
-						}
-						else {
-							snapshot = projectHost.getScriptSnapshot(asFileName(uri));
-						}
-
-						if (snapshot) {
-							language.scripts.set(uri, snapshot);
-						}
-						else {
-							language.scripts.delete(uri);
-						}
-					}
-				);
-				language.typescript = {
-					configFileName: undefined,
-					sys: ts.sys,
-					asFileName: asFileName,
-					asScriptId: asUri,
-					...createLanguageServiceHost(ts, ts.sys, language, asUri, projectHost),
-				};
-				languageService = createLanguageService(
-					language,
-					server.languageServicePlugins,
-					createLanguageServiceEnvironment(server, [...server.workspaceFolders.keys()])
-				);
+			if (server.initializeParams.locale) {
+				try {
+					tsLocalized = require(`typescript/lib/${server.initializeParams.locale}/diagnosticMessages.generated.json`);
+				} catch { }
 			}
-			return languageService;
 		},
-		getExistingLanguageServices() {
-			if (languageService) {
-				return [languageService];
-			}
-			return [];
+		async getLanguageService(uri) {
+			const workspaceFolder = getWorkspaceFolder(uri, server.workspaceFolders);
+			const project = await getOrCreateInferredProject(server, workspaceFolder);
+			project.tryAddFile(asFileName(uri));
+			return project.languageService;
+		},
+		async getExistingLanguageServices() {
+			const projects = await Promise.all(inferredProjects.values());
+			return projects.map(project => project.languageService);
 		},
 		reload() {
-			languageService?.dispose();
-			languageService = undefined;
+			for (const project of inferredProjects.values()) {
+				project.then(p => p.dispose());
+			}
+			inferredProjects.clear();
 		},
 	};
+
+	async function getOrCreateInferredProject(server: LanguageServer, workspaceFolder: URI) {
+		if (!inferredProjects.has(workspaceFolder)) {
+			inferredProjects.set(workspaceFolder, (async () => {
+				const inferOptions = { allowNonTsExtensions: true, allowJs: true, lib: ['lib.es2020.full.d.ts'], target: 99 satisfies ts.ScriptTarget.Latest, moduleResolution: 1 satisfies ts.ModuleResolutionKind.Classic, experimentalDecorators: false };
+				const serviceEnv = createLanguageServiceEnvironment(server, [workspaceFolder]);
+				const project = await createTypeScriptLS(
+					ts,
+					tsLocalized,
+					inferOptions,
+					server,
+					serviceEnv,
+					workspaceFolder,
+					() => languagePlugins,
+					{ asUri, asFileName }
+				);
+				project.tryAddFile(JQUERY_PATH);
+				return project;
+			})());
+		}
+		return inferredProjects.get(workspaceFolder)!;
+	}
 }

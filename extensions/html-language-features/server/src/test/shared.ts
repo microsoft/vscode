@@ -6,20 +6,45 @@
 import { ClientCapabilities, LanguageServiceEnvironment, TextDocument } from '@volar/language-server';
 import { createUriConverter, fs } from '@volar/language-server/node';
 import { createLanguage, createLanguageService, createUriMap, LanguageService } from '@volar/language-service';
-import { createLanguageServiceHost, resolveFileLanguageId } from '@volar/typescript';
+import { createLanguageServiceHost, resolveFileLanguageId, TypeScriptProjectHost } from '@volar/typescript';
 import * as ts from 'typescript';
 import { URI } from 'vscode-uri';
 import { htmlLanguagePlugin } from '../modes/languagePlugin';
-import { createProjectHost } from '../modes/projectHost';
 import { getLanguageServicePlugins } from '../modes/servicePlugins';
+import { JQUERY_PATH } from '../modes/javascriptLibs';
 
 let currentDocument: [URI, string, TextDocument, ts.IScriptSnapshot];
 let languageService: LanguageService;
 
 const { asFileName, asUri } = createUriConverter();
-const serviceEnv: LanguageServiceEnvironment = {
-	workspaceFolders: [],
-	fs,
+const serviceEnv: LanguageServiceEnvironment = { workspaceFolders: [], fs };
+const libSnapshots = new Map<string, ts.IScriptSnapshot | undefined>();
+const compilerOptions: ts.CompilerOptions = { allowNonTsExtensions: true, allowJs: true, lib: ['lib.es2020.full.d.ts'], target: 99 satisfies ts.ScriptTarget.Latest, moduleResolution: 1 satisfies ts.ModuleResolutionKind.Classic, experimentalDecorators: false };
+const projectHost: TypeScriptProjectHost = {
+	getCompilationSettings: () => compilerOptions,
+	getScriptFileNames: () => [currentDocument[1], JQUERY_PATH],
+	getCurrentDirectory: () => '',
+	getProjectVersion: () => currentDocument[1] + ',' + currentDocument[2].version,
+	getScriptSnapshot: fileName => {
+		if (fileName === currentDocument[1]) {
+			return currentDocument[3];
+		}
+		else {
+			let snapshot = libSnapshots.get(fileName);
+			if (!snapshot) {
+				const text = ts.sys.readFile(fileName);
+				if (text !== undefined) {
+					snapshot = {
+						getText: (start, end) => text.substring(start, end),
+						getLength: () => text.length,
+						getChangeRange: () => undefined,
+					};
+				}
+				libSnapshots.set(fileName, snapshot);
+			}
+			return snapshot;
+		}
+	},
 };
 
 export const languageServicePlugins = getLanguageServicePlugins({
@@ -50,7 +75,6 @@ export async function getTestService({
 	serviceEnv.workspaceFolders = [URI.parse(workspaceFolder)];
 	serviceEnv.clientCapabilities = clientCapabilities;
 	if (!languageService) {
-		const projectHost = createProjectHost(() => currentDocument);
 		const language = createLanguage(
 			[
 				htmlLanguagePlugin,
@@ -83,7 +107,7 @@ export async function getTestService({
 			sys: ts.sys,
 			asFileName: asFileName,
 			asScriptId: asUri,
-			...createLanguageServiceHost(ts, ts.sys, language, asUri, createProjectHost(() => currentDocument!)),
+			...createLanguageServiceHost(ts, ts.sys, language, asUri, projectHost),
 		};
 		languageService = createLanguageService(language, languageServicePlugins, serviceEnv);
 	}
