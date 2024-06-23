@@ -473,8 +473,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			this.renderDetail(element, templateData);
 		}
 
-		// this.renderContentReferencesIfNeeded(element, templateData, templateData.elementDisposables);
-
 		const parts: IChatContentPart[] = [];
 		value.forEach((data, index) => {
 			const context: IChatContentPartRenderContext = {
