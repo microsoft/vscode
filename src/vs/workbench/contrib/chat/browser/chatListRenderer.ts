@@ -577,7 +577,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			element.renderData = undefined;
 			this.basicRenderElement(element, index, templateData);
 			isFullyRendered = true;
-			// Maybe return here, shouldn't need to fire onDidChangeItemHeight here
+			// TODO Maybe return here, shouldn't need to fire onDidChangeItemHeight here
 		} else {
 			this.traceLayout('doNextProgressiveRender', `START progressive render, index=${index}, renderData=${JSON.stringify(element.renderData)}`);
 			const contentForThisTurn = this.getNextProgressiveRenderContent(element);
@@ -657,11 +657,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private getNextProgressiveRenderContent(element: IChatResponseViewModel): IChatRendererContent[] {
 		const data = this.getDataForProgressiveRender(element);
 
-		// Recomputes the same data over and over even when nothing changed- can be optimized but have to know to initialize a new template
-		// if (!data) {
-		// 	return;
-		// }
-
 		const renderableResponse = annotateSpecialMarkdownContent(element.response.value);
 
 		this.traceLayout('getNextProgressiveRenderContent', `Want to render ${data.numWordsToRender}, counting...`);
@@ -710,10 +705,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			renderData.renderedWordCount +
 			// Additional words to render beyond what's already rendered
 			Math.floor((Date.now() - renderData.lastRenderTime) / 1000 * rate);
-
-		// if (numWordsToRender === renderData.renderedWordCount) {
-		// 	return undefined;
-		// }
 
 		return {
 			numWordsToRender,
