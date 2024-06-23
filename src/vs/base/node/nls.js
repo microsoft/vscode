@@ -101,7 +101,7 @@
 		 * @param {ILanguagePacks} languagePacks
 		 * @param {string | undefined} locale
 		 */
-		function resolveLanguagePackLocale(languagePacks, locale) {
+		function resolveLanguagePackLanguage(languagePacks, locale) {
 			try {
 				while (locale) {
 					if (languagePacks[locale]) {
@@ -134,7 +134,7 @@
 			return {
 				userLocale,
 				osLocale,
-				resolvedLocale: 'en',
+				resolvedLanguage: 'en',
 				defaultMessagesFile: path.join(nlsMetadataPath, 'nls.messages.json')
 			};
 		}
@@ -162,12 +162,12 @@
 					return defaultNLSConfiguration(userLocale, osLocale, nlsMetadataPath);
 				}
 
-				const resolvedLocale = resolveLanguagePackLocale(languagePacks, userLocale);
-				if (!resolvedLocale) {
+				const resolvedLanguage = resolveLanguagePackLanguage(languagePacks, userLocale);
+				if (!resolvedLanguage) {
 					return defaultNLSConfiguration(userLocale, osLocale, nlsMetadataPath);
 				}
 
-				const languagePack = languagePacks[resolvedLocale];
+				const languagePack = languagePacks[resolvedLanguage];
 				const mainLanguagePackPath = languagePack?.translations?.['vscode'];
 				if (
 					!languagePack ||
@@ -179,7 +179,7 @@
 					return defaultNLSConfiguration(userLocale, osLocale, nlsMetadataPath);
 				}
 
-				const languagePackId = `${languagePack.hash}.${resolvedLocale}`;
+				const languagePackId = `${languagePack.hash}.${resolvedLanguage}`;
 				const globalLanguagePackCachePath = path.join(userDataPath, 'clp', languagePackId);
 				const commitLanguagePackCachePath = path.join(globalLanguagePackCachePath, commit);
 				const languagePackMessagesFile = path.join(commitLanguagePackCachePath, 'nls.messages.json');
@@ -194,7 +194,7 @@
 				const result = {
 					userLocale,
 					osLocale,
-					resolvedLocale,
+					resolvedLanguage,
 					defaultMessagesFile: path.join(nlsMetadataPath, 'nls.messages.json'),
 					languagePack: {
 						translationsConfigFile,

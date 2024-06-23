@@ -86,7 +86,7 @@ if (typeof nodeProcess === 'object') {
 			const nlsConfig: nls.INLSConfiguration = JSON.parse(rawNlsConfig);
 			_locale = nlsConfig.userLocale;
 			_platformLocale = nlsConfig.osLocale;
-			_language = nlsConfig.resolvedLocale || LANGUAGE_DEFAULT;
+			_language = nlsConfig.resolvedLanguage || LANGUAGE_DEFAULT;
 			_translationsConfigFile = nlsConfig.languagePack?.translationsConfigFile;
 		} catch (e) {
 		}
@@ -104,9 +104,9 @@ else if (typeof navigator === 'object' && !isElectronRenderer) {
 	_isMobile = _userAgent?.indexOf('Mobi') >= 0;
 	_isWeb = true;
 	// VSCODE_GLOBALS: NLS
-	_locale = globalThis._VSCODE_NLS_LOCALE || LANGUAGE_DEFAULT;
-	_language = _locale;
-	_platformLocale = navigator.language;
+	_language = globalThis._VSCODE_NLS_LANGUAGE || LANGUAGE_DEFAULT;
+	_locale = navigator.language;
+	_platformLocale = _locale;
 }
 
 // Unknown environment

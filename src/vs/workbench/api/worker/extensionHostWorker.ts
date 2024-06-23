@@ -139,7 +139,7 @@ if ((<any>self).Worker) {
 		options.name = `${name} -> ${options.name || path.basename(stringUrl.toString())}`;
 		const blob = new Blob([[
 			`globalThis._VSCODE_NLS = ${JSON.stringify(globalThis._VSCODE_NLS)};`,
-			`globalThis._VSCODE_NLS_LOCALE = ${JSON.stringify(globalThis._VSCODE_NLS_LOCALE)};`,
+			`globalThis._VSCODE_NLS_LANGUAGE = ${JSON.stringify(globalThis._VSCODE_NLS_LANGUAGE)};`,
 			`(${bootstrapFnSource}('${stringUrl}'))`
 		].join('')], { type: 'application/javascript' });
 		const blobUrl = URL.createObjectURL(blob);

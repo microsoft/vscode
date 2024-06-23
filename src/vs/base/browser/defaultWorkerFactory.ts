@@ -72,7 +72,7 @@ export function getWorkerBootstrapUrl(scriptPath: string, label: string): string
 		`/*${label}*/`,
 		`globalThis.MonacoEnvironment = { baseUrl: '${workerBaseUrl}' };`,
 		`globalThis._VSCODE_NLS = ${JSON.stringify(globalThis._VSCODE_NLS)};`,
-		`globalThis._VSCODE_NLS_LOCALE = ${JSON.stringify(globalThis._VSCODE_NLS_LOCALE)};`,
+		`globalThis._VSCODE_NLS_LANGUAGE = ${JSON.stringify(globalThis._VSCODE_NLS_LANGUAGE)};`,
 		`const ttPolicy = globalThis.trustedTypes?.createPolicy('defaultWorkerFactory', { createScriptURL: value => value });`,
 		`importScripts(ttPolicy?.createScriptURL('${scriptPath}') ?? '${scriptPath}');`,
 		`/*${label}*/`

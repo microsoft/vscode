@@ -13,11 +13,9 @@ declare global {
 	 */
 	var _VSCODE_NLS: string[];
 	/**
-	 * Depending on the runtime context:
-	 * - browser: the `locale` value of the https://www.vscode-unpkg.net/nls/ call
-	 * - native: the `userLocale` as configured in `argv.json` or `app.getLocale()`
+	 * The actual language of the NLS messages (e.g. 'en', de' or 'pt-br').
 	 */
-	var _VSCODE_NLS_LOCALE: string | undefined;
+	var _VSCODE_NLS_LANGUAGE: string | undefined;
 }
 
 // fake export to make global work

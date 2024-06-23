@@ -16,7 +16,7 @@ const nlsConfigurationCache = new Map<string, Promise<INLSConfiguration>>();
 
 export async function getNLSConfiguration(language: string, userDataPath: string): Promise<INLSConfiguration> {
 	if (!product.commit || !(await Promises.exists(defaultMessagesFile))) {
-		return { userLocale: 'en', osLocale: 'en', resolvedLocale: 'en', defaultMessagesFile };
+		return { userLocale: 'en', osLocale: 'en', resolvedLanguage: 'en', defaultMessagesFile };
 	}
 
 	const cacheKey = `${language}||${userDataPath}`;

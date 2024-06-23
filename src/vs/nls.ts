@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 // VSCODE_GLOBALS: NLS
-const isPseudo = globalThis._VSCODE_NLS_LOCALE === 'pseudo' || (typeof document !== 'undefined' && document.location && document.location.hash.indexOf('pseudo=true') >= 0);
+const isPseudo = globalThis._VSCODE_NLS_LANGUAGE === 'pseudo' || (typeof document !== 'undefined' && document.location && document.location.hash.indexOf('pseudo=true') >= 0);
 
 export interface ILocalizeInfo {
 	key: string;
@@ -180,10 +180,10 @@ export interface INLSConfiguration {
 	readonly osLocale: string;
 
 	/**
-	 * The actual locale that ends up being used considering `userLocale`
+	 * The actual language of the UI that ends up being used considering `userLocale`
 	 * and `osLocale`.
 	 */
-	readonly resolvedLocale: string;
+	readonly resolvedLanguage: string;
 
 	/**
 	 * Defined if a language pack is used that is not the

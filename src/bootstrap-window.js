@@ -86,14 +86,14 @@
 		// @ts-ignore
 		const nlsConfig = await globalThis.MonacoBootstrap.setupNLS();
 
-		let locale = nlsConfig?.resolvedLocale || 'en';
-		if (locale === 'zh-tw') {
-			locale = 'zh-Hant';
-		} else if (locale === 'zh-cn') {
-			locale = 'zh-Hans';
+		let language = nlsConfig?.resolvedLanguage || 'en';
+		if (language === 'zh-tw') {
+			language = 'zh-Hant';
+		} else if (language === 'zh-cn') {
+			language = 'zh-Hans';
 		}
 
-		window.document.documentElement.setAttribute('lang', locale);
+		window.document.documentElement.setAttribute('lang', language);
 
 		window['MonacoEnvironment'] = {};
 
