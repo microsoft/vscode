@@ -50,27 +50,34 @@ export function getWorkerBootstrapUrl(scriptPath: string, label: string): string
 	if (/^((http:)|(https:)|(file:))/.test(scriptPath) && scriptPath.substring(0, globalThis.origin.length) !== globalThis.origin) {
 		// this is the cross-origin case
 		// i.e. the webpage is running at a different origin than where the scripts are loaded from
-		const myPath = 'vs/base/worker/defaultWorkerFactory.js';
-		const workerBaseUrl = require.toUrl(myPath).slice(0, -myPath.length); // explicitly using require.toUrl(), see https://github.com/microsoft/vscode/issues/107440#issuecomment-698982321
-		const js = `/*${label}*/globalThis.MonacoEnvironment={baseUrl: '${workerBaseUrl}'};const ttPolicy = globalThis.trustedTypes?.createPolicy('defaultWorkerFactory', { createScriptURL: value => value });importScripts(ttPolicy?.createScriptURL('${scriptPath}') ?? '${scriptPath}');/*${label}*/`;
-		const blob = new Blob([js], { type: 'application/javascript' });
-		return URL.createObjectURL(blob);
-	}
-
-	const start = scriptPath.lastIndexOf('?');
-	const end = scriptPath.lastIndexOf('#', start);
-	const params = start > 0
-		? new URLSearchParams(scriptPath.substring(start + 1, ~end ? end : undefined))
-		: new URLSearchParams();
-
-	COI.addSearchParam(params, true, true);
-	const search = params.toString();
-
-	if (!search) {
-		return `${scriptPath}#${label}`;
 	} else {
-		return `${scriptPath}?${params.toString()}#${label}`;
+		const start = scriptPath.lastIndexOf('?');
+		const end = scriptPath.lastIndexOf('#', start);
+		const params = start > 0
+			? new URLSearchParams(scriptPath.substring(start + 1, ~end ? end : undefined))
+			: new URLSearchParams();
+
+		COI.addSearchParam(params, true, true);
+		const search = params.toString();
+		if (!search) {
+			scriptPath = `${scriptPath}#${label}`;
+		} else {
+			scriptPath = `${scriptPath}?${params.toString()}#${label}`;
+		}
 	}
+
+	const factoryModuleId = 'vs/base/worker/defaultWorkerFactory.js';
+	const workerBaseUrl = require.toUrl(factoryModuleId).slice(0, -factoryModuleId.length); // explicitly using require.toUrl(), see https://github.com/microsoft/vscode/issues/107440#issuecomment-698982321
+	const blob = new Blob([[
+		`/*${label}*/`,
+		`globalThis.MonacoEnvironment = { baseUrl: '${workerBaseUrl}' };`,
+		`globalThis._VSCODE_NLS = ${JSON.stringify(globalThis._VSCODE_NLS)};`,
+		`globalThis._VSCODE_NLS_LOCALE = ${JSON.stringify(globalThis._VSCODE_NLS_LOCALE)};`,
+		`const ttPolicy = globalThis.trustedTypes?.createPolicy('defaultWorkerFactory', { createScriptURL: value => value });`,
+		`importScripts(ttPolicy?.createScriptURL('${scriptPath}') ?? '${scriptPath}');`,
+		`/*${label}*/`
+	].join('')], { type: 'application/javascript' });
+	return URL.createObjectURL(blob);
 }
 // ESM-comment-end
 
@@ -136,8 +143,6 @@ class WebWorker extends Disposable implements IWorker {
 			}
 		});
 	}
-
-
 }
 
 export class DefaultWorkerFactory implements IWorkerFactory {

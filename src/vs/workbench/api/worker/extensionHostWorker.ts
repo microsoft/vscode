@@ -135,10 +135,13 @@ if ((<any>self).Worker) {
 			nativeImportScripts(workerUrl);
 		}).toString();
 
-		const js = `(${bootstrapFnSource}('${stringUrl}'))`;
 		options = options || {};
 		options.name = `${name} -> ${options.name || path.basename(stringUrl.toString())}`;
-		const blob = new Blob([js], { type: 'application/javascript' });
+		const blob = new Blob([[
+			`globalThis._VSCODE_NLS = ${JSON.stringify(globalThis._VSCODE_NLS)};`,
+			`globalThis._VSCODE_NLS_LOCALE = ${JSON.stringify(globalThis._VSCODE_NLS_LOCALE)};`,
+			`(${bootstrapFnSource}('${stringUrl}'))`
+		].join('')], { type: 'application/javascript' });
 		const blobUrl = URL.createObjectURL(blob);
 		return new _Worker(blobUrl, options);
 	};
