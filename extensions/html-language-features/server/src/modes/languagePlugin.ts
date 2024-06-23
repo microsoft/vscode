@@ -124,7 +124,7 @@ function createHtmlVirtualCode(snapshot: ts.IScriptSnapshot): VirtualCode & { do
 					lengths: [globalScript.length],
 					data: { verification: true, completion: true, semantic: true, navigation: true },
 				});
-				text += globalScript.content;
+				text += globalScript.content + '\n;\n';
 				indexMap['global_script'] ??= 0;
 				yield {
 					languageId: globalScript.languageId!,
@@ -149,6 +149,7 @@ function createHtmlVirtualCode(snapshot: ts.IScriptSnapshot): VirtualCode & { do
 				};
 				indexMap['global_script']++;
 			}
+			text = text.slice(0, -3); // remove last '\n;\n'
 			yield {
 				languageId: 'javascript',
 				id: 'global_script',
