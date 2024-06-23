@@ -130,8 +130,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private _isVisible = true;
 	private _onDidChangeVisibility = this._register(new Emitter<boolean>());
 
-	private _usedReferencesEnabled = false;
-
 	constructor(
 		editorOptions: ChatEditorOptions,
 		private readonly location: ChatAgentLocation,
@@ -157,13 +155,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this._contentReferencesListPool = this._register(this.instantiationService.createInstance(ContentReferencesListPool, this._onDidChangeVisibility.event));
 
 		this._register(this.instantiationService.createInstance(ChatCodeBlockContentProvider));
-
-		this._usedReferencesEnabled = configService.getValue('chat.experimental.usedReferences') ?? true;
-		this._register(configService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('chat.experimental.usedReferences')) {
-				this._usedReferencesEnabled = configService.getValue('chat.experimental.usedReferences') ?? true;
-			}
-		}));
 	}
 
 	get templateId(): string {
@@ -804,7 +795,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private renderContentReferencesIfNeeded(element: ChatTreeItem, templateData: IChatListItemTemplate, disposables: DisposableStore): void {
-		if (isResponseVM(element) && this._usedReferencesEnabled && element.contentReferences.length) {
+		if (isResponseVM(element) && element.contentReferences.length) {
 			dom.show(templateData.referencesListContainer);
 			const contentReferencesListResult = this.renderContentReferencesListData(element.contentReferences, undefined, element, templateData);
 			if (templateData.referencesListContainer.firstChild) {
