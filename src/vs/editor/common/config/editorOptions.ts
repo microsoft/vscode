@@ -4435,7 +4435,7 @@ function primitiveSet<T extends string | boolean>(value: unknown, defaultValue: 
  */
 export interface ISuggestOptions {
 	/**
-	 * Overwrite word ends on accept. Default to false.
+	 * Overwrite word ends on accept. Default to 'insert'.
 	 */
 	insertMode?: 'insert' | 'replace';
 	/**
@@ -4443,7 +4443,7 @@ export interface ISuggestOptions {
 	 */
 	filterGraceful?: boolean;
 	/**
-	 * Prevent quick suggestions when a snippet is active. Defaults to true.
+	 * Prevent quick suggestions when a snippet is active. Defaults to false.
 	 */
 	snippetsPreventQuickSuggestions?: boolean;
 	/**
