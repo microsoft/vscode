@@ -34,10 +34,10 @@ export function getDocumentRegions(languageService: LanguageService, text: strin
 			case TokenType.StartTag:
 				lastTagName = scanner.getTokenText();
 				lastAttributeName = null;
-				languageIdFromType = 'javascript';
+				languageIdFromType = lastTagName === 'style' ? 'css' : 'javascript';
 				break;
 			case TokenType.Styles:
-				regions.push(createEmbeddedRegion('css', scanner.getTokenOffset(), scanner.getTokenEnd()));
+				regions.push(createEmbeddedRegion(languageIdFromType, scanner.getTokenOffset(), scanner.getTokenEnd()));
 				break;
 			case TokenType.Script:
 				regions.push(createEmbeddedRegion(languageIdFromType, scanner.getTokenOffset(), scanner.getTokenEnd()));
@@ -60,6 +60,10 @@ export function getDocumentRegions(languageService: LanguageService, text: strin
 						languageIdFromType = 'json';
 					} else {
 						languageIdFromType = undefined;
+					}
+				} else if (lastAttributeName === 'type' && lastTagName.toLowerCase() === 'style') {
+					if (/["']text\/scss["']/.test(scanner.getTokenText())) {
+						languageIdFromType = 'scss';
 					}
 				} else {
 					const attributeLanguageId = getAttributeLanguage(lastAttributeName!);
