@@ -8,9 +8,14 @@ import { ansiColorIdentifiers } from './colorMap';
 import { LinkOptions, linkify } from './linkify';
 
 
-export function handleANSIOutput(text: string, linkOptions: LinkOptions): HTMLSpanElement {
+export function handleANSIOutput(text: string, linkOptions: LinkOptions, outputId: string): HTMLSpanElement {
 
 	const root: HTMLSpanElement = document.createElement('span');
+	root.setAttribute('data-vscode-context', JSON.stringify({
+		webviewSection: 'text',
+		outputId: outputId,
+		'preventDefaultContextMenuItems': true
+	}));
 	const textLength: number = text.length;
 
 	let styleNames: string[] = [];

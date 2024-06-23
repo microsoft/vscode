@@ -74,19 +74,19 @@ function truncatedArrayOfString(id: string, buffer: string[], linesLimit: number
 	const lineCount = buffer.length;
 
 	if (lineCount <= linesLimit) {
-		const spanElement = handleANSIOutput(buffer.join('\n'), linkOptions);
+		const spanElement = handleANSIOutput(buffer.join('\n'), linkOptions, id);
 		container.appendChild(spanElement);
 		return container;
 	}
 
-	container.appendChild(handleANSIOutput(buffer.slice(0, linesLimit - 5).join('\n'), linkOptions));
+	container.appendChild(handleANSIOutput(buffer.slice(0, linesLimit - 5).join('\n'), linkOptions, id));
 
 	// truncated piece
 	const elipses = document.createElement('div');
 	elipses.innerText = '...';
 	container.appendChild(elipses);
 
-	container.appendChild(handleANSIOutput(buffer.slice(lineCount - 5).join('\n'), linkOptions));
+	container.appendChild(handleANSIOutput(buffer.slice(lineCount - 5).join('\n'), linkOptions, id));
 
 	container.appendChild(generateViewMoreElement(id));
 
@@ -99,7 +99,7 @@ function scrollableArrayOfString(id: string, buffer: string[], linkOptions: Link
 		element.appendChild(generateNestedViewAllElement(id));
 	}
 
-	element.appendChild(handleANSIOutput(buffer.slice(-1 * softScrollableLineLimit).join('\n'), linkOptions));
+	element.appendChild(handleANSIOutput(buffer.slice(-1 * softScrollableLineLimit).join('\n'), linkOptions, id));
 
 	return element;
 }
@@ -118,7 +118,7 @@ function appendScrollableOutput(element: HTMLElement, id: string, appended: stri
 		return false;
 	}
 	else {
-		element.appendChild(handleANSIOutput(buffer.join('\n'), linkOptions));
+		element.appendChild(handleANSIOutput(buffer.join('\n'), linkOptions, id));
 		outputLengths[id] = appendedLength;
 	}
 	return true;
