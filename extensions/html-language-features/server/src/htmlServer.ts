@@ -8,7 +8,7 @@ import { Emitter } from 'vscode-jsonrpc';
 import { fetchHTMLDataProviders } from './customData';
 import { htmlLanguagePlugin } from './modes/languagePlugin';
 import { createHtmlProject } from './modes/project';
-import { getLanguageServicePlugins } from './modes/servicePlugins';
+import { getLanguageServicePlugins } from './modes/languageServicePlugins';
 
 namespace CustomDataChangedNotification {
 	export const type: NotificationType<string[]> = new NotificationType('html/customDataChanged');

@@ -12,7 +12,7 @@ import { URI } from 'vscode-uri';
 import { JQUERY_PATH } from '../modes/javascriptLibs';
 import { htmlLanguagePlugin } from '../modes/languagePlugin';
 import { compilerOptions } from '../modes/project';
-import { getLanguageServicePlugins } from '../modes/servicePlugins';
+import { getLanguageServicePlugins } from '../modes/languageServicePlugins';
 
 let currentDocument: [URI, string, TextDocument, ts.IScriptSnapshot];
 let languageService: LanguageService;
