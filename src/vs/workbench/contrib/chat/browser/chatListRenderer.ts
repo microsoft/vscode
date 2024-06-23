@@ -478,8 +478,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			value = annotateSpecialMarkdownContent(element.response.value);
 		}
 
-		// const fillInIncompleteTokens = isResponseVM(element) && (!element.isComplete || element.isCanceled || element.errorDetails?.responseIsFiltered || element.errorDetails?.responseIsIncomplete);
-
 		dom.clearNode(templateData.value);
 		dom.clearNode(templateData.referencesListContainer);
 
@@ -767,7 +765,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		} else if (contentPart.kind === 'warning') {
 			return this.instantiationService.createInstance(ChatWarningContentPart, 'warning', contentPart.content, this.renderer);
 		} else if (contentPart.kind === 'markdownContent') {
-			return this.renderMarkdown(contentPart.content, templateData, context, true); // TODO incomplete items
+			return this.renderMarkdown(contentPart.content, templateData, context);
 		}
 
 		return undefined;
@@ -857,9 +855,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return textEditPart;
 	}
 
-	private renderMarkdown(markdown: IMarkdownString, templateData: IChatListItemTemplate, context: IChatContentPartRenderContext, fillInIncompleteTokens = false): IChatContentPart {
+	private renderMarkdown(markdown: IMarkdownString, templateData: IChatListItemTemplate, context: IChatContentPartRenderContext): IChatContentPart {
 		const element = context.element;
-		// TODO@roblourens too many parameters
+		const fillInIncompleteTokens = isResponseVM(element) && (!element.isComplete || element.isCanceled || element.errorDetails?.responseIsFiltered || element.errorDetails?.responseIsIncomplete);
 		const codeBlockStartIndex = context.preceedingContentParts.reduce((acc, part) => acc + (part instanceof ChatMarkdownContentPart ? part.codeblocks.length : 0), 0);
 		const markdownPart = this.instantiationService.createInstance(ChatMarkdownContentPart, markdown, context, this._editorPool, fillInIncompleteTokens, codeBlockStartIndex, this.renderer, this._currentLayoutWidth, this.codeBlockModelCollection, this.rendererOptions);
 		markdownPart.addDisposable(markdownPart.onDidChangeHeight(() => {
@@ -891,7 +889,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	disposeElement(node: ITreeNode<ChatTreeItem, FuzzyScore>, index: number, templateData: IChatListItemTemplate): void {
 		this.traceLayout('disposeElement', `Disposing element, index=${index}`);
 
-		// Should we actually try to reuse a template across a renderElement call?
+		// We could actually reuse a template across a renderElement call?
 		if (templateData.renderedParts) {
 			try {
 				dispose(coalesce(templateData.renderedParts));
