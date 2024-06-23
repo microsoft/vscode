@@ -51,27 +51,31 @@ export function getDocumentRegions(languageService: LanguageService, text: strin
 				lastAttributeName = scanner.getTokenText();
 				break;
 			case TokenType.AttributeValue:
+				let type = scanner.getTokenText();
+				if (type.startsWith('\'') && type.endsWith('\'') || type.startsWith('"') && type.endsWith('"')) {
+					type = type.slice(1, -1);
+				}
 				if (lastAttributeName === 'src' && lastTagName.toLowerCase() === 'script') {
 					let value = scanner.getTokenText();
 					if (value[0] === '\'' || value[0] === '"') {
 						value = value.substr(1, value.length - 1);
 					}
 				} else if (lastAttributeName === 'type' && lastTagName.toLowerCase() === 'script') {
-					if (/["'](module|(text|application)\/(java|ecma)script|text\/babel)["']/.test(scanner.getTokenText())) {
+					if (/(module|(text|application)\/(java|ecma)script|text\/babel)/.test(type)) {
 						languageIdFromType = 'javascript';
 						isModuleScript = true;
-					} else if (/["']text\/typescript["']/.test(scanner.getTokenText())) {
+					} else if (/text\/typescript/.test(type)) {
 						languageIdFromType = 'typescript';
 						isModuleScript = true;
-					} else if (/["']application\/json["']/.test(scanner.getTokenText())) {
+					} else if (/application\/json/.test(type)) {
 						languageIdFromType = 'json';
 					} else {
 						languageIdFromType = undefined;
 					}
 				} else if (lastAttributeName === 'type' && lastTagName.toLowerCase() === 'style') {
-					if (/["']text\/scss["']/.test(scanner.getTokenText())) {
+					if (/text\/scss/.test(type)) {
 						languageIdFromType = 'scss';
-					} else if (/["']text\/less["']/.test(scanner.getTokenText())) {
+					} else if (/text\/less/.test(type)) {
 						languageIdFromType = 'less';
 					}
 				} else {
