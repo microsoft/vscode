@@ -500,7 +500,7 @@ export function registerChatCodeBlockActions() {
 		const currentResponse = curCodeBlockInfo ?
 			curCodeBlockInfo.element :
 			(focusedResponse ?? widget.viewModel?.getItems().reverse().find((item): item is IChatResponseViewModel => isResponseVM(item)));
-		if (!currentResponse) {
+		if (!currentResponse || !isResponseVM(currentResponse)) {
 			return;
 		}
 

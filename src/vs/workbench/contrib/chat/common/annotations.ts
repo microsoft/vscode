@@ -11,7 +11,7 @@ import { IChatAgentVulnerabilityDetails, IChatMarkdownContent } from 'vs/workben
 
 export const contentRefUrl = 'http://_vscodecontentref_'; // must be lowercase for URI
 
-export function annotateSpecialMarkdownContent(response: ReadonlyArray<IChatProgressResponseContent>): ReadonlyArray<IChatProgressRenderableResponseContent> {
+export function annotateSpecialMarkdownContent(response: ReadonlyArray<IChatProgressResponseContent>): IChatProgressRenderableResponseContent[] {
 	const result: IChatProgressRenderableResponseContent[] = [];
 	for (const item of response) {
 		const previousItem = result[result.length - 1];

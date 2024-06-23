@@ -10,7 +10,7 @@ import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTre
 import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
 import { IAsyncDataSource, ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { FileKind, FileType } from 'vs/platform/files/common/files';
@@ -21,14 +21,16 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { ChatTreeItem } from 'vs/workbench/contrib/chat/browser/chat';
 import { IDisposableReference, ResourcePool } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatCollections';
+import { IChatContentPart } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatContentParts';
+import { IChatProgressRenderableResponseContent } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatResponseProgressFileTreeData } from 'vs/workbench/contrib/chat/common/chatService';
 import { createFileIconThemableTreeContainerScope } from 'vs/workbench/contrib/files/browser/views/explorerView';
 import { IFilesConfiguration } from 'vs/workbench/contrib/files/common/files';
 
 const $ = dom.$;
 
-export class ChatTreeContentPart extends Disposable {
-	public readonly element: HTMLElement;
+export class ChatTreeContentPart extends Disposable implements IChatContentPart {
+	public readonly domNode: HTMLElement;
 
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
@@ -70,11 +72,20 @@ export class ChatTreeContentPart extends Disposable {
 			}
 		});
 
-		this.element = this.tree.getHTMLElement().parentElement!;
+		this.domNode = this.tree.getHTMLElement().parentElement!;
 	}
 
 	domFocus() {
 		this.tree.domFocus();
+	}
+
+	hasSameContent(other: IChatProgressRenderableResponseContent): boolean {
+		// No other change allowed for this content type
+		return other.kind === 'treeData';
+	}
+
+	addDisposable(disposable: IDisposable): void {
+		this._register(disposable);
 	}
 }
 
