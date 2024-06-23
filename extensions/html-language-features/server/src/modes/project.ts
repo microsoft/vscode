@@ -11,6 +11,15 @@ import * as ts from 'typescript';
 import { URI } from 'vscode-uri';
 import { JQUERY_PATH } from './javascriptLibs';
 
+export const compilerOptions: ts.CompilerOptions = {
+	allowNonTsExtensions: true,
+	allowJs: true,
+	lib: ['lib.es2020.full.d.ts'],
+	target: 99 satisfies ts.ScriptTarget.Latest,
+	moduleResolution: 1 satisfies ts.ModuleResolutionKind.Classic,
+	experimentalDecorators: false,
+};
+
 export function createHtmlProject(languagePlugins: LanguagePlugin<URI>[]): LanguageServerProject {
 	let server: LanguageServer;
 	let tsLocalized: any;
@@ -48,12 +57,11 @@ export function createHtmlProject(languagePlugins: LanguagePlugin<URI>[]): Langu
 	async function getOrCreateInferredProject(server: LanguageServer, workspaceFolder: URI) {
 		if (!inferredProjects.has(workspaceFolder)) {
 			inferredProjects.set(workspaceFolder, (async () => {
-				const inferOptions = { allowNonTsExtensions: true, allowJs: true, lib: ['lib.es2020.full.d.ts'], target: 99 satisfies ts.ScriptTarget.Latest, moduleResolution: 1 satisfies ts.ModuleResolutionKind.Classic, experimentalDecorators: false };
 				const serviceEnv = createLanguageServiceEnvironment(server, [workspaceFolder]);
 				const project = await createTypeScriptLS(
 					ts,
 					tsLocalized,
-					inferOptions,
+					compilerOptions,
 					server,
 					serviceEnv,
 					workspaceFolder,

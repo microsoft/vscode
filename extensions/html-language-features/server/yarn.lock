@@ -74,6 +74,11 @@
   resolved "https://registry.yarnpkg.com/@vscode/l10n/-/l10n-0.0.18.tgz#916d3a5e960dbab47c1c56f58a7cb5087b135c95"
   integrity sha512-KYSIHVmslkaCDyw013pphY+d7x1qV8IZupYfeIfzNA+nsaWHbn5uPuQRvdRFsa9zFzGeudPuoGoZ1Op4jrJXIQ==
 
+jsonc-parser@^3.2.1:
+  version "3.2.1"
+  resolved "https://registry.yarnpkg.com/jsonc-parser/-/jsonc-parser-3.2.1.tgz#031904571ccf929d7670ee8c547545081cb37f1a"
+  integrity sha512-AilxAyFOAcK5wA1+LeaySVBrHsGQvUFCDWXKpZjzaL0PqW+xfBOttn8GNtWKFWqneyMZj41MWF9Kl6iPWLwgOA==
+
 path-browserify@^1.0.1:
   version "1.0.1"
   resolved "https://registry.yarnpkg.com/path-browserify/-/path-browserify-1.0.1.tgz#d98454a9c3753d5790860f16f68867b9e46be1fd"
@@ -119,6 +124,14 @@ volar-service-html@0.0.52:
     vscode-languageserver-textdocument "^1.0.11"
     vscode-uri "^3.0.8"
 
+volar-service-json@0.0.52:
+  version "0.0.52"
+  resolved "https://registry.yarnpkg.com/volar-service-json/-/volar-service-json-0.0.52.tgz#59d0c354e72a4f734527e0c07ce430961567932a"
+  integrity sha512-EAFr/F/ds0gmC8N3FyP7vk7prW5FLcubMj4OojQ/Q8cnw7uP9TYErQL29nPbi8trDxIbgTeOIKI296JOAK7RpA==
+  dependencies:
+    vscode-json-languageservice "^5.3.7"
+    vscode-uri "^3.0.8"
+
 volar-service-typescript@0.0.52:
   version "0.0.52"
   resolved "https://registry.yarnpkg.com/volar-service-typescript/-/volar-service-typescript-0.0.52.tgz#fe08632d666fe307a0be993d11da6dd04fca1742"
@@ -147,6 +160,17 @@ vscode-html-languageservice@^5.2.0:
   integrity sha512-cdNMhyw57/SQzgUUGSIMQ66jikqEN6nBNyhx5YuOyj9310+eY9zw8Q0cXpiKzDX8aHYFewQEXRnigl06j/TVwQ==
   dependencies:
     "@vscode/l10n" "^0.0.18"
+    vscode-languageserver-textdocument "^1.0.11"
+    vscode-languageserver-types "^3.17.5"
+    vscode-uri "^3.0.8"
+
+vscode-json-languageservice@^5.3.7:
+  version "5.3.11"
+  resolved "https://registry.yarnpkg.com/vscode-json-languageservice/-/vscode-json-languageservice-5.3.11.tgz#71dbc56e9b1d07a57aa6a3d5569c8b7f2c05ca05"
+  integrity sha512-WYS72Ymria3dn8ZbjtBbt5K71m05wY1Q6hpXV5JxUT0q75Ts0ljLmnZJAVpx8DjPgYbFD+Z8KHpWh2laKLUCtQ==
+  dependencies:
+    "@vscode/l10n" "^0.0.18"
+    jsonc-parser "^3.2.1"
     vscode-languageserver-textdocument "^1.0.11"
     vscode-languageserver-types "^3.17.5"
     vscode-uri "^3.0.8"

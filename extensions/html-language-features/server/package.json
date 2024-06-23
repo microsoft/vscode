@@ -15,6 +15,7 @@
     "@vscode/l10n": "^0.0.18",
     "volar-service-css": "0.0.52",
     "volar-service-html": "0.0.52",
+    "volar-service-json": "0.0.52",
     "volar-service-typescript": "0.0.52",
     "vscode-html-languageservice": "^5.2.0",
     "vscode-jsonrpc": "^8.2.1",

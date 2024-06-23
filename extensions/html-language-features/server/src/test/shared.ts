@@ -9,9 +9,10 @@ import { createLanguage, createLanguageService, createUriMap, LanguageService } 
 import { createLanguageServiceHost, resolveFileLanguageId, TypeScriptProjectHost } from '@volar/typescript';
 import * as ts from 'typescript';
 import { URI } from 'vscode-uri';
-import { htmlLanguagePlugin } from '../modes/languagePlugin';
-import { getLanguageServicePlugins } from '../modes/servicePlugins';
 import { JQUERY_PATH } from '../modes/javascriptLibs';
+import { htmlLanguagePlugin } from '../modes/languagePlugin';
+import { compilerOptions } from '../modes/project';
+import { getLanguageServicePlugins } from '../modes/servicePlugins';
 
 let currentDocument: [URI, string, TextDocument, ts.IScriptSnapshot];
 let languageService: LanguageService;
@@ -19,7 +20,6 @@ let languageService: LanguageService;
 const { asFileName, asUri } = createUriConverter();
 const serviceEnv: LanguageServiceEnvironment = { workspaceFolders: [], fs };
 const libSnapshots = new Map<string, ts.IScriptSnapshot | undefined>();
-const compilerOptions: ts.CompilerOptions = { allowNonTsExtensions: true, allowJs: true, lib: ['lib.es2020.full.d.ts'], target: 99 satisfies ts.ScriptTarget.Latest, moduleResolution: 1 satisfies ts.ModuleResolutionKind.Classic, experimentalDecorators: false };
 const projectHost: TypeScriptProjectHost = {
 	getCompilationSettings: () => compilerOptions,
 	getScriptFileNames: () => [currentDocument[1], JQUERY_PATH],

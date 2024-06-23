@@ -7,6 +7,7 @@ import type { LanguageServiceContext, LanguageServicePlugin, ProviderResult } fr
 import * as ts from 'typescript';
 import { create as createCssPlugin } from 'volar-service-css';
 import { create as createHtmlPlugin } from 'volar-service-html';
+import { create as createJsonPlugin } from 'volar-service-json';
 import { create as createTypeScriptPlugins } from 'volar-service-typescript';
 import { IHTMLDataProvider, TextDocument, TextEdit } from 'vscode-html-languageservice';
 import type { Emitter } from 'vscode-jsonrpc';
@@ -67,7 +68,7 @@ export function getLanguageServicePlugins(options: {
 				async getLanguageSettings(document, context) {
 					return {
 						...await context.env.getConfiguration?.(document.languageId),
-						validate: await context.env.getConfiguration?.('html.validate.scripts') ?? true,
+						validate: await context.env.getConfiguration?.('html.validate.styles') ?? true,
 					};
 				},
 			}),
@@ -81,6 +82,19 @@ export function getLanguageServicePlugins(options: {
 				},
 				async isValidationEnabled(_document, context) {
 					return await context.env.getConfiguration?.('html.validate.scripts') ?? true;
+				},
+			}),
+		);
+		plugins.push(
+			createJsonPlugin({
+				async isFormattingEnabled(_document, context) {
+					return await context.env.getConfiguration?.('html.format.enable') ?? true;
+				},
+				async getLanguageSettings(context) {
+					return {
+						...await context.env.getConfiguration?.('json'),
+						validate: await context.env.getConfiguration?.('html.validate.scripts') ?? true,
+					};
 				},
 			}),
 		);

@@ -7,7 +7,6 @@ import { LanguageService, TokenType } from 'vscode-html-languageservice';
 
 export interface HTMLDocumentRegions {
 	getEmbeddedRegions(): EmbeddedRegion[];
-	getImportedScripts(): string[];
 }
 
 export const CSS_STYLE_RULE = '__';
@@ -28,7 +27,6 @@ export function getDocumentRegions(languageService: LanguageService, text: strin
 	let lastTagName: string = '';
 	let lastAttributeName: string | null = null;
 	let languageIdFromType: string | undefined = undefined;
-	const importedScripts: string[] = [];
 
 	let token = scanner.scan();
 	while (token !== TokenType.EOS) {
@@ -53,12 +51,13 @@ export function getDocumentRegions(languageService: LanguageService, text: strin
 					if (value[0] === '\'' || value[0] === '"') {
 						value = value.substr(1, value.length - 1);
 					}
-					importedScripts.push(value);
 				} else if (lastAttributeName === 'type' && lastTagName.toLowerCase() === 'script') {
 					if (/["'](module|(text|application)\/(java|ecma)script|text\/babel)["']/.test(scanner.getTokenText())) {
 						languageIdFromType = 'javascript';
 					} else if (/["']text\/typescript["']/.test(scanner.getTokenText())) {
 						languageIdFromType = 'typescript';
+					} else if (/["']application\/json["']/.test(scanner.getTokenText())) {
+						languageIdFromType = 'json';
 					} else {
 						languageIdFromType = undefined;
 					}
@@ -82,7 +81,6 @@ export function getDocumentRegions(languageService: LanguageService, text: strin
 	}
 	return {
 		getEmbeddedRegions: () => regions,
-		getImportedScripts: () => importedScripts
 	};
 
 	function createEmbeddedRegion(languageId: string | undefined, start: number, end: number, attributeValue?: boolean) {
