@@ -40,6 +40,7 @@
 	display: flex;
 	align-items: center;
 	gap: 8px;
+	width: 100%;
 }
 
 .interactive-item-container .header .username {
@@ -48,12 +49,13 @@
 	font-weight: 600;
 }
 
-.interactive-item-container .header .detail-container {
+.interactive-item-container .detail-container {
 	font-size: 12px;
 	color: var(--vscode-descriptionForeground);
+	overflow: hidden;
 }
 
-.interactive-item-container .header .detail-container .detail .agentOrSlashCommandDetected A {
+.interactive-item-container .detail-container .detail .agentOrSlashCommandDetected A {
 	cursor: pointer;
 	color: var(--vscode-textLink-foreground);
 }
@@ -170,8 +172,8 @@
 	width: 100%;
 }
 
-.interactive-item-container .chat-progress-task {
-	padding-bottom: 8px;
+.interactive-item-container > .value .chat-used-context {
+	margin-bottom: 8px;
 }
 
 .interactive-item-container .value .rendered-markdown table {
@@ -339,6 +341,28 @@
 
 .interactive-item-container.interactive-item-compact .value .rendered-markdown h3 {
 	margin: 8px 0;
+}
+
+.interactive-item-container.minimal {
+	flex-direction: row;
+}
+
+.interactive-item-container.minimal .column.left {
+	width: 20px;
+	padding-top: 2px;
+}
+
+.interactive-item-container.minimal .user > .username {
+	display: none;
+}
+
+.interactive-item-container.minimal .detail-container {
+	font-size: unset;
+}
+
+.interactive-item-container.minimal > .header {
+	position: absolute;
+	right: 0;
 }
 
 .interactive-session .interactive-input-and-execute-toolbar {

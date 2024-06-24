@@ -12,7 +12,7 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { equals } from 'vs/base/common/objects';
 import { Range } from 'vs/base/common/range';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import type { IUpdatableHoverTooltipMarkdownString } from 'vs/base/browser/ui/hover/hover';
+import type { IManagedHoverTooltipMarkdownString } from 'vs/base/browser/ui/hover/hover';
 import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
 import { isString } from 'vs/base/common/types';
 import { stripIcons } from 'vs/base/common/iconLabels';
@@ -26,8 +26,8 @@ export interface IIconLabelCreationOptions {
 }
 
 export interface IIconLabelValueOptions {
-	title?: string | IUpdatableHoverTooltipMarkdownString;
-	descriptionTitle?: string | IUpdatableHoverTooltipMarkdownString;
+	title?: string | IManagedHoverTooltipMarkdownString;
+	descriptionTitle?: string | IManagedHoverTooltipMarkdownString;
 	suffix?: string;
 	hideIcon?: boolean;
 	extraClasses?: readonly string[];
@@ -194,7 +194,7 @@ export class IconLabel extends Disposable {
 		}
 	}
 
-	private setupHover(htmlElement: HTMLElement, tooltip: string | IUpdatableHoverTooltipMarkdownString | undefined): void {
+	private setupHover(htmlElement: HTMLElement, tooltip: string | IManagedHoverTooltipMarkdownString | undefined): void {
 		const previousCustomHover = this.customHovers.get(htmlElement);
 		if (previousCustomHover) {
 			previousCustomHover.dispose();
@@ -207,7 +207,7 @@ export class IconLabel extends Disposable {
 		}
 
 		if (this.hoverDelegate.showNativeHover) {
-			function setupNativeHover(htmlElement: HTMLElement, tooltip: string | IUpdatableHoverTooltipMarkdownString | undefined): void {
+			function setupNativeHover(htmlElement: HTMLElement, tooltip: string | IManagedHoverTooltipMarkdownString | undefined): void {
 				if (isString(tooltip)) {
 					// Icons don't render in the native hover so we strip them out
 					htmlElement.title = stripIcons(tooltip);
@@ -219,7 +219,7 @@ export class IconLabel extends Disposable {
 			}
 			setupNativeHover(htmlElement, tooltip);
 		} else {
-			const hoverDisposable = getBaseLayerHoverDelegate().setupUpdatableHover(this.hoverDelegate, htmlElement, tooltip);
+			const hoverDisposable = getBaseLayerHoverDelegate().setupManagedHover(this.hoverDelegate, htmlElement, tooltip);
 			if (hoverDisposable) {
 				this.customHovers.set(htmlElement, hoverDisposable);
 			}

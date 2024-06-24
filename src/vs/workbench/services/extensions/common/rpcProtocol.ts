@@ -158,7 +158,7 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 		this._unacknowledgedCount = 0;
 		this._unresponsiveTime = 0;
 		this._asyncCheckUresponsive = this._register(new RunOnceScheduler(() => this._checkUnresponsive(), 1000));
-		this._protocol.onMessage((msg) => this._receiveOneMessage(msg));
+		this._register(this._protocol.onMessage((msg) => this._receiveOneMessage(msg)));
 	}
 
 	public override dispose(): void {

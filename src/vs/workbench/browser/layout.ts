@@ -608,7 +608,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.stateModel.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN, false);
 		}
 
-		this.stateModel.onDidChangeState(change => {
+		this._register(this.stateModel.onDidChangeState(change => {
 			if (change.key === LayoutStateKeys.ACTIVITYBAR_HIDDEN) {
 				this.setActivityBarHidden(change.value as boolean);
 			}
@@ -630,7 +630,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 
 			this.doUpdateLayoutConfiguration();
-		});
+		}));
 
 		// Layout Initialization State
 		const initialEditorsState = this.getInitialEditorsState();
@@ -676,7 +676,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			// Only restore last viewlet if window was reloaded or we are in development mode
 			let viewContainerToRestore: string | undefined;
-			if (!this.environmentService.isBuilt || lifecycleService.startupKind === StartupKind.ReloadedWindow) {
+			if (
+				!this.environmentService.isBuilt ||
+				lifecycleService.startupKind === StartupKind.ReloadedWindow ||
+				this.environmentService.isExtensionDevelopment && !this.environmentService.extensionTestsLocationURI
+			) {
 				viewContainerToRestore = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE, this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)?.id);
 			} else {
 				viewContainerToRestore = this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)?.id;

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { fillInIncompleteTokens, renderMarkdown, renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { marked } from 'vs/base/common/marked/marked';

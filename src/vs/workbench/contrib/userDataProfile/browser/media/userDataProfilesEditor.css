@@ -15,15 +15,26 @@
 	height: 100%;
 }
 
-.profiles-editor .contents-container,
-.profiles-editor .sidebar-container {
+.profiles-editor .monaco-split-view2 > .sash-container,
+.profiles-editor .monaco-split-view2.separator-border.horizontal > .monaco-scrollable-element > .split-view-container > .split-view-view:not(:first-child)::before {
+	top: 55px;
+}
+
+.profiles-editor .contents-container {
 	padding: 0px 20px;
 	height: 100%;
 }
 
+.profiles-editor .sidebar-container {
+	padding-left: 20px;
+	height: 100%;
+}
+
 .profiles-editor .sidebar-container .new-profile-button {
+	padding: 0px 20px 0px 18px;
 	display: flex;
 	align-items: center;
+	height: 40px;
 }
 
 .profiles-editor .sidebar-container .new-profile-button > .monaco-button-dropdown {
@@ -36,25 +47,47 @@
 	padding: 0 4px;
 }
 
-.profiles-editor .sidebar-container .profiles-tree {
-	margin-top: 10px;
+.profiles-editor .monaco-list-row .profile-tree-item-actions-container {
+	display: none;
 }
 
-.profiles-editor .sidebar-container .profiles-tree .profile-tree-item {
+.profiles-editor .monaco-list-row.focused .profile-tree-item-actions-container,
+.profiles-editor .monaco-list-row.selected .profile-tree-item-actions-container,
+.profiles-editor .monaco-list-row:hover .profile-tree-item-actions-container {
 	display: flex;
 	align-items: center;
 }
 
-.profiles-editor .sidebar-container .profiles-tree .profile-tree-item > * {
+.profiles-editor .sidebar-container .profiles-list {
+	margin-top: 15px;
+}
+
+.profiles-editor .sidebar-container .profiles-list .profile-list-item {
+	padding-left: 20px;
+	display: flex;
+	align-items: center;
+}
+
+.profiles-editor .sidebar-container .profiles-list .profile-list-item > * {
 	margin-right: 5px;
 }
 
-.profiles-editor .sidebar-container .profiles-tree .profile-tree-item > .profile-tree-item-description {
+.profiles-editor .sidebar-container .profiles-list .profile-list-item > .profile-list-item-label.new-profile {
+	font-style: italic;
+}
+
+.profiles-editor .sidebar-container .profiles-list .profile-list-item > .profile-list-item-description {
 	margin-left: 2px;
 	display: flex;
 	align-items: center;
 	font-size: 0.9em;
 	opacity: 0.7;
+}
+
+.profiles-editor .sidebar-container .profiles-list .profile-list-item .profile-tree-item-actions-container {
+	flex: 1;
+	justify-content: flex-end;
+	margin-right: 10px;
 }
 
 .profiles-editor .hide {
@@ -63,31 +96,54 @@
 
 .profiles-editor .contents-container .profile-header {
 	display: flex;
-	height: 34px;
+	height: 40px;
 	align-items: center;
 }
 
-.profiles-editor .contents-container .profile-header .profile-title {
-	font-size: x-large;
-	font-weight: bold;
+.profiles-editor .contents-container .profile-header .profile-title-container {
 	flex: 1;
+	display: flex;
+	align-items: center;
+	font-size: medium;
+}
+
+.profiles-editor .contents-container .profile-title-container .codicon {
+	cursor: pointer;
+	font-size: large;
+	padding: 4px;
+	margin-right: 8px;
+	border-radius: 5px;
+}
+
+.profiles-editor .contents-container .profile-title-container .codicon.disabled {
+	cursor: default;
+}
+
+.profiles-editor .contents-container .profile-title-container .codicon:not(.disabled):hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	outline: 1px dashed var(--vscode-toolbar-hoverOutline);
+}
+
+.profiles-editor .contents-container .profile-title-container .monaco-inputbox {
+	margin-right: 10px;
+	flex: 1;
+}
+
+.profiles-editor .contents-container .profile-header .profile-button-container {
+	display: flex;
+	align-items: center;
+}
+
+.profiles-editor .contents-container .profile-header .profile-button-container .monaco-button {
+	margin-left: 4px;
 }
 
 .profiles-editor .contents-container .profile-header .profile-actions-container {
 	display: flex;
-	height: 28px;
-}
-
-.profiles-editor .contents-container .profile-header .profile-actions-container .actions-container {
-	gap: 4px;
-}
-
-.profiles-editor .contents-container .profile-header .profile-actions-container .actions-container .codicon {
-	font-size: 18px;
 }
 
 .profiles-editor .contents-container .profile-header .profile-actions-container .profile-button-container {
-	margin-right: 5px;
+	margin-right: 6px;
 	min-width: 120px;
 }
 
@@ -96,26 +152,12 @@
 	padding-right: 10px;
 }
 
+.profiles-editor .contents-container .profile-header .profile-actions-container .actions-container .action-label {
+	padding: 6px;
+}
+
 .profiles-editor .contents-container .profile-body {
 	margin-top: 20px;
-}
-
-.profiles-editor .contents-container .profile-name-container {
-	margin: 0px 0px 20px 15px;
-	display: flex;
-	width: 330px;
-	align-items: center;
-}
-
-.profiles-editor .contents-container .profile-name-container .codicon {
-	cursor: pointer;
-	font-size: 20px;
-	padding: 2px;
-}
-
-.profiles-editor .contents-container .profile-name-container .monaco-inputbox {
-	flex: 1;
-	margin-left: 10px;
 }
 
 .profiles-editor .contents-container .profile-select-container {
@@ -127,19 +169,19 @@
 
 .profiles-editor .contents-container .profile-select-container > .monaco-select-box {
 	cursor: pointer;
-	line-height: 17px;
-	padding: 2px 23px 2px 8px;
+	line-height: 18px;
+	padding: 0px 23px 0px 8px;
 	border-radius: 2px;
 }
 
 .profiles-editor .contents-container .profile-copy-from-container {
 	display: flex;
 	align-items: center;
-	margin: 0px 0px 20px 20px;
+	margin: 0px 0px 15px 36px;
 }
 
 .profiles-editor .contents-container .profile-copy-from-container > .profile-copy-from-label {
-	margin-right: 10px;
+	margin-right: 25px;
 	display: inline-flex;
 	align-items: center;
 }
@@ -148,26 +190,83 @@
 	width: 250px;
 }
 
+.profiles-editor .contents-container .profile-use-as-default-container {
+	display: flex;
+	align-items: center;
+	margin: 0px 20px 15px 6px;
+	cursor: pointer;
+}
+
+.profiles-editor .contents-container .profile-use-as-default-container .profile-use-as-default-label {
+	margin-left: 2px;
+}
+
 .profiles-editor .contents-container .profile-contents-container {
 	margin: 0px 0px 10px 20px;
-	font-size: medium;
+}
+
+.profiles-editor .contents-container .profile-content-tree-header,
+.profiles-editor .contents-container .profile-content-tree {
+	margin-left: 6px;
+}
+
+.profiles-editor .contents-container .profile-content-tree-header {
+	display: grid;
+	grid-template-columns: 30px repeat(1, 1fr) 150px 100px;
+	height: 24px;
+	align-items: center;
+	margin-bottom: 2px;
+	background-color: var(--vscode-keybindingTable-headerBackground);
+	font-weight: bold;
 }
 
 .profiles-editor .contents-container .profile-tree-item-container {
-	display: flex;
+	display: grid;
 	align-items: center;
 }
 
-.profiles-editor .contents-container .profile-tree-item-container.new-profile-resource-type-container > .profile-resource-type-label-container {
-	width: 150px;
+.profiles-editor .contents-container .profile-tree-item-container.existing-profile-resource-type-container {
+	grid-template-columns: repeat(1, 1fr) 150px 100px;
 }
 
-.profiles-editor .contents-container .profile-tree-item-container.new-profile-resource-type-container > .profile-select-container {
+.profiles-editor .contents-container .profile-content-tree-header > .inherit-label,
+.profiles-editor .contents-container .profile-tree-item-container > .inherit-container {
+	justify-content: center;
+	align-items: center;
+}
+
+.profiles-editor .contents-container .profile-tree-item-container > .inherit-container {
+	padding-left: 50px;
+}
+
+.profiles-editor .contents-container .profile-content-tree-header > .actions-label {
+	display: flex;
+	justify-content: center;
+	align-items: center;
+}
+
+.profiles-editor .contents-container .profile-content-tree-header.new-profile {
+	grid-template-columns: 30px repeat(2, 1fr) 100px;
+}
+
+.profiles-editor .contents-container .profile-tree-item-container.new-profile-resource-type-container {
+	grid-template-columns: repeat(2, 1fr) 100px;
+}
+
+.profiles-editor .contents-container .profile-tree-item-container.new-profile-resource-type-container .profile-select-container {
 	width: 170px;
+}
+
+.profiles-editor .contents-container .profile-tree-item-container.profile-resource-child-container {
+	grid-template-columns: repeat(1, 1fr) 100px;
 }
 
 .profiles-editor .contents-container .profile-tree-item-container .profile-resource-type-description {
 	margin-left: 10px;
 	font-size: 0.9em;
 	opacity: 0.7;
+}
+
+.profiles-editor .contents-container .profile-tree-item-container .profile-tree-item-actions-container {
+	justify-content: center;
 }

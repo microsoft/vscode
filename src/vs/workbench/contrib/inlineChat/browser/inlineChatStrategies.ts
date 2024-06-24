@@ -531,7 +531,6 @@ export class LiveStrategy extends EditModeStrategy {
 
 			if (widgetData) {
 				this._zone.updatePositionAndHeight(widgetData.position);
-				this._editor.revealPositionInCenterIfOutsideViewport(widgetData.position);
 
 				const remainingHunks = this._session.hunkData.pending;
 				this._updateSummaryMessage(remainingHunks, this._session.hunkData.size);
@@ -578,7 +577,7 @@ export class LiveStrategy extends EditModeStrategy {
 			message = localize('change.0', "Nothing changed.");
 		} else if (remaining === 1) {
 			message = needsReview
-				? localize('review.1', "$(info) Accept or discard 1 change")
+				? localize('review.1', "$(info) Accept or Discard change")
 				: localize('change.1', "1 change");
 		} else {
 			message = needsReview

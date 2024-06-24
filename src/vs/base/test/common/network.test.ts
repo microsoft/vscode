@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { isWeb } from 'vs/base/common/platform';
 import { isEqual } from 'vs/base/common/resources';

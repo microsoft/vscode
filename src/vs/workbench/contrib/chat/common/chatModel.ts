@@ -232,7 +232,7 @@ export class Response implements IResponse {
 
 				// Replace the resolving part's content with the resolved response
 				if (typeof content === 'string') {
-					this._responseParts[responsePosition] = { ...progress, content: new MarkdownString(content) };
+					(this._responseParts[responsePosition] as IChatTask).content = new MarkdownString(content);
 				}
 				this._updateRepr(false);
 			});
@@ -725,7 +725,8 @@ export class ChatModel extends Disposable implements IChatModel {
 			{ variables: [] };
 
 		variableData.variables = variableData.variables.map<IChatRequestVariableEntry>((v): IChatRequestVariableEntry => {
-			if ('values' in v && Array.isArray(v.values)) {
+			// Old variables format
+			if (v && 'values' in v && Array.isArray(v.values)) {
 				return {
 					id: v.id ?? '',
 					name: v.name,

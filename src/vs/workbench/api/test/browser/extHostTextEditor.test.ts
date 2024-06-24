@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
+import assert from 'assert';
 import { Lazy } from 'vs/base/common/lazy';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';

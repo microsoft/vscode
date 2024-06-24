@@ -175,7 +175,7 @@ const optimizeVSCodeWebTask = task.define('optimize-vscode-web', task.series(
 const minifyVSCodeWebTask = task.define('minify-vscode-web', task.series(
 	optimizeVSCodeWebTask,
 	util.rimraf('out-vscode-web-min'),
-	optimize.minifyTask('out-vscode-web', `https://ticino.blob.core.windows.net/sourcemaps/${commit}/core`)
+	optimize.minifyTask('out-vscode-web', `https://main.vscode-cdn.net/sourcemaps/${commit}/core`)
 ));
 gulp.task(minifyVSCodeWebTask);
 

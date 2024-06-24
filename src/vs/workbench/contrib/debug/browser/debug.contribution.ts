@@ -440,6 +440,11 @@ configurationRegistry.registerConfiguration({
 	title: nls.localize('debugConfigurationTitle', "Debug"),
 	type: 'object',
 	properties: {
+		'debug.showVariableTypes': {
+			type: 'boolean',
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'showVariableTypes' }, "Show variable type in variable pane during debug session"),
+			default: false
+		},
 		'debug.allowBreakpointsEverywhere': {
 			type: 'boolean',
 			description: nls.localize({ comment: ['This is the description for a setting'], key: 'allowBreakpointsEverywhere' }, "Allow setting breakpoints in any file."),

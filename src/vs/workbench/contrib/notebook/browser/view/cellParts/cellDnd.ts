@@ -335,7 +335,7 @@ export class CellDragAndDropController extends Disposable {
 			const dragImage = dragImageProvider();
 			cellRoot.parentElement!.appendChild(dragImage);
 			event.dataTransfer.setDragImage(dragImage, 0, 0);
-			setTimeout(() => cellRoot.parentElement!.removeChild(dragImage), 0); // Comment this out to debug drag image layout
+			setTimeout(() => dragImage.remove(), 0); // Comment this out to debug drag image layout
 		};
 		for (const dragHandle of dragHandles) {
 			templateData.templateDisposables.add(DOM.addDisposableListener(dragHandle, DOM.EventType.DRAG_START, onDragStart));
