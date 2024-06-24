@@ -31,7 +31,7 @@
 }
 
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-list {
-	padding: 2px 0 0 0;
+	padding: 4px 0 0 0;
 }
 
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-list .interactive-item-container.interactive-item-compact {
@@ -156,8 +156,8 @@
 	.action-item.text-only .action-label {
 		font-size: 12px;
 		line-height: 16px;
-		padding: 1px 2px;
-		border-radius: 3px;
+		padding: 0 4px;
+		border-radius: 2px;
 	}
 
 	.monaco-action-bar .action-item.menu-entry.text-only + .action-item:not(.text-only) > .monaco-dropdown .action-label {
