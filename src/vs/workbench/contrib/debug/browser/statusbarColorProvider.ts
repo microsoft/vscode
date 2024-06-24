@@ -86,7 +86,7 @@ export class StatusBarColorProvider implements IWorkbenchContribution {
 			if (e.affectsConfiguration('debug.enableStatusBarColor') || e.affectsConfiguration('debug.toolBarLocation')) {
 				this.update();
 			}
-		});
+		}, undefined, this.disposables);
 		this.update();
 	}
 

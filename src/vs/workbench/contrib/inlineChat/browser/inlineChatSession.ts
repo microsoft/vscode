@@ -5,17 +5,15 @@
 
 import { URI } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
-import { ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
-import { IWorkspaceTextEdit, TextEdit, WorkspaceEdit } from 'vs/editor/common/languages';
+import { TextEdit } from 'vs/editor/common/languages';
 import { IIdentifiedSingleEditOperation, IModelDecorationOptions, IModelDeltaDecoration, ITextModel, IValidEditOperation, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { EditMode, IInlineChatSessionProvider, IInlineChatSession, IInlineChatBulkEditResponse, IInlineChatEditResponse, InlineChatResponseType, InlineChatResponseTypes, CTX_INLINE_CHAT_HAS_STASHED_SESSION } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { EditMode, CTX_INLINE_CHAT_HAS_STASHED_SESSION } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { isCancellationError } from 'vs/base/common/errors';
 import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { DetailedLineRangeMapping, LineRangeMapping, RangeMapping } from 'vs/editor/common/diff/rangeMapping';
-import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ILanguageService } from 'vs/editor/common/languages/language';
@@ -25,7 +23,6 @@ import { isEqual } from 'vs/base/common/resources';
 import { IInlineChatSessionService, Recording } from './inlineChatSessionService';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { asRange } from 'vs/workbench/contrib/inlineChat/browser/utils';
 import { coalesceInPlace } from 'vs/base/common/arrays';
 import { Iterable } from 'vs/base/common/iterator';
 import { IModelContentChangedEvent } from 'vs/editor/common/textModelEvents';
@@ -33,6 +30,10 @@ import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ILogService } from 'vs/platform/log/common/log';
+import { ChatModel, IChatRequestModel, IChatResponseModel, IChatTextEditGroupState } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IChatAgent } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IDocumentDiff } from 'vs/editor/common/diff/documentDiffProvider';
 
 
 export type TelemetryData = {
@@ -55,23 +56,18 @@ export type TelemetryDataClassification = {
 	comment: 'Data about an interaction editor session';
 	extension: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension providing the data' };
 	rounds: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of request that were made' };
-	undos: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Requests that have been undone' };
-	edits: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Did edits happen while the session was active' };
-	unstashed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How often did this session become stashed and resumed' };
-	finishedByEdit: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Did edits cause the session to terminate' };
+	undos: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Requests that have been undone' };
+	edits: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Did edits happen while the session was active' };
+	unstashed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How often did this session become stashed and resumed' };
+	finishedByEdit: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Did edits cause the session to terminate' };
 	startTime: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When the session started' };
 	endTime: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'When the session ended' };
 	editMode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What edit mode was choosen: live, livePreview, preview' };
-	acceptedHunks: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of accepted hunks' };
-	discardedHunks: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of discarded hunks' };
+	acceptedHunks: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of accepted hunks' };
+	discardedHunks: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of discarded hunks' };
 	responseTypes: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Comma separated list of response types like edits, message, mixed' };
 };
 
-export enum ExpansionState {
-	EXPANDED = 'expanded',
-	CROPPED = 'cropped',
-	NOT_CROPPED = 'not_cropped'
-}
 
 export class SessionWholeRange {
 
@@ -91,15 +87,6 @@ export class SessionWholeRange {
 		if (!this._textModel.isDisposed()) {
 			this._textModel.deltaDecorations(this._decorationIds, []);
 		}
-	}
-
-	trackEdits(edits: ISingleEditOperation[]): void {
-		const newDeco: IModelDeltaDecoration[] = [];
-		for (const edit of edits) {
-			newDeco.push({ range: edit.range, options: SessionWholeRange._options });
-		}
-		this._decorationIds.push(...this._textModel.deltaDecorations([], newDeco));
-		this._onDidChange.fire(this);
 	}
 
 	fixup(changes: readonly DetailedLineRangeMapping[]): void {
@@ -142,14 +129,12 @@ export class SessionWholeRange {
 export class Session {
 
 	private _lastInput: SessionPrompt | undefined;
-	private _lastExpansionState: ExpansionState | undefined;
 	private _isUnstashed: boolean = false;
-	private readonly _exchange: SessionExchange[] = [];
+	private readonly _exchanges: SessionExchange[] = [];
 	private readonly _startTime = new Date();
 	private readonly _teldata: TelemetryData;
 
 	readonly textModelNAltVersion: number;
-	private _textModelNSnapshotAltVersion: number | undefined;
 
 	constructor(
 		readonly editMode: EditMode,
@@ -162,17 +147,17 @@ export class Session {
 		 */
 		readonly textModel0: ITextModel,
 		/**
-		 * The document into which AI edits went, when live this is `targetUri` otherwise it is a temporary document
+		 * The model of the editor
 		 */
 		readonly textModelN: ITextModel,
-		readonly provider: IInlineChatSessionProvider,
-		readonly session: IInlineChatSession,
+		readonly agent: IChatAgent,
 		readonly wholeRange: SessionWholeRange,
 		readonly hunkData: HunkData,
+		readonly chatModel: ChatModel,
 	) {
 		this.textModelNAltVersion = textModelN.getAlternativeVersionId();
 		this._teldata = {
-			extension: provider.debugName,
+			extension: ExtensionIdentifier.toKey(agent.extensionId),
 			startTime: this._startTime.toISOString(),
 			endTime: this._startTime.toISOString(),
 			edits: 0,
@@ -204,35 +189,37 @@ export class Session {
 		this._isUnstashed = true;
 	}
 
-	get lastExpansionState(): ExpansionState | undefined {
-		return this._lastExpansionState;
-	}
-
-	set lastExpansionState(state: ExpansionState) {
-		this._lastExpansionState = state;
-	}
-
-	get textModelNSnapshotAltVersion(): number | undefined {
-		return this._textModelNSnapshotAltVersion;
-	}
-
-	createSnapshot(): void {
-		this._textModelNSnapshotAltVersion = this.textModelN.getAlternativeVersionId();
-	}
-
 	addExchange(exchange: SessionExchange): void {
 		this._isUnstashed = false;
-		const newLen = this._exchange.push(exchange);
+		const newLen = this._exchanges.push(exchange);
 		this._teldata.rounds += `${newLen}|`;
-		this._teldata.responseTypes += `${exchange.response instanceof ReplyResponse ? exchange.response.responseType : InlineChatResponseTypes.Empty}|`;
-	}
-
-	get exchanges(): Iterable<SessionExchange> {
-		return this._exchange;
+		// this._teldata.responseTypes += `${exchange.response instanceof ReplyResponse ? exchange.response.responseType : InlineChatResponseTypes.Empty}|`;
 	}
 
 	get lastExchange(): SessionExchange | undefined {
-		return this._exchange[this._exchange.length - 1];
+		return this._exchanges[this._exchanges.length - 1];
+	}
+
+	async undoChangesUntil(requestId: string): Promise<boolean> {
+		const idx = this._exchanges.findIndex(candidate => candidate.prompt.request.id === requestId);
+		if (idx < 0) {
+			return false;
+		}
+		// undo till this point
+		this.hunkData.ignoreTextModelNChanges = true;
+		try {
+			const targetAltVersion = this._exchanges[idx].prompt.modelAltVersionId;
+			while (targetAltVersion < this.textModelN.getAlternativeVersionId() && this.textModelN.canUndo()) {
+				await this.textModelN.undo();
+			}
+		} finally {
+			this.hunkData.ignoreTextModelNChanges = false;
+		}
+		// TODO@jrieken cannot do this yet because some parts still rely on
+		// exchanges being around...
+		// // remove this and following exchanges
+		// this._exchanges.length = idx;
+		return true;
 	}
 
 	get hasChangedText(): boolean {
@@ -278,14 +265,14 @@ export class Session {
 
 	asRecording(): Recording {
 		const result: Recording = {
-			session: this.session,
+			session: this.chatModel.sessionId,
 			when: this._startTime,
 			exchanges: []
 		};
-		for (const exchange of this._exchange) {
+		for (const exchange of this._exchanges) {
 			const response = exchange.response;
 			if (response instanceof ReplyResponse) {
-				result.exchanges.push({ prompt: exchange.prompt.value, res: response.raw });
+				result.exchanges.push({ prompt: exchange.prompt.value, res: response.chatResponse });
 			}
 		}
 		return result;
@@ -295,20 +282,13 @@ export class Session {
 
 export class SessionPrompt {
 
-	private _attempt: number = 0;
+	readonly value: string;
 
 	constructor(
-		readonly value: string,
-	) { }
-
-	get attempt() {
-		return this._attempt;
-	}
-
-	retry() {
-		const result = new SessionPrompt(this.value);
-		result._attempt = this._attempt + 1;
-		return result;
+		readonly request: IChatRequestModel,
+		readonly modelAltVersionId: number,
+	) {
+		this.value = request.message.text;
 	}
 }
 
@@ -339,56 +319,30 @@ export class ErrorResponse {
 
 export class ReplyResponse {
 
-	readonly allLocalEdits: TextEdit[][] = [];
 	readonly untitledTextModel: IUntitledTextEditorModel | undefined;
-	readonly workspaceEdit: WorkspaceEdit | undefined;
-
-	readonly responseType: InlineChatResponseTypes;
 
 	constructor(
-		readonly raw: IInlineChatBulkEditResponse | IInlineChatEditResponse,
-		readonly mdContent: IMarkdownString,
 		localUri: URI,
-		readonly modelAltVersionId: number,
-		progressEdits: TextEdit[][],
-		readonly requestId: string,
+		readonly chatRequest: IChatRequestModel,
+		readonly chatResponse: IChatResponseModel,
 		@ITextFileService private readonly _textFileService: ITextFileService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 	) {
 
 		const editsMap = new ResourceMap<TextEdit[][]>();
 
-		editsMap.set(localUri, [...progressEdits]);
-
-		if (raw.type === InlineChatResponseType.EditorEdit) {
-			//
-			editsMap.get(localUri)!.push(raw.edits);
-
-		} else if (raw.type === InlineChatResponseType.BulkEdit) {
-			//
-			const edits = ResourceEdit.convert(raw.edits);
-
-			for (const edit of edits) {
-				if (edit instanceof ResourceFileEdit) {
-					if (edit.newResource && !edit.oldResource) {
-						editsMap.set(edit.newResource, []);
-						if (edit.options.contents) {
-							console.warn('CONTENT not supported');
-						}
-					}
-				} else if (edit instanceof ResourceTextEdit) {
-					//
-					const array = editsMap.get(edit.resource);
+		for (const item of chatResponse.response.value) {
+			if (item.kind === 'textEditGroup') {
+				const array = editsMap.get(item.uri);
+				for (const group of item.edits) {
 					if (array) {
-						array.push([edit.textEdit]);
+						array.push(group);
 					} else {
-						editsMap.set(edit.resource, [[edit.textEdit]]);
+						editsMap.set(item.uri, [group]);
 					}
 				}
 			}
 		}
-
-		let needsWorkspaceEdit = false;
 
 		for (const [uri, edits] of editsMap) {
 
@@ -399,8 +353,6 @@ export class ReplyResponse {
 			}
 
 			const isLocalUri = isEqual(uri, localUri);
-			needsWorkspaceEdit = needsWorkspaceEdit || (uri.scheme !== Schemas.untitled && !isLocalUri);
-
 			if (uri.scheme === Schemas.untitled && !isLocalUri && !this.untitledTextModel) { //TODO@jrieken the first untitled model WINS
 				const langSelection = this._languageService.createByFilepathOrFirstLine(uri, undefined);
 				const untitledTextModel = this._textFileService.untitled.create({
@@ -408,37 +360,8 @@ export class ReplyResponse {
 					languageId: langSelection.languageId
 				});
 				this.untitledTextModel = untitledTextModel;
-
-				untitledTextModel.resolve().then(async () => {
-					const model = untitledTextModel.textEditorModel!;
-					model.applyEdits(flatEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
-				});
+				untitledTextModel.resolve();
 			}
-		}
-
-		this.allLocalEdits = editsMap.get(localUri) ?? [];
-
-		if (needsWorkspaceEdit) {
-			const workspaceEdits: IWorkspaceTextEdit[] = [];
-			for (const [uri, edits] of editsMap) {
-				for (const edit of edits.flat()) {
-					workspaceEdits.push({ resource: uri, textEdit: edit, versionId: undefined });
-				}
-			}
-			this.workspaceEdit = { edits: workspaceEdits };
-		}
-
-
-		const hasEdits = editsMap.size > 0;
-		const hasMessage = mdContent.value.length > 0;
-		if (hasEdits && hasMessage) {
-			this.responseType = InlineChatResponseTypes.Mixed;
-		} else if (hasEdits) {
-			this.responseType = InlineChatResponseTypes.OnlyEdits;
-		} else if (hasMessage) {
-			this.responseType = InlineChatResponseTypes.OnlyMessages;
-		} else {
-			this.responseType = InlineChatResponseTypes.Empty;
 		}
 	}
 }
@@ -495,6 +418,12 @@ export class StashedSession {
 
 // ---
 
+function lineRangeAsRange(lineRange: LineRange, model: ITextModel): Range {
+	return lineRange.isEmpty
+		? new Range(lineRange.startLineNumber, 1, lineRange.startLineNumber, model.getLineLength(lineRange.startLineNumber))
+		: new Range(lineRange.startLineNumber, 1, lineRange.endLineNumberExclusive - 1, model.getLineLength(lineRange.endLineNumberExclusive - 1));
+}
+
 export class HunkData {
 
 	private static readonly _HUNK_TRACKED_RANGE = ModelDecorationOptions.register({
@@ -505,7 +434,7 @@ export class HunkData {
 	private static readonly _HUNK_THRESHOLD = 8;
 
 	private readonly _store = new DisposableStore();
-	private readonly _data = new Map<RawHunk, { textModelNDecorations: string[]; textModel0Decorations: string[]; state: HunkState }>();
+	private readonly _data = new Map<RawHunk, RawHunkData>();
 	private _ignoreChanges: boolean = false;
 
 	constructor(
@@ -636,9 +565,9 @@ export class HunkData {
 		this._textModel0.pushEditOperations(null, edits, () => null);
 	}
 
-	async recompute() {
+	async recompute(editState: IChatTextEditGroupState, diff?: IDocumentDiff | null) {
 
-		const diff = await this._editorWorkerService.computeDiff(this._textModel0.uri, this._textModelN.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: Number.MAX_SAFE_INTEGER, computeMoves: false }, 'advanced');
+		diff ??= await this._editorWorkerService.computeDiff(this._textModel0.uri, this._textModelN.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: Number.MAX_SAFE_INTEGER, computeMoves: false }, 'advanced');
 
 		if (!diff || diff.changes.length === 0) {
 			// return new HunkData([], session);
@@ -681,8 +610,8 @@ export class HunkData {
 					const textModelNDecorations: string[] = [];
 					const textModel0Decorations: string[] = [];
 
-					textModelNDecorations.push(accessorN.addDecoration(asRange(hunk.modified, this._textModelN), HunkData._HUNK_TRACKED_RANGE));
-					textModel0Decorations.push(accessor0.addDecoration(asRange(hunk.original, this._textModel0), HunkData._HUNK_TRACKED_RANGE));
+					textModelNDecorations.push(accessorN.addDecoration(lineRangeAsRange(hunk.modified, this._textModelN), HunkData._HUNK_TRACKED_RANGE));
+					textModel0Decorations.push(accessor0.addDecoration(lineRangeAsRange(hunk.original, this._textModel0), HunkData._HUNK_TRACKED_RANGE));
 
 					for (const change of hunk.changes) {
 						textModelNDecorations.push(accessorN.addDecoration(change.modifiedRange, HunkData._HUNK_TRACKED_RANGE));
@@ -690,6 +619,7 @@ export class HunkData {
 					}
 
 					this._data.set(hunk, {
+						editState,
 						textModelNDecorations,
 						textModel0Decorations,
 						state: HunkState.Pending
@@ -723,7 +653,9 @@ export class HunkData {
 	discardAll() {
 		const edits: ISingleEditOperation[][] = [];
 		for (const item of this.getInfo()) {
-			edits.push(this._discardEdits(item));
+			if (item.getState() === HunkState.Pending) {
+				edits.push(this._discardEdits(item));
+			}
 		}
 		const undoEdits: IValidEditOperation[][] = [];
 		this._textModelN.pushEditOperations(null, edits.flat(), (_undoEdits) => {
@@ -778,6 +710,7 @@ export class HunkData {
 						}
 						this._textModel0.pushEditOperations(null, edits, () => null);
 						data.state = HunkState.Accepted;
+						data.editState.applied += 1;
 					}
 				}
 			};
@@ -795,6 +728,13 @@ class RawHunk {
 		readonly changes: RangeMapping[]
 	) { }
 }
+
+type RawHunkData = {
+	textModelNDecorations: string[];
+	textModel0Decorations: string[];
+	state: HunkState;
+	editState: IChatTextEditGroupState;
+};
 
 export const enum HunkState {
 	Pending = 0,

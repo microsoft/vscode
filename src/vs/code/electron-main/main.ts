@@ -71,6 +71,7 @@ import { LogService } from 'vs/platform/log/common/logService';
 import { massageMessageBoxOptions } from 'vs/platform/dialogs/common/dialogs';
 import { SaveStrategy, StateService } from 'vs/platform/state/node/stateService';
 import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataProvider';
+import { addUNCHostToAllowlist, getUNCHost } from 'vs/base/node/unc';
 
 /**
  * The main VS Code entry point.
@@ -249,8 +250,8 @@ class CodeMain {
 
 			// Environment service (paths)
 			Promise.all<string | undefined>([
-				environmentMainService.extensionsPath,
-				environmentMainService.codeCachePath,
+				this.allowWindowsUNCPath(environmentMainService.extensionsPath), // enable extension paths on UNC drives...
+				environmentMainService.codeCachePath,							 // ...other user-data-derived paths should already be enlisted from `main.js`
 				environmentMainService.logsHome.with({ scheme: Schemas.file }).fsPath,
 				userDataProfilesMainService.defaultProfile.globalStorageHome.with({ scheme: Schemas.file }).fsPath,
 				environmentMainService.workspaceStorageHome.with({ scheme: Schemas.file }).fsPath,
@@ -267,6 +268,17 @@ class CodeMain {
 
 		// Initialize user data profiles after initializing the state
 		userDataProfilesMainService.init();
+	}
+
+	private allowWindowsUNCPath(path: string): string {
+		if (isWindows) {
+			const host = getUNCHost(path);
+			if (host) {
+				addUNCHostToAllowlist(host);
+			}
+		}
+
+		return path;
 	}
 
 	private async claimInstance(logService: ILogService, environmentMainService: IEnvironmentMainService, lifecycleMainService: ILifecycleMainService, instantiationService: IInstantiationService, productService: IProductService, retry: boolean): Promise<NodeIPCServer> {

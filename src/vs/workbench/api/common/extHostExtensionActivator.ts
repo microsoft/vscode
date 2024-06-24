@@ -28,10 +28,10 @@ export interface IExtensionAPI {
 }
 
 export type ExtensionActivationTimesFragment = {
-	startup?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Activation occurred during startup' };
-	codeLoadingTime?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time it took to load the extension\'s code' };
-	activateCallTime?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time it took to call activate' };
-	activateResolvedTime?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time it took for async-activation to finish' };
+	startup?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Activation occurred during startup' };
+	codeLoadingTime?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Time it took to load the extension\'s code' };
+	activateCallTime?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Time it took to call activate' };
+	activateResolvedTime?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Time it took for async-activation to finish' };
 };
 
 export class ExtensionActivationTimes {
@@ -231,7 +231,7 @@ export class ExtensionsActivator implements IDisposable {
 	public activateById(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void> {
 		const desc = this._registry.getExtensionDescription(extensionId);
 		if (!desc) {
-			throw new Error(`Extension '${extensionId}' is not known`);
+			throw new Error(`Extension '${extensionId.value}' is not known`);
 		}
 		return this._activateExtensions([{ id: desc.identifier, reason }]);
 	}

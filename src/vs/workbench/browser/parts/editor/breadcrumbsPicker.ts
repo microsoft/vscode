@@ -507,7 +507,7 @@ export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
 	protected async _revealElement(element: any, options: IEditorOptions, sideBySide: boolean): Promise<boolean> {
 		this._onWillPickElement.fire();
 		const outline: IOutline<any> = this._tree.getInput();
-		await outline.reveal(element, options, sideBySide);
+		await outline.reveal(element, options, sideBySide, false);
 		return true;
 	}
 }

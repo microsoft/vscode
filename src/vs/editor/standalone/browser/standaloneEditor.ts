@@ -39,7 +39,7 @@ import { ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMarker, IMarkerData, IMarkerService } from 'vs/platform/markers/common/markers';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { MultiDiffEditorWidget } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorWidget';
+import { MultiDiffEditorWidget } from 'vs/editor/browser/widget/multiDiffEditor/multiDiffEditorWidget';
 
 /**
  * Create a new editor under `domElement`.
@@ -550,6 +550,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		EndOfLinePreference: standaloneEnums.EndOfLinePreference,
 		EndOfLineSequence: standaloneEnums.EndOfLineSequence,
 		MinimapPosition: standaloneEnums.MinimapPosition,
+		MinimapSectionHeaderStyle: standaloneEnums.MinimapSectionHeaderStyle,
 		MouseTargetType: standaloneEnums.MouseTargetType,
 		OverlayWidgetPositionPreference: standaloneEnums.OverlayWidgetPositionPreference,
 		OverviewRulerLane: standaloneEnums.OverviewRulerLane,

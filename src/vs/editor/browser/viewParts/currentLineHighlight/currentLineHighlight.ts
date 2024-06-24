@@ -18,7 +18,6 @@ import { Position } from 'vs/editor/common/core/position';
 
 export abstract class AbstractLineHighlightOverlay extends DynamicViewOverlay {
 	private readonly _context: ViewContext;
-	protected _lineHeight: number;
 	protected _renderLineHighlight: 'none' | 'gutter' | 'line' | 'all';
 	protected _wordWrap: boolean;
 	protected _contentLeft: number;
@@ -39,7 +38,6 @@ export abstract class AbstractLineHighlightOverlay extends DynamicViewOverlay {
 
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
-		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._renderLineHighlight = options.get(EditorOption.renderLineHighlight);
 		this._renderLineHighlightOnlyWhenFocus = options.get(EditorOption.renderLineHighlightOnlyWhenFocus);
 		this._wordWrap = layoutInfo.isViewportWrapping;
@@ -89,7 +87,6 @@ export abstract class AbstractLineHighlightOverlay extends DynamicViewOverlay {
 	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		const options = this._context.configuration.options;
 		const layoutInfo = options.get(EditorOption.layoutInfo);
-		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._renderLineHighlight = options.get(EditorOption.renderLineHighlight);
 		this._renderLineHighlightOnlyWhenFocus = options.get(EditorOption.renderLineHighlightOnlyWhenFocus);
 		this._wordWrap = layoutInfo.isViewportWrapping;
@@ -208,7 +205,7 @@ export class CurrentLineHighlightOverlay extends AbstractLineHighlightOverlay {
 
 	protected _renderOne(ctx: RenderingContext, exact: boolean): string {
 		const className = 'current-line' + (this._shouldRenderInMargin() ? ' current-line-both' : '') + (exact ? ' current-line-exact' : '');
-		return `<div class="${className}" style="width:${Math.max(ctx.scrollWidth, this._contentWidth)}px; height:${this._lineHeight}px;"></div>`;
+		return `<div class="${className}" style="width:${Math.max(ctx.scrollWidth, this._contentWidth)}px;"></div>`;
 	}
 	protected _shouldRenderThis(): boolean {
 		return this._shouldRenderInContent();
@@ -221,7 +218,7 @@ export class CurrentLineHighlightOverlay extends AbstractLineHighlightOverlay {
 export class CurrentLineMarginHighlightOverlay extends AbstractLineHighlightOverlay {
 	protected _renderOne(ctx: RenderingContext, exact: boolean): string {
 		const className = 'current-line' + (this._shouldRenderInMargin() ? ' current-line-margin' : '') + (this._shouldRenderOther() ? ' current-line-margin-both' : '') + (this._shouldRenderInMargin() && exact ? ' current-line-exact-margin' : '');
-		return `<div class="${className}" style="width:${this._contentLeft}px; height:${this._lineHeight}px;"></div>`;
+		return `<div class="${className}" style="width:${this._contentLeft}px"></div>`;
 	}
 	protected _shouldRenderThis(): boolean {
 		return true;

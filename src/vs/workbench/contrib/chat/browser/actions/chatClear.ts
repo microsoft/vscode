@@ -14,10 +14,10 @@ export async function clearChatEditor(accessor: ServicesAccessor): Promise<void>
 	const editorGroupsService = accessor.get(IEditorGroupsService);
 
 	const chatEditorInput = editorService.activeEditor;
-	if (chatEditorInput instanceof ChatEditorInput && chatEditorInput.providerId) {
+	if (chatEditorInput instanceof ChatEditorInput) {
 		await editorService.replaceEditors([{
 			editor: chatEditorInput,
-			replacement: { resource: ChatEditorInput.getNewEditorUri(), options: <IChatEditorOptions>{ target: { providerId: chatEditorInput.providerId, pinned: true } } }
+			replacement: { resource: ChatEditorInput.getNewEditorUri(), options: { pinned: true } satisfies IChatEditorOptions }
 		}], editorGroupsService.activeGroup);
 	}
 }

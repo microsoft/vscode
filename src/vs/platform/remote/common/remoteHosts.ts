@@ -25,15 +25,6 @@ export function getRemoteName(authority: string | undefined): string | undefined
 	return authority.substr(0, pos);
 }
 
-/**
- * The root path to use when accessing the remote server. The path contains the quality and commit of the current build.
- * @param product
- * @returns
- */
-export function getRemoteServerRootPath(product: { quality?: string; commit?: string }): string {
-	return `/${product.quality ?? 'oss'}-${product.commit ?? 'dev'}`;
-}
-
 export function parseAuthorityWithPort(authority: string): { host: string; port: number } {
 	const { host, port } = parseAuthority(authority);
 	if (typeof port === 'undefined') {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from 'vs/base/test/common/utils';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { workbenchInstantiationService, TestServiceAccessor, registerTestFileEditor, createEditorPart, TestTextFileEditor } from 'vs/workbench/test/browser/workbenchTestServices';
@@ -74,7 +74,7 @@ suite('TextEditorPane', () => {
 		pane.setSelection(new Selection(1, 1, 1, 1), EditorPaneSelectionChangeReason.USER);
 		const selection = pane.getSelection();
 		assert.ok(selection);
-		await pane.group?.closeAllEditors();
+		await pane.group.closeAllEditors();
 		const options = selection.restore({});
 		pane = (await accessor.editorService.openEditor({ resource, options }) as TestTextFileEditor);
 
@@ -85,7 +85,7 @@ suite('TextEditorPane', () => {
 		assert.strictEqual(newSelection.compare(selection), EditorPaneSelectionCompareResult.IDENTICAL);
 
 		await model.revert();
-		await pane.group?.closeAllEditors();
+		await pane.group.closeAllEditors();
 	});
 
 	test('TextEditorPaneSelection', function () {

@@ -55,7 +55,7 @@ class TokenCache {
 	public tryGetCached(document: ITextDocument, config: MarkdownItConfig): Token[] | undefined {
 		if (this._cachedDocument
 			&& this._cachedDocument.uri.toString() === document.uri.toString()
-			&& this._cachedDocument.version === document.version
+			&& document.version >= 0 && this._cachedDocument.version === document.version
 			&& this._cachedDocument.config.breaks === config.breaks
 			&& this._cachedDocument.config.linkify === config.linkify
 		) {

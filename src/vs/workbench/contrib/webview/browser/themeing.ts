@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DEFAULT_FONT_FAMILY } from 'vs/base/browser/fonts';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
-import { IWorkbenchThemeService, IWorkbenchColorTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
+import { IWorkbenchColorTheme, IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { WebviewStyles } from 'vs/workbench/contrib/webview/browser/webview';
 
 interface WebviewThemeData {
@@ -57,13 +57,13 @@ export class WebviewThemeDataProvider extends Disposable {
 			const editorFontSize = configuration.fontSize || EDITOR_FONT_DEFAULTS.fontSize;
 
 			const theme = this._themeService.getColorTheme();
-			const exportedColors = colorRegistry.getColorRegistry().getColors().reduce((colors, entry) => {
+			const exportedColors = colorRegistry.getColorRegistry().getColors().reduce<Record<string, string>>((colors, entry) => {
 				const color = theme.getColor(entry.id);
 				if (color) {
 					colors['vscode-' + entry.id.replace('.', '-')] = color.toString();
 				}
 				return colors;
-			}, {} as { [key: string]: string });
+			}, {});
 
 			const styles = {
 				'vscode-font-family': DEFAULT_FONT_FAMILY,

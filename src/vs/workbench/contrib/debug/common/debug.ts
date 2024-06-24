@@ -24,8 +24,10 @@ import { ITelemetryEndpoint } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IEditorPane } from 'vs/workbench/common/editor';
 import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
+import { IDataBreakpointOptions, IFunctionBreakpointOptions, IInstructionBreakpointOptions } from 'vs/workbench/contrib/debug/common/debugModel';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { ITaskIdentifier } from 'vs/workbench/contrib/tasks/common/tasks';
+import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export const VIEWLET_ID = 'workbench.view.debug';
@@ -61,6 +63,8 @@ export const CONTEXT_CALLSTACK_SESSION_HAS_ONE_THREAD = new RawContextKey<boolea
 export const CONTEXT_WATCH_ITEM_TYPE = new RawContextKey<string>('watchItemType', undefined, { type: 'string', description: nls.localize('watchItemType', "Represents the item type of the focused element in the WATCH view. For example: 'expression', 'variable'") });
 export const CONTEXT_CAN_VIEW_MEMORY = new RawContextKey<boolean>('canViewMemory', undefined, { type: 'boolean', description: nls.localize('canViewMemory', "Indicates whether the item in the view has an associated memory refrence.") });
 export const CONTEXT_BREAKPOINT_ITEM_TYPE = new RawContextKey<string>('breakpointItemType', undefined, { type: 'string', description: nls.localize('breakpointItemType', "Represents the item type of the focused element in the BREAKPOINTS view. For example: 'breakpoint', 'exceptionBreakppint', 'functionBreakpoint', 'dataBreakpoint'") });
+export const CONTEXT_BREAKPOINT_ITEM_IS_DATA_BYTES = new RawContextKey<boolean>('breakpointItemBytes', undefined, { type: 'boolean', description: nls.localize('breakpointItemIsDataBytes', "Whether the breakpoint item is a data breakpoint on a byte range.") });
+export const CONTEXT_BREAKPOINT_HAS_MODES = new RawContextKey<boolean>('breakpointHasModes', false, { type: 'boolean', description: nls.localize('breakpointHasModes', "Whether the breakpoint has multiple modes it can switch to.") });
 export const CONTEXT_BREAKPOINT_SUPPORTS_CONDITION = new RawContextKey<boolean>('breakpointSupportsCondition', false, { type: 'boolean', description: nls.localize('breakpointSupportsCondition', "True when the focused breakpoint supports conditions.") });
 export const CONTEXT_LOADED_SCRIPTS_SUPPORTED = new RawContextKey<boolean>('loadedScriptsSupported', false, { type: 'boolean', description: nls.localize('loadedScriptsSupported', "True when the focused sessions supports the LOADED SCRIPTS view") });
 export const CONTEXT_LOADED_SCRIPTS_ITEM_TYPE = new RawContextKey<string>('loadedScriptsItemType', undefined, { type: 'string', description: nls.localize('loadedScriptsItemType', "Represents the item type of the focused element in the LOADED SCRIPTS view.") });
@@ -76,6 +80,7 @@ export const CONTEXT_DEBUGGERS_AVAILABLE = new RawContextKey<boolean>('debuggers
 export const CONTEXT_DEBUG_EXTENSION_AVAILABLE = new RawContextKey<boolean>('debugExtensionAvailable', true, { type: 'boolean', description: nls.localize('debugExtensionsAvailable', "True when there is at least one debug extension installed and enabled.") });
 export const CONTEXT_DEBUG_PROTOCOL_VARIABLE_MENU_CONTEXT = new RawContextKey<string>('debugProtocolVariableMenuContext', undefined, { type: 'string', description: nls.localize('debugProtocolVariableMenuContext', "Represents the context the debug adapter sets on the focused variable in the VARIABLES view.") });
 export const CONTEXT_SET_VARIABLE_SUPPORTED = new RawContextKey<boolean>('debugSetVariableSupported', false, { type: 'boolean', description: nls.localize('debugSetVariableSupported', "True when the focused session supports 'setVariable' request.") });
+export const CONTEXT_SET_DATA_BREAKPOINT_BYTES_SUPPORTED = new RawContextKey<boolean>('debugSetDataBreakpointAddressSupported', false, { type: 'boolean', description: nls.localize('debugSetDataBreakpointAddressSupported', "True when the focused session supports 'getBreakpointInfo' request on an address.") });
 export const CONTEXT_SET_EXPRESSION_SUPPORTED = new RawContextKey<boolean>('debugSetExpressionSupported', false, { type: 'boolean', description: nls.localize('debugSetExpressionSupported', "True when the focused session supports 'setExpression' request.") });
 export const CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED = new RawContextKey<boolean>('breakWhenValueChangesSupported', false, { type: 'boolean', description: nls.localize('breakWhenValueChangesSupported', "True when the focused session supports to break when value changes.") });
 export const CONTEXT_BREAK_WHEN_VALUE_IS_ACCESSED_SUPPORTED = new RawContextKey<boolean>('breakWhenValueIsAccessedSupported', false, { type: 'boolean', description: nls.localize('breakWhenValueIsAccessedSupported', "True when the focused breakpoint supports to break when value is accessed.") });
@@ -86,6 +91,7 @@ export const CONTEXT_VARIABLE_EVALUATE_NAME_PRESENT = new RawContextKey<boolean>
 export const CONTEXT_VARIABLE_IS_READONLY = new RawContextKey<boolean>('variableIsReadonly', false, { type: 'boolean', description: nls.localize('variableIsReadonly', "True when the focused variable is read-only.") });
 export const CONTEXT_VARIABLE_VALUE = new RawContextKey<boolean>('variableValue', false, { type: 'string', description: nls.localize('variableValue', "Value of the variable, present for debug visualization clauses.") });
 export const CONTEXT_VARIABLE_TYPE = new RawContextKey<boolean>('variableType', false, { type: 'string', description: nls.localize('variableType', "Type of the variable, present for debug visualization clauses.") });
+export const CONTEXT_VARIABLE_INTERFACES = new RawContextKey<boolean>('variableInterfaces', false, { type: 'array', description: nls.localize('variableInterfaces', "Any interfaces or contracts that the variable satisfies, present for debug visualization clauses.") });
 export const CONTEXT_VARIABLE_NAME = new RawContextKey<boolean>('variableName', false, { type: 'string', description: nls.localize('variableName', "Name of the variable, present for debug visualization clauses.") });
 export const CONTEXT_VARIABLE_LANGUAGE = new RawContextKey<boolean>('variableLanguage', false, { type: 'string', description: nls.localize('variableLanguage', "Language of the variable source, present for debug visualization clauses.") });
 export const CONTEXT_VARIABLE_EXTENSIONID = new RawContextKey<boolean>('variableExtensionId', false, { type: 'string', description: nls.localize('variableExtensionId', "Extension ID of the variable source, present for debug visualization clauses.") });
@@ -214,6 +220,11 @@ export interface LoadedSourceEvent {
 
 export type IDebugSessionReplMode = 'separate' | 'mergeWithParent';
 
+export interface IDebugTestRunReference {
+	runId: string;
+	taskId: string;
+}
+
 export interface IDebugSessionOptions {
 	noDebug?: boolean;
 	parentSession?: IDebugSession;
@@ -226,6 +237,11 @@ export interface IDebugSessionOptions {
 	suppressDebugToolbar?: boolean;
 	suppressDebugStatusbar?: boolean;
 	suppressDebugView?: boolean;
+	/**
+	 * Set if the debug session is correlated with a test run. Stopping/restarting
+	 * the session will instead stop/restart the test run.
+	 */
+	testRun?: IDebugTestRunReference;
 }
 
 export interface IDataBreakpointInfoResponse {
@@ -330,6 +346,12 @@ export interface INewReplElementData {
 	source?: IReplElementSource;
 }
 
+export interface IDebugEvaluatePosition {
+	line: number;
+	column: number;
+	source: DebugProtocol.Source;
+}
+
 
 export interface IDebugSession extends ITreeElement {
 
@@ -348,6 +370,8 @@ export interface IDebugSession extends ITreeElement {
 	readonly suppressDebugStatusbar: boolean;
 	readonly suppressDebugView: boolean;
 	readonly lifecycleManagedByParent: boolean;
+	/** Test run this debug session was spawned by */
+	readonly correlatedTestRun?: LiveTestResult;
 
 	setSubId(subId: string | undefined): void;
 
@@ -402,6 +426,7 @@ export interface IDebugSession extends ITreeElement {
 	sendBreakpoints(modelUri: uri, bpts: IBreakpoint[], sourceModified: boolean): Promise<void>;
 	sendFunctionBreakpoints(fbps: IFunctionBreakpoint[]): Promise<void>;
 	dataBreakpointInfo(name: string, variablesReference?: number): Promise<IDataBreakpointInfoResponse | undefined>;
+	dataBytesBreakpointInfo(address: string, bytes: number): Promise<IDataBreakpointInfoResponse | undefined>;
 	sendDataBreakpoints(dbps: IDataBreakpoint[]): Promise<void>;
 	sendInstructionBreakpoints(dbps: IInstructionBreakpoint[]): Promise<void>;
 	sendExceptionBreakpoints(exbpts: IExceptionBreakpoint[]): Promise<void>;
@@ -412,7 +437,7 @@ export interface IDebugSession extends ITreeElement {
 	exceptionInfo(threadId: number): Promise<IExceptionInfo | undefined>;
 	scopes(frameId: number, threadId: number): Promise<DebugProtocol.ScopesResponse | undefined>;
 	variables(variablesReference: number, threadId: number | undefined, filter: 'indexed' | 'named' | undefined, start: number | undefined, count: number | undefined): Promise<DebugProtocol.VariablesResponse | undefined>;
-	evaluate(expression: string, frameId?: number, context?: string): Promise<DebugProtocol.EvaluateResponse | undefined>;
+	evaluate(expression: string, frameId?: number, context?: string, location?: IDebugEvaluatePosition): Promise<DebugProtocol.EvaluateResponse | undefined>;
 	customRequest(request: string, args: any): Promise<DebugProtocol.Response | undefined>;
 	cancel(progressId: string): Promise<DebugProtocol.CancelResponse | undefined>;
 	disassemble(memoryReference: string, offset: number, instructionOffset: number, instructionCount: number): Promise<DebugProtocol.DisassembledInstruction[] | undefined>;
@@ -527,6 +552,11 @@ export interface IStackFrame extends ITreeElement {
 	equals(other: IStackFrame): boolean;
 }
 
+export function isFrameDeemphasized(frame: IStackFrame): boolean {
+	const hint = frame.presentationHint ?? frame.source.presentationHint;
+	return hint === 'deemphasize' || hint === 'subtle';
+}
+
 export interface IEnablement extends ITreeElement {
 	readonly enabled: boolean;
 }
@@ -540,6 +570,8 @@ export interface IBreakpointData {
 	readonly logMessage?: string;
 	readonly hitCondition?: string;
 	readonly triggeredBy?: string;
+	readonly mode?: string;
+	readonly modeLabel?: string;
 }
 
 export interface IBreakpointUpdateData {
@@ -549,6 +581,8 @@ export interface IBreakpointUpdateData {
 	readonly lineNumber?: number;
 	readonly column?: number;
 	readonly triggeredBy?: string;
+	readonly mode?: string;
+	readonly modeLabel?: string;
 }
 
 export interface IBaseBreakpoint extends IEnablement {
@@ -558,6 +592,10 @@ export interface IBaseBreakpoint extends IEnablement {
 	readonly verified: boolean;
 	readonly supported: boolean;
 	readonly message?: string;
+	/** The preferred mode of the breakpoint from {@link DebugProtocol.BreakpointMode} */
+	readonly mode?: string;
+	/** The preferred mode label of the breakpoint from {@link DebugProtocol.BreakpointMode} */
+	readonly modeLabel?: string;
 	readonly sessionsThatVerified: string[];
 	getIdFromAdapter(sessionId: string): number | undefined;
 }
@@ -582,10 +620,13 @@ export interface IBreakpoint extends IBaseBreakpoint {
 	setSessionDidTrigger(sessionId: string): void;
 	/** Gets whether the `triggeredBy` condition has been met in the given sesison ID. */
 	getSessionDidTrigger(sessionId: string): boolean;
+
+	toDAP(): DebugProtocol.SourceBreakpoint;
 }
 
 export interface IFunctionBreakpoint extends IBaseBreakpoint {
 	readonly name: string;
+	toDAP(): DebugProtocol.FunctionBreakpoint;
 }
 
 export interface IExceptionBreakpoint extends IBaseBreakpoint {
@@ -594,11 +635,26 @@ export interface IExceptionBreakpoint extends IBaseBreakpoint {
 	readonly description: string | undefined;
 }
 
+export const enum DataBreakpointSetType {
+	Variable,
+	Address,
+}
+
+/**
+ * Source for a data breakpoint. A data breakpoint on a variable always has a
+ * `dataId` because it cannot reference that variable globally, but addresses
+ * can request info repeated and use session-specific data.
+ */
+export type DataBreakpointSource =
+	| { type: DataBreakpointSetType.Variable; dataId: string }
+	| { type: DataBreakpointSetType.Address; address: string; bytes: number };
+
 export interface IDataBreakpoint extends IBaseBreakpoint {
 	readonly description: string;
-	readonly dataId: string;
 	readonly canPersist: boolean;
+	readonly src: DataBreakpointSource;
 	readonly accessType: DebugProtocol.DataBreakpointAccessType;
+	toDAP(session: IDebugSession): Promise<DebugProtocol.DataBreakpoint | undefined>;
 }
 
 export interface IInstructionBreakpoint extends IBaseBreakpoint {
@@ -606,7 +662,7 @@ export interface IInstructionBreakpoint extends IBaseBreakpoint {
 	readonly offset?: number;
 	/** Original instruction memory address; display purposes only */
 	readonly address: bigint;
-	toJSON(): DebugProtocol.InstructionBreakpoint;
+	toDAP(): DebugProtocol.InstructionBreakpoint;
 }
 
 export interface IExceptionInfo {
@@ -683,7 +739,8 @@ export interface IDebugModel extends ITreeElement {
 
 	getInstructionBreakpoints(): ReadonlyArray<IInstructionBreakpoint>;
 	getWatchExpressions(): ReadonlyArray<IExpression & IEvaluate>;
-
+	registerBreakpointModes(debugType: string, modes: DebugProtocol.BreakpointMode[]): void;
+	getBreakpointModes(forBreakpointType: 'source' | 'exception' | 'data' | 'instruction'): DebugProtocol.BreakpointMode[];
 	onDidChangeBreakpoints: Event<IBreakpointsChangeEvent | undefined>;
 	onDidChangeCallStack: Event<void>;
 	onDidChangeWatchExpressions: Event<IExpression | undefined>;
@@ -705,6 +762,7 @@ export interface IBreakpointsChangeEvent {
 
 export interface IDebugConfiguration {
 	allowBreakpointsEverywhere: boolean;
+	gutterMiddleClickAction: 'logpoint' | 'conditionalBreakpoint' | 'triggeredBreakpoint' | 'none';
 	openDebug: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart' | 'openOnDebugBreak';
 	openExplorerOnEnd: boolean;
 	inlineValues: boolean | 'auto' | 'on' | 'off'; // boolean for back-compat
@@ -736,6 +794,7 @@ export interface IDebugConfiguration {
 	};
 	autoExpandLazyVariables: boolean;
 	enableStatusBarColor: boolean;
+	showVariableTypes: boolean;
 }
 
 export interface IGlobalConfig {
@@ -1112,7 +1171,7 @@ export interface IDebugService {
 	/**
 	 * Adds a new function breakpoint for the given name.
 	 */
-	addFunctionBreakpoint(name?: string, id?: string): void;
+	addFunctionBreakpoint(opts?: IFunctionBreakpointOptions, id?: string): void;
 
 	/**
 	 * Updates an already existing function breakpoint.
@@ -1129,7 +1188,7 @@ export interface IDebugService {
 	/**
 	 * Adds a new data breakpoint.
 	 */
-	addDataBreakpoint(label: string, dataId: string, canPersist: boolean, accessTypes: DebugProtocol.DataBreakpointAccessType[] | undefined, accessType: DebugProtocol.DataBreakpointAccessType): Promise<void>;
+	addDataBreakpoint(opts: IDataBreakpointOptions): Promise<void>;
 
 	/**
 	 * Updates an already existing data breakpoint.
@@ -1146,7 +1205,7 @@ export interface IDebugService {
 	/**
 	 * Adds a new instruction breakpoint.
 	 */
-	addInstructionBreakpoint(instructionReference: string, offset: number, address: bigint, condition?: string, hitCondition?: string): Promise<void>;
+	addInstructionBreakpoint(opts: IInstructionBreakpointOptions): Promise<void>;
 
 	/**
 	 * Removes all instruction breakpoints. If address is passed only removes the instruction breakpoint with the passed address.
@@ -1157,7 +1216,12 @@ export interface IDebugService {
 
 	setExceptionBreakpointCondition(breakpoint: IExceptionBreakpoint, condition: string | undefined): Promise<void>;
 
-	setExceptionBreakpointsForSession(session: IDebugSession, data: DebugProtocol.ExceptionBreakpointsFilter[]): void;
+	/**
+	 * Creates breakpoints based on the sesison filter options. This will create
+	 * disabled breakpoints (or enabled, if the filter indicates it's a default)
+	 * for each filter provided in the session.
+	 */
+	setExceptionBreakpointsForSession(session: IDebugSession, filters: DebugProtocol.ExceptionBreakpointsFilter[]): void;
 
 	/**
 	 * Sends all breakpoints to the passed session.

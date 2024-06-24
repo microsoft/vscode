@@ -5,23 +5,25 @@
 
 import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
 import { dispose } from 'vs/base/common/lifecycle';
+import { observableValue } from 'vs/base/common/observable';
 import * as UUID from 'vs/base/common/uuid';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { PrefixSumComputer } from 'vs/editor/common/model/prefixSumComputer';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { CellEditState, CellFindMatch, CodeCellLayoutChangeEvent, CodeCellLayoutInfo, CellLayoutState, ICellOutputViewModel, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFindMatch, CellLayoutState, CodeCellLayoutChangeEvent, CodeCellLayoutInfo, ICellOutputViewModel, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
+import { NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { CellOutputViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/cellOutputViewModel';
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, INotebookSearchOptions, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
+import { CellKind, INotebookFindOptions, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICellExecutionError, ICellExecutionStateChangedEvent } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { BaseCellViewModel } from './baseCellViewModel';
-import { NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
-import { ICellExecutionStateChangedEvent } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
 export const outputDisplayLimit = 500;
 
@@ -108,6 +110,15 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		this._onDidChangeState.fire({ outputIsFocusedChanged: true });
 	}
 
+	private _focusInputInOutput: boolean = false;
+	public get inputInOutputIsFocused(): boolean {
+		return this._focusInputInOutput;
+	}
+
+	public set inputInOutputIsFocused(v: boolean) {
+		this._focusInputInOutput = v;
+	}
+
 	private _outputMinHeight: number = 0;
 
 	private get outputMinHeight() {
@@ -134,6 +145,8 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		return this._outputViewModels;
 	}
 
+	readonly excecutionError = observableValue<ICellExecutionError | undefined>('excecutionError', undefined);
+
 	constructor(
 		viewType: string,
 		model: NotebookCellTextModel,
@@ -143,7 +156,8 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		@INotebookService private readonly _notebookService: INotebookService,
 		@ITextModelService modelService: ITextModelService,
 		@IUndoRedoService undoRedoService: IUndoRedoService,
-		@ICodeEditorService codeEditorService: ICodeEditorService
+		@ICodeEditorService codeEditorService: ICodeEditorService,
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super(viewType, model, UUID.generateUuid(), viewContext, configurationService, modelService, undoRedoService, codeEditorService);
 		this._outputViewModels = this.model.outputs.map(output => new CellOutputViewModel(this, output, this._notebookService));
@@ -504,7 +518,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	private readonly _hasFindResult = this._register(new Emitter<boolean>());
 	public readonly hasFindResult: Event<boolean> = this._hasFindResult.event;
 
-	startFind(value: string, options: INotebookSearchOptions): CellFindMatch | null {
+	startFind(value: string, options: INotebookFindOptions): CellFindMatch | null {
 		const matches = super.cellStartFind(value, options);
 
 		if (matches === null) {

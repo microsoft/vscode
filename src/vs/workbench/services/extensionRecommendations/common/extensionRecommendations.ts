@@ -6,6 +6,7 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { Event } from 'vs/base/common/event';
+import { URI } from 'vs/base/common/uri';
 
 export const enum ExtensionRecommendationReason {
 	Workspace,
@@ -35,7 +36,7 @@ export interface IExtensionRecommendationsService {
 	getFileBasedRecommendations(): string[];
 	getExeBasedRecommendations(exe?: string): Promise<{ important: string[]; others: string[] }>;
 	getConfigBasedRecommendations(): Promise<{ important: string[]; others: string[] }>;
-	getWorkspaceRecommendations(): Promise<string[]>;
+	getWorkspaceRecommendations(): Promise<Array<string | URI>>;
 	getKeymapRecommendations(): string[];
 	getLanguageRecommendations(): string[];
 	getRemoteRecommendations(): string[];

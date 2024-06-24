@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+/// <reference path="../../../typings/require.d.ts" />
 
 //@ts-check
+'use strict';
 
 (function () {
 	function factory() {
@@ -18,6 +19,7 @@
 			// The property `process.uncHostAllowlist` is not available in official node.js
 			// releases, only in our own builds, so we have to probe for availability
 
+			// @ts-ignore
 			return process.uncHostAllowlist;
 		}
 
@@ -114,6 +116,7 @@
 				return;
 			}
 
+			// @ts-ignore
 			process.restrictUNCAccess = false;
 		}
 
@@ -122,6 +125,7 @@
 				return true;
 			}
 
+			// @ts-ignore
 			return process.restrictUNCAccess === false;
 		}
 

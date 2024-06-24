@@ -55,7 +55,6 @@
 
 .monaco-workbench .hover-language-status {
 	display: flex;
-	padding: 4px 8px;
 }
 
 .monaco-workbench .hover-language-status:not(:last-child) {

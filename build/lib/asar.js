@@ -4,7 +4,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createAsar = void 0;
+exports.createAsar = createAsar;
 const path = require("path");
 const es = require("event-stream");
 const pickle = require('chromium-pickle-js');
@@ -115,5 +115,4 @@ function createAsar(folderPath, unpackGlobs, destFilename) {
         }
     });
 }
-exports.createAsar = createAsar;
 //# sourceMappingURL=asar.js.map

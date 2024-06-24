@@ -32,6 +32,7 @@ import { IExtensionManagementService } from 'vs/platform/extensionManagement/com
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { promiseWithResolvers } from 'vs/base/common/async';
+import { shouldUseEnvironmentVariableCollection } from 'vs/platform/terminal/common/terminalEnvironment';
 
 class CustomVariableResolver extends AbstractVariableResolverService {
 	constructor(
@@ -235,7 +236,7 @@ export class RemoteTerminalChannel extends Disposable implements IServerChannel<
 		);
 
 		// Apply extension environment variable collections to the environment
-		if (!shellLaunchConfig.strictEnv) {
+		if (shouldUseEnvironmentVariableCollection(shellLaunchConfig)) {
 			const entries: [string, IEnvironmentVariableCollection][] = [];
 			for (const [k, v, d] of args.envVariableCollections) {
 				entries.push([k, { map: deserializeEnvironmentVariableCollection(v), descriptionMap: deserializeEnvironmentDescriptionMap(d) }]);

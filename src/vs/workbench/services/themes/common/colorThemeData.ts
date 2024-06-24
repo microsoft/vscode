@@ -11,7 +11,7 @@ import { convertSettings } from 'vs/workbench/services/themes/common/themeCompat
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import * as resources from 'vs/base/common/resources';
-import { Extensions as ColorRegistryExtensions, IColorRegistry, ColorIdentifier, editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { Extensions as ColorRegistryExtensions, IColorRegistry, ColorIdentifier, editorBackground, editorForeground, DEFAULT_COLOR_CONFIG_VALUE } from 'vs/platform/theme/common/colorRegistry';
 import { ITokenStyle, getThemeTypeSelector } from 'vs/platform/theme/common/themeService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
@@ -372,7 +372,9 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 	private overwriteCustomColors(colors: IColorCustomizations) {
 		for (const id in colors) {
 			const colorVal = colors[id];
-			if (typeof colorVal === 'string') {
+			if (colorVal === DEFAULT_COLOR_CONFIG_VALUE) {
+				delete this.colorMap[id];
+			} else if (typeof colorVal === 'string') {
 				this.customColorMap[id] = Color.fromHex(colorVal);
 			}
 		}
@@ -437,7 +439,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 	}
 
 	public getThemeSpecificColors(colors: IThemeScopableCustomizations): IThemeScopedCustomizations | undefined {
-		let themeSpecificColors;
+		let themeSpecificColors: IThemeScopedCustomizations | undefined;
 		for (const key in colors) {
 			const scopedColors = colors[key];
 			if (this.isThemeScope(key) && scopedColors instanceof Object && !Array.isArray(scopedColors)) {
@@ -446,7 +448,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 					const themeId = themeScope.substring(1, themeScope.length - 1);
 					if (this.isThemeScopeMatch(themeId)) {
 						if (!themeSpecificColors) {
-							themeSpecificColors = {} as IThemeScopedCustomizations;
+							themeSpecificColors = {};
 						}
 						const scopedThemeSpecificColors = scopedColors as IThemeScopedCustomizations;
 						for (const subkey in scopedThemeSpecificColors) {
@@ -716,8 +718,10 @@ async function _loadColorTheme(extensionResourceLoaderService: IExtensionResourc
 			}
 			// new JSON color themes format
 			for (const colorId in colors) {
-				const colorHex = colors[colorId];
-				if (typeof colorHex === 'string') { // ignore colors tht are null
+				const colorVal = colors[colorId];
+				if (colorVal === DEFAULT_COLOR_CONFIG_VALUE) {
+					delete result.colors[colorId];
+				} else if (typeof colorVal === 'string') { // ignore colors that are null
 					result.colors[colorId] = Color.fromHex(colors[colorId]);
 				}
 			}

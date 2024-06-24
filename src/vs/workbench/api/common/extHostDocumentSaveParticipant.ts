@@ -15,6 +15,7 @@ import type * as vscode from 'vscode';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 
 type Listener = [Function, any, IExtensionDescription];
 
@@ -165,7 +166,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 			}
 
 			if (version === document.version) {
-				return this._mainThreadBulkEdits.$tryApplyWorkspaceEdit(dto);
+				return this._mainThreadBulkEdits.$tryApplyWorkspaceEdit(new SerializableObjectWithBuffers(dto));
 			}
 
 			return Promise.reject(new Error('concurrent_edits'));

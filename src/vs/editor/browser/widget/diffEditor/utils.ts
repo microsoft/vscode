@@ -8,16 +8,14 @@ import { findLast } from 'vs/base/common/arraysFind';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isHotReloadEnabled, registerHotReloadHandler } from 'vs/base/common/hotReload';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, IReader, ISettableObservable, autorun, autorunHandleChanges, autorunOpts, autorunWithStore, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from 'vs/base/common/observable';
+import { IObservable, IReader, ISettableObservable, autorun, autorunHandleChanges, autorunOpts, autorunWithStore, observableSignalFromEvent, observableValue, transaction } from 'vs/base/common/observable';
 import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
 import { ICodeEditor, IOverlayWidget, IViewZone } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
-import { LengthObj } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/length';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyValue, RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { TextLength } from 'vs/editor/common/core/textLength';
 
 export function joinCombine<T>(arr1: readonly T[], arr2: readonly T[], keySelector: (val: T) => number, combine: (v1: T, v2: T) => T): readonly T[] {
 	if (arr1.length === 0) {
@@ -78,19 +76,15 @@ export function applyObservableDecorations(editor: ICodeEditor, decorations: IOb
 export function appendRemoveOnDispose(parent: HTMLElement, child: HTMLElement) {
 	parent.appendChild(child);
 	return toDisposable(() => {
-		parent.removeChild(child);
+		child.remove();
 	});
 }
 
-export function observableConfigValue<T>(key: string, defaultValue: T, configurationService: IConfigurationService): IObservable<T> {
-	return observableFromEvent(
-		(handleChange) => configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(key)) {
-				handleChange(e);
-			}
-		}),
-		() => configurationService.getValue<T>(key) ?? defaultValue,
-	);
+export function prependRemoveOnDispose(parent: HTMLElement, child: HTMLElement) {
+	parent.prepend(child);
+	return toDisposable(() => {
+		child.remove();
+	});
 }
 
 export class ObservableElementSizeObserver extends Disposable {
@@ -101,6 +95,9 @@ export class ObservableElementSizeObserver extends Disposable {
 
 	private readonly _height: ISettableObservable<number>;
 	public get height(): IObservable<number> { return this._height; }
+
+	private _automaticLayout: boolean = false;
+	public get automaticLayout(): boolean { return this._automaticLayout; }
 
 	constructor(element: HTMLElement | null, dimension: IDimension | undefined) {
 		super();
@@ -121,6 +118,7 @@ export class ObservableElementSizeObserver extends Disposable {
 	}
 
 	public setAutomaticLayout(automaticLayout: boolean): void {
+		this._automaticLayout = automaticLayout;
 		if (automaticLayout) {
 			this.elementSizeObserver.startObserving();
 		} else {
@@ -421,31 +419,16 @@ export function translatePosition(posInOriginal: Position, mappings: DetailedLin
 		return innerMapping.modifiedRange;
 	} else {
 		const l = lengthBetweenPositions(innerMapping.originalRange.getEndPosition(), posInOriginal);
-		return Range.fromPositions(addLength(innerMapping.modifiedRange.getEndPosition(), l));
+		return Range.fromPositions(l.addToPosition(innerMapping.modifiedRange.getEndPosition()));
 	}
 }
 
-function lengthBetweenPositions(position1: Position, position2: Position): LengthObj {
+function lengthBetweenPositions(position1: Position, position2: Position): TextLength {
 	if (position1.lineNumber === position2.lineNumber) {
-		return new LengthObj(0, position2.column - position1.column);
+		return new TextLength(0, position2.column - position1.column);
 	} else {
-		return new LengthObj(position2.lineNumber - position1.lineNumber, position2.column - 1);
+		return new TextLength(position2.lineNumber - position1.lineNumber, position2.column - 1);
 	}
-}
-
-function addLength(position: Position, length: LengthObj): Position {
-	if (length.lineCount === 0) {
-		return new Position(position.lineNumber, position.column + length.columnCount);
-	} else {
-		return new Position(position.lineNumber + length.lineCount, length.columnCount + 1);
-	}
-}
-
-export function bindContextKey<T extends ContextKeyValue>(key: RawContextKey<T>, service: IContextKeyService, computeValue: (reader: IReader) => T): IDisposable {
-	const boundKey = key.bindTo(service);
-	return autorunOpts({ debugName: () => `Update ${key.key}` }, reader => {
-		boundKey.set(computeValue(reader));
-	});
 }
 
 export function filterWithPrevious<T>(arr: T[], filter: (cur: T, prev: T | undefined) => boolean): T[] {

@@ -19,10 +19,13 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
 
 export interface IDropdownWithPrimaryActionViewItemOptions {
 	actionRunner?: IActionRunner;
 	getKeyBinding?: (action: IAction) => ResolvedKeybinding | undefined;
+	hoverDelegate?: IHoverDelegate;
+	menuAsChild?: boolean;
 }
 
 export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
@@ -48,17 +51,18 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 		@IThemeService _themeService: IThemeService,
 		@IAccessibilityService _accessibilityService: IAccessibilityService
 	) {
-		super(null, primaryAction);
-		this._primaryAction = new MenuEntryActionViewItem(primaryAction, undefined, _keybindingService, _notificationService, _contextKeyService, _themeService, _contextMenuProvider, _accessibilityService);
+		super(null, primaryAction, { hoverDelegate: _options?.hoverDelegate });
+		this._primaryAction = new MenuEntryActionViewItem(primaryAction, { hoverDelegate: _options?.hoverDelegate }, _keybindingService, _notificationService, _contextKeyService, _themeService, _contextMenuProvider, _accessibilityService);
 		if (_options?.actionRunner) {
 			this._primaryAction.actionRunner = _options.actionRunner;
 		}
 
 		this._dropdown = new DropdownMenuActionViewItem(dropdownAction, dropdownMenuActions, this._contextMenuProvider, {
-			menuAsChild: true,
+			menuAsChild: _options?.menuAsChild ?? true,
 			classNames: className ? ['codicon', 'codicon-chevron-down', className] : ['codicon', 'codicon-chevron-down'],
 			actionRunner: this._options?.actionRunner,
-			keybindingProvider: this._options?.getKeyBinding
+			keybindingProvider: this._options?.getKeyBinding,
+			hoverDelegate: _options?.hoverDelegate
 		});
 	}
 
@@ -130,7 +134,10 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 		this._dropdown.dispose();
 		this._dropdown = new DropdownMenuActionViewItem(dropdownAction, dropdownMenuActions, this._contextMenuProvider, {
 			menuAsChild: true,
-			classNames: ['codicon', dropdownIcon || 'codicon-chevron-down']
+			classNames: ['codicon', dropdownIcon || 'codicon-chevron-down'],
+			actionRunner: this._options?.actionRunner,
+			hoverDelegate: this._options?.hoverDelegate,
+			keybindingProvider: this._options?.getKeyBinding
 		});
 		if (this._dropdownContainer) {
 			this._dropdown.render(this._dropdownContainer);

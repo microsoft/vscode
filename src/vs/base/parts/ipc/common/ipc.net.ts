@@ -827,6 +827,7 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 	private _socket: ISocket;
 	private _socketWriter: ProtocolWriter;
 	private _socketReader: ProtocolReader;
+	// eslint-disable-next-line local/code-no-potentially-unsafe-disposables
 	private _socketDisposables: DisposableStore;
 
 	private readonly _loadEstimator: ILoadEstimator;

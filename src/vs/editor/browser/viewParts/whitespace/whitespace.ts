@@ -235,7 +235,7 @@ export class WhitespaceOverlay extends DynamicViewOverlay {
 		if (USE_SVG) {
 			maxLeft = Math.round(maxLeft + spaceWidth);
 			return (
-				`<svg style="position:absolute;width:${maxLeft}px;height:${lineHeight}px" viewBox="0 0 ${maxLeft} ${lineHeight}" xmlns="http://www.w3.org/2000/svg" fill="${color}">`
+				`<svg style="bottom:0;position:absolute;width:${maxLeft}px;height:${lineHeight}px" viewBox="0 0 ${maxLeft} ${lineHeight}" xmlns="http://www.w3.org/2000/svg" fill="${color}">`
 				+ result
 				+ `</svg>`
 			);

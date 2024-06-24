@@ -29,6 +29,7 @@ export const VIEW_ID = 'workbench.view.search';
 export const SEARCH_RESULT_LANGUAGE_ID = 'search-result';
 
 export const SEARCH_EXCLUDE_CONFIG = 'search.exclude';
+export const DEFAULT_MAX_SEARCH_RESULTS = 20000;
 
 // Warning: this pattern is used in the search editor to detect offsets. If you
 // change this, also change the search-result built-in extension
@@ -44,6 +45,7 @@ export const ISearchService = createDecorator<ISearchService>('searchService');
 export interface ISearchService {
 	readonly _serviceBrand: undefined;
 	textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete>;
+	aiTextSearch(query: IAITextQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete>;
 	textSearchSplitSyncAsync(query: ITextQuery, token?: CancellationToken | undefined, onProgress?: ((result: ISearchProgressItem) => void) | undefined, notebookFilesToIgnore?: ResourceSet, asyncNotebookFilesToIgnore?: Promise<ResourceSet>): { syncResults: ISearchComplete; asyncResults: Promise<ISearchComplete> };
 	fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete>;
 	clearCache(cacheKey: string): Promise<void>;
@@ -55,7 +57,8 @@ export interface ISearchService {
  */
 export const enum SearchProviderType {
 	file,
-	text
+	text,
+	aiText
 }
 
 export interface ISearchResultProvider {
@@ -123,17 +126,32 @@ export interface ITextQueryProps<U extends UriComponents> extends ICommonQueryPr
 	userDisabledExcludesAndIgnoreFiles?: boolean;
 }
 
+export interface IAITextQueryProps<U extends UriComponents> extends ICommonQueryProps<U> {
+	type: QueryType.aiText;
+	contentPattern: string;
+
+	previewOptions?: ITextSearchPreviewOptions;
+	maxFileSize?: number;
+	afterContext?: number;
+	beforeContext?: number;
+
+	userDisabledExcludesAndIgnoreFiles?: boolean;
+}
+
 export type IFileQuery = IFileQueryProps<URI>;
 export type IRawFileQuery = IFileQueryProps<UriComponents>;
 export type ITextQuery = ITextQueryProps<URI>;
 export type IRawTextQuery = ITextQueryProps<UriComponents>;
+export type IAITextQuery = IAITextQueryProps<URI>;
+export type IRawAITextQuery = IAITextQueryProps<UriComponents>;
 
-export type IRawQuery = IRawTextQuery | IRawFileQuery;
-export type ISearchQuery = ITextQuery | IFileQuery;
+export type IRawQuery = IRawTextQuery | IRawFileQuery | IRawAITextQuery;
+export type ISearchQuery = ITextQuery | IFileQuery | IAITextQuery;
 
 export const enum QueryType {
 	File = 1,
-	Text = 2
+	Text = 2,
+	aiText = 3
 }
 
 /* __GDPR__FRAGMENT__
@@ -249,7 +267,7 @@ export const enum SearchCompletionExitCode {
 }
 
 export interface ITextSearchStats {
-	type: 'textSearchProvider' | 'searchProcess';
+	type: 'textSearchProvider' | 'searchProcess' | 'aiTextSearchProvider';
 }
 
 export interface IFileSearchStats {
@@ -409,6 +427,7 @@ export interface ISearchConfigurationProperties {
 	mode: 'view' | 'reuseEditor' | 'newEditor';
 	searchEditor: {
 		doubleClickBehaviour: 'selectWord' | 'goToLocation' | 'openLocationToSide';
+		singleClickBehaviour: 'default' | 'peekDefinition';
 		reusePriorSearchConfiguration: boolean;
 		defaultNumberOfContextLines: number | null;
 		experimental: {};
@@ -418,12 +437,12 @@ export interface ISearchConfigurationProperties {
 		colors: boolean;
 		badges: boolean;
 	};
+	quickAccess: {
+		preserveInput: boolean;
+	};
 	defaultViewMode: ViewMode;
 	experimental: {
 		closedNotebookRichContentResults: boolean;
-		quickAccess: {
-			preserveInput: boolean;
-		};
 	};
 }
 

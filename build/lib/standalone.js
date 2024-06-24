@@ -4,7 +4,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createESMSourcesAndResources2 = exports.extractEditor = void 0;
+exports.extractEditor = extractEditor;
+exports.createESMSourcesAndResources2 = createESMSourcesAndResources2;
 const fs = require("fs");
 const path = require("path");
 const tss = require("./treeshaking");
@@ -111,7 +112,6 @@ function extractEditor(options) {
         'vs/nls.mock.ts',
     ].forEach(copyFile);
 }
-exports.extractEditor = extractEditor;
 function createESMSourcesAndResources2(options) {
     const ts = require('typescript');
     const SRC_FOLDER = path.join(REPO_ROOT, options.srcFolder);
@@ -251,7 +251,6 @@ function createESMSourcesAndResources2(options) {
         }
     }
 }
-exports.createESMSourcesAndResources2 = createESMSourcesAndResources2;
 function transportCSS(module, enqueue, write) {
     if (!/\.css/.test(module)) {
         return false;

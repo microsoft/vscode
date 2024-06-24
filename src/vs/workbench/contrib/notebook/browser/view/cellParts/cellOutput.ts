@@ -21,7 +21,6 @@ import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/commo
 import { ThemeIcon } from 'vs/base/common/themables';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSION_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
-import { INotebookOutputActionContext } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { ICellOutputViewModel, ICellViewModel, IInsetRenderOutput, INotebookEditorDelegate, JUPYTER_EXTENSION_ID, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { mimetypeIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
@@ -96,7 +95,7 @@ class CellOutputElement extends Disposable {
 	}
 
 	detach() {
-		this.renderedOutputContainer?.parentElement?.removeChild(this.renderedOutputContainer);
+		this.renderedOutputContainer?.remove();
 
 		let count = 0;
 		if (this.innerContainer) {
@@ -111,7 +110,7 @@ class CellOutputElement extends Disposable {
 			}
 
 			if (count === 0) {
-				this.innerContainer.parentElement?.removeChild(this.innerContainer);
+				this.innerContainer.remove();
 			}
 		}
 
@@ -155,7 +154,7 @@ class CellOutputElement extends Disposable {
 			this._renderDisposableStore.clear();
 			const element = this.innerContainer;
 			if (element) {
-				element.parentElement?.removeChild(element);
+				element.remove();
 				this.notebookEditor.removeInset(this.output);
 			}
 
@@ -302,7 +301,7 @@ class CellOutputElement extends Disposable {
 		const toolbar = this._renderDisposableStore.add(this.instantiationService.createInstance(WorkbenchToolBar, mimeTypePicker, {
 			renderDropdownAsChildElement: false
 		}));
-		toolbar.context = <INotebookOutputActionContext>{
+		toolbar.context = {
 			ui: true,
 			cell: this.output.cellViewModel as ICellViewModel,
 			outputViewModel: this.output,
@@ -401,7 +400,7 @@ class CellOutputElement extends Disposable {
 		this._renderDisposableStore.clear();
 		const element = this.innerContainer;
 		if (element) {
-			element.parentElement?.removeChild(element);
+			element.remove();
 			this.notebookEditor.removeInset(viewModel);
 		}
 
@@ -808,5 +807,3 @@ const JUPYTER_RENDERER_MIMETYPES = [
 	'application/vnd.jupyter.widget-view+json',
 	'application/vnd.code.notebook.error'
 ];
-
-

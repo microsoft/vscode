@@ -5,7 +5,7 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -141,18 +141,22 @@ export interface ITunnelService {
 	isPortPrivileged(port: number): boolean;
 }
 
-export function extractLocalHostUriMetaDataForPortMapping(uri: URI, { checkQuery = true } = {}): { address: string; port: number } | undefined {
+export function extractLocalHostUriMetaDataForPortMapping(uri: URI): { address: string; port: number } | undefined {
 	if (uri.scheme !== 'http' && uri.scheme !== 'https') {
 		return undefined;
 	}
 	const localhostMatch = /^(localhost|127\.0\.0\.1|0\.0\.0\.0):(\d+)$/.exec(uri.authority);
-	if (localhostMatch) {
-		return {
-			address: localhostMatch[1],
-			port: +localhostMatch[2],
-		};
+	if (!localhostMatch) {
+		return undefined;
 	}
-	if (!uri.query || !checkQuery) {
+	return {
+		address: localhostMatch[1],
+		port: +localhostMatch[2],
+	};
+}
+
+export function extractQueryLocalHostUriMetaDataForPortMapping(uri: URI): { address: string; port: number } | undefined {
+	if (uri.scheme !== 'http' && uri.scheme !== 'https' || !uri.query) {
 		return undefined;
 	}
 	const keyvalues = uri.query.split('&');
@@ -211,7 +215,7 @@ export class DisposableTunnel {
 	}
 }
 
-export abstract class AbstractTunnelService implements ITunnelService {
+export abstract class AbstractTunnelService extends Disposable implements ITunnelService {
 	declare readonly _serviceBrand: undefined;
 
 	private _onTunnelOpened: Emitter<RemoteTunnel> = new Emitter();
@@ -230,7 +234,7 @@ export abstract class AbstractTunnelService implements ITunnelService {
 	public constructor(
 		@ILogService protected readonly logService: ILogService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService
-	) { }
+	) { super(); }
 
 	get hasTunnelProvider(): boolean {
 		return !!this._tunnelProvider;
@@ -304,7 +308,8 @@ export abstract class AbstractTunnelService implements ITunnelService {
 		return tunnels;
 	}
 
-	async dispose(): Promise<void> {
+	override async dispose(): Promise<void> {
+		super.dispose();
 		for (const portMap of this._tunnels.values()) {
 			for (const { value } of portMap.values()) {
 				await value.then(tunnel => typeof tunnel !== 'string' ? tunnel?.dispose() : undefined);

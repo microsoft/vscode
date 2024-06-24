@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { safeStringify } from 'vs/base/common/objects';
 import * as nls from 'vs/nls';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -99,14 +100,14 @@ class RunCommands extends Action2 {
 
 				const cmd = args.commands[i];
 
-				logService.debug(`runCommands: executing ${i}-th command: ${JSON.stringify(cmd)}`);
+				logService.debug(`runCommands: executing ${i}-th command: ${safeStringify(cmd)}`);
 
-				const r = await this._runCommand(commandService, cmd);
+				await this._runCommand(commandService, cmd);
 
-				logService.debug(`runCommands: executed ${i}-th command with return value: ${JSON.stringify(r)}`);
+				logService.debug(`runCommands: executed ${i}-th command`);
 			}
 		} catch (err) {
-			logService.debug(`runCommands: executing ${i}-th command resulted in an error: ${err instanceof Error ? err.message : JSON.stringify(err)}`);
+			logService.debug(`runCommands: executing ${i}-th command resulted in an error: ${err instanceof Error ? err.message : safeStringify(err)}`);
 
 			notificationService.error(err);
 		}

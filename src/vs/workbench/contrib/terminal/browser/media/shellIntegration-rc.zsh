@@ -32,12 +32,6 @@ if [[ "$VSCODE_INJECTION" == "1" ]]; then
 	fi
 fi
 
-# Shell integration was disabled by the shell, exit without warning assuming either the shell has
-# explicitly disabled shell integration as it's incompatible or it implements the protocol.
-if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
-	builtin return
-fi
-
 # Apply EnvironmentVariableCollections if needed
 if [ -n "${VSCODE_ENV_REPLACE:-}" ]; then
 	IFS=':' read -rA ADDR <<< "$VSCODE_ENV_REPLACE"
@@ -64,6 +58,12 @@ if [ -n "${VSCODE_ENV_APPEND:-}" ]; then
 	unset VSCODE_ENV_APPEND
 fi
 
+# Shell integration was disabled by the shell, exit without warning assuming either the shell has
+# explicitly disabled shell integration as it's incompatible or it implements the protocol.
+if [ -z "$VSCODE_SHELL_INTEGRATION" ]; then
+	builtin return
+fi
+
 # The property (P) and command (E) codes embed values which require escaping.
 # Backslashes are doubled. Non-alphanumeric characters are converted to escaped hex.
 __vsc_escape_value() {
@@ -75,11 +75,13 @@ __vsc_escape_value() {
 	for (( i = 0; i < ${#str}; ++i )); do
 		byte="${str:$i:1}"
 
-		# Escape backslashes and semi-colons
+		# Escape backslashes, semi-colons and newlines
 		if [ "$byte" = "\\" ]; then
 			token="\\\\"
 		elif [ "$byte" = ";" ]; then
 			token="\\x3b"
+		elif [ "$byte" = $'\n' ]; then
+			token="\x0a"
 		else
 			token="$byte"
 		fi
@@ -110,8 +112,8 @@ __vsc_update_cwd() {
 }
 
 __vsc_command_output_start() {
-	builtin printf '\e]633;C\a'
 	builtin printf '\e]633;E;%s;%s\a' "$(__vsc_escape_value "${__vsc_current_command}")" $__vsc_nonce
+	builtin printf '\e]633;C\a'
 }
 
 __vsc_continuation_start() {

@@ -14,16 +14,15 @@ export class TerminalInputSerializer implements IEditorSerializer {
 		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService
 	) { }
 
-	public canSerialize(editorInput: TerminalEditorInput): boolean {
-		return !!editorInput.terminalInstance?.persistentProcessId;
+	public canSerialize(editorInput: TerminalEditorInput): editorInput is TerminalEditorInput & { readonly terminalInstance: ITerminalInstance } {
+		return typeof editorInput.terminalInstance?.persistentProcessId === 'number' && editorInput.terminalInstance.shouldPersist;
 	}
 
 	public serialize(editorInput: TerminalEditorInput): string | undefined {
-		if (!editorInput.terminalInstance?.persistentProcessId || !editorInput.terminalInstance.shouldPersist) {
+		if (!this.canSerialize(editorInput)) {
 			return;
 		}
-		const term = JSON.stringify(this._toJson(editorInput.terminalInstance));
-		return term;
+		return JSON.stringify(this._toJson(editorInput.terminalInstance));
 	}
 
 	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput | undefined {

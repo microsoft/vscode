@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
+import assert from 'assert';
 import { AsyncIterableObject, AsyncIterableSource } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
@@ -92,6 +92,18 @@ suite('NotebookVariableDataSource', () => {
 		assert(variables.length > 1, 'We should have results for groups of children');
 		assert(!provideVariablesCalled, 'provideVariables should not be called');
 		assert.equal(variables[0].extHostId, parent.extHostId, 'ExtHostId should match the parent since we will use it to get the real children');
+	});
+
+	test('Get children for very large list', async () => {
+		const parent = { kind: 'variable', notebook: notebookModel, id: '1', extHostId: 1, name: 'list', value: '[...]', hasNamedChildren: false, indexedChildrenCount: 1_000_000 } as INotebookVariableElement;
+		results = [];
+
+		const groups = await dataSource.getChildren(parent);
+		const children = await dataSource.getChildren(groups[99]);
+
+		assert(children.length === 100, 'We should have a full page of child groups');
+		assert(!provideVariablesCalled, 'provideVariables should not be called');
+		assert.equal(children[0].extHostId, parent.extHostId, 'ExtHostId should match the parent since we will use it to get the real children');
 	});
 
 	test('Cancel while enumerating through children', async () => {

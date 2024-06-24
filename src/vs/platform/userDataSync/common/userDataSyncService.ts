@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equals } from 'vs/base/common/arrays';
-import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
+import { CancelablePromise, createCancelablePromise, RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -37,12 +37,12 @@ import {
 type SyncErrorClassification = {
 	owner: 'sandy081';
 	comment: 'Information about the error that occurred while syncing';
-	code: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'error code' };
-	service: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Settings Sync service for which this error has occurred' };
-	serverCode?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Settings Sync service error code' };
-	url?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Settings Sync resource URL for which this error has occurred' };
-	resource?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Settings Sync resource for which this error has occurred' };
-	executionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Settings Sync execution id for which this error has occurred' };
+	code: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'error code' };
+	service: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Settings Sync service for which this error has occurred' };
+	serverCode?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Settings Sync service error code' };
+	url?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Settings Sync resource URL for which this error has occurred' };
+	resource?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Settings Sync resource for which this error has occurred' };
+	executionId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Settings Sync execution id for which this error has occurred' };
 };
 
 const LAST_SYNC_TIME_KEY = 'sync.lastSyncTime';
@@ -98,6 +98,8 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		this._status = userDataSyncStoreManagementService.userDataSyncStore ? SyncStatus.Idle : SyncStatus.Uninitialized;
 		this._lastSyncTime = this.storageService.getNumber(LAST_SYNC_TIME_KEY, StorageScope.APPLICATION, undefined);
 		this._register(toDisposable(() => this.clearActiveProfileSynchronizers()));
+
+		this._register(new RunOnceScheduler(() => this.cleanUpStaleStorageData(), 5 * 1000 /* after 5s */)).schedule();
 	}
 
 	async createSyncTask(manifest: IUserDataManifest | null, disableCache?: boolean): Promise<IUserDataSyncTask> {
@@ -245,6 +247,7 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 			if (this.userDataProfilesService.profiles.some(p => p.id === profileSynchronizerItem[0].profile.id)) {
 				continue;
 			}
+			await profileSynchronizerItem[0].resetLocal();
 			profileSynchronizerItem[1].dispose();
 			this.activeProfileSynchronizers.delete(key);
 		}
@@ -395,6 +398,46 @@ export class UserDataSyncService extends Disposable implements IUserDataSyncServ
 		this.clearActiveProfileSynchronizers();
 		this._onDidResetLocal.fire();
 		this.logService.info('Did reset the local sync state.');
+	}
+
+	private async cleanUpStaleStorageData(): Promise<void> {
+		const allKeys = this.storageService.keys(StorageScope.APPLICATION, StorageTarget.MACHINE);
+		const lastSyncProfileKeys: [string, string][] = [];
+		for (const key of allKeys) {
+			if (!key.endsWith('.lastSyncUserData')) {
+				continue;
+			}
+			const segments = key.split('.');
+			if (segments.length === 3) {
+				lastSyncProfileKeys.push([key, segments[0]]);
+			}
+		}
+		if (!lastSyncProfileKeys.length) {
+			return;
+		}
+
+		const disposables = new DisposableStore();
+
+		try {
+			let defaultProfileSynchronizer = this.activeProfileSynchronizers.get(this.userDataProfilesService.defaultProfile.id)?.[0];
+			if (!defaultProfileSynchronizer) {
+				defaultProfileSynchronizer = disposables.add(this.instantiationService.createInstance(ProfileSynchronizer, this.userDataProfilesService.defaultProfile, undefined));
+			}
+			const userDataProfileManifestSynchronizer = defaultProfileSynchronizer.enabled.find(s => s.resource === SyncResource.Profiles) as UserDataProfilesManifestSynchroniser;
+			if (!userDataProfileManifestSynchronizer) {
+				return;
+			}
+			const lastSyncedProfiles = await userDataProfileManifestSynchronizer.getLastSyncedProfiles();
+			const lastSyncedCollections = lastSyncedProfiles?.map(p => p.collection) ?? [];
+			for (const [key, collection] of lastSyncProfileKeys) {
+				if (!lastSyncedCollections.includes(collection)) {
+					this.logService.info(`Removing last sync state for stale profile: ${collection}`);
+					this.storageService.remove(key, StorageScope.APPLICATION);
+				}
+			}
+		} finally {
+			disposables.dispose();
+		}
 	}
 
 	async cleanUpRemoteData(): Promise<void> {

@@ -11,7 +11,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ILanguageService } from 'vs/editor/common/languages/language';
@@ -228,12 +228,14 @@ export class MarkupCell extends Disposable {
 			e.added.forEach(options => {
 				if (options.className) {
 					this.notebookEditor.deltaCellContainerClassNames(this.viewCell.id, [options.className], []);
+					this.templateData.rootContainer.classList.add(options.className);
 				}
 			});
 
 			e.removed.forEach(options => {
 				if (options.className) {
 					this.notebookEditor.deltaCellContainerClassNames(this.viewCell.id, [], [options.className]);
+					this.templateData.rootContainer.classList.remove(options.className);
 				}
 			});
 		}));
@@ -241,6 +243,7 @@ export class MarkupCell extends Disposable {
 		this.viewCell.getCellDecorations().forEach(options => {
 			if (options.className) {
 				this.notebookEditor.deltaCellContainerClassNames(this.viewCell.id, [options.className], []);
+				this.templateData.rootContainer.classList.add(options.className);
 			}
 		});
 	}
@@ -346,7 +349,7 @@ export class MarkupCell extends Disposable {
 			// create a special context key service that set the inCompositeEditor-contextkey
 			const editorContextKeyService = this.contextKeyService.createScoped(this.templateData.editorPart);
 			EditorContextKeys.inCompositeEditor.bindTo(editorContextKeyService).set(true);
-			const editorInstaService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, editorContextKeyService]));
+			const editorInstaService = this.editorDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, editorContextKeyService])));
 			this.editorDisposables.add(editorContextKeyService);
 
 			this.editor = this.editorDisposables.add(editorInstaService.createInstance(CodeEditorWidget, this.templateData.editorContainer, {

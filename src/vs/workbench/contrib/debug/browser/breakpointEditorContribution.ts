@@ -54,7 +54,7 @@ const breakpointHelperDecoration: IModelDecorationOptions = {
 	description: 'breakpoint-helper-decoration',
 	glyphMarginClassName: ThemeIcon.asClassName(icons.debugBreakpointHint),
 	glyphMargin: { position: GlyphMarginLane.Right },
-	glyphMarginHoverMessage: new MarkdownString().appendText(nls.localize('breakpointHelper', "Click to add a breakpoint.")),
+	glyphMarginHoverMessage: new MarkdownString().appendText(nls.localize('breakpointHelper', "Click to add a breakpoint")),
 	stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 };
 
@@ -327,7 +327,25 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 						}
 					}
 				} else if (canSetBreakpoints) {
-					this.debugService.addBreakpoints(uri, [{ lineNumber }]);
+					if (e.event.middleButton) {
+						const action = this.configurationService.getValue<IDebugConfiguration>('debug').gutterMiddleClickAction;
+						if (action !== 'none') {
+							let context: BreakpointWidgetContext;
+							switch (action) {
+								case 'logpoint':
+									context = BreakpointWidgetContext.LOG_MESSAGE;
+									break;
+								case 'conditionalBreakpoint':
+									context = BreakpointWidgetContext.CONDITION;
+									break;
+								case 'triggeredBreakpoint':
+									context = BreakpointWidgetContext.TRIGGER_POINT;
+							}
+							this.showBreakpointWidget(lineNumber, undefined, context);
+						}
+					} else {
+						this.debugService.addBreakpoints(uri, [{ lineNumber }]);
+					}
 				}
 			}
 		}));

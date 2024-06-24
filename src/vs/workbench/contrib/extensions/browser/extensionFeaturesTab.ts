@@ -3,17 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { $, append, clearNode } from 'vs/base/browser/dom';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ExtensionIdentifier, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { Orientation, Sizing, SplitView } from 'vs/base/browser/ui/splitview/splitview';
-import { IExtensionFeatureDescriptor, Extensions, IExtensionFeaturesRegistry, IExtensionFeatureRenderer, IExtensionFeaturesManagementService, IExtensionFeatureTableRenderer, IExtensionFeatureMarkdownRenderer, ITableData, IRenderedData } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
+import { IExtensionFeatureDescriptor, Extensions, IExtensionFeaturesRegistry, IExtensionFeatureRenderer, IExtensionFeaturesManagementService, IExtensionFeatureTableRenderer, IExtensionFeatureMarkdownRenderer, ITableData, IRenderedData, IExtensionFeatureMarkdownAndTableRenderer } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { localize } from 'vs/nls';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
-import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { getExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { Button } from 'vs/base/browser/ui/button/button';
@@ -36,8 +35,8 @@ import { Color } from 'vs/base/common/color';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { Codicon } from 'vs/base/common/codicons';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { fromNow } from 'vs/base/common/date';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
+import { fromNow } from 'vs/base/common/date';
 
 class RuntimeStatusMarkdownRenderer extends Disposable implements IExtensionFeatureMarkdownRenderer {
 
@@ -53,10 +52,10 @@ class RuntimeStatusMarkdownRenderer extends Disposable implements IExtensionFeat
 
 	shouldRender(manifest: IExtensionManifest): boolean {
 		const extensionId = new ExtensionIdentifier(getExtensionId(manifest.publisher, manifest.name));
-		if (this.extensionService.extensions.some(e => ExtensionIdentifier.equals(e.identifier, extensionId))) {
-			return !!manifest.main || !!manifest.browser;
+		if (!this.extensionService.extensions.some(e => ExtensionIdentifier.equals(e.identifier, extensionId))) {
+			return false;
 		}
-		return !!manifest.activationEvents;
+		return !!manifest.main || !!manifest.browser;
 	}
 
 	render(manifest: IExtensionManifest): IRenderedData<IMarkdownString> {
@@ -65,18 +64,18 @@ class RuntimeStatusMarkdownRenderer extends Disposable implements IExtensionFeat
 		const emitter = disposables.add(new Emitter<IMarkdownString>());
 		disposables.add(this.extensionService.onDidChangeExtensionsStatus(e => {
 			if (e.some(extension => ExtensionIdentifier.equals(extension, extensionId))) {
-				emitter.fire(this.getActivationData(manifest));
+				emitter.fire(this.getRuntimeStatusData(manifest));
 			}
 		}));
-		disposables.add(this.extensionFeaturesManagementService.onDidChangeAccessData(e => emitter.fire(this.getActivationData(manifest))));
+		disposables.add(this.extensionFeaturesManagementService.onDidChangeAccessData(e => emitter.fire(this.getRuntimeStatusData(manifest))));
 		return {
 			onDidChange: emitter.event,
-			data: this.getActivationData(manifest),
+			data: this.getRuntimeStatusData(manifest),
 			dispose: () => disposables.dispose()
 		};
 	}
 
-	private getActivationData(manifest: IExtensionManifest): IMarkdownString {
+	private getRuntimeStatusData(manifest: IExtensionManifest): IMarkdownString {
 		const data = new MarkdownString();
 		const extensionId = new ExtensionIdentifier(getExtensionId(manifest.publisher, manifest.name));
 		const status = this.extensionService.getExtensionsStatus()[extensionId.value];
@@ -240,7 +239,7 @@ export class ExtensionFeaturesTab extends Themable {
 			multipleSelectionSupport: false,
 			setRowLineHeight: false,
 			horizontalScrolling: false,
-			accessibilityProvider: <IListAccessibilityProvider<IExtensionFeatureDescriptor | null>>{
+			accessibilityProvider: {
 				getAriaLabel(extensionFeature: IExtensionFeatureDescriptor | null): string {
 					return extensionFeature?.label ?? '';
 				},
@@ -437,6 +436,8 @@ class ExtensionFeatureView extends Disposable {
 				this.renderTableData(featureContentElement, <IExtensionFeatureTableRenderer>renderer);
 			} else if (renderer.type === 'markdown') {
 				this.renderMarkdownData(featureContentElement, <IExtensionFeatureMarkdownRenderer>renderer);
+			} else if (renderer.type === 'markdown+table') {
+				this.renderMarkdownAndTableData(featureContentElement, <IExtensionFeatureMarkdownAndTableRenderer>renderer);
 			}
 		}
 	}
@@ -447,16 +448,18 @@ class ExtensionFeatureView extends Disposable {
 
 	private renderTableData(container: HTMLElement, renderer: IExtensionFeatureTableRenderer): void {
 		const tableData = this._register(renderer.render(this.manifest));
+		const tableDisposable = this._register(new MutableDisposable());
 		if (tableData.onDidChange) {
 			this._register(tableData.onDidChange(data => {
 				clearNode(container);
-				this.renderTable(data, container);
+				tableDisposable.value = this.renderTable(data, container);
 			}));
 		}
-		this.renderTable(tableData.data, container);
+		tableDisposable.value = this.renderTable(tableData.data, container);
 	}
 
-	private renderTable(tableData: ITableData, container: HTMLElement): void {
+	private renderTable(tableData: ITableData, container: HTMLElement): IDisposable {
+		const disposables = new DisposableStore();
 		append(container,
 			$('table', undefined,
 				$('tr', undefined,
@@ -478,7 +481,7 @@ class ExtensionFeatureView extends Disposable {
 										result.push(element);
 									} else if (item instanceof ResolvedKeybinding) {
 										const element = $('');
-										const kbl = new KeybindingLabel(element, OS, defaultKeybindingLabelStyles);
+										const kbl = disposables.add(new KeybindingLabel(element, OS, defaultKeybindingLabelStyles));
 										kbl.set(item);
 										result.push(element);
 									} else if (item instanceof Color) {
@@ -490,6 +493,18 @@ class ExtensionFeatureView extends Disposable {
 							})
 						);
 					})));
+		return disposables;
+	}
+
+	private renderMarkdownAndTableData(container: HTMLElement, renderer: IExtensionFeatureMarkdownAndTableRenderer): void {
+		const markdownAndTableData = this._register(renderer.render(this.manifest));
+		if (markdownAndTableData.onDidChange) {
+			this._register(markdownAndTableData.onDidChange(data => {
+				clearNode(container);
+				this.renderMarkdownAndTable(data, container);
+			}));
+		}
+		this.renderMarkdownAndTable(markdownAndTableData.data, container);
 	}
 
 	private renderMarkdownData(container: HTMLElement, renderer: IExtensionFeatureMarkdownRenderer): void {
@@ -519,6 +534,19 @@ class ExtensionFeatureView extends Disposable {
 			});
 		this._register(toDisposable(dispose));
 		append(container, element);
+	}
+
+	private renderMarkdownAndTable(data: Array<IMarkdownString | ITableData>, container: HTMLElement): void {
+		for (const markdownOrTable of data) {
+			if (isMarkdownString(markdownOrTable)) {
+				const element = $('', undefined);
+				this.renderMarkdown(markdownOrTable, element);
+				append(container, element);
+			} else {
+				const tableElement = append(container, $('table'));
+				this.renderTable(markdownOrTable, tableElement);
+			}
+		}
 	}
 
 	layout(height?: number, width?: number): void {

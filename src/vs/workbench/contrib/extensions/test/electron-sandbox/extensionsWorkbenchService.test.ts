@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as sinon from 'sinon';
-import * as assert from 'assert';
+import assert from 'assert';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ExtensionState, AutoCheckUpdatesConfigurationKey, AutoUpdateConfigurationKey } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/browser/extensionsWorkbenchService';
@@ -51,6 +51,12 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Mutable } from 'vs/base/common/types';
+import { IUpdateService, State } from 'vs/platform/update/common/update';
+import { IFileService } from 'vs/platform/files/common/files';
+import { FileService } from 'vs/platform/files/common/fileService';
+import { UserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfileService';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { toUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 suite('ExtensionsWorkbenchServiceTest', () => {
 
@@ -73,6 +79,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		instantiationService = disposableStore.add(new TestInstantiationService());
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(ILogService, NullLogService);
+		instantiationService.stub(IFileService, disposableStore.add(new FileService(new NullLogService())));
 		instantiationService.stub(IProgressService, ProgressService);
 		instantiationService.stub(IProductService, {});
 
@@ -85,6 +92,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		stubConfiguration();
 
 		instantiationService.stub(IRemoteAgentService, RemoteAgentService);
+		instantiationService.stub(IUserDataProfileService, disposableStore.add(new UserDataProfileService(toUserDataProfile('test', 'test', URI.file('foo'), URI.file('cache')))));
 
 		instantiationService.stub(IWorkbenchExtensionManagementService, {
 			onDidInstallExtensions: didInstallEvent.event,
@@ -94,8 +102,9 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			onDidUpdateExtensionMetadata: Event.None,
 			onDidChangeProfile: Event.None,
 			async getInstalled() { return []; },
+			async getInstalledWorkspaceExtensions() { return []; },
 			async getExtensionsControlManifest() { return { malicious: [], deprecated: {}, search: [] }; },
-			async updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>) {
+			async updateMetadata(local: Mutable<ILocalExtension>, metadata: Partial<Metadata>) {
 				local.identifier.uuid = metadata.id;
 				local.publisherDisplayName = metadata.publisherDisplayName!;
 				local.publisherId = metadata.publisherId!;
@@ -131,6 +140,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', []);
 		instantiationService.stubPromise(INotificationService, 'prompt', 0);
 		(<TestExtensionEnablementService>instantiationService.get(IWorkbenchExtensionEnablementService)).reset();
+		instantiationService.stub(IUpdateService, { onStateChange: Event.None, state: State.Uninitialized });
 	});
 
 	test('test gallery extension', async () => {
@@ -365,11 +375,10 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			const extension = page.firstPage[0];
 			assert.strictEqual(ExtensionState.Uninstalled, extension.state);
 
-			testObject.install(extension);
 			const identifier = gallery.identifier;
 
 			// Installing
-			installEvent.fire({ identifier, source: gallery });
+			installEvent.fire({ identifier, source: gallery, profileLocation: null! });
 			const local = testObject.local;
 			assert.strictEqual(1, local.length);
 			const actual = local[0];
@@ -377,18 +386,18 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			assert.strictEqual(ExtensionState.Installing, actual.state);
 
 			// Installed
-			didInstallEvent.fire([{ identifier, source: gallery, operation: InstallOperation.Install, local: aLocalExtension(gallery.name, gallery, { identifier }) }]);
+			didInstallEvent.fire([{ identifier, source: gallery, operation: InstallOperation.Install, local: aLocalExtension(gallery.name, gallery, { identifier }), profileLocation: null! }]);
 			assert.strictEqual(ExtensionState.Installed, actual.state);
 			assert.strictEqual(1, testObject.local.length);
 
 			testObject.uninstall(actual);
 
 			// Uninstalling
-			uninstallEvent.fire({ identifier });
+			uninstallEvent.fire({ identifier, profileLocation: null! });
 			assert.strictEqual(ExtensionState.Uninstalling, actual.state);
 
 			// Uninstalled
-			didUninstallEvent.fire({ identifier });
+			didUninstallEvent.fire({ identifier, profileLocation: null! });
 			assert.strictEqual(ExtensionState.Uninstalled, actual.state);
 
 			assert.strictEqual(0, testObject.local.length);
@@ -411,8 +420,8 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		testObject = await aWorkbenchService();
 		const target = testObject.local[0];
 		testObject.uninstall(target);
-		uninstallEvent.fire({ identifier: local.identifier });
-		didUninstallEvent.fire({ identifier: local.identifier });
+		uninstallEvent.fire({ identifier: local.identifier, profileLocation: null! });
+		didUninstallEvent.fire({ identifier: local.identifier, profileLocation: null! });
 
 		assert.ok(!(await testObject.canInstall(target)));
 	});
@@ -450,12 +459,11 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		const extension = page.firstPage[0];
 		assert.strictEqual(ExtensionState.Uninstalled, extension.state);
 
-		testObject.install(extension);
-		installEvent.fire({ identifier: gallery.identifier, source: gallery });
+		installEvent.fire({ identifier: gallery.identifier, source: gallery, profileLocation: null! });
 		const promise = Event.toPromise(testObject.onChange);
 
 		// Installed
-		didInstallEvent.fire([{ identifier: gallery.identifier, source: gallery, operation: InstallOperation.Install, local: aLocalExtension(gallery.name, gallery, gallery) }]);
+		didInstallEvent.fire([{ identifier: gallery.identifier, source: gallery, operation: InstallOperation.Install, local: aLocalExtension(gallery.name, gallery, gallery), profileLocation: null! }]);
 
 		await promise;
 	});
@@ -470,11 +478,10 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			const extension = page.firstPage[0];
 			assert.strictEqual(ExtensionState.Uninstalled, extension.state);
 
-			testObject.install(extension);
 			disposableStore.add(testObject.onChange(target));
 
 			// Installing
-			installEvent.fire({ identifier: gallery.identifier, source: gallery });
+			installEvent.fire({ identifier: gallery.identifier, source: gallery, profileLocation: null! });
 
 			assert.ok(target.calledOnce);
 		});
@@ -488,7 +495,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		testObject.uninstall(testObject.local[0]);
 		disposableStore.add(testObject.onChange(target));
-		uninstallEvent.fire({ identifier: local.identifier });
+		uninstallEvent.fire({ identifier: local.identifier, profileLocation: null! });
 
 		assert.ok(target.calledOnce);
 	});
@@ -500,9 +507,9 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		const target = sinon.spy();
 
 		testObject.uninstall(testObject.local[0]);
-		uninstallEvent.fire({ identifier: local.identifier });
+		uninstallEvent.fire({ identifier: local.identifier, profileLocation: null! });
 		disposableStore.add(testObject.onChange(target));
-		didUninstallEvent.fire({ identifier: local.identifier });
+		didUninstallEvent.fire({ identifier: local.identifier, profileLocation: null! });
 
 		assert.ok(target.calledOnce);
 	});
@@ -1015,7 +1022,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		testObject = await aWorkbenchService();
 		const local = aLocalExtension('pub.a');
 		await instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([local], EnablementState.DisabledGlobally);
-		didInstallEvent.fire([{ local, identifier: local.identifier, operation: InstallOperation.Update }]);
+		didInstallEvent.fire([{ local, identifier: local.identifier, operation: InstallOperation.Update, profileLocation: null! }]);
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 		const actual = await testObject.queryLocal();
 		assert.strictEqual(actual[0].enablementState, EnablementState.DisabledGlobally);
@@ -1025,7 +1032,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		testObject = await aWorkbenchService();
 		const local = aLocalExtension('pub.a');
 		await instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([local], EnablementState.DisabledWorkspace);
-		didInstallEvent.fire([{ local, identifier: local.identifier, operation: InstallOperation.Update }]);
+		didInstallEvent.fire([{ local, identifier: local.identifier, operation: InstallOperation.Update, profileLocation: null! }]);
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 		const actual = await testObject.queryLocal();
 		assert.strictEqual(actual[0].enablementState, EnablementState.DisabledWorkspace);
@@ -1737,7 +1744,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			onDidUpdateExtensionMetadata: Event.None,
 			getInstalled: () => Promise.resolve<ILocalExtension[]>(installed),
 			installFromGallery: (extension: IGalleryExtension) => Promise.reject(new Error('not supported')),
-			updateMetadata: async (local: ILocalExtension, metadata: Partial<Metadata>) => {
+			updateMetadata: async (local: Mutable<ILocalExtension>, metadata: Partial<Metadata>, profileLocation: URI) => {
 				local.identifier.uuid = metadata.id;
 				local.publisherDisplayName = metadata.publisherDisplayName!;
 				local.publisherId = metadata.publisherId!;

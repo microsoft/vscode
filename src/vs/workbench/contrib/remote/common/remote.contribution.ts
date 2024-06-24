@@ -239,7 +239,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			'remote.autoForwardPortsFallback': {
 				type: 'number',
 				default: 20,
-				markdownDescription: localize('remote.autoForwardPortFallback', "The number of auto forwarded ports that will trigger the switch from `process` to `hybrid` when automatically forwarding ports and `remote.autoForwardPortsSource` is set to `process`. Set to `0` to disable the fallback.")
+				markdownDescription: localize('remote.autoForwardPortFallback', "The number of auto forwarded ports that will trigger the switch from `process` to `hybrid` when automatically forwarding ports and `remote.autoForwardPortsSource` is set to `process` by default. Set to `0` to disable the fallback. When `remote.autoForwardPortsFallback` hasn't been configured, but `remote.autoForwardPortsSource` has, `remote.autoForwardPortsFallback` will be treated as though it's set to `0`.")
 			},
 			'remote.forwardOnOpen': {
 				type: 'boolean',

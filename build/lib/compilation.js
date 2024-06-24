@@ -4,7 +4,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.watchApiProposalNamesTask = exports.compileApiProposalNamesTask = exports.watchTask = exports.compileTask = exports.transpileTask = void 0;
+exports.watchApiProposalNamesTask = exports.compileApiProposalNamesTask = void 0;
+exports.transpileTask = transpileTask;
+exports.compileTask = compileTask;
+exports.watchTask = watchTask;
 const es = require("event-stream");
 const fs = require("fs");
 const gulp = require("gulp");
@@ -20,6 +23,7 @@ const ts = require("typescript");
 const File = require("vinyl");
 const task = require("./task");
 const index_1 = require("./mangle/index");
+const postcss_1 = require("./postcss");
 const watch = require('./watch');
 // --- gulp-tsb: compile and transpile --------------------------------
 const reporter = (0, reporter_1.createReporter)();
@@ -57,13 +61,12 @@ function createCompile(src, build, emitError, transpileOnly) {
         const isRuntimeJs = (f) => f.path.endsWith('.js') && !f.path.includes('fixtures');
         const isCSS = (f) => f.path.endsWith('.css') && !f.path.includes('fixtures');
         const noDeclarationsFilter = util.filter(data => !(/\.d\.ts$/.test(data.path)));
-        const postcss = require('gulp-postcss');
         const postcssNesting = require('postcss-nesting');
         const input = es.through();
         const output = input
             .pipe(util.$if(isUtf8Test, bom())) // this is required to preserve BOM in test files that loose it otherwise
             .pipe(util.$if(!build && isRuntimeJs, util.appendOwnPathSourceURL()))
-            .pipe(util.$if(isCSS, postcss([postcssNesting()])))
+            .pipe(util.$if(isCSS, (0, postcss_1.gulpPostcss)([postcssNesting()], err => reporter(String(err)))))
             .pipe(tsFilter)
             .pipe(util.loadSourcemaps())
             .pipe(compilation(token))
@@ -96,10 +99,9 @@ function transpileTask(src, out, swc) {
     task.taskName = `transpile-${path.basename(src)}`;
     return task;
 }
-exports.transpileTask = transpileTask;
 function compileTask(src, out, build, options = {}) {
     const task = () => {
-        if (os.totalmem() < 4000000000) {
+        if (os.totalmem() < 4_000_000_000) {
             throw new Error('compilation requires 4GB of RAM');
         }
         const compile = createCompile(src, build, true, false);
@@ -137,7 +139,6 @@ function compileTask(src, out, build, options = {}) {
     task.taskName = `compile-${path.basename(src)}`;
     return task;
 }
-exports.compileTask = compileTask;
 function watchTask(out, build) {
     const task = () => {
         const compile = createCompile('src', build, false, false);
@@ -153,7 +154,6 @@ function watchTask(out, build) {
     task.taskName = `watch-${path.basename(out)}`;
     return task;
 }
-exports.watchTask = watchTask;
 const REPO_SRC_FOLDER = path.join(__dirname, '../../src');
 class MonacoGenerator {
     _isWatch;
@@ -234,7 +234,7 @@ class MonacoGenerator {
 function generateApiProposalNames() {
     let eol;
     try {
-        const src = fs.readFileSync('src/vs/workbench/services/extensions/common/extensionsApiProposals.ts', 'utf-8');
+        const src = fs.readFileSync('src/vs/platform/extensions/common/extensionsApiProposals.ts', 'utf-8');
         const match = /\r?\n/m.exec(src);
         eol = match ? match[0] : os.EOL;
     }
@@ -242,18 +242,27 @@ function generateApiProposalNames() {
         eol = os.EOL;
     }
     const pattern = /vscode\.proposed\.([a-zA-Z\d]+)\.d\.ts$/;
-    const proposalNames = new Set();
+    const versionPattern = /^\s*\/\/\s*version\s*:\s*(\d+)\s*$/mi;
+    const proposals = new Map();
     const input = es.through();
     const output = input
         .pipe(util.filter((f) => pattern.test(f.path)))
         .pipe(es.through((f) => {
         const name = path.basename(f.path);
         const match = pattern.exec(name);
-        if (match) {
-            proposalNames.add(match[1]);
+        if (!match) {
+            return;
         }
+        const proposalName = match[1];
+        const contents = f.contents.toString('utf8');
+        const versionMatch = versionPattern.exec(contents);
+        const version = versionMatch ? versionMatch[1] : undefined;
+        proposals.set(proposalName, {
+            proposal: `https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.${proposalName}.d.ts`,
+            version: version ? parseInt(version) : undefined
+        });
     }, function () {
-        const names = [...proposalNames.values()].sort();
+        const names = [...proposals.keys()].sort();
         const contents = [
             '/*---------------------------------------------------------------------------------------------',
             ' *  Copyright (c) Microsoft Corporation. All rights reserved.',
@@ -262,14 +271,18 @@ function generateApiProposalNames() {
             '',
             '// THIS IS A GENERATED FILE. DO NOT EDIT DIRECTLY.',
             '',
-            'export const allApiProposals = Object.freeze({',
-            `${names.map(name => `\t${name}: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.${name}.d.ts'`).join(`,${eol}`)}`,
-            '});',
-            'export type ApiProposalName = keyof typeof allApiProposals;',
+            'const _allApiProposals = {',
+            `${names.map(proposalName => {
+                const proposal = proposals.get(proposalName);
+                return `\t${proposalName}: {${eol}\t\tproposal: '${proposal.proposal}',${eol}${proposal.version ? `\t\tversion: ${proposal.version}${eol}` : ''}\t}`;
+            }).join(`,${eol}`)}`,
+            '};',
+            'export const allApiProposals = Object.freeze<{ [proposalName: string]: Readonly<{ proposal: string; version?: number }> }>(_allApiProposals);',
+            'export type ApiProposalName = keyof typeof _allApiProposals;',
             '',
         ].join(eol);
         this.emit('data', new File({
-            path: 'vs/workbench/services/extensions/common/extensionsApiProposals.ts',
+            path: 'vs/platform/extensions/common/extensionsApiProposals.ts',
             contents: Buffer.from(contents)
         }));
         this.emit('end');

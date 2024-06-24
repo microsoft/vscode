@@ -8,7 +8,7 @@ import * as path from 'path';
 import { Repository, GitResourceGroup } from './repository';
 import { Model } from './model';
 import { debounce } from './decorators';
-import { filterEvent, dispose, anyEvent, fireEvent, PromiseSource, combinedDisposable } from './util';
+import { filterEvent, dispose, anyEvent, fireEvent, PromiseSource, combinedDisposable, runAndSubscribeEvent } from './util';
 import { Change, GitErrorCodes, Status } from './api/git';
 
 class GitIgnoreDecorationProvider implements FileDecorationProvider {
@@ -101,7 +101,7 @@ class GitDecorationProvider implements FileDecorationProvider {
 	constructor(private repository: Repository) {
 		this.disposables.push(
 			window.registerFileDecorationProvider(this),
-			repository.onDidRunGitStatus(this.onDidRunGitStatus, this)
+			runAndSubscribeEvent(repository.onDidRunGitStatus, () => this.onDidRunGitStatus())
 		);
 	}
 
@@ -162,11 +162,13 @@ class GitIncomingChangesFileDecorationProvider implements FileDecorationProvider
 	private readonly disposables: Disposable[] = [];
 
 	constructor(private readonly repository: Repository) {
-		this.disposables.push(window.registerFileDecorationProvider(this));
-		repository.historyProvider.onDidChangeCurrentHistoryItemGroupBase(this.onDidChangeCurrentHistoryItemGroupBase, this, this.disposables);
+		this.disposables.push(
+			window.registerFileDecorationProvider(this),
+			runAndSubscribeEvent(repository.historyProvider.onDidChangeCurrentHistoryItemGroup, () => this.onDidChangeCurrentHistoryItemGroup())
+		);
 	}
 
-	private async onDidChangeCurrentHistoryItemGroupBase(): Promise<void> {
+	private async onDidChangeCurrentHistoryItemGroup(): Promise<void> {
 		const newDecorations = new Map<string, FileDecoration>();
 		await this.collectIncomingChangesFileDecorations(newDecorations);
 		const uris = new Set([...this.decorations.keys()].concat([...newDecorations.keys()]));
@@ -181,35 +183,30 @@ class GitIncomingChangesFileDecorationProvider implements FileDecorationProvider
 				case Status.INDEX_ADDED:
 					bucket.set(change.uri.toString(), {
 						badge: '↓A',
-						color: new ThemeColor('gitDecoration.incomingAddedForegroundColor'),
 						tooltip: l10n.t('Incoming Changes (added)'),
 					});
 					break;
 				case Status.DELETED:
 					bucket.set(change.uri.toString(), {
 						badge: '↓D',
-						color: new ThemeColor('gitDecoration.incomingDeletedForegroundColor'),
 						tooltip: l10n.t('Incoming Changes (deleted)'),
 					});
 					break;
 				case Status.INDEX_RENAMED:
 					bucket.set(change.originalUri.toString(), {
 						badge: '↓R',
-						color: new ThemeColor('gitDecoration.incomingRenamedForegroundColor'),
 						tooltip: l10n.t('Incoming Changes (renamed)'),
 					});
 					break;
 				case Status.MODIFIED:
 					bucket.set(change.uri.toString(), {
 						badge: '↓M',
-						color: new ThemeColor('gitDecoration.incomingModifiedForegroundColor'),
 						tooltip: l10n.t('Incoming Changes (modified)'),
 					});
 					break;
 				default: {
 					bucket.set(change.uri.toString(), {
 						badge: '↓~',
-						color: new ThemeColor('gitDecoration.incomingModifiedForegroundColor'),
 						tooltip: l10n.t('Incoming Changes'),
 					});
 					break;
@@ -223,16 +220,16 @@ class GitIncomingChangesFileDecorationProvider implements FileDecorationProvider
 			const historyProvider = this.repository.historyProvider;
 			const currentHistoryItemGroup = historyProvider.currentHistoryItemGroup;
 
-			if (!currentHistoryItemGroup?.base) {
+			if (!currentHistoryItemGroup?.remote) {
 				return [];
 			}
 
-			const ancestor = await historyProvider.resolveHistoryItemGroupCommonAncestor(currentHistoryItemGroup.id, currentHistoryItemGroup.base.id);
+			const ancestor = await historyProvider.resolveHistoryItemGroupCommonAncestor(currentHistoryItemGroup.id, currentHistoryItemGroup.remote.id);
 			if (!ancestor) {
 				return [];
 			}
 
-			const changes = await this.repository.diffBetween(ancestor.id, currentHistoryItemGroup.base.id);
+			const changes = await this.repository.diffBetween(ancestor.id, currentHistoryItemGroup.remote.id);
 			return changes;
 		} catch (err) {
 			return [];

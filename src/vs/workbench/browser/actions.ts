@@ -23,7 +23,7 @@ class MenuActions extends Disposable {
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
 
-	private disposables = this._register(new DisposableStore());
+	private readonly disposables = this._register(new DisposableStore());
 
 	constructor(
 		menuId: MenuId,

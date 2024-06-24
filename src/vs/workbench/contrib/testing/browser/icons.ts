@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { registerIcon, spinningLoading } from 'vs/platform/theme/common/iconRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { testingColorRunAction, testStatesToIconColors } from 'vs/workbench/contrib/testing/browser/theme';
+import { testingColorRunAction, testStatesToIconColors, testStatesToRetiredIconColors } from 'vs/workbench/contrib/testing/browser/theme';
 import { TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
 
 export const testingViewIcon = registerIcon('test-view-icon', Codicon.beaker, localize('testViewIcon', 'View icon of the test view.'));
@@ -52,12 +52,22 @@ export const testingStatesToIcons = new Map<TestResultState, ThemeIcon>([
 registerThemingParticipant((theme, collector) => {
 	for (const [state, icon] of testingStatesToIcons.entries()) {
 		const color = testStatesToIconColors[state];
+		const retiredColor = testStatesToRetiredIconColors[state];
 		if (!color) {
 			continue;
 		}
 		collector.addRule(`.monaco-workbench ${ThemeIcon.asCSSSelector(icon)} {
 			color: ${theme.getColor(color)} !important;
 		}`);
+		if (!retiredColor) {
+			continue;
+		}
+		collector.addRule(`
+			.test-explorer .computed-state.retired${ThemeIcon.asCSSSelector(icon)},
+			.testing-run-glyph.retired${ThemeIcon.asCSSSelector(icon)}{
+				color: ${theme.getColor(retiredColor)} !important;
+			}
+		`);
 	}
 
 	collector.addRule(`

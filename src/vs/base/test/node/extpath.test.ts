@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { tmpdir } from 'os';
 import { realcase, realcaseSync, realpath, realpathSync } from 'vs/base/node/extpath';
 import { Promises } from 'vs/base/node/pfs';

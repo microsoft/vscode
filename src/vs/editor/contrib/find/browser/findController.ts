@@ -31,6 +31,7 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IThemeService, themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { Selection } from 'vs/editor/common/core/selection';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 const SEARCH_STRING_MAX_LENGTH = 524288;
 
@@ -99,6 +100,7 @@ export class CommonFindController extends Disposable implements IEditorContribut
 	private readonly _clipboardService: IClipboardService;
 	protected readonly _contextKeyService: IContextKeyService;
 	protected readonly _notificationService: INotificationService;
+	protected readonly _hoverService: IHoverService;
 
 	get editor() {
 		return this._editor;
@@ -113,7 +115,8 @@ export class CommonFindController extends Disposable implements IEditorContribut
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IStorageService storageService: IStorageService,
 		@IClipboardService clipboardService: IClipboardService,
-		@INotificationService notificationService: INotificationService
+		@INotificationService notificationService: INotificationService,
+		@IHoverService hoverService: IHoverService
 	) {
 		super();
 		this._editor = editor;
@@ -122,6 +125,7 @@ export class CommonFindController extends Disposable implements IEditorContribut
 		this._storageService = storageService;
 		this._clipboardService = clipboardService;
 		this._notificationService = notificationService;
+		this._hoverService = hoverService;
 
 		this._updateHistoryDelayer = new Delayer<void>(500);
 		this._state = this._register(new FindReplaceState());
@@ -448,8 +452,9 @@ export class FindController extends CommonFindController implements IFindControl
 		@INotificationService notificationService: INotificationService,
 		@IStorageService _storageService: IStorageService,
 		@IClipboardService clipboardService: IClipboardService,
+		@IHoverService hoverService: IHoverService,
 	) {
-		super(editor, _contextKeyService, _storageService, clipboardService, notificationService);
+		super(editor, _contextKeyService, _storageService, clipboardService, notificationService, hoverService);
 		this._widget = null;
 		this._findOptionsWidget = null;
 	}
@@ -503,7 +508,7 @@ export class FindController extends CommonFindController implements IFindControl
 	}
 
 	private _createFindWidget() {
-		this._widget = this._register(new FindWidget(this._editor, this, this._state, this._contextViewService, this._keybindingService, this._contextKeyService, this._themeService, this._storageService, this._notificationService));
+		this._widget = this._register(new FindWidget(this._editor, this, this._state, this._contextViewService, this._keybindingService, this._contextKeyService, this._themeService, this._storageService, this._notificationService, this._hoverService));
 		this._findOptionsWidget = this._register(new FindOptionsWidget(this._editor, this._state, this._keybindingService));
 	}
 

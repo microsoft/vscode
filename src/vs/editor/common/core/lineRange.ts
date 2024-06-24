@@ -52,6 +52,19 @@ export class LineRange {
 		return result.ranges;
 	}
 
+	public static join(lineRanges: LineRange[]): LineRange {
+		if (lineRanges.length === 0) {
+			throw new BugIndicatingError('lineRanges cannot be empty');
+		}
+		let startLineNumber = lineRanges[0].startLineNumber;
+		let endLineNumberExclusive = lineRanges[0].endLineNumberExclusive;
+		for (let i = 1; i < lineRanges.length; i++) {
+			startLineNumber = Math.min(startLineNumber, lineRanges[i].startLineNumber);
+			endLineNumberExclusive = Math.max(endLineNumberExclusive, lineRanges[i].endLineNumberExclusive);
+		}
+		return new LineRange(startLineNumber, endLineNumberExclusive);
+	}
+
 	public static ofLength(startLineNumber: number, length: number): LineRange {
 		return new LineRange(startLineNumber, startLineNumber + length);
 	}
@@ -162,6 +175,9 @@ export class LineRange {
 		return new Range(this.startLineNumber, 1, this.endLineNumberExclusive - 1, Number.MAX_SAFE_INTEGER);
 	}
 
+	/**
+	 * @deprecated Using this function is discouraged because it might lead to bugs: The end position is not guaranteed to be a valid position!
+	*/
 	public toExclusiveRange(): Range {
 		return new Range(this.startLineNumber, 1, this.endLineNumberExclusive, 1);
 	}

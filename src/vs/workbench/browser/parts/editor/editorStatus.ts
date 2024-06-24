@@ -293,8 +293,6 @@ class TabFocusMode extends Disposable {
 
 		const tabFocusModeConfig = configurationService.getValue<boolean>('editor.tabFocusMode') === true ? true : false;
 		TabFocus.setTabFocusMode(tabFocusModeConfig);
-
-		this._onDidChange.fire(tabFocusModeConfig);
 	}
 
 	private registerListeners(): void {
@@ -328,13 +326,15 @@ class EditorStatus extends Disposable {
 	private readonly eolElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly languageElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 	private readonly metadataElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
-	private readonly currentProblemStatus = this._register(this.instantiationService.createInstance(ShowCurrentMarkerInStatusbarContribution));
+
+	private readonly currentMarkerStatus = this._register(this.instantiationService.createInstance(ShowCurrentMarkerInStatusbarContribution));
+	private readonly tabFocusMode = this._register(this.instantiationService.createInstance(TabFocusMode));
+
 	private readonly state = new State();
+	private toRender: StateChange | undefined = undefined;
+
 	private readonly activeEditorListeners = this._register(new DisposableStore());
 	private readonly delayedRender = this._register(new MutableDisposable());
-	private readonly tabFocusMode = this.instantiationService.createInstance(TabFocusMode);
-
-	private toRender: StateChange | undefined = undefined;
 
 	constructor(
 		private readonly targetWindowId: number,
@@ -366,9 +366,8 @@ class EditorStatus extends Disposable {
 	}
 
 	private registerCommands(): void {
-		CommandsRegistry.registerCommand({ id: 'changeEditorIndentation', handler: () => this.showIndentationPicker() });
+		this._register(CommandsRegistry.registerCommand({ id: `changeEditorIndentation${this.targetWindowId}`, handler: () => this.showIndentationPicker() }));
 	}
-
 
 	private async showIndentationPicker(): Promise<unknown> {
 		const activeTextEditorControl = getCodeEditor(this.editorService.activeTextEditorControl);
@@ -483,7 +482,7 @@ class EditorStatus extends Disposable {
 			text,
 			ariaLabel: text,
 			tooltip: localize('selectIndentation', "Select Indentation"),
-			command: 'changeEditorIndentation'
+			command: `changeEditorIndentation${this.targetWindowId}`
 		};
 
 		this.updateElement(this.indentationElement, props, 'status.editor.indentation', StatusbarAlignment.RIGHT, 100.4);
@@ -635,7 +634,7 @@ class EditorStatus extends Disposable {
 		this.onEncodingChange(activeEditorPane, activeCodeEditor);
 		this.onIndentationChange(activeCodeEditor);
 		this.onMetadataChange(activeEditorPane);
-		this.currentProblemStatus.update(activeCodeEditor);
+		this.currentMarkerStatus.update(activeCodeEditor);
 
 		// Dispose old active editor listeners
 		this.activeEditorListeners.clear();
@@ -663,7 +662,7 @@ class EditorStatus extends Disposable {
 			// Hook Listener for Selection changes
 			this.activeEditorListeners.add(Event.defer(activeCodeEditor.onDidChangeCursorPosition)(() => {
 				this.onSelectionChange(activeCodeEditor);
-				this.currentProblemStatus.update(activeCodeEditor);
+				this.currentMarkerStatus.update(activeCodeEditor);
 			}));
 
 			// Hook Listener for language changes
@@ -674,7 +673,7 @@ class EditorStatus extends Disposable {
 			// Hook Listener for content changes
 			this.activeEditorListeners.add(Event.accumulate(activeCodeEditor.onDidChangeModelContent)(e => {
 				this.onEOLChange(activeCodeEditor);
-				this.currentProblemStatus.update(activeCodeEditor);
+				this.currentMarkerStatus.update(activeCodeEditor);
 
 				const selections = activeCodeEditor.getSelections();
 				if (selections) {
@@ -894,9 +893,9 @@ export class EditorStatusContribution extends Disposable implements IWorkbenchCo
 		super();
 
 		// Main Editor Status
-		const mainInstantiationService = instantiationService.createChild(new ServiceCollection(
+		const mainInstantiationService = this._register(instantiationService.createChild(new ServiceCollection(
 			[IEditorService, editorService.createScoped('main', this._store)]
-		));
+		)));
 		this._register(mainInstantiationService.createInstance(EditorStatus, mainWindow.vscodeWindowId));
 
 		// Auxiliary Editor Status
@@ -919,13 +918,16 @@ class ShowCurrentMarkerInStatusbarContribution extends Disposable {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
+
 		this.statusBarEntryAccessor = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
+
 		this._register(markerService.onMarkerChanged(changedResources => this.onMarkerChanged(changedResources)));
 		this._register(Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('problems.showCurrentInStatus'))(() => this.updateStatus()));
 	}
 
 	update(editor: ICodeEditor | undefined): void {
 		this.editor = editor;
+
 		this.updateMarkers();
 		this.updateStatus();
 	}
@@ -1023,26 +1025,26 @@ class ShowCurrentMarkerInStatusbarContribution extends Disposable {
 				resource: model.uri,
 				severities: MarkerSeverity.Error | MarkerSeverity.Warning | MarkerSeverity.Info
 			});
-			this.markers.sort(compareMarker);
+			this.markers.sort(this.compareMarker);
 		} else {
 			this.markers = [];
 		}
 
 		this.updateStatus();
 	}
-}
 
-function compareMarker(a: IMarker, b: IMarker): number {
-	let res = compare(a.resource.toString(), b.resource.toString());
-	if (res === 0) {
-		res = MarkerSeverity.compare(a.severity, b.severity);
+	private compareMarker(a: IMarker, b: IMarker): number {
+		let res = compare(a.resource.toString(), b.resource.toString());
+		if (res === 0) {
+			res = MarkerSeverity.compare(a.severity, b.severity);
+		}
+
+		if (res === 0) {
+			res = Range.compareRangesUsingStarts(a, b);
+		}
+
+		return res;
 	}
-
-	if (res === 0) {
-		res = Range.compareRangesUsingStarts(a, b);
-	}
-
-	return res;
 }
 
 export class ShowLanguageExtensionsAction extends Action {
@@ -1077,11 +1079,20 @@ export class ChangeLanguageAction extends Action2 {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyM)
 			},
-			precondition: ContextKeyExpr.not('notebookEditorFocused')
+			precondition: ContextKeyExpr.not('notebookEditorFocused'),
+			metadata: {
+				description: localize('changeLanguageMode.description', "Change the language mode of the active text editor."),
+				args: [
+					{
+						name: localize('changeLanguageMode.arg.name', "The name of the language mode to change to."),
+						constraint: (value: any) => typeof value === 'string',
+					}
+				]
+			}
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
+	override async run(accessor: ServicesAccessor, languageMode?: string): Promise<void> {
 		const quickInputService = accessor.get(IQuickInputService);
 		const editorService = accessor.get(IEditorService);
 		const languageService = accessor.get(ILanguageService);
@@ -1160,7 +1171,7 @@ export class ChangeLanguageAction extends Action2 {
 		};
 		picks.unshift(autoDetectLanguage);
 
-		const pick = await quickInputService.pick(picks, { placeHolder: localize('pickLanguage', "Select Language Mode"), matchOnDescription: true });
+		const pick = typeof languageMode === 'string' ? { label: languageMode } : await quickInputService.pick(picks, { placeHolder: localize('pickLanguage', "Select Language Mode"), matchOnDescription: true });
 		if (!pick) {
 			return;
 		}
@@ -1442,13 +1453,16 @@ export class ChangeEncodingAction extends Action2 {
 
 		let guessedEncoding: string | undefined = undefined;
 		if (fileService.hasProvider(resource)) {
-			const content = await textFileService.readStream(resource, { autoGuessEncoding: true });
+			const content = await textFileService.readStream(resource, {
+				autoGuessEncoding: true,
+				candidateGuessEncodings: textResourceConfigurationService.getValue(resource, 'files.candidateGuessEncodings')
+			});
 			guessedEncoding = content.encoding;
 		}
 
 		const isReopenWithEncoding = (action === reopenWithEncodingPick);
 
-		const configuredEncoding = textResourceConfigurationService.getValue(resource ?? undefined, 'files.encoding');
+		const configuredEncoding = textResourceConfigurationService.getValue(resource, 'files.encoding');
 
 		let directMatchIndex: number | undefined;
 		let aliasMatchIndex: number | undefined;

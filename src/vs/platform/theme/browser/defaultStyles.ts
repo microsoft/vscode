@@ -21,8 +21,8 @@ export type IStyleOverride<T> = {
 	[P in keyof T]?: ColorIdentifier | undefined;
 };
 
-function overrideStyles<T>(override: IStyleOverride<T>, styles: T): any {
-	const result = { ...styles } as { [P in keyof T]: string | undefined };
+function overrideStyles<T extends { [P in keyof T]: string | undefined }>(override: IStyleOverride<T>, styles: T): any {
+	const result: { [P in keyof T]: string | undefined } = { ...styles };
 	for (const key in override) {
 		const val = override[key];
 		result[key] = val !== undefined ? asCssVariable(val) : undefined;
@@ -174,6 +174,9 @@ export const defaultListStyles: IListStyles = {
 	listHoverOutline: asCssVariable(activeContrastBorder),
 	treeIndentGuidesStroke: asCssVariable(treeIndentGuidesStroke),
 	treeInactiveIndentGuidesStroke: asCssVariable(treeInactiveIndentGuidesStroke),
+	treeStickyScrollBackground: undefined,
+	treeStickyScrollBorder: undefined,
+	treeStickyScrollShadow: undefined,
 	tableColumnsBorder: asCssVariable(tableColumnsBorder),
 	tableOddRowsBackgroundColor: asCssVariable(tableOddRowsBackgroundColor),
 };
@@ -216,6 +219,9 @@ export const defaultSelectBoxStyles: ISelectBoxStyles = {
 	tableOddRowsBackgroundColor: undefined,
 	treeIndentGuidesStroke: undefined,
 	treeInactiveIndentGuidesStroke: undefined,
+	treeStickyScrollBackground: undefined,
+	treeStickyScrollBorder: undefined,
+	treeStickyScrollShadow: undefined
 };
 
 export function getSelectBoxStyles(override: IStyleOverride<ISelectBoxStyles>): ISelectBoxStyles {

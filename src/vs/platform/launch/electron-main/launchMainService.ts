@@ -147,7 +147,7 @@ export class LaunchMainService implements ILaunchMainService {
 			let openNewWindow = false;
 
 			// Force new window
-			if (args['new-window'] || args['unity-launch'] || baseConfig.forceProfile || baseConfig.forceTempProfile) {
+			if (args['new-window'] || baseConfig.forceProfile || baseConfig.forceTempProfile) {
 				openNewWindow = true;
 			}
 

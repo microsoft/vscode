@@ -1,4 +1,9 @@
 name: "Deep Classifier: Runner"
+
+permissions:
+  id-token: write
+  contents: read
+
 on:
   schedule:
     - cron: 0 * * * *
@@ -9,7 +14,13 @@ on:
 jobs:
   main:
     runs-on: ubuntu-latest
+    environment: main
     steps:
+      - uses: azure/login@v2
+        with:
+            client-id: ${{ vars.AZURE_CLIENT_ID }}
+            tenant-id: ${{ vars.AZURE_TENANT_ID }}
+            allow-no-subscriptions: true
       - name: Checkout Actions
         uses: actions/checkout@v4
         with:
@@ -47,8 +58,4 @@ jobs:
         with:
           configPath: classifier
           allowLabels: "info-needed|new release|error-telemetry|*english-please|translation-required"
-          tenantId: ${{secrets.TOOLS_TENANT_ID}}
-          clientId: ${{secrets.TOOLS_CLIENT_ID}}
-          clientSecret: ${{secrets.TOOLS_CLIENT_SECRET}}
-          clientScope: ${{secrets.TOOLS_CLIENT_SCOPE}}
           token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}

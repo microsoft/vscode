@@ -5,7 +5,7 @@
 
 import { addDisposableListener, getWindow } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IToolBarOptions, ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
+import { IToolBarOptions, ToggleMenuAction, ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IAction, Separator, SubmenuAction, toAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { coalesceInPlace } from 'vs/base/common/arrays';
 import { intersection } from 'vs/base/common/collections';
@@ -16,6 +16,8 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuActionOptions, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { createConfigureKeybindingAction } from 'vs/platform/actions/common/menuService';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -90,12 +92,13 @@ export class WorkbenchToolBar extends ToolBar {
 		@IMenuService private readonly _menuService: IMenuService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
-		@IKeybindingService keybindingService: IKeybindingService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@ICommandService private readonly _commandService: ICommandService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super(container, _contextMenuService, {
 			// defaults
-			getKeyBinding: (action) => keybindingService.lookupKeybinding(action.id) ?? undefined,
+			getKeyBinding: (action) => _keybindingService.lookupKeybinding(action.id) ?? undefined,
 			// options (override defaults)
 			..._options,
 			// mandatory (overide options)
@@ -181,8 +184,8 @@ export class WorkbenchToolBar extends ToolBar {
 		coalesceInPlace(extraSecondary);
 		super.setActions(primary, Separator.join(extraSecondary, secondary));
 
-		// add context menu for toggle actions
-		if (toggleActions.length > 0) {
+		// add context menu for toggle and configure keybinding actions
+		if (toggleActions.length > 0 || primary.length > 0) {
 			this._sessionDisposables.add(addDisposableListener(this.getElement(), 'contextmenu', e => {
 				const event = new StandardMouseEvent(getWindow(this.getElement()), e);
 
@@ -193,45 +196,56 @@ export class WorkbenchToolBar extends ToolBar {
 				event.preventDefault();
 				event.stopPropagation();
 
-				let noHide = false;
+				const primaryActions = [];
 
-				// last item cannot be hidden when using ignore strategy
-				if (toggleActionsCheckedCount === 1 && this._options?.hiddenItemStrategy === HiddenItemStrategy.Ignore) {
-					noHide = true;
-					for (let i = 0; i < toggleActions.length; i++) {
-						if (toggleActions[i].checked) {
-							toggleActions[i] = toAction({
-								id: action.id,
-								label: action.label,
-								checked: true,
-								enabled: false,
-								run() { }
-							});
-							break; // there is only one
+				// -- Configure Keybinding Action --
+				if (action instanceof MenuItemAction && action.menuKeybinding) {
+					primaryActions.push(action.menuKeybinding);
+				} else if (!(action instanceof SubmenuItemAction || action instanceof ToggleMenuAction)) {
+					primaryActions.push(createConfigureKeybindingAction(action.id, undefined, this._commandService, this._keybindingService));
+				}
+
+				// -- Hide Actions --
+				if (toggleActions.length > 0) {
+					let noHide = false;
+
+					// last item cannot be hidden when using ignore strategy
+					if (toggleActionsCheckedCount === 1 && this._options?.hiddenItemStrategy === HiddenItemStrategy.Ignore) {
+						noHide = true;
+						for (let i = 0; i < toggleActions.length; i++) {
+							if (toggleActions[i].checked) {
+								toggleActions[i] = toAction({
+									id: action.id,
+									label: action.label,
+									checked: true,
+									enabled: false,
+									run() { }
+								});
+								break; // there is only one
+							}
 						}
 					}
-				}
 
-				// add "hide foo" actions
-				let hideAction: IAction;
-				if (!noHide && (action instanceof MenuItemAction || action instanceof SubmenuItemAction)) {
-					if (!action.hideActions) {
-						// no context menu for MenuItemAction instances that support no hiding
-						// those are fake actions and need to be cleaned up
-						return;
+					// add "hide foo" actions
+					if (!noHide && (action instanceof MenuItemAction || action instanceof SubmenuItemAction)) {
+						if (!action.hideActions) {
+							// no context menu for MenuItemAction instances that support no hiding
+							// those are fake actions and need to be cleaned up
+							return;
+						}
+						primaryActions.push(action.hideActions.hide);
+
+					} else {
+						primaryActions.push(toAction({
+							id: 'label',
+							label: localize('hide', "Hide"),
+							enabled: false,
+							run() { }
+						}));
 					}
-					hideAction = action.hideActions.hide;
-
-				} else {
-					hideAction = toAction({
-						id: 'label',
-						label: localize('hide', "Hide"),
-						enabled: false,
-						run() { }
-					});
 				}
 
-				const actions = Separator.join([hideAction], toggleActions);
+				const actions = Separator.join(primaryActions, toggleActions);
 
 				// add "Reset Menu" action
 				if (this._options?.resetMenu && !menuIds) {
@@ -244,6 +258,10 @@ export class WorkbenchToolBar extends ToolBar {
 						label: localize('resetThisMenu', "Reset Menu"),
 						run: () => this._menuService.resetHiddenStates(menuIds)
 					}));
+				}
+
+				if (actions.length === 0) {
+					return;
 				}
 
 				this._contextMenuService.showContextMenu({
@@ -313,9 +331,10 @@ export class MenuWorkbenchToolBar extends WorkbenchToolBar {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
+		@ICommandService commandService: ICommandService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
-		super(container, { resetMenu: menuId, ...options }, menuService, contextKeyService, contextMenuService, keybindingService, telemetryService);
+		super(container, { resetMenu: menuId, ...options }, menuService, contextKeyService, contextMenuService, keybindingService, commandService, telemetryService);
 
 		// update logic
 		const menu = this._store.add(menuService.createMenu(menuId, contextKeyService, { emitEventsForSubmenuChanges: true }));

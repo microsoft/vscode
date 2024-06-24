@@ -243,3 +243,8 @@ export type DeepRequiredNonNullable<T> = {
 export type DeepPartial<T> = {
 	[P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : Partial<T[P]>;
 };
+
+/**
+ * Represents a type that is a partial version of a given type `T`, except a subset.
+ */
+export type PartialExcept<T, K extends keyof T> = Partial<Omit<T, K>> & Pick<T, K>;

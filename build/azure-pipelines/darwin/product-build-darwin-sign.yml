@@ -32,7 +32,6 @@ steps:
 
   - script: unzip $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-$(VSCODE_ARCH).zip -d $(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)
     displayName: Extract signed app
-    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
 
   - script: |
       set -e
@@ -58,5 +57,11 @@ steps:
     displayName: Rename x64 build to its legacy name
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
 
-  - publish: $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-$(ASSET_ID).zip
-    artifact: vscode_client_darwin_$(VSCODE_ARCH)_archive
+  - task: 1ES.PublishPipelineArtifact@1
+    inputs:
+      targetPath: $(Pipeline.Workspace)/unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-$(ASSET_ID).zip
+      artifactName: vscode_client_darwin_$(VSCODE_ARCH)_archive
+      sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)
+      sbomPackageName: "VS Code macOS $(VSCODE_ARCH)"
+      sbomPackageVersion: $(Build.SourceVersion)
+    displayName: Publish client archive

@@ -10,10 +10,9 @@ import { parse } from 'vs/base/common/marshalling';
 import { Schemas } from 'vs/base/common/network';
 import { extname, isEqual } from 'vs/base/common/resources';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
-import { assertType } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { ITextModel } from 'vs/editor/common/model';
@@ -24,6 +23,7 @@ import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/sug
 import { localize, localize2 } from 'vs/nls';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -51,10 +51,13 @@ import { INotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/no
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
-import { CellEditType, CellKind, CellUri, INTERACTIVE_WINDOW_EDITOR_ID, NotebookWorkingCopyTypeIdentifier } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellKind, CellUri, INTERACTIVE_WINDOW_EDITOR_ID, NotebookSetting, NotebookWorkingCopyTypeIdentifier } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { InteractiveWindowOpen } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { executeReplInput } from 'vs/workbench/contrib/replNotebook/browser/repl.contribution';
+import { ReplEditor } from 'vs/workbench/contrib/replNotebook/browser/replEditor';
+import { ReplEditorInput } from 'vs/workbench/contrib/replNotebook/browser/replEditorInput';
 import { columnToEditorGroup } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
@@ -96,7 +99,7 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 				providerDisplayName: 'Interactive Notebook',
 				displayName: 'Interactive',
 				filenamePattern: ['*.interactive'],
-				exclusive: true
+				priority: RegisteredEditorPriority.exclusive
 			}));
 		}
 
@@ -255,21 +258,31 @@ class InteractiveWindowWorkingCopyEditorHandler extends Disposable implements IW
 }
 
 registerWorkbenchContribution2(InteractiveDocumentContribution.ID, InteractiveDocumentContribution, WorkbenchPhase.BlockRestore);
-registerWorkbenchContribution2(InteractiveInputContentProvider.ID, InteractiveInputContentProvider, WorkbenchPhase.BlockRestore);
-registerWorkbenchContribution2(InteractiveWindowWorkingCopyEditorHandler.ID, InteractiveWindowWorkingCopyEditorHandler, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(InteractiveInputContentProvider.ID, InteractiveInputContentProvider, {
+	editorTypeId: INTERACTIVE_WINDOW_EDITOR_ID
+});
+registerWorkbenchContribution2(InteractiveWindowWorkingCopyEditorHandler.ID, InteractiveWindowWorkingCopyEditorHandler, {
+	editorTypeId: INTERACTIVE_WINDOW_EDITOR_ID
+});
 
 type interactiveEditorInputData = { resource: URI; inputResource: URI; name: string; language: string };
 
 export class InteractiveEditorSerializer implements IEditorSerializer {
 	public static readonly ID = InteractiveEditorInput.ID;
 
-	canSerialize(editor: EditorInput): boolean {
-		const interactiveEditorInput = editor as InteractiveEditorInput;
-		return URI.isUri(interactiveEditorInput?.primary?.resource) && URI.isUri(interactiveEditorInput?.inputResource);
+	canSerialize(editor: EditorInput): editor is InteractiveEditorInput {
+		if (!(editor instanceof InteractiveEditorInput)) {
+			return false;
+		}
+
+		return URI.isUri(editor.primary.resource) && URI.isUri(editor.inputResource);
 	}
 
-	serialize(input: EditorInput): string {
-		assertType(input instanceof InteractiveEditorInput);
+	serialize(input: EditorInput): string | undefined {
+		if (!this.canSerialize(input)) {
+			return undefined;
+		}
+
 		return JSON.stringify({
 			resource: input.primary.resource,
 			inputResource: input.inputResource,
@@ -402,10 +415,10 @@ registerAction2(class extends Action2 {
 		logService.debug('Open new interactive window:', notebookUri.toString(), inputUri.toString());
 
 		if (id) {
-			const allKernels = kernelService.getMatchingKernel({ uri: notebookUri, viewType: 'interactive' }).all;
+			const allKernels = kernelService.getMatchingKernel({ uri: notebookUri, notebookType: 'interactive' }).all;
 			const preferredKernel = allKernels.find(kernel => kernel.id === id);
 			if (preferredKernel) {
-				kernelService.preselectKernelForNotebook(preferredKernel, { uri: notebookUri, viewType: 'interactive' });
+				kernelService.preselectKernelForNotebook(preferredKernel, { uri: notebookUri, notebookType: 'interactive' });
 			}
 		}
 
@@ -422,21 +435,54 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
+			id: 'interactive.configure',
+			title: localize2('interactive.configExecute', 'Configure input box behavior'),
+			category: interactiveWindowCategory,
+			f1: false,
+			icon: icons.configIcon,
+			menu: {
+				id: MenuId.InteractiveInputConfig
+			}
+		});
+	}
+
+	override run(accessor: ServicesAccessor, ...args: any[]): void {
+		accessor.get(ICommandService).executeCommand('workbench.action.openSettings', '@tag:replExecute');
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
 			id: 'interactive.execute',
 			title: localize2('interactive.execute', 'Execute Code'),
 			category: interactiveWindowCategory,
-			keybinding: {
+			keybinding: [{
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('activeEditor', 'workbench.editor.interactive'),
+					ContextKeyExpr.equals('config.interactiveWindow.executeWithShiftEnter', true)
+				),
+				primary: KeyMod.Shift | KeyCode.Enter,
+				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
+			}, {
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('activeEditor', 'workbench.editor.interactive'),
+					ContextKeyExpr.equals('config.interactiveWindow.executeWithShiftEnter', false)
+				),
+				primary: KeyCode.Enter,
+				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
+			}, {
 				// when: NOTEBOOK_CELL_LIST_FOCUSED,
 				when: ContextKeyExpr.equals('activeEditor', 'workbench.editor.interactive'),
-				primary: KeyMod.WinCtrl | KeyCode.Enter,
-				win: {
-					primary: KeyMod.CtrlCmd | KeyCode.Enter
-				},
+				primary: KeyMod.CtrlCmd | KeyCode.Enter,
 				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
-			},
+			}],
 			menu: [
 				{
 					id: MenuId.InteractiveInputExecute
+				},
+				{
+					id: MenuId.ReplInputExecute
 				}
 			],
 			icon: icons.executeIcon,
@@ -460,19 +506,27 @@ registerAction2(class extends Action2 {
 		const historyService = accessor.get(IInteractiveHistoryService);
 		const notebookEditorService = accessor.get(INotebookEditorService);
 		let editorControl: { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
+		let isReplEditor = false;
 		if (context) {
 			const resourceUri = URI.revive(context);
-			const editors = editorService.findEditors(resourceUri)
-				.filter(id => id.editor instanceof InteractiveEditorInput && id.editor.resource?.toString() === resourceUri.toString());
-			if (editors.length) {
-				const editorInput = editors[0].editor as InteractiveEditorInput;
-				const currentGroup = editors[0].groupId;
-				const editor = await editorService.openEditor(editorInput, currentGroup);
-				editorControl = editor?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
+			const editors = editorService.findEditors(resourceUri);
+			for (const found of editors) {
+				if (found.editor.typeId === ReplEditorInput.ID || found.editor.typeId === InteractiveEditorInput.ID) {
+					const editor = await editorService.openEditor(found.editor, found.groupId);
+					editorControl = editor?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
+					isReplEditor = found.editor.typeId === ReplEditorInput.ID;
+					break;
+				}
 			}
 		}
 		else {
+			const editor = editorService.activeEditorPane;
+			isReplEditor = editor instanceof ReplEditor;
 			editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined; codeEditor: CodeEditorWidget } | undefined;
+		}
+
+		if (editorControl && isReplEditor) {
+			executeReplInput(accessor, editorControl);
 		}
 
 		if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
@@ -567,7 +621,7 @@ registerAction2(class extends Action2 {
 			title: localize2('interactive.history.previous', 'Previous value in history'),
 			category: interactiveWindowCategory,
 			f1: false,
-			keybinding: {
+			keybinding: [{
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals('activeEditor', 'workbench.editor.interactive'),
 					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('bottom'),
@@ -576,7 +630,16 @@ registerAction2(class extends Action2 {
 				),
 				primary: KeyCode.UpArrow,
 				weight: KeybindingWeight.WorkbenchContrib
-			},
+			}, {
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('activeEditor', 'workbench.editor.repl'),
+					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('bottom'),
+					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('none'),
+					SuggestContext.Visible.toNegated()
+				),
+				primary: KeyCode.UpArrow,
+				weight: KeybindingWeight.WorkbenchContrib
+			}]
 		});
 	}
 
@@ -606,7 +669,7 @@ registerAction2(class extends Action2 {
 			title: localize2('interactive.history.next', 'Next value in history'),
 			category: interactiveWindowCategory,
 			f1: false,
-			keybinding: {
+			keybinding: [{
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals('activeEditor', 'workbench.editor.interactive'),
 					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('top'),
@@ -615,7 +678,16 @@ registerAction2(class extends Action2 {
 				),
 				primary: KeyCode.DownArrow,
 				weight: KeybindingWeight.WorkbenchContrib
-			},
+			}, {
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('activeEditor', 'workbench.editor.repl'),
+					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('top'),
+					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('none'),
+					SuggestContext.Visible.toNegated()
+				),
+				primary: KeyCode.DownArrow,
+				weight: KeybindingWeight.WorkbenchContrib
+			}],
 		});
 	}
 
@@ -785,6 +857,23 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			default: true,
 			markdownDescription: localize('interactiveWindow.alwaysScrollOnNewCell', "Automatically scroll the interactive window to show the output of the last statement executed. If this value is false, the window will only scroll if the last cell was already the one scrolled to.")
+		},
+		[NotebookSetting.InteractiveWindowPromptToSave]: {
+			type: 'boolean',
+			default: false,
+			markdownDescription: localize('interactiveWindow.promptToSaveOnClose', "Prompt to save the interactive window when it is closed. Only new interactive windows will be affected by this setting change.")
+		},
+		[InteractiveWindowSetting.executeWithShiftEnter]: {
+			type: 'boolean',
+			default: false,
+			markdownDescription: localize('interactiveWindow.executeWithShiftEnter', "Execute the Interactive Window (REPL) input box with shift+enter, so that enter can be used to create a newline."),
+			tags: ['replExecute']
+		},
+		[InteractiveWindowSetting.showExecutionHint]: {
+			type: 'boolean',
+			default: true,
+			markdownDescription: localize('interactiveWindow.showExecutionHint', "Display a hint in the Interactive Window (REPL) input box to indicate how to execute code."),
+			tags: ['replExecute']
 		}
 	}
 });

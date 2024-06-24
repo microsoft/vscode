@@ -67,10 +67,10 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 	}
 
 	private registerListeners(): void {
-		this.lifecycleService.onBeforeShutdown(e => {
+		this._register(this.lifecycleService.onBeforeShutdown(e => {
 			const saveOperation = this.saveUntitledBeforeShutdown(e.reason);
 			e.veto(saveOperation, 'veto.untitledWorkspace');
-		});
+		}));
 	}
 
 	private async saveUntitledBeforeShutdown(reason: ShutdownReason): Promise<boolean> {

@@ -195,7 +195,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		});
 	}
 
-	private _colorDecorationClassRefs = this._register(new DisposableStore());
+	private readonly _colorDecorationClassRefs = this._register(new DisposableStore());
 
 	private updateColorDecorators(colorData: IColorData[]): void {
 		this._colorDecorationClassRefs.clear();

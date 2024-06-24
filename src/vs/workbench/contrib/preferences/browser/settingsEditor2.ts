@@ -17,7 +17,7 @@ import { isCancellationError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, dispose, type IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/settingsEditor2';
@@ -66,6 +66,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { CodeWindow } from 'vs/base/browser/window';
 
 
 export const enum SettingsFocusContext {
@@ -155,7 +156,7 @@ export class SettingsEditor2 extends EditorPane {
 
 	// (!) Lots of props that are set once on the first render
 	private defaultSettingsEditorModel!: Settings2EditorModel;
-	private modelDisposables: DisposableStore;
+	private readonly modelDisposables: DisposableStore;
 
 	private rootElement!: HTMLElement;
 	private headerContainer!: HTMLElement;
@@ -218,7 +219,10 @@ export class SettingsEditor2 extends EditorPane {
 
 	private installedExtensionIds: string[] = [];
 
+	private readonly inputChangeListener: MutableDisposable<IDisposable>;
+
 	constructor(
+		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkbenchConfigurationService private readonly configurationService: IWorkbenchConfigurationService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
@@ -240,7 +244,7 @@ export class SettingsEditor2 extends EditorPane {
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@IEditorProgressService private readonly editorProgressService: IEditorProgressService,
 	) {
-		super(SettingsEditor2.ID, telemetryService, themeService, storageService);
+		super(SettingsEditor2.ID, group, telemetryService, themeService, storageService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
 		this.localSearchDelayer = new Delayer(300);
 		this.remoteSearchThrottle = new ThrottledDelayer(200);
@@ -287,6 +291,7 @@ export class SettingsEditor2 extends EditorPane {
 		if (ENABLE_LANGUAGE_FILTER && !SettingsEditor2.SUGGESTIONS.includes(`@${LANGUAGE_SETTING_TAG}`)) {
 			SettingsEditor2.SUGGESTIONS.push(`@${LANGUAGE_SETTING_TAG}`);
 		}
+		this.inputChangeListener = this._register(new MutableDisposable());
 	}
 
 	override get minimumWidth(): number { return SettingsEditor2.EDITOR_MIN_WIDTH; }
@@ -334,6 +339,7 @@ export class SettingsEditor2 extends EditorPane {
 		this.updateStyles();
 
 		this._register(registerNavigableContainer({
+			name: 'settingsEditor2',
 			focusNotifiers: [this],
 			focusNextWidget: () => {
 				if (this.searchWidget.inputWidget.hasWidgetFocus()) {
@@ -355,7 +361,7 @@ export class SettingsEditor2 extends EditorPane {
 			return;
 		}
 
-		const model = await this.input.resolve(options);
+		const model = await this.input.resolve();
 		if (token.isCancellationRequested || !(model instanceof Settings2EditorModel)) {
 			return;
 		}
@@ -379,9 +385,9 @@ export class SettingsEditor2 extends EditorPane {
 
 		// Don't block setInput on render (which can trigger an async search)
 		this.onConfigUpdate(undefined, true).then(() => {
-			this._register(input.onWillDispose(() => {
+			this.inputChangeListener.value = input.onWillDispose(() => {
 				this.searchWidget.setValue('');
-			}));
+			});
 
 			// Init TOC selection
 			this.updateTreeScrollSync();
@@ -398,7 +404,7 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private restoreCachedState(): ISettingsEditor2State | null {
-		const cachedState = this.group && this.input && this.editorMemento.loadEditorState(this.group, this.input);
+		const cachedState = this.input && this.editorMemento.loadEditorState(this.group, this.input);
 		if (cachedState && typeof cachedState.target === 'object') {
 			cachedState.target = URI.revive(cachedState.target);
 		}
@@ -499,8 +505,8 @@ export class SettingsEditor2 extends EditorPane {
 		}
 	}
 
-	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
-		super.setEditorVisible(visible, group);
+	protected override setEditorVisible(visible: boolean): void {
+		super.setEditorVisible(visible);
 
 		if (!visible) {
 			// Wait for editor to be removed from DOM #106303
@@ -645,7 +651,7 @@ export class SettingsEditor2 extends EditorPane {
 		}));
 
 		if (this.userDataSyncWorkbenchService.enabled && this.userDataSyncEnablementService.canToggleEnablement()) {
-			const syncControls = this._register(this.instantiationService.createInstance(SyncControls, headerControlsContainer));
+			const syncControls = this._register(this.instantiationService.createInstance(SyncControls, this.window, headerControlsContainer));
 			this._register(syncControls.onDidChangeLastSyncedLabel(lastSyncedLabel => {
 				this.lastSyncedLabel = lastSyncedLabel;
 				this.updateInputAriaLabel();
@@ -655,10 +661,9 @@ export class SettingsEditor2 extends EditorPane {
 		this.controlsElement = DOM.append(searchContainer, DOM.$('.settings-clear-widget'));
 
 		const actionBar = this._register(new ActionBar(this.controlsElement, {
-			animated: false,
-			actionViewItemProvider: (action) => {
+			actionViewItemProvider: (action, options) => {
 				if (action.id === filterAction.id) {
-					return this.instantiationService.createInstance(SettingsSearchFilterDropdownMenuActionViewItem, action, this.actionRunner, this.searchWidget);
+					return this.instantiationService.createInstance(SettingsSearchFilterDropdownMenuActionViewItem, action, options, this.actionRunner, this.searchWidget);
 				}
 				return undefined;
 			}
@@ -1140,8 +1145,8 @@ export class SettingsEditor2 extends EditorPane {
 		type SettingsEditorModifiedSettingClassification = {
 			key: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The setting that is being modified.' };
 			groupId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the setting is from the local search or remote search provider, if applicable.' };
-			nlpIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The index of the setting in the remote search provider results, if applicable.' };
-			displayIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The index of the setting in the combined search results, if applicable.' };
+			nlpIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The index of the setting in the remote search provider results, if applicable.' };
+			displayIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The index of the setting in the combined search results, if applicable.' };
 			showConfiguredOnly: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the user is in the modified view, which shows configured settings only.' };
 			isReset: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Identifies whether a setting was reset to its default value.' };
 			target: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The scope of the setting, such as user or workspace.' };
@@ -1427,7 +1432,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		// If the context view is focused, delay rendering settings
 		if (this.contextViewFocused()) {
-			const element = DOM.getWindow(this.settingsTree.getHTMLElement()).document.querySelector('.context-view');
+			const element = this.window.document.querySelector('.context-view');
 			if (element) {
 				this.scheduleRefresh(element as HTMLElement, key);
 			}
@@ -1636,9 +1641,9 @@ export class SettingsEditor2 extends EditorPane {
 			'counts.uniqueResultsCount': number | undefined;
 		};
 		type SettingsEditorFilterClassification = {
-			'counts.nlpResult': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; 'comment': 'The number of matches found by the remote search provider, if applicable.' };
-			'counts.filterResult': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; 'comment': 'The number of matches found by the local search provider, if applicable.' };
-			'counts.uniqueResultsCount': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; 'comment': 'The number of unique matches over both search providers, if applicable.' };
+			'counts.nlpResult': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; 'comment': 'The number of matches found by the remote search provider, if applicable.' };
+			'counts.filterResult': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; 'comment': 'The number of matches found by the local search provider, if applicable.' };
+			'counts.uniqueResultsCount': { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; 'comment': 'The number of unique matches over both search providers, if applicable.' };
 			owner: 'rzhao271';
 			comment: 'Tracks the performance of the built-in search providers';
 		};
@@ -1831,10 +1836,10 @@ export class SettingsEditor2 extends EditorPane {
 		if (this.isVisible()) {
 			const searchQuery = this.searchWidget.getValue().trim();
 			const target = this.settingsTargetsWidget.settingsTarget as SettingsTarget;
-			if (this.group && this.input) {
+			if (this.input) {
 				this.editorMemento.saveEditorState(this.group, this.input, { searchQuery, target });
 			}
-		} else if (this.group && this.input) {
+		} else if (this.input) {
 			this.editorMemento.clearEditorState(this.input, this.group);
 		}
 
@@ -1850,6 +1855,7 @@ class SyncControls extends Disposable {
 	public readonly onDidChangeLastSyncedLabel = this._onDidChangeLastSyncedLabel.event;
 
 	constructor(
+		window: CodeWindow,
 		container: HTMLElement,
 		@ICommandService private readonly commandService: ICommandService,
 		@IUserDataSyncService private readonly userDataSyncService: IUserDataSyncService,
@@ -1882,7 +1888,7 @@ class SyncControls extends Disposable {
 		}));
 
 		const updateLastSyncedTimer = this._register(new DOM.WindowIntervalTimer());
-		updateLastSyncedTimer.cancelAndSet(() => this.updateLastSyncedTime(), 60 * 1000, DOM.getWindow(container));
+		updateLastSyncedTimer.cancelAndSet(() => this.updateLastSyncedTime(), 60 * 1000, window);
 
 		this.update();
 		this._register(this.userDataSyncService.onDidChangeStatus(() => {

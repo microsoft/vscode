@@ -46,6 +46,7 @@ export class ExtHostStatusBarEntry implements vscode.StatusBarItem {
 	private _name?: string;
 	private _color?: string | ThemeColor;
 	private _backgroundColor?: ThemeColor;
+	// eslint-disable-next-line local/code-no-potentially-unsafe-disposables
 	private _latestCommandRegistration?: DisposableStore;
 	private readonly _staleCommandRegistrations = new DisposableStore();
 	private _command?: {

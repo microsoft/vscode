@@ -4,7 +4,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createReporter = void 0;
+exports.createReporter = createReporter;
 const es = require("event-stream");
 const fancyLog = require("fancy-log");
 const ansiColors = require("ansi-colors");
@@ -99,5 +99,4 @@ function createReporter(id) {
     };
     return result;
 }
-exports.createReporter = createReporter;
 //# sourceMappingURL=reporter.js.map

@@ -21,6 +21,16 @@ export const enum TestResultState {
 	Errored = 6
 }
 
+export const testResultStateToContextValues: { [K in TestResultState]: string } = {
+	[TestResultState.Unset]: 'unset',
+	[TestResultState.Queued]: 'queued',
+	[TestResultState.Running]: 'running',
+	[TestResultState.Passed]: 'passed',
+	[TestResultState.Failed]: 'failed',
+	[TestResultState.Skipped]: 'skipped',
+	[TestResultState.Errored]: 'errored',
+};
+
 /** note: keep in sync with TestRunProfileKind in vscode.d.ts */
 export const enum ExtTestRunProfileKind {
 	Run = 1,
@@ -68,17 +78,17 @@ export interface ITestRunProfile {
  * and extension host.
  */
 export interface ResolvedTestRunRequest {
+	group: TestRunProfileBitset;
 	targets: {
 		testIds: string[];
 		controllerId: string;
-		profileGroup: TestRunProfileBitset;
 		profileId: number;
 	}[];
 	exclude?: string[];
 	/** Whether this is a continuous test run */
 	continuous?: boolean;
 	/** Whether this was trigged by a user action in UI. Default=true */
-	isUiTriggered?: boolean;
+	preserveFocus?: boolean;
 }
 
 /**
@@ -91,6 +101,7 @@ export interface ExtensionRunTestsRequest {
 	controllerId: string;
 	profile?: { group: TestRunProfileBitset; id: number };
 	persist: boolean;
+	preserveFocus: boolean;
 	/** Whether this is a result of a continuous test run request */
 	continuous: boolean;
 }
@@ -463,6 +474,20 @@ export const applyTestItemUpdate = (internal: InternalTestItem | ITestItemUpdate
 	}
 };
 
+/** Request to an ext host to get followup messages for a test failure. */
+export interface TestMessageFollowupRequest {
+	resultId: string;
+	extId: string;
+	taskIndex: number;
+	messageIndex: number;
+}
+
+/** Request to an ext host to get followup messages for a test failure. */
+export interface TestMessageFollowupResponse {
+	id: number;
+	title: string;
+}
+
 /**
  * Test result item used in the main thread.
  */
@@ -532,51 +557,60 @@ export interface ITestCoverage {
 	files: IFileCoverage[];
 }
 
-export interface ICoveredCount {
+export interface ICoverageCount {
 	covered: number;
 	total: number;
 }
 
-export namespace ICoveredCount {
-	export const empty = (): ICoveredCount => ({ covered: 0, total: 0 });
-	export const sum = (target: ICoveredCount, src: Readonly<ICoveredCount>) => {
+export namespace ICoverageCount {
+	export const empty = (): ICoverageCount => ({ covered: 0, total: 0 });
+	export const sum = (target: ICoverageCount, src: Readonly<ICoverageCount>) => {
 		target.covered += src.covered;
 		target.total += src.total;
 	};
 }
 
 export interface IFileCoverage {
+	id: string;
 	uri: URI;
-	statement: ICoveredCount;
-	branch?: ICoveredCount;
-	declaration?: ICoveredCount;
-	details?: CoverageDetails[];
+	testIds?: string[];
+	statement: ICoverageCount;
+	branch?: ICoverageCount;
+	declaration?: ICoverageCount;
 }
-
 
 export namespace IFileCoverage {
 	export interface Serialized {
+		id: string;
 		uri: UriComponents;
-		statement: ICoveredCount;
-		branch?: ICoveredCount;
-		declaration?: ICoveredCount;
-		details?: CoverageDetails.Serialized[];
+		testIds: string[] | undefined;
+		statement: ICoverageCount;
+		branch?: ICoverageCount;
+		declaration?: ICoverageCount;
 	}
 
 	export const serialize = (original: Readonly<IFileCoverage>): Serialized => ({
+		id: original.id,
 		statement: original.statement,
 		branch: original.branch,
 		declaration: original.declaration,
-		details: original.details?.map(CoverageDetails.serialize),
+		testIds: original.testIds,
 		uri: original.uri.toJSON(),
 	});
 
 	export const deserialize = (uriIdentity: ITestUriCanonicalizer, serialized: Serialized): IFileCoverage => ({
+		id: serialized.id,
 		statement: serialized.statement,
 		branch: serialized.branch,
 		declaration: serialized.declaration,
-		details: serialized.details?.map(CoverageDetails.deserialize),
+		testIds: serialized.testIds,
 		uri: uriIdentity.asCanonicalUri(URI.revive(serialized.uri)),
+	});
+
+	export const empty = (id: string, uri: URI): IFileCoverage => ({
+		id,
+		uri,
+		statement: ICoverageCount.empty(),
 	});
 }
 
@@ -755,7 +789,7 @@ export interface ITestMessageMenuArgs {
 	/** Marshalling marker */
 	$mid: MarshalledId.TestMessageMenuArgs;
 	/** Tests ext ID */
-	extId: string;
+	test: InternalTestItem.Serialized;
 	/** Serialized test message */
 	message: ITestMessage.Serialized;
 }

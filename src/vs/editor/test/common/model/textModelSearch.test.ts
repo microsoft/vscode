@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -19,7 +19,7 @@ suite('TextModelSearch', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	const usualWordSeparators = getMapForWordSeparators(USUAL_WORD_SEPARATORS);
+	const usualWordSeparators = getMapForWordSeparators(USUAL_WORD_SEPARATORS, []);
 
 	function assertFindMatch(actual: FindMatch | null, expectedRange: Range, expectedMatches: string[] | null = null): void {
 		assert.deepStrictEqual(actual, new FindMatch(expectedRange, expectedMatches));

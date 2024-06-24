@@ -4,7 +4,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.fetchGithub = exports.fetchUrl = exports.fetchUrls = void 0;
+exports.fetchUrls = fetchUrls;
+exports.fetchUrl = fetchUrl;
+exports.fetchGithub = fetchGithub;
 const es = require("event-stream");
 const VinylFile = require("vinyl");
 const log = require("fancy-log");
@@ -30,7 +32,6 @@ function fetchUrls(urls, options) {
         });
     }));
 }
-exports.fetchUrls = fetchUrls;
 async function fetchUrl(url, options, retries = 10, retryDelay = 1000) {
     const verbose = !!options.verbose ?? (!!process.env['CI'] || !!process.env['BUILD_ARTIFACTSTAGINGDIRECTORY']);
     try {
@@ -94,7 +95,6 @@ async function fetchUrl(url, options, retries = 10, retryDelay = 1000) {
         throw e;
     }
 }
-exports.fetchUrl = fetchUrl;
 const ghApiHeaders = {
     Accept: 'application/vnd.github.v3+json',
     'User-Agent': 'VSCode Build',
@@ -135,5 +135,4 @@ function fetchGithub(repo, options) {
         }
     }));
 }
-exports.fetchGithub = fetchGithub;
 //# sourceMappingURL=fetch.js.map

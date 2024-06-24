@@ -771,12 +771,3 @@ export interface CompositionTypePayload {
 	positionDelta: number;
 }
 
-/**
- * @internal
- */
-export interface PastePayload {
-	text: string;
-	pasteOnNewLine: boolean;
-	multicursorText: string[] | null;
-	mode: string | null;
-}

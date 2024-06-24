@@ -5,7 +5,9 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-MbYFw/X6HjRtVlnfFTL3ylPDt3RsDzWrYVjfrzKJbMA=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+
+	content="default-src 'none'; script-src 'sha256-EJBlYt9sOvo6RhZZJG+duTqIZCB8pctk1a62h/ZIElc=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -47,7 +49,8 @@
 			const interval = 250;
 			let isFocused = document.hasFocus();
 			setInterval(() => {
-				const isCurrentlyFocused = document.hasFocus();
+				const target = getActiveFrame();
+				const isCurrentlyFocused = document.hasFocus() || !!(target && target.contentDocument && target.contentDocument.body.classList.contains('vscode-context-menu-visible'));
 				if (isCurrentlyFocused === isFocused) {
 					return;
 				}
@@ -127,6 +130,10 @@
 				background-color: var(--vscode-textPreformat-background);
 				padding: 1px 3px;
 				border-radius: 4px;
+			}
+
+			pre code {
+				padding: 0;
 			}
 
 			blockquote {
@@ -786,6 +793,17 @@
 			}
 		}
 
+
+		function handleInnerDragEvent(/** @type {DragEvent} */ e) {
+			if (!e.dataTransfer) {
+				return;
+			}
+
+			hostMessaging.postMessage('drag', {
+				shiftKey: e.shiftKey
+			});
+		}
+
 		/**
 		 * @param {() => void} callback
 		 */
@@ -876,7 +894,9 @@
 		window.addEventListener('keydown', handleInnerKeydown);
 		window.addEventListener('keyup', handleInnerKeyup);
 		window.addEventListener('dragenter', handleInnerDragStartEvent);
-		window.addEventListener('dragover', handleInnerDragStartEvent);
+		window.addEventListener('dragover', handleInnerDragEvent);
+		window.addEventListener('drag', handleInnerDragEvent);
+
 
 		onDomReady(() => {
 			if (!document.body) {
@@ -969,7 +989,7 @@
 				const previousPendingFrame = getPendingFrame();
 				if (previousPendingFrame) {
 					previousPendingFrame.setAttribute('id', '');
-					document.body.removeChild(previousPendingFrame);
+					previousPendingFrame.remove();
 				}
 				if (!wasFirstLoad) {
 					pendingMessages = [];
@@ -1066,9 +1086,7 @@
 					if (newFrame && newFrame.contentDocument && newFrame.contentDocument === contentDocument) {
 						const wasFocused = document.hasFocus();
 						const oldActiveFrame = getActiveFrame();
-						if (oldActiveFrame) {
-							document.body.removeChild(oldActiveFrame);
-						}
+						oldActiveFrame?.remove();
 						// Styles may have changed since we created the element. Make sure we re-style
 						if (initialStyleVersion !== styleVersion) {
 							applyStyles(newFrame.contentDocument, newFrame.contentDocument.body);
@@ -1160,7 +1178,8 @@
 					});
 
 					contentWindow.addEventListener('dragenter', handleInnerDragStartEvent);
-					contentWindow.addEventListener('dragover', handleInnerDragStartEvent);
+					contentWindow.addEventListener('dragover', handleInnerDragEvent);
+					contentWindow.addEventListener('drag', handleInnerDragEvent);
 
 					unloadMonitor.onIframeLoaded(newFrame);
 				}

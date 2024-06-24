@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ShutdownReason, ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ShutdownReason, ILifecycleService, StartupKind } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { AbstractLifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycleService';
 import { localize } from 'vs/nls';
@@ -13,6 +13,7 @@ import { addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { IStorageService, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { mainWindow } from 'vs/base/browser/window';
+import { firstOrDefault } from 'vs/base/common/arrays';
 
 export class BrowserLifecycleService extends AbstractLifecycleService {
 
@@ -199,6 +200,19 @@ export class BrowserLifecycleService extends AbstractLifecycleService {
 		// Docs: https://web.dev/bfcache/#optimize-your-pages-for-bfcache
 		// Refs: https://github.com/microsoft/vscode/issues/136035
 		this.withExpectedShutdown({ disableShutdownHandling: true }, () => mainWindow.location.reload());
+	}
+
+	protected override doResolveStartupKind(): StartupKind | undefined {
+		let startupKind = super.doResolveStartupKind();
+		if (typeof startupKind !== 'number') {
+			const timing = firstOrDefault(performance.getEntriesByType('navigation')) as PerformanceNavigationTiming | undefined;
+			if (timing?.type === 'reload') {
+				// MDN: https://developer.mozilla.org/en-US/docs/Web/API/PerformanceNavigationTiming/type#value
+				startupKind = StartupKind.ReloadedWindow;
+			}
+		}
+
+		return startupKind;
 	}
 }
 

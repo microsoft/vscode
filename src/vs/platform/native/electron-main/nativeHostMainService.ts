@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { exec } from 'child_process';
-import { app, BrowserWindow, clipboard, Display, Menu, MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, powerMonitor, SaveDialogOptions, SaveDialogReturnValue, screen, shell } from 'electron';
+import { app, BrowserWindow, clipboard, Display, Menu, MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, powerMonitor, SaveDialogOptions, SaveDialogReturnValue, screen, shell, webContents } from 'electron';
 import { arch, cpus, freemem, loadavg, platform, release, totalmem, type } from 'os';
 import { promisify } from 'util';
 import { memoize } from 'vs/base/common/decorators';
@@ -40,7 +40,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { hasWSLFeatureInstalled } from 'vs/platform/remote/node/wsl';
 import { WindowProfiler } from 'vs/platform/profiling/electron-main/windowProfiling';
 import { IV8Profile } from 'vs/platform/profiling/common/profiling';
-import { IAuxiliaryWindowsMainService, isAuxiliaryWindow } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindows';
+import { IAuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindows';
 import { IAuxiliaryWindow } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindow';
 import { CancellationError } from 'vs/base/common/errors';
 
@@ -79,17 +79,17 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	readonly onDidOpenMainWindow = Event.map(this.windowsMainService.onDidOpenWindow, window => window.id);
 
 	readonly onDidTriggerWindowSystemContextMenu = Event.any(
-		Event.filter(Event.map(this.windowsMainService.onDidTriggerSystemContextMenu, ({ window, x, y }) => { return { windowId: window.id, x, y }; }), ({ windowId }) => !!this.windowsMainService.getWindowById(windowId)),
-		Event.filter(Event.map(this.auxiliaryWindowsMainService.onDidTriggerSystemContextMenu, ({ window, x, y }) => { return { windowId: window.id, x, y }; }), ({ windowId }) => !!this.auxiliaryWindowsMainService.getWindowById(windowId))
+		Event.map(this.windowsMainService.onDidTriggerSystemContextMenu, ({ window, x, y }) => ({ windowId: window.id, x, y })),
+		Event.map(this.auxiliaryWindowsMainService.onDidTriggerSystemContextMenu, ({ window, x, y }) => ({ windowId: window.id, x, y }))
 	);
 
 	readonly onDidMaximizeWindow = Event.any(
-		Event.filter(Event.map(this.windowsMainService.onDidMaximizeWindow, window => window.id), windowId => !!this.windowsMainService.getWindowById(windowId)),
-		Event.filter(Event.map(this.auxiliaryWindowsMainService.onDidMaximizeWindow, window => window.id), windowId => !!this.auxiliaryWindowsMainService.getWindowById(windowId))
+		Event.map(this.windowsMainService.onDidMaximizeWindow, window => window.id),
+		Event.map(this.auxiliaryWindowsMainService.onDidMaximizeWindow, window => window.id)
 	);
 	readonly onDidUnmaximizeWindow = Event.any(
-		Event.filter(Event.map(this.windowsMainService.onDidUnmaximizeWindow, window => window.id), windowId => !!this.windowsMainService.getWindowById(windowId)),
-		Event.filter(Event.map(this.auxiliaryWindowsMainService.onDidUnmaximizeWindow, window => window.id), windowId => !!this.auxiliaryWindowsMainService.getWindowById(windowId))
+		Event.map(this.windowsMainService.onDidUnmaximizeWindow, window => window.id),
+		Event.map(this.auxiliaryWindowsMainService.onDidUnmaximizeWindow, window => window.id)
 	);
 
 	readonly onDidChangeWindowFullScreen = Event.any(
@@ -105,11 +105,11 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	readonly onDidBlurMainOrAuxiliaryWindow = Event.any(
 		this.onDidBlurMainWindow,
-		Event.map(Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-blur', (event, window: BrowserWindow) => window), window => isAuxiliaryWindow(window.webContents)), window => window.id)
+		Event.map(Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-blur', (event, window: BrowserWindow) => this.auxiliaryWindowsMainService.getWindowByWebContents(window.webContents)), window => !!window), window => window!.id)
 	);
 	readonly onDidFocusMainOrAuxiliaryWindow = Event.any(
 		this.onDidFocusMainWindow,
-		Event.map(Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-focus', (event, window: BrowserWindow) => window), window => isAuxiliaryWindow(window.webContents)), window => window.id)
+		Event.map(Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-focus', (event, window: BrowserWindow) => this.auxiliaryWindowsMainService.getWindowByWebContents(window.webContents)), window => !!window), window => window!.id)
 	);
 
 	readonly onDidResumeOS = Event.fromNodeEventEmitter(powerMonitor, 'resume');
@@ -210,6 +210,11 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			context: OpenContext.API,
 			contextWindowId: windowId
 		}, options);
+	}
+
+	async isFullScreen(windowId: number | undefined, options?: INativeHostOptions): Promise<boolean> {
+		const window = this.windowById(options?.targetWindowId, windowId);
+		return window?.isFullScreen ?? false;
 	}
 
 	async toggleFullScreen(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
@@ -495,7 +500,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	async isAdmin(): Promise<boolean> {
 		let isAdmin: boolean;
 		if (isWindows) {
-			isAdmin = (await import('native-is-elevated'))();
+			isAdmin = (await import('native-is-elevated')).default();
 		} else {
 			isAdmin = process.getuid?.() === 0;
 		}
@@ -609,6 +614,11 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 
 	//#region Process
+
+	async getProcessId(windowId: number | undefined): Promise<number | undefined> {
+		const window = this.windowById(undefined, windowId);
+		return window?.win?.webContents.getOSProcessId();
+	}
 
 	async killProcess(windowId: number | undefined, pid: number, code: string): Promise<void> {
 		process.kill(pid, code);
@@ -836,6 +846,11 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			return undefined;
 		}
 
-		return this.auxiliaryWindowsMainService.getWindowById(windowId);
+		const contents = webContents.fromId(windowId);
+		if (!contents) {
+			return undefined;
+		}
+
+		return this.auxiliaryWindowsMainService.getWindowByWebContents(contents);
 	}
 }

@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { URI } from 'vs/base/common/uri';
-import { Event } from 'vs/base/common/event';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { BugIndicatingError } from 'vs/base/common/errors';
+import { IValueWithChangeEvent } from 'vs/base/common/event';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
 import { ContextKeyValue } from 'vs/platform/contextkey/common/contextkey';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IMultiDiffSourceResolverService = createDecorator<IMultiDiffSourceResolverService>('multiDiffSourceResolverService');
 
@@ -27,19 +27,8 @@ export interface IMultiDiffSourceResolver {
 }
 
 export interface IResolvedMultiDiffSource {
-	readonly resources: readonly MultiDiffEditorItem[];
-
-	readonly onDidChange: Event<void>;
-
+	readonly resources: IValueWithChangeEvent<readonly MultiDiffEditorItem[]>;
 	readonly contextKeys?: Record<string, ContextKeyValue>;
-}
-
-export class ConstResolvedMultiDiffSource implements IResolvedMultiDiffSource {
-	public readonly onDidChange = Event.None;
-
-	constructor(
-		public readonly resources: readonly MultiDiffEditorItem[]
-	) { }
 }
 
 export class MultiDiffEditorItem {
@@ -50,6 +39,10 @@ export class MultiDiffEditorItem {
 		if (!original && !modified) {
 			throw new BugIndicatingError('Invalid arguments');
 		}
+	}
+
+	getKey(): string {
+		return JSON.stringify([this.modified?.toString(), this.original?.toString()]);
 	}
 }
 

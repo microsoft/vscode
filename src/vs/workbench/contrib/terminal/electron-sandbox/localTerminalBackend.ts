@@ -37,6 +37,7 @@ import { IStatusbarService } from 'vs/workbench/services/statusbar/browser/statu
 import { memoize } from 'vs/base/common/decorators';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { shouldUseEnvironmentVariableCollection } from 'vs/platform/terminal/common/terminalEnvironment';
 
 export class LocalTerminalBackendContribution implements IWorkbenchContribution {
 
@@ -94,11 +95,11 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 	) {
 		super(_localPtyService, logService, historyService, _configurationResolverService, statusBarService, workspaceContextService);
 
-		this.onPtyHostRestart(() => {
+		this._register(this.onPtyHostRestart(() => {
 			this._directProxy = undefined;
 			this._directProxyClientEventually = undefined;
 			this._connectToDirectProxy();
-		});
+		}));
 	}
 
 	/**
@@ -373,7 +374,7 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		const envFromConfigValue = this._configurationService.getValue<ITerminalEnvironment | undefined>(`terminal.integrated.env.${platformKey}`);
 		const baseEnv = await (shellLaunchConfig.useShellEnvironment ? this.getShellEnvironment() : this.getEnvironment());
 		const env = await terminalEnvironment.createTerminalEnvironment(shellLaunchConfig, envFromConfigValue, variableResolver, this._productService.version, this._configurationService.getValue(TerminalSettingId.DetectLocale), baseEnv);
-		if (!shellLaunchConfig.strictEnv && !shellLaunchConfig.hideFromUser) {
+		if (shouldUseEnvironmentVariableCollection(shellLaunchConfig)) {
 			const workspaceFolder = terminalEnvironment.getWorkspaceForTerminal(shellLaunchConfig.cwd, this._workspaceContextService, this._historyService);
 			await this._environmentVariableService.mergedCollection.applyToProcessEnvironment(env, { workspaceFolder }, variableResolver);
 		}

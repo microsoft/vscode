@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createCancelablePromise, firstParallel } from 'vs/base/common/async';
+import { createCancelablePromise, firstParallel, timeout } from 'vs/base/common/async';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import * as nls from 'vs/nls';
@@ -27,6 +27,7 @@ import { ExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/c
 import type * as vscode from 'vscode';
 import { ExtHostConfigProvider, IExtHostConfiguration } from '../common/extHostConfiguration';
 import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
+import { IExtHostTesting } from 'vs/workbench/api/common/extHostTesting';
 
 export class ExtHostDebugService extends ExtHostDebugServiceBase {
 
@@ -44,8 +45,9 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 		@IExtHostEditorTabs editorTabs: IExtHostEditorTabs,
 		@IExtHostVariableResolverProvider variableResolver: IExtHostVariableResolverProvider,
 		@IExtHostCommands commands: IExtHostCommands,
+		@IExtHostTesting testing: IExtHostTesting,
 	) {
-		super(extHostRpcService, workspaceService, extensionService, configurationService, editorTabs, variableResolver, commands);
+		super(extHostRpcService, workspaceService, extensionService, configurationService, editorTabs, variableResolver, commands, testing);
 	}
 
 	protected override createDebugAdapter(adapter: IAdapterDescriptor, session: ExtHostDebugSession): AbstractDebugAdapter | undefined {
@@ -78,9 +80,9 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 
 			if (!this._terminalDisposedListener) {
 				// React on terminal disposed and check if that is the debug terminal #12956
-				this._terminalDisposedListener = this._terminalService.onDidCloseTerminal(terminal => {
+				this._terminalDisposedListener = this._register(this._terminalService.onDidCloseTerminal(terminal => {
 					this._integratedTerminalInstances.onTerminalClosed(terminal);
-				});
+				}));
 			}
 
 			const configProvider = await this._configurationService.getConfigProvider();
@@ -106,6 +108,9 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 				giveShellTimeToInitialize = true;
 				terminal = this._terminalService.createTerminalFromOptions(options, {
 					isFeatureTerminal: true,
+					// Since debug termnials are REPLs, we want shell integration to be enabled.
+					// Ignore isFeatureTerminal when evaluating shell integration enablement.
+					forceShellIntegration: true,
 					useShellEnvironment: true
 				});
 				this._integratedTerminalInstances.insert(terminal, shellConfig);
@@ -122,6 +127,11 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 				// give a new terminal some time to initialize the shell
 				await new Promise(resolve => setTimeout(resolve, 1000));
 			} else {
+				if (terminal.state.isInteractedWith) {
+					terminal.sendText('\u0003'); // Ctrl+C for #106743. Not part of the same command for #107969
+					await timeout(200); // mirroring https://github.com/microsoft/vscode/blob/c67ccc70ece5f472ec25464d3eeb874cfccee9f1/src/vs/workbench/contrib/terminal/browser/terminalInstance.ts#L852-L857
+				}
+
 				if (configProvider.getConfiguration('debug.terminal').get<boolean>('clearBeforeReusing')) {
 					// clear terminal before reusing it
 					if (shell.indexOf('powershell') >= 0 || shell.indexOf('pwsh') >= 0 || shell.indexOf('cmd.exe') >= 0) {
@@ -182,7 +192,7 @@ class DebugTerminalCollection {
 
 	private _terminalInstances = new Map<vscode.Terminal, { lastUsedAt: number; config: string }>();
 
-	public async checkout(config: string, name: string) {
+	public async checkout(config: string, name: string, cleanupOthersByName = false) {
 		const entries = [...this._terminalInstances.entries()];
 		const promises = entries.map(([terminal, termInfo]) => createCancelablePromise(async ct => {
 
@@ -202,6 +212,9 @@ class DebugTerminalCollection {
 			}
 
 			if (termInfo.config !== config) {
+				if (cleanupOthersByName) {
+					terminal.dispose();
+				}
 				return null;
 			}
 

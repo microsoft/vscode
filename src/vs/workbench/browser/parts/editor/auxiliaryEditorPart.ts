@@ -121,11 +121,11 @@ export class AuxiliaryEditorPart {
 		const useCustomTitle = isNative && hasCustomTitlebar(this.configurationService); // custom title in aux windows only enabled in native
 		if (useCustomTitle) {
 			titlebarPart = disposables.add(this.titleService.createAuxiliaryTitlebarPart(auxiliaryWindow.container, editorPart));
-			titlebarVisible = shouldShowCustomTitleBar(this.configurationService, auxiliaryWindow.window);
+			titlebarVisible = shouldShowCustomTitleBar(this.configurationService, auxiliaryWindow.window, undefined, false);
 
 			const handleTitleBarVisibilityEvent = () => {
 				const oldTitlebarPartVisible = titlebarVisible;
-				titlebarVisible = shouldShowCustomTitleBar(this.configurationService, auxiliaryWindow.window);
+				titlebarVisible = shouldShowCustomTitleBar(this.configurationService, auxiliaryWindow.window, undefined, false);
 				if (oldTitlebarPartVisible !== titlebarVisible) {
 					updateTitlebarVisibility(true);
 				}
@@ -171,6 +171,22 @@ export class AuxiliaryEditorPart {
 			disposables.dispose();
 		}));
 		disposables.add(Event.once(this.lifecycleService.onDidShutdown)(() => disposables.dispose()));
+		disposables.add(auxiliaryWindow.onBeforeUnload(event => {
+			for (const group of editorPart.groups) {
+				for (const editor of group.editors) {
+					// Closing an auxiliary window with opened editors
+					// will move the editors to the main window. As such,
+					// we need to validate that we can move and otherwise
+					// prevent the window from closing.
+					const canMoveVeto = editor.canMove(group.id, this.editorPartsView.mainPart.activeGroup.id);
+					if (typeof canMoveVeto === 'string') {
+						group.openEditor(editor);
+						event.veto(canMoveVeto);
+						break;
+					}
+				}
+			}
+		}));
 
 		// Layout: specifically `onWillLayout` to have a chance
 		// to build the aux editor part before other components
@@ -187,10 +203,10 @@ export class AuxiliaryEditorPart {
 		auxiliaryWindow.layout();
 
 		// Have a InstantiationService that is scoped to the auxiliary window
-		const instantiationService = this.instantiationService.createChild(new ServiceCollection(
+		const instantiationService = disposables.add(this.instantiationService.createChild(new ServiceCollection(
 			[IStatusbarService, this.statusbarService.createScoped(statusbarPart, disposables)],
 			[IEditorService, this.editorService.createScoped(editorPart, disposables)]
-		));
+		)));
 
 		return {
 			part: editorPart,
@@ -263,21 +279,24 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 		return; // disabled, auxiliary editor part state is tracked outside
 	}
 
-	close(): void {
-		this.doClose(true /* merge all groups to main part */);
+	close(): boolean {
+		return this.doClose(true /* merge all groups to main part */);
 	}
 
-	private doClose(mergeGroupsToMainPart: boolean): void {
+	private doClose(mergeGroupsToMainPart: boolean): boolean {
+		let result = true;
 		if (mergeGroupsToMainPart) {
-			this.mergeGroupsToMainPart();
+			result = this.mergeGroupsToMainPart();
 		}
 
 		this._onWillClose.fire();
+
+		return result;
 	}
 
-	private mergeGroupsToMainPart(): void {
+	private mergeGroupsToMainPart(): boolean {
 		if (!this.groups.some(group => group.count > 0)) {
-			return; // skip if we have no editors opened
+			return true; // skip if we have no editors opened
 		}
 
 		// Find the most recent group that is not locked
@@ -293,7 +312,9 @@ class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEditorPart
 			targetGroup = this.editorPartsView.mainPart.addGroup(this.editorPartsView.mainPart.activeGroup, this.partOptions.openSideBySideDirection === 'right' ? GroupDirection.RIGHT : GroupDirection.DOWN);
 		}
 
-		this.mergeAllGroups(targetGroup);
+		const result = this.mergeAllGroups(targetGroup);
 		targetGroup.focus();
+
+		return result;
 	}
 }

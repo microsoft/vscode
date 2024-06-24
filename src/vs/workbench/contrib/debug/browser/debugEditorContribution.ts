@@ -6,7 +6,7 @@
 import { addDisposableListener, isKeyboardEvent } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { distinct, flatten } from 'vs/base/common/arrays';
+import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { memoize } from 'vs/base/common/decorators';
@@ -15,7 +15,7 @@ import { Event } from 'vs/base/common/event';
 import { visit } from 'vs/base/common/json';
 import { setProperty } from 'vs/base/common/jsonEdit';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { IDisposable, MutableDisposable, dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, MutableDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { clamp } from 'vs/base/common/numbers';
 import { basename } from 'vs/base/common/path';
 import * as env from 'vs/base/common/platform';
@@ -25,18 +25,19 @@ import { Constants } from 'vs/base/common/uint';
 import { URI } from 'vs/base/common/uri';
 import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
 import { ICodeEditor, IEditorMouseEvent, IPartialEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { IEditorHoverOptions } from 'vs/editor/common/config/editorOptions';
+import { EditorOption, IEditorHoverOptions } from 'vs/editor/common/config/editorOptions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { DEFAULT_WORD_REGEXP } from 'vs/editor/common/core/wordHelper';
+import { ScrollType } from 'vs/editor/common/editorCommon';
 import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 import { InlineValue, InlineValueContext } from 'vs/editor/common/languages';
 import { IModelDeltaDecoration, ITextModel, InjectedTextCursorStops } from 'vs/editor/common/model';
 import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IModelService } from 'vs/editor/common/services/model';
-import { HoverController } from 'vs/editor/contrib/hover/browser/hover';
+import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
 import { HoverStartMode, HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
 import * as nls from 'vs/nls';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
@@ -125,7 +126,7 @@ function replaceWsWithNoBreakWs(str: string): string {
 	return str.replace(/[ \t]/g, strings.noBreakWhitespace);
 }
 
-function createInlineValueDecorationsInsideRange(expressions: ReadonlyArray<IExpression>, ranges: Range[], model: ITextModel, wordToLineNumbersMap: Map<string, number[]>): IModelDeltaDecoration[] {
+function createInlineValueDecorationsInsideRange(expressions: ReadonlyArray<IExpression>, ranges: Range[], model: ITextModel, wordToLineNumbersMap: Map<string, number[]>) {
 	const nameValueMap = new Map<string, string>();
 	for (const expr of expressions) {
 		nameValueMap.set(expr.name, expr.value);
@@ -155,17 +156,14 @@ function createInlineValueDecorationsInsideRange(expressions: ReadonlyArray<IExp
 		}
 	});
 
-	const decorations: IModelDeltaDecoration[] = [];
 	// Compute decorators for each line
-	lineToNamesMap.forEach((names, line) => {
-		const contentText = names.sort((first, second) => {
+	return [...lineToNamesMap].map(([line, names]) => ({
+		line,
+		variables: names.sort((first, second) => {
 			const content = model.getLineContent(line);
 			return content.indexOf(first) - content.indexOf(second);
-		}).map(name => `${name} = ${nameValueMap.get(name)}`).join(', ');
-		decorations.push(...createInlineValueDecoration(line, contentText));
-	});
-
-	return decorations;
+		}).map(name => ({ name, value: nameValueMap.get(name)! }))
+	}));
 }
 
 function getWordToLineNumbersMap(model: ITextModel, lineNumber: number, result: Map<string, number[]>) {
@@ -207,16 +205,17 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 	private toDispose: IDisposable[];
 	private hoverWidget: DebugHoverWidget;
-	private hoverPosition: Position | null = null;
+	private hoverPosition?: { position: Position; event: IMouseEvent };
 	private mouseDown = false;
 	private exceptionWidgetVisible: IContextKey<boolean>;
 	private gutterIsHovered = false;
 
 	private exceptionWidget: ExceptionWidget | undefined;
 	private configurationWidget: FloatingEditorClickWidget | undefined;
-	private altListener = new MutableDisposable();
+	private readonly altListener = new MutableDisposable();
 	private altPressed = false;
 	private oldDecorations = this.editor.createDecorationsCollection();
+	private readonly displayedStore = new DisposableStore();
 	private editorHoverOptions: IEditorHoverOptions | undefined;
 	private readonly debounceInfo: IFeatureDebounceInformation;
 
@@ -237,7 +236,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	) {
 		this.debounceInfo = featureDebounceService.for(languageFeaturesService.inlineValuesProvider, 'InlineValues', { min: DEAFULT_INLINE_DEBOUNCE_DELAY });
 		this.hoverWidget = this.instantiationService.createInstance(DebugHoverWidget, this.editor);
-		this.toDispose = [this.defaultHoverLockout, this.altListener];
+		this.toDispose = [this.defaultHoverLockout, this.altListener, this.displayedStore];
 		this.registerListeners();
 		this.exceptionWidgetVisible = CONTEXT_EXCEPTION_WIDGET_VISIBLE.bindTo(contextKeyService);
 		this.toggleExceptionWidget();
@@ -339,7 +338,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 				if (debugHoverWasVisible && this.hoverPosition) {
 					// If the debug hover was visible immediately show the editor hover for the alt transition to be smooth
-					this.showEditorHover(this.hoverPosition, false);
+					this.showEditorHover(this.hoverPosition.position, false);
 				}
 
 				const onKeyUp = new DomEmitter(ownerDocument, 'keyup');
@@ -359,14 +358,14 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		});
 	}
 
-	async showHover(position: Position, focus: boolean): Promise<void> {
+	async showHover(position: Position, focus: boolean, mouseEvent?: IMouseEvent): Promise<void> {
 		// normally will already be set in `showHoverScheduler`, but public callers may hit this directly:
 		this.preventDefaultEditorHover();
 
 		const sf = this.debugService.getViewModel().focusedStackFrame;
 		const model = this.editor.getModel();
 		if (sf && model && this.uriIdentityService.extUri.isEqual(sf.source.uri, model.uri)) {
-			const result = await this.hoverWidget.showAt(position, focus);
+			const result = await this.hoverWidget.showAt(position, focus, mouseEvent);
 			if (result === ShowDebugHoverResult.NOT_AVAILABLE) {
 				// When no expression available fallback to editor hover
 				this.showEditorHover(position, focus);
@@ -436,7 +435,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private get showHoverScheduler() {
 		const scheduler = new RunOnceScheduler(() => {
 			if (this.hoverPosition && !this.altPressed) {
-				this.showHover(this.hoverPosition, false);
+				this.showHover(this.hoverPosition.position, false, this.hoverPosition.event);
 			}
 		}, this.hoverDelay);
 		this.toDispose.push(scheduler);
@@ -491,8 +490,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		}
 
 		if (target.type === MouseTargetType.CONTENT_TEXT) {
-			if (target.position && !Position.equals(target.position, this.hoverPosition)) {
-				this.hoverPosition = target.position;
+			if (target.position && !Position.equals(target.position, this.hoverPosition?.position || null) && !this.hoverWidget.isInSafeTriangle(mouseEvent.event.posx, mouseEvent.event.posy)) {
+				this.hoverPosition = { position: target.position, event: mouseEvent.event };
 				// Disable the editor hover during the request to avoid flickering
 				this.preventDefaultEditorHover();
 				this.showHoverScheduler.schedule(this.hoverDelay);
@@ -639,6 +638,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	private get removeInlineValuesScheduler(): RunOnceScheduler {
 		return new RunOnceScheduler(
 			() => {
+				this.displayedStore.clear();
 				this.oldDecorations.clear();
 			},
 			100
@@ -670,9 +670,13 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		}
 
 		this.removeInlineValuesScheduler.cancel();
+		this.displayedStore.clear();
 
 		const viewRanges = this.editor.getVisibleRangesPlusViewportAboveBelow();
 		let allDecorations: IModelDeltaDecoration[];
+
+		const cts = new CancellationTokenSource();
+		this.displayedStore.add(toDisposable(() => cts.dispose(true)));
 
 		if (this.languageFeaturesService.inlineValuesProvider.has(model)) {
 
@@ -693,14 +697,13 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				frameId: stackFrame.frameId,
 				stoppedLocation: new Range(stackFrame.range.startLineNumber, stackFrame.range.startColumn + 1, stackFrame.range.endLineNumber, stackFrame.range.endColumn + 1)
 			};
-			const token = new CancellationTokenSource().token;
 
 			const providers = this.languageFeaturesService.inlineValuesProvider.ordered(model).reverse();
 
 			allDecorations = [];
 			const lineDecorations = new Map<number, InlineSegment[]>();
 
-			const promises = flatten(providers.map(provider => viewRanges.map(range => Promise.resolve(provider.provideInlineValues(model, range, ctx, token)).then(async (result) => {
+			const promises = providers.flatMap(provider => viewRanges.map(range => Promise.resolve(provider.provideInlineValues(model, range, ctx, cts.token)).then(async (result) => {
 				if (result) {
 					for (const iv of result) {
 
@@ -753,7 +756,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				}
 			}, err => {
 				onUnexpectedExternalError(err);
-			}))));
+			})));
 
 			const startTime = Date.now();
 
@@ -776,10 +779,15 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			// old "one-size-fits-all" strategy
 
 			const scopes = await stackFrame.getMostSpecificScopes(stackFrame.range);
-			// Get all top level variables in the scope chain
-			const decorationsPerScope = await Promise.all(scopes.map(async scope => {
-				const variables = await scope.getChildren();
+			const scopesWithVariables = await Promise.all(scopes.map(async scope =>
+				({ scope, variables: await scope.getChildren() })));
 
+			// Map of inline values per line that's populated in scope order, from
+			// narrowest to widest. This is done to avoid duplicating values if
+			// they appear in multiple scopes or are shadowed (#129770, #217326)
+			const valuesPerLine = new Map</* line */number, Map</* var */string, /* value */ string>>();
+
+			for (const { scope, variables } of scopesWithVariables) {
 				let scopeRange = new Range(0, 0, stackFrame.range.startLineNumber, stackFrame.range.startColumn);
 				if (scope.range) {
 					scopeRange = scopeRange.setStartPosition(scope.range.startLineNumber, scope.range.startColumn);
@@ -791,15 +799,48 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 					this._wordToLineNumbersMap.ensureRangePopulated(range);
 				}
 
-				return createInlineValueDecorationsInsideRange(variables, ownRanges, model, this._wordToLineNumbersMap.value);
-			}));
+				const mapped = createInlineValueDecorationsInsideRange(variables, ownRanges, model, this._wordToLineNumbersMap.value);
+				for (const { line, variables } of mapped) {
+					let values = valuesPerLine.get(line);
+					if (!values) {
+						values = new Map<string, string>();
+						valuesPerLine.set(line, values);
+					}
 
-			allDecorations = distinct(decorationsPerScope.reduce((previous, current) => previous.concat(current), []),
-				// Deduplicate decorations since same variable can appear in multiple scopes, leading to duplicated decorations #129770
-				decoration => `${decoration.range.startLineNumber}:${decoration?.options.after?.content}`);
+					for (const { name, value } of variables) {
+						if (!values.has(name)) {
+							values.set(name, value);
+						}
+					}
+				}
+			}
+
+			allDecorations = [...valuesPerLine.entries()].flatMap(([line, values]) =>
+				createInlineValueDecoration(line, [...values].map(([n, v]) => `${n} = ${v}`).join(', '))
+			);
+		}
+
+		if (cts.token.isCancellationRequested) {
+			return;
+		}
+
+		// If word wrap is on, application of inline decorations may change the scroll position.
+		// Ensure the cursor maintains its vertical position relative to the viewport when
+		// we apply decorations.
+		let preservePosition: { position: Position; top: number } | undefined;
+		if (this.editor.getOption(EditorOption.wordWrap) !== 'off') {
+			const position = this.editor.getPosition();
+			if (position && this.editor.getVisibleRanges().some(r => r.containsPosition(position))) {
+				preservePosition = { position, top: this.editor.getTopForPosition(position.lineNumber, position.column) };
+			}
 		}
 
 		this.oldDecorations.set(allDecorations);
+
+		if (preservePosition) {
+			const top = this.editor.getTopForPosition(preservePosition.position.lineNumber, preservePosition.position.column);
+			this.editor.setScrollTop(this.editor.getScrollTop() - (preservePosition.top - top), ScrollType.Immediate);
+		}
 	}
 
 	dispose(): void {
@@ -810,8 +851,6 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			this.configurationWidget.dispose();
 		}
 		this.toDispose = dispose(this.toDispose);
-
-		this.oldDecorations.clear();
 	}
 }
 

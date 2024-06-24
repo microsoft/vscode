@@ -9,12 +9,8 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
-import { IFileService } from 'vs/platform/files/common/files';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 
 const TRUSTED_DOMAINS_URI = URI.parse('trustedDomains:/Trusted Domains');
@@ -129,77 +125,17 @@ export async function configureOpenerTrustedDomainsHandler(
 	return [];
 }
 
-// Exported for testing.
-export function extractGitHubRemotesFromGitConfig(gitConfig: string): string[] {
-	const domains = new Set<string>();
-	let match: RegExpExecArray | null;
-
-	const RemoteMatcher = /^\s*url\s*=\s*(?:git@|https:\/\/)github\.com(?::|\/)(\S*)\s*$/mg;
-	while (match = RemoteMatcher.exec(gitConfig)) {
-		const repo = match[1].replace(/\.git$/, '');
-		if (repo) {
-			domains.add(`https://github.com/${repo}/`);
-		}
-	}
-	return [...domains];
-}
-
-async function getRemotes(fileService: IFileService, textFileService: ITextFileService, contextService: IWorkspaceContextService): Promise<string[]> {
-	const workspaceUris = contextService.getWorkspace().folders.map(folder => folder.uri);
-	const domains = await Promise.race([
-		new Promise<string[][]>(resolve => setTimeout(() => resolve([]), 2000)),
-		Promise.all<string[]>(workspaceUris.map(async workspaceUri => {
-			try {
-				const path = workspaceUri.path;
-				const uri = workspaceUri.with({ path: `${path !== '/' ? path : ''}/.git/config` });
-				const exists = await fileService.exists(uri);
-				if (!exists) {
-					return [];
-				}
-				const gitConfig = (await (textFileService.read(uri, { acceptTextOnly: true }).catch(() => ({ value: '' })))).value;
-				return extractGitHubRemotesFromGitConfig(gitConfig);
-			} catch {
-				return [];
-			}
-		}))]);
-
-	const set = domains.reduce((set, list) => list.reduce((set, item) => set.add(item), set), new Set<string>());
-	return [...set];
-}
-
 export interface IStaticTrustedDomains {
 	readonly defaultTrustedDomains: string[];
 	readonly trustedDomains: string[];
 }
 
-export interface ITrustedDomains extends IStaticTrustedDomains {
-	readonly userDomains: string[];
-	readonly workspaceDomains: string[];
-}
-
-export async function readTrustedDomains(accessor: ServicesAccessor): Promise<ITrustedDomains> {
+export async function readTrustedDomains(accessor: ServicesAccessor): Promise<IStaticTrustedDomains> {
 	const { defaultTrustedDomains, trustedDomains } = readStaticTrustedDomains(accessor);
-	const [workspaceDomains, userDomains] = await Promise.all([readWorkspaceTrustedDomains(accessor), readAuthenticationTrustedDomains(accessor)]);
 	return {
-		workspaceDomains,
-		userDomains,
 		defaultTrustedDomains,
 		trustedDomains,
 	};
-}
-
-export async function readWorkspaceTrustedDomains(accessor: ServicesAccessor): Promise<string[]> {
-	const fileService = accessor.get(IFileService);
-	const textFileService = accessor.get(ITextFileService);
-	const workspaceContextService = accessor.get(IWorkspaceContextService);
-	return getRemotes(fileService, textFileService, workspaceContextService);
-}
-
-export async function readAuthenticationTrustedDomains(accessor: ServicesAccessor): Promise<string[]> {
-	const authenticationService = accessor.get(IAuthenticationService);
-	return authenticationService.isAuthenticationProviderRegistered('github') && ((await authenticationService.getSessions('github')) ?? []).length > 0
-		? [`https://github.com`]
-		: [];
 }
 
 export function readStaticTrustedDomains(accessor: ServicesAccessor): IStaticTrustedDomains {

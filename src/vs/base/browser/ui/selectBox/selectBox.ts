@@ -28,6 +28,7 @@ export interface ISelectBoxDelegate extends IDisposable {
 	focus(): void;
 	blur(): void;
 	setFocusable(focus: boolean): void;
+	setEnabled(enabled: boolean): void;
 
 	// Delegated Widget interface
 	render(container: HTMLElement): void;
@@ -122,6 +123,10 @@ export class SelectBox extends Widget implements ISelectBoxDelegate {
 
 	setFocusable(focusable: boolean): void {
 		this.selectBoxDelegate.setFocusable(focusable);
+	}
+
+	setEnabled(enabled: boolean): void {
+		this.selectBoxDelegate.setEnabled(enabled);
 	}
 
 	render(container: HTMLElement): void {

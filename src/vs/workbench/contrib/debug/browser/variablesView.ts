@@ -12,7 +12,7 @@ import { AsyncDataTree, IAsyncDataTreeViewState } from 'vs/base/browser/ui/tree/
 import { ITreeContextMenuEvent, ITreeMouseEvent, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { Action, IAction } from 'vs/base/common/actions';
 import { coalesce } from 'vs/base/common/arrays';
-import { RunOnceScheduler, timeout } from 'vs/base/common/async';
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
@@ -26,23 +26,26 @@ import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/c
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { ProgressLocation } from 'vs/platform/progress/common/progress';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ViewAction, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { AbstractExpressionDataSource, AbstractExpressionsRenderer, IExpressionTemplateData, IInputBoxOptions, renderExpressionValue, renderVariable, renderViewTree } from 'vs/workbench/contrib/debug/browser/baseDebugView';
+import { ADD_TO_WATCH_ID, ADD_TO_WATCH_LABEL, COPY_EVALUATE_PATH_ID, COPY_EVALUATE_PATH_LABEL, COPY_VALUE_ID, COPY_VALUE_LABEL } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
-import { CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_ACCESSED_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_READ_SUPPORTED, CONTEXT_VARIABLES_FOCUSED, DebugVisualizationType, IDataBreakpointInfoResponse, IDebugService, IExpression, IScope, IStackFrame, IViewModel, VARIABLES_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
+import { CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_ACCESSED_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_READ_SUPPORTED, CONTEXT_VARIABLES_FOCUSED, DataBreakpointSetType, DebugVisualizationType, IDataBreakpointInfoResponse, IDebugConfiguration, IDebugService, IExpression, IScope, IStackFrame, IViewModel, VARIABLES_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
 import { getContextForVariable } from 'vs/workbench/contrib/debug/common/debugContext';
 import { ErrorScope, Expression, Scope, StackFrame, Variable, VisualizedExpression, getUriForDebugMemory } from 'vs/workbench/contrib/debug/common/debugModel';
 import { DebugVisualizer, IDebugVisualizerService } from 'vs/workbench/contrib/debug/common/debugVisualizers';
+import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
@@ -78,9 +81,10 @@ export class VariablesView extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService,
 		@IMenuService private readonly menuService: IMenuService
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 
 		// Use scheduler to prevent unnecessary flashing
 		this.updateTreeScheduler = new RunOnceScheduler(async () => {
@@ -130,9 +134,7 @@ export class VariablesView extends ViewPane {
 			accessibilityProvider: new VariablesAccessibilityProvider(),
 			identityProvider: { getId: (element: IExpression | IScope) => element.getId() },
 			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IExpression | IScope) => e.name },
-			overrideStyles: {
-				listBackground: this.getBackgroundColor()
-			}
+			overrideStyles: this.getLocationBasedColors().listOverrideStyles
 		});
 
 		this._register(VisualizedVariableRenderer.rendererOnVisualizationRange(this.debugService.getViewModel(), this.tree));
@@ -387,7 +389,7 @@ class ScopesRenderer implements ITreeRenderer<IScope, FuzzyScore, IScopeTemplate
 	}
 
 	disposeTemplate(templateData: IScopeTemplateData): void {
-		// noop
+		templateData.label.dispose();
 	}
 }
 
@@ -441,10 +443,11 @@ export class VisualizedVariableRenderer extends AbstractExpressionsRenderer {
 		private readonly linkDetector: LinkDetector,
 		@IDebugService debugService: IDebugService,
 		@IContextViewService contextViewService: IContextViewService,
+		@IHoverService hoverService: IHoverService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
-		super(debugService, contextViewService);
+		super(debugService, contextViewService, hoverService);
 	}
 
 	public override get templateId(): string {
@@ -452,6 +455,7 @@ export class VisualizedVariableRenderer extends AbstractExpressionsRenderer {
 	}
 
 	public override renderElement(node: ITreeNode<IExpression, FuzzyScore>, index: number, data: IExpressionTemplateData): void {
+		data.elementDisposable.clear();
 		super.renderExpressionElement(node.element, node, data);
 	}
 
@@ -466,10 +470,10 @@ export class VisualizedVariableRenderer extends AbstractExpressionsRenderer {
 		renderExpressionValue(viz, data.value, {
 			showChanged: false,
 			maxValueLength: 1024,
-			showHover: true,
+			hover: data.elementDisposable,
 			colorize: true,
 			linkDetector: this.linkDetector
-		});
+		}, this.hoverService);
 	}
 
 	protected override getInputBoxOptions(expression: IExpression): IInputBoxOptions | undefined {
@@ -524,10 +528,13 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IDebugVisualizerService private readonly visualization: IDebugVisualizerService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@ICommandService private readonly commandService: ICommandService,
 		@IDebugService debugService: IDebugService,
 		@IContextViewService contextViewService: IContextViewService,
+		@IHoverService hoverService: IHoverService,
+		@IConfigurationService private configurationService: IConfigurationService,
 	) {
-		super(debugService, contextViewService);
+		super(debugService, contextViewService, hoverService);
 	}
 
 	get templateId(): string {
@@ -535,10 +542,17 @@ export class VariablesRenderer extends AbstractExpressionsRenderer {
 	}
 
 	protected renderExpression(expression: IExpression, data: IExpressionTemplateData, highlights: IHighlight[]): void {
-		renderVariable(expression as Variable, data, true, highlights, this.linkDetector);
+		const showType = this.configurationService.getValue<IDebugConfiguration>('debug').showVariableTypes;
+		renderVariable(data.elementDisposable, this.commandService, this.hoverService, expression as Variable, data, true, highlights, this.linkDetector, showType);
 	}
 
 	public override renderElement(node: ITreeNode<IExpression, FuzzyScore>, index: number, data: IExpressionTemplateData): void {
+		data.elementDisposable.clear();
+		data.elementDisposable.add(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('debug.showVariableTypes')) {
+				super.renderExpressionElement(node.element, node, data);
+			}
+		}));
 		super.renderExpressionElement(node.element, node, data);
 	}
 
@@ -649,8 +663,10 @@ CommandsRegistry.registerCommand({
 	}
 });
 
-export const COPY_VALUE_ID = 'workbench.debug.viewlet.action.copyValue';
 CommandsRegistry.registerCommand({
+	metadata: {
+		description: COPY_VALUE_LABEL,
+	},
 	id: COPY_VALUE_ID,
 	handler: async (accessor: ServicesAccessor, arg: Variable | Expression | IVariablesContext, ctx?: (Variable | Expression)[]) => {
 		const debugService = accessor.get(IDebugService);
@@ -717,15 +733,14 @@ CommandsRegistry.registerCommand({
 			memoryReference = arg.memoryReference;
 		}
 
-		const commandService = accessor.get(ICommandService);
+		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 		const editorService = accessor.get(IEditorService);
-		const notifications = accessor.get(INotificationService);
-		const progressService = accessor.get(IProgressService);
+		const notificationService = accessor.get(INotificationService);
 		const extensionService = accessor.get(IExtensionService);
 		const telemetryService = accessor.get(ITelemetryService);
 
 		const ext = await extensionService.getExtension(HEX_EDITOR_EXTENSION_ID);
-		if (ext || await tryInstallHexEditor(notifications, progressService, extensionService, commandService)) {
+		if (ext || await tryInstallHexEditor(extensionsWorkbenchService, notificationService)) {
 			/* __GDPR__
 				"debug/didViewMemory" : {
 					"owner": "connor4312",
@@ -747,53 +762,17 @@ CommandsRegistry.registerCommand({
 	}
 });
 
-function tryInstallHexEditor(notifications: INotificationService, progressService: IProgressService, extensionService: IExtensionService, commandService: ICommandService) {
-	return new Promise<boolean>(resolve => {
-		let installing = false;
-
-		const handle = notifications.prompt(
-			Severity.Info,
-			localize("viewMemory.prompt", "Inspecting binary data requires the Hex Editor extension. Would you like to install it now?"), [
-			{
-				label: localize("cancel", "Cancel"),
-				run: () => resolve(false),
-			},
-			{
-				label: localize("install", "Install"),
-				run: async () => {
-					installing = true;
-					try {
-						await progressService.withProgress(
-							{
-								location: ProgressLocation.Notification,
-								title: localize("viewMemory.install.progress", "Installing the Hex Editor..."),
-							},
-							async () => {
-								await commandService.executeCommand('workbench.extensions.installExtension', HEX_EDITOR_EXTENSION_ID);
-								// it seems like the extension is not registered immediately on install --
-								// wait for it to appear before returning.
-								while (!(await extensionService.getExtension(HEX_EDITOR_EXTENSION_ID))) {
-									await timeout(30);
-								}
-							},
-						);
-						resolve(true);
-					} catch (e) {
-						notifications.error(e as Error);
-						resolve(false);
-					}
-				}
-			},
-		],
-			{ sticky: true },
-		);
-
-		handle.onDidClose(e => {
-			if (!installing) {
-				resolve(false);
-			}
-		});
-	});
+async function tryInstallHexEditor(extensionsWorkbenchService: IExtensionsWorkbenchService, notificationService: INotificationService): Promise<boolean> {
+	try {
+		await extensionsWorkbenchService.install(HEX_EDITOR_EXTENSION_ID, {
+			justification: localize("viewMemory.prompt", "Inspecting binary data requires this extension."),
+			enable: true
+		}, ProgressLocation.Notification);
+		return true;
+	} catch (error) {
+		notificationService.error(error);
+		return false;
+	}
 }
 
 export const BREAK_WHEN_VALUE_CHANGES_ID = 'debug.breakWhenValueChanges';
@@ -802,7 +781,7 @@ CommandsRegistry.registerCommand({
 	handler: async (accessor: ServicesAccessor) => {
 		const debugService = accessor.get(IDebugService);
 		if (dataBreakpointInfoResponse) {
-			await debugService.addDataBreakpoint(dataBreakpointInfoResponse.description, dataBreakpointInfoResponse.dataId!, !!dataBreakpointInfoResponse.canPersist, dataBreakpointInfoResponse.accessTypes, 'write');
+			await debugService.addDataBreakpoint({ description: dataBreakpointInfoResponse.description, src: { type: DataBreakpointSetType.Variable, dataId: dataBreakpointInfoResponse.dataId! }, canPersist: !!dataBreakpointInfoResponse.canPersist, accessTypes: dataBreakpointInfoResponse.accessTypes, accessType: 'write' });
 		}
 	}
 });
@@ -813,7 +792,7 @@ CommandsRegistry.registerCommand({
 	handler: async (accessor: ServicesAccessor) => {
 		const debugService = accessor.get(IDebugService);
 		if (dataBreakpointInfoResponse) {
-			await debugService.addDataBreakpoint(dataBreakpointInfoResponse.description, dataBreakpointInfoResponse.dataId!, !!dataBreakpointInfoResponse.canPersist, dataBreakpointInfoResponse.accessTypes, 'readWrite');
+			await debugService.addDataBreakpoint({ description: dataBreakpointInfoResponse.description, src: { type: DataBreakpointSetType.Variable, dataId: dataBreakpointInfoResponse.dataId! }, canPersist: !!dataBreakpointInfoResponse.canPersist, accessTypes: dataBreakpointInfoResponse.accessTypes, accessType: 'readWrite' });
 		}
 	}
 });
@@ -824,13 +803,15 @@ CommandsRegistry.registerCommand({
 	handler: async (accessor: ServicesAccessor) => {
 		const debugService = accessor.get(IDebugService);
 		if (dataBreakpointInfoResponse) {
-			await debugService.addDataBreakpoint(dataBreakpointInfoResponse.description, dataBreakpointInfoResponse.dataId!, !!dataBreakpointInfoResponse.canPersist, dataBreakpointInfoResponse.accessTypes, 'read');
+			await debugService.addDataBreakpoint({ description: dataBreakpointInfoResponse.description, src: { type: DataBreakpointSetType.Variable, dataId: dataBreakpointInfoResponse.dataId! }, canPersist: !!dataBreakpointInfoResponse.canPersist, accessTypes: dataBreakpointInfoResponse.accessTypes, accessType: 'read' });
 		}
 	}
 });
 
-export const COPY_EVALUATE_PATH_ID = 'debug.copyEvaluatePath';
 CommandsRegistry.registerCommand({
+	metadata: {
+		description: COPY_EVALUATE_PATH_LABEL,
+	},
 	id: COPY_EVALUATE_PATH_ID,
 	handler: async (accessor: ServicesAccessor, context: IVariablesContext) => {
 		const clipboardService = accessor.get(IClipboardService);
@@ -838,8 +819,10 @@ CommandsRegistry.registerCommand({
 	}
 });
 
-export const ADD_TO_WATCH_ID = 'debug.addToWatchExpressions';
 CommandsRegistry.registerCommand({
+	metadata: {
+		description: ADD_TO_WATCH_LABEL,
+	},
 	id: ADD_TO_WATCH_ID,
 	handler: async (accessor: ServicesAccessor, context: IVariablesContext) => {
 		const debugService = accessor.get(IDebugService);

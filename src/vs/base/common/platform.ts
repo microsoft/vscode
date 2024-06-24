@@ -45,6 +45,7 @@ export interface INodeProcess {
 	arch: string;
 	env: IProcessEnvironment;
 	versions?: {
+		node?: string;
 		electron?: string;
 		chrome?: string;
 	};
@@ -60,7 +61,7 @@ let nodeProcess: INodeProcess | undefined = undefined;
 if (typeof $globalThis.vscode !== 'undefined' && typeof $globalThis.vscode.process !== 'undefined') {
 	// Native environment (sandboxed)
 	nodeProcess = $globalThis.vscode.process;
-} else if (typeof process !== 'undefined') {
+} else if (typeof process !== 'undefined' && typeof process?.versions?.node === 'string') {
 	// Native environment (non-sandboxed)
 	nodeProcess = process;
 }

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as sinon from 'sinon';
-import * as assert from 'assert';
+import assert from 'assert';
 import * as json from 'vs/base/common/json';
 import { Event } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -108,7 +108,7 @@ suite('ConfigurationEditing', () => {
 		const workspaceFolder = joinPath(ROOT, uuid.generateUuid());
 		await fileService.createFolder(workspaceFolder);
 
-		instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
+		instantiationService = workbenchInstantiationService(undefined, disposables);
 		environmentService = TestEnvironmentService;
 		environmentService.policyFile = joinPath(workspaceFolder, 'policies.json');
 		instantiationService.stub(IEnvironmentService, environmentService);

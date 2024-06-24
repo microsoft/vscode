@@ -31,6 +31,7 @@ export const CELL_TITLE_CELL_GROUP_ID = 'inline/cell';
 export const CELL_TITLE_OUTPUT_GROUP_ID = 'inline/output';
 
 export const NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT = KeybindingWeight.EditorContrib; // smaller than Suggest Widget, etc
+export const NOTEBOOK_OUTPUT_WEBVIEW_ACTION_WEIGHT = KeybindingWeight.WorkbenchContrib + 1; // higher than Workbench contribution (such as Notebook List View), etc
 
 export const enum CellToolbarOrder {
 	EditCell,

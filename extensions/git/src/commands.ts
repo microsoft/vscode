@@ -5,14 +5,14 @@
 
 import * as os from 'os';
 import * as path from 'path';
-import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage } from 'vscode';
+import { Command, commands, Disposable, LineChange, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputNotebook } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
 import { ForcePushMode, GitErrorCodes, Ref, RefType, Status, CommitOptions, RemoteSourcePublisher, Remote } from './api/git';
 import { Git, Stash } from './git';
 import { Model } from './model';
-import { Repository, Resource, ResourceGroupType } from './repository';
-import { applyLineChanges, getModifiedRange, intersectDiffWithRange, invertLineChange, toLineRanges } from './staging';
+import { GitResourceGroup, Repository, Resource, ResourceGroupType } from './repository';
+import { DiffEditorSelectionHunkToolbarContext, applyLineChanges, getModifiedRange, intersectDiffWithRange, invertLineChange, toLineRanges } from './staging';
 import { fromGitUri, toGitUri, isGitUri, toMergeUris, toMultiFileDiffEditorUris } from './uri';
 import { dispose, grep, isDefined, isDescendant, pathEquals, relativePath } from './util';
 import { GitTimelineItem } from './timelineProvider';
@@ -711,10 +711,13 @@ export class CommandCenter {
 		}
 
 		try {
-			const [head, rebaseOrMergeHead] = await Promise.all([
+			const [head, rebaseOrMergeHead, diffBetween] = await Promise.all([
 				repo.getCommit('HEAD'),
-				isRebasing ? repo.getCommit('REBASE_HEAD') : repo.getCommit('MERGE_HEAD')
+				isRebasing ? repo.getCommit('REBASE_HEAD') : repo.getCommit('MERGE_HEAD'),
+				await repo.diffBetween(isRebasing ? 'REBASE_HEAD' : 'MERGE_HEAD', 'HEAD')
 			]);
+			const diffFile = diffBetween?.find(diff => diff.uri.fsPath === uri.fsPath);
+
 			// ours (current branch and commit)
 			current.detail = head.refNames.map(s => s.replace(/^HEAD ->/, '')).join(', ');
 			current.description = '$(git-commit) ' + head.hash.substring(0, 7);
@@ -723,7 +726,11 @@ export class CommandCenter {
 			// theirs
 			incoming.detail = rebaseOrMergeHead.refNames.join(', ');
 			incoming.description = '$(git-commit) ' + rebaseOrMergeHead.hash.substring(0, 7);
-			incoming.uri = toGitUri(uri, rebaseOrMergeHead.hash);
+			if (diffFile) {
+				incoming.uri = toGitUri(diffFile.originalUri, rebaseOrMergeHead.hash);
+			} else {
+				incoming.uri = toGitUri(uri, rebaseOrMergeHead.hash);
+			}
 
 		} catch (error) {
 			// not so bad, can continue with just uris
@@ -1194,7 +1201,7 @@ export class CommandCenter {
 
 		const activeTextEditor = window.activeTextEditor;
 		// Must extract these now because opening a new document will change the activeTextEditor reference
-		const previousVisibleRange = activeTextEditor?.visibleRanges[0];
+		const previousVisibleRanges = activeTextEditor?.visibleRanges;
 		const previousURI = activeTextEditor?.document.uri;
 		const previousSelection = activeTextEditor?.selection;
 
@@ -1225,8 +1232,13 @@ export class CommandCenter {
 				opts.selection = previousSelection;
 				const editor = await window.showTextDocument(document, opts);
 				// This should always be defined but just in case
-				if (previousVisibleRange) {
-					editor.revealRange(previousVisibleRange);
+				if (previousVisibleRanges && previousVisibleRanges.length > 0) {
+					let rangeToReveal = previousVisibleRanges[0];
+					if (previousSelection && previousVisibleRanges.length > 1) {
+						// In case of multiple visible ranges, find the one that intersects with the selection
+						rangeToReveal = previousVisibleRanges.find(r => r.intersection(previousSelection)) ?? rangeToReveal;
+					}
+					editor.revealRange(rangeToReveal);
 				}
 			}
 		}
@@ -1504,6 +1516,33 @@ export class CommandCenter {
 
 		const firstStagedLine = changes[index].modifiedStartLineNumber;
 		textEditor.selections = [new Selection(firstStagedLine, 0, firstStagedLine, 0)];
+	}
+
+	@command('git.diff.stageHunk')
+	async diffStageHunk(changes: DiffEditorSelectionHunkToolbarContext): Promise<void> {
+		this.diffStageHunkOrSelection(changes);
+	}
+
+	@command('git.diff.stageSelection')
+	async diffStageSelection(changes: DiffEditorSelectionHunkToolbarContext): Promise<void> {
+		this.diffStageHunkOrSelection(changes);
+	}
+
+	async diffStageHunkOrSelection(changes: DiffEditorSelectionHunkToolbarContext): Promise<void> {
+		let modifiedUri = changes.modifiedUri;
+		if (!modifiedUri) {
+			const textEditor = window.activeTextEditor;
+			if (!textEditor) {
+				return;
+			}
+			const modifiedDocument = textEditor.document;
+			modifiedUri = modifiedDocument.uri;
+		}
+		if (modifiedUri.scheme !== 'file') {
+			return;
+		}
+		const result = changes.originalWithModifiedChanges;
+		await this.runByRepository(modifiedUri, async (repository, resource) => await repository.stage(resource, result));
 	}
 
 	@command('git.stageSelectedRanges', { diff: true })
@@ -2029,69 +2068,73 @@ export class CommandCenter {
 		let noStagedChanges = repository.indexGroup.resourceStates.length === 0;
 		let noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0;
 
-		if (promptToSaveFilesBeforeCommit !== 'never') {
-			let documents = workspace.textDocuments
-				.filter(d => !d.isUntitled && d.isDirty && isDescendant(repository.root, d.uri.fsPath));
+		if (!opts.empty) {
+			if (promptToSaveFilesBeforeCommit !== 'never') {
+				let documents = workspace.textDocuments
+					.filter(d => !d.isUntitled && d.isDirty && isDescendant(repository.root, d.uri.fsPath));
 
-			if (promptToSaveFilesBeforeCommit === 'staged' || repository.indexGroup.resourceStates.length > 0) {
-				documents = documents
-					.filter(d => repository.indexGroup.resourceStates.some(s => pathEquals(s.resourceUri.fsPath, d.uri.fsPath)));
-			}
-
-			if (documents.length > 0) {
-				const message = documents.length === 1
-					? l10n.t('The following file has unsaved changes which won\'t be included in the commit if you proceed: {0}.\n\nWould you like to save it before committing?', path.basename(documents[0].uri.fsPath))
-					: l10n.t('There are {0} unsaved files.\n\nWould you like to save them before committing?', documents.length);
-				const saveAndCommit = l10n.t('Save All & Commit Changes');
-				const commit = l10n.t('Commit Changes');
-				const pick = await window.showWarningMessage(message, { modal: true }, saveAndCommit, commit);
-
-				if (pick === saveAndCommit) {
-					await Promise.all(documents.map(d => d.save()));
-
-					// After saving the dirty documents, if there are any documents that are part of the
-					// index group we have to add them back in order for the saved changes to be committed
+				if (promptToSaveFilesBeforeCommit === 'staged' || repository.indexGroup.resourceStates.length > 0) {
 					documents = documents
 						.filter(d => repository.indexGroup.resourceStates.some(s => pathEquals(s.resourceUri.fsPath, d.uri.fsPath)));
-					await repository.add(documents.map(d => d.uri));
+				}
 
-					noStagedChanges = repository.indexGroup.resourceStates.length === 0;
-					noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0;
-				} else if (pick !== commit) {
-					return; // do not commit on cancel
+				if (documents.length > 0) {
+					const message = documents.length === 1
+						? l10n.t('The following file has unsaved changes which won\'t be included in the commit if you proceed: {0}.\n\nWould you like to save it before committing?', path.basename(documents[0].uri.fsPath))
+						: l10n.t('There are {0} unsaved files.\n\nWould you like to save them before committing?', documents.length);
+					const saveAndCommit = l10n.t('Save All & Commit Changes');
+					const commit = l10n.t('Commit Changes');
+					const pick = await window.showWarningMessage(message, { modal: true }, saveAndCommit, commit);
+
+					if (pick === saveAndCommit) {
+						await Promise.all(documents.map(d => d.save()));
+
+						// After saving the dirty documents, if there are any documents that are part of the
+						// index group we have to add them back in order for the saved changes to be committed
+						documents = documents
+							.filter(d => repository.indexGroup.resourceStates.some(s => pathEquals(s.resourceUri.fsPath, d.uri.fsPath)));
+						await repository.add(documents.map(d => d.uri));
+
+						noStagedChanges = repository.indexGroup.resourceStates.length === 0;
+						noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0;
+					} else if (pick !== commit) {
+						return; // do not commit on cancel
+					}
 				}
 			}
-		}
 
-		// no changes, and the user has not configured to commit all in this case
-		if (!noUnstagedChanges && noStagedChanges && !enableSmartCommit && !opts.empty && !opts.all) {
-			const suggestSmartCommit = config.get<boolean>('suggestSmartCommit') === true;
+			if (!opts.amend) {
+				// no changes, and the user has not configured to commit all in this case
+				if (!noUnstagedChanges && noStagedChanges && !enableSmartCommit && !opts.all) {
+					const suggestSmartCommit = config.get<boolean>('suggestSmartCommit') === true;
 
-			if (!suggestSmartCommit) {
-				return;
+					if (!suggestSmartCommit) {
+						return;
+					}
+
+					// prompt the user if we want to commit all or not
+					const message = l10n.t('There are no staged changes to commit.\n\nWould you like to stage all your changes and commit them directly?');
+					const yes = l10n.t('Yes');
+					const always = l10n.t('Always');
+					const never = l10n.t('Never');
+					const pick = await window.showWarningMessage(message, { modal: true }, yes, always, never);
+
+					if (pick === always) {
+						config.update('enableSmartCommit', true, true);
+					} else if (pick === never) {
+						config.update('suggestSmartCommit', false, true);
+						return;
+					} else if (pick !== yes) {
+						return; // do not commit on cancel
+					}
+				}
+
+				if (opts.all === undefined) {
+					opts = { ...opts, all: noStagedChanges };
+				} else if (!opts.all && noStagedChanges) {
+					opts = { ...opts, all: true };
+				}
 			}
-
-			// prompt the user if we want to commit all or not
-			const message = l10n.t('There are no staged changes to commit.\n\nWould you like to stage all your changes and commit them directly?');
-			const yes = l10n.t('Yes');
-			const always = l10n.t('Always');
-			const never = l10n.t('Never');
-			const pick = await window.showWarningMessage(message, { modal: true }, yes, always, never);
-
-			if (pick === always) {
-				config.update('enableSmartCommit', true, true);
-			} else if (pick === never) {
-				config.update('suggestSmartCommit', false, true);
-				return;
-			} else if (pick !== yes) {
-				return; // do not commit on cancel
-			}
-		}
-
-		if (opts.all === undefined) {
-			opts = { ...opts, all: noStagedChanges };
-		} else if (!opts.all && noStagedChanges && !opts.empty) {
-			opts = { ...opts, all: true };
 		}
 
 		// enable signing of commits if configured
@@ -3994,6 +4037,37 @@ export class CommandCenter {
 		repository.closeDiffEditors(undefined, undefined, true);
 	}
 
+	@command('git.closeAllUnmodifiedEditors')
+	closeUnmodifiedEditors(): void {
+		const editorTabsToClose: Tab[] = [];
+
+		// Collect all modified files
+		const modifiedFiles: string[] = [];
+		for (const repository of this.model.repositories) {
+			modifiedFiles.push(...repository.indexGroup.resourceStates.map(r => r.resourceUri.fsPath));
+			modifiedFiles.push(...repository.workingTreeGroup.resourceStates.map(r => r.resourceUri.fsPath));
+			modifiedFiles.push(...repository.untrackedGroup.resourceStates.map(r => r.resourceUri.fsPath));
+			modifiedFiles.push(...repository.mergeGroup.resourceStates.map(r => r.resourceUri.fsPath));
+		}
+
+		// Collect all editor tabs that are not dirty and not modified
+		for (const tab of window.tabGroups.all.map(g => g.tabs).flat()) {
+			if (tab.isDirty) {
+				continue;
+			}
+
+			if (tab.input instanceof TabInputText || tab.input instanceof TabInputNotebook) {
+				const { uri } = tab.input;
+				if (!modifiedFiles.find(p => pathEquals(p, uri.fsPath))) {
+					editorTabsToClose.push(tab);
+				}
+			}
+		}
+
+		// Close editors
+		window.tabGroups.close(editorTabsToClose, true);
+	}
+
 	@command('git.openRepositoriesInParentFolders')
 	async openRepositoriesInParentFolders(): Promise<void> {
 		const parentRepositories: string[] = [];
@@ -4071,6 +4145,44 @@ export class CommandCenter {
 			await this.model.openRepository(unsafeRepository);
 			this.model.deleteUnsafeRepository(unsafeRepository);
 		}
+	}
+
+	@command('git.viewChanges', { repository: true })
+	async viewChanges(repository: Repository): Promise<void> {
+		await this._viewResourceGroupChanges(repository, repository.workingTreeGroup);
+	}
+
+	@command('git.viewStagedChanges', { repository: true })
+	async viewStagedChanges(repository: Repository): Promise<void> {
+		await this._viewResourceGroupChanges(repository, repository.indexGroup);
+	}
+
+	@command('git.viewUntrackedChanges', { repository: true })
+	async viewUnstagedChanges(repository: Repository): Promise<void> {
+		await this._viewResourceGroupChanges(repository, repository.untrackedGroup);
+	}
+
+	private async _viewResourceGroupChanges(repository: Repository, resourceGroup: GitResourceGroup): Promise<void> {
+		if (resourceGroup.resourceStates.length === 0) {
+			switch (resourceGroup.id) {
+				case 'index':
+					window.showInformationMessage(l10n.t('The repository does not have any staged changes.'));
+					break;
+				case 'workingTree':
+					window.showInformationMessage(l10n.t('The repository does not have any changes.'));
+					break;
+				case 'untracked':
+					window.showInformationMessage(l10n.t('The repository does not have any untracked changes.'));
+					break;
+			}
+			return;
+		}
+
+		await commands.executeCommand('_workbench.openScmMultiDiffEditor', {
+			title: `${repository.sourceControl.label}: ${resourceGroup.label}`,
+			repositoryUri: Uri.file(repository.root),
+			resourceGroupId: resourceGroup.id
+		});
 	}
 
 	@command('git.viewCommit', { repository: true })

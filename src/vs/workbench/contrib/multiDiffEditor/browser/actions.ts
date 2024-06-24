@@ -11,9 +11,12 @@ import { localize2 } from 'vs/nls';
 import { Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { getCommandsContext, resolveCommandsContext } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { IEditorCommandsContext } from 'vs/workbench/common/editor';
 import { TextFileEditor } from 'vs/workbench/contrib/files/browser/editors/textFileEditor';
 import { MultiDiffEditor } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditor';
 import { MultiDiffEditorInput } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class GoToFileAction extends Action2 {
@@ -72,12 +75,11 @@ export class CollapseAllAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const activeEditor = editorService.activeEditor;
+	async run(accessor: ServicesAccessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext): Promise<void> {
+		const { editor } = resolveCommandsContext(accessor.get(IEditorGroupsService), getCommandsContext(accessor, resourceOrContext, context));
 
-		if (activeEditor instanceof MultiDiffEditorInput) {
-			const viewModel = await activeEditor.getViewModel();
+		if (editor instanceof MultiDiffEditorInput) {
+			const viewModel = await editor.getViewModel();
 			viewModel.collapseAll();
 		}
 	}
@@ -100,12 +102,11 @@ export class ExpandAllAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const activeEditor = editorService.activeEditor;
+	async run(accessor: ServicesAccessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext): Promise<void> {
+		const { editor } = resolveCommandsContext(accessor.get(IEditorGroupsService), getCommandsContext(accessor, resourceOrContext, context));
 
-		if (activeEditor instanceof MultiDiffEditorInput) {
-			const viewModel = await activeEditor.getViewModel();
+		if (editor instanceof MultiDiffEditorInput) {
+			const viewModel = await editor.getViewModel();
 			viewModel.expandAll();
 		}
 	}

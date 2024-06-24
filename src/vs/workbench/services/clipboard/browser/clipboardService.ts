@@ -14,6 +14,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
+import { getActiveWindow } from 'vs/base/browser/dom';
 
 export class BrowserClipboardService extends BaseBrowserClipboardService {
 
@@ -33,7 +34,7 @@ export class BrowserClipboardService extends BaseBrowserClipboardService {
 		}
 
 		try {
-			return await navigator.clipboard.readText();
+			return await getActiveWindow().navigator.clipboard.readText();
 		} catch (error) {
 			if (!!this.environmentService.extensionTestsLocationURI) {
 				return ''; // do not ask for input in tests (https://github.com/microsoft/vscode/issues/112264)

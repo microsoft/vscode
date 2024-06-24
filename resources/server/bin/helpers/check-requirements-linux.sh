@@ -5,14 +5,19 @@
 
 set -e
 
+# The script checks necessary server requirements for the classic server
+# scenarios. Currently, the script can exit with any of the following
+# 3 exit codes and should be handled accordingly on the extension side.
+#
+# 0: All requirements are met, use the default server.
+# 99: Unsupported OS, abort server startup with appropriate error message.
+# 100: Use legacy server.
+#
+
 # Do not remove this check.
 # Provides a way to skip the server requirements check from
 # outside the install flow. A system process can create this
 # file before the server is downloaded and installed.
-#
-# This check is duplicated between code-server-linux.sh and here
-# since remote container calls into this script directly quite early
-# before the usual server startup flow.
 if [ -f "/tmp/vscode-skip-server-requirements-check" ]; then
 	echo "!!! WARNING: Skipping server pre-requisite check !!!"
 	echo "!!! Server stability is not guaranteed. Proceed at your own risk. !!!"
@@ -144,7 +149,7 @@ else
 fi
 
 if [ "$found_required_glibc" = "0" ] || [ "$found_required_glibcxx" = "0" ]; then
-	echo "Error: Missing required dependencies. Please refer to our FAQ https://aka.ms/vscode-remote/faq/old-linux for additional information."
+	echo "Warning: Missing required dependencies. Please refer to our FAQ https://aka.ms/vscode-remote/faq/old-linux for additional information."
 	# Custom exit code based on https://tldp.org/LDP/abs/html/exitcodes.html
-	#exit 99
+	exit 100
 fi

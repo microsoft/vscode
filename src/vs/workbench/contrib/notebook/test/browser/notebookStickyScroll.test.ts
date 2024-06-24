@@ -3,13 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { mock } from 'vs/base/test/common/mock';
 import { assertSnapshot } from 'vs/base/test/common/snapshot';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { IEditorPaneSelectionChangeEvent } from 'vs/workbench/common/editor';
 import { NotebookCellOutline } from 'vs/workbench/contrib/notebook/browser/contrib/outline/notebookOutline';
 import { INotebookEditor, INotebookEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
@@ -29,23 +32,25 @@ suite('NotebookEditorStickyScroll', () => {
 		disposables.dispose();
 	});
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(() => {
 		disposables = new DisposableStore();
 		instantiationService = setupInstantiationService(disposables);
+		instantiationService.set(ILanguageFeaturesService, new LanguageFeaturesService());
 	});
 
 	function getOutline(editor: any) {
 		if (!editor.hasModel()) {
 			assert.ok(false, 'MUST have active text editor');
 		}
-		const outline = instantiationService.createInstance(NotebookCellOutline, new class extends mock<INotebookEditorPane>() {
+		const outline = store.add(instantiationService.createInstance(NotebookCellOutline, new class extends mock<INotebookEditorPane>() {
 			override getControl() {
 				return editor;
 			}
 			override onDidChangeModel: Event<void> = Event.None;
-		}, OutlineTarget.QuickPick);
+			override onDidChangeSelection: Event<IEditorPaneSelectionChangeEvent> = Event.None;
+		}, OutlineTarget.QuickPick));
 		return outline;
 	}
 
