@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/anythingQuickAccess';
 import { IQuickInputButton, IKeyMods, quickPickItemScorerAccessor, QuickPickItemScorerAccessor, IQuickPick, IQuickPickItemWithResource, QuickInputHideReason, IQuickInputService, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
-import { IPickerQuickAccessItem, PickerQuickAccessProvider, TriggerAction, FastAndSlowPicks, Picks, PicksWithActive } from 'vs/platform/quickinput/browser/pickerQuickAccess';
+import { IPickerQuickAccessItem, PickerQuickAccessProvider, TriggerAction, FastAndSlowPicks, Picks, Pick, PicksWithActive } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { prepareQuery, IPreparedQuery, compareItemsByFuzzyScore, scoreItemFuzzy, FuzzyScorerCache } from 'vs/base/common/fuzzyScorer';
 import { IFileQueryBuilderOptions, QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -311,6 +311,68 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			disposables,
 			token
 		);
+	}
+
+	// if the first pick is the active editor, it's not a useful first hit, so swap it with the second pick
+	override reorderPicks(picks: readonly Pick<IAnythingQuickPickItem>[]): readonly Pick<IAnythingQuickPickItem>[] {
+		const findNonSeparatorItemIndex = (start: number) => {
+			for (let i = start; i < picks.length; i += 1) {
+				if (picks[i].type !== 'separator') {
+					return i;
+				}
+			}
+			return -1;
+		};
+
+		const firstIndex = findNonSeparatorItemIndex(0);
+		if (firstIndex < 0) {
+			return picks;
+		}
+
+		const firstPick = picks[firstIndex];
+		if (!('resource' in firstPick) || !firstPick.resource || firstPick.resource.fsPath !== this.editorService.activeEditor?.resource?.fsPath) {
+			// first pick is not the active editor
+			return picks;
+		}
+
+		// the first pick is the current editor so it's not a useful first hit
+		const secondIndex = findNonSeparatorItemIndex(firstIndex + 1);
+		if (secondIndex < 0) {
+			return picks; // nothing to switch with
+		}
+
+		const secondPick = picks[secondIndex];
+		if (secondIndex === firstIndex + 1) {
+			// the second item does not have its own separator, so we can simply swap the first and second
+			const retval = Array.from(picks);
+			retval[firstIndex] = secondPick;
+			retval[secondIndex] = firstPick;
+			return retval;
+		} else {
+			// there is a separator before the second item, we need to move the second item together with its seaparator
+			//   maybe something like firstWithSeparator (array)
+			const secondSeparator = picks[secondIndex - 1];
+
+			if (firstIndex === 0) {
+				// first pick isn't preceded by a separator
+				return [
+					secondPick,
+					firstPick,
+					secondSeparator,
+					...picks.slice(secondIndex + 1),
+				];
+			} else {
+				const firstSeparator = picks[firstIndex - 1];
+				return [
+					secondSeparator,
+					secondPick,
+					firstSeparator,
+					firstPick,
+					secondSeparator, // repeated as it applies to the following picks
+					...picks.slice(secondIndex + 1),
+				];
+			}
+		}
 	}
 
 	private doGetPicks(
