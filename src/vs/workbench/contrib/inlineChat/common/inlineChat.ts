@@ -69,7 +69,8 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 		[InlineChatConfigKeys.ExpTextButtons]: {
 			description: localize('txtButtons', "Whether to use textual buttons (Requires restart)."),
 			default: false,
-			type: 'boolean'
+			type: 'boolean',
+			tags: ['experimental']
 		},
 	}
 });
