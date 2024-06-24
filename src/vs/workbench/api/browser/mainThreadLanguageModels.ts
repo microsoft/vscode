@@ -5,6 +5,7 @@
 
 import { AsyncIterableSource, DeferredPromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { SerializedError, transformErrorForSerialization, transformErrorFromSerialization } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
@@ -77,20 +78,26 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		this._providerRegistrations.set(handle, dipsosables);
 	}
 
-	async $handleResponsePart(requestId: number, chunk: IChatResponseFragment): Promise<void> {
-		this._pendingProgress.get(requestId)?.stream.emitOne(chunk);
+	async $reportResponsePart(requestId: number, chunk: IChatResponseFragment): Promise<void> {
+		const data = this._pendingProgress.get(requestId);
+		this._logService.trace('[LM] report response PART', Boolean(data), requestId, chunk);
+		if (data) {
+			data.stream.emitOne(chunk);
+		}
 	}
 
-	async $handleResponseDone(requestId: number, error: any | undefined): Promise<void> {
+	async $reportResponseDone(requestId: number, err: SerializedError | undefined): Promise<void> {
 		const data = this._pendingProgress.get(requestId);
+		this._logService.trace('[LM] report response DONE', Boolean(data), requestId, err);
 		if (data) {
 			this._pendingProgress.delete(requestId);
-			if (error) {
-				data.defer.error(error);
+			if (err) {
+				const error = transformErrorFromSerialization(err);
 				data.stream.reject(error);
+				data.defer.error(error);
 			} else {
-				data.defer.complete(undefined);
 				data.stream.resolve();
+				data.defer.complete(undefined);
 			}
 		}
 	}
@@ -108,7 +115,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 	}
 
 	async $tryStartChatRequest(extension: ExtensionIdentifier, providerId: string, requestId: number, messages: IChatMessage[], options: {}, token: CancellationToken): Promise<any> {
-		this._logService.debug('[CHAT] extension request STARTED', extension.value, requestId);
+		this._logService.trace('[CHAT] request STARTED', extension.value, requestId);
 
 		const response = await this._chatProviderService.sendChatRequest(providerId, extension, messages, options, token);
 
@@ -116,24 +123,26 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		// This method must return before the response is done (has streamed all parts)
 		// and because of that we consume the stream without awaiting
 		// !!! IMPORTANT !!!
-		(async () => {
+		const streaming = (async () => {
 			try {
 				for await (const part of response.stream) {
+					this._logService.trace('[CHAT] request PART', extension.value, requestId, part);
 					await this._proxy.$acceptResponsePart(requestId, part);
 				}
+				this._logService.trace('[CHAT] request DONE', extension.value, requestId);
 			} catch (err) {
 				this._logService.error('[CHAT] extension request ERRORED in STREAM', err, extension.value, requestId);
-				this._proxy.$acceptResponseDone(requestId, err);
+				this._proxy.$acceptResponseDone(requestId, transformErrorForSerialization(err));
 			}
 		})();
 
 		// When the response is done (signaled via its result) we tell the EH
-		response.result.then(() => {
+		Promise.allSettled([response.result, streaming]).then(() => {
 			this._logService.debug('[CHAT] extension request DONE', extension.value, requestId);
 			this._proxy.$acceptResponseDone(requestId, undefined);
 		}, err => {
 			this._logService.error('[CHAT] extension request ERRORED', err, extension.value, requestId);
-			this._proxy.$acceptResponseDone(requestId, err);
+			this._proxy.$acceptResponseDone(requestId, transformErrorForSerialization(err));
 		});
 	}
 
