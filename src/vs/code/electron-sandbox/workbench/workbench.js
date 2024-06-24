@@ -9,6 +9,12 @@
 (function () {
 	'use strict';
 
+	/**
+	 * @import {INativeWindowConfiguration} from '../../../platform/window/common/window'
+	 * @import {NativeParsedArgs} from '../../../platform/environment/common/argv'
+	 * @import {ISandboxConfiguration} from '../../../base/parts/sandbox/common/sandboxTypes'
+	 */
+
 	const bootstrapWindow = bootstrapWindowLib();
 
 	// Add a perf entry right from the top
@@ -75,10 +81,6 @@
 	//#region Helpers
 
 	/**
-	 * @typedef {import('../../../platform/window/common/window').INativeWindowConfiguration} INativeWindowConfiguration
-	 * @typedef {import('../../../platform/environment/common/argv').NativeParsedArgs} NativeParsedArgs
-	 * @typedef {import('../../../base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration} ISandboxConfiguration
-	 *
 	 * @returns {{
 	 *   load: (
 	 *     modules: string[],

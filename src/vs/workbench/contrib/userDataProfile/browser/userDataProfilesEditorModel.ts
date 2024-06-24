@@ -802,7 +802,19 @@ export class UserDataProfilesEditorModel extends EditorModel {
 		return [profileElement, disposables];
 	}
 
-	createNewProfile(copyFrom?: URI | IUserDataProfile): AbstractUserDataProfileElement {
+	async createNewProfile(copyFrom?: URI | IUserDataProfile): Promise<AbstractUserDataProfileElement | undefined> {
+		if (this.newProfileElement) {
+			const result = await this.dialogService.confirm({
+				type: 'info',
+				message: localize('new profile exists', "A new profile is already being created. Do you want to discard it and create a new one?"),
+				primaryButton: localize('discard', "Discard & Create"),
+				cancelButton: localize('cancel', "Cancel")
+			});
+			if (!result.confirmed) {
+				return;
+			}
+			this.revert();
+		}
 		if (!this.newProfileElement) {
 			const disposables = new DisposableStore();
 			const cancellationTokenSource = new CancellationTokenSource();

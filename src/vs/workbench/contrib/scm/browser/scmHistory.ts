@@ -75,76 +75,72 @@ export function renderSCMHistoryItemGraph(historyItemViewModel: ISCMHistoryItemV
 	const inputSwimlanes = historyItemViewModel.inputSwimlanes;
 	const outputSwimlanes = historyItemViewModel.outputSwimlanes;
 
+	// Find the history item in the input swimlanes
 	const inputIndex = inputSwimlanes.findIndex(node => node.id === historyItem.id);
-	const outputIndex = historyItem.parentIds.length === 0 ? -1 : findLastIndex(outputSwimlanes, historyItem.parentIds[0]);
 
+	// Circle index - use the input swimlane index if present, otherwise add it to the end
 	const circleIndex = inputIndex !== -1 ? inputIndex : inputSwimlanes.length;
-	const circleColorIndex =
-		outputIndex !== -1 ? outputSwimlanes[outputIndex].color :
-			inputIndex !== -1 ? inputSwimlanes[inputIndex].color : 0;
 
+	// Circle color - use the output swimlane color if present, otherwise the input swimlane color
+	const circleColorIndex = circleIndex < outputSwimlanes.length ? outputSwimlanes[circleIndex].color : inputSwimlanes[circleIndex].color;
+
+	let outputSwimlaneIndex = 0;
 	for (let index = 0; index < inputSwimlanes.length; index++) {
-		const node = inputSwimlanes[index];
 		const color = graphColors[inputSwimlanes[index].color];
 
-		// Not the current commit
-		if (node.id !== historyItem.id) {
-			if (index < outputSwimlanes.length && node.id === outputSwimlanes[index].id) {
-				// Draw |
-				const path = drawVerticalLine(SWIMLANE_WIDTH * (index + 1), 0, SWIMLANE_HEIGHT, color);
-				svg.append(path);
-			} else {
+		// Current commit
+		if (inputSwimlanes[index].id === historyItem.id) {
+			// Base commit
+			if (index !== circleIndex) {
 				const d: string[] = [];
 				const path = createPath(color);
 
-				// Draw |
-				d.push(`M ${SWIMLANE_WIDTH * (index + 1)} 0`);
-				d.push(`V 6`);
-
 				// Draw /
-				d.push(`A ${SWIMLANE_CURVE_RADIUS} ${SWIMLANE_CURVE_RADIUS} 0 0 1 ${(SWIMLANE_WIDTH * (index + 1)) - SWIMLANE_CURVE_RADIUS} ${SWIMLANE_HEIGHT / 2}`);
-
-				// Start walking backwards from the current index and
-				// find the first occurrence in the output swimlanes
-				// array
-				let nodeOutputIndex = -1;
-				for (let j = Math.min(index, outputSwimlanes.length) - 1; j >= 0; j--) {
-					if (outputSwimlanes[j].id === node.id) {
-						nodeOutputIndex = j;
-						break;
-					}
-				}
+				d.push(`M ${SWIMLANE_WIDTH * (index + 1)} 0`);
+				d.push(`A ${SWIMLANE_WIDTH} ${SWIMLANE_WIDTH} 0 0 1 ${SWIMLANE_WIDTH * (index)} ${SWIMLANE_WIDTH}`);
 
 				// Draw -
-				d.push(`H ${(SWIMLANE_WIDTH * (nodeOutputIndex + 1)) + SWIMLANE_CURVE_RADIUS}`);
-
-				// Draw /
-				d.push(`A ${SWIMLANE_CURVE_RADIUS} ${SWIMLANE_CURVE_RADIUS} 0 0 0 ${SWIMLANE_WIDTH * (nodeOutputIndex + 1)} ${(SWIMLANE_HEIGHT / 2) + SWIMLANE_CURVE_RADIUS}`);
-
-				// Draw |
-				d.push(`V ${SWIMLANE_HEIGHT}`);
+				d.push(`H ${SWIMLANE_WIDTH * (circleIndex + 1)}`);
 
 				path.setAttribute('d', d.join(' '));
 				svg.append(path);
+			} else {
+				outputSwimlaneIndex++;
 			}
+		} else {
+			// Not the current commit
+			if (outputSwimlaneIndex < outputSwimlanes.length &&
+				inputSwimlanes[index].id === outputSwimlanes[outputSwimlaneIndex].id) {
+				if (index === outputSwimlaneIndex) {
+					// Draw |
+					const path = drawVerticalLine(SWIMLANE_WIDTH * (index + 1), 0, SWIMLANE_HEIGHT, color);
+					svg.append(path);
+				} else {
+					const d: string[] = [];
+					const path = createPath(color);
 
-			continue;
-		}
+					// Draw |
+					d.push(`M ${SWIMLANE_WIDTH * (index + 1)} 0`);
+					d.push(`V 6`);
 
-		// Base commit
-		if (index !== circleIndex) {
-			const d: string[] = [];
-			const path = createPath(color);
+					// Draw /
+					d.push(`A ${SWIMLANE_CURVE_RADIUS} ${SWIMLANE_CURVE_RADIUS} 0 0 1 ${(SWIMLANE_WIDTH * (index + 1)) - SWIMLANE_CURVE_RADIUS} ${SWIMLANE_HEIGHT / 2}`);
 
-			// Draw /
-			d.push(`M ${SWIMLANE_WIDTH * (index + 1)} 0`);
-			d.push(`A ${SWIMLANE_WIDTH} ${SWIMLANE_WIDTH} 0 0 1 ${SWIMLANE_WIDTH * (index)} ${SWIMLANE_WIDTH}`);
+					// Draw -
+					d.push(`H ${(SWIMLANE_WIDTH * (outputSwimlaneIndex + 1)) + SWIMLANE_CURVE_RADIUS}`);
 
-			// Draw -
-			d.push(`H ${SWIMLANE_WIDTH * (circleIndex + 1)}`);
+					// Draw /
+					d.push(`A ${SWIMLANE_CURVE_RADIUS} ${SWIMLANE_CURVE_RADIUS} 0 0 0 ${SWIMLANE_WIDTH * (outputSwimlaneIndex + 1)} ${(SWIMLANE_HEIGHT / 2) + SWIMLANE_CURVE_RADIUS}`);
 
-			path.setAttribute('d', d.join(' '));
-			svg.append(path);
+					// Draw |
+					d.push(`V ${SWIMLANE_HEIGHT}`);
+
+					path.setAttribute('d', d.join(' '));
+					svg.append(path);
+				}
+
+				outputSwimlaneIndex++;
+			}
 		}
 	}
 
@@ -178,8 +174,8 @@ export function renderSCMHistoryItemGraph(historyItemViewModel: ISCMHistoryItemV
 	}
 
 	// Draw | from *
-	if (outputIndex !== -1) {
-		const path = drawVerticalLine(SWIMLANE_WIDTH * (circleIndex + 1), SWIMLANE_HEIGHT / 2, SWIMLANE_HEIGHT, graphColors[outputSwimlanes[outputIndex].color]);
+	if (historyItem.parentIds.length > 0) {
+		const path = drawVerticalLine(SWIMLANE_WIDTH * (circleIndex + 1), SWIMLANE_HEIGHT / 2, SWIMLANE_HEIGHT, graphColors[circleColorIndex]);
 		svg.append(path);
 	}
 

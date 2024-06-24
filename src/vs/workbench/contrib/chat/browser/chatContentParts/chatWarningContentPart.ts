@@ -9,11 +9,13 @@ import { Codicon } from 'vs/base/common/codicons';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
+import { IChatContentPart } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatContentParts';
+import { IChatProgressRenderableResponseContent } from 'vs/workbench/contrib/chat/common/chatModel';
 
 const $ = dom.$;
 
-export class ChatWarningContentPart extends Disposable {
-	public readonly element: HTMLElement;
+export class ChatWarningContentPart extends Disposable implements IChatContentPart {
+	public readonly domNode: HTMLElement;
 
 	constructor(
 		kind: 'info' | 'warning' | 'error',
@@ -22,7 +24,7 @@ export class ChatWarningContentPart extends Disposable {
 	) {
 		super();
 
-		this.element = $('.chat-notification-widget');
+		this.domNode = $('.chat-notification-widget');
 		let icon;
 		let iconClass;
 		switch (kind) {
@@ -39,9 +41,13 @@ export class ChatWarningContentPart extends Disposable {
 				iconClass = '.chat-info-codicon';
 				break;
 		}
-		this.element.appendChild($(iconClass, undefined, renderIcon(icon)));
+		this.domNode.appendChild($(iconClass, undefined, renderIcon(icon)));
 		const markdownContent = renderer.render(content);
-		this.element.appendChild(markdownContent.element);
+		this.domNode.appendChild(markdownContent.element);
+	}
 
+	hasSameContent(other: IChatProgressRenderableResponseContent): boolean {
+		// No other change allowed for this content type
+		return other.kind === 'warning';
 	}
 }

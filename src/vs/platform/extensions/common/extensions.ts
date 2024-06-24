@@ -239,7 +239,9 @@ export interface IExtensionIdentifier {
 }
 
 export const EXTENSION_CATEGORIES = [
+	'AI',
 	'Azure',
+	'Chat',
 	'Data Science',
 	'Debuggers',
 	'Extension Packs',
@@ -256,8 +258,6 @@ export const EXTENSION_CATEGORIES = [
 	'Testing',
 	'Themes',
 	'Visualization',
-	'AI',
-	'Chat',
 	'Other',
 ];
 

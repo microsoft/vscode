@@ -3229,7 +3229,13 @@ export class SCMViewPane extends ViewPane {
 			const historyItemChanges = await historyProvider?.provideHistoryItemChanges(historyItem.id, historyItemParentId);
 			if (historyItemChanges) {
 				const title = `${historyItem.id.substring(0, 8)} - ${historyItem.message}`;
-				await this.commandService.executeCommand('_workbench.openMultiDiffEditor', { title, resources: historyItemChanges });
+
+				const rootUri = e.element.repository.provider.rootUri;
+				const multiDiffSourceUri = rootUri ?
+					rootUri.with({ scheme: 'scm-history-item', path: `${rootUri.path}/${historyItem.id}` }) :
+					{ scheme: 'scm-history-item', path: `${e.element.repository.provider.label}/${historyItem.id}` };
+
+				await this.commandService.executeCommand('_workbench.openMultiDiffEditor', { title, multiDiffSourceUri, resources: historyItemChanges });
 			}
 
 			this.scmViewService.focus(e.element.repository);
@@ -3808,8 +3814,8 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			// History items
 			const historyItems = await this.getHistoryItems2(inputOrElement);
 			if (historyItems.length > 0) {
-				const label = localize('historySeparatorHeader', "History");
-				const ariaLabel = localize('historySeparatorHeaderAriaLabel', "History");
+				const label = localize('syncSeparatorHeader', "Incoming/Outgoing");
+				const ariaLabel = localize('syncSeparatorHeaderAriaLabel', "Incoming and outgoing changes");
 
 				children.push({ label, ariaLabel, repository: inputOrElement, type: 'separator' } satisfies SCMViewSeparatorElement);
 			}
@@ -3998,6 +4004,13 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 				...historyProviderCacheEntry,
 				historyItems2: historyItemsMap.set(element.id, historyItemsElement)
 			});
+		}
+
+		// If we only have one history item that matches
+		// the current history item group, don't show it
+		if (historyItemsElement.length === 1 &&
+			historyItemsElement[0].labels?.find(l => l.title === currentHistoryItemGroup.name)) {
+			return [];
 		}
 
 		// Create the color map

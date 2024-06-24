@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { findFirstIdxMonotonousOrArrLen } from 'vs/base/common/arraysFind';
 import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/common/async';
-import { INotebookEditor, CellEditState, CellFindMatchWithIndex, CellWebviewFindMatch, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
 import { FindMatch } from 'vs/editor/common/model';
 import { PrefixSumComputer } from 'vs/editor/common/model/prefixSumComputer';
 import { FindReplaceState, FindReplaceStateChangedEvent } from 'vs/editor/contrib/find/browser/findState';
-import { CellKind, INotebookSearchOptions, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { findFirstIdxMonotonousOrArrLen } from 'vs/base/common/arraysFind';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CancellationToken } from 'vs/base/common/cancellation';
 import { NotebookFindFilters } from 'vs/workbench/contrib/notebook/browser/contrib/find/findFilters';
 import { FindMatchDecorationModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findMatchDecorationModel';
+import { CellEditState, CellFindMatchWithIndex, CellWebviewFindMatch, ICellViewModel, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
+import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
+import { CellKind, INotebookFindOptions, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class CellFindMatchModel implements CellFindMatchWithIndex {
 	readonly cell: ICellViewModel;
@@ -115,7 +115,7 @@ export class FindModel extends Disposable {
 	}
 
 	private _updateCellStates(e: FindReplaceStateChangedEvent) {
-		if (!this._state.filters?.markupInput || !this._state.filters?.markupPreview || !this._state.filters?.searchInRanges || !this._state.filters?.selectedRanges) {
+		if (!this._state.filters?.markupInput || !this._state.filters?.markupPreview || !this._state.filters?.findScope) {
 			return;
 		}
 
@@ -127,7 +127,7 @@ export class FindModel extends Disposable {
 			}
 			// search markup sources first to decide if a markup cell should be in editing mode
 			const wordSeparators = this._configurationService.inspect<string>('editor.wordSeparators').value;
-			const options: INotebookSearchOptions = {
+			const options: INotebookFindOptions = {
 				regex: this._state.isRegex,
 				wholeWord: this._state.wholeWord,
 				caseSensitive: this._state.matchCase,
@@ -136,8 +136,7 @@ export class FindModel extends Disposable {
 				includeCodeInput: false,
 				includeMarkupPreview: false,
 				includeOutput: false,
-				searchInRanges: this._state.filters?.searchInRanges,
-				selectedRanges: this._state.filters?.selectedRanges
+				findScope: this._state.filters?.findScope,
 			};
 
 			const contentMatches = viewModel.find(this._state.searchString, options);
@@ -476,7 +475,7 @@ export class FindModel extends Disposable {
 		const val = this._state.searchString;
 		const wordSeparators = this._configurationService.inspect<string>('editor.wordSeparators').value;
 
-		const options: INotebookSearchOptions = {
+		const options: INotebookFindOptions = {
 			regex: this._state.isRegex,
 			wholeWord: this._state.wholeWord,
 			caseSensitive: this._state.matchCase,
@@ -485,8 +484,7 @@ export class FindModel extends Disposable {
 			includeCodeInput: this._state.filters?.codeInput ?? true,
 			includeMarkupPreview: !!this._state.filters?.markupPreview,
 			includeOutput: !!this._state.filters?.codeOutput,
-			searchInRanges: this._state.filters?.searchInRanges,
-			selectedRanges: this._state.filters?.selectedRanges
+			findScope: this._state.filters?.findScope,
 		};
 
 		ret = await this._notebookEditor.find(val, options, token);

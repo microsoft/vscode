@@ -587,6 +587,7 @@ interface IRawExtensionsControlManifest {
 		additionalInfo?: string;
 	}>;
 	search?: ISearchPrefferedResults[];
+	extensionsEnabledWithPreRelease?: string[];
 }
 
 abstract class AbstractExtensionGalleryService implements IExtensionGalleryService {
@@ -1310,6 +1311,7 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 		const malicious: IExtensionIdentifier[] = [];
 		const deprecated: IStringDictionary<IDeprecationInfo> = {};
 		const search: ISearchPrefferedResults[] = [];
+		const extensionsEnabledWithPreRelease: string[] = [];
 		if (result) {
 			for (const id of result.malicious) {
 				malicious.push({ id });
@@ -1341,9 +1343,14 @@ abstract class AbstractExtensionGalleryService implements IExtensionGalleryServi
 					search.push(s);
 				}
 			}
+			if (Array.isArray(result.extensionsEnabledWithPreRelease)) {
+				for (const id of result.extensionsEnabledWithPreRelease) {
+					extensionsEnabledWithPreRelease.push(id.toLowerCase());
+				}
+			}
 		}
 
-		return { malicious, deprecated, search };
+		return { malicious, deprecated, search, extensionsEnabledWithPreRelease };
 	}
 }
 

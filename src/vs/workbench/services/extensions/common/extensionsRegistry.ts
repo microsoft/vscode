@@ -386,6 +386,16 @@ export const schema: IJSONSchema = {
 						description: nls.localize('vscode.extension.activationEvents.onIssueReporterOpened', 'An activation event emitted when the issue reporter is opened.'),
 					},
 					{
+						label: 'onChatParticipant',
+						body: 'onChatParticipant:${1:participantId}',
+						description: nls.localize('vscode.extension.activationEvents.onChatParticipant', 'An activation event emitted when the specified chat participant is invoked.'),
+					},
+					{
+						label: 'onLanguageModelTool',
+						body: 'onLanguageModelTool:${1:toolName}',
+						description: nls.localize('vscode.extension.activationEvents.onLanguageModelTool', 'An activation event emitted when the specified language model tool is invoked.'),
+					},
+					{
 						label: '*',
 						description: nls.localize('vscode.extension.activationEvents.star', 'An activation event emitted on VS Code startup. To ensure a great end user experience, please use this activation event in your extension only when no other activation events combination works in your use-case.'),
 						body: '*'

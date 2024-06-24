@@ -79,7 +79,7 @@ export interface IChatAccessibilityService {
 
 export interface IChatCodeBlockInfo {
 	codeBlockIndex: number;
-	element: IChatResponseViewModel;
+	element: ChatTreeItem;
 	uri: URI | undefined;
 	focus(): void;
 }

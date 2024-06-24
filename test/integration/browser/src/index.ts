@@ -105,6 +105,10 @@ async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWith
 			console.error(`Error saving web client logs (${error})`);
 		}
 
+		if (args.debug) {
+			return;
+		}
+
 		try {
 			await browser.close();
 		} catch (error) {
