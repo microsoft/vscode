@@ -1,6 +1,7 @@
 {
 	"extends": "./tsconfig.base.json",
 	"compilerOptions": {
+		"moduleSuffixes": [".membrane", ""],
 		"esModuleInterop": true,
 		"removeComments": false,
 		"preserveConstEnums": true,
