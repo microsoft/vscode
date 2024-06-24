@@ -83,7 +83,7 @@ import { IFileQueryBuilderOptions, ITextQueryBuilderOptions } from '../../servic
 import * as search from '../../services/search/common/search.js';
 import { TextSearchCompleteMessage } from '../../services/search/common/searchExtTypes.js';
 import { ISaveProfileResult } from '../../services/userDataProfile/common/userDataProfile.js';
-import type { TerminalShellExecutionCommandLineConfidence } from 'vscode';
+import type * as vscode from 'vscode';
 
 export interface IWorkspaceData extends IStaticWorkspaceData {
 	folders: { uri: UriComponents; name: string; index: number }[];
@@ -1632,6 +1632,8 @@ export interface MainThreadDebugServiceShape extends IDisposable {
 	$setDebugSessionName(id: DebugSessionUUID, name: string): void;
 	$customDebugAdapterRequest(id: DebugSessionUUID, command: string, args: any): Promise<any>;
 	$getDebugProtocolBreakpoint(id: DebugSessionUUID, breakpoinId: string): Promise<DebugProtocol.Breakpoint | undefined>;
+	$getDataBreakpointInfo(id: DebugSessionUUID, name: string, variablesReference?: number): Promise<IDataBreakpointInfo | undefined>;
+	$getDataBytesBreakpointInfo(id: DebugSessionUUID, address: string, bytes?: number): Promise<IDataBreakpointInfo | undefined>;
 	$appendDebugConsole(value: string): void;
 	$registerBreakpoints(breakpoints: Array<ISourceMultiBreakpointDto | IFunctionBreakpointDto | IDataBreakpointDto>): Promise<void>;
 	$unregisterBreakpoints(breakpointIds: string[], functionBreakpointIds: string[], dataBreakpointIds: string[]): Promise<void>;
@@ -2338,8 +2340,8 @@ export interface ExtHostTerminalServiceShape {
 
 export interface ExtHostTerminalShellIntegrationShape {
 	$shellIntegrationChange(instanceId: number): void;
-	$shellExecutionStart(instanceId: number, commandLineValue: string, commandLineConfidence: TerminalShellExecutionCommandLineConfidence, isTrusted: boolean, cwd: UriComponents | undefined): void;
-	$shellExecutionEnd(instanceId: number, commandLineValue: string, commandLineConfidence: TerminalShellExecutionCommandLineConfidence, isTrusted: boolean, exitCode: number | undefined): void;
+	$shellExecutionStart(instanceId: number, commandLineValue: string, commandLineConfidence: vscode.TerminalShellExecutionCommandLineConfidence, isTrusted: boolean, cwd: UriComponents | undefined): void;
+	$shellExecutionEnd(instanceId: number, commandLineValue: string, commandLineConfidence: vscode.TerminalShellExecutionCommandLineConfidence, isTrusted: boolean, exitCode: number | undefined): void;
 	$shellExecutionData(instanceId: number, data: string): void;
 	$cwdChange(instanceId: number, cwd: UriComponents | undefined): void;
 	$closeTerminal(instanceId: number): void;
@@ -2392,9 +2394,11 @@ export interface IFunctionBreakpointDto extends IBreakpointDto {
 	mode?: string;
 }
 
+export type IDataBreakpointInfo = DebugProtocol.DataBreakpointInfoResponse['body'];
+
 export interface IDataBreakpointDto extends IBreakpointDto {
 	type: 'data';
-	dataId: string;
+	source: vscode.DataBreakpointSource;
 	canPersist: boolean;
 	label: string;
 	accessTypes?: DebugProtocol.DataBreakpointAccessType[];

@@ -1562,6 +1562,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			CompletionTriggerKind: extHostTypes.CompletionTriggerKind,
 			ConfigurationTarget: extHostTypes.ConfigurationTarget,
 			CustomExecution: extHostTypes.CustomExecution,
+			DataBreakpoint: extHostTypes.DataBreakpoint,
 			DebugAdapterExecutable: extHostTypes.DebugAdapterExecutable,
 			DebugAdapterInlineImplementation: extHostTypes.DebugAdapterInlineImplementation,
 			DebugAdapterNamedPipeServer: extHostTypes.DebugAdapterNamedPipeServer,

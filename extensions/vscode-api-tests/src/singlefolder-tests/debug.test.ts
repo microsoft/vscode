@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { basename } from 'path';
-import { commands, debug, Disposable, FunctionBreakpoint, window, workspace } from 'vscode';
+import { commands, DataBreakpoint, debug, Disposable, FunctionBreakpoint, window, workspace } from 'vscode';
 import { assertNoRpc, createRandomFile, disposeAll } from '../utils';
 
 suite('vscode API - debug', function () {
@@ -58,6 +58,65 @@ suite('vscode API - debug', function () {
 		assert.strictEqual(functionBreakpoint.logMessage, 'logMessage');
 		assert.strictEqual(functionBreakpoint.enabled, false);
 		assert.strictEqual(functionBreakpoint.functionName, 'func');
+	});
+
+
+	test('data breakpoint - dataId', async function () {
+		debug.addBreakpoints([new DataBreakpoint({ type: 'variable', dataId: 'dataId' }, 'readWrite', false, 'data', false, 'condition', 'hitCondition', 'logMessage')]);
+		const variableDbp = debug.breakpoints[debug.breakpoints.length - 1] as DataBreakpoint;
+		assert.strictEqual(variableDbp.condition, 'condition');
+		assert.strictEqual(variableDbp.hitCondition, 'hitCondition');
+		assert.strictEqual(variableDbp.logMessage, 'logMessage');
+		assert.strictEqual(variableDbp.enabled, false);
+		assert.strictEqual(variableDbp.label, 'data');
+		assert.strictEqual(variableDbp.source.type, 'variable');
+		assert.strictEqual(variableDbp.source.dataId, 'dataId');
+		assert.strictEqual(variableDbp.canPersist, false);
+		assert.strictEqual(variableDbp.accessType, 'readWrite');
+	});
+
+	test('data breakpoint - variable', async function () {
+		debug.addBreakpoints([new DataBreakpoint('dataId', 'readWrite', false, 'data', false, 'condition', 'hitCondition', 'logMessage')]);
+		const dataIdDbp = debug.breakpoints[debug.breakpoints.length - 1] as DataBreakpoint;
+		assert.strictEqual(dataIdDbp.condition, 'condition');
+		assert.strictEqual(dataIdDbp.hitCondition, 'hitCondition');
+		assert.strictEqual(dataIdDbp.logMessage, 'logMessage');
+		assert.strictEqual(dataIdDbp.enabled, false);
+		assert.strictEqual(dataIdDbp.label, 'data');
+		assert.strictEqual(dataIdDbp.source.type, 'variable');
+		assert.strictEqual(dataIdDbp.source.dataId, 'dataId');
+		assert.strictEqual(dataIdDbp.canPersist, false);
+		assert.strictEqual(dataIdDbp.accessType, 'readWrite');
+	});
+
+	test('data breakpoint - address', async function () {
+		debug.addBreakpoints([new DataBreakpoint({ type: 'address', address: '0x00000', bytes: 4 }, 'readWrite', false, 'data', false, 'condition', 'hitCondition', 'logMessage')]);
+		const addressDbp = debug.breakpoints[debug.breakpoints.length - 1] as DataBreakpoint;
+		assert.strictEqual(addressDbp.condition, 'condition');
+		assert.strictEqual(addressDbp.hitCondition, 'hitCondition');
+		assert.strictEqual(addressDbp.logMessage, 'logMessage');
+		assert.strictEqual(addressDbp.enabled, false);
+		assert.strictEqual(addressDbp.label, 'data');
+		assert.strictEqual(addressDbp.source.type, 'address');
+		assert.strictEqual(addressDbp.source.address, '0x00000');
+		assert.strictEqual(addressDbp.source.bytes, 4);
+		assert.strictEqual(addressDbp.canPersist, false);
+		assert.strictEqual(addressDbp.accessType, 'readWrite');
+	});
+
+	test('data breakpoint - dynamic variable', async function () {
+		debug.addBreakpoints([new DataBreakpoint({ type: 'dynamicVariable', name: 'i', variablesReference: 1000 }, 'readWrite', false, 'data', false, 'condition', 'hitCondition', 'logMessage')]);
+		const dynamicVariableDbp = debug.breakpoints[debug.breakpoints.length - 1] as DataBreakpoint;
+		assert.strictEqual(dynamicVariableDbp.condition, 'condition');
+		assert.strictEqual(dynamicVariableDbp.hitCondition, 'hitCondition');
+		assert.strictEqual(dynamicVariableDbp.logMessage, 'logMessage');
+		assert.strictEqual(dynamicVariableDbp.enabled, false);
+		assert.strictEqual(dynamicVariableDbp.label, 'data');
+		assert.strictEqual(dynamicVariableDbp.source.type, 'dynamicVariable');
+		assert.strictEqual(dynamicVariableDbp.source.name, 'i');
+		assert.strictEqual(dynamicVariableDbp.source.variablesReference, 1000);
+		assert.strictEqual(dynamicVariableDbp.canPersist, false);
+		assert.strictEqual(dynamicVariableDbp.accessType, 'readWrite');
 	});
 
 	test('start debugging', async function () {

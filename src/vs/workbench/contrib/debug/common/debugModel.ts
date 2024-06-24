@@ -1205,6 +1205,16 @@ export class DataBreakpoint extends BaseBreakpoint implements IDataBreakpoint {
 		let dataId: string;
 		if (this.src.type === DataBreakpointSetType.Variable) {
 			dataId = this.src.dataId;
+		} else if (this.src.type === DataBreakpointSetType.DynamicVariable) {
+			let sessionDataId = this.sessionDataIdForAddr.get(session);
+			if (!sessionDataId) {
+				sessionDataId = (await session.dataBreakpointInfo(this.src.name, this.src.variablesReference))?.dataId;
+				if (!sessionDataId) {
+					return undefined;
+				}
+				this.sessionDataIdForAddr.set(session, sessionDataId);
+			}
+			dataId = sessionDataId;
 		} else {
 			let sessionDataId = this.sessionDataIdForAddr.get(session);
 			if (!sessionDataId) {

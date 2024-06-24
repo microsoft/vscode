@@ -433,7 +433,7 @@ export interface IDebugSession extends ITreeElement {
 	sendBreakpoints(modelUri: uri, bpts: IBreakpoint[], sourceModified: boolean): Promise<void>;
 	sendFunctionBreakpoints(fbps: IFunctionBreakpoint[]): Promise<void>;
 	dataBreakpointInfo(name: string, variablesReference?: number): Promise<IDataBreakpointInfoResponse | undefined>;
-	dataBytesBreakpointInfo(address: string, bytes: number): Promise<IDataBreakpointInfoResponse | undefined>;
+	dataBytesBreakpointInfo(address: string, bytes?: number): Promise<IDataBreakpointInfoResponse | undefined>;
 	sendDataBreakpoints(dbps: IDataBreakpoint[]): Promise<void>;
 	sendInstructionBreakpoints(dbps: IInstructionBreakpoint[]): Promise<void>;
 	sendExceptionBreakpoints(exbpts: IExceptionBreakpoint[]): Promise<void>;
@@ -646,6 +646,7 @@ export interface IExceptionBreakpoint extends IBaseBreakpoint {
 export const enum DataBreakpointSetType {
 	Variable,
 	Address,
+	DynamicVariable
 }
 
 /**
@@ -654,8 +655,28 @@ export const enum DataBreakpointSetType {
  * can request info repeated and use session-specific data.
  */
 export type DataBreakpointSource =
-	| { type: DataBreakpointSetType.Variable; dataId: string }
-	| { type: DataBreakpointSetType.Address; address: string; bytes: number };
+	| {
+		/** The source type for variable-based data breakpoints. */
+		type: DataBreakpointSetType.Variable;
+		/** An identifier for the data. If it was retrieved using a `variablesReference` it may only be valid in the current suspended state, otherwise it's valid indefinitely. */
+		dataId: string;
+	}
+	| {
+		/** The source type for address-based data breakpoints. This only works on sessions that have the `supportsDataBreakpointBytes` capability. */
+		type: DataBreakpointSetType.DynamicVariable;
+		/** The name of the variable's child to obtain data breakpoint information for. If `variablesReference` isn't specified, this can be an expression. */
+		name: string;
+		/** Reference to the variable container if the data breakpoint is requested for a child of the container. */
+		variablesReference?: number;
+	}
+	| {
+		/** The source type for address-based data breakpoints. This only works on sessions that have the `supportsDataBreakpointBytes` capability. */
+		type: DataBreakpointSetType.Address;
+		/** A memory address as a decimal value, or hex value if it is prefixed with `0x`. */
+		address: string;
+		/** If specified, returns information for the range of memory extending `bytes` number of bytes from the address. */
+		bytes?: number;
+	};
 
 export interface IDataBreakpoint extends IBaseBreakpoint {
 	readonly description: string;

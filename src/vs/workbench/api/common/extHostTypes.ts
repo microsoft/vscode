@@ -3076,17 +3076,19 @@ export class FunctionBreakpoint extends Breakpoint {
 @es5ClassCompat
 export class DataBreakpoint extends Breakpoint {
 	readonly label: string;
-	readonly dataId: string;
+	readonly source: vscode.DataBreakpointSource;
 	readonly canPersist: boolean;
+	readonly accessType: vscode.DataBreakpointAccessType;
 
-	constructor(label: string, dataId: string, canPersist: boolean, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string, mode?: string) {
+	constructor(source: vscode.DataBreakpointSource | string, accessType: vscode.DataBreakpointAccessType, canPersist?: boolean, label?: string, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string, mode?: string) {
 		super(enabled, condition, hitCondition, logMessage, mode);
-		if (!dataId) {
-			throw illegalArgument('dataId');
-		}
-		this.label = label;
-		this.dataId = dataId;
-		this.canPersist = canPersist;
+		this.source = typeof source === 'string' ? { type: 'variable', dataId: source } : source;
+		this.accessType = accessType;
+		this.canPersist = canPersist ?? false;
+		this.label = label ? label
+			: this.source.type === 'variable' ? `DataId '${this.source.dataId}'`
+				: this.source.type === 'address' ? `Address '${this.source.address}${this.source.bytes ? `,${this.source.bytes}'` : ''}`
+					: `Variable '${this.source.name}${this.source.variablesReference ? `,${this.source.variablesReference}` : ''}'`;
 	}
 }
 
@@ -4127,7 +4129,7 @@ export function validateTestCoverageCount(cc?: vscode.TestCoverageCount) {
 	}
 
 	if (cc.covered > cc.total) {
-		throw new Error(`The total number of covered items (${cc.covered}) cannot be greater than the total (${cc.total})`);
+		throw new Error(`The total number of covered items (${cc.covered}) cannot be greater than the total(${cc.total})`);
 	}
 
 	if (cc.total < 0) {

@@ -8,7 +8,8 @@ import { URI as uri, UriComponents } from '../../../base/common/uri.js';
 import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, IDebugAdapter, IDebugAdapterDescriptorFactory, IDebugSession, IDebugAdapterFactory, IDataBreakpoint, IDebugSessionOptions, IInstructionBreakpoint, DebugConfigurationProviderTriggerKind, IDebugVisualization, DataBreakpointSetType } from '../../contrib/debug/common/debug.js';
 import {
 	ExtHostContext, ExtHostDebugServiceShape, MainThreadDebugServiceShape, DebugSessionUUID, MainContext,
-	IBreakpointsDeltaDto, ISourceMultiBreakpointDto, ISourceBreakpointDto, IFunctionBreakpointDto, IDebugSessionDto, IDataBreakpointDto, IStartDebuggingOptions, IDebugConfiguration, IThreadFocusDto, IStackFrameFocusDto
+	IBreakpointsDeltaDto, ISourceMultiBreakpointDto, ISourceBreakpointDto, IFunctionBreakpointDto, IDebugSessionDto, IDataBreakpointDto, IStartDebuggingOptions, IDebugConfiguration, IThreadFocusDto, IStackFrameFocusDto,
+	IDataBreakpointInfo
 } from '../common/extHost.protocol.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import severity from '../../../base/common/severity.js';
@@ -173,7 +174,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		const bps = this.debugService.getModel().getBreakpoints();
 		const fbps = this.debugService.getModel().getFunctionBreakpoints();
 		const dbps = this.debugService.getModel().getDataBreakpoints();
-		if (bps.length > 0 || fbps.length > 0) {
+		if (bps.length > 0 || fbps.length > 0 || dbps.length > 0) {
 			this._proxy.$acceptBreakpointsDelta({
 				added: this.convertToDto(bps).concat(this.convertToDto(fbps)).concat(this.convertToDto(dbps))
 			});
@@ -234,10 +235,16 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 			} else if (dto.type === 'data') {
 				this.debugService.addDataBreakpoint({
 					description: dto.label,
-					src: { type: DataBreakpointSetType.Variable, dataId: dto.dataId },
+					src: dto.source.type === 'variable' ? { type: DataBreakpointSetType.Variable, dataId: dto.source.dataId }
+						: dto.source.type === 'dynamicVariable' ? { type: DataBreakpointSetType.DynamicVariable, name: dto.source.name, variablesReference: dto.source.variablesReference }
+							: { type: DataBreakpointSetType.Address, address: dto.source.address, bytes: dto.source.bytes },
+					condition: dto.condition,
+					enabled: dto.enabled,
+					hitCondition: dto.hitCondition,
 					canPersist: dto.canPersist,
 					accessTypes: dto.accessTypes,
 					accessType: dto.accessType,
+					logMessage: dto.logMessage,
 					mode: dto.mode
 				});
 			}
@@ -369,6 +376,22 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		return Promise.reject(new ErrorNoTelemetry('debug session not found'));
 	}
 
+	public $getDataBreakpointInfo(sessionId: DebugSessionUUID, name: string, variablesReference?: number): Promise<IDataBreakpointInfo | undefined> {
+		const session = this.debugService.getModel().getSession(sessionId, true);
+		if (session) {
+			return Promise.resolve(session.dataBreakpointInfo(name, variablesReference));
+		}
+		return Promise.reject(new ErrorNoTelemetry('debug session not found'));
+	}
+
+	public $getDataBytesBreakpointInfo(sessionId: DebugSessionUUID, address: string, bytes?: number): Promise<IDataBreakpointInfo | undefined> {
+		const session = this.debugService.getModel().getSession(sessionId, true);
+		if (session) {
+			return Promise.resolve(session.dataBytesBreakpointInfo(address, bytes));
+		}
+		return Promise.reject(new ErrorNoTelemetry('debug session not found'));
+	}
+
 	public $stopDebugging(sessionId: DebugSessionUUID | undefined): Promise<void> {
 		if (sessionId) {
 			const session = this.debugService.getModel().getSession(sessionId, true);
@@ -457,7 +480,9 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 				return {
 					type: 'data',
 					id: dbp.getId(),
-					dataId: dbp.src.type === DataBreakpointSetType.Variable ? dbp.src.dataId : dbp.src.address,
+					source: dbp.src.type === DataBreakpointSetType.Variable ? { type: 'variable', dataId: dbp.src.dataId }
+						: dbp.src.type === DataBreakpointSetType.DynamicVariable ? { type: 'dynamicVariable', name: dbp.src.name, variablesReference: dbp.src.variablesReference }
+							: { type: 'address', address: dbp.src.address, bytes: dbp.src.bytes },
 					enabled: dbp.enabled,
 					condition: dbp.condition,
 					hitCondition: dbp.hitCondition,

@@ -545,7 +545,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 		}
 	}
 
-	dataBytesBreakpointInfo(address: string, bytes: number): Promise<IDataBreakpointInfoResponse | undefined> {
+	dataBytesBreakpointInfo(address: string, bytes?: number): Promise<IDataBreakpointInfoResponse | undefined> {
 		if (this.raw?.capabilities.supportsDataBreakpointBytes === false) {
 			throw new Error(localize('sessionDoesNotSupporBytesBreakpoints', "Session does not support breakpoints with bytes"));
 		}
@@ -553,11 +553,11 @@ export class DebugSession implements IDebugSession, IDisposable {
 		return this._dataBreakpointInfo({ name: address, bytes, asAddress: true });
 	}
 
-	dataBreakpointInfo(name: string, variablesReference?: number): Promise<{ dataId: string | null; description: string; canPersist?: boolean } | undefined> {
+	dataBreakpointInfo(name: string, variablesReference?: number): Promise<IDataBreakpointInfoResponse | undefined> {
 		return this._dataBreakpointInfo({ name, variablesReference });
 	}
 
-	private async _dataBreakpointInfo(args: DebugProtocol.DataBreakpointInfoArguments): Promise<{ dataId: string | null; description: string; canPersist?: boolean } | undefined> {
+	private async _dataBreakpointInfo(args: DebugProtocol.DataBreakpointInfoArguments): Promise<IDataBreakpointInfoResponse | undefined> {
 		if (!this.raw) {
 			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'data breakpoints info'));
 		}
