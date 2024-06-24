@@ -88,10 +88,9 @@ export function localize(data: ILocalizeInfo | string /* | number when built */,
  */
 function lookupMessage(index: number): string {
 	// VSCODE_GLOBALS: NLS
-	let message = globalThis._VSCODE_NLS_MESSAGES?.[index];
+	const message = globalThis._VSCODE_NLS_MESSAGES?.[index];
 	if (typeof message !== 'string') {
-		message = `!!! NLS MISSING: ${index} !!!`;
-		console.error(message);
+		throw new Error(`!!! NLS MISSING: ${index} !!!`);
 	}
 	return message;
 }
