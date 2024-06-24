@@ -15,6 +15,7 @@ declare global {
 	 * @deprecated You MUST use `IProductService` whenever possible.
 	 */
 	var _VSCODE_PACKAGE_JSON: Record<string, any>;
+
 }
 
 // fake export to make global work
