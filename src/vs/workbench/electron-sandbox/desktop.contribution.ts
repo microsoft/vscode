@@ -226,7 +226,7 @@ import { MAX_ZOOM_LEVEL, MIN_ZOOM_LEVEL } from 'vs/platform/window/electron-sand
 				'type': 'boolean',
 				'default': false,
 				'scope': ConfigurationScope.APPLICATION,
-				'markdownDescription': localize('window.doubleClickIconToClose', "If enabled, this setting will close the window when the application icon in the title bar is double-clicked. The window will not be able to be dragged by the icon. This setting is effective only if `#window.titleBarStyle#` is set to `custom`.")
+				'markdownDescription': localize('window.doubleClickIconToClose', "If enabled, this setting will close the window when the application icon in the title bar is double-clicked. The window will not be able to be dragged by the icon. This setting is effective only if {0} is set to `custom`.", '`#window.titleBarStyle#`')
 			},
 			'window.titleBarStyle': {
 				'type': 'string',
