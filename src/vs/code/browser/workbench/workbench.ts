@@ -90,13 +90,6 @@ class SecretStorageProvider implements ISecretStorageProvider {
 	};
 
 	config.secretStorageProvider = new SecretStorageProvider();
-	config.defaultLayout = {
-		force: true,
-		views: [
-			{ id: 'membrane.explorer' },
-			{ id: 'membrane.logs' },
-		]
-	};
 
 	const domElement = document.body;
 	create(domElement, config);
