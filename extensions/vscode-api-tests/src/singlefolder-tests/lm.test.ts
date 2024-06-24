@@ -11,12 +11,6 @@ import { assertNoRpc, closeAllEditors, DeferredPromise, disposeAll } from '../ut
 
 suite('lm', function () {
 
-	if (vscode.env.uiKind === vscode.UIKind.Web) {
-		// disable suite when runing web-integration test. need to figure out why they fail
-		// https://github.com/microsoft/vscode/issues/216814
-		return;
-	}
-
 	let disposables: vscode.Disposable[] = [];
 
 	setup(function () {
