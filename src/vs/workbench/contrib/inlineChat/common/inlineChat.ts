@@ -69,7 +69,8 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 		[InlineChatConfigKeys.ExpTextButtons]: {
 			description: localize('txtButtons', "Whether to use textual buttons (Requires restart)."),
 			default: false,
-			type: 'boolean'
+			type: 'boolean',
+			tags: ['experimental']
 		},
 	}
 });
@@ -116,7 +117,7 @@ export const ACTION_TOGGLE_DIFF = 'inlineChat.toggleDiff';
 
 // --- menus
 
-export const MENU_INLINE_CHAT_WIDGET = MenuId.for('inlineChatWidget');
+export const MENU_INLINE_CHAT_EXECUTE = MenuId.for('inlineChat.execute');
 export const MENU_INLINE_CHAT_CONTENT_STATUS = MenuId.for('inlineChat.content.status');
 export const MENU_INLINE_CHAT_WIDGET_STATUS = MenuId.for('inlineChatWidget.status');
 

@@ -288,6 +288,7 @@ export class MenuEntryActionViewItem<T extends IMenuEntryActionViewItemOptions =
 
 export interface ITextOnlyMenuEntryActionViewItemOptions extends IMenuEntryActionViewItemOptions {
 	conversational?: boolean;
+	useComma?: boolean;
 }
 
 export class TextOnlyMenuEntryActionViewItem extends MenuEntryActionViewItem<ITextOnlyMenuEntryActionViewItemOptions> {
@@ -297,6 +298,7 @@ export class TextOnlyMenuEntryActionViewItem extends MenuEntryActionViewItem<ITe
 		this.options.icon = false;
 		super.render(container);
 		container.classList.add('text-only');
+		container.classList.toggle('use-comma', this._options?.useComma ?? false);
 	}
 
 	protected override updateLabel() {

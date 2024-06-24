@@ -11,6 +11,7 @@
 	z-index: 32; /* Must be higher than .xterm-viewport and decorations */
 	background: var(--vscode-terminalStickyScroll-background, var(--vscode-terminal-background, var(--vscode-panel-background)));
 	box-shadow: var(--vscode-scrollbar-shadow) 0 3px 2px -2px;
+	border-bottom: 1px solid var(--vscode-terminalStickyScroll-border, transparent);
 }
 .part.sidebar .terminal-sticky-scroll,
 .part.auxiliarybar .terminal-sticky-scroll {

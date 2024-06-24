@@ -239,7 +239,9 @@ export interface IExtensionIdentifier {
 }
 
 export const EXTENSION_CATEGORIES = [
+	'AI',
 	'Azure',
+	'Chat',
 	'Data Science',
 	'Debuggers',
 	'Extension Packs',
@@ -256,8 +258,6 @@ export const EXTENSION_CATEGORIES = [
 	'Testing',
 	'Themes',
 	'Visualization',
-	'AI',
-	'Chat',
 	'Other',
 ];
 
@@ -458,7 +458,7 @@ export class ExtensionIdentifierMap<T> {
 	}
 }
 
-interface IRelaxedExtensionDescription extends IRelaxedExtensionManifest {
+export interface IRelaxedExtensionDescription extends IRelaxedExtensionManifest {
 	id?: string;
 	identifier: ExtensionIdentifier;
 	uuid?: string;
@@ -470,9 +470,7 @@ interface IRelaxedExtensionDescription extends IRelaxedExtensionManifest {
 	extensionLocation: URI;
 }
 
-export type IExtensionDescription = Readonly<IRelaxedExtensionDescription> & {
-	enabledApiProposals: string[] | undefined; // This needs to be updated while validating & updating the proposals.
-};
+export type IExtensionDescription = Readonly<IRelaxedExtensionDescription>;
 
 export function isApplicationScopedExtension(manifest: IExtensionManifest): boolean {
 	return isLanguagePackExtension(manifest);

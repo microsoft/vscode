@@ -32,6 +32,7 @@ import { ISymbolQuickPickItem, SymbolsQuickAccessProvider } from 'vs/workbench/c
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorType } from 'vs/editor/common/editorCommon';
+import { compare } from 'vs/base/common/strings';
 
 export function registerChatContextActions() {
 	registerAction2(AttachContextAction);
@@ -287,7 +288,21 @@ class AttachContextAction extends Action2 {
 			prefix: SymbolsQuickAccessProvider.PREFIX
 		});
 
-		this._show(quickInputService, commandService, widget, quickPickItems);
+		function extractTextFromIconLabel(label: string | undefined): string {
+			if (!label) {
+				return '';
+			}
+			const match = label.match(/\$\([^\)]+\)\s*(.+)/);
+			return match ? match[1] : label;
+		}
+
+		this._show(quickInputService, commandService, widget, quickPickItems.sort(function (a, b) {
+
+			const first = extractTextFromIconLabel(a.label).toUpperCase();
+			const second = extractTextFromIconLabel(b.label).toUpperCase();
+
+			return compare(first, second);
+		}));
 	}
 
 	private _show(quickInputService: IQuickInputService, commandService: ICommandService, widget: IChatWidget, quickPickItems: (IChatContextQuickPickItem | QuickPickItem)[], query: string = '') {

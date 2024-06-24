@@ -1203,7 +1203,7 @@ class SeparatorRenderer implements ICompressibleTreeRenderer<SCMViewSeparatorEle
 		append(element, $('.separator'));
 		disposables.add(label);
 
-		if (this.configurationService.getValue<boolean>('scm.showHistoryGraph') !== true) {
+		if (this.configurationService.getValue<boolean>('scm.experimental.showHistoryGraph') !== true) {
 			const toolBar = new MenuWorkbenchToolBar(append(element, $('.actions')), MenuId.SCMChangesSeparator, { moreIcon: Codicon.gear }, this.menuService, this.contextKeyService, this.contextMenuService, this.keybindingService, this.commandService, this.telemetryService);
 			disposables.add(toolBar);
 		}
@@ -1609,7 +1609,7 @@ MenuRegistry.appendMenuItem(MenuId.SCMTitle, {
 MenuRegistry.appendMenuItem(MenuId.SCMTitle, {
 	title: localize('scmChanges', "Incoming & Outgoing"),
 	submenu: Menus.ChangesSettings,
-	when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_PANE_ID), ContextKeys.RepositoryCount.notEqualsTo(0), ContextKeyExpr.equals('config.scm.showHistoryGraph', true).negate()),
+	when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_PANE_ID), ContextKeys.RepositoryCount.notEqualsTo(0), ContextKeyExpr.equals('config.scm.experimental.showHistoryGraph', true).negate()),
 	group: '0_view&sort',
 	order: 2
 });
@@ -3017,7 +3017,7 @@ export class SCMViewPane extends ViewPane {
 							e.affectsConfiguration('scm.showChangesSummary') ||
 							e.affectsConfiguration('scm.showIncomingChanges') ||
 							e.affectsConfiguration('scm.showOutgoingChanges') ||
-							e.affectsConfiguration('scm.showHistoryGraph'),
+							e.affectsConfiguration('scm.experimental.showHistoryGraph'),
 						this.visibilityDisposables)
 						(() => this.updateChildren(), this, this.visibilityDisposables);
 
@@ -3229,7 +3229,13 @@ export class SCMViewPane extends ViewPane {
 			const historyItemChanges = await historyProvider?.provideHistoryItemChanges(historyItem.id, historyItemParentId);
 			if (historyItemChanges) {
 				const title = `${historyItem.id.substring(0, 8)} - ${historyItem.message}`;
-				await this.commandService.executeCommand('_workbench.openMultiDiffEditor', { title, resources: historyItemChanges });
+
+				const rootUri = e.element.repository.provider.rootUri;
+				const multiDiffSourceUri = rootUri ?
+					rootUri.with({ scheme: 'scm-history-item', path: `${rootUri.path}/${historyItem.id}` }) :
+					{ scheme: 'scm-history-item', path: `${e.element.repository.provider.label}/${historyItem.id}` };
+
+				await this.commandService.executeCommand('_workbench.openMultiDiffEditor', { title, multiDiffSourceUri, resources: historyItemChanges });
 			}
 
 			this.scmViewService.focus(e.element.repository);
@@ -3808,8 +3814,8 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			// History items
 			const historyItems = await this.getHistoryItems2(inputOrElement);
 			if (historyItems.length > 0) {
-				const label = localize('historySeparatorHeader', "History");
-				const ariaLabel = localize('historySeparatorHeaderAriaLabel', "History");
+				const label = localize('syncSeparatorHeader', "Incoming/Outgoing");
+				const ariaLabel = localize('syncSeparatorHeaderAriaLabel', "Incoming and outgoing changes");
 
 				children.push({ label, ariaLabel, repository: inputOrElement, type: 'separator' } satisfies SCMViewSeparatorElement);
 			}
@@ -4000,10 +4006,29 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			});
 		}
 
-		return toISCMHistoryItemViewModelArray(historyItemsElement)
-			.map(v => ({
+		// If we only have one history item that matches
+		// the current history item group, don't show it
+		if (historyItemsElement.length === 1 &&
+			historyItemsElement[0].labels?.find(l => l.title === currentHistoryItemGroup.name)) {
+			return [];
+		}
+
+		// Create the color map
+		// TODO@lszomoru - use theme colors
+		const colorMap = new Map<string, number>([
+			[currentHistoryItemGroup.name, 0]
+		]);
+		if (currentHistoryItemGroup.remote) {
+			colorMap.set(currentHistoryItemGroup.remote.name, 1);
+		}
+		if (currentHistoryItemGroup.base) {
+			colorMap.set(currentHistoryItemGroup.base.name, 2);
+		}
+
+		return toISCMHistoryItemViewModelArray(historyItemsElement, colorMap)
+			.map(historyItemViewModel => ({
 				repository: element,
-				historyItemViewModel: v,
+				historyItemViewModel,
 				type: 'historyItem2'
 			}) satisfies SCMHistoryItemViewModelTreeElement);
 	}
@@ -4113,7 +4138,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			showChangesSummary: this.configurationService.getValue<boolean>('scm.showChangesSummary'),
 			showIncomingChanges: this.configurationService.getValue<ShowChangesSetting>('scm.showIncomingChanges'),
 			showOutgoingChanges: this.configurationService.getValue<ShowChangesSetting>('scm.showOutgoingChanges'),
-			showHistoryGraph: this.configurationService.getValue<boolean>('scm.showHistoryGraph')
+			showHistoryGraph: this.configurationService.getValue<boolean>('scm.experimental.showHistoryGraph')
 		};
 	}
 

@@ -15,6 +15,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { Extensions, IExtensionFeatureMarkdownRenderer, IExtensionFeaturesRegistry, IRenderedData } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
+import { Mutable } from 'vs/base/common/types';
 
 export class ExtensionsProposedApi {
 
@@ -60,7 +61,7 @@ export class ExtensionsProposedApi {
 		}
 	}
 
-	private doUpdateEnabledApiProposals(extension: IExtensionDescription): void {
+	private doUpdateEnabledApiProposals(extension: Mutable<IExtensionDescription>): void {
 
 		const key = ExtensionIdentifier.toKey(extension.identifier);
 

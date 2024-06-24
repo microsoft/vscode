@@ -17,7 +17,7 @@ import { isCancellationError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, dispose, type IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/settingsEditor2';
@@ -219,6 +219,8 @@ export class SettingsEditor2 extends EditorPane {
 
 	private installedExtensionIds: string[] = [];
 
+	private readonly inputChangeListener: MutableDisposable<IDisposable>;
+
 	constructor(
 		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -289,6 +291,7 @@ export class SettingsEditor2 extends EditorPane {
 		if (ENABLE_LANGUAGE_FILTER && !SettingsEditor2.SUGGESTIONS.includes(`@${LANGUAGE_SETTING_TAG}`)) {
 			SettingsEditor2.SUGGESTIONS.push(`@${LANGUAGE_SETTING_TAG}`);
 		}
+		this.inputChangeListener = this._register(new MutableDisposable());
 	}
 
 	override get minimumWidth(): number { return SettingsEditor2.EDITOR_MIN_WIDTH; }
@@ -382,9 +385,9 @@ export class SettingsEditor2 extends EditorPane {
 
 		// Don't block setInput on render (which can trigger an async search)
 		this.onConfigUpdate(undefined, true).then(() => {
-			this._register(input.onWillDispose(() => {
+			this.inputChangeListener.value = input.onWillDispose(() => {
 				this.searchWidget.setValue('');
-			}));
+			});
 
 			// Init TOC selection
 			this.updateTreeScrollSync();

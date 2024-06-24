@@ -869,7 +869,8 @@ export class CommentController implements IEditorContribution {
 		const pendingCommentText = (this._pendingNewCommentCache[uniqueOwner] && this._pendingNewCommentCache[uniqueOwner][thread.threadId])
 			?? continueOnCommentText;
 		const pendingEdits = this._pendingEditsCache[uniqueOwner] && this._pendingEditsCache[uniqueOwner][thread.threadId];
-		const shouldReveal = thread.canReply && thread.isTemplate && (!thread.comments || (thread.comments.length === 0)) && (!thread.editorId || (thread.editorId === editorId));
+		const isThreadTemplateOrEmpty = (thread.isTemplate || (!thread.comments || (thread.comments.length === 0)));
+		const shouldReveal = thread.canReply && isThreadTemplateOrEmpty && (!thread.editorId || (thread.editorId === editorId));
 		await this.displayCommentThread(uniqueOwner, thread, shouldReveal, pendingCommentText, pendingEdits);
 		this._commentInfos.filter(info => info.uniqueOwner === uniqueOwner)[0].threads.push(thread);
 		this.tryUpdateReservedSpace();

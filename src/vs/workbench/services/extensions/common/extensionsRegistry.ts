@@ -242,7 +242,7 @@ export const schema: IJSONSchema = {
 			uniqueItems: true,
 			items: {
 				type: 'string',
-				enum: Object.keys(allApiProposals).map(proposalName => allApiProposals[proposalName].version ? `${proposalName}@${allApiProposals[proposalName].version}` : proposalName),
+				enum: Object.keys(allApiProposals).map(proposalName => proposalName),
 				markdownEnumDescriptions: Object.values(allApiProposals).map(value => value.proposal)
 			}
 		},
@@ -384,6 +384,16 @@ export const schema: IJSONSchema = {
 						label: 'onIssueReporterOpened',
 						body: 'onIssueReporterOpened',
 						description: nls.localize('vscode.extension.activationEvents.onIssueReporterOpened', 'An activation event emitted when the issue reporter is opened.'),
+					},
+					{
+						label: 'onChatParticipant',
+						body: 'onChatParticipant:${1:participantId}',
+						description: nls.localize('vscode.extension.activationEvents.onChatParticipant', 'An activation event emitted when the specified chat participant is invoked.'),
+					},
+					{
+						label: 'onLanguageModelTool',
+						body: 'onLanguageModelTool:${1:toolName}',
+						description: nls.localize('vscode.extension.activationEvents.onLanguageModelTool', 'An activation event emitted when the specified language model tool is invoked.'),
 					},
 					{
 						label: '*',

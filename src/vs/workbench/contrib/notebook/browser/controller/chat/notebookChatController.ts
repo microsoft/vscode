@@ -36,7 +36,6 @@ import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { ProgressingEditsOptions } from 'vs/workbench/contrib/inlineChat/browser/inlineChatStrategies';
 import { InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
 import { asProgressiveEdit, performAsyncTextEdit } from 'vs/workbench/contrib/inlineChat/browser/utils';
-import { MENU_INLINE_CHAT_WIDGET } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { insertCell, runDeleteAction } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
 import { CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST, CTX_NOTEBOOK_CHAT_OUTER_FOCUS_POSITION, CTX_NOTEBOOK_CHAT_USER_DID_EDIT, MENU_CELL_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/notebook/browser/controller/chat/notebookChatContext';
 import { ICellViewModel, INotebookEditor, INotebookEditorContribution, INotebookViewZone } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -423,8 +422,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 						}
 					},
 					menus: {
-						telemetrySource: 'notebook-generate-cell',
-						inputSideToolbar: MENU_INLINE_CHAT_WIDGET,
+						telemetrySource: 'notebook-generate-cell'
 					}
 				}
 			}
