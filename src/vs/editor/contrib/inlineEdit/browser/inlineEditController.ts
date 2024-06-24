@@ -52,6 +52,12 @@ export class InlineEditController extends Disposable {
 		const column = edit.range.endColumn;
 		const textToDisplay = edit.text.endsWith('\n') && !(edit.range.startLineNumber === edit.range.endLineNumber && edit.range.startColumn === edit.range.endColumn) ? edit.text.slice(0, -1) : edit.text;
 		const ghostText = new GhostText(line, [new GhostTextPart(column, textToDisplay, false)]);
+		//only show ghost text for single line edits
+		//multi line edits are shown in the side by side widget
+		const isSingleLine = edit.range.startLineNumber === edit.range.endLineNumber && ghostText.parts.length === 1 && ghostText.parts[0].lines.length === 1;
+		if (!isSingleLine) {
+			return undefined;
+		}
 		const instance = this.instantiationService.createInstance(GhostTextWidget, this.editor, {
 			ghostText: constObservable(ghostText),
 			minReservedLineCount: constObservable(0),

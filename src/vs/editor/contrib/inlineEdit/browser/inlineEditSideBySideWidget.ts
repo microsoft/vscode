@@ -17,6 +17,7 @@ import { IDiffProviderFactoryService } from 'vs/editor/browser/widget/diffEditor
 import { diffAddDecoration, diffAddDecorationEmpty, diffDeleteDecoration, diffDeleteDecorationEmpty, diffLineDeleteDecorationBackgroundWithIndicator, diffWholeLineAddDecoration, diffWholeLineDeleteDecoration } from 'vs/editor/browser/widget/diffEditor/registrations.contribution';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { IInlineEdit } from 'vs/editor/common/languages';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
@@ -190,6 +191,7 @@ class InlineEditSideBySideContentWidget extends Disposable implements IOverlayWi
 	));
 
 	private readonly _previewEditorObs = observableCodeEditor(this._previewEditor);
+	private readonly _editorObs = observableCodeEditor(this._editor);
 
 	private readonly _previewTextModel = this._register(this._instantiationService.createInstance(
 		TextModel,
@@ -201,19 +203,25 @@ class InlineEditSideBySideContentWidget extends Disposable implements IOverlayWi
 
 	private readonly _decorations = derived(this, (reader) => {
 		this._text.read(reader);
+		const position = this._position.read(reader);
+		if (!position) { return { org: [], mod: [] }; }
 		const diff = this._diff.read(reader);
-		if (!diff) { return []; }
+		if (!diff) { return { org: [], mod: [] }; }
 
 		const originalDecorations: IModelDeltaDecoration[] = [];
 		const modifiedDecorations: IModelDeltaDecoration[] = [];
 
 		if (diff.length === 1 && diff[0].innerChanges![0].modifiedRange.equalsRange(this._previewTextModel.getFullModelRange())) {
-			return [];
+			return { org: [], mod: [] };
 		}
+
+		const moveRange = (range: IRange) => {
+			return new Range(range.startLineNumber + position.top - 1, range.startColumn, range.endLineNumber + position.top - 1, range.endColumn);
+		};
 
 		for (const m of diff) {
 			if (!m.original.isEmpty) {
-				originalDecorations.push({ range: m.original.toInclusiveRange()!, options: diffLineDeleteDecorationBackgroundWithIndicator });
+				originalDecorations.push({ range: moveRange(m.original.toInclusiveRange()!), options: diffLineDeleteDecorationBackgroundWithIndicator });
 			}
 			if (!m.modified.isEmpty) {
 				// modifiedDecorations.push({ range: m.modified.toInclusiveRange()!, options: diffLineAddDecorationBackgroundWithIndicator });
@@ -221,7 +229,7 @@ class InlineEditSideBySideContentWidget extends Disposable implements IOverlayWi
 
 			if (m.modified.isEmpty || m.original.isEmpty) {
 				if (!m.original.isEmpty) {
-					originalDecorations.push({ range: m.original.toInclusiveRange()!, options: diffWholeLineDeleteDecoration });
+					originalDecorations.push({ range: moveRange(m.original.toInclusiveRange()!), options: diffWholeLineDeleteDecoration });
 				}
 				if (!m.modified.isEmpty) {
 					modifiedDecorations.push({ range: m.modified.toInclusiveRange()!, options: diffWholeLineAddDecoration });
@@ -230,7 +238,7 @@ class InlineEditSideBySideContentWidget extends Disposable implements IOverlayWi
 				for (const i of m.innerChanges || []) {
 					// Don't show empty markers outside the line range
 					if (m.original.contains(i.originalRange.startLineNumber)) {
-						originalDecorations.push({ range: i.originalRange, options: i.originalRange.isEmpty() ? diffDeleteDecorationEmpty : diffDeleteDecoration });
+						originalDecorations.push({ range: moveRange(i.originalRange), options: i.originalRange.isEmpty() ? diffDeleteDecorationEmpty : diffDeleteDecoration });
 					}
 					if (m.modified.contains(i.modifiedRange.startLineNumber)) {
 						modifiedDecorations.push({ range: i.modifiedRange, options: i.modifiedRange.isEmpty() ? diffAddDecorationEmpty : diffAddDecoration });
@@ -239,7 +247,15 @@ class InlineEditSideBySideContentWidget extends Disposable implements IOverlayWi
 			}
 		}
 
-		return modifiedDecorations;
+		return { org: originalDecorations, mod: modifiedDecorations };
+	});
+
+	private readonly _originalDecorations = derived(this, reader => {
+		return this._decorations.read(reader).org;
+	});
+
+	private readonly _modifiedDecorations = derived(this, reader => {
+		return this._decorations.read(reader).mod;
 	});
 
 	constructor(
@@ -254,7 +270,8 @@ class InlineEditSideBySideContentWidget extends Disposable implements IOverlayWi
 
 		this._previewEditor.setModel(this._previewTextModel);
 
-		this._register(this._previewEditorObs.setDecorations(this._decorations));
+		this._register(this._editorObs.setDecorations(this._originalDecorations));
+		this._register(this._previewEditorObs.setDecorations(this._modifiedDecorations));
 
 		this._register(autorun(reader => {
 			const width = this._previewEditorObs.contentWidth.read(reader);
