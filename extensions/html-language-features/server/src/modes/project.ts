@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LanguageServer, LanguageServerProject } from '@volar/language-server';
-import { createLanguageServiceEnvironment, createUriConverter, getWorkspaceFolder } from '@volar/language-server/browser';
-import { createUriMap, LanguagePlugin, LanguageService } from '@volar/language-service';
+import { createLanguageServiceEnvironment, createUriConverter } from '@volar/language-server/browser';
+import { LanguagePlugin, LanguageService } from '@volar/language-service';
 import * as ts from 'typescript';
 import { URI, Utils } from 'vscode-uri';
 import { HTMLDocumentRegions } from './embeddedSupport';
 import { JQUERY_PATH } from './javascriptLibs';
-import { createTypeScriptLanguageService } from './typeScriptLanguageService';
+import { createTypeScriptLanguageService } from './languageService';
 
 export const compilerOptions: ts.CompilerOptions = {
 	allowNonTsExtensions: true,
@@ -24,10 +24,11 @@ export const compilerOptions: ts.CompilerOptions = {
 export function createHtmlProject(languagePlugins: LanguagePlugin<URI>[]): LanguageServerProject {
 	let server: LanguageServer;
 	let tsLocalized: any;
-	let projectVersion: string = '';
+	let projectVersion = '';
+	let currentDirectory = '';
+	let languageServicePromise: ReturnType<typeof createTypeScriptLanguageService> | undefined;
 
 	const { asFileName, asUri } = createUriConverter();
-	const inferredProjects = createUriMap<ReturnType<typeof createTypeScriptLanguageService>>();
 	const currentRootFiles: string[] = [];
 
 	return {
@@ -40,20 +41,36 @@ export function createHtmlProject(languagePlugins: LanguagePlugin<URI>[]): Langu
 			}
 		},
 		async getLanguageService(uri) {
-			const workspaceFolder = getWorkspaceFolder(uri, server.workspaceFolders);
-			const project = await getOrCreateInferredProject(server, workspaceFolder);
-			updateRootFiles(uri, project.languageService);
-			return project.languageService;
+			if (!languageServicePromise) {
+				languageServicePromise = (async () => {
+					const project = await createTypeScriptLanguageService(
+						ts,
+						tsLocalized,
+						compilerOptions,
+						server,
+						createLanguageServiceEnvironment(server, [...server.workspaceFolders.keys()]),
+						languagePlugins,
+						{ asUri, asFileName },
+						() => currentDirectory,
+						() => projectVersion,
+						() => currentRootFiles
+					);
+					return project;
+				})();
+			}
+			const { languageService } = (await languageServicePromise);
+			updateRootFiles(uri, languageService);
+			return languageService;
 		},
 		async getExistingLanguageServices() {
-			const projects = await Promise.all(inferredProjects.values());
-			return projects.map(project => project.languageService);
+			if (languageServicePromise) {
+				return [(await languageServicePromise).languageService];
+			}
+			return [];
 		},
 		reload() {
-			for (const project of inferredProjects.values()) {
-				project.then(p => p.dispose());
-			}
-			inferredProjects.clear();
+			languageServicePromise?.then(ls => ls.dispose());
+			languageServicePromise = undefined;
 		},
 	};
 
@@ -90,27 +107,5 @@ export function createHtmlProject(languagePlugins: LanguagePlugin<URI>[]): Langu
 				}
 			}
 		}
-	}
-
-	async function getOrCreateInferredProject(server: LanguageServer, workspaceFolder: URI) {
-		if (!inferredProjects.has(workspaceFolder)) {
-			inferredProjects.set(workspaceFolder, (async () => {
-				const serviceEnv = createLanguageServiceEnvironment(server, [workspaceFolder]);
-				const project = await createTypeScriptLanguageService(
-					ts,
-					tsLocalized,
-					compilerOptions,
-					server,
-					serviceEnv,
-					workspaceFolder,
-					languagePlugins,
-					{ asUri, asFileName },
-					() => projectVersion,
-					() => currentRootFiles
-				);
-				return project;
-			})());
-		}
-		return inferredProjects.get(workspaceFolder)!;
 	}
 }

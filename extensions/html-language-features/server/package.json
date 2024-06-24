@@ -11,7 +11,7 @@
   "dependencies": {
     "@volar/language-server": "~2.3.4",
     "@volar/language-service": "~2.3.4",
-    "@volar/typescript": "~2.3.4",
+    "@volar/typescript": "~2.3.5-alpha.0",
     "@vscode/l10n": "^0.0.18",
     "volar-service-css": "0.0.54",
     "volar-service-html": "0.0.54",

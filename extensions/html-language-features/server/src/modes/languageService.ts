@@ -18,7 +18,6 @@ export async function createTypeScriptLanguageService(
 	compilerOptions: ts.CompilerOptions,
 	server: LanguageServer,
 	serviceEnv: LanguageServiceEnvironment,
-	workspaceFolder: URI,
 	languagePlugins: LanguagePlugin<URI>[],
 	{
 		asUri,
@@ -27,17 +26,16 @@ export async function createTypeScriptLanguageService(
 		asUri(fileName: string): URI;
 		asFileName(uri: URI): string;
 	},
+	getCurrentDirectory: () => string,
 	getProjectVersion: () => string,
 	getScriptFileNames: () => string[]
 ) {
-	const sys = createSys(ts.sys, serviceEnv, workspaceFolder, {
+	const sys = createSys(ts.sys, serviceEnv, getCurrentDirectory, {
 		asFileName,
 		asUri,
 	});
 	const projectHost: TypeScriptProjectHost = {
-		getCurrentDirectory() {
-			return asFileName(workspaceFolder);
-		},
+		getCurrentDirectory,
 		getProjectVersion,
 		getScriptFileNames,
 		getScriptSnapshot(fileName) {
@@ -99,7 +97,7 @@ export async function createTypeScriptLanguageService(
 		}
 	);
 	language.typescript = {
-		configFileName: typeof compilerOptions === 'string' ? compilerOptions : undefined,
+		configFileName: undefined,
 		sys,
 		asScriptId: asUri,
 		asFileName: asFileName,
