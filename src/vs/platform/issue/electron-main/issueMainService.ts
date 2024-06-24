@@ -81,7 +81,9 @@ export class IssueMainService implements IIssueMainService {
 						arch: arch(),
 						release: release(),
 					},
-					product
+					product,
+					nlsMessages: globalThis._VSCODE_NLS_MESSAGES,
+					nlsLanguage: globalThis._VSCODE_NLS_LANGUAGE
 				});
 
 				this.issueReporterWindow.loadURL(

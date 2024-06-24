@@ -254,7 +254,7 @@ async function runTestsInBrowser(testModules, browserType) {
 			// english values removed and replaced by an index.
 			// VSCODE_GLOBALS: NLS
 			// @ts-ignore
-			globalThis._VSCODE_NLS = JSON.parse(value);
+			globalThis._VSCODE_NLS_MESSAGES = JSON.parse(value);
 		}, nlsMessages);
 	}
 

@@ -153,7 +153,9 @@ export class ProcessMainService implements IProcessMainService {
 					windowId: this.processExplorerWindow.id,
 					userEnv: this.userEnv,
 					data,
-					product
+					product,
+					nlsMessages: globalThis._VSCODE_NLS_MESSAGES,
+					nlsLanguage: globalThis._VSCODE_NLS_LANGUAGE
 				});
 
 				this.processExplorerWindow.loadURL(

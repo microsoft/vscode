@@ -82,11 +82,10 @@
 			developerDeveloperKeybindingsDisposable = registerDeveloperKeybindings(disallowReloadKeybinding);
 		}
 
-		// Get the nls configuration into the process.env as early as possible
-		// @ts-ignore
-		const nlsConfig = await globalThis.MonacoBootstrap.setupNLS();
-
-		let language = nlsConfig?.resolvedLanguage || 'en';
+		// NLS
+		globalThis._VSCODE_NLS_MESSAGES = configuration.nlsMessages;
+		globalThis._VSCODE_NLS_LANGUAGE = configuration.nlsLanguage;
+		let language = configuration.nlsLanguage || 'en';
 		if (language === 'zh-tw') {
 			language = 'zh-Hant';
 		} else if (language === 'zh-cn') {
@@ -97,10 +96,7 @@
 
 		window['MonacoEnvironment'] = {};
 
-		/**
-		 * @typedef {any} LoaderConfig
-		 */
-		/** @type {LoaderConfig} */
+		/** @type {any} */
 		const loaderConfig = {
 			baseUrl: `${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out`,
 			preferScriptTags: true

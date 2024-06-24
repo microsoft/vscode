@@ -175,7 +175,7 @@
 
 		try {
 			// VSCODE_GLOBALS: NLS
-			globalThis._VSCODE_NLS = JSON.parse(await safeReadNlsFile(messagesFile));
+			globalThis._VSCODE_NLS_MESSAGES = JSON.parse(await safeReadNlsFile(messagesFile));
 		} catch (error) {
 			console.error(`Error reading NLS messages file ${messagesFile}: ${error}`);
 
@@ -192,7 +192,7 @@
 			if (nlsConfig?.defaultMessagesFile) {
 				try {
 					// VSCODE_GLOBALS: NLS
-					globalThis._VSCODE_NLS = JSON.parse(await safeReadNlsFile(nlsConfig.defaultMessagesFile));
+					globalThis._VSCODE_NLS_MESSAGES = JSON.parse(await safeReadNlsFile(nlsConfig.defaultMessagesFile));
 				} catch (error) {
 					console.error(`Error reading default NLS messages file ${nlsConfig.defaultMessagesFile}: ${error}`);
 				}

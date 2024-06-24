@@ -100,7 +100,7 @@ export function nls(): NodeJS.ReadWriteStream {
 				contents: Buffer.from(`/*---------------------------------------------------------
  * Copyright (C) Microsoft Corporation. All rights reserved.
  *--------------------------------------------------------*/
-globalThis._VSCODE_NLS=${JSON.stringify(_nls.allNLSMessages)};`),
+globalThis._VSCODE_NLS_MESSAGES=${JSON.stringify(_nls.allNLSMessages)};`),
 				base,
 				path: `${base}/nls.messages.js`
 			})
