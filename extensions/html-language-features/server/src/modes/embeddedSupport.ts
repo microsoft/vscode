@@ -54,7 +54,7 @@ export function getDocumentRegions(languageService: LanguageService, text: strin
 				break;
 			case TokenType.AttributeValue:
 				let value = scanner.getTokenText();
-				if (value.startsWith('\'') && value.endsWith('\'') || value.startsWith('"') && value.endsWith('"')) {
+				if ((value.startsWith('\'') && value.endsWith('\'')) || (value.startsWith('"') && value.endsWith('"'))) {
 					value = value.slice(1, -1);
 				}
 				if (lastAttributeName === 'src' && lastTagName.toLowerCase() === 'script') {

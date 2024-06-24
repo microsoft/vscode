@@ -76,8 +76,17 @@ export function createHtmlProject(languagePlugins: LanguagePlugin<URI>[]): Langu
 			const regions = sourceScript.generated.root.documentRegions as HTMLDocumentRegions;
 			if (regions) {
 				for (const script of regions.getImportedScripts()) {
-					const scriptUri = Utils.resolvePath(Utils.dirname(uri), script);
-					currentRootFiles.push(asFileName(scriptUri));
+					if (script.startsWith('http://') || script.startsWith('https://') || script.startsWith('//')) {
+						continue;
+					}
+					else if (script.startsWith('file://')) {
+						const scriptUri = URI.parse(script);
+						currentRootFiles.push(asFileName(scriptUri));
+					}
+					else {
+						const scriptUri = Utils.resolvePath(Utils.dirname(uri), script);
+						currentRootFiles.push(asFileName(scriptUri));
+					}
 				}
 			}
 		}
