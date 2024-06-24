@@ -108,7 +108,7 @@ function getOutputViewModelFromId(outputId: string, notebookEditor: INotebookEdi
 
 export const OPEN_OUTPUT_COMMAND_ID = 'notebook.cellOutput.openInTextEditor';
 
-registerAction2(class CopyCellOutputAction extends Action2 {
+registerAction2(class OpenCellOutputInEditorAction extends Action2 {
 	constructor() {
 		super({
 			id: OPEN_OUTPUT_COMMAND_ID,
