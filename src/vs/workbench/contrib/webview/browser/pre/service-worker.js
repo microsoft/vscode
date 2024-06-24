@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 // @ts-check
 
-/// <reference no-default-lib="true"/>
 /// <reference lib="webworker" />
 
 const sw = /** @type {ServiceWorkerGlobalScope} */ (/** @type {any} */ (self));
