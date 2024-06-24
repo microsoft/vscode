@@ -1889,6 +1889,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			this._instantiationService
 		);
 
+		// Need to polish the following and send in for review
 		console.log('this._overflowWidgetsDomNode _createView : ', this._overflowWidgetsDomNode);
 		if (this._overflowWidgetsDomNode) {
 			const overflowWidgetsDomNode = this._overflowWidgetsDomNode;
