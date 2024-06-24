@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LanguageServer } from '@volar/language-server';
-import { LanguagePlugin, LanguageServiceEnvironment, createLanguage, createLanguageService, createUriMap } from '@volar/language-service';
+import { LanguagePlugin, LanguageService, LanguageServiceEnvironment, createLanguage, createLanguageService as _createLanguageService, createUriMap } from '@volar/language-service';
 import type { SnapshotDocument } from '@volar/snapshot-document';
 import { TypeScriptProjectHost, createLanguageServiceHost, createSys, resolveFileLanguageId } from '@volar/typescript';
 import type * as ts from 'typescript';
 import { URI } from 'vscode-uri';
 
-export async function createTypeScriptLanguageService(
+export function createLanguageService(
 	ts: typeof import('typescript'),
 	tsLocalized: ts.MapLike<string> | undefined,
 	compilerOptions: ts.CompilerOptions,
@@ -27,7 +27,7 @@ export async function createTypeScriptLanguageService(
 	getCurrentDirectory: () => string,
 	getProjectVersion: () => string,
 	getScriptFileNames: () => string[]
-) {
+): LanguageService {
 	const fsFileSnapshots = createUriMap<[number | undefined, ts.IScriptSnapshot | undefined]>();
 	const sys = createSys(ts.sys, serviceEnv, getCurrentDirectory, {
 		asFileName,
@@ -108,14 +108,14 @@ export async function createTypeScriptLanguageService(
 			projectHost
 		),
 	};
-	const languageService = createLanguageService(
+	const languageService = _createLanguageService(
 		language,
 		server.languageServicePlugins,
 		serviceEnv
 	);
 
 	return {
-		languageService,
+		...languageService,
 		dispose: () => {
 			sys.dispose();
 			languageService?.dispose();

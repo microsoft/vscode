@@ -50,6 +50,7 @@ const projectHost: TypeScriptProjectHost = {
 export const languageServicePlugins = getLanguageServicePlugins({
 	supportedLanguages: { css: true, javascript: true },
 	getCustomData: () => [],
+	onDidChangeCustomData: () => ({ dispose() { } }),
 });
 
 export async function getTestService({
