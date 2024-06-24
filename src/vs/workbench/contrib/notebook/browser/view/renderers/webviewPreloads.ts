@@ -449,7 +449,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 	const dimensionUpdater = new class {
 		private readonly pending = new Map<string, webviewMessages.DimensionUpdate>();
 
-		updateHeight(id: string, height: number, options: { init?: boolean; isOutput?: boolean; isEmptyOutput?: boolean }) {
+		updateHeight(id: string, height: number, options: { init?: boolean; isOutput?: boolean }) {
 			if (!this.pending.size) {
 				setTimeout(() => {
 					this.updateImmediately();
@@ -461,8 +461,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 					id,
 					height,
 					init: update.init,
-					isOutput: update.isOutput,
-					isEmptyOutput: options.isEmptyOutput
+					isOutput: update.isOutput
 				});
 			} else {
 				this.pending.set(id, {
@@ -525,8 +524,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 						(newHeight !== 0 && observedElementInfo.lastKnownPadding === 0) ||
 						(newHeight === 0 && observedElementInfo.lastKnownPadding !== 0);
 
-					// 2.1 px would be slightly larger than the top and bottom border of the output node
-					const isEmptyOutput = newHeight < 2.1;
 					if (shouldUpdatePadding) {
 						// Do not update dimension in resize observer
 						window.requestAnimationFrame(() => {
@@ -535,21 +532,20 @@ async function webviewPreloads(ctx: PreloadContext) {
 							} else {
 								entry.target.style.padding = `0px`;
 							}
-							this.updateHeight(observedElementInfo, entry.target.offsetHeight, isEmptyOutput);
+							this.updateHeight(observedElementInfo, entry.target.offsetHeight);
 						});
 					} else {
-						this.updateHeight(observedElementInfo, entry.target.offsetHeight, isEmptyOutput);
+						this.updateHeight(observedElementInfo, entry.target.offsetHeight);
 					}
 				}
 			});
 		}
 
-		private updateHeight(observedElementInfo: IObservedElement, offsetHeight: number, isEmptyOutput?: boolean) {
+		private updateHeight(observedElementInfo: IObservedElement, offsetHeight: number) {
 			if (observedElementInfo.lastKnownHeight !== offsetHeight) {
 				observedElementInfo.lastKnownHeight = offsetHeight;
 				dimensionUpdater.updateHeight(observedElementInfo.id, offsetHeight, {
-					isOutput: observedElementInfo.output,
-					isEmptyOutput
+					isOutput: observedElementInfo.output
 				});
 			}
 		}
@@ -2876,16 +2872,6 @@ async function webviewPreloads(ctx: PreloadContext) {
 			readonly preloadErrors: ReadonlyArray<Error | undefined>;
 		};
 		private hasResizeObserver = false;
-		private _hasContent = false;
-		get isEmptyOrWhitespace() {
-			if (this._hasContent || this.element.innerText.trim() !== '') {
-				this._hasContent = true;
-				return false;
-			}
-
-			return true;
-		}
-
 
 		private renderTaskAbort?: AbortController;
 
@@ -2958,17 +2944,16 @@ async function webviewPreloads(ctx: PreloadContext) {
 				// thus we need to ensure the padding is accounted when updating the init height of the output
 				dimensionUpdater.updateHeight(this.outputId, offsetHeight + ctx.style.outputNodePadding * 2, {
 					isOutput: true,
-					init: true,
-					isEmptyOutput: this.isEmptyOrWhitespace
+					init: true
 				});
 
 				this.element.style.padding = `${ctx.style.outputNodePadding}px ${ctx.style.outputNodePadding}px ${ctx.style.outputNodePadding}px ${ctx.style.outputNodeLeftPadding}`;
 			} else if (contentHeight !== 0) {
 				dimensionUpdater.updateHeight(this.outputId, this.element.offsetHeight, {
 					isOutput: true,
-					init: true,
-					isEmptyOutput: this.isEmptyOrWhitespace
+					init: true
 				});
+				this.element.style.padding = `0 ${ctx.style.outputNodePadding}px 0 ${ctx.style.outputNodeLeftPadding}`;
 			} else {
 				// we have a zero-height output DOM node
 				dimensionUpdater.updateHeight(this.outputId, 0, {
