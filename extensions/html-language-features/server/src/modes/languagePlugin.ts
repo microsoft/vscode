@@ -117,14 +117,18 @@ function createHtmlVirtualCode(snapshot: ts.IScriptSnapshot): VirtualCode & { do
 		else if (globalScripts.length >= 2) {
 			let text = '';
 			const mappings: CodeMapping[] = [];
-			for (const globalScript of globalScripts) {
+			for (let i = 0; i < globalScripts.length; i++) {
+				const globalScript = globalScripts[i];
 				mappings.push({
 					sourceOffsets: [globalScript.start],
 					generatedOffsets: [text.length + globalScript.generatedStart],
 					lengths: [globalScript.length],
 					data: { verification: true, completion: true, semantic: true, navigation: true },
 				});
-				text += globalScript.content + '\n;\n';
+				text += globalScript.content;
+				if (i < globalScripts.length - 1) {
+					text += '\n;\n';
+				}
 				indexMap['global_script'] ??= 0;
 				yield {
 					languageId: globalScript.languageId!,
@@ -149,7 +153,6 @@ function createHtmlVirtualCode(snapshot: ts.IScriptSnapshot): VirtualCode & { do
 				};
 				indexMap['global_script']++;
 			}
-			text = text.slice(0, -3); // remove last '\n;\n'
 			yield {
 				languageId: 'javascript',
 				id: 'global_script',
