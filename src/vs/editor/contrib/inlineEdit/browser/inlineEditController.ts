@@ -24,6 +24,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { derivedDisposable } from 'vs/base/common/observableInternal/derived';
 import { InlineEditSideBySideWidget } from 'vs/editor/contrib/inlineEdit/browser/inlineEditSideBySideWidget';
+import { IDiffProviderFactoryService } from 'vs/editor/browser/widget/diffEditor/diffProviderFactoryService';
+import { IModelService } from 'vs/editor/common/services/model';
 
 export class InlineEditController extends Disposable {
 	static ID = 'editor.contrib.inlineEditController';
@@ -76,6 +78,8 @@ export class InlineEditController extends Disposable {
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IDiffProviderFactoryService private readonly _diffProviderFactoryService: IDiffProviderFactoryService,
+		@IModelService private readonly _modelService: IModelService,
 	) {
 		super();
 
@@ -167,7 +171,7 @@ export class InlineEditController extends Disposable {
 		}));
 
 		this._register(new InlineEditHintsWidget(this.editor, this._currentWidget, this.instantiationService));
-		this._register(new InlineEditSideBySideWidget(this.editor, this._currentEdit, this.instantiationService));
+		this._register(new InlineEditSideBySideWidget(this.editor, this._currentEdit, this.instantiationService, this._diffProviderFactoryService, this._modelService));
 	}
 
 	private checkCursorPosition(position: Position) {
