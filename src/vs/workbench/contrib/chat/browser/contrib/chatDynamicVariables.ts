@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { coalesce } from 'vs/base/common/arrays';
+import { Emitter } from 'vs/base/common/event';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { basename } from 'vs/base/common/resources';
@@ -38,24 +39,30 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 		return ChatDynamicVariableModel.ID;
 	}
 
+	private _onDidChangeInputState = this._register(new Emitter<void>());
+	readonly onDidChangeInputState = this._onDidChangeInputState.event;
+
 	constructor(
 		private readonly widget: IChatWidget,
 		@ILabelService private readonly labelService: ILabelService,
-		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 		this._register(widget.inputEditor.onDidChangeModelContent(e => {
 			e.changes.forEach(c => {
 				// Don't mutate entries in _variables, since they will be returned from the getter
+				const originalNumVariables = this._variables.length;
 				this._variables = coalesce(this._variables.map(ref => {
 					const intersection = Range.intersectRanges(ref.range, c.range);
 					if (intersection && !intersection.isEmpty()) {
-						// The reference text was changed, it's broken
-						const rangeToDelete = new Range(ref.range.startLineNumber, ref.range.startColumn, ref.range.endLineNumber, ref.range.endColumn - 1);
-						this.widget.inputEditor.executeEdits(this.id, [{
-							range: rangeToDelete,
-							text: '',
-						}]);
+						// The reference text was changed, it's broken.
+						// But if the whole reference range was deleted (eg history navigation) then don't try to change the editor.
+						if (!Range.containsRange(c.range, ref.range)) {
+							const rangeToDelete = new Range(ref.range.startLineNumber, ref.range.startColumn, ref.range.endLineNumber, ref.range.endColumn - 1);
+							this.widget.inputEditor.executeEdits(this.id, [{
+								range: rangeToDelete,
+								text: '',
+							}]);
+						}
 						return null;
 					} else if (Range.compareRangesUsingStarts(ref.range, c.range) > 0) {
 						const delta = c.text.length - c.rangeLength;
@@ -72,6 +79,10 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 
 					return ref;
 				}));
+
+				if (this._variables.length !== originalNumVariables) {
+					this._onDidChangeInputState.fire();
+				}
 			});
 
 			this.updateDecorations();
@@ -84,9 +95,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 
 	setInputState(s: any): void {
 		if (!Array.isArray(s)) {
-			// Something went wrong
-			this.logService.warn('ChatDynamicVariableModel.setInputState called with invalid state: ' + JSON.stringify(s));
-			return;
+			s = [];
 		}
 
 		this._variables = s;
@@ -96,6 +105,7 @@ export class ChatDynamicVariableModel extends Disposable implements IChatWidgetC
 	addReference(ref: IDynamicVariable): void {
 		this._variables.push(ref);
 		this.updateDecorations();
+		this._onDidChangeInputState.fire();
 	}
 
 	private updateDecorations(): void {

@@ -31,7 +31,7 @@ import { mainWindow } from 'vs/base/browser/window';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { isBoolean, isNumber, isString } from 'vs/base/common/types';
 import { LayoutSettings } from 'vs/workbench/services/layout/browser/layoutService';
-import { AutoUpdateConfigurationKey } from 'vs/workbench/contrib/extensions/common/extensions';
+import { AutoRestartConfigurationKey, AutoUpdateConfigurationKey } from 'vs/workbench/contrib/extensions/common/extensions';
 import { KEYWORD_ACTIVIATION_SETTING_ID } from 'vs/workbench/contrib/chat/common/chatService';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
@@ -438,6 +438,15 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 					}>('window.systemColorTheme', { settingValue, source });
 					return;
 				}
+
+			case AutoRestartConfigurationKey:
+				this.telemetryService.publicLog2<UpdatedSettingEvent, {
+					owner: 'sandy081';
+					comment: 'This is used to know if extensions are getting auto restarted or not';
+					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
+					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
+				}>('window.systemColorTheme', { settingValue: this.getValueToReport(key, target), source });
+				return;
 		}
 	}
 

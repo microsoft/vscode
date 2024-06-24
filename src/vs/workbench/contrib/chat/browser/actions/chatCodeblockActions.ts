@@ -17,12 +17,14 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { CopyAction } from 'vs/editor/contrib/clipboard/browser/clipboard';
-import { localize2 } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
 import { accessibleViewInCodeBlock } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
@@ -182,7 +184,7 @@ export function registerChatCodeBlockActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.insertCodeBlock',
-				title: localize2('interactive.insertCodeBlock.label', "Insert at Cursor"),
+				title: localize2('interactive.insertCodeBlock.label', "Apply in Editor"),
 				precondition: CONTEXT_CHAT_ENABLED,
 				f1: true,
 				category: CHAT_CATEGORY,
@@ -267,6 +269,8 @@ export function registerChatCodeBlockActions() {
 
 			const bulkEditService = accessor.get(IBulkEditService);
 			const codeEditorService = accessor.get(ICodeEditorService);
+			const progressService = accessor.get(IProgressService);
+			const notificationService = accessor.get(INotificationService);
 
 			const mappedEditsProviders = accessor.get(ILanguageFeaturesService).mappedEditsProvider.ordered(activeModel);
 
@@ -275,7 +279,6 @@ export function registerChatCodeBlockActions() {
 			let mappedEdits: WorkspaceEdit | null = null;
 
 			if (mappedEditsProviders.length > 0) {
-				const mostRelevantProvider = mappedEditsProviders[0]; // TODO@ulugbekna: should we try all providers?
 
 				// 0th sub-array - editor selections array if there are any selections
 				// 1st sub-array - array with documents used to get the chat reply
@@ -304,14 +307,37 @@ export function registerChatCodeBlockActions() {
 
 				const cancellationTokenSource = new CancellationTokenSource();
 
-				mappedEdits = await mostRelevantProvider.provideMappedEdits(
-					activeModel,
-					[codeBlockActionContext.code],
-					{ documents: docRefs },
-					cancellationTokenSource.token);
+				try {
+					mappedEdits = await progressService.withProgress(
+						{ location: ProgressLocation.Notification, delay: 500, sticky: true, cancellable: true },
+						async progress => {
+							progress.report({ message: localize('applyCodeBlock.progress', "Applying code block...") });
+
+							for (const provider of mappedEditsProviders) {
+								const mappedEdits = await provider.provideMappedEdits(
+									activeModel,
+									[codeBlockActionContext.code],
+									{ documents: docRefs },
+									cancellationTokenSource.token
+								);
+								if (mappedEdits) {
+									return mappedEdits;
+								}
+							}
+							return null;
+						},
+						() => cancellationTokenSource.cancel()
+					);
+				} catch (e) {
+					notificationService.notify({ severity: Severity.Error, message: localize('applyCodeBlock.error', "Failed to apply code block: {0}", e.message) });
+				} finally {
+					cancellationTokenSource.dispose();
+				}
+
 			}
 
 			if (mappedEdits) {
+				console.log('Mapped edits:', mappedEdits);
 				await bulkEditService.apply(mappedEdits);
 			} else {
 				const activeSelection = codeEditor.getSelection() ?? new Range(activeModel.getLineCount(), 1, activeModel.getLineCount(), 1);
@@ -497,7 +523,7 @@ export function registerChatCodeBlockActions() {
 		const currentResponse = curCodeBlockInfo ?
 			curCodeBlockInfo.element :
 			(focusedResponse ?? widget.viewModel?.getItems().reverse().find((item): item is IChatResponseViewModel => isResponseVM(item)));
-		if (!currentResponse) {
+		if (!currentResponse || !isResponseVM(currentResponse)) {
 			return;
 		}
 
@@ -610,7 +636,8 @@ export function registerChatCodeCompareBlockActions() {
 				precondition: ContextKeyExpr.and(EditorContextKeys.hasChanges, CONTEXT_CHAT_EDIT_APPLIED.negate()),
 				menu: {
 					id: MenuId.ChatCompareBlock,
-					group: 'navigation'
+					group: 'navigation',
+					order: 1,
 				}
 			});
 		}
@@ -627,6 +654,30 @@ export function registerChatCodeCompareBlockActions() {
 				resource: context.edit.uri,
 				options: { revealIfVisible: true },
 			});
+		}
+	});
+
+	registerAction2(class DiscardEditsCompareBlockAction extends ChatCompareCodeBlockAction {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.discardCompareEdits',
+				title: localize2('interactive.compare.discard', "Discard Edits"),
+				f1: false,
+				category: CHAT_CATEGORY,
+				icon: Codicon.trash,
+				precondition: ContextKeyExpr.and(EditorContextKeys.hasChanges, CONTEXT_CHAT_EDIT_APPLIED.negate()),
+				menu: {
+					id: MenuId.ChatCompareBlock,
+					group: 'navigation',
+					order: 2,
+				}
+			});
+		}
+
+		async runWithContext(accessor: ServicesAccessor, context: ICodeCompareBlockActionContext): Promise<any> {
+			const instaService = accessor.get(IInstantiationService);
+			const editor = instaService.createInstance(DefaultChatTextEditor);
+			editor.discard(context.element, context.edit);
 		}
 	});
 }

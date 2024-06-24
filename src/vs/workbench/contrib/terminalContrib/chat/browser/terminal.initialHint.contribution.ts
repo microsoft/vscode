@@ -30,6 +30,8 @@ import 'vs/css!./media/terminalInitialHint';
 import { TerminalInitialHintSettingId } from 'vs/workbench/contrib/terminalContrib/chat/common/terminalInitialHintConfiguration';
 import { ChatAgentLocation, IChatAgent, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 
 const $ = dom.$;
 
@@ -202,8 +204,6 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 }
 registerTerminalContribution(TerminalInitialHintContribution.ID, TerminalInitialHintContribution, false);
 
-
-
 class TerminalInitialHintWidget extends Disposable {
 
 
@@ -221,7 +221,8 @@ class TerminalInitialHintWidget extends Disposable {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IProductService private readonly productService: IProductService,
 		@ITerminalService private readonly terminalService: ITerminalService,
-		@IStorageService private readonly _storageService: IStorageService
+		@IStorageService private readonly _storageService: IStorageService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) {
 		super();
 		this.toDispose.add(_instance.onDidFocus(() => {
@@ -335,8 +336,23 @@ class TerminalInitialHintWidget extends Disposable {
 				this.domNode = undefined;
 			}));
 
+			this.toDispose.add(dom.addDisposableListener(this.domNode, dom.EventType.CONTEXT_MENU, (e) => {
+				this.contextMenuService.showContextMenu({
+					getAnchor: () => { return new StandardMouseEvent(dom.getActiveWindow(), e); },
+					getActions: () => {
+						return [{
+							id: 'workench.action.disableTerminalInitialHint',
+							label: localize('disableInitialHint', "Disable Initial Hint"),
+							tooltip: localize('disableInitialHint', "Disable Initial Hint"),
+							enabled: true,
+							class: undefined,
+							run: () => this.configurationService.updateValue(TerminalInitialHintSettingId.Enabled, false)
+						}
+						];
+					}
+				});
+			}));
 		}
-
 		return this.domNode;
 	}
 

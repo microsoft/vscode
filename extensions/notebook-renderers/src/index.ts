@@ -462,7 +462,7 @@ export const activate: ActivationFunction<void> = (ctx) => {
 		border-color: var(--theme-input-focus-border-color);
 	}
 	#container div.output .scrollable {
-		overflow-y: scroll;
+		overflow-y: auto;
 		max-height: var(--notebook-cell-output-max-height);
 	}
 	#container div.output .scrollable.scrollbar-visible {

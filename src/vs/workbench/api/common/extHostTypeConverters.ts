@@ -53,6 +53,7 @@ import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/ed
 import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import type * as vscode from 'vscode';
 import * as types from './extHostTypes';
+import { IToolData } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
 
 export namespace Command {
 
@@ -2065,8 +2066,8 @@ export namespace TestCoverage {
 			statement: fromCoverageCount(coverage.statementCoverage),
 			branch: coverage.branchCoverage && fromCoverageCount(coverage.branchCoverage),
 			declaration: coverage.declarationCoverage && fromCoverageCount(coverage.declarationCoverage),
-			testId: coverage instanceof types.FileCoverage && coverage.testItem ?
-				TestId.fromExtHostTestItem(coverage.testItem, controllerId).toString() : undefined,
+			testIds: coverage instanceof types.FileCoverage && coverage.fromTests.length ?
+				coverage.fromTests.map(t => TestId.fromExtHostTestItem(t, controllerId).toString()) : undefined,
 		};
 	}
 }
@@ -2740,6 +2741,16 @@ export namespace DebugTreeItem {
 			canEdit: item.canEdit,
 			collapsibleState: (item.collapsibleState || DebugTreeItemCollapsibleState.None) as DebugTreeItemCollapsibleState,
 			contextValue: item.contextValue,
+		};
+	}
+}
+
+export namespace LanguageModelToolDescription {
+	export function to(item: IToolData): vscode.LanguageModelToolDescription {
+		return {
+			name: item.name,
+			description: item.description,
+			parametersSchema: item.parametersSchema,
 		};
 	}
 }
