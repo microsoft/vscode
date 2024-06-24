@@ -113,7 +113,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				})(),
 				additionalProperties:
 				{
-					type: 'string',
+					type: ['string', 'null'],
 					markdownDescription: localize('workbench.editor.label.template', "The template which should be rendered when the pattern matches. May include the variables ${dirname}, ${filename} and ${extname}."),
 					minLength: 1,
 					pattern: '.*[a-zA-Z0-9].*'

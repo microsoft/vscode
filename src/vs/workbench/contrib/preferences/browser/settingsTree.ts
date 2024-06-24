@@ -60,8 +60,8 @@ import { settingsMoreActionIcon } from 'vs/workbench/contrib/preferences/browser
 import { SettingsTarget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { ISettingOverrideClickEvent, SettingsTreeIndicatorsLabel, getIndicatorsLabelAriaLabel } from 'vs/workbench/contrib/preferences/browser/settingsEditorSettingIndicators';
 import { ITOCEntry } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
-import { ISettingsEditorViewState, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeNewExtensionsElement, SettingsTreeSettingElement, inspectSetting, settingKeyToDisplayFormat } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
-import { ExcludeSettingWidget, IListDataItem, IObjectDataItem, IObjectEnumOption, IObjectKeySuggester, IObjectValueSuggester, ISettingListChangeEvent, IncludeSettingWidget, ListSettingWidget, ObjectSettingCheckboxWidget, ObjectSettingDropdownWidget, ObjectValue } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
+import { ISettingsEditorViewState, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeNewExtensionsElement, SettingsTreeSettingElement, inspectSetting, objectSettingSupportsRemoveDefaultValue, settingKeyToDisplayFormat } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
+import { ExcludeSettingWidget, IIncludeExcludeDataItem, IListDataItem, IObjectDataItem, IObjectEnumOption, IObjectKeySuggester, IObjectValueSuggester, ISettingListChangeEvent, IncludeSettingWidget, ListSettingWidget, ObjectSettingCheckboxWidget, ObjectSettingDropdownWidget, ObjectValue, SettingListEvent } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
 import { LANGUAGE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU, compareTwoNullableNumbers } from 'vs/workbench/contrib/preferences/common/preferences';
 import { settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
 import { APPLY_ALL_PROFILES_SETTING, IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
@@ -74,14 +74,27 @@ import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 const $ = DOM.$;
 
-function getIncludeExcludeDisplayValue(element: SettingsTreeSettingElement): IListDataItem[] {
+function getIncludeExcludeDisplayValue(element: SettingsTreeSettingElement): IIncludeExcludeDataItem[] {
+	const elementDefaultValue: Record<string, unknown> = typeof element.defaultValue === 'object'
+		? element.defaultValue ?? {}
+		: {};
+
 	const data = element.isConfigured ?
-		{ ...element.defaultValue, ...element.scopeValue } :
-		element.defaultValue;
+		{ ...elementDefaultValue, ...element.scopeValue } :
+		elementDefaultValue;
 
 	return Object.keys(data)
 		.filter(key => !!data[key])
 		.map(key => {
+			const defaultValue = elementDefaultValue[key];
+
+			// Get source if it's a default value
+			let source: string | undefined;
+			if (defaultValue === data[key] && element.setting.type === 'object' && element.defaultValueSource instanceof Map) {
+				const defaultSource = element.defaultValueSource.get(key);
+				source = typeof defaultSource === 'string' ? defaultSource : defaultSource?.displayName;
+			}
+
 			const value = data[key];
 			const sibling = typeof value === 'boolean' ? undefined : value.when;
 			return {
@@ -90,7 +103,8 @@ function getIncludeExcludeDisplayValue(element: SettingsTreeSettingElement): ILi
 					data: key
 				},
 				sibling,
-				elementType: element.valueType
+				elementType: element.valueType,
+				source
 			};
 		});
 }
@@ -162,6 +176,14 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 
 	return Object.keys(data).map(key => {
 		const defaultValue = elementDefaultValue[key];
+
+		// Get source if it's a default value
+		let source: string | undefined;
+		if (defaultValue === data[key] && element.setting.type === 'object' && element.defaultValueSource instanceof Map) {
+			const defaultSource = element.defaultValueSource.get(key);
+			source = typeof defaultSource === 'string' ? defaultSource : defaultSource?.displayName;
+		}
+
 		if (isDefined(objectProperties) && key in objectProperties) {
 			if (element.setting.allKeysAreBoolean) {
 				return {
@@ -174,7 +196,9 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 						data: data[key]
 					},
 					keyDescription: objectProperties[key].description,
-					removable: false
+					removable: false,
+					resetable: true,
+					source
 				} as IObjectDataItem;
 			}
 
@@ -192,12 +216,15 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 				},
 				keyDescription: objectProperties[key].description,
 				removable: isUndefinedOrNull(defaultValue),
+				resetable: !isUndefinedOrNull(defaultValue),
+				source
 			} as IObjectDataItem;
 		}
 
-		// The row is removable if it doesn't have a default value assigned.
-		// Otherwise, it is not removable, but its value can be reset to the default.
-		const removable = !defaultValue;
+		// The row is removable if it doesn't have a default value assigned or the setting supports removing the default value.
+		// If a default value is assigned and the user modified the default, it can be reset back to the default.
+		const removable = defaultValue === undefined || objectSettingSupportsRemoveDefaultValue(element.setting.key);
+		const resetable = defaultValue && defaultValue !== data[key];
 		const schema = patternsAndSchemas.find(({ pattern }) => pattern.test(key))?.schema;
 		if (schema) {
 			const valueEnumOptions = getEnumOptionsFromSchema(schema);
@@ -210,6 +237,8 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 				},
 				keyDescription: schema.description,
 				removable,
+				resetable,
+				source
 			} as IObjectDataItem;
 		}
 
@@ -228,6 +257,8 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 			},
 			keyDescription: typeof objectAdditionalProperties === 'object' ? objectAdditionalProperties.description : undefined,
 			removable,
+			resetable,
+			source
 		} as IObjectDataItem;
 	}).filter(item => !isUndefinedOrNull(item.value.data));
 }
@@ -629,12 +660,12 @@ interface ISettingComplexItemTemplate extends ISettingItemTemplate<void> {
 }
 
 interface ISettingListItemTemplate extends ISettingItemTemplate<string[] | undefined> {
-	listWidget: ListSettingWidget;
+	listWidget: ListSettingWidget<IListDataItem>;
 	validationErrorMessageElement: HTMLElement;
 }
 
 interface ISettingIncludeExcludeItemTemplate extends ISettingItemTemplate<void> {
-	includeExcludeWidget: ListSettingWidget;
+	includeExcludeWidget: ListSettingWidget<IIncludeExcludeDataItem>;
 }
 
 interface ISettingObjectItemTemplate extends ISettingItemTemplate<Record<string, unknown> | undefined> {
@@ -1174,7 +1205,7 @@ class SettingArrayRenderer extends AbstractSettingRenderer implements ITreeRende
 		return template;
 	}
 
-	private computeNewList(template: ISettingListItemTemplate, e: ISettingListChangeEvent<IListDataItem>): string[] | undefined {
+	private computeNewList(template: ISettingListItemTemplate, e: SettingListEvent<IListDataItem>): string[] | undefined {
 		if (template.context) {
 			let newValue: string[] = [];
 			if (Array.isArray(template.context.scopeValue)) {
@@ -1183,33 +1214,28 @@ class SettingArrayRenderer extends AbstractSettingRenderer implements ITreeRende
 				newValue = [...template.context.value];
 			}
 
-			if (e.sourceIndex !== undefined) {
+			if (e.type === 'move') {
 				// A drag and drop occurred
 				const sourceIndex = e.sourceIndex;
-				const targetIndex = e.targetIndex!;
+				const targetIndex = e.targetIndex;
 				const splicedElem = newValue.splice(sourceIndex, 1)[0];
 				newValue.splice(targetIndex, 0, splicedElem);
-			} else if (e.targetIndex !== undefined) {
-				const itemValueData = e.item?.value.data.toString() ?? '';
-				// Delete value
-				if (!e.item?.value.data && e.originalItem.value.data && e.targetIndex > -1) {
-					newValue.splice(e.targetIndex, 1);
-				}
+			} else if (e.type === 'remove' || e.type === 'reset') {
+				newValue.splice(e.targetIndex, 1);
+			} else if (e.type === 'change') {
+				const itemValueData = e.newItem.value.data.toString();
+
 				// Update value
-				else if (e.item?.value.data && e.originalItem.value.data) {
-					if (e.targetIndex > -1) {
-						newValue[e.targetIndex] = itemValueData;
-					}
-					// For some reason, we are updating and cannot find original value
-					// Just append the value in this case
-					else {
-						newValue.push(itemValueData);
-					}
+				if (e.targetIndex > -1) {
+					newValue[e.targetIndex] = itemValueData;
 				}
-				// Add value
-				else if (e.item?.value.data && !e.originalItem.value.data && e.targetIndex >= newValue.length) {
+				// For some reason, we are updating and cannot find original value
+				// Just append the value in this case
+				else {
 					newValue.push(itemValueData);
 				}
+			} else if (e.type === 'add') {
+				newValue.push(e.newItem.value.data.toString());
 			}
 
 			if (
@@ -1288,9 +1314,10 @@ abstract class AbstractSettingObjectRenderer extends AbstractSettingRenderer imp
 		return template;
 	}
 
-	protected onDidChangeObject(template: ISettingObjectItemTemplate, e: ISettingListChangeEvent<IObjectDataItem>): void {
+	protected onDidChangeObject(template: ISettingObjectItemTemplate, e: SettingListEvent<IObjectDataItem>): void {
 		const widget = (template.objectCheckboxWidget ?? template.objectDropdownWidget)!;
 		if (template.context) {
+			const settingSupportsRemoveDefault = objectSettingSupportsRemoveDefaultValue(template.context.setting.key);
 			const defaultValue: Record<string, unknown> = typeof template.context.defaultValue === 'object'
 				? template.context.defaultValue ?? {}
 				: {};
@@ -1299,45 +1326,55 @@ abstract class AbstractSettingObjectRenderer extends AbstractSettingRenderer imp
 				? template.context.scopeValue ?? {}
 				: {};
 
-			const newValue: Record<string, unknown> = {};
+			const newValue: Record<string, unknown> = { ...template.context.scopeValue }; // Initialize with scoped values as removed default values are not rendered
 			const newItems: IObjectDataItem[] = [];
 
 			widget.items.forEach((item, idx) => {
 				// Item was updated
-				if (isDefined(e.item) && e.targetIndex === idx) {
-					newValue[e.item.key.data] = e.item.value.data;
-					newItems.push(e.item);
+				if ((e.type === 'change' || e.type === 'move') && e.targetIndex === idx) {
+					// If the key of the default value is changed, remove the default value
+					if (e.originalItem.key.data !== e.newItem.key.data && settingSupportsRemoveDefault && e.originalItem.key.data in defaultValue) {
+						newValue[e.originalItem.key.data] = null;
+					}
+					newValue[e.newItem.key.data] = e.newItem.value.data;
+					newItems.push(e.newItem);
 				}
 				// All remaining items, but skip the one that we just updated
-				else if (isUndefinedOrNull(e.item) || e.item.key.data !== item.key.data) {
+				else if ((e.type !== 'change' && e.type !== 'move') || e.newItem.key.data !== item.key.data) {
 					newValue[item.key.data] = item.value.data;
 					newItems.push(item);
 				}
 			});
 
 			// Item was deleted
-			if (isUndefinedOrNull(e.item)) {
-				delete newValue[e.originalItem.key.data];
+			if (e.type === 'remove' || e.type === 'reset') {
+				const objectKey = e.originalItem.key.data;
+				const removingDefaultValue = e.type === 'remove' && settingSupportsRemoveDefault && defaultValue[objectKey] === e.originalItem.value.data;
+				if (removingDefaultValue) {
+					newValue[objectKey] = null;
+				} else {
+					delete newValue[objectKey];
+				}
 
-				const itemToDelete = newItems.findIndex(item => item.key.data === e.originalItem.key.data);
-				const defaultItemValue = defaultValue[e.originalItem.key.data] as string | boolean;
+				const itemToDelete = newItems.findIndex(item => item.key.data === objectKey);
+				const defaultItemValue = defaultValue[objectKey] as string | boolean;
 
-				// Item does not have a default
-				if (isUndefinedOrNull(defaultValue[e.originalItem.key.data]) && itemToDelete > -1) {
+				// Item does not have a default or default is bing removed
+				if (removingDefaultValue || isUndefinedOrNull(defaultValue[objectKey]) && itemToDelete > -1) {
 					newItems.splice(itemToDelete, 1);
-				} else if (itemToDelete > -1) {
+				} else if (!removingDefaultValue && itemToDelete > -1) {
 					newItems[itemToDelete].value.data = defaultItemValue;
 				}
 			}
 			// New item was added
-			else if (widget.isItemNew(e.originalItem) && e.item.key.data !== '') {
-				newValue[e.item.key.data] = e.item.value.data;
-				newItems.push(e.item);
+			else if (e.type === 'add') {
+				newValue[e.newItem.key.data] = e.newItem.value.data;
+				newItems.push(e.newItem);
 			}
 
 			Object.entries(newValue).forEach(([key, value]) => {
 				// value from the scope has changed back to the default
-				if (scopeValue[key] !== value && defaultValue[key] === value) {
+				if (scopeValue[key] !== value && defaultValue[key] === value && !(settingSupportsRemoveDefault && value === null)) {
 					delete newValue[key];
 				}
 			});
@@ -1462,25 +1499,27 @@ abstract class SettingIncludeExcludeRenderer extends AbstractSettingRenderer imp
 		return template;
 	}
 
-	private onDidChangeIncludeExclude(template: ISettingIncludeExcludeItemTemplate, e: ISettingListChangeEvent<IListDataItem>): void {
+	private onDidChangeIncludeExclude(template: ISettingIncludeExcludeItemTemplate, e: SettingListEvent<IListDataItem>): void {
 		if (template.context) {
 			const newValue = { ...template.context.scopeValue };
 
 			// first delete the existing entry, if present
-			if (e.originalItem.value.data.toString() in template.context.defaultValue) {
-				// delete a default by overriding it
-				newValue[e.originalItem.value.data.toString()] = false;
-			} else {
-				delete newValue[e.originalItem.value.data.toString()];
+			if (e.type !== 'add') {
+				if (e.originalItem.value.data.toString() in template.context.defaultValue) {
+					// delete a default by overriding it
+					newValue[e.originalItem.value.data.toString()] = false;
+				} else {
+					delete newValue[e.originalItem.value.data.toString()];
+				}
 			}
 
 			// then add the new or updated entry, if present
-			if (e.item?.value) {
-				if (e.item.value.data.toString() in template.context.defaultValue && !e.item.sibling) {
+			if (e.type === 'change' || e.type === 'add' || e.type === 'move') {
+				if (e.newItem.value.data.toString() in template.context.defaultValue && !e.newItem.sibling) {
 					// add a default by deleting its override
-					delete newValue[e.item.value.data.toString()];
+					delete newValue[e.newItem.value.data.toString()];
 				} else {
-					newValue[e.item.value.data.toString()] = e.item.sibling ? { when: e.item.sibling } : true;
+					newValue[e.newItem.value.data.toString()] = e.newItem.sibling ? { when: e.newItem.sibling } : true;
 				}
 			}
 
