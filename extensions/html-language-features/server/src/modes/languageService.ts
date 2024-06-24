@@ -4,53 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LanguageServer } from '@volar/language-server';
-import { LanguagePlugin, LanguageService, LanguageServiceEnvironment, createLanguage, createLanguageService as _createLanguageService, createUriMap } from '@volar/language-service';
+import { createLanguageServiceEnvironment } from '@volar/language-server/browser';
+import { LanguagePlugin, LanguageService, createLanguageService as _createLanguageService, createLanguage, createUriMap } from '@volar/language-service';
 import type { SnapshotDocument } from '@volar/snapshot-document';
 import { TypeScriptProjectHost, createLanguageServiceHost, createSys, resolveFileLanguageId } from '@volar/typescript';
-import type * as ts from 'typescript';
+import * as ts from 'typescript';
 import { URI } from 'vscode-uri';
 
 export function createLanguageService(
-	ts: typeof import('typescript'),
-	tsLocalized: ts.MapLike<string> | undefined,
-	compilerOptions: ts.CompilerOptions,
 	server: LanguageServer,
-	serviceEnv: LanguageServiceEnvironment,
 	languagePlugins: LanguagePlugin<URI>[],
-	{
-		asUri,
-		asFileName,
-	}: {
+	projectHost: TypeScriptProjectHost,
+	{ asUri, asFileName }: {
 		asUri(fileName: string): URI;
 		asFileName(uri: URI): string;
 	},
-	getCurrentDirectory: () => string,
-	getProjectVersion: () => string,
-	getScriptFileNames: () => string[]
 ): LanguageService {
 	const fsFileSnapshots = createUriMap<[number | undefined, ts.IScriptSnapshot | undefined]>();
-	const sys = createSys(ts.sys, serviceEnv, getCurrentDirectory, {
+	const serviceEnv = createLanguageServiceEnvironment(server, [...server.workspaceFolders.keys()])
+	const sys = createSys(ts.sys, serviceEnv, projectHost.getCurrentDirectory, {
 		asFileName,
 		asUri,
 	});
-	const projectHost: TypeScriptProjectHost = {
-		getCurrentDirectory,
-		getProjectVersion,
-		getScriptFileNames,
-		getScriptSnapshot(fileName) {
-			const uri = asUri(fileName);
-			const documentKey = server.getSyncedDocumentKey(uri) ?? uri.toString();
-			const document = server.documents.get(documentKey);
-			if (document) {
-				return document.getSnapshot();
-			}
-			return undefined;
-		},
-		getCompilationSettings() {
-			return compilerOptions;
-		},
-		getLocalizedDiagnosticMessages: tsLocalized ? () => tsLocalized : undefined,
-	};
 	const docOpenWatcher = server.documents.onDidOpen(({ document }) => updateFsCacheFromSyncedDocument(document));
 	const docSaveWatcher = server.documents.onDidSave(({ document }) => updateFsCacheFromSyncedDocument(document));
 	const language = createLanguage<URI>(

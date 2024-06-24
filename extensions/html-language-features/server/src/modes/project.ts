@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LanguageServer, LanguageServerProject } from '@volar/language-server';
-import { createLanguageServiceEnvironment, createUriConverter } from '@volar/language-server/browser';
+import { createUriConverter } from '@volar/language-server/browser';
 import { LanguagePlugin, LanguageService } from '@volar/language-service';
+import { TypeScriptProjectHost } from '@volar/typescript';
 import * as ts from 'typescript';
 import { URI, Utils } from 'vscode-uri';
 import { JQUERY_PATH } from './javascriptLibs';
@@ -23,10 +24,10 @@ export const compilerOptions: ts.CompilerOptions = {
 
 export function createHtmlProject(languagePlugins: LanguagePlugin<URI>[]): LanguageServerProject {
 	let server: LanguageServer;
-	let tsLocalized: any;
+	let languageService: LanguageService | undefined;
 	let projectVersion = '';
 	let currentDirectory = '';
-	let languageService: LanguageService | undefined;
+	let tsLocalized: any;
 
 	const { asFileName, asUri } = createUriConverter();
 	const currentRootFiles: string[] = [];
@@ -41,26 +42,42 @@ export function createHtmlProject(languagePlugins: LanguagePlugin<URI>[]): Langu
 			}
 		},
 		async getLanguageService(uri) {
-			languageService ??= createLanguageService(
-				ts,
-				tsLocalized,
-				compilerOptions,
-				server,
-				createLanguageServiceEnvironment(server, [...server.workspaceFolders.keys()]),
-				languagePlugins,
-				{ asUri, asFileName },
-				() => currentDirectory,
-				() => projectVersion,
-				() => currentRootFiles
-			);
+			if (!languageService) {
+				languageService = createLanguageService(
+					server,
+					languagePlugins,
+					{
+						getCurrentDirectory() {
+							return currentDirectory;
+						},
+						getProjectVersion() {
+							return projectVersion;
+						},
+						getScriptFileNames() {
+							return currentRootFiles;
+						},
+						getScriptSnapshot(fileName) {
+							const uri = asUri(fileName);
+							const documentKey = server.getSyncedDocumentKey(uri) ?? uri.toString();
+							const document = server.documents.get(documentKey);
+							if (document) {
+								return document.getSnapshot();
+							}
+							return undefined;
+						},
+						getCompilationSettings() {
+							return compilerOptions;
+						},
+						getLocalizedDiagnosticMessages: tsLocalized ? () => tsLocalized : undefined,
+					},
+					{ asUri, asFileName }
+				);
+			}
 			updateRootFiles(uri, languageService);
 			return languageService;
 		},
 		async getExistingLanguageServices() {
-			if (languageService) {
-				return [(await languageService)];
-			}
-			return [];
+			return languageService ? [languageService] : [];
 		},
 		reload() {
 			languageService?.dispose();
