@@ -499,7 +499,7 @@ export class CodeActionParticipantUtils {
 		};
 
 		for (const codeActionKind of codeActionsOnSave) {
-			const actionsToRun = await this.getActionsToRun(model, codeActionKind, excludes, languageFeaturesService, getActionProgress, token);
+			const actionsToRun = await CodeActionParticipantUtils.getActionsToRun(model, codeActionKind, excludes, languageFeaturesService, getActionProgress, token);
 			if (token.isCancellationRequested) {
 				actionsToRun.dispose();
 				return;
