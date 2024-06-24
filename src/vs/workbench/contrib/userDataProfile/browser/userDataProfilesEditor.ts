@@ -49,7 +49,7 @@ import { basename } from 'vs/base/common/resources';
 import { RenderIndentGuides } from 'vs/base/browser/ui/tree/abstractTree';
 import { DEFAULT_LABELS_CONTAINER, IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { AbstractUserDataProfileElement, isProfileResourceChildElement, isProfileResourceTypeElement, IProfileChildElement, IProfileResourceTypeChildElement, IProfileResourceTypeElement, NewProfileElement, UserDataProfileElement, UserDataProfilesEditorModel } from 'vs/workbench/contrib/userDataProfile/browser/userDataProfilesEditorModel';
 import { Codicon } from 'vs/base/common/codicons';
@@ -77,7 +77,6 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 		@IStorageService storageService: IStorageService,
 		@IUserDataProfileManagementService private readonly userDataProfileManagementService: IUserDataProfileManagementService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IDialogService private readonly dialogService: IDialogService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -293,19 +292,7 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 	}
 
 	private async createNewProfile(copyFrom?: URI | IUserDataProfile): Promise<void> {
-		if (this.model?.profiles.some(p => p instanceof NewProfileElement)) {
-			const result = await this.dialogService.confirm({
-				type: 'info',
-				message: localize('new profile exists', "A new profile is already being created. Do you want to discard it and create a new one?"),
-				primaryButton: localize('discard', "Discard & Create"),
-				cancelButton: localize('cancel', "Cancel")
-			});
-			if (!result.confirmed) {
-				return;
-			}
-			this.model.revert();
-		}
-		this.model?.createNewProfile(copyFrom);
+		await this.model?.createNewProfile(copyFrom);
 	}
 
 	private async getProfileUriFromFileSystem(): Promise<URI | null> {

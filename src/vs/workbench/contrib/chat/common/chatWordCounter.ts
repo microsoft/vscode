@@ -5,7 +5,8 @@
 
 export interface IWordCountResult {
 	value: string;
-	actualWordCount: number;
+	returnedWordCount: number;
+	totalWordCount: number;
 	isFullString: boolean;
 }
 
@@ -22,12 +23,13 @@ export function getNWords(str: string, numWordsToCount: number): IWordCountResul
 	const value = str.substring(0, endIndex);
 	return {
 		value,
-		actualWordCount: targetWords.length === 0 ? (value.length ? 1 : 0) : targetWords.length,
-		isFullString: endIndex >= str.length
+		returnedWordCount: targetWords.length === 0 ? (value.length ? 1 : 0) : targetWords.length,
+		isFullString: endIndex >= str.length,
+		totalWordCount: allWordMatches.length
 	};
 }
 
 export function countWords(str: string): number {
 	const result = getNWords(str, Number.MAX_SAFE_INTEGER);
-	return result.actualWordCount;
+	return result.returnedWordCount;
 }

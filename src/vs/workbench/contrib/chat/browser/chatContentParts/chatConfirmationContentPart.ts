@@ -4,28 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ChatTreeItem } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatConfirmationWidget } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatConfirmationWidget';
+import { IChatContentPart, IChatContentPartRenderContext } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatContentParts';
+import { IChatProgressRenderableResponseContent } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatConfirmation, IChatSendRequestOptions, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 
-export class ChatConfirmationContentPart extends Disposable {
-	public readonly element: HTMLElement;
+export class ChatConfirmationContentPart extends Disposable implements IChatContentPart {
+	public readonly domNode: HTMLElement;
 
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
 	constructor(
 		confirmation: IChatConfirmation,
-		element: ChatTreeItem,
+		context: IChatContentPartRenderContext,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatService private readonly chatService: IChatService,
 	) {
 		super();
 
+		const element = context.element;
 		const confirmationWidget = this._register(this.instantiationService.createInstance(ChatConfirmationWidget, confirmation.title, confirmation.message, [
 			{ label: localize('accept', "Accept"), data: confirmation.data },
 			{ label: localize('dismiss', "Dismiss"), data: confirmation.data, isSecondary: true },
@@ -48,6 +50,15 @@ export class ChatConfirmationContentPart extends Disposable {
 			}
 		}));
 
-		this.element = confirmationWidget.domNode;
+		this.domNode = confirmationWidget.domNode;
+	}
+
+	hasSameContent(other: IChatProgressRenderableResponseContent): boolean {
+		// No other change allowed for this content type
+		return other.kind === 'confirmation';
+	}
+
+	addDisposable(disposable: IDisposable): void {
+		this._register(disposable);
 	}
 }
