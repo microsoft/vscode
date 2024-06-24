@@ -244,6 +244,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	private _dropIntoEditorDecorations: EditorDecorationsCollection = this.createDecorationsCollection();
 
+	private _mouseInsideOfOverflowWidgetsDomNode: boolean = false;
+
 	constructor(
 		domElement: HTMLElement,
 		_options: Readonly<IEditorConstructionOptions>,
@@ -1852,41 +1854,30 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		viewUserInputEvents.onContextMenu = (e) => this._onContextMenu.fire(e);
 		viewUserInputEvents.onMouseMove = (e) => {
 			console.log('viewUserInputEvents onMouseMove : ', e);
-			this._onMouseMove.fire(e);
+			console.log('onMouseMove this._mouseInsideOfOverflowWidgetsDomNode : ', this._mouseInsideOfOverflowWidgetsDomNode);
+			if (!this._mouseInsideOfOverflowWidgetsDomNode) {
+				console.log('firing _onMouseMove');
+				this._onMouseMove.fire(e);
+			}
 		};
-		viewUserInputEvents.onMouseLeave = (e) => this._onMouseLeave.fire(e);
+		viewUserInputEvents.onMouseLeave = (e) => {
+			console.log('viewUserInputEvents onMouseLeave : ', e);
+			console.log('before setTimetout of onMouseLeave');
+			setTimeout(() => {
+				console.log('after setTimetout of onMouseLeave');
+				console.log('this._mouseInsideOfOverflowWidgetsDomNode : ', this._mouseInsideOfOverflowWidgetsDomNode);
+				if (!this._mouseInsideOfOverflowWidgetsDomNode) {
+					console.log('firing _onMouseLeave');
+					this._onMouseLeave.fire(e);
+				}
+			}, 100);
+		};
 		viewUserInputEvents.onMouseDown = (e) => this._onMouseDown.fire(e);
 		viewUserInputEvents.onMouseUp = (e) => this._onMouseUp.fire(e);
 		viewUserInputEvents.onMouseDrag = (e) => this._onMouseDrag.fire(e);
 		viewUserInputEvents.onMouseDrop = (e) => this._onMouseDrop.fire(e);
 		viewUserInputEvents.onMouseDropCanceled = (e) => this._onMouseDropCanceled.fire(e);
 		viewUserInputEvents.onMouseWheel = (e) => this._onMouseWheel.fire(e);
-
-		console.log('this._overflowWidgetsDomNode _createView : ', this._overflowWidgetsDomNode);
-		if (this._overflowWidgetsDomNode) {
-			const overflowWidgetsDomNode = this._overflowWidgetsDomNode;
-			// should add disposable listener on the children elements of this I suppose
-			const children = overflowWidgetsDomNode.children;
-			console.log('children : ', children);
-			for (const child of children) {
-				console.log('child : ', child);
-				// Need to listen to when the html elements are added into the overflow widgets dom node
-				dom.addDisposableListener(child, 'mousemove', (e) => {
-					const event = new EditorMouseEvent(e, false, child as HTMLElement);
-					const target: IMouseTarget = {
-						type: MouseTargetType.CONTENT_WIDGET,
-						position: null,
-						range: null,
-						detail: ContentHoverWidget.ID, // Needs to be found in another manner, how to set the detail?
-						element: child as HTMLElement,
-						mouseColumn: 0
-					};
-					const mouseEvent: IEditorMouseEvent = { event, target };
-					console.log('overflowWidgetsDomNode mouseEvent : ', mouseEvent);
-					this._onMouseMove.fire(mouseEvent);
-				});
-			}
-		}
 
 		const view = new View(
 			commandDelegate,
@@ -1897,6 +1888,38 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			this._overflowWidgetsDomNode,
 			this._instantiationService
 		);
+
+		console.log('this._overflowWidgetsDomNode _createView : ', this._overflowWidgetsDomNode);
+		if (this._overflowWidgetsDomNode) {
+			const overflowWidgetsDomNode = this._overflowWidgetsDomNode;
+			// should add disposable listener on the children elements of this I suppose
+			const children = overflowWidgetsDomNode.children;
+			console.log('children : ', children);
+			for (const child of children) {
+				console.log('child : ', child);
+				// Need to listen to when the html elements are added into the overflow widgets dom node
+				dom.addDisposableListener(child, 'mouseout', (e) => {
+					e.stopPropagation();
+					this._mouseInsideOfOverflowWidgetsDomNode = false;
+				});
+				dom.addDisposableListener(child, 'mousemove', (e) => {
+					e.stopPropagation();
+					const event = new EditorMouseEvent(e, false, child as HTMLElement);
+					const target: IMouseTarget = {
+						type: MouseTargetType.CONTENT_WIDGET,
+						position: null,
+						range: null,
+						detail: ContentHoverWidget.ID, // Needs to be found in another manner, how to set the detail?
+						element: child as HTMLElement,
+						mouseColumn: 0
+					};
+					const mouseEvent: IEditorMouseEvent = { event, target };
+					this._mouseInsideOfOverflowWidgetsDomNode = true;
+					console.log('overflowWidgetsDomNode mouseEvent : ', mouseEvent);
+					this._onMouseMove.fire(mouseEvent);
+				});
+			}
+		}
 
 		return [view, true];
 	}
