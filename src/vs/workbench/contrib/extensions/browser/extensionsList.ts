@@ -194,7 +194,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		data.extensionDisposables = dispose(data.extensionDisposables);
 
 		const updateEnablement = () => {
-			const disabled = extension.local && !this.extensionEnablementService.isEnabled(extension.local);
+			const disabled = extension.state === ExtensionState.Installed && extension.local && !this.extensionEnablementService.isEnabled(extension.local);
 			const deprecated = !!extension.deprecationInfo;
 			data.element.classList.toggle('deprecated', deprecated);
 			data.root.classList.toggle('disabled', disabled);
