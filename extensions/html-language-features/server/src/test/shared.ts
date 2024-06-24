@@ -57,13 +57,13 @@ export async function getTestService({
 	uri = 'test://test/test.html',
 	languageId = 'html',
 	content,
-	workspaceFolder = uri.substr(0, uri.lastIndexOf('/')),
+	workspaceFolders = [uri.substr(0, uri.lastIndexOf('/'))],
 	clientCapabilities,
 }: {
 	uri?: string;
 	languageId?: string;
 	content: string;
-	workspaceFolder?: string;
+	workspaceFolders?: string[];
 	clientCapabilities?: ClientCapabilities;
 }) {
 	const parsedUri = URI.parse(uri);
@@ -73,7 +73,7 @@ export async function getTestService({
 		TextDocument.create(uri, languageId, (currentDocument?.[2].version ?? 0) + 1, content),
 		ts.ScriptSnapshot.fromString(content),
 	];
-	serviceEnv.workspaceFolders = [URI.parse(workspaceFolder)];
+	serviceEnv.workspaceFolders = workspaceFolders.map(folder => URI.parse(folder));
 	serviceEnv.clientCapabilities = clientCapabilities;
 	if (!languageService) {
 		const language = createLanguage(
