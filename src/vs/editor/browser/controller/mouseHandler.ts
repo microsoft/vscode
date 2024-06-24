@@ -261,6 +261,8 @@ export class MouseHandler extends ViewEventHandler {
 		});
 	}
 
+	// Do we need the followig logic in the mouse move event of the overflow widgets dom node
+	// MouseHandler here
 	protected _onMouseMove(e: EditorMouseEvent): void {
 		const targetIsWidget = this.mouseTargetFactory.mouseTargetIsWidget(e);
 		if (!targetIsWidget) {

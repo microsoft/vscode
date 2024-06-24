@@ -116,10 +116,10 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 			console.log('anchor : ', anchor);
 			if (anchor) {
 				this._startHoverOperationIfNecessary(anchor, mode, source, focus, false);
-				console.log('return 1');
+				console.log('_startShowingOrUpdateHover return 1');
 				return true;
 			}
-			console.log('return 2');
+			console.log('_startShowingOrUpdateHover return 2');
 			return false;
 		}
 		const isHoverSticky = this._editor.getOption(EditorOption.hover).sticky;
@@ -131,19 +131,19 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 			if (anchor) {
 				this._startHoverOperationIfNecessary(anchor, mode, source, focus, true);
 			}
-			console.log('return 3');
+			console.log('_startShowingOrUpdateHover return 3');
 			return true;
 		}
 		// If mouse is not getting closer and anchor not defined, hide the hover
 		if (!anchor) {
 			this._setCurrentResult(null);
-			console.log('return 4');
+			console.log('_startShowingOrUpdateHover return 4');
 			return false;
 		}
 		// If mouse if not getting closer and anchor is defined, and the new anchor is the same as the previous anchor
 		const currentAnchorEqualsPreviousAnchor = this._currentResult!.anchor.equals(anchor);
 		if (currentAnchorEqualsPreviousAnchor) {
-			console.log('return 5');
+			console.log('_startShowingOrUpdateHover return 5');
 			return true;
 		}
 		// If mouse if not getting closer and anchor is defined, and the new anchor is not compatible with the previous anchor
@@ -151,14 +151,14 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		if (!currentAnchorCompatibleWithPreviousAnchor) {
 			this._setCurrentResult(null);
 			this._startHoverOperationIfNecessary(anchor, mode, source, focus, false);
-			console.log('return 6');
+			console.log('_startShowingOrUpdateHover return 6');
 			return true;
 		}
 		// We aren't getting any closer to the hover, so we will filter existing results
 		// and keep those which also apply to the new anchor.
 		this._setCurrentResult(this._currentResult!.filter(anchor));
 		this._startHoverOperationIfNecessary(anchor, mode, source, focus, false);
-		console.log('return 7');
+		console.log('_startShowingOrUpdateHover return 7');
 		return true;
 	}
 
@@ -269,6 +269,7 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		const anchorCandidates: HoverAnchor[] = this._findHoverAnchorCandidates(mouseEvent);
 		const anchorCandidatesExist = anchorCandidates.length > 0;
 		console.log('anchorCandidatesExist : ', anchorCandidatesExist);
+		// For some reason anchor candidates don't exist when going on top of hover
 		if (!anchorCandidatesExist) {
 			return this._startShowingOrUpdateHover(null, HoverStartMode.Delayed, HoverStartSource.Mouse, false, mouseEvent);
 		}
@@ -303,6 +304,7 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 				console.log('target.detail.isAfterLines : ', target.detail.isAfterLines);
 				console.log('target.detail.horizontalDistanceToText : ', target.detail.horizontalDistanceToText);
 				const epsilon = this._editor.getOption(EditorOption.fontInfo).typicalHalfwidthCharacterWidth / 2;
+				console.log('epsilon : ', epsilon);
 				// Let hover kick in even when the mouse is technically in the empty area after a line, given the distance is small enough
 				const mouseIsWithinLinesAndCloseToHover = !target.detail.isAfterLines
 					&& typeof target.detail.horizontalDistanceToText === 'number'
