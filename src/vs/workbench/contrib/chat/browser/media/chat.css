@@ -172,8 +172,8 @@
 	width: 100%;
 }
 
-.interactive-item-container .chat-progress-task {
-	padding-bottom: 8px;
+.interactive-item-container > .value .chat-used-context {
+	margin-bottom: 8px;
 }
 
 .interactive-item-container .value .rendered-markdown table {

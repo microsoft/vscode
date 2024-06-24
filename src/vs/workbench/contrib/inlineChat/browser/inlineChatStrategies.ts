@@ -26,7 +26,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { Progress } from 'vs/platform/progress/common/progress';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
-import { HunkInformation, ReplyResponse, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { HunkInformation, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { InlineChatZoneWidget } from './inlineChatZoneWidget';
 import { CTX_INLINE_CHAT_CHANGE_HAS_DIFF, CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF, CTX_INLINE_CHAT_DOCUMENT_CHANGED, InlineChatConfigKeys, minimapInlineChatDiffInserted, overviewRulerInlineChatDiffInserted } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { HunkState } from './inlineChatSession';
@@ -136,7 +136,7 @@ export abstract class EditModeStrategy {
 
 	abstract makeChanges(edits: ISingleEditOperation[], obs: IEditObserver, undoStopBefore: boolean): Promise<void>;
 
-	abstract renderChanges(response: ReplyResponse): Promise<Position | undefined>;
+	abstract renderChanges(): Promise<Position | undefined>;
 
 	move?(next: boolean): void;
 
@@ -190,7 +190,7 @@ export class PreviewStrategy extends EditModeStrategy {
 	override async makeProgressiveChanges(): Promise<void> {
 	}
 
-	override async renderChanges(response: ReplyResponse): Promise<undefined> { }
+	override async renderChanges(): Promise<undefined> { }
 
 	hasFocus(): boolean {
 		return this._zone.widget.hasFocus();
@@ -364,7 +364,7 @@ export class LiveStrategy extends EditModeStrategy {
 
 	private readonly _hunkDisplayData = new Map<HunkInformation, HunkDisplayData>();
 
-	override async renderChanges(response: ReplyResponse) {
+	override async renderChanges() {
 
 		this._progressiveEditingDecorations.clear();
 

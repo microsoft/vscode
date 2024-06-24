@@ -1493,7 +1493,8 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '0_install',
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'uninstalled'), ContextKeyExpr.has('isGalleryExtension'), CONTEXT_SYNC_ENABLEMENT)
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'uninstalled'), ContextKeyExpr.has('isGalleryExtension'), CONTEXT_SYNC_ENABLEMENT),
+				order: 1
 			},
 			run: async (accessor: ServicesAccessor, extensionId: string) => {
 				const instantiationService = accessor.get(IInstantiationService);
@@ -1510,12 +1511,37 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		});
 
 		this.registerExtensionAction({
+			id: 'workbench.extensions.action.installPrereleaseAndDonotSync',
+			title: localize('installPrereleaseAndDonotSync', "Install Pre-Release (Do not Sync)"),
+			menu: {
+				id: MenuId.ExtensionContext,
+				group: '0_install',
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'uninstalled'), ContextKeyExpr.has('isGalleryExtension'), ContextKeyExpr.has('extensionHasPreReleaseVersion'), CONTEXT_SYNC_ENABLEMENT),
+				order: 2
+			},
+			run: async (accessor: ServicesAccessor, extensionId: string) => {
+				const instantiationService = accessor.get(IInstantiationService);
+				const extension = this.extensionsWorkbenchService.local.filter(e => areSameExtensions(e.identifier, { id: extensionId }))[0]
+					|| (await this.extensionsWorkbenchService.getExtensions([{ id: extensionId }], CancellationToken.None))[0];
+				if (extension) {
+					const action = instantiationService.createInstance(InstallAction, {
+						isMachineScoped: true,
+						preRelease: true
+					});
+					action.extension = extension;
+					return action.run();
+				}
+			}
+		});
+
+		this.registerExtensionAction({
 			id: InstallAnotherVersionAction.ID,
 			title: InstallAnotherVersionAction.LABEL,
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: '0_install',
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'uninstalled'), ContextKeyExpr.has('isGalleryExtension'))
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'uninstalled'), ContextKeyExpr.has('isGalleryExtension')),
+				order: 3
 			},
 			run: async (accessor: ServicesAccessor, extensionId: string) => {
 				const instantiationService = accessor.get(IInstantiationService);

@@ -14,7 +14,7 @@ import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
 import { score, targetsNotebooks } from 'vs/editor/common/languageSelector';
 import * as languageConfiguration from 'vs/editor/common/languages/languageConfiguration';
 import { OverviewRulerLane } from 'vs/editor/common/model';
-import { ExtensionIdentifier, ExtensionIdentifierSet, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifierSet, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import * as files from 'vs/platform/files/common/files';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService, ILoggerService, LogLevel } from 'vs/platform/log/common/log';
@@ -55,6 +55,7 @@ import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitData
 import { ExtHostInteractive } from 'vs/workbench/api/common/extHostInteractive';
 import { ExtHostLabelService } from 'vs/workbench/api/common/extHostLabelService';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/common/extHostLanguageFeatures';
+import { ExtHostLanguageModelTools } from 'vs/workbench/api/common/extHostLanguageModelTools';
 import { IExtHostLanguageModels } from 'vs/workbench/api/common/extHostLanguageModels';
 import { ExtHostLanguages } from 'vs/workbench/api/common/extHostLanguages';
 import { IExtHostLocalizationService } from 'vs/workbench/api/common/extHostLocalizationService';
@@ -107,7 +108,6 @@ import { checkProposedApiEnabled, isProposedApiEnabled } from 'vs/workbench/serv
 import { ProxyIdentifier } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { TextSearchCompleteMessageType } from 'vs/workbench/services/search/common/searchExtTypes';
 import type * as vscode from 'vscode';
-import { ExtHostLanguageModelTools } from 'vs/workbench/api/common/extHostLanguageModelTools';
 
 export interface IExtensionRegistries {
 	mine: ExtensionDescriptionRegistry;
@@ -210,7 +210,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostUriOpeners = rpcProtocol.set(ExtHostContext.ExtHostUriOpeners, new ExtHostUriOpeners(rpcProtocol));
 	const extHostProfileContentHandlers = rpcProtocol.set(ExtHostContext.ExtHostProfileContentHandlers, new ExtHostProfileContentHandlers(rpcProtocol));
 	rpcProtocol.set(ExtHostContext.ExtHostInteractive, new ExtHostInteractive(rpcProtocol, extHostNotebook, extHostDocumentsAndEditors, extHostCommands, extHostLogService));
-	const extHostChatAgents2 = rpcProtocol.set(ExtHostContext.ExtHostChatAgents2, new ExtHostChatAgents2(rpcProtocol, extHostLogService, extHostCommands, initData.quality));
+	const extHostChatAgents2 = rpcProtocol.set(ExtHostContext.ExtHostChatAgents2, new ExtHostChatAgents2(rpcProtocol, extHostLogService, extHostCommands));
 	const extHostChatVariables = rpcProtocol.set(ExtHostContext.ExtHostChatVariables, new ExtHostChatVariables(rpcProtocol));
 	const extHostLanguageModelTools = rpcProtocol.set(ExtHostContext.ExtHostLanguageModelTools, new ExtHostLanguageModelTools(rpcProtocol));
 	const extHostAiRelatedInformation = rpcProtocol.set(ExtHostContext.ExtHostAiRelatedInformation, new ExtHostRelatedInformation(rpcProtocol));
@@ -1444,17 +1444,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 		// namespace: lm
 		const lm: typeof vscode.lm = {
 			selectChatModels: (selector) => {
-				if (initData.quality === 'stable') {
-					console.warn(`[${ExtensionIdentifier.toKey(extension.identifier)}] This API is disabled in '${initData.environment.appName}'-stable.`);
-					return Promise.resolve([]);
-				}
 				return extHostLanguageModels.selectLanguageModels(extension, selector ?? {});
 			},
 			onDidChangeChatModels: (listener, thisArgs?, disposables?) => {
-				if (initData.quality === 'stable') {
-					console.warn(`[${ExtensionIdentifier.toKey(extension.identifier)}] This API is disabled in '${initData.environment.appName}'-stable.`);
-					return Event.None(listener, thisArgs, disposables);
-				}
 				return extHostLanguageModels.onDidChangeProviders(listener, thisArgs, disposables);
 			},
 			registerChatModelProvider: (id, provider, metadata) => {
