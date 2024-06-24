@@ -58,8 +58,8 @@ const cancelActionMenuItem: IMenuItem = {
 	order: 0,
 	command: {
 		id: CancelAction.ID,
-		title: localize('cancel', "Cancel Request"),
-		shortTitle: localize('cancelShort', "Cancel"),
+		title: localize('cancel', "Stop Request"),
+		shortTitle: localize('cancelShort', "Stop"),
 	},
 	when: ContextKeyExpr.and(
 		CTX_INLINE_CHAT_REQUEST_IN_PROGRESS,
