@@ -367,10 +367,14 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 
 							// Track the source of each value in the object
 							if (source) {
-								let objectConfigurationSources = valuesSources.get(configuration) as Map<string, ConfigurationDefaultSource> | undefined;
+								let objectConfigurationSources = valuesSources.get(configuration);
 								if (!objectConfigurationSources) {
 									objectConfigurationSources = new Map<string, ConfigurationDefaultSource>();
 									valuesSources.set(configuration, objectConfigurationSources);
+								}
+								if (!(objectConfigurationSources instanceof Map)) {
+									console.error('objectConfigurationSources is not a Map');
+									continue;
 								}
 
 								for (const objectKey in overrideValue) {
@@ -412,7 +416,12 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 						defaultValue = { ...existingDefaultValue, ...overrides[key] };
 
 						if (source) {
-							defaultValueSource = objectDefaults?.source as Map<string, ConfigurationDefaultSource> ?? new Map<string, ConfigurationDefaultSource>();
+							defaultValueSource = objectDefaults?.source ?? new Map<string, ConfigurationDefaultSource>();
+							if (!(defaultValueSource instanceof Map)) {
+								console.error('defaultValueSource is not a Map');
+								continue;
+							}
+
 							for (const objectKey in overrides[key]) {
 								defaultValueSource.set(objectKey, source);
 							}
