@@ -519,23 +519,23 @@ async function webviewPreloads(ctx: PreloadContext) {
 						continue;
 					}
 
-					const newHeight = entry.contentRect.height;
+					const hasContent = entry.contentRect.height > 2.1;
 					const shouldUpdatePadding =
-						(newHeight !== 0 && observedElementInfo.lastKnownPadding === 0) ||
-						(newHeight === 0 && observedElementInfo.lastKnownPadding !== 0);
+						(hasContent && observedElementInfo.lastKnownPadding === 0) ||
+						(!hasContent && observedElementInfo.lastKnownPadding !== 0);
 
 					if (shouldUpdatePadding) {
 						// Do not update dimension in resize observer
 						window.requestAnimationFrame(() => {
-							if (newHeight !== 0) {
+							if (hasContent) {
 								entry.target.style.padding = `${ctx.style.outputNodePadding}px ${ctx.style.outputNodePadding}px ${ctx.style.outputNodePadding}px ${ctx.style.outputNodeLeftPadding}px`;
 							} else {
 								entry.target.style.padding = `0px`;
 							}
-							this.updateHeight(observedElementInfo, entry.target.offsetHeight);
+							this.updateHeight(observedElementInfo, hasContent ? entry.target.offsetHeight : 0);
 						});
 					} else {
-						this.updateHeight(observedElementInfo, entry.target.offsetHeight);
+						this.updateHeight(observedElementInfo, hasContent ? entry.target.offsetHeight : 0);
 					}
 				}
 			});
@@ -2939,7 +2939,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			const cps = document.defaultView!.getComputedStyle(this.element);
 			const verticalPadding = parseFloat(cps.paddingTop) + parseFloat(cps.paddingBottom);
 			const contentHeight = offsetHeight - verticalPadding;
-			if (offsetHeight !== 0 && cps.padding === '0px') {
+			if (offsetHeight > 2.1 && cps.padding === '0px') {
 				// we set padding to zero if the output height is zero (then we can have a zero-height output DOM node)
 				// thus we need to ensure the padding is accounted when updating the init height of the output
 				dimensionUpdater.updateHeight(this.outputId, offsetHeight + ctx.style.outputNodePadding * 2, {
@@ -2948,7 +2948,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				});
 
 				this.element.style.padding = `${ctx.style.outputNodePadding}px ${ctx.style.outputNodePadding}px ${ctx.style.outputNodePadding}px ${ctx.style.outputNodeLeftPadding}`;
-			} else if (contentHeight !== 0) {
+			} else if (contentHeight > 2.1) {
 				dimensionUpdater.updateHeight(this.outputId, this.element.offsetHeight, {
 					isOutput: true,
 					init: true

@@ -138,7 +138,6 @@ async function renderJavascript(outputInfo: OutputItem, container: HTMLElement, 
 	script.textContent = scriptText;
 
 	const element = document.createElement('div');
-	element.classList.add('no-border');
 	const trustedHtml = ttPolicy?.createHTML(script.outerHTML) ?? script.outerHTML;
 	element.innerHTML = trustedHtml as string;
 	container.appendChild(element);
@@ -461,9 +460,6 @@ export const activate: ActivationFunction<void> = (ctx) => {
 	#container div.output>div:focus {
 		outline: 0;
 		border-color: var(--theme-input-focus-border-color);
-	}
-	#container div.output>div.no-border {
-		border-width: 0;
 	}
 	#container div.output .scrollable {
 		overflow-y: auto;
