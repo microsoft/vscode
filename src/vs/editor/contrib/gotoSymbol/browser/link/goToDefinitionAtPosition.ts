@@ -236,9 +236,10 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 
 	private stripIndentationFromPreviewRange(textEditorModel: ITextModel, startLineNumber: number, previewRange: IRange) {
 		const startIndent = textEditorModel.getLineFirstNonWhitespaceColumn(startLineNumber);
+		const maxLineNumber = Math.min(textEditorModel.getLineCount(), previewRange.endLineNumber);
 		let minIndent = startIndent;
 
-		for (let endLineNumber = startLineNumber + 1; endLineNumber < previewRange.endLineNumber; endLineNumber++) {
+		for (let endLineNumber = startLineNumber + 1; endLineNumber < maxLineNumber; endLineNumber++) {
 			const endIndent = textEditorModel.getLineFirstNonWhitespaceColumn(endLineNumber);
 			minIndent = Math.min(minIndent, endIndent);
 		}
@@ -260,7 +261,7 @@ export class GotoDefinitionAtPositionEditorContribution implements IEditorContri
 			}
 		}
 
-		return new Range(startLineNumber, 1, endLineNumber + 1, 1);
+		return new Range(startLineNumber, 1, Math.min(maxLineNumber, endLineNumber) + 1, 1);
 	}
 
 	private addDecoration(range: Range, hoverMessage: MarkdownString | undefined): void {
