@@ -13,6 +13,7 @@ export interface HTMLDocumentRegions {
 export const CSS_STYLE_RULE = '__';
 
 export interface EmbeddedRegion {
+	tagName: string;
 	languageId: string | undefined;
 	content: string;
 	start: number;
@@ -42,10 +43,10 @@ export function getDocumentRegions(languageService: LanguageService, text: strin
 				languageIdFromType = lastTagName === 'style' ? 'css' : 'javascript';
 				break;
 			case TokenType.Styles:
-				regions.push(createEmbeddedRegion(languageIdFromType, scanner.getTokenOffset(), scanner.getTokenEnd()));
+				regions.push(createEmbeddedRegion(lastTagName, languageIdFromType, scanner.getTokenOffset(), scanner.getTokenEnd()));
 				break;
 			case TokenType.Script:
-				const region = createEmbeddedRegion(languageIdFromType, scanner.getTokenOffset(), scanner.getTokenEnd());
+				const region = createEmbeddedRegion(lastTagName, languageIdFromType, scanner.getTokenOffset(), scanner.getTokenEnd());
 				region.moduleScript = isModuleScript;
 				regions.push(region);
 				break;
@@ -87,7 +88,7 @@ export function getDocumentRegions(languageService: LanguageService, text: strin
 							start++;
 							end--;
 						}
-						regions.push(createEmbeddedRegion(attributeLanguageId, start, end, true));
+						regions.push(createEmbeddedRegion(lastTagName, attributeLanguageId, start, end, true));
 					}
 				}
 				lastAttributeName = null;
@@ -100,8 +101,9 @@ export function getDocumentRegions(languageService: LanguageService, text: strin
 		getImportedScripts: () => importedScripts,
 	};
 
-	function createEmbeddedRegion(languageId: string | undefined, start: number, end: number, attributeValue?: boolean) {
+	function createEmbeddedRegion(tagName: string, languageId: string | undefined, start: number, end: number, attributeValue?: boolean) {
 		const c: EmbeddedRegion = {
+			tagName,
 			languageId,
 			start,
 			generatedStart: 0,

@@ -42,20 +42,15 @@ export const htmlLanguagePlugin: LanguagePlugin<URI> = {
 		getExtraServiceScripts(fileName, rootCode) {
 			const extraScripts: TypeScriptExtraServiceScript[] = [];
 			for (const code of forEachEmbeddedCode(rootCode)) {
-				if (code.id.startsWith('javascript_')) {
+				if (code.id.startsWith('script_')) {
+					const ext = code.languageId === 'typescript' ? '.ts' : '.js';
 					extraScripts.push({
-						fileName: fileName + '.' + code.id.split('_')[1] + '.js',
+						fileName: `${fileName}.embedded_script_${code.id.split('_')[1]}${ext}`,
 						code,
-						extension: '.js',
-						scriptKind: 1,
-					});
-				}
-				else if (code.id.startsWith('typescript_')) {
-					extraScripts.push({
-						fileName: fileName + '.' + code.id.split('_')[1] + '.ts',
-						code,
-						extension: '.ts',
-						scriptKind: 3,
+						extension: ext,
+						scriptKind: ext === '.ts'
+							? 3 satisfies ts.ScriptKind.TS
+							: 1 satisfies ts.ScriptKind.JS,
 					});
 				}
 			}
@@ -130,9 +125,10 @@ function createHtmlVirtualCode(snapshot: ts.IScriptSnapshot): VirtualCode & { do
 					text += '\n;\n';
 				}
 				indexMap['global_script'] ??= 0;
+				const index = indexMap['global_script']++;
 				yield {
 					languageId: globalScript.languageId!,
-					id: 'global_script_' + indexMap['global_script'] + '_syntax',
+					id: 'global_script_' + index + '_syntax',
 					snapshot: {
 						getText(start, end) {
 							return globalScript.content.substring(start, end);
@@ -151,7 +147,6 @@ function createHtmlVirtualCode(snapshot: ts.IScriptSnapshot): VirtualCode & { do
 						data: { structure: true, format: true },
 					}],
 				};
-				indexMap['global_script']++;
 			}
 			yield {
 				languageId: 'javascript',
@@ -177,10 +172,11 @@ function createHtmlVirtualCode(snapshot: ts.IScriptSnapshot): VirtualCode & { do
 			if (!documentRegion.languageId || isGlobalScript(documentRegion)) {
 				continue;
 			}
-			indexMap[documentRegion.languageId] ??= 0;
+			indexMap[documentRegion.tagName] ??= 0;
+			const index = indexMap[documentRegion.tagName]++;
 			yield {
 				languageId: documentRegion.languageId,
-				id: documentRegion.languageId + '_' + indexMap[documentRegion.languageId],
+				id: documentRegion.tagName + '_' + index,
 				snapshot: {
 					getText(start, end) {
 						return documentRegion.content.substring(start, end);
@@ -201,7 +197,6 @@ function createHtmlVirtualCode(snapshot: ts.IScriptSnapshot): VirtualCode & { do
 						: { verification: true, completion: true, semantic: true, navigation: true, structure: true, format: true },
 				}],
 			};
-			indexMap[documentRegion.languageId]++;
 		}
 	}
 }

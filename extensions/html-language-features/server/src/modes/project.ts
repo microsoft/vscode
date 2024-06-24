@@ -41,23 +41,18 @@ export function createHtmlProject(languagePlugins: LanguagePlugin<URI>[]): Langu
 			}
 		},
 		async getLanguageService(uri) {
-			if (!languageServicePromise) {
-				languageServicePromise = (async () => {
-					const project = await createTypeScriptLanguageService(
-						ts,
-						tsLocalized,
-						compilerOptions,
-						server,
-						createLanguageServiceEnvironment(server, [...server.workspaceFolders.keys()]),
-						languagePlugins,
-						{ asUri, asFileName },
-						() => currentDirectory,
-						() => projectVersion,
-						() => currentRootFiles
-					);
-					return project;
-				})();
-			}
+			languageServicePromise ??= createTypeScriptLanguageService(
+				ts,
+				tsLocalized,
+				compilerOptions,
+				server,
+				createLanguageServiceEnvironment(server, [...server.workspaceFolders.keys()]),
+				languagePlugins,
+				{ asUri, asFileName },
+				() => currentDirectory,
+				() => projectVersion,
+				() => currentRootFiles
+			);
 			const { languageService } = (await languageServicePromise);
 			updateRootFiles(uri, languageService);
 			return languageService;

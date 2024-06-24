@@ -25,7 +25,7 @@ export function getLanguageServicePlugins(options: {
 			create() {
 				return {
 					resolveEmbeddedCodeFormattingOptions(_sourceScript, embeddedCode, options) {
-						if (embeddedCode.id.startsWith('css_')) {
+						if (embeddedCode.id.startsWith('style_')) {
 							options.initialIndentLevel++;
 						}
 						return options;
