@@ -56,7 +56,6 @@ const vscodeResources = [
 	'out-build/bootstrap-amd.js',
 	'out-build/bootstrap-node.js',
 	'out-build/bootstrap-window.js',
-	'out-build/nls.messages.js',
 	'out-build/nls.messages.json',
 	'out-build/nls.keys.json',
 	'out-build/vs/**/*.{svg,png,html,jpg,mp3}',

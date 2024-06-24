@@ -229,27 +229,10 @@
 	}
 
 	/**
-	 * @returns {import('./vs/base/parts/sandbox/electron-sandbox/electronTypes').IpcRenderer | undefined}
-	 */
-	function safeIpcRenderer() {
-		const sandboxGlobals = safeSandboxGlobals();
-		if (sandboxGlobals) {
-			return sandboxGlobals.ipcRenderer;
-		}
-
-		return undefined;
-	}
-
-	/**
 	 * @param {string} messagesFile
 	 * @returns {Promise<string>}
 	 */
 	async function safeReadNlsFile(messagesFile) {
-		const ipcRenderer = safeIpcRenderer();
-		if (ipcRenderer) {
-			return ipcRenderer.invoke('vscode:readNlsFile', messagesFile);
-		}
-
 		if (fs) {
 			return (await fs.promises.readFile(messagesFile)).toString();
 		}
@@ -263,11 +246,6 @@
 	 * @returns {Promise<void>}
 	 */
 	function safeWriteNlsFile(nlsFile, content) {
-		const ipcRenderer = safeIpcRenderer();
-		if (ipcRenderer) {
-			return ipcRenderer.invoke('vscode:writeNlsFile', nlsFile, content);
-		}
-
 		if (fs) {
 			return fs.promises.writeFile(nlsFile, content);
 		}

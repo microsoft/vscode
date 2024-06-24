@@ -10,13 +10,12 @@ import { hostname, release } from 'os';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { isSigPipeError, onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
-import { isEqualOrParent } from 'vs/base/common/extpath';
 import { Event } from 'vs/base/common/event';
 import { parse } from 'vs/base/common/jsonc';
 import { getPathLabel } from 'vs/base/common/labels';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas, VSCODE_AUTHORITY } from 'vs/base/common/network';
-import { isAbsolute, join, posix } from 'vs/base/common/path';
+import { join, posix } from 'vs/base/common/path';
 import { IProcessEnvironment, isLinux, isLinuxSnap, isMacintosh, isWindows, OS } from 'vs/base/common/platform';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
@@ -496,24 +495,6 @@ export class CodeApplication extends Disposable {
 			return this.resolveShellEnvironment(args, env, false);
 		});
 
-		validatedIpcMain.handle('vscode:writeNlsFile', (event, nlsFile: unknown, data: unknown) => {
-			const uri = this.validateNlsPath(nlsFile);
-			if (!uri || typeof data !== 'string') {
-				throw new Error('Invalid operation (vscode:writeNlsFile)');
-			}
-
-			return this.fileService.writeFile(uri, VSBuffer.fromString(data));
-		});
-
-		validatedIpcMain.handle('vscode:readNlsFile', async (event, messagesFile: unknown) => {
-			const uri = this.validateNlsPath(messagesFile);
-			if (!uri) {
-				throw new Error('Invalid operation (vscode:readNlsFile)');
-			}
-
-			return (await this.fileService.readFile(uri)).value.toString();
-		});
-
 		validatedIpcMain.on('vscode:toggleDevTools', event => event.sender.toggleDevTools());
 		validatedIpcMain.on('vscode:openDevTools', event => event.sender.openDevTools());
 
@@ -527,14 +508,6 @@ export class CodeApplication extends Disposable {
 		});
 
 		//#endregion
-	}
-
-	private validateNlsPath(messagesFile: unknown): URI | undefined {
-		if (typeof messagesFile !== 'string' || !isAbsolute(messagesFile) || (!isEqualOrParent(messagesFile, this.environmentMainService.appRoot, !isLinux) && !isEqualOrParent(messagesFile, this.environmentMainService.cachedLanguagesPath, !isLinux))) {
-			return undefined;
-		}
-
-		return URI.file(messagesFile);
 	}
 
 	private onUnexpectedError(error: Error): void {
