@@ -635,7 +635,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 									const cellInfo = inset.cellInfo;
 									this.reversedInsetMapping.set(update.id, outputRequest);
 									this.insetMapping.set(outputRequest, inset);
-									this.notebookEditor.updateOutputHeight(cellInfo, outputRequest, height, !!update.init, 'webview#dimension', update.isEmptyOutput);
+									this.notebookEditor.updateOutputHeight(cellInfo, outputRequest, height, !!update.init, 'webview#dimension');
 									this.notebookEditor.scheduleOutputHeightAck(cellInfo, update.id, height);
 
 								}

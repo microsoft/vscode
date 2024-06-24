@@ -465,11 +465,11 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 
 		this._ensureOutputsTop();
 
-		if (index === 0 || this._outputViewModels[index].shouldShow.get() || height > 0) {
-			this._outputViewModels[index].shouldShow.set(true, undefined);
+		if (index === 0 || height > 0) {
+			this._outputViewModels[index].show();
 		}
 
-		if (this._outputViewModels[index].shouldShow.get() && height < 28) {
+		if (!this._outputViewModels[index].hidden && height < 28) {
 			height = 28;
 		}
 

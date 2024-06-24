@@ -31,7 +31,6 @@ import { IWebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { ISettableObservable } from 'vs/base/common/observable';
 
 //#region Shared commands
 export const EXPAND_CELL_INPUT_COMMAND_ID = 'notebook.cell.expandCellInput';
@@ -109,9 +108,9 @@ export interface ICellOutputViewModel extends IDisposable {
 	pickedMimeType: IOrderedMimeType | undefined;
 	hasMultiMimeType(): boolean;
 	readonly onDidResetRenderer: Event<void>;
-	shouldShow: ISettableObservable<boolean>;
-	show(force?: boolean): void;
-	hide(): void;
+	readonly hidden: boolean;
+	show(): void;
+	onDidShowHidden: Event<void>;
 	resetRenderer(): void;
 	toRawJSON(): any;
 }

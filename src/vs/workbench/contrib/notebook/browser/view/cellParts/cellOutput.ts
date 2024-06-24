@@ -35,6 +35,7 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { COPY_OUTPUT_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/controller/cellOutputActions';
 import { TEXT_BASED_MIMETYPES } from 'vs/workbench/contrib/notebook/browser/contrib/clipboard/cellOutputClipboard';
 import { autorun, observableValue } from 'vs/base/common/observable';
+import { Event } from 'vs/base/common/event';
 import { NOTEBOOK_CELL_HAS_HIDDEN_OUTPUTS, NOTEBOOK_CELL_IS_FIRST_OUTPUT } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 
 interface IMimeTypeRenderer extends IQuickPickItem {
@@ -208,15 +209,12 @@ class CellOutputElement extends Disposable {
 		}
 
 		const innerContainer = this._generateInnerOutputContainer(previousSibling, selectedPresentation);
-		if (index === 0 || this.output.shouldShow.get()) {
+		if (index === 0 || !this.output.hidden) {
 			this._attachToolbar(innerContainer, notebookTextModel, this.notebookEditor.activeKernel, index, mimeTypes);
 		} else {
-			const listener = autorun(reader => {
-				if (reader.readObservable(this.output.shouldShow)) {
-					this._attachToolbar(innerContainer, notebookTextModel, this.notebookEditor.activeKernel, index, mimeTypes);
-					this.cellOutputContainer.checkForHiddenOutputs();
-					listener.dispose();
-				}
+			Event.once(this.output.onDidShowHidden)(() => {
+				this._attachToolbar(innerContainer, notebookTextModel, this.notebookEditor.activeKernel, index, mimeTypes);
+				this.cellOutputContainer.checkForHiddenOutputs();
 			});
 			this.cellOutputContainer.hasHiddenOutputs.set(true, undefined);
 		}
@@ -493,7 +491,7 @@ export class CellOutputContainer extends CellContentPart {
 
 	hasHiddenOutputs = observableValue<boolean>('hasHiddenOutputs', false);
 	checkForHiddenOutputs() {
-		if (this._outputEntries.find(entry => { return !entry.model.shouldShow.get(); })) {
+		if (this._outputEntries.find(entry => { return entry.model.hidden; })) {
 			this.hasHiddenOutputs.set(true, undefined);
 		} else {
 			this.hasHiddenOutputs.set(false, undefined);

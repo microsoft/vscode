@@ -40,7 +40,7 @@ registerAction2(class ShowAllOutputsAction extends Action2 {
 		if (cell && cell.cellKind === CellKind.Code) {
 
 			for (let i = 1; i < cell.outputsViewModels.length; i++) {
-				if (!cell.outputsViewModels[i].shouldShow.get()) {
+				if (cell.outputsViewModels[i].hidden) {
 					// if previously hidden, update to a minimum height so that it will show as a single line
 					(cell as CodeCellViewModel).updateOutputHeight(i, 1, 'command');
 				}
