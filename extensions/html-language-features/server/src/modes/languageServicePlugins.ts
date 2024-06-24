@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { LanguageServiceContext, LanguageServicePlugin, ProviderResult } from '@volar/language-service';
+import type { Disposable, LanguageServiceContext, LanguageServicePlugin, ProviderResult } from '@volar/language-service';
 import * as ts from 'typescript';
 import { create as createCssPlugin } from 'volar-service-css';
 import { create as createHtmlPlugin } from 'volar-service-html';
@@ -11,12 +11,11 @@ import { create as createJsonPlugin } from 'volar-service-json';
 import { create as createTypeScriptPlugins } from 'volar-service-typescript';
 import { isTsDocument } from 'volar-service-typescript/lib/shared';
 import { IHTMLDataProvider, TextDocument, TextEdit } from 'vscode-html-languageservice';
-import type { Emitter } from 'vscode-jsonrpc';
 
 export function getLanguageServicePlugins(options: {
 	supportedLanguages: { [languageId: string]: boolean },
 	getCustomData: (context: LanguageServiceContext) => ProviderResult<IHTMLDataProvider[]>,
-	customDataEmitter?: Emitter<void>,
+	onDidChangeCustomData: (listener: () => void) => Disposable,
 	formatterMaxNumberOfEdits?: number,
 }) {
 	const plugins: LanguageServicePlugin[] = [
@@ -39,9 +38,7 @@ export function getLanguageServicePlugins(options: {
 			return await context.env.getConfiguration?.('html.format.enable') ?? true;
 		},
 		getCustomData: options.getCustomData,
-		onDidChangeCustomData: options.customDataEmitter
-			? listener => options.customDataEmitter!.event(listener)
-			: undefined,
+		onDidChangeCustomData: options.onDidChangeCustomData,
 	});
 	plugins.push({
 		...baseHtmlPlugin,

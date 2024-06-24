@@ -10,8 +10,6 @@ import { TypeScriptProjectHost, createLanguageServiceHost, createSys, resolveFil
 import type * as ts from 'typescript';
 import { URI } from 'vscode-uri';
 
-const fsFileSnapshots = createUriMap<[number | undefined, ts.IScriptSnapshot | undefined]>();
-
 export async function createTypeScriptLanguageService(
 	ts: typeof import('typescript'),
 	tsLocalized: ts.MapLike<string> | undefined,
@@ -30,6 +28,7 @@ export async function createTypeScriptLanguageService(
 	getProjectVersion: () => string,
 	getScriptFileNames: () => string[]
 ) {
+	const fsFileSnapshots = createUriMap<[number | undefined, ts.IScriptSnapshot | undefined]>();
 	const sys = createSys(ts.sys, serviceEnv, getCurrentDirectory, {
 		asFileName,
 		asUri,

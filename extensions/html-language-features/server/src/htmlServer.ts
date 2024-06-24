@@ -87,7 +87,7 @@ export function startServer(server: LanguageServer, connection: Connection) {
 			getLanguageServicePlugins({
 				supportedLanguages: initializationOptions?.embeddedLanguages || { css: true, javascript: true },
 				getCustomData: () => fetchHTMLDataProviders(dataPaths, customDataRequestService),
-				customDataEmitter: customDataChangedEmitter,
+				onDidChangeCustomData: listener => customDataChangedEmitter.event(listener),
 				formatterMaxNumberOfEdits,
 			}),
 			{ pullModelDiagnostics: supportsDiagnosticPull }
