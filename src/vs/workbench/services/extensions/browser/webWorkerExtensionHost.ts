@@ -139,7 +139,8 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		iframe.style.display = 'none';
 
 		const vscodeWebWorkerExtHostId = generateUuid();
-		iframe.setAttribute('src', `${webWorkerExtensionHostIframeSrc}&vscodeWebWorkerExtHostId=${vscodeWebWorkerExtHostId}`);
+		const vscodeWebWorkerBlobUrl = this.getWorkerBootstrapUrl(require.toUrl('vs/base/worker/workerMain.js'), 'webWorkerExtensionHostWorker');
+		iframe.setAttribute('src', `${webWorkerExtensionHostIframeSrc}&vscodeWebWorkerExtHostId=${vscodeWebWorkerExtHostId}&vscodeWebWorkerBlobUrl=${vscodeWebWorkerBlobUrl}`);
 
 		const barrier = new Barrier();
 		let port!: MessagePort;
@@ -180,22 +181,6 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				err.name = name;
 				err.stack = stack;
 				return rejectBarrier(ExtensionHostExitCode.UnexpectedError, err);
-			}
-			if (event.data.type === 'vscode.bootstrap.nls') {
-				const factoryModuleId = 'vs/base/worker/workerMain.js';
-				const baseUrl = require.toUrl(factoryModuleId).slice(0, -factoryModuleId.length);
-				iframe.contentWindow!.postMessage({
-					type: event.data.type,
-					data: {
-						baseUrl,
-						workerUrl: require.toUrl(factoryModuleId),
-						nls: {
-							messages: globalThis._VSCODE_NLS_MESSAGES,
-							language: globalThis._VSCODE_NLS_LANGUAGE
-						}
-					}
-				}, '*');
-				return;
 			}
 			const { data } = event.data;
 			if (barrier.isOpen() || !(data instanceof MessagePort)) {
@@ -240,6 +225,23 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		};
 
 		return this._performHandshake(protocol);
+	}
+
+	private getWorkerBootstrapUrl(scriptPath: string, label: string): string {
+		if (globalThis.crossOriginIsolated) {
+			scriptPath += '?vscode-coi=2'; // COEP
+		}
+		const factoryModuleId = 'vs/base/worker/defaultWorkerFactory.js';
+		const workerBaseUrl = require.toUrl(factoryModuleId).slice(0, -factoryModuleId.length); // explicitly using require.toUrl(), see https://github.com/microsoft/vscode/issues/107440#issuecomment-698982321
+		const blob = new Blob([[
+			`/*${label}*/`,
+			`globalThis.MonacoEnvironment = { baseUrl: '${workerBaseUrl}' };`,
+			`globalThis._VSCODE_NLS_MESSAGES = ${JSON.stringify(globalThis._VSCODE_NLS_MESSAGES)};`,
+			`globalThis._VSCODE_NLS_LANGUAGE = ${JSON.stringify(globalThis._VSCODE_NLS_LANGUAGE)};`,
+			`importScripts('${scriptPath}');`,
+			`/*${label}*/`
+		].join('')], { type: 'application/javascript' });
+		return URL.createObjectURL(blob);
 	}
 
 	private async _performHandshake(protocol: IMessagePassingProtocol): Promise<IMessagePassingProtocol> {

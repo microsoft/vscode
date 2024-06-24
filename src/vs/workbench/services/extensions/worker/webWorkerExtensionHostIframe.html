@@ -1,17 +1,18 @@
 <!DOCTYPE html>
 <html>
 	<head>
-		<meta http-equiv="Content-Security-Policy" content="
+		<!-- <meta http-equiv="Content-Security-Policy" content="
 			default-src 'none';
 			child-src 'self' data: blob:;
 			script-src 'self' 'unsafe-eval' 'sha256-MTNTJvmyp5j5Dg3zZv4vixcNE8oja0odk5m4tkFlFb4=' https:;
-			connect-src 'self' https: wss: http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*;"/>
+			connect-src 'self' https: wss: http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*;"/> -->
 	</head>
 	<body>
 	<script>
 (function () {
 	const searchParams = new URL(document.location.href).searchParams;
 	const vscodeWebWorkerExtHostId = searchParams.get('vscodeWebWorkerExtHostId') || '';
+	const vscodeWebWorkerBlobUrl = searchParams.get('vscodeWebWorkerBlobUrl');
 	const name = searchParams.get('debugged') ? 'DebugWorkerExtensionHost' : 'WorkerExtensionHost';
 	const parentOrigin = searchParams.get('parentOrigin') || window.origin;
 	const salt = searchParams.get('salt');
@@ -66,43 +67,8 @@
 	}
 
 	function start() {
-
-		// Before we can load the worker, we need to get the current set of NLS
-		// configuration into this iframe. We ask the parent window to send it
-		// together with the necessary information to load the worker via Blob.
-
-		const bootstrapNlsType = 'vscode.bootstrap.nls';
-
-		self.onmessage = (event) => {
-			if (event.origin !== parentOrigin || event.data.type !== bootstrapNlsType) {
-				return;
-			}
-			const { data } = event.data;
-			createWorker(data.baseUrl, data.workerUrl, data.nls.messages, data.nls.language);
-		};
-
-		window.parent.postMessage({
-			vscodeWebWorkerExtHostId,
-			type: bootstrapNlsType
-		}, '*');
-	}
-
-	function createWorker(baseUrl, workerUrl, nlsMessages, nlsLanguage) {
 		try {
-			if (globalThis.crossOriginIsolated) {
-				workerUrl += '?vscode-coi=2'; // COEP
-			}
-
-			const blob = new Blob([[
-				`/*extensionHostWorker*/`,
-				`globalThis.MonacoEnvironment = { baseUrl: '${baseUrl}' };`,
-				`globalThis._VSCODE_NLS_MESSAGES = ${JSON.stringify(nlsMessages)};`,
-				`globalThis._VSCODE_NLS_LANGUAGE = ${JSON.stringify(nlsLanguage)};`,
-				`importScripts('${workerUrl}');`,
-				`/*extensionHostWorker*/`
-			].join('')], { type: 'application/javascript' });
-
-			const worker = new Worker(URL.createObjectURL(blob), { name });
+			const worker = new Worker(vscodeWebWorkerBlobUrl, { name });
 			worker.postMessage('vs/workbench/api/worker/extensionHostWorker');
 			const nestedWorkers = new Map();
 
