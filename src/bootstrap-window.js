@@ -83,9 +83,9 @@
 		}
 
 		// NLS
-		globalThis._VSCODE_NLS_MESSAGES = configuration.nlsMessages;
-		globalThis._VSCODE_NLS_LANGUAGE = configuration.nlsLanguage;
-		let language = configuration.nlsLanguage || 'en';
+		globalThis._VSCODE_NLS_MESSAGES = configuration.nls.messages;
+		globalThis._VSCODE_NLS_LANGUAGE = configuration.nls.language;
+		let language = configuration.nls.language || 'en';
 		if (language === 'zh-tw') {
 			language = 'zh-Hant';
 		} else if (language === 'zh-cn') {

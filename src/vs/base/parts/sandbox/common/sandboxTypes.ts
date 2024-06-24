@@ -55,13 +55,19 @@ export interface ISandboxConfiguration {
 	codeCachePath?: string;
 
 	/**
-	 * All NLS messages produced by `localize` and `localize2` calls
-	 * under `src/vs`.
+	 * NLS support
 	 */
-	nlsMessages: string[];
+	nls: {
 
-	/**
-	 * The actual language of the NLS messages (e.g. 'en', de' or 'pt-br').
-	 */
-	nlsLanguage: string | undefined;
+		/**
+		 * All NLS messages produced by `localize` and `localize2` calls
+		 * under `src/vs`.
+		 */
+		messages: string[];
+
+		/**
+		 * The actual language of the NLS messages (e.g. 'en', de' or 'pt-br').
+		 */
+		language: string | undefined;
+	};
 }

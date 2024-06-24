@@ -1444,6 +1444,11 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			workspace: options.workspace,
 			userEnv: { ...this.initialUserEnv, ...options.userEnv },
 
+			nls: {
+				messages: globalThis._VSCODE_NLS_MESSAGES,
+				language: globalThis._VSCODE_NLS_LANGUAGE
+			},
+
 			filesToOpenOrCreate: options.filesToOpen?.filesToOpenOrCreate,
 			filesToDiff: options.filesToOpen?.filesToDiff,
 			filesToMerge: options.filesToOpen?.filesToMerge,
@@ -1466,10 +1471,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			accessibilitySupport: app.accessibilitySupportEnabled,
 			colorScheme: this.themeMainService.getColorScheme(),
 			policiesData: this.policyService.serialize(),
-			continueOn: this.environmentMainService.continueOn,
-
-			nlsMessages: globalThis._VSCODE_NLS_MESSAGES,
-			nlsLanguage: globalThis._VSCODE_NLS_LANGUAGE
+			continueOn: this.environmentMainService.continueOn
 		};
 
 		// New window
