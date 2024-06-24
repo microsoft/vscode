@@ -6,10 +6,6 @@
 //@ts-check
 'use strict';
 
-/**
- * @typedef {import('./vs/nls').INLSConfiguration} INLSConfiguration
- */
-
 // Simple module style to support node.js and browser environments
 (function (globalThis, factory) {
 
@@ -26,7 +22,6 @@
 }(this, function () {
 	const Module = typeof require === 'function' ? require('module') : undefined;
 	const path = typeof require === 'function' ? require('path') : undefined;
-	const fs = typeof require === 'function' ? require('fs') : undefined;
 
 	//#region global bootstrapping
 
@@ -121,143 +116,8 @@
 
 	//#endregion
 
-
-	//#region NLS helpers
-
-	/** @type {Promise<INLSConfiguration | undefined> | undefined} */
-	let setupNLSResult = undefined;
-
-	/**
-	 * @returns {Promise<INLSConfiguration | undefined>}
-	 */
-	function setupNLS() {
-		if (!setupNLSResult) {
-			setupNLSResult = doSetupNLS();
-		}
-
-		return setupNLSResult;
-	}
-
-	/**
-	 * @returns {Promise<INLSConfiguration | undefined>}
-	 */
-	async function doSetupNLS() {
-		const process = safeProcess();
-
-		/** @type {INLSConfiguration | undefined} */
-		let nlsConfig = undefined;
-
-		/** @type {string | undefined} */
-		let messagesFile;
-		if (process?.env['VSCODE_NLS_CONFIG']) {
-			try {
-				/** @type {INLSConfiguration} */
-				nlsConfig = JSON.parse(process.env['VSCODE_NLS_CONFIG']);
-				if (nlsConfig?.languagePack?.messagesFile) {
-					messagesFile = nlsConfig.languagePack.messagesFile;
-				} else if (nlsConfig?.defaultMessagesFile) {
-					messagesFile = nlsConfig.defaultMessagesFile;
-				}
-
-				// VSCODE_GLOBALS: NLS
-				globalThis._VSCODE_NLS_LANGUAGE = nlsConfig?.resolvedLanguage;
-			} catch (e) {
-				console.error(`Error reading VSCODE_NLS_CONFIG from environment: ${e}`);
-			}
-		}
-
-		if (
-			process?.env['VSCODE_DEV'] ||	// no NLS support in dev mode
-			!messagesFile					// no NLS messages file
-		) {
-			return undefined;
-		}
-
-		try {
-			// VSCODE_GLOBALS: NLS
-			globalThis._VSCODE_NLS_MESSAGES = JSON.parse(await safeReadNlsFile(messagesFile));
-		} catch (error) {
-			console.error(`Error reading NLS messages file ${messagesFile}: ${error}`);
-
-			// Mark as corrupt: this will re-create the language pack cache next startup
-			if (nlsConfig?.languagePack?.corruptMarkerFile) {
-				try {
-					await safeWriteNlsFile(nlsConfig.languagePack.corruptMarkerFile, 'corrupted');
-				} catch (error) {
-					console.error(`Error writing corrupted NLS marker file: ${error}`);
-				}
-			}
-
-			// Fallback to the default message file to ensure english translation at least
-			if (nlsConfig?.defaultMessagesFile) {
-				try {
-					// VSCODE_GLOBALS: NLS
-					globalThis._VSCODE_NLS_MESSAGES = JSON.parse(await safeReadNlsFile(nlsConfig.defaultMessagesFile));
-				} catch (error) {
-					console.error(`Error reading default NLS messages file ${nlsConfig.defaultMessagesFile}: ${error}`);
-				}
-			}
-		}
-
-		return nlsConfig;
-	}
-
-	/**
-	 * @returns {typeof import('./vs/base/parts/sandbox/electron-sandbox/globals') | undefined}
-	 */
-	function safeSandboxGlobals() {
-		const globals = (typeof self === 'object' ? self : typeof global === 'object' ? global : {});
-
-		// @ts-ignore
-		return globals.vscode;
-	}
-
-	/**
-	 * @returns {import('./vs/base/parts/sandbox/electron-sandbox/globals').ISandboxNodeProcess | NodeJS.Process | undefined}
-	 */
-	function safeProcess() {
-		const sandboxGlobals = safeSandboxGlobals();
-		if (sandboxGlobals) {
-			return sandboxGlobals.process; // Native environment (sandboxed)
-		}
-
-		if (typeof process !== 'undefined') {
-			return process; // Native environment (non-sandboxed)
-		}
-
-		return undefined;
-	}
-
-	/**
-	 * @param {string} messagesFile
-	 * @returns {Promise<string>}
-	 */
-	async function safeReadNlsFile(messagesFile) {
-		if (fs) {
-			return (await fs.promises.readFile(messagesFile)).toString();
-		}
-
-		throw new Error('Unsupported operation (read NLS files)');
-	}
-
-	/**
-	 * @param {string} nlsFile
-	 * @param {string} content
-	 * @returns {Promise<void>}
-	 */
-	function safeWriteNlsFile(nlsFile, content) {
-		if (fs) {
-			return fs.promises.writeFile(nlsFile, content);
-		}
-
-		throw new Error('Unsupported operation (write NLS files)');
-	}
-
-	//#endregion
-
 	return {
 		enableASARSupport,
-		setupNLS,
 		fileUriFromPath
 	};
 }));

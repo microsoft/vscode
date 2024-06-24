@@ -21,6 +21,7 @@ async function start() {
 	// Keep bootstrap-amd.js from redefining 'fs'.
 	delete process.env['ELECTRON_RUN_AS_NODE'];
 
+	// NLS
 	const nlsConfiguration = await resolveNLSConfiguration({ userLocale: 'en', osLocale: 'en', commit: product.commit, userDataPath: '', nlsMetadataPath: __dirname });
 	process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfiguration); // required for `bootstrap-amd` to pick up NLS messages
 
