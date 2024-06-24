@@ -45,7 +45,7 @@ export const htmlLanguagePlugin: LanguagePlugin<URI> = {
 				if (code.id.startsWith('script_')) {
 					const ext = code.languageId === 'typescript' ? '.ts' : '.js';
 					extraScripts.push({
-						fileName: `${fileName}.embedded_script_${code.id.split('_')[1]}${ext}`,
+						fileName: `${fileName}.embedded_${code.id}${ext}`,
 						code,
 						extension: ext,
 						scriptKind: ext === '.ts'
@@ -193,7 +193,7 @@ function createHtmlVirtualCode(snapshot: ts.IScriptSnapshot): VirtualCode & { do
 					generatedOffsets: [documentRegion.generatedStart],
 					lengths: [documentRegion.length],
 					data: documentRegion.attributeValue
-						? { completion: true, semantic: true, navigation: true, structure: true }
+						? { verification: true, completion: true, semantic: true, navigation: true, structure: true }
 						: { verification: true, completion: true, semantic: true, navigation: true, structure: true, format: true },
 				}],
 			};
