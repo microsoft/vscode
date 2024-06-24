@@ -16,7 +16,7 @@ import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionS
 import { URI } from 'vs/base/common/uri';
 import { ILogService, LogLevel as LogServiceLevel } from 'vs/platform/log/common/log';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { LogLevel, createHttpPatch, createProxyResolver, createTlsPatch, ProxySupportSetting, ProxyAgentParams, createNetPatch, loadSystemCertificates, testCertificates } from '@vscode/proxy-agent';
+import { LogLevel, createHttpPatch, createProxyResolver, createTlsPatch, ProxySupportSetting, ProxyAgentParams, createNetPatch, loadSystemCertificates } from '@vscode/proxy-agent';
 
 const systemCertificatesV2Default = false;
 
@@ -67,10 +67,10 @@ export function connectProxyResolver(
 				certs.then(certs => extHostLogService.trace('ProxyResolver#loadAdditionalCertificates: Loaded certificates from main process', certs.length));
 				promises.push(certs);
 			}
-			// Using `testCertificates` shared between proxyResolver.ts and proxy.test.ts.
-			if (initData.environment.extensionTestsLocationURI && testCertificates.length) {
+			// Using https.globalAgent because it is shared with proxy.test.ts and mutable.
+			if (initData.environment.extensionTestsLocationURI && (https.globalAgent as any).testCertificates?.length) {
 				extHostLogService.trace('ProxyResolver#loadAdditionalCertificates: Loading test certificates');
-				promises.push(Promise.resolve(testCertificates));
+				promises.push(Promise.resolve((https.globalAgent as any).testCertificates as string[]));
 			}
 			return (await Promise.all(promises)).flat();
 		},

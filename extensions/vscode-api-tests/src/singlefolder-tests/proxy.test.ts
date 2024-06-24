@@ -8,7 +8,7 @@ import 'mocha';
 import { assertNoRpc } from '../utils';
 import { pki } from 'node-forge';
 import { AddressInfo } from 'net';
-import { resetCaches, testCertificates } from '@vscode/proxy-agent';
+import { resetCaches } from '@vscode/proxy-agent';
 
 suite('vscode API - network proxy support', () => {
 
@@ -52,8 +52,8 @@ suite('vscode API - network proxy support', () => {
 			rejectPort(err);
 		});
 
-		// Using `testCertificates` shared between proxyResolver.ts and proxy.test.ts.
-		testCertificates.splice(0, testCertificates.length, certPEM);
+		// Using https.globalAgent because it is shared with proxyResolver.ts and mutable.
+		(https.globalAgent as any).testCertificates = [certPEM];
 		resetCaches();
 
 		try {
@@ -69,7 +69,7 @@ suite('vscode API - network proxy support', () => {
 					.on('error', reject);
 			});
 		} finally {
-			testCertificates.splice(0, testCertificates.length);
+			delete (https.globalAgent as any).testCertificates;
 			resetCaches();
 			server.close();
 		}
