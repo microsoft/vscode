@@ -201,7 +201,7 @@ export class Session {
 	}
 
 	async undoChangesUntil(requestId: string): Promise<boolean> {
-		const idx = this._exchanges.findIndex(candidate => candidate.prompt.request.id === requestId);
+		const idx = this._exchanges.findIndex(candidate => candidate.response.chatResponse.requestId === requestId);
 		if (idx < 0) {
 			return false;
 		}
@@ -215,10 +215,8 @@ export class Session {
 		} finally {
 			this.hunkData.ignoreTextModelNChanges = false;
 		}
-		// TODO@jrieken cannot do this yet because some parts still rely on
-		// exchanges being around...
-		// // remove this and following exchanges
-		// this._exchanges.length = idx;
+		// remove this and following exchanges
+		this._exchanges.length = idx;
 		return true;
 	}
 
@@ -302,6 +300,9 @@ export class SessionExchange {
 
 export class EmptyResponse {
 
+	constructor(
+		readonly chatResponse: IChatResponseModel
+	) { }
 }
 
 export class ErrorResponse {
@@ -310,6 +311,7 @@ export class ErrorResponse {
 	readonly isCancellation: boolean;
 
 	constructor(
+		readonly chatResponse: IChatResponseModel,
 		readonly error: any
 	) {
 		this.message = toErrorMessage(error, false);
@@ -569,28 +571,28 @@ export class HunkData {
 
 		diff ??= await this._editorWorkerService.computeDiff(this._textModel0.uri, this._textModelN.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: Number.MAX_SAFE_INTEGER, computeMoves: false }, 'advanced');
 
-		if (!diff || diff.changes.length === 0) {
-			// return new HunkData([], session);
-			return;
-		}
+		let hunks: RawHunk[] = [];
 
-		// merge changes neighboring changes
-		const mergedChanges = [diff.changes[0]];
-		for (let i = 1; i < diff.changes.length; i++) {
-			const lastChange = mergedChanges[mergedChanges.length - 1];
-			const thisChange = diff.changes[i];
-			if (thisChange.modified.startLineNumber - lastChange.modified.endLineNumberExclusive <= HunkData._HUNK_THRESHOLD) {
-				mergedChanges[mergedChanges.length - 1] = new DetailedLineRangeMapping(
-					lastChange.original.join(thisChange.original),
-					lastChange.modified.join(thisChange.modified),
-					(lastChange.innerChanges ?? []).concat(thisChange.innerChanges ?? [])
-				);
-			} else {
-				mergedChanges.push(thisChange);
+		if (diff && diff.changes.length > 0) {
+
+			// merge changes neighboring changes
+			const mergedChanges = [diff.changes[0]];
+			for (let i = 1; i < diff.changes.length; i++) {
+				const lastChange = mergedChanges[mergedChanges.length - 1];
+				const thisChange = diff.changes[i];
+				if (thisChange.modified.startLineNumber - lastChange.modified.endLineNumberExclusive <= HunkData._HUNK_THRESHOLD) {
+					mergedChanges[mergedChanges.length - 1] = new DetailedLineRangeMapping(
+						lastChange.original.join(thisChange.original),
+						lastChange.modified.join(thisChange.modified),
+						(lastChange.innerChanges ?? []).concat(thisChange.innerChanges ?? [])
+					);
+				} else {
+					mergedChanges.push(thisChange);
+				}
 			}
-		}
 
-		const hunks = mergedChanges.map(change => new RawHunk(change.original, change.modified, change.innerChanges ?? []));
+			hunks = mergedChanges.map(change => new RawHunk(change.original, change.modified, change.innerChanges ?? []));
+		}
 
 		this._textModelN.changeDecorations(accessorN => {
 
