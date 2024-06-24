@@ -32,6 +32,7 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { AriaRole } from 'vs/base/browser/ui/aria/aria';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 // --- VIEW MODEL
 
@@ -157,7 +158,9 @@ export class TextEditElement implements ICheckable {
 		readonly parent: FileElement,
 		readonly idx: number,
 		readonly edit: BulkTextEdit,
-		readonly prefix: string, readonly selecting: string, readonly inserting: string, readonly suffix: string
+		readonly prefix: string, readonly selecting: string, readonly inserting: string, readonly suffix: string,
+		readonly selectRange: Range | undefined,
+		readonly insertRange: Range | undefined
 	) { }
 
 	isChecked(): boolean {
@@ -245,6 +248,11 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 				textModelDisposable = textModel;
 			}
 
+			// Offseting properties needed for insertRange calculations.
+			let lineOffset = 0;
+			let columnOffset = 0;
+			let lastRangeEndLine = -1;
+
 			const result = element.edit.textEdits.map((edit, idx) => {
 				const range = textModel.validateRange(edit.textEdit.textEdit.range);
 
@@ -262,14 +270,46 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 					suffixLen += endTokens.getEndOffset(idx) - endTokens.getStartOffset(idx);
 				}
 
+				const insertText = !edit.textEdit.textEdit.insertAsSnippet ? edit.textEdit.textEdit.text : SnippetParser.asInsertText(edit.textEdit.textEdit.text);
+				const selectText = textModel.getValueInRange(range);
+
+				// edit starting on a new line does not require columnOffset.
+				if (lastRangeEndLine !== range.startLineNumber) {
+					columnOffset = 0;
+				}
+				lastRangeEndLine = range.endLineNumber;
+
+				const insert = this.getNewLineAndEndLineCharacterAmount(insertText);
+				const select = this.getNewLineAndEndLineCharacterAmount(selectText);
+
+
+				// select/insert range are undefined if no string is selected/inserted.
+				// select range is immutable, depends on the provided range.
+				const selectRange = !selectText.length ? undefined : range;
+
+				// insert range has to be calculated using line + column offsets.
+				const insertLine = range.startLineNumber + lineOffset;
+				const insertColumn = Math.max(range.startColumn + columnOffset, 1);
+				const insertRange = !insertText.length ?
+					undefined :
+					new Range(insertLine, insertColumn, insertLine + insert.newLineAmount, insertColumn + insert.endLineCharacterAmount);
+
+				// line & column offset calculation.
+				if (this.isChecked(edit)) {
+					lineOffset += insert.newLineAmount - select.newLineAmount;
+					columnOffset += insert.endLineCharacterAmount - select.endLineCharacterAmount;
+				}
+
 				return new TextEditElement(
 					element,
 					idx,
 					edit,
 					textModel.getValueInRange(new Range(range.startLineNumber, range.startColumn - prefixLen, range.startLineNumber, range.startColumn)),
-					textModel.getValueInRange(range),
-					!edit.textEdit.textEdit.insertAsSnippet ? edit.textEdit.textEdit.text : SnippetParser.asInsertText(edit.textEdit.textEdit.text),
-					textModel.getValueInRange(new Range(range.endLineNumber, range.endColumn, range.endLineNumber, range.endColumn + suffixLen))
+					selectText,
+					insertText,
+					textModel.getValueInRange(new Range(range.endLineNumber, range.endColumn, range.endLineNumber, range.endColumn + suffixLen)),
+					selectRange,
+					insertRange
 				);
 			});
 
@@ -279,6 +319,30 @@ export class BulkEditDataSource implements IAsyncDataSource<BulkFileOperations, 
 
 		return [];
 	}
+
+	private isChecked(edit: BulkTextEdit): boolean {
+		let editParent = edit.parent.parent;
+		if (editParent instanceof CategoryElement) {
+			editParent = editParent.parent;
+		}
+		return editParent.checked.isChecked(edit.textEdit);
+	}
+
+	private getNewLineAndEndLineCharacterAmount(text: string): NewLineAndEndLineCharacterAmount {
+		const splitByNewLine = !text.length ? [] : text.split('\n');
+		const lineAmount = splitByNewLine.length - 1;
+		const endLineCharacterAmount = splitByNewLine[lineAmount]?.length ?? 0;
+
+		return {
+			newLineAmount: Math.max(lineAmount, 0),
+			endLineCharacterAmount,
+		};
+	}
+}
+
+interface NewLineAndEndLineCharacterAmount {
+	newLineAmount: number;
+	endLineCharacterAmount: number;
 }
 
 
@@ -559,6 +623,10 @@ export class FileElementRenderer implements ITreeRenderer<FileElement, FuzzyScor
 	}
 }
 
+interface IBulkEditsConfiguration {
+	showLineAndColumnNumbers: boolean;
+}
+
 class TextEditElementTemplate {
 
 	private readonly _disposables = new DisposableStore();
@@ -568,7 +636,11 @@ class TextEditElementTemplate {
 	private readonly _icon: HTMLDivElement;
 	private readonly _label: HighlightedLabel;
 
-	constructor(container: HTMLElement, @IThemeService private readonly _themeService: IThemeService) {
+	constructor(
+		container: HTMLElement,
+		@IThemeService private readonly _themeService: IThemeService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
+	) {
 		container.classList.add('textedit');
 
 		this._checkbox = document.createElement('input');
@@ -603,14 +675,29 @@ class TextEditElementTemplate {
 			this._checkbox.disabled = element.isDisabled();
 		}
 
+		let selectLineColumn = '';
+		let insertLineColumn = '';
+		if (this._configurationService.getValue<IBulkEditsConfiguration>('refactorPreview')?.showLineAndColumnNumbers) {
+			if (element.selectRange) {
+				selectLineColumn = `[Ln ${element.selectRange.startLineNumber}, Col ${element.selectRange.startColumn}] `;
+			}
+			if (element.insertRange) {
+				// Add extra spacing for inserts so the [Ln Col] is distinguishable.
+				const extraSpacing = element.prefix.length > 0 || element.selecting.length > 0 ? ' ' : '';
+				insertLineColumn = `${extraSpacing}[Ln ${element.insertRange.startLineNumber}, Col ${element.insertRange.startColumn}] `;
+			}
+		}
+
 		let value = '';
+		value += selectLineColumn;
 		value += element.prefix;
 		value += element.selecting;
+		value += insertLineColumn;
 		value += element.inserting;
 		value += element.suffix;
 
-		const selectHighlight: IHighlight = { start: element.prefix.length, end: element.prefix.length + element.selecting.length, extraClasses: ['remove'] };
-		const insertHighlight: IHighlight = { start: selectHighlight.end, end: selectHighlight.end + element.inserting.length, extraClasses: ['insert'] };
+		const selectHighlight: IHighlight = { start: selectLineColumn.length + element.prefix.length, end: selectLineColumn.length + element.prefix.length + element.selecting.length, extraClasses: ['remove'] };
+		const insertHighlight: IHighlight = { start: insertLineColumn.length + selectHighlight.end, end: insertLineColumn.length + selectHighlight.end + element.inserting.length, extraClasses: ['insert'] };
 
 		let title: string | undefined;
 		const { metadata } = element.edit.textEdit;
@@ -661,10 +748,13 @@ export class TextEditElementRenderer implements ITreeRenderer<TextEditElement, F
 
 	readonly templateId: string = TextEditElementRenderer.id;
 
-	constructor(@IThemeService private readonly _themeService: IThemeService) { }
+	constructor(
+		@IThemeService private readonly _themeService: IThemeService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
+	) { }
 
 	renderTemplate(container: HTMLElement): TextEditElementTemplate {
-		return new TextEditElementTemplate(container, this._themeService);
+		return new TextEditElementTemplate(container, this._themeService, this._configurationService);
 	}
 
 	renderElement({ element }: ITreeNode<TextEditElement, FuzzyScore>, _index: number, template: TextEditElementTemplate): void {
