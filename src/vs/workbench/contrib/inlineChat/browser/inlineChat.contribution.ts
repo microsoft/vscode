@@ -111,14 +111,12 @@ class MenuCopier implements IDisposable {
 
 		const store = new DisposableStore();
 		function updateMenu() {
-			if (configService.getValue<boolean>(InlineChatConfigKeys.ExpTextButtons)) {
-				store.clear();
-				for (const item of MenuRegistry.getMenuItems(MenuId.ChatExecute)) {
-					if (isIMenuItem(item) && (item.command.id === SubmitAction.ID || item.command.id === CancelAction.ID)) {
-						continue;
-					}
-					store.add(MenuRegistry.appendMenuItem(MENU_INLINE_CHAT_EXECUTE, item));
+			store.clear();
+			for (const item of MenuRegistry.getMenuItems(MenuId.ChatExecute)) {
+				if (configService.getValue<boolean>(InlineChatConfigKeys.ExpTextButtons) && isIMenuItem(item) && (item.command.id === SubmitAction.ID || item.command.id === CancelAction.ID)) {
+					continue;
 				}
+				store.add(MenuRegistry.appendMenuItem(MENU_INLINE_CHAT_EXECUTE, item));
 			}
 		}
 		updateMenu();
