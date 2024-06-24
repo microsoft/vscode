@@ -205,7 +205,7 @@ table > tbody > tr + tr > td {
 
 blockquote {
 	margin: 0;
-	padding: 2px 16px 0 10px;
+	padding: 0px 16px 0 10px;
 	border-left-width: 5px;
 	border-left-style: solid;
 	border-radius: 2px;

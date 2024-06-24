@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.91.0",
-  "distro": "951ec3be152d660cf34920fc3d734d32691bd880",
+  "distro": "44256034a3b5a2bbd6b12530ab050a2a3c2bd285",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -73,7 +73,7 @@
     "@vscode/deviceid": "^0.1.1",
     "@vscode/iconv-lite-umd": "0.7.0",
     "@vscode/policy-watcher": "^1.1.4",
-    "@vscode/proxy-agent": "^0.20.0",
+    "@vscode/proxy-agent": "^0.21.0",
     "@vscode/ripgrep": "^1.15.9",
     "@vscode/spdlog": "^0.15.0",
     "@vscode/sqlite3": "5.1.6-vscode",
@@ -228,6 +228,5 @@
   },
   "optionalDependencies": {
     "windows-foreground-love": "0.5.0"
-  },
-  "packageManager": "yarn@1.22.22+sha1.ac34549e6aa8e7ead463a7407e1c7390f61a6610"
+  }
 }

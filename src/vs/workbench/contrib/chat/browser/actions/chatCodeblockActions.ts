@@ -184,7 +184,7 @@ export function registerChatCodeBlockActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.insertCodeBlock',
-				title: localize2('interactive.insertCodeBlock.label', "Insert at Cursor"),
+				title: localize2('interactive.insertCodeBlock.label', "Apply in Editor"),
 				precondition: CONTEXT_CHAT_ENABLED,
 				f1: true,
 				category: CHAT_CATEGORY,
