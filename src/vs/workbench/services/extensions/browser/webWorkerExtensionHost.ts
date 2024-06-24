@@ -231,6 +231,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		if (globalThis.crossOriginIsolated) {
 			scriptPath += '?vscode-coi=2'; // COEP
 		}
+
 		const factoryModuleId = 'vs/base/worker/defaultWorkerFactory.js';
 		const workerBaseUrl = require.toUrl(factoryModuleId).slice(0, -factoryModuleId.length); // explicitly using require.toUrl(), see https://github.com/microsoft/vscode/issues/107440#issuecomment-698982321
 		const blob = new Blob([[
@@ -241,6 +242,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			`importScripts('${scriptPath}');`,
 			`/*${label}*/`
 		].join('')], { type: 'application/javascript' });
+
 		return URL.createObjectURL(blob);
 	}
 
