@@ -10,6 +10,7 @@ import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ITextModel } from 'vs/editor/common/model';
 import { FindStartFocusAction, getSelectionSearchString, IFindStartOptions, StartFindAction, StartFindReplaceAction } from 'vs/editor/contrib/find/browser/findController';
@@ -19,13 +20,12 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IShowNotebookFindWidgetOptions, NotebookFindContrib } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindWidget';
+import { INotebookCommandContext, NotebookMultiCellAction } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
-import { CellUri } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellUri, NotebookFindScopeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INTERACTIVE_WINDOW_IS_ACTIVE_EDITOR, KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { INotebookCommandContext, NotebookMultiCellAction } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 
 registerNotebookContribution(NotebookFindContrib.id, NotebookFindContrib);
 
@@ -78,12 +78,7 @@ registerAction2(class extends NotebookMultiCellAction {
 		}
 
 		const controller = editor.getContribution<NotebookFindContrib>(NotebookFindContrib.id);
-
-		if (context.selectedCells.length > 1) {
-			controller.show(undefined, { searchInRanges: true, selectedRanges: editor.getSelections() });
-		} else {
-			controller.show(undefined, { searchInRanges: false, selectedRanges: [] });
-		}
+		controller.show(undefined, { findScope: { findScopeType: NotebookFindScopeType.None } });
 	}
 });
 
