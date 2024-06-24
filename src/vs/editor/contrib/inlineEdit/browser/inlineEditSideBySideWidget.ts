@@ -8,16 +8,23 @@ import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IObservable, autorun, autorunWithStore, derived, observableSignalFromEvent } from 'vs/base/common/observable';
 import 'vs/css!./inlineEditSideBySideWidget';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
+import { observableCodeEditor } from 'vs/editor/browser/observableCodeEditor';
+import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/embeddedCodeEditorWidget';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { IInlineEdit } from 'vs/editor/common/languages';
-import { ILanguageService } from 'vs/editor/common/languages/language';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 function* range(start: number, end: number, step = 1) {
 	if (end === undefined) { [end, start] = [start, 0]; }
 	for (let n = start; n < end; n += step) { yield n; }
+}
+
+function removeIndentation(lines: string[]): string[] {
+	const indentation = lines[0].match(/^\s*/)?.[0] ?? '';
+	return lines.map(l => l.replace(new RegExp('^' + indentation), ''));
 }
 
 type Pos = {
@@ -26,8 +33,8 @@ type Pos = {
 };
 
 export class InlineEditSideBySideWidget extends Disposable {
-	private readonly position = derived(this, reader => {
-		const ghostText = this.model.read(reader);
+	private readonly _position = derived(this, reader => {
+		const ghostText = this._model.read(reader);
 
 		if (!ghostText || ghostText.text.length === 0) {
 			return null;
@@ -36,7 +43,7 @@ export class InlineEditSideBySideWidget extends Disposable {
 			//for inner-line suggestions we still want to use minimal ghost text
 			return null;
 		}
-		const editorModel = this.editor.getModel();
+		const editorModel = this._editor.getModel();
 		if (!editorModel) {
 			return null;
 		}
@@ -54,28 +61,37 @@ export class InlineEditSideBySideWidget extends Disposable {
 		return pos;
 	});
 
+	private readonly _text = derived(this, reader => {
+		const ghostText = this._model.read(reader);
+		if (!ghostText) {
+			return '';
+		}
+		return removeIndentation(ghostText.text.split('\n')).join('\n');
+	});
+
 	constructor(
-		private readonly editor: ICodeEditor,
-		private readonly model: IObservable<IInlineEdit | undefined>,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		private readonly _editor: ICodeEditor,
+		private readonly _model: IObservable<IInlineEdit | undefined>,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+
 	) {
 		super();
 
 		this._register(autorunWithStore((reader, store) => {
 			/** @description setup content widget */
-			const model = this.model.read(reader);
+			const model = this._model.read(reader);
 			if (!model) {
 				return;
 			}
 
-			const contentWidget = store.add(this.instantiationService.createInstance(
+			const contentWidget = store.add(this._instantiationService.createInstance(
 				InlineEditSideBySideContentWidget,
-				this.editor,
-				this.position,
-				model.text
+				this._editor,
+				this._position,
+				this._text
 			));
-			editor.addOverlayWidget(contentWidget);
-			store.add(toDisposable(() => editor.removeOverlayWidget(contentWidget)));
+			_editor.addOverlayWidget(contentWidget);
+			store.add(toDisposable(() => _editor.removeOverlayWidget(contentWidget)));
 		}));
 	}
 }
@@ -90,32 +106,72 @@ class InlineEditSideBySideContentWidget extends Disposable implements IOverlayWi
 	public readonly allowEditorOverflow = true;
 	public readonly suppressMouseDown = false;
 
-	private readonly nodes;
-	private readonly _markdownRenderer: MarkdownRenderer;
+	private readonly _nodes = $('div.inlineEditSideBySide', undefined,);
 
-	private readonly _scrollChanged = observableSignalFromEvent('editor.onDidScrollChange', this.editor.onDidScrollChange);
+	private readonly _scrollChanged = observableSignalFromEvent('editor.onDidScrollChange', this._editor.onDidScrollChange);
+
+	private readonly _previewEditor = this._register(this._instantiationService.createInstance(
+		EmbeddedCodeEditorWidget,
+		this._nodes,
+		{
+			glyphMargin: false,
+			lineNumbers: 'off',
+			minimap: { enabled: false },
+			guides: {
+				indentation: false,
+				bracketPairs: false,
+				bracketPairsHorizontal: false,
+				highlightActiveIndentation: false,
+			},
+			folding: false,
+			selectOnLineNumbers: false,
+			selectionHighlight: false,
+			columnSelection: false,
+			overviewRulerBorder: false,
+			overviewRulerLanes: 0,
+			lineDecorationsWidth: 0,
+			lineNumbersMinChars: 0,
+			scrollbar: { vertical: 'hidden', horizontal: 'hidden' },
+		},
+		{ contributions: [], },
+		this._editor
+	));
+
+	private readonly _previewEditorObs = observableCodeEditor(this._previewEditor);
+
+	private readonly _previewTextModel = this._register(this._instantiationService.createInstance(
+		TextModel,
+		this._text.get(),
+		this._editor.getModel()?.getLanguageId() ?? PLAINTEXT_LANGUAGE_ID,
+		TextModel.DEFAULT_CREATION_OPTIONS,
+		null
+	));
 
 	constructor(
-		private readonly editor: ICodeEditor,
+		private readonly _editor: ICodeEditor,
 		private readonly _position: IObservable<Pos | null>,
-		private readonly text: string,
+		private readonly _text: IObservable<string>,
 
-		@ILanguageService languageService: ILanguageService,
-		@IOpenerService openerService: IOpenerService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 
-		this._markdownRenderer = this._register(new MarkdownRenderer({ editor: this.editor }, languageService, openerService));
-		const t = '```\n' + this.text + '\n```';
-		const code = this._markdownRenderer.render({ value: t, isTrusted: true });
-		this.nodes = $('div.inlineEditSideBySide', undefined,
-			code.element
-		);
+		this._previewEditor.setModel(this._previewTextModel);
+
+		this._register(autorun(reader => {
+			const width = this._previewEditorObs.contentWidth.read(reader);
+			const lines = this._text.read(reader).split('\n').length - 1;
+			const height = this._editor.getOption(EditorOption.lineHeight) * lines;
+			// const height = this._previewEditor.getContentHeight();
+			this._nodes.style.width = `${width}px`;
+			this._nodes.style.height = `${height}px`;
+			this._previewEditor.layout({ height: height, width: width });
+		}));
 
 		this._register(autorun(reader => {
 			/** @description update position */
 			this._position.read(reader);
-			this.editor.layoutOverlayWidget(this);
+			this._editor.layoutOverlayWidget(this);
 		}));
 
 		this._register(autorun(reader => {
@@ -125,24 +181,24 @@ class InlineEditSideBySideContentWidget extends Disposable implements IOverlayWi
 			if (!position) {
 				return;
 			}
-			const visibleRanges = this.editor.getVisibleRanges();
+			const visibleRanges = this._editor.getVisibleRanges();
 			const isVisble = visibleRanges.some(range => {
 				return position.top >= range.startLineNumber && position.top <= range.endLineNumber;
 			});
 			if (!isVisble) {
-				this.nodes.style.display = 'none';
+				this._nodes.style.display = 'none';
 			}
 			else {
-				this.nodes.style.display = 'block';
+				this._nodes.style.display = 'block';
 			}
-			this.editor.layoutOverlayWidget(this);
+			this._editor.layoutOverlayWidget(this);
 		}));
 	}
 
 	getId(): string { return this.id; }
 
 	getDomNode(): HTMLElement {
-		return this.nodes;
+		return this._nodes;
 	}
 
 	getPosition(): IOverlayWidgetPosition | null {
@@ -150,13 +206,13 @@ class InlineEditSideBySideContentWidget extends Disposable implements IOverlayWi
 		if (!position) {
 			return null;
 		}
-		const layoutInfo = this.editor.getLayoutInfo();
-		const visibPos = this.editor.getScrolledVisiblePosition(new Position(position.top, 1));
+		const layoutInfo = this._editor.getLayoutInfo();
+		const visibPos = this._editor.getScrolledVisiblePosition(new Position(position.top, 1));
 		if (!visibPos) {
 			return null;
 		}
 		const top = visibPos.top;
-		const left = layoutInfo.contentLeft + this.editor.getOffsetForColumn(position.left.lineNumber, position.left.column) + 10;
+		const left = layoutInfo.contentLeft + this._editor.getOffsetForColumn(position.left.lineNumber, position.left.column) + 10;
 		return {
 			preference: {
 				left,
