@@ -84,6 +84,7 @@ export function createHtmlProject(languagePlugins: LanguagePlugin<URI>[]): Langu
 			return;
 		}
 		projectVersion = newProjectVersion;
+		currentDirectory = getRootFolder(uri) ?? '';
 		currentRootFiles.length = 0;
 		currentRootFiles.push(JQUERY_PATH);
 		currentRootFiles.push(asFileName(uri));
@@ -107,5 +108,18 @@ export function createHtmlProject(languagePlugins: LanguagePlugin<URI>[]): Langu
 				}
 			}
 		}
+	}
+
+	function getRootFolder(uri: URI) {
+		for (const folder of server.workspaceFolders) {
+			let folderURI = folder.toString();
+			if (!folderURI.endsWith('/')) {
+				folderURI = folderURI + '/';
+			}
+			if (uri.toString().startsWith(folderURI)) {
+				return folderURI;
+			}
+		}
+		return undefined;
 	}
 }
