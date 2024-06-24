@@ -31,7 +31,7 @@
 }
 
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-list {
-	padding: 2px 0 0 0;
+	padding: 4px 0 0 0;
 }
 
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-list .interactive-item-container.interactive-item-compact {
@@ -156,13 +156,8 @@
 	.action-item.text-only .action-label {
 		font-size: 12px;
 		line-height: 16px;
-		padding: 1px 2px;
-		border-radius: 3px;
-	}
-
-	.monaco-action-bar .action-item.menu-entry.text-only:first-of-type .action-label{
-		color: var(--vscode-button-foreground);
-		background-color: var(--vscode-button-background);
+		padding: 0 4px;
+		border-radius: 2px;
 	}
 
 	.monaco-action-bar .action-item.menu-entry.text-only + .action-item:not(.text-only) > .monaco-dropdown .action-label {
@@ -170,6 +165,15 @@
 		line-height: 16px;
 		width: unset;
 		height: unset;
+	}
+}
+
+.monaco-workbench .inline-chat .status .actions,
+.monaco-workbench .inline-chat-content-widget.contents .toolbar  {
+
+	.monaco-action-bar .action-item.menu-entry.text-only:first-of-type .action-label{
+		color: var(--vscode-button-foreground);
+		background-color: var(--vscode-button-background);
 	}
 }
 

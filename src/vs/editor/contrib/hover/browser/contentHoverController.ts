@@ -14,26 +14,21 @@ import { HoverOperation, HoverStartMode, HoverStartSource } from 'vs/editor/cont
 import { HoverAnchor, HoverParticipantRegistry, HoverRangeAnchor, IEditorHoverContext, IEditorHoverParticipant, IHoverPart, IHoverWidget } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { MarkdownHoverParticipant } from 'vs/editor/contrib/hover/browser/markdownHoverParticipant';
-import { InlayHintsHover } from 'vs/editor/contrib/inlayHints/browser/inlayHintsHover';
 import { HoverVerbosityAction } from 'vs/editor/common/standalone/standaloneEnums';
 import { ContentHoverWidget } from 'vs/editor/contrib/hover/browser/contentHoverWidget';
 import { ContentHoverComputer } from 'vs/editor/contrib/hover/browser/contentHoverComputer';
 import { HoverResult } from 'vs/editor/contrib/hover/browser/contentHoverTypes';
 import { Emitter } from 'vs/base/common/event';
-import { ColorHoverParticipant } from 'vs/editor/contrib/colorPicker/browser/colorHoverParticipant';
 import { RenderedContentHover } from 'vs/editor/contrib/hover/browser/contentHoverRendered';
 
 export class ContentHoverController extends Disposable implements IHoverWidget {
 
 	private _currentResult: HoverResult | null = null;
+	private _renderedContentHover: RenderedContentHover | undefined;
 
 	private readonly _computer: ContentHoverComputer;
 	private readonly _contentHoverWidget: ContentHoverWidget;
 	private readonly _participants: IEditorHoverParticipant[];
-	// TODO@aiday-mar make array of participants, dispatch between them
-	private readonly _markdownHoverParticipant: MarkdownHoverParticipant | undefined;
-	private readonly _colorHoverParticipant: ColorHoverParticipant | undefined;
 	private readonly _hoverOperation: HoverOperation<IHoverPart>;
 
 	private readonly _onContentsChanged = this._register(new Emitter<void>());
@@ -46,34 +41,23 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 	) {
 		super();
 		this._contentHoverWidget = this._register(this._instantiationService.createInstance(ContentHoverWidget, this._editor));
-		const initializedParticipants = this._initializeHoverParticipants();
-		this._participants = initializedParticipants.participants;
-		this._markdownHoverParticipant = initializedParticipants.markdownHoverParticipant;
-		this._colorHoverParticipant = initializedParticipants.colorHoverParticipant;
+		this._participants = this._initializeHoverParticipants();
 		this._computer = new ContentHoverComputer(this._editor, this._participants);
 		this._hoverOperation = this._register(new HoverOperation(this._editor, this._computer));
 		this._registerListeners();
 	}
 
-	private _initializeHoverParticipants(): { participants: IEditorHoverParticipant[]; markdownHoverParticipant: MarkdownHoverParticipant | undefined; colorHoverParticipant: ColorHoverParticipant | undefined } {
+	private _initializeHoverParticipants(): IEditorHoverParticipant[] {
 		const participants: IEditorHoverParticipant[] = [];
-		let markdownHoverParticipant: MarkdownHoverParticipant | undefined;
-		let colorHoverParticipant: ColorHoverParticipant | undefined;
 		for (const participant of HoverParticipantRegistry.getAll()) {
 			const participantInstance = this._instantiationService.createInstance(participant, this._editor);
-			if (participantInstance instanceof MarkdownHoverParticipant && !(participantInstance instanceof InlayHintsHover)) {
-				markdownHoverParticipant = participantInstance;
-			}
-			if (participantInstance instanceof ColorHoverParticipant) {
-				colorHoverParticipant = participantInstance;
-			}
 			participants.push(participantInstance);
 		}
 		participants.sort((p1, p2) => p1.hoverOrdinal - p2.hoverOrdinal);
 		this._register(this._contentHoverWidget.onDidResize(() => {
 			this._participants.forEach(participant => participant.handleResize?.());
 		}));
-		return { participants, markdownHoverParticipant, colorHoverParticipant };
+		return participants;
 	}
 
 	private _registerListeners(): void {
@@ -221,11 +205,11 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 
 	private _showHover(hoverResult: HoverResult): void {
 		const context = this._getHoverContext();
-		const renderedHover = new RenderedContentHover(this._editor, hoverResult, this._participants, this._computer, context, this._keybindingService);
-		if (renderedHover.domNodeHasChildren) {
-			this._contentHoverWidget.show(renderedHover);
+		this._renderedContentHover = new RenderedContentHover(this._editor, hoverResult, this._participants, this._computer, context, this._keybindingService);
+		if (this._renderedContentHover.domNodeHasChildren) {
+			this._contentHoverWidget.show(this._renderedContentHover);
 		} else {
-			renderedHover.dispose();
+			this._renderedContentHover.dispose();
 		}
 	}
 
@@ -301,28 +285,32 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		this._startShowingOrUpdateHover(new HoverRangeAnchor(0, range, undefined, undefined), mode, source, focus, null);
 	}
 
-	public async updateMarkdownHoverVerbosityLevel(action: HoverVerbosityAction, index?: number, focus?: boolean): Promise<void> {
-		this._markdownHoverParticipant?.updateMarkdownHoverVerbosityLevel(action, index, focus);
-	}
-
-	public focusedMarkdownHoverIndex(): number {
-		return this._markdownHoverParticipant?.focusedMarkdownHoverIndex() ?? -1;
-	}
-
-	public markdownHoverContentAtIndex(index: number): string {
-		return this._markdownHoverParticipant?.markdownHoverContentAtIndex(index) ?? '';
-	}
-
-	public doesMarkdownHoverAtIndexSupportVerbosityAction(index: number, action: HoverVerbosityAction): boolean {
-		return this._markdownHoverParticipant?.doesMarkdownHoverAtIndexSupportVerbosityAction(index, action) ?? false;
-	}
-
 	public getWidgetContent(): string | undefined {
 		const node = this._contentHoverWidget.getDomNode();
 		if (!node.textContent) {
 			return undefined;
 		}
 		return node.textContent;
+	}
+
+	public async updateHoverVerbosityLevel(action: HoverVerbosityAction, index: number, focus?: boolean): Promise<void> {
+		this._renderedContentHover?.updateHoverVerbosityLevel(action, index, focus);
+	}
+
+	public doesHoverAtIndexSupportVerbosityAction(index: number, action: HoverVerbosityAction): boolean {
+		return this._renderedContentHover?.doesHoverAtIndexSupportVerbosityAction(index, action) ?? false;
+	}
+
+	public getAccessibleWidgetContent(): string | undefined {
+		return this._renderedContentHover?.getAccessibleWidgetContent();
+	}
+
+	public getAccessibleWidgetContentAtIndex(index: number): string | undefined {
+		return this._renderedContentHover?.getAccessibleWidgetContentAtIndex(index);
+	}
+
+	public focusedHoverPartIndex(): number {
+		return this._renderedContentHover?.focusedHoverPartIndex ?? -1;
 	}
 
 	public containsNode(node: Node | null | undefined): boolean {
@@ -372,7 +360,7 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 	}
 
 	public get isColorPickerVisible(): boolean {
-		return this._colorHoverParticipant?.isColorPickerVisible() ?? false;
+		return this._renderedContentHover?.isColorPickerVisible() ?? false;
 	}
 
 	public get isVisibleFromKeyboard(): boolean {

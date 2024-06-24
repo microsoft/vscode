@@ -55,7 +55,11 @@ export class ChatTextEditContentPart extends Disposable implements IChatContentP
 		// TODO@jrieken move this into the CompareCodeBlock and properly say what kind of changes happen
 		if (rendererOptions.renderTextEditsAsSummary?.(chatTextEdit.uri)) {
 			if (isResponseVM(element) && element.response.value.every(item => item.kind === 'textEditGroup')) {
-				this.domNode = $('.interactive-edits-summary', undefined, !element.isComplete ? localize('editsSummary1', "Making changes...") : localize('editsSummary', "Made changes."));
+				this.domNode = $('.interactive-edits-summary', undefined, !element.isComplete
+					? localize('editsSummary1', "Making changes...")
+					: element.isCanceled
+						? localize('edits0', "Making changes was aborted.")
+						: localize('editsSummary', "Made changes."));
 			} else {
 				this.domNode = $('div');
 			}

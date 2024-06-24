@@ -428,21 +428,7 @@ export class InlineChatController implements IEditorContribution {
 				// TODO@jrieken there is still some work left for when a request "in the middle"
 				// is removed. We will undo all changes till that point but not remove those
 				// later request
-				const exchange = this._session!.exchanges.find(candidate => candidate.prompt.request.id === e.requestId);
-				if (exchange && this._editor.hasModel()) {
-					// undo till this point
-					this._session!.hunkData.ignoreTextModelNChanges = true;
-					try {
-
-						const model = this._editor.getModel();
-						const targetAltVersion = exchange.prompt.modelAltVersionId;
-						while (targetAltVersion < model.getAlternativeVersionId() && model.canUndo()) {
-							await model.undo();
-						}
-					} finally {
-						this._session!.hunkData.ignoreTextModelNChanges = false;
-					}
-				}
+				await this._session!.undoChangesUntil(e.requestId);
 			}
 		}));
 
@@ -734,6 +720,12 @@ export class InlineChatController implements IEditorContribution {
 		await responsePromise.p;
 		await progressiveEditsQueue.whenIdle();
 
+
+		if (response.isCanceled) {
+			//
+			await this._session.undoChangesUntil(response.requestId);
+		}
+
 		store.dispose();
 
 		const diff = await this._editorWorkerService.computeDiff(this._session.textModel0.uri, this._session.textModelN.uri, { computeMoves: false, maxComputationTimeMs: Number.MAX_SAFE_INTEGER, ignoreTrimWhitespace: false }, 'advanced');
@@ -771,7 +763,7 @@ export class InlineChatController implements IEditorContribution {
 			// real response -> complex...
 			this._ui.value.zone.widget.updateStatus('');
 
-			const position = await this._strategy.renderChanges(response);
+			const position = await this._strategy.renderChanges();
 			if (position) {
 				// if the selection doesn't start far off we keep the widget at its current position
 				// because it makes reading this nicer
@@ -827,7 +819,7 @@ export class InlineChatController implements IEditorContribution {
 			this._sessionStore.clear();
 
 			// only stash sessions that were not unstashed, not "empty", and not interacted with
-			const shouldStash = !this._session.isUnstashed && !!this._session.lastExchange && this._session.hunkData.size === this._session.hunkData.pending;
+			const shouldStash = !this._session.isUnstashed && this._session.chatModel.hasRequests && this._session.hunkData.size === this._session.hunkData.pending;
 			let undoCancelEdits: IValidEditOperation[] = [];
 			try {
 				undoCancelEdits = this._strategy.cancel();
@@ -874,7 +866,7 @@ export class InlineChatController implements IEditorContribution {
 			widgetPosition = this._editor.getSelection().getStartPosition().delta(-1);
 		}
 
-		if (this._session && !position && (this._session.hasChangedText || this._session.lastExchange)) {
+		if (this._session && !position && (this._session.hasChangedText || this._session.chatModel.hasRequests)) {
 			widgetPosition = this._session.wholeRange.value.getStartPosition().delta(-1);
 		}
 
@@ -1063,10 +1055,10 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	acceptSession(): void {
-		if (this._session?.lastExchange?.response instanceof ReplyResponse && this._session?.lastExchange?.response.chatResponse) {
-			const response = this._session?.lastExchange?.response.chatResponse;
+		const response = this._session?.chatModel.getRequests().at(-1)?.response;
+		if (response) {
 			this._chatService.notifyUserAction({
-				sessionId: this._session.chatModel.sessionId,
+				sessionId: response.session.sessionId,
 				requestId: response.requestId,
 				agentId: response.agent?.id,
 				result: response.result,
@@ -1088,11 +1080,10 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	async cancelSession() {
-
-		if (this._session?.lastExchange?.response instanceof ReplyResponse && this._session?.lastExchange?.response.chatResponse) {
-			const response = this._session?.lastExchange?.response.chatResponse;
+		const response = this._session?.chatModel.getRequests().at(-1)?.response;
+		if (response) {
 			this._chatService.notifyUserAction({
-				sessionId: this._session.chatModel.sessionId,
+				sessionId: response.session.sessionId,
 				requestId: response.requestId,
 				agentId: response.agent?.id,
 				result: response.result,
