@@ -9,7 +9,7 @@ import { Mimes } from 'vs/base/common/mime';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IPosition } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as model from 'vs/editor/common/model';
@@ -24,7 +24,7 @@ import { NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/browse
 import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, INotebookCellStatusBarItem, INotebookSearchOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, INotebookCellStatusBarItem, INotebookFindOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export abstract class BaseCellViewModel extends Disposable {
 
@@ -650,20 +650,21 @@ export abstract class BaseCellViewModel extends Disposable {
 
 	protected abstract onDidChangeTextModelContent(): void;
 
-	protected cellStartFind(value: string, options: INotebookSearchOptions): model.FindMatch[] | null {
+	protected cellStartFind(value: string, options: INotebookFindOptions): model.FindMatch[] | null {
 		let cellMatches: model.FindMatch[] = [];
+
+		const lineCount = this.textBuffer.getLineCount();
+		const findRange: IRange[] = options.findScope?.selectedTextRanges ?? [new Range(1, 1, lineCount, this.textBuffer.getLineLength(lineCount) + 1)];
 
 		if (this.assertTextModelAttached()) {
 			cellMatches = this.textModel!.findMatches(
 				value,
-				false,
+				findRange,
 				options.regex || false,
 				options.caseSensitive || false,
 				options.wholeWord ? options.wordSeparators || null : null,
 				options.regex || false);
 		} else {
-			const lineCount = this.textBuffer.getLineCount();
-			const fullRange = new Range(1, 1, lineCount, this.textBuffer.getLineLength(lineCount) + 1);
 			const searchParams = new SearchParams(value, options.regex || false, options.caseSensitive || false, options.wholeWord ? options.wordSeparators || null : null,);
 			const searchData = searchParams.parseSearchRequest();
 
@@ -671,7 +672,9 @@ export abstract class BaseCellViewModel extends Disposable {
 				return null;
 			}
 
-			cellMatches = this.textBuffer.findMatchesLineByLine(fullRange, searchData, options.regex || false, 1000);
+			findRange.forEach(range => {
+				cellMatches.push(...this.textBuffer.findMatchesLineByLine(new Range(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn), searchData, options.regex || false, 1000));
+			});
 		}
 
 		return cellMatches;
