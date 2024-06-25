@@ -175,7 +175,7 @@ __vsc_stable="$VSCODE_STABLE"
 unset VSCODE_STABLE
 
 # Report continuation prompt
-builtin printf "\e]633;P;ContinuationPrompt=$(echo "$PS2" | sed 's/\x1b/\\\\x1b/g')\a"
+builtin printf "\e]633;P;ContinuationPrompt=%s\a" "$(echo "$PS2" | sed 's/\x1b/\\\\x1b/g')"
 
 __vsc_report_prompt() {
 	# Expand the original PS1 similarly to how bash would normally
