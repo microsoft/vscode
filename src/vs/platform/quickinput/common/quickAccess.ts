@@ -130,6 +130,12 @@ export interface IQuickAccessProvider {
 	 * closes or is replaced by another picker.
 	 */
 	provide(picker: IQuickPick<IQuickPickItem>, token: CancellationToken, options?: IQuickAccessProviderRunOptions): IDisposable;
+
+	/**
+	 * Clears any cached picks that the provider may have cached on the last
+	 * provide call.
+	 */
+	clearCache?(): void;
 }
 
 export interface IQuickAccessProviderHelp {

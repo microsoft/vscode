@@ -118,6 +118,7 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 			pickPromise = new DeferredPromise<IQuickPickItem[]>();
 			disposables.add(Event.once(picker.onWillAccept)(e => {
 				e.veto();
+				provider?.clearCache?.();
 				picker.hide();
 			}));
 		}
@@ -142,6 +143,8 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 
 			// Start to dispose once picker hides
 			disposables.dispose();
+
+			provider?.clearCache?.();
 
 			// Resolve pick promise with selected items
 			pickPromise?.complete(picker.selectedItems.slice(0));
@@ -201,6 +204,7 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 		disposables.add(picker.onDidChangeValue(value => {
 			const [providerForValue] = this.getOrInstantiateProvider(value, options?.enabledProviderPrefixes);
 			if (providerForValue !== provider) {
+				providerForValue?.clearCache?.();
 				this.show(value, {
 					enabledProviderPrefixes: options?.enabledProviderPrefixes,
 					// do not rewrite value from user typing!

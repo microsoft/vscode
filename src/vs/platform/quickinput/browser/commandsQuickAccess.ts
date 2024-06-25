@@ -53,6 +53,8 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 
 	protected override readonly options: ICommandsQuickAccessOptions;
 
+	private _cachedPicks: ICommandQuickPick[] | undefined;
+
 	constructor(
 		options: ICommandsQuickAccessOptions,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -66,10 +68,14 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 		this.options = options;
 	}
 
-	protected async _getPicks(filter: string, _disposables: DisposableStore, token: CancellationToken, runOptions?: IQuickAccessProviderRunOptions): Promise<Picks<ICommandQuickPick> | FastAndSlowPicks<ICommandQuickPick>> {
+	clearCache() {
+		this._cachedPicks = undefined;
+	}
 
+	protected async _getPicks(filter: string, _disposables: DisposableStore, token: CancellationToken, runOptions?: IQuickAccessProviderRunOptions): Promise<Picks<ICommandQuickPick> | FastAndSlowPicks<ICommandQuickPick>> {
 		// Ask subclass for all command picks
-		const allCommandPicks = await this.getCommandPicks(token);
+		const allCommandPicks = this._cachedPicks ?? await this.getCommandPicks(token);
+		this._cachedPicks = allCommandPicks;
 
 		if (token.isCancellationRequested) {
 			return [];
