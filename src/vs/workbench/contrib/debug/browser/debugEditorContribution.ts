@@ -66,12 +66,7 @@ export const debugInlineForeground = registerColor('editor.inlineValuesForegroun
 	hcLight: '#00000080'
 }, nls.localize('editor.inlineValuesForeground', "Color for the debug inline value text."));
 
-export const debugInlineBackground = registerColor('editor.inlineValuesBackground', {
-	dark: '#ffc80033',
-	light: '#ffc80033',
-	hcDark: '#ffc80033',
-	hcLight: '#ffc80033'
-}, nls.localize('editor.inlineValuesBackground', "Color for the debug inline value background."));
+export const debugInlineBackground = registerColor('editor.inlineValuesBackground', '#ffc80033', nls.localize('editor.inlineValuesBackground', "Color for the debug inline value background."));
 
 class InlineSegment {
 	constructor(public column: number, public text: string) {

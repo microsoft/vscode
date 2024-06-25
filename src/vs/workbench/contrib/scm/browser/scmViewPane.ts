@@ -130,33 +130,13 @@ type TreeElement =
 
 type ShowChangesSetting = 'always' | 'never' | 'auto';
 
-registerColor('scm.historyItemAdditionsForeground', {
-	dark: 'gitDecoration.addedResourceForeground',
-	light: 'gitDecoration.addedResourceForeground',
-	hcDark: 'gitDecoration.addedResourceForeground',
-	hcLight: 'gitDecoration.addedResourceForeground'
-}, localize('scm.historyItemAdditionsForeground', "History item additions foreground color."));
+registerColor('scm.historyItemAdditionsForeground', 'gitDecoration.addedResourceForeground', localize('scm.historyItemAdditionsForeground', "History item additions foreground color."));
 
-registerColor('scm.historyItemDeletionsForeground', {
-	dark: 'gitDecoration.deletedResourceForeground',
-	light: 'gitDecoration.deletedResourceForeground',
-	hcDark: 'gitDecoration.deletedResourceForeground',
-	hcLight: 'gitDecoration.deletedResourceForeground'
-}, localize('scm.historyItemDeletionsForeground', "History item deletions foreground color."));
+registerColor('scm.historyItemDeletionsForeground', 'gitDecoration.deletedResourceForeground', localize('scm.historyItemDeletionsForeground', "History item deletions foreground color."));
 
-registerColor('scm.historyItemStatisticsBorder', {
-	dark: transparent(foreground, 0.2),
-	light: transparent(foreground, 0.2),
-	hcDark: transparent(foreground, 0.2),
-	hcLight: transparent(foreground, 0.2)
-}, localize('scm.historyItemStatisticsBorder', "History item statistics border color."));
+registerColor('scm.historyItemStatisticsBorder', transparent(foreground, 0.2), localize('scm.historyItemStatisticsBorder', "History item statistics border color."));
 
-registerColor('scm.historyItemSelectedStatisticsBorder', {
-	dark: transparent(listActiveSelectionForeground, 0.2),
-	light: transparent(listActiveSelectionForeground, 0.2),
-	hcDark: transparent(listActiveSelectionForeground, 0.2),
-	hcLight: transparent(listActiveSelectionForeground, 0.2)
-}, localize('scm.historyItemSelectedStatisticsBorder', "History item selected statistics border color."));
+registerColor('scm.historyItemSelectedStatisticsBorder', transparent(listActiveSelectionForeground, 0.2), localize('scm.historyItemSelectedStatisticsBorder', "History item selected statistics border color."));
 
 function processResourceFilterData(uri: URI, filterData: FuzzyScore | LabelFuzzyScore | undefined): [IMatch[] | undefined, IMatch[] | undefined] {
 	if (!filterData) {
