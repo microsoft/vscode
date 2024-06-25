@@ -96,7 +96,7 @@ function getOutputViewModelFromId(outputId: string, notebookEditor: INotebookEdi
 	if (notebookViewModel) {
 		const codeCells = notebookViewModel.viewCells.filter(cell => cell.cellKind === CellKind.Code) as CodeCellViewModel[];
 		for (const cell of codeCells) {
-			const output = cell.outputsViewModels.find(output => output.model.outputId === outputId);
+			const output = cell.outputsViewModels.find(output => output.model.outputId === outputId || output.model.alternativeOutputId === outputId);
 			if (output) {
 				return output;
 			}
