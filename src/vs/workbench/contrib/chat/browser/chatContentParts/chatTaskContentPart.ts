@@ -34,7 +34,9 @@ export class ChatTaskContentPart extends Disposable implements IChatContentPart 
 			this.domNode.appendChild(refsPart.domNode);
 			this.onDidChangeHeight = refsPart.onDidChangeHeight;
 		} else {
-			const progressPart = this._register(instantiationService.createInstance(ChatProgressContentPart, task, renderer, context, !task.isSettled(), true));
+			// #217645
+			const isSettled = task.isSettled?.() ?? true;
+			const progressPart = this._register(instantiationService.createInstance(ChatProgressContentPart, task, renderer, context, !isSettled, true));
 			this.domNode = progressPart.domNode;
 			this.onDidChangeHeight = Event.None;
 		}
