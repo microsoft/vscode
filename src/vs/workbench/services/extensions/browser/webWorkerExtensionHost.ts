@@ -190,6 +190,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 						baseUrl,
 						workerUrl: require.toUrl(factoryModuleId),
 						nls: {
+							// VSCODE_GLOBALS: NLS
 							messages: globalThis._VSCODE_NLS_MESSAGES,
 							language: globalThis._VSCODE_NLS_LANGUAGE
 						}

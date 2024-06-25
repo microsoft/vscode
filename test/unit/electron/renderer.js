@@ -103,7 +103,7 @@ function initNls(opts) {
 		// messages file, because all `nls.localize` calls have their
 		// english values removed and replaced by an index.
 		// VSCODE_GLOBALS: NLS
-		globalThis._VSCODE_NLS_MESSAGES = (require.__$__nodeRequire ?? require)(path.join(__dirname, '..', '..', '..', 'out-build', 'nls.messages.json'));
+		globalThis._VSCODE_NLS_MESSAGES = (require.__$__nodeRequire ?? require)(`../../../out-build/nls.messages.json`);
 	}
 }
 

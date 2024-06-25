@@ -9,9 +9,8 @@
 'use strict';
 
 /**
- * @typedef {import('../../nls').INLSConfiguration} INLSConfiguration
- * @typedef {import('./nls').ILanguagePacks} ILanguagePacks
- * @typedef {import('./nls').IResolveNLSConfigurationContext} IResolveNLSConfigurationContext
+ * @import { INLSConfiguration, ILanguagePacks } from '../../nls'
+ * @import { IResolveNLSConfigurationContext } from './nls'
  */
 
 (function () {

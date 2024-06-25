@@ -25,7 +25,9 @@ interface NlsMetadata {
 function main(): Promise<void> {
 	return new Promise((c, e) => {
 		const combinedMetadataJson = es.merge(
-			// vscode
+			// vscode: we are not using `out-build/nls.metadata.json` here because
+			// it includes metadata for translators for `keys`. but for our purpose
+			// we want only the `keys` and `messages` as `string`.
 			es.merge(
 				vfs.src('out-build/nls.keys.json', { base: 'out-build' }),
 				vfs.src('out-build/nls.messages.json', { base: 'out-build' }))

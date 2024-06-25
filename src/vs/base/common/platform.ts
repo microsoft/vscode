@@ -105,7 +105,7 @@ else if (typeof navigator === 'object' && !isElectronRenderer) {
 	_isWeb = true;
 	// VSCODE_GLOBALS: NLS
 	_language = globalThis._VSCODE_NLS_LANGUAGE || LANGUAGE_DEFAULT;
-	_locale = navigator.language;
+	_locale = navigator.language.toLowerCase();
 	_platformLocale = _locale;
 }
 
@@ -162,7 +162,7 @@ export const userAgent = _userAgent;
 /**
  * The language used for the user interface. The format of
  * the string is all lower case (e.g. zh-tw for Traditional
- * Chinese)
+ * Chinese or de for German)
  */
 export const language = _language;
 
@@ -188,15 +188,16 @@ export namespace Language {
 }
 
 /**
- * The OS locale or the locale specified by --locale. The format of
- * the string is all lower case (e.g. zh-tw for Traditional
- * Chinese). The UI is not necessarily shown in the provided locale.
+ * Desktop: The OS locale or the locale specified by --locale or `argv.json`.
+ * Web: matches `platformLocale`.
+ *
+ * The UI is not necessarily shown in the provided locale.
  */
 export const locale = _locale;
 
 /**
  * This will always be set to the OS/browser's locale regardless of
- * what was specified by --locale. The format of the string is all
+ * what was specified otherwise. The format of the string is all
  * lower case (e.g. zh-tw for Traditional Chinese). The UI is not
  * necessarily shown in the provided locale.
  */

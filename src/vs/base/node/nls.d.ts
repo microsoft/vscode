@@ -5,23 +5,6 @@
 
 import type { INLSConfiguration } from 'vs/nls';
 
-interface IExtensionIdentifier {
-	readonly id: string;
-	readonly uuid?: string;
-}
-
-export interface ILanguagePack {
-	readonly hash: string;
-	readonly label: string | undefined;
-	readonly extensions: {
-		readonly extensionIdentifier: IExtensionIdentifier;
-		readonly version: string;
-	}[];
-	readonly translations: Record<string, string | undefined>;
-}
-
-export type ILanguagePacks = Record<string, ILanguagePack | undefined>;
-
 export interface IResolveNLSConfigurationContext {
 
 	/**
