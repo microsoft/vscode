@@ -6,12 +6,7 @@
 import { localize } from 'vs/nls';
 import { registerColor } from 'vs/platform/theme/common/colorUtils';
 
-export const terminalStickyScrollBackground = registerColor('terminalStickyScroll.background', {
-	light: null,
-	dark: null,
-	hcDark: null,
-	hcLight: null
-}, localize('terminalStickyScroll.background', 'The background color of the sticky scroll overlay in the terminal.'));
+export const terminalStickyScrollBackground = registerColor('terminalStickyScroll.background', null, localize('terminalStickyScroll.background', 'The background color of the sticky scroll overlay in the terminal.'));
 
 export const terminalStickyScrollHoverBackground = registerColor('terminalStickyScrollHover.background', {
 	dark: '#2A2D2E',
