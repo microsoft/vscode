@@ -512,6 +512,11 @@
 	color: var(--vscode-textLink-foreground);
 }
 
+.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown a,
+.settings-editor > .settings-body .settings-tree-container .setting-item-contents .edit-in-settings-button {
+	text-decoration: var(--text-link-decoration);
+}
+
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown a:focus,
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .edit-in-settings-button:focus {
 	outline: 1px solid -webkit-focus-ring-color;
