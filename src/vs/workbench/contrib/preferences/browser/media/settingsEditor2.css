@@ -408,7 +408,8 @@
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title .setting-item-overrides a.modified-scope {
-	text-decoration: underline;
+	color: var(--vscode-textLink-foreground);
+	text-decoration: var(--text-link-decoration);
 	cursor: pointer;
 }
 
