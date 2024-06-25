@@ -15,7 +15,7 @@ interface IDebugSession {
 		...args: T
 	): Promise<TResult>;
 }
-
+// hello scm2
 interface Context {
 	vscode: typeof import('vscode');
 }
