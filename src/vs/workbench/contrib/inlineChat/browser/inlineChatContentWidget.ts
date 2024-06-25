@@ -107,18 +107,20 @@ export class InlineChatContentWidget implements IContentWidget {
 		}
 		this._domNode.appendChild(this._toolbarContainer);
 
-		this._store.add(scopedInstaService.createInstance(MenuWorkbenchToolBar, this._toolbarContainer, MENU_INLINE_CHAT_CONTENT_STATUS, {
+		const toolbar = this._store.add(scopedInstaService.createInstance(MenuWorkbenchToolBar, this._toolbarContainer, MENU_INLINE_CHAT_CONTENT_STATUS, {
 			actionViewItemProvider: action => action instanceof MenuItemAction ? instaService.createInstance(TextOnlyMenuEntryActionViewItem, action, { conversational: true }) : undefined,
 			toolbarOptions: { primaryGroup: '0_main' },
 			icon: false,
 			label: true,
 		}));
 
+		this._store.add(toolbar.onDidChangeMenuItems(() => {
+			this._domNode.classList.toggle('contents', toolbar.getItemsLength() > 1);
+		}));
+
 		const tracker = dom.trackFocus(this._domNode);
 		this._store.add(tracker.onDidBlur(() => {
-			if (this._visible && this._widget.inputEditor.getModel()?.getValueLength() === 0
-				// && !"ON"
-			) {
+			if (this._visible && this._widget.inputEditor.getModel()?.getValueLength() === 0) {
 				this._onDidBlur.fire();
 			}
 		}));

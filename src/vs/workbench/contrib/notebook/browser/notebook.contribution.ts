@@ -1055,11 +1055,6 @@ configurationRegistry.registerConfiguration({
 			},
 			tags: ['notebookLayout']
 		},
-		[NotebookSetting.findScope]: {
-			markdownDescription: nls.localize('notebook.experimental.find.scope.enabled', "Enables the user to search within a selection of cells in the notebook. When enabled, the user will see a \"Find in Cell Selection\" icon in the notebook find widget."),
-			type: 'boolean',
-			default: false,
-		},
 		[NotebookSetting.remoteSaving]: {
 			markdownDescription: nls.localize('notebook.remoteSaving', "Enables the incremental saving of notebooks between processes and across Remote connections. When enabled, only the changes to the notebook are sent to the extension host, improving performance for large notebooks and slow network connections."),
 			type: 'boolean',

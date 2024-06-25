@@ -488,7 +488,7 @@ type UpdateMetadataErrorClassification = {
 	owner: 'sandy081';
 	comment: 'Update metadata error';
 	extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'extension identifier' };
-	code?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'result code of the verification' };
+	code?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'error code' };
 };
 type UpdateMetadataErrorEvent = {
 	extensionId: string;
@@ -594,7 +594,7 @@ export class ExtensionsScanner extends Disposable {
 			try {
 				await this.extensionsScannerService.updateMetadata(extensionLocation, metadata);
 			} catch (error) {
-				this.telemetryService.publicLog2<UpdateMetadataErrorEvent, UpdateMetadataErrorClassification>('extension:extract', { extensionId: extensionKey.id, code: error.code });
+				this.telemetryService.publicLog2<UpdateMetadataErrorEvent, UpdateMetadataErrorClassification>('extension:extract', { extensionId: extensionKey.id, code: `${toFileOperationResult(error)}` });
 				throw toExtensionManagementError(error, ExtensionManagementErrorCode.UpdateExistingMetadata);
 			}
 		} else {
@@ -615,7 +615,7 @@ export class ExtensionsScanner extends Disposable {
 				try {
 					await this.extensionsScannerService.updateMetadata(tempLocation, metadata);
 				} catch (error) {
-					this.telemetryService.publicLog2<UpdateMetadataErrorEvent, UpdateMetadataErrorClassification>('extension:extract', { extensionId: extensionKey.id, code: error.code });
+					this.telemetryService.publicLog2<UpdateMetadataErrorEvent, UpdateMetadataErrorClassification>('extension:extract', { extensionId: extensionKey.id, code: `${toFileOperationResult(error)}` });
 					throw toExtensionManagementError(error, ExtensionManagementErrorCode.UpdateMetadata);
 				}
 
@@ -671,7 +671,7 @@ export class ExtensionsScanner extends Disposable {
 				await this.extensionsScannerService.updateMetadata(local.location, metadata);
 			}
 		} catch (error) {
-			this.telemetryService.publicLog2<UpdateMetadataErrorEvent, UpdateMetadataErrorClassification>('extension:extract', { extensionId: local.identifier.id, code: error.code });
+			this.telemetryService.publicLog2<UpdateMetadataErrorEvent, UpdateMetadataErrorClassification>('extension:extract', { extensionId: local.identifier.id, code: `${toFileOperationResult(error)}` });
 			throw toExtensionManagementError(error, ExtensionManagementErrorCode.UpdateMetadata);
 		}
 		return this.scanLocalExtension(local.location, local.type, profileLocation);

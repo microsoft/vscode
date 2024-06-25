@@ -3229,7 +3229,13 @@ export class SCMViewPane extends ViewPane {
 			const historyItemChanges = await historyProvider?.provideHistoryItemChanges(historyItem.id, historyItemParentId);
 			if (historyItemChanges) {
 				const title = `${historyItem.id.substring(0, 8)} - ${historyItem.message}`;
-				await this.commandService.executeCommand('_workbench.openMultiDiffEditor', { title, resources: historyItemChanges });
+
+				const rootUri = e.element.repository.provider.rootUri;
+				const multiDiffSourceUri = rootUri ?
+					rootUri.with({ scheme: 'scm-history-item', path: `${rootUri.path}/${historyItem.id}` }) :
+					{ scheme: 'scm-history-item', path: `${e.element.repository.provider.label}/${historyItem.id}` };
+
+				await this.commandService.executeCommand('_workbench.openMultiDiffEditor', { title, multiDiffSourceUri, resources: historyItemChanges });
 			}
 
 			this.scmViewService.focus(e.element.repository);
