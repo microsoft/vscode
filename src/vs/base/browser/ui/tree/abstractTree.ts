@@ -433,6 +433,8 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 		this.renderer.disposeTemplate(templateData.templateData);
 	}
 
+	// Test SCM Graph
+
 	private onDidChangeTwistieState(element: T): void {
 		const node = this.renderedElements.get(element);
 
