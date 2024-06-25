@@ -406,31 +406,41 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 					this.defaultLanguageConfigurationOverridesNode.properties![key] = property;
 				} else {
 					const property = this.configurationProperties[key];
-					let defaultValue = overrides[key];
-					let defaultValueSource: ConfigurationDefaultValueSource | undefined = source;
+
+					const existingDefaultOverride = this.configurationDefaultsOverrides.get(key);
+					let existingDefaultValue = existingDefaultOverride?.value ?? property?.defaultDefaultValue;
+
+					let newDefaultValue = overrides[key];
+					let newDefaultValueSource: ConfigurationDefaultValueSource | undefined = source;
+
+					const isObjectSetting = types.isObject(newDefaultValue) && (
+						property !== undefined && property.type === 'object' ||
+						property === undefined && (types.isUndefined(existingDefaultValue) || types.isObject(existingDefaultValue)));
 
 					// If the default value is an object, merge the objects and store the source of each keys
-					if (property.type === 'object' && types.isObject(overrides[key])) {
-						const objectDefaults = this.configurationDefaultsOverrides.get(key);
-						const existingDefaultValue = objectDefaults?.value ?? property.defaultDefaultValue ?? {};
-						defaultValue = { ...existingDefaultValue, ...overrides[key] };
+					if (isObjectSetting) {
+						if (!types.isObject(existingDefaultValue)) {
+							existingDefaultValue = {};
+						}
 
-						defaultValueSource = objectDefaults?.source ?? new Map<string, ConfigurationDefaultSource>();
-						if (!(defaultValueSource instanceof Map)) {
+						newDefaultValue = { ...existingDefaultValue, ...newDefaultValue };
+
+						newDefaultValueSource = existingDefaultOverride?.source ?? new Map<string, ConfigurationDefaultSource>();
+						if (!(newDefaultValueSource instanceof Map)) {
 							console.error('defaultValueSource is not a Map');
 							continue;
 						}
 
-						for (const objectKey in overrides[key]) {
+						for (const overrideObjectKey in overrides[key]) {
 							if (source) {
-								defaultValueSource.set(objectKey, source);
+								newDefaultValueSource.set(overrideObjectKey, source);
 							} else {
-								defaultValueSource.delete(objectKey);
+								newDefaultValueSource.delete(overrideObjectKey);
 							}
 						}
 					}
 
-					this.configurationDefaultsOverrides.set(key, { value: defaultValue, source: defaultValueSource });
+					this.configurationDefaultsOverrides.set(key, { value: newDefaultValue, source: newDefaultValueSource });
 
 					if (property) {
 						this.updatePropertyDefaultValue(key, property);

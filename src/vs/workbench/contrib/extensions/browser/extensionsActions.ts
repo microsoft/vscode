@@ -3092,12 +3092,7 @@ registerColor('extensionButton.hoverBackground', {
 	hcLight: null
 }, localize('extensionButtonHoverBackground', "Button background hover color for extension actions."));
 
-registerColor('extensionButton.separator', {
-	dark: buttonSeparator,
-	light: buttonSeparator,
-	hcDark: buttonSeparator,
-	hcLight: buttonSeparator
-}, localize('extensionButtonSeparator', "Button separator color for extension actions"));
+registerColor('extensionButton.separator', buttonSeparator, localize('extensionButtonSeparator', "Button separator color for extension actions"));
 
 export const extensionButtonProminentBackground = registerColor('extensionButton.prominentBackground', {
 	dark: buttonBackground,
