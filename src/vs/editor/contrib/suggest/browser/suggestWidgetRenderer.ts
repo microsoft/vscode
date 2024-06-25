@@ -182,6 +182,12 @@ export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTe
 			data.iconContainer.className = 'icon hide';
 			data.colorspan.style.backgroundColor = color[0];
 
+		} else if (completion.kind === CompletionItemKind.Color && typeof completion.documentation === 'string') {
+			// special logic for 'color' completion items that cannot be parsed using Regex
+			data.icon.className = 'icon customcolor';
+			data.iconContainer.className = 'icon hide';
+			data.colorspan.style.backgroundColor = completion.documentation;
+
 		} else if (completion.kind === CompletionItemKind.File && this._themeService.getFileIconTheme().hasFileIcons) {
 			// special logic for 'file' completion items
 			data.icon.className = 'icon hide';
