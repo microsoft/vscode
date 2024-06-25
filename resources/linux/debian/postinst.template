@@ -48,6 +48,11 @@ if [ "@@NAME@@" != "code-oss" ]; then
 		WRITE_SOURCE=1
 	fi
 
+	# Check if debconf wants sources.list and GPG configuration applied
+	. /usr/share/debconf/confmodule
+        db_get @@NAME@@/configure_apt
+        "${RET}" || WRITE_SOURCE=0
+
 	if [ "$WRITE_SOURCE" -eq "1" ]; then
 		echo "### THIS FILE IS AUTOMATICALLY CONFIGURED ###
 # You may comment out this entry, but any other modifications may be lost.

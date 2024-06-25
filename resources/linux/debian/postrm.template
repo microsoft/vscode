@@ -14,3 +14,9 @@ fi
 if hash update-mime-database 2>/dev/null; then
 	update-mime-database /usr/share/mime
 fi
+
+# Remove debconf db entry when package is purged
+if [ "$1" == 'purge' ] && [ -e '/usr/share/debconf/confmodule' ]; then
+	. /usr/share/debconf/confmodule 
+	db_purge
+fi
