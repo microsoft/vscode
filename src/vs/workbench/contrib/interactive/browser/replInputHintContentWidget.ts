@@ -148,7 +148,7 @@ export class ReplInputHintContentWidget extends Disposable implements IContentWi
 			}
 		}
 
-		return keybindings.length ? keybindings[0] : undefined;
+		return keybindings?.[0];
 	}
 
 	override dispose(): void {
