@@ -414,8 +414,8 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 					let newDefaultValueSource: ConfigurationDefaultValueSource | undefined = source;
 
 					const isObjectSetting = types.isObject(newDefaultValue) && (
-						property?.type === 'object' ||
-						(types.isUndefined(existingDefaultValue) || types.isObject(existingDefaultValue)));
+						property !== undefined && property.type === 'object' ||
+						property === undefined && (types.isUndefined(existingDefaultValue) || types.isObject(existingDefaultValue)));
 
 					// If the default value is an object, merge the objects and store the source of each keys
 					if (isObjectSetting) {
@@ -431,11 +431,11 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 							continue;
 						}
 
-						for (const objectKey in newDefaultValue) {
+						for (const overrideObjectKey in overrides[key]) {
 							if (source) {
-								newDefaultValueSource.set(objectKey, source);
+								newDefaultValueSource.set(overrideObjectKey, source);
 							} else {
-								newDefaultValueSource.delete(objectKey);
+								newDefaultValueSource.delete(overrideObjectKey);
 							}
 						}
 					}
