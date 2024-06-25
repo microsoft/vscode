@@ -123,23 +123,32 @@ export class ReplInputHintContentWidget extends Disposable implements IContentWi
 		const shiftEnterConfig = this.configurationService.getValue(InteractiveWindowSetting.executeWithShiftEnter);
 
 		if (shiftEnterConfig) {
-			const keybinding = keybindings.find(kb => kb.getLabel() === 'Shift+Enter');
+			const keybinding = keybindings.find(kb => {
+				const chords = kb.getDispatchChords();
+				return chords.length === 1 && chords[0] === 'shift+Enter';
+			});
 			if (keybinding) {
 				return keybinding;
 			}
 		} else {
-			let keybinding = keybindings.find(kb => kb.getLabel() === 'Enter');
+			let keybinding = keybindings.find(kb => {
+				const chords = kb.getDispatchChords();
+				return chords.length === 1 && chords[0] === 'Enter';
+			});
 			if (keybinding) {
 				return keybinding;
 			}
 			keybinding = this.keybindingService.lookupKeybindings('python.execInREPLEnter')
-				.find(kb => kb.getLabel() === 'Enter');
+				.find(kb => {
+					const chords = kb.getDispatchChords();
+					return chords.length === 1 && chords[0] === 'Enter';
+				});
 			if (keybinding) {
 				return keybinding;
 			}
 		}
 
-		return undefined;
+		return keybindings.length ? keybindings[0] : undefined;
 	}
 
 	override dispose(): void {
