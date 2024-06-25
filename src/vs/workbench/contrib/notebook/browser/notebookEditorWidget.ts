@@ -74,7 +74,7 @@ import { NotebookEditorContextKeys } from 'vs/workbench/contrib/notebook/browser
 import { NotebookOverviewRuler } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookOverviewRuler';
 import { ListTopCellToolbar } from 'vs/workbench/contrib/notebook/browser/viewParts/notebookTopCellToolbar';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellEditType, CellKind, INotebookSearchOptions, RENDERER_NOT_AVAILABLE, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellKind, INotebookFindOptions, NotebookFindScopeType, RENDERER_NOT_AVAILABLE, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NOTEBOOK_CURSOR_NAVIGATION_MODE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_OUTPUT_FOCUSED, NOTEBOOK_OUTPUT_INPUT_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { INotebookExecutionService } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
@@ -99,7 +99,6 @@ import { NotebookStickyScroll } from 'vs/workbench/contrib/notebook/browser/view
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { PixelRatio } from 'vs/base/browser/pixelRatio';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { PreventDefaultContextMenuItemsContextKeyName } from 'vs/workbench/contrib/webview/browser/webview.contribution';
 import { NotebookAccessibilityProvider } from 'vs/workbench/contrib/notebook/browser/notebookAccessibilityProvider';
 
@@ -272,6 +271,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	readonly isEmbedded: boolean;
 	private _readOnly: boolean;
+	private readonly _inRepl: boolean;
 
 	public readonly scopedContextKeyService: IContextKeyService;
 	private readonly instantiationService: IInstantiationService;
@@ -302,7 +302,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		@IEditorProgressService private editorProgressService: IEditorProgressService,
 		@INotebookLoggingService private readonly logService: INotebookLoggingService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@ICodeEditorService codeEditorService: ICodeEditorService
 	) {
 		super();
 
@@ -310,8 +309,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 		this.isEmbedded = creationOptions.isEmbedded ?? false;
 		this._readOnly = creationOptions.isReadOnly ?? false;
+		this._inRepl = creationOptions.forRepl ?? false;
 
-		this._notebookOptions = creationOptions.options ?? new NotebookOptions(this.creationOptions?.codeWindow ?? mainWindow, this.configurationService, notebookExecutionStateService, codeEditorService, this._readOnly);
+		this._overlayContainer = document.createElement('div');
+		this.scopedContextKeyService = this._register(contextKeyService.createScoped(this._overlayContainer));
+		this.instantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
+
+		this._notebookOptions = creationOptions.options ??
+			this.instantiationService.createInstance(NotebookOptions, this.creationOptions?.codeWindow ?? mainWindow, this._readOnly, undefined);
 		this._register(this._notebookOptions);
 		const eventDispatcher = this._register(new NotebookEventDispatcher());
 		this._viewContext = new ViewContext(
@@ -322,9 +327,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			this._onDidChangeCellState.fire(e);
 		}));
 
-		this._overlayContainer = document.createElement('div');
-		this.scopedContextKeyService = this._register(contextKeyService.createScoped(this._overlayContainer));
-		this.instantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
 
 		this._register(_notebookService.onDidChangeOutputRenderers(() => {
 			this._updateOutputRenderers();
@@ -1435,7 +1437,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	private async _attachModel(textModel: NotebookTextModel, viewState: INotebookEditorViewState | undefined, perf?: NotebookPerfMarks) {
 		this._ensureWebview(this.getId(), textModel.viewType, textModel.uri);
 
-		this.viewModel = this.instantiationService.createInstance(NotebookViewModel, textModel.viewType, textModel, this._viewContext, this.getLayoutInfo(), { isReadOnly: this._readOnly });
+		this.viewModel = this.instantiationService.createInstance(NotebookViewModel, textModel.viewType, textModel, this._viewContext, this.getLayoutInfo(), { isReadOnly: this._readOnly, inRepl: this._inRepl });
 		this._viewContext.eventDispatcher.emit([new NotebookLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
 		this.notebookOptions.updateOptions(this._readOnly);
 
@@ -2565,7 +2567,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return Promise.all(requests);
 	}
 
-	async find(query: string, options: INotebookSearchOptions, token: CancellationToken, skipWarmup: boolean = false, shouldGetSearchPreviewInfo = false, ownerID?: string): Promise<CellFindMatchWithIndex[]> {
+	async find(query: string, options: INotebookFindOptions, token: CancellationToken, skipWarmup: boolean = false, shouldGetSearchPreviewInfo = false, ownerID?: string): Promise<CellFindMatchWithIndex[]> {
 		if (!this._notebookViewModel) {
 			return [];
 		}
@@ -2576,7 +2578,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 		const findMatches = this._notebookViewModel.find(query, options).filter(match => match.length > 0);
 
-		if (!options.includeMarkupPreview && !options.includeOutput) {
+		if ((!options.includeMarkupPreview && !options.includeOutput) || options.findScope?.findScopeType === NotebookFindScopeType.Text) {
 			this._webview?.findStop(ownerID);
 			return findMatches;
 		}
@@ -2600,11 +2602,13 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				return [];
 			}
 
-			const selectedRanges = options.selectedRanges?.map(range => this._notebookViewModel?.validateRange(range)).filter(range => !!range);
-			const selectedIndexes = cellRangesToIndexes(selectedRanges ?? []);
-			const findIds: string[] = selectedIndexes.map<string>(index => this._notebookViewModel?.viewCells[index].id ?? '');
+			let findIds: string[] = [];
+			if (options.findScope && options.findScope.findScopeType === NotebookFindScopeType.Cells && options.findScope.selectedCellRanges) {
+				const selectedIndexes = cellRangesToIndexes(options.findScope.selectedCellRanges);
+				findIds = selectedIndexes.map<string>(index => this._notebookViewModel?.viewCells[index].id ?? '');
+			}
 
-			const webviewMatches = await this._webview.find(query, { caseSensitive: options.caseSensitive, wholeWord: options.wholeWord, includeMarkup: !!options.includeMarkupPreview, includeOutput: !!options.includeOutput, shouldGetSearchPreviewInfo, ownerID, findIds: options.searchInRanges ? findIds : [] });
+			const webviewMatches = await this._webview.find(query, { caseSensitive: options.caseSensitive, wholeWord: options.wholeWord, includeMarkup: !!options.includeMarkupPreview, includeOutput: !!options.includeOutput, shouldGetSearchPreviewInfo, ownerID, findIds: findIds });
 
 			if (token.isCancellationRequested) {
 				return [];

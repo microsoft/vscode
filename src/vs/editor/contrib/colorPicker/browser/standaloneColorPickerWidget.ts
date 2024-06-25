@@ -224,11 +224,12 @@ export class StandaloneColorPickerWidget extends Disposable implements IContentW
 		};
 
 		this._colorHover = colorHover;
-		const { disposables, colorPicker } = this._standaloneColorPickerParticipant.renderHoverParts(context, [colorHover]);
-		this._register(disposables);
-		if (colorPicker === undefined) {
+		const renderedHoverPart = this._standaloneColorPickerParticipant.renderHoverParts(context, [colorHover]);
+		if (!renderedHoverPart) {
 			return;
 		}
+		this._register(renderedHoverPart.disposables);
+		const colorPicker = renderedHoverPart.colorPicker;
 		this._body.classList.add('standalone-colorpicker-body');
 		this._body.style.maxHeight = Math.max(this._editor.getLayoutInfo().height / 4, 250) + 'px';
 		this._body.style.maxWidth = Math.max(this._editor.getLayoutInfo().width * 0.66, 500) + 'px';

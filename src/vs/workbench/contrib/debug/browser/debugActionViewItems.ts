@@ -78,7 +78,7 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 		const keybinding = this.keybindingService.lookupKeybinding(this.action.id)?.getLabel();
 		const keybindingLabel = keybinding ? ` (${keybinding})` : '';
 		const title = this.action.label + keybindingLabel;
-		this.toDispose.push(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), this.start, title));
+		this.toDispose.push(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this.start, title));
 		this.start.setAttribute('role', 'button');
 		this.start.ariaLabel = title;
 

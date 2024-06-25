@@ -433,7 +433,7 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 		}
 
 		// Figure out groups of entries with `compact` alignment
-		const compactEntryGroups = new Map<string, Set<IStatusbarViewModelEntry>>();
+		const compactEntryGroups = new Map<string, Map<string, IStatusbarViewModelEntry>>();
 		for (const entry of mapIdToVisibleEntry.values()) {
 			if (
 				isStatusbarEntryLocation(entry.priority.primary) && // entry references another entry as location
@@ -448,11 +448,25 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 				// Build a map of entries that are compact among each other
 				let compactEntryGroup = compactEntryGroups.get(locationId);
 				if (!compactEntryGroup) {
-					compactEntryGroup = new Set<IStatusbarViewModelEntry>([entry, location]);
-					compactEntryGroups.set(locationId, compactEntryGroup);
-				} else {
-					compactEntryGroup.add(entry);
+
+					// It is possible that this entry references another entry
+					// that itself references an entry. In that case, we want
+					// to add it to the entries of the referenced entry.
+
+					for (const group of compactEntryGroups.values()) {
+						if (group.has(locationId)) {
+							compactEntryGroup = group;
+							break;
+						}
+					}
+
+					if (!compactEntryGroup) {
+						compactEntryGroup = new Map<string, IStatusbarViewModelEntry>();
+						compactEntryGroups.set(locationId, compactEntryGroup);
+					}
 				}
+				compactEntryGroup.set(entry.id, entry);
+				compactEntryGroup.set(location.id, location);
 
 				// Adjust CSS classes to move compact items closer together
 				if (entry.priority.primary.alignment === StatusbarAlignment.LEFT) {
@@ -465,7 +479,6 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 			}
 		}
 
-
 		// Install mouse listeners to update hover feedback for
 		// all compact entries that belong to each other
 		const statusBarItemHoverBackground = this.getColor(STATUS_BAR_ITEM_HOVER_BACKGROUND);
@@ -473,7 +486,7 @@ class StatusbarPart extends Part implements IStatusbarEntryContainer {
 		this.compactEntriesDisposable.value = new DisposableStore();
 		if (statusBarItemHoverBackground && statusBarItemCompactHoverBackground && !isHighContrast(this.theme.type)) {
 			for (const [, compactEntryGroup] of compactEntryGroups) {
-				for (const compactEntry of compactEntryGroup) {
+				for (const compactEntry of compactEntryGroup.values()) {
 					if (!compactEntry.hasCommand) {
 						continue; // only show hover feedback when we have a command
 					}

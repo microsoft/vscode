@@ -22,7 +22,7 @@ import { CTX_NOTEBOOK_CHAT_OUTER_FOCUS_POSITION } from 'vs/workbench/contrib/not
 import { INotebookActionContext, INotebookCellActionContext, NotebookAction, NotebookCellAction, NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT, findTargetCellEditor } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { CellEditState } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind, NOTEBOOK_EDITOR_CURSOR_BOUNDARY } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_TYPE, NOTEBOOK_CURSOR_NAVIGATION_MODE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_OUTPUT_INPUT_FOCUSED, NOTEBOOK_OUTPUT_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
+import { NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_TYPE, NOTEBOOK_CURSOR_NAVIGATION_MODE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_OUTPUT_INPUT_FOCUSED, NOTEBOOK_OUTPUT_FOCUSED, NOTEBOOK_CELL_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 
 const NOTEBOOK_FOCUS_TOP = 'notebook.focusTop';
 const NOTEBOOK_FOCUS_BOTTOM = 'notebook.focusBottom';
@@ -104,10 +104,10 @@ registerAction2(class FocusNextCellAction extends NotebookCellAction {
 					weight: KeybindingWeight.WorkbenchContrib
 				},
 				{
-					when: NOTEBOOK_EDITOR_FOCUSED,
-					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageDown,
-					mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageDown, },
-					weight: KeybindingWeight.WorkbenchContrib
+					when: ContextKeyExpr.and(NOTEBOOK_CELL_EDITOR_FOCUSED, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
+					primary: KeyMod.CtrlCmd | KeyCode.PageDown,
+					mac: { primary: KeyMod.WinCtrl | KeyCode.PageUp, },
+					weight: KeybindingWeight.WorkbenchContrib + 1
 				},
 			]
 		});
@@ -180,10 +180,10 @@ registerAction2(class FocusPreviousCellAction extends NotebookCellAction {
 					weight: KeybindingWeight.WorkbenchContrib, // markdown keybinding, focus on list: higher weight to override list.focusDown
 				},
 				{
-					when: NOTEBOOK_EDITOR_FOCUSED,
-					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageUp,
-					mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageUp },
-					weight: KeybindingWeight.WorkbenchContrib
+					when: ContextKeyExpr.and(NOTEBOOK_CELL_EDITOR_FOCUSED, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
+					primary: KeyMod.CtrlCmd | KeyCode.PageUp,
+					mac: { primary: KeyMod.WinCtrl | KeyCode.PageUp, },
+					weight: KeybindingWeight.WorkbenchContrib + 1
 				},
 			],
 		});

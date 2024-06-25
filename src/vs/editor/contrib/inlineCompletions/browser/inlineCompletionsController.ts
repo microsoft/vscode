@@ -15,7 +15,7 @@ import { derivedObservableWithCache, mapObservableArrayCached } from 'vs/base/co
 import { isUndefined } from 'vs/base/common/types';
 import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { observableCodeEditor, reactToChange, reactToChangeWithStore } from 'vs/editor/browser/observableUtilities';
+import { observableCodeEditor, reactToChange, reactToChangeWithStore } from 'vs/editor/browser/observableCodeEditor';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -45,7 +45,7 @@ export class InlineCompletionsController extends Disposable {
 	}
 
 	private readonly _editorObs = observableCodeEditor(this.editor);
-	private readonly _positions = derived(this, reader => this._editorObs.positions.read(reader) ?? [new Position(1, 1)]);
+	private readonly _positions = derived(this, reader => this._editorObs.selections.read(reader)?.map(s => s.getEndPosition()) ?? [new Position(1, 1)]);
 
 	private readonly _suggestWidgetAdaptor = this._register(new SuggestWidgetAdaptor(
 		this.editor,
@@ -59,14 +59,14 @@ export class InlineCompletionsController extends Disposable {
 		})
 	));
 
-	private readonly _suggestWidgetSelectedItem = observableFromEvent(cb => this._suggestWidgetAdaptor.onDidSelectedItemChange(() => {
+	private readonly _suggestWidgetSelectedItem = observableFromEvent(this, cb => this._suggestWidgetAdaptor.onDidSelectedItemChange(() => {
 		this._editorObs.forceUpdate(_tx => cb(undefined));
 	}), () => this._suggestWidgetAdaptor.selectedItem);
 
 
-	private readonly _enabledInConfig = observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).enabled);
-	private readonly _isScreenReaderEnabled = observableFromEvent(this._accessibilityService.onDidChangeScreenReaderOptimized, () => this._accessibilityService.isScreenReaderOptimized());
-	private readonly _editorDictationInProgress = observableFromEvent(
+	private readonly _enabledInConfig = observableFromEvent(this, this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).enabled);
+	private readonly _isScreenReaderEnabled = observableFromEvent(this, this._accessibilityService.onDidChangeScreenReaderOptimized, () => this._accessibilityService.isScreenReaderOptimized());
+	private readonly _editorDictationInProgress = observableFromEvent(this,
 		this._contextKeyService.onDidChangeContext,
 		() => this._contextKeyService.getContext(this.editor.getDomNode()).getValue('editorDictation.inProgress') === true
 	);
@@ -114,7 +114,7 @@ export class InlineCompletionsController extends Disposable {
 
 	private readonly _playAccessibilitySignal = observableSignal(this);
 
-	private readonly _fontFamily = observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).fontFamily);
+	private readonly _fontFamily = observableFromEvent(this, this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).fontFamily);
 
 	constructor(
 		public readonly editor: ICodeEditor,

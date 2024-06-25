@@ -482,6 +482,7 @@ export const allowedMarkdownAttr = [
 	'alt',
 	'checked',
 	'class',
+	'colspan',
 	'controls',
 	'data-code',
 	'data-href',
@@ -493,6 +494,7 @@ export const allowedMarkdownAttr = [
 	'muted',
 	'playsinline',
 	'poster',
+	'rowspan',
 	'src',
 	'style',
 	'target',
@@ -634,7 +636,7 @@ const plainTextRenderer = new Lazy<marked.Renderer>((withCodeBlocks?: boolean) =
 const plainTextWithCodeBlocksRenderer = new Lazy<marked.Renderer>(() => {
 	const renderer = createRenderer();
 	renderer.code = (code: string): string => {
-		return '\n' + '```' + code + '```' + '\n';
+		return '\n' + '```' + '\n' + code + '```' + '\n';
 	};
 	return renderer;
 });

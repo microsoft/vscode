@@ -8,6 +8,10 @@
 //@ts-check
 'use strict';
 
+/**
+ * @import { ISandboxConfiguration } from './vs/base/parts/sandbox/common/sandboxTypes'
+ */
+
 /* eslint-disable no-restricted-globals */
 
 // Simple module style to support node.js and browser environments
@@ -29,8 +33,6 @@
 	const safeProcess = preloadGlobals.process;
 
 	/**
-	 * @typedef {import('./vs/base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration} ISandboxConfiguration
-	 *
 	 * @param {string[]} modulePaths
 	 * @param {(result: unknown, configuration: ISandboxConfiguration) => Promise<unknown> | undefined} resultCallback
 	 * @param {{
@@ -124,6 +126,7 @@
 			'vscode-oniguruma': `${baseNodeModulesPath}/vscode-oniguruma/release/main.js`,
 			'vsda': `${baseNodeModulesPath}/vsda/index.js`,
 			'@xterm/xterm': `${baseNodeModulesPath}/@xterm/xterm/lib/xterm.js`,
+			'@xterm/addon-clipboard': `${baseNodeModulesPath}/@xterm/addon-clipboard/lib/addon-clipboard.js`,
 			'@xterm/addon-image': `${baseNodeModulesPath}/@xterm/addon-image/lib/addon-image.js`,
 			'@xterm/addon-search': `${baseNodeModulesPath}/@xterm/addon-search/lib/addon-search.js`,
 			'@xterm/addon-serialize': `${baseNodeModulesPath}/@xterm/addon-serialize/lib/addon-serialize.js`,

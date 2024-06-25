@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
+/// <reference path="../../../typings/require.d.ts" />
 
 //@ts-check
+'use strict';
 
 (function () {
 	function factory(path, os, productName, cwd) {
@@ -17,7 +18,6 @@
 		const regexp = /("[^"\\]*(?:\\.[^"\\]*)*")|('[^'\\]*(?:\\.[^'\\]*)*')|(\/\*[^\/\*]*(?:(?:\*|\/)[^\/\*]*)*?\*\/)|(\/{2,}.*?(?:(?:\r?\n)|$))|(,\s*[}\]])/g;
 
 		/**
-		 *
 		 * @param {string} content
 		 * @returns {string}
 		 */
@@ -46,11 +46,26 @@
 				}
 			});
 		}
+
+		/**
+		 * @param {string} content
+		 * @returns {any}
+		 */
+		function parse(content) {
+			const commentsStripped = stripComments(content);
+
+			try {
+				return JSON.parse(commentsStripped);
+			} catch (error) {
+				const trailingCommasStriped = commentsStripped.replace(/,\s*([}\]])/g, '$1');
+				return JSON.parse(trailingCommasStriped);
+			}
+		}
 		return {
-			stripComments
+			stripComments,
+			parse
 		};
 	}
-
 
 	if (typeof define === 'function') {
 		// amd
@@ -59,6 +74,6 @@
 		// commonjs
 		module.exports = factory();
 	} else {
-		console.trace('strip comments defined in UNKNOWN context (neither requirejs or commonjs)');
+		console.trace('jsonc defined in UNKNOWN context (neither requirejs or commonjs)');
 	}
 })();

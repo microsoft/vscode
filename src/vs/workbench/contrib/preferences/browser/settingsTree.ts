@@ -805,7 +805,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 
 		const descriptionElement = DOM.append(container, $('.setting-item-description'));
 		const modifiedIndicatorElement = DOM.append(container, $('.setting-item-modified-indicator'));
-		toDispose.add(this._hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), modifiedIndicatorElement, () => localize('modified', "The setting has been configured in the current scope.")));
+		toDispose.add(this._hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), modifiedIndicatorElement, () => localize('modified', "The setting has been configured in the current scope.")));
 
 		const valueElement = DOM.append(container, $('.setting-item-value'));
 		const controlElement = DOM.append(valueElement, $('div.setting-item-control'));
@@ -892,7 +892,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 
 		const titleTooltip = setting.key + (element.isConfigured ? ' - Modified' : '');
 		template.categoryElement.textContent = element.displayCategory ? (element.displayCategory + ': ') : '';
-		template.elementDisposables.add(this._hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), template.categoryElement, titleTooltip));
+		template.elementDisposables.add(this._hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), template.categoryElement, titleTooltip));
 
 		template.labelElement.text = element.displayLabel;
 		template.labelElement.title = titleTooltip;
@@ -1835,7 +1835,7 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 		const controlElement = DOM.append(descriptionAndValueElement, $('.setting-item-bool-control'));
 		const descriptionElement = DOM.append(descriptionAndValueElement, $('.setting-item-description'));
 		const modifiedIndicatorElement = DOM.append(container, $('.setting-item-modified-indicator'));
-		toDispose.add(this._hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), modifiedIndicatorElement, localize('modified', "The setting has been configured in the current scope.")));
+		toDispose.add(this._hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), modifiedIndicatorElement, localize('modified', "The setting has been configured in the current scope.")));
 
 		const deprecationWarningElement = DOM.append(container, $('.setting-item-deprecation-message'));
 

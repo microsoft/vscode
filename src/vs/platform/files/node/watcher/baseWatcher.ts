@@ -9,7 +9,7 @@ import { ILogMessage, IRecursiveWatcherWithSubscribe, IUniversalWatchRequest, IW
 import { Emitter, Event } from 'vs/base/common/event';
 import { FileChangeType, IFileChange } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
-import { DeferredPromise } from 'vs/base/common/async';
+import { DeferredPromise, ThrottledDelayer } from 'vs/base/common/async';
 
 export abstract class BaseWatcher extends Disposable implements IWatcher {
 
@@ -27,6 +27,8 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 
 	private readonly suspendedWatchRequests = this._register(new DisposableMap<number /* correlation ID */>());
 	private readonly suspendedWatchRequestsWithPolling = new Set<number /* correlation ID */>();
+
+	private readonly updateWatchersDelayer = this._register(new ThrottledDelayer<void>(this.getUpdateWatchersDelay()));
 
 	protected readonly suspendedWatchRequestPollingInterval: number = 5007; // node.js default
 
@@ -88,17 +90,21 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 				}
 			}
 
-			return await this.updateWatchers();
+			return await this.updateWatchers(false /* not delayed */);
 		} finally {
 			this.joinWatch.complete();
 		}
 	}
 
-	private updateWatchers(): Promise<void> {
-		return this.doWatch([
+	private updateWatchers(delayed: boolean): Promise<void> {
+		return this.updateWatchersDelayer.trigger(() => this.doWatch([
 			...this.allNonCorrelatedWatchRequests,
 			...Array.from(this.allCorrelatedWatchRequests.values()).filter(request => !this.suspendedWatchRequests.has(request.correlationId))
-		]);
+		]), delayed ? this.getUpdateWatchersDelay() : 0);
+	}
+
+	protected getUpdateWatchersDelay(): number {
+		return 800;
 	}
 
 	isSuspended(request: IUniversalWatchRequest): 'polling' | boolean {
@@ -130,14 +136,14 @@ export abstract class BaseWatcher extends Disposable implements IWatcher {
 
 		this.monitorSuspendedWatchRequest(request, disposables);
 
-		this.updateWatchers();
+		this.updateWatchers(true /* delay this call as we might accumulate many failing watch requests on startup */);
 	}
 
 	private resumeWatchRequest(request: IWatchRequestWithCorrelation): void {
 		this.suspendedWatchRequests.deleteAndDispose(request.correlationId);
 		this.suspendedWatchRequestsWithPolling.delete(request.correlationId);
 
-		this.updateWatchers();
+		this.updateWatchers(false);
 	}
 
 	private monitorSuspendedWatchRequest(request: IWatchRequestWithCorrelation, disposables: DisposableStore): void {

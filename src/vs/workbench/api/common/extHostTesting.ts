@@ -15,11 +15,12 @@ import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecy
 import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { isDefined } from 'vs/base/common/types';
 import { generateUuid } from 'vs/base/common/uuid';
-import { IExtensionDescription, IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostTestingShape, ILocationDto, MainContext, MainThreadTestingShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
+import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
+import { IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { ExtHostTestItemCollection, TestItemImpl, TestItemRootImpl, toItemFromContext } from 'vs/workbench/api/common/extHostTestItem';
 import * as Convert from 'vs/workbench/api/common/extHostTypeConverters';
@@ -35,7 +36,7 @@ interface ControllerInfo {
 	controller: vscode.TestController;
 	profiles: Map<number, vscode.TestRunProfile>;
 	collection: ExtHostTestItemCollection;
-	extension: Readonly<IRelaxedExtensionDescription>;
+	extension: IExtensionDescription;
 	activeProfiles: Set<number>;
 }
 
@@ -45,7 +46,14 @@ let followupCounter = 0;
 
 const testResultInternalIDs = new WeakMap<vscode.TestRunResult, string>();
 
+export const IExtHostTesting = createDecorator<IExtHostTesting>('IExtHostTesting');
+export interface IExtHostTesting extends ExtHostTesting {
+	readonly _serviceBrand: undefined;
+}
+
 export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
+	declare readonly _serviceBrand: undefined;
+
 	private readonly resultsChangedEmitter = this._register(new Emitter<void>());
 	protected readonly controllers = new Map</* controller ID */ string, ControllerInfo>();
 	private readonly proxy: MainThreadTestingShape;
@@ -61,8 +69,8 @@ export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 	constructor(
 		@IExtHostRpcService rpc: IExtHostRpcService,
 		@ILogService private readonly logService: ILogService,
-		private readonly commands: ExtHostCommands,
-		private readonly editors: ExtHostDocumentsAndEditors,
+		@IExtHostCommands private readonly commands: IExtHostCommands,
+		@IExtHostDocumentsAndEditors private readonly editors: IExtHostDocumentsAndEditors,
 	) {
 		super();
 		this.proxy = rpc.getProxy(MainContext.MainThreadTesting);
@@ -110,6 +118,8 @@ export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 			};
 		});
 	}
+
+	//#region public API
 
 	/**
 	 * Implements vscode.test.registerTestProvider
@@ -236,6 +246,9 @@ export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 		return { dispose: () => { this.followupProviders.delete(provider); } };
 	}
 
+	//#endregion
+
+	//#region RPC methods
 	/**
 	 * @inheritdoc
 	 */
@@ -250,8 +263,8 @@ export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 	/**
 	 * @inheritdoc
 	 */
-	async $getCoverageDetails(coverageId: string, token: CancellationToken): Promise<CoverageDetails.Serialized[]> {
-		const details = await this.runTracker.getCoverageDetails(coverageId, token);
+	async $getCoverageDetails(coverageId: string, testId: string | undefined, token: CancellationToken): Promise<CoverageDetails.Serialized[]> {
+		const details = await this.runTracker.getCoverageDetails(coverageId, testId, token);
 		return details?.map(Convert.TestCoverage.fromDetails);
 	}
 
@@ -412,6 +425,30 @@ export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 		return this.commands.executeCommand(command.command, ...(command.arguments || []));
 	}
 
+	/**
+	 * Cancels an ongoing test run.
+	 */
+	public $cancelExtensionTestRun(runId: string | undefined) {
+		if (runId === undefined) {
+			this.runTracker.cancelAllRuns();
+		} else {
+			this.runTracker.cancelRunById(runId);
+		}
+	}
+
+	//#endregion
+
+	public getMetadataForRun(run: vscode.TestRun) {
+		for (const tracker of this.runTracker.trackers) {
+			const taskId = tracker.getTaskIdForRun(run);
+			if (taskId) {
+				return { taskId, runId: tracker.id };
+			}
+		}
+
+		return undefined;
+	}
+
 	private async runControllerTestRequest(req: ICallProfileRunHandler | ICallProfileRunHandler, isContinuous: boolean, token: CancellationToken): Promise<IStartControllerTestsResult> {
 		const lookup = this.controllers.get(req.controllerId);
 		if (!lookup) {
@@ -467,17 +504,6 @@ export class ExtHostTesting extends Disposable implements ExtHostTestingShape {
 			}
 		}
 	}
-
-	/**
-	 * Cancels an ongoing test run.
-	 */
-	public $cancelExtensionTestRun(runId: string | undefined) {
-		if (runId === undefined) {
-			this.runTracker.cancelAllRuns();
-		} else {
-			this.runTracker.cancelRunById(runId);
-		}
-	}
 }
 
 // Deadline after being requested by a user that a test run is forcibly cancelled.
@@ -500,7 +526,7 @@ class TestRunTracker extends Disposable {
 	private readonly cts: CancellationTokenSource;
 	private readonly endEmitter = this._register(new Emitter<void>());
 	private readonly onDidDispose: Event<void>;
-	private readonly publishedCoverage = new Map<string, vscode.FileCoverage>();
+	private readonly publishedCoverage = new Map<string, { report: vscode.FileCoverage; extIds: string[] }>();
 
 	/**
 	 * Fires when a test ends, and no more tests are left running.
@@ -526,7 +552,7 @@ class TestRunTracker extends Disposable {
 		private readonly proxy: MainThreadTestingShape,
 		private readonly logService: ILogService,
 		private readonly profile: vscode.TestRunProfile | undefined,
-		private readonly extension: IRelaxedExtensionDescription,
+		private readonly extension: IExtensionDescription,
 		parentToken?: CancellationToken,
 	) {
 		super();
@@ -543,6 +569,17 @@ class TestRunTracker extends Disposable {
 		}));
 	}
 
+	/** Gets the task ID from a test run object. */
+	public getTaskIdForRun(run: vscode.TestRun) {
+		for (const [taskId, { run: r }] of this.tasks) {
+			if (r === run) {
+				return taskId;
+			}
+		}
+
+		return undefined;
+	}
+
 	/** Requests cancellation of the run. On the second call, forces cancellation. */
 	public cancel() {
 		if (this.state === TestRunTrackerState.Running) {
@@ -554,19 +591,33 @@ class TestRunTracker extends Disposable {
 	}
 
 	/** Gets details for a previously-emitted coverage object. */
-	public getCoverageDetails(id: string, token: CancellationToken) {
+	public async getCoverageDetails(id: string, testId: string | undefined, token: CancellationToken): Promise<vscode.FileCoverageDetail[]> {
 		const [, taskId] = TestId.fromString(id).path; /** runId, taskId, URI */
 		const coverage = this.publishedCoverage.get(id);
 		if (!coverage) {
 			return [];
 		}
 
+		const { report, extIds } = coverage;
 		const task = this.tasks.get(taskId);
 		if (!task) {
 			throw new Error('unreachable: run task was not found');
 		}
 
-		return this.profile?.loadDetailedCoverage?.(task.run, coverage, token) ?? [];
+		let testItem: vscode.TestItem | undefined;
+		if (testId && report instanceof FileCoverage) {
+			const index = extIds.indexOf(testId);
+			if (index === -1) {
+				return []; // ??
+			}
+			testItem = report.fromTests[index];
+		}
+
+		const details = testItem
+			? this.profile?.loadDetailedCoverageForTest?.(task.run, report, testItem, token)
+			: this.profile?.loadDetailedCoverage?.(task.run, report, token);
+
+		return (await details) ?? [];
 	}
 
 	/** Creates the public test run interface to give to extensions. */
@@ -606,7 +657,6 @@ class TestRunTracker extends Disposable {
 		// one-off map used to associate test items with incrementing IDs in `addCoverage`.
 		// There's no need to include their entire ID, we just want to make sure they're
 		// stable and unique. Normal map is okay since TestRun lifetimes are limited.
-		const testItemCoverageId = new Map<vscode.TestItem, number>();
 		const run: vscode.TestRun = {
 			isPersisted: this.dto.isPersisted,
 			token: this.cts.token,
@@ -617,24 +667,21 @@ class TestRunTracker extends Disposable {
 					return;
 				}
 
-				const testItem = coverage instanceof FileCoverage ? coverage.testItem : undefined;
-				let testItemIdPart: undefined | number;
-				if (testItem) {
+				const fromTests = coverage instanceof FileCoverage ? coverage.fromTests : [];
+				if (fromTests.length) {
 					checkProposedApiEnabled(this.extension, 'attributableCoverage');
-					this.ensureTestIsKnown(testItem);
-					testItemIdPart = testItemCoverageId.get(testItem);
-					if (testItemIdPart === undefined) {
-						testItemIdPart = testItemCoverageId.size;
-						testItemCoverageId.set(testItem, testItemIdPart);
+					for (const test of fromTests) {
+						this.ensureTestIsKnown(test);
 					}
 				}
 
 				const uriStr = coverage.uri.toString();
-				const id = new TestId(testItemIdPart !== undefined
-					? [runId, taskId, uriStr, String(testItemIdPart)]
-					: [runId, taskId, uriStr],
-				).toString();
-				this.publishedCoverage.set(id, coverage);
+				const id = new TestId([runId, taskId, uriStr]).toString();
+				// it's a lil funky, but it's possible for a test item's ID to change after
+				// it's been reported if it's rehomed under a different parent. Record its
+				// ID at the time when the coverage report is generated so we can reference
+				// it later if needeed.
+				this.publishedCoverage.set(id, { report: coverage, extIds: fromTests.map(t => TestId.fromExtHostTestItem(t, ctrlId).toString()) });
 				this.proxy.$appendCoverage(runId, taskId, Convert.TestCoverage.fromFile(ctrlId, id, coverage));
 			},
 			//#region state mutation
@@ -682,7 +729,6 @@ class TestRunTracker extends Disposable {
 				}
 
 				ended = true;
-				testItemCoverageId.clear();
 				this.proxy.$finishedTestRunTask(runId, taskId);
 				if (!--this.running) {
 					this.markEnded();
@@ -766,9 +812,9 @@ export class TestRunCoordinator {
 	/**
 	 * Gets a coverage report for a given run and task ID.
 	 */
-	public getCoverageDetails(id: string, token: vscode.CancellationToken) {
+	public getCoverageDetails(id: string, testId: string | undefined, token: vscode.CancellationToken) {
 		const runId = TestId.root(id);
-		return this.trackedById.get(runId)?.getCoverageDetails(id, token) || [];
+		return this.trackedById.get(runId)?.getCoverageDetails(id, testId, token) || [];
 	}
 
 	/**
@@ -790,7 +836,7 @@ export class TestRunCoordinator {
 	 * `$startedExtensionTestRun` is not invoked. The run must eventually
 	 * be cancelled manually.
 	 */
-	public prepareForMainThreadTestRun(extension: IRelaxedExtensionDescription, req: vscode.TestRunRequest, dto: TestRunDto, profile: vscode.TestRunProfile, token: CancellationToken) {
+	public prepareForMainThreadTestRun(extension: IExtensionDescription, req: vscode.TestRunRequest, dto: TestRunDto, profile: vscode.TestRunProfile, token: CancellationToken) {
 		return this.getTracker(req, dto, profile, extension, token);
 	}
 
@@ -813,7 +859,7 @@ export class TestRunCoordinator {
 	/**
 	 * Implements the public `createTestRun` API.
 	 */
-	public createTestRun(extension: IRelaxedExtensionDescription, controllerId: string, collection: ExtHostTestItemCollection, request: vscode.TestRunRequest, name: string | undefined, persist: boolean): vscode.TestRun {
+	public createTestRun(extension: IExtensionDescription, controllerId: string, collection: ExtHostTestItemCollection, request: vscode.TestRunRequest, name: string | undefined, persist: boolean): vscode.TestRun {
 		const existing = this.tracked.get(request);
 		if (existing) {
 			return existing.createRun(name);
@@ -842,7 +888,7 @@ export class TestRunCoordinator {
 		return tracker.createRun(name);
 	}
 
-	private getTracker(req: vscode.TestRunRequest, dto: TestRunDto, profile: vscode.TestRunProfile | undefined, extension: IRelaxedExtensionDescription, token?: CancellationToken) {
+	private getTracker(req: vscode.TestRunRequest, dto: TestRunDto, profile: vscode.TestRunProfile | undefined, extension: IExtensionDescription, token?: CancellationToken) {
 		const tracker = new TestRunTracker(dto, this.proxy, this.logService, profile, extension, token);
 		this.tracked.set(req, tracker);
 		this.trackedById.set(tracker.id, tracker);
