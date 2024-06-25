@@ -90,6 +90,9 @@ export default class TypeScriptImplementationsCodeLensProvider extends TypeScrip
 		if (item.kind === PConst.Kind.method && parent && parent.kind === PConst.Kind.interface && vscode.workspace.getConfiguration(this.language.id).get<boolean>('implementationsCodeLens.showOnInterfaceMethods')) {
 			return getSymbolRange(document, item);
 		}
+		if (item.kind === PConst.Kind.method && parent && parent.kind === PConst.Kind.class && parent.kindModifiers.match(/\babstract\b/g) && vscode.workspace.getConfiguration(this.language.id).get<boolean>('implementationsCodeLens.showOnInterfaceMethods')) {
+			return getSymbolRange(document, item);
+		}
 		switch (item.kind) {
 			case PConst.Kind.interface:
 				return getSymbolRange(document, item);
