@@ -657,7 +657,7 @@ class ExtensionsScanner extends Disposable {
 				const type = metadata?.isSystem ? ExtensionType.System : input.type;
 				const isBuiltin = type === ExtensionType.System || !!metadata?.isBuiltin;
 				manifest = await this.translateManifest(input.location, manifest, ExtensionScannerInput.createNlsConfiguration(input));
-				if (manifest.enabledApiProposals && !this.extensionsEnabledWithApiProposalVersion?.includes(id.toLowerCase())) {
+				if (manifest.enabledApiProposals && this.extensionsEnabledWithApiProposalVersion?.includes(id.toLowerCase())) {
 					manifest.enabledApiProposals = parseEnabledApiProposalNames([...manifest.enabledApiProposals]);
 				}
 				const extension: IRelaxedScannedExtension = {
