@@ -424,7 +424,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 						if (!types.isObject(existingDefaultValue)) {
 							existingDefaultValue = {};
 						}
-
+						// testing here for scm2
 						newDefaultValue = { ...existingDefaultValue, ...newDefaultValue };
 
 						newDefaultValueSource = existingDefaultOverride?.source ?? new Map<string, ConfigurationDefaultSource>();
