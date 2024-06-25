@@ -410,6 +410,8 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 					const existingDefaultOverride = this.configurationDefaultsOverrides.get(key);
 					let existingDefaultValue = existingDefaultOverride?.value ?? property?.defaultDefaultValue;
 
+					// TEST 2 FOR SCM
+
 					let newDefaultValue = overrides[key];
 					let newDefaultValueSource: ConfigurationDefaultValueSource | undefined = source;
 
