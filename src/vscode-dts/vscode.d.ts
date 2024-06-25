@@ -6728,9 +6728,19 @@ declare module 'vscode' {
 		range: Range;
 
 		/**
-		 * The human-readable message.
+		 * The human-readable message, e.g. 'Unknown type name "int_8_t"'.
 		 */
 		message: string;
+
+		/**
+		 * An optional property to describe this diagnostic's message with more
+		 * details. For example:
+		 * The type name "int_8_t" is unknown. Did you mean any of these types?
+		 * - int
+		 * - int8_t
+		 * Read more about the built-in types [here](file:///path/to/docs.md).
+		 */
+		messageDetails?: string | MarkdownString;
 
 		/**
 		 * The severity, default is {@link DiagnosticSeverity.Error error}.
