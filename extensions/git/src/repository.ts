@@ -1687,20 +1687,20 @@ export class Repository implements Disposable {
 
 	async pullFrom(rebase?: boolean, remote?: string, branch?: string, unshallow?: boolean): Promise<void> {
 		await this.run(Operation.Pull, async () => {
-			await this.maybeAutoStash(async () => {
-				const config = workspace.getConfiguration('git', Uri.file(this.root));
-				const fetchOnPull = config.get<boolean>('fetchOnPull');
-				const tags = config.get<boolean>('pullTags');
+			const config = workspace.getConfiguration('git', Uri.file(this.root));
+			const fetchOnPull = config.get<boolean>('fetchOnPull');
+			const tags = config.get<boolean>('pullTags');
+			const autoStash = config.get<boolean>('autoStash');
 
-				// When fetchOnPull is enabled, fetch all branches when pulling
-				if (fetchOnPull) {
-					await this.fetchAll();
-				}
+			// When fetchOnPull is enabled, fetch all branches when pulling
+			if (fetchOnPull) {
+				await this.fetchAll();
+			}
 
-				if (await this.checkIfMaybeRebased(this.HEAD?.name)) {
-					await this._pullAndHandleTagConflict(rebase, remote, branch, { unshallow, tags });
-				}
-			});
+			if (await this.checkIfMaybeRebased(this.HEAD?.name)) {
+				await this._pullAndHandleTagConflict(rebase, remote, branch, { unshallow, tags, autoStash });
+			}
+
 		});
 	}
 
@@ -1766,48 +1766,48 @@ export class Repository implements Disposable {
 		}
 
 		await this.run(Operation.Sync, async () => {
-			await this.maybeAutoStash(async () => {
-				const config = workspace.getConfiguration('git', Uri.file(this.root));
-				const fetchOnPull = config.get<boolean>('fetchOnPull');
-				const tags = config.get<boolean>('pullTags');
-				const followTags = config.get<boolean>('followTagsWhenSync');
-				const supportCancellation = config.get<boolean>('supportCancellation');
+			const config = workspace.getConfiguration('git', Uri.file(this.root));
+			const fetchOnPull = config.get<boolean>('fetchOnPull');
+			const tags = config.get<boolean>('pullTags');
+			const followTags = config.get<boolean>('followTagsWhenSync');
+			const supportCancellation = config.get<boolean>('supportCancellation');
+			const autoStash = config.get<boolean>('autoStash');
 
-				const fn = async (cancellationToken?: CancellationToken) => {
-					// When fetchOnPull is enabled, fetch all branches when pulling
-					if (fetchOnPull) {
-						await this.fetchAll({}, cancellationToken);
-					}
+			const fn = async (cancellationToken?: CancellationToken) => {
+				// When fetchOnPull is enabled, fetch all branches when pulling
+				if (fetchOnPull) {
+					await this.fetchAll({}, cancellationToken);
+				}
 
-					if (await this.checkIfMaybeRebased(this.HEAD?.name)) {
-						await this._pullAndHandleTagConflict(rebase, remoteName, pullBranch, { tags, cancellationToken });
-					}
+				if (await this.checkIfMaybeRebased(this.HEAD?.name)) {
+					await this._pullAndHandleTagConflict(rebase, remoteName, pullBranch, { tags, cancellationToken, autoStash, });
+				}
+			};
+
+			if (supportCancellation) {
+				const opts: ProgressOptions = {
+					location: ProgressLocation.Notification,
+					title: l10n.t('Syncing. Cancelling may cause serious damages to the repository'),
+					cancellable: true
 				};
 
-				if (supportCancellation) {
-					const opts: ProgressOptions = {
-						location: ProgressLocation.Notification,
-						title: l10n.t('Syncing. Cancelling may cause serious damages to the repository'),
-						cancellable: true
-					};
+				await window.withProgress(opts, (_, token) => fn(token));
+			} else {
+				await fn();
+			}
 
-					await window.withProgress(opts, (_, token) => fn(token));
-				} else {
-					await fn();
-				}
+			const remote = this.remotes.find(r => r.name === remoteName);
 
-				const remote = this.remotes.find(r => r.name === remoteName);
+			if (remote && remote.isReadOnly) {
+				return;
+			}
 
-				if (remote && remote.isReadOnly) {
-					return;
-				}
+			const shouldPush = this.HEAD && (typeof this.HEAD.ahead === 'number' ? this.HEAD.ahead > 0 : true);
 
-				const shouldPush = this.HEAD && (typeof this.HEAD.ahead === 'number' ? this.HEAD.ahead > 0 : true);
+			if (shouldPush) {
+				await this._push(remoteName, pushBranch, false, followTags);
+			}
 
-				if (shouldPush) {
-					await this._push(remoteName, pushBranch, false, followTags);
-				}
-			});
 		});
 	}
 
@@ -2386,22 +2386,6 @@ export class Repository implements Disposable {
 	private isMergeInProgress(): Promise<boolean> {
 		const mergeHeadPath = path.join(this.repository.root, '.git', 'MERGE_HEAD');
 		return new Promise<boolean>(resolve => fs.exists(mergeHeadPath, resolve));
-	}
-
-	private async maybeAutoStash<T>(runOperation: () => Promise<T>): Promise<T> {
-		const config = workspace.getConfiguration('git', Uri.file(this.root));
-		const shouldAutoStash = config.get<boolean>('autoStash')
-			&& this.workingTreeGroup.resourceStates.some(r => r.type !== Status.UNTRACKED && r.type !== Status.IGNORED);
-
-		if (!shouldAutoStash) {
-			return await runOperation();
-		}
-
-		await this.repository.createStash(undefined, true);
-		const result = await runOperation();
-		await this.repository.popStash();
-
-		return result;
 	}
 
 	private onFileChange(_uri: Uri): void {
