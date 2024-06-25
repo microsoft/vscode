@@ -6,7 +6,6 @@
 import { LanguageServer, LanguageServerProject } from '@volar/language-server';
 import { createUriConverter } from '@volar/language-server/browser';
 import { LanguagePlugin, LanguageService } from '@volar/language-service';
-import { TypeScriptProjectHost } from '@volar/typescript';
 import * as ts from 'typescript';
 import { URI, Utils } from 'vscode-uri';
 import { JQUERY_PATH } from './javascriptLibs';
