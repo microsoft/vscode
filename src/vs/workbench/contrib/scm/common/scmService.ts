@@ -15,6 +15,8 @@ import { ResourceMap } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
 import { Iterable } from 'vs/base/common/iterator';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { Schemas } from 'vs/base/common/network';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 class SCMInput extends Disposable implements ISCMInput {
 
@@ -132,7 +134,7 @@ class SCMInput extends Disposable implements ISCMInput {
 		}
 
 		if (!transient) {
-			this.historyNavigator.add(this._value);
+			this.historyNavigator.replaceLast(this._value);
 			this.historyNavigator.add(value);
 			this.didChangeHistory = true;
 		}
@@ -364,7 +366,8 @@ export class SCMService implements ISCMService {
 		@ILogService private readonly logService: ILogService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IStorageService storageService: IStorageService
+		@IStorageService storageService: IStorageService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
 		this.inputHistory = new SCMInputHistory(storageService, workspaceContextService);
 		this.providerCount = contextKeyService.createKey('scm.providerCount', 0);
@@ -391,8 +394,36 @@ export class SCMService implements ISCMService {
 		return repository;
 	}
 
-	getRepository(id: string): ISCMRepository | undefined {
-		return this._repositories.get(id);
-	}
+	getRepository(id: string): ISCMRepository | undefined;
+	getRepository(resource: URI): ISCMRepository | undefined;
+	getRepository(idOrResource: string | URI): ISCMRepository | undefined {
+		if (typeof idOrResource === 'string') {
+			return this._repositories.get(idOrResource);
+		}
 
+		if (idOrResource.scheme !== Schemas.file &&
+			idOrResource.scheme !== Schemas.vscodeRemote) {
+			return undefined;
+		}
+
+		let bestRepository: ISCMRepository | undefined = undefined;
+		let bestMatchLength = Number.POSITIVE_INFINITY;
+
+		for (const repository of this.repositories) {
+			const root = repository.provider.rootUri;
+
+			if (!root) {
+				continue;
+			}
+
+			const path = this.uriIdentityService.extUri.relativePath(root, idOrResource);
+
+			if (path && !/^\.\./.test(path) && path.length < bestMatchLength) {
+				bestRepository = repository;
+				bestMatchLength = path.length;
+			}
+		}
+
+		return bestRepository;
+	}
 }

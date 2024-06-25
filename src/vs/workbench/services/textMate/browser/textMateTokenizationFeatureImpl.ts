@@ -171,7 +171,7 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 			}
 		}
 
-		const validLanguageId = grammar.language && this._languageService.isRegisteredLanguageId(grammar.language) ? grammar.language : null;
+		const validLanguageId = grammar.language && this._languageService.isRegisteredLanguageId(grammar.language) ? grammar.language : undefined;
 
 		function asStringArray(array: unknown, defaultValue: string[]): string[] {
 			if (!Array.isArray(array)) {
@@ -185,7 +185,7 @@ export class TextMateTokenizationFeature extends Disposable implements ITextMate
 
 		return {
 			location: grammarLocation,
-			language: validLanguageId || undefined,
+			language: validLanguageId,
 			scopeName: grammar.scopeName,
 			embeddedLanguages: embeddedLanguages,
 			tokenTypes: tokenTypes,

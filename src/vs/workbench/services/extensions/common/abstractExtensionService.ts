@@ -45,7 +45,7 @@ import { IResolveAuthorityErrorResult } from 'vs/workbench/services/extensions/c
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { ExtensionRunningLocation, LocalProcessRunningLocation, LocalWebWorkerRunningLocation, RemoteRunningLocation } from 'vs/workbench/services/extensions/common/extensionRunningLocation';
 import { ExtensionRunningLocationTracker, filterExtensionIdentifiers } from 'vs/workbench/services/extensions/common/extensionRunningLocationTracker';
-import { ActivationKind, ActivationTimes, ExtensionActivationReason, ExtensionHostStartup, ExtensionPointContribution, IExtensionHost, IExtensionService, IExtensionsStatus, IInternalExtensionService, IMessage, IResponsiveStateChangeEvent, IWillActivateEvent, WillStopExtensionHostsEvent, toExtension } from 'vs/workbench/services/extensions/common/extensions';
+import { ActivationKind, ActivationTimes, ExtensionActivationReason, ExtensionHostStartup, ExtensionPointContribution, IExtensionHost, IExtensionService, IExtensionsStatus, IInternalExtensionService, IMessage, IResponsiveStateChangeEvent, IWillActivateEvent, WillStopExtensionHostsEvent, toExtension, toExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionsProposedApi } from 'vs/workbench/services/extensions/common/extensionsProposedApi';
 import { ExtensionMessageCollector, ExtensionPoint, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { LazyCreateExtensionHostManager } from 'vs/workbench/services/extensions/common/lazyCreateExtensionHostManager';
@@ -269,7 +269,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		for (let i = 0, len = _toAdd.length; i < len; i++) {
 			const extension = _toAdd[i];
 
-			const extensionDescription = await this._scanSingleExtension(extension);
+			const extensionDescription = toExtensionDescription(extension, false);
 			if (!extensionDescription) {
 				// could not scan extension...
 				continue;
@@ -653,8 +653,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	//#region Stopping / Starting / Restarting
 
-	public stopExtensionHosts(reason: string): Promise<boolean> {
-		return this._doStopExtensionHostsWithVeto(reason);
+	public stopExtensionHosts(reason: string, auto?: boolean): Promise<boolean> {
+		return this._doStopExtensionHostsWithVeto(reason, auto);
 	}
 
 	protected _doStopExtensionHosts(): void {
@@ -675,7 +675,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		}
 	}
 
-	private async _doStopExtensionHostsWithVeto(reason: string): Promise<boolean> {
+	private async _doStopExtensionHostsWithVeto(reason: string, auto?: boolean): Promise<boolean> {
 		const vetos: (boolean | Promise<boolean>)[] = [];
 		const vetoReasons = new Set<string>();
 
@@ -704,16 +704,18 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		if (!veto) {
 			this._doStopExtensionHosts();
 		} else {
-			const vetoReasonsArray = Array.from(vetoReasons);
+			if (!auto) {
+				const vetoReasonsArray = Array.from(vetoReasons);
 
-			this._logService.warn(`Extension host was not stopped because of veto (stop reason: ${reason}, veto reason: ${vetoReasonsArray.join(', ')})`);
+				this._logService.warn(`Extension host was not stopped because of veto (stop reason: ${reason}, veto reason: ${vetoReasonsArray.join(', ')})`);
+				await this._dialogService.warn(
+					nls.localize('extensionStopVetoMessage', "The following operation was blocked: {0}", reason),
+					vetoReasonsArray.length === 1 ?
+						nls.localize('extensionStopVetoDetailsOne', "The reason for blocking the operation: {0}", vetoReasonsArray[0]) :
+						nls.localize('extensionStopVetoDetailsMany', "The reasons for blocking the operation:\n- {0}", vetoReasonsArray.join('\n -')),
+				);
+			}
 
-			await this._dialogService.warn(
-				nls.localize('extensionStopVetoMessage', "The following operation was blocked: {0}", reason),
-				vetoReasonsArray.length === 1 ?
-					nls.localize('extensionStopVetoDetailsOne', "The reason for blocking the operation: {0}", vetoReasonsArray[0]) :
-					nls.localize('extensionStopVetoDetailsMany', "The reasons for blocking the operation:\n- {0}", vetoReasonsArray.join('\n -')),
-			);
 		}
 
 		return !veto;
@@ -1170,7 +1172,6 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	//#endregion
 
 	protected abstract _resolveExtensions(): Promise<ResolvedExtensions>;
-	protected abstract _scanSingleExtension(extension: IExtension): Promise<IExtensionDescription | null>;
 	protected abstract _onExtensionHostExit(code: number): void;
 	protected abstract _resolveAuthority(remoteAuthority: string): Promise<ResolverResult>;
 }

@@ -17,7 +17,6 @@ import { computeIndentLevel } from 'vs/editor/common/model/utils';
 import { autoFixCommandId, quickFixCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { CodeActionSet, CodeActionTrigger } from 'vs/editor/contrib/codeAction/common/types';
 import * as nls from 'vs/nls';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 namespace LightBulbState {
@@ -62,8 +61,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@ICommandService commandService: ICommandService
+		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
 		super();
 
@@ -173,8 +171,27 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		let effectiveLineNumber = lineNumber;
 		let effectiveColumnNumber = 1;
 		if (!lineHasSpace) {
+
+			// Checks if line is empty or starts with any amount of whitespace
+			const isLineEmptyOrIndented = (lineNumber: number): boolean => {
+				const lineContent = model.getLineContent(lineNumber);
+				return /^\s*$|^\s+/.test(lineContent) || lineContent.length <= effectiveColumnNumber;
+			};
+
 			if (lineNumber > 1 && !isFolded(lineNumber - 1)) {
-				effectiveLineNumber -= 1;
+				const lineCount = model.getLineCount();
+				const endLine = lineNumber === lineCount;
+				const prevLineEmptyOrIndented = lineNumber > 1 && isLineEmptyOrIndented(lineNumber - 1);
+				const nextLineEmptyOrIndented = !endLine && isLineEmptyOrIndented(lineNumber + 1);
+				const currLineEmptyOrIndented = isLineEmptyOrIndented(lineNumber);
+				const notEmpty = !nextLineEmptyOrIndented && !prevLineEmptyOrIndented;
+
+				// check above and below. if both are blocked, display lightbulb below.
+				if (prevLineEmptyOrIndented || endLine || (notEmpty && !currLineEmptyOrIndented)) {
+					effectiveLineNumber -= 1;
+				} else if (nextLineEmptyOrIndented || (notEmpty && currLineEmptyOrIndented)) {
+					effectiveLineNumber += 1;
+				}
 			} else if ((lineNumber < model.getLineCount()) && !isFolded(lineNumber + 1)) {
 				effectiveLineNumber += 1;
 			} else if (column * fontInfo.spaceWidth < 22) {

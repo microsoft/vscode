@@ -58,17 +58,24 @@ function getIconResource(decorations?: vscode.SourceControlResourceThemableDecor
 	}
 }
 
-function getHistoryItemIconDto(historyItem: vscode.SourceControlHistoryItem): UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon | undefined {
-	if (!historyItem.icon) {
+function getHistoryItemIconDto(icon: vscode.Uri | { light: vscode.Uri; dark: vscode.Uri } | vscode.ThemeIcon | undefined): UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon | undefined {
+	if (!icon) {
 		return undefined;
-	} else if (URI.isUri(historyItem.icon)) {
-		return historyItem.icon;
-	} else if (ThemeIcon.isThemeIcon(historyItem.icon)) {
-		return historyItem.icon;
+	} else if (URI.isUri(icon)) {
+		return icon;
+	} else if (ThemeIcon.isThemeIcon(icon)) {
+		return icon;
 	} else {
-		const icon = historyItem.icon as { light: URI; dark: URI };
-		return { light: icon.light, dark: icon.dark };
+		const iconDto = icon as { light: URI; dark: URI };
+		return { light: iconDto.light, dark: iconDto.dark };
 	}
+}
+
+function toSCMHistoryItemDto(historyItem: vscode.SourceControlHistoryItem): SCMHistoryItemDto {
+	const icon = getHistoryItemIconDto(historyItem.icon);
+	const labels = historyItem.labels?.map(l => ({ title: l.title, icon: getHistoryItemIconDto(l.icon) }));
+
+	return { ...historyItem, icon, labels };
 }
 
 function compareResourceThemableDecorations(a: vscode.SourceControlResourceThemableDecorations, b: vscode.SourceControlResourceThemableDecorations): number {
@@ -647,7 +654,9 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	}
 
 	set statusBarCommands(statusBarCommands: vscode.Command[] | undefined) {
+		this.logService.trace('ExtHostSourceControl#statusBarCommands', (statusBarCommands ?? []).map(c => c.command).join(', '));
 		if (this._statusBarCommands && statusBarCommands && commandListEquals(this._statusBarCommands, statusBarCommands)) {
+			this.logService.trace('ExtHostSourceControl#statusBarCommands are equal');
 			return;
 		}
 
@@ -675,6 +684,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		_extHostDocuments: ExtHostDocuments,
 		proxy: MainThreadSCMShape,
 		private _commands: ExtHostCommands,
+		private readonly logService: ILogService,
 		private _id: string,
 		private _label: string,
 		private _rootUri?: vscode.Uri
@@ -854,7 +864,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		});
 
 		const handle = ExtHostSCM._handlePool++;
-		const sourceControl = new ExtHostSourceControl(extension, this._extHostDocuments, this._proxy, this._commands, id, label, rootUri);
+		const sourceControl = new ExtHostSourceControl(extension, this._extHostDocuments, this._proxy, this._commands, this.logService, id, label, rootUri);
 		this._sourceControls.set(handle, sourceControl);
 
 		const sourceControls = this._sourceControlsByExtension.get(extension.identifier) || [];
@@ -969,7 +979,14 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		const historyProvider = this._sourceControls.get(sourceControlHandle)?.historyProvider;
 		const historyItems = await historyProvider?.provideHistoryItems(historyItemGroupId, options, token);
 
-		return historyItems?.map(item => ({ ...item, icon: getHistoryItemIconDto(item) })) ?? undefined;
+		return historyItems?.map(item => toSCMHistoryItemDto(item)) ?? undefined;
+	}
+
+	async $provideHistoryItems2(sourceControlHandle: number, options: any, token: CancellationToken): Promise<SCMHistoryItemDto[] | undefined> {
+		const historyProvider = this._sourceControls.get(sourceControlHandle)?.historyProvider;
+		const historyItems = await historyProvider?.provideHistoryItems2(options, token);
+
+		return historyItems?.map(item => toSCMHistoryItemDto(item)) ?? undefined;
 	}
 
 	async $provideHistoryItemSummary(sourceControlHandle: number, historyItemId: string, historyItemParentId: string | undefined, token: CancellationToken): Promise<SCMHistoryItemDto | undefined> {
@@ -979,7 +996,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		}
 
 		const historyItem = await historyProvider.provideHistoryItemSummary(historyItemId, historyItemParentId, token);
-		return historyItem ? { ...historyItem, icon: getHistoryItemIconDto(historyItem) } : undefined;
+		return historyItem ? toSCMHistoryItemDto(historyItem) : undefined;
 	}
 
 	async $provideHistoryItemChanges(sourceControlHandle: number, historyItemId: string, historyItemParentId: string | undefined, token: CancellationToken): Promise<SCMHistoryItemChangeDto[] | undefined> {

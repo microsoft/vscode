@@ -11,13 +11,9 @@
 	max-width: unset;
 }
 
-.monaco-workbench .zone-widget-container.inside-selection {
-	background-color: var(--vscode-inlineChat-regionHighlight);
-}
-
 .monaco-workbench .inline-chat {
 	color: inherit;
-	padding: 0 8px 8px 8px;
+	padding: 0 8px;
 	border-radius: 4px;
 	border: 1px solid var(--vscode-inlineChat-border);
 	box-shadow: 0 2px 4px 0 var(--vscode-widget-shadow);
@@ -39,12 +35,18 @@
 }
 
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-list .interactive-item-container.interactive-item-compact {
-	padding: 6px 4px;
+	padding: 2px 0;
 	gap: 6px;
 }
 
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-list .interactive-item-container.interactive-item-compact .header .avatar {
 	outline-offset: -1px;
+}
+
+.monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-list .interactive-item-container.interactive-item-compact .chat-notification-widget {
+	margin-bottom: 0;
+	padding: 0;
+	border: none;
 }
 
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-list .interactive-request {
@@ -68,7 +70,6 @@
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
-	margin-top: 3px; /*makes space for action focus borders: https://github.com/microsoft/vscode-copilot/issues/5814 */
 }
 
 .monaco-workbench .inline-chat .status .actions.hidden {
@@ -78,7 +79,7 @@
 .monaco-workbench .inline-chat .status .label {
 	overflow: hidden;
 	color: var(--vscode-descriptionForeground);
-	font-size: 12px;
+	font-size: 11px;
 	display: inline-flex;
 }
 
@@ -141,14 +142,44 @@
 	display: none;
 }
 
-.monaco-workbench .inline-chat .status .actions {
+.monaco-workbench .inline-chat .status .actions,
+.monaco-workbench .inline-chat-content-widget .toolbar  {
+
 	display: flex;
-	padding-top: 3px;
+	height: 18px;
+	padding: 3px 0; /* makes space for action focus borders: https://github.com/microsoft/vscode-copilot/issues/5814 */
+
+	.actions-container {
+		gap: 3px
+	}
+
+	.action-item.text-only .action-label {
+		font-size: 12px;
+		line-height: 16px;
+		padding: 0 4px;
+		border-radius: 2px;
+	}
+
+	.monaco-action-bar .action-item.menu-entry.text-only + .action-item:not(.text-only) > .monaco-dropdown .action-label {
+		font-size: 12px;
+		line-height: 16px;
+		width: unset;
+		height: unset;
+	}
+}
+
+.monaco-workbench .inline-chat .status .actions,
+.monaco-workbench .inline-chat-content-widget.contents .toolbar  {
+
+	.monaco-action-bar .action-item.menu-entry.text-only:first-of-type .action-label{
+		color: var(--vscode-button-foreground);
+		background-color: var(--vscode-button-background);
+	}
 }
 
 .monaco-workbench .inline-chat .status .actions > .monaco-button,
 .monaco-workbench .inline-chat .status .actions > .monaco-button-dropdown {
-	margin-right: 6px;
+	margin-right: 4px;
 }
 
 .monaco-workbench .inline-chat .status .actions > .monaco-button-dropdown > .monaco-dropdown-button {
@@ -166,12 +197,8 @@
 }
 
 .monaco-workbench .inline-chat .status .actions .monaco-text-button {
-	padding: 2px 4px;
-	white-space: nowrap;
-}
-
-.monaco-workbench .inline-chat .status .monaco-toolbar .action-item {
 	padding: 0 2px;
+	white-space: nowrap;
 }
 
 /* TODO@jrieken not needed? */

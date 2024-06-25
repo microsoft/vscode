@@ -6,7 +6,7 @@
 import { strictEquals, EqualityComparer } from 'vs/base/common/equals';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { keepObserved, recomputeInitiallyAndOnChange } from 'vs/base/common/observable';
-import { DebugNameData, Owner, getFunctionName } from 'vs/base/common/observableInternal/debugName';
+import { DebugNameData, DebugOwner, getFunctionName } from 'vs/base/common/observableInternal/debugName';
 import type { derivedOpts } from 'vs/base/common/observableInternal/derived';
 import { getLogger } from 'vs/base/common/observableInternal/logging';
 
@@ -201,9 +201,9 @@ export abstract class ConvenientObservable<T, TChange> implements IObservable<T,
 
 	/** @sealed */
 	public map<TNew>(fn: (value: T, reader: IReader) => TNew): IObservable<TNew>;
-	public map<TNew>(owner: Owner, fn: (value: T, reader: IReader) => TNew): IObservable<TNew>;
-	public map<TNew>(fnOrOwner: Owner | ((value: T, reader: IReader) => TNew), fnOrUndefined?: (value: T, reader: IReader) => TNew): IObservable<TNew> {
-		const owner = fnOrUndefined === undefined ? undefined : fnOrOwner as Owner;
+	public map<TNew>(owner: DebugOwner, fn: (value: T, reader: IReader) => TNew): IObservable<TNew>;
+	public map<TNew>(fnOrOwner: DebugOwner | ((value: T, reader: IReader) => TNew), fnOrUndefined?: (value: T, reader: IReader) => TNew): IObservable<TNew> {
+		const owner = fnOrUndefined === undefined ? undefined : fnOrOwner as DebugOwner;
 		const fn = fnOrUndefined === undefined ? fnOrOwner as (value: T, reader: IReader) => TNew : fnOrUndefined;
 
 		return _derived(

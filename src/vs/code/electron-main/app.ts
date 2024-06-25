@@ -12,7 +12,7 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { isSigPipeError, onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { isEqualOrParent } from 'vs/base/common/extpath';
 import { Event } from 'vs/base/common/event';
-import { stripComments } from 'vs/base/common/json';
+import { parse } from 'vs/base/common/jsonc';
 import { getPathLabel } from 'vs/base/common/labels';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas, VSCODE_AUTHORITY } from 'vs/base/common/network';
@@ -52,8 +52,9 @@ import { DiskFileSystemProvider } from 'vs/platform/files/node/diskFileSystemPro
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IIssueMainService } from 'vs/platform/issue/common/issue';
+import { IIssueMainService, IProcessMainService } from 'vs/platform/issue/common/issue';
 import { IssueMainService } from 'vs/platform/issue/electron-main/issueMainService';
+import { ProcessMainService } from 'vs/platform/issue/electron-main/processMainService';
 import { IKeyboardLayoutMainService, KeyboardLayoutMainService } from 'vs/platform/keyboardLayout/electron-main/keyboardLayoutMainService';
 import { ILaunchMainService, LaunchMainService } from 'vs/platform/launch/electron-main/launchMainService';
 import { ILifecycleMainService, LifecycleMainPhase, ShutdownReason } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
@@ -121,7 +122,6 @@ import { Lazy } from 'vs/base/common/lazy';
 import { IAuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindows';
 import { AuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindowsMainService';
 import { normalizeNFC } from 'vs/base/common/normalization';
-
 /**
  * The main VS Code application. There will only ever be one instance,
  * even if the user starts many instances (e.g. from the command line).
@@ -1051,6 +1051,9 @@ export class CodeApplication extends Disposable {
 		// Issues
 		services.set(IIssueMainService, new SyncDescriptor(IssueMainService, [this.userEnv]));
 
+		// Process
+		services.set(IProcessMainService, new SyncDescriptor(ProcessMainService, [this.userEnv]));
+
 		// Encryption
 		services.set(IEncryptionMainService, new SyncDescriptor(EncryptionMainService));
 
@@ -1182,6 +1185,10 @@ export class CodeApplication extends Disposable {
 		// Issues
 		const issueChannel = ProxyChannel.fromService(accessor.get(IIssueMainService), disposables);
 		mainProcessElectronServer.registerChannel('issue', issueChannel);
+
+		// Process
+		const processChannel = ProxyChannel.fromService(accessor.get(IProcessMainService), disposables);
+		mainProcessElectronServer.registerChannel('process', processChannel);
 
 		// Encryption
 		const encryptionChannel = ProxyChannel.fromService(accessor.get(IEncryptionMainService), disposables);
@@ -1394,10 +1401,10 @@ export class CodeApplication extends Disposable {
 		// Crash reporter
 		this.updateCrashReporterEnablement();
 
+		// macOS: rosetta translation warning
 		if (isMacintosh && app.runningUnderARM64Translation) {
 			this.windowsMainService?.sendToFocused('vscode:showTranslatedBuildWarning');
 		}
-
 	}
 
 	private async installMutex(): Promise<void> {
@@ -1437,7 +1444,7 @@ export class CodeApplication extends Disposable {
 		try {
 			const argvContent = await this.fileService.readFile(this.environmentMainService.argvResource);
 			const argvString = argvContent.value.toString();
-			const argvJSON = JSON.parse(stripComments(argvString));
+			const argvJSON = parse(argvString);
 			const telemetryLevel = getTelemetryLevel(this.configurationService);
 			const enableCrashReporter = telemetryLevel >= TelemetryLevel.CRASH;
 
@@ -1468,6 +1475,9 @@ export class CodeApplication extends Disposable {
 			}
 		} catch (error) {
 			this.logService.error(error);
+
+			// Inform the user via notification
+			this.windowsMainService?.sendToFocused('vscode:showArgvParseWarning');
 		}
 	}
 }

@@ -2123,7 +2123,6 @@ export class TestRemoteExtensionsScannerService implements IRemoteExtensionsScan
 	declare readonly _serviceBrand: undefined;
 	async whenExtensionsReady(): Promise<void> { }
 	scanExtensions(): Promise<IExtensionDescription[]> { throw new Error('Method not implemented.'); }
-	scanSingleExtension(): Promise<IExtensionDescription | null> { throw new Error('Method not implemented.'); }
 }
 
 export class TestWorkbenchExtensionEnablementService implements IWorkbenchExtensionEnablementService {

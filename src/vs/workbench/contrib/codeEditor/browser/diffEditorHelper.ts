@@ -33,7 +33,7 @@ class DiffEditorHelperContribution extends Disposable implements IDiffEditorCont
 		const isEmbeddedDiffEditor = this._diffEditor instanceof EmbeddedDiffEditorWidget;
 
 		if (!isEmbeddedDiffEditor) {
-			const computationResult = observableFromEvent(e => this._diffEditor.onDidUpdateDiff(e), () => /** @description diffEditor.diffComputationResult */ this._diffEditor.getDiffComputationResult());
+			const computationResult = observableFromEvent(this, e => this._diffEditor.onDidUpdateDiff(e), () => /** @description diffEditor.diffComputationResult */ this._diffEditor.getDiffComputationResult());
 			const onlyWhiteSpaceChange = computationResult.map(r => r && !r.identical && r.changes2.length === 0);
 
 			this._register(autorunWithStore((reader, store) => {

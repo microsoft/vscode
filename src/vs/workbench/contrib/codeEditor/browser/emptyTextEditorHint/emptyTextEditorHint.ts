@@ -128,7 +128,7 @@ export class EmptyTextEditorHintContribution implements IEditorContribution {
 		}
 
 		const hasEditorAgents = Boolean(this.chatAgentService.getDefaultAgent(ChatAgentLocation.Editor));
-		const shouldRenderDefaultHint = model?.uri.scheme === Schemas.untitled && languageId === PLAINTEXT_LANGUAGE_ID && hasEditorAgents;
+		const shouldRenderDefaultHint = model?.uri.scheme === Schemas.untitled && languageId === PLAINTEXT_LANGUAGE_ID;
 		return hasEditorAgents || shouldRenderDefaultHint;
 	}
 
@@ -244,7 +244,7 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 					const hintPart = $('a', undefined, fragment);
 					hintPart.style.fontStyle = 'italic';
 					hintPart.style.cursor = 'pointer';
-					this.toDispose.add(dom.addDisposableListener(label.element, dom.EventType.CONTEXT_MENU, () => this._disableHint()));
+					this.toDispose.add(dom.addDisposableListener(hintPart, dom.EventType.CONTEXT_MENU, () => this._disableHint()));
 					this.toDispose.add(dom.addDisposableListener(hintPart, dom.EventType.CLICK, handleClick));
 					return hintPart;
 				} else {
@@ -370,7 +370,7 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 			anchor.style.cursor = 'pointer';
 			const id = keybindingsLookup.shift();
 			const title = id && this.keybindingService.lookupKeybinding(id)?.getLabel();
-			hintHandler.disposables.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), anchor, title ?? ''));
+			hintHandler.disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), anchor, title ?? ''));
 		}
 
 		return { hintElement, ariaLabel };

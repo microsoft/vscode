@@ -7,7 +7,6 @@ import { addDisposableListener, isKeyboardEvent } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { distinct } from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { memoize } from 'vs/base/common/decorators';
@@ -127,7 +126,7 @@ function replaceWsWithNoBreakWs(str: string): string {
 	return str.replace(/[ \t]/g, strings.noBreakWhitespace);
 }
 
-function createInlineValueDecorationsInsideRange(expressions: ReadonlyArray<IExpression>, ranges: Range[], model: ITextModel, wordToLineNumbersMap: Map<string, number[]>): IModelDeltaDecoration[] {
+function createInlineValueDecorationsInsideRange(expressions: ReadonlyArray<IExpression>, ranges: Range[], model: ITextModel, wordToLineNumbersMap: Map<string, number[]>) {
 	const nameValueMap = new Map<string, string>();
 	for (const expr of expressions) {
 		nameValueMap.set(expr.name, expr.value);
@@ -157,17 +156,14 @@ function createInlineValueDecorationsInsideRange(expressions: ReadonlyArray<IExp
 		}
 	});
 
-	const decorations: IModelDeltaDecoration[] = [];
 	// Compute decorators for each line
-	lineToNamesMap.forEach((names, line) => {
-		const contentText = names.sort((first, second) => {
+	return [...lineToNamesMap].map(([line, names]) => ({
+		line,
+		variables: names.sort((first, second) => {
 			const content = model.getLineContent(line);
 			return content.indexOf(first) - content.indexOf(second);
-		}).map(name => `${name} = ${nameValueMap.get(name)}`).join(', ');
-		decorations.push(...createInlineValueDecoration(line, contentText));
-	});
-
-	return decorations;
+		}).map(name => ({ name, value: nameValueMap.get(name)! }))
+	}));
 }
 
 function getWordToLineNumbersMap(model: ITextModel, lineNumber: number, result: Map<string, number[]>) {
@@ -783,10 +779,15 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			// old "one-size-fits-all" strategy
 
 			const scopes = await stackFrame.getMostSpecificScopes(stackFrame.range);
-			// Get all top level variables in the scope chain
-			const decorationsPerScope = await Promise.all(scopes.map(async scope => {
-				const variables = await scope.getChildren();
+			const scopesWithVariables = await Promise.all(scopes.map(async scope =>
+				({ scope, variables: await scope.getChildren() })));
 
+			// Map of inline values per line that's populated in scope order, from
+			// narrowest to widest. This is done to avoid duplicating values if
+			// they appear in multiple scopes or are shadowed (#129770, #217326)
+			const valuesPerLine = new Map</* line */number, Map</* var */string, /* value */ string>>();
+
+			for (const { scope, variables } of scopesWithVariables) {
 				let scopeRange = new Range(0, 0, stackFrame.range.startLineNumber, stackFrame.range.startColumn);
 				if (scope.range) {
 					scopeRange = scopeRange.setStartPosition(scope.range.startLineNumber, scope.range.startColumn);
@@ -798,12 +799,25 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 					this._wordToLineNumbersMap.ensureRangePopulated(range);
 				}
 
-				return createInlineValueDecorationsInsideRange(variables, ownRanges, model, this._wordToLineNumbersMap.value);
-			}));
+				const mapped = createInlineValueDecorationsInsideRange(variables, ownRanges, model, this._wordToLineNumbersMap.value);
+				for (const { line, variables } of mapped) {
+					let values = valuesPerLine.get(line);
+					if (!values) {
+						values = new Map<string, string>();
+						valuesPerLine.set(line, values);
+					}
 
-			allDecorations = distinct(decorationsPerScope.flat(),
-				// Deduplicate decorations since same variable can appear in multiple scopes, leading to duplicated decorations #129770
-				decoration => `${decoration.range.startLineNumber}:${decoration?.options.after?.content}`);
+					for (const { name, value } of variables) {
+						if (!values.has(name)) {
+							values.set(name, value);
+						}
+					}
+				}
+			}
+
+			allDecorations = [...valuesPerLine.entries()].flatMap(([line, values]) =>
+				createInlineValueDecoration(line, [...values].map(([n, v]) => `${n} = ${v}`).join(', '))
+			);
 		}
 
 		if (cts.token.isCancellationRequested) {
