@@ -294,10 +294,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				}
 				return extHostAuthentication.getSession(extension, providerId, scopes, options as any);
 			},
-			getSessions(providerId: string, scopes: readonly string[]) {
-				checkProposedApiEnabled(extension, 'authGetSessions');
-				return extHostAuthentication.getSessions(extension, providerId, scopes);
-			},
 			getAccounts(providerId: string) {
 				checkProposedApiEnabled(extension, 'authGetSessions');
 				return extHostAuthentication.getAccounts(providerId);
