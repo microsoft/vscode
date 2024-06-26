@@ -338,12 +338,22 @@ export class WebClientServer {
 			callbackRoute: this._callbackRoute
 		};
 
-		const nlsBaseUrl = 'https://www.vscode-unpkg.net/nls/'; // TODO@bpasero make it a product.json thing
+		const cookies = cookie.parse(req.headers.cookie || '');
+		const locale = cookies['vscode.nls.locale'] || req.headers['accept-language']?.split(',')[0]?.toLowerCase() || 'en';
+		let WORKBENCH_NLS_BASE_URL: string | undefined;
+		let WORKBENCH_NLS_URL: string;
+		if (locale !== 'en') {
+			WORKBENCH_NLS_BASE_URL = `https://www.vscode-unpkg.net/nls/`;
+			WORKBENCH_NLS_URL = `${WORKBENCH_NLS_BASE_URL}${this._productService.commit}/${this._productService.version}/${locale}/nls.messages.js`; // TODO@bpasero make it a product.json thing
+		} else {
+			WORKBENCH_NLS_URL = `${this._staticRoute}/out/nls.messages.js`;
+		}
+
 		const values: { [key: string]: string } = {
 			WORKBENCH_WEB_CONFIGURATION: asJSON(workbenchWebConfiguration),
 			WORKBENCH_AUTH_SESSION: authSessionInfo ? asJSON(authSessionInfo) : '',
 			WORKBENCH_WEB_BASE_URL: this._staticRoute,
-			WORKBENCH_NLS_BASE_URL: nlsBaseUrl ? `${nlsBaseUrl}${!nlsBaseUrl.endsWith('/') ? '/' : ''}${this._productService.commit}/${this._productService.version}/` : '',
+			WORKBENCH_NLS_URL
 		};
 
 		if (useTestResolver) {
@@ -370,7 +380,7 @@ export class WebClientServer {
 			'default-src \'self\';',
 			'img-src \'self\' https: data: blob:;',
 			'media-src \'self\';',
-			`script-src 'self' 'unsafe-eval' ${nlsBaseUrl} ${this._getScriptCspHashes(data).join(' ')} '${webWorkerExtensionHostIframeScriptSHA}' ${useTestResolver ? '' : `http://${remoteAuthority}`};`, // the sha is the same as in src/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html
+			`script-src 'self' 'unsafe-eval' ${WORKBENCH_NLS_BASE_URL ?? ''} ${this._getScriptCspHashes(data).join(' ')} '${webWorkerExtensionHostIframeScriptSHA}' ${useTestResolver ? '' : `http://${remoteAuthority}`};`, // the sha is the same as in src/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html
 			'child-src \'self\';',
 			`frame-src 'self' https://*.vscode-cdn.net data:;`,
 			'worker-src \'self\' data: blob:;',

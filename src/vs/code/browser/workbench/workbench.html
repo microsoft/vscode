@@ -57,27 +57,11 @@
 			}),
 			paths: self.webPackagePaths
 		});
-
-		// NLS
-		const locale = localStorage.getItem('vscode.nls.locale') || navigator.language.toLowerCase();
-		if (!locale.startsWith('en')) {
-			function endWithSlash(path) {
-				if (path.charAt(path.length - 1) === '/') {
-					return path;
-				}
-				return path + '/';
-			}
-
-			const scriptElement = document.createElement("script");
-			scriptElement.src = endWithSlash('{{WORKBENCH_NLS_BASE_URL}}') + endWithSlash(locale) + 'nls.messages.js';
-
-			document.head.appendChild(scriptElement);
-		}
 	</script>
 	<script>
 		performance.mark('code/willLoadWorkbenchMain');
 	</script>
-	<script src="{{WORKBENCH_WEB_BASE_URL}}/out/nls.messages.js"></script>
+	<script src="{{WORKBENCH_NLS_URL}}"></script>
 	<script src="{{WORKBENCH_WEB_BASE_URL}}/out/vs/workbench/workbench.web.main.js"></script>
 	<script src="{{WORKBENCH_WEB_BASE_URL}}/out/vs/code/browser/workbench/workbench.js"></script>
 </html>
