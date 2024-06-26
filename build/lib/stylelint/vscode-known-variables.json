@@ -128,6 +128,7 @@
 		"--vscode-dropdown-foreground",
 		"--vscode-dropdown-listBackground",
 		"--vscode-editor-background",
+		"--vscode-editor-collapsedText",
 		"--vscode-editor-findMatchBackground",
 		"--vscode-editor-findMatchBorder",
 		"--vscode-editor-findMatchForeground",

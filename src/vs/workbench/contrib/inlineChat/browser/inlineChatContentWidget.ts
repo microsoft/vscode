@@ -101,9 +101,9 @@ export class InlineChatContentWidget implements IContentWidget {
 		this._domNode.appendChild(this._inputContainer);
 
 		this._toolbarContainer.classList.add('toolbar');
-		if (!configurationService.getValue<boolean>(InlineChatConfigKeys.ExpTextButtons)) {
-			this._toolbarContainer.style.display = 'none';
-			this._domNode.style.paddingBottom = '6px';
+		if (configurationService.getValue<boolean>(InlineChatConfigKeys.ExpTextButtons)) {
+			this._toolbarContainer.style.display = 'inherit';
+			this._domNode.style.paddingBottom = '4px';
 		}
 		this._domNode.appendChild(this._toolbarContainer);
 
@@ -188,7 +188,6 @@ export class InlineChatContentWidget implements IContentWidget {
 			this._focusNext = true;
 
 			this._editor.revealRangeNearTopIfOutsideViewport(Range.fromPositions(position), ScrollType.Immediate);
-			this._widget.inputEditor.setValue('');
 
 			const wordInfo = this._editor.getModel()?.getWordAtPosition(position);
 
@@ -202,6 +201,7 @@ export class InlineChatContentWidget implements IContentWidget {
 		if (this._visible) {
 			this._visible = false;
 			this._editor.removeContentWidget(this);
+			this._widget.inputEditor.setValue('');
 			this._widget.saveState();
 			this._widget.setVisible(false);
 		}

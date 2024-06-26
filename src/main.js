@@ -246,10 +246,7 @@ function configureCommandlineSwitchesSync(cliArgs) {
 					app.commandLine.appendSwitch(argvKey);
 				}
 			} else if (argvValue) {
-				if (argvKey === 'force-color-profile') {
-					// Color profile
-					app.commandLine.appendSwitch(argvKey, argvValue);
-				} else if (argvKey === 'password-store') {
+				if (argvKey === 'password-store') {
 					// Password store
 					// TODO@TylerLeonhardt: Remove this migration in 3 months
 					let migratedArgvValue = argvValue;
@@ -257,6 +254,8 @@ function configureCommandlineSwitchesSync(cliArgs) {
 						migratedArgvValue = 'gnome-libsecret';
 					}
 					app.commandLine.appendSwitch(argvKey, migratedArgvValue);
+				} else {
+					app.commandLine.appendSwitch(argvKey, argvValue);
 				}
 			}
 		}

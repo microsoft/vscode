@@ -10,6 +10,7 @@ import type * as vscode from 'vscode';
 import { ExtHostSecretState } from 'vs/workbench/api/common/extHostSecretState';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Event } from 'vs/base/common/event';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 export class ExtensionSecrets implements vscode.SecretStorage {
 
@@ -17,6 +18,7 @@ export class ExtensionSecrets implements vscode.SecretStorage {
 	readonly #secretState: ExtHostSecretState;
 
 	readonly onDidChange: Event<vscode.SecretStorageChangeEvent>;
+	readonly disposables = new DisposableStore();
 
 	constructor(extensionDescription: IExtensionDescription, secretState: ExtHostSecretState) {
 		this._id = ExtensionIdentifier.toKey(extensionDescription.identifier);
@@ -24,8 +26,13 @@ export class ExtensionSecrets implements vscode.SecretStorage {
 
 		this.onDidChange = Event.map(
 			Event.filter(this.#secretState.onDidChangePassword, e => e.extensionId === this._id),
-			e => ({ key: e.key })
+			e => ({ key: e.key }),
+			this.disposables
 		);
+	}
+
+	dispose() {
+		this.disposables.dispose();
 	}
 
 	get(key: string): Promise<string | undefined> {

@@ -13,6 +13,8 @@ const $ = dom.$;
 export class EditorHoverStatusBar extends Disposable implements IEditorHoverStatusBar {
 
 	public readonly hoverElement: HTMLElement;
+	public readonly actions: HoverAction[] = [];
+
 	private readonly actionsElement: HTMLElement;
 	private _hasContent: boolean = false;
 
@@ -39,7 +41,9 @@ export class EditorHoverStatusBar extends Disposable implements IEditorHoverStat
 		const keybinding = this._keybindingService.lookupKeybinding(actionOptions.commandId);
 		const keybindingLabel = keybinding ? keybinding.getLabel() : null;
 		this._hasContent = true;
-		return this._register(HoverAction.render(this.actionsElement, actionOptions, keybindingLabel));
+		const action = this._register(HoverAction.render(this.actionsElement, actionOptions, keybindingLabel));
+		this.actions.push(action);
+		return action;
 	}
 
 	public append(element: HTMLElement): HTMLElement {

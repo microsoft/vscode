@@ -7,6 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import { status } from 'vs/base/browser/ui/aria/aria';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { Event } from 'vs/base/common/event';
+import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { OS } from 'vs/base/common/platform';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
@@ -121,25 +122,29 @@ export class ReplInputHintContentWidget extends Disposable implements IContentWi
 	private getKeybinding() {
 		const keybindings = this.keybindingService.lookupKeybindings('interactive.execute');
 		const shiftEnterConfig = this.configurationService.getValue(InteractiveWindowSetting.executeWithShiftEnter);
+		const hasChord = (chord: string, kb: ResolvedKeybinding) => {
+			const chords = kb.getDispatchChords();
+			return chords.length === 1 && chords[0] === chord;
+		};
 
 		if (shiftEnterConfig) {
-			const keybinding = keybindings.find(kb => kb.getLabel() === 'Shift+Enter');
+			const keybinding = keybindings.find(kb => hasChord('shift+Enter', kb));
 			if (keybinding) {
 				return keybinding;
 			}
 		} else {
-			let keybinding = keybindings.find(kb => kb.getLabel() === 'Enter');
+			let keybinding = keybindings.find(kb => hasChord('Enter', kb));
 			if (keybinding) {
 				return keybinding;
 			}
 			keybinding = this.keybindingService.lookupKeybindings('python.execInREPLEnter')
-				.find(kb => kb.getLabel() === 'Enter');
+				.find(kb => hasChord('Enter', kb));
 			if (keybinding) {
 				return keybinding;
 			}
 		}
 
-		return undefined;
+		return keybindings?.[0];
 	}
 
 	override dispose(): void {
