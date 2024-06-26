@@ -768,8 +768,8 @@ function completeListItemPattern(list: marked.Tokens.List): marked.Tokens.List |
 
 	const previousListItemsText = mergeRawTokenText(list.items.slice(0, -1));
 
-	// Grabbing the `- ` or `1. ` off the list item because I can't find a better way to do this
-	const lastListItemLead = lastListItem.raw.match(/^(\s*(-|\d+\.) +)/)?.[0];
+	// Grabbing the `- ` or `1. ` or `* ` off the list item because I can't find a better way to do this
+	const lastListItemLead = lastListItem.raw.match(/^(\s*(-|\d+\.|\*) +)/)?.[0];
 	if (!lastListItemLead) {
 		// Is badly formatted
 		return;
