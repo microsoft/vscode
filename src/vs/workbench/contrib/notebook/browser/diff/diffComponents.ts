@@ -497,7 +497,7 @@ abstract class AbstractElementRenderer extends Disposable {
 		if (this.cell instanceof SideBySideDiffElementViewModel) {
 			this._metadataEditor = this.instantiationService.createInstance(DiffEditorWidget, this._metadataEditorContainer!, {
 				...fixedDiffEditorOptions,
-				overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode(), // 
+				overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode(),
 				readOnly: false,
 				originalEditable: false,
 				ignoreTrimWhitespace: false,

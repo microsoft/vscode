@@ -96,8 +96,6 @@ export class MouseTarget {
 		return { type: MouseTargetType.CONTENT_EMPTY, element, mouseColumn, position, range: this._deduceRage(position), detail };
 	}
 	public static createContentWidget(element: HTMLElement | null, mouseColumn: number, detail: string): IMouseTargetContentWidget {
-		// use this in order to create the content widget target details
-		console.log('createContentWidget');
 		return { type: MouseTargetType.CONTENT_WIDGET, element, mouseColumn, position: null, range: null, detail };
 	}
 	public static createScrollbar(element: HTMLElement | null, mouseColumn: number, position: Position): IMouseTargetScrollbar {
@@ -484,7 +482,6 @@ class HitTestRequest extends BareHitTestRequest {
 		return MouseTarget.createContentEmpty(this.target, this._getMouseColumn(position), position, detail);
 	}
 	public fulfillContentWidget(detail: string): IMouseTargetContentWidget {
-		console.log('fulfillContentWidget');
 		return MouseTarget.createContentWidget(this.target, this._getMouseColumn(), detail);
 	}
 	public fulfillScrollbar(position: Position): IMouseTargetScrollbar {
@@ -536,7 +533,6 @@ export class MouseTargetFactory {
 	}
 
 	public createMouseTarget(lastRenderData: PointerHandlerLastRenderData, editorPos: EditorPagePosition, pos: PageCoordinates, relativePos: CoordinatesRelativeToEditor, target: HTMLElement | null): IMouseTarget {
-		console.log('createMouseTarget');
 		const ctx = new HitTestContext(this._context, this._viewHelper, lastRenderData);
 		const request = new HitTestRequest(ctx, editorPos, pos, relativePos, target);
 		try {
@@ -560,7 +556,7 @@ export class MouseTargetFactory {
 	}
 
 	private static _createMouseTarget(ctx: HitTestContext, request: HitTestRequest): IMouseTarget {
-		console.log('_createMouseTarget');
+
 		// console.log(`${domHitTestExecuted ? '=>' : ''}CAME IN REQUEST: ${request}`);
 
 		if (request.target === null) {

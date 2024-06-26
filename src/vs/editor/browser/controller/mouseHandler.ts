@@ -238,9 +238,7 @@ export class MouseHandler extends ViewEventHandler {
 	}
 
 	protected _createMouseTarget(e: EditorMouseEvent, testEventTarget: boolean): IMouseTarget {
-		console.log('_createMouseTarget');
 		let target = e.target;
-		console.log('target : ', target);
 		if (!this.viewHelper.viewDomNode.contains(target)) {
 			const shadowRoot = dom.getShadowRoot(this.viewHelper.viewDomNode);
 			if (shadowRoot) {
@@ -279,8 +277,6 @@ export class MouseHandler extends ViewEventHandler {
 			return;
 		}
 
-		console.log('_onMouseMove');
-		console.log('e : ', e);
 		this.viewController.emitMouseMove({
 			event: e,
 			target: this._createMouseTarget(e, true)

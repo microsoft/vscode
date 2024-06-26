@@ -351,7 +351,7 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 
 	constructor(
 		private outerLayout: ISCMLayout,
-		private overflowWidgetsDomNode: HTMLElement, // ---
+		private overflowWidgetsDomNode: HTMLElement,
 		private updateHeight: (input: ISCMInput, height: number) => void,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) { }
@@ -2163,7 +2163,7 @@ class SCMInputWidgetEditorOptions {
 			formatOnType: true,
 			lineDecorationsWidth: 6,
 			lineHeight: lineHeight,
-			overflowWidgetsDomNode: this.overflowWidgetsDomNode, //
+			overflowWidgetsDomNode: this.overflowWidgetsDomNode,
 			padding: { top: 2, bottom: 2 },
 			quickSuggestions: false,
 			renderWhitespace: 'none',

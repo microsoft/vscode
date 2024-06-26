@@ -190,7 +190,7 @@ interface IInViewportRenderData {
 
 type IRenderData = IInViewportRenderData | IOffViewportRenderData;
 
-export class Widget {
+class Widget {
 	private readonly _context: ViewContext;
 	private readonly _viewDomNode: FastDomNode<HTMLElement>;
 	private readonly _actual: IContentWidget;

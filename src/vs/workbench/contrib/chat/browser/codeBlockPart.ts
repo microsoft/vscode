@@ -523,7 +523,7 @@ export class CodeCompareBlockPart extends Disposable {
 				multipleImplementations: 'goto',
 			},
 			ariaLabel: localize('chat.codeBlockHelp', 'Code block'),
-			overflowWidgetsDomNode, // 
+			overflowWidgetsDomNode,
 			...this.getEditorOptionsFromConfig(),
 		});
 

@@ -157,7 +157,6 @@ export class SuggestEnabledInput extends Widget {
 		const editorOptions: IEditorConstructionOptions = mixin(
 			getSimpleEditorOptions(configurationService),
 			getSuggestEnabledInputOptions(ariaLabel));
-		// 
 		editorOptions.overflowWidgetsDomNode = options.overflowWidgetsDomNode;
 
 		const scopedContextKeyService = this.getScopedContextKeyService(contextKeyService);

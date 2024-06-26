@@ -366,7 +366,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.historyNavigationForewardsEnablement = historyNavigationForwardsEnablement;
 
 		const options: IEditorConstructionOptions = getSimpleEditorOptions(this.configurationService);
-		// ..
 		options.overflowWidgetsDomNode = this.options.editorOverflowWidgetsDomNode;
 		options.readOnly = false;
 		options.ariaLabel = this._getAriaLabel();
