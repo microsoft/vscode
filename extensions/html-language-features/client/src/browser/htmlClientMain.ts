@@ -21,7 +21,7 @@ export async function activate(context: ExtensionContext) {
 
 		let languageClient!: BaseLanguageClient;
 		const newLanguageClient: LanguageClientConstructor = (id: string, name: string, clientOptions: LanguageClientOptions) => {
-			return languageClient = new LanguageClient(id, name, worker, clientOptions);
+			return languageClient = new LanguageClient(id, name, clientOptions, worker);
 		};
 
 		const timer = {
