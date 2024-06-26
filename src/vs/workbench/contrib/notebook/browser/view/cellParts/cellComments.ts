@@ -108,7 +108,7 @@ export class CellComments extends CellContentPart {
 		if (this._commentThreadWidget.value) {
 			if (!info) {
 				this._commentThreadDisposables.clear();
-				this._commentThreadWidget.dispose();
+				this._commentThreadWidget.value = undefined;
 				this.currentElement.commentHeight = 0;
 				return;
 			}
@@ -154,7 +154,6 @@ export class CellComments extends CellContentPart {
 
 	override didRenderCell(element: ICellViewModel): void {
 		if (element.cellKind === CellKind.Code) {
-			this.currentElement = element as CodeCellViewModel;
 			this.initialize(element);
 			this._bindListeners();
 		}
