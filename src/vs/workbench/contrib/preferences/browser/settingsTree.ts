@@ -1737,7 +1737,7 @@ export class SettingEnumRenderer extends AbstractSettingRenderer implements ITre
 		const enumDescriptionsAreMarkdown = dataElement.setting.enumDescriptionsAreMarkdown;
 
 		const disposables = new DisposableStore();
-		template.toDispose.add(disposables);
+		template.elementDisposables.add(disposables);
 
 		let createdDefault = false;
 		if (!settingEnum.includes(dataElement.defaultValue)) {
