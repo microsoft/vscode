@@ -58,6 +58,7 @@
 }
 
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-list .interactive-item-container.minimal > .header {
+	top: 5px;
 	right: 10px;
 }
 
