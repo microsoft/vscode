@@ -230,7 +230,6 @@ export class View extends ViewEventHandler {
 		this.domNode.appendChild(this._overflowGuardContainer);
 
 		if (overflowWidgetsDomNode) {
-			// track the mouse move event here too instead of the mouse move event on the initial node?
 			overflowWidgetsDomNode.appendChild(this._contentWidgets.overflowingContentWidgetsDomNode.domNode);
 			overflowWidgetsDomNode.appendChild(this._overlayWidgets.overflowingOverlayWidgetsDomNode.domNode);
 		} else {
@@ -632,6 +631,12 @@ export class View extends ViewEventHandler {
 		this._overlayWidgets.addWidget(widgetData.widget);
 		this.layoutOverlayWidget(widgetData);
 		this._scheduleRender();
+	}
+
+	public getOverflowingWidgetDomNodes(): { [key: string]: HTMLElement } {
+		const contentOverflowingWidgets = this._contentWidgets.overflowingWidgetDomNodes();
+		const overlayOverflowingWidgets = this._overlayWidgets.overflowingWidgetDomNodes();
+		return { ...contentOverflowingWidgets, ...overlayOverflowingWidgets };
 	}
 
 	public layoutOverlayWidget(widgetData: IOverlayWidgetData): void {

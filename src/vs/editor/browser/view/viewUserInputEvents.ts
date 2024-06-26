@@ -46,6 +46,7 @@ export class ViewUserInputEvents {
 	}
 
 	public emitMouseMove(e: IEditorMouseEvent): void {
+		console.log('emitMouseMove e : ', e);
 		this.onMouseMove?.(this._convertViewToModelMouseEvent(e));
 	}
 
@@ -93,6 +94,7 @@ export class ViewUserInputEvents {
 		return ViewUserInputEvents.convertViewToModelMouseTarget(target, this._coordinatesConverter);
 	}
 
+	// Here we change the position, the range and the detail, we need to set the detail here
 	public static convertViewToModelMouseTarget(target: IMouseTarget, coordinatesConverter: ICoordinatesConverter): IMouseTarget {
 		const result = { ...target };
 		if (result.position) {

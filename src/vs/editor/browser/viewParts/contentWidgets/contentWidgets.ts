@@ -107,6 +107,16 @@ export class ViewContentWidgets extends ViewPart {
 		this.setShouldRender();
 	}
 
+	public overflowingWidgetDomNodes(): { [key: string]: HTMLElement } {
+		const overflowingWidgets: { [key: string]: HTMLElement } = {};
+		for (const [key, widget] of Object.entries(this._widgets)) {
+			if (widget.allowEditorOverflow) {
+				overflowingWidgets[key] = widget.domNode.domNode;
+			}
+		}
+		return overflowingWidgets;
+	}
+
 	public setWidgetPosition(widget: IContentWidget, primaryAnchor: IPosition | null, secondaryAnchor: IPosition | null, preference: ContentWidgetPositionPreference[] | null, affinity: PositionAffinity | null): void {
 		const myWidget = this._widgets[widget.getId()];
 		myWidget.setPosition(primaryAnchor, secondaryAnchor, preference, affinity);
@@ -180,7 +190,7 @@ interface IInViewportRenderData {
 
 type IRenderData = IInViewportRenderData | IOffViewportRenderData;
 
-class Widget {
+export class Widget {
 	private readonly _context: ViewContext;
 	private readonly _viewDomNode: FastDomNode<HTMLElement>;
 	private readonly _actual: IContentWidget;

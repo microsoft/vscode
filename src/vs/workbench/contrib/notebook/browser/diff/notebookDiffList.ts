@@ -125,7 +125,7 @@ export class CellDiffSingleSideRenderer implements IListRenderer<SingleSideDiffE
 				height: 0
 			},
 			automaticLayout: false,
-			overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode()
+			overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode() //
 		}, {});
 
 		return editor;

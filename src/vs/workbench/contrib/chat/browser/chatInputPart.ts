@@ -348,8 +348,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	render(container: HTMLElement, initialValue: string, widget: IChatWidget) {
-		console.log('render in ChatInputPart');
-		console.log('this.options.editorOverflowWidgetsDomNode : ', this.options.editorOverflowWidgetsDomNode);
 		this.container = dom.append(container, $('.interactive-input-part'));
 		this.container.classList.toggle('compact', this.options.renderStyle === 'compact');
 
@@ -368,6 +366,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.historyNavigationForewardsEnablement = historyNavigationForwardsEnablement;
 
 		const options: IEditorConstructionOptions = getSimpleEditorOptions(this.configurationService);
+		// ..
 		options.overflowWidgetsDomNode = this.options.editorOverflowWidgetsDomNode;
 		options.readOnly = false;
 		options.ariaLabel = this._getAriaLabel();

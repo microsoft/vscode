@@ -61,8 +61,8 @@ import { editorErrorForeground, editorHintForeground, editorInfoForeground, edit
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { EditorMouseEvent } from 'vs/editor/browser/editorDom';
-import { IEditorMouseEvent, IMouseTarget, MouseTargetType } from 'vs/editor/browser/editorBrowser';
-import { ContentHoverWidget } from 'vs/editor/contrib/hover/browser/contentHoverWidget';
+import { IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
+import { MouseTarget } from 'vs/editor/browser/controller/mouseTarget';
 
 export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeEditor {
 
@@ -266,7 +266,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		const options = { ..._options };
 
 		this._domElement = domElement;
-		// Maybe here
 		this._overflowWidgetsDomNode = options.overflowWidgetsDomNode;
 		delete options.overflowWidgetsDomNode;
 		this._id = (++EDITOR_ID);
@@ -299,7 +298,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		this._modelData = null;
 
-		// We have here a dual focus tracker?
 		this._focusTracker = new CodeEditorWidgetFocusTracker(domElement, this._overflowWidgetsDomNode);
 		this._register(this._focusTracker.onChange(() => {
 			this._editorWidgetFocus.setValue(this._focusTracker.hasFocus());
@@ -1792,7 +1790,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	protected _createView(viewModel: ViewModel): [View, boolean] {
-		console.log('_createView');
 		let commandDelegate: ICommandDelegate;
 		if (this.isSimpleWidget) {
 			commandDelegate = {
@@ -1889,34 +1886,19 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			this._instantiationService
 		);
 
-		// Need to polish the following and send in for review
-		console.log('this._overflowWidgetsDomNode _createView : ', this._overflowWidgetsDomNode);
 		if (this._overflowWidgetsDomNode) {
-			const overflowWidgetsDomNode = this._overflowWidgetsDomNode;
-			// should add disposable listener on the children elements of this I suppose
-			const children = overflowWidgetsDomNode.children;
-			console.log('children : ', children);
-			for (const child of children) {
-				console.log('child : ', child);
-				// Need to listen to when the html elements are added into the overflow widgets dom node
-				dom.addDisposableListener(child, 'mouseout', (e) => {
+			const overflowingWidgets = view.getOverflowingWidgetDomNodes();
+			for (const [widgetId, widgetDomNode] of Object.entries(overflowingWidgets)) {
+				dom.addDisposableListener(widgetDomNode, 'mouseout', (e) => {
 					e.stopPropagation();
 					this._mouseInsideOfOverflowWidgetsDomNode = false;
 				});
-				dom.addDisposableListener(child, 'mousemove', (e) => {
+				dom.addDisposableListener(widgetDomNode, 'mousemove', (e) => {
 					e.stopPropagation();
-					const event = new EditorMouseEvent(e, false, child as HTMLElement);
-					const target: IMouseTarget = {
-						type: MouseTargetType.CONTENT_WIDGET,
-						position: null,
-						range: null,
-						detail: ContentHoverWidget.ID, // Needs to be found in another manner, how to set the detail?
-						element: child as HTMLElement,
-						mouseColumn: 0
-					};
+					const event = new EditorMouseEvent(e, false, widgetDomNode);
+					const target = MouseTarget.createContentWidget(widgetDomNode, 0, widgetId);
 					const mouseEvent: IEditorMouseEvent = { event, target };
 					this._mouseInsideOfOverflowWidgetsDomNode = true;
-					console.log('overflowWidgetsDomNode mouseEvent : ', mouseEvent);
 					this._onMouseMove.fire(mouseEvent);
 				});
 			}
@@ -2364,9 +2346,6 @@ class CodeEditorWidgetFocusTracker extends Disposable {
 			this._update();
 		}));
 
-		// In a similar manner we want to add a move listner on the overflow widgets dom node
-		// And not fire when the mouse is on the region where the overflow dom nodes are located
-		// Using a boolean in order to decide that the current overflow widget dom node has the focus
 		if (overflowWidgetsDomNode) {
 			this._overflowWidgetsDomNode = this._register(dom.trackFocus(overflowWidgetsDomNode));
 			this._register(this._overflowWidgetsDomNode.onDidFocus(() => {

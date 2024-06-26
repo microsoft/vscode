@@ -78,6 +78,7 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 	]) as Record<string, HTMLElement>;
 
 	public readonly editor = this._register(this._instantiationService.createInstance(DiffEditorWidget, this._elements.editor, {
+		// 
 		overflowWidgetsDomNode: this._overflowWidgetsDomNode,
 	}, {}));
 

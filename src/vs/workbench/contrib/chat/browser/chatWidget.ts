@@ -550,8 +550,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private createInput(container: HTMLElement, options?: { renderFollowups: boolean; renderStyle?: 'default' | 'compact' }): void {
-		console.log('createInput of ChatWidget');
-		console.log('this.viewOptions.editorOverflowWidgetsDomNode : ', this.viewOptions.editorOverflowWidgetsDomNode);
 		this.inputPart = this._register(this.instantiationService.createInstance(ChatInputPart,
 			this.location,
 			{

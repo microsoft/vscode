@@ -114,7 +114,6 @@ export class HoverController extends Disposable implements IEditorContribution {
 
 		this._listenersStore.add(this._editor.onMouseLeave((e) => this._onEditorMouseLeave(e)));
 		this._listenersStore.add(this._editor.onDidChangeModel(() => {
-			console.log('onDidChangeModel');
 			this._cancelScheduler();
 			this._hideWidgets();
 		}));
@@ -132,14 +131,12 @@ export class HoverController extends Disposable implements IEditorContribution {
 	}
 
 	private _onEditorScrollChanged(e: IScrollEvent): void {
-		console.log('_onEditorScrollChanged');
 		if (e.scrollTopChanged || e.scrollLeftChanged) {
 			this._hideWidgets();
 		}
 	}
 
 	private _onEditorMouseDown(mouseEvent: IEditorMouseEvent): void {
-		console.log('_onEditorMouseDown');
 
 		this._hoverState.mouseDown = true;
 
@@ -171,14 +168,10 @@ export class HoverController extends Disposable implements IEditorContribution {
 	}
 
 	private _isMouseOnContentHoverWidget(mouseEvent: IPartialEditorMouseEvent): boolean {
-		console.log('_isMouseOnContentHoverWidget');
 		const target = mouseEvent.target;
-		console.log('target : ', target);
 		if (!target) {
 			return false;
 		}
-		console.log('target.type : ', target.type);
-		console.log('target.detail : ', target.type === MouseTargetType.CONTENT_WIDGET ? target.detail : null);
 		return target.type === MouseTargetType.CONTENT_WIDGET && target.detail === ContentHoverWidget.ID;
 	}
 
@@ -187,7 +180,6 @@ export class HoverController extends Disposable implements IEditorContribution {
 	}
 
 	private _onEditorMouseLeave(mouseEvent: IPartialEditorMouseEvent): void {
-		console.log('_onEditorMouseLeave');
 		if (this.shouldKeepOpenOnEditorMouseMoveOrLeave) {
 			return;
 		}
@@ -205,7 +197,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 	}
 
 	private _shouldNotRecomputeCurrentHoverWidget(mouseEvent: IEditorMouseEvent): boolean {
-		console.log('_shouldNotRecomputeCurrentHoverWidget');
+
 		const isHoverSticky = this._hoverSettings.sticky;
 
 		const isMouseOnStickyMarginHoverWidget = (mouseEvent: IEditorMouseEvent, isHoverSticky: boolean) => {
@@ -214,8 +206,6 @@ export class HoverController extends Disposable implements IEditorContribution {
 		};
 		const isMouseOnStickyContentHoverWidget = (mouseEvent: IEditorMouseEvent, isHoverSticky: boolean) => {
 			const isMouseOnContentHoverWidget = this._isMouseOnContentHoverWidget(mouseEvent);
-			console.log('isMouseOnContentHoverWidget : ', isMouseOnContentHoverWidget);
-			console.log('isHoverSticky : ', isHoverSticky);
 			return isHoverSticky && isMouseOnContentHoverWidget;
 		};
 		const isMouseOnColorPicker = (mouseEvent: IEditorMouseEvent) => {
@@ -242,30 +232,24 @@ export class HoverController extends Disposable implements IEditorContribution {
 	}
 
 	private _onEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
-		console.log('_onEditorMouseMove');
 		if (this.shouldKeepOpenOnEditorMouseMoveOrLeave) {
-			console.log('_onEditorMouseMove return 1');
 			return;
 		}
 
 		this._mouseMoveEvent = mouseEvent;
 		if (this._contentWidget?.isFocused || this._contentWidget?.isResizing) {
-			console.log('_onEditorMouseMove return 2');
 			return;
 		}
 		const sticky = this._hoverSettings.sticky;
 		if (sticky && this._contentWidget?.isVisibleFromKeyboard) {
 			// Sticky mode is on and the hover has been shown via keyboard
 			// so moving the mouse has no effect
-			console.log('_onEditorMouseMove return 3');
 			return;
 		}
 
 		const shouldNotRecomputeCurrentHoverWidget = this._shouldNotRecomputeCurrentHoverWidget(mouseEvent);
-		console.log('shouldNotRecomputeCurrentHoverWidget : ', shouldNotRecomputeCurrentHoverWidget);
 		if (shouldNotRecomputeCurrentHoverWidget) {
 			this._reactToEditorMouseMoveRunner.cancel();
-			console.log('_onEditorMouseMove return 4');
 			return;
 		}
 
@@ -274,24 +258,19 @@ export class HoverController extends Disposable implements IEditorContribution {
 		// If the mouse is not over the widget, and if sticky is on,
 		// then give it a grace period before reacting to the mouse event
 		const shouldRescheduleHoverComputation = isContentHoverWidgetVisible && sticky && hidingDelay > 0;
-		console.log('shouldRescheduleHoverComputation : ', shouldRescheduleHoverComputation);
 
 		if (shouldRescheduleHoverComputation) {
 			if (!this._reactToEditorMouseMoveRunner.isScheduled()) {
-				console.log('reschedule the _reactToEditorMouseMoveRunner with delay : ', hidingDelay);
 				this._reactToEditorMouseMoveRunner.schedule(hidingDelay);
 			}
-			console.log('_onEditorMouseMove return 5');
 			return;
 		}
 		this._reactToEditorMouseMove(mouseEvent);
 	}
 
 	private _reactToEditorMouseMove(mouseEvent: IEditorMouseEvent | undefined): void {
-		console.log('_reactToEditorMouseMove');
-		console.log('mouseEvent : ', mouseEvent);
+
 		if (!mouseEvent) {
-			console.log('_reactToEditorMouseMove return 1');
 			return;
 		}
 
@@ -312,31 +291,25 @@ export class HoverController extends Disposable implements IEditorContribution {
 			)
 		) {
 			this._hideWidgets();
-			console.log('_reactToEditorMouseMove return 2');
 			return;
 		}
 
 		const contentHoverShowsOrWillShow = this._tryShowHoverWidget(mouseEvent, HoverWidgetType.Content);
-		console.log('contentHoverShowsOrWillShow : ', contentHoverShowsOrWillShow);
 		if (contentHoverShowsOrWillShow) {
-			console.log('_reactToEditorMouseMove return 3');
 			return;
 		}
 
 		const glyphWidgetShowsOrWillShow = this._tryShowHoverWidget(mouseEvent, HoverWidgetType.Glyph);
 		if (glyphWidgetShowsOrWillShow) {
-			console.log('_reactToEditorMouseMove return 4');
 			return;
 		}
 		if (_sticky) {
-			console.log('_reactToEditorMouseMove return 5');
 			return;
 		}
 		this._hideWidgets();
 	}
 
 	private _tryShowHoverWidget(mouseEvent: IEditorMouseEvent, hoverWidgetType: HoverWidgetType): boolean {
-		console.log('_tryShowHoverWidget');
 		const contentWidget: IHoverWidget = this._getOrCreateContentWidget();
 		const glyphWidget: IHoverWidget = this._getOrCreateGlyphWidget();
 		let currentWidget: IHoverWidget;
@@ -355,7 +328,6 @@ export class HoverController extends Disposable implements IEditorContribution {
 		}
 
 		const showsOrWillShow = currentWidget.showsOrWillShow(mouseEvent);
-		console.log('showsOrWillShow : ', showsOrWillShow);
 		if (showsOrWillShow) {
 			otherWidget.hide();
 		}
@@ -363,7 +335,6 @@ export class HoverController extends Disposable implements IEditorContribution {
 	}
 
 	private _onKeyDown(e: IKeyboardEvent): void {
-		console.log('_onKeyDown');
 		if (!this._editor.hasModel()) {
 			return;
 		}
@@ -398,7 +369,6 @@ export class HoverController extends Disposable implements IEditorContribution {
 	}
 
 	private _hideWidgets(): void {
-		console.log('_hideWidgets');
 		if (_sticky) {
 			return;
 		}
@@ -429,7 +399,6 @@ export class HoverController extends Disposable implements IEditorContribution {
 	}
 
 	public hideContentHover(): void {
-		console.log('hideContentHover');
 		this._hideWidgets();
 	}
 

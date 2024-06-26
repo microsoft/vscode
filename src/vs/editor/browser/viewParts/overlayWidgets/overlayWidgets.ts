@@ -110,6 +110,16 @@ export class ViewOverlayWidgets extends ViewPart {
 		this._updateMaxMinWidth();
 	}
 
+	public overflowingWidgetDomNodes(): { [key: string]: HTMLElement } {
+		const overflowingWidgets: { [key: string]: HTMLElement } = {};
+		for (const [key, widgetData] of Object.entries(this._widgets)) {
+			if (widgetData.widget.allowEditorOverflow) {
+				overflowingWidgets[key] = widgetData.widget.getDomNode();
+			}
+		}
+		return overflowingWidgets;
+	}
+
 	public setWidgetPosition(widget: IOverlayWidget, position: IOverlayWidgetPosition | null): boolean {
 		const widgetData = this._widgets[widget.getId()];
 		const preference = position ? position.preference : null;

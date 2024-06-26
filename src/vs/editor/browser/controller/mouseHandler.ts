@@ -238,7 +238,9 @@ export class MouseHandler extends ViewEventHandler {
 	}
 
 	protected _createMouseTarget(e: EditorMouseEvent, testEventTarget: boolean): IMouseTarget {
+		console.log('_createMouseTarget');
 		let target = e.target;
+		console.log('target : ', target);
 		if (!this.viewHelper.viewDomNode.contains(target)) {
 			const shadowRoot = dom.getShadowRoot(this.viewHelper.viewDomNode);
 			if (shadowRoot) {
@@ -261,8 +263,6 @@ export class MouseHandler extends ViewEventHandler {
 		});
 	}
 
-	// Do we need the followig logic in the mouse move event of the overflow widgets dom node
-	// MouseHandler here
 	protected _onMouseMove(e: EditorMouseEvent): void {
 		const targetIsWidget = this.mouseTargetFactory.mouseTargetIsWidget(e);
 		if (!targetIsWidget) {
@@ -279,6 +279,8 @@ export class MouseHandler extends ViewEventHandler {
 			return;
 		}
 
+		console.log('_onMouseMove');
+		console.log('e : ', e);
 		this.viewController.emitMouseMove({
 			event: e,
 			target: this._createMouseTarget(e, true)
