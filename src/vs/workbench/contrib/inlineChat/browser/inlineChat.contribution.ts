@@ -125,9 +125,15 @@ class MenuCopier implements IDisposable {
 				updateMenu();
 			}
 		});
+		const listener2 = configService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(InlineChatConfigKeys.ExpTextButtons)) {
+				updateMenu();
+			}
+		});
 
 		this.dispose = () => {
 			listener.dispose();
+			listener2.dispose();
 			store.dispose();
 		};
 	}

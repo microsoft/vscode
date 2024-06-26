@@ -255,7 +255,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			//       | value
 			// -----------------------------------------------------
 			const lhsContainer = dom.append(rowContainer, $('.column.left'));
-			const rhsContainer = dom.append(rowContainer, $('.column'));
+			const rhsContainer = dom.append(rowContainer, $('.column.right'));
 
 			headerParent = lhsContainer;
 			detailContainerParent = rhsContainer;
@@ -822,7 +822,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private renderMarkdown(markdown: IMarkdownString, templateData: IChatListItemTemplate, context: IChatContentPartRenderContext): IChatContentPart {
 		const element = context.element;
-		const fillInIncompleteTokens = isResponseVM(element) && (!element.isComplete || element.isCanceled || element.errorDetails?.responseIsFiltered || element.errorDetails?.responseIsIncomplete);
+		const fillInIncompleteTokens = isResponseVM(element) && (!element.isComplete || element.isCanceled || element.errorDetails?.responseIsFiltered || element.errorDetails?.responseIsIncomplete || !!element.renderData);
 		const codeBlockStartIndex = context.preceedingContentParts.reduce((acc, part) => acc + (part instanceof ChatMarkdownContentPart ? part.codeblocks.length : 0), 0);
 		const markdownPart = this.instantiationService.createInstance(ChatMarkdownContentPart, markdown, context, this._editorPool, fillInIncompleteTokens, codeBlockStartIndex, this.renderer, this._currentLayoutWidth, this.codeBlockModelCollection, this.rendererOptions);
 		markdownPart.addDisposable(markdownPart.onDidChangeHeight(() => {

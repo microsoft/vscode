@@ -96,11 +96,14 @@ export class TerminalChatWidget extends Disposable {
 		this._container.appendChild(this._inlineChatWidget.domNode);
 
 		this._focusTracker = this._register(trackFocus(this._container));
+		this._register(this._focusTracker.onDidFocus(() => this._focusedContextKey.set(true)));
 		this._register(this._focusTracker.onDidBlur(() => {
+			this._focusedContextKey.set(false);
 			if (!this.inlineChatWidget.responseContent) {
 				this.hide();
 			}
 		}));
+
 		this.hide();
 	}
 
@@ -150,7 +153,6 @@ export class TerminalChatWidget extends Disposable {
 	reveal(): void {
 		this._doLayout(this._inlineChatWidget.contentHeight);
 		this._container.classList.remove('hide');
-		this._focusedContextKey.set(true);
 		this._visibleContextKey.set(true);
 		this._inlineChatWidget.focus();
 		this._instance.scrollToBottom();
@@ -194,12 +196,11 @@ export class TerminalChatWidget extends Disposable {
 
 	hide(): void {
 		this._container.classList.add('hide');
+		this._inlineChatWidget.reset();
 		this._reset();
 		this._inlineChatWidget.updateChatMessage(undefined);
 		this._inlineChatWidget.updateProgress(false);
 		this._inlineChatWidget.updateToolbar(false);
-		this._inlineChatWidget.reset();
-		this._focusedContextKey.set(false);
 		this._visibleContextKey.set(false);
 		this._inlineChatWidget.value = '';
 		this._instance.focus();

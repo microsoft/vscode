@@ -636,7 +636,7 @@ const plainTextRenderer = new Lazy<marked.Renderer>((withCodeBlocks?: boolean) =
 const plainTextWithCodeBlocksRenderer = new Lazy<marked.Renderer>(() => {
 	const renderer = createRenderer();
 	renderer.code = (code: string): string => {
-		return '\n' + '```' + '\n' + code + '```' + '\n';
+		return `\n\`\`\`\n${code}\n\`\`\`\n`;
 	};
 	return renderer;
 });

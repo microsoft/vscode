@@ -67,23 +67,4 @@ declare module 'vscode' {
 		 */
 		createSession(scopes: readonly string[], options: AuthenticationProviderSessionOptions): Thenable<AuthenticationSession>;
 	}
-
-	// THE BELOW IS THE OLD PROPOSAL WHICH WILL BE REMOVED BUT KEPT UNTIL THE NEW PROPOSAL IS ADOPTED BY ALL PARTIES
-
-	export namespace authentication {
-		/**
-		 * Get all authentication sessions matching the desired scopes that this extension has access to. In order to request access,
-		 * use {@link getSession}. To request an additional account, specify {@link AuthenticationGetSessionOptions.clearSessionPreference}
-		 * and {@link AuthenticationGetSessionOptions.createIfNone} together.
-		 *
-		 * Currently, there are only two authentication providers that are contributed from built in extensions
-		 * to the editor that implement GitHub and Microsoft authentication: their providerId's are 'github' and 'microsoft'.
-		 *
-		 * @param providerId The id of the provider to use
-		 * @param scopes A list of scopes representing the permissions requested. These are dependent on the authentication provider
-		 * @returns A thenable that resolves to a readonly array of authentication sessions.
-		 * @deprecated Use {@link getAccounts} instead.
-		 */
-		export function getSessions(providerId: string, scopes: readonly string[]): Thenable<readonly AuthenticationSession[]>;
-	}
 }
