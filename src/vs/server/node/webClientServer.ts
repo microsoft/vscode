@@ -346,14 +346,15 @@ export class WebClientServer {
 			WORKBENCH_NLS_BASE_URL = `https://www.vscode-unpkg.net/nls/`;
 			WORKBENCH_NLS_URL = `${WORKBENCH_NLS_BASE_URL}${this._productService.commit}/${this._productService.version}/${locale}/nls.messages.js`; // TODO@bpasero make it a product.json thing
 		} else {
-			WORKBENCH_NLS_URL = `${this._staticRoute}/out/nls.messages.js`;
+			WORKBENCH_NLS_URL = ''; // fallback will apply
 		}
 
 		const values: { [key: string]: string } = {
 			WORKBENCH_WEB_CONFIGURATION: asJSON(workbenchWebConfiguration),
 			WORKBENCH_AUTH_SESSION: authSessionInfo ? asJSON(authSessionInfo) : '',
 			WORKBENCH_WEB_BASE_URL: this._staticRoute,
-			WORKBENCH_NLS_URL
+			WORKBENCH_NLS_URL,
+			WORKBENCH_NLS_FALLBACK_URL: `${this._staticRoute}/out/nls.messages.js`
 		};
 
 		if (useTestResolver) {
