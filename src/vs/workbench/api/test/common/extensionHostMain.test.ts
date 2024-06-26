@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { SerializedError, errorHandler, onUnexpectedError } from 'vs/base/common/errors';
 import { isFirefox, isSafari } from 'vs/base/common/platform';
 import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';

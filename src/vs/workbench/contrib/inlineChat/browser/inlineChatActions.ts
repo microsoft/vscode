@@ -80,7 +80,7 @@ export class StartSessionAction extends EditorAction2 {
 
 		let options: InlineChatRunOptions | undefined;
 		const arg = _args[0];
-		if (arg && InlineChatRunOptions.isInteractiveEditorOptions(arg)) {
+		if (arg && InlineChatRunOptions.isInlineChatRunOptions(arg)) {
 			options = arg;
 		}
 		InlineChatController.get(editor)?.run({ ...options });

@@ -61,11 +61,11 @@ export class ScmMultiDiffSourceResolver implements IMultiDiffSourceResolver {
 
 	async resolveDiffSource(uri: URI): Promise<IResolvedMultiDiffSource> {
 		const { repositoryUri, groupId } = ScmMultiDiffSourceResolver.parseUri(uri)!;
-		const repository = await waitForState(observableFromEvent(
+		const repository = await waitForState(observableFromEvent(this,
 			this._scmService.onDidAddRepository,
 			() => [...this._scmService.repositories].find(r => r.provider.rootUri?.toString() === repositoryUri.toString()))
 		);
-		const group = await waitForState(observableFromEvent(
+		const group = await waitForState(observableFromEvent(this,
 			repository.provider.onDidChangeResourceGroups,
 			() => repository.provider.groups.find(g => g.id === groupId)
 		));

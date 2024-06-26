@@ -378,6 +378,7 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 			servers.push(server);
 		}
 
+		installOptions = { ...(installOptions || {}), isApplicationScoped: extension.isApplicationScoped };
 		return Promises.settled(servers.map(server => server.extensionManagementService.installFromGallery(gallery, installOptions))).then(([local]) => local);
 	}
 

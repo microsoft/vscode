@@ -796,7 +796,7 @@ class FindWidget<T, TFilterData> extends Disposable {
 		super();
 
 		container.appendChild(this.elements.root);
-		this._register(toDisposable(() => container.removeChild(this.elements.root)));
+		this._register(toDisposable(() => this.elements.root.remove()));
 
 		const styles = options?.styles ?? unthemedFindWidgetStyles;
 

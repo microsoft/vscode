@@ -11,7 +11,7 @@ import { formatStackTrace } from './stackTraceHelper';
 
 function clearContainer(container: HTMLElement) {
 	while (container.firstChild) {
-		container.removeChild(container.firstChild);
+		container.firstChild.remove();
 	}
 }
 
@@ -378,7 +378,7 @@ function renderStream(outputInfo: OutputWithAppend, outputElement: HTMLElement, 
 			contentParent = document.createElement('div');
 			contentParent.appendChild(newContent);
 			while (outputElement.firstChild) {
-				outputElement.removeChild(outputElement.firstChild);
+				outputElement.firstChild.remove();
 			}
 			outputElement.appendChild(contentParent);
 		}
@@ -462,7 +462,7 @@ export const activate: ActivationFunction<void> = (ctx) => {
 		border-color: var(--theme-input-focus-border-color);
 	}
 	#container div.output .scrollable {
-		overflow-y: scroll;
+		overflow-y: auto;
 		max-height: var(--notebook-cell-output-max-height);
 	}
 	#container div.output .scrollable.scrollbar-visible {

@@ -258,7 +258,12 @@ export abstract class BaseCellViewModel extends Disposable {
 			writeTransientState(editor.getModel(), this._editorTransientState, this._codeEditorService);
 		}
 
-		this._textEditor?.changeDecorations((accessor) => {
+		if (this._isDisposed) {
+			// Restore View State could adjust the editor layout and trigger a list view update. The list view update might then dispose this view model.
+			return;
+		}
+
+		editor.changeDecorations((accessor) => {
 			this._resolvedDecorations.forEach((value, key) => {
 				if (key.startsWith('_lazy_')) {
 					// lazy ones
@@ -272,7 +277,7 @@ export abstract class BaseCellViewModel extends Disposable {
 			});
 		});
 
-		this._editorListeners.push(this._textEditor.onDidChangeCursorSelection(() => { this._onDidChangeState.fire({ selectionChanged: true }); }));
+		this._editorListeners.push(editor.onDidChangeCursorSelection(() => { this._onDidChangeState.fire({ selectionChanged: true }); }));
 		const inlineChatController = InlineChatController.get(this._textEditor);
 		if (inlineChatController) {
 			this._editorListeners.push(inlineChatController.onWillStartSession(() => {
@@ -281,7 +286,7 @@ export abstract class BaseCellViewModel extends Disposable {
 				}
 			}));
 		}
-		// this._editorListeners.push(this._textEditor.onKeyDown(e => this.handleKeyDown(e)));
+
 		this._onDidChangeState.fire({ selectionChanged: true });
 		this._onDidChangeEditorAttachState.fire();
 	}

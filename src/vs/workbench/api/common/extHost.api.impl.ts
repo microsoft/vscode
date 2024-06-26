@@ -84,7 +84,7 @@ import { IExtHostTask } from 'vs/workbench/api/common/extHostTask';
 import { ExtHostTelemetryLogger, IExtHostTelemetry, isNewAppInstall } from 'vs/workbench/api/common/extHostTelemetry';
 import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
 import { IExtHostTerminalShellIntegration } from 'vs/workbench/api/common/extHostTerminalShellIntegration';
-import { ExtHostTesting } from 'vs/workbench/api/common/extHostTesting';
+import { IExtHostTesting } from 'vs/workbench/api/common/extHostTesting';
 import { ExtHostEditors } from 'vs/workbench/api/common/extHostTextEditors';
 import { ExtHostTheming } from 'vs/workbench/api/common/extHostTheming';
 import { ExtHostTimeline } from 'vs/workbench/api/common/extHostTimeline';
@@ -205,7 +205,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostWebviewPanels = rpcProtocol.set(ExtHostContext.ExtHostWebviewPanels, new ExtHostWebviewPanels(rpcProtocol, extHostWebviews, extHostWorkspace));
 	const extHostCustomEditors = rpcProtocol.set(ExtHostContext.ExtHostCustomEditors, new ExtHostCustomEditors(rpcProtocol, extHostDocuments, extensionStoragePaths, extHostWebviews, extHostWebviewPanels));
 	const extHostWebviewViews = rpcProtocol.set(ExtHostContext.ExtHostWebviewViews, new ExtHostWebviewViews(rpcProtocol, extHostWebviews));
-	const extHostTesting = rpcProtocol.set(ExtHostContext.ExtHostTesting, new ExtHostTesting(rpcProtocol, extHostLogService, extHostCommands, extHostDocumentsAndEditors));
+	const extHostTesting = rpcProtocol.set(ExtHostContext.ExtHostTesting, accessor.get(IExtHostTesting));
 	const extHostUriOpeners = rpcProtocol.set(ExtHostContext.ExtHostUriOpeners, new ExtHostUriOpeners(rpcProtocol));
 	const extHostProfileContentHandlers = rpcProtocol.set(ExtHostContext.ExtHostProfileContentHandlers, new ExtHostProfileContentHandlers(rpcProtocol));
 	rpcProtocol.set(ExtHostContext.ExtHostInteractive, new ExtHostInteractive(rpcProtocol, extHostNotebook, extHostDocumentsAndEditors, extHostCommands, extHostLogService));
@@ -287,11 +287,18 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				if (typeof options?.forceNewSession === 'object' && options.forceNewSession.learnMore) {
 					checkProposedApiEnabled(extension, 'authLearnMore');
 				}
+				if (options?.account) {
+					checkProposedApiEnabled(extension, 'authGetSessions');
+				}
 				return extHostAuthentication.getSession(extension, providerId, scopes, options as any);
 			},
 			getSessions(providerId: string, scopes: readonly string[]) {
 				checkProposedApiEnabled(extension, 'authGetSessions');
 				return extHostAuthentication.getSessions(extension, providerId, scopes);
+			},
+			getAccounts(providerId: string) {
+				checkProposedApiEnabled(extension, 'authGetSessions');
+				return extHostAuthentication.getAccounts(providerId);
 			},
 			// TODO: remove this after GHPR and Codespaces move off of it
 			async hasSession(providerId: string, scopes: readonly string[]) {
@@ -1429,10 +1436,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			createDynamicChatParticipant(id: string, dynamicProps: vscode.DynamicChatParticipantProps, handler: vscode.ChatExtendedRequestHandler): vscode.ChatParticipant {
 				checkProposedApiEnabled(extension, 'chatParticipantPrivate');
 				return extHostChatAgents2.createDynamicChatAgent(extension, id, dynamicProps, handler);
-			},
-			attachContext(name: string, value: string | vscode.Uri | vscode.Location | unknown, location: vscode.ChatLocation.Panel) {
-				checkProposedApiEnabled(extension, 'chatVariableResolver');
-				return extHostChatVariables.attachContext(name, value, location);
 			}
 		};
 
@@ -1451,6 +1454,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					return Event.None(listener, thisArgs, disposables);
 				}
 				return extHostLanguageModels.onDidChangeProviders(listener, thisArgs, disposables);
+			},
+			registerChatModelProvider: (id, provider, metadata) => {
+				checkProposedApiEnabled(extension, 'chatProvider');
+				return extHostLanguageModels.registerLanguageModel(extension, id, provider, metadata);
 			},
 			// --- embeddings
 			get embeddingModels() {
@@ -1733,6 +1740,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatLocation: extHostTypes.ChatLocation,
 			LanguageModelChatMessageRole: extHostTypes.LanguageModelChatMessageRole,
 			LanguageModelChatMessage: extHostTypes.LanguageModelChatMessage,
+			LanguageModelChatMessageFunctionResultPart: extHostTypes.LanguageModelFunctionResultPart,
+			LanguageModelChatResponseTextPart: extHostTypes.LanguageModelTextPart,
+			LanguageModelChatResponseFunctionUsePart: extHostTypes.LanguageModelFunctionUsePart,
 			LanguageModelChatMessage2: extHostTypes.LanguageModelChatMessage, // TODO@jrieken REMOVE
 			LanguageModelChatSystemMessage: extHostTypes.LanguageModelChatSystemMessage,// TODO@jrieken REMOVE
 			LanguageModelChatUserMessage: extHostTypes.LanguageModelChatUserMessage,// TODO@jrieken REMOVE

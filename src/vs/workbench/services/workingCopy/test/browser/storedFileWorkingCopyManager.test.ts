@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { workbenchInstantiationService, TestServiceAccessor, TestWillShutdownEvent } from 'vs/workbench/test/browser/workbenchTestServices';
@@ -37,7 +37,8 @@ suite('StoredFileWorkingCopyManager', () => {
 			accessor.fileService, accessor.lifecycleService, accessor.labelService, accessor.logService,
 			accessor.workingCopyFileService, accessor.workingCopyBackupService, accessor.uriIdentityService,
 			accessor.filesConfigurationService, accessor.workingCopyService, accessor.notificationService,
-			accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService
+			accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService,
+			accessor.progressService
 		));
 	});
 

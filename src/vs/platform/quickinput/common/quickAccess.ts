@@ -30,7 +30,6 @@ export interface IQuickAccessProviderRunOptions {
 export interface AnythingQuickAccessProviderRunOptions extends IQuickAccessProviderRunOptions {
 	readonly includeHelp?: boolean;
 	readonly filter?: (item: unknown) => boolean;
-	readonly includeSymbols?: boolean;
 	/**
 	 * @deprecated - temporary for Dynamic Chat Variables (see usage) until it has built-in UX for file picking
 	 * Useful for adding items to the top of the list that might contain actions.

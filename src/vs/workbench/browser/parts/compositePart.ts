@@ -422,7 +422,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		const titleContainer = append(parent, $('.title-label'));
 		const titleLabel = append(titleContainer, $('h2'));
 		this.titleLabelElement = titleLabel;
-		const hover = this._register(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), titleLabel, ''));
+		const hover = this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), titleLabel, ''));
 
 		const $this = this;
 		return {

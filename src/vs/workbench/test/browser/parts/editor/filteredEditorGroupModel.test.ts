@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { EditorGroupModel, ISerializedEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
 import { EditorExtensions, IEditorFactoryRegistry, IFileEditorInput, IEditorSerializer, EditorsOrder, GroupModelChangeKind } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';

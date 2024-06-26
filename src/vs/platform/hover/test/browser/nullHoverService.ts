@@ -10,7 +10,7 @@ export const NullHoverService: IHoverService = {
 	_serviceBrand: undefined,
 	hideHover: () => undefined,
 	showHover: () => undefined,
-	setupUpdatableHover: () => Disposable.None as any,
+	setupManagedHover: () => Disposable.None as any,
 	showAndFocusLastHover: () => undefined,
-	triggerUpdatableHover: () => undefined
+	showManagedHover: () => undefined
 };

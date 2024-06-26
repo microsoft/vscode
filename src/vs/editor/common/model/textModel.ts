@@ -381,6 +381,11 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		}));
 
 		this._languageService.requestRichLanguageFeatures(languageId);
+
+		this._register(this._languageConfigurationService.onDidChange(e => {
+			this._bracketPairs.handleLanguageConfigurationServiceChange(e);
+			this._tokenizationTextModelPart.handleLanguageConfigurationServiceChange(e);
+		}));
 	}
 
 	public override dispose(): void {
@@ -413,7 +418,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	private _assertNotDisposed(): void {
 		if (this._isDisposed) {
-			throw new Error('Model is disposed!');
+			throw new BugIndicatingError('Model is disposed!');
 		}
 	}
 

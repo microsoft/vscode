@@ -352,6 +352,12 @@ export class SearchWidget extends Widget {
 		this.searchInput?.focusOnRegex();
 	}
 
+	set replaceButtonVisibility(val: boolean) {
+		if (this.toggleReplaceButton) {
+			this.toggleReplaceButton.element.style.display = val ? '' : 'none';
+		}
+	}
+
 	private render(container: HTMLElement, options: ISearchWidgetOptions): void {
 		this.domNode = dom.append(container, dom.$('.search-widget'));
 		this.domNode.style.position = 'relative';
@@ -664,6 +670,25 @@ export class SearchWidget extends Widget {
 
 		else if (keyboardEvent.equals(KeyCode.DownArrow)) {
 			stopPropagationForMultiLineDownwards(keyboardEvent, this.searchInput?.getValue() ?? '', this.searchInput?.domNode.querySelector('textarea') ?? null);
+		}
+
+		else if (keyboardEvent.equals(KeyCode.PageUp)) {
+			const inputElement = this.searchInput?.inputBox.inputElement;
+			if (inputElement) {
+				inputElement.setSelectionRange(0, 0);
+				inputElement.focus();
+				keyboardEvent.preventDefault();
+			}
+		}
+
+		else if (keyboardEvent.equals(KeyCode.PageDown)) {
+			const inputElement = this.searchInput?.inputBox.inputElement;
+			if (inputElement) {
+				const endOfText = inputElement.value.length;
+				inputElement.setSelectionRange(endOfText, endOfText);
+				inputElement.focus();
+				keyboardEvent.preventDefault();
+			}
 		}
 	}
 

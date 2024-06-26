@@ -1847,6 +1847,11 @@ export interface CommentInput {
 	uri: URI;
 }
 
+export interface CommentThreadRevealOptions {
+	preserveFocus: boolean;
+	focusReply: boolean;
+}
+
 /**
  * @internal
  */

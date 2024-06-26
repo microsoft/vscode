@@ -717,9 +717,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	override dispose() {
 		super.dispose();
 
-		if (this._domNode && this._domNode.parentElement) {
-			this._domNode.parentElement.removeChild(this._domNode);
-		}
+		this._domNode.remove();
 	}
 
 	public getDomNode() {

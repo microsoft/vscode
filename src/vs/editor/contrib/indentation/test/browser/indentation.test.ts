@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
@@ -1773,4 +1773,3 @@ suite('Auto Indent On Type - Lua', () => {
 		});
 	});
 });
-

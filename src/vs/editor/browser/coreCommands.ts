@@ -74,7 +74,7 @@ export namespace EditorScroll_ {
 		return true;
 	};
 
-	export const metadata = <ICommandMetadata>{
+	export const metadata: ICommandMetadata = {
 		description: 'Scroll editor in the given direction',
 		args: [
 			{
@@ -252,7 +252,7 @@ export namespace RevealLine_ {
 		return true;
 	};
 
-	export const metadata = <ICommandMetadata>{
+	export const metadata: ICommandMetadata = {
 		description: 'Reveal the given line at the given logical position',
 		args: [
 			{

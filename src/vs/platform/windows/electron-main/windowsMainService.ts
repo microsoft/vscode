@@ -269,7 +269,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		const forceReuseWindow = options?.forceReuseWindow;
 		const forceNewWindow = !forceReuseWindow;
 
-		return this.open({ ...openConfig, cli, forceEmpty, forceNewWindow, forceReuseWindow, remoteAuthority });
+		return this.open({ ...openConfig, cli, forceEmpty, forceNewWindow, forceReuseWindow, remoteAuthority, forceTempProfile: options?.forceTempProfile, forceProfile: options?.forceProfile });
 	}
 
 	openExistingWindow(window: ICodeWindow, openConfig: IOpenConfiguration): void {

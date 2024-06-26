@@ -31,7 +31,7 @@ import { ActiveGroupEditorsByMostRecentlyUsedQuickAccess } from 'vs/workbench/br
 import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
 import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
 import { ActiveEditorCanSplitInGroupContext, ActiveEditorGroupEmptyContext, ActiveEditorGroupLockedContext, ActiveEditorStickyContext, MultipleEditorGroupsContext, SideBySideEditorActiveContext, TextCompareEditorActiveContext } from 'vs/workbench/common/contextkeys';
-import { CloseDirection, EditorInputCapabilities, EditorsOrder, IEditorCommandsContext, IEditorIdentifier, IResourceDiffEditorInput, IUntitledTextResourceEditorInput, IVisibleEditorPane, isEditorIdentifier, isEditorInputWithOptionsAndGroup } from 'vs/workbench/common/editor';
+import { CloseDirection, EditorInputCapabilities, EditorsOrder, IEditorCommandsContext, IEditorIdentifier, IResourceDiffEditorInput, IUntitledTextResourceEditorInput, IVisibleEditorPane, isEditorCommandsContext, isEditorIdentifier, isEditorInputWithOptionsAndGroup } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
@@ -1404,7 +1404,7 @@ export function getCommandsContext(accessor: ServicesAccessor, resourceOrContext
 	const isUri = URI.isUri(resourceOrContext);
 
 	const editorCommandsContext = isUri ? context : resourceOrContext ? resourceOrContext : context;
-	if (editorCommandsContext) {
+	if (editorCommandsContext && isEditorCommandsContext(editorCommandsContext)) {
 		return editorCommandsContext;
 	}
 

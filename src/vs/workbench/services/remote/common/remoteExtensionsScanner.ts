@@ -64,25 +64,6 @@ class RemoteExtensionsScannerService implements IRemoteExtensionsScannerService 
 		}
 	}
 
-	async scanSingleExtension(extensionLocation: URI, isBuiltin: boolean): Promise<IExtensionDescription | null> {
-		try {
-			return await this.withChannel(
-				async (channel) => {
-					const extension = await channel.call<IRelaxedExtensionDescription>('scanSingleExtension', [extensionLocation, isBuiltin, platform.language]);
-					if (extension !== null) {
-						extension.extensionLocation = URI.revive(extension.extensionLocation);
-						// ImplicitActivationEvents.updateManifest(extension);
-					}
-					return extension;
-				},
-				null
-			);
-		} catch (error) {
-			this.logService.error(error);
-			return null;
-		}
-	}
-
 	private withChannel<R>(callback: (channel: IChannel) => Promise<R>, fallback: R): Promise<R> {
 		const connection = this.remoteAgentService.getConnection();
 		if (!connection) {
