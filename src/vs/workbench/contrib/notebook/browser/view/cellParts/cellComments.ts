@@ -20,7 +20,7 @@ import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 
 export class CellComments extends CellContentPart {
-	private readonly _commentThreadWidget = new MutableDisposable<CommentThreadWidget<ICellRange>>;
+	private readonly _commentThreadWidget: MutableDisposable<CommentThreadWidget<ICellRange>>;
 	private currentElement: CodeCellViewModel | undefined;
 	private readonly _commentThreadDisposables = this._register(new DisposableStore());
 
@@ -35,6 +35,8 @@ export class CellComments extends CellContentPart {
 	) {
 		super();
 		this.container.classList.add('review-widget');
+
+		this._register(this._commentThreadWidget = new MutableDisposable<CommentThreadWidget<ICellRange>>());
 
 		this._register(this.themeService.onDidColorThemeChange(this._applyTheme, this));
 		// TODO @rebornix onDidChangeLayout (font change)
