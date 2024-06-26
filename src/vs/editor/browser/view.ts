@@ -9,7 +9,9 @@ import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { inputLatency } from 'vs/base/browser/performance';
 import { CodeWindow } from 'vs/base/browser/window';
 import { BugIndicatingError, onUnexpectedError } from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { IPointerHandlerHelper } from 'vs/editor/browser/controller/mouseHandler';
 import { PointerHandlerLastRenderData } from 'vs/editor/browser/controller/mouseTarget';
 import { PointerHandler } from 'vs/editor/browser/controller/pointerHandler';
@@ -102,6 +104,10 @@ export class View extends ViewEventHandler {
 	private _shouldRecomputeGlyphMarginLanes: boolean = false;
 	private _renderAnimationFrame: IDisposable | null;
 
+	// Listeners for mouse move event on overflowing widgets
+	private readonly _onMouseMoveOnOverflowingWidgets: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new Emitter<editorBrowser.IEditorMouseEvent>());
+	public readonly onMouseMoveOnOverflowingWidgets: Event<editorBrowser.IEditorMouseEvent> = this._onMouseMoveOnOverflowingWidgets.event;
+
 	constructor(
 		commandDelegate: ICommandDelegate,
 		configuration: IEditorConfiguration,
@@ -188,6 +194,7 @@ export class View extends ViewEventHandler {
 
 		// Content widgets
 		this._contentWidgets = new ViewContentWidgets(this._context, this.domNode);
+		this._register(this._contentWidgets.onMouseMoveOnOverflowingWidgets((e) => this._onMouseMoveOnOverflowingWidgets.fire(e)));
 		this._viewParts.push(this._contentWidgets);
 
 		this._viewCursors = new ViewCursors(this._context);
@@ -195,6 +202,7 @@ export class View extends ViewEventHandler {
 
 		// Overlay widgets
 		this._overlayWidgets = new ViewOverlayWidgets(this._context, this.domNode);
+		this._register(this._overlayWidgets.onMouseMoveOnOverflowingWidgets((e) => this._onMouseMoveOnOverflowingWidgets.fire(e)));
 		this._viewParts.push(this._overlayWidgets);
 
 		const rulers = new Rulers(this._context);
@@ -633,12 +641,6 @@ export class View extends ViewEventHandler {
 		this._scheduleRender();
 	}
 
-	public getOverflowingWidgetDomNodes(): { [key: string]: HTMLElement } {
-		const contentOverflowingWidgets = this._contentWidgets.overflowingWidgetDomNodes();
-		const overlayOverflowingWidgets = this._overlayWidgets.overflowingWidgetDomNodes();
-		return { ...contentOverflowingWidgets, ...overlayOverflowingWidgets };
-	}
-
 	public layoutOverlayWidget(widgetData: IOverlayWidgetData): void {
 		const shouldRender = this._overlayWidgets.setWidgetPosition(widgetData.widget, widgetData.position);
 		if (shouldRender) {
@@ -670,6 +672,10 @@ export class View extends ViewEventHandler {
 		this._glyphMarginWidgets.removeWidget(widgetData.widget);
 		this._shouldRecomputeGlyphMarginLanes = true;
 		this._scheduleRender();
+	}
+
+	public get mouseOnOverflowingWidgetsDomNode(): boolean {
+		return this._contentWidgets.mouseOnOverflowingWidgetsDomNode || this._overlayWidgets.mouseOnOverflowingWidgetsDomNode;
 	}
 
 	// --- END CodeEditor helpers

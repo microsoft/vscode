@@ -5,16 +5,21 @@
 
 import 'vs/css!./overlayWidgets';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { IOverlayWidget, IOverlayWidgetPosition, IOverlayWidgetPositionCoordinates, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
+import { IEditorMouseEvent, IOverlayWidget, IOverlayWidgetPosition, IOverlayWidgetPositionCoordinates, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import * as viewEvents from 'vs/editor/common/viewEvents';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import * as dom from 'vs/base/browser/dom';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { EditorMouseEvent } from 'vs/editor/browser/editorDom';
+import { MouseTarget } from 'vs/editor/browser/controller/mouseTarget';
+import { Emitter, Event } from 'vs/base/common/event';
+import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 
 
-interface IWidgetData {
+interface IWidgetData extends IDisposable {
 	widget: IOverlayWidget;
 	preference: OverlayWidgetPositionPreference | IOverlayWidgetPositionCoordinates | null;
 	stack?: number;
@@ -38,6 +43,12 @@ export class ViewOverlayWidgets extends ViewPart {
 	private _editorHeight: number;
 	private _editorWidth: number;
 
+	// Overflowing widgets dom node
+	public mouseOnOverflowingWidgetsDomNode;
+
+	private readonly _onMouseMoveOnOverflowingWidgets: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new Emitter<editorBrowser.IEditorMouseEvent>());
+	public readonly onMouseMoveOnOverflowingWidgets: Event<editorBrowser.IEditorMouseEvent> = this._onMouseMoveOnOverflowingWidgets.event;
+
 	constructor(context: ViewContext, viewDomNode: FastDomNode<HTMLElement>) {
 		super(context);
 		this._viewDomNode = viewDomNode;
@@ -60,10 +71,15 @@ export class ViewOverlayWidgets extends ViewPart {
 		this.overflowingOverlayWidgetsDomNode = createFastDomNode(document.createElement('div'));
 		PartFingerprints.write(this.overflowingOverlayWidgetsDomNode, PartFingerprint.OverflowingOverlayWidgets);
 		this.overflowingOverlayWidgetsDomNode.setClassName('overflowingOverlayWidgets');
+		this.mouseOnOverflowingWidgetsDomNode = false;
 	}
 
 	public override dispose(): void {
 		super.dispose();
+		const keys = Object.keys(this._widgets);
+		for (const key of keys) {
+			this._widgets[key].dispose();
+		}
 		this._widgets = {};
 	}
 
@@ -88,36 +104,50 @@ export class ViewOverlayWidgets extends ViewPart {
 	// ---- end view event handlers
 
 	public addWidget(widget: IOverlayWidget): void {
-		const domNode = createFastDomNode(widget.getDomNode());
+		const widgetId = widget.getId();
+		const widgetDomNode = widget.getDomNode();
+		const domNode = createFastDomNode(widgetDomNode);
 
-		this._widgets[widget.getId()] = {
+		let disposables: IDisposable;
+		if (widget.allowEditorOverflow) {
+			this.overflowingOverlayWidgetsDomNode.appendChild(domNode);
+			disposables = this._registerMouseListenersOnOverflowingWidget(widgetId, widgetDomNode);
+		} else {
+			this._domNode.appendChild(domNode);
+			disposables = Disposable.None;
+		}
+
+		this._widgets[widgetId] = {
 			widget: widget,
 			preference: null,
-			domNode: domNode
+			domNode: domNode,
+			dispose: () => { disposables.dispose(); }
 		};
 
 		// This is sync because a widget wants to be in the dom
 		domNode.setPosition('absolute');
-		domNode.setAttribute('widgetId', widget.getId());
-
-		if (widget.allowEditorOverflow) {
-			this.overflowingOverlayWidgetsDomNode.appendChild(domNode);
-		} else {
-			this._domNode.appendChild(domNode);
-		}
+		domNode.setAttribute('widgetId', widgetId);
 
 		this.setShouldRender();
 		this._updateMaxMinWidth();
 	}
 
-	public overflowingWidgetDomNodes(): { [key: string]: HTMLElement } {
-		const overflowingWidgets: { [key: string]: HTMLElement } = {};
-		for (const [key, widgetData] of Object.entries(this._widgets)) {
-			if (widgetData.widget.allowEditorOverflow) {
-				overflowingWidgets[key] = widgetData.widget.getDomNode();
-			}
-		}
-		return overflowingWidgets;
+
+	private _registerMouseListenersOnOverflowingWidget(widgetId: string, widgetDomNode: HTMLElement): IDisposable {
+		const disposables = new DisposableStore();
+		disposables.add(dom.addDisposableListener(widgetDomNode, 'mouseout', (e) => {
+			e.stopPropagation();
+			this.mouseOnOverflowingWidgetsDomNode = false;
+		}));
+		disposables.add(dom.addDisposableListener(widgetDomNode, 'mousemove', (e) => {
+			e.stopPropagation();
+			this.mouseOnOverflowingWidgetsDomNode = true;
+			const event = new EditorMouseEvent(e, false, widgetDomNode);
+			const target = MouseTarget.createContentWidget(widgetDomNode, 0, widgetId);
+			const mouseEvent: IEditorMouseEvent = { event, target };
+			this._onMouseMoveOnOverflowingWidgets.fire(mouseEvent);
+		}));
+		return disposables;
 	}
 
 	public setWidgetPosition(widget: IOverlayWidget, position: IOverlayWidgetPosition | null): boolean {
@@ -142,6 +172,7 @@ export class ViewOverlayWidgets extends ViewPart {
 		if (this._widgets.hasOwnProperty(widgetId)) {
 			const widgetData = this._widgets[widgetId];
 			const domNode = widgetData.domNode.domNode;
+			widgetData.dispose();
 			delete this._widgets[widgetId];
 
 			domNode.remove();

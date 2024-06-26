@@ -60,9 +60,6 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { editorErrorForeground, editorHintForeground, editorInfoForeground, editorWarningForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { MenuId } from 'vs/platform/actions/common/actions';
-import { EditorMouseEvent } from 'vs/editor/browser/editorDom';
-import { IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
-import { MouseTarget } from 'vs/editor/browser/controller/mouseTarget';
 
 export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeEditor {
 
@@ -243,8 +240,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	private _bannerDomNode: HTMLElement | null = null;
 
 	private _dropIntoEditorDecorations: EditorDecorationsCollection = this.createDecorationsCollection();
-
-	private _mouseInsideOfOverflowWidgetsDomNode: boolean = false;
 
 	constructor(
 		domElement: HTMLElement,
@@ -1785,6 +1780,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			view.render(false, true);
 			view.domNode.domNode.setAttribute('data-uri', model.uri.toString());
 		}
+		listenersToRemove.push(view.onMouseMoveOnOverflowingWidgets((e) => this._onMouseMove.fire(e)));
 
 		this._modelData = new ModelData(model, viewModel, view, hasRealView, listenersToRemove, attachedView);
 	}
@@ -1850,13 +1846,13 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		viewUserInputEvents.onKeyUp = (e) => this._onKeyUp.fire(e);
 		viewUserInputEvents.onContextMenu = (e) => this._onContextMenu.fire(e);
 		viewUserInputEvents.onMouseMove = (e) => {
-			if (!this._mouseInsideOfOverflowWidgetsDomNode) {
+			if (!this._mouseOnOverflowingWidgetsDomNode) {
 				this._onMouseMove.fire(e);
 			}
 		};
 		viewUserInputEvents.onMouseLeave = (e) => {
 			setTimeout(() => {
-				if (!this._mouseInsideOfOverflowWidgetsDomNode) {
+				if (!this._mouseOnOverflowingWidgetsDomNode) {
 					this._onMouseLeave.fire(e);
 				}
 			}, 100);
@@ -1878,25 +1874,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			this._instantiationService
 		);
 
-		if (this._overflowWidgetsDomNode) {
-			const overflowingWidgets = view.getOverflowingWidgetDomNodes();
-			for (const [widgetId, widgetDomNode] of Object.entries(overflowingWidgets)) {
-				dom.addDisposableListener(widgetDomNode, 'mouseout', (e) => {
-					e.stopPropagation();
-					this._mouseInsideOfOverflowWidgetsDomNode = false;
-				});
-				dom.addDisposableListener(widgetDomNode, 'mousemove', (e) => {
-					e.stopPropagation();
-					const event = new EditorMouseEvent(e, false, widgetDomNode);
-					const target = MouseTarget.createContentWidget(widgetDomNode, 0, widgetId);
-					const mouseEvent: IEditorMouseEvent = { event, target };
-					this._mouseInsideOfOverflowWidgetsDomNode = true;
-					this._onMouseMove.fire(mouseEvent);
-				});
-			}
-		}
-
 		return [view, true];
+	}
+
+	private get _mouseOnOverflowingWidgetsDomNode(): boolean {
+		return this._modelData?.view.mouseOnOverflowingWidgetsDomNode ?? false;
 	}
 
 	protected _postDetachModelCleanup(detachedModel: ITextModel | null): void {

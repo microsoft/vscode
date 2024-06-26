@@ -5,7 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { ContentWidgetPositionPreference, IContentWidget } from 'vs/editor/browser/editorBrowser';
+import { ContentWidgetPositionPreference, IContentWidget, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
@@ -16,14 +16,25 @@ import { IDimension } from 'vs/editor/common/core/dimension';
 import { PositionAffinity } from 'vs/editor/common/model';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IViewModel } from 'vs/editor/common/viewModel';
+import { Emitter, Event } from 'vs/base/common/event';
+import * as editorBrowser from 'vs/editor/browser/editorBrowser';
+import { MouseTarget } from 'vs/editor/browser/controller/mouseTarget';
+import { EditorMouseEvent } from 'vs/editor/browser/editorDom';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 
 export class ViewContentWidgets extends ViewPart {
 
 	private readonly _viewDomNode: FastDomNode<HTMLElement>;
-	private _widgets: { [key: string]: Widget };
+	private _widgets: { [key: string]: { widget: Widget; disposable: IDisposable } };
 
 	public domNode: FastDomNode<HTMLElement>;
 	public overflowingContentWidgetsDomNode: FastDomNode<HTMLElement>;
+
+	// Overflowing widgets
+	public mouseOnOverflowingWidgetsDomNode: boolean = false;
+
+	private readonly _onMouseMoveOnOverflowingWidgets: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new Emitter<editorBrowser.IEditorMouseEvent>());
+	public readonly onMouseMoveOnOverflowingWidgets: Event<editorBrowser.IEditorMouseEvent> = this._onMouseMoveOnOverflowingWidgets.event;
 
 	constructor(context: ViewContext, viewDomNode: FastDomNode<HTMLElement>) {
 		super(context);
@@ -43,6 +54,9 @@ export class ViewContentWidgets extends ViewPart {
 
 	public override dispose(): void {
 		super.dispose();
+		for (const key of Object.keys(this._widgets)) {
+			this._widgets[key].disposable.dispose();
+		}
 		this._widgets = {};
 	}
 
@@ -51,7 +65,7 @@ export class ViewContentWidgets extends ViewPart {
 	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		const keys = Object.keys(this._widgets);
 		for (const widgetId of keys) {
-			this._widgets[widgetId].onConfigurationChanged(e);
+			this._widgets[widgetId].widget.onConfigurationChanged(e);
 		}
 		return true;
 	}
@@ -90,36 +104,48 @@ export class ViewContentWidgets extends ViewPart {
 	private _updateAnchorsViewPositions(): void {
 		const keys = Object.keys(this._widgets);
 		for (const widgetId of keys) {
-			this._widgets[widgetId].updateAnchorViewPosition();
+			this._widgets[widgetId].widget.updateAnchorViewPosition();
 		}
 	}
 
 	public addWidget(_widget: IContentWidget): void {
 		const myWidget = new Widget(this._context, this._viewDomNode, _widget);
-		this._widgets[myWidget.id] = myWidget;
 
+		let disposable: IDisposable;
 		if (myWidget.allowEditorOverflow) {
 			this.overflowingContentWidgetsDomNode.appendChild(myWidget.domNode);
+			const widgetInnerDomNode = _widget.getDomNode();
+			disposable = this._registerMouseListenersOnOverflowingWidget(widgetInnerDomNode, myWidget.id);
 		} else {
 			this.domNode.appendChild(myWidget.domNode);
+			disposable = Disposable.None;
 		}
+
+		this._widgets[myWidget.id] = { widget: myWidget, disposable };
 
 		this.setShouldRender();
 	}
 
-	public overflowingWidgetDomNodes(): { [key: string]: HTMLElement } {
-		const overflowingWidgets: { [key: string]: HTMLElement } = {};
-		for (const [key, widget] of Object.entries(this._widgets)) {
-			if (widget.allowEditorOverflow) {
-				overflowingWidgets[key] = widget.domNode.domNode;
-			}
-		}
-		return overflowingWidgets;
+	private _registerMouseListenersOnOverflowingWidget(widgetDomNode: HTMLElement, widgetId: string): IDisposable {
+		const disposables = new DisposableStore();
+		disposables.add(dom.addDisposableListener(widgetDomNode, 'mouseout', (e) => {
+			e.stopPropagation();
+			this.mouseOnOverflowingWidgetsDomNode = false;
+		}));
+		disposables.add(dom.addDisposableListener(widgetDomNode, 'mousemove', (e) => {
+			e.stopPropagation();
+			this.mouseOnOverflowingWidgetsDomNode = true;
+			const event = new EditorMouseEvent(e, false, widgetDomNode);
+			const target = MouseTarget.createContentWidget(widgetDomNode, 0, widgetId);
+			const mouseEvent: IEditorMouseEvent = { event, target };
+			this._onMouseMoveOnOverflowingWidgets.fire(mouseEvent);
+		}));
+		return disposables;
 	}
 
 	public setWidgetPosition(widget: IContentWidget, primaryAnchor: IPosition | null, secondaryAnchor: IPosition | null, preference: ContentWidgetPositionPreference[] | null, affinity: PositionAffinity | null): void {
 		const myWidget = this._widgets[widget.getId()];
-		myWidget.setPosition(primaryAnchor, secondaryAnchor, preference, affinity);
+		myWidget.widget.setPosition(primaryAnchor, secondaryAnchor, preference, affinity);
 
 		this.setShouldRender();
 	}
@@ -128,9 +154,10 @@ export class ViewContentWidgets extends ViewPart {
 		const widgetId = widget.getId();
 		if (this._widgets.hasOwnProperty(widgetId)) {
 			const myWidget = this._widgets[widgetId];
+			myWidget.disposable.dispose();
 			delete this._widgets[widgetId];
 
-			const domNode = myWidget.domNode.domNode;
+			const domNode = myWidget.widget.domNode.domNode;
 			domNode.remove();
 			domNode.removeAttribute('monaco-visible-content-widget');
 
@@ -140,7 +167,7 @@ export class ViewContentWidgets extends ViewPart {
 
 	public shouldSuppressMouseDownOnWidget(widgetId: string): boolean {
 		if (this._widgets.hasOwnProperty(widgetId)) {
-			return this._widgets[widgetId].suppressMouseDown;
+			return this._widgets[widgetId].widget.suppressMouseDown;
 		}
 		return false;
 	}
@@ -148,21 +175,21 @@ export class ViewContentWidgets extends ViewPart {
 	public onBeforeRender(viewportData: ViewportData): void {
 		const keys = Object.keys(this._widgets);
 		for (const widgetId of keys) {
-			this._widgets[widgetId].onBeforeRender(viewportData);
+			this._widgets[widgetId].widget.onBeforeRender(viewportData);
 		}
 	}
 
 	public prepareRender(ctx: RenderingContext): void {
 		const keys = Object.keys(this._widgets);
 		for (const widgetId of keys) {
-			this._widgets[widgetId].prepareRender(ctx);
+			this._widgets[widgetId].widget.prepareRender(ctx);
 		}
 	}
 
 	public render(ctx: RestrictedRenderingContext): void {
 		const keys = Object.keys(this._widgets);
 		for (const widgetId of keys) {
-			this._widgets[widgetId].render(ctx);
+			this._widgets[widgetId].widget.render(ctx);
 		}
 	}
 }
@@ -221,7 +248,8 @@ class Widget {
 		this._viewDomNode = viewDomNode;
 		this._actual = actual;
 
-		this.domNode = createFastDomNode(this._actual.getDomNode());
+		const actualDomNode = this._actual.getDomNode();
+		this.domNode = createFastDomNode(actualDomNode);
 		this.id = this._actual.getId();
 		this.allowEditorOverflow = this._actual.allowEditorOverflow || false;
 		this.suppressMouseDown = this._actual.suppressMouseDown || false;
