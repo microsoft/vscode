@@ -27,7 +27,6 @@ export class CellComments extends CellContentPart {
 	constructor(
 		private readonly notebookEditor: INotebookEditorDelegate,
 		private readonly container: HTMLElement,
-
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IThemeService private readonly themeService: IThemeService,
 		@ICommentService private readonly commentService: ICommentService,
