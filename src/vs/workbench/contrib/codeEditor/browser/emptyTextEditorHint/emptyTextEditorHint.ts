@@ -221,8 +221,8 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 			getActions: () => {
 				return [{
 					id: 'workench.action.disableEmptyEditorHint',
-					label: localize('disableInitialHint', "Disable Initial Hint"),
-					tooltip: localize('disableInitialHint', "Disable Initial Hint"),
+					label: localize('disableEditorEmptyHint', "Disable Empty Editor Hint"),
+					tooltip: localize('disableEditorEmptyHint', "Disable Empty Editor Hint"),
 					enabled: true,
 					class: undefined,
 					run: () => {
