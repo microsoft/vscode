@@ -185,6 +185,24 @@
 	}
 }
 
+.monaco-workbench .inline-chat .status {
+	.actions.text-style {
+		display: none;
+	}
+	.actions.button-style {
+		display: inherit;
+	}
+}
+
+.monaco-workbench .inline-chat .status.text {
+	.actions.text-style {
+		display: inherit;
+	}
+	.actions.button-style {
+		display: none;
+	}
+}
+
 .monaco-workbench .inline-chat .status .actions > .monaco-button,
 .monaco-workbench .inline-chat .status .actions > .monaco-button-dropdown {
 	margin-right: 4px;
