@@ -361,7 +361,7 @@ export class InlineChatWidget {
 	}
 
 	protected _getExtraHeight(): number {
-		return 4 /* padding */ + 2 /*border*/ + 12 /*shadow*/;
+		return 4 /* padding */ + 2 /*border*/ + 4 /*shadow*/;
 	}
 
 	updateProgress(show: boolean) {
