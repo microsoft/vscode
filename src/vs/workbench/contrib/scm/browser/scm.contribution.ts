@@ -386,7 +386,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'scm.clearInput',
 	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.has('scmRepository'),
+	when: ContextKeyExpr.and(ContextKeyExpr.has('scmRepository'), SuggestContext.Visible.toNegated()),
 	primary: KeyCode.Escape,
 	handler: async (accessor) => {
 		const scmService = accessor.get(ISCMService);

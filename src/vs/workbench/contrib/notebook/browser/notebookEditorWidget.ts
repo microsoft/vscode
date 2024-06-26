@@ -99,7 +99,6 @@ import { NotebookStickyScroll } from 'vs/workbench/contrib/notebook/browser/view
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { PixelRatio } from 'vs/base/browser/pixelRatio';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { PreventDefaultContextMenuItemsContextKeyName } from 'vs/workbench/contrib/webview/browser/webview.contribution';
 import { NotebookAccessibilityProvider } from 'vs/workbench/contrib/notebook/browser/notebookAccessibilityProvider';
 
@@ -272,6 +271,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	readonly isEmbedded: boolean;
 	private _readOnly: boolean;
+	private readonly _inRepl: boolean;
 
 	public readonly scopedContextKeyService: IContextKeyService;
 	private readonly instantiationService: IInstantiationService;
@@ -302,7 +302,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		@IEditorProgressService private editorProgressService: IEditorProgressService,
 		@INotebookLoggingService private readonly logService: INotebookLoggingService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
-		@ICodeEditorService codeEditorService: ICodeEditorService
 	) {
 		super();
 
@@ -310,8 +309,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 		this.isEmbedded = creationOptions.isEmbedded ?? false;
 		this._readOnly = creationOptions.isReadOnly ?? false;
+		this._inRepl = creationOptions.forRepl ?? false;
 
-		this._notebookOptions = creationOptions.options ?? new NotebookOptions(this.creationOptions?.codeWindow ?? mainWindow, this.configurationService, notebookExecutionStateService, codeEditorService, this._readOnly);
+		this._overlayContainer = document.createElement('div');
+		this.scopedContextKeyService = this._register(contextKeyService.createScoped(this._overlayContainer));
+		this.instantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
+
+		this._notebookOptions = creationOptions.options ??
+			this.instantiationService.createInstance(NotebookOptions, this.creationOptions?.codeWindow ?? mainWindow, this._readOnly, undefined);
 		this._register(this._notebookOptions);
 		const eventDispatcher = this._register(new NotebookEventDispatcher());
 		this._viewContext = new ViewContext(
@@ -322,9 +327,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			this._onDidChangeCellState.fire(e);
 		}));
 
-		this._overlayContainer = document.createElement('div');
-		this.scopedContextKeyService = this._register(contextKeyService.createScoped(this._overlayContainer));
-		this.instantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
 
 		this._register(_notebookService.onDidChangeOutputRenderers(() => {
 			this._updateOutputRenderers();
@@ -1435,7 +1437,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	private async _attachModel(textModel: NotebookTextModel, viewState: INotebookEditorViewState | undefined, perf?: NotebookPerfMarks) {
 		this._ensureWebview(this.getId(), textModel.viewType, textModel.uri);
 
-		this.viewModel = this.instantiationService.createInstance(NotebookViewModel, textModel.viewType, textModel, this._viewContext, this.getLayoutInfo(), { isReadOnly: this._readOnly });
+		this.viewModel = this.instantiationService.createInstance(NotebookViewModel, textModel.viewType, textModel, this._viewContext, this.getLayoutInfo(), { isReadOnly: this._readOnly, inRepl: this._inRepl });
 		this._viewContext.eventDispatcher.emit([new NotebookLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
 		this.notebookOptions.updateOptions(this._readOnly);
 

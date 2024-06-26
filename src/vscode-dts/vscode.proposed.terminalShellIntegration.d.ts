@@ -284,8 +284,12 @@ declare module 'vscode' {
 		readonly execution: TerminalShellExecution;
 
 		/**
-		 * The exit code reported by the shell. `undefined` means the shell did not report an exit
-		 * code or the shell reported a command started before the command finished.
+		 * The exit code reported by the shell.
+		 *
+		 * Note that `undefined` means the shell either did not report an exit  code (ie. the shell
+		 * integration script is misbehaving) or the shell reported a command started before the command
+		 * finished (eg. a sub-shell was opened). Generally this should not happen, depending on the use
+		 * case, it may be best to treat this as a failure.
 		 *
 		 * @example
 		 * const execution = shellIntegration.executeCommand({

@@ -647,7 +647,9 @@ class ExtHostSourceControl implements vscode.SourceControl {
 	}
 
 	set statusBarCommands(statusBarCommands: vscode.Command[] | undefined) {
+		this.logService.info('ExtHostSourceControl#statusBarCommands', (statusBarCommands ?? []).map(c => c.command).join(', '));
 		if (this._statusBarCommands && statusBarCommands && commandListEquals(this._statusBarCommands, statusBarCommands)) {
+			this.logService.info('ExtHostSourceControl#statusBarCommands are equal');
 			return;
 		}
 
@@ -675,6 +677,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 		_extHostDocuments: ExtHostDocuments,
 		proxy: MainThreadSCMShape,
 		private _commands: ExtHostCommands,
+		private readonly logService: ILogService,
 		private _id: string,
 		private _label: string,
 		private _rootUri?: vscode.Uri
@@ -854,7 +857,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		});
 
 		const handle = ExtHostSCM._handlePool++;
-		const sourceControl = new ExtHostSourceControl(extension, this._extHostDocuments, this._proxy, this._commands, id, label, rootUri);
+		const sourceControl = new ExtHostSourceControl(extension, this._extHostDocuments, this._proxy, this._commands, this.logService, id, label, rootUri);
 		this._sourceControls.set(handle, sourceControl);
 
 		const sourceControls = this._sourceControlsByExtension.get(extension.identifier) || [];

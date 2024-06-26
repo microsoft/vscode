@@ -27,6 +27,8 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { Schemas } from 'vs/base/common/network';
 import { ITextModel } from 'vs/editor/common/model';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 function getIconFromIconDto(iconDto?: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon): URI | { light: URI; dark: URI } | ThemeIcon | undefined {
 	if (iconDto === undefined) {
@@ -235,22 +237,18 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 	get historyProvider(): ISCMHistoryProvider | undefined { return this._historyProvider; }
 	get acceptInputCommand(): Command | undefined { return this.features.acceptInputCommand; }
 	get actionButton(): ISCMActionButtonDescriptor | undefined { return this.features.actionButton ?? undefined; }
-	get statusBarCommands(): Command[] | undefined { return this.features.statusBarCommands; }
 
 	private readonly _count = observableValue<number | undefined>(this, undefined);
 	get count() { return this._count; }
 
-	private readonly _statusBarCommandsObs = observableValue<readonly Command[] | undefined>(this, undefined);
-	get statusBarCommandsObs() { return this._statusBarCommandsObs; }
+	private readonly _statusBarCommands = observableValue<readonly Command[] | undefined>(this, undefined);
+	get statusBarCommands() { return this._statusBarCommands; }
 
 	private readonly _name: string | undefined;
 	get name(): string { return this._name ?? this._label; }
 
 	private readonly _commitTemplate = observableValue<string>(this, '');
 	get commitTemplate() { return this._commitTemplate; }
-
-	private readonly _onDidChangeStatusBarCommands = new Emitter<readonly Command[]>();
-	get onDidChangeStatusBarCommands(): Event<readonly Command[]> { return this._onDidChangeStatusBarCommands.event; }
 
 	private readonly _onDidChangeHistoryProvider = new Emitter<void>();
 	readonly onDidChangeHistoryProvider: Event<void> = this._onDidChangeHistoryProvider.event;
@@ -274,7 +272,9 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 		private readonly _inputBoxTextModel: ITextModel,
 		private readonly _quickDiffService: IQuickDiffService,
 		private readonly _uriIdentService: IUriIdentityService,
-		private readonly _workspaceContextService: IWorkspaceContextService
+		private readonly _workspaceContextService: IWorkspaceContextService,
+		private readonly _environmentService: IWorkbenchEnvironmentService,
+		private readonly _logService: ILogService
 	) {
 		if (_rootUri) {
 			const folder = this._workspaceContextService.getWorkspaceFolder(_rootUri);
@@ -299,8 +299,10 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 		}
 
 		if (typeof features.statusBarCommands !== 'undefined') {
-			this._statusBarCommandsObs.set(features.statusBarCommands, undefined);
-			this._onDidChangeStatusBarCommands.fire(this.statusBarCommands!);
+			if (this._environmentService.enableSmokeTestDriver) {
+				this._logService.info(`MainThreadSCMProvider#updateSourceControl (${this._id}): ${features.statusBarCommands.map(c => c.title).join(', ')}`);
+			}
+			this._statusBarCommands.set(features.statusBarCommands, undefined);
 		}
 
 		if (features.hasQuickDiffProvider && !this._quickDiff) {
@@ -480,7 +482,9 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@IQuickDiffService private readonly quickDiffService: IQuickDiffService,
 		@IUriIdentityService private readonly _uriIdentService: IUriIdentityService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@ILogService private readonly logService: ILogService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostSCM);
 
@@ -501,7 +505,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		this._repositoryBarriers.set(handle, new Barrier());
 
 		const inputBoxTextModelRef = await this.textModelService.createModelReference(URI.revive(inputBoxDocumentUri));
-		const provider = new MainThreadSCMProvider(this._proxy, handle, id, label, rootUri ? URI.revive(rootUri) : undefined, inputBoxTextModelRef.object.textEditorModel, this.quickDiffService, this._uriIdentService, this.workspaceContextService);
+		const provider = new MainThreadSCMProvider(this._proxy, handle, id, label, rootUri ? URI.revive(rootUri) : undefined, inputBoxTextModelRef.object.textEditorModel, this.quickDiffService, this._uriIdentService, this.workspaceContextService, this.environmentService, this.logService);
 		const repository = this.scmService.registerSCMProvider(provider);
 		this._repositories.set(handle, repository);
 

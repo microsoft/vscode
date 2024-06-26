@@ -82,7 +82,7 @@ export abstract class InlineChatRunOptions {
 	position?: IPosition;
 	withIntentDetection?: boolean;
 
-	static isInteractiveEditorOptions(options: any): options is InlineChatRunOptions {
+	static isInlineChatRunOptions(options: any): options is InlineChatRunOptions {
 		const { initialSelection, initialRange, message, autoSend, position, existingSession } = <InlineChatRunOptions>options;
 		if (
 			typeof message !== 'undefined' && typeof message !== 'string'
@@ -106,8 +106,6 @@ export class InlineChatController implements IEditorContribution {
 
 	private _isDisposed: boolean = false;
 	private readonly _store = new DisposableStore();
-	// private readonly _input: Lazy<InlineChatContentWidget>;
-	// private readonly _zone: Lazy<InlineChatZoneWidget>;
 
 	private readonly _ui: Lazy<{ content: InlineChatContentWidget; zone: InlineChatZoneWidget }>;
 
@@ -745,11 +743,9 @@ export class InlineChatController implements IEditorContribution {
 
 		store.dispose();
 
-		// todo@jrieken we can likely remove 'trackEdit'
 		const diff = await this._editorWorkerService.computeDiff(this._session.textModel0.uri, this._session.textModelN.uri, { computeMoves: false, maxComputationTimeMs: Number.MAX_SAFE_INTEGER, ignoreTrimWhitespace: false }, 'advanced');
 		this._session.wholeRange.fixup(diff?.changes ?? []);
-
-		await this._session.hunkData.recompute(editState);
+		await this._session.hunkData.recompute(editState, diff);
 
 		this._ui.value.zone.widget.updateToolbar(true);
 		this._ui.value.zone.widget.updateProgress(false);
@@ -898,13 +894,6 @@ export class InlineChatController implements IEditorContribution {
 		} else if (initialRender) {
 			const selection = this._editor.getSelection();
 			widgetPosition = selection.getStartPosition();
-			// TODO@jrieken we are not ready for this
-			// widgetPosition = selection.getEndPosition();
-			// if (Range.spansMultipleLines(selection) && widgetPosition.column === 1) {
-			// 	// selection ends on "nothing" -> move up to match the
-			// 	// rendered/visible part of the selection
-			// 	widgetPosition = this._editor.getModel().validatePosition(widgetPosition.delta(-1, Number.MAX_SAFE_INTEGER));
-			// }
 			this._ui.value.content.show(widgetPosition);
 
 		} else {
@@ -958,7 +947,6 @@ export class InlineChatController implements IEditorContribution {
 		};
 
 		this._inlineChatSavingService.markChanged(this._session);
-		this._session.wholeRange.trackEdits(editOperations);
 		if (opts) {
 			await this._strategy.makeProgressiveChanges(editOperations, editsObserver, opts, undoStopBefore);
 		} else {

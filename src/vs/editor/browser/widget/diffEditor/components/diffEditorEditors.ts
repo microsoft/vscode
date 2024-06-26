@@ -27,15 +27,15 @@ export class DiffEditorEditors extends Disposable {
 	private readonly _onDidContentSizeChange = this._register(new Emitter<IContentSizeChangedEvent>());
 	public get onDidContentSizeChange() { return this._onDidContentSizeChange.event; }
 
-	public readonly modifiedScrollTop = observableFromEvent(this.modified.onDidScrollChange, () => /** @description modified.getScrollTop */ this.modified.getScrollTop());
-	public readonly modifiedScrollHeight = observableFromEvent(this.modified.onDidScrollChange, () => /** @description modified.getScrollHeight */ this.modified.getScrollHeight());
+	public readonly modifiedScrollTop = observableFromEvent(this, this.modified.onDidScrollChange, () => /** @description modified.getScrollTop */ this.modified.getScrollTop());
+	public readonly modifiedScrollHeight = observableFromEvent(this, this.modified.onDidScrollChange, () => /** @description modified.getScrollHeight */ this.modified.getScrollHeight());
 
 	public readonly modifiedModel = observableCodeEditor(this.modified).model;
 
-	public readonly modifiedSelections = observableFromEvent(this.modified.onDidChangeCursorSelection, () => this.modified.getSelections() ?? []);
+	public readonly modifiedSelections = observableFromEvent(this, this.modified.onDidChangeCursorSelection, () => this.modified.getSelections() ?? []);
 	public readonly modifiedCursor = derivedOpts({ owner: this, equalsFn: Position.equals }, reader => this.modifiedSelections.read(reader)[0]?.getPosition() ?? new Position(1, 1));
 
-	public readonly originalCursor = observableFromEvent(this.original.onDidChangeCursorPosition, () => this.original.getPosition() ?? new Position(1, 1));
+	public readonly originalCursor = observableFromEvent(this, this.original.onDidChangeCursorPosition, () => this.original.getPosition() ?? new Position(1, 1));
 
 	public readonly isOriginalFocused = observableCodeEditor(this.original).isFocused;
 	public readonly isModifiedFocused = observableCodeEditor(this.modified).isFocused;

@@ -2065,8 +2065,8 @@ export namespace TestCoverage {
 			statement: fromCoverageCount(coverage.statementCoverage),
 			branch: coverage.branchCoverage && fromCoverageCount(coverage.branchCoverage),
 			declaration: coverage.declarationCoverage && fromCoverageCount(coverage.declarationCoverage),
-			testId: coverage instanceof types.FileCoverage && coverage.testItem ?
-				TestId.fromExtHostTestItem(coverage.testItem, controllerId).toString() : undefined,
+			testIds: coverage instanceof types.FileCoverage && coverage.fromTests.length ?
+				coverage.fromTests.map(t => TestId.fromExtHostTestItem(t, controllerId).toString()) : undefined,
 		};
 	}
 }

@@ -352,6 +352,12 @@ export class SearchWidget extends Widget {
 		this.searchInput?.focusOnRegex();
 	}
 
+	set replaceButtonVisibility(val: boolean) {
+		if (this.toggleReplaceButton) {
+			this.toggleReplaceButton.element.style.display = val ? '' : 'none';
+		}
+	}
+
 	private render(container: HTMLElement, options: ISearchWidgetOptions): void {
 		this.domNode = dom.append(container, dom.$('.search-widget'));
 		this.domNode.style.position = 'relative';

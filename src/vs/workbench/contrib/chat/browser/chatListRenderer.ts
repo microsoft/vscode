@@ -308,7 +308,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		const agentHover = templateDisposables.add(this.instantiationService.createInstance(ChatAgentHover));
 		const hoverContent = () => {
-			if (isResponseVM(template.currentElement) && template.currentElement.agent) {
+			if (isResponseVM(template.currentElement) && template.currentElement.agent && !template.currentElement.agent.isDefault) {
 				agentHover.setAgent(template.currentElement.agent.id);
 				return agentHover.domNode;
 			}
@@ -684,7 +684,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				disposables.clear();
 				this.basicRenderElement(renderableResponse, element, index, templateData);
 			} else if (!isFullyRendered) {
-				disposables.clear();
 				this.renderContentReferencesIfNeeded(element, templateData, disposables);
 				let hasRenderedOneMarkdownBlock = false;
 				partsToRender.forEach((partToRender, index) => {

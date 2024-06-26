@@ -12,7 +12,7 @@ import { CancellationError, getErrorMessage } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
 import { hash } from 'vs/base/common/hash';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ResourceSet } from 'vs/base/common/map';
+import { ResourceMap, ResourceSet } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import * as path from 'vs/base/common/path';
 import { joinPath } from 'vs/base/common/resources';
@@ -492,8 +492,8 @@ export class ExtensionsScanner extends Disposable {
 	private readonly _onExtract = this._register(new Emitter<URI>());
 	readonly onExtract = this._onExtract.event;
 
-	private scanAllExtensionPromise: Promise<IScannedExtension[]> | undefined;
-	private scanUserExtensionsPromise: Promise<IScannedExtension[]> | undefined;
+	private scanAllExtensionPromise = new ResourceMap<Promise<IScannedExtension[]>>();
+	private scanUserExtensionsPromise = new ResourceMap<Promise<IScannedExtension[]>>();
 
 	constructor(
 		private readonly beforeRemovingExtension: (e: ILocalExtension) => Promise<void>,
@@ -518,15 +518,21 @@ export class ExtensionsScanner extends Disposable {
 			const userScanOptions: ScanOptions = { includeInvalid: true, profileLocation, productVersion };
 			let scannedExtensions: IScannedExtension[] = [];
 			if (type === null || type === ExtensionType.System) {
-				if (!this.scanAllExtensionPromise) {
-					this.scanAllExtensionPromise = this.extensionsScannerService.scanAllExtensions({ includeInvalid: true, useCache: true }, userScanOptions, false).finally(() => this.scanAllExtensionPromise = undefined);
+				let scanAllExtensionsPromise = this.scanAllExtensionPromise.get(profileLocation);
+				if (!scanAllExtensionsPromise) {
+					scanAllExtensionsPromise = this.extensionsScannerService.scanAllExtensions({ includeInvalid: true, useCache: true }, userScanOptions, false)
+						.finally(() => this.scanAllExtensionPromise.delete(profileLocation));
+					this.scanAllExtensionPromise.set(profileLocation, scanAllExtensionsPromise);
 				}
-				scannedExtensions.push(...await this.scanAllExtensionPromise);
+				scannedExtensions.push(...await scanAllExtensionsPromise);
 			} else if (type === ExtensionType.User) {
-				if (!this.scanUserExtensionsPromise) {
-					this.scanUserExtensionsPromise = this.extensionsScannerService.scanUserExtensions(userScanOptions).finally(() => this.scanUserExtensionsPromise = undefined);
+				let scanUserExtensionsPromise = this.scanUserExtensionsPromise.get(profileLocation);
+				if (!scanUserExtensionsPromise) {
+					scanUserExtensionsPromise = this.extensionsScannerService.scanUserExtensions(userScanOptions)
+						.finally(() => this.scanUserExtensionsPromise.delete(profileLocation));
+					this.scanUserExtensionsPromise.set(profileLocation, scanUserExtensionsPromise);
 				}
-				scannedExtensions.push(...await this.scanUserExtensionsPromise);
+				scannedExtensions.push(...await scanUserExtensionsPromise);
 			}
 			scannedExtensions = type !== null ? scannedExtensions.filter(r => r.type === type) : scannedExtensions;
 			return await Promise.all(scannedExtensions.map(extension => this.toLocalExtension(extension)));

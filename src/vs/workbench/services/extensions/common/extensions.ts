@@ -513,10 +513,12 @@ export interface IExtensionService {
 	 * @param reason a human readable reason for stopping the extension hosts. This maybe
 	 * can be presented to the user when showing dialogs.
 	 *
+	 * @param auto indicates if the operation was triggered by an automatic action
+	 *
 	 * @returns a promise that resolves to `true` if the extension hosts were stopped, `false`
 	 * if the operation was vetoed by listeners of the `onWillStop` event.
 	 */
-	stopExtensionHosts(reason: string): Promise<boolean>;
+	stopExtensionHosts(reason: string, auto?: boolean): Promise<boolean>;
 
 	/**
 	 * Starts the extension hosts. If updates are provided, the extension hosts are started with the given updates.

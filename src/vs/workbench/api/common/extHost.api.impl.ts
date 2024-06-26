@@ -287,11 +287,18 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				if (typeof options?.forceNewSession === 'object' && options.forceNewSession.learnMore) {
 					checkProposedApiEnabled(extension, 'authLearnMore');
 				}
+				if (options?.account) {
+					checkProposedApiEnabled(extension, 'authGetSessions');
+				}
 				return extHostAuthentication.getSession(extension, providerId, scopes, options as any);
 			},
 			getSessions(providerId: string, scopes: readonly string[]) {
 				checkProposedApiEnabled(extension, 'authGetSessions');
 				return extHostAuthentication.getSessions(extension, providerId, scopes);
+			},
+			getAccounts(providerId: string) {
+				checkProposedApiEnabled(extension, 'authGetSessions');
+				return extHostAuthentication.getAccounts(providerId);
 			},
 			// TODO: remove this after GHPR and Codespaces move off of it
 			async hasSession(providerId: string, scopes: readonly string[]) {

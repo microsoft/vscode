@@ -318,7 +318,7 @@ registerActiveXtermAction({
 	),
 	icon: Codicon.send,
 	keybinding: {
-		when: ContextKeyExpr.and(CTX_INLINE_CHAT_FOCUSED, TerminalChatContextKeys.requestActive.negate()),
+		when: ContextKeyExpr.and(TerminalChatContextKeys.focused, TerminalChatContextKeys.requestActive.negate()),
 		weight: KeybindingWeight.WorkbenchContrib,
 		primary: KeyCode.Enter
 	},

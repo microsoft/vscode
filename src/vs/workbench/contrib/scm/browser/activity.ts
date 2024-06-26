@@ -27,41 +27,53 @@ import { observableConfigValue } from 'vs/platform/observable/common/platformObs
 import { derivedObservableWithCache, latestChangedValue, observableFromEventOpts } from 'vs/base/common/observableInternal/utils';
 import { Command } from 'vs/editor/common/languages';
 import { ISCMHistoryItemGroup } from 'vs/workbench/contrib/scm/common/history';
+import { ILogService } from 'vs/platform/log/common/log';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export class SCMActiveRepositoryController extends Disposable implements IWorkbenchContribution {
 	private readonly _countBadgeConfig = observableConfigValue<'all' | 'focused' | 'off'>('scm.countBadge', 'all', this.configurationService);
 
-	private readonly _repositories = observableFromEvent(
+	private readonly _repositories = observableFromEvent(this,
 		Event.any(this.scmService.onDidAddRepository, this.scmService.onDidRemoveRepository),
 		() => this.scmService.repositories);
 
 	private readonly _focusedRepository = observableFromEventOpts<ISCMRepository | undefined>(
-		{ equalsFn: () => false },
+		{ owner: this, equalsFn: () => false },
 		this.scmViewService.onDidFocusRepository,
 		() => this.scmViewService.focusedRepository);
 
 	private readonly _activeEditor = observableFromEventOpts(
-		{ equalsFn: () => false },
+		{ owner: this, equalsFn: () => false },
 		this.editorService.onDidActiveEditorChange,
 		() => this.editorService.activeEditor);
 
 	private readonly _activeEditorRepository = derivedObservableWithCache<ISCMRepository | undefined>(this, (reader, lastValue) => {
 		const activeResource = EditorResourceAccessor.getOriginalUri(this._activeEditor.read(reader));
 		if (!activeResource) {
+			if (this.environmentService.enableSmokeTestDriver) {
+				this.logService.info('SCMActiveRepositoryController (activeEditorRepository derived): no activeResource');
+			}
 			return lastValue;
 		}
 
 		const repository = this.scmService.getRepository(activeResource);
 		if (!repository) {
+			if (this.environmentService.enableSmokeTestDriver) {
+				this.logService.info(`SCMActiveRepositoryController (activeEditorRepository derived): no repository for '${activeResource.toString()}'`);
+			}
 			return lastValue;
 		}
 
 		return Object.create(repository);
 	});
 
-	private readonly _activeRepository = latestChangedValue(this._focusedRepository, this._activeEditorRepository);
+	/**
+	 * The focused repository takes precedence over the active editor repository when the observable
+	 * values are updated in the same transaction (or during the initial read of the observable value).
+	 */
+	private readonly _activeRepository = latestChangedValue(this, [this._activeEditorRepository, this._focusedRepository]);
 
-	private readonly _countBadgeRepositories = derived(reader => {
+	private readonly _countBadgeRepositories = derived(this, reader => {
 		switch (this._countBadgeConfig.read(reader)) {
 			case 'all': {
 				const repositories = this._repositories.read(reader);
@@ -78,7 +90,7 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 		}
 	});
 
-	private readonly _countBadge = derived(reader => {
+	private readonly _countBadge = derived(this, reader => {
 		let total = 0;
 
 		for (const repository of this._countBadgeRepositories.read(reader)) {
@@ -99,10 +111,12 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IEditorService private readonly editorService: IEditorService,
+		@ILogService private readonly logService: ILogService,
 		@ISCMService private readonly scmService: ISCMService,
 		@ISCMViewService private readonly scmViewService: ISCMViewService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
-		@ITitleService private readonly titleService: ITitleService
+		@ITitleService private readonly titleService: ITitleService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 
@@ -114,15 +128,38 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 			{ name: 'activeRepositoryBranchName', contextKey: ActiveRepositoryContextKeys.ActiveRepositoryBranchName.key, }
 		]);
 
+		if (this.environmentService.enableSmokeTestDriver) {
+			this._register(autorun(reader => {
+				const repository = this._focusedRepository.read(reader);
+				const commands = repository?.provider.statusBarCommands.read(reader);
+
+				this.logService.info('SCMActiveRepositoryController (focusedRepository):', repository?.id ?? 'no id');
+				this.logService.info('SCMActiveRepositoryController (focusedRepository):', commands ? commands.map(c => c.title).join(', ') : 'no commands');
+			}));
+
+			this._register(autorun(reader => {
+				const repository = this._activeEditorRepository.read(reader);
+				const commands = repository?.provider.statusBarCommands.read(reader);
+
+				this.logService.info('SCMActiveRepositoryController (activeEditorRepository):', repository?.id ?? 'no id');
+				this.logService.info('SCMActiveRepositoryController (activeEditorRepository):', commands ? commands.map(c => c.title).join(', ') : 'no commands');
+			}));
+		}
+
 		this._register(autorunWithStore((reader, store) => {
 			this._updateActivityCountBadge(this._countBadge.read(reader), store);
 		}));
 
 		this._register(autorunWithStore((reader, store) => {
 			const repository = this._activeRepository.read(reader);
-			const commands = repository?.provider.statusBarCommandsObs.read(reader) ?? [];
+			const commands = repository?.provider.statusBarCommands.read(reader);
 
-			this._updateStatusBar(repository, commands, store);
+			if (this.environmentService.enableSmokeTestDriver) {
+				this.logService.info('SCMActiveRepositoryController (status bar):', repository?.id ?? 'no id');
+				this.logService.info('SCMActiveRepositoryController (status bar):', commands ? commands.map(c => c.title).join(', ') : 'no commands');
+			}
+
+			this._updateStatusBar(repository, commands ?? [], store);
 		}));
 
 		this._register(autorun(reader => {
@@ -134,7 +171,7 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 	}
 
 	private _getRepositoryResourceCount(repository: ISCMRepository): IObservable<number> {
-		return observableFromEvent(repository.provider.onDidChangeResources, () => getRepositoryResourceCount(repository.provider));
+		return observableFromEvent(this, repository.provider.onDidChangeResources, () => /** @description repositoryResourceCount */ getRepositoryResourceCount(repository.provider));
 	}
 
 	private _updateActivityCountBadge(count: number, store: DisposableStore): void {
@@ -148,6 +185,9 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 
 	private _updateStatusBar(repository: ISCMRepository | undefined, commands: readonly Command[], store: DisposableStore): void {
 		if (!repository) {
+			if (this.environmentService.enableSmokeTestDriver) {
+				this.logService.info('SCMActiveRepositoryController (status bar): repository is undefined');
+			}
 			return;
 		}
 

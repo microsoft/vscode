@@ -16,7 +16,6 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ACTION_ACCEPT_CHANGES, ACTION_REGENERATE_RESPONSE, ACTION_TOGGLE_DIFF, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, EditMode, InlineChatConfigKeys, MENU_INLINE_CHAT_WIDGET, MENU_INLINE_CHAT_WIDGET_STATUS } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { EditorBasedInlineChatWidget } from './inlineChatWidget';
-import { MenuId } from 'vs/platform/actions/common/actions';
 import { isEqual } from 'vs/base/common/resources';
 import { StableEditorBottomScrollState } from 'vs/editor/browser/stableEditorScroll';
 import { ScrollType } from 'vs/editor/common/editorCommon';
@@ -47,9 +46,6 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		}));
 
 		this.widget = this._instaService.createInstance(EditorBasedInlineChatWidget, location, this.editor, {
-			telemetrySource: 'interactiveEditorWidget-toolbar',
-			inputMenuId: MenuId.ChatExecute,
-			widgetMenuId: MENU_INLINE_CHAT_WIDGET,
 			statusMenuId: {
 				menu: MENU_INLINE_CHAT_WIDGET_STATUS,
 				options: {
@@ -64,13 +60,19 @@ export class InlineChatZoneWidget extends ZoneWidget {
 					}
 				}
 			},
-			rendererOptions: {
-				renderTextEditsAsSummary: (uri) => {
-					// render edits as summary only when using Live mode and when
-					// dealing with the current file in the editor
-					return isEqual(uri, editor.getModel()?.uri)
-						&& configurationService.getValue<EditMode>(InlineChatConfigKeys.Mode) === EditMode.Live;
+			chatWidgetViewOptions: {
+				menus: {
+					inputSideToolbar: MENU_INLINE_CHAT_WIDGET,
+					telemetrySource: 'interactiveEditorWidget-toolbar',
 				},
+				rendererOptions: {
+					renderTextEditsAsSummary: (uri) => {
+						// render edits as summary only when using Live mode and when
+						// dealing with the current file in the editor
+						return isEqual(uri, editor.getModel()?.uri)
+							&& configurationService.getValue<EditMode>(InlineChatConfigKeys.Mode) === EditMode.Live;
+					},
+				}
 			}
 		});
 		this._disposables.add(this.widget.onDidChangeHeight(() => {
