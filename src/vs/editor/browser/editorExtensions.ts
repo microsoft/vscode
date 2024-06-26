@@ -282,7 +282,7 @@ export abstract class EditorCommand extends Command {
 				this._callback = opts.handler;
 			}
 
-			public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+			public runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): void {
 				const controller = controllerGetter(editor);
 				if (controller) {
 					this._callback(controller, args);
@@ -383,12 +383,12 @@ export abstract class EditorAction extends EditorCommand {
 		this.alias = opts.alias;
 	}
 
-	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | Promise<void> {
+	public runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): void | Promise<void> {
 		this.reportTelemetry(accessor, editor);
 		return this.run(accessor, editor, args || {});
 	}
 
-	protected reportTelemetry(accessor: ServicesAccessor, editor: ICodeEditor) {
+	protected reportTelemetry(accessor: ServicesAccessor | null, editor: ICodeEditor) {
 		type EditorActionInvokedClassification = {
 			owner: 'alexdima';
 			comment: 'An editor action has been invoked.';
@@ -399,10 +399,10 @@ export abstract class EditorAction extends EditorCommand {
 			name: string;
 			id: string;
 		};
-		accessor.get(ITelemetryService).publicLog2<EditorActionInvokedEvent, EditorActionInvokedClassification>('editorActionInvoked', { name: this.label, id: this.id });
+		accessor?.get(ITelemetryService).publicLog2<EditorActionInvokedEvent, EditorActionInvokedClassification>('editorActionInvoked', { name: this.label, id: this.id });
 	}
 
-	public abstract run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | Promise<void>;
+	public abstract run(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): void | Promise<void>;
 }
 
 export type EditorActionImplementation = (accessor: ServicesAccessor, editor: ICodeEditor, args: any) => boolean | Promise<void>;

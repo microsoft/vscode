@@ -164,8 +164,8 @@ registerEditorCommand(new class extends EditorCommand {
 		});
 	}
 
-	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
-		return accessor.get(ISymbolNavigationService).revealNext(editor);
+	runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor): void | Promise<void> {
+		return accessor?.get(ISymbolNavigationService).revealNext(editor);
 	}
 });
 

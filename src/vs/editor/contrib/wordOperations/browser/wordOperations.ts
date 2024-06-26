@@ -41,7 +41,7 @@ export abstract class MoveWordCommand extends EditorCommand {
 		this._wordNavigationType = opts.wordNavigationType;
 	}
 
-	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+	public runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): void {
 		if (!editor.hasModel()) {
 			return;
 		}
@@ -330,10 +330,10 @@ export abstract class DeleteWordCommand extends EditorCommand {
 		this._wordNavigationType = opts.wordNavigationType;
 	}
 
-	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
-		const languageConfigurationService = accessor.get(ILanguageConfigurationService);
+	public runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): void {
+		const languageConfigurationService = accessor?.get(ILanguageConfigurationService);
 
-		if (!editor.hasModel()) {
+		if (!editor.hasModel() || !languageConfigurationService) {
 			return;
 		}
 		const wordSeparators = getMapForWordSeparators(editor.getOption(EditorOption.wordSeparators), editor.getOption(EditorOption.wordSegmenterLocales));

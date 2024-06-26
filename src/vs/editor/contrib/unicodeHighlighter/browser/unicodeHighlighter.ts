@@ -584,7 +584,7 @@ export class DisableHighlightingInCommentsAction extends EditorAction implements
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor, args: any): Promise<void> {
+	public async run(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): Promise<void> {
 		const configurationService = accessor?.get(IConfigurationService);
 		if (configurationService) {
 			this.runAction(configurationService);
@@ -608,7 +608,7 @@ export class DisableHighlightingInStringsAction extends EditorAction implements 
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor, args: any): Promise<void> {
+	public async run(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): Promise<void> {
 		const configurationService = accessor?.get(IConfigurationService);
 		if (configurationService) {
 			this.runAction(configurationService);
@@ -632,7 +632,7 @@ export class DisableHighlightingOfAmbiguousCharactersAction extends EditorAction
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor, args: any): Promise<void> {
+	public async run(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): Promise<void> {
 		const configurationService = accessor?.get(IConfigurationService);
 		if (configurationService) {
 			this.runAction(configurationService);
@@ -656,7 +656,7 @@ export class DisableHighlightingOfInvisibleCharactersAction extends EditorAction
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor, args: any): Promise<void> {
+	public async run(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): Promise<void> {
 		const configurationService = accessor?.get(IConfigurationService);
 		if (configurationService) {
 			this.runAction(configurationService);
@@ -680,7 +680,7 @@ export class DisableHighlightingOfNonBasicAsciiCharactersAction extends EditorAc
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor, args: any): Promise<void> {
+	public async run(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): Promise<void> {
 		const configurationService = accessor?.get(IConfigurationService);
 		if (configurationService) {
 			this.runAction(configurationService);
@@ -710,7 +710,7 @@ export class ShowExcludeOptions extends EditorAction {
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor, args: any): Promise<void> {
+	public async run(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): Promise<void> {
 		const { codePoint, reason, inString, inComment } = args as ShowExcludeOptionsArgs;
 
 		const char = String.fromCodePoint(codePoint);
