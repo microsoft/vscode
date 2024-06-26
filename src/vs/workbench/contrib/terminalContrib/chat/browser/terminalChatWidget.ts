@@ -194,11 +194,11 @@ export class TerminalChatWidget extends Disposable {
 
 	hide(): void {
 		this._container.classList.add('hide');
+		this._inlineChatWidget.reset();
 		this._reset();
 		this._inlineChatWidget.updateChatMessage(undefined);
 		this._inlineChatWidget.updateProgress(false);
 		this._inlineChatWidget.updateToolbar(false);
-		this._inlineChatWidget.reset();
 		this._focusedContextKey.set(false);
 		this._visibleContextKey.set(false);
 		this._inlineChatWidget.value = '';
