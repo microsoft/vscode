@@ -24,6 +24,10 @@
 	padding: 0;
 }
 
+.monaco-workbench .inline-chat-content-widget.interactive-session .interactive-list {
+	display: none;
+}
+
 .monaco-workbench .inline-chat-content-widget.interactive-session .toolbar {
 	display: none;
 	padding-top: 4px;
