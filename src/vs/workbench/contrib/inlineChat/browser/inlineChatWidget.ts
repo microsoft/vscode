@@ -65,11 +65,6 @@ export interface IInlineChatWidgetConstructionOptions {
 	statusMenuId: MenuId | { menu: MenuId; options: IWorkbenchButtonBarOptions };
 
 	/**
-	 * The men that rendered in the lower right corner, use for feedback
-	 */
-	feedbackMenuId?: MenuId;
-
-	/**
 	 * The options for the chat widget
 	 */
 	chatWidgetViewOptions?: IChatWidgetViewOptions;
@@ -100,7 +95,6 @@ export class InlineChatWidget {
 				h('div.actions.text-style.hidden@toolbar1'),
 				h('div.actions.button-style.hidden@toolbar2'),
 				h('div.label.status.hidden@statusLabel'),
-				h('div.actions.hidden@feedbackToolbar'),
 			]),
 		]
 	);
@@ -229,19 +223,6 @@ export class InlineChatWidget {
 		this._store.add(this._configurationService.onDidChangeConfiguration(e => e.affectsConfiguration(InlineChatConfigKeys.ExpTextButtons) && toggleToolbar()));
 		toggleToolbar();
 
-		const workbenchToolbarOptions = {
-			hiddenItemStrategy: HiddenItemStrategy.NoHide,
-			toolbarOptions: {
-				primaryGroup: () => true,
-				useSeparatorsInPrimaryActions: true
-			}
-		};
-
-		if (options.feedbackMenuId) {
-			const feedbackToolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.feedbackToolbar, options.feedbackMenuId, { ...workbenchToolbarOptions, hiddenItemStrategy: HiddenItemStrategy.Ignore });
-			this._store.add(feedbackToolbar.onDidChangeMenuItems(() => this._onDidChangeHeight.fire()));
-			this._store.add(feedbackToolbar);
-		}
 
 		this._store.add(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AccessibilityVerbositySettingId.InlineChat)) {
@@ -406,7 +387,6 @@ export class InlineChatWidget {
 		this._elements.root.classList.toggle('toolbar', show);
 		this._elements.toolbar1.classList.toggle('hidden', !show);
 		this._elements.toolbar2.classList.toggle('hidden', !show);
-		this._elements.feedbackToolbar.classList.toggle('hidden', !show);
 		this._elements.status.classList.toggle('actions', show);
 		this._elements.infoLabel.classList.toggle('hidden', show);
 		this._onDidChangeHeight.fire();
@@ -538,7 +518,6 @@ export class InlineChatWidget {
 		this._elements.statusLabel.classList.toggle('hidden', true);
 		this._elements.toolbar1.classList.add('hidden');
 		this._elements.toolbar2.classList.add('hidden');
-		this._elements.feedbackToolbar.classList.add('hidden');
 		this.updateInfo('');
 
 		this.chatWidget.setModel(this._defaultChatModel, {});
