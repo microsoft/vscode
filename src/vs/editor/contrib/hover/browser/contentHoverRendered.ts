@@ -76,6 +76,10 @@ export class RenderedContentHover extends Disposable {
 		return this._renderedHoverParts.focusedHoverPartIndex;
 	}
 
+	public focusHoverPartWithIndex(index: number): void {
+		this._renderedHoverParts.focusHoverPartWithIndex(index);
+	}
+
 	public getAccessibleWidgetContent(): string {
 		return this._renderedHoverParts.getAccessibleContent();
 	}
@@ -316,6 +320,13 @@ class RenderedContentHoverParts extends Disposable {
 			this._markdownHoverParticipant = markdownHoverParticipant as MarkdownHoverParticipant;
 		}
 		this._colorHoverParticipant = participants.find(p => p instanceof ColorHoverParticipant);
+	}
+
+	public focusHoverPartWithIndex(index: number): void {
+		if (index < 0 || index >= this._renderedParts.length) {
+			return;
+		}
+		this._renderedParts[index].hoverElement.focus();
 	}
 
 	public getAccessibleContent(): string {

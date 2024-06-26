@@ -433,6 +433,10 @@ export class HoverController extends Disposable implements IEditorContribution {
 		this._contentWidget?.focus();
 	}
 
+	public focusHoverPartWithIndex(index: number): void {
+		this._contentWidget?.focusHoverPartWithIndex(index);
+	}
+
 	public scrollUp(): void {
 		this._contentWidget?.scrollUp();
 	}
