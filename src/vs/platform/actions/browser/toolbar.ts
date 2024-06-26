@@ -202,7 +202,8 @@ export class WorkbenchToolBar extends ToolBar {
 				if (action instanceof MenuItemAction && action.menuKeybinding) {
 					primaryActions.push(action.menuKeybinding);
 				} else if (!(action instanceof SubmenuItemAction || action instanceof ToggleMenuAction)) {
-					primaryActions.push(createConfigureKeybindingAction(action.id, undefined, this._commandService, this._keybindingService));
+					const isDisabled = action.id.startsWith('statusbaraction'); // We can't support keybinding configuration for scm statusbar actions
+					primaryActions.push(createConfigureKeybindingAction(this._commandService, this._keybindingService, action.id, undefined, !isDisabled));
 				}
 
 				// -- Hide Actions --

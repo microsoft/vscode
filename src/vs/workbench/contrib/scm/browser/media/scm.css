@@ -353,23 +353,6 @@
 	border-radius: 2px;
 }
 
-.scm-view .scm-editor-container .monaco-editor .selected-text {
-	background-color: rgba(var(--vscode-input-background), 0.4);
-	border-radius: 0;
-}
-
-.scm-view .scm-editor-container .monaco-editor .focused .selected-text {
-	background-color: var(--vscode-selection-background, var(--vscode-editor-selectionBackground));
-}
-
-.scm-view .scm-editor-container .monaco-editor .view-line span.inline-selected-text {
-	color: var(--vscode-input-foreground);
-}
-
-.scm-view .scm-editor-container .monaco-editor-background {
-	background-color: var(--vscode-input-background);
-}
-
 .scm-view .scm-editor {
 	box-sizing: border-box;
 	width: 100%;

@@ -34,6 +34,8 @@ import { SEARCH_RESULT_LANGUAGE_ID } from 'vs/workbench/services/search/common/s
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { ChatAgentLocation, IChatAgent, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 
 const $ = dom.$;
 
@@ -60,6 +62,7 @@ export class EmptyTextEditorHintContribution implements IEditorContribution {
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IProductService protected readonly productService: IProductService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) {
 		this.toDispose = [];
 		this.toDispose.push(this.editor.onDidChangeModel(() => this.update()));
@@ -145,7 +148,8 @@ export class EmptyTextEditorHintContribution implements IEditorContribution {
 				this.keybindingService,
 				this.chatAgentService,
 				this.telemetryService,
-				this.productService
+				this.productService,
+				this.contextMenuService
 			);
 		} else if (!shouldRenderHint && this.textHintContentWidget) {
 			this.textHintContentWidget.dispose();
@@ -178,7 +182,8 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 		private readonly keybindingService: IKeybindingService,
 		private readonly chatAgentService: IChatAgentService,
 		private readonly telemetryService: ITelemetryService,
-		private readonly productService: IProductService
+		private readonly productService: IProductService,
+		private readonly contextMenuService: IContextMenuService,
 	) {
 		this.toDispose = new DisposableStore();
 		this.toDispose.add(this.editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
@@ -199,10 +204,34 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 		return EmptyTextEditorHintContentWidget.ID;
 	}
 
-	private _disableHint() {
-		this.configurationService.updateValue(emptyTextEditorHintSetting, 'hidden');
-		this.dispose();
-		this.editor.focus();
+	private _disableHint(e?: MouseEvent) {
+		const disableHint = () => {
+			this.configurationService.updateValue(emptyTextEditorHintSetting, 'hidden');
+			this.dispose();
+			this.editor.focus();
+		};
+
+		if (!e) {
+			disableHint();
+			return;
+		}
+
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => { return new StandardMouseEvent(dom.getActiveWindow(), e); },
+			getActions: () => {
+				return [{
+					id: 'workench.action.disableEmptyEditorHint',
+					label: localize('disableEditorEmptyHint', "Disable Empty Editor Hint"),
+					tooltip: localize('disableEditorEmptyHint', "Disable Empty Editor Hint"),
+					enabled: true,
+					class: undefined,
+					run: () => {
+						disableHint();
+					}
+				}
+				];
+			}
+		});
 	}
 
 	private _getHintInlineChat(providers: IChatAgent[]) {
@@ -244,7 +273,7 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 					const hintPart = $('a', undefined, fragment);
 					hintPart.style.fontStyle = 'italic';
 					hintPart.style.cursor = 'pointer';
-					this.toDispose.add(dom.addDisposableListener(hintPart, dom.EventType.CONTEXT_MENU, () => this._disableHint()));
+					this.toDispose.add(dom.addDisposableListener(hintPart, dom.EventType.CONTEXT_MENU, (e) => this._disableHint(e)));
 					this.toDispose.add(dom.addDisposableListener(hintPart, dom.EventType.CLICK, handleClick));
 					return hintPart;
 				} else {
@@ -263,7 +292,7 @@ class EmptyTextEditorHintContentWidget implements IContentWidget {
 
 			if (this.options.clickable) {
 				label.element.style.cursor = 'pointer';
-				this.toDispose.add(dom.addDisposableListener(label.element, dom.EventType.CONTEXT_MENU, () => this._disableHint()));
+				this.toDispose.add(dom.addDisposableListener(label.element, dom.EventType.CONTEXT_MENU, (e) => this._disableHint(e)));
 				this.toDispose.add(dom.addDisposableListener(label.element, dom.EventType.CLICK, handleClick));
 			}
 

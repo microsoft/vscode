@@ -10,13 +10,6 @@ import { LanguageClientOptions } from 'vscode-languageclient';
 import { AsyncDisposable, LanguageClientConstructor, startClient } from '../htmlClient';
 import { BaseLanguageClient, createLabsInfo } from '@volar/vscode';
 
-declare const Worker: {
-	new(stringUrl: string): any;
-};
-declare const TextDecoder: {
-	new(encoding?: string): { decode(buffer: ArrayBuffer): string };
-};
-
 let client: AsyncDisposable | undefined;
 
 // this method is called when vs code is activated
@@ -28,7 +21,7 @@ export async function activate(context: ExtensionContext) {
 
 		let languageClient!: BaseLanguageClient;
 		const newLanguageClient: LanguageClientConstructor = (id: string, name: string, clientOptions: LanguageClientOptions) => {
-			return languageClient = new LanguageClient(id, name, clientOptions, worker);
+			return languageClient = new LanguageClient(id, name, worker, clientOptions);
 		};
 
 		const timer = {
