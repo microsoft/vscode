@@ -21,6 +21,7 @@ import { ColorHoverParticipant } from 'vs/editor/contrib/colorPicker/browser/col
 import { localize } from 'vs/nls';
 import { InlayHintsHover } from 'vs/editor/contrib/inlayHints/browser/inlayHintsHover';
 import { BugIndicatingError } from 'vs/base/common/errors';
+import { HoverAction } from 'vs/base/browser/ui/hover/hoverWidget';
 
 export class RenderedContentHover extends Disposable {
 
@@ -175,6 +176,10 @@ interface IRenderedContentStatusBar {
 	 * The HTML element containing the hover status bar.
 	 */
 	hoverElement: HTMLElement;
+	/**
+	 * The actions of the hover status bar.
+	 */
+	actions: HoverAction[];
 }
 
 type IRenderedContentHoverPartOrStatusBar = IRenderedContentHoverPart | IRenderedContentStatusBar;
@@ -187,6 +192,10 @@ class RenderedStatusBar implements IDisposable {
 
 	get hoverElement(): HTMLElement {
 		return this._statusBar.hoverElement;
+	}
+
+	get actions(): HoverAction[] {
+		return this._statusBar.actions;
 	}
 
 	dispose() {
@@ -270,6 +279,7 @@ class RenderedContentHoverParts extends Disposable {
 			this._renderedParts.push({
 				type: 'statusBar',
 				hoverElement: renderedStatusBar.hoverElement,
+				actions: renderedStatusBar.actions,
 			});
 		}
 		return toDisposable(() => { disposables.dispose(); });
@@ -332,7 +342,16 @@ class RenderedContentHoverParts extends Disposable {
 			return '';
 		}
 		if (renderedPart.type === 'statusBar') {
-			return localize('hoverAccessibilityStatusBar', "This is a hover status bar.");
+			const statusBarDescription = [localize('hoverAccessibilityStatusBar', "This is a hover status bar.")];
+			for (const action of renderedPart.actions) {
+				const keybinding = action.actionKeybindingLabel;
+				if (keybinding) {
+					statusBarDescription.push(localize('hoverAccessibilityStatusBarActionWithKeybinding', "It has an action with label {0} and keybinding {1}.", action.actionLabel, keybinding));
+				} else {
+					statusBarDescription.push(localize('hoverAccessibilityStatusBarActionWithoutKeybinding', "It has an action with label {0}.", action.actionLabel));
+				}
+			}
+			return statusBarDescription.join('\n');
 		}
 		return renderedPart.participant.getAccessibleContent(renderedPart.hoverPart);
 	}
