@@ -101,9 +101,9 @@ export class InlineChatContentWidget implements IContentWidget {
 		this._domNode.appendChild(this._inputContainer);
 
 		this._toolbarContainer.classList.add('toolbar');
-		if (!configurationService.getValue<boolean>(InlineChatConfigKeys.ExpTextButtons)) {
-			this._toolbarContainer.style.display = 'none';
-			this._domNode.style.paddingBottom = '6px';
+		if (configurationService.getValue<boolean>(InlineChatConfigKeys.ExpTextButtons)) {
+			this._toolbarContainer.style.display = 'inherit';
+			this._domNode.style.paddingBottom = '4px';
 		}
 		this._domNode.appendChild(this._toolbarContainer);
 
