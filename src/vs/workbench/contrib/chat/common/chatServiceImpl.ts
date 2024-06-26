@@ -611,8 +611,8 @@ export class ChatService extends Disposable implements IChatService {
 						if (!request.response) {
 							continue;
 						}
-						history.push({ role: ChatMessageRole.User, content: request.message.text });
-						history.push({ role: ChatMessageRole.Assistant, content: request.response.response.asString() });
+						history.push({ role: ChatMessageRole.User, content: { type: 'text', value: request.message.text } });
+						history.push({ role: ChatMessageRole.Assistant, content: { type: 'text', value: request.response.response.asString() } });
 					}
 					const message = parsedRequest.text;
 					const commandResult = await this.chatSlashCommandService.executeCommand(commandPart.slashCommand.command, message.substring(commandPart.slashCommand.command.length + 1).trimStart(), new Progress<IChatProgress>(p => {
@@ -670,13 +670,13 @@ export class ChatService extends Disposable implements IChatService {
 					chatSessionId: model.sessionId,
 					location
 				});
-				const rawResult: IChatAgentResult = { errorDetails: { message: err.message } };
+				this.logService.error(`Error while handling chat request: ${toErrorMessage(err, true)}`);
 				if (request) {
+					const rawResult: IChatAgentResult = { errorDetails: { message: err.message } };
 					model.setResponse(request, rawResult);
+					completeResponseCreated();
+					model.completeResponse(request);
 				}
-				completeResponseCreated();
-				this.logService.error(`Error while handling chat request: ${toErrorMessage(err)}`);
-				model.completeResponse(request);
 			} finally {
 				listener.dispose();
 			}

@@ -422,7 +422,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 
 	pull(index: number): void {
 		if (index >= 0 && index < this.viewItems.length) {
-			this.actionsList.removeChild(this.actionsList.childNodes[index]);
+			this.actionsList.childNodes[index].remove();
 			this.viewItemDisposables.deleteAndDispose(this.viewItems[index]);
 			dispose(this.viewItems.splice(index, 1));
 			this.refreshRole();

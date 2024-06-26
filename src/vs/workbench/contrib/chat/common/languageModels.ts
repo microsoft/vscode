@@ -23,14 +23,42 @@ export const enum ChatMessageRole {
 	Assistant,
 }
 
-export interface IChatMessage {
-	readonly role: ChatMessageRole;
-	readonly content: string;
+export interface IChatMessageTextPart {
+	type: 'text';
+	value: string;
 }
+
+export interface IChatMessageFunctionResultPart {
+	type: 'function_result';
+	name: string;
+	value: any;
+	isError?: boolean;
+}
+
+export type IChatMessagePart = IChatMessageTextPart | IChatMessageFunctionResultPart;
+
+export interface IChatMessage {
+	readonly name?: string | undefined;
+	readonly role: ChatMessageRole;
+	readonly content: IChatMessagePart;
+}
+
+export interface IChatResponseTextPart {
+	type: 'text';
+	value: string;
+}
+
+export interface IChatResponceFunctionUsePart {
+	type: 'function_use';
+	name: string;
+	parameters: any;
+}
+
+export type IChatResponsePart = IChatResponseTextPart | IChatResponceFunctionUsePart;
 
 export interface IChatResponseFragment {
 	index: number;
-	part: string;
+	part: IChatResponsePart;
 }
 
 export interface ILanguageModelChatMetadata {

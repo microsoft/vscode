@@ -1378,7 +1378,7 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	private buildMarkdownDescription(container: HTMLElement, text: LinkedText[]) {
-		while (container.firstChild) { container.removeChild(container.firstChild); }
+		while (container.firstChild) { container.firstChild.remove(); }
 
 		for (const linkedText of text) {
 			if (linkedText.nodes.length === 1 && typeof linkedText.nodes[0] !== 'string') {

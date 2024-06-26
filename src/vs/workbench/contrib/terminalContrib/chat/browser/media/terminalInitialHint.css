@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 .monaco-workbench .pane-body.integrated-terminal .terminal-initial-hint {
-	color: var(--vscode-input-placeholderForeground);
+	color: var(--vscode-terminal-initialHintForeground);
 }
 .monaco-workbench .pane-body.integrated-terminal .terminal-initial-hint a {
 	cursor: pointer;
-	color: var(--vscode-textLink-foreground);
 }
 
 .monaco-workbench .pane-body.integrated-terminal .terminal-initial-hint a,

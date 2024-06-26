@@ -51,6 +51,7 @@ import { Schemas } from 'vs/base/common/network';
 import { getColorForSeverity } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { TerminalContextActionRunner } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
 import type { IHoverAction } from 'vs/base/browser/ui/hover/hover';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 const $ = DOM.$;
 
@@ -577,6 +578,7 @@ class TerminalTabsDragAndDrop extends Disposable implements IListDragAndDrop<ITe
 	constructor(
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
+		@IHostService private readonly _hostService: IHostService,
 	) {
 		super();
 		this._primaryBackend = this._terminalService.getPrimaryBackend();
@@ -733,9 +735,9 @@ class TerminalTabsDragAndDrop extends Disposable implements IListDragAndDrop<ITe
 			resource = URI.file(JSON.parse(rawCodeFiles)[0]);
 		}
 
-		if (!resource && e.dataTransfer.files.length > 0 && e.dataTransfer.files[0].path /* Electron only */) {
+		if (!resource && e.dataTransfer.files.length > 0 && this._hostService.getPathForFile(e.dataTransfer.files[0])) {
 			// Check if the file was dragged from the filesystem
-			resource = URI.file(e.dataTransfer.files[0].path);
+			resource = URI.file(this._hostService.getPathForFile(e.dataTransfer.files[0])!);
 		}
 
 		if (!resource) {

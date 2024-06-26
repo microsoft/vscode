@@ -827,7 +827,7 @@ class FollowupActionWidget extends Disposable {
 
 		this.container.appendChild(this.el.root);
 		this.visibleStore.add(toDisposable(() => {
-			this.el.root.parentElement?.removeChild(this.el.root);
+			this.el.root.remove();
 		}));
 	}
 
@@ -1020,15 +1020,14 @@ class TestResultsViewContent extends Disposable {
 		}
 
 
-		this.currentSubjectStore.add(
-			this.instantiationService
-				.createChild(new ServiceCollection([IContextKeyService, this.messageContextKeyService]))
-				.createInstance(FloatingClickMenu, {
-					container: this.messageContainer,
-					menuId: MenuId.TestMessageContent,
-					getActionArg: () => (subject as MessageSubject).context,
-				})
-		);
+		const instaService = this.currentSubjectStore.add(this.instantiationService
+			.createChild(new ServiceCollection([IContextKeyService, this.messageContextKeyService])));
+
+		this.currentSubjectStore.add(instaService.createInstance(FloatingClickMenu, {
+			container: this.messageContainer,
+			menuId: MenuId.TestMessageContent,
+			getActionArg: () => (subject as MessageSubject).context,
+		}));
 	}
 
 	public onLayoutBody(height: number, width: number) {
@@ -1086,7 +1085,7 @@ class TestResultsPeek extends PeekViewWidget {
 		if (!this.scopedContextKeyService) {
 			this.scopedContextKeyService = this._disposables.add(this.contextKeyService.createScoped(container));
 			TestingContextKeys.isInPeek.bindTo(this.scopedContextKeyService).set(true);
-			const instaService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService]));
+			const instaService = this._disposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
 			this.content = this._disposables.add(instaService.createInstance(TestResultsViewContent, this.editor, { historyVisible: this.testingPeek.historyVisible, showRevealLocationOnMessages: false, locationForProgress: Testing.ResultsViewId }));
 		}
 
@@ -1377,7 +1376,7 @@ class ScrollableMarkdownMessage extends Disposable {
 		container.appendChild(this.scrollable.getDomNode());
 
 		this._register(toDisposable(() => {
-			container.removeChild(this.scrollable.getDomNode());
+			this.scrollable.getDomNode().remove();
 		}));
 
 		this.scrollable.scanDomNode();
@@ -2057,6 +2056,7 @@ class OutputPeekTree extends Disposable {
 				result = Iterable.concat(
 					Iterable.single<ICompressedTreeElement<TreeElement>>({
 						element: new CoverageElement(results, task, coverageService),
+						collapsible: true,
 						incompressible: true,
 					}),
 					result,
@@ -2082,6 +2082,7 @@ class OutputPeekTree extends Disposable {
 				return ({
 					element: taskElem,
 					incompressible: false,
+					collapsible: true,
 					children: getTaskChildren(taskElem),
 				});
 			});
@@ -2092,6 +2093,7 @@ class OutputPeekTree extends Disposable {
 			return {
 				element,
 				incompressible: true,
+				collapsible: true,
 				collapsed: this.tree.hasElement(element) ? this.tree.isCollapsed(element) : true,
 				children: getResultChildren(result)
 			};

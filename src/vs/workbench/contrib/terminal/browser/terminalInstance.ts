@@ -88,6 +88,7 @@ import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/commo
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { shouldPasteTerminalText } from 'vs/workbench/contrib/terminal/common/terminalClipboard';
 import { TerminalIconPicker } from 'vs/workbench/contrib/terminal/browser/terminalIconPicker';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 // HACK: This file should not depend on terminalContrib
 // eslint-disable-next-line local/code-import-patterns
@@ -857,7 +858,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Determine whether to send ETX (ctrl+c) before running the command. This should always
 		// happen unless command detection can reliably say that a command is being entered and
 		// there is no content in the prompt
-		if (commandDetection?.hasInput !== false) {
+		if (!commandDetection || commandDetection.promptInputModel.value.length > 0) {
 			await this.sendText('\x03', false);
 			// Wait a little before running the command to avoid the sequences being echoed while the ^C
 			// is being evaluated
@@ -2288,15 +2289,14 @@ class TerminalInstanceDragAndDropController extends Disposable implements dom.ID
 		private readonly _container: HTMLElement,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
+		@IHostService private readonly _hostService: IHostService,
 	) {
 		super();
 		this._register(toDisposable(() => this._clearDropOverlay()));
 	}
 
 	private _clearDropOverlay() {
-		if (this._dropOverlay && this._dropOverlay.parentElement) {
-			this._dropOverlay.parentElement.removeChild(this._dropOverlay);
-		}
+		this._dropOverlay?.remove();
 		this._dropOverlay = undefined;
 	}
 
@@ -2372,9 +2372,9 @@ class TerminalInstanceDragAndDropController extends Disposable implements dom.ID
 			path = URI.file(JSON.parse(rawCodeFiles)[0]);
 		}
 
-		if (!path && e.dataTransfer.files.length > 0 && e.dataTransfer.files[0].path /* Electron only */) {
+		if (!path && e.dataTransfer.files.length > 0 && this._hostService.getPathForFile(e.dataTransfer.files[0])) {
 			// Check if the file was dragged from the filesystem
-			path = URI.file(e.dataTransfer.files[0].path);
+			path = URI.file(this._hostService.getPathForFile(e.dataTransfer.files[0])!);
 		}
 
 		if (!path) {

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
+import { IObservable } from 'vs/base/common/observable';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { IMenu } from 'vs/platform/actions/common/actions';
@@ -22,6 +23,7 @@ export interface ISCMHistoryProvider {
 
 	get currentHistoryItemGroup(): ISCMHistoryItemGroup | undefined;
 	set currentHistoryItemGroup(historyItemGroup: ISCMHistoryItemGroup | undefined);
+	readonly currentHistoryItemGroupObs: IObservable<ISCMHistoryItemGroup | undefined>;
 
 	provideHistoryItems(historyItemGroupId: string, options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined>;
 	provideHistoryItemSummary(historyItemId: string, historyItemParentId: string | undefined): Promise<ISCMHistoryItem | undefined>;

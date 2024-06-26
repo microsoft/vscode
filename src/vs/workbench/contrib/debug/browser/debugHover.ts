@@ -5,6 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -83,6 +84,7 @@ export class DebugHoverWidget implements IContentWidget {
 	readonly allowEditorOverflow = true;
 
 	private _isVisible: boolean;
+	private safeTriangle?: dom.SafeTriangle;
 	private showCancellationSource?: CancellationTokenSource;
 	private domNode!: HTMLElement;
 	private tree!: AsyncDataTree<IExpression, IExpression, any>;
@@ -228,7 +230,15 @@ export class DebugHoverWidget implements IContentWidget {
 		return this.domNode;
 	}
 
-	async showAt(position: Position, focus: boolean): Promise<void | ShowDebugHoverResult> {
+	/**
+	 * Gets whether the given coordinates are in the safe triangle formed from
+	 * the position at which the hover was initiated.
+	 */
+	isInSafeTriangle(x: number, y: number) {
+		return this._isVisible && !!this.safeTriangle?.contains(x, y);
+	}
+
+	async showAt(position: Position, focus: boolean, mouseEvent?: IMouseEvent): Promise<void | ShowDebugHoverResult> {
 		this.showCancellationSource?.cancel();
 		const cancellationSource = this.showCancellationSource = new CancellationTokenSource();
 		const session = this.debugService.getViewModel().focusedSession;
@@ -269,7 +279,7 @@ export class DebugHoverWidget implements IContentWidget {
 			options: DebugHoverWidget._HOVER_HIGHLIGHT_DECORATION_OPTIONS
 		}]);
 
-		return this.doShow(result.range.getStartPosition(), expression, focus);
+		return this.doShow(result.range.getStartPosition(), expression, focus, mouseEvent);
 	}
 
 	private static readonly _HOVER_HIGHLIGHT_DECORATION_OPTIONS = ModelDecorationOptions.register({
@@ -277,7 +287,7 @@ export class DebugHoverWidget implements IContentWidget {
 		className: 'hoverHighlight'
 	});
 
-	private async doShow(position: Position, expression: IExpression, focus: boolean, forceValueHover = false): Promise<void> {
+	private async doShow(position: Position, expression: IExpression, focus: boolean, mouseEvent: IMouseEvent | undefined): Promise<void> {
 		if (!this.domNode) {
 			this.create();
 		}
@@ -285,7 +295,7 @@ export class DebugHoverWidget implements IContentWidget {
 		this.showAtPosition = position;
 		this._isVisible = true;
 
-		if (!expression.hasChildren || forceValueHover) {
+		if (!expression.hasChildren) {
 			this.complexValueContainer.hidden = true;
 			this.valueContainer.hidden = false;
 			renderExpressionValue(expression, this.valueContainer, {
@@ -312,6 +322,7 @@ export class DebugHoverWidget implements IContentWidget {
 		this.tree.scrollTop = 0;
 		this.tree.scrollLeft = 0;
 		this.complexValueContainer.hidden = false;
+		this.safeTriangle = mouseEvent && new dom.SafeTriangle(mouseEvent.posx, mouseEvent.posy, this.domNode);
 
 		if (focus) {
 			this.editor.render();

@@ -99,6 +99,7 @@ let MODEL_ID = 0;
 
 export interface NotebookViewModelOptions {
 	isReadOnly: boolean;
+	inRepl?: boolean;
 }
 
 export class NotebookViewModel extends Disposable implements EditorFoldingStateDelegate, INotebookViewModel {
@@ -108,13 +109,10 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	private readonly _onDidChangeOptions = this._register(new Emitter<void>());
 	get onDidChangeOptions(): Event<void> { return this._onDidChangeOptions.event; }
 	private _viewCells: CellViewModel[] = [];
+	private readonly replView: boolean;
 
 	get viewCells(): ICellViewModel[] {
 		return this._viewCells;
-	}
-
-	set viewCells(_: ICellViewModel[]) {
-		throw new Error('NotebookViewModel.viewCells is readonly');
 	}
 
 	get length(): number {
@@ -206,6 +204,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		MODEL_ID++;
 		this.id = '$notebookViewModel' + MODEL_ID;
 		this._instanceId = strings.singleLetterHash(MODEL_ID);
+		this.replView = !!this.options.inRepl;
 
 		const compute = (changes: NotebookCellTextModelSplice<ICell>[], synchronous: boolean) => {
 			const diffs = changes.map(splice => {
@@ -337,9 +336,12 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			this._onDidChangeSelection.fire(e);
 		}));
 
-		this._viewCells = this._notebook.cells.map(cell => {
-			return createCellViewModel(this._instantiationService, this, cell, this._viewContext);
-		});
+
+		const viewCellCount = this.replView ? this._notebook.cells.length - 1 : this._notebook.cells.length;
+		for (let i = 0; i < viewCellCount; i++) {
+			this._viewCells.push(createCellViewModel(this._instantiationService, this, this._notebook.cells[i], this._viewContext));
+		}
+
 
 		this._viewCells.forEach(cell => {
 			this._handleToViewCellMapping.set(cell.handle, cell);

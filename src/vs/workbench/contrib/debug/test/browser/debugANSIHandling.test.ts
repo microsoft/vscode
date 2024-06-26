@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { isHTMLSpanElement } from 'vs/base/browser/dom';
 import { Color, RGBA } from 'vs/base/common/color';
 import { DisposableStore } from 'vs/base/common/lifecycle';

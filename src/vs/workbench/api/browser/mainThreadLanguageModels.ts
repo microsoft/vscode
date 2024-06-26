@@ -14,7 +14,7 @@ import { ExtHostLanguageModelsShape, ExtHostContext, MainContext, MainThreadLang
 import { ILanguageModelStatsService } from 'vs/workbench/contrib/chat/common/languageModelStats';
 import { ILanguageModelChatMetadata, IChatResponseFragment, ILanguageModelsService, IChatMessage, ILanguageModelChatSelector } from 'vs/workbench/contrib/chat/common/languageModels';
 import { IAuthenticationAccessService } from 'vs/workbench/services/authentication/browser/authenticationAccessService';
-import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationProviderCreateSessionOptions, IAuthenticationService, INTERNAL_AUTH_PROVIDER_PREFIX } from 'vs/workbench/services/authentication/common/authentication';
+import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationService, INTERNAL_AUTH_PROVIDER_PREFIX } from 'vs/workbench/services/authentication/common/authentication';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
@@ -161,9 +161,9 @@ class LanguageModelAccessAuthProvider implements IAuthenticationProvider {
 		if (this._session) {
 			return [this._session];
 		}
-		return [await this.createSession(scopes || [], {})];
+		return [await this.createSession(scopes || [])];
 	}
-	async createSession(scopes: string[], options: IAuthenticationProviderCreateSessionOptions): Promise<AuthenticationSession> {
+	async createSession(scopes: string[]): Promise<AuthenticationSession> {
 		this._session = this._createFakeSession(scopes);
 		this._onDidChangeSessions.fire({ added: [this._session], changed: [], removed: [] });
 		return this._session;

@@ -10,7 +10,6 @@ import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 
 export const enum TerminalSuggestSettingId {
 	Enabled = 'terminal.integrated.suggest.enabled',
-	EnabledLegacy = 'terminal.integrated.shellIntegration.suggestEnabled',
 	QuickSuggestions = 'terminal.integrated.suggest.quickSuggestions',
 	SuggestOnTriggerCharacters = 'terminal.integrated.suggest.suggestOnTriggerCharacters',
 }
@@ -29,13 +28,6 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 		markdownDescription: localize('suggest.enabled', "Enables experimental terminal Intellisense suggestions for supported shells ({0}) when {1} is set to {2}.\n\nIf shell integration is installed manually, {3} needs to be set to {4} before calling the shell integration script.", 'PowerShell', `\`#${TerminalSettingId.ShellIntegrationEnabled}#\``, '`true`', '`VSCODE_SUGGEST`', '`1`'),
 		type: 'boolean',
 		default: false,
-	},
-	[TerminalSuggestSettingId.EnabledLegacy]: {
-		restricted: true,
-		markdownDescription: localize('suggest.enabled', "Enables experimental terminal Intellisense suggestions for supported shells ({0}) when {1} is set to {2}.\n\nIf shell integration is installed manually, {3} needs to be set to {4} before calling the shell integration script.", 'PowerShell', `\`#${TerminalSettingId.ShellIntegrationEnabled}#\``, '`true`', '`VSCODE_SUGGEST`', '`1`'),
-		type: 'boolean',
-		default: false,
-		markdownDeprecationMessage: localize('suggest.enabled.deprecated', 'This setting is deprecated, please use `{0}` instead.', `\`#${TerminalSuggestSettingId.Enabled}#\``)
 	},
 	[TerminalSuggestSettingId.QuickSuggestions]: {
 		restricted: true,

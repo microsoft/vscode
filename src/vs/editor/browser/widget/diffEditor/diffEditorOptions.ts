@@ -16,7 +16,7 @@ export class DiffEditorOptions {
 
 	private readonly _diffEditorWidth = observableValue<number>(this, 0);
 
-	private readonly _screenReaderMode = observableFromEvent(this._accessibilityService.onDidChangeScreenReaderOptimized, () => this._accessibilityService.isScreenReaderOptimized());
+	private readonly _screenReaderMode = observableFromEvent(this, this._accessibilityService.onDidChangeScreenReaderOptimized, () => this._accessibilityService.isScreenReaderOptimized());
 
 	constructor(
 		options: Readonly<IDiffEditorOptions>,
