@@ -58,6 +58,7 @@
 }
 
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-list .interactive-item-container.minimal > .header {
+	top: 5px;
 	right: 10px;
 }
 
@@ -89,7 +90,8 @@
 	overflow: hidden;
 	color: var(--vscode-descriptionForeground);
 	font-size: 11px;
-	display: inline-flex;
+	display: flex;
+	white-space: nowrap;
 }
 
 .monaco-workbench .inline-chat .status .label.info {
@@ -114,7 +116,7 @@
 }
 
 .monaco-workbench .inline-chat .status .label > .codicon {
-	padding: 0 5px;
+	padding: 0 3px;
 	font-size: 12px;
 	line-height: 18px;
 }
@@ -182,6 +184,24 @@
 	.monaco-action-bar .action-item.menu-entry.text-only:first-of-type .action-label{
 		color: var(--vscode-button-foreground);
 		background-color: var(--vscode-button-background);
+	}
+}
+
+.monaco-workbench .inline-chat .status {
+	.actions.text-style {
+		display: none;
+	}
+	.actions.button-style {
+		display: inherit;
+	}
+}
+
+.monaco-workbench .inline-chat .status.text {
+	.actions.text-style {
+		display: inherit;
+	}
+	.actions.button-style {
+		display: none;
 	}
 }
 
