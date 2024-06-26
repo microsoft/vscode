@@ -255,7 +255,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			//       | value
 			// -----------------------------------------------------
 			const lhsContainer = dom.append(rowContainer, $('.column.left'));
-			const rhsContainer = dom.append(rowContainer, $('.column'));
+			const rhsContainer = dom.append(rowContainer, $('.column.right'));
 
 			headerParent = lhsContainer;
 			detailContainerParent = rhsContainer;
