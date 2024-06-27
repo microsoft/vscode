@@ -974,7 +974,7 @@ export class Repository implements Disposable {
 		onDidChangeCountBadge(this.setCountBadge, this, this.disposables);
 		this.setCountBadge();
 
-		window.onDidEndTerminalShellExecution(e => {
+		this.disposables.push(window.onDidEndTerminalShellExecution(e => {
 			const [executable, subcommand, ..._args] = e.execution.commandLine.value.split(' ');
 			if (executable !== 'git' || !e.execution.cwd || !e.execution.cwd.path.startsWith(this.root)) {
 				return;
@@ -987,7 +987,7 @@ export class Repository implements Disposable {
 					}
 				}
 			}
-		});
+		}));
 	}
 
 	validateInput(text: string, _: number): SourceControlInputBoxValidation | undefined {
