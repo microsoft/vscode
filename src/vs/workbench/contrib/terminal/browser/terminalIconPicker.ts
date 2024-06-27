@@ -52,15 +52,17 @@ export class TerminalIconPicker extends Disposable {
 
 	async pickIcons(instanceId: number): Promise<ThemeIcon | undefined> {
 		const doc: HTMLDocument = getActiveDocument();
-		let pos = HoverPosition.BELOW;
+
+		// get the single terminal tab
+		const defaultTab = doc.getElementsByClassName('single-terminal-tab')[0] as HTMLElement;
+
 		// By default the target is either the position of the terminal or the window position
-		let target = doc.getElementById('terminal-uri-icon') ?? doc.body;
+		let target = defaultTab ?? doc.body;
 
 		// Target the exact tab
 		const terminalTab = doc.getElementById(`terminal-tab-instance-${instanceId}`);
 		if (terminalTab) {
 			target = terminalTab;
-			pos = HoverPosition.LEFT;
 		}
 
 		const dimension = new Dimension(486, 260);
@@ -74,7 +76,7 @@ export class TerminalIconPicker extends Disposable {
 				content: this._iconSelectBox.domNode,
 				target: target ?? doc.body,
 				position: {
-					hoverPosition: pos,
+					hoverPosition: HoverPosition.LEFT,
 				},
 				persistence: {
 					sticky: true,
