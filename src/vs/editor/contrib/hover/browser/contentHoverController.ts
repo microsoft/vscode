@@ -321,6 +321,10 @@ export class ContentHoverController extends Disposable implements IHoverWidget {
 		this._contentHoverWidget.focus();
 	}
 
+	public focusHoverPartWithIndex(index: number): void {
+		this._renderedContentHover?.focusHoverPartWithIndex(index);
+	}
+
 	public scrollUp(): void {
 		this._contentHoverWidget.scrollUp();
 	}

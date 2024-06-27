@@ -923,6 +923,7 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .button-link {
 	color: var(--vscode-textLink-foreground);
+	text-decoration: var(--text-link-decoration);
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .button-link .codicon {

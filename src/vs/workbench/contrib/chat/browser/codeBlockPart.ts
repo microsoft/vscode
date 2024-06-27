@@ -144,6 +144,7 @@ export class CodeBlockPart extends Disposable {
 	private currentScrollWidth = 0;
 
 	private readonly disposableStore = this._register(new DisposableStore());
+	private isDisposed = false;
 
 	constructor(
 		private readonly options: ChatEditorOptions,
@@ -264,6 +265,11 @@ export class CodeBlockPart extends Disposable {
 		}
 	}
 
+	override dispose() {
+		this.isDisposed = true;
+		super.dispose();
+	}
+
 	get uri(): URI | undefined {
 		return this.editor.getModel()?.uri;
 	}
@@ -356,6 +362,9 @@ export class CodeBlockPart extends Disposable {
 		}
 
 		await this.updateEditor(data);
+		if (this.isDisposed) {
+			return;
+		}
 
 		this.layout(width);
 		if (editable) {

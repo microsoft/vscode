@@ -261,6 +261,7 @@ class TerminalInitialHintWidget extends Disposable {
 		};
 		this.toDispose.add(this.commandService.onDidExecuteCommand(e => {
 			if (e.commandId === TerminalChatCommandId.Start) {
+				this._storageService.store(Constants.InitialHintHideStorageKey, true, StorageScope.APPLICATION, StorageTarget.USER);
 				this.dispose();
 			}
 		}));

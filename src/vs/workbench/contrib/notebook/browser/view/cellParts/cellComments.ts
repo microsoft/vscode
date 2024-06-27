@@ -20,14 +20,13 @@ import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 
 export class CellComments extends CellContentPart {
-	private readonly _commentThreadWidget = new MutableDisposable<CommentThreadWidget<ICellRange>>;
+	private readonly _commentThreadWidget: MutableDisposable<CommentThreadWidget<ICellRange>>;
 	private currentElement: CodeCellViewModel | undefined;
 	private readonly _commentThreadDisposables = this._register(new DisposableStore());
 
 	constructor(
 		private readonly notebookEditor: INotebookEditorDelegate,
 		private readonly container: HTMLElement,
-
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IThemeService private readonly themeService: IThemeService,
 		@ICommentService private readonly commentService: ICommentService,
@@ -36,6 +35,8 @@ export class CellComments extends CellContentPart {
 	) {
 		super();
 		this.container.classList.add('review-widget');
+
+		this._register(this._commentThreadWidget = new MutableDisposable<CommentThreadWidget<ICellRange>>());
 
 		this._register(this.themeService.onDidColorThemeChange(this._applyTheme, this));
 		// TODO @rebornix onDidChangeLayout (font change)
@@ -108,7 +109,7 @@ export class CellComments extends CellContentPart {
 		if (this._commentThreadWidget.value) {
 			if (!info) {
 				this._commentThreadDisposables.clear();
-				this._commentThreadWidget.dispose();
+				this._commentThreadWidget.value = undefined;
 				this.currentElement.commentHeight = 0;
 				return;
 			}
@@ -154,7 +155,6 @@ export class CellComments extends CellContentPart {
 
 	override didRenderCell(element: ICellViewModel): void {
 		if (element.cellKind === CellKind.Code) {
-			this.currentElement = element as CodeCellViewModel;
 			this.initialize(element);
 			this._bindListeners();
 		}

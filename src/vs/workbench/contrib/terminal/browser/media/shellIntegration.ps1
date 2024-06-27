@@ -98,7 +98,7 @@ function Global:Prompt() {
 
 	# Prompt
 	# OSC 633 ; <Property>=<Value> ST
-	if ($isStable -eq "1") {
+	if ($isStable -eq "0") {
 		$Result += "$([char]0x1b)]633;P;Prompt=$(__VSCode-Escape-Value $OriginalPrompt)`a"
 	}
 
@@ -147,9 +147,11 @@ else {
 }
 
 # Set ContinuationPrompt property
-$ContinuationPrompt = (Get-PSReadLineOption).ContinuationPrompt
-if ($ContinuationPrompt) {
-	[Console]::Write("$([char]0x1b)]633;P;ContinuationPrompt=$(__VSCode-Escape-Value $ContinuationPrompt)`a")
+if ($isStable -eq "0") {
+	$ContinuationPrompt = (Get-PSReadLineOption).ContinuationPrompt
+	if ($ContinuationPrompt) {
+		[Console]::Write("$([char]0x1b)]633;P;ContinuationPrompt=$(__VSCode-Escape-Value $ContinuationPrompt)`a")
+	}
 }
 
 # Set always on key handlers which map to default VS Code keybindings

@@ -2103,37 +2103,35 @@ export class CommandCenter {
 				}
 			}
 
-			if (!opts.amend) {
-				// no changes, and the user has not configured to commit all in this case
-				if (!noUnstagedChanges && noStagedChanges && !enableSmartCommit && !opts.all) {
-					const suggestSmartCommit = config.get<boolean>('suggestSmartCommit') === true;
+			// no changes, and the user has not configured to commit all in this case
+			if (!noUnstagedChanges && noStagedChanges && !enableSmartCommit && !opts.all) {
+				const suggestSmartCommit = config.get<boolean>('suggestSmartCommit') === true;
 
-					if (!suggestSmartCommit) {
-						return;
-					}
-
-					// prompt the user if we want to commit all or not
-					const message = l10n.t('There are no staged changes to commit.\n\nWould you like to stage all your changes and commit them directly?');
-					const yes = l10n.t('Yes');
-					const always = l10n.t('Always');
-					const never = l10n.t('Never');
-					const pick = await window.showWarningMessage(message, { modal: true }, yes, always, never);
-
-					if (pick === always) {
-						config.update('enableSmartCommit', true, true);
-					} else if (pick === never) {
-						config.update('suggestSmartCommit', false, true);
-						return;
-					} else if (pick !== yes) {
-						return; // do not commit on cancel
-					}
+				if (!suggestSmartCommit) {
+					return;
 				}
 
-				if (opts.all === undefined) {
-					opts = { ...opts, all: noStagedChanges };
-				} else if (!opts.all && noStagedChanges) {
-					opts = { ...opts, all: true };
+				// prompt the user if we want to commit all or not
+				const message = l10n.t('There are no staged changes to commit.\n\nWould you like to stage all your changes and commit them directly?');
+				const yes = l10n.t('Yes');
+				const always = l10n.t('Always');
+				const never = l10n.t('Never');
+				const pick = await window.showWarningMessage(message, { modal: true }, yes, always, never);
+
+				if (pick === always) {
+					config.update('enableSmartCommit', true, true);
+				} else if (pick === never) {
+					config.update('suggestSmartCommit', false, true);
+					return;
+				} else if (pick !== yes) {
+					return; // do not commit on cancel
 				}
+			}
+
+			if (opts.all === undefined) {
+				opts = { ...opts, all: noStagedChanges };
+			} else if (!opts.all && noStagedChanges) {
+				opts = { ...opts, all: true };
 			}
 		}
 

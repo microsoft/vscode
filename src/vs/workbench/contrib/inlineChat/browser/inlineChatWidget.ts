@@ -65,11 +65,6 @@ export interface IInlineChatWidgetConstructionOptions {
 	statusMenuId: MenuId | { menu: MenuId; options: IWorkbenchButtonBarOptions };
 
 	/**
-	 * The men that rendered in the lower right corner, use for feedback
-	 */
-	feedbackMenuId?: MenuId;
-
-	/**
 	 * The options for the chat widget
 	 */
 	chatWidgetViewOptions?: IChatWidgetViewOptions;
@@ -97,9 +92,9 @@ export class InlineChatWidget {
 			h('div.accessibleViewer@accessibleViewer'),
 			h('div.status@status', [
 				h('div.label.info.hidden@infoLabel'),
-				h('div.actions.hidden@statusToolbar'),
+				h('div.actions.text-style.hidden@toolbar1'),
+				h('div.actions.button-style.hidden@toolbar2'),
 				h('div.label.status.hidden@statusLabel'),
-				h('div.actions.hidden@feedbackToolbar'),
 			]),
 		]
 	);
@@ -200,46 +195,34 @@ export class InlineChatWidget {
 
 		const statusMenuId = options.statusMenuId instanceof MenuId ? options.statusMenuId : options.statusMenuId.menu;
 
-		if (this._configurationService.getValue(InlineChatConfigKeys.ExpTextButtons)) {
-			// TEXT-ONLY bar
-			const statusToolbarMenu = scopedInstaService.createInstance(MenuWorkbenchToolBar, this._elements.statusToolbar, statusMenuId, {
-				hiddenItemStrategy: HiddenItemStrategy.NoHide,
-				telemetrySource: options.chatWidgetViewOptions?.menus?.telemetrySource,
-				actionViewItemProvider: action => action instanceof MenuItemAction ? this._instantiationService.createInstance(TextOnlyMenuEntryActionViewItem, action, { conversational: true }) : undefined,
-				toolbarOptions: { primaryGroup: '0_main' },
-				menuOptions: { renderShortTitle: true },
-				label: true,
-				icon: false
-			});
-			this._store.add(statusToolbarMenu.onDidChangeMenuItems(() => this._onDidChangeHeight.fire()));
-			this._store.add(statusToolbarMenu);
-
-		} else {
-			// BUTTON bar
-			const statusMenuOptions = options.statusMenuId instanceof MenuId ? undefined : options.statusMenuId.options;
-			const statusButtonBar = scopedInstaService.createInstance(MenuWorkbenchButtonBar, this._elements.statusToolbar, statusMenuId, {
-				toolbarOptions: { primaryGroup: '0_main' },
-				telemetrySource: options.chatWidgetViewOptions?.menus?.telemetrySource,
-				menuOptions: { renderShortTitle: true },
-				...statusMenuOptions,
-			});
-			this._store.add(statusButtonBar.onDidChange(() => this._onDidChangeHeight.fire()));
-			this._store.add(statusButtonBar);
-		}
-
-		const workbenchToolbarOptions = {
+		// TEXT-ONLY bar
+		const statusToolbarMenu = scopedInstaService.createInstance(MenuWorkbenchToolBar, this._elements.toolbar1, statusMenuId, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
-			toolbarOptions: {
-				primaryGroup: () => true,
-				useSeparatorsInPrimaryActions: true
-			}
-		};
+			telemetrySource: options.chatWidgetViewOptions?.menus?.telemetrySource,
+			actionViewItemProvider: action => action instanceof MenuItemAction ? this._instantiationService.createInstance(TextOnlyMenuEntryActionViewItem, action, { conversational: true }) : undefined,
+			toolbarOptions: { primaryGroup: '0_main' },
+			menuOptions: { renderShortTitle: true },
+			label: true,
+			icon: false
+		});
+		this._store.add(statusToolbarMenu.onDidChangeMenuItems(() => this._onDidChangeHeight.fire()));
+		this._store.add(statusToolbarMenu);
 
-		if (options.feedbackMenuId) {
-			const feedbackToolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.feedbackToolbar, options.feedbackMenuId, { ...workbenchToolbarOptions, hiddenItemStrategy: HiddenItemStrategy.Ignore });
-			this._store.add(feedbackToolbar.onDidChangeMenuItems(() => this._onDidChangeHeight.fire()));
-			this._store.add(feedbackToolbar);
-		}
+		// BUTTON bar
+		const statusMenuOptions = options.statusMenuId instanceof MenuId ? undefined : options.statusMenuId.options;
+		const statusButtonBar = scopedInstaService.createInstance(MenuWorkbenchButtonBar, this._elements.toolbar2, statusMenuId, {
+			toolbarOptions: { primaryGroup: '0_main' },
+			telemetrySource: options.chatWidgetViewOptions?.menus?.telemetrySource,
+			menuOptions: { renderShortTitle: true },
+			...statusMenuOptions,
+		});
+		this._store.add(statusButtonBar.onDidChange(() => this._onDidChangeHeight.fire()));
+		this._store.add(statusButtonBar);
+
+		const toggleToolbar = () => this._elements.status.classList.toggle('text', this._configurationService.getValue(InlineChatConfigKeys.ExpTextButtons));
+		this._store.add(this._configurationService.onDidChangeConfiguration(e => e.affectsConfiguration(InlineChatConfigKeys.ExpTextButtons) && toggleToolbar()));
+		toggleToolbar();
+
 
 		this._store.add(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AccessibilityVerbositySettingId.InlineChat)) {
@@ -361,7 +344,7 @@ export class InlineChatWidget {
 	}
 
 	protected _getExtraHeight(): number {
-		return 4 /* padding */ + 2 /*border*/ + 12 /*shadow*/;
+		return 4 /* padding */ + 2 /*border*/ + 4 /*shadow*/;
 	}
 
 	updateProgress(show: boolean) {
@@ -402,8 +385,8 @@ export class InlineChatWidget {
 
 	updateToolbar(show: boolean) {
 		this._elements.root.classList.toggle('toolbar', show);
-		this._elements.statusToolbar.classList.toggle('hidden', !show);
-		this._elements.feedbackToolbar.classList.toggle('hidden', !show);
+		this._elements.toolbar1.classList.toggle('hidden', !show);
+		this._elements.toolbar2.classList.toggle('hidden', !show);
 		this._elements.status.classList.toggle('actions', show);
 		this._elements.infoLabel.classList.toggle('hidden', show);
 		this._onDidChangeHeight.fire();
@@ -533,8 +516,8 @@ export class InlineChatWidget {
 
 		reset(this._elements.statusLabel);
 		this._elements.statusLabel.classList.toggle('hidden', true);
-		this._elements.statusToolbar.classList.add('hidden');
-		this._elements.feedbackToolbar.classList.add('hidden');
+		this._elements.toolbar1.classList.add('hidden');
+		this._elements.toolbar2.classList.add('hidden');
 		this.updateInfo('');
 
 		this.chatWidget.setModel(this._defaultChatModel, {});

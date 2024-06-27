@@ -348,8 +348,14 @@
 }
 
 .interactive-item-container.minimal .column.left {
-	width: 20px;
 	padding-top: 2px;
+	display: inline-block;
+	flex-grow: 0;
+}
+
+.interactive-item-container.minimal .column.right {
+	display: inline-block;
+	flex-grow: 1;
 }
 
 .interactive-item-container.minimal .user > .username {
