@@ -770,7 +770,7 @@ export class BaseIssueReporterService extends Disposable {
 		const inputElement = (<HTMLInputElement>this.getElementById(inputId));
 		const inputValidationMessage = this.getElementById(`${inputId}-empty-error`);
 		const descriptionShortMessage = this.getElementById(`description-short-error`);
-		if (inputId === 'description' && this.nonGitHubIssueUrl) {
+		if (inputId === 'description' && this.nonGitHubIssueUrl && this.data.extensionId) {
 			return true;
 		} else if (!inputElement.value) {
 			inputElement.classList.add('invalid-input');
