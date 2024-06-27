@@ -12,6 +12,7 @@ build/node_modules
 coverage/
 test_data/
 test-results/
+test-results.xml
 yarn-error.log
 vscode.lsif
 vscode.db
