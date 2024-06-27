@@ -41,7 +41,7 @@ function clone(object) {
 /**
  * Returns a stream containing the patched JavaScript and source maps.
  */
-function nls() {
+function nls(options) {
     let base;
     const input = (0, event_stream_1.through)();
     const output = input.pipe((0, event_stream_1.through)(function (f) {
@@ -61,7 +61,7 @@ function nls() {
             return this.emit('error', new Error(`File ${f.relative} does not have the original content in the source map.`));
         }
         base = f.base;
-        this.emit('data', _nls.patchFile(f, typescript));
+        this.emit('data', _nls.patchFile(f, typescript, options));
     }, function () {
         for (const file of [
             new File({
@@ -330,7 +330,7 @@ var _nls;
         // eslint-disable-next-line no-eval
         return eval(`(${sourceExpression})`);
     }
-    function patch(ts, typescript, javascript, sourcemap) {
+    function patch(ts, typescript, javascript, sourcemap, options) {
         const { localizeCalls } = analyze(ts, typescript, 'localize');
         const { localizeCalls: localize2Calls } = analyze(ts, typescript, 'localize2');
         if (localizeCalls.length === 0 && localize2Calls.length === 0) {
@@ -347,7 +347,9 @@ var _nls;
             return { span: { start, end }, content: c.content };
         };
         const localizePatches = lazy(localizeCalls)
-            .map(lc => ([
+            .map(lc => (options.preserveEnglish ? [
+            { range: lc.keySpan, content: `${allNLSMessagesIndex++}` } // localize('key', "message") => localize(<index>, "message")
+        ] : [
             { range: lc.keySpan, content: `${allNLSMessagesIndex++}` }, // localize('key', "message") => localize(<index>, null)
             { range: lc.valueSpan, content: 'null' }
         ]))
@@ -379,13 +381,13 @@ var _nls;
         sourcemap = patchSourcemap(patches, sourcemap, smc);
         return { javascript, sourcemap, nlsKeys, nlsMessages };
     }
-    function patchFile(javascriptFile, typescript) {
+    function patchFile(javascriptFile, typescript, options) {
         const ts = require('typescript');
         // hack?
         const moduleId = javascriptFile.relative
             .replace(/\.js$/, '')
             .replace(/\\/g, '/');
-        const { javascript, sourcemap, nlsKeys, nlsMessages } = patch(ts, typescript, javascriptFile.contents.toString(), javascriptFile.sourceMap);
+        const { javascript, sourcemap, nlsKeys, nlsMessages } = patch(ts, typescript, javascriptFile.contents.toString(), javascriptFile.sourceMap, options);
         const result = fileFrom(javascriptFile, javascript);
         result.sourceMap = sourcemap;
         if (nlsKeys) {

@@ -51,7 +51,7 @@ function clone<T extends object>(object: T): T {
 /**
  * Returns a stream containing the patched JavaScript and source maps.
  */
-export function nls(): NodeJS.ReadWriteStream {
+export function nls(options: { preserveEnglish: boolean }): NodeJS.ReadWriteStream {
 	let base: string;
 	const input = through();
 	const output = input.pipe(through(function (f: FileSourceMap) {
@@ -75,7 +75,7 @@ export function nls(): NodeJS.ReadWriteStream {
 		}
 
 		base = f.base;
-		this.emit('data', _nls.patchFile(f, typescript));
+		this.emit('data', _nls.patchFile(f, typescript, options));
 	}, function () {
 		for (const file of [
 			new File({
@@ -432,7 +432,7 @@ module _nls {
 		return eval(`(${sourceExpression})`);
 	}
 
-	function patch(ts: typeof import('typescript'), typescript: string, javascript: string, sourcemap: sm.RawSourceMap): INlsPatchResult {
+	function patch(ts: typeof import('typescript'), typescript: string, javascript: string, sourcemap: sm.RawSourceMap, options: { preserveEnglish: boolean }): INlsPatchResult {
 		const { localizeCalls } = analyze(ts, typescript, 'localize');
 		const { localizeCalls: localize2Calls } = analyze(ts, typescript, 'localize2');
 
@@ -453,10 +453,13 @@ module _nls {
 		};
 
 		const localizePatches = lazy(localizeCalls)
-			.map(lc => ([
-				{ range: lc.keySpan, content: `${allNLSMessagesIndex++}` }, // localize('key', "message") => localize(<index>, null)
-				{ range: lc.valueSpan, content: 'null' }
-			]))
+			.map(lc => (
+				options.preserveEnglish ? [
+					{ range: lc.keySpan, content: `${allNLSMessagesIndex++}` } 	// localize('key', "message") => localize(<index>, "message")
+				] : [
+					{ range: lc.keySpan, content: `${allNLSMessagesIndex++}` }, // localize('key', "message") => localize(<index>, null)
+					{ range: lc.valueSpan, content: 'null' }
+				]))
 			.flatten()
 			.map(toPatch);
 
@@ -488,7 +491,7 @@ module _nls {
 		return { javascript, sourcemap, nlsKeys, nlsMessages };
 	}
 
-	export function patchFile(javascriptFile: File, typescript: string): File {
+	export function patchFile(javascriptFile: File, typescript: string, options: { preserveEnglish: boolean }): File {
 		const ts = require('typescript') as typeof import('typescript');
 		// hack?
 		const moduleId = javascriptFile.relative
@@ -499,7 +502,8 @@ module _nls {
 			ts,
 			typescript,
 			javascriptFile.contents.toString(),
-			(<any>javascriptFile).sourceMap
+			(<any>javascriptFile).sourceMap,
+			options
 		);
 
 		const result = fileFrom(javascriptFile, javascript);

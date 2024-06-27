@@ -74,9 +74,9 @@ export function localize(key: string, message: string, ...args: (string | number
 /**
  * @skipMangle
  */
-export function localize(data: ILocalizeInfo | string /* | number when built */, message: string, ...args: (string | number | boolean | undefined | null)[]): string {
+export function localize(data: ILocalizeInfo | string /* | number when built */, message: string /* | null when built */, ...args: (string | number | boolean | undefined | null)[]): string {
 	if (typeof data === 'number') {
-		return _format(lookupMessage(data), args);
+		return _format(lookupMessage(data, message), args);
 	}
 	return _format(message, args);
 }
@@ -86,10 +86,13 @@ export function localize(data: ILocalizeInfo | string /* | number when built */,
  * This table is being made available as a global through bootstrapping
  * depending on the target context.
  */
-function lookupMessage(index: number): string {
+function lookupMessage(index: number, fallback: string | null): string {
 	// VSCODE_GLOBALS: NLS
 	const message = globalThis._VSCODE_NLS_MESSAGES?.[index];
 	if (typeof message !== 'string') {
+		if (typeof fallback === 'string') {
+			return fallback;
+		}
 		throw new Error(`!!! NLS MISSING: ${index} !!!`);
 	}
 	return message;
@@ -131,7 +134,7 @@ export function localize2(key: string, message: string, ...args: (string | numbe
 export function localize2(data: ILocalizeInfo | string /* | number when built */, originalMessage: string, ...args: (string | number | boolean | undefined | null)[]): ILocalizedString {
 	let message: string;
 	if (typeof data === 'number') {
-		message = lookupMessage(data);
+		message = lookupMessage(data, originalMessage);
 	} else {
 		message = originalMessage;
 	}
