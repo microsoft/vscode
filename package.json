@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.91.0",
-  "distro": "170beceb9849568b8f7159757bc3fc3964af1986",
+  "distro": "9cef7f933867933892cb3b591231ed071fe861a8",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -73,7 +73,7 @@
     "@vscode/deviceid": "^0.1.1",
     "@vscode/iconv-lite-umd": "0.7.0",
     "@vscode/policy-watcher": "^1.1.4",
-    "@vscode/proxy-agent": "^0.20.0",
+    "@vscode/proxy-agent": "^0.21.0",
     "@vscode/ripgrep": "^1.15.9",
     "@vscode/spdlog": "^0.15.0",
     "@vscode/sqlite3": "5.1.6-vscode",
@@ -207,7 +207,7 @@
     "ts-loader": "^9.4.2",
     "ts-node": "^10.9.1",
     "tsec": "0.2.7",
-    "typescript": "^5.6.0-dev.20240612",
+    "typescript": "^5.6.0-dev.20240618",
     "util": "^0.12.4",
     "vscode-nls-dev": "^3.3.1",
     "webpack": "^5.91.0",

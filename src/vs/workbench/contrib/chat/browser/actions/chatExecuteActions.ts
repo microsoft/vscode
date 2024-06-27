@@ -161,6 +161,7 @@ export class CancelAction extends Action2 {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyCode.Escape,
+				win: { primary: KeyMod.Alt | KeyCode.Backspace },
 			}
 		});
 	}

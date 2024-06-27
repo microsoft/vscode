@@ -22,7 +22,7 @@ import { CommandsConverter, ExtHostCommands } from 'vs/workbench/api/common/extH
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import { ChatAgentLocation, IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { IChatContentReference, IChatFollowup, IChatUserActionEvent, ChatAgentVoteDirection, IChatResponseErrorDetails } from 'vs/workbench/contrib/chat/common/chatService';
+import { ChatAgentVoteDirection, IChatContentReference, IChatFollowup, IChatResponseErrorDetails, IChatUserActionEvent } from 'vs/workbench/contrib/chat/common/chatService';
 import { checkProposedApiEnabled, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import type * as vscode from 'vscode';
@@ -263,7 +263,6 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		mainContext: IMainContext,
 		private readonly _logService: ILogService,
 		private readonly commands: ExtHostCommands,
-		private readonly quality: string | undefined
 	) {
 		super();
 		this._proxy = mainContext.getProxy(MainContext.MainThreadChatAgents2);
@@ -275,19 +274,16 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 
 	createChatAgent(extension: IExtensionDescription, id: string, handler: vscode.ChatExtendedRequestHandler): vscode.ChatParticipant {
 		const handle = ExtHostChatAgents2._idPool++;
-		const agent = new ExtHostChatAgent(extension, this.quality, id, this._proxy, handle, handler);
+		const agent = new ExtHostChatAgent(extension, id, this._proxy, handle, handler);
 		this._agents.set(handle, agent);
 
-		if (agent.isAgentEnabled()) {
-			this._proxy.$registerAgent(handle, extension.identifier, id, {}, undefined);
-		}
-
+		this._proxy.$registerAgent(handle, extension.identifier, id, {}, undefined);
 		return agent.apiAgent;
 	}
 
 	createDynamicChatAgent(extension: IExtensionDescription, id: string, dynamicProps: vscode.DynamicChatParticipantProps, handler: vscode.ChatExtendedRequestHandler): vscode.ChatParticipant {
 		const handle = ExtHostChatAgents2._idPool++;
-		const agent = new ExtHostChatAgent(extension, this.quality, id, this._proxy, handle, handler);
+		const agent = new ExtHostChatAgent(extension, id, this._proxy, handle, handler);
 		this._agents.set(handle, agent);
 
 		this._proxy.$registerAgent(handle, extension.identifier, id, { isSticky: true } satisfies IExtensionChatAgentMetadata, dynamicProps);
@@ -498,7 +494,6 @@ class ExtHostChatAgent {
 
 	constructor(
 		public readonly extension: IExtensionDescription,
-		private readonly quality: string | undefined,
 		public readonly id: string,
 		private readonly _proxy: MainThreadChatAgentsShape2,
 		private readonly _handle: number,
@@ -519,11 +514,6 @@ class ExtHostChatAgent {
 		}
 
 		return await this._agentVariableProvider.provider.provideCompletionItems(query, token) ?? [];
-	}
-
-	public isAgentEnabled() {
-		// If in stable and this extension doesn't have the right proposed API, then don't register the agent
-		return !(this.quality === 'stable' && !isProposedApiEnabled(this.extension, 'chatParticipantPrivate'));
 	}
 
 	async provideFollowups(result: vscode.ChatResult, context: vscode.ChatContext, token: CancellationToken): Promise<vscode.ChatFollowup[]> {
@@ -583,10 +573,6 @@ class ExtHostChatAgent {
 			}
 			updateScheduled = true;
 			queueMicrotask(() => {
-				if (!that.isAgentEnabled()) {
-					return;
-				}
-
 				this._proxy.$updateAgent(this._handle, {
 					icon: !this._iconPath ? undefined :
 						this._iconPath instanceof URI ? this._iconPath :

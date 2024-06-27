@@ -15,7 +15,7 @@ import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecy
 import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { isDefined } from 'vs/base/common/types';
 import { generateUuid } from 'vs/base/common/uuid';
-import { IExtensionDescription, IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostTestingShape, ILocationDto, MainContext, MainThreadTestingShape } from 'vs/workbench/api/common/extHost.protocol';
@@ -36,7 +36,7 @@ interface ControllerInfo {
 	controller: vscode.TestController;
 	profiles: Map<number, vscode.TestRunProfile>;
 	collection: ExtHostTestItemCollection;
-	extension: Readonly<IRelaxedExtensionDescription>;
+	extension: IExtensionDescription;
 	activeProfiles: Set<number>;
 }
 
@@ -552,7 +552,7 @@ class TestRunTracker extends Disposable {
 		private readonly proxy: MainThreadTestingShape,
 		private readonly logService: ILogService,
 		private readonly profile: vscode.TestRunProfile | undefined,
-		private readonly extension: IRelaxedExtensionDescription,
+		private readonly extension: IExtensionDescription,
 		parentToken?: CancellationToken,
 	) {
 		super();
@@ -591,7 +591,7 @@ class TestRunTracker extends Disposable {
 	}
 
 	/** Gets details for a previously-emitted coverage object. */
-	public getCoverageDetails(id: string, testId: string | undefined, token: CancellationToken) {
+	public async getCoverageDetails(id: string, testId: string | undefined, token: CancellationToken): Promise<vscode.FileCoverageDetail[]> {
 		const [, taskId] = TestId.fromString(id).path; /** runId, taskId, URI */
 		const coverage = this.publishedCoverage.get(id);
 		if (!coverage) {
@@ -613,7 +613,11 @@ class TestRunTracker extends Disposable {
 			testItem = report.fromTests[index];
 		}
 
-		return (this.profile as vscode.TestRunProfile2)?.loadDetailedCoverage?.(task.run, report, token, testItem) ?? [];
+		const details = testItem
+			? this.profile?.loadDetailedCoverageForTest?.(task.run, report, testItem, token)
+			: this.profile?.loadDetailedCoverage?.(task.run, report, token);
+
+		return (await details) ?? [];
 	}
 
 	/** Creates the public test run interface to give to extensions. */
@@ -832,7 +836,7 @@ export class TestRunCoordinator {
 	 * `$startedExtensionTestRun` is not invoked. The run must eventually
 	 * be cancelled manually.
 	 */
-	public prepareForMainThreadTestRun(extension: IRelaxedExtensionDescription, req: vscode.TestRunRequest, dto: TestRunDto, profile: vscode.TestRunProfile, token: CancellationToken) {
+	public prepareForMainThreadTestRun(extension: IExtensionDescription, req: vscode.TestRunRequest, dto: TestRunDto, profile: vscode.TestRunProfile, token: CancellationToken) {
 		return this.getTracker(req, dto, profile, extension, token);
 	}
 
@@ -855,7 +859,7 @@ export class TestRunCoordinator {
 	/**
 	 * Implements the public `createTestRun` API.
 	 */
-	public createTestRun(extension: IRelaxedExtensionDescription, controllerId: string, collection: ExtHostTestItemCollection, request: vscode.TestRunRequest, name: string | undefined, persist: boolean): vscode.TestRun {
+	public createTestRun(extension: IExtensionDescription, controllerId: string, collection: ExtHostTestItemCollection, request: vscode.TestRunRequest, name: string | undefined, persist: boolean): vscode.TestRun {
 		const existing = this.tracked.get(request);
 		if (existing) {
 			return existing.createRun(name);
@@ -884,7 +888,7 @@ export class TestRunCoordinator {
 		return tracker.createRun(name);
 	}
 
-	private getTracker(req: vscode.TestRunRequest, dto: TestRunDto, profile: vscode.TestRunProfile | undefined, extension: IRelaxedExtensionDescription, token?: CancellationToken) {
+	private getTracker(req: vscode.TestRunRequest, dto: TestRunDto, profile: vscode.TestRunProfile | undefined, extension: IExtensionDescription, token?: CancellationToken) {
 		const tracker = new TestRunTracker(dto, this.proxy, this.logService, profile, extension, token);
 		this.tracked.set(req, tracker);
 		this.trackedById.set(tracker.id, tracker);

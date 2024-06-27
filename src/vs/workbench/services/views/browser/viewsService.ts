@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable, DisposableStore, DisposableMap } from 'vs/base/common/lifecycle';
 import { IViewDescriptorService, ViewContainer, IViewDescriptor, IView, ViewContainerLocation, IViewPaneContainer } from 'vs/workbench/common/views';
 import { FocusedViewContext, getVisbileViewContextKey } from 'vs/workbench/common/contextkeys';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -51,6 +51,7 @@ export class ViewsService extends Disposable implements IViewsService {
 	private readonly _onDidChangeFocusedView = this._register(new Emitter<void>());
 	readonly onDidChangeFocusedView = this._onDidChangeFocusedView.event;
 
+	private readonly viewContainerDisposables = this._register(new DisposableMap());
 	private readonly enabledViewContainersContextKeys: Map<string, IContextKey<boolean>>;
 	private readonly visibleViewContextKeys: Map<string, IContextKey<boolean>>;
 	private readonly focusedViewContextKey: IContextKey<string>;
@@ -114,7 +115,7 @@ export class ViewsService extends Disposable implements IViewsService {
 
 	private onDidChangeContainers(added: ReadonlyArray<{ container: ViewContainer; location: ViewContainerLocation }>, removed: ReadonlyArray<{ container: ViewContainer; location: ViewContainerLocation }>): void {
 		for (const { container, location } of removed) {
-			this.deregisterPaneComposite(container, location);
+			this.onDidDeregisterViewContainer(container, location);
 		}
 		for (const { container, location } of added) {
 			this.onDidRegisterViewContainer(container, location);
@@ -123,15 +124,24 @@ export class ViewsService extends Disposable implements IViewsService {
 
 	private onDidRegisterViewContainer(viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation): void {
 		this.registerPaneComposite(viewContainer, viewContainerLocation);
+		const disposables = new DisposableStore();
+
 		const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
 		this.onViewDescriptorsAdded(viewContainerModel.allViewDescriptors, viewContainer);
-		this._register(viewContainerModel.onDidChangeAllViewDescriptors(({ added, removed }) => {
+		disposables.add(viewContainerModel.onDidChangeAllViewDescriptors(({ added, removed }) => {
 			this.onViewDescriptorsAdded(added, viewContainer);
 			this.onViewDescriptorsRemoved(removed);
 		}));
 		this.updateViewContainerEnablementContextKey(viewContainer);
-		this._register(viewContainerModel.onDidChangeActiveViewDescriptors(() => this.updateViewContainerEnablementContextKey(viewContainer)));
-		this._register(this.registerOpenViewContainerAction(viewContainer));
+		disposables.add(viewContainerModel.onDidChangeActiveViewDescriptors(() => this.updateViewContainerEnablementContextKey(viewContainer)));
+		disposables.add(this.registerOpenViewContainerAction(viewContainer));
+
+		this.viewContainerDisposables.set(viewContainer.id, disposables);
+	}
+
+	private onDidDeregisterViewContainer(viewContainer: ViewContainer, viewContainerLocation: ViewContainerLocation): void {
+		this.deregisterPaneComposite(viewContainer, viewContainerLocation);
+		this.viewContainerDisposables.deleteAndDispose(viewContainer.id);
 	}
 
 	private onDidChangeContainerLocation(viewContainer: ViewContainer, from: ViewContainerLocation, to: ViewContainerLocation): void {

@@ -157,7 +157,7 @@ export class WatchExpressionsView extends ViewPane {
 		let horizontalScrolling: boolean | undefined;
 		this._register(this.debugService.getViewModel().onDidSelectExpression(e => {
 			const expression = e?.expression;
-			if (expression && this.tree.hasElement(expression)) {
+			if (expression && this.tree.hasNode(expression)) {
 				horizontalScrolling = this.tree.options.horizontalScrolling;
 				if (horizontalScrolling) {
 					this.tree.updateOptions({ horizontalScrolling: false });

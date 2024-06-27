@@ -612,6 +612,9 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 			provideInlineCompletions: async (model: ITextModel, position: EditorPosition, context: languages.InlineCompletionContext, token: CancellationToken): Promise<IdentifiableInlineCompletions | undefined> => {
 				return this._proxy.$provideInlineCompletions(handle, model.uri, position, context, token);
 			},
+			provideInlineEdits: async (model: ITextModel, range: EditorRange, context: languages.InlineCompletionContext, token: CancellationToken): Promise<IdentifiableInlineCompletions | undefined> => {
+				return this._proxy.$provideInlineEdits(handle, model.uri, range, context, token);
+			},
 			handleItemDidShow: async (completions: IdentifiableInlineCompletions, item: IdentifiableInlineCompletion, updatedInsertText: string): Promise<void> => {
 				if (supportsHandleEvents) {
 					await this._proxy.$handleInlineCompletionDidShow(handle, completions.pid, item.idx, updatedInsertText);

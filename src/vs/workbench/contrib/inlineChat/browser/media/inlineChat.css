@@ -13,16 +13,14 @@
 
 .monaco-workbench .inline-chat {
 	color: inherit;
-	padding: 0 8px 8px 8px;
 	border-radius: 4px;
 	border: 1px solid var(--vscode-inlineChat-border);
 	box-shadow: 0 2px 4px 0 var(--vscode-widget-shadow);
-	margin-top: 8px;
 	background: var(--vscode-inlineChat-background);
 }
 
-.monaco-workbench .inline-chat.toolbar {
-	padding-bottom: 4px;
+.monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-input-part {
+	padding: 4px 6px 0 6px;
 }
 
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-input-part .interactive-execute-toolbar {
@@ -39,16 +37,29 @@
 }
 
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-list .interactive-item-container.interactive-item-compact {
-	padding: 6px 0;
 	gap: 6px;
+	padding-top: 2px;
+	padding-right: 20px;
+	padding-left: 6px;
 }
 
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-list .interactive-item-container.interactive-item-compact .header .avatar {
 	outline-offset: -1px;
 }
 
+.monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-list .interactive-item-container.interactive-item-compact .chat-notification-widget {
+	margin-bottom: 0;
+	padding: 0;
+	border: none;
+}
+
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-list .interactive-request {
 	border: none;
+}
+
+.monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-list .interactive-item-container.minimal > .header {
+	top: 5px;
+	right: 10px;
 }
 
 /* progress bit */
@@ -64,11 +75,11 @@
 
 /* status */
 
-.monaco-workbench .inline-chat .status {
+.monaco-workbench .inline-chat > .status {
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
-	margin-top: 3px; /*makes space for action focus borders: https://github.com/microsoft/vscode-copilot/issues/5814 */
+	padding: 4px 6px 0 6px
 }
 
 .monaco-workbench .inline-chat .status .actions.hidden {
@@ -79,7 +90,8 @@
 	overflow: hidden;
 	color: var(--vscode-descriptionForeground);
 	font-size: 11px;
-	display: inline-flex;
+	display: flex;
+	white-space: nowrap;
 }
 
 .monaco-workbench .inline-chat .status .label.info {
@@ -104,7 +116,7 @@
 }
 
 .monaco-workbench .inline-chat .status .label > .codicon {
-	padding: 0 5px;
+	padding: 0 3px;
 	font-size: 12px;
 	line-height: 18px;
 }
@@ -141,25 +153,56 @@
 	display: none;
 }
 
-.monaco-workbench .inline-chat .status .actions {
+.monaco-workbench .inline-chat .status .actions,
+.monaco-workbench .inline-chat-content-widget .toolbar  {
+
 	display: flex;
-	padding-top: 3px;
+	height: 18px;
+
+	.actions-container {
+		gap: 3px
+	}
+
+	.action-item.text-only .action-label {
+		font-size: 12px;
+		line-height: 16px;
+		padding: 0 4px;
+		border-radius: 2px;
+	}
+
+	.monaco-action-bar .action-item.menu-entry.text-only + .action-item:not(.text-only) > .monaco-dropdown .action-label {
+		font-size: 12px;
+		line-height: 16px;
+		width: unset;
+		height: unset;
+	}
 }
 
-.monaco-workbench .inline-chat .status .actions .action-item.text-only .action-label,
-.monaco-workbench .inline-chat-content-widget .status .actions .action-item.text-only .action-label {
-	font-size: 12px;
-	line-height: 16px;
-	padding: 2px;
-	margin: 2px 0;
-	border-radius: 2px;
+.monaco-workbench .inline-chat .status .actions,
+.monaco-workbench .inline-chat-content-widget.contents .toolbar  {
+
+	.monaco-action-bar .action-item.menu-entry.text-only:first-of-type .action-label{
+		color: var(--vscode-button-foreground);
+		background-color: var(--vscode-button-background);
+	}
 }
 
-.monaco-action-bar .action-item.menu-entry.text-only + .action-item:not(.text-only) > .monaco-dropdown .action-label {
-	font-size: 12px;
-	line-height: 16px;
-	width: unset;
-	height: unset;
+.monaco-workbench .inline-chat .status {
+	.actions.text-style {
+		display: none;
+	}
+	.actions.button-style {
+		display: inherit;
+	}
+}
+
+.monaco-workbench .inline-chat .status.text {
+	.actions.text-style {
+		display: inherit;
+	}
+	.actions.button-style {
+		display: none;
+	}
 }
 
 .monaco-workbench .inline-chat .status .actions > .monaco-button,

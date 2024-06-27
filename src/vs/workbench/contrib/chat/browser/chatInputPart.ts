@@ -549,6 +549,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (items && items.length > 0) {
 			this.followupsDisposables.add(this.instantiationService.createInstance<typeof ChatFollowups<IChatFollowup>, ChatFollowups<IChatFollowup>>(ChatFollowups, this.followupsContainer, items, this.location, undefined, followup => this._onDidAcceptFollowup.fire({ followup, response })));
 		}
+		this._onDidChangeHeight.fire();
 	}
 
 	get contentHeight(): number {
