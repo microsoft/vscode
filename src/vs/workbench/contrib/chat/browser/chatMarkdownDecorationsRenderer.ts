@@ -87,7 +87,9 @@ export class ChatMarkdownDecorationsRenderer {
 			if (part instanceof ChatRequestTextPart) {
 				result += part.text;
 			} else if (part instanceof ChatRequestAgentPart) {
-				result += this.instantiationService.invokeFunction(accessor => agentToMarkdown(part.agent, false, accessor));
+				if (!part.agent.isDefault) {
+					result += this.instantiationService.invokeFunction(accessor => agentToMarkdown(part.agent, false, accessor));
+				}
 			} else {
 				const uri = part instanceof ChatRequestDynamicVariablePart && part.data instanceof URI ?
 					part.data :

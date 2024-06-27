@@ -81,6 +81,10 @@ export class ChatRequestAgentPart implements IParsedChatRequestPart {
 	get promptText(): string {
 		return '';
 	}
+
+	get isSynthetic(): boolean {
+		return this.range.length === 0;
+	}
 }
 
 /**

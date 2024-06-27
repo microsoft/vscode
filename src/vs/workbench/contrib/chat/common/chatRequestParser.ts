@@ -31,6 +31,11 @@ export class ChatRequestParser {
 		const parts: IParsedChatRequestPart[] = [];
 		const references = this.variableService.getDynamicVariables(sessionId); // must access this list before any async calls
 
+		const defaultAgent = this.agentService.getDefaultAgent(location);
+		if (defaultAgent) {
+			parts.push(new ChatRequestAgentPart(OffsetRange.ofLength(0), new Range(1, 1, 1, 1), defaultAgent));
+		}
+
 		let lineNumber = 1;
 		let column = 1;
 		for (let i = 0; i < message.length; i++) {
@@ -90,10 +95,15 @@ export class ChatRequestParser {
 		};
 	}
 
-	private tryToParseAgent(message: string, fullMessage: string, offset: number, position: IPosition, parts: ReadonlyArray<IParsedChatRequestPart>, location: ChatAgentLocation, context: IChatParserContext | undefined): ChatRequestAgentPart | ChatRequestVariablePart | undefined {
+	private tryToParseAgent(message: string, fullMessage: string, offset: number, position: IPosition, parts: Array<IParsedChatRequestPart>, location: ChatAgentLocation, context: IChatParserContext | undefined): ChatRequestAgentPart | ChatRequestVariablePart | undefined {
 		const nextAgentMatch = message.match(agentReg);
 		if (!nextAgentMatch) {
 			return;
+		}
+
+		const syntheticDefaultAgent = parts.findIndex(candidate => candidate instanceof ChatRequestAgentPart && candidate.isSynthetic);
+		if (syntheticDefaultAgent >= 0) {
+			parts.splice(syntheticDefaultAgent, 1);
 		}
 
 		const [full, name] = nextAgentMatch;
