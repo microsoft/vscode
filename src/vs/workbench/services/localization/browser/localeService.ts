@@ -14,19 +14,50 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ILogService } from 'vs/platform/log/common/log';
+import { getCookieValue } from 'vs/base/browser/dom';
 
 const localeStorage = new class LocaleStorage {
 
 	private static readonly LOCAL_STORAGE_LOCALE_KEY = 'vscode.nls.locale';
 	private static readonly LOCAL_STORAGE_EXTENSION_ID_KEY = 'vscode.nls.languagePackExtensionId';
 
+	constructor() {
+		this.migrateCookie(); // TODO@bpasero remove me eventually
+	}
+
+	private migrateCookie(): void {
+		const localeCookieValue = getCookieValue(LocaleStorage.LOCAL_STORAGE_LOCALE_KEY);
+		const localeStorageValue = localStorage.getItem(LocaleStorage.LOCAL_STORAGE_LOCALE_KEY);
+
+		if (
+			(typeof localeCookieValue !== 'string' && typeof localeStorageValue !== 'string') ||
+			(localeCookieValue === localeStorageValue)
+		) {
+			return; // already matching
+		}
+
+		if (typeof localeStorageValue === 'string') {
+			this.doSetLocaleToCookie(localeStorageValue);
+		} else {
+			this.doClearLocaleToCookie();
+		}
+	}
+
 	setLocale(locale: string): void {
 		localStorage.setItem(LocaleStorage.LOCAL_STORAGE_LOCALE_KEY, locale);
+		this.doSetLocaleToCookie(locale);
+	}
+
+	private doSetLocaleToCookie(locale: string): void {
 		document.cookie = `${LocaleStorage.LOCAL_STORAGE_LOCALE_KEY}=${locale};path=/;max-age=3153600000`;
 	}
 
 	clearLocale(): void {
 		localStorage.removeItem(LocaleStorage.LOCAL_STORAGE_LOCALE_KEY);
+		this.doClearLocaleToCookie();
+	}
+
+	private doClearLocaleToCookie(): void {
 		document.cookie = `${LocaleStorage.LOCAL_STORAGE_LOCALE_KEY}=;path=/;max-age=0`;
 	}
 
