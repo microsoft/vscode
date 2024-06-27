@@ -975,11 +975,17 @@ export class Repository implements Disposable {
 		this.setCountBadge();
 
 		window.onDidEndTerminalShellExecution(e => {
-			if (!e.execution.commandLine.value.match(/^git\s?/) || !e.execution.cwd) {
+			const [executable, subcommand, ..._args] = e.execution.commandLine.value.split(' ');
+			if (executable !== 'git' || !e.execution.cwd || !e.execution.cwd.path.startsWith(this.root)) {
 				return;
 			}
-			if (e.exitCode === 0 && e.execution.cwd.path.startsWith(this.root)) {
-				this.refresh();
+			switch (subcommand) {
+				case 'fetch':
+				case 'pull': {
+					if (e.exitCode === 0) {
+						this.refresh();
+					}
+				}
 			}
 		});
 	}
