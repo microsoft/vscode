@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { forEachEmbeddedCode } from '@volar/language-core';
-import type { LanguagePlugin, TypeScriptExtraServiceScript } from '@volar/language-server';
+import type { LanguagePlugin } from '@volar/language-server';
+import type { TypeScriptExtraServiceScript } from '@volar/typescript';
 import type * as ts from 'typescript';
 import { URI } from 'vscode-uri';
 import { HTMLVirtualCode } from './virtualCode';
