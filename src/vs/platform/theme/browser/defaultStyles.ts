@@ -176,7 +176,7 @@ export const defaultListStyles: IListStyles = {
 	treeInactiveIndentGuidesStroke: asCssVariable(treeInactiveIndentGuidesStroke),
 	treeStickyScrollBackground: undefined,
 	treeStickyScrollBorder: undefined,
-	treeStickyScrollShadow: undefined,
+	treeStickyScrollShadow: asCssVariable(scrollbarShadow),
 	tableColumnsBorder: asCssVariable(tableColumnsBorder),
 	tableOddRowsBackgroundColor: asCssVariable(tableOddRowsBackgroundColor),
 };
