@@ -22,7 +22,7 @@ import { IEditorPane, IEditorPaneWithSelection } from 'vs/workbench/common/edito
 import { CellViewModelStateChangeEvent, NotebookCellStateChangedEvent, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellKind, ICellOutput, INotebookCellStatusBarItem, INotebookRendererInfo, INotebookSearchOptions, IOrderedMimeType, NotebookCellInternalMetadata, NotebookCellMetadata, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, ICellOutput, INotebookCellStatusBarItem, INotebookRendererInfo, INotebookFindOptions, IOrderedMimeType, NotebookCellInternalMetadata, NotebookCellMetadata, NOTEBOOK_EDITOR_ID, REPL_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { isCompositeNotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
@@ -383,6 +383,7 @@ export interface INotebookEditorCreationOptions {
 	};
 	readonly options?: NotebookOptions;
 	readonly codeWindow?: CodeWindow;
+	readonly forRepl?: boolean;
 }
 
 export interface INotebookWebviewMessage {
@@ -448,7 +449,7 @@ export interface INotebookViewCellsUpdateEvent {
 
 export interface INotebookViewModel {
 	notebookDocument: NotebookTextModel;
-	viewCells: ICellViewModel[];
+	readonly viewCells: ICellViewModel[];
 	layoutInfo: NotebookLayoutInfo | null;
 	onDidChangeViewCells: Event<INotebookViewCellsUpdateEvent>;
 	onDidChangeSelection: Event<string>;
@@ -737,7 +738,7 @@ export interface INotebookEditor {
 	getCellIndex(cell: ICellViewModel): number | undefined;
 	getNextVisibleCellIndex(index: number): number | undefined;
 	getPreviousVisibleCellIndex(index: number): number | undefined;
-	find(query: string, options: INotebookSearchOptions, token: CancellationToken, skipWarmup?: boolean, shouldGetSearchPreviewInfo?: boolean, ownerID?: string): Promise<CellFindMatchWithIndex[]>;
+	find(query: string, options: INotebookFindOptions, token: CancellationToken, skipWarmup?: boolean, shouldGetSearchPreviewInfo?: boolean, ownerID?: string): Promise<CellFindMatchWithIndex[]>;
 	findHighlightCurrent(matchIndex: number, ownerID?: string): Promise<number>;
 	findUnHighlightCurrent(matchIndex: number, ownerID?: string): Promise<void>;
 	findStop(ownerID?: string): void;
@@ -878,7 +879,9 @@ export function getNotebookEditorFromEditorPane(editorPane?: IEditorPane): INote
 
 	const input = editorPane.input;
 
-	if (input && isCompositeNotebookEditorInput(input)) {
+	const isInteractiveEditor = input && isCompositeNotebookEditorInput(input);
+
+	if (isInteractiveEditor || editorPane.getId() === REPL_EDITOR_ID) {
 		return (editorPane.getControl() as { notebookEditor: INotebookEditor | undefined } | undefined)?.notebookEditor;
 	}
 

@@ -25,19 +25,19 @@ import { localize } from 'vs/nls';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { IWorkbenchButtonBarOptions, MenuWorkbenchButtonBar } from 'vs/platform/actions/browser/buttonbar';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
-import { MenuId } from 'vs/platform/actions/common/actions';
+import { MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { asCssVariable, asCssVariableName, editorBackground, editorForeground, inputBackground } from 'vs/platform/theme/common/colorRegistry';
+import { asCssVariable, asCssVariableName, editorBackground, inputBackground } from 'vs/platform/theme/common/colorRegistry';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IAccessibleViewService } from 'vs/platform/accessibility/browser/accessibleView';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 import { ChatModel, IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
-import { isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { HunkInformation, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
-import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_FOCUSED, inlineChatBackground } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_FOCUSED, inlineChatBackground, InlineChatConfigKeys, inlineChatForeground } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { chatRequestBackground } from 'vs/workbench/contrib/chat/common/chatColors';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -47,7 +47,8 @@ import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { IChatListItemRendererOptions } from 'vs/workbench/contrib/chat/browser/chat';
+import { IChatWidgetViewOptions } from 'vs/workbench/contrib/chat/browser/chat';
+import { TextOnlyMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 
 
 export interface InlineChatWidgetViewState {
@@ -57,30 +58,16 @@ export interface InlineChatWidgetViewState {
 }
 
 export interface IInlineChatWidgetConstructionOptions {
-	/**
-	 * The telemetry source for all commands of this widget
-	 */
-	telemetrySource: string;
-	/**
-	 * The menu that is inside the input editor, use for send, dictation
-	 */
-	inputMenuId: MenuId;
-	/**
-	 * The menu that next to the input editor, use for close, config etc
-	 */
-	widgetMenuId: MenuId;
+
 	/**
 	 * The menu that rendered as button bar, use for accept, discard etc
 	 */
 	statusMenuId: MenuId | { menu: MenuId; options: IWorkbenchButtonBarOptions };
+
 	/**
-	 * The men that rendered in the lower right corner, use for feedback
+	 * The options for the chat widget
 	 */
-	feedbackMenuId?: MenuId;
-
-	editorOverflowWidgetsDomNode?: HTMLElement;
-
-	rendererOptions?: IChatListItemRendererOptions;
+	chatWidgetViewOptions?: IChatWidgetViewOptions;
 }
 
 export interface IInlineChatMessage {
@@ -101,14 +88,13 @@ export class InlineChatWidget {
 		[
 			h('div.chat-widget@chatWidget'),
 			h('div.progress@progress'),
-			h('div.followUps.hidden@followUps'),
 			h('div.previewDiff.hidden@previewDiff'),
 			h('div.accessibleViewer@accessibleViewer'),
 			h('div.status@status', [
 				h('div.label.info.hidden@infoLabel'),
-				h('div.actions.hidden@statusToolbar'),
+				h('div.actions.text-style.hidden@toolbar1'),
+				h('div.actions.button-style.hidden@toolbar2'),
 				h('div.label.status.hidden@statusLabel'),
-				h('div.actions.hidden@feedbackToolbar'),
 			]),
 		]
 	);
@@ -149,8 +135,6 @@ export class InlineChatWidget {
 		this._progressBar = new ProgressBar(this._elements.progress);
 		this._store.add(this._progressBar);
 
-		let allowRequests = false;
-
 		this.scopedContextKeyService = this._store.add(_contextKeyService.createScoped(this._elements.chatWidget));
 		const scopedInstaService = _instantiationService.createChild(
 			new ServiceCollection([
@@ -166,29 +150,15 @@ export class InlineChatWidget {
 			{ resource: true },
 			{
 				defaultElementHeight: 32,
-				renderStyle: 'compact',
-				renderInputOnTop: true,
+				renderStyle: 'minimal',
+				renderInputOnTop: false,
 				renderFollowups: true,
 				supportsFileReferences: true,
-				editorOverflowWidgetsDomNode: options.editorOverflowWidgetsDomNode,
-				rendererOptions: options.rendererOptions,
-				menus: {
-					executeToolbar: options.inputMenuId,
-					inputSideToolbar: options.widgetMenuId,
-					telemetrySource: options.telemetrySource
-				},
-				filter: item => {
-					if (isWelcomeVM(item)) {
-						return false;
-					}
-					if (isRequestVM(item)) {
-						return allowRequests;
-					}
-					return true;
-				},
+				filter: item => !isWelcomeVM(item),
+				...options.chatWidgetViewOptions
 			},
 			{
-				listForeground: editorForeground,
+				listForeground: inlineChatForeground,
 				listBackground: inlineChatBackground,
 				inputEditorBackground: inputBackground,
 				resultEditorBackground: editorBackground
@@ -198,34 +168,6 @@ export class InlineChatWidget {
 		this._elements.chatWidget.style.setProperty(asCssVariableName(chatRequestBackground), asCssVariable(inlineChatBackground));
 		this._chatWidget.setVisible(true);
 		this._store.add(this._chatWidget);
-
-		const viewModelListener = this._store.add(new MutableDisposable());
-		this._store.add(this._chatWidget.onDidChangeViewModel(() => {
-			const model = this._chatWidget.viewModel;
-
-			if (!model) {
-				allowRequests = false;
-				viewModelListener.clear();
-				return;
-			}
-
-			const updateAllowRequestsFilter = () => {
-				let requestCount = 0;
-				for (const item of model.getItems()) {
-					if (isRequestVM(item)) {
-						if (++requestCount >= 2) {
-							break;
-						}
-					}
-				}
-				const newAllowRequest = requestCount >= 2;
-				if (newAllowRequest !== allowRequests) {
-					allowRequests = newAllowRequest;
-					this._chatWidget.refilter();
-				}
-			};
-			viewModelListener.value = model.onDidChange(updateAllowRequestsFilter);
-		}));
 
 		const viewModelStore = this._store.add(new DisposableStore());
 		this._store.add(this._chatWidget.onDidChangeViewModel(() => {
@@ -252,26 +194,35 @@ export class InlineChatWidget {
 		this._store.add(this._chatWidget.inputEditor.onDidBlurEditorWidget(() => this._ctxInputEditorFocused.set(false)));
 
 		const statusMenuId = options.statusMenuId instanceof MenuId ? options.statusMenuId : options.statusMenuId.menu;
-		const statusMenuOptions = options.statusMenuId instanceof MenuId ? undefined : options.statusMenuId.options;
 
-		const statusButtonBar = this._instantiationService.createInstance(MenuWorkbenchButtonBar, this._elements.statusToolbar, statusMenuId, statusMenuOptions);
+		// TEXT-ONLY bar
+		const statusToolbarMenu = scopedInstaService.createInstance(MenuWorkbenchToolBar, this._elements.toolbar1, statusMenuId, {
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
+			telemetrySource: options.chatWidgetViewOptions?.menus?.telemetrySource,
+			actionViewItemProvider: action => action instanceof MenuItemAction ? this._instantiationService.createInstance(TextOnlyMenuEntryActionViewItem, action, { conversational: true }) : undefined,
+			toolbarOptions: { primaryGroup: '0_main' },
+			menuOptions: { renderShortTitle: true },
+			label: true,
+			icon: false
+		});
+		this._store.add(statusToolbarMenu.onDidChangeMenuItems(() => this._onDidChangeHeight.fire()));
+		this._store.add(statusToolbarMenu);
+
+		// BUTTON bar
+		const statusMenuOptions = options.statusMenuId instanceof MenuId ? undefined : options.statusMenuId.options;
+		const statusButtonBar = scopedInstaService.createInstance(MenuWorkbenchButtonBar, this._elements.toolbar2, statusMenuId, {
+			toolbarOptions: { primaryGroup: '0_main' },
+			telemetrySource: options.chatWidgetViewOptions?.menus?.telemetrySource,
+			menuOptions: { renderShortTitle: true },
+			...statusMenuOptions,
+		});
 		this._store.add(statusButtonBar.onDidChange(() => this._onDidChangeHeight.fire()));
 		this._store.add(statusButtonBar);
 
+		const toggleToolbar = () => this._elements.status.classList.toggle('text', this._configurationService.getValue(InlineChatConfigKeys.ExpTextButtons));
+		this._store.add(this._configurationService.onDidChangeConfiguration(e => e.affectsConfiguration(InlineChatConfigKeys.ExpTextButtons) && toggleToolbar()));
+		toggleToolbar();
 
-		const workbenchToolbarOptions = {
-			hiddenItemStrategy: HiddenItemStrategy.NoHide,
-			toolbarOptions: {
-				primaryGroup: () => true,
-				useSeparatorsInPrimaryActions: true
-			}
-		};
-
-		if (options.feedbackMenuId) {
-			const feedbackToolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.feedbackToolbar, options.feedbackMenuId, { ...workbenchToolbarOptions, hiddenItemStrategy: HiddenItemStrategy.Ignore });
-			this._store.add(feedbackToolbar.onDidChangeMenuItems(() => this._onDidChangeHeight.fire()));
-			this._store.add(feedbackToolbar);
-		}
 
 		this._store.add(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AccessibilityVerbositySettingId.InlineChat)) {
@@ -280,12 +231,11 @@ export class InlineChatWidget {
 		}));
 
 		this._elements.root.tabIndex = 0;
-		this._elements.followUps.tabIndex = 0;
 		this._elements.statusLabel.tabIndex = 0;
 		this._updateAriaLabel();
 
 		// this._elements.status
-		this._store.add(this._hoverService.setupUpdatableHover(getDefaultHoverDelegate('element'), this._elements.statusLabel, () => {
+		this._store.add(this._hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this._elements.statusLabel, () => {
 			return this._elements.statusLabel.dataset['title'];
 		}));
 
@@ -347,7 +297,6 @@ export class InlineChatWidget {
 	protected _doLayout(dimension: Dimension): void {
 		const extraHeight = this._getExtraHeight();
 		const progressHeight = getTotalHeight(this._elements.progress);
-		const followUpsHeight = getTotalHeight(this._elements.followUps);
 		const statusHeight = getTotalHeight(this._elements.status);
 
 		// console.log('ZONE#Widget#layout', { height: dimension.height, extraHeight, progressHeight, followUpsHeight, statusHeight, LIST: dimension.height - progressHeight - followUpsHeight - statusHeight - extraHeight });
@@ -357,7 +306,7 @@ export class InlineChatWidget {
 		this._elements.progress.style.width = `${dimension.width}px`;
 
 		this._chatWidget.layout(
-			dimension.height - progressHeight - followUpsHeight - statusHeight - extraHeight,
+			dimension.height - progressHeight - statusHeight - extraHeight,
 			dimension.width
 		);
 	}
@@ -367,13 +316,12 @@ export class InlineChatWidget {
 	 */
 	get contentHeight(): number {
 		const data = {
-			followUpsHeight: getTotalHeight(this._elements.followUps),
 			chatWidgetContentHeight: this._chatWidget.contentHeight,
 			progressHeight: getTotalHeight(this._elements.progress),
 			statusHeight: getTotalHeight(this._elements.status),
 			extraHeight: this._getExtraHeight()
 		};
-		const result = data.progressHeight + data.chatWidgetContentHeight + data.followUpsHeight + data.statusHeight + data.extraHeight;
+		const result = data.progressHeight + data.chatWidgetContentHeight + data.statusHeight + data.extraHeight;
 		return result;
 	}
 
@@ -396,7 +344,7 @@ export class InlineChatWidget {
 	}
 
 	protected _getExtraHeight(): number {
-		return 12 /* padding */ + 2 /*border*/ + 12 /*shadow*/;
+		return 4 /* padding */ + 2 /*border*/ + 4 /*shadow*/;
 	}
 
 	updateProgress(show: boolean) {
@@ -436,8 +384,9 @@ export class InlineChatWidget {
 	}
 
 	updateToolbar(show: boolean) {
-		this._elements.statusToolbar.classList.toggle('hidden', !show);
-		this._elements.feedbackToolbar.classList.toggle('hidden', !show);
+		this._elements.root.classList.toggle('toolbar', show);
+		this._elements.toolbar1.classList.toggle('hidden', !show);
+		this._elements.toolbar2.classList.toggle('hidden', !show);
 		this._elements.status.classList.toggle('actions', show);
 		this._elements.infoLabel.classList.toggle('hidden', show);
 		this._onDidChangeHeight.fire();
@@ -448,12 +397,12 @@ export class InlineChatWidget {
 		if (!viewModel) {
 			return undefined;
 		}
-		for (const item of viewModel.getItems()) {
-			if (isResponseVM(item)) {
-				return viewModel.codeBlockModelCollection.get(viewModel.sessionId, item, codeBlockIndex)?.model;
-			}
+		const items = viewModel.getItems().filter(i => isResponseVM(i));
+		if (!items.length) {
+			return;
 		}
-		return undefined;
+		const item = items[items.length - 1];
+		return viewModel.codeBlockModelCollection.get(viewModel.sessionId, item, codeBlockIndex)?.model;
 	}
 
 	get responseContent(): string | undefined {
@@ -464,9 +413,6 @@ export class InlineChatWidget {
 		return tail(requests)?.response?.response.asString();
 	}
 
-	get usesDefaultChatModel(): boolean {
-		return this.getChatModel() === this._defaultChatModel;
-	}
 
 	getChatModel(): IChatModel {
 		return this._chatWidget.viewModel?.model ?? this._defaultChatModel;
@@ -482,7 +428,7 @@ export class InlineChatWidget {
 	 */
 	addToHistory(input: string) {
 		if (this._chatWidget.viewModel?.model === this._defaultChatModel) {
-			this._chatWidget.input.acceptInput(input);
+			this._chatWidget.input.acceptInput(true);
 		}
 	}
 
@@ -570,9 +516,11 @@ export class InlineChatWidget {
 
 		reset(this._elements.statusLabel);
 		this._elements.statusLabel.classList.toggle('hidden', true);
-		this._elements.statusToolbar.classList.add('hidden');
-		this._elements.feedbackToolbar.classList.add('hidden');
+		this._elements.toolbar1.classList.add('hidden');
+		this._elements.toolbar2.classList.add('hidden');
 		this.updateInfo('');
+
+		this.chatWidget.setModel(this._defaultChatModel, {});
 
 		this._elements.accessibleViewer.classList.toggle('hidden', true);
 		this._onDidChangeHeight.fire();
@@ -608,10 +556,20 @@ export class EditorBasedInlineChatWidget extends InlineChatWidget {
 		@IChatService chatService: IChatService,
 		@IHoverService hoverService: IHoverService,
 	) {
-		super(location, { ...options, editorOverflowWidgetsDomNode: _parentEditor.getOverflowWidgetsDomNode() }, instantiationService, contextKeyService, keybindingService, accessibilityService, configurationService, accessibleViewService, textModelResolverService, chatService, hoverService);
+		super(location, { ...options, chatWidgetViewOptions: { ...options.chatWidgetViewOptions, editorOverflowWidgetsDomNode: _parentEditor.getOverflowWidgetsDomNode() } }, instantiationService, contextKeyService, keybindingService, accessibilityService, configurationService, accessibleViewService, textModelResolverService, chatService, hoverService);
 	}
 
 	// --- layout
+
+	override get contentHeight(): number {
+		let result = super.contentHeight;
+
+		if (this._accessibleViewer.value) {
+			result += this._accessibleViewer.value.height;
+		}
+
+		return result;
+	}
 
 	protected override _doLayout(dimension: Dimension): void {
 

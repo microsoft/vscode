@@ -114,7 +114,7 @@ registerTerminalAction({
 			text,
 			name: text,
 			ariaLabel: text,
-			showProgress: 'loading'
+			showProgress: true
 		};
 		const statusbarHandle = statusbarService.addEntry(statusbarEntry, 'recordSession', StatusbarAlignment.LEFT);
 		store.add(statusbarHandle);

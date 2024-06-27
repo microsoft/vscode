@@ -37,6 +37,7 @@ import { ActiveEditorAvailableEditorIdsContext, ActiveEditorContext, ActiveEdito
 import { URI } from 'vs/base/common/uri';
 import { getActiveDocument } from 'vs/base/browser/dom';
 import { ICommandActionTitle } from 'vs/platform/action/common/action';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 
 class ExecuteCommandAction extends Action2 {
 
@@ -437,7 +438,7 @@ export class UnpinEditorAction extends Action {
 	}
 }
 
-export class CloseOneEditorAction extends Action {
+export class CloseEditorTabAction extends Action {
 
 	static readonly ID = 'workbench.action.closeActiveEditor';
 	static readonly LABEL = localize('closeOneEditor', "Close");
@@ -451,33 +452,28 @@ export class CloseOneEditorAction extends Action {
 	}
 
 	override async run(context?: IEditorCommandsContext): Promise<void> {
-		let group: IEditorGroup | undefined;
-		let editorIndex: number | undefined;
-		if (context) {
-			group = this.editorGroupService.getGroup(context.groupId);
-
-			if (group) {
-				editorIndex = context.editorIndex; // only allow editor at index if group is valid
-			}
-		}
-
+		const group = context ? this.editorGroupService.getGroup(context.groupId) : this.editorGroupService.activeGroup;
 		if (!group) {
-			group = this.editorGroupService.activeGroup;
-		}
-
-		// Close specific editor in group
-		if (typeof editorIndex === 'number') {
-			const editorAtIndex = group.getEditorByIndex(editorIndex);
-			if (editorAtIndex) {
-				await group.closeEditor(editorAtIndex, { preserveFocus: context?.preserveFocus });
-				return;
-			}
-		}
-
-		// Otherwise close active editor in group
-		if (group.activeEditor) {
-			await group.closeEditor(group.activeEditor, { preserveFocus: context?.preserveFocus });
+			// group mentioned in context does not exist
 			return;
+		}
+
+		const targetEditor = context?.editorIndex !== undefined ? group.getEditorByIndex(context.editorIndex) : group.activeEditor;
+		if (!targetEditor) {
+			// No editor open or editor at index does not exist
+			return;
+		}
+
+		const editors: EditorInput[] = [];
+		if (group.isSelected(targetEditor)) {
+			editors.push(...group.selectedEditors);
+		} else {
+			editors.push(targetEditor);
+		}
+
+		// Close specific editors in group
+		for (const editor of editors) {
+			await group.closeEditor(editor, { preserveFocus: context?.preserveFocus });
 		}
 	}
 }
@@ -569,6 +565,8 @@ abstract class AbstractCloseAllAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const editorService = accessor.get(IEditorService);
+		const logService = accessor.get(ILogService);
+		const progressService = accessor.get(IProgressService);
 		const editorGroupService = accessor.get(IEditorGroupsService);
 		const filesConfigurationService = accessor.get(IFilesConfigurationService);
 		const fileDialogService = accessor.get(IFileDialogService);
@@ -641,7 +639,7 @@ abstract class AbstractCloseAllAction extends Action2 {
 				case ConfirmResult.CANCEL:
 					return;
 				case ConfirmResult.DONT_SAVE:
-					await editorService.revert(editors, { soft: true });
+					await this.revertEditors(editorService, logService, progressService, editors);
 					break;
 				case ConfirmResult.SAVE:
 					await editorService.save(editors, { reason: SaveReason.EXPLICIT });
@@ -661,7 +659,7 @@ abstract class AbstractCloseAllAction extends Action2 {
 					case ConfirmResult.CANCEL:
 						return;
 					case ConfirmResult.DONT_SAVE:
-						await editorService.revert(editors, { soft: true });
+						await this.revertEditors(editorService, logService, progressService, editors);
 						break;
 					case ConfirmResult.SAVE:
 						await editorService.save(editors, { reason: SaveReason.EXPLICIT });
@@ -689,6 +687,33 @@ abstract class AbstractCloseAllAction extends Action2 {
 		// sure to bring up another confirm dialog for those editors
 		// specifically.
 		return this.doCloseAll(editorGroupService);
+	}
+
+	private revertEditors(editorService: IEditorService, logService: ILogService, progressService: IProgressService, editors: IEditorIdentifier[]): Promise<void> {
+		return progressService.withProgress({
+			location: ProgressLocation.Window, 	// use window progress to not be too annoying about this operation
+			delay: 800,							// delay so that it only appears when operation takes a long time
+			title: localize('reverting', "Reverting Editors..."),
+		}, () => this.doRevertEditors(editorService, logService, editors));
+	}
+
+	private async doRevertEditors(editorService: IEditorService, logService: ILogService, editors: IEditorIdentifier[]): Promise<void> {
+		try {
+			// We first attempt to revert all editors with `soft: false`, to ensure that
+			// working copies revert to their state on disk. Even though we close editors,
+			// it is possible that other parties hold a reference to the working copy
+			// and expect it to be in a certain state after the editor is closed without
+			// saving.
+			await editorService.revert(editors);
+		} catch (error) {
+			logService.error(error);
+
+			// if that fails, since we are about to close the editor, we accept that
+			// the editor cannot be reverted and instead do a soft revert that just
+			// enables us to close the editor. With this, a user can always close a
+			// dirty editor even when reverting fails.
+			await editorService.revert(editors, { soft: true });
+		}
 	}
 
 	private async revealEditorsToConfirm(editors: ReadonlyArray<IEditorIdentifier>, editorGroupService: IEditorGroupsService): Promise<void> {

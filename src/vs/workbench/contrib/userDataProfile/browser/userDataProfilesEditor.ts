@@ -20,15 +20,15 @@ import { IEditorOpenContext, IEditorSerializer, IUntypedEditorInput } from 'vs/w
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IUserDataProfilesEditor } from 'vs/workbench/contrib/userDataProfile/common/userDataProfile';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { defaultUserDataProfileIcon, IProfileResourceChildTreeItem, IProfileTemplateInfo, IUserDataProfileManagementService, PROFILE_FILTER } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { defaultUserDataProfileIcon, IProfileTemplateInfo, IUserDataProfileManagementService, PROFILE_FILTER } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { Orientation, Sizing, SplitView } from 'vs/base/browser/ui/splitview/splitview';
 import { Button, ButtonWithDropdown } from 'vs/base/browser/ui/button/button';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles, defaultSelectBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { PANEL_BORDER } from 'vs/workbench/common/theme';
-import { WorkbenchAsyncDataTree, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
-import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
-import { IAsyncDataSource, IObjectTreeElement, ITreeNode, ITreeRenderer, ObjectTreeElementCollapseState } from 'vs/base/browser/ui/tree/tree';
+import { WorkbenchAsyncDataTree, WorkbenchList } from 'vs/platform/list/browser/listService';
+import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
+import { IAsyncDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
@@ -44,23 +44,19 @@ import { IHoverWidget } from 'vs/base/browser/ui/hover/hover';
 import { ISelectOptionItem, SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { URI } from 'vs/base/common/uri';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
-import { ExtensionsResourceTreeItem } from 'vs/workbench/services/userDataProfile/browser/extensionsResource';
-import { isString, isUndefined } from 'vs/base/common/types';
+import { isUndefined } from 'vs/base/common/types';
 import { basename } from 'vs/base/common/resources';
 import { RenderIndentGuides } from 'vs/base/browser/ui/tree/abstractTree';
-import { ICommandService } from 'vs/platform/commands/common/commands';
-import { API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { DEFAULT_LABELS_CONTAINER, IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { AbstractUserDataProfileElement, IProfileElement, NewProfileElement, UserDataProfileElement, UserDataProfilesEditorModel } from 'vs/workbench/contrib/userDataProfile/browser/userDataProfilesEditorModel';
+import { AbstractUserDataProfileElement, isProfileResourceChildElement, isProfileResourceTypeElement, IProfileChildElement, IProfileResourceTypeChildElement, IProfileResourceTypeElement, NewProfileElement, UserDataProfileElement, UserDataProfilesEditorModel } from 'vs/workbench/contrib/userDataProfile/browser/userDataProfilesEditorModel';
 import { Codicon } from 'vs/base/common/codicons';
 import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { createInstantHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
-export const profilesSashBorder = registerColor('profiles.sashBorder', { dark: PANEL_BORDER, light: PANEL_BORDER, hcDark: PANEL_BORDER, hcLight: PANEL_BORDER }, localize('profilesSashBorder', "The color of the Profiles editor splitview sash border."));
+export const profilesSashBorder = registerColor('profiles.sashBorder', PANEL_BORDER, localize('profilesSashBorder', "The color of the Profiles editor splitview sash border."));
 
 export class UserDataProfilesEditor extends EditorPane implements IUserDataProfilesEditor {
 
@@ -68,7 +64,7 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 
 	private container: HTMLElement | undefined;
 	private splitView: SplitView<number> | undefined;
-	private profilesTree: WorkbenchObjectTree<IProfileElement> | undefined;
+	private profilesList: WorkbenchList<AbstractUserDataProfileElement> | undefined;
 	private profileWidget: ProfileWidget | undefined;
 
 	private model: UserDataProfilesEditorModel | undefined;
@@ -81,7 +77,6 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 		@IStorageService storageService: IStorageService,
 		@IUserDataProfileManagementService private readonly userDataProfileManagementService: IUserDataProfileManagementService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IDialogService private readonly dialogService: IDialogService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -116,20 +111,21 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 		this.splitView.addView({
 			onDidChange: Event.None,
 			element: sidebarView,
-			minimumSize: 175,
+			minimumSize: 200,
 			maximumSize: 350,
 			layout: (width, _, height) => {
 				sidebarView.style.width = `${width}px`;
-				if (height && this.profilesTree) {
-					this.profilesTree.getHTMLElement().style.height = `${height - 38}px`;
-					this.profilesTree.layout(height - 38, width);
+				if (height && this.profilesList) {
+					const listHeight = height - 40 /* new profile button */ - 15 /* marginTop */;
+					this.profilesList.getHTMLElement().style.height = `${listHeight}px`;
+					this.profilesList.layout(listHeight, width);
 				}
 			}
 		}, 300, undefined, true);
 		this.splitView.addView({
 			onDidChange: Event.None,
 			element: contentsView,
-			minimumSize: 500,
+			minimumSize: 550,
 			maximumSize: Number.POSITIVE_INFINITY,
 			layout: (width, _, height) => {
 				contentsView.style.width = `${width}px`;
@@ -139,10 +135,8 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 			}
 		}, Sizing.Distribute, undefined, true);
 
-		const borderColor = this.theme.getColor(profilesSashBorder)!;
-		this.splitView.style({ separatorBorder: borderColor });
-
 		this.registerListeners();
+		this.updateStyles();
 
 		this.userDataProfileManagementService.getBuiltinProfileTemplates().then(templates => {
 			this.templates = templates;
@@ -150,15 +144,20 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 		});
 	}
 
+	override updateStyles(): void {
+		const borderColor = this.theme.getColor(profilesSashBorder)!;
+		this.splitView?.style({ separatorBorder: borderColor });
+	}
+
 	private renderSidebar(parent: HTMLElement): void {
 		// render New Profile Button
 		this.renderNewProfileButton(append(parent, $('.new-profile-button')));
 
-		// render profiles and templates tree
-		const renderer = this.instantiationService.createInstance(ProfileTreeElementRenderer);
-		const delegate = new ProfileTreeElementDelegate();
-		this.profilesTree = this._register(this.instantiationService.createInstance(WorkbenchObjectTree<IProfileElement>, 'ProfilesTree',
-			append(parent, $('.profiles-tree')),
+		// render profiles list
+		const renderer = this.instantiationService.createInstance(ProfileElementRenderer);
+		const delegate = new ProfileElementDelegate();
+		this.profilesList = this._register(this.instantiationService.createInstance(WorkbenchList<AbstractUserDataProfileElement>, 'ProfilesList',
+			append(parent, $('.profiles-list')),
 			delegate,
 			[renderer],
 			{
@@ -166,15 +165,14 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 				setRowLineHeight: false,
 				horizontalScrolling: false,
 				accessibilityProvider: {
-					getAriaLabel(extensionFeature: IProfileElement | null): string {
-						return extensionFeature?.name ?? '';
+					getAriaLabel(profileElement: AbstractUserDataProfileElement | null): string {
+						return profileElement?.name ?? '';
 					},
 					getWidgetAriaLabel(): string {
 						return localize('profiles', "Profiles");
 					}
 				},
 				openOnSingleClick: true,
-				enableStickyScroll: false,
 				identityProvider: {
 					getId(e) {
 						if (e instanceof UserDataProfileElement) {
@@ -192,10 +190,7 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 				getActions: () => {
 					const actions: IAction[] = [];
 					if (this.templates.length) {
-						actions.push(new SubmenuAction('from.template', localize('from template', "From Template"),
-							this.templates.map(template => new Action(`template:${template.url}`, template.name, undefined, true, async () => {
-								this.createNewProfile(URI.parse(template.url));
-							}))));
+						actions.push(new SubmenuAction('from.template', localize('from template', "From Template"), this.getCreateFromTemplateActions()));
 						actions.push(new Separator());
 					}
 					actions.push(new Action('importProfile', localize('importProfile', "Import Profile..."), undefined, true, () => this.importProfile()));
@@ -207,29 +202,58 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 			supportIcons: true,
 			...defaultButtonStyles
 		}));
-		button.label = `$(add) ${localize('newProfile', "New Profile")}`;
+		button.label = localize('newProfile', "New Profile");
 		this._register(button.onDidClick(e => this.createNewProfile()));
 	}
 
+	private getCreateFromTemplateActions(): IAction[] {
+		return this.templates.map(template => new Action(`template:${template.url}`, template.name, undefined, true, async () => {
+			this.createNewProfile(URI.parse(template.url));
+		}));
+	}
+
 	private registerListeners(): void {
-		if (this.profilesTree) {
-			this._register(this.profilesTree.onDidChangeSelection(e => {
+		if (this.profilesList) {
+			this._register(this.profilesList.onDidChangeSelection(e => {
 				const [element] = e.elements;
 				if (element instanceof AbstractUserDataProfileElement) {
 					this.profileWidget?.render(element);
 				}
 			}));
-
-			this._register(this.profilesTree.onContextMenu(e => {
+			this._register(this.profilesList.onContextMenu(e => {
+				const actions: IAction[] = [];
+				if (!e.element) {
+					actions.push(...this.getTreeContextMenuActions());
+				}
 				if (e.element instanceof AbstractUserDataProfileElement) {
+					actions.push(...e.element.actions[1]);
+				}
+				if (actions.length) {
 					this.contextMenuService.showContextMenu({
 						getAnchor: () => e.anchor,
-						getActions: () => e.element instanceof AbstractUserDataProfileElement ? e.element.contextMenuActions.slice(0) : [],
+						getActions: () => actions,
 						getActionsContext: () => e.element
 					});
 				}
 			}));
+			this._register(this.profilesList.onMouseDblClick(e => {
+				if (!e.element) {
+					this.createNewProfile();
+				}
+			}));
 		}
+	}
+
+	private getTreeContextMenuActions(): IAction[] {
+		const actions: IAction[] = [];
+		actions.push(new Action('newProfile', localize('newProfile', "New Profile"), undefined, true, () => this.createNewProfile()));
+		const templateActions = this.getCreateFromTemplateActions();
+		if (templateActions.length) {
+			actions.push(new SubmenuAction('from.template', localize('new from template', "New Profile From Template"), templateActions));
+		}
+		actions.push(new Separator());
+		actions.push(new Action('importProfile', localize('importProfile', "Import Profile..."), undefined, true, () => this.importProfile()));
+		return actions;
 	}
 
 	private async importProfile(): Promise<void> {
@@ -268,19 +292,7 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 	}
 
 	private async createNewProfile(copyFrom?: URI | IUserDataProfile): Promise<void> {
-		if (this.model?.profiles.some(p => p instanceof NewProfileElement)) {
-			const result = await this.dialogService.confirm({
-				type: 'info',
-				message: localize('new profile exists', "A new profile is already being created. Do you want to discard it and create a new one?"),
-				primaryButton: localize('discard', "Discard & Create"),
-				cancelButton: localize('cancel', "Cancel")
-			});
-			if (!result.confirmed) {
-				return;
-			}
-			this.model.revert();
-		}
-		this.model?.createNewProfile(copyFrom);
+		await this.model?.createNewProfile(copyFrom);
 	}
 
 	private async getProfileUriFromFileSystem(): Promise<URI | null> {
@@ -300,91 +312,100 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 	override async setInput(input: UserDataProfilesEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
 		this.model = await input.resolve();
-		this.updateProfilesTree();
+		this.updateProfilesList();
 		this._register(this.model.onDidChange((element) => {
-			this.updateProfilesTree(element);
+			this.updateProfilesList(element);
 		}));
 	}
 
 	override focus(): void {
 		super.focus();
-		this.profilesTree?.domFocus();
+		this.profilesList?.domFocus();
 	}
 
-	private updateProfilesTree(elementToSelect?: IProfileElement): void {
+	private updateProfilesList(elementToSelect?: AbstractUserDataProfileElement): void {
 		if (!this.model) {
 			return;
 		}
-		const profileElements: IObjectTreeElement<IProfileElement>[] = this.model.profiles.map(element => ({ element }));
-		const currentSelection = this.profilesTree?.getSelection()?.[0];
-		this.profilesTree?.setChildren(null, [
-			{
-				element: { name: localize('profiles', "Profiles") },
-				children: profileElements,
-				collapsible: false,
-				collapsed: ObjectTreeElementCollapseState.Expanded
-			}
-		]);
+		const currentSelectionIndex = this.profilesList?.getSelection()?.[0];
+		const currentSelection = currentSelectionIndex !== undefined ? this.profilesList?.element(currentSelectionIndex) : undefined;
+		this.profilesList?.splice(0, this.profilesList.length, this.model.profiles);
+
 		if (elementToSelect) {
-			this.profilesTree?.setSelection([elementToSelect]);
+			this.profilesList?.setSelection([this.model.profiles.indexOf(elementToSelect)]);
 		} else if (currentSelection) {
-			if (currentSelection instanceof AbstractUserDataProfileElement) {
-				if (!this.model.profiles.includes(currentSelection)) {
-					const elementToSelect = this.model.profiles.find(profile => profile.name === currentSelection.name) ?? this.model.profiles[0];
-					if (elementToSelect) {
-						this.profilesTree?.setSelection([elementToSelect]);
-					}
+			if (!this.model.profiles.includes(currentSelection)) {
+				const elementToSelect = this.model.profiles.find(profile => profile.name === currentSelection.name) ?? this.model.profiles[0];
+				if (elementToSelect) {
+					this.profilesList?.setSelection([this.model.profiles.indexOf(elementToSelect)]);
 				}
 			}
 		} else {
 			const elementToSelect = this.model.profiles.find(profile => profile.active) ?? this.model.profiles[0];
 			if (elementToSelect) {
-				this.profilesTree?.setSelection([elementToSelect]);
+				this.profilesList?.setSelection([this.model.profiles.indexOf(elementToSelect)]);
 			}
 		}
 	}
 
 }
 
-interface IProfileTreeElementTemplateData {
+interface IProfileElementTemplateData {
 	readonly icon: HTMLElement;
 	readonly label: HTMLElement;
 	readonly description: HTMLElement;
+	readonly actionBar: WorkbenchToolBar;
 	readonly disposables: DisposableStore;
+	readonly elementDisposables: DisposableStore;
 }
 
-class ProfileTreeElementDelegate implements IListVirtualDelegate<IProfileElement> {
-	getHeight(element: IProfileElement) {
-		return 30;
+class ProfileElementDelegate implements IListVirtualDelegate<AbstractUserDataProfileElement> {
+	getHeight(element: AbstractUserDataProfileElement) {
+		return 22;
 	}
-	getTemplateId() { return 'profileTreeElement'; }
+	getTemplateId() { return 'profileListElement'; }
 }
 
-class ProfileTreeElementRenderer implements ITreeRenderer<IProfileElement, void, IProfileTreeElementTemplateData> {
+class ProfileElementRenderer implements IListRenderer<AbstractUserDataProfileElement, IProfileElementTemplateData> {
 
-	readonly templateId = 'profileTreeElement';
+	readonly templateId = 'profileListElement';
 
-	renderTemplate(container: HTMLElement): IProfileTreeElementTemplateData {
-		container.classList.add('profile-tree-item');
-		const icon = append(container, $('.profile-tree-item-icon'));
-		const label = append(container, $('.profile-tree-item-label'));
-		const description = append(container, $('.profile-tree-item-description'));
+	constructor(
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+	) { }
+
+	renderTemplate(container: HTMLElement): IProfileElementTemplateData {
+
+		const disposables = new DisposableStore();
+		const elementDisposables = new DisposableStore();
+
+		container.classList.add('profile-list-item');
+		const icon = append(container, $('.profile-list-item-icon'));
+		const label = append(container, $('.profile-list-item-label'));
+		const description = append(container, $('.profile-list-item-description'));
 		append(description, $(`span${ThemeIcon.asCSSSelector(Codicon.check)}`));
-		append(description, $('span', undefined, localize('activeProfile', "Active")));
-		return { label, icon, description, disposables: new DisposableStore() };
+		append(description, $('span', undefined, localize('activeProfile', "In use")));
+
+		const actionsContainer = append(container, $('.profile-tree-item-actions-container'));
+		const actionBar = disposables.add(this.instantiationService.createInstance(WorkbenchToolBar,
+			actionsContainer,
+			{
+				hoverDelegate: disposables.add(createInstantHoverDelegate()),
+				highlightToggledItems: true
+			}
+		));
+
+		return { label, icon, description, actionBar, disposables, elementDisposables };
 	}
 
-	renderElement({ element }: ITreeNode<IProfileElement, void>, index: number, templateData: IProfileTreeElementTemplateData, height: number | undefined): void {
-		templateData.disposables.clear();
+	renderElement(element: AbstractUserDataProfileElement, index: number, templateData: IProfileElementTemplateData, height: number | undefined) {
+		templateData.elementDisposables.clear();
 		templateData.label.textContent = element.name;
-		if (element.icon) {
-			templateData.icon.className = ThemeIcon.asClassName(ThemeIcon.fromId(element.icon));
-		} else {
-			templateData.icon.className = 'hide';
-		}
+		templateData.label.classList.toggle('new-profile', element instanceof NewProfileElement);
+		templateData.icon.className = ThemeIcon.asClassName(element.icon ? ThemeIcon.fromId(element.icon) : DEFAULT_ICON);
 		templateData.description.classList.toggle('hide', !element.active);
 		if (element.onDidChange) {
-			templateData.disposables.add(element.onDidChange(e => {
+			templateData.elementDisposables.add(element.onDidChange(e => {
 				if (e.name) {
 					templateData.label.textContent = element.name;
 				}
@@ -400,10 +421,16 @@ class ProfileTreeElementRenderer implements ITreeRenderer<IProfileElement, void,
 				}
 			}));
 		}
+		templateData.actionBar.setActions(element.actions[0] ?? []);
 	}
 
-	disposeTemplate(templateData: IProfileTreeElementTemplateData): void {
+	disposeElement(element: AbstractUserDataProfileElement, index: number, templateData: IProfileElementTemplateData, height: number | undefined): void {
+		templateData.elementDisposables.clear();
+	}
+
+	disposeTemplate(templateData: IProfileElementTemplateData): void {
 		templateData.disposables.dispose();
+		templateData.elementDisposables.dispose();
 	}
 }
 
@@ -413,12 +440,15 @@ class ProfileWidget extends Disposable {
 	private readonly toolbar: WorkbenchToolBar;
 	private readonly buttonContainer: HTMLElement;
 	private readonly iconElement: HTMLElement;
-	private readonly nameContainer: HTMLElement;
+	private readonly useAsDefaultProfileContainer: HTMLElement;
+	private readonly useAsDefaultProfileCheckbox: Checkbox;
 	private readonly nameInput: InputBox;
 	private readonly copyFromContainer: HTMLElement;
 	private readonly copyFromSelectBox: SelectBox;
 	private copyFromOptions: (ISelectOptionItem & { id?: string; source?: IUserDataProfile | URI })[] = [];
 
+	private readonly contentsTreeHeader: HTMLElement;
+	private readonly inheritLabelElement: HTMLElement;
 	private readonly resourcesTree: WorkbenchAsyncDataTree<AbstractUserDataProfileElement, ProfileResourceTreeElement>;
 
 	private _templates: IProfileTemplateInfo[] = [];
@@ -435,32 +465,18 @@ class ProfileWidget extends Disposable {
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IEditorProgressService private readonly editorProgressService: IEditorProgressService,
-		@ICommandService private readonly commandService: ICommandService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
 		const header = append(parent, $('.profile-header'));
-		const title = append(header, $('.profile-title'));
-		append(title, $('span', undefined, localize('profile', "Profile: ")));
-		this.profileTitle = append(title, $('span'));
-		const actionsContainer = append(header, $('.profile-actions-container'));
-		this.buttonContainer = append(actionsContainer, $('.profile-button-container'));
-		this.toolbar = this._register(instantiationService.createInstance(WorkbenchToolBar,
-			actionsContainer,
-			{
-				hoverDelegate: this._register(createInstantHoverDelegate()),
-			}
-		));
-
-		const body = append(parent, $('.profile-body'));
-
-		this.nameContainer = append(body, $('.profile-name-container'));
-		this.iconElement = append(this.nameContainer, $(`${ThemeIcon.asCSSSelector(DEFAULT_ICON)}`, { 'tabindex': '0', 'role': 'button', 'aria-label': localize('icon', "Profile Icon") }));
+		const title = append(header, $('.profile-title-container'));
+		this.iconElement = append(title, $(`${ThemeIcon.asCSSSelector(DEFAULT_ICON)}`, { 'tabindex': '0', 'role': 'button', 'aria-label': localize('icon', "Profile Icon") }));
 		this.renderIconSelectBox(this.iconElement);
+		this.profileTitle = append(title, $(''));
 
 		this.nameInput = this._register(new InputBox(
-			this.nameContainer,
+			title,
 			undefined,
 			{
 				inputBoxStyles: defaultInputBoxStyles,
@@ -474,7 +490,11 @@ class ProfileWidget extends Disposable {
 								type: MessageType.ERROR
 							};
 						}
-						const initialName = this._profileElement.value?.element instanceof UserDataProfileElement ? this._profileElement.value.element.profile.name : undefined;
+						if (this._profileElement.value?.element.disabled) {
+							return null;
+						}
+						const initialName = this._profileElement.value?.element.getInitialName();
+						value = value.trim();
 						if (initialName !== value && this.userDataProfilesService.profiles.some(p => p.name === value)) {
 							return {
 								content: localize('profileExists', "Profile with name {0} already exists.", value),
@@ -498,8 +518,20 @@ class ProfileWidget extends Disposable {
 			}
 		}));
 
+		const actionsContainer = append(header, $('.profile-actions-container'));
+		this.buttonContainer = append(actionsContainer, $('.profile-button-container'));
+		this.toolbar = this._register(instantiationService.createInstance(WorkbenchToolBar,
+			actionsContainer,
+			{
+				hoverDelegate: this._register(createInstantHoverDelegate()),
+				highlightToggledItems: true
+			}
+		));
+
+		const body = append(parent, $('.profile-body'));
+
 		this.copyFromContainer = append(body, $('.profile-copy-from-container'));
-		append(this.copyFromContainer, $('.profile-copy-from-label', undefined, localize('create from', "Copy from:")));
+		append(this.copyFromContainer, $('.profile-copy-from-label', undefined, localize('create from', "Copy from")));
 		this.copyFromSelectBox = this._register(this.instantiationService.createInstance(SelectBox,
 			[],
 			0,
@@ -512,9 +544,30 @@ class ProfileWidget extends Disposable {
 		));
 		this.copyFromSelectBox.render(append(this.copyFromContainer, $('.profile-select-container')));
 
-		const contentsContainer = append(body, $('.profile-contents-container'));
-		append(contentsContainer, $('.profile-contents-label', undefined, localize('contents', "Contents")));
+		this.useAsDefaultProfileContainer = append(body, $('.profile-use-as-default-container'));
+		const useAsDefaultProfileTitle = localize('enable for new windows', "Use this profile as default for new windows");
+		this.useAsDefaultProfileCheckbox = this._register(new Checkbox(useAsDefaultProfileTitle, false, defaultCheckboxStyles));
+		append(this.useAsDefaultProfileContainer, this.useAsDefaultProfileCheckbox.domNode);
+		const useAsDefaultProfileLabel = append(this.useAsDefaultProfileContainer, $('.profile-use-as-default-label', undefined, useAsDefaultProfileTitle));
+		this._register(this.useAsDefaultProfileCheckbox.onChange(() => {
+			if (this._profileElement.value?.element instanceof UserDataProfileElement) {
+				this._profileElement.value.element.toggleNewWindowProfile();
+			}
+		}));
+		this._register(addDisposableListener(useAsDefaultProfileLabel, EventType.CLICK, () => {
+			if (this._profileElement.value?.element instanceof UserDataProfileElement) {
+				this._profileElement.value.element.toggleNewWindowProfile();
+			}
+		}));
 
+		this.contentsTreeHeader = append(body, $('.profile-content-tree-header'));
+		this.inheritLabelElement = $('.inherit-label', undefined, localize('default profile', "Use Default Profile"));
+		append(this.contentsTreeHeader,
+			$(''),
+			$(''),
+			this.inheritLabelElement,
+			$('.actions-label', undefined, localize('actions', "Actions")),
+		);
 		const delegate = new ProfileResourceTreeElementDelegate();
 		this.resourcesTree = this._register(this.instantiationService.createInstance(WorkbenchAsyncDataTree<AbstractUserDataProfileElement, ProfileResourceTreeElement>,
 			'ProfileEditor-ResourcesTree',
@@ -531,11 +584,11 @@ class ProfileWidget extends Disposable {
 				horizontalScrolling: false,
 				accessibilityProvider: {
 					getAriaLabel(element: ProfileResourceTreeElement | null): string {
-						if (isString(element?.element)) {
-							return element.element;
+						if ((<IProfileResourceTypeElement>element?.element).resourceType) {
+							return (<IProfileResourceTypeElement>element?.element).resourceType;
 						}
-						if (element?.element) {
-							return element.element.label?.label ?? '';
+						if ((<IProfileResourceTypeChildElement>element?.element).label) {
+							return (<IProfileResourceTypeChildElement>element?.element).label;
 						}
 						return '';
 					},
@@ -545,10 +598,7 @@ class ProfileWidget extends Disposable {
 				},
 				identityProvider: {
 					getId(element) {
-						if (isString(element?.element)) {
-							return element.element;
-						}
-						if (element?.element) {
+						if (element?.element.handle) {
 							return element.element.handle;
 						}
 						return '';
@@ -556,8 +606,8 @@ class ProfileWidget extends Disposable {
 				},
 				expandOnlyOnTwistieClick: true,
 				renderIndentGuides: RenderIndentGuides.None,
-				openOnSingleClick: true,
 				enableStickyScroll: false,
+				openOnSingleClick: false,
 			}));
 		this._register(this.resourcesTree.onDidOpen(async (e) => {
 			if (!e.browserEvent) {
@@ -566,12 +616,8 @@ class ProfileWidget extends Disposable {
 			if (e.browserEvent.target && (e.browserEvent.target as HTMLElement).classList.contains(Checkbox.CLASS_NAME)) {
 				return;
 			}
-			if (e.element && !isString(e.element.element)) {
-				if (e.element.element.resourceUri) {
-					await this.commandService.executeCommand(API_OPEN_EDITOR_COMMAND_ID, e.element.element.resourceUri, [SIDE_GROUP], undefined, e);
-				} else if (e.element.element.parent instanceof ExtensionsResourceTreeItem) {
-					await this.commandService.executeCommand('extension.open', e.element.element.handle, undefined, true, undefined, true);
-				}
+			if (e.element?.element.action) {
+				await e.element.element.action.run();
 			}
 		}));
 	}
@@ -581,6 +627,9 @@ class ProfileWidget extends Disposable {
 		let hoverWidget: IHoverWidget | undefined;
 		const showIconSelectBox = () => {
 			if (this._profileElement.value?.element instanceof UserDataProfileElement && this._profileElement.value.element.profile.isDefault) {
+				return;
+			}
+			if (this._profileElement.value?.element.disabled) {
 				return;
 			}
 			iconSelectBox.clearInput();
@@ -632,19 +681,7 @@ class ProfileWidget extends Disposable {
 	}
 
 	private renderSelectBox(): void {
-		const separator = { text: '\u2500\u2500\u2500\u2500\u2500\u2500', isDisabled: true };
-		this.copyFromOptions.push({ text: localize('empty profile', "None") });
-		if (this._templates.length) {
-			this.copyFromOptions.push({ ...separator, decoratorRight: localize('from templates', "Profile Templates") });
-			for (const template of this._templates) {
-				this.copyFromOptions.push({ text: template.name, id: template.url, source: URI.parse(template.url) });
-			}
-		}
-		this.copyFromOptions.push({ ...separator, decoratorRight: localize('from existing profiles', "Existing Profiles") });
-		for (const profile of this.userDataProfilesService.profiles) {
-			this.copyFromOptions.push({ text: profile.name, id: profile.id, source: profile });
-		}
-		this.copyFromSelectBox.setOptions(this.copyFromOptions);
+		this.copyFromSelectBox.setOptions(this.getCopyFromOptions());
 		this._register(this.copyFromSelectBox.onDidSelect(option => {
 			if (this._profileElement.value?.element instanceof NewProfileElement) {
 				this._profileElement.value.element.copyFrom = this.copyFromOptions[option.index].source;
@@ -657,6 +694,8 @@ class ProfileWidget extends Disposable {
 	}
 
 	render(profileElement: AbstractUserDataProfileElement): void {
+		this.resourcesTree.setInput(profileElement);
+
 		const disposables = new DisposableStore();
 		this._profileElement.value = { element: profileElement, dispose: () => disposables.dispose() };
 
@@ -664,11 +703,13 @@ class ProfileWidget extends Disposable {
 		disposables.add(profileElement.onDidChange(e => this.renderProfileElement(profileElement)));
 
 		const profile = profileElement instanceof UserDataProfileElement ? profileElement.profile : undefined;
-		this.nameInput.setEnabled(!profile?.isDefault);
+		this.profileTitle.classList.toggle('hide', !profile?.isDefault);
+		this.nameInput.element.classList.toggle('hide', !!profile?.isDefault);
+		this.iconElement.classList.toggle('disabled', !!profile?.isDefault);
+		this.iconElement.setAttribute('tabindex', profile?.isDefault ? '' : '0');
 
-		this.resourcesTree.setInput(profileElement);
 		disposables.add(profileElement.onDidChange(e => {
-			if (e.flags || e.copyFrom) {
+			if (e.flags || e.copyFrom || e.copyFlags || e.disabled) {
 				const viewState = this.resourcesTree.getViewState();
 				this.resourcesTree.setInput(profileElement, {
 					...viewState,
@@ -677,34 +718,57 @@ class ProfileWidget extends Disposable {
 			}
 		}));
 
-		if (profileElement.primaryAction) {
+		const [primaryTitleButtons, secondatyTitleButtons] = profileElement.titleButtons;
+		if (primaryTitleButtons?.length || secondatyTitleButtons?.length) {
 			this.buttonContainer.classList.remove('hide');
-			const button = disposables.add(new Button(this.buttonContainer, {
-				supportIcons: true,
-				...defaultButtonStyles
-			}));
-			button.label = profileElement.primaryAction.label;
-			button.enabled = profileElement.primaryAction.enabled;
-			disposables.add(button.onDidClick(() => this.editorProgressService.showWhile(profileElement.primaryAction!.run())));
-			disposables.add(profileElement.primaryAction.onDidChange((e) => {
-				if (!isUndefined(e.enabled)) {
-					button.enabled = profileElement.primaryAction!.enabled;
+
+			if (secondatyTitleButtons?.length) {
+				for (const action of secondatyTitleButtons) {
+					const button = disposables.add(new Button(this.buttonContainer, {
+						...defaultButtonStyles,
+						secondary: true
+					}));
+					button.label = action.label;
+					button.enabled = action.enabled;
+					disposables.add(button.onDidClick(() => this.editorProgressService.showWhile(action.run())));
+					disposables.add(action.onDidChange((e) => {
+						if (!isUndefined(e.enabled)) {
+							button.enabled = action.enabled;
+						}
+					}));
 				}
-			}));
-			disposables.add(profileElement.onDidChange(e => {
-				if (e.message) {
-					button.setTitle(profileElement.message ?? profileElement.primaryAction!.label);
-					button.element.classList.toggle('error', !!profileElement.message);
+			}
+
+			if (primaryTitleButtons?.length) {
+				for (const action of primaryTitleButtons) {
+					const button = disposables.add(new Button(this.buttonContainer, {
+						...defaultButtonStyles
+					}));
+					button.label = action.label;
+					button.enabled = action.enabled;
+					disposables.add(button.onDidClick(() => this.editorProgressService.showWhile(action.run())));
+					disposables.add(action.onDidChange((e) => {
+						if (!isUndefined(e.enabled)) {
+							button.enabled = action.enabled;
+						}
+					}));
+					disposables.add(profileElement.onDidChange(e => {
+						if (e.message) {
+							button.setTitle(profileElement.message ?? action.label);
+							button.element.classList.toggle('error', !!profileElement.message);
+						}
+					}));
 				}
-			}));
+			}
+
 		} else {
 			this.buttonContainer.classList.add('hide');
 		}
 
 		this.toolbar.setActions(profileElement.titleActions[0].slice(0), profileElement.titleActions[1].slice(0));
 
-		this.nameInput.focus();
 		if (profileElement instanceof NewProfileElement) {
+			this.nameInput.focus();
 			this.nameInput.select();
 		}
 	}
@@ -712,40 +776,71 @@ class ProfileWidget extends Disposable {
 	private renderProfileElement(profileElement: AbstractUserDataProfileElement): void {
 		this.profileTitle.textContent = profileElement.name;
 		this.nameInput.value = profileElement.name;
+		this.nameInput.validate();
+		if (profileElement.disabled) {
+			this.nameInput.disable();
+		} else {
+			this.nameInput.enable();
+		}
 		if (profileElement.icon) {
 			this.iconElement.className = ThemeIcon.asClassName(ThemeIcon.fromId(profileElement.icon));
 		} else {
 			this.iconElement.className = ThemeIcon.asClassName(ThemeIcon.fromId(DEFAULT_ICON.id));
 		}
 		if (profileElement instanceof NewProfileElement) {
+			this.contentsTreeHeader.classList.add('new-profile');
+			this.inheritLabelElement.textContent = localize('options', "Options");
+			this.useAsDefaultProfileContainer.classList.add('hide');
 			this.copyFromContainer.classList.remove('hide');
+			this.copyFromOptions = this.getCopyFromOptions();
 			const id = profileElement.copyFrom instanceof URI ? profileElement.copyFrom.toString() : profileElement.copyFrom?.id;
 			const index = id
 				? this.copyFromOptions.findIndex(option => option.id === id)
 				: 0;
 			if (index !== -1) {
 				this.copyFromSelectBox.setOptions(this.copyFromOptions);
-				this.copyFromSelectBox.setEnabled(true);
+				this.copyFromSelectBox.setEnabled(!profileElement.previewProfile && !profileElement.disabled);
 				this.copyFromSelectBox.select(index);
 			} else {
 				this.copyFromSelectBox.setOptions([{ text: basename(profileElement.copyFrom as URI) }]);
 				this.copyFromSelectBox.setEnabled(false);
 			}
-		} else {
+		} else if (profileElement instanceof UserDataProfileElement) {
+			this.contentsTreeHeader.classList.remove('new-profile');
+			this.inheritLabelElement.textContent = profileElement.profile.isDefault ? '' : localize('default profile', "Use Default Profile");
+			this.useAsDefaultProfileContainer.classList.remove('hide');
+			this.useAsDefaultProfileCheckbox.checked = profileElement.isNewWindowProfile;
 			this.copyFromContainer.classList.add('hide');
 		}
+	}
+
+	private getCopyFromOptions(): (ISelectOptionItem & { id?: string; source?: IUserDataProfile | URI })[] {
+		const separator = { text: '\u2500\u2500\u2500\u2500\u2500\u2500', isDisabled: true };
+		const copyFromOptions: (ISelectOptionItem & { id?: string; source?: IUserDataProfile | URI })[] = [];
+		copyFromOptions.push({ text: localize('empty profile', "None") });
+		if (this._templates.length) {
+			copyFromOptions.push({ ...separator, decoratorRight: localize('from templates', "Profile Templates") });
+			for (const template of this._templates) {
+				copyFromOptions.push({ text: template.name, id: template.url, source: URI.parse(template.url) });
+			}
+		}
+		copyFromOptions.push({ ...separator, decoratorRight: localize('from existing profiles', "Existing Profiles") });
+		for (const profile of this.userDataProfilesService.profiles) {
+			copyFromOptions.push({ text: profile.name, id: profile.id, source: profile });
+		}
+		return copyFromOptions;
 	}
 }
 
 
 interface ProfileResourceTreeElement {
-	element: ProfileResourceType | IProfileResourceChildTreeItem;
+	element: IProfileChildElement;
 	root: AbstractUserDataProfileElement;
 }
 
 class ProfileResourceTreeElementDelegate implements IListVirtualDelegate<ProfileResourceTreeElement> {
 	getTemplateId(element: ProfileResourceTreeElement) {
-		if (!isString(element.element)) {
+		if (!(<IProfileResourceTypeElement>element.element).resourceType) {
 			return ProfileResourceChildTreeItemRenderer.TEMPLATE_ID;
 		}
 		if (element.root instanceof NewProfileElement) {
@@ -754,7 +849,7 @@ class ProfileResourceTreeElementDelegate implements IListVirtualDelegate<Profile
 		return ExistingProfileResourceTreeRenderer.TEMPLATE_ID;
 	}
 	getHeight(element: ProfileResourceTreeElement) {
-		return 30;
+		return 22;
 	}
 }
 
@@ -768,12 +863,24 @@ class ProfileResourceTreeDataSource implements IAsyncDataSource<AbstractUserData
 		if (element instanceof AbstractUserDataProfileElement) {
 			return true;
 		}
-		if (isString(element.element)) {
-			if (element.root.getFlag(element.element)) {
+		if ((<IProfileResourceTypeElement>element.element).resourceType) {
+			if ((<IProfileResourceTypeElement>element.element).resourceType !== ProfileResourceType.Extensions && (<IProfileResourceTypeElement>element.element).resourceType !== ProfileResourceType.Snippets) {
 				return false;
 			}
 			if (element.root instanceof NewProfileElement) {
-				return element.root.copyFrom !== undefined;
+				const resourceType = (<IProfileResourceTypeElement>element.element).resourceType;
+				if (element.root.getFlag(resourceType)) {
+					return true;
+				}
+				if (!element.root.hasResource(resourceType)) {
+					return false;
+				}
+				if (element.root.copyFrom === undefined) {
+					return false;
+				}
+				if (!element.root.getCopyFlag(resourceType)) {
+					return false;
+				}
 			}
 			return true;
 		}
@@ -782,20 +889,14 @@ class ProfileResourceTreeDataSource implements IAsyncDataSource<AbstractUserData
 
 	async getChildren(element: AbstractUserDataProfileElement | ProfileResourceTreeElement): Promise<ProfileResourceTreeElement[]> {
 		if (element instanceof AbstractUserDataProfileElement) {
-			const resourceTypes = [
-				ProfileResourceType.Settings,
-				ProfileResourceType.Keybindings,
-				ProfileResourceType.Snippets,
-				ProfileResourceType.Tasks,
-				ProfileResourceType.Extensions
-			];
-			return resourceTypes.map(resourceType => ({ element: resourceType, root: element }));
+			const children = await element.getChildren();
+			return children.map(e => ({ element: e, root: element }));
 		}
-		if (isString(element.element)) {
-			const progressRunner = this.editorProgressService.show(true);
+		if ((<IProfileResourceTypeElement>element.element).resourceType) {
+			const progressRunner = this.editorProgressService.show(true, 500);
 			try {
-				const extensions = await element.root.getChildren(element.element);
-				return extensions.map(extension => ({ element: extension, root: element.root }));
+				const extensions = await element.root.getChildren((<IProfileResourceTypeElement>element.element).resourceType);
+				return extensions.map(e => ({ element: e, root: element.root }));
 			} finally {
 				progressRunner.done();
 			}
@@ -807,12 +908,13 @@ class ProfileResourceTreeDataSource implements IAsyncDataSource<AbstractUserData
 interface IProfileResourceTemplateData {
 	readonly disposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
+	readonly actionBar: WorkbenchToolBar;
 }
 
 interface IExistingProfileResourceTemplateData extends IProfileResourceTemplateData {
-	readonly checkbox: Checkbox;
 	readonly label: HTMLElement;
-	readonly description: HTMLElement;
+	readonly inheritContainer: HTMLElement;
+	readonly checkbox: Checkbox;
 }
 
 interface INewProfileResourceTemplateData extends IProfileResourceTemplateData {
@@ -860,14 +962,31 @@ class ExistingProfileResourceTreeRenderer extends AbstractProfileResourceTreeRen
 
 	readonly templateId = ExistingProfileResourceTreeRenderer.TEMPLATE_ID;
 
+	constructor(
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+	) {
+		super();
+	}
+
 	renderTemplate(parent: HTMLElement): IExistingProfileResourceTemplateData {
 		const disposables = new DisposableStore();
 		const container = append(parent, $('.profile-tree-item-container.existing-profile-resource-type-container'));
-		const checkbox = disposables.add(new Checkbox('', false, defaultCheckboxStyles));
-		append(container, checkbox.domNode);
 		const label = append(container, $('.profile-resource-type-label'));
-		const description = append(container, $('.profile-resource-type-description', undefined, localize('using defaults', "Using Default Profile")));
-		return { checkbox, label, description, disposables, elementDisposables: disposables.add(new DisposableStore()) };
+
+		const inheritContainer = append(container, $('.inherit-container'));
+		const checkbox = disposables.add(new Checkbox('', false, defaultCheckboxStyles));
+		append(inheritContainer, checkbox.domNode);
+
+		const actionsContainer = append(container, $('.profile-tree-item-actions-container'));
+		const actionBar = disposables.add(this.instantiationService.createInstance(WorkbenchToolBar,
+			actionsContainer,
+			{
+				hoverDelegate: disposables.add(createInstantHoverDelegate()),
+				highlightToggledItems: true
+			}
+		));
+
+		return { checkbox, label, inheritContainer, actionBar, disposables, elementDisposables: disposables.add(new DisposableStore()) };
 	}
 
 	renderElement({ element: profileResourceTreeElement }: ITreeNode<ProfileResourceTreeElement, void>, index: number, templateData: IExistingProfileResourceTemplateData, height: number | undefined): void {
@@ -876,27 +995,20 @@ class ExistingProfileResourceTreeRenderer extends AbstractProfileResourceTreeRen
 		if (!(root instanceof UserDataProfileElement)) {
 			throw new Error('ExistingProfileResourceTreeRenderer can only render existing profile element');
 		}
-		if (!isString(element)) {
-			throw new Error('ExistingProfileResourceTreeRenderer can only render profile resource types');
+		if (!isProfileResourceTypeElement(element)) {
+			throw new Error('Invalid profile resource element');
 		}
 
-		templateData.label.textContent = this.getResourceTypeTitle(element);
+		templateData.label.textContent = this.getResourceTypeTitle(element.resourceType);
 		if (root instanceof UserDataProfileElement && root.profile.isDefault) {
-			templateData.checkbox.checked = true;
-			templateData.checkbox.disable();
-			templateData.description.classList.add('hide');
+			templateData.checkbox.domNode.classList.add('hide');
 		} else {
-			templateData.checkbox.enable();
-			const checked = !root.getFlag(element);
-			templateData.checkbox.checked = checked;
-			templateData.description.classList.toggle('hide', checked);
-			templateData.elementDisposables.add(templateData.checkbox.onChange(() => root.setFlag(element, !templateData.checkbox.checked)));
-			templateData.elementDisposables.add(root.onDidChange(e => {
-				if (e.flags) {
-					templateData.description.classList.toggle('hide', !root.getFlag(element));
-				}
-			}));
+			templateData.checkbox.domNode.classList.remove('hide');
+			templateData.checkbox.checked = root.getFlag(element.resourceType);
+			templateData.elementDisposables.add(templateData.checkbox.onChange(() => root.setFlag(element.resourceType, templateData.checkbox.checked)));
 		}
+
+		templateData.actionBar.setActions(element.action ? [element.action] : []);
 	}
 
 }
@@ -920,11 +1032,7 @@ class NewProfileResourceTreeRenderer extends AbstractProfileResourceTreeRenderer
 		const labelContainer = append(container, $('.profile-resource-type-label-container'));
 		const label = append(labelContainer, $('span.profile-resource-type-label'));
 		const selectBox = this._register(this.instantiationService.createInstance(SelectBox,
-			[
-				{ text: localize('empty', "Empty") },
-				{ text: localize('copy', "Copy") },
-				{ text: localize('default', "Use Default Profile") }
-			],
+			[],
 			0,
 			this.contextViewService,
 			defaultSelectBoxStyles,
@@ -935,7 +1043,16 @@ class NewProfileResourceTreeRenderer extends AbstractProfileResourceTreeRenderer
 		const selectContainer = append(container, $('.profile-select-container'));
 		selectBox.render(selectContainer);
 
-		return { label, selectContainer, selectBox, disposables, elementDisposables: disposables.add(new DisposableStore()) };
+		const actionsContainer = append(container, $('.profile-tree-item-actions-container'));
+		const actionBar = disposables.add(this.instantiationService.createInstance(WorkbenchToolBar,
+			actionsContainer,
+			{
+				hoverDelegate: disposables.add(createInstantHoverDelegate()),
+				highlightToggledItems: true
+			}
+		));
+
+		return { label, selectContainer, selectBox, actionBar, disposables, elementDisposables: disposables.add(new DisposableStore()) };
 	}
 
 	renderElement({ element: profileResourceTreeElement }: ITreeNode<ProfileResourceTreeElement, void>, index: number, templateData: INewProfileResourceTemplateData, height: number | undefined): void {
@@ -944,15 +1061,34 @@ class NewProfileResourceTreeRenderer extends AbstractProfileResourceTreeRenderer
 		if (!(root instanceof NewProfileElement)) {
 			throw new Error('NewProfileResourceTreeRenderer can only render new profile element');
 		}
-		if (!isString(element)) {
-			throw new Error('NewProfileResourceTreeRenderer can only profile resoyrce types');
+		if (!isProfileResourceTypeElement(element)) {
+			throw new Error('Invalid profile resource element');
 		}
-		templateData.label.textContent = this.getResourceTypeTitle(element);
-		templateData.selectBox.select(root.getCopyFlag(element) ? 1 : root.getFlag(element) ? 2 : 0);
-		templateData.elementDisposables.add(templateData.selectBox.onDidSelect(option => {
-			root.setFlag(element, option.index === 2);
-			root.setCopyFlag(element, option.index === 1);
-		}));
+		templateData.label.textContent = this.getResourceTypeTitle(element.resourceType);
+		if (root.copyFrom && root.hasResource(element.resourceType)) {
+			const copyFromName = root.getCopyFromName();
+			templateData.selectBox.setOptions([
+				{ text: localize('empty', "Empty") },
+				{ text: copyFromName ? localize('copy from', "Copy ({0})", copyFromName) : localize('copy', "Copy") },
+				{ text: localize('default', "Use Default Profile") }
+			]);
+			templateData.selectBox.select(root.getCopyFlag(element.resourceType) ? 1 : root.getFlag(element.resourceType) ? 2 : 0);
+			templateData.elementDisposables.add(templateData.selectBox.onDidSelect(option => {
+				root.setFlag(element.resourceType, option.index === 2);
+				root.setCopyFlag(element.resourceType, option.index === 1);
+			}));
+		} else {
+			templateData.selectBox.setOptions([
+				{ text: localize('empty', "Empty") },
+				{ text: localize('default', "Use Default Profile") }
+			]);
+			templateData.selectBox.select(root.getFlag(element.resourceType) ? 1 : 0);
+			templateData.elementDisposables.add(templateData.selectBox.onDidSelect(option => {
+				root.setFlag(element.resourceType, option.index === 1);
+			}));
+		}
+		templateData.selectBox.setEnabled(!root.disabled);
+		templateData.actionBar.setActions(element.action ? [element.action] : []);
 	}
 }
 
@@ -965,7 +1101,7 @@ class ProfileResourceChildTreeItemRenderer extends AbstractProfileResourceTreeRe
 	private readonly hoverDelegate: IHoverDelegate;
 
 	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 		this.labels = instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER);
@@ -978,15 +1114,27 @@ class ProfileResourceChildTreeItemRenderer extends AbstractProfileResourceTreeRe
 		const checkbox = disposables.add(new Checkbox('', false, defaultCheckboxStyles));
 		append(container, checkbox.domNode);
 		const resourceLabel = disposables.add(this.labels.create(container, { hoverDelegate: this.hoverDelegate }));
-		return { checkbox, resourceLabel, disposables, elementDisposables: disposables.add(new DisposableStore()) };
+
+		const actionsContainer = append(container, $('.profile-tree-item-actions-container'));
+		const actionBar = disposables.add(this.instantiationService.createInstance(WorkbenchToolBar,
+			actionsContainer,
+			{
+				hoverDelegate: disposables.add(createInstantHoverDelegate()),
+				highlightToggledItems: true
+			}
+		));
+
+		return { checkbox, resourceLabel, actionBar, disposables, elementDisposables: disposables.add(new DisposableStore()) };
 	}
 
 	renderElement({ element: profileResourceTreeElement }: ITreeNode<ProfileResourceTreeElement, void>, index: number, templateData: IProfileResourceChildTreeItemTemplateData, height: number | undefined): void {
 		templateData.elementDisposables.clear();
 		const { element } = profileResourceTreeElement;
-		if (isString(element)) {
-			throw new Error('NewProfileResourceTreeRenderer can only render profile resource child tree items');
+
+		if (!isProfileResourceChildElement(element)) {
+			throw new Error('Invalid profile resource element');
 		}
+
 		if (element.checkbox) {
 			templateData.checkbox.domNode.classList.remove('hide');
 			templateData.checkbox.checked = element.checkbox.isChecked;
@@ -998,17 +1146,17 @@ class ProfileResourceChildTreeItemRenderer extends AbstractProfileResourceTreeRe
 			templateData.checkbox.domNode.classList.add('hide');
 		}
 
-		const resource = URI.revive(element.resourceUri);
 		templateData.resourceLabel.setResource(
 			{
-				name: resource ? basename(resource) : element.label?.label,
-				description: isString(element.description) ? element.description : undefined,
-				resource
+				name: element.resource ? basename(element.resource) : element.label,
+				resource: element.resource
 			},
 			{
 				forceLabel: true,
-				hideIcon: !resource,
+				icon: element.icon,
+				hideIcon: !element.resource && !element.icon,
 			});
+		templateData.actionBar.setActions(element.action ? [element.action] : []);
 	}
 
 }

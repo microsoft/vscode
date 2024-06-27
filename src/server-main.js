@@ -5,6 +5,10 @@
 
 // @ts-check
 
+/**
+ * @import { IServerAPI } from './vs/server/node/remoteExtensionHostAgentServer'
+ */
+
 const perf = require('./vs/base/common/performance');
 const performance = require('perf_hooks').performance;
 const product = require('../product.json');
@@ -45,9 +49,6 @@ async function start() {
 		return;
 	}
 
-	/**
-	 * @typedef { import('./vs/server/node/remoteExtensionHostAgentServer').IServerAPI } IServerAPI
-	 */
 	/** @type {IServerAPI | null} */
 	let _remoteExtensionHostAgentServer = null;
 	/** @type {Promise<IServerAPI> | null} */

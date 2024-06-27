@@ -1165,6 +1165,12 @@ export class Repository {
 			args.push(`--author="${options.author}"`);
 		}
 
+		if (options?.refNames) {
+			args.push('--topo-order');
+			args.push('--decorate=full');
+			args.push(...options.refNames);
+		}
+
 		if (options?.path) {
 			args.push('--', options.path);
 		}
@@ -1233,11 +1239,11 @@ export class Repository {
 			.filter(entry => !!entry);
 	}
 
-	async bufferString(object: string, encoding: string = 'utf8', autoGuessEncoding = false): Promise<string> {
+	async bufferString(object: string, encoding: string = 'utf8', autoGuessEncoding = false, candidateGuessEncodings: string[] = []): Promise<string> {
 		const stdout = await this.buffer(object);
 
 		if (autoGuessEncoding) {
-			encoding = detectEncoding(stdout) || encoding;
+			encoding = detectEncoding(stdout, candidateGuessEncodings) || encoding;
 		}
 
 		encoding = iconv.encodingExists(encoding) ? encoding : 'utf8';
@@ -1496,9 +1502,16 @@ export class Repository {
 		return parseGitChanges(this.repositoryRoot, gitResult.stdout);
 	}
 
-	async getMergeBase(ref1: string, ref2: string): Promise<string | undefined> {
+	async getMergeBase(ref1: string, ref2: string, ...refs: string[]): Promise<string | undefined> {
 		try {
-			const args = ['merge-base', ref1, ref2];
+			const args = ['merge-base'];
+			if (refs.length !== 0) {
+				args.push('--octopus');
+				args.push(...refs);
+			}
+
+			args.push(ref1, ref2);
+
 			const result = await this.exec(args);
 
 			return result.stdout.trim();

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import * as path from 'vs/base/common/path';
 import { SingleModifierChord, ResolvedKeybinding, Keybinding } from 'vs/base/common/keybindings';
 import { Promises } from 'vs/base/node/pfs';

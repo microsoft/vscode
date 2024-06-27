@@ -95,4 +95,5 @@ export class ChatResponseAccessibleView implements IAccessibleViewImplentation {
 			};
 		}
 	}
+	dispose() { }
 }

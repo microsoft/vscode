@@ -11,6 +11,7 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { getProviderKey } from 'vs/workbench/contrib/scm/browser/util';
 import { ISCMRepository, ISCMService } from 'vs/workbench/contrib/scm/common/scm';
 import { IEditorGroupsService, IEditorWorkingSet } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 
 type ISCMSerializedWorkingSet = {
 	readonly providerKey: string;
@@ -35,7 +36,8 @@ export class SCMWorkingSetController implements IWorkbenchContribution {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@ISCMService private readonly scmService: ISCMService,
-		@IStorageService private readonly storageService: IStorageService
+		@IStorageService private readonly storageService: IStorageService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) {
 		const onDidChangeConfiguration = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.workingSets.enabled'), this._disposables);
 		this._disposables.add(Event.runAndSubscribe(onDidChangeConfiguration, () => this._onDidChangeConfiguration()));
@@ -147,7 +149,13 @@ export class SCMWorkingSetController implements IWorkbenchContribution {
 		}
 
 		if (editorWorkingSetId) {
-			await this.editorGroupsService.applyWorkingSet(editorWorkingSetId);
+			// Applying a working set can be the result of a user action that has been
+			// initiated from the terminal (ex: switching branches). As such, we want
+			// to preserve the focus in the terminal. This does not cover the scenario
+			// in which the terminal is in the editor part.
+			const preserveFocus = this.layoutService.hasFocus(Parts.PANEL_PART);
+
+			await this.editorGroupsService.applyWorkingSet(editorWorkingSetId, { preserveFocus });
 		}
 	}
 

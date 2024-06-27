@@ -129,7 +129,8 @@ function getNodeChecksum(nodeVersion, platform, arch, glibcPrefix) {
 	let expectedName;
 	switch (platform) {
 		case 'win32':
-			expectedName = `win-${arch}/node.exe`;
+			expectedName = product.nodejsRepository !== 'https://nodejs.org' ?
+				`win-${arch}-node.exe` : `win-${arch}/node.exe`;
 			break;
 
 		case 'darwin':
@@ -439,7 +440,7 @@ function tweakProductForServerWeb(product) {
 	const minifyTask = task.define(`minify-vscode-${type}`, task.series(
 		optimizeTask,
 		util.rimraf(`out-vscode-${type}-min`),
-		optimize.minifyTask(`out-vscode-${type}`, `https://ticino.blob.core.windows.net/sourcemaps/${commit}/core`)
+		optimize.minifyTask(`out-vscode-${type}`, `https://main.vscode-cdn.net/sourcemaps/${commit}/core`)
 	));
 	gulp.task(minifyTask);
 

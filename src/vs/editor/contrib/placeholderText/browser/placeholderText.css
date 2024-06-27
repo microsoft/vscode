@@ -3,6 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.monaco-editor {
+	--vscode-editor-placeholder-foreground: var(--vscode-editorGhostText-foreground);
+}
+
 .monaco-editor .placeholder-text {
-	color: var(--vscode-editorGhostText-foreground) !important;
+	color: var(--vscode-editor-placeholder-foreground);
 }
