@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -1049,11 +1049,26 @@ export const TerminalExtensions = {
 	Backend: 'workbench.contributions.terminal.processBackend'
 };
 
+function sanitizeRemoteAuthority(remoteAuthority: string | undefined) {
+	// Normalize the key to lowercase as the authority is case-insensitive
+	return remoteAuthority?.toLowerCase() ?? '';
+}
+
+export class TerminalBackendChangeEvent {
+	constructor(public readonly remoteAuthority: string | undefined) { }
+
+	public affects(remoteAuthority?: string): boolean {
+		return sanitizeRemoteAuthority(remoteAuthority) === this.remoteAuthority;
+	}
+}
+
 export interface ITerminalBackendRegistry {
 	/**
 	 * Gets all backends in the registry.
 	 */
 	backends: ReadonlyMap<string, ITerminalBackend>;
+
+	onDidChangeBackends: Event<TerminalBackendChangeEvent>;
 
 	/**
 	 * Registers a terminal backend for a remote authority.
@@ -1071,21 +1086,20 @@ class TerminalBackendRegistry implements ITerminalBackendRegistry {
 
 	get backends(): ReadonlyMap<string, ITerminalBackend> { return this._backends; }
 
+	private _onDidChangeBackends = new Emitter<TerminalBackendChangeEvent>();
+	readonly onDidChangeBackends: Event<TerminalBackendChangeEvent> = this._onDidChangeBackends.event;
+
 	registerTerminalBackend(backend: ITerminalBackend): void {
-		const key = this._sanitizeRemoteAuthority(backend.remoteAuthority);
+		const key = sanitizeRemoteAuthority(backend.remoteAuthority);
 		if (this._backends.has(key)) {
 			throw new Error(`A terminal backend with remote authority '${key}' was already registered.`);
 		}
 		this._backends.set(key, backend);
+		this._onDidChangeBackends.fire(new TerminalBackendChangeEvent(key));
 	}
 
 	getTerminalBackend(remoteAuthority: string | undefined): ITerminalBackend | undefined {
-		return this._backends.get(this._sanitizeRemoteAuthority(remoteAuthority));
-	}
-
-	private _sanitizeRemoteAuthority(remoteAuthority: string | undefined) {
-		// Normalize the key to lowercase as the authority is case-insensitive
-		return remoteAuthority?.toLowerCase() ?? '';
+		return this._backends.get(sanitizeRemoteAuthority(remoteAuthority));
 	}
 }
 Registry.add(TerminalExtensions.Backend, new TerminalBackendRegistry());
