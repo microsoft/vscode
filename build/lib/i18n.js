@@ -307,7 +307,7 @@ function processCoreBundleFormat(base, fileHeader, languages, json, emitter) {
         emitter.queue(new File({
             contents: Buffer.from(`${fileHeader}
 globalThis._VSCODE_NLS_MESSAGES=${JSON.stringify(nlsResult)};
-globalThis._VSCODE_NLS_LANGUAGE=${language.id};`),
+globalThis._VSCODE_NLS_LANGUAGE=${JSON.stringify(language.id)};`),
             base,
             path: `${base}/nls.messages.${language.id}.js`
         }));
