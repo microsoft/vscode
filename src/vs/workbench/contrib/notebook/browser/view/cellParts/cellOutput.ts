@@ -13,7 +13,7 @@ import { MarshalledId } from 'vs/base/common/marshallingIds';
 import * as nls from 'vs/nls';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -35,7 +35,6 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { COPY_OUTPUT_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/controller/cellOutputActions';
 import { TEXT_BASED_MIMETYPES } from 'vs/workbench/contrib/notebook/browser/contrib/clipboard/cellOutputClipboard';
 import { autorun, observableValue } from 'vs/base/common/observable';
-import { Event } from 'vs/base/common/event';
 import { NOTEBOOK_CELL_HAS_HIDDEN_OUTPUTS, NOTEBOOK_CELL_IS_FIRST_OUTPUT } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 
 interface IMimeTypeRenderer extends IQuickPickItem {
@@ -209,11 +208,16 @@ class CellOutputElement extends Disposable {
 		}
 
 		const innerContainer = this._generateInnerOutputContainer(previousSibling, selectedPresentation);
-		if (index === 0 || !this.output.hidden) {
+		if (index === 0 || this.output.visible.get()) {
 			this._attachToolbar(innerContainer, notebookTextModel, this.notebookEditor.activeKernel, index, mimeTypes);
 		} else {
-			Event.once(this.output.onDidShowHidden)(() => {
-				this._attachToolbar(innerContainer, notebookTextModel, this.notebookEditor.activeKernel, index, mimeTypes);
+			autorun((reader) => {
+				const visible = reader.readObservable(this.output.visible);
+				if (visible && this.toolbar === undefined) {
+					this._attachToolbar(innerContainer, notebookTextModel, this.notebookEditor.activeKernel, index, mimeTypes);
+				} else if (!visible) {
+					this._detachToolbar();
+				}
 				this.cellOutputContainer.checkForHiddenOutputs();
 			});
 			this.cellOutputContainer.hasHiddenOutputs.set(true, undefined);
@@ -289,6 +293,15 @@ class CellOutputElement extends Disposable {
 		return true;
 	}
 
+	private toolbar: IMenu | undefined = undefined;
+
+	private async _detachToolbar() {
+		if (this.toolbar) {
+			this.toolbar.dispose();
+			this.toolbar = undefined;
+		}
+	}
+
 	private async _attachToolbar(outputItemDiv: HTMLElement, notebookTextModel: NotebookTextModel, kernel: INotebookKernel | undefined, index: number, mimeTypes: readonly IOrderedMimeType[]) {
 		const hasMultipleMimeTypes = mimeTypes.filter(mimeType => mimeType.isTrusted).length > 1;
 		const isCopyEnabled = this.shouldEnableCopy(mimeTypes);
@@ -326,14 +339,14 @@ class CellOutputElement extends Disposable {
 		const isFirstCellOutput = NOTEBOOK_CELL_IS_FIRST_OUTPUT.bindTo(menuContextKeyService);
 		isFirstCellOutput.set(index === 0);
 		autorun((reader) => { hasHiddenOutputs.set(reader.readObservable(this.cellOutputContainer.hasHiddenOutputs)); });
-		const menu = this._renderDisposableStore.add(this.menuService.createMenu(MenuId.NotebookOutputToolbar, menuContextKeyService));
+		this.toolbar = this._renderDisposableStore.add(this.menuService.createMenu(MenuId.NotebookOutputToolbar, menuContextKeyService));
 
 		const updateMenuToolbar = () => {
 			const primary: IAction[] = [];
 			let secondary: IAction[] = [];
 			const result = { primary, secondary };
 
-			createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, result, () => false);
+			createAndFillInActionBarActions(this.toolbar!, { shouldForwardArgs: true }, result, () => false);
 			if (!isCopyEnabled) {
 				secondary = secondary.filter((action) => action.id !== COPY_OUTPUT_COMMAND_ID);
 			}
@@ -344,7 +357,7 @@ class CellOutputElement extends Disposable {
 			toolbar.setActions([], secondary);
 		};
 		updateMenuToolbar();
-		this._renderDisposableStore.add(menu.onDidChange(updateMenuToolbar));
+		this._renderDisposableStore.add(this.toolbar.onDidChange(updateMenuToolbar));
 
 	}
 
@@ -491,7 +504,7 @@ export class CellOutputContainer extends CellContentPart {
 
 	hasHiddenOutputs = observableValue<boolean>('hasHiddenOutputs', false);
 	checkForHiddenOutputs() {
-		if (this._outputEntries.find(entry => { return entry.model.hidden; })) {
+		if (this._outputEntries.find(entry => { return entry.model.visible; })) {
 			this.hasHiddenOutputs.set(true, undefined);
 		} else {
 			this.hasHiddenOutputs.set(false, undefined);

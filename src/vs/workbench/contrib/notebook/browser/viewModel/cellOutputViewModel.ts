@@ -5,6 +5,7 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { observableValue } from 'vs/base/common/observable';
 import { ICellOutputViewModel, IGenericCellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { ICellOutput, IOrderedMimeType, RENDERER_NOT_AVAILABLE } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -15,16 +16,19 @@ export class CellOutputViewModel extends Disposable implements ICellOutputViewMo
 	private _onDidResetRendererEmitter = this._register(new Emitter<void>());
 	readonly onDidResetRenderer = this._onDidResetRendererEmitter.event;
 
-	private _onDidShowHidden = this._register(new Emitter<void>());
-	readonly onDidShowHidden = this._onDidShowHidden.event;
+	private alwaysShow = false;
+	visible = observableValue<boolean>('outputVisible', false);
+	setVisible(visible = true, force: boolean = false) {
+		if (!visible && this.alwaysShow) {
+			// we are forced to show, so no-op
+			return;
+		}
 
-	private _hidden = true;
-	get hidden() {
-		return this._hidden;
-	}
-	show() {
-		this._hidden = false;
-		this._onDidShowHidden.fire();
+		if (force && visible) {
+			this.alwaysShow = true;
+		}
+
+		this.visible.set(visible, undefined);
 	}
 
 	outputHandle = handle++;
