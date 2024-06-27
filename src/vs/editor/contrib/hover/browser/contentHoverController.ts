@@ -80,14 +80,12 @@ export class ContentHoverController extends Disposable implements IEditorContrib
 	}
 
 	private _hookListeners(): void {
-
 		const hoverOpts = this._editor.getOption(EditorOption.hover);
 		this._hoverSettings = {
 			enabled: hoverOpts.enabled,
 			sticky: hoverOpts.sticky,
 			hidingDelay: hoverOpts.delay
 		};
-
 		if (hoverOpts.enabled) {
 			this._listenersStore.add(this._editor.onMouseDown((e: IEditorMouseEvent) => this._onEditorMouseDown(e)));
 			this._listenersStore.add(this._editor.onMouseUp(() => this._onEditorMouseUp()));
