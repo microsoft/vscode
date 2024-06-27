@@ -139,7 +139,7 @@ suite('Inline Completions', () => {
 				await timeout(1000);
 
 				assert.deepStrictEqual(provider.getAndClearCallHistory(), [
-					{ position: '(1,4)', text: 'foo', triggerKind: 1, }
+					{ position: '(1:4)', text: 'foo', triggerKind: 1, }
 				]);
 				assert.deepStrictEqual(context.getAndClearViewStates(), ['', 'foo[bar]']);
 			}
@@ -157,7 +157,7 @@ suite('Inline Completions', () => {
 				await timeout(1000);
 
 				assert.deepStrictEqual(provider.getAndClearCallHistory(), [
-					{ position: '(1,4)', text: 'foo', triggerKind: 0, }
+					{ position: '(1:4)', text: 'foo', triggerKind: 0, }
 				]);
 				assert.deepStrictEqual(context.getAndClearViewStates(), ['', 'foo[bar]']);
 			}
@@ -180,8 +180,8 @@ suite('Inline Completions', () => {
 				await timeout(1000);
 
 				assert.deepStrictEqual(provider.getAndClearCallHistory(), [
-					{ position: '(1,4)', text: 'foo', triggerKind: 1, },
-					{ position: '(1,6)', text: 'foobi', triggerKind: 0, }
+					{ position: '(1:4)', text: 'foo', triggerKind: 1, },
+					{ position: '(1:6)', text: 'foobi', triggerKind: 0, }
 				]);
 				assert.deepStrictEqual(
 					context.getAndClearViewStates(),
@@ -206,7 +206,7 @@ suite('Inline Completions', () => {
 				model.accept(editor);
 
 				assert.deepStrictEqual(provider.getAndClearCallHistory(), [
-					{ position: '(1,3)', text: '  ', triggerKind: 1, },
+					{ position: '(1:3)', text: '  ', triggerKind: 1, },
 				]);
 
 				assert.deepStrictEqual(context.getAndClearViewStates(), [' foo']);
@@ -229,7 +229,7 @@ suite('Inline Completions', () => {
 				model.accept(editor);
 
 				assert.deepStrictEqual(provider.getAndClearCallHistory(), [
-					{ position: '(1,3)', text: '\t\t', triggerKind: 1, },
+					{ position: '(1:3)', text: '\t\t', triggerKind: 1, },
 				]);
 
 				assert.deepStrictEqual(context.getAndClearViewStates(), ['\tfoo']);
@@ -252,7 +252,7 @@ suite('Inline Completions', () => {
 				model.accept(editor);
 
 				assert.deepStrictEqual(provider.getAndClearCallHistory(), [
-					{ position: '(1,7)', text: 'buzz  ', triggerKind: 1, },
+					{ position: '(1:7)', text: 'buzz  ', triggerKind: 1, },
 				]);
 
 				assert.deepStrictEqual(context.getAndClearViewStates(), []);
@@ -306,8 +306,8 @@ suite('Inline Completions', () => {
 				assert.deepStrictEqual(context.getAndClearViewStates(), ['foo[bar1]']);
 
 				assert.deepStrictEqual(provider.getAndClearCallHistory(), [
-					{ position: '(1,4)', text: 'foo', triggerKind: 0, },
-					{ position: '(1,4)', text: 'foo', triggerKind: 1, },
+					{ position: '(1:4)', text: 'foo', triggerKind: 0, },
+					{ position: '(1:4)', text: 'foo', triggerKind: 1, },
 				]);
 			}
 		);
@@ -332,7 +332,7 @@ suite('Inline Completions', () => {
 
 				await timeout(400);
 				assert.deepStrictEqual(provider.getAndClearCallHistory(), [
-					{ position: '(1,4)', text: 'foo', triggerKind: 0, }
+					{ position: '(1:4)', text: 'foo', triggerKind: 0, }
 				]);
 
 				provider.assertNotCalledTwiceWithin50ms();
@@ -377,7 +377,7 @@ suite('Inline Completions', () => {
 				model.trigger();
 				await timeout(1000);
 				assert.deepStrictEqual(provider.getAndClearCallHistory(), [
-					{ position: '(1,4)', text: 'foo', triggerKind: 0, }
+					{ position: '(1:4)', text: 'foo', triggerKind: 0, }
 				]);
 				assert.deepStrictEqual(context.getAndClearViewStates(), ['', 'foo[bar]']);
 
@@ -386,7 +386,7 @@ suite('Inline Completions', () => {
 				assert.deepStrictEqual(context.currentPrettyViewState, 'foob[ar]');
 				await timeout(1000);
 				assert.deepStrictEqual(provider.getAndClearCallHistory(), [
-					{ position: '(1,5)', text: 'foob', triggerKind: 0, }
+					{ position: '(1:5)', text: 'foob', triggerKind: 0, }
 				]);
 				assert.deepStrictEqual(context.getAndClearViewStates(), ['foob[ar]']);
 
@@ -395,7 +395,7 @@ suite('Inline Completions', () => {
 				assert.deepStrictEqual(context.currentPrettyViewState, 'fooba[r]');
 				await timeout(1000);
 				assert.deepStrictEqual(provider.getAndClearCallHistory(), [
-					{ position: '(1,6)', text: 'fooba', triggerKind: 0, }
+					{ position: '(1:6)', text: 'fooba', triggerKind: 0, }
 				]);
 				assert.deepStrictEqual(context.getAndClearViewStates(), ['fooba[r]']);
 			}
@@ -414,7 +414,7 @@ suite('Inline Completions', () => {
 				model.triggerExplicitly();
 				await timeout(100);
 				assert.deepStrictEqual(provider.getAndClearCallHistory(), [
-					{ position: '(1,4)', text: 'foo', triggerKind: 1, }
+					{ position: '(1:4)', text: 'foo', triggerKind: 1, }
 				]);
 				assert.deepStrictEqual(context.getAndClearViewStates(), ['', 'foo[bar]']);
 
@@ -424,7 +424,7 @@ suite('Inline Completions', () => {
 				await timeout(100);
 				// This behavior might change!
 				assert.deepStrictEqual(provider.getAndClearCallHistory(), [
-					{ position: '(1,5)', text: 'foob', triggerKind: 0, }
+					{ position: '(1:5)', text: 'foob', triggerKind: 0, }
 				]);
 				assert.deepStrictEqual(context.getAndClearViewStates(), ['foob[ar]', 'foob[az]']);
 			}
@@ -444,7 +444,7 @@ suite('Inline Completions', () => {
 				model.triggerExplicitly();
 				await timeout(1000);
 				assert.deepStrictEqual(provider.getAndClearCallHistory(), [
-					{ position: '(1,6)', text: 'fooba', triggerKind: 1, }
+					{ position: '(1:6)', text: 'fooba', triggerKind: 1, }
 				]);
 				assert.deepStrictEqual(context.getAndClearViewStates(), ['', 'fooba[r]']);
 
@@ -452,7 +452,7 @@ suite('Inline Completions', () => {
 				context.leftDelete();
 				await timeout(1000);
 				assert.deepStrictEqual(provider.getAndClearCallHistory(), [
-					{ position: '(1,5)', text: 'foob', triggerKind: 0, }
+					{ position: '(1:5)', text: 'foob', triggerKind: 0, }
 				]);
 				assert.deepStrictEqual(context.getAndClearViewStates(), [
 					'foob[ar]',
@@ -501,7 +501,7 @@ suite('Inline Completions', () => {
 
 				assert.deepStrictEqual(provider.getAndClearCallHistory(), [
 					{
-						position: '(1,6)',
+						position: '(1:6)',
 						text: 'hello\n',
 						triggerKind: 0,
 					}
@@ -522,7 +522,7 @@ suite('Inline Completions', () => {
 				await timeout(2000);
 
 				assert.deepStrictEqual(provider.getAndClearCallHistory(), [
-					{ position: '(2,6)', triggerKind: 0, text: 'hello\nhello' },
+					{ position: '(2:6)', triggerKind: 0, text: 'hello\nhello' },
 				]);
 
 				assert.deepStrictEqual(context.getAndClearViewStates(), [
@@ -553,7 +553,7 @@ suite('Inline Completions', () => {
 
 				model.accept(editor);
 
-				assert.deepStrictEqual(provider.getAndClearCallHistory(), ([{ position: "(2,4)", triggerKind: 1, text: "buzz\nbaz" }]));
+				assert.deepStrictEqual(provider.getAndClearCallHistory(), ([{ position: "(2:4)", triggerKind: 1, text: "buzz\nbaz" }]));
 
 				assert.deepStrictEqual(context.getAndClearViewStates(), [
 					'',
