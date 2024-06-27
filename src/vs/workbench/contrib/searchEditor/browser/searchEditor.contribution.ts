@@ -37,6 +37,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { getActiveElement } from 'vs/base/browser/dom';
+import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 
 
 const OpenInEditorCommandId = 'search.action.openInEditor';
@@ -544,8 +545,8 @@ registerAction2(class extends Action2 {
 			}
 		});
 	}
-	run(accessor: ServicesAccessor) {
-		selectAllSearchEditorMatchesCommand(accessor);
+	run(accessor: ServicesAccessor, event?: IKeyboardEvent) {
+		selectAllSearchEditorMatchesCommand(accessor, event);
 	}
 });
 
