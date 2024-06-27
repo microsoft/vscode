@@ -744,7 +744,7 @@ export class UserDataProfilesEditorModel extends EditorModel {
 
 		const newWindowAction = disposables.add(new Action(
 			'userDataProfile.newWindow',
-			localize('open new window', "New Window"),
+			localize('open new window', "Open New Window with this Profile"),
 			ThemeIcon.asClassName(Codicon.emptyWindow),
 			true,
 			() => this.openWindow(profile)
