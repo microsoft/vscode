@@ -12,12 +12,11 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { HoverOperation, HoverStartMode } from 'vs/editor/contrib/hover/browser/hoverOperation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { HoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
-import { IHoverWidget } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { IHoverMessage, LaneOrLineNumber, MarginHoverComputer } from 'vs/editor/contrib/hover/browser/marginHoverComputer';
 
 const $ = dom.$;
 
-export class MarginHoverWidget extends Disposable implements IOverlayWidget, IHoverWidget {
+export class MarginHoverWidget extends Disposable implements IOverlayWidget {
 
 	public static readonly ID = 'editor.contrib.modesGlyphHoverWidget';
 

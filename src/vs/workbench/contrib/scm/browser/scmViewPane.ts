@@ -106,11 +106,12 @@ import { MarkdownString } from 'vs/base/common/htmlContent';
 import type { IManagedHover, IManagedHoverTooltipMarkdownString } from 'vs/base/browser/ui/hover/hover';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { OpenScmGroupAction } from 'vs/workbench/contrib/multiDiffEditor/browser/scmMultiDiffSourceResolver';
-import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
 import { ITextModel } from 'vs/editor/common/model';
 import { autorun } from 'vs/base/common/observable';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { renderSCMHistoryItemGraph, toISCMHistoryItemViewModelArray } from 'vs/workbench/contrib/scm/browser/scmHistory';
+import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController';
+import { MarginHoverController } from 'vs/editor/contrib/hover/browser/marginHoverController';
 
 // type SCMResourceTreeNode = IResourceNode<ISCMResource, ISCMResourceGroup>;
 // type SCMHistoryItemChangeResourceTreeNode = IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement>;
@@ -2551,7 +2552,8 @@ class SCMInputWidget {
 				LinkDetector.ID,
 				MenuPreventer.ID,
 				MessageController.ID,
-				HoverController.ID,
+				ContentHoverController.ID,
+				MarginHoverController.ID,
 				SelectionClipboardContributionID,
 				SnippetController2.ID,
 				SuggestController.ID,

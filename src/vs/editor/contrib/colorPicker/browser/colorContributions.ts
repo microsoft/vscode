@@ -11,7 +11,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ColorDecorationInjectedTextMarker } from 'vs/editor/contrib/colorPicker/browser/colorDetector';
 import { ColorHoverParticipant } from 'vs/editor/contrib/colorPicker/browser/colorHoverParticipant';
-import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
+import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController';
 import { HoverStartMode, HoverStartSource } from 'vs/editor/contrib/hover/browser/hoverOperation';
 import { HoverParticipantRegistry } from 'vs/editor/contrib/hover/browser/hoverTypes';
 
@@ -56,13 +56,13 @@ export class ColorContribution extends Disposable implements IEditorContribution
 			return;
 		}
 
-		const hoverController = this._editor.getContribution<HoverController>(HoverController.ID);
-		if (!hoverController) {
+		const contentHoverController = this._editor.getContribution<ContentHoverController>(ContentHoverController.ID);
+		if (!contentHoverController) {
 			return;
 		}
-		if (!hoverController.isColorPickerVisible) {
+		if (!contentHoverController.isColorPickerVisible) {
 			const range = new Range(target.range.startLineNumber, target.range.startColumn + 1, target.range.endLineNumber, target.range.endColumn + 1);
-			hoverController.showContentHover(range, HoverStartMode.Immediate, HoverStartSource.Mouse, false, true);
+			contentHoverController.showContentHover(range, HoverStartMode.Immediate, HoverStartSource.Mouse, false, true);
 		}
 	}
 }

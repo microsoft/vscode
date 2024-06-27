@@ -179,16 +179,20 @@ export const HoverParticipantRegistry = (new class HoverParticipantRegistry {
 
 }());
 
-export interface IHoverWidget {
+/**
+ * Hover settings
+ */
+export interface IHoverSettings {
 	/**
-	 * Returns whether the hover widget is shown or should show in the future.
-	 * If the widget should show, this triggers the display.
-	 * @param mouseEvent editor mouse event
+	 * Whether the hover is enabled
 	 */
-	showsOrWillShow(mouseEvent: IEditorMouseEvent): boolean;
-
+	readonly enabled: boolean;
 	/**
-	 * Hides the hover.
+	 * Whether the hover is sticky
 	 */
-	hide(): void;
+	readonly sticky: boolean;
+	/**
+	 * The hiding delay of the hover
+	 */
+	readonly hidingDelay: number;
 }
