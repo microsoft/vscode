@@ -16,6 +16,7 @@ import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecyc
 import { Emitter, Event } from 'vs/base/common/event';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
 import { createMouseMoveEventOnOverflowingWidget } from 'vs/editor/browser/viewParts/contentWidgets/contentWidgets';
+import { EditorMouseEvent } from 'vs/editor/browser/editorDom';
 
 
 interface IWidgetData extends IDisposable {
@@ -47,6 +48,9 @@ export class ViewOverlayWidgets extends ViewPart {
 
 	private readonly _onMouseMoveOnOverflowingWidgets: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new Emitter<editorBrowser.IEditorMouseEvent>());
 	public readonly onMouseMoveOnOverflowingWidgets: Event<editorBrowser.IEditorMouseEvent> = this._onMouseMoveOnOverflowingWidgets.event;
+
+	private readonly _onMouseLeaveOfOverflowingWidget: Emitter<editorBrowser.IPartialEditorMouseEvent> = this._register(new Emitter<editorBrowser.IPartialEditorMouseEvent>());
+	public readonly onMouseLeaveOfOverflowingWidget: Event<editorBrowser.IPartialEditorMouseEvent> = this._onMouseLeaveOfOverflowingWidget.event;
 
 	constructor(context: ViewContext, viewDomNode: FastDomNode<HTMLElement>) {
 		super(context);
@@ -134,9 +138,10 @@ export class ViewOverlayWidgets extends ViewPart {
 
 	private _initializeMouseListenersOnOverflowingWidget(widgetId: string, widgetDomNode: HTMLElement): IDisposable {
 		const disposables = new DisposableStore();
-		disposables.add(dom.addDisposableListener(widgetDomNode, 'mouseout', (e) => {
+		disposables.add(dom.addDisposableListener(widgetDomNode, 'mouseleave', (e) => {
 			e.stopPropagation();
 			this.mouseOnOverflowingWidgetsDomNode = false;
+			this._onMouseLeaveOfOverflowingWidget.fire({ event: new EditorMouseEvent(e, false, widgetDomNode), target: null });
 		}));
 		disposables.add(dom.addDisposableListener(widgetDomNode, 'mousemove', (e) => {
 			e.stopPropagation();

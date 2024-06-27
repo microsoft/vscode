@@ -108,6 +108,9 @@ export class View extends ViewEventHandler {
 	private readonly _onMouseMoveOnOverflowingWidgets: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new Emitter<editorBrowser.IEditorMouseEvent>());
 	public readonly onMouseMoveOnOverflowingWidgets: Event<editorBrowser.IEditorMouseEvent> = this._onMouseMoveOnOverflowingWidgets.event;
 
+	private readonly _onMouseLeaveOfOverflowingWidget: Emitter<editorBrowser.IPartialEditorMouseEvent> = this._register(new Emitter<editorBrowser.IPartialEditorMouseEvent>());
+	public readonly onMouseLeaveOfOverflowingWidget: Event<editorBrowser.IPartialEditorMouseEvent> = this._onMouseLeaveOfOverflowingWidget.event;
+
 	constructor(
 		commandDelegate: ICommandDelegate,
 		configuration: IEditorConfiguration,
@@ -195,6 +198,7 @@ export class View extends ViewEventHandler {
 		// Content widgets
 		this._contentWidgets = new ViewContentWidgets(this._context, this.domNode);
 		this._register(this._contentWidgets.onMouseMoveOnOverflowingWidgets((e) => this._onMouseMoveOnOverflowingWidgets.fire(e)));
+		this._register(this._contentWidgets.onMouseLeaveOfOverflowingWidget((e) => this._onMouseLeaveOfOverflowingWidget.fire(e)));
 		this._viewParts.push(this._contentWidgets);
 
 		this._viewCursors = new ViewCursors(this._context);
@@ -203,6 +207,7 @@ export class View extends ViewEventHandler {
 		// Overlay widgets
 		this._overlayWidgets = new ViewOverlayWidgets(this._context, this.domNode);
 		this._register(this._overlayWidgets.onMouseMoveOnOverflowingWidgets((e) => this._onMouseMoveOnOverflowingWidgets.fire(e)));
+		this._register(this._overlayWidgets.onMouseLeaveOfOverflowingWidget((e) => this._onMouseLeaveOfOverflowingWidget.fire(e)));
 		this._viewParts.push(this._overlayWidgets);
 
 		const rulers = new Rulers(this._context);

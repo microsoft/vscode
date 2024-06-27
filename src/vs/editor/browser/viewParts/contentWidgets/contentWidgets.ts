@@ -34,6 +34,9 @@ export class ViewContentWidgets extends ViewPart {
 	private readonly _onMouseMoveOnOverflowingWidgets: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new Emitter<editorBrowser.IEditorMouseEvent>());
 	public readonly onMouseMoveOnOverflowingWidgets: Event<editorBrowser.IEditorMouseEvent> = this._onMouseMoveOnOverflowingWidgets.event;
 
+	private readonly _onMouseLeaveOfOverflowingWidget: Emitter<editorBrowser.IPartialEditorMouseEvent> = this._register(new Emitter<editorBrowser.IPartialEditorMouseEvent>());
+	public readonly onMouseLeaveOfOverflowingWidget: Event<editorBrowser.IPartialEditorMouseEvent> = this._onMouseLeaveOfOverflowingWidget.event;
+
 	constructor(context: ViewContext, viewDomNode: FastDomNode<HTMLElement>) {
 		super(context);
 		this._viewDomNode = viewDomNode;
@@ -109,11 +112,14 @@ export class ViewContentWidgets extends ViewPart {
 	public addWidget(_widget: IContentWidget): void {
 		const widget = new Widget(this.domNode, this.overflowingContentWidgetsDomNode, this._context, this._viewDomNode, _widget);
 		const onMouseMoveOnOverflowingWidgetListener = widget.onMouseMoveOnOverflowingWidget((e) => this._onMouseMoveOnOverflowingWidgets.fire(e));
+		const onMouseLeaveOfOverflowingWidgetListener = widget.onMouseLeaveOfOverflowingWidget((e) => this._onMouseLeaveOfOverflowingWidget.fire(e));
+
 		this._widgets[widget.id] = {
 			widget,
 			dispose() {
 				widget.dispose();
 				onMouseMoveOnOverflowingWidgetListener.dispose();
+				onMouseLeaveOfOverflowingWidgetListener.dispose();
 			}
 		};
 
@@ -233,6 +239,9 @@ class Widget extends Disposable {
 	private readonly _onMouseMoveOnOverflowingWidget: Emitter<editorBrowser.IEditorMouseEvent> = this._register(new Emitter<editorBrowser.IEditorMouseEvent>());
 	public readonly onMouseMoveOnOverflowingWidget: Event<editorBrowser.IEditorMouseEvent> = this._onMouseMoveOnOverflowingWidget.event;
 
+	private readonly _onMouseLeaveOfOverflowingWidget: Emitter<editorBrowser.IPartialEditorMouseEvent> = this._register(new Emitter<editorBrowser.IPartialEditorMouseEvent>());
+	public readonly onMouseLeaveOfOverflowingWidget: Event<editorBrowser.IPartialEditorMouseEvent> = this._onMouseLeaveOfOverflowingWidget.event;
+
 	constructor(
 		container: FastDomNode<HTMLElement>,
 		overflowWidgetsDomNode: FastDomNode<HTMLElement>,
@@ -282,13 +291,14 @@ class Widget extends Disposable {
 
 	private _initializeMouseListenersOnOverflowingWidget(widgetDomNode: HTMLElement, widgetId: string): IDisposable {
 		const disposables = new DisposableStore();
-		disposables.add(dom.addDisposableListener(widgetDomNode, 'mouseout', (e) => {
+		disposables.add(dom.addDisposableListener(widgetDomNode, 'mouseleave', (e) => {
 			e.stopPropagation();
 			this.mouseOnOverflowingWidgetsDomNode = false;
+			this._onMouseLeaveOfOverflowingWidget.fire({ event: new EditorMouseEvent(e, false, widgetDomNode), target: null });
 		}));
 		disposables.add(dom.addDisposableListener(widgetDomNode, 'mousemove', (e) => {
 			e.stopPropagation();
-			this.mouseOnOverflowingWidgetsDomNode = true;;
+			this.mouseOnOverflowingWidgetsDomNode = true;
 			this._onMouseMoveOnOverflowingWidget.fire(createMouseMoveEventOnOverflowingWidget(e, widgetDomNode, widgetId));
 		}));
 		return disposables;

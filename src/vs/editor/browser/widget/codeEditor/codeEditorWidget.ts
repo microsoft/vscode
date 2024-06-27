@@ -1781,6 +1781,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			view.domNode.domNode.setAttribute('data-uri', model.uri.toString());
 
 			listenersToRemove.push(view.onMouseMoveOnOverflowingWidgets((e) => this._onMouseMove.fire(e)));
+			listenersToRemove.push(view.onMouseLeaveOfOverflowingWidget((e) => this._onMouseLeave.fire(e)));
 		}
 
 		this._modelData = new ModelData(model, viewModel, view, hasRealView, listenersToRemove, attachedView);
