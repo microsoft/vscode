@@ -465,9 +465,9 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 
 		this._ensureOutputsTop();
 
-		if (index === 0 || height >= 3) {
+		if (index === 0 || height > 0) {
 			this._outputViewModels[index].setVisible(true);
-		} else if (height < 3) {
+		} else if (height === 0) {
 			this._outputViewModels[index].setVisible(false);
 		}
 
