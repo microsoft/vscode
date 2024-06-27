@@ -5,7 +5,7 @@
 
 import 'vs/css!./overlayWidgets';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { IEditorMouseEvent, IOverlayWidget, IOverlayWidgetPosition, IOverlayWidgetPositionCoordinates, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
+import { IOverlayWidget, IOverlayWidgetPosition, IOverlayWidgetPositionCoordinates, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { PartFingerprint, PartFingerprints, ViewPart } from 'vs/editor/browser/view/viewPart';
 import { RenderingContext, RestrictedRenderingContext } from 'vs/editor/browser/view/renderingContext';
 import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
@@ -13,10 +13,9 @@ import * as viewEvents from 'vs/editor/common/viewEvents';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import * as dom from 'vs/base/browser/dom';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { EditorMouseEvent } from 'vs/editor/browser/editorDom';
-import { MouseTarget } from 'vs/editor/browser/controller/mouseTarget';
 import { Emitter, Event } from 'vs/base/common/event';
 import * as editorBrowser from 'vs/editor/browser/editorBrowser';
+import { createMouseMoveEventOnOverflowingWidget } from 'vs/editor/browser/viewParts/contentWidgets/contentWidgets';
 
 
 interface IWidgetData extends IDisposable {
@@ -111,7 +110,7 @@ export class ViewOverlayWidgets extends ViewPart {
 		let disposables: IDisposable;
 		if (widget.allowEditorOverflow) {
 			this.overflowingOverlayWidgetsDomNode.appendChild(domNode);
-			disposables = this._registerMouseListenersOnOverflowingWidget(widgetId, widgetDomNode);
+			disposables = this._initializeMouseListenersOnOverflowingWidget(widgetId, widgetDomNode);
 		} else {
 			this._domNode.appendChild(domNode);
 			disposables = Disposable.None;
@@ -133,7 +132,7 @@ export class ViewOverlayWidgets extends ViewPart {
 	}
 
 
-	private _registerMouseListenersOnOverflowingWidget(widgetId: string, widgetDomNode: HTMLElement): IDisposable {
+	private _initializeMouseListenersOnOverflowingWidget(widgetId: string, widgetDomNode: HTMLElement): IDisposable {
 		const disposables = new DisposableStore();
 		disposables.add(dom.addDisposableListener(widgetDomNode, 'mouseout', (e) => {
 			e.stopPropagation();
@@ -142,10 +141,7 @@ export class ViewOverlayWidgets extends ViewPart {
 		disposables.add(dom.addDisposableListener(widgetDomNode, 'mousemove', (e) => {
 			e.stopPropagation();
 			this.mouseOnOverflowingWidgetsDomNode = true;
-			const event = new EditorMouseEvent(e, false, widgetDomNode);
-			const target = MouseTarget.createContentWidget(widgetDomNode, 0, widgetId);
-			const mouseEvent: IEditorMouseEvent = { event, target };
-			this._onMouseMoveOnOverflowingWidgets.fire(mouseEvent);
+			this._onMouseMoveOnOverflowingWidgets.fire(createMouseMoveEventOnOverflowingWidget(e, widgetDomNode, widgetId));
 		}));
 		return disposables;
 	}

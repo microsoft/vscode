@@ -1779,8 +1779,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 			view.render(false, true);
 			view.domNode.domNode.setAttribute('data-uri', model.uri.toString());
+
+			listenersToRemove.push(view.onMouseMoveOnOverflowingWidgets((e) => this._onMouseMove.fire(e)));
 		}
-		listenersToRemove.push(view.onMouseMoveOnOverflowingWidgets((e) => this._onMouseMove.fire(e)));
 
 		this._modelData = new ModelData(model, viewModel, view, hasRealView, listenersToRemove, attachedView);
 	}
@@ -1846,13 +1847,13 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		viewUserInputEvents.onKeyUp = (e) => this._onKeyUp.fire(e);
 		viewUserInputEvents.onContextMenu = (e) => this._onContextMenu.fire(e);
 		viewUserInputEvents.onMouseMove = (e) => {
-			if (!this._mouseOnOverflowingWidgetsDomNode) {
+			if (!view.mouseOnOverflowingWidgetsDomNode) {
 				this._onMouseMove.fire(e);
 			}
 		};
 		viewUserInputEvents.onMouseLeave = (e) => {
 			setTimeout(() => {
-				if (!this._mouseOnOverflowingWidgetsDomNode) {
+				if (!view.mouseOnOverflowingWidgetsDomNode) {
 					this._onMouseLeave.fire(e);
 				}
 			}, 100);
@@ -1875,10 +1876,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		);
 
 		return [view, true];
-	}
-
-	private get _mouseOnOverflowingWidgetsDomNode(): boolean {
-		return this._modelData?.view.mouseOnOverflowingWidgetsDomNode ?? false;
 	}
 
 	protected _postDetachModelCleanup(detachedModel: ITextModel | null): void {
