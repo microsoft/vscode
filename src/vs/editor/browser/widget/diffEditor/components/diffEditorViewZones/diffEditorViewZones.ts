@@ -175,7 +175,7 @@ export class DiffEditorViewZones extends Disposable {
 				}
 			}
 
-			const lineBreakData = deletedCodeLineBreaksComputer?.finalize() ?? [];
+			const lineBreakData = deletedCodeLineBreaksComputer?.finalize(this._editors.original.getModel()?.getAllTextDecorations() ?? []) ?? [];
 			let lineBreakDataIdx = 0;
 
 			const modLineHeight = this._editors.modified.getOption(EditorOption.lineHeight);

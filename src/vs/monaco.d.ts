@@ -2262,6 +2262,11 @@ declare namespace monaco.editor {
 		 */
 		getAllMarginDecorations(ownerId?: number): IModelDecoration[];
 		/**
+		 * Gets all decorations that apply to text.
+		 * @param ownerId If set, it will ignore decorations belonging to other owners.
+		 */
+		getAllTextDecorations(ownerId?: number): IModelDecoration[];
+		/**
 		 * Gets all the decorations that should be rendered in the overview ruler as an array.
 		 * @param ownerId If set, it will ignore decorations belonging to other owners.
 		 * @param filterOutValidation If set, it will ignore decorations specific to validation (i.e. warnings, errors).
@@ -2955,6 +2960,7 @@ declare namespace monaco.editor {
 		readonly affectsOverviewRuler: boolean;
 		readonly affectsGlyphMargin: boolean;
 		readonly affectsLineNumber: boolean;
+		readonly affectsLetterSpacing: boolean;
 	}
 
 	export interface IModelOptionsChangedEvent {

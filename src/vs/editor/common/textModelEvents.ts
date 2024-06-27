@@ -92,6 +92,7 @@ export interface IModelDecorationsChangedEvent {
 	readonly affectsOverviewRuler: boolean;
 	readonly affectsGlyphMargin: boolean;
 	readonly affectsLineNumber: boolean;
+	readonly affectsLetterSpacing: boolean;
 }
 
 /**
