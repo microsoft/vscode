@@ -20,7 +20,7 @@ import { getMarks, mark } from 'vs/base/common/performance';
 import { IProcessEnvironment, isMacintosh, isWindows, OS } from 'vs/base/common/platform';
 import { cwd } from 'vs/base/common/process';
 import { extUriBiasedIgnorePathCase, isEqualAuthority, normalizePath, originalFSPath, removeTrailingPathSeparator } from 'vs/base/common/resources';
-import { assertIsDefined } from 'vs/base/common/types';
+import { Mutable, assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
@@ -884,6 +884,15 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		}));
 
 		pathsToOpen.push(...coalesce(resolvedCliPaths));
+
+		if (cli['use-editor']) {
+			const override = cli['use-editor'];
+			for (const file of pathsToOpen) {
+				if (((file.type ?? 0) & FileType.File) === 0) { continue; }
+				// temporarily cast to any to drop readonly modifier of options
+				(file as Mutable<IPathToOpen>).options = { ...file.options, override };
+			}
+		}
 
 		return pathsToOpen;
 	}
