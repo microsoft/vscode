@@ -50,6 +50,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { isEqual } from 'vs/base/common/resources';
 import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
+import { escapeRegExpCharacters } from 'vs/base/common/strings';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -433,7 +434,7 @@ export class InlineChatController implements IEditorContribution {
 		}));
 
 		// #region DEBT
-		// DEBT@jrieken
+		// DEBT@jrieken https://github.com/microsoft/vscode/issues/218819
 		// REMOVE when agents are adopted
 		this._sessionStore.add(this._languageFeatureService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
 			_debugDisplayName: 'inline chat commands',
@@ -456,7 +457,7 @@ export class InlineChatController implements IEditorContribution {
 					result.suggestions.push({
 						label: { label: withSlash, description: command.description ?? '' },
 						kind: CompletionItemKind.Text,
-						insertText: withSlash,
+						insertText: `${withSlash} `,
 						range: Range.fromPositions(new Position(1, 1), position),
 					});
 				}
@@ -471,16 +472,12 @@ export class InlineChatController implements IEditorContribution {
 			for (const command of (this._session?.agent.slashCommands ?? []).sort((a, b) => b.name.length - a.name.length)) {
 				const withSlash = `/${command.name}`;
 				const firstLine = model.getLineContent(1);
-				if (firstLine.startsWith(withSlash)) {
+				if (firstLine.match(new RegExp(`^${escapeRegExpCharacters(withSlash)}(\\s|$)`))) {
 					newDecorations.push({
 						range: new Range(1, 1, 1, withSlash.length + 1),
 						options: {
 							description: 'inline-chat-slash-command',
 							inlineClassName: 'inline-chat-slash-command',
-							after: {
-								// Force some space between slash command and placeholder
-								content: ' '
-							}
 						}
 					});
 
