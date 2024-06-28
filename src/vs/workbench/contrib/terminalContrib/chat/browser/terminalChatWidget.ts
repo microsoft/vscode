@@ -56,7 +56,13 @@ export class TerminalChatWidget extends Disposable {
 
 		this._inlineChatWidget = this._instantiationService.createInstance(
 			InlineChatWidget,
-			ChatAgentLocation.Terminal,
+			{
+				location: ChatAgentLocation.Terminal,
+				resolveData: () => {
+					// TODO@meganrogge return something that identifies this terminal
+					return undefined;
+				}
+			},
 			{
 				statusMenuId: {
 					menu: MENU_TERMINAL_CHAT_WIDGET_STATUS,

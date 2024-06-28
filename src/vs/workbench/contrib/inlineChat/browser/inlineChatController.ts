@@ -51,6 +51,7 @@ import { isEqual } from 'vs/base/common/resources';
 import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { escapeRegExpCharacters } from 'vs/base/common/strings';
+import { IChatWidgetLocationOptions } from 'vs/workbench/contrib/chat/browser/chatWidget';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -154,19 +155,34 @@ export class InlineChatController implements IEditorContribution {
 		this._ctxRequestInProgress = CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.bindTo(contextKeyService);
 
 		this._ui = new Lazy(() => {
-			let location = ChatAgentLocation.Editor;
+
+			const location: IChatWidgetLocationOptions = {
+				location: ChatAgentLocation.Editor,
+				resolveData: () => {
+					assertType(this._editor.hasModel());
+					assertType(this._session);
+					return {
+						type: ChatAgentLocation.Editor,
+						selection: this._editor.getSelection(),
+						document: this._session.textModelN.uri,
+						wholeRange: this._session?.wholeRange.trackedInitialRange,
+					};
+				}
+			};
 
 			// inline chat in notebooks
 			// check if this editor is part of a notebook editor
-			// and iff so, use the notebook location
+			// and iff so, use the notebook location but keep the resolveData
+			// talk about editor data
 			for (const notebookEditor of notebookEditorService.listNotebookEditors()) {
 				for (const [, codeEditor] of notebookEditor.codeEditors) {
 					if (codeEditor === this._editor) {
-						location = ChatAgentLocation.Notebook;
+						location.location = ChatAgentLocation.Notebook;
 						break;
 					}
 				}
 			}
+
 			const content = this._store.add(_instaService.createInstance(InlineChatContentWidget, location, this._editor));
 			const zone = this._store.add(_instaService.createInstance(InlineChatZoneWidget, location, this._editor));
 			return { content, zone };

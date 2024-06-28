@@ -11,6 +11,7 @@ import { Emitter } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Iterable } from 'vs/base/common/iterator';
 import { Disposable, DisposableMap, DisposableStore } from 'vs/base/common/lifecycle';
+import { revive } from 'vs/base/common/marshalling';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
@@ -19,6 +20,8 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostChatAgentsShape2, IChatAgentCompletionItem, IChatAgentHistoryEntryDto, IChatProgressDto, IExtensionChatAgentMetadata, IMainContext, MainContext, MainThreadChatAgentsShape2 } from 'vs/workbench/api/common/extHost.protocol';
 import { CommandsConverter, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
+import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
+import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import { ChatAgentLocation, IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
@@ -262,7 +265,9 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 	constructor(
 		mainContext: IMainContext,
 		private readonly _logService: ILogService,
-		private readonly commands: ExtHostCommands,
+		private readonly _commands: ExtHostCommands,
+		private readonly _documents: ExtHostDocuments,
+		private readonly _notebooks: ExtHostNotebookController
 	) {
 		super();
 		this._proxy = mainContext.getProxy(MainContext.MainThreadChatAgents2);
@@ -290,11 +295,13 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return agent.apiAgent;
 	}
 
-	async $invokeAgent(handle: number, request: IChatAgentRequest, context: { history: IChatAgentHistoryEntryDto[] }, token: CancellationToken): Promise<IChatAgentResult | undefined> {
+	async $invokeAgent(handle: number, requestDto: Dto<IChatAgentRequest>, context: { history: IChatAgentHistoryEntryDto[] }, token: CancellationToken): Promise<IChatAgentResult | undefined> {
 		const agent = this._agents.get(handle);
 		if (!agent) {
 			throw new Error(`[CHAT](${handle}) CANNOT invoke agent because the agent is not registered`);
 		}
+
+		const request = revive<IChatAgentRequest>(requestDto);
 
 		// Init session disposables
 		let sessionDisposables = this._sessionDisposables.get(request.sessionId);
@@ -303,11 +310,28 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			this._sessionDisposables.set(request.sessionId, sessionDisposables);
 		}
 
-		const stream = new ChatAgentResponseStream(agent.extension, request, this._proxy, this.commands.converter, sessionDisposables);
+		const stream = new ChatAgentResponseStream(agent.extension, request, this._proxy, this._commands.converter, sessionDisposables);
 		try {
 			const convertedHistory = await this.prepareHistoryTurns(request.agentId, context);
+
+			// in-place converting for location-data
+			let location2: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined;
+			if (request.locationData?.type === ChatAgentLocation.Editor) {
+				// editor data
+				const document = this._documents.getDocument(request.locationData.document);
+				location2 = new extHostTypes.ChatRequestEditorData(document, typeConvert.Selection.to(request.locationData.selection), typeConvert.Range.to(request.locationData.wholeRange));
+
+			} else if (request.locationData?.type === ChatAgentLocation.Notebook) {
+				// notebook data
+				const notebook = this._notebooks.getNotebookDocument(request.locationData.sessionInputUri);
+				location2 = new extHostTypes.ChatRequestNotebookData(notebook.apiNotebook);
+
+			} else if (request.locationData?.type === ChatAgentLocation.Terminal) {
+				// TBD
+			}
+
 			const task = agent.invoke(
-				typeConvert.ChatAgentRequest.to(request),
+				typeConvert.ChatAgentRequest.to(request, location2),
 				{ history: convertedHistory },
 				stream.apiObject,
 				token
@@ -364,7 +388,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			res.push(new extHostTypes.ChatRequestTurn(h.request.message, h.request.command, h.request.variables.variables.map(typeConvert.ChatAgentValueReference.to), h.request.agentId));
 
 			// RESPONSE turn
-			const parts = coalesce(h.response.map(r => typeConvert.ChatResponsePart.toContent(r, this.commands.converter)));
+			const parts = coalesce(h.response.map(r => typeConvert.ChatResponsePart.toContent(r, this._commands.converter)));
 			res.push(new extHostTypes.ChatResponseTurn(parts, result, h.request.agentId, h.request.command));
 		}
 
@@ -375,12 +399,13 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		this._sessionDisposables.deleteAndDispose(sessionId);
 	}
 
-	async $provideFollowups(request: IChatAgentRequest, handle: number, result: IChatAgentResult, context: { history: IChatAgentHistoryEntryDto[] }, token: CancellationToken): Promise<IChatFollowup[]> {
+	async $provideFollowups(requestDto: Dto<IChatAgentRequest>, handle: number, result: IChatAgentResult, context: { history: IChatAgentHistoryEntryDto[] }, token: CancellationToken): Promise<IChatFollowup[]> {
 		const agent = this._agents.get(handle);
 		if (!agent) {
 			return Promise.resolve([]);
 		}
 
+		const request = revive<IChatAgentRequest>(requestDto);
 		const convertedHistory = await this.prepareHistoryTurns(agent.id, context);
 
 		const ehResult = typeConvert.ChatAgentResult.to(result);
@@ -429,7 +454,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			return;
 		}
 
-		const ehAction = typeConvert.ChatAgentUserActionEvent.to(result, event, this.commands.converter);
+		const ehAction = typeConvert.ChatAgentUserActionEvent.to(result, event, this._commands.converter);
 		if (ehAction) {
 			agent.acceptAction(Object.freeze(ehAction));
 		}
@@ -452,7 +477,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 
 		const items = await agent.invokeCompletionProvider(query, token);
 
-		return items.map((i) => typeConvert.ChatAgentCompletionItem.from(i, this.commands.converter, disposables));
+		return items.map((i) => typeConvert.ChatAgentCompletionItem.from(i, this._commands.converter, disposables));
 	}
 
 	async $provideWelcomeMessage(handle: number, location: ChatAgentLocation, token: CancellationToken): Promise<(string | IMarkdownString)[] | undefined> {

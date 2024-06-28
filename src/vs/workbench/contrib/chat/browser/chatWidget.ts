@@ -36,7 +36,7 @@ import { CONTEXT_CHAT_INPUT_HAS_AGENT, CONTEXT_CHAT_LOCATION, CONTEXT_CHAT_REQUE
 import { ChatModelInitState, IChatModel, IChatRequestVariableEntry, IChatResponseModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ChatRequestAgentPart, IParsedChatRequest, chatAgentLeader, chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
-import { IChatFollowup, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatFollowup, IChatLocationData, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { CodeBlockModelCollection } from 'vs/workbench/contrib/chat/common/codeBlockModelCollection';
@@ -75,6 +75,11 @@ export interface IChatWidgetContrib extends IDisposable {
 	 * Called with the result of getInputState when navigating input history.
 	 */
 	setInputState?(s: any): void;
+}
+
+export interface IChatWidgetLocationOptions {
+	location: ChatAgentLocation;
+	resolveData?(): IChatLocationData | undefined;
 }
 
 export class ChatWidget extends Disposable implements IChatWidget {
@@ -176,8 +181,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this.contextKeyService;
 	}
 
+	private readonly _location: IChatWidgetLocationOptions;
+
+	get location() {
+		return this._location.location;
+	}
+
 	constructor(
-		readonly location: ChatAgentLocation,
+		location: ChatAgentLocation | IChatWidgetLocationOptions,
 		readonly viewContext: IChatWidgetViewContext,
 		private readonly viewOptions: IChatWidgetViewOptions,
 		private readonly styles: IChatWidgetStyles,
@@ -194,8 +205,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatSlashCommandService private readonly chatSlashCommandService: IChatSlashCommandService,
 	) {
 		super();
+
+		if (typeof location === 'object') {
+			this._location = location;
+		} else {
+			this._location = { location };
+		}
+
 		CONTEXT_IN_CHAT_SESSION.bindTo(contextKeyService).set(true);
-		CONTEXT_CHAT_LOCATION.bindTo(contextKeyService).set(location);
+		CONTEXT_CHAT_LOCATION.bindTo(contextKeyService).set(this._location.location);
 		CONTEXT_IN_QUICK_CHAT.bindTo(contextKeyService).set('resource' in viewContext);
 		this.agentInInput = CONTEXT_CHAT_INPUT_HAS_AGENT.bindTo(contextKeyService);
 		this.requestInProgress = CONTEXT_CHAT_REQUEST_IN_PROGRESS.bindTo(contextKeyService);
@@ -748,7 +766,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				'query' in opts ? opts.query :
 					`${opts.prefix} ${editorValue}`;
 			const isUserQuery = !opts || 'prefix' in opts;
-			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input, { location: this.location, parserContext: { selectedAgent: this._lastSelectedAgent }, attachedContext: [...this.inputPart.attachedContext.values()] });
+			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input, {
+				location: this.location,
+				locationData: this._location.resolveData?.(),
+				parserContext: { selectedAgent: this._lastSelectedAgent },
+				attachedContext: [...this.inputPart.attachedContext.values()]
+			});
 
 			if (result) {
 				this.inputPart.attachedContext.clear();
