@@ -963,8 +963,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.inputPart.saveState();
 		return { inputValue: this.getInput(), inputState: this.collectInputState() };
 	}
-
-
 }
 
 export class ChatWidgetService implements IChatWidgetService {
