@@ -1747,10 +1747,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			LanguageModelChatMessageFunctionResultPart: extHostTypes.LanguageModelFunctionResultPart,
 			LanguageModelChatResponseTextPart: extHostTypes.LanguageModelTextPart,
 			LanguageModelChatResponseFunctionUsePart: extHostTypes.LanguageModelFunctionUsePart,
-			LanguageModelChatMessage2: extHostTypes.LanguageModelChatMessage, // TODO@jrieken REMOVE
-			LanguageModelChatSystemMessage: extHostTypes.LanguageModelChatSystemMessage,// TODO@jrieken REMOVE
-			LanguageModelChatUserMessage: extHostTypes.LanguageModelChatUserMessage,// TODO@jrieken REMOVE
-			LanguageModelChatAssistantMessage: extHostTypes.LanguageModelChatAssistantMessage,// TODO@jrieken REMOVE
 			LanguageModelError: extHostTypes.LanguageModelError,
 			NewSymbolName: extHostTypes.NewSymbolName,
 			NewSymbolNameTag: extHostTypes.NewSymbolNameTag,
