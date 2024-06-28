@@ -562,11 +562,11 @@ class ExtensionsScanner extends Disposable {
 		@IUriIdentityService protected readonly uriIdentityService: IUriIdentityService,
 		@IFileService protected readonly fileService: IFileService,
 		@IProductService productService: IProductService,
-		@IEnvironmentService environmentService: IEnvironmentService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@ILogService protected readonly logService: ILogService
 	) {
 		super();
-		this.extensionsEnabledWithApiProposalVersion = environmentService.isBuilt ? productService.extensionsEnabledWithApiProposalVersion?.map(id => id.toLowerCase()) ?? [] : [];
+		this.extensionsEnabledWithApiProposalVersion = productService.extensionsEnabledWithApiProposalVersion?.map(id => id.toLowerCase()) ?? [];
 	}
 
 	async scanExtensions(input: ExtensionScannerInput): Promise<IRelaxedScannedExtension[]> {
@@ -673,7 +673,7 @@ class ExtensionsScanner extends Disposable {
 				if (input.validate) {
 					extension = this.validate(extension, input);
 				}
-				if (manifest.enabledApiProposals && this.extensionsEnabledWithApiProposalVersion.includes(id.toLowerCase())) {
+				if (manifest.enabledApiProposals && (!this.environmentService.isBuilt || this.extensionsEnabledWithApiProposalVersion.includes(id.toLowerCase()))) {
 					manifest.enabledApiProposals = parseEnabledApiProposalNames([...manifest.enabledApiProposals]);
 				}
 				return extension;
@@ -688,7 +688,7 @@ class ExtensionsScanner extends Disposable {
 
 	validate(extension: IRelaxedScannedExtension, input: ExtensionScannerInput): IRelaxedScannedExtension {
 		let isValid = true;
-		const validateApiVersion = this.extensionsEnabledWithApiProposalVersion.includes(extension.identifier.id.toLowerCase());
+		const validateApiVersion = this.environmentService.isBuilt && this.extensionsEnabledWithApiProposalVersion.includes(extension.identifier.id.toLowerCase());
 		const validations = validateExtensionManifest(input.productVersion, input.productDate, input.location, extension.manifest, extension.isBuiltin, validateApiVersion);
 		for (const [severity, message] of validations) {
 			if (severity === Severity.Error) {
