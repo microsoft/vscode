@@ -183,7 +183,6 @@ export class HoverController extends Disposable implements IEditorContribution {
 
 	private _onEditorMouseLeave(mouseEvent: IPartialEditorMouseEvent): void {
 		console.log('_onEditorMouseLeave');
-
 		if (this.shouldKeepOpenOnEditorMouseMoveOrLeave) {
 			return;
 		}

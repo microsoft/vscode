@@ -543,17 +543,11 @@ export class MouseTargetFactory {
 		return false;
 	}
 
-	public createMouseTarget(lastRenderData: PointerHandlerLastRenderData, editorPos: EditorPagePosition, pos: PageCoordinates, relativePos: CoordinatesRelativeToEditor, target: HTMLElement | null, overflowWidgetsDomNodeTarget: boolean): IMouseTarget {
+	public createMouseTargetForView(lastRenderData: PointerHandlerLastRenderData, editorPos: EditorPagePosition, pos: PageCoordinates, relativePos: CoordinatesRelativeToEditor, target: HTMLElement | null): IMouseTarget {
 		const ctx = new HitTestContext(this._context, this._viewHelper, lastRenderData);
-		const request = new HitTestRequest(ctx, editorPos, pos, relativePos, target, overflowWidgetsDomNodeTarget);
-		console.log('createMouseTarget');
-		console.log('overflowWidgetsDomNodeTarget : ', overflowWidgetsDomNodeTarget);
-		console.log('request : ', request);
-		console.log('target : ', target);
-		console.log('ctx : ', ctx);
+		const request = new HitTestRequest(ctx, editorPos, pos, relativePos, target, false);
 		try {
 			const r = MouseTargetFactory._createMouseTarget(ctx, request);
-			console.log('r : ', r);
 
 			if (r.type === MouseTargetType.CONTENT_TEXT) {
 				// Snap to the nearest soft tab boundary if atomic soft tabs are enabled.
@@ -568,6 +562,16 @@ export class MouseTargetFactory {
 			return r;
 		} catch (err) {
 			// console.log(err);
+			return request.fulfillUnknown();
+		}
+	}
+
+	public createMouseTargetForOverflowWidgetsDomNode(lastRenderData: PointerHandlerLastRenderData, editorPos: EditorPagePosition, pos: PageCoordinates, relativePos: CoordinatesRelativeToEditor, target: HTMLElement | null) {
+		const ctx = new HitTestContext(this._context, this._viewHelper, lastRenderData);
+		const request = new HitTestRequest(ctx, editorPos, pos, relativePos, target, true);
+		try {
+			return MouseTargetFactory._createMouseTarget(ctx, request);
+		} catch (err) {
 			return request.fulfillUnknown();
 		}
 	}
@@ -608,12 +612,9 @@ export class MouseTargetFactory {
 	}
 
 	private static _hitTestContentWidget(ctx: HitTestContext, request: ResolvedHitTestRequest): IMouseTarget | null {
-		console.log('_hitTestContentWidget');
-		console.log('request : ', request);
 		// Is it a content widget?
 		if (ElementPath.isChildOfContentWidgets(request.targetPath) || ElementPath.isChildOfOverflowingContentWidgets(request.targetPath)) {
 			const widgetId = ctx.findAttribute(request.target, 'widgetId');
-			console.log('widgetId : ', widgetId)
 			if (widgetId) {
 				return request.fulfillContentWidget(widgetId);
 			} else {

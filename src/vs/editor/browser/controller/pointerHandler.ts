@@ -47,12 +47,9 @@ export class PointerEventHandler extends MouseHandler {
 		// PonterEvents
 		const pointerEvents = new EditorPointerEventFactory(this.viewHelper.viewDomNode);
 
-		this._register(pointerEvents.onPointerMove(this.viewHelper.viewDomNode, (e) => this._onMouseMove(e, false)));
+		this._register(pointerEvents.onPointerMove(this.viewHelper.viewDomNode, (e) => this._onMouseMoveOverView(e)));
 		this._register(pointerEvents.onPointerUp(this.viewHelper.viewDomNode, (e) => this._onMouseUp(e)));
-		this._register(pointerEvents.onPointerLeave(this.viewHelper.viewDomNode, (e) => {
-			console.log('_onMouseLeave of pointer leave');
-			this._onMouseLeave(e);
-		}));
+		this._register(pointerEvents.onPointerLeave(this.viewHelper.viewDomNode, (e) => this._onMouseLeave(e)));
 		this._register(pointerEvents.onPointerDown(this.viewHelper.viewDomNode, (e, pointerId) => this._onMouseDown(e, pointerId)));
 	}
 
@@ -76,7 +73,7 @@ export class PointerEventHandler extends MouseHandler {
 	}
 
 	private _dispatchGesture(event: GestureEvent, inSelectionMode: boolean): void {
-		const target = this._createMouseTarget(new EditorMouseEvent(event, false, this.viewHelper.viewDomNode), false, false);
+		const target = this._createMouseTargetForView(new EditorMouseEvent(event, false, this.viewHelper.viewDomNode), false);
 		if (target.position) {
 			this.viewController.dispatchMouse({
 				position: target.position,
@@ -122,7 +119,7 @@ class TouchHandler extends MouseHandler {
 
 		this.viewHelper.focusTextArea();
 
-		const target = this._createMouseTarget(new EditorMouseEvent(event, false, this.viewHelper.viewDomNode), false, false);
+		const target = this._createMouseTargetForView(new EditorMouseEvent(event, false, this.viewHelper.viewDomNode), false);
 
 		if (target.position) {
 			// Send the tap event also to the <textarea> (for input purposes)
