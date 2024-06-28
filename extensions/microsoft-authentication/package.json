@@ -117,7 +117,7 @@
     "@types/uuid": "8.0.0"
   },
   "dependencies": {
-    "node-fetch": "2.6.7",
+    "node-fetch": "3.3.2",
     "@azure/ms-rest-azure-env": "^2.0.0",
     "@vscode/extension-telemetry": "^0.9.6"
   },
