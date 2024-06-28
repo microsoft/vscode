@@ -252,8 +252,8 @@ class AgentCompletions extends Disposable {
 							};
 
 							if (agent.isDefault) {
-								// default agent isn't mentioned or inserted
-								item.label = { label: withSlash, description: c.description };
+								// default agent isn't mentioned nor inserted
+								item.label = withSlash;
 								item.insertText = `${withSlash} `;
 								item.detail = c.description;
 							}

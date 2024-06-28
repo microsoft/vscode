@@ -31,11 +31,6 @@ export class ChatRequestParser {
 		const parts: IParsedChatRequestPart[] = [];
 		const references = this.variableService.getDynamicVariables(sessionId); // must access this list before any async calls
 
-		const defaultAgent = this.agentService.getDefaultAgent(location);
-		if (defaultAgent) {
-			parts.push(new ChatRequestAgentPart(OffsetRange.ofLength(0), new Range(1, 1, 1, 1), defaultAgent));
-		}
-
 		let lineNumber = 1;
 		let column = 1;
 		for (let i = 0; i < message.length; i++) {
@@ -48,7 +43,7 @@ export class ChatRequestParser {
 				} else if (char === chatAgentLeader) {
 					newPart = this.tryToParseAgent(message.slice(i), message, i, new Position(lineNumber, column), parts, location, context);
 				} else if (char === chatSubcommandLeader) {
-					newPart = this.tryToParseSlashCommand(message.slice(i), message, i, new Position(lineNumber, column), parts);
+					newPart = this.tryToParseSlashCommand(message.slice(i), message, i, new Position(lineNumber, column), parts, location);
 				}
 
 				if (!newPart) {
@@ -99,11 +94,6 @@ export class ChatRequestParser {
 		const nextAgentMatch = message.match(agentReg);
 		if (!nextAgentMatch) {
 			return;
-		}
-
-		const syntheticDefaultAgent = parts.findIndex(candidate => candidate instanceof ChatRequestAgentPart && candidate.isSynthetic);
-		if (syntheticDefaultAgent >= 0) {
-			parts.splice(syntheticDefaultAgent, 1);
 		}
 
 		const [full, name] = nextAgentMatch;
@@ -169,7 +159,7 @@ export class ChatRequestParser {
 		return;
 	}
 
-	private tryToParseSlashCommand(remainingMessage: string, fullMessage: string, offset: number, position: IPosition, parts: ReadonlyArray<IParsedChatRequestPart>): ChatRequestSlashCommandPart | ChatRequestAgentSubcommandPart | undefined {
+	private tryToParseSlashCommand(remainingMessage: string, fullMessage: string, offset: number, position: IPosition, parts: ReadonlyArray<IParsedChatRequestPart>, location: ChatAgentLocation): ChatRequestSlashCommandPart | ChatRequestAgentSubcommandPart | undefined {
 		const nextSlashMatch = remainingMessage.match(slashReg);
 		if (!nextSlashMatch) {
 			return;
@@ -209,6 +199,14 @@ export class ChatRequestParser {
 			if (slashCommand) {
 				// Valid standalone slash command
 				return new ChatRequestSlashCommandPart(slashRange, slashEditorRange, slashCommand);
+			} else {
+				// check for with default agent for this location
+				const defaultAgent = this.agentService.getDefaultAgent(location);
+				const subCommand = defaultAgent?.slashCommands.find(c => c.name === command);
+				if (subCommand) {
+					// Valid default agent subcommand
+					return new ChatRequestAgentSubcommandPart(slashRange, slashEditorRange, subCommand);
+				}
 			}
 		}
 
