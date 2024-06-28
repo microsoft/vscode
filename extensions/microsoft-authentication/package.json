@@ -119,7 +119,7 @@
   "dependencies": {
     "node-fetch": "2.6.7",
     "@azure/ms-rest-azure-env": "^2.0.0",
-    "@vscode/extension-telemetry": "^0.9.0"
+    "@vscode/extension-telemetry": "^0.9.6"
   },
   "repository": {
     "type": "git",
