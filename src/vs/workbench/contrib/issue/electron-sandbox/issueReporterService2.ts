@@ -238,6 +238,7 @@ export class IssueReporter2 extends BaseIssueReporterService {
 			if (this.issueReporterModel.fileOnExtension()) {
 				this.addEventListener('extension-selector', 'change', _ => {
 					this.validateInput('extension-selector');
+					this.validateInput('description');
 				});
 			}
 
