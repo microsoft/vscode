@@ -80,7 +80,8 @@ export type IChatProgressRenderableResponseContent = Exclude<IChatProgressRespon
 
 export interface IResponse {
 	readonly value: ReadonlyArray<IChatProgressResponseContent>;
-	asString(): string;
+	toMarkdown(): string;
+	toString(): string;
 }
 
 export interface IChatResponseModel {
@@ -159,10 +160,18 @@ export class Response implements IResponse {
 		return this._onDidChangeValue.event;
 	}
 
-	// responseParts internally tracks all the response parts, including strings which are currently resolving, so that they can be updated when they do resolve
 	private _responseParts: IChatProgressResponseContent[];
-	// responseRepr externally presents the response parts with consolidated contiguous strings (excluding tree data)
-	private _responseRepr!: string;
+
+	/**
+	 * A stringified representation of response data which might be presented to a screenreader or used when copying a response.
+	 */
+	private _responseRepr = '';
+
+	/**
+	 * Just the markdown content of the response, used for determining the rendering rate of markdown
+	 */
+	private _markdownContent = '';
+
 
 	get value(): IChatProgressResponseContent[] {
 		return this._responseParts;
@@ -176,8 +185,12 @@ export class Response implements IResponse {
 		this._updateRepr(true);
 	}
 
-	asString(): string {
+	toString(): string {
 		return this._responseRepr;
+	}
+
+	toMarkdown(): string {
+		return this._markdownContent;
 	}
 
 	clear(): void {
@@ -259,6 +272,18 @@ export class Response implements IResponse {
 				return `${part.title}\n${part.message}`;
 			} else {
 				return part.content.value;
+			}
+		})
+			.filter(s => s.length > 0)
+			.join('\n\n');
+
+		this._markdownContent = this._responseParts.map(part => {
+			if (part.kind === 'inlineReference') {
+				return basename('uri' in part.inlineReference ? part.inlineReference.uri : part.inlineReference);
+			} else if (part.kind === 'markdownContent' || part.kind === 'markdownVuln') {
+				return part.content.value;
+			} else {
+				return '';
 			}
 		})
 			.filter(s => s.length > 0)

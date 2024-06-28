@@ -290,6 +290,6 @@ export function stringifyItem(item: IChatRequestViewModel | IChatResponseViewMod
 	if (isRequestVM(item)) {
 		return (includeName ? `${item.username}: ` : '') + item.messageText;
 	} else {
-		return (includeName ? `${item.username}: ` : '') + item.response.asString();
+		return (includeName ? `${item.username}: ` : '') + item.response.toString();
 	}
 }

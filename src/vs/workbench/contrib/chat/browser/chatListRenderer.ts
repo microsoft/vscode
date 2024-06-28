@@ -172,21 +172,19 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 	}
 
+	/**
+	 * Compute a rate to render at in words/s.
+	 */
 	private getProgressiveRenderRate(element: IChatResponseViewModel): number {
 		if (element.isComplete) {
 			return 80;
 		}
 
 		if (element.contentUpdateTimings && element.contentUpdateTimings.impliedWordLoadRate) {
-			// words/s
-			const minRate = 12;
+			const minRate = 5;
 			const maxRate = 80;
 
-			// This doesn't account for dead time after the last update. When the previous update is the final one and the model is only waiting for followupQuestions, that's good.
-			// When there was one quick update and then you are waiting longer for the next one, that's not good since the rate should be decreasing.
-			// If it's an issue, we can change this to be based on the total time from now to the beginning.
-			const rateBoost = 1.5;
-			const rate = element.contentUpdateTimings.impliedWordLoadRate * rateBoost;
+			const rate = element.contentUpdateTimings.impliedWordLoadRate;
 			return clamp(rate, minRate, maxRate);
 		}
 
@@ -593,6 +591,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				this.renderChatContentDiff(partsToRender, contentForThisTurn, element, templateData);
 			} else {
 				// Nothing new to render, not done, keep waiting
+				this.traceLayout('doNextProgressiveRender', 'caught up with the stream- no new content to render');
 				return false;
 			}
 		}
@@ -657,14 +656,15 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		const renderableResponse = annotateSpecialMarkdownContent(element.response.value);
 
-		this.traceLayout('getNextProgressiveRenderContent', `Want to render ${data.numWordsToRender}, counting...`);
+		this.traceLayout('getNextProgressiveRenderContent', `Want to render ${data.numWordsToRender} at ${data.rate} words/s, counting...`);
 		let numNeededWords = data.numWordsToRender;
 		const partsToRender: IChatRendererContent[] = [];
 		if (element.contentReferences.length) {
 			partsToRender.push({ kind: 'references', references: element.contentReferences });
 		}
 
-		for (const part of renderableResponse) {
+		for (let i = 0; i < renderableResponse.length; i++) {
+			const part = renderableResponse[i];
 			if (numNeededWords <= 0) {
 				break;
 			}
@@ -677,16 +677,18 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					partsToRender.push({ kind: 'markdownContent', content: new MarkdownString(wordCountResult.value, part.content) });
 				}
 
-				this.traceLayout('getNextProgressiveRenderContent', `  Want to render ${numNeededWords} words and found ${wordCountResult.returnedWordCount} words. Total words in chunk: ${wordCountResult.totalWordCount}`);
+				this.traceLayout('getNextProgressiveRenderContent', `  Chunk ${i}: Want to render ${numNeededWords} words and found ${wordCountResult.returnedWordCount} words. Total words in chunk: ${wordCountResult.totalWordCount}`);
 				numNeededWords -= wordCountResult.returnedWordCount;
 			} else {
 				partsToRender.push(part);
 			}
 		}
 
-		this.traceLayout('getNextProgressiveRenderContent', `Want to render ${data.numWordsToRender} words and ${data.numWordsToRender - numNeededWords} words available`);
+		const lastWordCount = element.contentUpdateTimings?.lastWordCount ?? 0;
 		const newRenderedWordCount = data.numWordsToRender - numNeededWords;
-		if (newRenderedWordCount !== element.renderData?.renderedWordCount) {
+		const bufferWords = lastWordCount - newRenderedWordCount;
+		this.traceLayout('getNextProgressiveRenderContent', `Want to render ${data.numWordsToRender} words. Rendering ${newRenderedWordCount} words. Buffer: ${bufferWords} words`);
+		if (newRenderedWordCount > 0 && newRenderedWordCount !== element.renderData?.renderedWordCount) {
 			// Only update lastRenderTime when we actually render new content
 			element.renderData = { lastRenderTime: Date.now(), renderedWordCount: newRenderedWordCount, renderedParts: partsToRender };
 		}
