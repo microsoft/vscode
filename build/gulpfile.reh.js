@@ -58,6 +58,9 @@ const serverResources = [
 	'out-build/bootstrap-amd.js',
 	'out-build/bootstrap-node.js',
 
+	// NLS
+	'out-build/nls.messages.json',
+
 	// Performance
 	'out-build/vs/base/common/performance.js',
 
@@ -81,6 +84,9 @@ const serverWithWebResources = [
 
 	// Include all of server...
 	...serverResources,
+
+	// NLS
+	'out-build/nls.messages.js',
 
 	// ...and all of web
 	...vscodeWebResourceIncludes

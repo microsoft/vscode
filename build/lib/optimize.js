@@ -192,6 +192,7 @@ function optimizeAMDTask(opts) {
         includeContent: true
     }))
         .pipe(opts.languages && opts.languages.length ? (0, i18n_1.processNlsFiles)({
+        out: opts.src,
         fileHeader: bundledFileHeader,
         languages: opts.languages
     }) : es.through());
