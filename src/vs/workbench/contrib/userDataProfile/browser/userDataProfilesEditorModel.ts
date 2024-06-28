@@ -716,14 +716,14 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			localize('active', "Use for Current Window"),
 			ThemeIcon.asClassName(Codicon.check),
 			true,
-			() => this.userDataProfileManagementService.switchProfile(profile)
+			() => this.userDataProfileManagementService.switchProfile(profileElement.profile)
 		));
 
 		const copyFromProfileAction = disposables.add(new Action(
 			'userDataProfile.copyFromProfile',
 			localize('copyFromProfile', "Duplicate..."),
 			ThemeIcon.asClassName(Codicon.copy),
-			true, () => this.createNewProfile(profile)
+			true, () => this.createNewProfile(profileElement.profile)
 		));
 
 		const exportAction = disposables.add(new Action(
@@ -731,7 +731,7 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			localize('export', "Export..."),
 			ThemeIcon.asClassName(Codicon.export),
 			true,
-			() => this.exportProfile(profile)
+			() => this.exportProfile(profileElement.profile)
 		));
 
 		const deleteAction = disposables.add(new Action(
@@ -739,20 +739,20 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			localize('delete', "Delete"),
 			ThemeIcon.asClassName(Codicon.trash),
 			true,
-			() => this.removeProfile(profile)
+			() => this.removeProfile(profileElement.profile)
 		));
 
 		const newWindowAction = disposables.add(new Action(
 			'userDataProfile.newWindow',
-			localize('open new window', "New Window"),
+			localize('open new window', "Open New Window with this Profile"),
 			ThemeIcon.asClassName(Codicon.emptyWindow),
 			true,
-			() => this.openWindow(profile)
+			() => this.openWindow(profileElement.profile)
 		));
 
 		const useAsNewWindowProfileAction = disposables.add(new Action(
 			'userDataProfile.useAsNewWindowProfile',
-			localize('use as new window', "Use for New Windows", profile.name),
+			localize('use as new window', "Use for New Windows"),
 			undefined,
 			true,
 			() => profileElement.toggleNewWindowProfile()
@@ -788,9 +788,9 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			[primaryActions, secondaryActions]
 		));
 
-		activateAction.checked = this.userDataProfileService.currentProfile.id === profile.id;
+		activateAction.checked = this.userDataProfileService.currentProfile.id === profileElement.profile.id;
 		disposables.add(this.userDataProfileService.onDidChangeCurrentProfile(() =>
-			activateAction.checked = this.userDataProfileService.currentProfile.id === profile.id));
+			activateAction.checked = this.userDataProfileService.currentProfile.id === profileElement.profile.id));
 
 		useAsNewWindowProfileAction.checked = profileElement.isNewWindowProfile;
 		disposables.add(profileElement.onDidChange(e => {

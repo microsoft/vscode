@@ -1444,6 +1444,12 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			workspace: options.workspace,
 			userEnv: { ...this.initialUserEnv, ...options.userEnv },
 
+			nls: {
+				// VSCODE_GLOBALS: NLS
+				messages: globalThis._VSCODE_NLS_MESSAGES,
+				language: globalThis._VSCODE_NLS_LANGUAGE
+			},
+
 			filesToOpenOrCreate: options.filesToOpen?.filesToOpenOrCreate,
 			filesToDiff: options.filesToOpen?.filesToDiff,
 			filesToMerge: options.filesToOpen?.filesToMerge,

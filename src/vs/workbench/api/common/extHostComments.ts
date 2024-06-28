@@ -424,6 +424,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 				this._id,
 				this._uri,
 				extHostTypeConverter.Range.from(this._range),
+				this._comments.map(cmt => convertToDTOComment(this, cmt, this._commentsMap, this.extensionDescription)),
 				extensionDescription.identifier,
 				this._isTemplate,
 				editorId
@@ -435,9 +436,6 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			this._localDisposables.push(this.onDidUpdateCommentThread(() => {
 				this.eventuallyUpdateCommentThread();
 			}));
-
-			// set up comments after ctor to batch update events.
-			this.comments = _comments;
 
 			this._localDisposables.push({
 				dispose: () => {

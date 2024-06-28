@@ -10,6 +10,7 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { IRange, Range } from 'vs/editor/common/core/range';
+import { ISelection } from 'vs/editor/common/core/selection';
 import { Command, Location, TextEdit } from 'vs/editor/common/languages';
 import { FileType } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -298,8 +299,28 @@ export interface IChatSendRequestData extends IChatSendRequestResponseState {
 	slashCommand?: IChatAgentCommand;
 }
 
+export interface IChatEditorLocationData {
+	type: ChatAgentLocation.Editor;
+	document: URI;
+	selection: ISelection;
+	wholeRange: IRange;
+}
+
+export interface IChatNotebookLocationData {
+	type: ChatAgentLocation.Notebook;
+	sessionInputUri: URI;
+}
+
+export interface IChatTerminalLocationData {
+	type: ChatAgentLocation.Terminal;
+	// TBD
+}
+
+export type IChatLocationData = IChatEditorLocationData | IChatNotebookLocationData | IChatTerminalLocationData;
+
 export interface IChatSendRequestOptions {
 	location?: ChatAgentLocation;
+	locationData?: IChatLocationData;
 	parserContext?: IChatParserContext;
 	attempt?: number;
 	noCommandDetection?: boolean;

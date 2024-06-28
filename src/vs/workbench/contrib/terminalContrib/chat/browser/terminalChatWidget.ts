@@ -13,7 +13,6 @@ import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { IChatProgress } from 'vs/workbench/contrib/chat/common/chatService';
 import { InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
 import { ITerminalInstance, type IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { MENU_TERMINAL_CHAT_INPUT, MENU_TERMINAL_CHAT_WIDGET, MENU_TERMINAL_CHAT_WIDGET_STATUS, TerminalChatCommandId, TerminalChatContextKeys } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
@@ -57,7 +56,13 @@ export class TerminalChatWidget extends Disposable {
 
 		this._inlineChatWidget = this._instantiationService.createInstance(
 			InlineChatWidget,
-			ChatAgentLocation.Terminal,
+			{
+				location: ChatAgentLocation.Terminal,
+				resolveData: () => {
+					// TODO@meganrogge return something that identifies this terminal
+					return undefined;
+				}
+			},
 			{
 				statusMenuId: {
 					menu: MENU_TERMINAL_CHAT_WIDGET_STATUS,
@@ -199,7 +204,6 @@ export class TerminalChatWidget extends Disposable {
 		this._inlineChatWidget.reset();
 		this._reset();
 		this._inlineChatWidget.updateChatMessage(undefined);
-		this._inlineChatWidget.updateProgress(false);
 		this._inlineChatWidget.updateToolbar(false);
 		this._visibleContextKey.set(false);
 		this._inlineChatWidget.value = '';
@@ -239,10 +243,6 @@ export class TerminalChatWidget extends Disposable {
 	acceptCommand(code: string, shouldExecute: boolean): void {
 		this._instance.runCommand(code, shouldExecute);
 		this.hide();
-	}
-
-	updateProgress(progress?: IChatProgress): void {
-		this._inlineChatWidget.updateProgress(progress?.kind === 'markdownContent');
 	}
 	public get focusTracker(): IFocusTracker {
 		return this._focusTracker;

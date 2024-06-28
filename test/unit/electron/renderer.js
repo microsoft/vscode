@@ -97,6 +97,16 @@ const _tests_glob = '**/test/**/*.test.js';
 let loader;
 let _out;
 
+function initNls(opts) {
+	if (opts.build) {
+		// when running from `out-build`, ensure to load the default
+		// messages file, because all `nls.localize` calls have their
+		// english values removed and replaced by an index.
+		// VSCODE_GLOBALS: NLS
+		globalThis._VSCODE_NLS_MESSAGES = (require.__$__nodeRequire ?? require)(`../../../out-build/nls.messages.json`);
+	}
+}
+
 function initLoader(opts) {
 	const outdir = opts.build ? 'out-build' : 'out';
 	_out = path.join(__dirname, `../../../${outdir}`);
@@ -438,6 +448,7 @@ function runTests(opts) {
 }
 
 ipcRenderer.on('run', (e, opts) => {
+	initNls(opts);
 	initLoader(opts);
 	runTests(opts).catch(err => {
 		if (typeof err !== 'string') {
