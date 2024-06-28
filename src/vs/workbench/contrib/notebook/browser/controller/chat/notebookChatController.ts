@@ -665,7 +665,6 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 			store.dispose();
 
 			this._ctxHasActiveRequest.set(false);
-			this._widget.inlineChatWidget.updateProgress(false);
 			this._widget.inlineChatWidget.updateInfo('');
 			this._widget.inlineChatWidget.updateToolbar(true);
 		}
