@@ -22,8 +22,8 @@ import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
  */
 export class PointerEventHandler extends MouseHandler {
 	private _lastPointerType: string;
-	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper, overflowWidgetsDomNode?: HTMLElement) {
-		super(context, viewController, viewHelper, overflowWidgetsDomNode);
+	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper) {
+		super(context, viewController, viewHelper);
 
 		this._register(Gesture.addTarget(this.viewHelper.linesContentDomNode));
 		this._register(dom.addDisposableListener(this.viewHelper.linesContentDomNode, EventType.Tap, (e) => this.onTap(e)));
@@ -47,7 +47,7 @@ export class PointerEventHandler extends MouseHandler {
 		// PonterEvents
 		const pointerEvents = new EditorPointerEventFactory(this.viewHelper.viewDomNode);
 
-		this._register(pointerEvents.onPointerMove(this.viewHelper.viewDomNode, (e) => this._onMouseMove(e)));
+		this._register(pointerEvents.onPointerMove(this.viewHelper.viewDomNode, (e) => this._onMouseMove(e, false)));
 		this._register(pointerEvents.onPointerUp(this.viewHelper.viewDomNode, (e) => this._onMouseUp(e)));
 		this._register(pointerEvents.onPointerLeave(this.viewHelper.viewDomNode, (e) => {
 			console.log('_onMouseLeave of pointer leave');
@@ -76,7 +76,7 @@ export class PointerEventHandler extends MouseHandler {
 	}
 
 	private _dispatchGesture(event: GestureEvent, inSelectionMode: boolean): void {
-		const target = this._createMouseTarget(new EditorMouseEvent(event, false, this.viewHelper.viewDomNode), false);
+		const target = this._createMouseTarget(new EditorMouseEvent(event, false, this.viewHelper.viewDomNode), false, false);
 		if (target.position) {
 			this.viewController.dispatchMouse({
 				position: target.position,
@@ -107,8 +107,8 @@ export class PointerEventHandler extends MouseHandler {
 
 class TouchHandler extends MouseHandler {
 
-	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper, overflowWidgetsDomNode?: HTMLElement) {
-		super(context, viewController, viewHelper, overflowWidgetsDomNode);
+	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper) {
+		super(context, viewController, viewHelper);
 
 		this._register(Gesture.addTarget(this.viewHelper.linesContentDomNode));
 
@@ -122,7 +122,7 @@ class TouchHandler extends MouseHandler {
 
 		this.viewHelper.focusTextArea();
 
-		const target = this._createMouseTarget(new EditorMouseEvent(event, false, this.viewHelper.viewDomNode), false);
+		const target = this._createMouseTarget(new EditorMouseEvent(event, false, this.viewHelper.viewDomNode), false, false);
 
 		if (target.position) {
 			// Send the tap event also to the <textarea> (for input purposes)
@@ -142,15 +142,15 @@ class TouchHandler extends MouseHandler {
 export class PointerHandler extends Disposable {
 	private readonly handler: MouseHandler;
 
-	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper, overflowWidgetsDomNode?: HTMLElement) {
+	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper) {
 		super();
 		const isPhone = platform.isIOS || (platform.isAndroid && platform.isMobile);
 		if (isPhone && BrowserFeatures.pointerEvents) {
-			this.handler = this._register(new PointerEventHandler(context, viewController, viewHelper, overflowWidgetsDomNode));
+			this.handler = this._register(new PointerEventHandler(context, viewController, viewHelper));
 		} else if (mainWindow.TouchEvent) {
-			this.handler = this._register(new TouchHandler(context, viewController, viewHelper, overflowWidgetsDomNode));
+			this.handler = this._register(new TouchHandler(context, viewController, viewHelper));
 		} else {
-			this.handler = this._register(new MouseHandler(context, viewController, viewHelper, overflowWidgetsDomNode));
+			this.handler = this._register(new MouseHandler(context, viewController, viewHelper));
 		}
 	}
 

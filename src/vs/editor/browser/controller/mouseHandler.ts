@@ -64,8 +64,9 @@ export class MouseHandler extends ViewEventHandler {
 	private _mouseLeaveMonitor: IDisposable | null = null;
 	private _mouseOnOverflowWidgetsDomNode: boolean = false;
 
-	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper, overflowWidgetsDomNode?: HTMLElement) {
+	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper) {
 		super();
+		console.log('mouseHandler');
 
 		this._context = context;
 		this.viewController = viewController;
@@ -77,7 +78,7 @@ export class MouseHandler extends ViewEventHandler {
 			this.viewController,
 			this.viewHelper,
 			this.mouseTargetFactory,
-			(e, testEventTarget) => this._createMouseTarget(e, testEventTarget),
+			(e, testEventTarget) => this._createMouseTarget(e, testEventTarget, false),
 			(e) => this._getMouseColumn(e)
 		));
 
@@ -89,7 +90,8 @@ export class MouseHandler extends ViewEventHandler {
 		this._register(mouseEvents.onContextMenu(this.viewHelper.viewDomNode, (e) => this._onContextMenu(e, true)));
 
 		this._register(mouseEvents.onMouseMove(this.viewHelper.viewDomNode, (e) => {
-			this._onMouseMove(e);
+			console.log('onMouseMove of this.viewHelper.viewDomNode');
+			this._onMouseMove(e, false);
 
 			// See https://github.com/microsoft/vscode/issues/138789
 			// When moving the mouse really quickly, the browser sometimes forgets to
@@ -111,19 +113,18 @@ export class MouseHandler extends ViewEventHandler {
 			}
 		}));
 
-		console.log('mouseHandler');
-		console.log('overflowWidgetsDomNode : ', overflowWidgetsDomNode);
+		const overflowWidgetsDomNode = context.overflowWidgetsDomNode;
 		if (overflowWidgetsDomNode) {
 			this._register(mouseEvents.onMouseMove(overflowWidgetsDomNode, (e) => {
 				this._mouseOnOverflowWidgetsDomNode = true;
-				console.log('_onMouseMove of overflowWidgetsDomNode');
+				console.log('onMouseMove of overflowWidgetsDomNode');
 				console.log('this._mousOnOverflowWidgetsDomNode : ', this._mouseOnOverflowWidgetsDomNode);
 				console.log('e : ', e);
-				this._onMouseMove(e, overflowWidgetsDomNode);
+				this._onMouseMove(e, true);
 			}));
 			this._register(mouseEvents.onMouseLeave(overflowWidgetsDomNode, (e) => {
 				this._mouseOnOverflowWidgetsDomNode = false;
-				console.log('_onMouseLeave of overflowWidgetsDomNode');
+				console.log('onMouseLeave of overflowWidgetsDomNode');
 				console.log('this._mousOnOverflowWidgetsDomNode : ', this._mouseOnOverflowWidgetsDomNode);
 
 			}));
@@ -132,7 +133,7 @@ export class MouseHandler extends ViewEventHandler {
 		this._register(mouseEvents.onMouseUp(this.viewHelper.viewDomNode, (e) => this._onMouseUp(e)));
 
 		this._register(mouseEvents.onMouseLeave(this.viewHelper.viewDomNode, (e) => {
-			console.log('_onMouseLeave of this.viewHelper.viewDomNode');
+			console.log('onMouseLeave of this.viewHelper.viewDomNode');
 			console.log('this._mousOnOverflowWidgetsDomNode before timeout : ', this._mouseOnOverflowWidgetsDomNode);
 			setTimeout(() => {
 				console.log('this._mousOnOverflowWidgetsDomNode after timeout : ', this._mouseOnOverflowWidgetsDomNode);
@@ -266,10 +267,10 @@ export class MouseHandler extends ViewEventHandler {
 		}
 
 		const relativePos = createCoordinatesRelativeToEditor(this.viewHelper.viewDomNode, editorPos, pos);
-		return this.mouseTargetFactory.createMouseTarget(this.viewHelper.getLastRenderData(), editorPos, pos, relativePos, null);
+		return this.mouseTargetFactory.createMouseTarget(this.viewHelper.getLastRenderData(), editorPos, pos, relativePos, null, false);
 	}
 
-	protected _createMouseTarget(e: EditorMouseEvent, testEventTarget: boolean, overflowWidgetsDomNode?: HTMLElement): IMouseTarget {
+	protected _createMouseTarget(e: EditorMouseEvent, testEventTarget: boolean, overflowWidgetsDomNodeTarget: boolean): IMouseTarget {
 		let target = e.target;
 		if (!this.viewHelper.viewDomNode.contains(target)) {
 			const shadowRoot = dom.getShadowRoot(this.viewHelper.viewDomNode);
@@ -280,9 +281,9 @@ export class MouseHandler extends ViewEventHandler {
 			}
 		}
 		console.log('_createMouseTarget');
-		console.log('e _createMouseTarget : ', e);
-		console.log('target _createMouseTarget : ', target);
-		return this.mouseTargetFactory.createMouseTarget(this.viewHelper.getLastRenderData(), e.editorPos, e.pos, e.relativePos, testEventTarget ? target : null, overflowWidgetsDomNode);
+		console.log('_createMouseTarget e : ', e);
+		console.log('_createMouseTarget target : ', target);
+		return this.mouseTargetFactory.createMouseTarget(this.viewHelper.getLastRenderData(), e.editorPos, e.pos, e.relativePos, testEventTarget ? target : null, overflowWidgetsDomNodeTarget);
 	}
 
 	private _getMouseColumn(e: EditorMouseEvent): number {
@@ -292,11 +293,11 @@ export class MouseHandler extends ViewEventHandler {
 	protected _onContextMenu(e: EditorMouseEvent, testEventTarget: boolean): void {
 		this.viewController.emitContextMenu({
 			event: e,
-			target: this._createMouseTarget(e, testEventTarget)
+			target: this._createMouseTarget(e, testEventTarget, false)
 		});
 	}
 
-	protected _onMouseMove(e: EditorMouseEvent, overflowWidgetsDomNode?: HTMLElement): void {
+	protected _onMouseMove(e: EditorMouseEvent, overflowWidgetsDomNodeTarget: boolean): void {
 		console.log('_onMouseMove');
 		const targetIsWidget = this.mouseTargetFactory.mouseTargetIsWidget(e);
 		if (!targetIsWidget) {
@@ -315,14 +316,12 @@ export class MouseHandler extends ViewEventHandler {
 
 		this.viewController.emitMouseMove({
 			event: e,
-			target: this._createMouseTarget(e, true, overflowWidgetsDomNode)
+			target: this._createMouseTarget(e, true, overflowWidgetsDomNodeTarget)
 		});
 	}
 
 	protected _onMouseLeave(e: EditorMouseEvent): void {
 		console.log('_onMouseLeave');
-
-		// Need to send the correct mouse leave event, depending on if we are inside of the overflow widgets dom node or not
 		if (this._mouseLeaveMonitor) {
 			this._mouseLeaveMonitor.dispose();
 			this._mouseLeaveMonitor = null;
@@ -337,12 +336,12 @@ export class MouseHandler extends ViewEventHandler {
 	protected _onMouseUp(e: EditorMouseEvent): void {
 		this.viewController.emitMouseUp({
 			event: e,
-			target: this._createMouseTarget(e, true)
+			target: this._createMouseTarget(e, true, false)
 		});
 	}
 
 	protected _onMouseDown(e: EditorMouseEvent, pointerId: number): void {
-		const t = this._createMouseTarget(e, true);
+		const t = this._createMouseTarget(e, true, false);
 
 		const targetIsContent = (t.type === MouseTargetType.CONTENT_TEXT || t.type === MouseTargetType.CONTENT_EMPTY);
 		const targetIsGutter = (t.type === MouseTargetType.GUTTER_GLYPH_MARGIN || t.type === MouseTargetType.GUTTER_LINE_NUMBERS || t.type === MouseTargetType.GUTTER_LINE_DECORATIONS);
@@ -781,7 +780,7 @@ class TopBottomDragScrollingOperation extends Disposable {
 			const horizontalScrollbarHeight = this._context.configuration.options.get(EditorOption.layoutInfo).horizontalScrollbarHeight;
 			const pos = new PageCoordinates(this._mouseEvent.pos.x, editorPos.y + editorPos.height - horizontalScrollbarHeight - 0.1);
 			const relativePos = createCoordinatesRelativeToEditor(this._viewHelper.viewDomNode, editorPos, pos);
-			mouseTarget = this._mouseTargetFactory.createMouseTarget(this._viewHelper.getLastRenderData(), editorPos, pos, relativePos, null);
+			mouseTarget = this._mouseTargetFactory.createMouseTarget(this._viewHelper.getLastRenderData(), editorPos, pos, relativePos, null, false);
 		}
 		if (!mouseTarget.position || mouseTarget.position.lineNumber !== edgeLineNumber) {
 			if (this._position.outsidePosition === 'above') {

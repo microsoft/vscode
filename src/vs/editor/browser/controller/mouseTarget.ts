@@ -379,6 +379,10 @@ export class HitTestContext {
 	public getCurrentScrollLeft(): number {
 		return this._context.viewLayout.getCurrentScrollLeft();
 	}
+
+	public getOverflowWidgetsDomNode(): HTMLElement | undefined {
+		return this._context.overflowWidgetsDomNode;
+	}
 }
 
 abstract class BareHitTestRequest {
@@ -413,7 +417,7 @@ class HitTestRequest extends BareHitTestRequest {
 	private _useHitTestTarget: boolean;
 	private _targetPathCacheElement: HTMLElement | null = null;
 	private _targetPathCacheValue: Uint8Array = new Uint8Array(0);
-	private _overflowWidgetsDomNode: HTMLElement | undefined = undefined;
+	private _overflowWidgetsDomNodeTarget: boolean;
 
 	public get target(): HTMLElement | null {
 		if (this._useHitTestTarget) {
@@ -423,13 +427,11 @@ class HitTestRequest extends BareHitTestRequest {
 	}
 
 	public get targetPath(): Uint8Array {
-		console.log('targetPath');
 		if (this._targetPathCacheElement !== this.target) {
 			this._targetPathCacheElement = this.target;
-			console.log('this.target : ', this.target);
-			console.log('this._overflowWidgetsDomNode : ', this._overflowWidgetsDomNode);
-			if (this._overflowWidgetsDomNode) {
-				this._targetPathCacheValue = PartFingerprints.collect(this.target, this._overflowWidgetsDomNode);
+			const overflowWidgetsDomNode = this._ctx.getOverflowWidgetsDomNode();
+			if (this._overflowWidgetsDomNodeTarget && overflowWidgetsDomNode) {
+				this._targetPathCacheValue = PartFingerprints.collect(this.target, overflowWidgetsDomNode);
 			} else {
 				this._targetPathCacheValue = PartFingerprints.collect(this.target, this._ctx.viewDomNode);
 			}
@@ -437,11 +439,11 @@ class HitTestRequest extends BareHitTestRequest {
 		return this._targetPathCacheValue;
 	}
 
-	constructor(ctx: HitTestContext, editorPos: EditorPagePosition, pos: PageCoordinates, relativePos: CoordinatesRelativeToEditor, eventTarget: HTMLElement | null, overflowWidgetsDomNode?: HTMLElement) {
+	constructor(ctx: HitTestContext, editorPos: EditorPagePosition, pos: PageCoordinates, relativePos: CoordinatesRelativeToEditor, eventTarget: HTMLElement | null, overflowWidgetsDomNodeTarget: boolean) {
 		super(ctx, editorPos, pos, relativePos);
 		this._ctx = ctx;
 		this._eventTarget = eventTarget;
-		this._overflowWidgetsDomNode = overflowWidgetsDomNode;
+		this._overflowWidgetsDomNodeTarget = overflowWidgetsDomNodeTarget;
 
 		// If no event target is passed in, we will use the hit test target
 		const hasEventTarget = Boolean(this._eventTarget);
@@ -541,14 +543,14 @@ export class MouseTargetFactory {
 		return false;
 	}
 
-	public createMouseTarget(lastRenderData: PointerHandlerLastRenderData, editorPos: EditorPagePosition, pos: PageCoordinates, relativePos: CoordinatesRelativeToEditor, target: HTMLElement | null, overflowWidgetsDomNode?: HTMLElement): IMouseTarget {
+	public createMouseTarget(lastRenderData: PointerHandlerLastRenderData, editorPos: EditorPagePosition, pos: PageCoordinates, relativePos: CoordinatesRelativeToEditor, target: HTMLElement | null, overflowWidgetsDomNodeTarget: boolean): IMouseTarget {
 		const ctx = new HitTestContext(this._context, this._viewHelper, lastRenderData);
-		const request = new HitTestRequest(ctx, editorPos, pos, relativePos, target, overflowWidgetsDomNode);
+		const request = new HitTestRequest(ctx, editorPos, pos, relativePos, target, overflowWidgetsDomNodeTarget);
 		console.log('createMouseTarget');
-		console.log('target : ', target);
-		console.log('overflowWidgetsDomNode : ', overflowWidgetsDomNode);
-		console.log('ctx : ', ctx);
+		console.log('overflowWidgetsDomNodeTarget : ', overflowWidgetsDomNodeTarget);
 		console.log('request : ', request);
+		console.log('target : ', target);
+		console.log('ctx : ', ctx);
 		try {
 			const r = MouseTargetFactory._createMouseTarget(ctx, request);
 			console.log('r : ', r);
@@ -608,10 +610,6 @@ export class MouseTargetFactory {
 	private static _hitTestContentWidget(ctx: HitTestContext, request: ResolvedHitTestRequest): IMouseTarget | null {
 		console.log('_hitTestContentWidget');
 		console.log('request : ', request);
-		console.log('request.target : ', request.target);
-		console.log('request.targetPath : ', request.targetPath);
-		console.log('ElementPath.isChildOfContentWidgets(request.targetPath) : ', ElementPath.isChildOfContentWidgets(request.targetPath));
-		console.log('ElementPath.isChildOfOverflowingContentWidgets(request.targetPath) : ', ElementPath.isChildOfOverflowingContentWidgets(request.targetPath));
 		// Is it a content widget?
 		if (ElementPath.isChildOfContentWidgets(request.targetPath) || ElementPath.isChildOfOverflowingContentWidgets(request.targetPath)) {
 			const widgetId = ctx.findAttribute(request.target, 'widgetId');
@@ -628,10 +626,6 @@ export class MouseTargetFactory {
 	private static _hitTestOverlayWidget(ctx: HitTestContext, request: ResolvedHitTestRequest): IMouseTarget | null {
 		console.log('_hitTestOverlayWidget');
 		console.log('request : ', request);
-		console.log('request.target : ', request.target);
-		console.log('request.targetPath : ', request.targetPath);
-		console.log('ElementPath.isChildOfOverlayWidgets(request.targetPath) : ', ElementPath.isChildOfOverlayWidgets(request.targetPath));
-		console.log('ElementPath.isChildOfOverflowingOverlayWidgets(request.targetPath) : ', ElementPath.isChildOfOverflowingOverlayWidgets(request.targetPath));
 		// Is it an overlay widget?
 		if (ElementPath.isChildOfOverlayWidgets(request.targetPath) || ElementPath.isChildOfOverflowingOverlayWidgets(request.targetPath)) {
 			const widgetId = ctx.findAttribute(request.target, 'widgetId');
