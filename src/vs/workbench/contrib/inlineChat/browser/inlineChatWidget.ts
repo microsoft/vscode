@@ -544,7 +544,7 @@ export class EditorBasedInlineChatWidget extends InlineChatWidget {
 		let result = super.contentHeight;
 
 		if (this._accessibleViewer.value) {
-			result += this._accessibleViewer.value.height;
+			result += this._accessibleViewer.value.height + 8 /* padding */;
 		}
 
 		return result;
@@ -556,7 +556,7 @@ export class EditorBasedInlineChatWidget extends InlineChatWidget {
 
 		if (this._accessibleViewer.value) {
 			this._accessibleViewer.value.width = dimension.width - 12;
-			newHeight -= this._accessibleViewer.value.height;
+			newHeight -= this._accessibleViewer.value.height + 8;
 		}
 
 		super._doLayout(dimension.with(undefined, newHeight));
