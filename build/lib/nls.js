@@ -66,8 +66,8 @@ function nls(options) {
         for (const file of [
             new File({
                 contents: Buffer.from(JSON.stringify({
-                    keys: _nls.moduleToNLSMessages,
-                    messages: _nls.moduleToNLSKeys,
+                    keys: _nls.moduleToNLSKeys,
+                    messages: _nls.moduleToNLSMessages,
                 }, null, '\t')),
                 base,
                 path: `${base}/nls.metadata.json`
