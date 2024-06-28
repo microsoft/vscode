@@ -1001,9 +1001,11 @@ class ExistingProfileResourceTreeRenderer extends AbstractProfileResourceTreeRen
 
 		templateData.label.textContent = this.getResourceTypeTitle(element.resourceType);
 		if (root instanceof UserDataProfileElement && root.profile.isDefault) {
+			templateData.checkbox.domNode.removeAttribute('tabindex');
 			templateData.checkbox.domNode.classList.add('hide');
 		} else {
 			templateData.checkbox.domNode.classList.remove('hide');
+			templateData.checkbox.domNode.setAttribute('tabindex', '0');
 			templateData.checkbox.checked = root.getFlag(element.resourceType);
 			templateData.elementDisposables.add(templateData.checkbox.onChange(() => root.setFlag(element.resourceType, templateData.checkbox.checked)));
 		}
@@ -1136,6 +1138,7 @@ class ProfileResourceChildTreeItemRenderer extends AbstractProfileResourceTreeRe
 		}
 
 		if (element.checkbox) {
+			templateData.checkbox.domNode.setAttribute('tabindex', '0');
 			templateData.checkbox.domNode.classList.remove('hide');
 			templateData.checkbox.checked = element.checkbox.isChecked;
 			templateData.checkbox.domNode.ariaLabel = element.checkbox.accessibilityInformation?.label ?? '';
@@ -1143,6 +1146,7 @@ class ProfileResourceChildTreeItemRenderer extends AbstractProfileResourceTreeRe
 				templateData.checkbox.domNode.role = element.checkbox.accessibilityInformation.role;
 			}
 		} else {
+			templateData.checkbox.domNode.removeAttribute('tabindex');
 			templateData.checkbox.domNode.classList.add('hide');
 		}
 
