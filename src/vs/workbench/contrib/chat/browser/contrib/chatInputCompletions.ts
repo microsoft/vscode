@@ -56,7 +56,7 @@ class SlashCommandCompletions extends Disposable {
 					return;
 				}
 
-				const slashCommands = this.chatSlashCommandService.getCommands();
+				const slashCommands = this.chatSlashCommandService.getCommands(widget.location);
 				if (!slashCommands) {
 					return null;
 				}
