@@ -5,8 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-
-	content="default-src 'none'; script-src 'sha256-ikaxwm2UFoiIKkEZTEU4mnSxpYf3lmsrhy5KqqJZfek=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-EnfegwWkkVl5XI5EPvw9QR4tqOkoO1Uaj+Ot/RVrckU=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 
 	<!-- Disable pinch zooming -->
@@ -799,6 +798,12 @@
 
 
 		function handleInnerDragEvent(/** @type {DragEvent} */ e) {
+			/**
+			 * To ensure that the drop event always fires as expected, you should always include a preventDefault() call in the part of your code which handles the dragover event.
+			 * source: https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/drop_event
+			 **/
+			e.preventDefault();
+
 			if (!e.dataTransfer) {
 				return;
 			}
@@ -806,6 +811,10 @@
 			hostMessaging.postMessage('drag', {
 				shiftKey: e.shiftKey
 			});
+		}
+
+		function handleInnerDropEvent(/**@type {DragEvent} */e) {
+			e.preventDefault();
 		}
 
 		/**
@@ -900,6 +909,7 @@
 		window.addEventListener('dragenter', handleInnerDragStartEvent);
 		window.addEventListener('dragover', handleInnerDragEvent);
 		window.addEventListener('drag', handleInnerDragEvent);
+		window.addEventListener('drop', handleInnerDropEvent);
 
 
 		onDomReady(() => {
@@ -1184,6 +1194,7 @@
 					contentWindow.addEventListener('dragenter', handleInnerDragStartEvent);
 					contentWindow.addEventListener('dragover', handleInnerDragEvent);
 					contentWindow.addEventListener('drag', handleInnerDragEvent);
+					contentWindow.addEventListener('drop', handleInnerDropEvent);
 
 					unloadMonitor.onIframeLoaded(newFrame);
 				}
