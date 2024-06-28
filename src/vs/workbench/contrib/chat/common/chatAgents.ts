@@ -27,7 +27,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { CONTEXT_CHAT_ENABLED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatProgressResponseContent, IChatRequestVariableData, ISerializableChatAgentData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IRawChatCommandContribution, RawChatParticipantLocation } from 'vs/workbench/contrib/chat/common/chatParticipantContribTypes';
-import { IChatFollowup, IChatProgress, IChatResponseErrorDetails, IChatTaskDto } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatFollowup, IChatLocationData, IChatProgress, IChatResponseErrorDetails, IChatTaskDto } from 'vs/workbench/contrib/chat/common/chatService';
 
 //#region agent service, commands etc
 
@@ -126,6 +126,7 @@ export interface IChatAgentRequest {
 	enableCommandDetection?: boolean;
 	variables: IChatRequestVariableData;
 	location: ChatAgentLocation;
+	locationData?: IChatLocationData;
 	acceptedConfirmationData?: any[];
 	rejectedConfirmationData?: any[];
 }

@@ -562,10 +562,11 @@ class ExtensionsScanner extends Disposable {
 		@IUriIdentityService protected readonly uriIdentityService: IUriIdentityService,
 		@IFileService protected readonly fileService: IFileService,
 		@IProductService productService: IProductService,
+		@IEnvironmentService environmentService: IEnvironmentService,
 		@ILogService protected readonly logService: ILogService
 	) {
 		super();
-		this.extensionsEnabledWithApiProposalVersion = productService.extensionsEnabledWithApiProposalVersion?.map(id => id.toLowerCase()) ?? [];
+		this.extensionsEnabledWithApiProposalVersion = environmentService.isBuilt ? productService.extensionsEnabledWithApiProposalVersion?.map(id => id.toLowerCase()) ?? [] : [];
 	}
 
 	async scanExtensions(input: ExtensionScannerInput): Promise<IRelaxedScannedExtension[]> {
@@ -890,9 +891,10 @@ class CachedExtensionsScanner extends ExtensionsScanner {
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IFileService fileService: IFileService,
 		@IProductService productService: IProductService,
+		@IEnvironmentService environmentService: IEnvironmentService,
 		@ILogService logService: ILogService
 	) {
-		super(obsoleteFile, extensionsProfileScannerService, uriIdentityService, fileService, productService, logService);
+		super(obsoleteFile, extensionsProfileScannerService, uriIdentityService, fileService, productService, environmentService, logService);
 	}
 
 	override async scanExtensions(input: ExtensionScannerInput): Promise<IRelaxedScannedExtension[]> {

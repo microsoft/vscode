@@ -58,6 +58,9 @@ const serverResources = [
 	'out-build/bootstrap-amd.js',
 	'out-build/bootstrap-node.js',
 
+	// NLS
+	'out-build/nls.messages.json',
+
 	// Performance
 	'out-build/vs/base/common/performance.js',
 
@@ -82,6 +85,9 @@ const serverWithWebResources = [
 	// Include all of server...
 	...serverResources,
 
+	// NLS
+	'out-build/nls.messages.js',
+
 	// ...and all of web
 	...vscodeWebResourceIncludes
 ];
@@ -89,23 +95,23 @@ const serverWithWebResources = [
 const serverEntryPoints = [
 	{
 		name: 'vs/server/node/server.main',
-		exclude: ['vs/css', 'vs/nls']
+		exclude: ['vs/css']
 	},
 	{
 		name: 'vs/server/node/server.cli',
-		exclude: ['vs/css', 'vs/nls']
+		exclude: ['vs/css']
 	},
 	{
 		name: 'vs/workbench/api/node/extensionHostProcess',
-		exclude: ['vs/css', 'vs/nls']
+		exclude: ['vs/css']
 	},
 	{
 		name: 'vs/platform/files/node/watcher/watcherMain',
-		exclude: ['vs/css', 'vs/nls']
+		exclude: ['vs/css']
 	},
 	{
 		name: 'vs/platform/terminal/node/ptyHostMain',
-		exclude: ['vs/css', 'vs/nls']
+		exclude: ['vs/css']
 	}
 ];
 

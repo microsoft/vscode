@@ -84,6 +84,14 @@ function main() {
 	globalThis._VSCODE_PRODUCT_JSON = require(`${REPO_ROOT}/product.json`);
 	globalThis._VSCODE_PACKAGE_JSON = require(`${REPO_ROOT}/package.json`);
 
+	if (args.build) {
+		// when running from `out-build`, ensure to load the default
+		// messages file, because all `nls.localize` calls have their
+		// english values removed and replaced by an index.
+		// VSCODE_GLOBALS: NLS
+		globalThis._VSCODE_NLS_MESSAGES = require(`../../../${out}/nls.messages.json`);
+	}
+
 	// Test file operations that are common across platforms. Used for test infra, namely snapshot tests
 	Object.assign(globalThis, {
 		__analyzeSnapshotInTests: takeSnapshotAndCountClasses,

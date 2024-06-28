@@ -2592,7 +2592,7 @@ export namespace ChatResponsePart {
 }
 
 export namespace ChatAgentRequest {
-	export function to(request: IChatAgentRequest): vscode.ChatRequest {
+	export function to(request: IChatAgentRequest, location2: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined): vscode.ChatRequest {
 		return {
 			prompt: request.message,
 			command: request.command,
@@ -2601,7 +2601,8 @@ export namespace ChatAgentRequest {
 			references: request.variables.variables.map(ChatAgentValueReference.to),
 			location: ChatLocation.to(request.location),
 			acceptedConfirmationData: request.acceptedConfirmationData,
-			rejectedConfirmationData: request.rejectedConfirmationData
+			rejectedConfirmationData: request.rejectedConfirmationData,
+			location2
 		};
 	}
 }

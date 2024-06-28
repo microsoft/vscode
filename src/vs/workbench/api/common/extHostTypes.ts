@@ -4449,6 +4449,20 @@ export enum ChatLocation {
 	Editor = 4,
 }
 
+export class ChatRequestEditorData {
+	constructor(
+		readonly document: vscode.TextDocument,
+		readonly selection: vscode.Selection,
+		readonly wholeRange: vscode.Range,
+	) { }
+}
+
+export class ChatRequestNotebookData {
+	constructor(
+		readonly notebook: vscode.NotebookDocument
+	) { }
+}
+
 export enum LanguageModelChatMessageRole {
 	User = 1,
 	Assistant = 2,

@@ -13,7 +13,7 @@ import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { inlineChatBackground, InlineChatConfigKeys, MENU_INLINE_CHAT_CONTENT_STATUS, MENU_INLINE_CHAT_EXECUTE } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
-import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
+import { ChatWidget, IChatWidgetLocationOptions } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { editorBackground, editorForeground, inputBackground } from 'vs/platform/theme/common/colorRegistry';
 import { ChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
@@ -49,7 +49,7 @@ export class InlineChatContentWidget implements IContentWidget {
 	private readonly _widget: ChatWidget;
 
 	constructor(
-		location: ChatAgentLocation,
+		location: IChatWidgetLocationOptions,
 		private readonly _editor: ICodeEditor,
 		@IInstantiationService instaService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,

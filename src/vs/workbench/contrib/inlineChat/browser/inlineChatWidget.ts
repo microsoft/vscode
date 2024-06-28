@@ -5,7 +5,6 @@
 
 import { Dimension, getActiveElement, getTotalHeight, h, reset, trackFocus } from 'vs/base/browser/dom';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
@@ -38,7 +37,7 @@ import { ChatModel, IChatModel } from 'vs/workbench/contrib/chat/common/chatMode
 import { isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { HunkInformation, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_FOCUSED, inlineChatBackground, InlineChatConfigKeys, inlineChatForeground } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
+import { ChatWidget, IChatWidgetLocationOptions } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { chatRequestBackground } from 'vs/workbench/contrib/chat/common/chatColors';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
@@ -87,8 +86,6 @@ export class InlineChatWidget {
 		'div.inline-chat@root',
 		[
 			h('div.chat-widget@chatWidget'),
-			h('div.progress@progress'),
-			h('div.previewDiff.hidden@previewDiff'),
 			h('div.accessibleViewer@accessibleViewer'),
 			h('div.status@status', [
 				h('div.label.info.hidden@infoLabel'),
@@ -105,7 +102,6 @@ export class InlineChatWidget {
 	private readonly _ctxInputEditorFocused: IContextKey<boolean>;
 	private readonly _ctxResponseFocused: IContextKey<boolean>;
 
-	private readonly _progressBar: ProgressBar;
 	private readonly _chatWidget: ChatWidget;
 
 	protected readonly _onDidChangeHeight = this._store.add(new Emitter<void>());
@@ -119,7 +115,7 @@ export class InlineChatWidget {
 	readonly scopedContextKeyService: IContextKeyService;
 
 	constructor(
-		location: ChatAgentLocation,
+		location: IChatWidgetLocationOptions,
 		options: IInlineChatWidgetConstructionOptions,
 		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
@@ -131,10 +127,6 @@ export class InlineChatWidget {
 		@IChatService private readonly _chatService: IChatService,
 		@IHoverService private readonly _hoverService: IHoverService,
 	) {
-		// toolbars
-		this._progressBar = new ProgressBar(this._elements.progress);
-		this._store.add(this._progressBar);
-
 		this.scopedContextKeyService = this._store.add(_contextKeyService.createScoped(this._elements.chatWidget));
 		const scopedInstaService = _instantiationService.createChild(
 			new ServiceCollection([
@@ -296,17 +288,15 @@ export class InlineChatWidget {
 
 	protected _doLayout(dimension: Dimension): void {
 		const extraHeight = this._getExtraHeight();
-		const progressHeight = getTotalHeight(this._elements.progress);
 		const statusHeight = getTotalHeight(this._elements.status);
 
 		// console.log('ZONE#Widget#layout', { height: dimension.height, extraHeight, progressHeight, followUpsHeight, statusHeight, LIST: dimension.height - progressHeight - followUpsHeight - statusHeight - extraHeight });
 
 		this._elements.root.style.height = `${dimension.height - extraHeight}px`;
 		this._elements.root.style.width = `${dimension.width}px`;
-		this._elements.progress.style.width = `${dimension.width}px`;
 
 		this._chatWidget.layout(
-			dimension.height - progressHeight - statusHeight - extraHeight,
+			dimension.height - statusHeight - extraHeight,
 			dimension.width
 		);
 	}
@@ -317,11 +307,10 @@ export class InlineChatWidget {
 	get contentHeight(): number {
 		const data = {
 			chatWidgetContentHeight: this._chatWidget.contentHeight,
-			progressHeight: getTotalHeight(this._elements.progress),
 			statusHeight: getTotalHeight(this._elements.status),
 			extraHeight: this._getExtraHeight()
 		};
-		const result = data.progressHeight + data.chatWidgetContentHeight + data.statusHeight + data.extraHeight;
+		const result = data.chatWidgetContentHeight + data.statusHeight + data.extraHeight;
 		return result;
 	}
 
@@ -345,16 +334,6 @@ export class InlineChatWidget {
 
 	protected _getExtraHeight(): number {
 		return 4 /* padding */ + 2 /*border*/ + 4 /*shadow*/;
-	}
-
-	updateProgress(show: boolean) {
-		if (show) {
-			this._progressBar.show();
-			this._progressBar.infinite();
-		} else {
-			this._progressBar.stop();
-			this._progressBar.hide();
-		}
 	}
 
 	get value(): string {
@@ -543,7 +522,7 @@ export class EditorBasedInlineChatWidget extends InlineChatWidget {
 	private readonly _accessibleViewer = this._store.add(new MutableDisposable<HunkAccessibleDiffViewer>());
 
 	constructor(
-		location: ChatAgentLocation,
+		location: IChatWidgetLocationOptions,
 		private readonly _parentEditor: ICodeEditor,
 		options: IInlineChatWidgetConstructionOptions,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -565,7 +544,7 @@ export class EditorBasedInlineChatWidget extends InlineChatWidget {
 		let result = super.contentHeight;
 
 		if (this._accessibleViewer.value) {
-			result += this._accessibleViewer.value.height;
+			result += this._accessibleViewer.value.height + 8 /* padding */;
 		}
 
 		return result;
@@ -577,7 +556,7 @@ export class EditorBasedInlineChatWidget extends InlineChatWidget {
 
 		if (this._accessibleViewer.value) {
 			this._accessibleViewer.value.width = dimension.width - 12;
-			newHeight -= this._accessibleViewer.value.height;
+			newHeight -= this._accessibleViewer.value.height + 8;
 		}
 
 		super._doLayout(dimension.with(undefined, newHeight));

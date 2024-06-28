@@ -82,28 +82,23 @@
 			developerDeveloperKeybindingsDisposable = registerDeveloperKeybindings(disallowReloadKeybinding);
 		}
 
-		// Get the nls configuration into the process.env as early as possible
-		// @ts-ignore
-		const nlsConfig = globalThis.MonacoBootstrap.setupNLS();
-
-		let locale = nlsConfig.availableLanguages['*'] || 'en';
-		if (locale === 'zh-tw') {
-			locale = 'zh-Hant';
-		} else if (locale === 'zh-cn') {
-			locale = 'zh-Hans';
+		// VSCODE_GLOBALS: NLS
+		globalThis._VSCODE_NLS_MESSAGES = configuration.nls.messages;
+		globalThis._VSCODE_NLS_LANGUAGE = configuration.nls.language;
+		let language = configuration.nls.language || 'en';
+		if (language === 'zh-tw') {
+			language = 'zh-Hant';
+		} else if (language === 'zh-cn') {
+			language = 'zh-Hans';
 		}
 
-		window.document.documentElement.setAttribute('lang', locale);
+		window.document.documentElement.setAttribute('lang', language);
 
 		window['MonacoEnvironment'] = {};
 
-		/**
-		 * @typedef {any} LoaderConfig
-		 */
-		/** @type {LoaderConfig} */
+		/** @type {any} */
 		const loaderConfig = {
 			baseUrl: `${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out`,
-			'vs/nls': nlsConfig,
 			preferScriptTags: true
 		};
 
@@ -146,13 +141,6 @@
 
 		// Configure loader
 		require.config(loaderConfig);
-
-		// Handle pseudo NLS
-		if (nlsConfig.pseudo) {
-			require(['vs/nls'], function (nlsPlugin) {
-				nlsPlugin.setPseudoTranslation(nlsConfig.pseudo);
-			});
-		}
 
 		// Signal before require()
 		if (typeof options?.beforeRequire === 'function') {
