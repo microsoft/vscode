@@ -484,6 +484,11 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 	};
 
+	function elementHasContent(height: number) {
+		// we need to account for a potential 1px top and bottom border on a child within the output container
+		return height > 2.1;
+	}
+
 	const resizeObserver = new class {
 
 		private readonly _observer: ResizeObserver;
@@ -519,7 +524,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 						continue;
 					}
 
-					const hasContent = entry.contentRect.height > 2.1;
+					const hasContent = elementHasContent(entry.contentRect.height);
 					const shouldUpdatePadding =
 						(hasContent && observedElementInfo.lastKnownPadding === 0) ||
 						(!hasContent && observedElementInfo.lastKnownPadding !== 0);
@@ -2939,8 +2944,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 			const cps = document.defaultView!.getComputedStyle(this.element);
 			const verticalPadding = parseFloat(cps.paddingTop) + parseFloat(cps.paddingBottom);
 			const contentHeight = offsetHeight - verticalPadding;
-			if (offsetHeight > 2.1 && cps.padding === '0px') {
-				// we set padding to zero if the output height is zero (then we can have a zero-height output DOM node)
+			if (elementHasContent(contentHeight) && cps.padding === '0px') {
+				// we set padding to zero if the output has no content (then we can have a zero-height output DOM node)
 				// thus we need to ensure the padding is accounted when updating the init height of the output
 				dimensionUpdater.updateHeight(this.outputId, offsetHeight + ctx.style.outputNodePadding * 2, {
 					isOutput: true,
@@ -2948,7 +2953,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				});
 
 				this.element.style.padding = `${ctx.style.outputNodePadding}px ${ctx.style.outputNodePadding}px ${ctx.style.outputNodePadding}px ${ctx.style.outputNodeLeftPadding}`;
-			} else if (contentHeight > 2.1) {
+			} else if (elementHasContent(contentHeight)) {
 				dimensionUpdater.updateHeight(this.outputId, this.element.offsetHeight, {
 					isOutput: true,
 					init: true

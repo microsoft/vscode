@@ -81,6 +81,8 @@ suite('CellOutput', () => {
 				assert(cellTemplate.outputContainer.domNode.style.display !== 'none', 'output container should be visible');
 				cell.outputsViewModels[1].setVisible(true);
 				assert.strictEqual(outputMenus.length, 2, 'should have 2 output menus');
+				cell.outputsViewModels[1].setVisible(true);
+				assert.strictEqual(outputMenus.length, 2, 'should still have 2 output menus');
 			},
 			instantiationService
 		);
