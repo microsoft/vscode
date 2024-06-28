@@ -138,14 +138,10 @@ export function bundle(entryPoints: IEntryPoint[], config: ILoaderConfig, callba
 	const loader: any = loaderModule.exports;
 	config.isBuild = true;
 	config.paths = config.paths || {};
-	if (!config.paths['vs/nls']) {
-		config.paths['vs/nls'] = 'out-build/vs/nls.build';
-	}
 	if (!config.paths['vs/css']) {
 		config.paths['vs/css'] = 'out-build/vs/css.build';
 	}
 	config.buildForceInvokeFactory = config.buildForceInvokeFactory || {};
-	config.buildForceInvokeFactory['vs/nls'] = true;
 	config.buildForceInvokeFactory['vs/css'] = true;
 	loader.config(config);
 
@@ -156,7 +152,6 @@ export function bundle(entryPoints: IEntryPoint[], config: ILoaderConfig, callba
 				r += '.js';
 			}
 			// avoid packaging the build version of plugins:
-			r = r.replace('vs/nls.build.js', 'vs/nls.js');
 			r = r.replace('vs/css.build.js', 'vs/css.js');
 			return { path: r, amdModuleId: entry.amdModuleId };
 		};
