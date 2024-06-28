@@ -220,7 +220,9 @@ export class InstantiationService implements IInstantiationService {
 		while (stack.length) {
 			const item = stack.pop()!;
 
-			if (seen.has(String(item.id))) continue;
+			if (seen.has(String(item.id))) {
+				continue;
+			}
 			seen.add(String(item.id));
 
 			graph.lookupOrInsertNode(item);
