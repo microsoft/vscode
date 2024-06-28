@@ -29,19 +29,17 @@ const editorEntryPoints = [
 	{
 		name: 'vs/editor/editor.main',
 		include: [],
-		exclude: ['vs/css', 'vs/nls'],
+		exclude: ['vs/css'],
 		prepend: [
-			{ path: 'out-editor-build/vs/css.js', amdModuleId: 'vs/css' },
-			{ path: 'out-editor-build/vs/nls.js', amdModuleId: 'vs/nls' }
+			{ path: 'out-editor-build/vs/css.js', amdModuleId: 'vs/css' }
 		],
 	},
 	{
 		name: 'vs/base/common/worker/simpleWorker',
 		include: ['vs/editor/common/services/editorSimpleWorker'],
-		exclude: ['vs/nls'],
+		exclude: [],
 		prepend: [
 			{ path: 'vs/loader.js' },
-			{ path: 'vs/nls.js', amdModuleId: 'vs/nls' },
 			{ path: 'vs/base/worker/workerMain.js' }
 		],
 		dest: 'vs/base/worker/workerMain.js'
@@ -99,7 +97,6 @@ const optimizeEditorAMDTask = task.define('optimize-editor-amd', optimize.optimi
 				paths: {
 					'vs': 'out-editor-build/vs',
 					'vs/css': 'out-editor-build/vs/css.build',
-					'vs/nls': 'out-editor-build/vs/nls.build',
 					'vscode': 'empty:'
 				}
 			},
@@ -124,7 +121,6 @@ const createESMSourcesAndResourcesTask = task.define('extract-editor-esm', () =>
 			'vs/base/worker/workerMain.ts',
 		],
 		renames: {
-			'vs/nls.mock.ts': 'vs/nls.ts'
 		}
 	});
 });

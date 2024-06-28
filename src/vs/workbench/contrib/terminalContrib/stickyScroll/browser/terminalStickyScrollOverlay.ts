@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { SerializeAddon as SerializeAddonType } from '@xterm/addon-serialize';
+import type { WebglAddon as WebglAddonType } from '@xterm/addon-webgl';
 import type { IBufferLine, IMarker, ITerminalOptions, ITheme, Terminal as RawXtermTerminal, Terminal as XTermTerminal } from '@xterm/xterm';
 import { importAMDNodeModule } from 'vs/amdX';
 import { $, addDisposableListener, addStandardDisposableListener, getWindow } from 'vs/base/browser/dom';
@@ -21,7 +22,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandDetectionCapability, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetection/terminalCommand';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ITerminalInstance, IXtermColorProvider, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalConfigurationService, ITerminalInstance, IXtermColorProvider, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { openContextMenu } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { TERMINAL_CONFIG_SECTION, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -46,6 +47,7 @@ const enum Constants {
 export class TerminalStickyScrollOverlay extends Disposable {
 	private _stickyScrollOverlay?: RawXtermTerminal;
 	private _serializeAddon?: SerializeAddonType;
+	private _webglAddon?: WebglAddonType;
 
 	private _element?: HTMLElement;
 	private _currentStickyCommand?: ITerminalCommand | ICurrentPartialCommand;
@@ -69,6 +71,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IMenuService menuService: IMenuService,
+		@ITerminalConfigurationService private readonly _terminalConfigurationService: ITerminalConfigurationService,
 		@IThemeService private readonly _themeService: IThemeService,
 	) {
 		super();
@@ -101,6 +104,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 				allowProposedApi: true,
 				...this._getOptions()
 			}));
+			this._refreshGpuAcceleration();
 			this._register(configurationService.onDidChangeConfiguration(e => {
 				if (e.affectsConfiguration(TERMINAL_CONFIG_SECTION)) {
 					this._syncOptions();
@@ -413,6 +417,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		}
 		this._stickyScrollOverlay.resize(this._xterm.raw.cols, this._stickyScrollOverlay.rows);
 		this._stickyScrollOverlay.options = this._getOptions();
+		this._refreshGpuAcceleration();
 	}
 
 	private _getOptions(): ITerminalOptions {
@@ -435,7 +440,27 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			minimumContrastRatio: o.minimumContrastRatio,
 			tabStopWidth: o.tabStopWidth,
 			overviewRulerWidth: o.overviewRulerWidth,
+			customGlyphs: o.customGlyphs,
 		};
+	}
+
+	@throttle(0)
+	private async _refreshGpuAcceleration() {
+		if (this._shouldLoadWebgl() && !this._webglAddon) {
+			const WebglAddon = await this._getWebglAddonConstructor();
+			if (this._store.isDisposed) {
+				return;
+			}
+			this._webglAddon = this._register(new WebglAddon());
+			this._stickyScrollOverlay?.loadAddon(this._webglAddon);
+		} else if (!this._shouldLoadWebgl() && this._webglAddon) {
+			this._webglAddon.dispose();
+			this._webglAddon = undefined;
+		}
+	}
+
+	private _shouldLoadWebgl(): boolean {
+		return this._terminalConfigurationService.config.gpuAcceleration === 'auto' || this._terminalConfigurationService.config.gpuAcceleration === 'on';
 	}
 
 	private _getTheme(isHovering: boolean): ITheme {
@@ -452,8 +477,12 @@ export class TerminalStickyScrollOverlay extends Disposable {
 
 	@memoize
 	private async _getSerializeAddonConstructor(): Promise<typeof SerializeAddonType> {
-		const m = await importAMDNodeModule<typeof import('@xterm/addon-serialize')>('@xterm/addon-serialize', 'lib/addon-serialize.js');
-		return m.SerializeAddon;
+		return (await importAMDNodeModule<typeof import('@xterm/addon-serialize')>('@xterm/addon-serialize', 'lib/addon-serialize.js')).SerializeAddon;
+	}
+
+	@memoize
+	private async _getWebglAddonConstructor(): Promise<typeof WebglAddonType> {
+		return (await importAMDNodeModule<typeof import('@xterm/addon-webgl')>('@xterm/addon-webgl', 'lib/addon-webgl.js')).WebglAddon;
 	}
 }
 
