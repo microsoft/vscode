@@ -27,7 +27,6 @@ import { observableConfigValue } from 'vs/platform/observable/common/platformObs
 import { derivedObservableWithCache, latestChangedValue, observableFromEventOpts } from 'vs/base/common/observableInternal/utils';
 import { Command } from 'vs/editor/common/languages';
 import { ISCMHistoryItemGroup } from 'vs/workbench/contrib/scm/common/history';
-import { ILogService } from 'vs/platform/log/common/log';
 
 export class SCMActiveRepositoryController extends Disposable implements IWorkbenchContribution {
 	private readonly _countBadgeConfig = observableConfigValue<'all' | 'focused' | 'off'>('scm.countBadge', 'all', this.configurationService);
@@ -49,13 +48,11 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 	private readonly _activeEditorRepository = derivedObservableWithCache<ISCMRepository | undefined>(this, (reader, lastValue) => {
 		const activeResource = EditorResourceAccessor.getOriginalUri(this._activeEditor.read(reader));
 		if (!activeResource) {
-			this.logService.trace('SCMActiveRepositoryController (activeEditorRepository derived): no activeResource');
 			return lastValue;
 		}
 
 		const repository = this.scmService.getRepository(activeResource);
 		if (!repository) {
-			this.logService.trace(`SCMActiveRepositoryController (activeEditorRepository derived): no repository for '${activeResource.toString()}'`);
 			return lastValue;
 		}
 
@@ -106,7 +103,6 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IEditorService private readonly editorService: IEditorService,
-		@ILogService private readonly logService: ILogService,
 		@ISCMService private readonly scmService: ISCMService,
 		@ISCMViewService private readonly scmViewService: ISCMViewService,
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
@@ -122,22 +118,6 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 			{ name: 'activeRepositoryBranchName', contextKey: ActiveRepositoryContextKeys.ActiveRepositoryBranchName.key, }
 		]);
 
-		this._register(autorun(reader => {
-			const repository = this._focusedRepository.read(reader);
-			const commands = repository?.provider.statusBarCommands.read(reader);
-
-			this.logService.trace('SCMActiveRepositoryController (focusedRepository):', repository?.id ?? 'no id');
-			this.logService.trace('SCMActiveRepositoryController (focusedRepository):', commands ? commands.map(c => c.title).join(', ') : 'no commands');
-		}));
-
-		this._register(autorun(reader => {
-			const repository = this._activeEditorRepository.read(reader);
-			const commands = repository?.provider.statusBarCommands.read(reader);
-
-			this.logService.trace('SCMActiveRepositoryController (activeEditorRepository):', repository?.id ?? 'no id');
-			this.logService.trace('SCMActiveRepositoryController (activeEditorRepository):', commands ? commands.map(c => c.title).join(', ') : 'no commands');
-		}));
-
 		this._register(autorunWithStore((reader, store) => {
 			this._updateActivityCountBadge(this._countBadge.read(reader), store);
 		}));
@@ -145,9 +125,6 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 		this._register(autorunWithStore((reader, store) => {
 			const repository = this._activeRepository.read(reader);
 			const commands = repository?.provider.statusBarCommands.read(reader);
-
-			this.logService.trace('SCMActiveRepositoryController (status bar):', repository?.id ?? 'no id');
-			this.logService.trace('SCMActiveRepositoryController (status bar):', commands ? commands.map(c => c.title).join(', ') : 'no commands');
 
 			this._updateStatusBar(repository, commands ?? [], store);
 		}));
@@ -175,7 +152,6 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 
 	private _updateStatusBar(repository: ISCMRepository | undefined, commands: readonly Command[], store: DisposableStore): void {
 		if (!repository) {
-			this.logService.trace('SCMActiveRepositoryController (status bar): repository is undefined');
 			return;
 		}
 
