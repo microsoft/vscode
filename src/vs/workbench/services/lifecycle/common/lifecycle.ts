@@ -65,9 +65,17 @@ export interface BeforeShutdownErrorEvent {
 	readonly error: Error;
 }
 
+export enum WillShutdownJoinerPriority {
+	// Joiner will run when the workbench and remote is still alive
+	Default,
+	// Joiner will run when the workbench is being disconnected from any the remote workspace
+	Disconnect,
+}
+
 export interface IWillShutdownEventJoiner {
 	id: string;
 	label: string;
+	priority?: WillShutdownJoinerPriority;
 }
 
 /**
@@ -98,7 +106,7 @@ export interface WillShutdownEvent {
 	 * @param joiner to identify the join operation in case it takes very long or never
 	 * completes.
 	 */
-	join(promise: Promise<void>, joiner: IWillShutdownEventJoiner): void;
+	join(promise: Promise<void> | (() => Promise<void>), joiner: IWillShutdownEventJoiner): void;
 
 	/**
 	 * Allows to access the joiners that have not finished joining this event.
