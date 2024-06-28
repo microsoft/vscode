@@ -134,7 +134,11 @@
 				userLocale,
 				osLocale,
 				resolvedLanguage: 'en',
-				defaultMessagesFile: path.join(nlsMetadataPath, 'nls.messages.json')
+				defaultMessagesFile: path.join(nlsMetadataPath, 'nls.messages.json'),
+
+				// NLS: below 2 are a relic from old times only used by vscode-nls and deprecated
+				locale: 'en',
+				availableLanguages: {}
 			};
 		}
 
@@ -199,7 +203,17 @@
 						translationsConfigFile,
 						messagesFile: languagePackMessagesFile,
 						corruptMarkerFile: languagePackCorruptMarkerFile
-					}
+					},
+
+					// NLS: below properties are a relic from old times only used by vscode-nls and deprecated
+					locale: userLocale,
+					availableLanguages: { '*': resolvedLanguage },
+					_languagePackId: languagePackId,
+					_languagePackSupport: true,
+					_translationsConfigFile: translationsConfigFile,
+					_cacheRoot: globalLanguagePackCachePath,
+					_resolvedLanguagePackCoreLocation: commitLanguagePackCachePath,
+					_corruptedFile: languagePackCorruptMarkerFile
 				};
 
 				if (await exists(commitLanguagePackCachePath)) {

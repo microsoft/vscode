@@ -200,6 +200,28 @@ export interface INLSConfiguration {
 	 * versions of the application.
 	 */
 	readonly defaultMessagesFile: string;
+
+	/**
+	 * Below properties are deprecated and only there to continue support
+	 * for `vscode-nls` module that depends on them.
+	 * Refs https://github.com/microsoft/vscode-nls/blob/main/src/node/main.ts#L36-L46
+	 */
+	/** @deprecated */
+	readonly locale: string;
+	/** @deprecated */
+	readonly availableLanguages: Record<string, string>;
+	/** @deprecated */
+	readonly _languagePackSupport?: boolean;
+	/** @deprecated */
+	readonly _languagePackId?: string;
+	/** @deprecated */
+	readonly _translationsConfigFile?: string;
+	/** @deprecated */
+	readonly _cacheRoot?: string;
+	/** @deprecated */
+	readonly _resolvedLanguagePackCoreLocation?: string;
+	/** @deprecated */
+	readonly _corruptedFile?: string;
 }
 
 export interface ILanguagePack {

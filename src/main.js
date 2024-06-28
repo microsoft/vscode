@@ -668,7 +668,11 @@ async function resolveNlsConfiguration() {
 			userLocale: 'en',
 			osLocale,
 			resolvedLanguage: 'en',
-			defaultMessagesFile: path.join(__dirname, 'nls.messages.json')
+			defaultMessagesFile: path.join(__dirname, 'nls.messages.json'),
+
+			// NLS: below 2 are a relic from old times only used by vscode-nls and deprecated
+			locale: 'en',
+			availableLanguages: {}
 		};
 	}
 
