@@ -160,8 +160,7 @@
 		"@xterm/headless",
 		"node-pty",
 		"vscode-notebook-renderer",
-		"src/vs/workbench/workbench.web.main.ts",
-		"src/vs/workbench/api/common/extHostTypes.ts"
+		"src/vs/workbench/workbench.web.main.ts"
 	],
 	"[github-issues]": {
 		"editor.wordWrap": "on"
