@@ -22,11 +22,36 @@ const REPO_ROOT_PATH = path.join(__dirname, '../..');
 function log(prefix, message) {
     fancyLog(ansiColors.cyan('[' + prefix + ']'), message);
 }
+// MEMBRANE: The vscode bundler needs to know that we're replacing these files.
+// TODO: Make this programmatically find all the files.
+function getMembraneOverrides() {
+    const fs = require('fs');
+    const srcDir = path.resolve(path.join(REPO_ROOT_PATH, 'src'));
+    const results = [];
+    function searchDirectory(currentDir) {
+        const files = fs.readdirSync(currentDir);
+        files.forEach((file) => {
+            const fullPath = path.join(currentDir, file);
+            const stat = fs.statSync(fullPath);
+            if (stat?.isDirectory()) {
+                searchDirectory(fullPath);
+            }
+            else if (file.endsWith('.membrane.ts')) {
+                // Remove the srcDir prefix and the `.membrane.ts` suffix
+                results.push(path.relative(srcDir, fullPath.replace(/\.membrane\.ts$/, '')));
+            }
+        });
+    }
+    searchDirectory(srcDir);
+    return results;
+}
 function loaderConfig() {
     const result = {
         paths: {
+            ...Object.fromEntries(getMembraneOverrides().map(m => [`${m}.membrane`, `out-build/${m}.membrane.js`])),
+            ...Object.fromEntries(getMembraneOverrides().map(m => [`${m}`, `out-build/${m}.membrane.js`])),
             'vs': 'out-build/vs',
-            'vscode': 'empty:'
+            'vscode': 'empty:',
         },
         amdModulesPattern: /^vs\//
     };

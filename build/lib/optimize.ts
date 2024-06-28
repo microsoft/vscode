@@ -23,11 +23,44 @@ function log(prefix: string, message: string): void {
 	fancyLog(ansiColors.cyan('[' + prefix + ']'), message);
 }
 
+// MEMBRANE: The vscode bundler needs to know that we're replacing these files.
+// TODO: Make this programmatically find all the files.
+function getMembraneOverrides() {
+	const fs = require('fs');
+	const srcDir = path.resolve(path.join(REPO_ROOT_PATH, 'src'));
+	const results: string[] = [];
+	function searchDirectory(currentDir: string) {
+		const files = fs.readdirSync(currentDir);
+
+		files.forEach((file: any) => {
+			const fullPath = path.join(currentDir, file);
+			const stat = fs.statSync(fullPath);
+
+			if (stat?.isDirectory()) {
+				searchDirectory(fullPath);
+			} else if (file.endsWith('.membrane.ts')) {
+				// Remove the srcDir prefix and the `.membrane.ts` suffix
+				results.push(path.relative(srcDir, fullPath.replace(/\.membrane\.ts$/, '')));
+			}
+		});
+	}
+
+	searchDirectory(srcDir);
+	return results;
+}
+
+
 export function loaderConfig() {
 	const result: any = {
 		paths: {
+			// MEMBRANE: these paths are used by vscode-loader and are matched without the `.js` file extension.
+			// The longest one that matches always wins (more specific).
+			// We have to map the `.membrane` files to themselves so that they don't get picked up by the second
+			// set of rules that map the normal `.js` files to `.membrane.js`
+			...Object.fromEntries(getMembraneOverrides().map(m => [`${m}.membrane`, `out-build/${m}.membrane.js`])),
+			...Object.fromEntries(getMembraneOverrides().map(m => [`${m}`, `out-build/${m}.membrane.js`])),
 			'vs': 'out-build/vs',
-			'vscode': 'empty:'
+			'vscode': 'empty:',
 		},
 		amdModulesPattern: /^vs\//
 	};
