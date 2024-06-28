@@ -22,8 +22,8 @@ import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
  */
 export class PointerEventHandler extends MouseHandler {
 	private _lastPointerType: string;
-	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper) {
-		super(context, viewController, viewHelper);
+	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper, overflowWidgetsDomNode?: HTMLElement) {
+		super(context, viewController, viewHelper, overflowWidgetsDomNode);
 
 		this._register(Gesture.addTarget(this.viewHelper.linesContentDomNode));
 		this._register(dom.addDisposableListener(this.viewHelper.linesContentDomNode, EventType.Tap, (e) => this.onTap(e)));
@@ -49,7 +49,10 @@ export class PointerEventHandler extends MouseHandler {
 
 		this._register(pointerEvents.onPointerMove(this.viewHelper.viewDomNode, (e) => this._onMouseMove(e)));
 		this._register(pointerEvents.onPointerUp(this.viewHelper.viewDomNode, (e) => this._onMouseUp(e)));
-		this._register(pointerEvents.onPointerLeave(this.viewHelper.viewDomNode, (e) => this._onMouseLeave(e)));
+		this._register(pointerEvents.onPointerLeave(this.viewHelper.viewDomNode, (e) => {
+			console.log('_onMouseLeave of pointer leave');
+			this._onMouseLeave(e);
+		}));
 		this._register(pointerEvents.onPointerDown(this.viewHelper.viewDomNode, (e, pointerId) => this._onMouseDown(e, pointerId)));
 	}
 
@@ -104,8 +107,8 @@ export class PointerEventHandler extends MouseHandler {
 
 class TouchHandler extends MouseHandler {
 
-	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper) {
-		super(context, viewController, viewHelper);
+	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper, overflowWidgetsDomNode?: HTMLElement) {
+		super(context, viewController, viewHelper, overflowWidgetsDomNode);
 
 		this._register(Gesture.addTarget(this.viewHelper.linesContentDomNode));
 
@@ -139,15 +142,15 @@ class TouchHandler extends MouseHandler {
 export class PointerHandler extends Disposable {
 	private readonly handler: MouseHandler;
 
-	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper) {
+	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper, overflowWidgetsDomNode?: HTMLElement) {
 		super();
 		const isPhone = platform.isIOS || (platform.isAndroid && platform.isMobile);
 		if (isPhone && BrowserFeatures.pointerEvents) {
-			this.handler = this._register(new PointerEventHandler(context, viewController, viewHelper));
+			this.handler = this._register(new PointerEventHandler(context, viewController, viewHelper, overflowWidgetsDomNode));
 		} else if (mainWindow.TouchEvent) {
-			this.handler = this._register(new TouchHandler(context, viewController, viewHelper));
+			this.handler = this._register(new TouchHandler(context, viewController, viewHelper, overflowWidgetsDomNode));
 		} else {
-			this.handler = this._register(new MouseHandler(context, viewController, viewHelper));
+			this.handler = this._register(new MouseHandler(context, viewController, viewHelper, overflowWidgetsDomNode));
 		}
 	}
 

@@ -413,6 +413,7 @@ class HitTestRequest extends BareHitTestRequest {
 	private _useHitTestTarget: boolean;
 	private _targetPathCacheElement: HTMLElement | null = null;
 	private _targetPathCacheValue: Uint8Array = new Uint8Array(0);
+	private _overflowWidgetsDomNode: HTMLElement | undefined = undefined;
 
 	public get target(): HTMLElement | null {
 		if (this._useHitTestTarget) {
@@ -422,17 +423,25 @@ class HitTestRequest extends BareHitTestRequest {
 	}
 
 	public get targetPath(): Uint8Array {
+		console.log('targetPath');
 		if (this._targetPathCacheElement !== this.target) {
 			this._targetPathCacheElement = this.target;
-			this._targetPathCacheValue = PartFingerprints.collect(this.target, this._ctx.viewDomNode);
+			console.log('this.target : ', this.target);
+			console.log('this._overflowWidgetsDomNode : ', this._overflowWidgetsDomNode);
+			if (this._overflowWidgetsDomNode) {
+				this._targetPathCacheValue = PartFingerprints.collect(this.target, this._overflowWidgetsDomNode);
+			} else {
+				this._targetPathCacheValue = PartFingerprints.collect(this.target, this._ctx.viewDomNode);
+			}
 		}
 		return this._targetPathCacheValue;
 	}
 
-	constructor(ctx: HitTestContext, editorPos: EditorPagePosition, pos: PageCoordinates, relativePos: CoordinatesRelativeToEditor, eventTarget: HTMLElement | null) {
+	constructor(ctx: HitTestContext, editorPos: EditorPagePosition, pos: PageCoordinates, relativePos: CoordinatesRelativeToEditor, eventTarget: HTMLElement | null, overflowWidgetsDomNode?: HTMLElement) {
 		super(ctx, editorPos, pos, relativePos);
 		this._ctx = ctx;
 		this._eventTarget = eventTarget;
+		this._overflowWidgetsDomNode = overflowWidgetsDomNode;
 
 		// If no event target is passed in, we will use the hit test target
 		const hasEventTarget = Boolean(this._eventTarget);
@@ -532,11 +541,17 @@ export class MouseTargetFactory {
 		return false;
 	}
 
-	public createMouseTarget(lastRenderData: PointerHandlerLastRenderData, editorPos: EditorPagePosition, pos: PageCoordinates, relativePos: CoordinatesRelativeToEditor, target: HTMLElement | null): IMouseTarget {
+	public createMouseTarget(lastRenderData: PointerHandlerLastRenderData, editorPos: EditorPagePosition, pos: PageCoordinates, relativePos: CoordinatesRelativeToEditor, target: HTMLElement | null, overflowWidgetsDomNode?: HTMLElement): IMouseTarget {
 		const ctx = new HitTestContext(this._context, this._viewHelper, lastRenderData);
-		const request = new HitTestRequest(ctx, editorPos, pos, relativePos, target);
+		const request = new HitTestRequest(ctx, editorPos, pos, relativePos, target, overflowWidgetsDomNode);
+		console.log('createMouseTarget');
+		console.log('target : ', target);
+		console.log('overflowWidgetsDomNode : ', overflowWidgetsDomNode);
+		console.log('ctx : ', ctx);
+		console.log('request : ', request);
 		try {
 			const r = MouseTargetFactory._createMouseTarget(ctx, request);
+			console.log('r : ', r);
 
 			if (r.type === MouseTargetType.CONTENT_TEXT) {
 				// Snap to the nearest soft tab boundary if atomic soft tabs are enabled.
@@ -556,6 +571,7 @@ export class MouseTargetFactory {
 	}
 
 	private static _createMouseTarget(ctx: HitTestContext, request: HitTestRequest): IMouseTarget {
+		console.log('_createMouseTarget');
 
 		// console.log(`${domHitTestExecuted ? '=>' : ''}CAME IN REQUEST: ${request}`);
 
@@ -566,13 +582,14 @@ export class MouseTargetFactory {
 
 		// we know for a fact that request.target is not null
 		const resolvedRequest = <ResolvedHitTestRequest>request;
+		console.log('resolvedRequest : ', resolvedRequest);
 
 		let result: IMouseTarget | null = null;
 
-		if (!ElementPath.isChildOfOverflowGuard(request.targetPath) && !ElementPath.isChildOfOverflowingContentWidgets(request.targetPath) && !ElementPath.isChildOfOverflowingOverlayWidgets(request.targetPath)) {
-			// We only render dom nodes inside the overflow guard or in the overflowing content widgets
-			result = result || request.fulfillUnknown();
-		}
+		// if (!ElementPath.isChildOfOverflowGuard(request.targetPath) && !ElementPath.isChildOfOverflowingContentWidgets(request.targetPath) && !ElementPath.isChildOfOverflowingOverlayWidgets(request.targetPath)) {
+		// 	// We only render dom nodes inside the overflow guard or in the overflowing content widgets
+		// 	result = result || request.fulfillUnknown();
+		// }
 
 		result = result || MouseTargetFactory._hitTestContentWidget(ctx, resolvedRequest);
 		result = result || MouseTargetFactory._hitTestOverlayWidget(ctx, resolvedRequest);
@@ -589,9 +606,16 @@ export class MouseTargetFactory {
 	}
 
 	private static _hitTestContentWidget(ctx: HitTestContext, request: ResolvedHitTestRequest): IMouseTarget | null {
+		console.log('_hitTestContentWidget');
+		console.log('request : ', request);
+		console.log('request.target : ', request.target);
+		console.log('request.targetPath : ', request.targetPath);
+		console.log('ElementPath.isChildOfContentWidgets(request.targetPath) : ', ElementPath.isChildOfContentWidgets(request.targetPath));
+		console.log('ElementPath.isChildOfOverflowingContentWidgets(request.targetPath) : ', ElementPath.isChildOfOverflowingContentWidgets(request.targetPath));
 		// Is it a content widget?
 		if (ElementPath.isChildOfContentWidgets(request.targetPath) || ElementPath.isChildOfOverflowingContentWidgets(request.targetPath)) {
 			const widgetId = ctx.findAttribute(request.target, 'widgetId');
+			console.log('widgetId : ', widgetId)
 			if (widgetId) {
 				return request.fulfillContentWidget(widgetId);
 			} else {
@@ -602,9 +626,16 @@ export class MouseTargetFactory {
 	}
 
 	private static _hitTestOverlayWidget(ctx: HitTestContext, request: ResolvedHitTestRequest): IMouseTarget | null {
+		console.log('_hitTestOverlayWidget');
+		console.log('request : ', request);
+		console.log('request.target : ', request.target);
+		console.log('request.targetPath : ', request.targetPath);
+		console.log('ElementPath.isChildOfOverlayWidgets(request.targetPath) : ', ElementPath.isChildOfOverlayWidgets(request.targetPath));
+		console.log('ElementPath.isChildOfOverflowingOverlayWidgets(request.targetPath) : ', ElementPath.isChildOfOverflowingOverlayWidgets(request.targetPath));
 		// Is it an overlay widget?
 		if (ElementPath.isChildOfOverlayWidgets(request.targetPath) || ElementPath.isChildOfOverflowingOverlayWidgets(request.targetPath)) {
 			const widgetId = ctx.findAttribute(request.target, 'widgetId');
+			console.log('widgetId : ', widgetId);
 			if (widgetId) {
 				return request.fulfillOverlayWidget(widgetId);
 			} else {

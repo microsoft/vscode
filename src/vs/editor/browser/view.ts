@@ -239,7 +239,7 @@ export class View extends ViewEventHandler {
 		this._applyLayout();
 
 		// Pointer handler
-		this._pointerHandler = this._register(new PointerHandler(this._context, viewController, this._createPointerHandlerHelper()));
+		this._pointerHandler = this._register(new PointerHandler(this._context, viewController, this._createPointerHandlerHelper(), overflowWidgetsDomNode));
 	}
 
 	private _computeGlyphMarginLanes(): IGlyphMarginLanesModel {

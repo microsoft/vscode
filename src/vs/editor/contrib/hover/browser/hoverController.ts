@@ -168,7 +168,9 @@ export class HoverController extends Disposable implements IEditorContribution {
 	}
 
 	private _isMouseOnContentHoverWidget(mouseEvent: IPartialEditorMouseEvent): boolean {
+		console.log('_isMouseOnContentHoverWidget : ');
 		const target = mouseEvent.target;
+		console.log('target : ', target);
 		if (!target) {
 			return false;
 		}
@@ -180,6 +182,8 @@ export class HoverController extends Disposable implements IEditorContribution {
 	}
 
 	private _onEditorMouseLeave(mouseEvent: IPartialEditorMouseEvent): void {
+		console.log('_onEditorMouseLeave');
+
 		if (this.shouldKeepOpenOnEditorMouseMoveOrLeave) {
 			return;
 		}
@@ -232,24 +236,29 @@ export class HoverController extends Disposable implements IEditorContribution {
 	}
 
 	private _onEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
+		console.log('_onEditorMouseMove');
 		if (this.shouldKeepOpenOnEditorMouseMoveOrLeave) {
+			console.log('return 1');
 			return;
 		}
 
 		this._mouseMoveEvent = mouseEvent;
 		if (this._contentWidget?.isFocused || this._contentWidget?.isResizing) {
+			console.log('return 2');
 			return;
 		}
 		const sticky = this._hoverSettings.sticky;
 		if (sticky && this._contentWidget?.isVisibleFromKeyboard) {
 			// Sticky mode is on and the hover has been shown via keyboard
 			// so moving the mouse has no effect
+			console.log('return 3');
 			return;
 		}
 
 		const shouldNotRecomputeCurrentHoverWidget = this._shouldNotRecomputeCurrentHoverWidget(mouseEvent);
 		if (shouldNotRecomputeCurrentHoverWidget) {
 			this._reactToEditorMouseMoveRunner.cancel();
+			console.log('return 4');
 			return;
 		}
 
@@ -258,18 +267,22 @@ export class HoverController extends Disposable implements IEditorContribution {
 		// If the mouse is not over the widget, and if sticky is on,
 		// then give it a grace period before reacting to the mouse event
 		const shouldRescheduleHoverComputation = isContentHoverWidgetVisible && sticky && hidingDelay > 0;
+		console.log('shouldRescheduleHoverComputation : ', shouldRescheduleHoverComputation);
 
 		if (shouldRescheduleHoverComputation) {
 			if (!this._reactToEditorMouseMoveRunner.isScheduled()) {
+				console.log('_reactToEditorMouseMoveRunner schedule');
 				this._reactToEditorMouseMoveRunner.schedule(hidingDelay);
 			}
+			console.log('return 5');
 			return;
 		}
+		console.log('return 6 before _reactToEditorMouseMove')
 		this._reactToEditorMouseMove(mouseEvent);
 	}
 
 	private _reactToEditorMouseMove(mouseEvent: IEditorMouseEvent | undefined): void {
-
+		console.log('_reactToEditorMouseMove');
 		if (!mouseEvent) {
 			return;
 		}
@@ -295,6 +308,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 		}
 
 		const contentHoverShowsOrWillShow = this._tryShowHoverWidget(mouseEvent, HoverWidgetType.Content);
+		console.log('contentHoverShowsOrWillShow : ', contentHoverShowsOrWillShow);
 		if (contentHoverShowsOrWillShow) {
 			return;
 		}
@@ -369,6 +383,7 @@ export class HoverController extends Disposable implements IEditorContribution {
 	}
 
 	private _hideWidgets(): void {
+		console.log('_hideWidgets');
 		if (_sticky) {
 			return;
 		}
