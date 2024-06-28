@@ -13,7 +13,7 @@ import { MarshalledId } from 'vs/base/common/marshallingIds';
 import * as nls from 'vs/nls';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
-import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -61,13 +61,14 @@ interface IRenderResult {
 //  |                        |  #cell-output-toolbar
 //  |                        |  #output-element
 class CellOutputElement extends Disposable {
-	private readonly _renderDisposableStore = this._register(new DisposableStore());
+	private readonly toolbarDisposables = this._register(new DisposableStore());
 
 	innerContainer?: HTMLElement;
 	renderedOutputContainer!: HTMLElement;
 	renderResult?: IInsetRenderOutput;
 
 	private readonly contextKeyService: IContextKeyService;
+	private toolbarAttached = false;
 
 	constructor(
 		private notebookEditor: INotebookEditorDelegate,
@@ -152,7 +153,7 @@ class CellOutputElement extends Disposable {
 		} else {
 			// Another mimetype or renderer is picked, we need to clear the current output and re-render
 			const nextElement = this.innerContainer.nextElementSibling;
-			this._renderDisposableStore.clear();
+			this.toolbarDisposables.clear();
 			const element = this.innerContainer;
 			if (element) {
 				element.remove();
@@ -211,15 +212,15 @@ class CellOutputElement extends Disposable {
 		if (index === 0 || this.output.visible.get()) {
 			this._attachToolbar(innerContainer, notebookTextModel, this.notebookEditor.activeKernel, index, mimeTypes);
 		} else {
-			autorun((reader) => {
+			this._register(autorun((reader) => {
 				const visible = reader.readObservable(this.output.visible);
-				if (visible && this.toolbar === undefined) {
+				if (visible && !this.toolbarAttached) {
 					this._attachToolbar(innerContainer, notebookTextModel, this.notebookEditor.activeKernel, index, mimeTypes);
 				} else if (!visible) {
-					this._detachToolbar();
+					this.toolbarDisposables.clear();
 				}
 				this.cellOutputContainer.checkForHiddenOutputs();
-			});
+			}));
 			this.cellOutputContainer.hasHiddenOutputs.set(true, undefined);
 		}
 
@@ -293,15 +294,6 @@ class CellOutputElement extends Disposable {
 		return true;
 	}
 
-	private toolbar: IMenu | undefined = undefined;
-
-	private async _detachToolbar() {
-		if (this.toolbar) {
-			this.toolbar.dispose();
-			this.toolbar = undefined;
-		}
-	}
-
 	private async _attachToolbar(outputItemDiv: HTMLElement, notebookTextModel: NotebookTextModel, kernel: INotebookKernel | undefined, index: number, mimeTypes: readonly IOrderedMimeType[]) {
 		const hasMultipleMimeTypes = mimeTypes.filter(mimeType => mimeType.isTrusted).length > 1;
 		const isCopyEnabled = this.shouldEnableCopy(mimeTypes);
@@ -319,7 +311,7 @@ class CellOutputElement extends Disposable {
 
 		outputItemDiv.appendChild(mimeTypePicker);
 
-		const toolbar = this._renderDisposableStore.add(this.instantiationService.createInstance(WorkbenchToolBar, mimeTypePicker, {
+		const toolbar = this.toolbarDisposables.add(this.instantiationService.createInstance(WorkbenchToolBar, mimeTypePicker, {
 			renderDropdownAsChildElement: false
 		}));
 		toolbar.context = {
@@ -331,22 +323,22 @@ class CellOutputElement extends Disposable {
 		};
 
 		// TODO: This could probably be a real registered action, but it has to talk to this output element
-		const pickAction = new Action('notebook.output.pickMimetype', nls.localize('pickMimeType', "Change Presentation"), ThemeIcon.asClassName(mimetypeIcon), undefined,
-			async _context => this._pickActiveMimeTypeRenderer(outputItemDiv, notebookTextModel, kernel, this.output));
+		const pickAction = this.toolbarDisposables.add(new Action('notebook.output.pickMimetype', nls.localize('pickMimeType', "Change Presentation"), ThemeIcon.asClassName(mimetypeIcon), undefined,
+			async _context => this._pickActiveMimeTypeRenderer(outputItemDiv, notebookTextModel, kernel, this.output)));
 
-		const menuContextKeyService = this.contextKeyService.createScoped(outputItemDiv);
+		const menuContextKeyService = this.toolbarDisposables.add(this.contextKeyService.createScoped(outputItemDiv));
 		const hasHiddenOutputs = NOTEBOOK_CELL_HAS_HIDDEN_OUTPUTS.bindTo(menuContextKeyService);
 		const isFirstCellOutput = NOTEBOOK_CELL_IS_FIRST_OUTPUT.bindTo(menuContextKeyService);
 		isFirstCellOutput.set(index === 0);
-		autorun((reader) => { hasHiddenOutputs.set(reader.readObservable(this.cellOutputContainer.hasHiddenOutputs)); });
-		this.toolbar = this._renderDisposableStore.add(this.menuService.createMenu(MenuId.NotebookOutputToolbar, menuContextKeyService));
+		this.toolbarDisposables.add(autorun((reader) => { hasHiddenOutputs.set(reader.readObservable(this.cellOutputContainer.hasHiddenOutputs)); }));
+		const menu = this.toolbarDisposables.add(this.menuService.createMenu(MenuId.NotebookOutputToolbar, menuContextKeyService));
 
 		const updateMenuToolbar = () => {
 			const primary: IAction[] = [];
 			let secondary: IAction[] = [];
 			const result = { primary, secondary };
 
-			createAndFillInActionBarActions(this.toolbar!, { shouldForwardArgs: true }, result, () => false);
+			createAndFillInActionBarActions(menu!, { shouldForwardArgs: true }, result, () => false);
 			if (!isCopyEnabled) {
 				secondary = secondary.filter((action) => action.id !== COPY_OUTPUT_COMMAND_ID);
 			}
@@ -357,8 +349,7 @@ class CellOutputElement extends Disposable {
 			toolbar.setActions([], secondary);
 		};
 		updateMenuToolbar();
-		this._renderDisposableStore.add(this.toolbar.onDidChange(updateMenuToolbar));
-
+		this.toolbarDisposables.add(menu.onDidChange(updateMenuToolbar));
 	}
 
 	private async _pickActiveMimeTypeRenderer(outputItemDiv: HTMLElement, notebookTextModel: NotebookTextModel, kernel: INotebookKernel | undefined, viewModel: ICellOutputViewModel) {
@@ -420,7 +411,7 @@ class CellOutputElement extends Disposable {
 
 		// user chooses another mimetype
 		const nextElement = outputItemDiv.nextElementSibling;
-		this._renderDisposableStore.clear();
+		this.toolbarDisposables.clear();
 		const element = this.innerContainer;
 		if (element) {
 			element.remove();
