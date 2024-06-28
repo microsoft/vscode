@@ -175,8 +175,8 @@ class InputEditorDecorations extends Disposable {
 			}
 		}
 
-		const onlyAgentCommandAndWhitespace = agentPart && agentSubcommandPart && parsedRequest.every(p => p instanceof ChatRequestTextPart && !p.text.trim().length || p instanceof ChatRequestAgentPart || p instanceof ChatRequestAgentSubcommandPart);
-		if (onlyAgentCommandAndWhitespace) {
+		const onlyAgentAndAgentCommandAndWhitespace = agentPart && agentSubcommandPart && parsedRequest.every(p => p instanceof ChatRequestTextPart && !p.text.trim().length || p instanceof ChatRequestAgentPart || p instanceof ChatRequestAgentSubcommandPart);
+		if (onlyAgentAndAgentCommandAndWhitespace) {
 			// Agent reference and subcommand with no other text - show the placeholder
 			const isFollowupSlashCommand = this.previouslyUsedAgents.has(agentAndCommandToKey(agentPart.agent, agentSubcommandPart.command.name));
 			const shouldRenderFollowupPlaceholder = isFollowupSlashCommand && agentSubcommandPart.command.followupPlaceholder;
@@ -193,14 +193,30 @@ class InputEditorDecorations extends Disposable {
 			}
 		}
 
+		const onlyAgentCommandAndWhitespace = agentSubcommandPart && parsedRequest.every(p => p instanceof ChatRequestTextPart && !p.text.trim().length || p instanceof ChatRequestAgentSubcommandPart);
+		if (onlyAgentCommandAndWhitespace) {
+			// Agent subcommand with no other text - show the placeholder
+			if (agentSubcommandPart?.command.description && exactlyOneSpaceAfterPart(agentSubcommandPart)) {
+				placeholderDecoration = [{
+					range: getRangeForPlaceholder(agentSubcommandPart),
+					renderOptions: {
+						after: {
+							contentText: agentSubcommandPart.command.description,
+							color: this.getPlaceholderColor(),
+						}
+					}
+				}];
+			}
+		}
+
 		this.widget.inputEditor.setDecorationsByType(decorationDescription, placeholderDecorationType, placeholderDecoration ?? []);
 
 		const textDecorations: IDecorationOptions[] | undefined = [];
 		if (agentPart) {
 			textDecorations.push({ range: agentPart.editorRange });
-			if (agentSubcommandPart) {
-				textDecorations.push({ range: agentSubcommandPart.editorRange, hoverMessage: new MarkdownString(agentSubcommandPart.command.description) });
-			}
+		}
+		if (agentSubcommandPart) {
+			textDecorations.push({ range: agentSubcommandPart.editorRange, hoverMessage: new MarkdownString(agentSubcommandPart.command.description) });
 		}
 
 		if (slashCommandPart) {
