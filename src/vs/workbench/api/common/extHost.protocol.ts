@@ -58,7 +58,7 @@ import { IChatRequestVariableValue, IChatVariableData, IChatVariableResolverProg
 import { IChatMessage, IChatResponseFragment, ILanguageModelChatMetadata, ILanguageModelChatSelector, ILanguageModelsChangeEvent } from 'vs/workbench/contrib/chat/common/languageModels';
 import { DebugConfigurationProviderTriggerKind, IAdapterDescriptor, IConfig, IDebugSessionReplMode, IDebugTestRunReference, IDebugVisualization, IDebugVisualizationContext, IDebugVisualizationTreeItem, MainThreadDebugVisualization } from 'vs/workbench/contrib/debug/common/debug';
 import * as notebookCommon from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { CellExecutionUpdateType } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
+import { CellExecutionUpdateType, ICellExecuteProgress } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { ICellExecutionComplete, ICellExecutionStateUpdate } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { InputValidationType } from 'vs/workbench/contrib/scm/common/scm';
@@ -1125,13 +1125,16 @@ export interface ICellExecuteOutputItemEditDto {
 	items: NotebookOutputItemDto[];
 }
 
+export interface ICellExecuteProgressDto extends ICellExecuteProgress {
+}
+
 export interface ICellExecutionStateUpdateDto extends ICellExecutionStateUpdate {
 }
 
 export interface ICellExecutionCompleteDto extends ICellExecutionComplete {
 }
 
-export type ICellExecuteUpdateDto = ICellExecuteOutputEditDto | ICellExecuteOutputItemEditDto | ICellExecutionStateUpdateDto;
+export type ICellExecuteUpdateDto = ICellExecuteOutputEditDto | ICellExecuteOutputItemEditDto | ICellExecutionStateUpdateDto | ICellExecuteProgressDto;
 
 export interface VariablesResult {
 	id: number;

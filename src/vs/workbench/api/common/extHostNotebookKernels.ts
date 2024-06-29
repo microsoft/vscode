@@ -695,6 +695,39 @@ class NotebookCellExecutionTask extends Disposable {
 				}]);
 			},
 
+			setTotalProgress(value: number): void {
+				if (that._state !== NotebookCellExecutionTaskState.Started) {
+					throw new Error('Cannot set progress on a cell that is not being executed');
+				}
+
+				that.update({
+					editType: CellExecutionUpdateType.ExecutionProgress,
+					total: value
+				});
+			},
+
+			setIncrementProgress(value: number): void {
+				if (that._state !== NotebookCellExecutionTaskState.Started) {
+					throw new Error('Cannot set progress on a cell that is not being executed');
+				}
+
+				that.update({
+					editType: CellExecutionUpdateType.ExecutionProgress,
+					increment: value
+				});
+			},
+
+			setProgress(value: number): void {
+				if (that._state !== NotebookCellExecutionTaskState.Started) {
+					throw new Error('Cannot set progress on a cell that is not being executed');
+				}
+
+				that.update({
+					editType: CellExecutionUpdateType.ExecutionProgress,
+					progress: value
+				});
+			},
+
 			start(startTime?: number): void {
 				if (that._state === NotebookCellExecutionTaskState.Resolved || that._state === NotebookCellExecutionTaskState.Started) {
 					throw new Error('Cannot call start again');
