@@ -152,7 +152,7 @@
 			if (
 				process.env['VSCODE_DEV'] ||
 				userLocale === 'pseudo' ||
-				userLocale === 'en' || userLocale === 'en-us' ||
+				userLocale.startsWith('en') ||
 				!commit ||
 				!userDataPath
 			) {
