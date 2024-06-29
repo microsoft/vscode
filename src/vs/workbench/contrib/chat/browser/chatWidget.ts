@@ -628,6 +628,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				sessionId: this.viewModel.sessionId,
 				requestId: e.response.requestId,
 				agentId: e.response.agent?.id,
+				command: e.response.slashCommand?.name,
 				result: e.response.result,
 				action: {
 					kind: 'followUp',
@@ -962,8 +963,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.inputPart.saveState();
 		return { inputValue: this.getInput(), inputState: this.collectInputState() };
 	}
-
-
 }
 
 export class ChatWidgetService implements IChatWidgetService {
