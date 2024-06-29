@@ -84,6 +84,14 @@ export interface IWillShutdownEventJoiner {
 	readonly order?: WillShutdownJoinerOrder;
 }
 
+export interface IWillShutdownEventDefaultJoiner extends IWillShutdownEventJoiner {
+	readonly order?: WillShutdownJoinerOrder.Default;
+}
+
+export interface IWillShutdownEventLastJoiner extends IWillShutdownEventJoiner {
+	readonly order: WillShutdownJoinerOrder.Last;
+}
+
 /**
  * An event that is send out when the window closes. Clients have a chance to join the closing
  * by providing a promise from the join method. Returning a promise is useful in cases of long
@@ -113,7 +121,17 @@ export interface WillShutdownEvent {
 	 * @param joiner to identify the join operation in case it takes very long or never
 	 * completes.
 	 */
-	join(promise: Promise<void> | (() => Promise<void>), joiner: IWillShutdownEventJoiner): void;
+	join(promise: Promise<void>, joiner: IWillShutdownEventDefaultJoiner): void;
+
+	/**
+	 * Allows to join the shutdown at the end. The promise can be a long running operation but it
+	 * will block the application from closing.
+	 *
+	 * @param promiseFn the promise to join the shutdown event.
+	 * @param joiner to identify the join operation in case it takes very long or never
+	 * completes.
+	 */
+	join(promiseFn: (() => Promise<void>), joiner: IWillShutdownEventLastJoiner): void;
 
 	/**
 	 * Allows to access the joiners that have not finished joining this event.

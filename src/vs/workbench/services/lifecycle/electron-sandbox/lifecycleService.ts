@@ -154,22 +154,25 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 	}
 
 	protected async handleWillShutdown(reason: ShutdownReason): Promise<void> {
-		const joiners: ({ doJoin: () => Promise<void>; settled: boolean; joiner: IWillShutdownEventJoiner })[][] = [];
-		const getPendingJoiners = () => joiners.flat().filter(joiner => !joiner.settled).map(j => j.joiner);
-
+		const joiners: Promise<void>[] = [];
+		const lastJoiners: (() => Promise<void>)[] = [];
+		const pendingJoiners = new Set<IWillShutdownEventJoiner>();
 		const cts = new CancellationTokenSource();
 		this._onWillShutdown.fire({
 			reason,
 			token: cts.token,
-			joiners: getPendingJoiners,
-			join(promise, joiner) {
-				const priority = joiner.order ?? WillShutdownJoinerOrder.Default;
-				joiners[priority] ??= [];
-				joiners[priority].push({
-					doJoin: typeof promise === 'function' ? promise : () => promise,
-					settled: false,
-					joiner
-				});
+			joiners: () => Array.from(pendingJoiners.values()),
+			join(promiseOrPromiseFn, joiner) {
+				pendingJoiners.add(joiner);
+
+				if (joiner.order === WillShutdownJoinerOrder.Last) {
+					const promiseFn = typeof promiseOrPromiseFn === 'function' ? promiseOrPromiseFn : () => promiseOrPromiseFn;
+					lastJoiners.push(() => promiseFn().finally(() => pendingJoiners.delete(joiner)));
+				} else {
+					const promise = typeof promiseOrPromiseFn === 'function' ? promiseOrPromiseFn() : promiseOrPromiseFn;
+					promise.finally(() => pendingJoiners.delete(joiner));
+					joiners.push(promise);
+				}
 			},
 			force: () => {
 				cts.dispose(true);
@@ -177,19 +180,17 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 		});
 
 		const longRunningWillShutdownWarning = disposableTimeout(() => {
-			this.logService.warn(`[lifecycle] onWillShutdown is taking a long time, pending operations: ${getPendingJoiners().map(joiner => joiner.id).join(', ')}`);
+			this.logService.warn(`[lifecycle] onWillShutdown is taking a long time, pending operations: ${Array.from(pendingJoiners).map(joiner => joiner.id).join(', ')}`);
 		}, NativeLifecycleService.WILL_SHUTDOWN_WARNING_DELAY);
 
-		for (const group of joiners) {
-			try {
-				const promises = group.map(g => g.doJoin().finally(() => g.settled = true));
-				await raceCancellation(Promises.settled(promises), cts.token);
-			} catch (error) {
-				this.logService.error(`[lifecycle]: Error during will-shutdown phase (error: ${toErrorMessage(error)})`); // this error will not prevent the shutdown
-			}
+		try {
+			await raceCancellation(Promises.settled(joiners), cts.token);
+			await raceCancellation(Promises.settled(lastJoiners.map(lastJoiner => lastJoiner())), cts.token);
+		} catch (error) {
+			this.logService.error(`[lifecycle]: Error during will-shutdown phase (error: ${toErrorMessage(error)})`); // this error will not prevent the shutdown
+		} finally {
+			longRunningWillShutdownWarning.dispose();
 		}
-
-		longRunningWillShutdownWarning.dispose();
 	}
 
 	shutdown(): Promise<void> {

@@ -166,11 +166,11 @@ suite('Lifecycleservice', function () {
 				order.push('disconnect end');
 			}, { id: 'test', label: 'test', order: WillShutdownJoinerOrder.Last });
 
-			e.join(async () => {
+			e.join((async () => {
 				order.push('default start');
 				await timeout(1);
 				order.push('default end');
-			}, { id: 'test', label: 'test', order: WillShutdownJoinerOrder.Default });
+			})(), { id: 'test', label: 'test', order: WillShutdownJoinerOrder.Default });
 		}));
 
 		await lifecycleService.testHandleWillShutdown(ShutdownReason.QUIT);

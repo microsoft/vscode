@@ -1405,8 +1405,8 @@ export class TestWillShutdownEvent implements WillShutdownEvent {
 	reason = ShutdownReason.CLOSE;
 	token = CancellationToken.None;
 
-	join(promise: Promise<void>, joiner: IWillShutdownEventJoiner): void {
-		this.value.push(promise);
+	join(promise: Promise<void> | (() => Promise<void>), joiner: IWillShutdownEventJoiner): void {
+		this.value.push(typeof promise === 'function' ? promise() : promise);
 	}
 
 	force() { /* No-Op in tests */ }
