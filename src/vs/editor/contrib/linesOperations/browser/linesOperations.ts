@@ -9,6 +9,7 @@ import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser'
 import { EditorAction, IActionOptions, registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ReplaceCommand, ReplaceCommandThatPreservesSelection, ReplaceCommandThatSelectsText } from 'vs/editor/common/commands/replaceCommand';
 import { TrimTrailingWhitespaceCommand } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
+import { TrimTextTrailingWhitespaceCommand } from 'vs/editor/common/commands/trimTextTrailingWhitespaceCommand';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { TypeOperations } from 'vs/editor/common/cursor/cursorTypeOperations';
 import { EnterOperation } from 'vs/editor/common/cursor/cursorTypeEditOperations';
@@ -409,6 +410,48 @@ export class TrimTrailingWhitespaceAction extends EditorAction {
 		const trimInRegexAndStrings = config.getValue<boolean>('files.trimTrailingWhitespaceInRegexAndStrings', { overrideIdentifier: model?.getLanguageId(), resource: model?.uri });
 
 		const command = new TrimTrailingWhitespaceCommand(selection, cursors, trimInRegexAndStrings);
+
+		editor.pushUndoStop();
+		editor.executeCommands(this.id, [command]);
+		editor.pushUndoStop();
+	}
+}
+
+export class TrimTextTrailingWhitespaceAction extends EditorAction {
+
+	public static readonly ID = 'editor.action.trimTextTrailingWhitespace';
+
+	constructor() {
+		super({
+			id: TrimTextTrailingWhitespaceAction.ID,
+			label: nls.localize('lines.trimTextTrailingWhitespace', "Trim Text-Trailing Whitespace"),
+			alias: 'Trim Text-Trailing Whitespace',
+			precondition: EditorContextKeys.writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.editorTextFocus,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyX),
+				weight: KeybindingWeight.EditorContrib
+			}
+		});
+	}
+
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+
+		let cursors: Position[] = [];
+		if (args.reason === 'auto-save') {
+			cursors = (editor.getSelections() || []).map(s => new Position(s.positionLineNumber, s.positionColumn));
+		}
+
+		const selection = editor.getSelection();
+		if (selection === null) {
+			return;
+		}
+
+		const config = _accessor.get(IConfigurationService);
+		const model = editor.getModel();
+		const trimInRegexAndStrings = config.getValue<boolean>('files.trimTextTrailingWhitespaceInRegexAndStrings', { overrideIdentifier: model?.getLanguageId(), resource: model?.uri });
+
+		const command = new TrimTextTrailingWhitespaceCommand(selection, cursors, trimInRegexAndStrings);
 
 		editor.pushUndoStop();
 		editor.executeCommands(this.id, [command]);
