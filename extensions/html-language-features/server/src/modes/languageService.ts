@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LanguageServer } from '@volar/language-server';
+import { LanguageServer, ProjectContext } from '@volar/language-server';
 import { createLanguageServiceEnvironment } from '@volar/language-server/browser';
 import { LanguagePlugin, LanguageService, createLanguageService as _createLanguageService, createLanguage, createUriMap } from '@volar/language-service';
 import type { SnapshotDocument } from '@volar/snapshot-document';
@@ -70,24 +70,22 @@ export function createLanguageService(
 			}
 		}
 	);
-	language.typescript = {
-		configFileName: undefined,
-		sys,
-		asScriptId: asUri,
-		asFileName: asFileName,
-		...createLanguageServiceHost(
-			ts,
+	const project: ProjectContext = {
+		typescript: {
+			configFileName: undefined,
 			sys,
-			language,
 			asUri,
-			projectHost
-		),
+			asFileName,
+			...createLanguageServiceHost(
+				ts,
+				sys,
+				language,
+				asUri,
+				projectHost
+			),
+		},
 	};
-	const languageService = _createLanguageService(
-		language,
-		server.languageServicePlugins,
-		serviceEnv
-	);
+	const languageService = _createLanguageService(language, server.languageServicePlugins, serviceEnv, project);
 
 	return {
 		...languageService,
