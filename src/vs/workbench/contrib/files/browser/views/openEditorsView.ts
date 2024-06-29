@@ -18,7 +18,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SaveAllInGroupAction, CloseGroupAction } from 'vs/workbench/contrib/files/browser/fileActions';
 import { OpenEditorsFocusedContext, ExplorerFocusedContext, IFilesConfiguration, OpenEditor } from 'vs/workbench/contrib/files/common/files';
 import { CloseAllEditorsAction, CloseEditorAction, UnpinEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
-import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { asCssVariable, badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
@@ -28,7 +28,7 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DisposableMap, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { MenuId, Action2, registerAction2, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { OpenEditorsDirtyEditorContext, OpenEditorsGroupContext, OpenEditorsReadonlyEditorContext, SAVE_ALL_LABEL, SAVE_ALL_COMMAND_ID, NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileConstants';
+import { OpenEditorsDirtyEditorContext, OpenEditorsGroupContext, OpenEditorsReadonlyEditorContext, SAVE_ALL_LABEL, SAVE_ALL_COMMAND_ID, NEW_UNTITLED_FILE_COMMAND_ID, OpenEditorsSelectedFileOrUntitledContext } from 'vs/workbench/contrib/files/browser/fileConstants';
 import { ResourceContextKey, MultipleEditorGroupsContext } from 'vs/workbench/common/contextkeys';
 import { CodeDataTransfers, containsDragType } from 'vs/platform/dnd/browser/dnd';
 import { ResourcesDropHandler, fillEditorsDragData } from 'vs/workbench/browser/dnd';
@@ -55,6 +55,7 @@ import { ILocalizedString } from 'vs/platform/action/common/action';
 import { mainWindow } from 'vs/base/browser/window';
 import { EditorGroupView } from 'vs/workbench/browser/parts/editor/editorGroupView';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { IFileService } from 'vs/platform/files/common/files';
 
 const $ = dom.$;
 
@@ -74,10 +75,6 @@ export class OpenEditorsView extends ViewPane {
 	private needsRefresh = false;
 	private elements: (OpenEditor | IEditorGroup)[] = [];
 	private sortOrder: 'editorOrder' | 'alphabetical' | 'fullPath';
-	private resourceContext!: ResourceContextKey;
-	private groupFocusedContext!: IContextKey<boolean>;
-	private dirtyEditorFocusedContext!: IContextKey<boolean>;
-	private readonlyEditorFocusedContext!: IContextKey<boolean>;
 	private blockFocusActiveEditorTracking = false;
 
 	constructor(
@@ -95,6 +92,7 @@ export class OpenEditorsView extends ViewPane {
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@IOpenerService openerService: IOpenerService,
+		@IFileService private readonly fileService: IFileService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 
@@ -245,32 +243,8 @@ export class OpenEditorsView extends ViewPane {
 
 		this.updateSize();
 
-		// Bind context keys
-		OpenEditorsFocusedContext.bindTo(this.list.contextKeyService);
-		ExplorerFocusedContext.bindTo(this.list.contextKeyService);
-
-		this.resourceContext = this.instantiationService.createInstance(ResourceContextKey);
-		this._register(this.resourceContext);
-		this.groupFocusedContext = OpenEditorsGroupContext.bindTo(this.contextKeyService);
-		this.dirtyEditorFocusedContext = OpenEditorsDirtyEditorContext.bindTo(this.contextKeyService);
-		this.readonlyEditorFocusedContext = OpenEditorsReadonlyEditorContext.bindTo(this.contextKeyService);
-
+		this.handleContextKeys();
 		this._register(this.list.onContextMenu(e => this.onListContextMenu(e)));
-		this._register(this.list.onDidChangeFocus(e => {
-			this.resourceContext.reset();
-			this.groupFocusedContext.reset();
-			this.dirtyEditorFocusedContext.reset();
-			this.readonlyEditorFocusedContext.reset();
-			const element = e.elements.length ? e.elements[0] : undefined;
-			if (element instanceof OpenEditor) {
-				const resource = element.getResource();
-				this.dirtyEditorFocusedContext.set(element.editor.isDirty() && !element.editor.isSaving());
-				this.readonlyEditorFocusedContext.set(!!element.editor.isReadonly());
-				this.resourceContext.set(resource ?? null);
-			} else if (!!element) {
-				this.groupFocusedContext.set(true);
-			}
-		}));
 
 		// Open when selecting via keyboard
 		this._register(this.list.onMouseMiddleClick(e => {
@@ -315,6 +289,52 @@ export class OpenEditorsView extends ViewPane {
 		const containerModel = this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerByViewId(this.id)!)!;
 		this._register(containerModel.onDidChangeAllViewDescriptors(() => {
 			this.updateSize();
+		}));
+	}
+
+	private handleContextKeys() {
+		if (!this.list) {
+			return;
+		}
+
+		// Bind context keys
+		OpenEditorsFocusedContext.bindTo(this.list.contextKeyService);
+		ExplorerFocusedContext.bindTo(this.list.contextKeyService);
+
+		const groupFocusedContext = OpenEditorsGroupContext.bindTo(this.contextKeyService);
+		const dirtyEditorFocusedContext = OpenEditorsDirtyEditorContext.bindTo(this.contextKeyService);
+		const readonlyEditorFocusedContext = OpenEditorsReadonlyEditorContext.bindTo(this.contextKeyService);
+		const openEditorsSelectedFileOrUntitledContext = OpenEditorsSelectedFileOrUntitledContext.bindTo(this.contextKeyService);
+
+		const resourceContext = this.instantiationService.createInstance(ResourceContextKey);
+		this._register(resourceContext);
+
+		this._register(this.list.onDidChangeFocus(e => {
+			resourceContext.reset();
+			groupFocusedContext.reset();
+			dirtyEditorFocusedContext.reset();
+			readonlyEditorFocusedContext.reset();
+
+			const element = e.elements.length ? e.elements[0] : undefined;
+			if (element instanceof OpenEditor) {
+				const resource = element.getResource();
+				dirtyEditorFocusedContext.set(element.editor.isDirty() && !element.editor.isSaving());
+				readonlyEditorFocusedContext.set(!!element.editor.isReadonly());
+				resourceContext.set(resource ?? null);
+			} else if (!!element) {
+				groupFocusedContext.set(true);
+			}
+		}));
+
+		this._register(this.list.onDidChangeSelection(e => {
+			const selectedAreFileOrUntitled = e.elements.every(e => {
+				if (e instanceof OpenEditor) {
+					const resource = e.getResource();
+					return resource && (resource.scheme === Schemas.untitled || this.fileService.hasProvider(resource));
+				}
+				return false;
+			});
+			openEditorsSelectedFileOrUntitledContext.set(selectedAreFileOrUntitled);
 		}));
 	}
 

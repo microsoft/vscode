@@ -770,7 +770,9 @@ export class BaseIssueReporterService extends Disposable {
 		const inputElement = (<HTMLInputElement>this.getElementById(inputId));
 		const inputValidationMessage = this.getElementById(`${inputId}-empty-error`);
 		const descriptionShortMessage = this.getElementById(`description-short-error`);
-		if (!inputElement.value) {
+		if (inputId === 'description' && this.nonGitHubIssueUrl && this.data.extensionId) {
+			return true;
+		} else if (!inputElement.value) {
 			inputElement.classList.add('invalid-input');
 			inputValidationMessage?.classList.remove('hidden');
 			descriptionShortMessage?.classList.add('hidden');
@@ -780,8 +782,7 @@ export class BaseIssueReporterService extends Disposable {
 			descriptionShortMessage?.classList.remove('hidden');
 			inputValidationMessage?.classList.add('hidden');
 			return false;
-		}
-		else {
+		} else {
 			inputElement.classList.remove('invalid-input');
 			inputValidationMessage?.classList.add('hidden');
 			if (inputId === 'description') {

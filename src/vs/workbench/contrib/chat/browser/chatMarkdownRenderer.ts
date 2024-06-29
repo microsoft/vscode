@@ -29,6 +29,8 @@ const allowedHtmlTags = [
 	'p',
 	'pre',
 	'strong',
+	'sub',
+	'sup',
 	'table',
 	'tbody',
 	'td',
