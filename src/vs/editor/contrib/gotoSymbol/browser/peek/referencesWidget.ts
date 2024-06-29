@@ -214,6 +214,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 	private _previewContainer!: HTMLElement;
 	private _messageContainer!: HTMLElement;
 	private _dim = new dom.Dimension(0, 0);
+	private _closed = false; // whether or not a dispose is already in progress
 
 	constructor(
 		editor: ICodeEditor,
@@ -274,6 +275,15 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 
 	isPreviewEditorFocused(): boolean {
 		return this._preview.hasTextFocus();
+	}
+
+	get closed() {
+		return this._closed;
+	}
+
+	disposeFromClose() {
+		this._closed = true;
+		this.dispose();
 	}
 
 	protected override _onTitleClick(e: IMouseEvent): void {
