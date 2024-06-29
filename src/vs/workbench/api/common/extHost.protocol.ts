@@ -1431,7 +1431,7 @@ export interface MainThreadSearchShape extends IDisposable {
 	$registerTextSearchProvider(handle: number, scheme: string): void;
 	$unregisterProvider(handle: number): void;
 	$handleFileMatch(handle: number, session: number, data: UriComponents[]): void;
-	$handleTextMatch(handle: number, session: number, data: search.IRawFileMatch2[]): void;
+	$handleTextMatch(handle: number, session: number, data: search.IRawTextResultProgress[]): void;
 	$handleTelemetry(eventName: string, data: any): void;
 }
 
@@ -1794,7 +1794,7 @@ export interface ExtHostTreeViewsShape {
 export interface ExtHostWorkspaceShape {
 	$initializeWorkspace(workspace: IWorkspaceData | null, trusted: boolean): void;
 	$acceptWorkspaceData(workspace: IWorkspaceData | null): void;
-	$handleTextSearchResult(result: search.IRawFileMatch2, requestId: number): void;
+	$handleTextSearchResult(result: search.IRawTextResultProgress, requestId: number): void;
 	$onDidGrantWorkspaceTrust(): void;
 	$getEditSessionIdentifier(folder: UriComponents, token: CancellationToken): Promise<string | undefined>;
 	$provideEditSessionIdentityMatch(folder: UriComponents, identity1: string, identity2: string, token: CancellationToken): Promise<EditSessionIdentityMatch | undefined>;

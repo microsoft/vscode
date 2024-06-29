@@ -21,7 +21,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { DEFAULT_MAX_SEARCH_RESULTS, deserializeSearchError, FileMatch, IAITextQuery, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, ISearchComplete, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, isFileMatch, isProgressMessage, ITextQuery, pathIncludedInQuery, QueryType, SEARCH_RESULT_LANGUAGE_ID, SearchError, SearchErrorCode, SearchProviderType } from 'vs/workbench/services/search/common/search';
+import { DEFAULT_MAX_SEARCH_RESULTS, deserializeSearchError, FileMatch, IAITextQuery, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, ISearchComplete, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, isFileMatch, isProgressMessage, isUserFacingProgress, ITextQuery, pathIncludedInQuery, QueryType, SEARCH_RESULT_LANGUAGE_ID, SearchError, SearchErrorCode, SearchProviderType } from 'vs/workbench/services/search/common/search';
 import { getTextSearchMatchWithModelContext, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
 
 export class SearchService extends Disposable implements ISearchService {
@@ -93,10 +93,10 @@ export class SearchService extends Disposable implements ISearchService {
 		const onProviderProgress = (progress: ISearchProgressItem) => {
 			// Match
 			if (onProgress) { // don't override open editor results
-				if (isFileMatch(progress)) {
-					onProgress(progress);
-				} else {
-					onProgress(<IProgressMessage>progress);
+				onProgress(progress);
+
+				if (isUserFacingProgress(progress)) {
+					console.log(progress.text);
 				}
 			}
 
@@ -138,9 +138,9 @@ export class SearchService extends Disposable implements ISearchService {
 					if (!openEditorResults.results.has(progress.resource) && !resolvedAsyncNotebookFilesToIgnore.has(progress.resource) && onProgress) { // don't override open editor results
 						onProgress(progress);
 					}
-				} else if (onProgress) {
+				} else if (onProgress && isProgressMessage(progress)) {
 					// Progress
-					onProgress(<IProgressMessage>progress);
+					onProgress(progress);
 				}
 
 				if (isProgressMessage(progress)) {

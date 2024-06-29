@@ -9,7 +9,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { IFileMatch, IFileQuery, IRawFileMatch2, ISearchComplete, ISearchCompleteStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, ITextQuery, QueryType, SearchProviderType } from 'vs/workbench/services/search/common/search';
+import { IFileMatch, IFileQuery, IRawFileMatch2, ISearchComplete, ISearchCompleteStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, isUserFacingProgress, ITextQuery, IUserFacingProgress, QueryType, IRawTextResultProgress, SearchProviderType } from 'vs/workbench/services/search/common/search';
 import { ExtHostContext, ExtHostSearchShape, MainContext, MainThreadSearchShape } from '../common/extHost.protocol';
 import { revive } from 'vs/base/common/marshalling';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
@@ -64,7 +64,7 @@ export class MainThreadSearch implements MainThreadSearchShape {
 		provider.handleFindMatch(session, data);
 	}
 
-	$handleTextMatch(handle: number, session: number, data: IRawFileMatch2[]): void {
+	$handleTextMatch(handle: number, session: number, data: IRawTextResultProgress[]): void {
 		const provider = this._searchProvider.get(handle);
 		if (!provider) {
 			throw new Error('Got result for unknown provider');
@@ -82,7 +82,7 @@ class SearchOperation {
 	private static _idPool = 0;
 
 	constructor(
-		readonly progress?: (match: IFileMatch) => any,
+		readonly progress?: (match: IFileMatch | IUserFacingProgress) => any,
 		readonly id: number = ++SearchOperation._idPool,
 		readonly matches = new Map<string, IFileMatch>()
 	) {
@@ -103,6 +103,10 @@ class SearchOperation {
 		}
 
 		this.progress?.(match);
+	}
+
+	addProgress(progressItem: IUserFacingProgress): void {
+		this.progress?.(progressItem);
 	}
 }
 
@@ -156,7 +160,7 @@ class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 		return Promise.resolve(this._proxy.$clearCache(cacheKey));
 	}
 
-	handleFindMatch(session: number, dataOrUri: Array<UriComponents | IRawFileMatch2>): void {
+	handleFindMatch(session: number, dataOrUri: Array<UriComponents | IRawTextResultProgress>): void {
 		const searchOp = this._searches.get(session);
 
 		if (!searchOp) {
@@ -165,7 +169,9 @@ class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 		}
 
 		dataOrUri.forEach(result => {
-			if ((<IRawFileMatch2>result).results) {
+			if (isUserFacingProgress(result)) {
+				searchOp.addProgress(result);
+			} else if ((<IRawFileMatch2>result).results) {
 				searchOp.addMatch(revive((<IRawFileMatch2>result)));
 			} else {
 				searchOp.addMatch({
