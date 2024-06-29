@@ -29,6 +29,16 @@ export enum AuthProviderType {
 	githubEnterprise = 'github-enterprise'
 }
 
+export class EnterpriseSettings {
+	uri?: vscode.Uri;
+	ssoId?: string;
+
+	constructor(uri?: string, ssoId?: string) {
+		this.uri = uri ? vscode.Uri.parse(uri) : undefined;
+		this.ssoId = ssoId;
+	}
+}
+
 export class UriEventHandler extends vscode.EventEmitter<vscode.Uri> implements vscode.UriHandler {
 	private readonly _pendingNonces = new Map<string, string[]>();
 	private readonly _codeExchangePromises = new Map<string, { promise: Promise<string>; cancel: vscode.EventEmitter<void> }>();
@@ -103,20 +113,16 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 	constructor(
 		private readonly context: vscode.ExtensionContext,
 		uriHandler: UriEventHandler,
-		ghesUri?: vscode.Uri
+		enterpriseSettings?: EnterpriseSettings
 	) {
 		const { aiKey } = context.extension.packageJSON as { name: string; version: string; aiKey: string };
 		this._telemetryReporter = new ExperimentationTelemetry(context, new TelemetryReporter(aiKey));
-
-		const type = ghesUri ? AuthProviderType.githubEnterprise : AuthProviderType.github;
-
+		const type = enterpriseSettings ? AuthProviderType.githubEnterprise : AuthProviderType.github;
 		this._logger = new Log(type);
 
 		this._keychain = new Keychain(
 			this.context,
-			type === AuthProviderType.github
-				? `${type}.auth`
-				: `${ghesUri?.authority}${ghesUri?.path}.ghes.auth`,
+			this.getServiceId(type, enterpriseSettings),
 			this._logger);
 
 		this._githubServer = new GitHubServer(
@@ -124,7 +130,8 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			this._telemetryReporter,
 			uriHandler,
 			context.extension.extensionKind,
-			ghesUri);
+			enterpriseSettings,
+		);
 
 		// Contains the current state of the sessions we have available.
 		this._sessionsPromise = this.readSessions().then((sessions) => {
@@ -138,6 +145,18 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			vscode.authentication.registerAuthenticationProvider(type, this._githubServer.friendlyName, this, { supportsMultipleAccounts: false }),
 			this.context.secrets.onDidChange(() => this.checkForUpdates())
 		);
+	}
+
+	private getServiceId(type: AuthProviderType, enterpriseSettings?: EnterpriseSettings) {
+		if (type === AuthProviderType.github) {
+			return `${type}.auth`;
+		}
+
+		if (enterpriseSettings?.uri) {
+			return `${enterpriseSettings.uri?.authority}${enterpriseSettings.uri?.path}.ghes.auth`;
+		}
+
+		return `${enterpriseSettings?.ssoId}.ghes.auth`;
 	}
 
 	dispose() {
