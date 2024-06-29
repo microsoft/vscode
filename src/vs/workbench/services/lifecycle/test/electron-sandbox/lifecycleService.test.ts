@@ -7,7 +7,7 @@ import assert from 'assert';
 import { timeout } from 'vs/base/common/async';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ShutdownReason, WillShutdownJoinerPriority } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ShutdownReason, WillShutdownJoinerOrder } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { NativeLifecycleService } from 'vs/workbench/services/lifecycle/electron-sandbox/lifecycleService';
 import { workbenchInstantiationService } from 'vs/workbench/test/electron-sandbox/workbenchTestServices';
 
@@ -156,7 +156,7 @@ suite('Lifecycleservice', function () {
 		assert.strictEqual(joinCalled, true);
 	});
 
-	test('onWillShutdown - join priorities', async function () {
+	test('onWillShutdown - join order', async function () {
 		const order: string[] = [];
 
 		disposables.add(lifecycleService.onWillShutdown(e => {
@@ -164,13 +164,13 @@ suite('Lifecycleservice', function () {
 				order.push('disconnect start');
 				await timeout(1);
 				order.push('disconnect end');
-			}, { id: 'test', label: 'test', priority: WillShutdownJoinerPriority.Disconnect });
+			}, { id: 'test', label: 'test', order: WillShutdownJoinerOrder.Last });
 
 			e.join(async () => {
 				order.push('default start');
 				await timeout(1);
 				order.push('default end');
-			}, { id: 'test', label: 'test', priority: WillShutdownJoinerPriority.Default });
+			}, { id: 'test', label: 'test', order: WillShutdownJoinerOrder.Default });
 		}));
 
 		await lifecycleService.testHandleWillShutdown(ShutdownReason.QUIT);

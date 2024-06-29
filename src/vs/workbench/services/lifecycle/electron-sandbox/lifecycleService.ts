@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
-import { ShutdownReason, ILifecycleService, IWillShutdownEventJoiner, WillShutdownJoinerPriority } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ShutdownReason, ILifecycleService, IWillShutdownEventJoiner, WillShutdownJoinerOrder } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -23,7 +23,7 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 	constructor(
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IStorageService storageService: IStorageService,
-		@ILogService logService: ILogService,
+		@ILogService logService: ILogService
 	) {
 		super(logService, storageService);
 
@@ -154,7 +154,6 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 	}
 
 	protected async handleWillShutdown(reason: ShutdownReason): Promise<void> {
-		// list of jointers grouped per-priority
 		const joiners: ({ doJoin: () => Promise<void>; settled: boolean; joiner: IWillShutdownEventJoiner })[][] = [];
 		const getPendingJoiners = () => joiners.flat().filter(joiner => !joiner.settled).map(j => j.joiner);
 
@@ -164,7 +163,7 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 			token: cts.token,
 			joiners: getPendingJoiners,
 			join(promise, joiner) {
-				const priority = joiner.priority ?? WillShutdownJoinerPriority.Default;
+				const priority = joiner.order ?? WillShutdownJoinerOrder.Default;
 				joiners[priority] ??= [];
 				joiners[priority].push({
 					doJoin: typeof promise === 'function' ? promise : () => promise,

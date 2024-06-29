@@ -65,17 +65,23 @@ export interface BeforeShutdownErrorEvent {
 	readonly error: Error;
 }
 
-export enum WillShutdownJoinerPriority {
-	// Joiner will run when the workbench and remote is still alive
-	Default,
-	// Joiner will run when the workbench is being disconnected from any the remote workspace
-	Disconnect,
+export enum WillShutdownJoinerOrder {
+
+	/**
+	 * Joiners to run before the `Last` joiners.
+	 */
+	Default = 1,
+
+	/**
+	 * The joiners to run last.
+	 */
+	Last
 }
 
 export interface IWillShutdownEventJoiner {
-	id: string;
-	label: string;
-	priority?: WillShutdownJoinerPriority;
+	readonly id: string;
+	readonly label: string;
+	readonly order?: WillShutdownJoinerOrder;
 }
 
 /**
@@ -103,6 +109,7 @@ export interface WillShutdownEvent {
 	 * Allows to join the shutdown. The promise can be a long running operation but it
 	 * will block the application from closing.
 	 *
+	 * @param promise the promise to join the shutdown event.
 	 * @param joiner to identify the join operation in case it takes very long or never
 	 * completes.
 	 */
