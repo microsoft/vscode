@@ -479,6 +479,13 @@ export class FindController extends CommonFindController implements IFindControl
 				updateSearchScope = isSelectionMultipleLine;
 				break;
 			}
+			case 'selection': {
+				const doesSelectionExist = !!selection &&
+					(selection.startLineNumber !== selection.endLineNumber ||
+						selection.startColumn !== selection.endColumn);
+				updateSearchScope = doesSelectionExist;
+				break;
+			}
 			default:
 				break;
 		}
