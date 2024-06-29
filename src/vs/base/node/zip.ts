@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createWriteStream, WriteStream } from 'fs';
+import { createWriteStream, WriteStream, promises } from 'fs';
 import { Readable } from 'stream';
 import { createCancelablePromise, Sequencer } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -85,7 +85,7 @@ function extractEntry(stream: Readable, fileName: string, mode: number, targetPa
 		istream?.destroy();
 	});
 
-	return Promise.resolve(Promises.mkdir(targetDirName, { recursive: true })).then(() => new Promise<void>((c, e) => {
+	return Promise.resolve(promises.mkdir(targetDirName, { recursive: true })).then(() => new Promise<void>((c, e) => {
 		if (token.isCancellationRequested) {
 			return;
 		}
@@ -148,7 +148,7 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, tok
 			// directory file names end with '/'
 			if (/\/$/.test(fileName)) {
 				const targetFileName = path.join(targetPath, fileName);
-				last = createCancelablePromise(token => Promises.mkdir(targetFileName, { recursive: true }).then(() => readNextEntry(token)).then(undefined, e));
+				last = createCancelablePromise(token => promises.mkdir(targetFileName, { recursive: true }).then(() => readNextEntry(token)).then(undefined, e));
 				return;
 			}
 
