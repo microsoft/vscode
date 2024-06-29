@@ -52,17 +52,8 @@ const BUILD_TARGETS = [
 
 const serverResources = [
 
-	// Bootstrap
-	'out-build/bootstrap.js',
-	'out-build/bootstrap-fork.js',
-	'out-build/bootstrap-amd.js',
-	'out-build/bootstrap-node.js',
-
 	// NLS
 	'out-build/nls.messages.json',
-
-	// Performance
-	'out-build/vs/base/common/performance.js',
 
 	// Process monitor
 	'out-build/vs/base/node/cpuUsage.sh',
@@ -427,7 +418,8 @@ function tweakProductForServerWeb(product) {
 					src: 'out-build',
 					entryPoints: [
 						'out-build/server-main.js',
-						'out-build/server-cli.js'
+						'out-build/server-cli.js',
+						'out-build/bootstrap-fork.js',
 					],
 					platform: 'node',
 					external: [
