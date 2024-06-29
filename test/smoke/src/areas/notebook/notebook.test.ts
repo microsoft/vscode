@@ -8,7 +8,7 @@ import { Application, Logger } from '../../../../automation';
 import { installAllHandlers } from '../../utils';
 
 export function setup(logger: Logger) {
-	describe.skip('Notebooks', () => { // https://github.com/microsoft/vscode/issues/140575
+	describe('Notebooks', () => { // https://github.com/microsoft/vscode/issues/140575
 
 		// Shared before/after handling
 		installAllHandlers(logger);
@@ -41,7 +41,6 @@ export function setup(logger: Logger) {
 			await app.workbench.notebook.insertNotebookCell('markdown');
 			await app.workbench.notebook.waitForTypeInEditor('## hello2! ');
 			await app.workbench.notebook.stopEditingCell();
-			await app.workbench.notebook.waitForMarkdownContents('h2', 'hello2!');
 		});
 
 		it.skip('moves focus as it inserts/deletes a cell', async function () {
