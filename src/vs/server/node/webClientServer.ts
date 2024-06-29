@@ -342,9 +342,9 @@ export class WebClientServer {
 		const locale = cookies['vscode.nls.locale'] || req.headers['accept-language']?.split(',')[0]?.toLowerCase() || 'en';
 		let WORKBENCH_NLS_BASE_URL: string | undefined;
 		let WORKBENCH_NLS_URL: string;
-		if (!locale.startsWith('en')) {
-			WORKBENCH_NLS_BASE_URL = `https://www.vscode-unpkg.net/nls/`;
-			WORKBENCH_NLS_URL = `${WORKBENCH_NLS_BASE_URL}${this._productService.commit}/${this._productService.version}/${locale}/nls.messages.js`; // TODO@bpasero make it a product.json thing
+		if (!locale.startsWith('en') && this._productService.nlsCoreBaseUrl) {
+			WORKBENCH_NLS_BASE_URL = this._productService.nlsCoreBaseUrl;
+			WORKBENCH_NLS_URL = `${WORKBENCH_NLS_BASE_URL}${this._productService.commit}/${this._productService.version}/${locale}/nls.messages.js`;
 		} else {
 			WORKBENCH_NLS_URL = ''; // fallback will apply
 		}
