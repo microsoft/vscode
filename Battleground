@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Battleground Mobile India</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="game-container">
+        <h1>Battleground Mobile India</h1>
+        <div id="game-area">
+            <div id="player"></div>
+        </div>
+        <button id="move-up">Move Up</button>
+        <button id="move-down">Move Down</button>
+        <button id="move-left">Move Left</button>
+        <button id="move-right">Move Right</button>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f0f0f0;
+    text-align: center;
+}
+
+.game-container {
+    max-width: 600px;
+    margin: 20px auto;
+    padding: 20px;
+    background-color: #fff;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+
+#game-area {
+    width: 400px;
+    height: 400px;
+    background-color: #e0e0e0;
+    border: 1px solid #999;
+    border-radius: 8px;
+    margin: 20px auto;
+    position: relative;
+}
+
+#player {
+    width: 50px;
+    height: 50px;
+    background-color: #ffcc00;
+    border: 2px solid #000;
+    border-radius: 50%;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+}
+
+button {
+    display: inline-block;
+    padding: 10px 20px;
+    margin: 10px;
+    font-size: 16px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+document.addEventListener('DOMContentLoaded', function() {
+    const player = document.getElementById('player');
+    const moveUpBtn = document.getElementById('move-up');
+    const moveDownBtn = document.getElementById('move-down');
+    const moveLeftBtn = document.getElementById('move-left');
+    const moveRightBtn = document.getElementById('move-right');
+    
+    moveUpBtn.addEventListener('click', function() {
+        movePlayer('up');
+    });
+    
+    moveDownBtn.addEventListener('click', function() {
+        movePlayer('down');
+    });
+    
+    moveLeftBtn.addEventListener('click', function() {
+        movePlayer('left');
+    });
+    
+    moveRightBtn.addEventListener('click', function() {
+        movePlayer('right');
+    });
+    
+    function movePlayer(direction) {
+        const step = 50; // Adjust step size as needed
+        const currentPosition = {
+            x: player.offsetLeft,
+            y: player.offsetTop
+        };
+        
+        switch(direction) {
+            case 'up':
+                if (currentPosition.y > 0) {
+                    player.style.top = currentPosition.y - step + 'px';
+                }
+                break;
+            case 'down':
+                if (currentPosition.y < 350) { // Adjust boundary
+                    player.style.top = currentPosition.y + step + 'px';
+                }
+                break;
+            case 'left':
+                if (currentPosition.x > 0) {
+                    player.style.left = currentPosition.x - step + 'px';
+                }
+                break;
+            case 'right':
+                if (currentPosition.x < 350) { // Adjust boundary
+                    player.style.left = currentPosition.x + step + 'px';
+                }
+                break;
+            default:
+                break;
+        }
+    }
+});
