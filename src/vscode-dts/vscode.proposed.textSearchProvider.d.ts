@@ -38,16 +38,9 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A file glob pattern to match file paths against.
-	 * TODO@roblourens merge this with the GlobPattern docs/definition in vscode.d.ts.
-	 * @see {@link GlobPattern}
-	 */
-	export type GlobString = string;
-
-	/**
 	 * Options common to file and text search
 	 */
-	export interface SearchOptions {
+	export interface SearchProviderOptions {
 		/**
 		 * The root folder to search within.
 		 */
@@ -56,36 +49,48 @@ declare module 'vscode' {
 		/**
 		 * Files that match an `includes` glob pattern should be included in the search.
 		 */
-		includes: GlobString[];
+		includes: string[];
 
 		/**
 		 * Files that match an `excludes` glob pattern should be excluded from the search.
 		 */
-		excludes: GlobString[];
+		excludes: string[];
 
 		/**
-		 * Whether external files that exclude files, like .gitignore, should be respected.
-		 * See the vscode setting `"search.useIgnoreFiles"`.
+		 * Whether files located at the workspace root that exclude files, like .gitignore, should be respected.
+		 * See the vscode setting `"search.useIgnoreFiles"` for more information.
 		 */
-		useIgnoreFiles: boolean;
+		useLocalIgnoreFiles: boolean;
 
 		/**
 		 * Whether symlinks should be followed while searching.
-		 * See the vscode setting `"search.followSymlinks"`.
+		 * See the vscode setting `"search.followSymlinks"` for more information.
 		 */
 		followSymlinks: boolean;
 
 		/**
 		 * Whether global files that exclude files, like .gitignore, should be respected.
-		 * See the vscode setting `"search.useGlobalIgnoreFiles"`.
+		 * See the vscode setting `"search.useGlobalIgnoreFiles"` for more information.
 		 */
 		useGlobalIgnoreFiles: boolean;
 
 		/**
 		 * Whether files in parent directories that exclude files, like .gitignore, should be respected.
-		 * See the vscode setting `"search.useParentIgnoreFiles"`.
+		 * See the vscode setting `"search.useParentIgnoreFiles"` for more information.
 		 */
 		useParentIgnoreFiles: boolean;
+
+		/**
+		 * The maximum number of results to be returned.
+		 */
+		maxResults: number;
+
+		/**
+		 * Whether external files that exclude files, like .gitignore, should be respected.
+		 * See the vscode setting `"search.useIgnoreFiles"`.
+		 * @deprecated
+		 */
+		useIgnoreFiles: boolean;
 	}
 
 	/**
@@ -108,37 +113,41 @@ declare module 'vscode' {
 	/**
 	 * Options that apply to text search.
 	 */
-	export interface TextSearchOptions extends SearchOptions {
-		/**
-		 * The maximum number of results to be returned.
-		 */
-		maxResults: number;
+	export interface TextSearchProviderOptions extends SearchProviderOptions {
 
 		/**
 		 * Options to specify the size of the result text preview.
 		 */
-		previewOptions?: TextSearchPreviewOptions;
+		previewOptions: TextSearchPreviewOptions;
 
 		/**
 		 * Exclude files larger than `maxFileSize` in bytes.
 		 */
-		maxFileSize?: number;
+		maxFileSize: number;
 
 		/**
 		 * Interpret files using this encoding.
 		 * See the vscode setting `"files.encoding"`
 		 */
-		encoding?: string;
+		encoding: string;
+
+		/**
+		 * Number of lines of context to include before and after each match.
+		 */
+		surroundingContext: number;
+
 
 		/**
 		 * Number of lines of context to include before each match.
+		 * @deprecated
 		 */
-		beforeContext?: number;
+		beforeContext: number;
 
 		/**
 		 * Number of lines of context to include after each match.
+		 * @deprecated
 		 */
-		afterContext?: number;
+		afterContext: number;
 	}
 
 	/**
@@ -174,7 +183,7 @@ declare module 'vscode' {
 	export interface TextSearchComplete {
 		/**
 		 * Whether the search hit the limit on the maximum number of search results.
-		 * `maxResults` on {@linkcode TextSearchOptions} specifies the max number of results.
+		 * `maxResults` on {@linkcode TextSearchProviderOptions} specifies the max number of results.
 		 * - If exactly that number of matches exist, this should be false.
 		 * - If `maxResults` matches are returned and more exist, this should be true.
 		 * - If search hits an internal limit which is less than `maxResults`, this should be true.
@@ -193,50 +202,25 @@ declare module 'vscode' {
 		message?: TextSearchCompleteMessage | TextSearchCompleteMessage[];
 	}
 
-	/**
-	 * A preview of the text result.
-	 */
-	export interface TextSearchMatchPreview {
-		/**
-		 * The matching lines of text, or a portion of the matching line that contains the match.
-		 */
-		text: string;
-
-		/**
-		 * The Range within `text` corresponding to the text of the match.
-		 * The number of matches must match the TextSearchMatch's range property.
-		 */
-		matches: Range | Range[];
-	}
-
-	/**
-	 * A match from a text search
-	 */
 	export interface TextSearchMatch {
-		/**
-		 * The uri for the matching document.
-		 */
-		uri: Uri;
+		ranges: {
+			/**
+			 * The range of the match within the document, or multiple ranges for multiple matches.
+			 */
+			sourceRange: Range;
+			/**
+			 * The Range within `previewText` corresponding to the text of the match.
+			 */
+			previewRange: Range;
+		}[];
 
-		/**
-		 * The range of the match within the document, or multiple ranges for multiple matches.
-		 */
-		ranges: Range | Range[];
-
-		/**
-		 * A preview of the text match.
-		 */
-		preview: TextSearchMatchPreview;
+		previewText: string;
 	}
 
 	/**
 	 * A line of context surrounding a TextSearchMatch.
 	 */
 	export interface TextSearchContext {
-		/**
-		 * The uri for the matching document.
-		 */
-		uri: Uri;
 
 		/**
 		 * One line of text.
@@ -250,7 +234,20 @@ declare module 'vscode' {
 		lineNumber: number;
 	}
 
-	export type TextSearchResult = TextSearchMatch | TextSearchContext;
+	interface TextSearchResult {
+		/**
+		 * The uri for the matching document.
+		 */
+		uri: Uri;
+		/**
+		 * The match corresponding to this result
+		 */
+		match: TextSearchMatch;
+		/**
+		 * Any applicable context lines
+		 */
+		surroundingContext: TextSearchContext[];
+	}
 
 	/**
 	 * A TextSearchProvider provides search results for text results inside files in the workspace.
@@ -263,7 +260,7 @@ declare module 'vscode' {
 		 * @param progress A progress callback that must be invoked for all results.
 		 * @param token A cancellation token.
 		 */
-		provideTextSearchResults(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): ProviderResult<TextSearchComplete>;
+		provideTextSearchResults(query: TextSearchQuery, options: TextSearchProviderOptions, progress: Progress<TextSearchResult>, token: CancellationToken): ProviderResult<TextSearchComplete>;
 	}
 
 	export namespace workspace {

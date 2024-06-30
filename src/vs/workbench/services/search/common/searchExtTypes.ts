@@ -119,13 +119,6 @@ export interface TextSearchQuery {
 }
 
 /**
- * A file glob pattern to match file paths against.
- * TODO@roblou - merge this with the GlobPattern docs/definition in vscode.d.ts.
- * @see [GlobPattern](#GlobPattern)
- */
-export type GlobString = string;
-
-/**
  * Options common to file and text search
  */
 export interface SearchOptions {
@@ -137,12 +130,12 @@ export interface SearchOptions {
 	/**
 	 * Files that match an `includes` glob pattern should be included in the search.
 	 */
-	includes: GlobString[];
+	includes: string[];
 
 	/**
 	 * Files that match an `excludes` glob pattern should be excluded from the search.
 	 */
-	excludes: GlobString[];
+	excludes: string[];
 
 	/**
 	 * Whether external files that exclude files, like .gitignore, should be respected.

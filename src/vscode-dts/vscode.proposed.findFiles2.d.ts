@@ -34,7 +34,7 @@ declare module 'vscode' {
 		 * Defaults to the value for `search.useIgnoreFiles` in settings.
 		 * For more info, see the setting listed above.
 		 */
-		useIgnoreFiles?: boolean;
+		useLocalIgnoreFiles?: boolean;
 
 		/**
 		 * Whether global files that exclude files, like .gitignore, should be respected.
@@ -58,12 +58,6 @@ declare module 'vscode' {
 		 * For more info, see the setting listed above.
 		 */
 		followSymlinks?: boolean;
-
-		/**
-		 * If set to true, the `filePattern` arg will be fuzzy-searched instead of glob-searched.
-		 * If `filePattern` is a {@link RelativePattern relative pattern}, then the fuzzy search will act on the `pattern` of the {@link RelativePattern RelativePattern}
-		 */
-		fuzzy?: boolean;
 	}
 
 	/**
