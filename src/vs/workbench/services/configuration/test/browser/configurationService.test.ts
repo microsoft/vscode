@@ -131,7 +131,7 @@ suite('WorkspaceContextService - Folder', () => {
 		assert.strictEqual(actual, testObject.getWorkspace().folders[0]);
 	});
 
-	test('getWorkspaceFolder() - queries in workspace folder', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('getWorkspaceFolder() - ignore query in workspace folder', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 
 		const logService = new NullLogService();
 		const fileService = disposables.add(new FileService(logService));
@@ -163,7 +163,7 @@ suite('WorkspaceContextService - Folder', () => {
 		assert.strictEqual(actual, testObject.getWorkspace().folders[0]);
 	}));
 
-	test('getWorkspaceFolder() - queries in resource', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('getWorkspaceFolder() - ignore query in resource', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 
 		const logService = new NullLogService();
 		const fileService = disposables.add(new FileService(logService));
@@ -208,6 +208,7 @@ suite('WorkspaceContextService - Folder', () => {
 
 suite('WorkspaceContextService - Workspace', () => {
 
+	let folderC: URI;
 	let testObject: WorkspaceService;
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -220,12 +221,21 @@ suite('WorkspaceContextService - Workspace', () => {
 		const appSettingsHome = joinPath(ROOT, 'user');
 		const folderA = joinPath(ROOT, 'a');
 		const folderB = joinPath(ROOT, 'b');
+		folderC = joinPath(ROOT, 'c');
 		const configResource = joinPath(ROOT, 'vsctests.code-workspace');
-		const workspace = { folders: [{ path: folderA.path }, { path: folderB.path }] };
+		const workspace = {
+			folders: [
+				{ path: folderA.path },
+				{ path: folderB.path },
+				{ name: 'C1', uri: folderC.with({ query: 'myquery=1' }).toString(true) },
+				{ name: 'C2', uri: folderC.with({ query: 'myquery=2' }).toString(true) },
+			]
+		};
 
 		await fileService.createFolder(appSettingsHome);
 		await fileService.createFolder(folderA);
 		await fileService.createFolder(folderB);
+		await fileService.createFolder(folderC);
 		await fileService.writeFile(configResource, VSBuffer.fromString(JSON.stringify(workspace, null, '\t')));
 
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
@@ -252,15 +262,29 @@ suite('WorkspaceContextService - Workspace', () => {
 	test('workspace folders', () => {
 		const actual = testObject.getWorkspace().folders;
 
-		assert.strictEqual(actual.length, 2);
+		assert.strictEqual(actual.length, 4);
 		assert.strictEqual(basename(actual[0].uri), 'a');
 		assert.strictEqual(basename(actual[1].uri), 'b');
+		assert.strictEqual(basename(actual[2].uri), 'c');
+		assert.strictEqual(basename(actual[3].uri), 'c');
+		assert.strictEqual(actual[2].name, 'C1');
+		assert.strictEqual(actual[3].name, 'C2');
+		assert.strictEqual(actual[2].uri.query, 'myquery=1');
+		assert.strictEqual(actual[3].uri.query, 'myquery=2');
 	});
 
 	test('getWorkbenchState()', () => {
 		const actual = testObject.getWorkbenchState();
 
 		assert.strictEqual(actual, WorkbenchState.WORKSPACE);
+	});
+
+	test('getWorkspaceFolder() - match query', () => {
+		const actual1 = testObject.getWorkspaceFolder(folderC.with({ query: 'myquery=1' }), true);
+		const actual2 = testObject.getWorkspaceFolder(folderC.with({ query: 'myquery=2' }), true);
+		const folders = testObject.getWorkspace().folders;
+		assert.strictEqual(actual1, folders[2]);
+		assert.strictEqual(actual2, folders[3]);
 	});
 
 
