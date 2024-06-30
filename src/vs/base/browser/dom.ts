@@ -129,6 +129,16 @@ export function clearNode(node: HTMLElement): void {
 	}
 }
 
+
+export function clearNodeRecursively(domNode: ChildNode) {
+	while (domNode.firstChild) {
+		const element = domNode.firstChild;
+		element.remove();
+		clearNodeRecursively(element);
+	}
+}
+
+
 class DomListener implements IDisposable {
 
 	private _handler: (e: any) => void;

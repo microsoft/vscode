@@ -399,6 +399,8 @@ export class View extends ViewEventHandler {
 		}
 
 		super.dispose();
+
+		dom.clearNodeRecursively(this.domNode.domNode);
 	}
 
 	private _scheduleRender(): void {
