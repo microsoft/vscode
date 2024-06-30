@@ -77,3 +77,6 @@ This project has adopted the [Microsoft Open Source Code of Conduct](https://ope
 Copyright (c) Microsoft Corporation. All rights reserved.
 
 Licensed under the [MIT](LICENSE.txt) license. (2024 upd.)
+upd by far. (me)!
+
+read/me file upd
