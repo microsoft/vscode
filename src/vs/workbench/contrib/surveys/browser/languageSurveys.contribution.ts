@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { Language } from 'vs/base/common/platform';
+import { language } from 'vs/base/common/platform';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -156,7 +156,7 @@ class LanguageSurveysContribution implements IWorkbenchContribution {
 	}
 }
 
-if (Language.isDefaultVariant()) {
+if (language === 'en') {
 	const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 	workbenchRegistry.registerWorkbenchContribution(LanguageSurveysContribution, LifecyclePhase.Restored);
 }

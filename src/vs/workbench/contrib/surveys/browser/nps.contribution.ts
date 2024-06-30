@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { Language } from 'vs/base/common/platform';
+import { language } from 'vs/base/common/platform';
 import { IWorkbenchContributionsRegistry, IWorkbenchContribution, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -90,7 +90,7 @@ class NPSContribution implements IWorkbenchContribution {
 	}
 }
 
-if (Language.isDefaultVariant()) {
+if (language === 'en') {
 	const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 	workbenchRegistry.registerWorkbenchContribution(NPSContribution, LifecyclePhase.Restored);
 }
