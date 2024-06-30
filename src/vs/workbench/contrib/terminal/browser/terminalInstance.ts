@@ -2210,14 +2210,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	async changeIcon(icon?: TerminalIcon): Promise<TerminalIcon | undefined> {
+	async changeIcon(icon?: TerminalIcon, eventSource?: 'inline-tab' | 'other'): Promise<TerminalIcon | undefined> {
 		if (icon) {
 			this._icon = icon;
 			this._onIconChanged.fire({ instance: this, userInitiated: true });
 			return icon;
 		}
 		const iconPicker = this._scopedInstantiationService.createInstance(TerminalIconPicker);
-		const pickedIcon = await iconPicker.pickIcons();
+		const pickedIcon = await iconPicker.pickIcons(eventSource);
 		iconPicker.dispose();
 		if (!pickedIcon) {
 			return undefined;
