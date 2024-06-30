@@ -5,6 +5,13 @@ function Connect-Locations {
         [string]$linkPath
     )
 
+    if (Test-Path $linkPath -PathType Any) {
+        Write-Host "Removing existing Symbolic link at '$linkPath', before creating new one."
+        cmd /c rmdir /s /q $linkPath
+    }
+
+    Start-Sleep 1
+
     Write-Host "Creating symbolic link '$targetPath' -> '$linkPath'"
     New-Item -ItemType SymbolicLink -Path $linkPath -Target $targetPath
 }
