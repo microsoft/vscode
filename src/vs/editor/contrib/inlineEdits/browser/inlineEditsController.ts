@@ -8,7 +8,7 @@ import { derived, derivedObservableWithCache, IReader, ISettableObservable, obse
 import { derivedDisposable, derivedWithSetter } from 'vs/base/common/observableInternal/derived';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { observableCodeEditor } from 'vs/editor/browser/observableCodeEditor';
-import { readHotReloadableExport } from 'vs/editor/browser/widget/diffEditor/utils';
+import { readHotReloadableExport } from 'vs/base/common/hotReloadHelpers';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ILanguageFeatureDebounceService } from 'vs/editor/common/services/languageFeatureDebounce';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
