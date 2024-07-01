@@ -405,11 +405,16 @@ export class Mangler {
 		private readonly log: typeof console.log = () => { },
 		private readonly config: { readonly manglePrivateFields: boolean; readonly mangleExports: boolean },
 	) {
-
 		this.renameWorkerPool = workerpool.pool(path.join(__dirname, 'renameWorker.js'), {
 			maxWorkers: 1,
 			minWorkers: 'max'
 		});
+	}
+
+	dispose() {
+		this.renameWorkerPool.terminate();
+		this.allClassDataByKey.clear();
+		this.allExportedSymbols.clear();
 	}
 
 	async computeNewFileContents(strictImplicitPublicHandling?: Set<string>): Promise<Map<string, MangleOutput>> {
