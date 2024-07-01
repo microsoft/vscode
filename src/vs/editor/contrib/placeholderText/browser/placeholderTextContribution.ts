@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { h } from 'vs/base/browser/dom';
 import { structuralEquals } from 'vs/base/common/equals';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { derived, derivedOpts } from 'vs/base/common/observable';
+import { autorun, constObservable, derivedObservableWithCache, derivedOpts, IObservable, IReader } from 'vs/base/common/observable';
+import { DebugOwner } from 'vs/base/common/observableInternal/debugName';
+import { derivedWithStore } from 'vs/base/common/observableInternal/derived';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { observableCodeEditor } from 'vs/editor/browser/observableCodeEditor';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { IModelDeltaDecoration, InjectedTextCursorStops } from 'vs/editor/common/model';
 
 /**
  * Use the editor option to set the placeholder text.
@@ -26,30 +27,42 @@ export class PlaceholderTextContribution extends Disposable implements IEditorCo
 
 	private readonly _placeholderText = this._editorObs.getOption(EditorOption.placeholder);
 
-	private readonly _decorationOptions = derivedOpts<{ placeholder: string } | undefined>({ owner: this, equalsFn: structuralEquals }, reader => {
+	private readonly _state = derivedOpts<{ placeholder: string } | undefined>({ owner: this, equalsFn: structuralEquals }, reader => {
 		const p = this._placeholderText.read(reader);
 		if (!p) { return undefined; }
 		if (!this._editorObs.valueIsEmpty.read(reader)) { return undefined; }
-
 		return { placeholder: p };
 	});
 
-	private readonly _decorations = derived<IModelDeltaDecoration[]>(this, (reader) => {
-		const options = this._decorationOptions.read(reader);
-		if (!options) { return []; }
+	private readonly _shouldViewBeAlive = isOrWasTrue(this, reader => this._state.read(reader)?.placeholder !== undefined);
 
-		return [{
-			range: new Range(1, 1, 1, 1),
-			options: {
-				description: 'placeholder',
-				showIfCollapsed: true,
-				after: {
-					content: options.placeholder,
-					cursorStops: InjectedTextCursorStops.None,
-					inlineClassName: 'placeholder-text'
-				}
-			}
-		}];
+	private readonly _view = derivedWithStore((reader, store) => {
+		if (!this._shouldViewBeAlive.read(reader)) { return; }
+
+		const element = h('div.editorPlaceholder');
+		element.root.style.top = `1px`;
+
+		store.add(autorun(reader => {
+			const data = this._state.read(reader);
+			const shouldBeVisibile = data?.placeholder !== undefined;
+			element.root.style.display = shouldBeVisibile ? 'block' : 'none';
+			element.root.innerText = data?.placeholder ?? '';
+		}));
+		store.add(autorun(reader => {
+			const info = this._editorObs.layoutInfo.read(reader);
+			element.root.style.left = `${info.contentLeft}px`;
+			element.root.style.width = (info.contentWidth - info.verticalScrollbarWidth) + 'px';
+		}));
+		store.add(autorun(reader => {
+			element.root.style.fontFamily = this._editorObs.getOption(EditorOption.fontFamily).read(reader);
+			element.root.style.fontSize = this._editorObs.getOption(EditorOption.fontSize).read(reader) + 'px';
+		}));
+		store.add(this._editorObs.createOverlayWidget({
+			allowEditorOverflow: false,
+			minContentWidthInPx: constObservable(0),
+			position: constObservable(null),
+			domNode: element.root,
+		}));
 	});
 
 	constructor(
@@ -57,6 +70,13 @@ export class PlaceholderTextContribution extends Disposable implements IEditorCo
 	) {
 		super();
 
-		this._register(this._editorObs.setDecorations(this._decorations));
+		this._view.recomputeInitiallyAndOnChange(this._store);
 	}
+}
+
+function isOrWasTrue(owner: DebugOwner, fn: (reader: IReader) => boolean): IObservable<boolean> {
+	return derivedObservableWithCache<boolean>(owner, (reader, lastValue) => {
+		if (lastValue === true) { return true; }
+		return fn(reader);
+	});
 }
