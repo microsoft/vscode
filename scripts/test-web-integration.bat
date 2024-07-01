@@ -27,7 +27,7 @@ if "%VSCODE_REMOTE_SERVER_PATH%"=="" (
 
 if not exist ".\test\integration\browser\out\index.js" (
 	call yarn --cwd test/integration/browser compile
-	call yarn playwright-install
+	call yarn playwright install
 )
 
 

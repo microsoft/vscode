@@ -14,7 +14,7 @@ parameters:
     default: PublishPipelineArtifact@0
 
 steps:
-  - powershell: yarn npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install"
+  - powershell: yarn npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright install"
     env:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Download Electron and Playwright

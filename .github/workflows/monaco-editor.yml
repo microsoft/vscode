@@ -60,7 +60,7 @@ jobs:
           yarn --frozen-lockfile --network-timeout 180000
 
       - name: Download Playwright
-        run: yarn playwright-install
+        run: yarn playwright install
 
       - name: Run Monaco Editor Checks
         run: yarn monaco-compile-check
