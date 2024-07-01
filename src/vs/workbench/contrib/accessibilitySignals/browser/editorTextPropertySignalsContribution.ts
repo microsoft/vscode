@@ -73,7 +73,7 @@ export class EditorTextPropertySignalsContribution extends Disposable implements
 		let lastLine = -1;
 		const ignoredLineSignalsForCurrentLine = new Set<TextProperty>();
 
-		const timeouts = new DisposableStore();
+		const timeouts = store.add(new DisposableStore());
 
 		const propertySources = this._textProperties.map(p => ({ source: p.createSource(editor, editorModel), property: p }));
 
