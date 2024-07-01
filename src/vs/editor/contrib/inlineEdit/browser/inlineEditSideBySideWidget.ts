@@ -195,14 +195,21 @@ class InlineEditSideBySideContentWidget extends Disposable implements IOverlayWi
 
 	private readonly _previewTextModel = this._register(this._instantiationService.createInstance(
 		TextModel,
-		this._text.get(),
+		'',
 		this._editor.getModel()?.getLanguageId() ?? PLAINTEXT_LANGUAGE_ID,
 		TextModel.DEFAULT_CREATION_OPTIONS,
 		null
 	));
 
+	private readonly _setText = derived(reader => {
+		const edit = this._text.read(reader);
+		if (!edit) { return; }
+		this._previewTextModel.setValue(edit);
+	}).recomputeInitiallyAndOnChange(this._store);
+
+
 	private readonly _decorations = derived(this, (reader) => {
-		this._text.read(reader);
+		this._setText.read(reader);
 		const position = this._position.read(reader);
 		if (!position) { return { org: [], mod: [] }; }
 		const diff = this._diff.read(reader);
@@ -275,10 +282,12 @@ class InlineEditSideBySideContentWidget extends Disposable implements IOverlayWi
 
 		this._register(autorun(reader => {
 			const width = this._previewEditorObs.contentWidth.read(reader);
-			const lines = this._text.read(reader).split('\n').length - 1;
+			const lines = this._text.get().split('\n').length - 1;
 			const height = this._editor.getOption(EditorOption.lineHeight) * lines;
-			this._nodes.style.width = `${width}px`;
-			this._nodes.style.height = `${height}px`;
+			if (width <= 0) {
+				return;
+			}
+			console.log('width', width);
 			this._previewEditor.layout({ height: height, width: width });
 		}));
 
