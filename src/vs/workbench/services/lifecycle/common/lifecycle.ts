@@ -74,6 +74,9 @@ export enum WillShutdownJoinerOrder {
 
 	/**
 	 * The joiners to run last.
+	 *
+	 * The workspace may be disconnected while this phase is running; code that depends
+	 * on potentially remote resources should use the {@link Default} priority instead.
 	 */
 	Last
 }
