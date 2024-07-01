@@ -51,6 +51,11 @@ export class TerminalIconPicker extends Disposable {
 	}
 
 	async pickIcons(): Promise<ThemeIcon | undefined> {
+		let target = getActiveDocument().body;
+		const editorGroup = document.getElementById("workbench.parts.editor") as HTMLElement | undefined;
+		if (editorGroup) {
+			target = editorGroup;
+		}
 		const dimension = new Dimension(486, 260);
 		return new Promise<ThemeIcon | undefined>(resolve => {
 			this._register(this._iconSelectBox.onDidSelect(e => {
@@ -60,7 +65,7 @@ export class TerminalIconPicker extends Disposable {
 			this._iconSelectBox.clearInput();
 			const hoverWidget = this._hoverService.showHover({
 				content: this._iconSelectBox.domNode,
-				target: getActiveDocument().body,
+				target: target,
 				position: {
 					hoverPosition: HoverPosition.BELOW,
 				},
