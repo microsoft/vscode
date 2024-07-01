@@ -10,7 +10,7 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from 'vs/workbench/com
 import { AccessibilitySignalLineDebuggerContribution } from 'vs/workbench/contrib/accessibilitySignals/browser/accessibilitySignalDebuggerContribution';
 import { ShowAccessibilityAnnouncementHelp, ShowSignalSoundHelp } from 'vs/workbench/contrib/accessibilitySignals/browser/commands';
 import { EditorTextPropertySignalsContribution } from 'vs/workbench/contrib/accessibilitySignals/browser/editorTextPropertySignalsContribution';
-import { wrapInReloadableClass } from 'vs/workbench/contrib/accessibilitySignals/browser/reloadableWorkbenchContribution';
+import { wrapInReloadableClass } from 'vs/platform/observable/common/wrapInReloadableClass';
 
 registerSingleton(IAccessibilitySignalService, AccessibilitySignalService, InstantiationType.Delayed);
 
