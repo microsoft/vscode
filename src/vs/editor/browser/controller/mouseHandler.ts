@@ -62,9 +62,11 @@ export class MouseHandler extends ViewEventHandler {
 	private lastMouseLeaveTime: number;
 	private _height: number;
 	private _mouseLeaveMonitor: IDisposable | null = null;
+	private _mouseOnOverflowWidgetsDomNode: boolean = false;
 
 	constructor(context: ViewContext, viewController: ViewController, viewHelper: IPointerHandlerHelper) {
 		super();
+		console.log('mouseHandler');
 
 		this._context = context;
 		this.viewController = viewController;
@@ -76,7 +78,7 @@ export class MouseHandler extends ViewEventHandler {
 			this.viewController,
 			this.viewHelper,
 			this.mouseTargetFactory,
-			(e, testEventTarget) => this._createMouseTarget(e, testEventTarget),
+			(e, testEventTarget) => this._createMouseTargetForView(e, testEventTarget),
 			(e) => this._getMouseColumn(e)
 		));
 
@@ -88,7 +90,8 @@ export class MouseHandler extends ViewEventHandler {
 		this._register(mouseEvents.onContextMenu(this.viewHelper.viewDomNode, (e) => this._onContextMenu(e, true)));
 
 		this._register(mouseEvents.onMouseMove(this.viewHelper.viewDomNode, (e) => {
-			this._onMouseMove(e);
+			console.log('onMouseMove of this.viewHelper.viewDomNode');
+			this._onMouseMoveOverView(e);
 
 			// See https://github.com/microsoft/vscode/issues/138789
 			// When moving the mouse really quickly, the browser sometimes forgets to
@@ -101,15 +104,44 @@ export class MouseHandler extends ViewEventHandler {
 				this._mouseLeaveMonitor = dom.addDisposableListener(this.viewHelper.viewDomNode.ownerDocument, 'mousemove', (e) => {
 					if (!this.viewHelper.viewDomNode.contains(e.target as Node | null)) {
 						// went outside the editor!
-						this._onMouseLeave(new EditorMouseEvent(e, false, this.viewHelper.viewDomNode));
+						if (!this._mouseOnOverflowWidgetsDomNode) {
+							console.log('before onMouseLeave of onMouseMove of this.viewHelper.viewDomNode');
+							this._onMouseLeave(new EditorMouseEvent(e, false, this.viewHelper.viewDomNode));
+						}
 					}
 				});
 			}
 		}));
 
+		const overflowWidgetsDomNode = context.overflowWidgetsDomNode;
+		if (overflowWidgetsDomNode) {
+			this._register(mouseEvents.onMouseMove(overflowWidgetsDomNode, (e) => {
+				this._mouseOnOverflowWidgetsDomNode = true;
+				console.log('onMouseMove of overflowWidgetsDomNode');
+				console.log('this._mousOnOverflowWidgetsDomNode : ', this._mouseOnOverflowWidgetsDomNode);
+				console.log('e : ', e);
+				this._onMouseMoveOverOverflowWidgetsDomNode(e);
+			}));
+			this._register(mouseEvents.onMouseLeave(overflowWidgetsDomNode, (e) => {
+				this._mouseOnOverflowWidgetsDomNode = false;
+				console.log('onMouseLeave of overflowWidgetsDomNode');
+				console.log('this._mousOnOverflowWidgetsDomNode : ', this._mouseOnOverflowWidgetsDomNode);
+			}));
+		}
+
 		this._register(mouseEvents.onMouseUp(this.viewHelper.viewDomNode, (e) => this._onMouseUp(e)));
 
-		this._register(mouseEvents.onMouseLeave(this.viewHelper.viewDomNode, (e) => this._onMouseLeave(e)));
+		this._register(mouseEvents.onMouseLeave(this.viewHelper.viewDomNode, (e) => {
+			console.log('onMouseLeave of this.viewHelper.viewDomNode');
+			console.log('this._mousOnOverflowWidgetsDomNode before timeout : ', this._mouseOnOverflowWidgetsDomNode);
+			setTimeout(() => {
+				console.log('this._mousOnOverflowWidgetsDomNode after timeout : ', this._mouseOnOverflowWidgetsDomNode);
+				if (!this._mouseOnOverflowWidgetsDomNode) {
+					console.log('before onMouseLeave of onMouseLeave of this.viewHelper.viewDomNode');
+					this._onMouseLeave(e);
+				}
+			}, 100);
+		}));
 
 		// `pointerdown` events can't be used to determine if there's a double click, or triple click
 		// because their `e.detail` is always 0.
@@ -234,10 +266,10 @@ export class MouseHandler extends ViewEventHandler {
 		}
 
 		const relativePos = createCoordinatesRelativeToEditor(this.viewHelper.viewDomNode, editorPos, pos);
-		return this.mouseTargetFactory.createMouseTarget(this.viewHelper.getLastRenderData(), editorPos, pos, relativePos, null);
+		return this.mouseTargetFactory.createMouseTargetForView(this.viewHelper.getLastRenderData(), editorPos, pos, relativePos, null);
 	}
 
-	protected _createMouseTarget(e: EditorMouseEvent, testEventTarget: boolean): IMouseTarget {
+	protected _createMouseTargetForView(e: EditorMouseEvent, testEventTarget: boolean): IMouseTarget {
 		let target = e.target;
 		if (!this.viewHelper.viewDomNode.contains(target)) {
 			const shadowRoot = dom.getShadowRoot(this.viewHelper.viewDomNode);
@@ -247,7 +279,11 @@ export class MouseHandler extends ViewEventHandler {
 				);
 			}
 		}
-		return this.mouseTargetFactory.createMouseTarget(this.viewHelper.getLastRenderData(), e.editorPos, e.pos, e.relativePos, testEventTarget ? target : null);
+		return this.mouseTargetFactory.createMouseTargetForView(this.viewHelper.getLastRenderData(), e.editorPos, e.pos, e.relativePos, testEventTarget ? target : null);
+	}
+
+	private _createMouseTargetForOverflowWidgetsDomNode(e: EditorMouseEvent): IMouseTarget {
+		return this.mouseTargetFactory.createMouseTargetForOverflowWidgetsDomNode(this.viewHelper.getLastRenderData(), e.editorPos, e.pos, e.relativePos, e.target);
 	}
 
 	private _getMouseColumn(e: EditorMouseEvent): number {
@@ -257,11 +293,33 @@ export class MouseHandler extends ViewEventHandler {
 	protected _onContextMenu(e: EditorMouseEvent, testEventTarget: boolean): void {
 		this.viewController.emitContextMenu({
 			event: e,
-			target: this._createMouseTarget(e, testEventTarget)
+			target: this._createMouseTargetForView(e, testEventTarget)
 		});
 	}
 
-	protected _onMouseMove(e: EditorMouseEvent): void {
+	protected _onMouseMoveOverView(e: EditorMouseEvent): void {
+		const shouldIgnoreMouseMoveEvent = this._shouldIgnoreMouseMoveEvent(e);
+		if (shouldIgnoreMouseMoveEvent) {
+			return;
+		}
+		this.viewController.emitMouseMove({
+			event: e,
+			target: this._createMouseTargetForView(e, true)
+		});
+	}
+
+	private _onMouseMoveOverOverflowWidgetsDomNode(e: EditorMouseEvent): void {
+		const shouldIgnoreMouseMoveEvent = this._shouldIgnoreMouseMoveEvent(e);
+		if (shouldIgnoreMouseMoveEvent) {
+			return;
+		}
+		this.viewController.emitMouseMove({
+			event: e,
+			target: this._createMouseTargetForOverflowWidgetsDomNode(e)
+		});
+	}
+
+	private _shouldIgnoreMouseMoveEvent(e: EditorMouseEvent): boolean {
 		const targetIsWidget = this.mouseTargetFactory.mouseTargetIsWidget(e);
 		if (!targetIsWidget) {
 			e.preventDefault();
@@ -269,21 +327,18 @@ export class MouseHandler extends ViewEventHandler {
 
 		if (this._mouseDownOperation.isActive()) {
 			// In selection/drag operation
-			return;
+			return true;
 		}
 		const actualMouseMoveTime = e.timestamp;
 		if (actualMouseMoveTime < this.lastMouseLeaveTime) {
 			// Due to throttling, this event occurred before the mouse left the editor, therefore ignore it.
-			return;
+			return true;
 		}
-
-		this.viewController.emitMouseMove({
-			event: e,
-			target: this._createMouseTarget(e, true)
-		});
+		return false;
 	}
 
 	protected _onMouseLeave(e: EditorMouseEvent): void {
+		console.log('_onMouseLeave');
 		if (this._mouseLeaveMonitor) {
 			this._mouseLeaveMonitor.dispose();
 			this._mouseLeaveMonitor = null;
@@ -298,12 +353,12 @@ export class MouseHandler extends ViewEventHandler {
 	protected _onMouseUp(e: EditorMouseEvent): void {
 		this.viewController.emitMouseUp({
 			event: e,
-			target: this._createMouseTarget(e, true)
+			target: this._createMouseTargetForView(e, true)
 		});
 	}
 
 	protected _onMouseDown(e: EditorMouseEvent, pointerId: number): void {
-		const t = this._createMouseTarget(e, true);
+		const t = this._createMouseTargetForView(e, true);
 
 		const targetIsContent = (t.type === MouseTargetType.CONTENT_TEXT || t.type === MouseTargetType.CONTENT_EMPTY);
 		const targetIsGutter = (t.type === MouseTargetType.GUTTER_GLYPH_MARGIN || t.type === MouseTargetType.GUTTER_LINE_NUMBERS || t.type === MouseTargetType.GUTTER_LINE_DECORATIONS);
@@ -742,7 +797,7 @@ class TopBottomDragScrollingOperation extends Disposable {
 			const horizontalScrollbarHeight = this._context.configuration.options.get(EditorOption.layoutInfo).horizontalScrollbarHeight;
 			const pos = new PageCoordinates(this._mouseEvent.pos.x, editorPos.y + editorPos.height - horizontalScrollbarHeight - 0.1);
 			const relativePos = createCoordinatesRelativeToEditor(this._viewHelper.viewDomNode, editorPos, pos);
-			mouseTarget = this._mouseTargetFactory.createMouseTarget(this._viewHelper.getLastRenderData(), editorPos, pos, relativePos, null);
+			mouseTarget = this._mouseTargetFactory.createMouseTargetForView(this._viewHelper.getLastRenderData(), editorPos, pos, relativePos, null);
 		}
 		if (!mouseTarget.position || mouseTarget.position.lineNumber !== edgeLineNumber) {
 			if (this._position.outsidePosition === 'above') {

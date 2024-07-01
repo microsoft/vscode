@@ -118,7 +118,7 @@ export class View extends ViewEventHandler {
 		const viewController = new ViewController(configuration, model, userInputEvents, commandDelegate);
 
 		// The view context is passed on to most classes (basically to reduce param. counts in ctors)
-		this._context = new ViewContext(configuration, colorTheme, model);
+		this._context = new ViewContext(configuration, colorTheme, model, overflowWidgetsDomNode);
 
 		// Ensure the view is the first event handler in order to update the layout
 		this._context.addEventHandler(this);
