@@ -221,6 +221,39 @@ suite('ObjectTree', function () {
 		tree.setChildren(null, [{ element: 100 }, { element: 101 }, { element: 102 }, { element: 103 }]);
 		assert.deepStrictEqual(tree.getFocus(), [101]);
 	});
+
+	test('onDidChangeFocus should focus when elements go away', function () {
+		const container = document.createElement('div');
+		container.style.width = '200px';
+		container.style.height = '200px';
+
+		const delegate = new class implements IListVirtualDelegate<number> {
+			getHeight() { return 20; }
+			getTemplateId(): string { return 'default'; }
+		};
+
+		const renderer = new class implements ITreeRenderer<number, void, HTMLElement> {
+			readonly templateId = 'default';
+			renderTemplate(container: HTMLElement): HTMLElement { return container; }
+			renderElement(element: ITreeNode<number, void>, index: number, templateData: HTMLElement): void { templateData.textContent = `${element.element}`; }
+			disposeTemplate(): void { }
+		};
+
+		const tree = new ObjectTree<number>('test', container, delegate, [renderer]);
+		tree.layout(200);
+
+		let eventCount = 0;
+		tree.onDidChangeFocus(() => eventCount++);
+
+		tree.setChildren(null, [{ element: 0 }, { element: 1 }, { element: 2 }, { element: 3 }]);
+		tree.setFocus([1]);
+		assert.equal(eventCount, 1);
+		assert.deepStrictEqual(tree.getFocus(), [1]);
+
+		tree.setChildren(null, []);
+		assert.equal(eventCount, 2);
+		assert.deepStrictEqual(tree.getFocus(), []);
+	});
 });
 
 function getRowsTextContent(container: HTMLElement): string[] {
