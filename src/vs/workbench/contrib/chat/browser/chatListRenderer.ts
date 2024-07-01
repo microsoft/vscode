@@ -567,43 +567,44 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return true;
 		}
 
-		let isFullyRendered = false;
 		if (element.isCanceled) {
 			this.traceLayout('doNextProgressiveRender', `canceled, index=${index}`);
 			element.renderData = undefined;
 			this.basicRenderElement(element, index, templateData);
-			isFullyRendered = true;
-			// TODO Maybe return here, shouldn't need to fire onDidChangeItemHeight here
-		} else {
-			this.traceLayout('doNextProgressiveRender', `START progressive render, index=${index}, renderData=${JSON.stringify(element.renderData)}`);
-			const contentForThisTurn = this.getNextProgressiveRenderContent(element);
-			const partsToRender = this.diff(templateData.renderedParts ?? [], contentForThisTurn, element);
-			isFullyRendered = partsToRender.every(part => part === null);
+			return true;
+		}
 
-			if (isFullyRendered && element.isComplete) {
+		let isFullyRendered = false;
+		this.traceLayout('doNextProgressiveRender', `START progressive render, index=${index}, renderData=${JSON.stringify(element.renderData)}`);
+		const contentForThisTurn = this.getNextProgressiveRenderContent(element);
+		const partsToRender = this.diff(templateData.renderedParts ?? [], contentForThisTurn, element);
+		isFullyRendered = partsToRender.every(part => part === null);
+
+		if (isFullyRendered) {
+			if (element.isComplete) {
 				// Response is done and content is rendered, so do a normal render
 				this.traceLayout('doNextProgressiveRender', `END progressive render, index=${index} and clearing renderData, response is complete`);
 				element.renderData = undefined;
 				this.basicRenderElement(element, index, templateData);
-				// TODO return here
-			} else if (!isFullyRendered) {
-				this.traceLayout('doNextProgressiveRender', `doing progressive render, ${partsToRender.length} parts to render`);
-				this.renderChatContentDiff(partsToRender, contentForThisTurn, element, templateData);
-			} else {
-				// Nothing new to render, not done, keep waiting
-				this.traceLayout('doNextProgressiveRender', 'caught up with the stream- no new content to render');
-				return false;
+				return true;
 			}
+
+			// Nothing new to render, not done, keep waiting
+			this.traceLayout('doNextProgressiveRender', 'caught up with the stream- no new content to render');
+			return false;
 		}
 
-		// Some render happened - update the height
+		// Do an actual progressive render
+		this.traceLayout('doNextProgressiveRender', `doing progressive render, ${partsToRender.length} parts to render`);
+		this.renderChatContentDiff(partsToRender, contentForThisTurn, element, templateData);
+
 		const height = templateData.rowContainer.offsetHeight;
 		element.currentRenderedHeight = height;
 		if (!isInRenderElement) {
 			this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight });
 		}
 
-		return isFullyRendered;
+		return false;
 	}
 
 	private renderChatContentDiff(partsToRender: ReadonlyArray<IChatRendererContent | null>, contentForThisTurn: ReadonlyArray<IChatRendererContent>, element: IChatResponseViewModel, templateData: IChatListItemTemplate): void {
