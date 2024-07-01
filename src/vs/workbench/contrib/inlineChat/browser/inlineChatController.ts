@@ -991,6 +991,7 @@ export class InlineChatController implements IEditorContribution {
 				sessionId: response.session.sessionId,
 				requestId: response.requestId,
 				agentId: response.agent?.id,
+				command: response.slashCommand?.name,
 				result: response.result,
 				action: {
 					kind: 'inlineChat',
@@ -1016,6 +1017,7 @@ export class InlineChatController implements IEditorContribution {
 				sessionId: response.session.sessionId,
 				requestId: response.requestId,
 				agentId: response.agent?.id,
+				command: response.slashCommand?.name,
 				result: response.result,
 				action: {
 					kind: 'inlineChat',

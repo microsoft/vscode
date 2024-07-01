@@ -389,7 +389,7 @@ export class InlineChatWidget {
 		if (!isNonEmptyArray(requests)) {
 			return undefined;
 		}
-		return tail(requests)?.response?.response.asString();
+		return tail(requests)?.response?.response.toString();
 	}
 
 
