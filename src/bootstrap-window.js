@@ -108,7 +108,7 @@ const isESM = false;
 		if (isESM) {
 			// Signal before require()
 			if (typeof options?.beforeRequire === 'function') {
-				options.beforeRequire();
+				options.beforeRequire(configuration);
 			}
 
 			const fileRoot = `${configuration.appRoot}/out`;
@@ -167,7 +167,6 @@ const isESM = false;
 			/** @type {LoaderConfig} */
 			const loaderConfig = {
 				baseUrl: `${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out`,
-				'vs/nls': nlsConfig,
 				preferScriptTags: true
 			};
 
@@ -191,11 +190,11 @@ const isESM = false;
 				'vsda': `${baseNodeModulesPath}/vsda/index.js`,
 				'@xterm/xterm': `${baseNodeModulesPath}/@xterm/xterm/lib/xterm.js`,
 				'@xterm/addon-clipboard': `${baseNodeModulesPath}/@xterm/addon-clipboard/lib/addon-clipboard.js`,
-				'@xterm/xterm-addon-image': `${baseNodeModulesPath}/@xterm/xterm-addon-image/lib/xterm-addon-image.js`,
-				'@xterm/xterm-addon-search': `${baseNodeModulesPath}/@xterm/xterm-addon-search/lib/xterm-addon-search.js`,
-				'@xterm/xterm-addon-serialize': `${baseNodeModulesPath}/@xterm/xterm-addon-serialize/lib/xterm-addon-serialize.js`,
-				'@xterm/xterm-addon-unicode11': `${baseNodeModulesPath}/@xterm/xterm-addon-unicode11/lib/xterm-addon-unicode11.js`,
-				'@xterm/xterm-addon-webgl': `${baseNodeModulesPath}/@xterm/xterm-addon-webgl/lib/xterm-addon-webgl.js`,
+				'@xterm/addon-image': `${baseNodeModulesPath}/@xterm/addon-image/lib/addon-image.js`,
+				'@xterm/addon-search': `${baseNodeModulesPath}/@xterm/addon-search/lib/addon-search.js`,
+				'@xterm/addon-serialize': `${baseNodeModulesPath}/@xterm/addon-serialize/lib/addon-serialize.js`,
+				'@xterm/addon-unicode11': `${baseNodeModulesPath}/@xterm/addon-unicode11/lib/addon-unicode11.js`,
+				'@xterm/addon-webgl': `${baseNodeModulesPath}/@xterm/addon-webgl/lib/addon-webgl.js`,
 				'@vscode/iconv-lite-umd': `${baseNodeModulesPath}/@vscode/iconv-lite-umd/lib/iconv-lite-umd.js`,
 				'jschardet': `${baseNodeModulesPath}/jschardet/dist/jschardet.min.js`,
 				'@vscode/vscode-languagedetection': `${baseNodeModulesPath}/@vscode/vscode-languagedetection/dist/lib/index.js`,
@@ -214,7 +213,7 @@ const isESM = false;
 
 			// Signal before require()
 			if (typeof options?.beforeRequire === 'function') {
-				options.beforeRequire();
+				options.beforeRequire(configuration);
 			}
 
 			// Actually require the main module as specified

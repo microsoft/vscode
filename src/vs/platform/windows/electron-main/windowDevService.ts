@@ -66,7 +66,7 @@ export class WindowDevelopmentService implements IWindowDevelopmentService {
 			const chunks: string[][] = [];
 			const decoder = new TextDecoder();
 			const basePath = FileAccess.asFileUri('').fsPath;
-			const process = spawn(rg.rgPath, ['-g', '**/*.css', '--files', basePath], {});
+			const process = spawn(rg.rgPath, ['-g', '**/*.css', '--files', '--no-ignore', basePath], {});
 
 			process.stdout.on('data', data => {
 				const chunk = decoder.decode(data, { stream: true });

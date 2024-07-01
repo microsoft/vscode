@@ -60,6 +60,7 @@ function migrateOne(filePath, fileContents) {
 	} else if (fileExtension === '.js' || fileExtension === '.cjs') {
 		if (
 			filePath.endsWith('vs/base/common/performance.js')
+			|| filePath.endsWith('vs/base/common/jsonc.js')
 			|| filePath.endsWith('vs/platform/environment/node/userDataPath.js')
 			|| filePath.endsWith('vs/base/node/languagePacks.js')
 			|| filePath.endsWith('vs/base/node/unc.js')

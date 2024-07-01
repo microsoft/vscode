@@ -84,4 +84,5 @@
 
 // ESM-uncomment-begin
 // export const stripComments = module.exports.stripComments;
+// export const parse = module.exports.parse;
 // ESM-uncomment-end

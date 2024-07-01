@@ -48,23 +48,6 @@ const performance = require(`./vs/base/common/performance${requireExtension}`);
 const fs = require('fs');
 
 
-// @ts-ignore
-const loader = require('./vs/loader');
-
-loader.config({
-	baseUrl: bootstrap.fileUriFromPath(__dirname, { isWindows: process.platform === 'win32' }),
-	catchError: true,
-	nodeRequire,
-	amdModulesPattern: /^vs\//,
-	recordStats: true
-});
-
-// Running in Electron
-if (process.env['ELECTRON_RUN_AS_NODE'] || process.versions['electron']) {
-	loader.define('fs', ['original-fs'], function (/** @type {import('fs')} */originalFS) {
-		return originalFS;  // replace the patched electron fs with the original node fs for all AMD code
-	});
-}
 
 
 /** @type {Promise<INLSConfiguration | undefined> | undefined} */
@@ -207,6 +190,25 @@ if (isESM) {
 	};
 
 } else {
+
+	// @ts-ignore
+	const loader = require('./vs/loader');
+
+	loader.config({
+		baseUrl: bootstrap.fileUriFromPath(__dirname, { isWindows: process.platform === 'win32' }),
+		catchError: true,
+		nodeRequire,
+		amdModulesPattern: /^vs\//,
+		recordStats: true
+	});
+
+	// Running in Electron
+	if (process.env['ELECTRON_RUN_AS_NODE'] || process.versions['electron']) {
+		loader.define('fs', ['original-fs'], function (/** @type {import('fs')} */originalFS) {
+			return originalFS;  // replace the patched electron fs with the original node fs for all AMD code
+		});
+	}
+
 	/**
 	 * @param {string=} entrypoint
 	 * @param {(value: any) => void=} onLoad
