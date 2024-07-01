@@ -275,12 +275,12 @@ class SyncedBufferMap extends ResourceMap<SyncedBuffer> {
 }
 
 class PendingDiagnostics extends ResourceMap<number> {
-	public getOrderedFileSet(): ResourceMap<void> {
+	public getOrderedFileSet(): ResourceMap<void | vscode.Range[]> {
 		const orderedResources = Array.from(this.entries())
 			.sort((a, b) => a.value - b.value)
 			.map(entry => entry.resource);
 
-		const map = new ResourceMap<void>(this._normalizePath, this.config);
+		const map = new ResourceMap<void | vscode.Range[]>(this._normalizePath, this.config);
 		for (const resource of orderedResources) {
 			map.set(resource, undefined);
 		}
@@ -292,7 +292,7 @@ class GetErrRequest {
 
 	public static executeGetErrRequest(
 		client: ITypeScriptServiceClient,
-		files: ResourceMap<void>,
+		files: ResourceMap<void | vscode.Range[]>,
 		onDone: () => void
 	) {
 		return new GetErrRequest(client, files, onDone);
@@ -303,7 +303,7 @@ class GetErrRequest {
 
 	private constructor(
 		private readonly client: ITypeScriptServiceClient,
-		public readonly files: ResourceMap<void>,
+		public readonly files: ResourceMap<void | vscode.Range[]>,
 		onDone: () => void
 	) {
 		if (!this.isErrorReportingEnabled()) {
@@ -313,19 +313,39 @@ class GetErrRequest {
 		}
 
 		const supportsSyntaxGetErr = this.client.apiVersion.gte(API.v440);
-		const allFiles = coalesce(Array.from(files.entries())
-			.filter(entry => supportsSyntaxGetErr || client.hasCapabilityForResource(entry.resource, ClientCapability.Semantic))
+		const fileEntries = Array.from(files.entries()).filter(entry => supportsSyntaxGetErr || client.hasCapabilityForResource(entry.resource, ClientCapability.Semantic));
+		const allFiles = coalesce(fileEntries
 			.map(entry => client.toTsFilePath(entry.resource)));
 
 		if (!allFiles.length) {
 			this._done = true;
 			setImmediate(onDone);
 		} else {
-			const request = this.areProjectDiagnosticsEnabled()
+			let request;
+			if (this.areProjectDiagnosticsEnabled()) {
 				// Note that geterrForProject is almost certainly not the api we want here as it ends up computing far
 				// too many diagnostics
-				? client.executeAsync('geterrForProject', { delay: 0, file: allFiles[0] }, this._token.token)
-				: client.executeAsync('geterr', { delay: 0, files: allFiles }, this._token.token);
+				request = client.executeAsync('geterrForProject', { delay: 0, file: allFiles[0] }, this._token.token);
+			}
+			else {
+				let requestFiles;
+				if (this.areRegionDiagnosticsEnabled()) {
+					requestFiles = coalesce(fileEntries
+						.map(entry => {
+							const file = client.toTsFilePath(entry.resource);
+							const ranges = entry.value;
+							if (file && ranges) {
+								return typeConverters.Range.toFileRangesRequestArgs(file, ranges);
+							}
+
+							return file;
+						}));
+				}
+				else {
+					requestFiles = allFiles;
+				}
+				request = client.executeAsync('geterr', { delay: 0, files: requestFiles }, this._token.token);
+			}
 
 			request.finally(() => {
 				if (this._done) {
@@ -348,6 +368,10 @@ class GetErrRequest {
 
 	private areProjectDiagnosticsEnabled() {
 		return this.client.configuration.enableProjectDiagnostics && this.client.capabilities.has(ClientCapability.Semantic);
+	}
+
+	private areRegionDiagnosticsEnabled() {
+		return this.client.configuration.enableRegionDiagnostics && this.client.apiVersion.gte(API.v560);
 	}
 
 	public cancel(): any {
@@ -722,7 +746,9 @@ export default class BufferSyncSupport extends Disposable {
 
 		// Add all open TS buffers to the geterr request. They might be visible
 		for (const buffer of this.syncedBuffers.values()) {
-			orderedFileSet.set(buffer.resource, undefined);
+			const editors = vscode.window.visibleTextEditors.filter(editor => editor.document.uri.toString() === buffer.resource.toString());
+			const visibleRanges = editors.flatMap(editor => editor.visibleRanges);
+			orderedFileSet.set(buffer.resource, visibleRanges.length ? visibleRanges : undefined);
 		}
 
 		for (const { resource } of orderedFileSet.entries()) {

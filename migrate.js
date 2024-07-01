@@ -61,9 +61,9 @@ function migrateOne(filePath, fileContents) {
 		if (
 			filePath.endsWith('vs/base/common/performance.js')
 			|| filePath.endsWith('vs/platform/environment/node/userDataPath.js')
-			|| filePath.endsWith('vs/base/common/stripComments.js')
 			|| filePath.endsWith('vs/base/node/languagePacks.js')
 			|| filePath.endsWith('vs/base/node/unc.js')
+			|| filePath.endsWith('vs/base/node/nls.js')
 		) {
 			// Create .cjs duplicates of these files
 			const cjsFilePath = filePath.replace(/\.js$/, '.cjs');

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import { timeout } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
 import { mapToString, setToString } from 'vs/base/common/map';
@@ -194,7 +195,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 					// Delete the existing DB. If the path does not exist or fails to
 					// be deleted, we do not try to recover anymore because we assume
 					// that the path is no longer writeable for us.
-					return Promises.unlink(this.path).then(() => {
+					return fs.promises.unlink(this.path).then(() => {
 
 						// Re-open the DB fresh
 						return this.doConnect(this.path).then(recoveryConnection => {
@@ -280,7 +281,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 			// folder is really not writeable for us.
 			//
 			try {
-				await Promises.unlink(path);
+				await fs.promises.unlink(path);
 				try {
 					await Promises.rename(this.toBackupPath(path), path, false /* no retry */);
 				} catch (error) {

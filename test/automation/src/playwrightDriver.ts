@@ -231,7 +231,7 @@ export class PlaywrightDriver {
 		return this.page.evaluate(([driver]) => driver.getLogs(), [await this.getDriverHandle()] as const);
 	}
 
-	private async evaluateWithDriver<T>(pageFunction: PageFunction<playwright.JSHandle<IWindowDriver>[], T>) {
+	private async evaluateWithDriver<T>(pageFunction: PageFunction<IWindowDriver[], T>) {
 		return this.page.evaluate(pageFunction, [await this.getDriverHandle()]);
 	}
 

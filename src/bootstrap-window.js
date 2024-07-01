@@ -7,6 +7,10 @@
 
 //@ts-check
 'use strict';
+/**
+ * @import { ISandboxConfiguration } from './vs/base/parts/sandbox/common/sandboxTypes'
+ */
+
 /* eslint-disable no-restricted-globals */
 
 
@@ -37,8 +41,6 @@ const isESM = false;
 	const safeProcess = preloadGlobals.process;
 
 	/**
-	 * @typedef {import('./vs/base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration} ISandboxConfiguration
-	 *
 	 * @param {string[]} modulePaths
 	 * @param {(result: unknown, configuration: ISandboxConfiguration) => Promise<unknown> | undefined} resultCallback
 	 * @param {{
@@ -88,18 +90,17 @@ const isESM = false;
 			developerDeveloperKeybindingsDisposable = registerDeveloperKeybindings(disallowReloadKeybinding);
 		}
 
-		// Get the nls configuration into the process.env as early as possible
-		// @ts-ignore
-		const nlsConfig = globalThis.MonacoBootstrap.setupNLS();
-
-		let locale = nlsConfig.availableLanguages['*'] || 'en';
-		if (locale === 'zh-tw') {
-			locale = 'zh-Hant';
-		} else if (locale === 'zh-cn') {
-			locale = 'zh-Hans';
+		// VSCODE_GLOBALS: NLS
+		globalThis._VSCODE_NLS_MESSAGES = configuration.nls.messages;
+		globalThis._VSCODE_NLS_LANGUAGE = configuration.nls.language;
+		let language = configuration.nls.language || 'en';
+		if (language === 'zh-tw') {
+			language = 'zh-Hant';
+		} else if (language === 'zh-cn') {
+			language = 'zh-Hans';
 		}
 
-		window.document.documentElement.setAttribute('lang', locale);
+		window.document.documentElement.setAttribute('lang', language);
 
 		window['MonacoEnvironment'] = {};
 
@@ -189,6 +190,7 @@ const isESM = false;
 				'vscode-oniguruma': `${baseNodeModulesPath}/vscode-oniguruma/release/main.js`,
 				'vsda': `${baseNodeModulesPath}/vsda/index.js`,
 				'@xterm/xterm': `${baseNodeModulesPath}/@xterm/xterm/lib/xterm.js`,
+				'@xterm/addon-clipboard': `${baseNodeModulesPath}/@xterm/addon-clipboard/lib/addon-clipboard.js`,
 				'@xterm/xterm-addon-image': `${baseNodeModulesPath}/@xterm/xterm-addon-image/lib/xterm-addon-image.js`,
 				'@xterm/xterm-addon-search': `${baseNodeModulesPath}/@xterm/xterm-addon-search/lib/xterm-addon-search.js`,
 				'@xterm/xterm-addon-serialize': `${baseNodeModulesPath}/@xterm/xterm-addon-serialize/lib/xterm-addon-serialize.js`,
@@ -209,12 +211,6 @@ const isESM = false;
 			// Configure loader
 			require.config(loaderConfig);
 
-			// Handle pseudo NLS
-			if (nlsConfig.pseudo) {
-				require(['vs/nls'], function (nlsPlugin) {
-					nlsPlugin.setPseudoTranslation(nlsConfig.pseudo);
-				});
-			}
 
 			// Signal before require()
 			if (typeof options?.beforeRequire === 'function') {

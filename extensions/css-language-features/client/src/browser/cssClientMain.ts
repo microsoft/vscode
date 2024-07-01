@@ -8,13 +8,6 @@ import { BaseLanguageClient, LanguageClientOptions } from 'vscode-languageclient
 import { startClient, LanguageClientConstructor } from '../cssClient';
 import { LanguageClient } from 'vscode-languageclient/browser';
 
-declare const Worker: {
-	new(stringUrl: string): any;
-};
-declare const TextDecoder: {
-	new(encoding?: string): { decode(buffer: ArrayBuffer): string };
-};
-
 let client: BaseLanguageClient | undefined;
 
 // this method is called when vs code is activated
@@ -25,7 +18,7 @@ export async function activate(context: ExtensionContext) {
 		worker.postMessage({ i10lLocation: l10n.uri?.toString(false) ?? '' });
 
 		const newLanguageClient: LanguageClientConstructor = (id: string, name: string, clientOptions: LanguageClientOptions) => {
-			return new LanguageClient(id, name, clientOptions, worker);
+			return new LanguageClient(id, name, worker, clientOptions);
 		};
 
 		client = await startClient(context, newLanguageClient, { TextDecoder });

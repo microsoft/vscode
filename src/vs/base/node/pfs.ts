@@ -134,7 +134,7 @@ async function safeReaddirWithFileTypes(path: string): Promise<IDirent[]> {
 		let isSymbolicLink = false;
 
 		try {
-			const lstat = await Promises.lstat(join(path, child));
+			const lstat = await fs.promises.lstat(join(path, child));
 
 			isFile = lstat.isFile();
 			isDirectory = lstat.isDirectory();
@@ -259,7 +259,7 @@ export namespace SymlinkSupport {
 		// First stat the link
 		let lstats: fs.Stats | undefined;
 		try {
-			lstats = await Promises.lstat(path);
+			lstats = await fs.promises.lstat(path);
 
 			// Return early if the stat is not a symbolic link at all
 			if (!lstats.isSymbolicLink()) {
@@ -272,7 +272,7 @@ export namespace SymlinkSupport {
 		// If the stat is a symbolic link or failed to stat, use fs.stat()
 		// which for symbolic links will stat the target they point to
 		try {
-			const stats = await Promises.stat(path);
+			const stats = await fs.promises.stat(path);
 
 			return { stat: stats, symbolicLink: lstats?.isSymbolicLink() ? { dangling: false } : undefined };
 		} catch (error) {
@@ -287,7 +287,7 @@ export namespace SymlinkSupport {
 			// are not supported (https://github.com/nodejs/node/issues/36790)
 			if (isWindows && error.code === 'EACCES') {
 				try {
-					const stats = await Promises.stat(await Promises.readlink(path));
+					const stats = await fs.promises.stat(await fs.promises.readlink(path));
 
 					return { stat: stats, symbolicLink: { dangling: false } };
 				} catch (error) {
@@ -620,7 +620,7 @@ async function doCopy(source: string, target: string, payload: ICopyPayload): Pr
 async function doCopyDirectory(source: string, target: string, mode: number, payload: ICopyPayload): Promise<void> {
 
 	// Create folder
-	await Promises.mkdir(target, { recursive: true, mode });
+	await fs.promises.mkdir(target, { recursive: true, mode });
 
 	// Copy each file recursively
 	const files = await readdir(source);
@@ -632,16 +632,16 @@ async function doCopyDirectory(source: string, target: string, mode: number, pay
 async function doCopyFile(source: string, target: string, mode: number): Promise<void> {
 
 	// Copy file
-	await Promises.copyFile(source, target);
+	await fs.promises.copyFile(source, target);
 
 	// restore mode (https://github.com/nodejs/node/issues/1104)
-	await Promises.chmod(target, mode);
+	await fs.promises.chmod(target, mode);
 }
 
 async function doCopySymlink(source: string, target: string, payload: ICopyPayload): Promise<void> {
 
 	// Figure out link target
-	let linkTarget = await Promises.readlink(source);
+	let linkTarget = await fs.promises.readlink(source);
 
 	// Special case: the symlink points to a target that is
 	// actually within the path that is being copied. In that
@@ -652,7 +652,7 @@ async function doCopySymlink(source: string, target: string, payload: ICopyPaylo
 	}
 
 	// Create symlink
-	await Promises.symlink(linkTarget, target);
+	await fs.promises.symlink(linkTarget, target);
 }
 
 //#endregion
@@ -660,27 +660,18 @@ async function doCopySymlink(source: string, target: string, payload: ICopyPaylo
 //#region Promise based fs methods
 
 /**
- * Provides promise based 'fs' methods by wrapping around the
- * original callback based methods.
+ * Some low level `fs` methods provided as `Promises` similar to
+ * `fs.promises` but with notable differences, either implemented
+ * by us or by restoring the original callback based behavior.
  *
  * At least `realpath` is implemented differently in the promise
  * based implementation compared to the callback based one. The
  * promise based implementation actually calls `fs.realpath.native`.
  * (https://github.com/microsoft/vscode/issues/118562)
- *
- * TODO@bpasero we should move away from this towards `fs.promises`
- * eventually and only keep those methods around where we explicitly
- * want the callback based behaviour.
  */
 export const Promises = new class {
 
 	//#region Implemented by node.js
-
-	get access() { return fs.promises.access; }
-
-	get stat() { return fs.promises.stat; }
-	get lstat() { return fs.promises.lstat; }
-	get utimes() { return fs.promises.utimes; }
 
 	get read() {
 
@@ -700,7 +691,6 @@ export const Promises = new class {
 			});
 		};
 	}
-	get readFile() { return fs.promises.readFile; }
 
 	get write() {
 
@@ -721,25 +711,10 @@ export const Promises = new class {
 		};
 	}
 
-	get appendFile() { return fs.promises.appendFile; }
-
 	get fdatasync() { return promisify(fs.fdatasync); } // not exposed as API in 20.x yet
-	get truncate() { return fs.promises.truncate; }
-
-	get copyFile() { return fs.promises.copyFile; }
 
 	get open() { return promisify(fs.open); } 			// changed to return `FileHandle` in promise API
 	get close() { return promisify(fs.close); } 		// not exposed as API due to the `FileHandle` return type of `open`
-
-	get symlink() { return fs.promises.symlink; }
-	get readlink() { return fs.promises.readlink; }
-
-	get chmod() { return fs.promises.chmod; }
-
-	get mkdir() { return fs.promises.mkdir; }
-
-	get unlink() { return fs.promises.unlink; }
-	get rmdir() { return fs.promises.rmdir; }
 
 	get realpath() { return promisify(fs.realpath); }	// `fs.promises.realpath` will use `fs.realpath.native` which we do not want
 
@@ -749,7 +724,7 @@ export const Promises = new class {
 
 	async exists(path: string): Promise<boolean> {
 		try {
-			await Promises.access(path);
+			await fs.promises.access(path);
 
 			return true;
 		} catch {

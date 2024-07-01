@@ -9,7 +9,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { observableValue } from 'vs/base/common/observable';
 import { IDisposable, DisposableStore, combinedDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, IInputValidation, ISCMViewService, InputValidationType, ISCMActionButtonDescriptor } from 'vs/workbench/contrib/scm/common/scm';
-import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceSplices, SCMGroupFeatures, MainContext, SCMHistoryItemGroupDto } from '../common/extHost.protocol';
+import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceSplices, SCMGroupFeatures, MainContext, SCMHistoryItemGroupDto, SCMHistoryItemDto } from '../common/extHost.protocol';
 import { Command } from 'vs/editor/common/languages';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -39,6 +39,13 @@ function getIconFromIconDto(iconDto?: UriComponents | { light: UriComponents; da
 		const icon = iconDto as { light: UriComponents; dark: UriComponents };
 		return { light: URI.revive(icon.light), dark: URI.revive(icon.dark) };
 	}
+}
+
+function toISCMHistoryItem(historyItemDto: SCMHistoryItemDto): ISCMHistoryItem {
+	const icon = getIconFromIconDto(historyItemDto.icon);
+	const labels = historyItemDto.labels?.map(l => ({ title: l.title, icon: getIconFromIconDto(l.icon) }));
+
+	return { ...historyItemDto, icon, labels };
 }
 
 class SCMInputBoxContentProvider extends Disposable implements ITextModelContentProvider {
@@ -164,6 +171,9 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 		this._onDidChangeCurrentHistoryItemGroup.fire();
 	}
 
+	private readonly _currentHistoryItemGroupObs = observableValue<ISCMHistoryItemGroup | undefined>(this, undefined);
+	get currentHistoryItemGroupObs() { return this._currentHistoryItemGroupObs; }
+
 	constructor(private readonly proxy: ExtHostSCMShape, private readonly handle: number) { }
 
 	async resolveHistoryItemGroupCommonAncestor(historyItemGroupId1: string, historyItemGroupId2: string | undefined): Promise<{ id: string; ahead: number; behind: number } | undefined> {
@@ -172,12 +182,17 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 
 	async provideHistoryItems(historyItemGroupId: string, options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined> {
 		const historyItems = await this.proxy.$provideHistoryItems(this.handle, historyItemGroupId, options, CancellationToken.None);
-		return historyItems?.map(historyItem => ({ ...historyItem, icon: getIconFromIconDto(historyItem.icon) }));
+		return historyItems?.map(historyItem => toISCMHistoryItem(historyItem));
+	}
+
+	async provideHistoryItems2(options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined> {
+		const historyItems = await this.proxy.$provideHistoryItems2(this.handle, options, CancellationToken.None);
+		return historyItems?.map(historyItem => toISCMHistoryItem(historyItem));
 	}
 
 	async provideHistoryItemSummary(historyItemId: string, historyItemParentId: string | undefined): Promise<ISCMHistoryItem | undefined> {
 		const historyItem = await this.proxy.$provideHistoryItemSummary(this.handle, historyItemId, historyItemParentId, CancellationToken.None);
-		return historyItem ? { ...historyItem, icon: getIconFromIconDto(historyItem.icon) } : undefined;
+		return historyItem ? toISCMHistoryItem(historyItem) : undefined;
 	}
 
 	async provideHistoryItemChanges(historyItemId: string, historyItemParentId: string | undefined): Promise<ISCMHistoryItemChange[] | undefined> {
@@ -190,6 +205,9 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 		}));
 	}
 
+	$onDidChangeCurrentHistoryItemGroup(historyItemGroup: ISCMHistoryItemGroup | undefined): void {
+		this._currentHistoryItemGroupObs.set(historyItemGroup, undefined);
+	}
 }
 
 class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
@@ -229,23 +247,18 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 	get historyProvider(): ISCMHistoryProvider | undefined { return this._historyProvider; }
 	get acceptInputCommand(): Command | undefined { return this.features.acceptInputCommand; }
 	get actionButton(): ISCMActionButtonDescriptor | undefined { return this.features.actionButton ?? undefined; }
-	get statusBarCommands(): Command[] | undefined { return this.features.statusBarCommands; }
-	get count(): number | undefined { return this.features.count; }
 
-	private readonly _countObs = observableValue<number | undefined>(this, undefined);
-	get countObs() { return this._countObs; }
+	private readonly _count = observableValue<number | undefined>(this, undefined);
+	get count() { return this._count; }
 
-	private readonly _statusBarCommandsObs = observableValue<readonly Command[] | undefined>(this, undefined);
-	get statusBarCommandsObs() { return this._statusBarCommandsObs; }
+	private readonly _statusBarCommands = observableValue<readonly Command[] | undefined>(this, undefined);
+	get statusBarCommands() { return this._statusBarCommands; }
 
 	private readonly _name: string | undefined;
 	get name(): string { return this._name ?? this._label; }
 
 	private readonly _commitTemplate = observableValue<string>(this, '');
 	get commitTemplate() { return this._commitTemplate; }
-
-	private readonly _onDidChangeStatusBarCommands = new Emitter<readonly Command[]>();
-	get onDidChangeStatusBarCommands(): Event<readonly Command[]> { return this._onDidChangeStatusBarCommands.event; }
 
 	private readonly _onDidChangeHistoryProvider = new Emitter<void>();
 	readonly onDidChangeHistoryProvider: Event<void> = this._onDidChangeHistoryProvider.event;
@@ -257,6 +270,8 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 	public readonly isSCM: boolean = true;
 
 	private _historyProvider: ISCMHistoryProvider | undefined;
+	private readonly _historyProviderObs = observableValue<MainThreadSCMHistoryProvider | undefined>(this, undefined);
+	get historyProviderObs() { return this._historyProviderObs; }
 
 	constructor(
 		private readonly proxy: ExtHostSCMShape,
@@ -288,12 +303,11 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 		}
 
 		if (typeof features.count !== 'undefined') {
-			this._countObs.set(features.count, undefined);
+			this._count.set(features.count, undefined);
 		}
 
 		if (typeof features.statusBarCommands !== 'undefined') {
-			this._statusBarCommandsObs.set(features.statusBarCommands, undefined);
-			this._onDidChangeStatusBarCommands.fire(this.statusBarCommands!);
+			this._statusBarCommands.set(features.statusBarCommands, undefined);
 		}
 
 		if (features.hasQuickDiffProvider && !this._quickDiff) {
@@ -309,9 +323,14 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 		}
 
 		if (features.hasHistoryProvider && !this._historyProvider) {
-			this._historyProvider = new MainThreadSCMHistoryProvider(this.proxy, this.handle);
+			const historyProvider = new MainThreadSCMHistoryProvider(this.proxy, this.handle);
+			this._historyProviderObs.set(historyProvider, undefined);
+
+			this._historyProvider = historyProvider;
 			this._onDidChangeHistoryProvider.fire();
 		} else if (features.hasHistoryProvider === false && this._historyProvider) {
+			this._historyProviderObs.set(undefined, undefined);
+
 			this._historyProvider = undefined;
 			this._onDidChangeHistoryProvider.fire();
 		}
@@ -435,6 +454,7 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 		}
 
 		this._historyProvider.currentHistoryItemGroup = currentHistoryItemGroup ?? undefined;
+		this._historyProviderObs.get()?.$onDidChangeCurrentHistoryItemGroup(currentHistoryItemGroup);
 	}
 
 	toJSON(): any {

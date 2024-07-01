@@ -43,7 +43,7 @@ export async function buildUserEnvironment(startParamsEnv: { [key: string]: stri
 		...{
 			VSCODE_AMD_ENTRYPOINT: 'vs/workbench/api/node/extensionHostProcess',
 			VSCODE_HANDLES_UNCAUGHT_ERRORS: 'true',
-			VSCODE_NLS_CONFIG: JSON.stringify(nlsConfig, undefined, 0)
+			VSCODE_NLS_CONFIG: JSON.stringify(nlsConfig)
 		},
 		...startParamsEnv
 	};

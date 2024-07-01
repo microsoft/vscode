@@ -337,16 +337,16 @@ export class TerminalService extends Disposable implements ITerminalService {
 	}
 
 	private _forwardInstanceHostEvents(host: ITerminalInstanceHost) {
-		host.onDidChangeInstances(this._onDidChangeInstances.fire, this._onDidChangeInstances);
-		host.onDidDisposeInstance(this._onDidDisposeInstance.fire, this._onDidDisposeInstance);
-		host.onDidChangeActiveInstance(instance => this._evaluateActiveInstance(host, instance));
-		host.onDidFocusInstance(instance => {
+		this._register(host.onDidChangeInstances(this._onDidChangeInstances.fire, this._onDidChangeInstances));
+		this._register(host.onDidDisposeInstance(this._onDidDisposeInstance.fire, this._onDidDisposeInstance));
+		this._register(host.onDidChangeActiveInstance(instance => this._evaluateActiveInstance(host, instance)));
+		this._register(host.onDidFocusInstance(instance => {
 			this._onDidFocusInstance.fire(instance);
 			this._evaluateActiveInstance(host, instance);
-		});
-		host.onDidChangeInstanceCapability((instance) => {
+		}));
+		this._register(host.onDidChangeInstanceCapability((instance) => {
 			this._onDidChangeInstanceCapability.fire(instance);
-		});
+		}));
 		this._hostActiveTerminals.set(host, undefined);
 	}
 

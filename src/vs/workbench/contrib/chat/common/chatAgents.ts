@@ -27,7 +27,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { CONTEXT_CHAT_ENABLED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatProgressResponseContent, IChatRequestVariableData, ISerializableChatAgentData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IRawChatCommandContribution, RawChatParticipantLocation } from 'vs/workbench/contrib/chat/common/chatParticipantContribTypes';
-import { IChatFollowup, IChatProgress, IChatResponseErrorDetails, IChatTaskDto } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatFollowup, IChatLocationData, IChatProgress, IChatResponseErrorDetails, IChatTaskDto } from 'vs/workbench/contrib/chat/common/chatService';
 
 //#region agent service, commands etc
 
@@ -126,6 +126,7 @@ export interface IChatAgentRequest {
 	enableCommandDetection?: boolean;
 	variables: IChatRequestVariableData;
 	location: ChatAgentLocation;
+	locationData?: IChatLocationData;
 	acceptedConfirmationData?: any[];
 	rejectedConfirmationData?: any[];
 }
@@ -174,6 +175,7 @@ export interface IChatAgentService {
 	getAgents(): IChatAgentData[];
 	getActivatedAgents(): Array<IChatAgent>;
 	getAgentsByName(name: string): IChatAgentData[];
+	agentHasDupeName(id: string): boolean;
 
 	/**
 	 * Get the default agent (only if activated)
@@ -343,6 +345,16 @@ export class ChatAgentService implements IChatAgentService {
 
 	getAgentsByName(name: string): IChatAgentData[] {
 		return this.getAgents().filter(a => a.name === name);
+	}
+
+	agentHasDupeName(id: string): boolean {
+		const agent = this.getAgent(id);
+		if (!agent) {
+			return false;
+		}
+
+		return this.getAgentsByName(agent.name)
+			.filter(a => a.extensionId.value !== agent.extensionId.value).length > 0;
 	}
 
 	async invokeAgent(id: string, request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult> {

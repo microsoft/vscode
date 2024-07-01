@@ -48,7 +48,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { defaultButtonStyles, defaultProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
+import type { IManagedHover } from 'vs/base/browser/ui/hover/hover';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
 import { PANEL_BACKGROUND, PANEL_STICKY_SCROLL_BACKGROUND, PANEL_STICKY_SCROLL_BORDER, PANEL_STICKY_SCROLL_SHADOW, SIDE_BAR_BACKGROUND, SIDE_BAR_STICKY_SCROLL_BACKGROUND, SIDE_BAR_STICKY_SCROLL_BORDER, SIDE_BAR_STICKY_SCROLL_SHADOW } from 'vs/workbench/common/theme';
@@ -354,11 +354,11 @@ export abstract class ViewPane extends Pane implements IView {
 	private readonly showActions: ViewPaneShowActions;
 	private headerContainer?: HTMLElement;
 	private titleContainer?: HTMLElement;
-	private titleContainerHover?: IUpdatableHover;
+	private titleContainerHover?: IManagedHover;
 	private titleDescriptionContainer?: HTMLElement;
-	private titleDescriptionContainerHover?: IUpdatableHover;
+	private titleDescriptionContainerHover?: IManagedHover;
 	private iconContainer?: HTMLElement;
-	private iconContainerHover?: IUpdatableHover;
+	private iconContainerHover?: IManagedHover;
 	protected twistiesContainer?: HTMLElement;
 	private viewWelcomeController!: ViewWelcomeController;
 
@@ -391,7 +391,8 @@ export abstract class ViewPane extends Pane implements IView {
 		const viewLocationKey = this.scopedContextKeyService.createKey('viewLocation', ViewContainerLocationToString(viewDescriptorService.getViewLocationById(this.id)!));
 		this._register(Event.filter(viewDescriptorService.onDidChangeLocation, e => e.views.some(view => view.id === this.id))(() => viewLocationKey.set(ViewContainerLocationToString(viewDescriptorService.getViewLocationById(this.id)!))));
 
-		this.menuActions = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])).createInstance(CompositeMenuActions, options.titleMenuId ?? MenuId.ViewTitle, MenuId.ViewTitleContext, { shouldForwardArgs: !options.donotForwardArgs, renderShortTitle: true }));
+		const childInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
+		this.menuActions = this._register(childInstantiationService.createInstance(CompositeMenuActions, options.titleMenuId ?? MenuId.ViewTitle, MenuId.ViewTitleContext, { shouldForwardArgs: !options.donotForwardArgs, renderShortTitle: true }));
 		this._register(this.menuActions.onDidChange(() => this.updateActions()));
 	}
 
@@ -540,13 +541,13 @@ export abstract class ViewPane extends Pane implements IView {
 
 		const calculatedTitle = this.calculateTitle(title);
 		this.titleContainer = append(container, $('h3.title', {}, calculatedTitle));
-		this.titleContainerHover = this._register(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), this.titleContainer, calculatedTitle));
+		this.titleContainerHover = this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this.titleContainer, calculatedTitle));
 
 		if (this._titleDescription) {
 			this.setTitleDescription(this._titleDescription);
 		}
 
-		this.iconContainerHover = this._register(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), this.iconContainer, calculatedTitle));
+		this.iconContainerHover = this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this.iconContainer, calculatedTitle));
 		this.iconContainer.setAttribute('aria-label', this._getAriaLabel(calculatedTitle));
 	}
 
@@ -583,7 +584,7 @@ export abstract class ViewPane extends Pane implements IView {
 		}
 		else if (description && this.titleContainer) {
 			this.titleDescriptionContainer = after(this.titleContainer, $('span.description', {}, description));
-			this.titleDescriptionContainerHover = this._register(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), this.titleDescriptionContainer, description));
+			this.titleDescriptionContainerHover = this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this.titleDescriptionContainer, description));
 		}
 	}
 
@@ -747,7 +748,8 @@ export abstract class FilterViewPane extends ViewPane {
 		accessibleViewService?: IAccessibleViewInformationService
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService, accessibleViewService);
-		this.filterWidget = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])).createInstance(FilterWidget, options.filterOptions));
+		const childInstantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
+		this.filterWidget = this._register(childInstantiationService.createInstance(FilterWidget, options.filterOptions));
 	}
 
 	override getFilterWidget(): FilterWidget {

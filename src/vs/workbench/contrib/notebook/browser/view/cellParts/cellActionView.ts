@@ -17,7 +17,7 @@ import { MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/ac
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
+import type { IManagedHover } from 'vs/base/browser/ui/hover/hover';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 export class CodiconActionViewItem extends MenuEntryActionViewItem {
@@ -49,7 +49,7 @@ export class ActionViewWithLabel extends MenuEntryActionViewItem {
 }
 export class UnifiedSubmenuActionView extends SubmenuEntryActionViewItem {
 	private _actionLabel?: HTMLAnchorElement;
-	private _hover?: IUpdatableHover;
+	private _hover?: IManagedHover;
 	private _primaryAction: IAction | undefined;
 
 	constructor(
@@ -73,7 +73,7 @@ export class UnifiedSubmenuActionView extends SubmenuEntryActionViewItem {
 		this._actionLabel = document.createElement('a');
 		container.appendChild(this._actionLabel);
 
-		this._hover = this._register(this._hoverService.setupUpdatableHover(this.options.hoverDelegate ?? getDefaultHoverDelegate('element'), this._actionLabel, ''));
+		this._hover = this._register(this._hoverService.setupManagedHover(this.options.hoverDelegate ?? getDefaultHoverDelegate('element'), this._actionLabel, ''));
 
 		this.updateLabel();
 

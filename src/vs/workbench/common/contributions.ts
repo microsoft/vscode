@@ -250,7 +250,8 @@ export class WorkbenchContributionsRegistry extends Disposable implements IWorkb
 		const environmentService = this.environmentService = accessor.get(IEnvironmentService);
 		const editorPaneService = this.editorPaneService = accessor.get(IEditorPaneService);
 
-		this._register(lifecycleService.onWillShutdown(() => {
+		// Dispose contributions on shutdown
+		this._register(lifecycleService.onDidShutdown(() => {
 			this.instanceDisposables.clear();
 		}));
 

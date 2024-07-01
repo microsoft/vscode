@@ -643,7 +643,7 @@ registerAction2(class TestCoverageChangePerTestFilterAction extends Action2 {
 			return;
 		}
 
-		const tests = [...coverage.perTestCoverageIDs].map(TestId.fromString);
+		const tests = [...coverage.allPerTestIDs()].map(TestId.fromString);
 		const commonPrefix = TestId.getLengthOfCommonPrefix(tests.length, i => tests[i]);
 		const result = coverage.result;
 		const previousSelection = coverageService.filterToTest.get();

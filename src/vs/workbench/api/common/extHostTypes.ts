@@ -4119,7 +4119,7 @@ export class FileCoverage implements vscode.FileCoverage {
 		public statementCoverage: vscode.TestCoverageCount,
 		public branchCoverage?: vscode.TestCoverageCount,
 		public declarationCoverage?: vscode.TestCoverageCount,
-		public testItem?: vscode.TestItem,
+		public fromTests: vscode.TestItem[] = [],
 	) {
 	}
 }
@@ -4449,16 +4449,45 @@ export enum ChatLocation {
 	Editor = 4,
 }
 
+export class ChatRequestEditorData implements vscode.ChatRequestEditorData {
+	constructor(
+		readonly document: vscode.TextDocument,
+		readonly selection: vscode.Selection,
+		readonly wholeRange: vscode.Range,
+	) { }
+}
+
+export class ChatRequestNotebookData implements vscode.ChatRequestNotebookData {
+	constructor(
+		readonly cell: vscode.TextDocument
+	) { }
+}
+
 export enum LanguageModelChatMessageRole {
 	User = 1,
 	Assistant = 2,
 	System = 3
 }
 
+export class LanguageModelFunctionResultPart implements vscode.LanguageModelChatMessageFunctionResultPart {
+
+	name: string;
+	content: string;
+	isError: boolean;
+
+	constructor(name: string, content: string, isError?: boolean) {
+		this.name = name;
+		this.content = content;
+		this.isError = isError ?? false;
+	}
+}
+
 export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage {
 
-	static User(content: string, name?: string): LanguageModelChatMessage {
-		return new LanguageModelChatMessage(LanguageModelChatMessageRole.User, content, name);
+	static User(content: string | LanguageModelFunctionResultPart, name?: string): LanguageModelChatMessage {
+		const value = new LanguageModelChatMessage(LanguageModelChatMessageRole.User, typeof content === 'string' ? content : '', name);
+		value.content2 = content;
+		return value;
 	}
 
 	static Assistant(content: string, name?: string): LanguageModelChatMessage {
@@ -4467,12 +4496,33 @@ export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage
 
 	role: vscode.LanguageModelChatMessageRole;
 	content: string;
+	content2: string | vscode.LanguageModelChatMessageFunctionResultPart;
 	name: string | undefined;
 
 	constructor(role: vscode.LanguageModelChatMessageRole, content: string, name?: string) {
 		this.role = role;
 		this.content = content;
+		this.content2 = content;
 		this.name = name;
+	}
+}
+
+export class LanguageModelFunctionUsePart implements vscode.LanguageModelChatResponseFunctionUsePart {
+	name: string;
+	parameters: any;
+
+	constructor(name: string, parameters: any) {
+		this.name = name;
+		this.parameters = parameters;
+	}
+}
+
+export class LanguageModelTextPart implements vscode.LanguageModelChatResponseTextPart {
+	value: string;
+
+	constructor(value: string) {
+		this.value = value;
+
 	}
 }
 
