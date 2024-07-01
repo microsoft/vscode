@@ -431,7 +431,7 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 								? 'default'
 								: 'custom';
 					this.telemetryService.publicLog2<UpdatedSettingEvent, {
-						owner: 'bpasero';
+						owner: 'sandy081';
 						comment: 'This is used to know the new window profile that is being used';
 						settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'if the profile is default or not' };
 						source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
