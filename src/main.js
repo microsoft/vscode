@@ -215,6 +215,7 @@ function configureCommandlineSwitchesSync(cliArgs) {
 	];
 
 	if (process.platform === 'linux') {
+
 		// Force enable screen readers on Linux via this flag
 		SUPPORTED_ELECTRON_SWITCHES.push('force-renderer-accessibility');
 
