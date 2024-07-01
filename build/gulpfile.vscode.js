@@ -112,6 +112,7 @@ const optimizeVSCodeTask = task.define('optimize-vscode', task.series(
 				external: [
 					'electron',
 					'minimist',
+					'original-fs',
 					// TODO: we cannot inline `product.json` because
 					// it is being changed during build time at a later
 					// point in time (such as `checksums`)
