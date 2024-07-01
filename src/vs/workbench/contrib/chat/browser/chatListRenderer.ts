@@ -274,7 +274,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const elementDisposables = new DisposableStore();
 
 		const contextKeyService = templateDisposables.add(this.contextKeyService.createScoped(rowContainer));
-		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService]));
+		const scopedInstantiationService = templateDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
 		let titleToolbar: MenuWorkbenchToolBar | undefined;
 		if (this.rendererOptions.noHeader) {
 			header.classList.add('hidden');
@@ -522,7 +522,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		element.content.forEach((item, i) => {
 			if (Array.isArray(item)) {
-				const scopedInstaService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, templateData.contextKeyService]));
+				const scopedInstaService = templateData.elementDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, templateData.contextKeyService])));
 				templateData.elementDisposables.add(
 					scopedInstaService.createInstance<typeof ChatFollowups<IChatFollowup>, ChatFollowups<IChatFollowup>>(
 						ChatFollowups,
