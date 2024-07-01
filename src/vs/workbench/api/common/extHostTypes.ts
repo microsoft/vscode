@@ -4449,7 +4449,7 @@ export enum ChatLocation {
 	Editor = 4,
 }
 
-export class ChatRequestEditorData {
+export class ChatRequestEditorData implements vscode.ChatRequestEditorData {
 	constructor(
 		readonly document: vscode.TextDocument,
 		readonly selection: vscode.Selection,
@@ -4457,9 +4457,9 @@ export class ChatRequestEditorData {
 	) { }
 }
 
-export class ChatRequestNotebookData {
+export class ChatRequestNotebookData implements vscode.ChatRequestNotebookData {
 	constructor(
-		readonly notebook: vscode.NotebookDocument
+		readonly cell: vscode.TextDocument
 	) { }
 }
 
