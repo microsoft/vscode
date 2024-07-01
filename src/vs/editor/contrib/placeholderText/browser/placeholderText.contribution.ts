@@ -9,8 +9,8 @@ import { ghostTextForeground } from 'vs/editor/common/core/editorColorRegistry';
 import { localize } from 'vs/nls';
 import { registerColor } from 'vs/platform/theme/common/colorUtils';
 import { PlaceholderTextContribution } from './placeholderTextContribution';
-import { wrapInReloadableClass } from 'vs/platform/observable/common/wrapInReloadableClass';
+import { wrapInReloadableClass1 } from 'vs/platform/observable/common/wrapInReloadableClass';
 
-registerEditorContribution(PlaceholderTextContribution.ID, wrapInReloadableClass(() => PlaceholderTextContribution), EditorContributionInstantiation.Eager);
+registerEditorContribution(PlaceholderTextContribution.ID, wrapInReloadableClass1(() => PlaceholderTextContribution), EditorContributionInstantiation.Eager);
 
 registerColor('editor.placeholder.foreground', ghostTextForeground, localize('placeholderForeground', 'Foreground color of the placeholder text in the editor.'));
