@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { watch } from 'fs';
-import { stat } from 'fs/promises';
+import { watch, promises } from 'fs';
 import { RunOnceWorker, ThrottledWorker } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isEqualOrParent } from 'vs/base/common/extpath';
@@ -83,13 +82,13 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 				return;
 			}
 
-			const stats = await stat(realPath);
+			const stat = await promises.stat(realPath);
 
 			if (this.cts.token.isCancellationRequested) {
 				return;
 			}
 
-			this._register(await this.doWatch(realPath, stats.isDirectory()));
+			this._register(await this.doWatch(realPath, stat.isDirectory()));
 		} catch (error) {
 			if (error.code !== 'ENOENT') {
 				this.error(error);

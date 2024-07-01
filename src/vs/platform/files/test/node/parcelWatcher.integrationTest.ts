@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { realpathSync } from 'fs';
-import { copyFile, mkdir, readFile, rmdir, stat, symlink, unlink } from 'fs/promises';
+import { realpathSync, promises } from 'fs';
 import { tmpdir } from 'os';
 import { timeout } from 'vs/base/common/async';
 import { dirname, join } from 'vs/base/common/path';
@@ -221,7 +220,7 @@ export class TestParcelWatcher extends ParcelWatcher {
 		assert.strictEqual(instance.include(newFolderPath), true);
 		assert.strictEqual(instance.exclude(newFolderPath), false);
 		changeFuture = awaitEvent(watcher, newFolderPath, FileChangeType.ADDED);
-		await mkdir(newFolderPath);
+		await promises.mkdir(newFolderPath);
 		await changeFuture;
 		assert.strictEqual(subscriptions1.get(newFolderPath), FileChangeType.ADDED);
 		assert.strictEqual(subscriptions2.has(newFolderPath), false /* subscription was disposed before the event */);
@@ -291,7 +290,7 @@ export class TestParcelWatcher extends ParcelWatcher {
 		// Copy file
 		const copiedFilepath = join(testDir, 'deep', 'copiedFile.txt');
 		changeFuture = awaitEvent(watcher, copiedFilepath, FileChangeType.ADDED);
-		await copyFile(movedFilepath, copiedFilepath);
+		await promises.copyFile(movedFilepath, copiedFilepath);
 		await changeFuture;
 
 		// Copy folder
@@ -313,30 +312,30 @@ export class TestParcelWatcher extends ParcelWatcher {
 
 		// Read file does not emit event
 		changeFuture = awaitEvent(watcher, anotherNewFilePath, FileChangeType.UPDATED, 'unexpected-event-from-read-file');
-		await readFile(anotherNewFilePath);
+		await promises.readFile(anotherNewFilePath);
 		await Promise.race([timeout(100), changeFuture]);
 
 		// Stat file does not emit event
 		changeFuture = awaitEvent(watcher, anotherNewFilePath, FileChangeType.UPDATED, 'unexpected-event-from-stat');
-		await stat(anotherNewFilePath);
+		await promises.stat(anotherNewFilePath);
 		await Promise.race([timeout(100), changeFuture]);
 
 		// Stat folder does not emit event
 		changeFuture = awaitEvent(watcher, copiedFolderpath, FileChangeType.UPDATED, 'unexpected-event-from-stat');
-		await stat(copiedFolderpath);
+		await promises.stat(copiedFolderpath);
 		await Promise.race([timeout(100), changeFuture]);
 
 		// Delete file
 		changeFuture = awaitEvent(watcher, copiedFilepath, FileChangeType.DELETED);
 		disposables.add(instance.subscribe(copiedFilepath, change => subscriptions1.set(change.resource.fsPath, change.type)));
-		await unlink(copiedFilepath);
+		await promises.unlink(copiedFilepath);
 		await changeFuture;
 		assert.strictEqual(subscriptions1.get(copiedFilepath), FileChangeType.DELETED);
 
 		// Delete folder
 		changeFuture = awaitEvent(watcher, copiedFolderpath, FileChangeType.DELETED);
 		disposables.add(instance.subscribe(copiedFolderpath, change => subscriptions1.set(change.resource.fsPath, change.type)));
-		await rmdir(copiedFolderpath);
+		await promises.rmdir(copiedFolderpath);
 		await changeFuture;
 		assert.strictEqual(subscriptions1.get(copiedFolderpath), FileChangeType.DELETED);
 
@@ -349,7 +348,7 @@ export class TestParcelWatcher extends ParcelWatcher {
 		// Delete + Recreate file
 		const newFilePath = join(testDir, 'deep', 'conway.js');
 		const changeFuture = awaitEvent(watcher, newFilePath, FileChangeType.UPDATED);
-		await unlink(newFilePath);
+		await promises.unlink(newFilePath);
 		Promises.writeFile(newFilePath, 'Hello Atomic World');
 		await changeFuture;
 	});
@@ -374,13 +373,13 @@ export class TestParcelWatcher extends ParcelWatcher {
 
 		// Delete file
 		changeFuture = awaitEvent(watcher, filePath, FileChangeType.DELETED, undefined, correlationId, expectedCount);
-		await unlink(filePath);
+		await promises.unlink(filePath);
 		await changeFuture;
 	}
 
 	test('multiple events', async function () {
 		await watcher.watch([{ path: testDir, excludes: [], recursive: true }]);
-		await mkdir(join(testDir, 'deep-multiple'));
+		await promises.mkdir(join(testDir, 'deep-multiple'));
 
 		// multiple add
 
@@ -450,12 +449,12 @@ export class TestParcelWatcher extends ParcelWatcher {
 		const deleteFuture6 = awaitEvent(watcher, newFilePath6, FileChangeType.DELETED);
 
 		await Promise.all([
-			await unlink(newFilePath1),
-			await unlink(newFilePath2),
-			await unlink(newFilePath3),
-			await unlink(newFilePath4),
-			await unlink(newFilePath5),
-			await unlink(newFilePath6)
+			await promises.unlink(newFilePath1),
+			await promises.unlink(newFilePath2),
+			await promises.unlink(newFilePath3),
+			await promises.unlink(newFilePath4),
+			await promises.unlink(newFilePath5),
+			await promises.unlink(newFilePath6)
 		]);
 
 		await Promise.all([deleteFuture1, deleteFuture2, deleteFuture3, deleteFuture4, deleteFuture5, deleteFuture6]);
@@ -564,7 +563,7 @@ export class TestParcelWatcher extends ParcelWatcher {
 	(isWindows /* windows: cannot create file symbolic link without elevated context */ ? test.skip : test)('symlink support (root)', async function () {
 		const link = join(testDir, 'deep-linked');
 		const linkTarget = join(testDir, 'deep');
-		await symlink(linkTarget, link);
+		await promises.symlink(linkTarget, link);
 
 		await watcher.watch([{ path: link, excludes: [], recursive: true }]);
 
@@ -574,7 +573,7 @@ export class TestParcelWatcher extends ParcelWatcher {
 	(isWindows /* windows: cannot create file symbolic link without elevated context */ ? test.skip : test)('symlink support (via extra watch)', async function () {
 		const link = join(testDir, 'deep-linked');
 		const linkTarget = join(testDir, 'deep');
-		await symlink(linkTarget, link);
+		await promises.symlink(linkTarget, link);
 
 		await watcher.watch([{ path: testDir, excludes: [], recursive: true }, { path: link, excludes: [], recursive: true }]);
 
@@ -618,7 +617,7 @@ export class TestParcelWatcher extends ParcelWatcher {
 
 		// Restore watched path
 		await timeout(1500); // node.js watcher used for monitoring folder restore is async
-		await mkdir(watchedPath);
+		await promises.mkdir(watchedPath);
 		await timeout(1500); // restart is delayed
 		await watcher.whenReady();
 
@@ -777,7 +776,7 @@ export class TestParcelWatcher extends ParcelWatcher {
 
 		let changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED, undefined, 1);
 		let onDidWatch = Event.toPromise(watcher.onDidWatch);
-		await mkdir(folderPath);
+		await promises.mkdir(folderPath);
 		await changeFuture;
 		await onDidWatch;
 
@@ -792,7 +791,7 @@ export class TestParcelWatcher extends ParcelWatcher {
 
 		changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED, undefined, 1);
 		onDidWatch = Event.toPromise(watcher.onDidWatch);
-		await mkdir(folderPath);
+		await promises.mkdir(folderPath);
 		await changeFuture;
 		await onDidWatch;
 
@@ -826,7 +825,7 @@ export class TestParcelWatcher extends ParcelWatcher {
 
 		const changeFuture = awaitEvent(watcher, folderPath, FileChangeType.ADDED, undefined, 1);
 		const onDidWatch = Event.toPromise(watcher.onDidWatch);
-		await mkdir(folderPath);
+		await promises.mkdir(folderPath);
 		await changeFuture;
 		await onDidWatch;
 
@@ -865,7 +864,7 @@ export class TestParcelWatcher extends ParcelWatcher {
 
 		// Delete file
 		changeFuture = awaitEvent(watcher, filePath, FileChangeType.DELETED, undefined, 1);
-		await unlink(filePath);
+		await promises.unlink(filePath);
 		await changeFuture;
 	});
 });

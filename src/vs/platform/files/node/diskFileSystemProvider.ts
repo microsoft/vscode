@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Stats } from 'fs';
-import { chmod, copyFile, mkdir, readFile, rmdir, truncate, unlink } from 'fs/promises';
+import { Stats, promises } from 'fs';
 import { Barrier, retry } from 'vs/base/common/async';
 import { ResourceMap } from 'vs/base/common/map';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -204,7 +203,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 			const filePath = this.toFilePath(resource);
 
-			return await readFile(filePath);
+			return await promises.readFile(filePath);
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
 		} finally {
@@ -355,7 +354,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 				try {
 					const { stat } = await SymlinkSupport.stat(filePath);
 					if (!(stat.mode & 0o200 /* File mode indicating writable by owner */)) {
-						await chmod(filePath, stat.mode | 0o200);
+						await promises.chmod(filePath, stat.mode | 0o200);
 					}
 				} catch (error) {
 					if (error.code !== 'ENOENT') {
@@ -374,7 +373,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 						// by first truncating the file and then writing with r+ flag. This helps to save hidden files on Windows
 						// (see https://github.com/microsoft/vscode/issues/931) and prevent removing alternate data streams
 						// (see https://github.com/microsoft/vscode/issues/6363)
-						await truncate(filePath, 0);
+						await promises.truncate(filePath, 0);
 
 						// After a successful truncate() the flag can be set to 'r+' which will not truncate.
 						flags = 'r+';
@@ -596,7 +595,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 
 	async mkdir(resource: URI): Promise<void> {
 		try {
-			await mkdir(this.toFilePath(resource));
+			await promises.mkdir(this.toFilePath(resource));
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
 		}
@@ -614,7 +613,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 				await Promises.rm(filePath, RimRafMode.MOVE, rmMoveToPath);
 			} else {
 				try {
-					await unlink(filePath);
+					await promises.unlink(filePath);
 				} catch (unlinkError) {
 
 					// `fs.unlink` will throw when used on directories
@@ -632,7 +631,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 						}
 
 						if (isDirectory) {
-							await rmdir(filePath);
+							await promises.rmdir(filePath);
 						} else {
 							throw unlinkError;
 						}
@@ -759,7 +758,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		return this.doCloneFile(from, to, false /* optimistically assume parent folders exist */);
 	}
 
-	private async doCloneFile(from: URI, to: URI, doMkdir: boolean): Promise<void> {
+	private async doCloneFile(from: URI, to: URI, mkdir: boolean): Promise<void> {
 		const fromFilePath = this.toFilePath(from);
 		const toFilePath = this.toFilePath(to);
 
@@ -778,13 +777,13 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			locks.add(await this.createResourceLock(from));
 			locks.add(await this.createResourceLock(to));
 
-			if (doMkdir) {
-				await mkdir(dirname(toFilePath), { recursive: true });
+			if (mkdir) {
+				await promises.mkdir(dirname(toFilePath), { recursive: true });
 			}
 
-			await copyFile(fromFilePath, toFilePath);
+			await promises.copyFile(fromFilePath, toFilePath);
 		} catch (error) {
-			if (error.code === 'ENOENT' && !doMkdir) {
+			if (error.code === 'ENOENT' && !mkdir) {
 				return this.doCloneFile(from, to, true);
 			}
 

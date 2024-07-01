@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createWriteStream, WriteStream, promises } from 'fs';
-import { } from 'fs/promises';
 import { Readable } from 'stream';
 import { createCancelablePromise, Sequencer } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
