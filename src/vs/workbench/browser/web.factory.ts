@@ -76,7 +76,7 @@ export function create(domElement: HTMLElement, options: IWorkbenchConstructionO
 function asMenuId(menu: Menu): MenuId {
 	switch (menu) {
 		case Menu.CommandPalette: return MenuId.CommandPalette;
-		case Menu.StatusBarWindowIndicatorMenu: return MenuId.StatusBarWindowIndicatorMenu;
+		case Menu.StatusBarWindowIndicatorMenu: return MenuId.StatusBarRemoteIndicatorMenu;
 	}
 }
 
