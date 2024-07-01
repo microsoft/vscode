@@ -33,6 +33,7 @@
     "scmValidation",
     "tabInputMultiDiff",
     "tabInputTextMerge",
+    "terminalShellIntegration",
     "timeline"
   ],
   "categories": [

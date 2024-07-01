@@ -973,6 +973,21 @@ export class Repository implements Disposable {
 		const onDidChangeCountBadge = filterEvent(workspace.onDidChangeConfiguration, e => e.affectsConfiguration('git.countBadge', root));
 		onDidChangeCountBadge(this.setCountBadge, this, this.disposables);
 		this.setCountBadge();
+
+		this.disposables.push(window.onDidEndTerminalShellExecution(e => {
+			const [executable, subcommand, ..._args] = e.execution.commandLine.value.split(' ');
+			if (executable !== 'git' || !e.execution.cwd || !e.execution.cwd.path.startsWith(this.root)) {
+				return;
+			}
+			switch (subcommand) {
+				case 'fetch':
+				case 'pull': {
+					if (e.exitCode === 0) {
+						this.refresh();
+					}
+				}
+			}
+		}));
 	}
 
 	validateInput(text: string, _: number): SourceControlInputBoxValidation | undefined {
