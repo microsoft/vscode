@@ -133,7 +133,7 @@ export class ChatViewPane extends ViewPane {
 		try {
 			super.renderBody(parent);
 
-			const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService]));
+			const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
 			const locationBasedColors = this.getLocationBasedColors();
 			this._widget = this._register(scopedInstantiationService.createInstance(
 				ChatWidget,
