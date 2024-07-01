@@ -21,7 +21,6 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostChatAgentsShape2, IChatAgentCompletionItem, IChatAgentHistoryEntryDto, IChatProgressDto, IExtensionChatAgentMetadata, IMainContext, MainContext, MainThreadChatAgentsShape2 } from 'vs/workbench/api/common/extHost.protocol';
 import { CommandsConverter, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
-import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import { ChatAgentLocation, IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
@@ -266,8 +265,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		mainContext: IMainContext,
 		private readonly _logService: ILogService,
 		private readonly _commands: ExtHostCommands,
-		private readonly _documents: ExtHostDocuments,
-		private readonly _notebooks: ExtHostNotebookController
+		private readonly _documents: ExtHostDocuments
 	) {
 		super();
 		this._proxy = mainContext.getProxy(MainContext.MainThreadChatAgents2);
@@ -323,8 +321,8 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 
 			} else if (request.locationData?.type === ChatAgentLocation.Notebook) {
 				// notebook data
-				const notebook = this._notebooks.getNotebookDocument(request.locationData.sessionInputUri);
-				location2 = new extHostTypes.ChatRequestNotebookData(notebook.apiNotebook);
+				const cell = this._documents.getDocument(request.locationData.sessionInputUri);
+				location2 = new extHostTypes.ChatRequestNotebookData(cell);
 
 			} else if (request.locationData?.type === ChatAgentLocation.Terminal) {
 				// TBD
