@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as cp from 'child_process';
-import { Stats, promises } from 'fs';
+import { Stats } from 'fs';
+import { lstat, stat } from 'fs/promises';
 import * as path from 'vs/base/common/path';
 import * as Platform from 'vs/base/common/platform';
 import * as process from 'vs/base/common/process';
@@ -91,11 +92,11 @@ export namespace win32 {
 			if (await pfs.Promises.exists(path)) {
 				let statValue: Stats | undefined;
 				try {
-					statValue = await promises.stat(path);
+					statValue = await stat(path);
 				} catch (e) {
 					if (e.message.startsWith('EACCES')) {
 						// it might be symlink
-						statValue = await promises.lstat(path);
+						statValue = await lstat(path);
 					}
 				}
 				return statValue ? !statValue.isDirectory() : false;

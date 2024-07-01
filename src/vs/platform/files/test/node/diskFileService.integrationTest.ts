@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { createReadStream, existsSync, readdirSync, readFileSync, statSync, writeFileSync, promises } from 'fs';
+import { createReadStream, existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'fs';
+import { stat, chmod, mkdir, readFile, symlink } from 'fs/promises';
 import { tmpdir } from 'os';
 import { timeout } from 'vs/base/common/async';
 import { bufferToReadable, bufferToStream, streamToBuffer, streamToBufferReadableStream, VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
@@ -429,7 +430,7 @@ flakySuite('Disk File Service', function () {
 
 	test('resolve - folder symbolic link', async () => {
 		const link = URI.file(join(testDir, 'deep-link'));
-		await promises.symlink(join(testDir, 'deep'), link.fsPath, 'junction');
+		await symlink(join(testDir, 'deep'), link.fsPath, 'junction');
 
 		const resolved = await service.resolve(link);
 		assert.strictEqual(resolved.children!.length, 4);
@@ -439,7 +440,7 @@ flakySuite('Disk File Service', function () {
 
 	(isWindows ? test.skip /* windows: cannot create file symbolic link without elevated context */ : test)('resolve - file symbolic link', async () => {
 		const link = URI.file(join(testDir, 'lorem.txt-linked'));
-		await promises.symlink(join(testDir, 'lorem.txt'), link.fsPath);
+		await symlink(join(testDir, 'lorem.txt'), link.fsPath);
 
 		const resolved = await service.resolve(link);
 		assert.strictEqual(resolved.isDirectory, false);
@@ -447,7 +448,7 @@ flakySuite('Disk File Service', function () {
 	});
 
 	test('resolve - symbolic link pointing to nonexistent file does not break', async () => {
-		await promises.symlink(join(testDir, 'foo'), join(testDir, 'bar'), 'junction');
+		await symlink(join(testDir, 'foo'), join(testDir, 'bar'), 'junction');
 
 		const resolved = await service.resolve(URI.file(testDir));
 		assert.strictEqual(resolved.isDirectory, true);
@@ -530,7 +531,7 @@ flakySuite('Disk File Service', function () {
 	(isWindows ? test.skip /* windows: cannot create file symbolic link without elevated context */ : test)('deleteFile - symbolic link (exists)', async () => {
 		const target = URI.file(join(testDir, 'lorem.txt'));
 		const link = URI.file(join(testDir, 'lorem.txt-linked'));
-		await promises.symlink(target.fsPath, link.fsPath);
+		await symlink(target.fsPath, link.fsPath);
 
 		const source = await service.resolve(link);
 
@@ -552,7 +553,7 @@ flakySuite('Disk File Service', function () {
 	(isWindows ? test.skip /* windows: cannot create file symbolic link without elevated context */ : test)('deleteFile - symbolic link (pointing to nonexistent file)', async () => {
 		const target = URI.file(join(testDir, 'foo'));
 		const link = URI.file(join(testDir, 'bar'));
-		await promises.symlink(target.fsPath, link.fsPath);
+		await symlink(target.fsPath, link.fsPath);
 
 		let event: FileOperationEvent;
 		disposables.add(service.onDidRunOperation(e => event = e));
@@ -1692,7 +1693,7 @@ flakySuite('Disk File Service', function () {
 
 	(isWindows ? test.skip /* windows: cannot create file symbolic link without elevated context */ : test)('readFile - dangling symbolic link - https://github.com/microsoft/vscode/issues/116049', async () => {
 		const link = URI.file(join(testDir, 'small.js-link'));
-		await promises.symlink(join(testDir, 'small.js'), link.fsPath);
+		await symlink(join(testDir, 'small.js'), link.fsPath);
 
 		let error: FileOperationError | undefined = undefined;
 		try {
@@ -1833,7 +1834,7 @@ flakySuite('Disk File Service', function () {
 
 	(isWindows ? test.skip /* windows: cannot create file symbolic link without elevated context */ : test)('writeFile - atomic writing does not break symlinks', async () => {
 		const link = URI.file(join(testDir, 'lorem.txt-linked'));
-		await promises.symlink(join(testDir, 'lorem.txt'), link.fsPath);
+		await symlink(join(testDir, 'lorem.txt'), link.fsPath);
 
 		const content = 'Updates to the lorem file';
 		await service.writeFile(link, VSBuffer.fromString(content), { atomic: { postfix: '.vsctmp' } });
@@ -2006,7 +2007,7 @@ flakySuite('Disk File Service', function () {
 				// Here since `close` is not called, all other writes are
 				// waiting on the barrier to release, so doing a readFile
 				// should give us a consistent view of the file contents
-				assert.strictEqual((await promises.readFile(resource.fsPath)).toString(), content);
+				assert.strictEqual((await readFile(resource.fsPath)).toString(), content);
 			} finally {
 				await provider.close(fd);
 			}
@@ -2030,10 +2031,10 @@ flakySuite('Disk File Service', function () {
 
 		try {
 			await provider.write(fd1, 0, VSBuffer.fromString(newContent).buffer, 0, VSBuffer.fromString(newContent).buffer.byteLength);
-			assert.strictEqual((await promises.readFile(resource1.fsPath)).toString(), newContent);
+			assert.strictEqual((await readFile(resource1.fsPath)).toString(), newContent);
 
 			await provider.write(fd2, 0, VSBuffer.fromString(newContent).buffer, 0, VSBuffer.fromString(newContent).buffer.byteLength);
-			assert.strictEqual((await promises.readFile(resource2.fsPath)).toString(), newContent);
+			assert.strictEqual((await readFile(resource2.fsPath)).toString(), newContent);
 		} finally {
 			await Promise.allSettled([
 				await provider.close(fd1),
@@ -2059,7 +2060,7 @@ flakySuite('Disk File Service', function () {
 
 		assert.ok(error); // expected because `new-folder` does not exist
 
-		await promises.mkdir(newFolder);
+		await mkdir(newFolder);
 
 		const content = readFileSync(URI.file(join(testDir, 'lorem.txt')).fsPath);
 		const newContent = content.toString() + content.toString();
@@ -2069,7 +2070,7 @@ flakySuite('Disk File Service', function () {
 		try {
 			await provider.write(fd, 0, newContentBuffer, 0, newContentBuffer.byteLength);
 
-			assert.strictEqual((await promises.readFile(newResource.fsPath)).toString(), newContent);
+			assert.strictEqual((await readFile(newResource.fsPath)).toString(), newContent);
 		} finally {
 			await provider.close(fd);
 		}
@@ -2291,11 +2292,11 @@ flakySuite('Disk File Service', function () {
 		const content = await service.writeFile(lockedFile, VSBuffer.fromString('Locked File'));
 		assert.strictEqual(content.locked, false);
 
-		const stats = await promises.stat(lockedFile.fsPath);
-		await promises.chmod(lockedFile.fsPath, stats.mode & ~0o200);
+		const stats = await stat(lockedFile.fsPath);
+		await chmod(lockedFile.fsPath, stats.mode & ~0o200);
 
-		let stat = await service.stat(lockedFile);
-		assert.strictEqual(stat.locked, true);
+		let stat2 = await service.stat(lockedFile);
+		assert.strictEqual(stat2.locked, true);
 
 		let error;
 		const newContent = 'Updates to locked file';
@@ -2320,8 +2321,8 @@ flakySuite('Disk File Service', function () {
 			await service.writeFile(lockedFile, VSBuffer.fromString(newContent), { unlock: true });
 			assert.strictEqual(readFileSync(lockedFile.fsPath).toString(), newContent);
 
-			stat = await service.stat(lockedFile);
-			assert.strictEqual(stat.locked, false);
+			stat2 = await service.stat(lockedFile);
+			assert.strictEqual(stat2.locked, false);
 		}
 	}
 

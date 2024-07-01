@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { readFileSync, promises } from 'fs';
+import { readFileSync } from 'fs';
+import { mkdir } from 'fs/promises';
 import { tmpdir } from 'os';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
@@ -37,7 +38,7 @@ flakySuite('StateService', () => {
 		diskFileSystemProvider = disposables.add(new DiskFileSystemProvider(logService));
 		disposables.add(fileService.registerProvider(Schemas.file, diskFileSystemProvider));
 
-		return promises.mkdir(testDir, { recursive: true });
+		return mkdir(testDir, { recursive: true });
 	});
 
 	teardown(() => {

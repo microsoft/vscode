@@ -6,7 +6,8 @@
 import 'vs/platform/update/common/update.config.contribution';
 
 import { app, dialog } from 'electron';
-import { unlinkSync, promises } from 'fs';
+import { unlinkSync } from 'fs';
+import { mkdir, unlink } from 'fs/promises';
 import { URI } from 'vs/base/common/uri';
 import { coalesce, distinct } from 'vs/base/common/arrays';
 import { Promises } from 'vs/base/common/async';
@@ -139,7 +140,7 @@ class CodeMain {
 				Event.once(lifecycleMainService.onWillShutdown)(evt => {
 					fileService.dispose();
 					configurationService.dispose();
-					evt.join('instanceLockfile', promises.unlink(environmentMainService.mainLockfile).catch(() => { /* ignored */ }));
+					evt.join('instanceLockfile', unlink(environmentMainService.mainLockfile).catch(() => { /* ignored */ }));
 				});
 
 				return instantiationService.createInstance(CodeApplication, mainProcessNodeIpcServer, instanceEnvironment).startup();
@@ -257,7 +258,7 @@ class CodeMain {
 				environmentMainService.workspaceStorageHome.with({ scheme: Schemas.file }).fsPath,
 				environmentMainService.localHistoryHome.with({ scheme: Schemas.file }).fsPath,
 				environmentMainService.backupHome
-			].map(path => path ? promises.mkdir(path, { recursive: true }) : undefined)),
+			].map(path => path ? mkdir(path, { recursive: true }) : undefined)),
 
 			// State service
 			stateService.init(),
