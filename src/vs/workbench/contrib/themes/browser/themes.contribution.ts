@@ -499,6 +499,35 @@ registerAction2(class extends Action2 {
 	}
 });
 
+const SelectColorThemeByNameCommandId = 'workbench.action.selectThemeByName';
+
+registerAction2(class extends Action2 {
+
+	constructor() {
+		super({
+			id: SelectColorThemeByNameCommandId,
+			title: localize('selectThemeByName.label', "Color Theme By Name"),
+			category: CATEGORIES.Preferences
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, newTheme: any) {
+		const themeService = accessor.get(IWorkbenchThemeService);
+		themeService.getColorThemes().then(results => {
+			const filteredTheme: IWorkbenchColorTheme | undefined = results.find(
+				function (results) {
+					return results.settingsId === `${newTheme}`;
+				}
+			);
+			if (filteredTheme === undefined) {
+				console.log(localize('selectThemeByName.errorLog', "No theme found that matches ") + `\"${newTheme}\"`);
+			} else {
+				themeService.setColorTheme(filteredTheme, 'auto').then();
+			}
+		});
+	}
+});
+
 const SelectFileIconThemeCommandId = 'workbench.action.selectIconTheme';
 
 registerAction2(class extends Action2 {
