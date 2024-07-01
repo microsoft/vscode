@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -58,7 +59,7 @@ export class LanguagePackCachedDataCleaner extends Disposable {
 
 		try {
 			const installed: IStringDictionary<boolean> = Object.create(null);
-			const metaData: ILanguagePackFile = JSON.parse(await Promises.readFile(join(this.environmentService.userDataPath, 'languagepacks.json'), 'utf8'));
+			const metaData: ILanguagePackFile = JSON.parse(await fs.promises.readFile(join(this.environmentService.userDataPath, 'languagepacks.json'), 'utf8'));
 			for (const locale of Object.keys(metaData)) {
 				const entry = metaData[locale];
 				installed[`${entry.hash}.${locale}`] = true;
@@ -93,7 +94,7 @@ export class LanguagePackCachedDataCleaner extends Disposable {
 					}
 
 					const candidate = join(folder, entry);
-					const stat = await Promises.stat(candidate);
+					const stat = await fs.promises.stat(candidate);
 					if (stat.isDirectory() && (now - stat.mtime.getTime()) > this._DataMaxAge) {
 						this.logService.trace(`[language pack cache cleanup]: Removing language pack cache folder: ${join(packEntry, entry)}`);
 
