@@ -14,6 +14,11 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
  * When the original class changes, the instance is re-created.
 */
 export function wrapInReloadableClass(getClass: () => (new (...args: any[]) => any)): (new (...args: any[]) => any) {
+	// Disables this function as it does not work.
+	if (1 === 1) {
+		// TODO@hediet fix this asap.
+		return getClass();
+	}
 	if (!isHotReloadEnabled()) {
 		return getClass();
 	}
