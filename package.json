@@ -52,6 +52,7 @@
     "watch-cli": "node --max-old-space-size=4095 ./node_modules/gulp/bin/gulp.js watch-cli",
     "eslint": "node build/eslint",
     "stylelint": "node build/stylelint",
+    "playwright-install": "yarn playwright install",
     "compile-build": "node --max-old-space-size=4095 ./node_modules/gulp/bin/gulp.js compile-build",
     "compile-extensions-build": "node --max-old-space-size=4095 ./node_modules/gulp/bin/gulp.js compile-extensions-build",
     "minify-vscode": "node --max-old-space-size=4095 ./node_modules/gulp/bin/gulp.js minify-vscode",
