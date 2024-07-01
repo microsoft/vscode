@@ -161,7 +161,7 @@ exports.load = function (entrypoint, onLoad, onError) {
 	onError = onError || function (err) { console.error(err); };
 
 	setupNLS().then(() => {
-		performance.mark('code/amd/willLoadCode');
+		performance.mark('code/fork/willLoadCode');
 		loader([entrypoint], onLoad, onError);
 	});
 };
