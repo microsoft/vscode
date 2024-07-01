@@ -19,7 +19,7 @@ fi
 
 if [ ! -e 'test/integration/browser/out/index.js' ];then
 	yarn --cwd test/integration/browser compile
-	yarn playwright install
+	yarn playwright-install
 fi
 
 
