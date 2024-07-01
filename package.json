@@ -52,7 +52,7 @@
     "watch-cli": "node --max-old-space-size=4095 ./node_modules/gulp/bin/gulp.js watch-cli",
     "eslint": "node build/eslint",
     "stylelint": "node build/stylelint",
-    "playwright-install": "node build/azure-pipelines/common/installPlaywright.js",
+    "playwright-install": "yarn playwright install",
     "compile-build": "node --max-old-space-size=4095 ./node_modules/gulp/bin/gulp.js compile-build",
     "compile-extensions-build": "node --max-old-space-size=4095 ./node_modules/gulp/bin/gulp.js compile-extensions-build",
     "minify-vscode": "node --max-old-space-size=4095 ./node_modules/gulp/bin/gulp.js minify-vscode",
@@ -108,7 +108,7 @@
     "yazl": "^2.4.3"
   },
   "devDependencies": {
-    "@playwright/test": "^1.40.1",
+    "@playwright/test": "^1.45.0",
     "@swc/core": "1.3.62",
     "@types/cookie": "^0.3.3",
     "@types/debug": "^4.1.5",

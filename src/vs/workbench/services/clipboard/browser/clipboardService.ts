@@ -28,7 +28,19 @@ export class BrowserClipboardService extends BaseBrowserClipboardService {
 		super(layoutService, logService);
 	}
 
+	override async writeText(text: string, type?: string): Promise<void> {
+		if (!!this.environmentService.extensionTestsLocationURI && typeof type !== 'string') {
+			type = 'vscode-tests'; // force in-memory clipboard for tests to avoid permission issues
+		}
+
+		return super.writeText(text, type);
+	}
+
 	override async readText(type?: string): Promise<string> {
+		if (!!this.environmentService.extensionTestsLocationURI && typeof type !== 'string') {
+			type = 'vscode-tests'; // force in-memory clipboard for tests to avoid permission issues
+		}
+
 		if (type) {
 			return super.readText(type);
 		}
@@ -36,10 +48,6 @@ export class BrowserClipboardService extends BaseBrowserClipboardService {
 		try {
 			return await getActiveWindow().navigator.clipboard.readText();
 		} catch (error) {
-			if (!!this.environmentService.extensionTestsLocationURI) {
-				return ''; // do not ask for input in tests (https://github.com/microsoft/vscode/issues/112264)
-			}
-
 			return new Promise<string>(resolve => {
 
 				// Inform user about permissions problem (https://github.com/microsoft/vscode/issues/112089)
