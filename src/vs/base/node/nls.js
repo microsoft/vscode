@@ -45,35 +45,6 @@
 			return fs.promises.utimes(path, date, date);
 		}
 
-		/**
-		 * @param {string} path
-		 */
-		function mkdirp(path) {
-			return fs.promises.mkdir(path, { recursive: true });
-		}
-
-		/**
-		 * @param {string} path
-		 */
-		function rimraf(path) {
-			return fs.promises.rm(path, { recursive: true, force: true, maxRetries: 3 });
-		}
-
-		/**
-		 * @param {string} path
-		 */
-		function readFile(path) {
-			return fs.promises.readFile(path, 'utf-8');
-		}
-
-		/**
-		 * @param {string} path
-		 * @param {string} content
-		 */
-		function writeFile(path, content) {
-			return fs.promises.writeFile(path, content, 'utf-8');
-		}
-
 		//#endregion
 
 		/**
@@ -90,7 +61,7 @@
 		async function getLanguagePackConfigurations(userDataPath) {
 			const configFile = path.join(userDataPath, 'languagepacks.json');
 			try {
-				return JSON.parse(await readFile(configFile));
+				return JSON.parse(await fs.promises.readFile(configFile, 'utf-8'));
 			} catch (err) {
 				return undefined; // Do nothing. If we can't read the file we have no language pack config.
 			}
@@ -152,7 +123,7 @@
 			if (
 				process.env['VSCODE_DEV'] ||
 				userLocale === 'pseudo' ||
-				userLocale === 'en' || userLocale === 'en-us' ||
+				userLocale.startsWith('en') ||
 				!commit ||
 				!userDataPath
 			) {
@@ -190,7 +161,7 @@
 				const languagePackCorruptMarkerFile = path.join(globalLanguagePackCachePath, 'corrupted.info');
 
 				if (await exists(languagePackCorruptMarkerFile)) {
-					await rimraf(globalLanguagePackCachePath); // delete corrupted cache folder
+					await fs.promises.rm(globalLanguagePackCachePath, { recursive: true, force: true, maxRetries: 3 }); // delete corrupted cache folder
 				}
 
 				/** @type {INLSConfiguration} */
@@ -230,10 +201,10 @@
 					nlsDefaultMessages,
 					nlsPackdata
 				] = await Promise.all([
-					mkdirp(commitLanguagePackCachePath),
-					JSON.parse(await readFile(path.join(nlsMetadataPath, 'nls.keys.json'))),
-					JSON.parse(await readFile(path.join(nlsMetadataPath, 'nls.messages.json'))),
-					JSON.parse(await readFile(mainLanguagePackPath))
+					fs.promises.mkdir(commitLanguagePackCachePath, { recursive: true }),
+					JSON.parse(await fs.promises.readFile(path.join(nlsMetadataPath, 'nls.keys.json'), 'utf-8')),
+					JSON.parse(await fs.promises.readFile(path.join(nlsMetadataPath, 'nls.messages.json'), 'utf-8')),
+					JSON.parse(await fs.promises.readFile(mainLanguagePackPath, 'utf-8'))
 				]);
 
 				/** @type {string[]} */
@@ -254,8 +225,8 @@
 				}
 
 				await Promise.all([
-					writeFile(languagePackMessagesFile, JSON.stringify(nlsResult)),
-					writeFile(translationsConfigFile, JSON.stringify(languagePack.translations))
+					fs.promises.writeFile(languagePackMessagesFile, JSON.stringify(nlsResult), 'utf-8'),
+					fs.promises.writeFile(translationsConfigFile, JSON.stringify(languagePack.translations), 'utf-8')
 				]);
 
 				perf.mark('code/didGenerateNls');
