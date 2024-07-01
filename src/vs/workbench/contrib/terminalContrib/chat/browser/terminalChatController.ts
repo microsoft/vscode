@@ -227,7 +227,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 			if (response) {
 				store.add(response.onDidChange(async () => {
 					responseContent += response.response.value;
-					this._chatWidget?.value.inlineChatWidget.updateProgress(true);
 					if (response.isCanceled) {
 						this._requestActiveContextKey.set(false);
 						responsePromise.complete(undefined);
@@ -243,7 +242,6 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 						this._responseContainsCodeBlockContextKey.set(!!firstCodeBlock);
 						this._responseContainsMulitpleCodeBlocksContextKey.set(!!secondCodeBlock);
 						this._chatWidget?.value.inlineChatWidget.updateToolbar(true);
-						this._chatWidget?.value.inlineChatWidget.updateProgress(false);
 						responsePromise.complete(response);
 					}
 				}));

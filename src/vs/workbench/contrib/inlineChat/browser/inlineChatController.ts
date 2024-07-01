@@ -50,6 +50,8 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { isEqual } from 'vs/base/common/resources';
 import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
+import { escapeRegExpCharacters } from 'vs/base/common/strings';
+import { IChatWidgetLocationOptions } from 'vs/workbench/contrib/chat/browser/chatWidget';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -153,19 +155,34 @@ export class InlineChatController implements IEditorContribution {
 		this._ctxRequestInProgress = CTX_INLINE_CHAT_REQUEST_IN_PROGRESS.bindTo(contextKeyService);
 
 		this._ui = new Lazy(() => {
-			let location = ChatAgentLocation.Editor;
+
+			const location: IChatWidgetLocationOptions = {
+				location: ChatAgentLocation.Editor,
+				resolveData: () => {
+					assertType(this._editor.hasModel());
+					assertType(this._session);
+					return {
+						type: ChatAgentLocation.Editor,
+						selection: this._editor.getSelection(),
+						document: this._session.textModelN.uri,
+						wholeRange: this._session?.wholeRange.trackedInitialRange,
+					};
+				}
+			};
 
 			// inline chat in notebooks
 			// check if this editor is part of a notebook editor
-			// and iff so, use the notebook location
+			// and iff so, use the notebook location but keep the resolveData
+			// talk about editor data
 			for (const notebookEditor of notebookEditorService.listNotebookEditors()) {
 				for (const [, codeEditor] of notebookEditor.codeEditors) {
 					if (codeEditor === this._editor) {
-						location = ChatAgentLocation.Notebook;
+						location.location = ChatAgentLocation.Notebook;
 						break;
 					}
 				}
 			}
+
 			const content = this._store.add(_instaService.createInstance(InlineChatContentWidget, location, this._editor));
 			const zone = this._store.add(_instaService.createInstance(InlineChatZoneWidget, location, this._editor));
 			return { content, zone };
@@ -428,26 +445,12 @@ export class InlineChatController implements IEditorContribution {
 				// TODO@jrieken there is still some work left for when a request "in the middle"
 				// is removed. We will undo all changes till that point but not remove those
 				// later request
-				const exchange = this._session!.exchanges.find(candidate => candidate.prompt.request.id === e.requestId);
-				if (exchange && this._editor.hasModel()) {
-					// undo till this point
-					this._session!.hunkData.ignoreTextModelNChanges = true;
-					try {
-
-						const model = this._editor.getModel();
-						const targetAltVersion = exchange.prompt.modelAltVersionId;
-						while (targetAltVersion < model.getAlternativeVersionId() && model.canUndo()) {
-							await model.undo();
-						}
-					} finally {
-						this._session!.hunkData.ignoreTextModelNChanges = false;
-					}
-				}
+				await this._session!.undoChangesUntil(e.requestId);
 			}
 		}));
 
 		// #region DEBT
-		// DEBT@jrieken
+		// DEBT@jrieken https://github.com/microsoft/vscode/issues/218819
 		// REMOVE when agents are adopted
 		this._sessionStore.add(this._languageFeatureService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
 			_debugDisplayName: 'inline chat commands',
@@ -470,7 +473,7 @@ export class InlineChatController implements IEditorContribution {
 					result.suggestions.push({
 						label: { label: withSlash, description: command.description ?? '' },
 						kind: CompletionItemKind.Text,
-						insertText: withSlash,
+						insertText: `${withSlash} `,
 						range: Range.fromPositions(new Position(1, 1), position),
 					});
 				}
@@ -485,16 +488,12 @@ export class InlineChatController implements IEditorContribution {
 			for (const command of (this._session?.agent.slashCommands ?? []).sort((a, b) => b.name.length - a.name.length)) {
 				const withSlash = `/${command.name}`;
 				const firstLine = model.getLineContent(1);
-				if (firstLine.startsWith(withSlash)) {
+				if (firstLine.match(new RegExp(`^${escapeRegExpCharacters(withSlash)}(\\s|$)`))) {
 					newDecorations.push({
 						range: new Range(1, 1, 1, withSlash.length + 1),
 						options: {
 							description: 'inline-chat-slash-command',
 							inlineClassName: 'inline-chat-slash-command',
-							after: {
-								// Force some space between slash command and placeholder
-								content: ' '
-							}
 						}
 					});
 
@@ -734,6 +733,12 @@ export class InlineChatController implements IEditorContribution {
 		await responsePromise.p;
 		await progressiveEditsQueue.whenIdle();
 
+
+		if (response.isCanceled) {
+			//
+			await this._session.undoChangesUntil(response.requestId);
+		}
+
 		store.dispose();
 
 		const diff = await this._editorWorkerService.computeDiff(this._session.textModel0.uri, this._session.textModelN.uri, { computeMoves: false, maxComputationTimeMs: Number.MAX_SAFE_INTEGER, ignoreTrimWhitespace: false }, 'advanced');
@@ -771,7 +776,19 @@ export class InlineChatController implements IEditorContribution {
 			// real response -> complex...
 			this._ui.value.zone.widget.updateStatus('');
 
-			newPosition = await this._strategy.renderChanges(response);
+			const position = await this._strategy.renderChanges();
+			if (position) {
+				// if the selection doesn't start far off we keep the widget at its current position
+				// because it makes reading this nicer
+				const selection = this._editor.getSelection();
+				if (selection?.containsPosition(position)) {
+					if (position.lineNumber - selection.startLineNumber > 8) {
+						newPosition = position;
+					}
+				} else {
+					newPosition = position;
+				}
+			}
 		}
 		this._showWidget(false, newPosition);
 
@@ -815,7 +832,7 @@ export class InlineChatController implements IEditorContribution {
 			this._sessionStore.clear();
 
 			// only stash sessions that were not unstashed, not "empty", and not interacted with
-			const shouldStash = !this._session.isUnstashed && !!this._session.lastExchange && this._session.hunkData.size === this._session.hunkData.pending;
+			const shouldStash = !this._session.isUnstashed && this._session.chatModel.hasRequests && this._session.hunkData.size === this._session.hunkData.pending;
 			let undoCancelEdits: IValidEditOperation[] = [];
 			try {
 				undoCancelEdits = this._strategy.cancel();
@@ -862,7 +879,7 @@ export class InlineChatController implements IEditorContribution {
 			widgetPosition = this._editor.getSelection().getStartPosition().delta(-1);
 		}
 
-		if (this._session && !position && (this._session.hasChangedText || this._session.lastExchange)) {
+		if (this._session && !position && (this._session.hasChangedText || this._session.chatModel.hasRequests)) {
 			widgetPosition = this._session.wholeRange.value.getStartPosition().delta(-1);
 		}
 
@@ -1051,12 +1068,13 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	acceptSession(): void {
-		if (this._session?.lastExchange?.response instanceof ReplyResponse && this._session?.lastExchange?.response.chatResponse) {
-			const response = this._session?.lastExchange?.response.chatResponse;
+		const response = this._session?.chatModel.getRequests().at(-1)?.response;
+		if (response) {
 			this._chatService.notifyUserAction({
-				sessionId: this._session.chatModel.sessionId,
+				sessionId: response.session.sessionId,
 				requestId: response.requestId,
 				agentId: response.agent?.id,
+				command: response.slashCommand?.name,
 				result: response.result,
 				action: {
 					kind: 'inlineChat',
@@ -1076,13 +1094,13 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	async cancelSession() {
-
-		if (this._session?.lastExchange?.response instanceof ReplyResponse && this._session?.lastExchange?.response.chatResponse) {
-			const response = this._session?.lastExchange?.response.chatResponse;
+		const response = this._session?.chatModel.getRequests().at(-1)?.response;
+		if (response) {
 			this._chatService.notifyUserAction({
-				sessionId: this._session.chatModel.sessionId,
+				sessionId: response.session.sessionId,
 				requestId: response.requestId,
 				agentId: response.agent?.id,
+				command: response.slashCommand?.name,
 				result: response.result,
 				action: {
 					kind: 'inlineChat',

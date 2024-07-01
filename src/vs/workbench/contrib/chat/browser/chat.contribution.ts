@@ -60,7 +60,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import '../common/chatColors';
 import { registerChatContextActions } from 'vs/workbench/contrib/chat/browser/actions/chatContextActions';
 import { registerChatDeveloperActions } from 'vs/workbench/contrib/chat/browser/actions/chatDeveloperActions';
-import { LanguageModelToolsExtensionPointHandler } from 'vs/workbench/contrib/chat/common/tools/toolsContributions';
+import { LanguageModelToolsExtensionPointHandler } from 'vs/workbench/contrib/chat/common/tools/languageModelToolsContribution';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -101,10 +101,23 @@ configurationRegistry.registerConfiguration({
 			deprecated: true,
 			default: false
 		},
+		'chat.experimental.variables.editor': {
+			type: 'boolean',
+			description: nls.localize('chat.experimental.variables.editor', "Enables variables for editor chat."),
+			default: false
+		},
+		'chat.experimental.variables.notebook': {
+			type: 'boolean',
+			description: nls.localize('chat.experimental.variables.notebook', "Enables variables for notebook chat."),
+			default: false
+		},
+		'chat.experimental.variables.terminal': {
+			type: 'boolean',
+			description: nls.localize('chat.experimental.variables.terminal', "Enables variables for terminal chat."),
+			default: false
+		},
 	}
 });
-
-
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
 		ChatEditor,

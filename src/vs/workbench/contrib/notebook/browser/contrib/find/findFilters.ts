@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { Event, Emitter } from 'vs/base/common/event';
-import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
+import { INotebookFindScope, NotebookFindScopeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export interface INotebookFindChangeEvent {
 	markupInput?: boolean;
 	markupPreview?: boolean;
 	codeInput?: boolean;
 	codeOutput?: boolean;
-	searchInRanges?: boolean;
+	findScope?: boolean;
 }
 
 export class NotebookFindFilters extends Disposable {
@@ -70,31 +70,19 @@ export class NotebookFindFilters extends Disposable {
 		}
 	}
 
-	private _searchInRanges: boolean = false;
+	private _findScope: INotebookFindScope = { findScopeType: NotebookFindScopeType.None };
 
-	get searchInRanges(): boolean {
-		return this._searchInRanges;
+	get findScope(): INotebookFindScope {
+		return this._findScope;
 	}
 
-	set searchInRanges(value: boolean) {
-		if (this._searchInRanges !== value) {
-			this._searchInRanges = value;
-			this._onDidChange.fire({ searchInRanges: value });
+	set findScope(value: INotebookFindScope) {
+		if (this._findScope !== value) {
+			this._findScope = value;
+			this._onDidChange.fire({ findScope: true });
 		}
 	}
 
-	private _selectedRanges: ICellRange[] = [];
-
-	get selectedRanges(): ICellRange[] {
-		return this._selectedRanges;
-	}
-
-	set selectedRanges(value: ICellRange[]) {
-		if (this._selectedRanges !== value) {
-			this._selectedRanges = value;
-			this._onDidChange.fire({ searchInRanges: this._searchInRanges });
-		}
-	}
 
 	private readonly _initialMarkupInput: boolean;
 	private readonly _initialMarkupPreview: boolean;
@@ -106,8 +94,7 @@ export class NotebookFindFilters extends Disposable {
 		markupPreview: boolean,
 		codeInput: boolean,
 		codeOutput: boolean,
-		searchInRanges: boolean,
-		selectedRanges: ICellRange[]
+		findScope: INotebookFindScope
 	) {
 		super();
 
@@ -115,8 +102,7 @@ export class NotebookFindFilters extends Disposable {
 		this._markupPreview = markupPreview;
 		this._codeInput = codeInput;
 		this._codeOutput = codeOutput;
-		this._searchInRanges = searchInRanges;
-		this._selectedRanges = selectedRanges;
+		this._findScope = findScope;
 
 		this._initialMarkupInput = markupInput;
 		this._initialMarkupPreview = markupPreview;
@@ -125,7 +111,7 @@ export class NotebookFindFilters extends Disposable {
 	}
 
 	isModified(): boolean {
-		// do not include searchInRanges or selectedRanges in the check. This will incorrectly mark the filter icon as modified
+		// do not include findInSelection or either selectedRanges in the check. This will incorrectly mark the filter icon as modified
 		return (
 			this._markupInput !== this._initialMarkupInput
 			|| this._markupPreview !== this._initialMarkupPreview
@@ -139,7 +125,6 @@ export class NotebookFindFilters extends Disposable {
 		this._markupPreview = v.markupPreview;
 		this._codeInput = v.codeInput;
 		this._codeOutput = v.codeOutput;
-		this._searchInRanges = v.searchInRanges;
-		this._selectedRanges = v.selectedRanges;
+		this._findScope = v.findScope;
 	}
 }

@@ -1549,7 +1549,13 @@ export class DebugModel extends Disposable implements IDebugModel {
 			let topCallStack = Promise.resolve();
 			const wholeCallStack = new Promise<void>((c, e) => {
 				topCallStack = thread.fetchCallStack(1).then(() => {
-					if (!this.schedulers.has(thread.getId()) && fetchFullStack) {
+					if (!fetchFullStack) {
+						c();
+						this._onDidChangeCallStack.fire();
+						return;
+					}
+
+					if (!this.schedulers.has(thread.getId())) {
 						const deferred = new DeferredPromise<void>();
 						this.schedulers.set(thread.getId(), {
 							completeDeferred: deferred,

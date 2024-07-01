@@ -1315,6 +1315,12 @@
           "markdownDescription": "%typescript.workspaceSymbols.excludeLibrarySymbols%",
           "scope": "window"
         },
+        "typescript.tsserver.enableRegionDiagnostics": {
+          "type": "boolean",
+          "default": true,
+          "description": "%typescript.tsserver.enableRegionDiagnostics%",
+          "scope": "window"
+        },
         "javascript.experimental.updateImportsOnPaste": {
           "scope": "window",
           "type": "boolean",

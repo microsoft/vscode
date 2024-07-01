@@ -15,11 +15,12 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
 import { ElectronIPCMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { registerMainProcessRemoteService } from 'vs/platform/ipc/electron-sandbox/services';
-import { IIssueMainService, IssueReporterWindowConfiguration } from 'vs/platform/issue/common/issue';
+import { IIssueMainService, IProcessMainService, IssueReporterWindowConfiguration } from 'vs/platform/issue/common/issue';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { NativeHostService } from 'vs/platform/native/common/nativeHostService';
 import { IssueReporter2 } from 'vs/workbench/contrib/issue/electron-sandbox/issueReporterService2';
 import { mainWindow } from 'vs/base/browser/window';
+
 
 export function startup(configuration: IssueReporterWindowConfiguration) {
 	const platformClass = isWindows ? 'windows' : isLinux ? 'linux' : 'mac';
@@ -50,3 +51,4 @@ function initServices(windowId: number) {
 }
 
 registerMainProcessRemoteService(IIssueMainService, 'issue');
+registerMainProcessRemoteService(IProcessMainService, 'process');

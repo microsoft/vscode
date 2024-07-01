@@ -6,6 +6,10 @@
 //@ts-check
 'use strict';
 
+/**
+ * @typedef {import('./vs/nls').INLSConfiguration} INLSConfiguration
+ */
+
 // Store the node.js require function in a variable
 // before loading our AMD loader to avoid issues
 // when this file is bundled with other files.
@@ -31,16 +35,13 @@ globalThis._VSCODE_PACKAGE_JSON = require('../package.json');
 const loader = require('./vs/loader');
 const bootstrap = require('./bootstrap');
 const performance = require('./vs/base/common/performance');
-
-// Bootstrap: NLS
-const nlsConfig = bootstrap.setupNLS();
+const fs = require('fs');
 
 // Bootstrap: Loader
 loader.config({
 	baseUrl: bootstrap.fileUriFromPath(__dirname, { isWindows: process.platform === 'win32' }),
 	catchError: true,
 	nodeRequire,
-	'vs/nls': nlsConfig,
 	amdModulesPattern: /^vs\//,
 	recordStats: true
 });
@@ -52,12 +53,89 @@ if (process.env['ELECTRON_RUN_AS_NODE'] || process.versions['electron']) {
 	});
 }
 
-// Pseudo NLS support
-if (nlsConfig && nlsConfig.pseudo) {
-	loader(['vs/nls'], function (/** @type {import('vs/nls')} */nlsPlugin) {
-		nlsPlugin.setPseudoTranslation(!!nlsConfig.pseudo);
-	});
+//#region NLS helpers
+
+/** @type {Promise<INLSConfiguration | undefined> | undefined} */
+let setupNLSResult = undefined;
+
+/**
+ * @returns {Promise<INLSConfiguration | undefined>}
+ */
+function setupNLS() {
+	if (!setupNLSResult) {
+		setupNLSResult = doSetupNLS();
+	}
+
+	return setupNLSResult;
 }
+
+/**
+ * @returns {Promise<INLSConfiguration | undefined>}
+ */
+async function doSetupNLS() {
+	performance.mark('code/fork/willLoadNls');
+
+	/** @type {INLSConfiguration | undefined} */
+	let nlsConfig = undefined;
+
+	/** @type {string | undefined} */
+	let messagesFile;
+	if (process.env['VSCODE_NLS_CONFIG']) {
+		try {
+			/** @type {INLSConfiguration} */
+			nlsConfig = JSON.parse(process.env['VSCODE_NLS_CONFIG']);
+			if (nlsConfig?.languagePack?.messagesFile) {
+				messagesFile = nlsConfig.languagePack.messagesFile;
+			} else if (nlsConfig?.defaultMessagesFile) {
+				messagesFile = nlsConfig.defaultMessagesFile;
+			}
+
+			// VSCODE_GLOBALS: NLS
+			globalThis._VSCODE_NLS_LANGUAGE = nlsConfig?.resolvedLanguage;
+		} catch (e) {
+			console.error(`Error reading VSCODE_NLS_CONFIG from environment: ${e}`);
+		}
+	}
+
+	if (
+		process.env['VSCODE_DEV'] ||	// no NLS support in dev mode
+		!messagesFile					// no NLS messages file
+	) {
+		return undefined;
+	}
+
+	try {
+		// VSCODE_GLOBALS: NLS
+		globalThis._VSCODE_NLS_MESSAGES = JSON.parse((await fs.promises.readFile(messagesFile)).toString());
+	} catch (error) {
+		console.error(`Error reading NLS messages file ${messagesFile}: ${error}`);
+
+		// Mark as corrupt: this will re-create the language pack cache next startup
+		if (nlsConfig?.languagePack?.corruptMarkerFile) {
+			try {
+				await fs.promises.writeFile(nlsConfig.languagePack.corruptMarkerFile, 'corrupted');
+			} catch (error) {
+				console.error(`Error writing corrupted NLS marker file: ${error}`);
+			}
+		}
+
+		// Fallback to the default message file to ensure english translation at least
+		if (nlsConfig?.defaultMessagesFile && nlsConfig.defaultMessagesFile !== messagesFile) {
+			try {
+				// VSCODE_GLOBALS: NLS
+				globalThis._VSCODE_NLS_MESSAGES = JSON.parse((await fs.promises.readFile(nlsConfig.defaultMessagesFile)).toString());
+			} catch (error) {
+				console.error(`Error reading default NLS messages file ${nlsConfig.defaultMessagesFile}: ${error}`);
+			}
+		}
+	}
+
+	performance.mark('code/fork/didLoadNls');
+
+	return nlsConfig;
+}
+
+//#endregion
 
 /**
  * @param {string=} entrypoint
@@ -82,6 +160,8 @@ exports.load = function (entrypoint, onLoad, onError) {
 	onLoad = onLoad || function () { };
 	onError = onError || function (err) { console.error(err); };
 
-	performance.mark('code/fork/willLoadCode');
-	loader([entrypoint], onLoad, onError);
+	setupNLS().then(() => {
+		performance.mark('code/fork/willLoadCode');
+		loader([entrypoint], onLoad, onError);
+	});
 };

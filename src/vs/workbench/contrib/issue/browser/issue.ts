@@ -240,26 +240,6 @@ export class BaseIssueReporterService extends Disposable {
 	}
 
 	public setEventHandlers(): void {
-		this.addEventListener('issue-type', 'change', (event: Event) => {
-			const issueType = parseInt((<HTMLInputElement>event.target).value);
-			this.issueReporterModel.update({ issueType: issueType });
-			if (issueType === IssueType.PerformanceIssue && !this.receivedPerformanceInfo) {
-				this.issueMainService.$getPerformanceInfo().then(info => {
-					this.updatePerformanceInfo(info as Partial<IssueReporterData>);
-				});
-			}
-
-			// Resets placeholder
-			const descriptionTextArea = <HTMLInputElement>this.getElementById('issue-title');
-			if (descriptionTextArea) {
-				descriptionTextArea.placeholder = localize('undefinedPlaceholder', "Please enter a title");
-			}
-
-			this.updatePreviewButtonState();
-			this.setSourceOptions();
-			this.render();
-		});
-
 		(['includeSystemInfo', 'includeProcessInfo', 'includeWorkspaceInfo', 'includeExtensions', 'includeExperiments', 'includeExtensionData'] as const).forEach(elementId => {
 			this.addEventListener(elementId, 'click', (event: Event) => {
 				event.stopPropagation();
@@ -790,7 +770,9 @@ export class BaseIssueReporterService extends Disposable {
 		const inputElement = (<HTMLInputElement>this.getElementById(inputId));
 		const inputValidationMessage = this.getElementById(`${inputId}-empty-error`);
 		const descriptionShortMessage = this.getElementById(`description-short-error`);
-		if (!inputElement.value) {
+		if (inputId === 'description' && this.nonGitHubIssueUrl && this.data.extensionId) {
+			return true;
+		} else if (!inputElement.value) {
 			inputElement.classList.add('invalid-input');
 			inputValidationMessage?.classList.remove('hidden');
 			descriptionShortMessage?.classList.add('hidden');
@@ -800,8 +782,7 @@ export class BaseIssueReporterService extends Disposable {
 			descriptionShortMessage?.classList.remove('hidden');
 			inputValidationMessage?.classList.add('hidden');
 			return false;
-		}
-		else {
+		} else {
 			inputElement.classList.remove('invalid-input');
 			inputValidationMessage?.classList.add('hidden');
 			if (inputId === 'description') {

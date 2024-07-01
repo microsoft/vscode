@@ -258,7 +258,7 @@ registerAction2(class extends NotebookAction {
 				menu: [
 					{
 						id: MENU_CELL_CHAT_WIDGET_STATUS,
-						group: 'inline',
+						group: '0_main',
 						order: 0,
 						when: CTX_INLINE_CHAT_RESPONSE_TYPE.notEqualsTo(InlineChatResponseType.Messages),
 					}
@@ -286,7 +286,7 @@ registerAction2(class extends NotebookAction {
 				},
 				menu: {
 					id: MENU_CELL_CHAT_WIDGET_STATUS,
-					group: 'main',
+					group: '0_main',
 					order: 1
 				},
 				f1: false

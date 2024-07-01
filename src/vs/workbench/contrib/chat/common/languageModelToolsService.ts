@@ -8,9 +8,10 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Iterable } from 'vs/base/common/iterator';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export interface IToolData {
-	id: string;
+	name: string;
 	displayName?: string;
 	description: string;
 	parametersSchema?: Object;
@@ -36,7 +37,7 @@ export interface ILanguageModelToolsService {
 	_serviceBrand: undefined;
 	onDidChangeTools: Event<IToolDelta>;
 	registerToolData(toolData: IToolData): IDisposable;
-	registerToolImplementation(id: string, tool: IToolImpl): IDisposable;
+	registerToolImplementation(name: string, tool: IToolImpl): IDisposable;
 	getTools(): Iterable<Readonly<IToolData>>;
 	invokeTool(name: string, parameters: any, token: CancellationToken): Promise<string>;
 }
@@ -49,29 +50,33 @@ export class LanguageModelToolsService implements ILanguageModelToolsService {
 
 	private _tools = new Map<string, IToolEntry>();
 
+	constructor(
+		@IExtensionService private readonly _extensionService: IExtensionService
+	) { }
+
 	registerToolData(toolData: IToolData): IDisposable {
-		if (this._tools.has(toolData.id)) {
-			throw new Error(`Tool "${toolData.id}" is already registered.`);
+		if (this._tools.has(toolData.name)) {
+			throw new Error(`Tool "${toolData.name}" is already registered.`);
 		}
 
-		this._tools.set(toolData.id, { data: toolData });
+		this._tools.set(toolData.name, { data: toolData });
 		this._onDidChangeTools.fire({ added: toolData });
 
 		return toDisposable(() => {
-			this._tools.delete(toolData.id);
-			this._onDidChangeTools.fire({ removed: toolData.id });
+			this._tools.delete(toolData.name);
+			this._onDidChangeTools.fire({ removed: toolData.name });
 		});
 
 	}
 
-	registerToolImplementation(id: string, tool: IToolImpl): IDisposable {
-		const entry = this._tools.get(id);
+	registerToolImplementation(name: string, tool: IToolImpl): IDisposable {
+		const entry = this._tools.get(name);
 		if (!entry) {
-			throw new Error(`Tool "${id}" was not contributed.`);
+			throw new Error(`Tool "${name}" was not contributed.`);
 		}
 
 		if (entry.impl) {
-			throw new Error(`Tool "${id}" already has an implementation.`);
+			throw new Error(`Tool "${name}" already has an implementation.`);
 		}
 
 		entry.impl = tool;
@@ -84,10 +89,20 @@ export class LanguageModelToolsService implements ILanguageModelToolsService {
 		return Iterable.map(this._tools.values(), i => i.data);
 	}
 
-	invokeTool(name: string, parameters: any, token: CancellationToken): Promise<string> {
-		const tool = this._tools.get(name);
-		if (!tool?.impl) {
-			throw new Error(`Tool ${name} not found`);
+	async invokeTool(name: string, parameters: any, token: CancellationToken): Promise<string> {
+		let tool = this._tools.get(name);
+		if (!tool) {
+			throw new Error(`Tool ${name} was not contributed`);
+		}
+
+		if (!tool.impl) {
+			await this._extensionService.activateByEvent(`onLanguageModelTool:${name}`);
+
+			// Extension should activate and register the tool implementation
+			tool = this._tools.get(name);
+			if (!tool?.impl) {
+				throw new Error(`Tool ${name} does not have an implementation registered.`);
+			}
 		}
 
 		return tool.impl.invoke(parameters, token);

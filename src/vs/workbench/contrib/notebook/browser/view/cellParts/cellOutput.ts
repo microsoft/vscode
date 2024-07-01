@@ -33,8 +33,9 @@ import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKe
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { COPY_OUTPUT_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/controller/cellOutputActions';
-import { CLEAR_CELL_OUTPUTS_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/controller/editActions';
 import { TEXT_BASED_MIMETYPES } from 'vs/workbench/contrib/notebook/browser/contrib/clipboard/cellOutputClipboard';
+import { autorun, observableValue } from 'vs/base/common/observable';
+import { NOTEBOOK_CELL_HAS_HIDDEN_OUTPUTS, NOTEBOOK_CELL_IS_FIRST_OUTPUT } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 
 interface IMimeTypeRenderer extends IQuickPickItem {
 	index: number;
@@ -60,13 +61,14 @@ interface IRenderResult {
 //  |                        |  #cell-output-toolbar
 //  |                        |  #output-element
 class CellOutputElement extends Disposable {
-	private readonly _renderDisposableStore = this._register(new DisposableStore());
+	private readonly toolbarDisposables = this._register(new DisposableStore());
 
 	innerContainer?: HTMLElement;
 	renderedOutputContainer!: HTMLElement;
 	renderResult?: IInsetRenderOutput;
 
 	private readonly contextKeyService: IContextKeyService;
+	private toolbarAttached = false;
 
 	constructor(
 		private notebookEditor: INotebookEditorDelegate,
@@ -151,7 +153,7 @@ class CellOutputElement extends Disposable {
 		} else {
 			// Another mimetype or renderer is picked, we need to clear the current output and re-render
 			const nextElement = this.innerContainer.nextElementSibling;
-			this._renderDisposableStore.clear();
+			this.toolbarDisposables.clear();
 			const element = this.innerContainer;
 			if (element) {
 				element.remove();
@@ -207,7 +209,20 @@ class CellOutputElement extends Disposable {
 		}
 
 		const innerContainer = this._generateInnerOutputContainer(previousSibling, selectedPresentation);
-		this._attachToolbar(innerContainer, notebookTextModel, this.notebookEditor.activeKernel, index, mimeTypes);
+		if (index === 0 || this.output.visible.get()) {
+			this._attachToolbar(innerContainer, notebookTextModel, this.notebookEditor.activeKernel, index, mimeTypes);
+		} else {
+			this._register(autorun((reader) => {
+				const visible = reader.readObservable(this.output.visible);
+				if (visible && !this.toolbarAttached) {
+					this._attachToolbar(innerContainer, notebookTextModel, this.notebookEditor.activeKernel, index, mimeTypes);
+				} else if (!visible) {
+					this.toolbarDisposables.clear();
+				}
+				this.cellOutputContainer.checkForHiddenOutputs();
+			}));
+			this.cellOutputContainer.hasHiddenOutputs.set(true, undefined);
+		}
 
 		this.renderedOutputContainer = DOM.append(innerContainer, DOM.$('.rendered-output'));
 
@@ -291,14 +306,12 @@ class CellOutputElement extends Disposable {
 			return;
 		}
 
-		const useConsolidatedButton = this.notebookEditor.notebookOptions.getDisplayOptions().consolidatedOutputButton;
-
 		outputItemDiv.style.position = 'relative';
 		const mimeTypePicker = DOM.$('.cell-output-toolbar');
 
 		outputItemDiv.appendChild(mimeTypePicker);
 
-		const toolbar = this._renderDisposableStore.add(this.instantiationService.createInstance(WorkbenchToolBar, mimeTypePicker, {
+		const toolbar = this.toolbarDisposables.add(this.instantiationService.createInstance(WorkbenchToolBar, mimeTypePicker, {
 			renderDropdownAsChildElement: false
 		}));
 		toolbar.context = {
@@ -310,20 +323,22 @@ class CellOutputElement extends Disposable {
 		};
 
 		// TODO: This could probably be a real registered action, but it has to talk to this output element
-		const pickAction = new Action('notebook.output.pickMimetype', nls.localize('pickMimeType', "Change Presentation"), ThemeIcon.asClassName(mimetypeIcon), undefined,
-			async _context => this._pickActiveMimeTypeRenderer(outputItemDiv, notebookTextModel, kernel, this.output));
+		const pickAction = this.toolbarDisposables.add(new Action('notebook.output.pickMimetype', nls.localize('pickMimeType', "Change Presentation"), ThemeIcon.asClassName(mimetypeIcon), undefined,
+			async _context => this._pickActiveMimeTypeRenderer(outputItemDiv, notebookTextModel, kernel, this.output)));
 
-		const menu = this._renderDisposableStore.add(this.menuService.createMenu(MenuId.NotebookOutputToolbar, this.contextKeyService));
+		const menuContextKeyService = this.toolbarDisposables.add(this.contextKeyService.createScoped(outputItemDiv));
+		const hasHiddenOutputs = NOTEBOOK_CELL_HAS_HIDDEN_OUTPUTS.bindTo(menuContextKeyService);
+		const isFirstCellOutput = NOTEBOOK_CELL_IS_FIRST_OUTPUT.bindTo(menuContextKeyService);
+		isFirstCellOutput.set(index === 0);
+		this.toolbarDisposables.add(autorun((reader) => { hasHiddenOutputs.set(reader.readObservable(this.cellOutputContainer.hasHiddenOutputs)); }));
+		const menu = this.toolbarDisposables.add(this.menuService.createMenu(MenuId.NotebookOutputToolbar, menuContextKeyService));
+
 		const updateMenuToolbar = () => {
 			const primary: IAction[] = [];
 			let secondary: IAction[] = [];
 			const result = { primary, secondary };
 
-			createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, result, () => false);
-			if (index > 0 || !useConsolidatedButton) {
-				// clear outputs should only appear in the first output item's menu
-				secondary = secondary.filter((action) => action.id !== CLEAR_CELL_OUTPUTS_COMMAND_ID);
-			}
+			createAndFillInActionBarActions(menu!, { shouldForwardArgs: true }, result, () => false);
 			if (!isCopyEnabled) {
 				secondary = secondary.filter((action) => action.id !== COPY_OUTPUT_COMMAND_ID);
 			}
@@ -334,8 +349,7 @@ class CellOutputElement extends Disposable {
 			toolbar.setActions([], secondary);
 		};
 		updateMenuToolbar();
-		this._renderDisposableStore.add(menu.onDidChange(updateMenuToolbar));
-
+		this.toolbarDisposables.add(menu.onDidChange(updateMenuToolbar));
 	}
 
 	private async _pickActiveMimeTypeRenderer(outputItemDiv: HTMLElement, notebookTextModel: NotebookTextModel, kernel: INotebookKernel | undefined, viewModel: ICellOutputViewModel) {
@@ -397,7 +411,7 @@ class CellOutputElement extends Disposable {
 
 		// user chooses another mimetype
 		const nextElement = outputItemDiv.nextElementSibling;
-		this._renderDisposableStore.clear();
+		this.toolbarDisposables.clear();
 		const element = this.innerContainer;
 		if (element) {
 			element.remove();
@@ -478,6 +492,15 @@ const enum CellOutputUpdateContext {
 export class CellOutputContainer extends CellContentPart {
 	private _outputEntries: OutputEntryViewHandler[] = [];
 	private _hasStaleOutputs: boolean = false;
+
+	hasHiddenOutputs = observableValue<boolean>('hasHiddenOutputs', false);
+	checkForHiddenOutputs() {
+		if (this._outputEntries.find(entry => { return entry.model.visible; })) {
+			this.hasHiddenOutputs.set(true, undefined);
+		} else {
+			this.hasHiddenOutputs.set(false, undefined);
+		}
+	}
 
 	get renderedOutputEntries() {
 		return this._outputEntries;

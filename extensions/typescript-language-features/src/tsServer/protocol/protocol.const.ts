@@ -78,6 +78,7 @@ export enum EventName {
 	syntaxDiag = 'syntaxDiag',
 	semanticDiag = 'semanticDiag',
 	suggestionDiag = 'suggestionDiag',
+	regionSemanticDiag = 'regionSemanticDiag',
 	configFileDiag = 'configFileDiag',
 	telemetry = 'telemetry',
 	projectLanguageServiceState = 'projectLanguageServiceState',
