@@ -239,10 +239,10 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('view.viewTitle', "The contributed view title menu")
 	},
 	{
-		key: 'view/container/title',
+		key: 'viewContainer/title',
 		id: MenuId.ViewContainerTitle,
 		description: localize('view.containerTitle', "The contributed view container title menu"),
-		proposed: 'viewContainerContext'
+		proposed: 'contribViewContainerContext'
 	},
 	{
 		key: 'view/item/context',
