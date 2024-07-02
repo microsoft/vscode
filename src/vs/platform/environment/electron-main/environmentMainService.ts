@@ -19,9 +19,6 @@ export const IEnvironmentMainService = refineServiceDecorator<IEnvironmentServic
  */
 export interface IEnvironmentMainService extends INativeEnvironmentService {
 
-	// --- NLS cache path
-	readonly cachedLanguagesPath: string;
-
 	// --- backup paths
 	readonly backupHome: string;
 
@@ -43,9 +40,6 @@ export interface IEnvironmentMainService extends INativeEnvironmentService {
 export class EnvironmentMainService extends NativeEnvironmentService implements IEnvironmentMainService {
 
 	private _snapEnv: Record<string, string> = {};
-
-	@memoize
-	get cachedLanguagesPath(): string { return join(this.userDataPath, 'clp'); }
 
 	@memoize
 	get backupHome(): string { return join(this.userDataPath, 'Backups'); }

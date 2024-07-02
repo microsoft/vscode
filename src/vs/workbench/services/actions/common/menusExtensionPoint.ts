@@ -15,7 +15,6 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { index } from 'vs/base/common/arrays';
 import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
-import { ApiProposalName } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { IExtensionFeatureTableRenderer, IExtensionFeaturesRegistry, IRenderedData, IRowData, ITableData, Extensions as ExtensionFeaturesExtensions } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
 import { IExtensionManifest, IKeyBinding } from 'vs/platform/extensions/common/extensions';
@@ -25,6 +24,7 @@ import { platform } from 'vs/base/common/process';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ApiProposalName } from 'vs/platform/extensions/common/extensionsApiProposals';
 
 interface IAPIMenu {
 	readonly key: string;

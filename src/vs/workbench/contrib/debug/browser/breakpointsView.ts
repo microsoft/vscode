@@ -55,6 +55,7 @@ import { Breakpoint, DataBreakpoint, ExceptionBreakpoint, FunctionBreakpoint, In
 import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 
 const $ = dom.$;
 
@@ -1426,8 +1427,10 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
+	async run(accessor: ServicesAccessor): Promise<void> {
 		const debugService = accessor.get(IDebugService);
+		const viewService = accessor.get(IViewsService);
+		await viewService.openView(BREAKPOINTS_VIEW_ID);
 		debugService.addFunctionBreakpoint();
 	}
 });

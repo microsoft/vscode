@@ -100,7 +100,7 @@ export async function determineServerConnectionToken(args: ServerParsedArgs): Pr
 
 		// First try to find a connection token
 		try {
-			const fileContents = await Promises.readFile(storageLocation);
+			const fileContents = await fs.promises.readFile(storageLocation);
 			const connectionToken = fileContents.toString().replace(/\r?\n$/, '');
 			if (connectionTokenRegex.test(connectionToken)) {
 				return connectionToken;

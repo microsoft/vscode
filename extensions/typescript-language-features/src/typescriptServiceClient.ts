@@ -37,6 +37,7 @@ export interface TsDiagnostics {
 	readonly kind: DiagnosticKind;
 	readonly resource: vscode.Uri;
 	readonly diagnostics: Proto.Diagnostic[];
+	readonly spans?: Proto.TextSpan[];
 }
 
 interface ToCancelOnResourceChanged {
@@ -947,7 +948,8 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		switch (event.event) {
 			case EventName.syntaxDiag:
 			case EventName.semanticDiag:
-			case EventName.suggestionDiag: {
+			case EventName.suggestionDiag:
+			case EventName.regionSemanticDiag: {
 				// This event also roughly signals that projects have been loaded successfully (since the TS server is synchronous)
 				this.loadingIndicator.reset();
 
@@ -956,7 +958,9 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 					this._onDiagnosticsReceived.fire({
 						kind: getDiagnosticsKind(event),
 						resource: this.toResource(diagnosticEvent.body.file),
-						diagnostics: diagnosticEvent.body.diagnostics
+						diagnostics: diagnosticEvent.body.diagnostics,
+						// @ts-expect-error until ts 5.6
+						spans: diagnosticEvent.body.spans,
 					});
 				}
 				break;
@@ -1261,6 +1265,7 @@ function getDiagnosticsKind(event: Proto.Event) {
 		case 'syntaxDiag': return DiagnosticKind.Syntax;
 		case 'semanticDiag': return DiagnosticKind.Semantic;
 		case 'suggestionDiag': return DiagnosticKind.Suggestion;
+		case 'regionSemanticDiag': return DiagnosticKind.RegionSemantic;
 	}
 	throw new Error('Unknown dignostics kind');
 }

@@ -23,6 +23,7 @@ import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/sug
 import { localize, localize2 } from 'vs/nls';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -51,7 +52,7 @@ import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/note
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { CellEditType, CellKind, CellUri, INTERACTIVE_WINDOW_EDITOR_ID, NotebookSetting, NotebookWorkingCopyTypeIdentifier } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { InteractiveWindowOpen, NOTEBOOK_CELL_LIST_FOCUSED, REPL_NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
+import { InteractiveWindowOpen } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { executeReplInput } from 'vs/workbench/contrib/replNotebook/browser/repl.contribution';
@@ -434,10 +435,34 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
+			id: 'interactive.configure',
+			title: localize2('interactive.configExecute', 'Configure input box behavior'),
+			category: interactiveWindowCategory,
+			f1: false,
+			icon: icons.configIcon,
+			menu: {
+				id: MenuId.InteractiveInputConfig
+			}
+		});
+	}
+
+	override run(accessor: ServicesAccessor, ...args: any[]): void {
+		accessor.get(ICommandService).executeCommand('workbench.action.openSettings', '@tag:replExecute');
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
 			id: 'interactive.execute',
 			title: localize2('interactive.execute', 'Execute Code'),
 			category: interactiveWindowCategory,
 			keybinding: [{
+				// when: NOTEBOOK_CELL_LIST_FOCUSED,
+				when: ContextKeyExpr.equals('activeEditor', 'workbench.editor.interactive'),
+				primary: KeyMod.CtrlCmd | KeyCode.Enter,
+				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
+			}, {
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals('activeEditor', 'workbench.editor.interactive'),
 					ContextKeyExpr.equals('config.interactiveWindow.executeWithShiftEnter', true)
@@ -450,21 +475,6 @@ registerAction2(class extends Action2 {
 					ContextKeyExpr.equals('config.interactiveWindow.executeWithShiftEnter', false)
 				),
 				primary: KeyCode.Enter,
-				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
-			}, {
-				// when: NOTEBOOK_CELL_LIST_FOCUSED,
-				when: ContextKeyExpr.equals('activeEditor', 'workbench.editor.interactive'),
-				primary: KeyMod.WinCtrl | KeyCode.Enter,
-				win: {
-					primary: KeyMod.CtrlCmd | KeyCode.Enter
-				},
-				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
-			}, {
-				when: ContextKeyExpr.and(
-					REPL_NOTEBOOK_IS_ACTIVE_EDITOR,
-					NOTEBOOK_CELL_LIST_FOCUSED.toNegated()
-				),
-				primary: KeyMod.CtrlCmd | KeyCode.Enter,
 				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
 			}],
 			menu: [
@@ -853,10 +863,17 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: false,
 			markdownDescription: localize('interactiveWindow.promptToSaveOnClose', "Prompt to save the interactive window when it is closed. Only new interactive windows will be affected by this setting change.")
 		},
-		['interactiveWindow.executeWithShiftEnter']: {
+		[InteractiveWindowSetting.executeWithShiftEnter]: {
 			type: 'boolean',
 			default: false,
-			markdownDescription: localize('interactiveWindow.executeWithShiftEnter', "Execute the interactive window (REPL) input box with shift+enter, so that enter can be used to create a newline.")
+			markdownDescription: localize('interactiveWindow.executeWithShiftEnter', "Execute the Interactive Window (REPL) input box with shift+enter, so that enter can be used to create a newline."),
+			tags: ['replExecute']
+		},
+		[InteractiveWindowSetting.showExecutionHint]: {
+			type: 'boolean',
+			default: true,
+			markdownDescription: localize('interactiveWindow.showExecutionHint', "Display a hint in the Interactive Window (REPL) input box to indicate how to execute code."),
+			tags: ['replExecute']
 		}
 	}
 });

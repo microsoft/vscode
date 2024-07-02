@@ -40,6 +40,7 @@ class ToggleBreakpointAction extends Action2 {
 				...nls.localize2('toggleBreakpointAction', "Debug: Toggle Breakpoint"),
 				mnemonicTitle: nls.localize({ key: 'miToggleBreakpoint', comment: ['&& denotes a mnemonic'] }, "Toggle &&Breakpoint"),
 			},
+			f1: true,
 			precondition: CONTEXT_DEBUGGERS_AVAILABLE,
 			keybinding: {
 				when: ContextKeyExpr.or(EditorContextKeys.editorTextFocus, CONTEXT_DISASSEMBLY_VIEW_FOCUS),
