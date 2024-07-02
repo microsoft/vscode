@@ -117,6 +117,15 @@ class ExtHostVariableResolverService extends AbstractVariableResolverService {
 				}
 				return undefined;
 			},
+			getColumnNumber: (): string | undefined => {
+				if (editorService) {
+					const activeEditor = editorService.activeEditor();
+					if (activeEditor) {
+						return String(activeEditor.selection.end.character + 1);
+					}
+				}
+				return undefined;
+			},
 			getExtension: (id) => {
 				return extensionService.getExtension(id);
 			},
