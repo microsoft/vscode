@@ -81,7 +81,6 @@ export class ShowCurrentReleaseNotesFromCurrentFileAction extends Action2 {
 			},
 			category: localize2('developerCategory', "Developer"),
 			f1: true,
-			precondition: RELEASE_NOTES_URL
 		});
 	}
 
