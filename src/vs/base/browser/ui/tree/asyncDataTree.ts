@@ -581,8 +581,10 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			return;
 		}
 
+		const selection = this.tree.getSelection();
 		const node = this.getDataNode(element);
 		this.tree.rerender(node);
+		this.tree.setSelection(selection);
 	}
 
 	updateElementHeight(element: T, height: number | undefined): void {
