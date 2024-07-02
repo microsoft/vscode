@@ -1010,7 +1010,7 @@ export class CodeApplication extends Disposable {
 		services.set(IDiagnosticsService, ProxyChannel.toService(getDelayedChannel(sharedProcessReady.then(client => client.getChannel('diagnostics')))));
 
 		// Issues
-		services.set(IIssueMainService, new SyncDescriptor(IssueMainService, [this.userEnv]));
+		// services.set(IIssueMainService, new SyncDescriptor(IssueMainService, [this.userEnv]));
 
 		// Process
 		services.set(IProcessMainService, new SyncDescriptor(ProcessMainService, [this.userEnv]));
@@ -1144,8 +1144,8 @@ export class CodeApplication extends Disposable {
 		mainProcessElectronServer.registerChannel('update', updateChannel);
 
 		// Issues
-		const issueChannel = ProxyChannel.fromService(accessor.get(IIssueMainService), disposables);
-		mainProcessElectronServer.registerChannel('issue', issueChannel);
+		// const issueChannel = ProxyChannel.fromService(accessor.get(IIssueMainService), disposables);
+		// mainProcessElectronServer.registerChannel('issue', issueChannel);
 
 		// Process
 		const processChannel = ProxyChannel.fromService(accessor.get(IProcessMainService), disposables);

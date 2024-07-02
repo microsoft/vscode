@@ -13,16 +13,24 @@ import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IssueType } from 'vs/platform/issue/common/issue';
+import { IIssueMainService, IssueType } from 'vs/platform/issue/common/issue';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
 import { IssueQuickAccess } from 'vs/workbench/contrib/issue/browser/issueQuickAccess';
 import 'vs/workbench/contrib/issue/electron-sandbox/issueMainService';
-import 'vs/workbench/contrib/issue/electron-sandbox/issueService';
+// import 'vs/workbench/contrib/issue/electron-sandbox/issueService';
 import 'vs/workbench/contrib/issue/browser/issueTroubleshoot';
+import { registerSingleton, InstantiationType } from 'vs/platform/instantiation/common/extensions';
+import { IssueFormService } from 'vs/workbench/contrib/issue/browser/issueFormService';
+import { BrowserIssueService } from 'vs/workbench/contrib/issue/browser/issueService';
+import { IssueFormService2 } from 'vs/workbench/contrib/issue/electron-sandbox/issueFormService';
+import { NativeIssueService } from 'vs/workbench/contrib/issue/electron-sandbox/issueService';
 
 //#region Issue Contribution
+
+registerSingleton(IWorkbenchIssueService, NativeIssueService, InstantiationType.Delayed);
+registerSingleton(IIssueMainService, IssueFormService2, InstantiationType.Delayed);
 
 class NativeIssueContribution extends BaseIssueContribution {
 
