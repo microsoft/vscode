@@ -353,8 +353,18 @@ export class TestingExplorerView extends ViewPane {
 		}
 
 		const menuActions: IAction[] = [];
-
-		const key = this.contextKeyService.createOverlay([]);
+		const contextKeys: [string, unknown][] = [];
+		// allow extension author to define context for when to show the test menu actions for run or debug menus
+		if (group === TestRunProfileBitset.Run) {
+			contextKeys.push(['testing.profile.context.group', 'run']);
+		}
+		if (group === TestRunProfileBitset.Debug) {
+			contextKeys.push(['testing.profile.context.group', 'debug']);
+		}
+		if (group === TestRunProfileBitset.Coverage) {
+			contextKeys.push(['testing.profile.context.group', 'coverage']);
+		}
+		const key = this.contextKeyService.createOverlay(contextKeys);
 		const menu = this.menuService.createMenu(MenuId.TestProfilesContext, key);
 
 		// fill if there are any actions
