@@ -65,6 +65,7 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	restoreViewState: true,
 	splitInGroupLayout: 'horizontal',
 	revealIfOpen: false,
+	moveToActiveGroupIfOpen: false,
 	// Properties that are Objects have to be defined as getters
 	// to ensure no consumer modifies the default values
 	get limit(): IEditorPartLimitOptions { return { enabled: false, value: 10, perEditorGroup: false, excludeDirty: false }; },
@@ -133,6 +134,7 @@ function validateEditorPartOptions(options: IEditorPartOptions): IEditorPartOpti
 		'closeOnFileDelete': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['closeOnFileDelete']),
 		'closeEmptyGroups': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['closeEmptyGroups']),
 		'revealIfOpen': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['revealIfOpen']),
+		'moveToActiveGroupIfOpen': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['moveToActiveGroupIfOpen']),
 		'mouseBackForwardToNavigate': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['mouseBackForwardToNavigate']),
 		'restoreViewState': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['restoreViewState']),
 		'splitOnDragAndDrop': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['splitOnDragAndDrop']),
