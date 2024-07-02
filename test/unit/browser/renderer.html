@@ -8,6 +8,19 @@
 
 <body>
 	<div id="mocha"></div>
+	<script type="importmap">
+		{
+			"imports": {
+				"assert": "./import-map/assert.js",
+				"sinon": "./import-map/sinon.js",
+				"sinon-test": "./import-map/sinon-test.js",
+				"@xterm/xterm": "./import-map/xterm.js",
+				"@xterm/headless": "./import-map/xterm-headless.js",
+				"@vscode/iconv-lite-umd": "./import-map/vscode-iconv-lite-umd.js",
+				"jschardet": "./import-map/jschardet.js"
+			}
+		}
+	</script>
 	<script src="../../../node_modules/mocha/mocha.js"></script>
 	<script>
 		// !!! DO NOT CHANGE !!!

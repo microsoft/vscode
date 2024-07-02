@@ -343,4 +343,9 @@
 		// @ts-ignore
 		window.vscode = globals;
 	}
+	const isTest = !process.contextIsolated
+	if (isTest) {
+		// @ts-ignore
+		window.testGlobalRequire = require
+	}
 }());
