@@ -73,7 +73,6 @@ export interface IChatAgentData {
 	isDynamic?: boolean;
 	metadata: IChatAgentMetadata;
 	slashCommands: IChatAgentCommand[];
-	defaultImplicitVariables?: string[];
 	locations: ChatAgentLocation[];
 }
 
@@ -397,7 +396,6 @@ export class MergedChatAgent implements IChatAgent {
 	get isDefault(): boolean | undefined { return this.data.isDefault; }
 	get metadata(): IChatAgentMetadata { return this.data.metadata; }
 	get slashCommands(): IChatAgentCommand[] { return this.data.slashCommands; }
-	get defaultImplicitVariables(): string[] | undefined { return this.data.defaultImplicitVariables; }
 	get locations(): ChatAgentLocation[] { return this.data.locations; }
 
 	async invoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatAgentHistoryEntry[], token: CancellationToken): Promise<IChatAgentResult> {
