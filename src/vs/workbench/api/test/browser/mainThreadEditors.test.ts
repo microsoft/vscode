@@ -57,6 +57,7 @@ import { ICopyOperation, ICreateFileOperation, ICreateOperation, IDeleteOperatio
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { TestEditorGroupsService, TestEditorService, TestEnvironmentService, TestFileService, TestLifecycleService, TestWorkingCopyService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestContextService, TestTextResourcePropertiesService } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 
 suite('MainThreadEditors', () => {
 
@@ -92,6 +93,7 @@ suite('MainThreadEditors', () => {
 			undoRedoService,
 			disposables.add(new LanguageService()),
 			new TestLanguageConfigurationService(),
+			new TestInstantiationService()
 		);
 
 		const services = new ServiceCollection();

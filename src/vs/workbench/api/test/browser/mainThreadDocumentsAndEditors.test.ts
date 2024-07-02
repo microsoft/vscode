@@ -32,6 +32,7 @@ import { TextModel } from 'vs/editor/common/model/textModel';
 import { LanguageService } from 'vs/editor/common/services/languageService';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 
 suite('MainThreadDocumentsAndEditors', () => {
 
@@ -67,6 +68,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 			undoRedoService,
 			disposables.add(new LanguageService()),
 			new TestLanguageConfigurationService(),
+			new TestInstantiationService()
 		);
 		codeEditorService = new TestCodeEditorService(themeService);
 		textFileService = new class extends mock<ITextFileService>() {

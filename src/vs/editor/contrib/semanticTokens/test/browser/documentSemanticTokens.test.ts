@@ -29,6 +29,7 @@ import { TestTextResourcePropertiesService } from 'vs/editor/test/common/service
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
@@ -56,6 +57,7 @@ suite('ModelSemanticColoring', () => {
 			new UndoRedoService(new TestDialogService(), new TestNotificationService()),
 			languageService,
 			new TestLanguageConfigurationService(),
+			new TestInstantiationService()
 		));
 		const envService = new class extends mock<IEnvironmentService>() {
 			override isBuilt: boolean = true;

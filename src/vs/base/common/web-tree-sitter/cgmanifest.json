@@ -1,0 +1,17 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "web-tree-sitter",
+					"repositoryUrl": "https://github.com/tree-sitter/tree-sitter",
+					"commitHash": "fc15f621334a262039ffaded5937e2844f88da61"
+				}
+			},
+			"license": "MIT",
+			"version": "0.22.2"
+		}
+	],
+	"version": 1
+}
