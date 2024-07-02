@@ -74,5 +74,5 @@ function encodeAuthority(authority: string): string {
 }
 
 export function decodeAuthority(authority: string) {
-	return authority.replace(/-([0-9a-f]{4})/g, (_, code) => String.fromCharCode(parseInt(code, 16)));
+	return decodeURIComponent(authority.replace(/-([0-9a-f]{4})/g, (_, code) => String.fromCharCode(parseInt(code, 16))));
 }
