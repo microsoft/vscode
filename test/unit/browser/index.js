@@ -21,6 +21,7 @@ const yaserver = require('yaserver');
 const http = require('http');
 const { randomBytes } = require('crypto');
 const minimist = require('minimist');
+const { promisify } = require('node:util');
 
 /**
  * @type {{
@@ -234,13 +235,20 @@ async function runTestsInBrowser(testModules, browserType) {
 	const browser = await playwright[browserType].launch({ headless: !Boolean(args.debug), devtools: Boolean(args.debug) });
 	const context = await browser.newContext();
 	const page = await context.newPage();
-	const target = new URL(server.url + args.esm ? '/test/unit/browser/renderer-esm.html' : '/test/unit/browser/renderer.html');
+	const target = new URL(server.url + (args.esm ? '/test/unit/browser/renderer-esm.html' : '/test/unit/browser/renderer.html'));
 	target.searchParams.set('baseUrl', url.pathToFileURL(path.join(rootDir, 'src')).toString());
 	if (args.build) {
 		target.searchParams.set('build', 'true');
 	}
 	if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
 		target.searchParams.set('ci', 'true');
+	}
+
+	if (args.esm) {
+		await promisify(require('glob'))('**/*.css', { cwd: out }).then(async cssModules => {
+			const cssData = await new Response((await new Response(cssModules.join(',')).blob()).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer();
+			target.searchParams.set('_devCssData', Buffer.from(cssData).toString('base64'));
+		});
 	}
 
 	const emitter = new events.EventEmitter();
