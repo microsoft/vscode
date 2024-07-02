@@ -684,13 +684,17 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		this.layout(this.dimensions, { forceRevealActiveTab: true });
 	}
 
+	private previousSelectedCount = 0;
 	updateEditorSelections(): void {
-		// Only update if the active editor is the same as before
-		// if the active editor is different, the update
-		// will happen from an open editor call.
-		const drawnActiveEditor = this.activeTabLabel?.editor;
-		const newActiveEditor = this.tabsModel.activeEditor;
-		if (drawnActiveEditor && newActiveEditor && !drawnActiveEditor.matches(newActiveEditor)) {
+		// We only need to redraw from here when a selection got removed
+		// otherwise it will be handled by the open editor change event.
+		// Checking count is currently enough but might require checking
+		// each editor in the future if selection is changed programatically.
+		const newSelectedCount = this.tabsModel.selectedEditors.length;
+		const previousSelectedCount = this.previousSelectedCount;
+		this.previousSelectedCount = newSelectedCount;
+
+		if (newSelectedCount >= previousSelectedCount) {
 			return;
 		}
 
@@ -1649,7 +1653,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	private redrawTabSelectedActiveAndDirty(isGroupActive: boolean, editor: EditorInput, tabContainer: HTMLElement, tabActionBar: ActionBar): void {
 		const isTabActive = this.tabsModel.isActive(editor);
 		const hasModifiedBorderTop = this.doRedrawTabDirty(isGroupActive, isTabActive, editor, tabContainer);
-
+		console.log('redrawTabSelectedActiveAndDirty', editor.getName());
 		this.doRedrawTabActive(isGroupActive, !hasModifiedBorderTop, editor, tabContainer, tabActionBar);
 	}
 
