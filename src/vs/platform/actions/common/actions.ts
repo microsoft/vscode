@@ -138,7 +138,7 @@ export class MenuId {
 	static readonly StickyScrollContext = new MenuId('StickyScrollContext');
 	static readonly TestItem = new MenuId('TestItem');
 	static readonly TestItemGutter = new MenuId('TestItemGutter');
-	static readonly TestPythonConfigMenu = new MenuId('TestPythonConfigMenu');
+	static readonly TestProfilesContext = new MenuId('TestProfilesContext');
 	static readonly TestMessageContext = new MenuId('TestMessageContext');
 	static readonly TestMessageContent = new MenuId('TestMessageContent');
 	static readonly TestPeekElement = new MenuId('TestPeekElement');

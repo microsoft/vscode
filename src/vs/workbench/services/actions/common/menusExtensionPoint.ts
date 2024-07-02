@@ -344,9 +344,9 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('testing.item.gutter.title', "The menu for a gutter decoration for a test item"),
 	},
 	{
-		key: 'testing/pythonConfig',
-		id: MenuId.TestPythonConfigMenu,
-		description: localize('testing.pythonConfig.title', "The menu for configuring Python tests"),
+		key: 'testing/profiles/context',
+		id: MenuId.TestProfilesContext,
+		description: localize('testing.profiles.context.title', "The menu for configuring testing profiles."),
 	},
 	{
 		key: 'testing/item/result',

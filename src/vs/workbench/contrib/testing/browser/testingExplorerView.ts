@@ -355,17 +355,16 @@ export class TestingExplorerView extends ViewPane {
 		const menuActions: IAction[] = [];
 
 		const key = this.contextKeyService.createOverlay([]);
-		const menu = this.menuService.createMenu(MenuId.TestPythonConfigMenu, key);
-		const actions = menu.getActions({ renderShortTitle: true }).flatMap(entry => entry[1]);
-		if (actions.length > 0) {
-			// fill if there are any actions
-			try {
-				createAndFillInContextMenuActions(menu, undefined, menuActions);
-			} finally {
-				menu.dispose();
-			}
+		const menu = this.menuService.createMenu(MenuId.TestProfilesContext, key);
 
+		// fill if there are any actions
+		try {
+			createAndFillInContextMenuActions(menu, undefined, menuActions);
+		} finally {
+			menu.dispose();
 		}
+
+
 
 		const postActions: IAction[] = [];
 		if (profileActions.length > 1) {
