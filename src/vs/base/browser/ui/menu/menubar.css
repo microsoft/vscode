@@ -86,6 +86,10 @@
 	vertical-align: sub;
 }
 
+.menubar .monaco-scrollable-element > .scrollbar {
+	z-index: 0;
+}
+
 .menubar.compact .toolbar-toggle-more {
 	position: relative;
 	left: 0px;
