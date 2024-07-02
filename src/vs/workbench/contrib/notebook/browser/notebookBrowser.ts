@@ -182,6 +182,7 @@ export interface CodeCellLayoutInfo {
 	readonly editorWidth: number;
 	readonly estimatedHasHorizontalScrolling: boolean;
 	readonly statusBarHeight: number;
+	readonly commentOffset: number;
 	readonly commentHeight: number;
 	readonly totalHeight: number;
 	readonly outputContainerOffset: number;

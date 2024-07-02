@@ -101,7 +101,7 @@ export class CellComments extends CellContentPart {
 		if (!this._commentThreadWidget.value && info) {
 			await this._createCommentTheadWidget(info.owner, info.thread);
 			const layoutInfo = (this.currentElement as CodeCellViewModel).layoutInfo;
-			this.container.style.top = `${layoutInfo.outputContainerOffset + layoutInfo.outputTotalHeight}px`;
+			this.container.style.top = `${layoutInfo.commentOffset}px`;
 			this.currentElement.commentHeight = this._calculateCommentThreadHeight(this._commentThreadWidget.value!.getDimensions().height);
 			return;
 		}
@@ -170,7 +170,7 @@ export class CellComments extends CellContentPart {
 	override updateInternalLayoutNow(element: ICellViewModel): void {
 		if (this.currentElement?.cellKind === CellKind.Code && this._commentThreadWidget.value) {
 			const layoutInfo = (element as CodeCellViewModel).layoutInfo;
-			this.container.style.top = `${layoutInfo.outputContainerOffset + layoutInfo.outputTotalHeight}px`;
+			this.container.style.top = `${layoutInfo.commentOffset}px`;
 		}
 	}
 }
