@@ -45,6 +45,8 @@ import { isObject } from 'vs/base/common/types';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IURLService } from 'vs/platform/url/common/url';
+import { PreferencesUrlHandler } from 'vs/workbench/services/preferences/common/preferencesUrlHandler';
 
 const emptyEditableSettingsContent = '{\n}';
 
@@ -75,7 +77,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		@ILanguageService private readonly languageService: ILanguageService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
-		@ITextEditorService private readonly textEditorService: ITextEditorService
+		@ITextEditorService private readonly textEditorService: ITextEditorService,
+		@IURLService urlService: IURLService
 	) {
 		super();
 		// The default keybindings.json updates based on keyboard layouts, so here we make sure
@@ -88,6 +91,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			}
 			modelService.updateModel(model, defaultKeybindingsContents(keybindingService));
 		}));
+
+		this._register(urlService.registerHandler(instantiationService.createInstance(PreferencesUrlHandler)));
 	}
 
 	readonly defaultKeybindingsResource = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/keybindings.json' });

@@ -7,7 +7,6 @@ import * as nls from 'vs/nls';
 import { IPreferencesService, ISetting, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
 import { settingKeyToDisplayFormat } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
 import { URI } from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { DefaultSettings } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -15,8 +14,9 @@ import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IAction } from 'vs/base/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { Schemas } from 'vs/base/common/network';
 
-const codeSettingRegex = /^<code (codesetting)="([^\s"\:]+)(?::([^"]+))?">/;
+const codeSettingRegex = /^<a (href)=".*code.*:\/\/settings\/([^\s"\/]+)(?:\/([^"]+))?">/;
 
 export class SimpleSettingRenderer {
 	private _defaultSettings: DefaultSettings;
@@ -29,7 +29,7 @@ export class SimpleSettingRenderer {
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IPreferencesService private readonly _preferencesService: IPreferencesService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@IClipboardService private readonly _clipboardService: IClipboardService
+		@IClipboardService private readonly _clipboardService: IClipboardService,
 	) {
 		this._defaultSettings = new DefaultSettings([], ConfigurationTarget.USER);
 	}
