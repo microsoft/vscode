@@ -51,18 +51,12 @@ const vscodeEntryPoints = [
 ].flat();
 
 const vscodeResources = [
-	'out-build/bootstrap.js',
-	'out-build/bootstrap-fork.js',
-	'out-build/bootstrap-amd.js',
-	'out-build/bootstrap-node.js',
-	'out-build/bootstrap-window.js',
 	'out-build/nls.messages.json',
 	'out-build/nls.keys.json',
 	'out-build/vs/**/*.{svg,png,html,jpg,mp3}',
 	'!out-build/vs/code/browser/**/*.html',
 	'!out-build/vs/code/**/*-dev.html',
 	'!out-build/vs/editor/standalone/**/*.svg',
-	'out-build/vs/base/common/performance.js',
 	'out-build/vs/base/node/{stdForkStart.js,terminateProcess.sh,cpuUsage.sh,ps.sh}',
 	'out-build/vs/base/browser/ui/codicons/codicon/**',
 	'out-build/vs/base/parts/sandbox/electron-sandbox/preload.js',
@@ -111,12 +105,14 @@ const optimizeVSCodeTask = task.define('optimize-vscode', task.series(
 				src: 'out-build',
 				entryPoints: [
 					'out-build/main.js',
-					'out-build/cli.js'
+					'out-build/cli.js',
+					'out-build/bootstrap-fork.js',
 				],
 				platform: 'node',
 				external: [
 					'electron',
 					'minimist',
+					'original-fs',
 					// TODO: we cannot inline `product.json` because
 					// it is being changed during build time at a later
 					// point in time (such as `checksums`)

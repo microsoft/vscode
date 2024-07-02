@@ -2104,7 +2104,7 @@ export class CommandCenter {
 			}
 
 			// no changes, and the user has not configured to commit all in this case
-			if (!noUnstagedChanges && noStagedChanges && !enableSmartCommit && !opts.all) {
+			if (!noUnstagedChanges && noStagedChanges && !enableSmartCommit && !opts.all && !opts.amend) {
 				const suggestSmartCommit = config.get<boolean>('suggestSmartCommit') === true;
 
 				if (!suggestSmartCommit) {
@@ -2128,10 +2128,9 @@ export class CommandCenter {
 				}
 			}
 
-			if (opts.all === undefined) {
+			// smart commit
+			if (enableSmartCommit && !opts.all) {
 				opts = { ...opts, all: noStagedChanges };
-			} else if (!opts.all && noStagedChanges) {
-				opts = { ...opts, all: true };
 			}
 		}
 

@@ -73,7 +73,7 @@ function setupNLS() {
  * @returns {Promise<INLSConfiguration | undefined>}
  */
 async function doSetupNLS() {
-	performance.mark('code/fork/willLoadNls');
+	performance.mark('code/amd/willLoadNls');
 
 	/** @type {INLSConfiguration | undefined} */
 	let nlsConfig = undefined;
@@ -130,7 +130,7 @@ async function doSetupNLS() {
 		}
 	}
 
-	performance.mark('code/fork/didLoadNls');
+	performance.mark('code/amd/didLoadNls');
 
 	return nlsConfig;
 }

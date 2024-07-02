@@ -145,7 +145,7 @@ export class InlineChatWidget {
 				renderStyle: 'minimal',
 				renderInputOnTop: false,
 				renderFollowups: true,
-				supportsFileReferences: true,
+				supportsFileReferences: false,
 				filter: item => !isWelcomeVM(item),
 				...options.chatWidgetViewOptions
 			},
@@ -389,7 +389,7 @@ export class InlineChatWidget {
 		if (!isNonEmptyArray(requests)) {
 			return undefined;
 		}
-		return tail(requests)?.response?.response.asString();
+		return tail(requests)?.response?.response.toString();
 	}
 
 

@@ -16,7 +16,7 @@ const perf = require('./vs/base/common/performance');
 perf.mark('code/didStartMain');
 
 const path = require('path');
-const fs = require('fs');
+const fs = require('original-fs');
 const os = require('os');
 const bootstrap = require('./bootstrap');
 const bootstrapNode = require('./bootstrap-node');
@@ -215,6 +215,7 @@ function configureCommandlineSwitchesSync(cliArgs) {
 	];
 
 	if (process.platform === 'linux') {
+
 		// Force enable screen readers on Linux via this flag
 		SUPPORTED_ELECTRON_SWITCHES.push('force-renderer-accessibility');
 
@@ -590,23 +591,13 @@ function getCodeCachePath() {
 }
 
 /**
- * @param {string} dir
- * @returns {Promise<string>}
- */
-function mkdirp(dir) {
-	return new Promise((resolve, reject) => {
-		fs.mkdir(dir, { recursive: true }, err => (err && err.code !== 'EEXIST') ? reject(err) : resolve(dir));
-	});
-}
-
-/**
  * @param {string | undefined} dir
  * @returns {Promise<string | undefined>}
  */
 async function mkdirpIgnoreError(dir) {
 	if (typeof dir === 'string') {
 		try {
-			await mkdirp(dir);
+			await fs.promises.mkdir(dir, { recursive: true });
 
 			return dir;
 		} catch (error) {

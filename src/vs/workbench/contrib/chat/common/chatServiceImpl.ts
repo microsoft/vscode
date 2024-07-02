@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesce } from 'vs/base/common/arrays';
 import { DeferredPromise } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -23,7 +22,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ChatAgentLocation, IChatAgent, IChatAgentRequest, IChatAgentResult, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, ChatWelcomeMessageModel, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatRequestVariableEntry, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatsData, getHistoryEntriesFromModel, updateRanges } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, ChatWelcomeMessageModel, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatsData, getHistoryEntriesFromModel, updateRanges } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, IParsedChatRequest, chatAgentLeader, chatSubcommandLeader, getPromptText } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
 import { IChatCompleteResponse, IChatDetail, IChatFollowup, IChatProgress, IChatSendRequestData, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatTransferredSessionData, IChatUserActionEvent } from 'vs/workbench/contrib/chat/common/chatService';
@@ -485,21 +484,6 @@ export class ChatService extends Disposable implements IChatService {
 					const promptTextResult = getPromptText(request.message);
 					const updatedVariableData = updateRanges(variableData, promptTextResult.diff); // TODO bit of a hack
 
-					// TODO- should figure out how to get rid of implicit variables for inline chat
-					const implicitVariablesEnabled = (location === ChatAgentLocation.Editor || location === ChatAgentLocation.Notebook);
-					if (implicitVariablesEnabled) {
-						const implicitVariables = agent.defaultImplicitVariables;
-						if (implicitVariables) {
-							const resolvedImplicitVariables = await Promise.all(implicitVariables.map(async v => {
-								const id = this.chatVariablesService.getVariable(v)?.id ?? '';
-								const value = await this.chatVariablesService.resolveVariable(v, parsedRequest.text, model, progressCallback, token);
-								return value ? { id, name: v, value } satisfies IChatRequestVariableEntry :
-									undefined;
-							}));
-							updatedVariableData.variables.push(...coalesce(resolvedImplicitVariables));
-						}
-					}
-
 					const requestProps: IChatAgentRequest = {
 						sessionId,
 						requestId: request.id,
@@ -529,12 +513,12 @@ export class ChatService extends Disposable implements IChatService {
 							continue;
 						}
 						history.push({ role: ChatMessageRole.User, content: { type: 'text', value: request.message.text } });
-						history.push({ role: ChatMessageRole.Assistant, content: { type: 'text', value: request.response.response.asString() } });
+						history.push({ role: ChatMessageRole.Assistant, content: { type: 'text', value: request.response.response.toString() } });
 					}
 					const message = parsedRequest.text;
 					const commandResult = await this.chatSlashCommandService.executeCommand(commandPart.slashCommand.command, message.substring(commandPart.slashCommand.command.length + 1).trimStart(), new Progress<IChatProgress>(p => {
 						progressCallback(p);
-					}), history, token);
+					}), history, location, token);
 					agentOrCommandFollowups = Promise.resolve(commandResult?.followUp);
 					rawResult = {};
 
