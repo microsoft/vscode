@@ -21,10 +21,10 @@ type Result<TArgs extends any[]> = new (...args: TArgs) => IDisposable;
 
 class BaseClass {
 	constructor(
-		protected readonly instantiationService: IInstantiationService,
+		public readonly instantiationService: IInstantiationService,
 	) { }
 
-	init(...params: any[]): void { }
+	public init(...params: any[]): void { }
 }
 
 function createWrapper<T extends any[]>(getClass: () => any, B: new (...args: T) => BaseClass) {
