@@ -359,22 +359,9 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		super.restoreEditorViewState(editorViewStates);
 		if (totalHeight !== undefined && this._layoutInfo.layoutState !== CellLayoutState.Measured) {
 			this._layoutInfo = {
-				fontInfo: this._layoutInfo.fontInfo,
-				chatHeight: this._layoutInfo.chatHeight,
-				editorHeight: this._layoutInfo.editorHeight,
-				editorWidth: this._layoutInfo.editorWidth,
-				statusBarHeight: this.layoutInfo.statusBarHeight,
-				commentHeight: this.layoutInfo.commentHeight,
-				outputContainerOffset: this._layoutInfo.outputContainerOffset,
-				outputTotalHeight: this._layoutInfo.outputTotalHeight,
-				outputShowMoreContainerHeight: this._layoutInfo.outputShowMoreContainerHeight,
-				outputShowMoreContainerOffset: this._layoutInfo.outputShowMoreContainerOffset,
+				...this._layoutInfo,
 				totalHeight: totalHeight,
-				codeIndicatorHeight: this._layoutInfo.codeIndicatorHeight,
-				outputIndicatorHeight: this._layoutInfo.outputIndicatorHeight,
-				bottomToolbarOffset: this._layoutInfo.bottomToolbarOffset,
 				layoutState: CellLayoutState.FromCache,
-				estimatedHasHorizontalScrolling: this._layoutInfo.estimatedHasHorizontalScrolling
 			};
 		}
 	}

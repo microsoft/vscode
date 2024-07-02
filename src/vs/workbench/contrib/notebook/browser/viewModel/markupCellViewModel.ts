@@ -257,16 +257,12 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 		// we might already warmup the viewport so the cell has a total height computed
 		if (totalHeight !== undefined && this.layoutInfo.layoutState === CellLayoutState.Uninitialized) {
 			this._layoutInfo = {
-				fontInfo: this._layoutInfo.fontInfo,
-				editorWidth: this._layoutInfo.editorWidth,
-				previewHeight: this._layoutInfo.previewHeight,
-				bottomToolbarOffset: this._layoutInfo.bottomToolbarOffset,
+				...this.layoutInfo,
 				totalHeight: totalHeight,
 				chatHeight: this._chatHeight,
 				editorHeight: this._editorHeight,
 				statusBarHeight: this._statusBarHeight,
 				layoutState: CellLayoutState.FromCache,
-				foldHintHeight: this._layoutInfo.foldHintHeight
 			};
 			this.layoutChange({});
 		}
