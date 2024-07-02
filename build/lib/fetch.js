@@ -13,6 +13,8 @@ const log = require("fancy-log");
 const ansiColors = require("ansi-colors");
 const crypto = require("crypto");
 const through2 = require("through2");
+const process_1 = require("process");
+const undici_1 = require("undici");
 function fetchUrls(urls, options) {
     if (options === undefined) {
         options = {};
@@ -34,6 +36,12 @@ function fetchUrls(urls, options) {
 }
 async function fetchUrl(url, options, retries = 10, retryDelay = 1000) {
     const verbose = !!options.verbose ?? (!!process.env['CI'] || !!process.env['BUILD_ARTIFACTSTAGINGDIRECTORY']);
+    // Proxy setup
+    let agent;
+    const proxyUrl = process_1.env['https_proxy'] || process_1.env['http_proxy'] || '';
+    if (proxyUrl !== '') {
+        agent = new undici_1.ProxyAgent(proxyUrl);
+    }
     try {
         let startTime = 0;
         if (verbose) {
@@ -43,8 +51,9 @@ async function fetchUrl(url, options, retries = 10, retryDelay = 1000) {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 30 * 1000);
         try {
-            const response = await fetch(url, {
+            const response = await (0, undici_1.fetch)(url, {
                 ...options.nodeFetchOptions,
+                dispatcher: agent,
                 signal: controller.signal /* Typings issue with lib.dom.d.ts */
             });
             if (verbose) {
