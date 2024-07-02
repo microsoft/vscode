@@ -56,6 +56,9 @@
 				assert: new URL('../assert-esm.js', baseUrl).href,
 				sinon: new URL('../../../node_modules/sinon/pkg/sinon-esm.js', baseUrl).href,
 				'sinon-test': new URL('../../../node_modules/sinon-test/dist/sinon-test-es.js', baseUrl).href,
+				'@xterm/xterm': new URL('../../../node_modules/@xterm/xterm/lib/xterm.js', baseUrl).href,
+				'@vscode/iconv-lite-umd': new URL('../../../node_modules/@vscode/iconv-lite-umd/lib/iconv-lite-umd.js', baseUrl).href,
+				jschardet: new URL('../../../node_modules/jschardet/dist/jschardet.min.js', baseUrl).href
 			}
 		}
 
@@ -105,7 +108,7 @@
 
 		// set up require
 
-		globalThis._VSCODE_FILE_ROOT = new URL('../../../src', baseUrl);
+		globalThis._VSCODE_FILE_ROOT = new URL('../../../src', baseUrl).href;
 		globalThis.require = {
 			paths: {
 				xterm: new URL('../../../node_modules/xterm', baseUrl).href,
@@ -166,6 +169,39 @@
 			runner.on('pending', test => window.mocha_report('pending', serializeRunnable(test)));
 		};
 
+		const remoteMethods = [
+			'__readFileInTests',
+			'__writeFileInTests',
+			'__readDirInTests',
+			'__unlinkInTests',
+			'__mkdirPInTests',
+		];
+
+		for (const method of remoteMethods) {
+			const prefix = window.location.pathname.split('/')[1];
+			globalThis[method] = async (...args) => {
+				const res = await fetch(`/${prefix}/remoteMethod/${method}`, {
+					body: JSON.stringify(args),
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' }
+				});
+
+				return res.json();
+			}
+		}
+
+		async function loadModules(modules) {
+			for (const file of modules) {
+				mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_PRE_REQUIRE, globalThis, file, mocha);
+				const m = await new Promise((resolve, reject) => import(`../../../out/${file}.js`).then(resolve, err => {
+					console.log("BAD " + file + JSON.stringify(err, undefined, '\t'));
+					resolve({});
+				}));
+				mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_REQUIRE, m, file, mocha);
+				mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_POST_REQUIRE, globalThis, file, mocha);
+			}
+		}
+
 		let _resolveTestData;
 		let _resolveTestRun;
 		globalThis._VSCODE_TEST_RUN = new Promise(resolve => _resolveTestData = resolve)
@@ -185,18 +221,6 @@
 
 
 	<script type="text" id="bootstrap">
-
-		async function loadModules(modules) {
-			for (const file of modules) {
-				mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_PRE_REQUIRE, globalThis, file, mocha);
-				const m = await new Promise((resolve, reject) => import(`../../../out/${file}.js`).then(resolve, err => {
-					console.log("BAD " + file + JSON.stringify(err, undefined, '\t'));
-					resolve({});
-				}));
-				mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_REQUIRE, m, file, mocha);
-				mocha.suite.emit(Mocha.Suite.constants.EVENT_FILE_POST_REQUIRE, globalThis, file, mocha);
-			}
-		}
 
 		const {data: {modules, grep}, manual} = await globalThis._VSCODE_TEST_RUN
 

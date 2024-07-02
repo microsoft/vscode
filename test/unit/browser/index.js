@@ -188,10 +188,14 @@ async function createServer() {
 			req.on('end', () => resolve(JSON.parse(Buffer.concat(body).toString())));
 			req.on('error', reject);
 		});
-
-		const result = await fn(...params);
-		response.writeHead(200, { 'Content-Type': 'application/json' });
-		response.end(JSON.stringify(result));
+		try {
+			const result = await fn(...params);
+			response.writeHead(200, { 'Content-Type': 'application/json' });
+			response.end(JSON.stringify(result));
+		} catch (err) {
+			response.writeHead(500);
+			response.end(err.message);
+		}
 	};
 
 	const server = http.createServer((request, response) => {
@@ -304,8 +308,8 @@ async function runTestsInBrowser(testModules, browserType) {
 		console.error(err);
 	}
 	if (!isDebug) {
+		server?.dispose();
 		await browser.close();
-		server?.close();
 	}
 
 	if (failingTests.length > 0) {
@@ -393,7 +397,9 @@ testModules.then(async modules => {
 		}
 	} catch (err) {
 		console.error(err);
-		process.exit(1);
+		if (!isDebug) {
+			process.exit(1);
+		}
 	}
 
 	// aftermath
