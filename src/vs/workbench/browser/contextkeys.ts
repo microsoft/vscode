@@ -267,7 +267,6 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 	// Context keys depending on the state of the editor group itself
 	private updateActiveEditorGroupContextKeys(): void {
-		console.log('active group');
 		if (!this.editorService.activeEditor) {
 			this.activeEditorGroupEmpty.set(true);
 		} else {
@@ -283,7 +282,6 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 	// Context keys depending on the state of other editor groups
 	private updateEditorGroupsContextKeys(): void {
-		console.log('all groups');
 		const groupCount = this.editorGroupService.count;
 		if (groupCount > 1) {
 			this.multipleEditorGroupsContext.set(true);
