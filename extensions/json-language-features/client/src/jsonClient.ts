@@ -8,7 +8,8 @@ export type JSONLanguageStatus = { schemas: string[] };
 import {
 	workspace, window, languages, commands, LogOutputChannel, ExtensionContext, extensions, Uri, ColorInformation,
 	Diagnostic, StatusBarAlignment, TextEditor, TextDocument, FormattingOptions, CancellationToken, FoldingRange,
-	ProviderResult, TextEdit, Range, Position, Disposable, CompletionItem, CompletionList, CompletionContext, Hover, MarkdownString, FoldingContext, DocumentSymbol, SymbolInformation, l10n
+	ProviderResult, TextEdit, Range, Position, Disposable, CompletionItem, CompletionList, CompletionContext, Hover, MarkdownString, FoldingContext, DocumentSymbol, SymbolInformation, l10n,
+	ViewColumn
 } from 'vscode';
 import {
 	LanguageClientOptions, RequestType, NotificationType, FormattingOptions as LSPFormattingOptions, DocumentDiagnosticReportKind,
@@ -368,6 +369,8 @@ async function startClientWithParticipants(context: ExtensionContext, languagePa
 		if (uri.scheme !== 'http' && uri.scheme !== 'https') {
 			return workspace.openTextDocument(uri).then(doc => {
 				schemaDocuments[uri.toString()] = true;
+				runtime.logOutputChannel.info(`Loaded ${uri.toString()}, size ${doc.getText().length} characters`);
+				window.showTextDocument(doc, ViewColumn.Beside);
 				return doc.getText();
 			}, error => {
 				return Promise.reject(new ResponseError(2, error.toString()));

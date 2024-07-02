@@ -24,6 +24,7 @@ import { RegisteredEditorPriority, IEditorResolverService } from 'vs/workbench/s
 import { ITextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
 import { DEFAULT_SETTINGS_EDITOR_SETTING, FOLDER_SETTINGS_PATH, IPreferencesService, USE_SPLIT_JSON_SETTING } from 'vs/workbench/services/preferences/common/preferences';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { getCompressedContent } from 'vs/base/common/jsonSchema';
 
 const schemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
 
@@ -120,14 +121,14 @@ export class PreferencesContribution implements IWorkbenchContribution {
 
 	private getSchemaModel(uri: URI): ITextModel {
 		let schema = schemaRegistry.getSchemaContributions().schemas[uri.toString()] ?? {} /* Use empty schema if not yet registered */;
-		const modelContent = JSON.stringify(schema);
+		const modelContent = getCompressedContent(schema);
 		const languageSelection = this.languageService.createById('jsonc');
 		const model = this.modelService.createModel(modelContent, languageSelection, uri);
 		const disposables = new DisposableStore();
 		disposables.add(schemaRegistry.onDidChangeSchema(schemaUri => {
 			if (schemaUri === uri.toString()) {
 				schema = schemaRegistry.getSchemaContributions().schemas[uri.toString()];
-				model.setValue(JSON.stringify(schema));
+				model.setValue(getCompressedContent(schema));
 			}
 		}));
 		disposables.add(model.onWillDispose(() => disposables.dispose()));
@@ -139,6 +140,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		dispose(this.settingsListener);
 	}
 }
+
 
 const registry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 registry.registerConfiguration({
