@@ -108,7 +108,15 @@ function prepareDebPackage(arch) {
 			.pipe(replace('@@NAME@@', product.applicationName))
 			.pipe(rename('DEBIAN/postinst'));
 
-		const all = es.merge(control, postinst, postrm, prerm, desktops, appdata, workspaceMime, icon, bash_completion, zsh_completion, code);
+		const templates = gulp.src('resources/linux/debian/templates.template', { base: '.' })
+			.pipe(replace('@@NAME@@', product.applicationName))
+			.pipe(rename('DEBIAN/templates'));
+
+		const config = gulp.src('resources/linux/debian/config.template', { base: '.' })
+			.pipe(replace('@@NAME@@', product.applicationName))
+			.pipe(rename('DEBIAN/config'));
+
+		const all = es.merge(control, postinst, postrm, prerm, templates, config, desktops, appdata, workspaceMime, icon, bash_completion, zsh_completion, code);
 
 		return all.pipe(vfs.dest(destination));
 	};

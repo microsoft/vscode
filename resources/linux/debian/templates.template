@@ -1,0 +1,4 @@
+Template: @@NAME@@/configure_apt
+Type: boolean
+Default: true
+Description: Do you want VS Code to configure an APT sources.list file and install Microsoft's signing key?

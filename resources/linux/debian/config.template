@@ -1,0 +1,6 @@
+#!/bin/sh -e
+
+. /usr/share/debconf/confmodule
+
+db_input low @@NAME@@/configure_apt || true
+db_go
