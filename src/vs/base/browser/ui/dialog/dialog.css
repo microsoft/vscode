@@ -28,6 +28,7 @@
 	min-width: 500px;
 	max-width: 90vw;
 	min-height: 75px;
+	max-height: 90vh;
 	padding: 10px;
 	transform: translate3d(0px, 0px, 0px);
 }
@@ -61,13 +62,14 @@
 .monaco-dialog-box .dialog-message-row .dialog-message-container {
 	display: flex;
 	flex-direction: column;
-	overflow: hidden;
+	overflow: auto; /* show scrollbars if the message is too big */
 	text-overflow: ellipsis;
 	padding-left: 24px;
 	user-select: text;
 	-webkit-user-select: text;
 	word-wrap: break-word; /* never overflow long words, but break to next line */
 	white-space: normal;
+	max-height: 70vh;
 }
 
 /** Dialog: Message */
