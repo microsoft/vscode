@@ -435,12 +435,42 @@ export class InlineChatController implements IEditorContribution {
 			}
 		}));
 
+		let ignoreRemoveEvents = false;
 		this._sessionStore.add(this._session.chatModel.onDidChange(async e => {
-			if (e.kind === 'removeRequest') {
-				// TODO@jrieken there is still some work left for when a request "in the middle"
-				// is removed. We will undo all changes till that point but not remove those
-				// later request
-				await this._session!.undoChangesUntil(e.requestId);
+			if (e.kind === 'removeRequest' && !ignoreRemoveEvents) {
+				assertType(this._session);
+				assertType(this._strategy);
+
+				// when truely removing a request, we also remove all following requests
+				if (e.reason === ChatRequestRemovalReason.Removal) {
+					try {
+						ignoreRemoveEvents = true;
+						const requests = this._session.chatModel.getRequests().slice();
+						const idx = requests.findIndex(candidate => candidate.id === e.requestId);
+						for (let i = idx + 1; i < requests.length; i++) {
+							await this._chatService.removeRequest(this._session.chatModel.sessionId, requests[i].id);
+						}
+					} finally {
+						ignoreRemoveEvents = false;
+					}
+				}
+
+				await this._session.undoChangesUntil(e.requestId);
+
+				// recompute hunks!
+				const requests = this._session.chatModel.getRequests();
+				let editState: IChatTextEditGroupState | undefined;
+				for (let i = requests.length - 1; i >= 0; i--) {
+					const edits = <IChatTextEditGroup | undefined>requests[i].response?.response.value.find(item => item.kind === 'textEditGroup' && isEqual(item.uri, this._session?.textModelN.uri));
+					if (edits?.state) {
+						editState = edits.state;
+						break;
+					}
+				}
+				if (editState) {
+					this._session.hunkData.recompute(editState);
+					await this._strategy.renderChanges();
+				}
 			}
 		}));
 
@@ -671,8 +701,11 @@ export class InlineChatController implements IEditorContribution {
 		assertType(this._session);
 		assertType(this._strategy);
 
-		const { response } = this._session.lastExchange!;
+		if (!this._session.lastExchange) {
+			return State.WAIT_FOR_INPUT;
+		}
 
+		const { response } = this._session.lastExchange;
 
 		let newPosition: Position | undefined;
 
