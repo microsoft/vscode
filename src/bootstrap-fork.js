@@ -6,7 +6,14 @@
 //@ts-check
 'use strict';
 
-const performance = require('./vs/base/common/performance');
+// ESM-comment-begin
+const isESM = false;
+// ESM-comment-end
+// ESM-uncomment-begin
+// const isESM = true;
+// ESM-uncomment-end
+const requireExtension = (isESM ? '.cjs' : '');
+const performance = require(`./vs/base/common/performance${requireExtension}`);
 performance.mark('code/fork/start');
 
 const bootstrap = require('./bootstrap');
@@ -42,7 +49,6 @@ if (process.env['VSCODE_PARENT_PID']) {
 
 // Load AMD entry point
 require('./bootstrap-amd').load(process.env['VSCODE_AMD_ENTRYPOINT']);
-
 
 //#region Helpers
 

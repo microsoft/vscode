@@ -12,7 +12,14 @@
  * @import { NativeParsedArgs } from './vs/platform/environment/common/argv'
  */
 
-const perf = require('./vs/base/common/performance');
+// ESM-comment-begin
+const isESM = false;
+// ESM-comment-end
+// ESM-uncomment-begin
+// const isESM = true;
+// ESM-uncomment-end
+const requireExtension = (isESM ? '.cjs' : '');
+const perf = require(`./vs/base/common/performance${requireExtension}`);
 perf.mark('code/didStartMain');
 
 const path = require('path');
@@ -20,9 +27,9 @@ const fs = require('original-fs');
 const os = require('os');
 const bootstrap = require('./bootstrap');
 const bootstrapNode = require('./bootstrap-node');
-const { getUserDataPath } = require('./vs/platform/environment/node/userDataPath');
-const { parse } = require('./vs/base/common/jsonc');
-const { getUNCHost, addUNCHostToAllowlist } = require('./vs/base/node/unc');
+const { getUserDataPath } = require(`./vs/platform/environment/node/userDataPath${requireExtension}`);
+const { parse } = require(`./vs/base/common/jsonc${requireExtension}`);
+const { getUNCHost, addUNCHostToAllowlist } = require(`./vs/base/node/unc${requireExtension}`);
 /** @type {Partial<IProductConfiguration>} */
 // @ts-ignore
 const product = require('../product.json');
@@ -124,7 +131,7 @@ let nlsConfigurationPromise = undefined;
 const osLocale = processZhLocale((app.getPreferredSystemLanguages()?.[0] ?? 'en').toLowerCase());
 const userLocale = getUserDefinedLocale(argvConfig);
 if (userLocale) {
-	const { resolveNLSConfiguration } = require('./vs/base/node/nls');
+	const { resolveNLSConfiguration } = require('./vs/base/node/nls${requireExtension}');
 	nlsConfigurationPromise = resolveNLSConfiguration({
 		userLocale,
 		osLocale,
@@ -670,7 +677,7 @@ async function resolveNlsConfiguration() {
 	// See above the comment about the loader and case sensitiveness
 	userLocale = processZhLocale(userLocale.toLowerCase());
 
-	const { resolveNLSConfiguration } = require('./vs/base/node/nls');
+	const { resolveNLSConfiguration } = require(`./vs/base/node/nls${requireExtension}`);
 	return resolveNLSConfiguration({
 		userLocale,
 		osLocale,

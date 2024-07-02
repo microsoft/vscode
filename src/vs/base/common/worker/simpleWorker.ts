@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isESM } from 'vs/base/common/amd';
 import { transformErrorForSerialization } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { AppResourcePath, FileAccess } from 'vs/base/common/network';
 import { getAllMethodNames } from 'vs/base/common/objects';
-import { isWeb } from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 
 const INITIALIZE = '$initialize';
@@ -27,10 +28,6 @@ export interface IWorkerFactory {
 
 let webWorkerWarningLogged = false;
 export function logOnceWebWorkerWarning(err: any): void {
-	if (!isWeb) {
-		// running tests
-		return;
-	}
 	if (!webWorkerWarningLogged) {
 		webWorkerWarningLogged = true;
 		console.warn('Could not create web worker(s). Falling back to loading web worker code in main thread, which might cause UI freezes. Please see https://github.com/microsoft/monaco-editor#faq');
@@ -334,6 +331,10 @@ export class SimpleWorkerClient<W extends object, H extends object> extends Disp
 			loaderConfiguration = (globalThis as any).requirejs.s.contexts._.config;
 		}
 
+		if (isESM) {
+			loaderConfiguration = { _VSCODE_FILE_ROOT: globalThis._VSCODE_FILE_ROOT };
+		}
+
 		const hostMethods = getAllMethodNames(host);
 
 		// Send initialize message
@@ -513,23 +514,42 @@ export class SimpleWorkerServer<H extends object> {
 		}
 
 		if (loaderConfig) {
-			// Remove 'baseUrl', handling it is beyond scope for now
-			if (typeof loaderConfig.baseUrl !== 'undefined') {
-				delete loaderConfig['baseUrl'];
-			}
-			if (typeof loaderConfig.paths !== 'undefined') {
-				if (typeof loaderConfig.paths.vs !== 'undefined') {
-					delete loaderConfig.paths['vs'];
-				}
-			}
-			if (typeof loaderConfig.trustedTypesPolicy !== 'undefined') {
-				// don't use, it has been destroyed during serialize
-				delete loaderConfig['trustedTypesPolicy'];
-			}
 
-			// Since this is in a web worker, enable catching errors
-			loaderConfig.catchError = true;
-			globalThis.require.config(loaderConfig);
+			if (isESM) {
+				globalThis._VSCODE_FILE_ROOT = loaderConfig._VSCODE_FILE_ROOT;
+
+			} else {
+				// Remove 'baseUrl', handling it is beyond scope for now
+				if (typeof loaderConfig.baseUrl !== 'undefined') {
+					delete loaderConfig['baseUrl'];
+				}
+				if (typeof loaderConfig.paths !== 'undefined') {
+					if (typeof loaderConfig.paths.vs !== 'undefined') {
+						delete loaderConfig.paths['vs'];
+					}
+				}
+				if (typeof loaderConfig.trustedTypesPolicy !== 'undefined') {
+					// don't use, it has been destroyed during serialize
+					delete loaderConfig['trustedTypesPolicy'];
+				}
+
+				// Since this is in a web worker, enable catching errors
+				loaderConfig.catchError = true;
+				globalThis.require.config(loaderConfig);
+			}
+		}
+
+		if (isESM) {
+			const url = FileAccess.asBrowserUri(moduleId + '.js' as AppResourcePath).toString(true);
+			return import(url).then((module: { create: IRequestHandlerFactory<H> }) => {
+				this._requestHandler = module.create(hostProxy);
+
+				if (!this._requestHandler) {
+					throw new Error(`No RequestHandler!`);
+				}
+
+				return getAllMethodNames(this._requestHandler);
+			});
 		}
 
 		return new Promise<string[]>((resolve, reject) => {

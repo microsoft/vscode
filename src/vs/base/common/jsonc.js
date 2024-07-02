@@ -8,6 +8,10 @@
 //@ts-check
 'use strict';
 
+// ESM-uncomment-begin
+// const module = { exports: {} };
+// ESM-uncomment-end
+
 (function () {
 	function factory(path, os, productName, cwd) {
 		// First group matches a double quoted string
@@ -77,3 +81,8 @@
 		console.trace('jsonc defined in UNKNOWN context (neither requirejs or commonjs)');
 	}
 })();
+
+// ESM-uncomment-begin
+// export const stripComments = module.exports.stripComments;
+// export const parse = module.exports.parse;
+// ESM-uncomment-end

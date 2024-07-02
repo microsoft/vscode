@@ -200,6 +200,13 @@ export class Client implements IChannelClient, IDisposable {
 					.filter(a => !a.startsWith('--vscode-')); 	// --vscode-* arguments are unsupported by node.js and thus need to remove
 			}
 
+			// ESM-uncomment-begin
+			// if (process.execArgv.includes('--experimental-loader')) {
+			// 	const idx = process.execArgv.indexOf('--experimental-loader');
+			// 	forkOpts.execArgv.push(process.execArgv[idx], process.execArgv[idx + 1]);
+			// }
+			// ESM-uncomment-end
+
 			removeDangerousEnvVariables(forkOpts.env);
 
 			this.child = fork(this.modulePath, args, forkOpts);

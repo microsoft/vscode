@@ -7,12 +7,20 @@
 
 //@ts-check
 'use strict';
-
 /**
  * @import { ISandboxConfiguration } from './vs/base/parts/sandbox/common/sandboxTypes'
  */
 
 /* eslint-disable no-restricted-globals */
+
+
+// ESM-comment-begin
+const isESM = false;
+// ESM-comment-end
+// ESM-uncomment-begin
+// const isESM = true;
+// ESM-uncomment-end
+
 
 // Simple module style to support node.js and browser environments
 (function (globalThis, factory) {
@@ -96,59 +104,123 @@
 
 		window['MonacoEnvironment'] = {};
 
-		/** @type {any} */
-		const loaderConfig = {
-			baseUrl: `${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out`,
-			preferScriptTags: true
-		};
 
-		// use a trusted types policy when loading via script tags
-		loaderConfig.trustedTypesPolicy = window.trustedTypes?.createPolicy('amdLoader', {
-			createScriptURL(value) {
-				if (value.startsWith(window.location.origin)) {
-					return value;
-				}
-				throw new Error(`Invalid script url: ${value}`);
+		if (isESM) {
+			// Signal before require()
+			if (typeof options?.beforeRequire === 'function') {
+				options.beforeRequire(configuration);
 			}
-		});
 
-		// Teach the loader the location of the node modules we use in renderers
-		// This will enable to load these modules via <script> tags instead of
-		// using a fallback such as node.js require which does not exist in sandbox
-		const baseNodeModulesPath = isDev ? '../node_modules' : '../node_modules.asar';
-		loaderConfig.paths = {
-			'vscode-textmate': `${baseNodeModulesPath}/vscode-textmate/release/main.js`,
-			'vscode-oniguruma': `${baseNodeModulesPath}/vscode-oniguruma/release/main.js`,
-			'vsda': `${baseNodeModulesPath}/vsda/index.js`,
-			'@xterm/xterm': `${baseNodeModulesPath}/@xterm/xterm/lib/xterm.js`,
-			'@xterm/addon-clipboard': `${baseNodeModulesPath}/@xterm/addon-clipboard/lib/addon-clipboard.js`,
-			'@xterm/addon-image': `${baseNodeModulesPath}/@xterm/addon-image/lib/addon-image.js`,
-			'@xterm/addon-search': `${baseNodeModulesPath}/@xterm/addon-search/lib/addon-search.js`,
-			'@xterm/addon-serialize': `${baseNodeModulesPath}/@xterm/addon-serialize/lib/addon-serialize.js`,
-			'@xterm/addon-unicode11': `${baseNodeModulesPath}/@xterm/addon-unicode11/lib/addon-unicode11.js`,
-			'@xterm/addon-webgl': `${baseNodeModulesPath}/@xterm/addon-webgl/lib/addon-webgl.js`,
-			'@vscode/iconv-lite-umd': `${baseNodeModulesPath}/@vscode/iconv-lite-umd/lib/iconv-lite-umd.js`,
-			'jschardet': `${baseNodeModulesPath}/jschardet/dist/jschardet.min.js`,
-			'@vscode/vscode-languagedetection': `${baseNodeModulesPath}/@vscode/vscode-languagedetection/dist/lib/index.js`,
-			'vscode-regexp-languagedetection': `${baseNodeModulesPath}/vscode-regexp-languagedetection/dist/index.js`,
-			'tas-client-umd': `${baseNodeModulesPath}/tas-client-umd/lib/tas-client-umd.js`
-		};
+			const fileRoot = `${configuration.appRoot}/out`;
+			globalThis._VSCODE_FILE_ROOT = fileRoot;
 
-		// Signal before require.config()
-		if (typeof options?.beforeLoaderConfig === 'function') {
-			options.beforeLoaderConfig(loaderConfig);
+
+			// DEV ---------------------------------------------------------------------------------------
+			// DEV: This is for development and enables loading CSS via import-statements via import-maps.
+			// DEV: For each CSS modules that we have we define an entry in the import map that maps to
+			// DEV: a blob URL that loads the CSS via a dynamic @import-rule.
+			// DEV ---------------------------------------------------------------------------------------
+			const cssDataBase64 = new URLSearchParams(window.location.search).get('_devCssData');
+			if (cssDataBase64) {
+
+				const style = document.createElement('style');
+				style.type = 'text/css';
+				style.media = 'screen';
+				style.id = 'vscode-css-loading';
+				document.head.appendChild(style);
+
+				globalThis._VSCODE_CSS_LOAD = function (url) {
+					// @ts-ignore
+					style.sheet.insertRule(`@import url(${url});`);
+				};
+
+				const baseUrl = new URL(`vscode-file://vscode-app${fileRoot}/`);
+				const importMap = { imports: {} };
+				const cssData = Uint8Array.from(atob(cssDataBase64), c => c.charCodeAt(0));
+				await new Response(new Blob([cssData], { type: 'application/octet-binary' }).stream().pipeThrough(new DecompressionStream('gzip'))).text().then(value => {
+					const cssModules = value.split(',');
+					for (const cssModule of cssModules) {
+						const cssUrl = new URL(cssModule, baseUrl).href;
+						const jsSrc = `globalThis._VSCODE_CSS_LOAD('${cssUrl}');\n`;
+						const blob = new Blob([jsSrc], { type: 'application/javascript' });
+						importMap.imports[cssUrl] = URL.createObjectURL(blob);
+					}
+				});
+
+				const ttp = window.trustedTypes?.createPolicy('vscode-bootstrapImportMap', { createScript(value) { return value; }, });
+				const importMapSrc = JSON.stringify(importMap, undefined, 2);
+				const importMapScript = document.createElement('script');
+				importMapScript.type = 'importmap';
+				importMapScript.setAttribute('nonce', '0c6a828f1297');
+				// @ts-ignore
+				importMapScript.textContent = ttp?.createScript(importMapSrc) ?? importMapSrc;
+				document.head.appendChild(importMapScript);
+			}
+
+			const filePaths = modulePaths.map((modulePath) => (`${configuration.appRoot}/out/${modulePath}.js`));
+			const result = Promise.all(filePaths.map((filePath) => import(filePath)));
+			result.then((res) => invokeResult(res[0]), onUnexpectedError);
+		} else {
+			/**
+			 * @typedef {any} LoaderConfig
+			 */
+			/** @type {LoaderConfig} */
+			const loaderConfig = {
+				baseUrl: `${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out`,
+				preferScriptTags: true
+			};
+
+			// use a trusted types policy when loading via script tags
+			loaderConfig.trustedTypesPolicy = window.trustedTypes?.createPolicy('amdLoader', {
+				createScriptURL(value) {
+					if (value.startsWith(window.location.origin)) {
+						return value;
+					}
+					throw new Error(`Invalid script url: ${value}`);
+				}
+			});
+
+			// Teach the loader the location of the node modules we use in renderers
+			// This will enable to load these modules via <script> tags instead of
+			// using a fallback such as node.js require which does not exist in sandbox
+			const baseNodeModulesPath = isDev ? '../node_modules' : '../node_modules.asar';
+			loaderConfig.paths = {
+				'vscode-textmate': `${baseNodeModulesPath}/vscode-textmate/release/main.js`,
+				'vscode-oniguruma': `${baseNodeModulesPath}/vscode-oniguruma/release/main.js`,
+				'vsda': `${baseNodeModulesPath}/vsda/index.js`,
+				'@xterm/xterm': `${baseNodeModulesPath}/@xterm/xterm/lib/xterm.js`,
+				'@xterm/addon-clipboard': `${baseNodeModulesPath}/@xterm/addon-clipboard/lib/addon-clipboard.js`,
+				'@xterm/addon-image': `${baseNodeModulesPath}/@xterm/addon-image/lib/addon-image.js`,
+				'@xterm/addon-search': `${baseNodeModulesPath}/@xterm/addon-search/lib/addon-search.js`,
+				'@xterm/addon-serialize': `${baseNodeModulesPath}/@xterm/addon-serialize/lib/addon-serialize.js`,
+				'@xterm/addon-unicode11': `${baseNodeModulesPath}/@xterm/addon-unicode11/lib/addon-unicode11.js`,
+				'@xterm/addon-webgl': `${baseNodeModulesPath}/@xterm/addon-webgl/lib/addon-webgl.js`,
+				'@vscode/iconv-lite-umd': `${baseNodeModulesPath}/@vscode/iconv-lite-umd/lib/iconv-lite-umd.js`,
+				'jschardet': `${baseNodeModulesPath}/jschardet/dist/jschardet.min.js`,
+				'@vscode/vscode-languagedetection': `${baseNodeModulesPath}/@vscode/vscode-languagedetection/dist/lib/index.js`,
+				'vscode-regexp-languagedetection': `${baseNodeModulesPath}/vscode-regexp-languagedetection/dist/index.js`,
+				'tas-client-umd': `${baseNodeModulesPath}/tas-client-umd/lib/tas-client-umd.js`
+			};
+
+			// Signal before require.config()
+			if (typeof options?.beforeLoaderConfig === 'function') {
+				options.beforeLoaderConfig(loaderConfig);
+			}
+
+			// Configure loader
+			require.config(loaderConfig);
+
+
+			// Signal before require()
+			if (typeof options?.beforeRequire === 'function') {
+				options.beforeRequire(configuration);
+			}
+
+			// Actually require the main module as specified
+			require(modulePaths, invokeResult, onUnexpectedError);
 		}
 
-		// Configure loader
-		require.config(loaderConfig);
-
-		// Signal before require()
-		if (typeof options?.beforeRequire === 'function') {
-			options.beforeRequire(configuration);
-		}
-
-		// Actually require the main module as specified
-		require(modulePaths, async firstModule => {
+		async function invokeResult(firstModule) {
 			try {
 
 				// Callback only after process environment is resolved
@@ -163,7 +235,7 @@
 			} catch (error) {
 				onUnexpectedError(error, enableDeveloperKeybindings);
 			}
-		}, onUnexpectedError);
+		}
 	}
 
 	/**

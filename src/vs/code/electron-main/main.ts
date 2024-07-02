@@ -71,6 +71,7 @@ import { LogService } from 'vs/platform/log/common/logService';
 import { massageMessageBoxOptions } from 'vs/platform/dialogs/common/dialogs';
 import { SaveStrategy, StateService } from 'vs/platform/state/node/stateService';
 import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataProvider';
+import { IWindowDevelopmentService, WindowDevelopmentService } from 'vs/platform/windows/electron-main/windowDevService';
 import { addUNCHostToAllowlist, getUNCHost } from 'vs/base/node/unc';
 
 /**
@@ -173,6 +174,9 @@ class CodeMain {
 		const bufferLogger = new BufferLogger(loggerService.getLogLevel());
 		const logService = disposables.add(new LogService(bufferLogger, [new ConsoleMainLogger(loggerService.getLogLevel())]));
 		services.set(ILogService, logService);
+
+		// Window-Dev Service
+		services.set(IWindowDevelopmentService, new SyncDescriptor(WindowDevelopmentService));
 
 		// Files
 		const fileService = new FileService(logService);

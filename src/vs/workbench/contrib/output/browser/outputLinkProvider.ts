@@ -9,7 +9,7 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { ILink } from 'vs/editor/common/languages';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { OUTPUT_MODE_ID, LOG_MODE_ID } from 'vs/workbench/services/output/common/output';
-import { MonacoWebWorker, createWebWorker } from 'vs/editor/browser/services/webWorker';
+import { MonacoWebWorker, createWorkbenchWebWorker } from 'vs/editor/browser/services/webWorker';
 import { ICreateData, OutputLinkComputer } from 'vs/workbench/contrib/output/common/outputLinkComputer';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
@@ -73,7 +73,7 @@ export class OutputLinkProvider extends Disposable {
 				workspaceFolders: this.contextService.getWorkspace().folders.map(folder => folder.uri.toString())
 			};
 
-			this.worker = createWebWorker<OutputLinkComputer>(this.modelService, this.languageConfigurationService, {
+			this.worker = createWorkbenchWebWorker<OutputLinkComputer>(this.modelService, this.languageConfigurationService, {
 				moduleId: 'vs/workbench/contrib/output/common/outputLinkComputer',
 				createData,
 				label: 'outputLinkComputer'

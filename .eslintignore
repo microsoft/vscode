@@ -30,7 +30,15 @@
 **/src/vs/*/**/*.d.ts
 **/src/vs/base/test/common/filters.perf.data.js
 **/src/vs/loader.js
+**/src2/**/dompurify.js
+**/src2/**/marked.js
+**/src2/**/semver.js
+**/src2/typings/**/*.d.ts
+**/src2/vs/*/**/*.d.ts
+**/src2/vs/base/test/common/filters.perf.data.js
+**/src2/vs/loader.js
 **/test/unit/assert.js
+**/test/unit/assert-esm.js
 **/test/automation/out/**
 **/typings/**
 !.vscode

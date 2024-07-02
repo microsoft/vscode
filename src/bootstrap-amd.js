@@ -10,6 +10,14 @@
  * @typedef {import('./vs/nls').INLSConfiguration} INLSConfiguration
  */
 
+// ESM-comment-begin
+const isESM = false;
+// ESM-comment-end
+// ESM-uncomment-begin
+// const isESM = true;
+// ESM-uncomment-end
+const requireExtension = (isESM ? '.cjs' : '');
+
 // Store the node.js require function in a variable
 // before loading our AMD loader to avoid issues
 // when this file is bundled with other files.
@@ -32,28 +40,15 @@ if (process.env['VSCODE_DEV']) {
 globalThis._VSCODE_PACKAGE_JSON = require('../package.json');
 
 // @ts-ignore
-const loader = require('./vs/loader');
+// VSCODE_GLOBALS: file root of all resources
+globalThis._VSCODE_FILE_ROOT = __dirname;
+
 const bootstrap = require('./bootstrap');
-const performance = require('./vs/base/common/performance');
+const performance = require(`./vs/base/common/performance${requireExtension}`);
 const fs = require('fs');
 
-// Bootstrap: Loader
-loader.config({
-	baseUrl: bootstrap.fileUriFromPath(__dirname, { isWindows: process.platform === 'win32' }),
-	catchError: true,
-	nodeRequire,
-	amdModulesPattern: /^vs\//,
-	recordStats: true
-});
 
-// Running in Electron
-if (process.env['ELECTRON_RUN_AS_NODE'] || process.versions['electron']) {
-	loader.define('fs', ['original-fs'], function (/** @type {import('fs')} */originalFS) {
-		return originalFS;  // replace the patched electron fs with the original node fs for all AMD code
-	});
-}
 
-//#region NLS helpers
 
 /** @type {Promise<INLSConfiguration | undefined> | undefined} */
 let setupNLSResult = undefined;
@@ -142,26 +137,106 @@ async function doSetupNLS() {
  * @param {(value: any) => void=} onLoad
  * @param {(err: Error) => void=} onError
  */
-exports.load = function (entrypoint, onLoad, onError) {
-	if (!entrypoint) {
-		return;
-	}
+let load;
 
-	// code cache config
-	if (process.env['VSCODE_CODE_CACHE_PATH']) {
-		loader.config({
-			nodeCachedData: {
-				path: process.env['VSCODE_CODE_CACHE_PATH'],
-				seed: entrypoint
+if (isESM) {
+	// TODO@jrieken: merge vscode.context with _VSCODE etc...
+	globalThis.vscode = {};
+	globalThis.vscode.context = {
+		configuration: () => {
+			/** @type {any} */
+			const product = require('../product.json');
+			// Running out of sources
+			if (process.env['VSCODE_DEV']) {
+				Object.assign(product, {
+					nameShort: `${product.nameShort} Dev`,
+					nameLong: `${product.nameLong} Dev`,
+					dataFolderName: `${product.dataFolderName}-dev`,
+					serverDataFolderName: product.serverDataFolderName ? `${product.serverDataFolderName}-dev` : undefined
+				});
 			}
+			// Version is added during built time, but we still
+			// want to have it running out of sources so we
+			// read it from package.json only when we need it.
+			if (!product.version) {
+				const pkg = require('../package.json');
+				Object.assign(product, {
+					version: pkg.version
+				});
+			}
+			return { product };
+		}
+	};
+
+	/**
+	 * @param {string} entrypoint
+	 * @param {(value: any) => void} onLoad
+	 * @param {(err: Error) => void} onError
+	 */
+	load = function (entrypoint, onLoad, onError) {
+		if (!entrypoint) {
+			return;
+		}
+
+		entrypoint = `./${entrypoint}.js`;
+
+		onLoad = onLoad || function () { };
+		onError = onError || function (err) { console.error(err); };
+
+		setupNLS().then(() => {
+			performance.mark(`code/fork/willLoadCode`);
+			import(entrypoint).then(onLoad, onError);
+		});
+	};
+
+} else {
+
+	// @ts-ignore
+	const loader = require('./vs/loader');
+
+	loader.config({
+		baseUrl: bootstrap.fileUriFromPath(__dirname, { isWindows: process.platform === 'win32' }),
+		catchError: true,
+		nodeRequire,
+		amdModulesPattern: /^vs\//,
+		recordStats: true
+	});
+
+	// Running in Electron
+	if (process.env['ELECTRON_RUN_AS_NODE'] || process.versions['electron']) {
+		loader.define('fs', ['original-fs'], function (/** @type {import('fs')} */originalFS) {
+			return originalFS;  // replace the patched electron fs with the original node fs for all AMD code
 		});
 	}
 
-	onLoad = onLoad || function () { };
-	onError = onError || function (err) { console.error(err); };
+	/**
+	 * @param {string=} entrypoint
+	 * @param {(value: any) => void=} onLoad
+	 * @param {(err: Error) => void=} onError
+	 */
+	load = function (entrypoint, onLoad, onError) {
+		if (!entrypoint) {
+			return;
+		}
 
-	setupNLS().then(() => {
-		performance.mark('code/fork/willLoadCode');
-		loader([entrypoint], onLoad, onError);
-	});
-};
+		// code cache config
+		if (process.env['VSCODE_CODE_CACHE_PATH']) {
+			loader.config({
+				nodeCachedData: {
+					path: process.env['VSCODE_CODE_CACHE_PATH'],
+					seed: entrypoint
+				}
+			});
+		}
+
+		onLoad = onLoad || function () { };
+		onError = onError || function (err) { console.error(err); };
+
+		setupNLS().then(() => {
+			performance.mark('code/fork/willLoadCode');
+			loader([entrypoint], onLoad, onError);
+		});
+	};
+}
+
+exports.load = load;

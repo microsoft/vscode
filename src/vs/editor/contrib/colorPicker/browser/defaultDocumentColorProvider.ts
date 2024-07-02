@@ -13,6 +13,7 @@ import { ILanguageConfigurationService } from 'vs/editor/common/languages/langua
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { registerEditorFeature } from 'vs/editor/common/editorFeatures';
+import { FileAccess } from 'vs/base/common/network';
 
 export class DefaultDocumentColorProvider implements DocumentColorProvider {
 
@@ -22,7 +23,7 @@ export class DefaultDocumentColorProvider implements DocumentColorProvider {
 		modelService: IModelService,
 		languageConfigurationService: ILanguageConfigurationService,
 	) {
-		this._editorWorkerClient = new EditorWorkerClient(modelService, false, 'editorWorkerService', languageConfigurationService);
+		this._editorWorkerClient = new EditorWorkerClient(FileAccess.asBrowserUri('vs/base/worker/workerMain.js'), modelService, false, 'editorWorkerService', languageConfigurationService);
 	}
 
 	async provideDocumentColors(model: ITextModel, _token: CancellationToken): Promise<IColorInformation[] | null> {

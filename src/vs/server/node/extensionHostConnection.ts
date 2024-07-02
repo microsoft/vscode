@@ -261,6 +261,12 @@ export class ExtensionHostConnection extends Disposable {
 				silent: true
 			};
 
+			// ESM-uncomment-begin
+			// if (process.env['VSCODE_DEV']) {
+			// 	execArgv.push('--experimental-loader', FileAccess.asFileUri('server-loader.mjs').fsPath);
+			// }
+			// ESM-uncomment-end
+
 			// Refs https://github.com/microsoft/vscode/issues/189805
 			opts.execArgv.unshift('--dns-result-order=ipv4first');
 

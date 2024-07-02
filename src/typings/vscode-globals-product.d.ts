@@ -8,6 +8,11 @@
 declare global {
 
 	/**
+	 * Holds the file root for resources.
+	 */
+	var _VSCODE_FILE_ROOT: string;
+
+	/**
 	 * @deprecated You MUST use `IProductService` whenever possible.
 	 */
 	var _VSCODE_PRODUCT_JSON: Record<string, any>;

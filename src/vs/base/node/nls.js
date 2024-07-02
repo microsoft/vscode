@@ -8,6 +8,10 @@
 //@ts-check
 'use strict';
 
+// ESM-uncomment-begin
+// const module = { exports: {} };
+// ESM-uncomment-end
+
 /**
  * @import { INLSConfiguration, ILanguagePacks } from '../../nls'
  * @import { IResolveNLSConfigurationContext } from './nls'
@@ -257,3 +261,7 @@
 		throw new Error('vs/base/node/nls defined in UNKNOWN context (neither requirejs or commonjs)');
 	}
 })();
+
+// ESM-uncomment-begin
+// export const resolveNLSConfiguration = module.exports.resolveNLSConfiguration;
+// ESM-uncomment-end

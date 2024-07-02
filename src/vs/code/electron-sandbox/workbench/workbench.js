@@ -25,8 +25,11 @@
 	// we know for a fact that workbench.desktop.main will depend on
 	// the related CSS counterpart.
 	bootstrapWindow.load([
+		// 'workbench.desktop.main', // ESM-BUNDLED
 		'vs/workbench/workbench.desktop.main',
+		// ESM-comment-begin
 		'vs/css!vs/workbench/workbench.desktop.main'
+		// ESM-comment-end
 	],
 		function (desktopMain, configuration) {
 

@@ -26,6 +26,8 @@ import { DetailedLineRangeMapping } from '../diff/rangeMapping';
 import { linesDiffComputers } from 'vs/editor/common/diff/linesDiffComputers';
 import { createProxyObject, getAllMethodNames } from 'vs/base/common/objects';
 import { IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
+import { isESM } from 'vs/base/common/amd';
+import { AppResourcePath, FileAccess } from 'vs/base/common/network';
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { IDocumentColorComputerTarget, computeDefaultDocumentColors } from 'vs/editor/common/languages/defaultDocumentColorsComputer';
 import { FindSectionHeaderOptions, SectionHeader, findSectionHeaders } from 'vs/editor/common/services/findSectionHeaders';
@@ -818,20 +820,22 @@ export class EditorSimpleWorker implements IRequestHandler, IDisposable {
 			// static foreing module
 			return Promise.resolve(getAllMethodNames(this._foreignModule));
 		}
-		// ESM-comment-begin
+
 		return new Promise<any>((resolve, reject) => {
-			require([moduleId], (foreignModule: { create: IForeignModuleFactory }) => {
+
+			const onModuleCallback = (foreignModule: { create: IForeignModuleFactory }) => {
 				this._foreignModule = foreignModule.create(ctx, createData);
-
 				resolve(getAllMethodNames(this._foreignModule));
+			};
 
-			}, reject);
+			if (!isESM) {
+				require([moduleId], onModuleCallback, reject);
+
+			} else {
+				const url = FileAccess.asBrowserUri(moduleId + '.js' as AppResourcePath).toString(true);
+				import(url).then(onModuleCallback).catch(reject);
+			}
 		});
-		// ESM-comment-end
-
-		// ESM-uncomment-begin
-		// return Promise.reject(new Error(`Unexpected usage`));
-		// ESM-uncomment-end
 	}
 
 	// foreign method request

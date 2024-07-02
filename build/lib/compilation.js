@@ -19,11 +19,11 @@ const util = require("./util");
 const fancyLog = require("fancy-log");
 const ansiColors = require("ansi-colors");
 const os = require("os");
-const ts = require("typescript");
 const File = require("vinyl");
 const task = require("./task");
 const index_1 = require("./mangle/index");
 const postcss_1 = require("./postcss");
+const ts = require("typescript");
 const watch = require('./watch');
 // --- gulp-tsb: compile and transpile --------------------------------
 const reporter = (0, reporter_1.createReporter)();
@@ -141,9 +141,9 @@ function compileTask(src, out, build, options = {}) {
 }
 function watchTask(out, build) {
     const task = () => {
-        const compile = createCompile('src', { build, emitError: false, transpileOnly: false, preserveEnglish: false });
-        const src = gulp.src('src/**', { base: 'src' });
-        const watchSrc = watch('src/**', { base: 'src', readDelay: 200 });
+        const compile = createCompile('src2', { build, emitError: false, transpileOnly: false, preserveEnglish: false }); // DO NOT MERGE TO `main`
+        const src = gulp.src('src2/**', { base: 'src2' }); // DO NOT MERGE TO `main`
+        const watchSrc = watch('src2/**', { base: 'src2', readDelay: 200 }); // DO NOT MERGE TO `main`
         const generator = new MonacoGenerator(true);
         generator.execute();
         return watchSrc

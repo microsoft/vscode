@@ -63,6 +63,7 @@ export class EditorWorkerService extends Disposable implements IEditorWorkerServ
 	private readonly _logService: ILogService;
 
 	constructor(
+		workerMainLocation: URI | undefined,
 		@IModelService modelService: IModelService,
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@ILogService logService: ILogService,
@@ -71,7 +72,7 @@ export class EditorWorkerService extends Disposable implements IEditorWorkerServ
 	) {
 		super();
 		this._modelService = modelService;
-		this._workerManager = this._register(new WorkerManager(this._modelService, languageConfigurationService));
+		this._workerManager = this._register(new WorkerManager(workerMainLocation, this._modelService, languageConfigurationService));
 		this._logService = logService;
 
 		// register default link-provider and default completions-provider
@@ -281,7 +282,7 @@ class WorkerManager extends Disposable {
 	private _editorWorkerClient: EditorWorkerClient | null;
 	private _lastWorkerUsedTime: number;
 
-	constructor(modelService: IModelService, private readonly languageConfigurationService: ILanguageConfigurationService) {
+	constructor(private readonly workerMainLocation: URI | undefined, modelService: IModelService, private readonly languageConfigurationService: ILanguageConfigurationService) {
 		super();
 		this._modelService = modelService;
 		this._editorWorkerClient = null;
@@ -335,7 +336,7 @@ class WorkerManager extends Disposable {
 	public withWorker(): Promise<EditorWorkerClient> {
 		this._lastWorkerUsedTime = (new Date()).getTime();
 		if (!this._editorWorkerClient) {
-			this._editorWorkerClient = new EditorWorkerClient(this._modelService, false, 'editorWorkerService', this.languageConfigurationService);
+			this._editorWorkerClient = new EditorWorkerClient(this.workerMainLocation, this._modelService, false, 'editorWorkerService', this.languageConfigurationService);
 		}
 		return Promise.resolve(this._editorWorkerClient);
 	}
@@ -484,6 +485,7 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 	private _disposed = false;
 
 	constructor(
+		workerMainLocation: URI | undefined,
 		modelService: IModelService,
 		keepIdleModels: boolean,
 		label: string | undefined,
@@ -492,7 +494,7 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 		super();
 		this._modelService = modelService;
 		this._keepIdleModels = keepIdleModels;
-		this._workerFactory = new DefaultWorkerFactory(label);
+		this._workerFactory = new DefaultWorkerFactory(workerMainLocation, label);
 		this._worker = null;
 		this._modelManager = null;
 	}

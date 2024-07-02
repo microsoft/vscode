@@ -10,7 +10,7 @@
 // come before any mocha imports.
 process.env.MOCHA_COLORS = '1';
 
-const { app, BrowserWindow, ipcMain, crashReporter } = require('electron');
+const { app, BrowserWindow, ipcMain, crashReporter, session } = require('electron');
 const product = require('../../../product.json');
 const { tmpdir } = require('os');
 const { existsSync, mkdirSync } = require('fs');
@@ -28,6 +28,7 @@ const minimist = require('minimist');
 /**
  * @type {{
  * grep: string;
+ * esm: boolean;
  * run: string;
  * runGlob: string;
  * dev: boolean;
@@ -47,7 +48,7 @@ const minimist = require('minimist');
  */
 const args = minimist(process.argv.slice(2), {
 	string: ['grep', 'run', 'runGlob', 'reporter', 'reporter-options', 'waitServer', 'timeout', 'crash-reporter-directory', 'tfs', 'coveragePath', 'coverageFormats'],
-	boolean: ['build', 'coverage', 'help', 'dev', 'per-test-coverage'],
+	boolean: ['build', 'esm', 'coverage', 'help', 'dev', 'per-test-coverage'],
 	alias: {
 		'grep': ['g', 'f'],
 		'runGlob': ['glob', 'runGrep'],
@@ -218,6 +219,11 @@ class IPCRunner extends events.EventEmitter {
 
 app.on('ready', () => {
 
+	session.defaultSession.protocol.registerFileProtocol('vscode-file', (request, callback) => {
+		const path = new URL(request.url).pathname;
+		callback({ path });
+	});
+
 	ipcMain.on('error', (_, err) => {
 		if (!args.dev) {
 			console.error(err);
@@ -302,7 +308,9 @@ app.on('ready', () => {
 		win.webContents.send('run', args);
 	}
 
-	win.loadURL(url.format({ pathname: path.join(__dirname, 'renderer.html'), protocol: 'file:', slashes: true }));
+	const target = url.pathToFileURL(path.join(__dirname, `renderer${args.esm ? '-esm' : ''}.html`));
+	target.searchParams.set('argv', JSON.stringify(args));
+	win.loadURL(target.href);
 
 	const runner = new IPCRunner(win);
 	createStatsCollector(runner);
