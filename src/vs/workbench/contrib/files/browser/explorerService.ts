@@ -152,6 +152,7 @@ export class ExplorerService implements IExplorerService {
 		return {
 			sortOrder: this.config.sortOrder,
 			lexicographicOptions: this.config.sortOrderLexicographicOptions,
+			reverse: this.config.sortOrderReverse,
 		};
 	}
 
@@ -520,6 +521,11 @@ export class ExplorerService implements IExplorerService {
 		const configLexicographicOptions = configuration?.explorer?.sortOrderLexicographicOptions || LexicographicOptions.Default;
 		if (this.config.sortOrderLexicographicOptions !== configLexicographicOptions) {
 			shouldRefresh = shouldRefresh || this.config.sortOrderLexicographicOptions !== undefined;
+		}
+		const sortOrderReverse = configuration?.explorer?.sortOrderReverse || false;
+
+		if (this.config.sortOrderReverse !== sortOrderReverse) {
+			shouldRefresh = shouldRefresh || this.config.sortOrderReverse !== undefined;
 		}
 
 		this.config = configuration.explorer;
