@@ -377,7 +377,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 		// macOS: traffic lights
 		else if (isMacintosh && options.height !== undefined) {
-			const verticalOffset = (options.height - 15) / 2; // 15px is the height of the traffic lights
+			const verticalOffset = Math.floor((options.height - 16) / 2); // 16px is the height of the traffic lights
 			if (!verticalOffset) {
 				win.setWindowButtonPosition(null);
 			} else {
