@@ -183,6 +183,8 @@ export interface CellLayoutInfo {
 	readonly editorWidth: number;
 	readonly editorHeight: number;
 	readonly statusBarHeight: number;
+	readonly commentOffset: number;
+	readonly commentHeight: number;
 	readonly bottomToolbarOffset: number;
 	readonly totalHeight: number;
 }
@@ -190,12 +192,11 @@ export interface CellLayoutInfo {
 export interface CellLayoutChangeEvent {
 	readonly font?: FontInfo;
 	readonly outerWidth?: number;
+	readonly commentHeight?: boolean;
 }
 
 export interface CodeCellLayoutInfo extends CellLayoutInfo {
 	readonly estimatedHasHorizontalScrolling: boolean;
-	readonly commentOffset: number;
-	readonly commentHeight: number;
 	readonly outputContainerOffset: number;
 	readonly outputTotalHeight: number;
 	readonly outputShowMoreContainerHeight: number;
@@ -208,7 +209,6 @@ export interface CodeCellLayoutChangeEvent extends CellLayoutChangeEvent {
 	readonly source?: string;
 	readonly chatHeight?: boolean;
 	readonly editorHeight?: boolean;
-	readonly commentHeight?: boolean;
 	readonly outputHeight?: boolean;
 	readonly outputShowMoreContainerHeight?: number;
 	readonly totalHeight?: boolean;
@@ -257,6 +257,7 @@ export interface ICellViewModel extends IGenericCellViewModel {
 	cellKind: CellKind;
 	lineNumbers: 'on' | 'off' | 'inherit';
 	chatHeight: number;
+	commentHeight: number;
 	focusMode: CellFocusMode;
 	focusedOutputId?: string | undefined;
 	outputIsHovered: boolean;

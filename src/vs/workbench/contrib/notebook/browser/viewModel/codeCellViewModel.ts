@@ -80,16 +80,6 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		return this._chatHeight;
 	}
 
-	private _commentHeight = 0;
-
-	set commentHeight(height: number) {
-		if (this._commentHeight === height) {
-			return;
-		}
-		this._commentHeight = height;
-		this.layoutChange({ commentHeight: true }, 'CodeCellViewModel#commentHeight');
-	}
-
 	private _hoveringOutput: boolean = false;
 	public get outputIsHovered(): boolean {
 		return this._hoveringOutput;
