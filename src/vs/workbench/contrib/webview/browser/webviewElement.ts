@@ -294,7 +294,6 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		this._register(Event.runAndSubscribe(webviewThemeDataProvider.onThemeDataChanged, () => this.style()));
 		this._register(_accessibilityService.onDidChangeReducedMotion(() => this.style()));
 		this._register(_accessibilityService.onDidChangeScreenReaderOptimized(() => this.style()));
-		this._register(contextMenuService.onDidShowContextMenu(() => this._send('set-context-menu-visible', { visible: true })));
 		this._register(contextMenuService.onDidHideContextMenu(() => this._send('set-context-menu-visible', { visible: false })));
 
 		this._confirmBeforeClose = configurationService.getValue<string>('window.confirmBeforeClose');
@@ -506,6 +505,10 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 
 				this._messagePort = e.ports[0];
 				this._messagePort.onmessage = (e) => {
+					if (e.data.channel === 'did-context-menu') {
+						this._send('set-context-menu-visible', { visible: true });
+					}
+
 					const handlers = this._messageHandlers.get(e.data.channel);
 					if (!handlers) {
 						console.log(`No handlers found for '${e.data.channel}'`);
