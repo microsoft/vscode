@@ -33,6 +33,7 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { isCancellationError } from 'vs/base/common/errors';
 import { IProgress, IProgressService, IProgressStep, ProgressLocation } from 'vs/platform/progress/common/progress';
 
 interface IBackupMetaData extends IWorkingCopyBackupMeta {
@@ -958,6 +959,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	private handleSaveError(error: Error, versionId: number, options: ITextFileSaveAsOptions): void {
+		if (isCancellationError(error)) {
+			throw error;
+		}
+
 		(options.ignoreErrorHandler ? this.logService.trace : this.logService.error).apply(this.logService, [`[text file model] handleSaveError(${versionId}) - exit - resulted in a save error: ${error.toString()}`, this.resource.toString()]);
 
 		// Return early if the save() call was made asking to
