@@ -158,9 +158,6 @@ typescript/lib/tsserverlibrary.js
 # We still need to include stdlib d.ts
 !typescript/lib/lib*.d.ts
 
-# Include Markdown server
-!vscode-markdown-languageserver/**/*
-
 jschardet/index.js
 jschardet/src/**
 jschardet/dist/jschardet.js
