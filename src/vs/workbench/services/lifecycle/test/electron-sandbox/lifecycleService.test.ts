@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { timeout } from 'vs/base/common/async';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ShutdownReason, WillShutdownJoinerOrder } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { NativeLifecycleService } from 'vs/workbench/services/lifecycle/electron-sandbox/lifecycleService';
@@ -157,30 +158,32 @@ suite('Lifecycleservice', function () {
 	});
 
 	test('onWillShutdown - join order', async function () {
-		const order: string[] = [];
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const order: string[] = [];
 
-		disposables.add(lifecycleService.onWillShutdown(e => {
-			e.join(async () => {
-				order.push('disconnect start');
-				await timeout(1);
-				order.push('disconnect end');
-			}, { id: 'test', label: 'test', order: WillShutdownJoinerOrder.Last });
+			disposables.add(lifecycleService.onWillShutdown(e => {
+				e.join(async () => {
+					order.push('disconnect start');
+					await timeout(1);
+					order.push('disconnect end');
+				}, { id: 'test', label: 'test', order: WillShutdownJoinerOrder.Last });
 
-			e.join((async () => {
-				order.push('default start');
-				await timeout(1);
-				order.push('default end');
-			})(), { id: 'test', label: 'test', order: WillShutdownJoinerOrder.Default });
-		}));
+				e.join((async () => {
+					order.push('default start');
+					await timeout(1);
+					order.push('default end');
+				})(), { id: 'test', label: 'test', order: WillShutdownJoinerOrder.Default });
+			}));
 
-		await lifecycleService.testHandleWillShutdown(ShutdownReason.QUIT);
+			await lifecycleService.testHandleWillShutdown(ShutdownReason.QUIT);
 
-		assert.deepStrictEqual(order, [
-			'default start',
-			'default end',
-			'disconnect start',
-			'disconnect end'
-		]);
+			assert.deepStrictEqual(order, [
+				'default start',
+				'default end',
+				'disconnect start',
+				'disconnect end'
+			]);
+		});
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
