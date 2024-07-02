@@ -6,11 +6,6 @@
 .monaco-editor .inline-edit-remove {
 	background-color: var(--vscode-editorGhostText-background);
 	font-style: italic;
-	text-decoration: line-through;
-}
-
-.monaco-editor .inline-edit-remove.backgroundColoring {
-	background-color: var(--vscode-diffEditor-removedLineBackground);
 }
 
 .monaco-editor .inline-edit-hidden {

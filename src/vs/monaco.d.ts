@@ -4571,7 +4571,6 @@ declare namespace monaco.editor {
 		 * Does not clear active inline suggestions when the editor loses focus.
 		 */
 		keepOnBlur?: boolean;
-		backgroundColoring?: boolean;
 	}
 
 	export interface IBracketPairColorizationOptions {
