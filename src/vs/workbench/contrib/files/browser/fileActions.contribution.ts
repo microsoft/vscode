@@ -591,18 +591,20 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	when: ResourceContextKey.IsFileSystemResource
 });
 
-MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
-	group: '2_workspace',
-	order: 10,
-	command: {
-		id: ADD_ROOT_FOLDER_COMMAND_ID,
-		title: ADD_ROOT_FOLDER_LABEL
-	},
-	when: ContextKeyExpr.and(ExplorerRootContext, ContextKeyExpr.or(EnterMultiRootWorkspaceSupportContext, WorkbenchStateContext.isEqualTo('workspace')))
-});
+// Membrane: Programs are only added to the workspace by creating programs
+// MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
+// 	group: '2_workspace',
+// 	order: 10,
+// 	command: {
+// 		id: ADD_ROOT_FOLDER_COMMAND_ID,
+// 		title: ADD_ROOT_FOLDER_LABEL
+// 	},
+// 	when: ContextKeyExpr.and(ExplorerRootContext, ContextKeyExpr.or(EnterMultiRootWorkspaceSupportContext, WorkbenchStateContext.isEqualTo('workspace')))
+// });
 
 MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
-	group: '2_workspace',
+	// Membrane: update position to delete program item
+	group: '7_modification',
 	order: 30,
 	command: {
 		id: REMOVE_ROOT_FOLDER_COMMAND_ID,

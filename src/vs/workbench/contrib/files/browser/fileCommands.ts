@@ -566,7 +566,12 @@ CommandsRegistry.registerCommand({
 
 CommandsRegistry.registerCommand({
 	id: REMOVE_ROOT_FOLDER_COMMAND_ID,
-	handler: (accessor, resource: URI | object) => {
+	handler: async (accessor, resource: URI | object) => {
+		// MEMBRANE: We override this functionality in vscode-extension
+		const commandService = accessor.get(ICommandService);
+		const name = 'path' in resource ? resource.path.slice(1) : undefined;
+		commandService.executeCommand('membrane.deleteProgram', { name });
+		/*
 		const workspaceEditingService = accessor.get(IWorkspaceEditingService);
 		const contextService = accessor.get(IWorkspaceContextService);
 		const uriIdentityService = accessor.get(IUriIdentityService);
@@ -582,6 +587,7 @@ CommandsRegistry.registerCommand({
 		}
 
 		return workspaceEditingService.removeFolders(resources);
+		*/
 	}
 });
 
