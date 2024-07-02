@@ -84,6 +84,7 @@ const extractEditorSrcTask = task.define('extract-editor-src', () => {
 });
 
 // Disable mangling for the editor, as it complicates debugging & quite a few users rely on private/protected fields.
+// Disable NLS task to remove english strings to preserve backwards compatibility when we removed the `vs/nls!` AMD plugin.
 const compileEditorAMDTask = task.define('compile-editor-amd', compilation.compileTask('out-editor-src', 'out-editor-build', true, { disableMangle: true, preserveEnglish: true }));
 
 const optimizeEditorAMDTask = task.define('optimize-editor-amd', optimize.optimizeTask(

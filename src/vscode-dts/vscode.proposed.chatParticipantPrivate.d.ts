@@ -40,9 +40,9 @@ declare module 'vscode' {
 
 	export class ChatRequestNotebookData {
 		//TODO@API should be the editor
-		notebook: NotebookDocument;
+		readonly cell: TextDocument;
 
-		constructor(notebook: NotebookDocument);
+		constructor(cell: TextDocument);
 	}
 
 	export interface ChatRequest {
