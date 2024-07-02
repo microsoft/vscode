@@ -68,15 +68,15 @@ export interface BeforeShutdownErrorEvent {
 export enum WillShutdownJoinerOrder {
 
 	/**
-	 * Joiners to run before the `Last` joiners.
+	 * Joiners to run before the `Last` joiners. This is the default order and best for
+	 * most cases. You can be sure that services are still functional at this point.
 	 */
 	Default = 1,
 
 	/**
-	 * The joiners to run last.
-	 *
-	 * The workspace may be disconnected while this phase is running; code that depends
-	 * on potentially remote resources should use the {@link Default} priority instead.
+	 * The joiners to run last. This should ONLY be used in rare cases when you have no
+	 * dependencies to workbench services or state. The workbench may be in a state where
+	 * resources can no longer be accessed or changed.
 	 */
 	Last
 }
