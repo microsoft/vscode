@@ -40,7 +40,6 @@ export class PlaceholderTextContribution extends Disposable implements IEditorCo
 		if (!this._shouldViewBeAlive.read(reader)) { return; }
 
 		const element = h('div.editorPlaceholder');
-		element.root.style.top = `1px`;
 
 		store.add(autorun(reader => {
 			const data = this._state.read(reader);
@@ -52,10 +51,12 @@ export class PlaceholderTextContribution extends Disposable implements IEditorCo
 			const info = this._editorObs.layoutInfo.read(reader);
 			element.root.style.left = `${info.contentLeft}px`;
 			element.root.style.width = (info.contentWidth - info.verticalScrollbarWidth) + 'px';
+			element.root.style.top = `${this._editor.getTopForLineNumber(0)}px`;
 		}));
 		store.add(autorun(reader => {
 			element.root.style.fontFamily = this._editorObs.getOption(EditorOption.fontFamily).read(reader);
 			element.root.style.fontSize = this._editorObs.getOption(EditorOption.fontSize).read(reader) + 'px';
+			element.root.style.lineHeight = this._editorObs.getOption(EditorOption.lineHeight).read(reader) + 'px';
 		}));
 		store.add(this._editorObs.createOverlayWidget({
 			allowEditorOverflow: false,
@@ -69,7 +70,6 @@ export class PlaceholderTextContribution extends Disposable implements IEditorCo
 		private readonly _editor: ICodeEditor,
 	) {
 		super();
-
 		this._view.recomputeInitiallyAndOnChange(this._store);
 	}
 }
