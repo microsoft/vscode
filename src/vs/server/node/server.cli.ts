@@ -375,7 +375,7 @@ function openInBrowser(args: string[], verbose: boolean) {
 	const uris: string[] = [];
 	for (const location of args) {
 		try {
-			if (/^(http|https|file):\/\//.test(location)) {
+			if (/^(http|https|file|vscode):\/\//.test(location)) {
 				uris.push(_url.parse(location).href);
 			} else {
 				uris.push(pathToURI(location).href);
