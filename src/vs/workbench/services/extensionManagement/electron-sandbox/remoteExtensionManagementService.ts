@@ -24,6 +24,7 @@ import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/use
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IRemoteUserDataProfilesService } from 'vs/workbench/services/userDataProfile/common/remoteUserDataProfiles';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { areApiProposalsCompatible } from 'vs/platform/extensions/common/extensionValidator';
 
 export class NativeRemoteExtensionManagementService extends RemoteExtensionManagementService {
 
@@ -134,6 +135,10 @@ export class NativeRemoteExtensionManagementService extends RemoteExtensionManag
 		}
 
 		if (!compatibleExtension) {
+			const incompatibleApiProposalsMessages: string[] = [];
+			if (!areApiProposalsCompatible(extension.properties.enabledApiProposals ?? [], incompatibleApiProposalsMessages)) {
+				throw new ExtensionManagementError(localize('incompatibleAPI', "Can't install '{0}' extension. {1}", extension.displayName ?? extension.identifier.id, incompatibleApiProposalsMessages[0]), ExtensionManagementErrorCode.IncompatibleApi);
+			}
 			/** If no compatible release version is found, check if the extension has a release version or not and throw relevant error */
 			if (!includePreRelease && extension.properties.isPreReleaseVersion && (await this.galleryService.getExtensions([extension.identifier], CancellationToken.None))[0]) {
 				throw new ExtensionManagementError(localize('notFoundReleaseExtension', "Can't install release version of '{0}' extension because it has no release version.", extension.identifier.id), ExtensionManagementErrorCode.ReleaseVersionNotFound);

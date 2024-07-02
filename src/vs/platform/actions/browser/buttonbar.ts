@@ -6,11 +6,14 @@
 import { ButtonBar, IButton } from 'vs/base/browser/ui/button/button';
 import { createInstantHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { ActionRunner, IAction, IActionRunner, SubmenuAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
+import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { localize } from 'vs/nls';
-import { MenuId, IMenuService, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IToolBarRenderOptions } from 'vs/platform/actions/browser/toolbar';
+import { MenuId, IMenuService, MenuItemAction, IMenuActionOptions } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
@@ -66,7 +69,7 @@ export class WorkbenchButtonBar extends ButtonBar {
 		super.dispose();
 	}
 
-	update(actions: IAction[]): void {
+	update(actions: IAction[], secondary: IAction[]): void {
 
 		const conifgProvider: IButtonConfigProvider = this._options?.buttonConfigProvider ?? (() => ({ showLabel: true }));
 
@@ -127,8 +130,38 @@ export class WorkbenchButtonBar extends ButtonBar {
 				this._actionRunner.run(action);
 			}));
 		}
+
+		if (secondary.length > 0) {
+
+			const btn = this.addButton({
+				secondary: true,
+				ariaLabel: localize('moreActions', "More Actions")
+			});
+
+			btn.icon = Codicon.dropDownButton;
+			btn.element.classList.add('default-colors', 'monaco-text-button');
+
+			btn.enabled = true;
+			this._updateStore.add(this._hoverService.setupManagedHover(hoverDelegate, btn.element, localize('moreActions', "More Actions")));
+			this._updateStore.add(btn.onDidClick(async () => {
+				this._contextMenuService.showContextMenu({
+					getAnchor: () => btn.element,
+					getActions: () => secondary,
+					actionRunner: this._actionRunner,
+					onHide: () => btn.element.setAttribute('aria-expanded', 'false')
+				});
+				btn.element.setAttribute('aria-expanded', 'true');
+
+			}));
+		}
 		this._onDidChange.fire(this);
 	}
+}
+
+export interface IMenuWorkbenchButtonBarOptions extends IWorkbenchButtonBarOptions {
+	menuOptions?: IMenuActionOptions;
+
+	toolbarOptions?: IToolBarRenderOptions;
 }
 
 export class MenuWorkbenchButtonBar extends WorkbenchButtonBar {
@@ -136,7 +169,7 @@ export class MenuWorkbenchButtonBar extends WorkbenchButtonBar {
 	constructor(
 		container: HTMLElement,
 		menuId: MenuId,
-		options: IWorkbenchButtonBarOptions | undefined,
+		options: IMenuWorkbenchButtonBarOptions | undefined,
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -153,12 +186,16 @@ export class MenuWorkbenchButtonBar extends WorkbenchButtonBar {
 
 			this.clear();
 
-			const actions = menu
-				.getActions({ renderShortTitle: true })
-				.flatMap(entry => entry[1]);
+			const primary: IAction[] = [];
+			const secondary: IAction[] = [];
+			createAndFillInActionBarActions(
+				menu,
+				options?.menuOptions,
+				{ primary, secondary },
+				options?.toolbarOptions?.primaryGroup
+			);
 
-			super.update(actions);
-
+			super.update(primary, secondary);
 		};
 		this._store.add(menu.onDidChange(update));
 		update();

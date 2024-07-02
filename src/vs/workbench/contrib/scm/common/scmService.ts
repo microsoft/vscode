@@ -134,7 +134,7 @@ class SCMInput extends Disposable implements ISCMInput {
 		}
 
 		if (!transient) {
-			this.historyNavigator.add(this._value);
+			this.historyNavigator.replaceLast(this._value);
 			this.historyNavigator.add(value);
 			this.didChangeHistory = true;
 		}

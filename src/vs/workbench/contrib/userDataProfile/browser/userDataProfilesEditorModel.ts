@@ -686,8 +686,10 @@ export class UserDataProfilesEditorModel extends EditorModel {
 	}
 
 	private onDidChangeProfiles(e: DidChangeProfilesEvent): void {
+		let changed = false;
 		for (const profile of e.added) {
 			if (!profile.isTransient && profile.name !== this.newProfileElement?.name) {
+				changed = true;
 				this._profiles.push(this.createProfileElement(profile));
 			}
 		}
@@ -697,10 +699,13 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			}
 			const index = this._profiles.findIndex(([p]) => p instanceof UserDataProfileElement && p.profile.id === profile.id);
 			if (index !== -1) {
+				changed = true;
 				this._profiles.splice(index, 1).map(([, disposables]) => disposables.dispose());
 			}
 		}
-		this._onDidChange.fire(undefined);
+		if (changed) {
+			this._onDidChange.fire(undefined);
+		}
 	}
 
 	private createProfileElement(profile: IUserDataProfile): [UserDataProfileElement, DisposableStore] {
@@ -711,14 +716,14 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			localize('active', "Use for Current Window"),
 			ThemeIcon.asClassName(Codicon.check),
 			true,
-			() => this.userDataProfileManagementService.switchProfile(profile)
+			() => this.userDataProfileManagementService.switchProfile(profileElement.profile)
 		));
 
 		const copyFromProfileAction = disposables.add(new Action(
 			'userDataProfile.copyFromProfile',
 			localize('copyFromProfile', "Duplicate..."),
 			ThemeIcon.asClassName(Codicon.copy),
-			true, () => this.createNewProfile(profile)
+			true, () => this.createNewProfile(profileElement.profile)
 		));
 
 		const exportAction = disposables.add(new Action(
@@ -726,7 +731,7 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			localize('export', "Export..."),
 			ThemeIcon.asClassName(Codicon.export),
 			true,
-			() => this.exportProfile(profile)
+			() => this.exportProfile(profileElement.profile)
 		));
 
 		const deleteAction = disposables.add(new Action(
@@ -734,26 +739,27 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			localize('delete', "Delete"),
 			ThemeIcon.asClassName(Codicon.trash),
 			true,
-			() => this.removeProfile(profile)
+			() => this.removeProfile(profileElement.profile)
 		));
 
 		const newWindowAction = disposables.add(new Action(
 			'userDataProfile.newWindow',
-			localize('open new window', "Open"),
+			localize('open new window', "Open New Window with this Profile"),
 			ThemeIcon.asClassName(Codicon.emptyWindow),
 			true,
-			() => this.openWindow(profile)
+			() => this.openWindow(profileElement.profile)
 		));
 
 		const useAsNewWindowProfileAction = disposables.add(new Action(
 			'userDataProfile.useAsNewWindowProfile',
-			localize('use as new window', "Use for New Windows", profile.name),
+			localize('use as new window', "Use for New Windows"),
 			undefined,
 			true,
 			() => profileElement.toggleNewWindowProfile()
 		));
 
 		const titlePrimaryActions: IAction[] = [];
+		titlePrimaryActions.push(newWindowAction);
 		const titleSecondaryActions: IAction[] = [];
 		titleSecondaryActions.push(copyFromProfileAction);
 		titleSecondaryActions.push(exportAction);
@@ -777,14 +783,14 @@ export class UserDataProfilesEditorModel extends EditorModel {
 
 		const profileElement = disposables.add(this.instantiationService.createInstance(UserDataProfileElement,
 			profile,
-			[[newWindowAction], []],
+			[[], []],
 			[titlePrimaryActions, titleSecondaryActions],
 			[primaryActions, secondaryActions]
 		));
 
-		activateAction.checked = this.userDataProfileService.currentProfile.id === profile.id;
+		activateAction.checked = this.userDataProfileService.currentProfile.id === profileElement.profile.id;
 		disposables.add(this.userDataProfileService.onDidChangeCurrentProfile(() =>
-			activateAction.checked = this.userDataProfileService.currentProfile.id === profile.id));
+			activateAction.checked = this.userDataProfileService.currentProfile.id === profileElement.profile.id));
 
 		useAsNewWindowProfileAction.checked = profileElement.isNewWindowProfile;
 		disposables.add(profileElement.onDidChange(e => {
@@ -796,7 +802,19 @@ export class UserDataProfilesEditorModel extends EditorModel {
 		return [profileElement, disposables];
 	}
 
-	createNewProfile(copyFrom?: URI | IUserDataProfile): AbstractUserDataProfileElement {
+	async createNewProfile(copyFrom?: URI | IUserDataProfile): Promise<AbstractUserDataProfileElement | undefined> {
+		if (this.newProfileElement) {
+			const result = await this.dialogService.confirm({
+				type: 'info',
+				message: localize('new profile exists', "A new profile is already being created. Do you want to discard it and create a new one?"),
+				primaryButton: localize('discard', "Discard & Create"),
+				cancelButton: localize('cancel', "Cancel")
+			});
+			if (!result.confirmed) {
+				return;
+			}
+			this.revert();
+		}
 		if (!this.newProfileElement) {
 			const disposables = new DisposableStore();
 			const cancellationTokenSource = new CancellationTokenSource();
@@ -811,7 +829,7 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			const cancelAction = disposables.add(new Action(
 				'userDataProfile.cancel',
 				localize('cancel', "Cancel"),
-				ThemeIcon.asClassName(Codicon.close),
+				ThemeIcon.asClassName(Codicon.trash),
 				true,
 				() => this.discardNewProfile()
 			));

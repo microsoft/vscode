@@ -16,7 +16,7 @@ import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/
 import { localize } from 'vs/nls';
 import { toAction } from 'vs/base/common/actions';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { stripComments } from 'vs/base/common/stripComments';
+import { parse } from 'vs/base/common/jsonc';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -57,7 +57,7 @@ class NativeLocaleService implements ILocaleService {
 
 			// This is the same logic that we do where argv.json is parsed so mirror that:
 			// https://github.com/microsoft/vscode/blob/32d40cf44e893e87ac33ac4f08de1e5f7fe077fc/src/main.js#L238-L246
-			JSON.parse(stripComments(content.value));
+			parse(content.value);
 		} catch (error) {
 			this.notificationService.notify({
 				severity: Severity.Error,

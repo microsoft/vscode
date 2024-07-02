@@ -67,7 +67,7 @@ export interface IAccessbilitySignalOptions {
 export class AccessibilitySignalService extends Disposable implements IAccessibilitySignalService {
 	readonly _serviceBrand: undefined;
 	private readonly sounds: Map<string, HTMLAudioElement> = new Map();
-	private readonly screenReaderAttached = observableFromEvent(
+	private readonly screenReaderAttached = observableFromEvent(this,
 		this.accessibilityService.onDidChangeScreenReaderOptimized,
 		() => /** @description accessibilityService.onDidChangeScreenReaderOptimized */ this.accessibilityService.isScreenReaderOptimized()
 	);

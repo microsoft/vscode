@@ -56,6 +56,7 @@ export const enum AccessibilityVerbositySettingId {
 	Hover = 'accessibility.verbosity.hover',
 	Notification = 'accessibility.verbosity.notification',
 	EmptyEditorHint = 'accessibility.verbosity.emptyEditorHint',
+	ReplInputHint = 'accessibility.verbosity.replInputHint',
 	Comments = 'accessibility.verbosity.comments',
 	DiffEditorActive = 'accessibility.verbosity.diffEditorActive'
 }
@@ -156,6 +157,10 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityVerbositySettingId.EmptyEditorHint]: {
 			description: localize('verbosity.emptyEditorHint', 'Provide information about relevant actions in an empty text editor.'),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.ReplInputHint]: {
+			description: localize('verbosity.replInputHint', 'Provide information about relevant actions For the Repl input.'),
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.Comments]: {
@@ -656,6 +661,11 @@ const configuration: IConfigurationNode = {
 				'sound': 'never',
 				'announcement': 'never'
 			}
+		},
+		'accessibility.underlineLinks': {
+			'type': 'boolean',
+			'description': localize('accessibility.underlineLinks', "Controls whether links should be underlined in the workbench."),
+			'default': false,
 		},
 	}
 };

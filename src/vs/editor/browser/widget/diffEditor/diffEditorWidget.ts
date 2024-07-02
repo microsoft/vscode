@@ -26,7 +26,8 @@ import { HideUnchangedRegionsFeature } from 'vs/editor/browser/widget/diffEditor
 import { MovedBlocksLinesFeature } from 'vs/editor/browser/widget/diffEditor/features/movedBlocksLinesFeature';
 import { OverviewRulerFeature } from 'vs/editor/browser/widget/diffEditor/features/overviewRulerFeature';
 import { RevertButtonsFeature } from 'vs/editor/browser/widget/diffEditor/features/revertButtonsFeature';
-import { CSSStyle, ObservableElementSizeObserver, applyStyle, applyViewZones, readHotReloadableExport, translatePosition } from 'vs/editor/browser/widget/diffEditor/utils';
+import { CSSStyle, ObservableElementSizeObserver, applyStyle, applyViewZones, translatePosition } from 'vs/editor/browser/widget/diffEditor/utils';
+import { readHotReloadableExport } from 'vs/base/common/hotReloadHelpers';
 import { bindContextKey } from 'vs/platform/observable/common/platformObservableUtils';
 import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IDimension } from 'vs/editor/common/core/dimension';

@@ -72,6 +72,20 @@ export class IssueWebReporter extends BaseIssueReporterService {
 
 	public override setEventHandlers(): void {
 		super.setEventHandlers();
+		this.addEventListener('issue-type', 'change', (event: Event) => {
+			const issueType = parseInt((<HTMLInputElement>event.target).value);
+			this.issueReporterModel.update({ issueType: issueType });
+
+			// Resets placeholder
+			const descriptionTextArea = <HTMLInputElement>this.getElementById('issue-title');
+			if (descriptionTextArea) {
+				descriptionTextArea.placeholder = localize('undefinedPlaceholder', "Please enter a title");
+			}
+
+			this.updatePreviewButtonState();
+			this.setSourceOptions();
+			this.render();
+		});
 		this.previewButton.onDidClick(async () => {
 			this.delayedSubmit.trigger(async () => {
 				this.createIssue();

@@ -170,8 +170,14 @@ __vsc_current_command=""
 __vsc_nonce="$VSCODE_NONCE"
 unset VSCODE_NONCE
 
+# Some features should only work in Insiders
+__vsc_stable="$VSCODE_STABLE"
+unset VSCODE_STABLE
+
 # Report continuation prompt
-builtin printf "\e]633;P;ContinuationPrompt=$(echo "$PS2" | sed 's/\x1b/\\\\x1b/g')\a"
+if [ "$__vsc_stable" = "0" ]; then
+	builtin printf "\e]633;P;ContinuationPrompt=$(echo "$PS2" | sed 's/\x1b/\\\\x1b/g')\a"
+fi
 
 __vsc_report_prompt() {
 	# Expand the original PS1 similarly to how bash would normally
@@ -252,7 +258,10 @@ __vsc_update_prompt() {
 __vsc_precmd() {
 	__vsc_command_complete "$__vsc_status"
 	__vsc_current_command=""
-	__vsc_report_prompt
+	# Report prompt is a work in progress, currently encoding is too slow
+	if [ "$__vsc_stable" = "0" ]; then
+		__vsc_report_prompt
+	fi
 	__vsc_first_prompt=1
 	__vsc_update_prompt
 }

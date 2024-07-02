@@ -349,6 +349,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			],
 			description: localize('scm.workingSets.default', "Controls the default working set to use when switching to a source control history item group that does not have a working set."),
 			default: 'current'
+		},
+		'scm.experimental.showHistoryGraph': {
+			type: 'boolean',
+			description: localize('scm.experimental.showHistoryGraph', "Controls whether to show the history graph instead of incoming/outgoing changes in the Source Control view."),
+			default: false
 		}
 	}
 });
@@ -386,7 +391,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'scm.clearInput',
 	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.has('scmRepository'),
+	when: ContextKeyExpr.and(ContextKeyExpr.has('scmRepository'), SuggestContext.Visible.toNegated()),
 	primary: KeyCode.Escape,
 	handler: async (accessor) => {
 		const scmService = accessor.get(ISCMService);

@@ -230,6 +230,8 @@ export class FilterWidget extends Widget {
 		if (event.equals(KeyCode.Space)
 			|| event.equals(KeyCode.LeftArrow)
 			|| event.equals(KeyCode.RightArrow)
+			|| event.equals(KeyCode.Home)
+			|| event.equals(KeyCode.End)
 		) {
 			event.stopPropagation();
 		}

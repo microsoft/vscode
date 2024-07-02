@@ -79,17 +79,17 @@ export abstract class CodeEditorView extends Disposable {
 		this.editor.updateOptions(newOptions);
 	}
 
-	public readonly isFocused = observableFromEvent(
+	public readonly isFocused = observableFromEvent(this,
 		Event.any(this.editor.onDidBlurEditorWidget, this.editor.onDidFocusEditorWidget),
 		() => /** @description editor.hasWidgetFocus */ this.editor.hasWidgetFocus()
 	);
 
-	public readonly cursorPosition = observableFromEvent(
+	public readonly cursorPosition = observableFromEvent(this,
 		this.editor.onDidChangeCursorPosition,
 		() => /** @description editor.getPosition */ this.editor.getPosition()
 	);
 
-	public readonly selection = observableFromEvent(
+	public readonly selection = observableFromEvent(this,
 		this.editor.onDidChangeCursorSelection,
 		() => /** @description editor.getSelections */ this.editor.getSelections()
 	);

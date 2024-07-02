@@ -49,14 +49,14 @@ import { basename } from 'vs/base/common/resources';
 import { RenderIndentGuides } from 'vs/base/browser/ui/tree/abstractTree';
 import { DEFAULT_LABELS_CONTAINER, IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
-import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { AbstractUserDataProfileElement, isProfileResourceChildElement, isProfileResourceTypeElement, IProfileChildElement, IProfileResourceTypeChildElement, IProfileResourceTypeElement, NewProfileElement, UserDataProfileElement, UserDataProfilesEditorModel } from 'vs/workbench/contrib/userDataProfile/browser/userDataProfilesEditorModel';
 import { Codicon } from 'vs/base/common/codicons';
 import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { createInstantHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
-export const profilesSashBorder = registerColor('profiles.sashBorder', { dark: PANEL_BORDER, light: PANEL_BORDER, hcDark: PANEL_BORDER, hcLight: PANEL_BORDER }, localize('profilesSashBorder', "The color of the Profiles editor splitview sash border."));
+export const profilesSashBorder = registerColor('profiles.sashBorder', PANEL_BORDER, localize('profilesSashBorder', "The color of the Profiles editor splitview sash border."));
 
 export class UserDataProfilesEditor extends EditorPane implements IUserDataProfilesEditor {
 
@@ -77,7 +77,6 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 		@IStorageService storageService: IStorageService,
 		@IUserDataProfileManagementService private readonly userDataProfileManagementService: IUserDataProfileManagementService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IDialogService private readonly dialogService: IDialogService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -137,6 +136,7 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 		}, Sizing.Distribute, undefined, true);
 
 		this.registerListeners();
+		this.updateStyles();
 
 		this.userDataProfileManagementService.getBuiltinProfileTemplates().then(templates => {
 			this.templates = templates;
@@ -292,19 +292,7 @@ export class UserDataProfilesEditor extends EditorPane implements IUserDataProfi
 	}
 
 	private async createNewProfile(copyFrom?: URI | IUserDataProfile): Promise<void> {
-		if (this.model?.profiles.some(p => p instanceof NewProfileElement)) {
-			const result = await this.dialogService.confirm({
-				type: 'info',
-				message: localize('new profile exists', "A new profile is already being created. Do you want to discard it and create a new one?"),
-				primaryButton: localize('discard', "Discard & Create"),
-				cancelButton: localize('cancel', "Cancel")
-			});
-			if (!result.confirmed) {
-				return;
-			}
-			this.model.revert();
-		}
-		this.model?.createNewProfile(copyFrom);
+		await this.model?.createNewProfile(copyFrom);
 	}
 
 	private async getProfileUriFromFileSystem(): Promise<URI | null> {
@@ -557,7 +545,7 @@ class ProfileWidget extends Disposable {
 		this.copyFromSelectBox.render(append(this.copyFromContainer, $('.profile-select-container')));
 
 		this.useAsDefaultProfileContainer = append(body, $('.profile-use-as-default-container'));
-		const useAsDefaultProfileTitle = localize('enable for new windows', "Use this profile for new windows");
+		const useAsDefaultProfileTitle = localize('enable for new windows', "Use this profile as default for new windows");
 		this.useAsDefaultProfileCheckbox = this._register(new Checkbox(useAsDefaultProfileTitle, false, defaultCheckboxStyles));
 		append(this.useAsDefaultProfileContainer, this.useAsDefaultProfileCheckbox.domNode);
 		const useAsDefaultProfileLabel = append(this.useAsDefaultProfileContainer, $('.profile-use-as-default-label', undefined, useAsDefaultProfileTitle));
@@ -706,6 +694,8 @@ class ProfileWidget extends Disposable {
 	}
 
 	render(profileElement: AbstractUserDataProfileElement): void {
+		this.resourcesTree.setInput(profileElement);
+
 		const disposables = new DisposableStore();
 		this._profileElement.value = { element: profileElement, dispose: () => disposables.dispose() };
 
@@ -715,8 +705,9 @@ class ProfileWidget extends Disposable {
 		const profile = profileElement instanceof UserDataProfileElement ? profileElement.profile : undefined;
 		this.profileTitle.classList.toggle('hide', !profile?.isDefault);
 		this.nameInput.element.classList.toggle('hide', !!profile?.isDefault);
+		this.iconElement.classList.toggle('disabled', !!profile?.isDefault);
+		this.iconElement.setAttribute('tabindex', profile?.isDefault ? '' : '0');
 
-		this.resourcesTree.setInput(profileElement);
 		disposables.add(profileElement.onDidChange(e => {
 			if (e.flags || e.copyFrom || e.copyFlags || e.disabled) {
 				const viewState = this.resourcesTree.getViewState();
@@ -797,7 +788,8 @@ class ProfileWidget extends Disposable {
 			this.iconElement.className = ThemeIcon.asClassName(ThemeIcon.fromId(DEFAULT_ICON.id));
 		}
 		if (profileElement instanceof NewProfileElement) {
-			this.contentsTreeHeader.classList.add('hide');
+			this.contentsTreeHeader.classList.add('new-profile');
+			this.inheritLabelElement.textContent = localize('options', "Options");
 			this.useAsDefaultProfileContainer.classList.add('hide');
 			this.copyFromContainer.classList.remove('hide');
 			this.copyFromOptions = this.getCopyFromOptions();
@@ -814,7 +806,7 @@ class ProfileWidget extends Disposable {
 				this.copyFromSelectBox.setEnabled(false);
 			}
 		} else if (profileElement instanceof UserDataProfileElement) {
-			this.contentsTreeHeader.classList.remove('hide');
+			this.contentsTreeHeader.classList.remove('new-profile');
 			this.inheritLabelElement.textContent = profileElement.profile.isDefault ? '' : localize('default profile', "Use Default Profile");
 			this.useAsDefaultProfileContainer.classList.remove('hide');
 			this.useAsDefaultProfileCheckbox.checked = profileElement.isNewWindowProfile;
@@ -1009,9 +1001,11 @@ class ExistingProfileResourceTreeRenderer extends AbstractProfileResourceTreeRen
 
 		templateData.label.textContent = this.getResourceTypeTitle(element.resourceType);
 		if (root instanceof UserDataProfileElement && root.profile.isDefault) {
+			templateData.checkbox.domNode.removeAttribute('tabindex');
 			templateData.checkbox.domNode.classList.add('hide');
 		} else {
 			templateData.checkbox.domNode.classList.remove('hide');
+			templateData.checkbox.domNode.setAttribute('tabindex', '0');
 			templateData.checkbox.checked = root.getFlag(element.resourceType);
 			templateData.elementDisposables.add(templateData.checkbox.onChange(() => root.setFlag(element.resourceType, templateData.checkbox.checked)));
 		}
@@ -1144,6 +1138,7 @@ class ProfileResourceChildTreeItemRenderer extends AbstractProfileResourceTreeRe
 		}
 
 		if (element.checkbox) {
+			templateData.checkbox.domNode.setAttribute('tabindex', '0');
 			templateData.checkbox.domNode.classList.remove('hide');
 			templateData.checkbox.checked = element.checkbox.isChecked;
 			templateData.checkbox.domNode.ariaLabel = element.checkbox.accessibilityInformation?.label ?? '';
@@ -1151,6 +1146,7 @@ class ProfileResourceChildTreeItemRenderer extends AbstractProfileResourceTreeRe
 				templateData.checkbox.domNode.role = element.checkbox.accessibilityInformation.role;
 			}
 		} else {
+			templateData.checkbox.domNode.removeAttribute('tabindex');
 			templateData.checkbox.domNode.classList.add('hide');
 		}
 

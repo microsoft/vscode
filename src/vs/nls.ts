@@ -3,27 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-let isPseudo = (typeof document !== 'undefined' && document.location && document.location.hash.indexOf('pseudo=true') >= 0);
-const DEFAULT_TAG = 'i-default';
-
-interface INLSPluginConfig {
-	availableLanguages?: INLSPluginConfigAvailableLanguages;
-	loadBundle?: BundleLoader;
-	translationServiceUrl?: string;
-}
-
-export interface INLSPluginConfigAvailableLanguages {
-	'*'?: string;
-	[module: string]: string | undefined;
-}
-
-interface BundleLoader {
-	(bundle: string, locale: string | null, cb: (err: Error, messages: string[] | IBundledStrings) => void): void;
-}
-
-interface IBundledStrings {
-	[moduleId: string]: string[];
-}
+// VSCODE_GLOBALS: NLS
+const isPseudo = globalThis._VSCODE_NLS_LANGUAGE === 'pseudo' || (typeof document !== 'undefined' && document.location && document.location.hash.indexOf('pseudo=true') >= 0);
 
 export interface ILocalizeInfo {
 	key: string;
@@ -33,30 +14,6 @@ export interface ILocalizeInfo {
 export interface ILocalizedString {
 	original: string;
 	value: string;
-}
-
-interface ILocalizeFunc {
-	(info: ILocalizeInfo, message: string, ...args: (string | number | boolean | undefined | null)[]): string;
-	(key: string, message: string, ...args: (string | number | boolean | undefined | null)[]): string;
-}
-
-interface IBoundLocalizeFunc {
-	(idx: number, defaultValue: null): string;
-}
-
-interface ILocalize2Func {
-	(info: ILocalizeInfo, message: string, ...args: (string | number | boolean | undefined | null)[]): ILocalizedString;
-	(key: string, message: string, ...args: (string | number | boolean | undefined | null)[]): ILocalizedString;
-}
-
-interface IBoundLocalize2Func {
-	(idx: number, defaultValue: string): ILocalizedString;
-}
-
-interface IConsumerAPI {
-	localize: ILocalizeFunc | IBoundLocalizeFunc;
-	localize2: ILocalize2Func | IBoundLocalize2Func;
-	getConfiguredDefaultLocale(stringFromLocalizeCall: string): string | undefined;
 }
 
 function _format(message: string, args: (string | number | boolean | undefined | null)[]): string {
@@ -84,49 +41,6 @@ function _format(message: string, args: (string | number | boolean | undefined |
 	}
 
 	return result;
-}
-
-function findLanguageForModule(config: INLSPluginConfigAvailableLanguages, name: string) {
-	let result = config[name];
-	if (result) {
-		return result;
-	}
-	result = config['*'];
-	if (result) {
-		return result;
-	}
-	return null;
-}
-
-function endWithSlash(path: string): string {
-	if (path.charAt(path.length - 1) === '/') {
-		return path;
-	}
-	return path + '/';
-}
-
-async function getMessagesFromTranslationsService(translationServiceUrl: string, language: string, name: string): Promise<string[] | IBundledStrings> {
-	const url = endWithSlash(translationServiceUrl) + endWithSlash(language) + 'vscode/' + endWithSlash(name);
-	const res = await fetch(url);
-	if (res.ok) {
-		const messages = await res.json() as string[] | IBundledStrings;
-		return messages;
-	}
-	throw new Error(`${res.status} - ${res.statusText}`);
-}
-
-function createScopedLocalize(scope: string[]): IBoundLocalizeFunc {
-	return function (idx: number, defaultValue: null) {
-		const restArgs = Array.prototype.slice.call(arguments, 2);
-		return _format(scope[idx], restArgs);
-	};
-}
-
-function createScopedLocalize2(scope: string[]): IBoundLocalize2Func {
-	return (idx: number, defaultValue: string, ...args) => ({
-		value: _format(scope[idx], args),
-		original: _format(defaultValue, args)
-	});
 }
 
 /**
@@ -160,8 +74,28 @@ export function localize(key: string, message: string, ...args: (string | number
 /**
  * @skipMangle
  */
-export function localize(data: ILocalizeInfo | string, message: string, ...args: (string | number | boolean | undefined | null)[]): string {
+export function localize(data: ILocalizeInfo | string /* | number when built */, message: string /* | null when built */, ...args: (string | number | boolean | undefined | null)[]): string {
+	if (typeof data === 'number') {
+		return _format(lookupMessage(data, message), args);
+	}
 	return _format(message, args);
+}
+
+/**
+ * Only used when built: Looks up the message in the global NLS table.
+ * This table is being made available as a global through bootstrapping
+ * depending on the target context.
+ */
+function lookupMessage(index: number, fallback: string | null): string {
+	// VSCODE_GLOBALS: NLS
+	const message = globalThis._VSCODE_NLS_MESSAGES?.[index];
+	if (typeof message !== 'string') {
+		if (typeof fallback === 'string') {
+			return fallback;
+		}
+		throw new Error(`!!! NLS MISSING: ${index} !!!`);
+	}
+	return message;
 }
 
 /**
@@ -197,123 +131,107 @@ export function localize2(key: string, message: string, ...args: (string | numbe
 /**
  * @skipMangle
  */
-export function localize2(data: ILocalizeInfo | string, message: string, ...args: (string | number | boolean | undefined | null)[]): ILocalizedString {
-	const original = _format(message, args);
-	return {
-		value: original,
-		original
-	};
-}
-
-/**
- *
- * @param stringFromLocalizeCall You must pass in a string that was returned from a `nls.localize()` call
- * in order to ensure the loader plugin has been initialized before this function is called.
- */
-export function getConfiguredDefaultLocale(stringFromLocalizeCall: string): string | undefined;
-/**
- * @skipMangle
- */
-export function getConfiguredDefaultLocale(_: string): string | undefined {
-	// This returns undefined because this implementation isn't used and is overwritten by the loader
-	// when loaded.
-	return undefined;
-}
-
-/**
- * @skipMangle
- */
-export function setPseudoTranslation(value: boolean) {
-	isPseudo = value;
-}
-
-/**
- * Invoked in a built product at run-time
- * @skipMangle
- */
-export function create(key: string, data: IBundledStrings & IConsumerAPI): IConsumerAPI {
-	return {
-		localize: createScopedLocalize(data[key]),
-		localize2: createScopedLocalize2(data[key]),
-		getConfiguredDefaultLocale: data.getConfiguredDefaultLocale ?? ((_: string) => undefined)
-	};
-}
-
-/**
- * Invoked by the loader at run-time
- * @skipMangle
- */
-export function load(name: string, req: AMDLoader.IRelativeRequire, load: AMDLoader.IPluginLoadCallback, config: AMDLoader.IConfigurationOptions): void {
-	const pluginConfig: INLSPluginConfig = config['vs/nls'] ?? {};
-	if (!name || name.length === 0) {
-		// TODO: We need to give back the mangled names here
-		return load({
-			localize: localize,
-			localize2: localize2,
-			getConfiguredDefaultLocale: () => pluginConfig.availableLanguages?.['*']
-		} as IConsumerAPI);
-	}
-	const language = pluginConfig.availableLanguages ? findLanguageForModule(pluginConfig.availableLanguages, name) : null;
-	const useDefaultLanguage = language === null || language === DEFAULT_TAG;
-	let suffix = '.nls';
-	if (!useDefaultLanguage) {
-		suffix = suffix + '.' + language;
-	}
-	const messagesLoaded = (messages: string[] | IBundledStrings) => {
-		if (Array.isArray(messages)) {
-			(messages as any as IConsumerAPI).localize = createScopedLocalize(messages);
-			(messages as any as IConsumerAPI).localize2 = createScopedLocalize2(messages);
-		} else {
-			(messages as any as IConsumerAPI).localize = createScopedLocalize(messages[name]);
-			(messages as any as IConsumerAPI).localize2 = createScopedLocalize2(messages[name]);
-		}
-		(messages as any as IConsumerAPI).getConfiguredDefaultLocale = () => pluginConfig.availableLanguages?.['*'];
-		load(messages);
-	};
-	if (typeof pluginConfig.loadBundle === 'function') {
-		(pluginConfig.loadBundle as BundleLoader)(name, language, (err: Error, messages) => {
-			// We have an error. Load the English default strings to not fail
-			if (err) {
-				req([name + '.nls'], messagesLoaded);
-			} else {
-				messagesLoaded(messages);
-			}
-		});
-	} else if (pluginConfig.translationServiceUrl && !useDefaultLanguage) {
-		(async () => {
-			try {
-				const messages = await getMessagesFromTranslationsService(pluginConfig.translationServiceUrl!, language, name);
-				return messagesLoaded(messages);
-			} catch (err) {
-				// Language is already as generic as it gets, so require default messages
-				if (!language.includes('-')) {
-					console.error(err);
-					return req([name + '.nls'], messagesLoaded);
-				}
-				try {
-					// Since there is a dash, the language configured is a specific sub-language of the same generic language.
-					// Since we were unable to load the specific language, try to load the generic language. Ex. we failed to find a
-					// Swiss German (de-CH), so try to load the generic German (de) messages instead.
-					const genericLanguage = language.split('-')[0];
-					const messages = await getMessagesFromTranslationsService(pluginConfig.translationServiceUrl!, genericLanguage, name);
-					// We got some messages, so we configure the configuration to use the generic language for this session.
-					pluginConfig.availableLanguages ??= {};
-					pluginConfig.availableLanguages['*'] = genericLanguage;
-					return messagesLoaded(messages);
-				} catch (err) {
-					console.error(err);
-					return req([name + '.nls'], messagesLoaded);
-				}
-			}
-		})();
+export function localize2(data: ILocalizeInfo | string /* | number when built */, originalMessage: string, ...args: (string | number | boolean | undefined | null)[]): ILocalizedString {
+	let message: string;
+	if (typeof data === 'number') {
+		message = lookupMessage(data, originalMessage);
 	} else {
-		req([name + suffix], messagesLoaded, (err: Error) => {
-			if (suffix === '.nls') {
-				console.error('Failed trying to load default language strings', err);
-				return;
-			}
-			console.error(`Failed to load message bundle for language ${language}. Falling back to the default language:`, err);
-			req([name + '.nls'], messagesLoaded);
-		});
+		message = originalMessage;
 	}
+
+	const value = _format(message, args);
+
+	return {
+		value,
+		original: originalMessage === message ? value : _format(originalMessage, args)
+	};
 }
+
+export interface INLSLanguagePackConfiguration {
+
+	/**
+	 * The path to the translations config file that contains pointers to
+	 * all message bundles for `main` and extensions.
+	 */
+	readonly translationsConfigFile: string;
+
+	/**
+	 * The path to the file containing the translations for this language
+	 * pack as flat string array.
+	 */
+	readonly messagesFile: string;
+
+	/**
+	 * The path to the file that can be used to signal a corrupt language
+	 * pack, for example when reading the `messagesFile` fails. This will
+	 * instruct the application to re-create the cache on next startup.
+	 */
+	readonly corruptMarkerFile: string;
+}
+
+export interface INLSConfiguration {
+
+	/**
+	 * Locale as defined in `argv.json` or `app.getLocale()`.
+	 */
+	readonly userLocale: string;
+
+	/**
+	 * Locale as defined by the OS (e.g. `app.getPreferredSystemLanguages()`).
+	 */
+	readonly osLocale: string;
+
+	/**
+	 * The actual language of the UI that ends up being used considering `userLocale`
+	 * and `osLocale`.
+	 */
+	readonly resolvedLanguage: string;
+
+	/**
+	 * Defined if a language pack is used that is not the
+	 * default english language pack. This requires a language
+	 * pack to be installed as extension.
+	 */
+	readonly languagePack?: INLSLanguagePackConfiguration;
+
+	/**
+	 * The path to the file containing the default english messages
+	 * as flat string array. The file is only present in built
+	 * versions of the application.
+	 */
+	readonly defaultMessagesFile: string;
+
+	/**
+	 * Below properties are deprecated and only there to continue support
+	 * for `vscode-nls` module that depends on them.
+	 * Refs https://github.com/microsoft/vscode-nls/blob/main/src/node/main.ts#L36-L46
+	 */
+	/** @deprecated */
+	readonly locale: string;
+	/** @deprecated */
+	readonly availableLanguages: Record<string, string>;
+	/** @deprecated */
+	readonly _languagePackSupport?: boolean;
+	/** @deprecated */
+	readonly _languagePackId?: string;
+	/** @deprecated */
+	readonly _translationsConfigFile?: string;
+	/** @deprecated */
+	readonly _cacheRoot?: string;
+	/** @deprecated */
+	readonly _resolvedLanguagePackCoreLocation?: string;
+	/** @deprecated */
+	readonly _corruptedFile?: string;
+}
+
+export interface ILanguagePack {
+	readonly hash: string;
+	readonly label: string | undefined;
+	readonly extensions: {
+		readonly extensionIdentifier: { readonly id: string; readonly uuid?: string };
+		readonly version: string;
+	}[];
+	readonly translations: Record<string, string | undefined>;
+}
+
+export type ILanguagePacks = Record<string, ILanguagePack | undefined>;

@@ -204,7 +204,10 @@ export class NativeWindow extends BaseWindow {
 				[{
 					label: localize('restart', "Restart"),
 					run: () => this.nativeHostService.relaunch()
-				}]
+				}],
+				{
+					priority: NotificationPriority.URGENT
+				}
 			);
 		});
 
@@ -248,7 +251,7 @@ export class NativeWindow extends BaseWindow {
 			);
 		});
 
-		ipcRenderer.on('vscode:showTranslatedBuildWarning', (event: unknown, message: string) => {
+		ipcRenderer.on('vscode:showTranslatedBuildWarning', () => {
 			this.notificationService.prompt(
 				Severity.Warning,
 				localize("runningTranslated", "You are running an emulated version of {0}. For better performance download the native arm64 version of {0} build for your machine.", this.productService.nameLong),
@@ -260,7 +263,24 @@ export class NativeWindow extends BaseWindow {
 						const insidersURL = 'https://code.visualstudio.com/docs/?dv=osx&build=insiders';
 						this.openerService.open(quality === 'stable' ? stableURL : insidersURL);
 					}
-				}]
+				}],
+				{
+					priority: NotificationPriority.URGENT
+				}
+			);
+		});
+
+		ipcRenderer.on('vscode:showArgvParseWarning', (event: unknown, message: string) => {
+			this.notificationService.prompt(
+				Severity.Warning,
+				localize("showArgvParseWarning", "The runtime arguments file 'argv.json' contains errors. Please correct them and restart."),
+				[{
+					label: localize('showArgvParseWarningAction', "Open File"),
+					run: () => this.editorService.openEditor({ resource: this.nativeEnvironmentService.argvResource })
+				}],
+				{
+					priority: NotificationPriority.URGENT
+				}
 			);
 		});
 

@@ -13,27 +13,27 @@ import { URI } from 'vs/base/common/uri';
 import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
+import { IWorkspaceTextEdit } from 'vs/editor/common/languages';
 import { FindMatch, IModelDecorationOptions, IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { MultiModelEditStackElement, SingleModelEditStackElement } from 'vs/editor/common/model/editStack';
 import { IntervalNode, IntervalTree } from 'vs/editor/common/model/intervalTree';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { IWorkspaceTextEdit } from 'vs/editor/common/languages';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { FoldingRegions } from 'vs/editor/contrib/folding/browser/foldingRanges';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { CellEditState, CellFindMatchWithIndex, CellFoldingState, EditorFoldingStateDelegate, ICellViewModel, INotebookDeltaCellStatusBarItems, INotebookDeltaDecoration, ICellModelDecorations, ICellModelDeltaDecorations, IModelDecorationsChangeAccessor, INotebookEditorViewState, INotebookViewCellsUpdateEvent, INotebookViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellFindMatchModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findModel';
+import { CellEditState, CellFindMatchWithIndex, CellFoldingState, EditorFoldingStateDelegate, ICellModelDecorations, ICellModelDeltaDecorations, ICellViewModel, IModelDecorationsChangeAccessor, INotebookDeltaCellStatusBarItems, INotebookDeltaDecoration, INotebookEditorViewState, INotebookViewCellsUpdateEvent, INotebookViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { NotebookLayoutInfo, NotebookMetadataChangedEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { NotebookCellSelectionCollection } from 'vs/workbench/contrib/notebook/browser/viewModel/cellSelectionCollection';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellKind, ICell, INotebookSearchOptions, ISelectionState, NotebookCellsChangeType, NotebookCellTextModelSplice, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { cellIndexesToRanges, cellRangesToIndexes, ICellRange, reduceCellRanges } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { NotebookLayoutInfo, NotebookMetadataChangedEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
-import { CellFindMatchModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findModel';
+import { CellKind, ICell, INotebookFindOptions, ISelectionState, NotebookCellsChangeType, NotebookCellTextModelSplice, NotebookFindScopeType, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookExecutionStateService, NotebookExecutionType } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { cellIndexesToRanges, cellRangesToIndexes, ICellRange, reduceCellRanges } from 'vs/workbench/contrib/notebook/common/notebookRange';
 
 const invalidFunc = () => { throw new Error(`Invalid change accessor`); };
 
@@ -99,6 +99,7 @@ let MODEL_ID = 0;
 
 export interface NotebookViewModelOptions {
 	isReadOnly: boolean;
+	inRepl?: boolean;
 }
 
 export class NotebookViewModel extends Disposable implements EditorFoldingStateDelegate, INotebookViewModel {
@@ -108,13 +109,10 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	private readonly _onDidChangeOptions = this._register(new Emitter<void>());
 	get onDidChangeOptions(): Event<void> { return this._onDidChangeOptions.event; }
 	private _viewCells: CellViewModel[] = [];
+	private readonly replView: boolean;
 
 	get viewCells(): ICellViewModel[] {
 		return this._viewCells;
-	}
-
-	set viewCells(_: ICellViewModel[]) {
-		throw new Error('NotebookViewModel.viewCells is readonly');
 	}
 
 	get length(): number {
@@ -206,6 +204,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		MODEL_ID++;
 		this.id = '$notebookViewModel' + MODEL_ID;
 		this._instanceId = strings.singleLetterHash(MODEL_ID);
+		this.replView = !!this.options.inRepl;
 
 		const compute = (changes: NotebookCellTextModelSplice<ICell>[], synchronous: boolean) => {
 			const diffs = changes.map(splice => {
@@ -337,9 +336,12 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			this._onDidChangeSelection.fire(e);
 		}));
 
-		this._viewCells = this._notebook.cells.map(cell => {
-			return createCellViewModel(this._instantiationService, this, cell, this._viewContext);
-		});
+
+		const viewCellCount = this.replView ? this._notebook.cells.length - 1 : this._notebook.cells.length;
+		for (let i = 0; i < viewCellCount; i++) {
+			this._viewCells.push(createCellViewModel(this._instantiationService, this, this._notebook.cells[i], this._viewContext));
+		}
+
 
 		this._viewCells.forEach(cell => {
 			this._handleToViewCellMapping.set(cell.handle, cell);
@@ -908,13 +910,12 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	}
 
 	//#region Find
-	find(value: string, options: INotebookSearchOptions): CellFindMatchWithIndex[] {
+	find(value: string, options: INotebookFindOptions): CellFindMatchWithIndex[] {
 		const matches: CellFindMatchWithIndex[] = [];
 		let findCells: CellViewModel[] = [];
 
-		const selectedRanges = options.selectedRanges?.map(range => this.validateRange(range)).filter(range => !!range);
-
-		if (options.searchInRanges && selectedRanges) {
+		if (options.findScope && (options.findScope.findScopeType === NotebookFindScopeType.Cells || options.findScope.findScopeType === NotebookFindScopeType.Text)) {
+			const selectedRanges = options.findScope.selectedCellRanges?.map(range => this.validateRange(range)).filter(range => !!range) ?? [];
 			const selectedIndexes = cellRangesToIndexes(selectedRanges);
 			findCells = selectedIndexes.map(index => this._viewCells[index]);
 		} else {

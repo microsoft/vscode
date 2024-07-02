@@ -220,11 +220,10 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 		// TODO: What do frozen and auto do?
 		const xtermBox = this._screen!.getBoundingClientRect();
-		const panelBox = this._panel!.offsetParent!.getBoundingClientRect();
 
 		this._suggestWidget.showSuggestions(0, false, false, {
-			left: (xtermBox.left - panelBox.left) + this._terminal.buffer.active.cursorX * dimensions.width,
-			top: (xtermBox.top - panelBox.top) + this._terminal.buffer.active.cursorY * dimensions.height,
+			left: xtermBox.left + this._terminal.buffer.active.cursorX * dimensions.width,
+			top: xtermBox.top + this._terminal.buffer.active.cursorY * dimensions.height,
 			height: dimensions.height
 		});
 	}
@@ -267,6 +266,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (!Array.isArray(completionList)) {
 			completionList = [completionList];
 		}
+
 		const completions = completionList.map((e: any) => {
 			return new SimpleCompletionItem({
 				label: e.ListItemText,
@@ -283,7 +283,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (this._leadingLineContent.trim().includes(' ') || firstChar === '[') {
 			replacementIndex = parseInt(args[0]);
 			replacementLength = parseInt(args[1]);
-			this._leadingLineContent = completions[0]?.completion.label.slice(0, replacementLength) ?? '';
+			const firstCompletion = completions[0]?.completion;
+			this._leadingLineContent = (firstCompletion?.completionText ?? firstCompletion?.label)?.slice(0, replacementLength) ?? '';
 		} else {
 			completions.push(...this._cachedPwshCommands);
 		}
@@ -405,7 +406,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		this._leadingLineContent = completions[0].completion.label.slice(0, replacementLength);
 		const model = new SimpleCompletionModel(completions, new LineContext(this._leadingLineContent, replacementIndex), replacementIndex, replacementLength);
 		if (completions.length === 1) {
-			const insertText = completions[0].completion.label.substring(replacementLength);
+			const insertText = (completions[0].completion.completionText ?? completions[0].completion.label).substring(replacementLength);
 			if (insertText.length === 0) {
 				this._onBell.fire();
 				return;
@@ -433,7 +434,6 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		}
 		// TODO: What do frozen and auto do?
 		const xtermBox = this._screen!.getBoundingClientRect();
-		const panelBox = this._panel!.offsetParent!.getBoundingClientRect();
 		this._initialPromptInputState = {
 			value: this._promptInputModel.value,
 			cursorIndex: this._promptInputModel.cursorIndex,
@@ -441,8 +441,8 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		};
 		suggestWidget.setCompletionModel(model);
 		suggestWidget.showSuggestions(0, false, false, {
-			left: (xtermBox.left - panelBox.left) + this._terminal.buffer.active.cursorX * dimensions.width,
-			top: (xtermBox.top - panelBox.top) + this._terminal.buffer.active.cursorY * dimensions.height,
+			left: xtermBox.left + this._terminal.buffer.active.cursorX * dimensions.width,
+			top: xtermBox.top + this._terminal.buffer.active.cursorY * dimensions.height,
 			height: dimensions.height
 		});
 	}
@@ -502,6 +502,12 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		const completion = suggestion.item.completion;
 		const completionText = completion.completionText ?? completion.label;
 		const finalCompletionRightSide = completionText.substring((this._leadingLineContent?.length ?? 0) - (lastSpaceIndex === -1 ? 0 : lastSpaceIndex + 1));
+
+		// Hide the widget if there is no change
+		if (finalCompletionRightSide === additionalInput) {
+			this.hideSuggestWidget();
+			return;
+		}
 
 		// Get the final completion on the right side of the cursor if it differs from the initial
 		// propmt input state
