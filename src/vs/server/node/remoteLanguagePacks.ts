@@ -6,9 +6,9 @@
 import { FileAccess } from 'vs/base/common/network';
 import { join } from 'vs/base/common/path';
 import type { INLSConfiguration } from 'vs/nls';
-import { resolveNLSConfiguration } from 'vs/base/node/nls';
 import { Promises } from 'vs/base/node/pfs';
 import product from 'vs/platform/product/common/product';
+import { isESM } from 'vs/base/common/amd';
 
 const nlsMetadataPath = join(FileAccess.asFileUri('').fsPath);
 const defaultMessagesFile = join(nlsMetadataPath, 'nls.messages.json');
@@ -31,6 +31,8 @@ export async function getNLSConfiguration(language: string, userDataPath: string
 	const cacheKey = `${language}||${userDataPath}`;
 	let result = nlsConfigurationCache.get(cacheKey);
 	if (!result) {
+
+		const { resolveNLSConfiguration } = <typeof import('vs/base/node/nls')>await import(`vs/base/node/nls${isESM ? '.cjs' : ''}`);
 		result = resolveNLSConfiguration({ userLocale: language, osLocale: language, commit: product.commit, userDataPath, nlsMetadataPath });
 		nlsConfigurationCache.set(cacheKey, result);
 	}

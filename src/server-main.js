@@ -15,14 +15,6 @@
  * @import { IServerAPI } from './vs/server/node/remoteExtensionHostAgentServer'
  */
 
-const performance = require('perf_hooks').performance;
-/** @type {Partial<IProductConfiguration>} */
-// @ts-ignore
-const product = require('../product.json');
-const readline = require('readline');
-const http = require('http');
-const { resolveNLSConfiguration } = require('./vs/base/node/nls');
-
 // ESM-comment-begin
 const isESM = false;
 // ESM-comment-end
@@ -30,6 +22,15 @@ const isESM = false;
 // const isESM = true;
 // ESM-uncomment-end
 const requireExtension = (isESM ? '.cjs' : '');
+
+const performance = require('perf_hooks').performance;
+/** @type {Partial<IProductConfiguration>} */
+// @ts-ignore
+const product = require('../product.json');
+const readline = require('readline');
+const http = require('http');
+const { resolveNLSConfiguration } = require(`./vs/base/node/nls${requireExtension}`);
+
 const perf = require(`./vs/base/common/performance${requireExtension}`);
 
 perf.mark('code/server/start');
