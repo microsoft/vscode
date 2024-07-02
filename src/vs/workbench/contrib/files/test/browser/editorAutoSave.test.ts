@@ -21,7 +21,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { TestContextService, TestMarkerService } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestContextService, TestMarkerService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 
@@ -55,7 +55,8 @@ suite('EditorAutoSave', () => {
 			disposables.add(new UriIdentityService(disposables.add(new TestFileService()))),
 			disposables.add(new TestFileService()),
 			new TestMarkerService(),
-			new TestTextResourceConfigurationService(configurationService)
+			new TestTextResourceConfigurationService(configurationService),
+			disposables.add(new TestStorageService())
 		)));
 
 		const part = await createEditorPart(instantiationService, disposables);
