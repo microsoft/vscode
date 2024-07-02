@@ -35,7 +35,7 @@ export class AcceptInlineEdit extends EditorAction {
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
+	public async run(accessor: ServicesAccessor | null, editor: ICodeEditor): Promise<void> {
 		const controller = InlineEditController.get(editor);
 		await controller?.accept();
 	}
@@ -57,7 +57,7 @@ export class TriggerInlineEdit extends EditorAction {
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
+	public async run(accessor: ServicesAccessor | null, editor: ICodeEditor): Promise<void> {
 		const controller = InlineEditController.get(editor);
 		controller?.trigger();
 	}
@@ -87,7 +87,7 @@ export class JumpToInlineEdit extends EditorAction {
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
+	public async run(accessor: ServicesAccessor | null, editor: ICodeEditor): Promise<void> {
 		const controller = InlineEditController.get(editor);
 		controller?.jumpToCurrent();
 	}
@@ -117,7 +117,7 @@ export class JumpBackInlineEdit extends EditorAction {
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
+	public async run(accessor: ServicesAccessor | null, editor: ICodeEditor): Promise<void> {
 		const controller = InlineEditController.get(editor);
 		controller?.jumpBack();
 	}
@@ -145,7 +145,7 @@ export class RejectInlineEdit extends EditorAction {
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
+	public async run(accessor: ServicesAccessor | null, editor: ICodeEditor): Promise<void> {
 		const controller = InlineEditController.get(editor);
 		await controller?.clear();
 	}

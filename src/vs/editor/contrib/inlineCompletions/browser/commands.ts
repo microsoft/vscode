@@ -34,7 +34,7 @@ export class ShowNextInlineSuggestionAction extends EditorAction {
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
+	public async run(accessor: ServicesAccessor | null, editor: ICodeEditor): Promise<void> {
 		const controller = InlineCompletionsController.get(editor);
 		controller?.model.get()?.next();
 	}
@@ -55,7 +55,7 @@ export class ShowPreviousInlineSuggestionAction extends EditorAction {
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
+	public async run(accessor: ServicesAccessor | null, editor: ICodeEditor): Promise<void> {
 		const controller = InlineCompletionsController.get(editor);
 		controller?.model.get()?.previous();
 	}
@@ -71,7 +71,7 @@ export class TriggerInlineSuggestionAction extends EditorAction {
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
+	public async run(accessor: ServicesAccessor | null, editor: ICodeEditor): Promise<void> {
 		const controller = InlineCompletionsController.get(editor);
 		await asyncTransaction(async tx => {
 			/** @description triggerExplicitly from command */
@@ -102,7 +102,7 @@ export class AcceptNextWordOfInlineCompletion extends EditorAction {
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
+	public async run(accessor: ServicesAccessor | null, editor: ICodeEditor): Promise<void> {
 		const controller = InlineCompletionsController.get(editor);
 		await controller?.model.get()?.acceptNextWord(controller.editor);
 	}
@@ -127,7 +127,7 @@ export class AcceptNextLineOfInlineCompletion extends EditorAction {
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
+	public async run(accessor: ServicesAccessor | null, editor: ICodeEditor): Promise<void> {
 		const controller = InlineCompletionsController.get(editor);
 		await controller?.model.get()?.acceptNextLine(controller.editor);
 	}
@@ -160,7 +160,7 @@ export class AcceptInlineCompletion extends EditorAction {
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
+	public async run(accessor: ServicesAccessor | null, editor: ICodeEditor): Promise<void> {
 		const controller = InlineCompletionsController.get(editor);
 		if (controller) {
 			controller.model.get()?.accept(controller.editor);
@@ -185,7 +185,7 @@ export class HideInlineCompletion extends EditorAction {
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
+	public async run(accessor: ServicesAccessor | null, editor: ICodeEditor): Promise<void> {
 		const controller = InlineCompletionsController.get(editor);
 		transaction(tx => {
 			controller?.model.get()?.stop(tx);

@@ -100,7 +100,7 @@ registerEditorCommand(new class extends EditorCommand {
 		});
 	}
 
-	runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		accessor.get(IEditorCancellationTokens).cancel(editor);
+	runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor): void {
+		accessor?.get(IEditorCancellationTokens).cancel(editor);
 	}
 });
