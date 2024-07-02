@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'mocha';
+import { Position, Range, SemanticTokensLegend } from '@volar/language-server';
 import * as assert from 'assert';
-import { TextDocument, getLanguageModes, ClientCapabilities, Range, Position } from '../modes/languageModes';
-import { newSemanticTokenProvider } from '../modes/semanticTokens';
-import { getNodeFileFS } from '../node/nodeFs';
+import 'mocha';
+import { URI } from 'vscode-uri';
+import { getTestService, languageServicePlugins } from './shared';
 
 interface ExpectedToken {
 	startLine: number;
@@ -16,26 +16,25 @@ interface ExpectedToken {
 	tokenClassifiction: string;
 }
 
-async function assertTokens(lines: string[], expected: ExpectedToken[], ranges?: Range[], message?: string): Promise<void> {
-	const document = TextDocument.create('test://foo/bar.html', 'html', 1, lines.join('\n'));
-	const workspace = {
-		settings: {},
-		folders: [{ name: 'foo', uri: 'test://foo' }]
-	};
-	const languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST, getNodeFileFS());
-	const semanticTokensProvider = newSemanticTokenProvider(languageModes);
+const legend: SemanticTokensLegend = {
+	tokenTypes: languageServicePlugins.map(plugin => plugin.capabilities.semanticTokensProvider?.legend.tokenTypes ?? []).flat(),
+	tokenModifiers: languageServicePlugins.map(plugin => plugin.capabilities.semanticTokensProvider?.legend.tokenModifiers ?? []).flat(),
+};
+legend.tokenModifiers.push('local');
 
-	const legend = semanticTokensProvider.legend;
-	const actual = await semanticTokensProvider.getSemanticTokens(document, ranges);
+async function assertTokens(lines: string[], expected: ExpectedToken[], range?: Range, message?: string): Promise<void> {
+	const { document, languageService } = await getTestService({ content: lines.join('\n') });
+	const actual = await languageService.getSemanticTokens(URI.parse(document.uri), range, legend);
+	assert(!!actual);
 
 	const actualRanges = [];
 	let lastLine = 0;
 	let lastCharacter = 0;
-	for (let i = 0; i < actual.length; i += 5) {
-		const lineDelta = actual[i], charDelta = actual[i + 1], len = actual[i + 2], typeIdx = actual[i + 3], modSet = actual[i + 4];
+	for (let i = 0; i < actual.data.length; i += 5) {
+		const lineDelta = actual.data[i], charDelta = actual.data[i + 1], len = actual.data[i + 2], typeIdx = actual.data[i + 3], modSet = actual.data[i + 4];
 		const line = lastLine + lineDelta;
 		const character = lineDelta === 0 ? lastCharacter + charDelta : charDelta;
-		const tokenClassifiction = [legend.types[typeIdx], ...legend.modifiers.filter((_, i) => modSet & 1 << i)].join('.');
+		const tokenClassifiction = [legend.tokenTypes[typeIdx], ...legend.tokenModifiers.filter((_, i) => modSet & 1 << i)].join('.');
 		actualRanges.push(t(line, character, len, tokenClassifiction));
 		lastLine = line;
 		lastCharacter = character;
@@ -155,9 +154,9 @@ suite('HTML Semantic Tokens', () => {
 		];
 		await assertTokens(input, [
 			t(3, 8, 1, 'variable.declaration.readonly'),
-			t(4, 8, 1, 'class.declaration'), t(4, 28, 1, 'property.declaration.static.readonly'), t(4, 42, 3, 'property.declaration.static'), t(4, 47, 3, 'interface.defaultLibrary'),
+			t(4, 8, 1, 'class.declaration'), t(4, 28, 1, 'property.declaration.readonly.static'), t(4, 42, 3, 'property.declaration.static'), t(4, 47, 3, 'interface.defaultLibrary'),
 			t(5, 13, 1, 'enum.declaration'), t(5, 17, 1, 'enumMember.declaration.readonly'), t(5, 24, 1, 'enumMember.declaration.readonly'), t(5, 28, 1, 'enumMember.readonly'),
-			t(6, 2, 7, 'variable.defaultLibrary'), t(6, 10, 3, 'method.defaultLibrary'), t(6, 14, 1, 'variable.readonly'), t(6, 18, 1, 'class'), t(6, 20, 1, 'property.static.readonly'), t(6, 24, 1, 'class'), t(6, 26, 3, 'property.static'), t(6, 30, 6, 'property.readonly.defaultLibrary'),
+			t(6, 2, 7, 'variable.defaultLibrary'), t(6, 10, 3, 'method.defaultLibrary'), t(6, 14, 1, 'variable.readonly'), t(6, 18, 1, 'class'), t(6, 20, 1, 'property.readonly.static'), t(6, 24, 1, 'class'), t(6, 26, 3, 'property.static'), t(6, 30, 6, 'property.readonly.defaultLibrary'),
 		]);
 	});
 
@@ -216,13 +215,10 @@ suite('HTML Semantic Tokens', () => {
 		];
 		await assertTokens(input, [
 			t(3, 2, 6, 'variable.defaultLibrary'), t(3, 9, 5, 'method.defaultLibrary')
-		], [Range.create(Position.create(2, 0), Position.create(4, 0))]);
+		], Range.create(Position.create(2, 0), Position.create(4, 0)));
 
 		await assertTokens(input, [
 			t(6, 2, 6, 'variable.defaultLibrary'),
-		], [Range.create(Position.create(6, 2), Position.create(6, 8))]);
+		], Range.create(Position.create(6, 2), Position.create(6, 8)));
 	});
-
-
 });
-

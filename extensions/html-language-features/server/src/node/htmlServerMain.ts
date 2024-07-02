@@ -3,34 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createConnection, Connection, Disposable } from 'vscode-languageserver/node';
-import { formatError } from '../utils/runner';
-import { RuntimeEnvironment, startServer } from '../htmlServer';
-import { getNodeFileFS } from './nodeFs';
+import { createConnection, fs } from '@volar/language-server/node';
+import { createServerBase } from '@volar/language-server/lib/server';
+import { startServer } from '../htmlServer';
 
-
-// Create a connection for the server.
-const connection: Connection = createConnection();
-
-console.log = connection.console.log.bind(connection.console);
-console.error = connection.console.error.bind(connection.console);
-
-process.on('unhandledRejection', (e: any) => {
-	connection.console.error(formatError(`Unhandled exception`, e));
+const connection = createConnection();
+const server = createServerBase(connection, {
+	readFile(uri, encoding) {
+		if (uri.scheme === 'file' && !handledFileSchema()) {
+			return;
+		}
+		return fs.readFile(uri, encoding);
+	},
+	readDirectory(uri) {
+		if (uri.scheme === 'file' && !handledFileSchema()) {
+			return [];
+		}
+		return fs.readDirectory(uri);
+	},
+	stat(uri) {
+		if (uri.scheme === 'file' && !handledFileSchema()) {
+			return;
+		}
+		return fs.stat(uri);
+	},
 });
 
-const runtime: RuntimeEnvironment = {
-	timer: {
-		setImmediate(callback: (...args: any[]) => void, ...args: any[]): Disposable {
-			const handle = setImmediate(callback, ...args);
-			return { dispose: () => clearImmediate(handle) };
-		},
-		setTimeout(callback: (...args: any[]) => void, ms: number, ...args: any[]): Disposable {
-			const handle = setTimeout(callback, ms, ...args);
-			return { dispose: () => clearTimeout(handle) };
-		}
-	},
-	fileFs: getNodeFileFS()
-};
+startServer(server, connection);
 
-startServer(connection, runtime);
+function handledFileSchema() {
+	return server.initializeParams.initializationOptions?.handledSchemas?.indexOf('file') !== -1;
+}

@@ -2,13 +2,13 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import 'mocha';
+import { CompletionItemKind, CompletionList, TextDocument, TextEdit } from '@volar/language-server';
 import * as assert from 'assert';
+import 'mocha';
 import * as path from 'path';
 import { URI } from 'vscode-uri';
-import { getLanguageModes, WorkspaceFolder, TextDocument, CompletionList, CompletionItemKind, ClientCapabilities, TextEdit } from '../modes/languageModes';
-import { getNodeFileFS } from '../node/nodeFs';
-import { getDocumentContext } from '../utils/documentContext';
+import { getTestService } from './shared';
+
 export interface ItemDescription {
 	label: string;
 	documentation?: string;
@@ -44,25 +44,18 @@ export function assertCompletion(completions: CompletionList, expected: ItemDesc
 	}
 }
 
-const testUri = 'test://test/test.html';
-
-export async function testCompletionFor(value: string, expected: { count?: number; items?: ItemDescription[] }, uri = testUri, workspaceFolders?: WorkspaceFolder[]): Promise<void> {
+export async function testCompletionFor(value: string, expected: { count?: number; items?: ItemDescription[] }, uri?: string, workspaceFolders?: string[]): Promise<void> {
 	const offset = value.indexOf('|');
 	value = value.substr(0, offset) + value.substr(offset + 1);
 
-	const workspace = {
-		settings: {},
-		folders: workspaceFolders || [{ name: 'x', uri: uri.substr(0, uri.lastIndexOf('/')) }]
-	};
-
-	const document = TextDocument.create(uri, 'html', 0, value);
+	const { document, languageService } = await getTestService({
+		uri,
+		workspaceFolders,
+		content: value,
+	});
 	const position = document.positionAt(offset);
-	const context = getDocumentContext(uri, workspace.folders);
-
-	const languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST, getNodeFileFS());
-	const mode = languageModes.getModeAtPosition(document, position)!;
-
-	const list = await mode.doComplete!(document, position, context);
+	const list = await languageService.getCompletionItems(URI.parse(document.uri), position);
+	assert(!!list);
 
 	if (expected.count) {
 		assert.strictEqual(list.items.length, expected.count);
@@ -101,7 +94,7 @@ suite('HTML Path Completion', () => {
 	};
 
 	const fixtureRoot = path.resolve(__dirname, '../../src/test/pathCompletionFixtures');
-	const fixtureWorkspace = { name: 'fixture', uri: URI.file(fixtureRoot).toString() };
+	const fixtureWorkspace = URI.file(fixtureRoot).toString();
 	const indexHtmlUri = URI.file(path.resolve(fixtureRoot, 'index.html')).toString();
 	const aboutHtmlUri = URI.file(path.resolve(fixtureRoot, 'about/about.html')).toString();
 

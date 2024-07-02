@@ -3,10 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as serverProtocol from '@volar/language-server/protocol';
+import { LanguageClient } from '@volar/vscode/browser';
 import { Disposable, ExtensionContext, Uri, l10n } from 'vscode';
 import { LanguageClientOptions } from 'vscode-languageclient';
-import { startClient, LanguageClientConstructor, AsyncDisposable } from '../htmlClient';
-import { LanguageClient } from 'vscode-languageclient/browser';
+import { AsyncDisposable, LanguageClientConstructor, startClient } from '../htmlClient';
+import { BaseLanguageClient, createLabsInfo } from '@volar/vscode';
 
 let client: AsyncDisposable | undefined;
 
@@ -17,8 +19,9 @@ export async function activate(context: ExtensionContext) {
 		const worker = new Worker(serverMain.toString());
 		worker.postMessage({ i10lLocation: l10n.uri?.toString(false) ?? '' });
 
+		let languageClient!: BaseLanguageClient;
 		const newLanguageClient: LanguageClientConstructor = (id: string, name: string, clientOptions: LanguageClientOptions) => {
-			return new LanguageClient(id, name, worker, clientOptions);
+			return languageClient = new LanguageClient(id, name, clientOptions, worker);
 		};
 
 		const timer = {
@@ -30,9 +33,13 @@ export async function activate(context: ExtensionContext) {
 
 		client = await startClient(context, newLanguageClient, { TextDecoder, timer });
 
+		const labsInfo = createLabsInfo(serverProtocol);
+		labsInfo.addLanguageClient(languageClient);
+		return labsInfo.extensionExports;
 	} catch (e) {
 		console.log(e);
 	}
+	return undefined;
 }
 
 export async function deactivate(): Promise<void> {
@@ -41,4 +48,3 @@ export async function deactivate(): Promise<void> {
 		client = undefined;
 	}
 }
-

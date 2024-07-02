@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'mocha';
+import type { SelectionRange } from '@volar/language-server';
 import * as assert from 'assert';
-import { getLanguageModes, ClientCapabilities, TextDocument, SelectionRange } from '../modes/languageModes';
-import { getSelectionRanges } from '../modes/selectionRanges';
-import { getNodeFileFS } from '../node/nodeFs';
+import 'mocha';
+import { URI } from 'vscode-uri';
+import { getTestService } from './shared';
 
 async function assertRanges(content: string, expected: (number | string)[][]): Promise<void> {
 	let message = `${content} gives selection range:\n`;
@@ -15,14 +15,10 @@ async function assertRanges(content: string, expected: (number | string)[][]): P
 	const offset = content.indexOf('|');
 	content = content.substr(0, offset) + content.substr(offset + 1);
 
-	const workspace = {
-		settings: {},
-		folders: [{ name: 'foo', uri: 'test://foo' }]
-	};
-	const languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST, getNodeFileFS());
+	const { document, languageService } = await getTestService({ content });
+	const actualRanges = await languageService.getSelectionRanges(URI.parse(document.uri), [document.positionAt(offset)]);
+	assert(!!actualRanges);
 
-	const document = TextDocument.create('test://foo.html', 'html', 1, content);
-	const actualRanges = await getSelectionRanges(languageModes, document, [document.positionAt(offset)]);
 	assert.strictEqual(actualRanges.length, 1);
 	const offsetPairs: [number, string][] = [];
 	let curr: SelectionRange | undefined = actualRanges[0];
@@ -36,6 +32,7 @@ async function assertRanges(content: string, expected: (number | string)[][]): P
 }
 
 suite('HTML SelectionRange', () => {
+
 	test('Embedded JavaScript', async () => {
 		await assertRanges('<html><head><script>  function foo() { return ((1|+2)*6) }</script></head></html>', [
 			[48, '1'],
@@ -76,6 +73,4 @@ suite('HTML SelectionRange', () => {
 			[0, '<div style="color: red"></div>']
 		]);
 	});
-
-
 });
