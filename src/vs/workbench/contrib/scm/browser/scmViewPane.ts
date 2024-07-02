@@ -110,6 +110,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { autorun } from 'vs/base/common/observable';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { renderSCMHistoryItemGraph, toISCMHistoryItemViewModelArray } from 'vs/workbench/contrib/scm/browser/scmHistory';
+import { PlaceholderTextContribution } from 'vs/editor/contrib/placeholderText/browser/placeholderTextContribution';
 
 // type SCMResourceTreeNode = IResourceNode<ISCMResource, ISCMResourceGroup>;
 // type SCMHistoryItemChangeResourceTreeNode = IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement>;
@@ -2338,7 +2339,6 @@ class SCMInputWidget {
 
 	private element: HTMLElement;
 	private editorContainer: HTMLElement;
-	private placeholderTextContainer: HTMLElement;
 	private readonly inputEditor: CodeEditorWidget;
 	private readonly inputEditorOptions: SCMInputWidgetEditorOptions;
 	private toolbarContainer: HTMLElement;
@@ -2429,14 +2429,11 @@ class SCMInputWidget {
 		this.repositoryDisposables.add(input.onDidChangeValidationMessage((e) => this.setValidation(e, { focus: true, timeout: true })));
 		this.repositoryDisposables.add(input.onDidChangeValidateInput((e) => triggerValidation()));
 
-		// Keep API in sync with model, update placeholder visibility and validate
-		const updatePlaceholderVisibility = () => this.placeholderTextContainer.classList.toggle('hidden', textModel.getValueLength() > 0);
+		// Keep API in sync with model and validate
 		this.repositoryDisposables.add(textModel.onDidChangeContent(() => {
 			input.setValue(textModel.getValue(), true);
-			updatePlaceholderVisibility();
 			triggerValidation();
 		}));
-		updatePlaceholderVisibility();
 
 		// Update placeholder text
 		const updatePlaceholderText = () => {
@@ -2444,8 +2441,7 @@ class SCMInputWidget {
 			const label = binding ? binding.getLabel() : (platform.isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter');
 			const placeholderText = format(input.placeholder, label);
 
-			this.inputEditor.updateOptions({ ariaLabel: placeholderText });
-			this.placeholderTextContainer.textContent = placeholderText;
+			this.inputEditor.updateOptions({ placeholder: placeholderText });
 		};
 		this.repositoryDisposables.add(input.onDidChangePlaceholder(updatePlaceholderText));
 		this.repositoryDisposables.add(this.keybindingService.onDidUpdateKeybindings(updatePlaceholderText));
@@ -2526,7 +2522,6 @@ class SCMInputWidget {
 	) {
 		this.element = append(container, $('.scm-editor'));
 		this.editorContainer = append(this.element, $('.scm-editor-container'));
-		this.placeholderTextContainer = append(this.editorContainer, $('.scm-editor-placeholder'));
 		this.toolbarContainer = append(this.element, $('.scm-editor-toolbar'));
 
 		this.contextKeyService = contextKeyService.createScoped(this.element);
@@ -2536,33 +2531,32 @@ class SCMInputWidget {
 		this.disposables.add(this.inputEditorOptions.onDidChange(this.onDidChangeEditorOptions, this));
 		this.disposables.add(this.inputEditorOptions);
 
-		const editorConstructionOptions = this.inputEditorOptions.getEditorConstructionOptions();
-		this.setPlaceholderFontStyles(editorConstructionOptions.fontFamily!, editorConstructionOptions.fontSize!, editorConstructionOptions.lineHeight!);
-
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
-			isSimpleWidget: true,
 			contributions: EditorExtensionsRegistry.getSomeEditorContributions([
+				CodeActionController.ID,
 				ColorDetector.ID,
 				ContextMenuController.ID,
-				DragAndDropController.ID,
 				CopyPasteController.ID,
+				DragAndDropController.ID,
 				DropIntoEditorController.ID,
+				EditorDictation.ID,
+				FormatOnType.ID,
+				HoverController.ID,
+				InlineCompletionsController.ID,
 				LinkDetector.ID,
 				MenuPreventer.ID,
 				MessageController.ID,
-				HoverController.ID,
+				PlaceholderTextContribution.ID,
 				SelectionClipboardContributionID,
 				SnippetController2.ID,
-				SuggestController.ID,
-				InlineCompletionsController.ID,
-				CodeActionController.ID,
-				FormatOnType.ID,
-				EditorDictation.ID,
-			])
+				SuggestController.ID
+			]),
+			isSimpleWidget: true
 		};
 
 		const services = new ServiceCollection([IContextKeyService, this.contextKeyService]);
 		const instantiationService2 = instantiationService.createChild(services, this.disposables);
+		const editorConstructionOptions = this.inputEditorOptions.getEditorConstructionOptions();
 		this.inputEditor = instantiationService2.createInstance(CodeEditorWidget, this.editorContainer, editorConstructionOptions, codeEditorWidgetOptions);
 		this.disposables.add(this.inputEditor);
 
@@ -2652,7 +2646,6 @@ class SCMInputWidget {
 
 		this.lastLayoutWasTrash = false;
 		this.inputEditor.layout(dimension);
-		this.placeholderTextContainer.style.width = `${dimension.width}px`;
 		this.renderValidation();
 
 		const showInputActionButton = this.configurationService.getValue<boolean>('scm.showInputActionButton') === true;
@@ -2680,10 +2673,7 @@ class SCMInputWidget {
 	}
 
 	private onDidChangeEditorOptions(): void {
-		const editorOptions = this.inputEditorOptions.getEditorOptions();
-
-		this.inputEditor.updateOptions(editorOptions);
-		this.setPlaceholderFontStyles(editorOptions.fontFamily!, editorOptions.fontSize!, editorOptions.lineHeight!);
+		this.inputEditor.updateOptions(this.inputEditorOptions.getEditorOptions());
 	}
 
 	private renderValidation(): void {
@@ -2772,11 +2762,6 @@ class SCMInputWidget {
 		return this.toolbar.dropdownActions.length === 0 ?
 			26 /* 22px action + 4px margin */ :
 			39 /* 35px action + 4px margin */;
-	}
-	private setPlaceholderFontStyles(fontFamily: string, fontSize: number, lineHeight: number): void {
-		this.placeholderTextContainer.style.fontFamily = fontFamily;
-		this.placeholderTextContainer.style.fontSize = `${fontSize}px`;
-		this.placeholderTextContainer.style.lineHeight = `${lineHeight}px`;
 	}
 
 	clearValidation(): void {
