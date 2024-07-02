@@ -271,6 +271,10 @@ export class Position {
 	toJSON(): any {
 		return { line: this.line, character: this.character };
 	}
+
+	[Symbol.for('debug.description')]() {
+		return `(${this.line}:${this.character})`;
+	}
 }
 
 @es5ClassCompat
@@ -416,6 +420,10 @@ export class Range {
 
 	toJSON(): any {
 		return [this.start, this.end];
+	}
+
+	[Symbol.for('debug.description')]() {
+		return `[${this.start.line}:${this.start.character} -> ${this.end.line}:${this.end.character})`;
 	}
 }
 
