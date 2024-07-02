@@ -1,0 +1,27 @@
+steps:
+  - script: |
+      set -e
+      curl -o $(Build.ArtifactStagingDirectory)/VSCode-darwin.zip https://vscode.download.prss.microsoft.com/dbazure/download/insider/327279994e030d1a7da815c1d6d0e9c45bf673cc/VSCode-darwin.zip
+
+  - task: EsrpCodeSigning@4
+    displayName: 'ESRP CodeSigning'
+    inputs:
+      ConnectedServiceName: 'esrp-codesign'
+      FolderPath: '$(Build.ArtifactStagingDirectory)'
+      Pattern: 'VSCode-darwin.zip'
+      UseMinimatch: true
+      signConfigType: inlineSignParams
+      inlineOperation: |
+        [
+          {
+            "keyCode": "CP-401337-Apple",
+            "operationCode": "MacAppDeveloperSign",
+            "parameters" : [{ "parameterName": "Hardening", "parameterValue": "--options=runtime" }],
+            "toolName": "sign",
+            "toolVersion": "1.0"
+          }
+        ]
+      SessionTimeout: ${{ parameters.timeoutInMinutes }}
+      MaxConcurrency: '50'
+      MaxRetryAttempts: '5'
+      PendingAnalysisWaitTimeoutMinutes: '5'
