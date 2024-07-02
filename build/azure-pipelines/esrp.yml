@@ -7,7 +7,7 @@ steps:
     inputs:
       version: 6.x
 
-  - task: EsrpCodeSigning@4
+  - task: EsrpCodeSigning@2
     displayName: 'ESRP CodeSigning'
     inputs:
       ConnectedServiceName: 'esrp-codesign'
