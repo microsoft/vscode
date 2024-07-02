@@ -671,6 +671,7 @@ export interface IOpenEvent<T> {
 export interface IResourceNavigatorOptions {
 	readonly configurationService?: IConfigurationService;
 	readonly openOnSingleClick?: boolean;
+	readonly openOnDoubleClick?: boolean;
 }
 
 export interface SelectionKeyboardEvent extends KeyboardEvent {
@@ -691,6 +692,7 @@ export function getSelectionKeyboardEvent(typeArg = 'keydown', preserveFocus?: b
 abstract class ResourceNavigator<T> extends Disposable {
 
 	private openOnSingleClick: boolean;
+	private openOnDoubleClick: boolean;
 
 	private readonly _onDidOpen = this._register(new Emitter<IOpenEvent<T | undefined>>());
 	readonly onDidOpen: Event<IOpenEvent<T | undefined>> = this._onDidOpen.event;
@@ -715,6 +717,7 @@ abstract class ResourceNavigator<T> extends Disposable {
 		} else {
 			this.openOnSingleClick = options?.openOnSingleClick ?? true;
 		}
+		this.openOnDoubleClick = options?.openOnDoubleClick ?? true;
 	}
 
 	private onSelectionFromKeyboard(event: ITreeEvent<any>): void {
@@ -750,6 +753,9 @@ abstract class ResourceNavigator<T> extends Disposable {
 	}
 
 	private onMouseDblClick(element: T | undefined, browserEvent?: MouseEvent): void {
+		if (!this.openOnDoubleClick) {
+			return;
+		}
 		if (!browserEvent) {
 			return;
 		}

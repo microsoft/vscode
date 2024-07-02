@@ -150,6 +150,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: 3,
 			description: localize('diffGutterWidth', "Controls the width(px) of diff decorations in gutter (added & modified).")
 		},
+		'scm.openItemOnClick': {
+			type: 'boolean',
+			default: true,
+			description: localize('openItemOnClick', "Controls whether or not to open scm items on click")
+		},
 		'scm.diffDecorationsGutterVisibility': {
 			type: 'string',
 			enum: ['always', 'hover'],
