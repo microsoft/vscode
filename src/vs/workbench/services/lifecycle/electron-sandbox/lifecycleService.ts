@@ -186,13 +186,13 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 		try {
 			await raceCancellation(Promises.settled(joiners), cts.token);
 		} catch (error) {
-			this.logService.error(`[lifecycle]: Error during will-shutdown phase (error: ${toErrorMessage(error)})`); // this error will not prevent the shutdown
+			this.logService.error(`[lifecycle]: Error during will-shutdown phase in default joiners (error: ${toErrorMessage(error)})`);
 		}
 
 		try {
 			await raceCancellation(Promises.settled(lastJoiners.map(lastJoiner => lastJoiner())), cts.token);
 		} catch (error) {
-			this.logService.error(`[lifecycle]: Error during will-shutdown phase (error: ${toErrorMessage(error)})`); // this error will not prevent the shutdown
+			this.logService.error(`[lifecycle]: Error during will-shutdown phase in last joiners (error: ${toErrorMessage(error)})`);
 		}
 
 		longRunningWillShutdownWarning.dispose();
