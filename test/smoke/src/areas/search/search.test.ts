@@ -59,6 +59,25 @@ export function setup(logger: Logger) {
 			await app.workbench.search.removeFileMatch('app.js', '2 results in 2 files');
 		});
 
+		it('#206511, navigates results & checks for correct selection after editing current result', async function () {
+			const app = this.app as Application;
+			await app.workbench.search.openSearchViewlet();
+			await app.workbench.search.matchWholeWord();
+			await app.workbench.search.searchFor('body');
+			await app.workbench.search.waitForResultText('3 results in 3 files');
+
+			// Select second result ("body {" in style.css)
+			await app.code.dispatchKeybinding('F4');
+			await app.code.dispatchKeybinding('F4');
+			await app.workbench.search.waitForSelectedMatchText('body {');
+			// Replace the current selection so that it no longer matches the query
+			await app.workbench.editor.waitForTypeInEditor('style.css', 'ist');
+			await app.code.dispatchKeybinding('F4');
+			// Verify that the selection goes to the actual "next",
+			// instead of going back to the first result
+			await app.workbench.search.waitForSelectedMatchText('body');
+		});
+
 		it.skip('replaces first search result with a replace term', async function () { // TODO@roblourens https://github.com/microsoft/vscode/issues/137195
 			const app = this.app as Application;
 

@@ -750,8 +750,42 @@ export class SearchView extends ViewPane {
 		return this.refreshTree(event);
 	}
 
+	private reselectAfterRefreshTree(beforePreviousSelection: RenderableMatch | null): void {
+		// Selection exists -> no need to reselect as what caused the tree to refresh didn't change the selected match
+		if (this.tree.selectionSize > 0 || !beforePreviousSelection) {
+			return;
+		}
+
+		// Go to the first element of the tree
+		const iterator = this.tree.navigate();
+		let current = iterator.first();
+		// Look for the element before the previous selection in the tree
+		while (!!current) {
+			if (current.id() === beforePreviousSelection.id()) {
+				this.tree.setSelection([current]);
+				this.tree.setFocus([current]);
+				this.tree.reveal(current);
+			}
+			current = iterator.next();
+		}
+	}
+
 	refreshTree(event?: IChangeEvent): void {
 		const collapseResults = this.searchConfig.collapseResults;
+
+		// Get the selection before the refresh
+		const [previous] = this.tree.getSelection();
+		const navigator = this.tree.navigate(previous);
+		let beforePrevious = navigator.previous();
+		// Expand until beforePrevious is a Match
+		while (beforePrevious && !(beforePrevious instanceof Match)) {
+			if (this.tree.isCollapsed(beforePrevious)) {
+				this.tree.expand(beforePrevious);
+			}
+
+			beforePrevious = navigator.previous();
+		}
+
 		if (!event || event.added || event.removed) {
 			// Refresh whole tree
 			if (this.searchConfig.sortOrder === SearchSortOrder.Modified) {
@@ -774,6 +808,7 @@ export class SearchView extends ViewPane {
 				});
 			}
 		}
+		this.reselectAfterRefreshTree(beforePrevious);
 	}
 
 	private createResultIterator(collapseResults: ISearchConfigurationProperties['collapseResults']): Iterable<ICompressedTreeElement<RenderableMatch>> {
