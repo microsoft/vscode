@@ -685,6 +685,15 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	updateEditorSelections(): void {
+		// Only update if the active editor is the same as before
+		// if the active editor is different, the update
+		// will happen from an open editor call.
+		const drawnActiveEditor = this.activeTabLabel?.editor;
+		const newActiveEditor = this.tabsModel.activeEditor;
+		if (drawnActiveEditor && newActiveEditor && !drawnActiveEditor.matches(newActiveEditor)) {
+			return;
+		}
+
 		this.forEachTab((editor, tabIndex, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => {
 			this.redrawTabSelectedActiveAndDirty(this.groupsView.activeGroup === this.groupView, editor, tabContainer, tabActionBar);
 		});

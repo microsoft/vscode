@@ -20,6 +20,9 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 	private readonly stickyEditorTabsControl: IEditorTabsControl;
 	private readonly unstickyEditorTabsControl: IEditorTabsControl;
 
+	private previousSelectedStickyCount = 0;
+	private previousSelectedUnstickyCount = 0;
+
 	constructor(
 		private readonly parent: HTMLElement,
 		editorPartsView: IEditorPartsView,
@@ -164,8 +167,22 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 	}
 
 	updateEditorSelections(): void {
-		this.stickyEditorTabsControl.updateEditorSelections();
-		this.unstickyEditorTabsControl.updateEditorSelections();
+		const selectedEditors = this.groupView.selectedEditors;
+		const selectedStickyCount = selectedEditors.filter(e => this.model.isSticky(e)).length;
+		const selectedUnstickyCount = selectedEditors.filter(e => !this.model.isSticky(e)).length;
+
+		// If the selection length did not change then avoid updating the tabs
+		// as there will be an open editor action that will
+		// trigger a refresh of the tabs to reflect the new active editor
+		if (selectedStickyCount !== this.previousSelectedStickyCount) {
+			this.stickyEditorTabsControl.updateEditorSelections();
+		}
+		if (selectedUnstickyCount !== this.previousSelectedUnstickyCount) {
+			this.unstickyEditorTabsControl.updateEditorSelections();
+		}
+
+		this.previousSelectedStickyCount = selectedStickyCount;
+		this.previousSelectedUnstickyCount = selectedUnstickyCount;
 	}
 
 	updateEditorLabel(editor: EditorInput): void {
