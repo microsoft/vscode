@@ -435,6 +435,9 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 	public terminate(task: Task): Promise<ITaskTerminateResponse> {
 		const activeTerminal = this._activeTasks[task.getMapKey()];
+		if (!activeTerminal) {
+			return Promise.resolve<ITaskTerminateResponse>({ success: false, task: undefined });
+		}
 		const terminal = activeTerminal.terminal;
 		if (!terminal) {
 			return Promise.resolve<ITaskTerminateResponse>({ success: false, task: undefined });

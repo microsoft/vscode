@@ -379,15 +379,26 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		while (foldersToTravers.length > 0) {
 			const currentFolder = foldersToTravers.shift()!;
 
+			const children: fs.Dirent[] = [];
+			try {
+				children.push(...await fs.promises.readdir(currentFolder.path, { withFileTypes: true }));
+
+				if (currentFolder.depth !== 0) {
+					result.push(currentFolder.path);
+				}
+			}
+			catch (err) {
+				this.logger.warn(`[swsf] Unable to read folder '${currentFolder.path}': ${err}`);
+				continue;
+			}
+
 			if (currentFolder.depth < maxDepth || maxDepth === -1) {
-				const children = await fs.promises.readdir(currentFolder.path, { withFileTypes: true });
 				const childrenFolders = children
 					.filter(dirent =>
 						dirent.isDirectory() && dirent.name !== '.git' &&
 						!repositoryScanIgnoredFolders.find(f => pathEquals(dirent.name, f)))
 					.map(dirent => path.join(currentFolder.path, dirent.name));
 
-				result.push(...childrenFolders);
 				foldersToTravers.push(...childrenFolders.map(folder => {
 					return { path: folder, depth: currentFolder.depth + 1 };
 				}));

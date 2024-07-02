@@ -206,7 +206,7 @@ abstract class QuickInput extends Disposable implements IQuickInput {
 	}
 
 	set widget(widget: unknown | undefined) {
-		if (!(widget instanceof HTMLElement)) {
+		if (!(dom.isHTMLElement(widget))) {
 			return;
 		}
 		if (this._widget !== widget) {
@@ -1271,7 +1271,7 @@ export class QuickInputHoverDelegate extends WorkbenchHoverDelegate {
 	private getOverrideOptions(options: IHoverDelegateOptions): Partial<IHoverOptions> {
 		// Only show the hover hint if the content is of a decent size
 		const showHoverHint = (
-			options.content instanceof HTMLElement
+			dom.isHTMLElement(options.content)
 				? options.content.textContent ?? ''
 				: typeof options.content === 'string'
 					? options.content

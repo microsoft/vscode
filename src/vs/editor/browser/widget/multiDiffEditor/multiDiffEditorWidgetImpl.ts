@@ -73,8 +73,8 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		return template;
 	}));
 
-	public readonly scrollTop = observableFromEvent(this._scrollableElement.onScroll, () => /** @description scrollTop */ this._scrollableElement.getScrollPosition().scrollTop);
-	public readonly scrollLeft = observableFromEvent(this._scrollableElement.onScroll, () => /** @description scrollLeft */ this._scrollableElement.getScrollPosition().scrollLeft);
+	public readonly scrollTop = observableFromEvent(this, this._scrollableElement.onScroll, () => /** @description scrollTop */ this._scrollableElement.getScrollPosition().scrollTop);
+	public readonly scrollLeft = observableFromEvent(this, this._scrollableElement.onScroll, () => /** @description scrollLeft */ this._scrollableElement.getScrollPosition().scrollLeft);
 
 	private readonly _viewItemsInfo = derivedWithStore<{ items: readonly VirtualizedViewItem[]; getItem: (viewModel: DocumentDiffItemViewModel) => VirtualizedViewItem }>(this,
 		(reader, store) => {
@@ -114,9 +114,9 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 	});
 
 	private readonly _contextKeyService = this._register(this._parentContextKeyService.createScoped(this._element));
-	private readonly _instantiationService = this._parentInstantiationService.createChild(
+	private readonly _instantiationService = this._register(this._parentInstantiationService.createChild(
 		new ServiceCollection([IContextKeyService, this._contextKeyService])
-	);
+	));
 
 	constructor(
 		private readonly _element: HTMLElement,

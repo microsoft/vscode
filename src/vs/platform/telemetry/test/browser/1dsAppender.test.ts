@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import type { ITelemetryItem, ITelemetryUnloadState } from '@microsoft/1ds-core-js';
-import * as assert from 'assert';
+import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { OneDataSystemWebAppender } from 'vs/platform/telemetry/browser/1dsAppender';
 import { IAppInsightsCore } from 'vs/platform/telemetry/common/1dsAppender';

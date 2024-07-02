@@ -164,7 +164,7 @@ resources:
     - repository: 1ESPipelines
       type: git
       name: 1ESPipelineTemplates/1ESPipelineTemplates
-      ref: refs/heads/joao/disable-tsa-linux-arm64
+      ref: refs/tags/release
 
 extends:
   template: v1/1ES.Official.PipelineTemplate.yml@1esPipelines
@@ -216,110 +216,124 @@ extends:
                 parameters:
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
-      - stage: CompileCLI
+      - ${{ if or(eq(parameters.VSCODE_BUILD_LINUX, true),eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true),eq(parameters.VSCODE_BUILD_LINUX_ARM64, true),eq(parameters.VSCODE_BUILD_ALPINE, true),eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true),eq(parameters.VSCODE_BUILD_MACOS, true),eq(parameters.VSCODE_BUILD_MACOS_ARM64, true),eq(parameters.VSCODE_BUILD_WIN32, true),eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
+        - stage: CompileCLI
+          dependsOn: []
+          jobs:
+            - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
+              - job: CLILinuxX64
+                pool:
+                  name: 1es-ubuntu-20.04-x64
+                  os: linux
+                steps:
+                  - template: build/azure-pipelines/linux/cli-build-linux.yml@self
+                    parameters:
+                      VSCODE_CHECK_ONLY: ${{ variables.VSCODE_CIBUILD }}
+                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                      VSCODE_BUILD_LINUX: ${{ parameters.VSCODE_BUILD_LINUX }}
+
+            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), or(eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true))) }}:
+              - job: CLILinuxGnuARM
+                pool:
+                  name: 1es-ubuntu-20.04-x64
+                  os: linux
+                steps:
+                  - template: build/azure-pipelines/linux/cli-build-linux.yml@self
+                    parameters:
+                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                      VSCODE_BUILD_LINUX_ARMHF: ${{ parameters.VSCODE_BUILD_LINUX_ARMHF }}
+                      VSCODE_BUILD_LINUX_ARM64: ${{ parameters.VSCODE_BUILD_LINUX_ARM64 }}
+
+            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_ALPINE, true)) }}:
+              - job: CLIAlpineX64
+                pool:
+                  name: 1es-ubuntu-20.04-x64
+                  os: linux
+                steps:
+                  - template: build/azure-pipelines/alpine/cli-build-alpine.yml@self
+                    parameters:
+                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                      VSCODE_BUILD_ALPINE: ${{ parameters.VSCODE_BUILD_ALPINE }}
+
+            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true)) }}:
+              - job: CLIAlpineARM64
+                pool:
+                  name: 1es-mariner-2.0-arm64
+                  os: linux
+                  hostArchitecture: arm64
+                container: ubuntu-2004-arm64
+                steps:
+                  - template: build/azure-pipelines/alpine/cli-build-alpine.yml@self
+                    parameters:
+                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                      VSCODE_BUILD_ALPINE_ARM64: ${{ parameters.VSCODE_BUILD_ALPINE_ARM64 }}
+
+            - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
+              - job: CLIMacOSX64
+                pool:
+                  name: Azure Pipelines
+                  image: macOS-13
+                  os: macOS
+                steps:
+                  - template: build/azure-pipelines/darwin/cli-build-darwin.yml@self
+                    parameters:
+                      VSCODE_CHECK_ONLY: ${{ variables.VSCODE_CIBUILD }}
+                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                      VSCODE_BUILD_MACOS: ${{ parameters.VSCODE_BUILD_MACOS }}
+
+            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true)) }}:
+              - job: CLIMacOSARM64
+                pool:
+                  name: Azure Pipelines
+                  image: macOS-13
+                  os: macOS
+                steps:
+                  - template: build/azure-pipelines/darwin/cli-build-darwin.yml@self
+                    parameters:
+                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                      VSCODE_BUILD_MACOS_ARM64: ${{ parameters.VSCODE_BUILD_MACOS_ARM64 }}
+
+            - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
+              - job: CLIWindowsX64
+                pool:
+                  name: 1es-windows-2019-x64
+                  os: windows
+                steps:
+                  - template: build/azure-pipelines/win32/cli-build-win32.yml@self
+                    parameters:
+                      VSCODE_CHECK_ONLY: ${{ variables.VSCODE_CIBUILD }}
+                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                      VSCODE_BUILD_WIN32: ${{ parameters.VSCODE_BUILD_WIN32 }}
+
+            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
+              - job: CLIWindowsARM64
+                pool:
+                  name: 1es-windows-2019-x64
+                  os: windows
+                steps:
+                  - template: build/azure-pipelines/win32/cli-build-win32.yml@self
+                    parameters:
+                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                      VSCODE_BUILD_WIN32_ARM64: ${{ parameters.VSCODE_BUILD_WIN32_ARM64 }}
+
+      - stage: CustomSDL
         dependsOn: []
+        pool:
+          name: 1es-windows-2019-x64
+          os: windows
         jobs:
-          - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
-            - job: CLILinuxX64
-              pool:
-                name: 1es-ubuntu-20.04-x64
-                os: linux
-              steps:
-                - template: build/azure-pipelines/linux/cli-build-linux.yml@self
-                  parameters:
-                    VSCODE_CHECK_ONLY: ${{ variables.VSCODE_CIBUILD }}
-                    VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                    VSCODE_BUILD_LINUX: ${{ parameters.VSCODE_BUILD_LINUX }}
-
-          - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), or(eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true))) }}:
-            - job: CLILinuxGnuARM
-              pool:
-                name: 1es-ubuntu-20.04-x64
-                os: linux
-              steps:
-                - template: build/azure-pipelines/linux/cli-build-linux.yml@self
-                  parameters:
-                    VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                    VSCODE_BUILD_LINUX_ARMHF: ${{ parameters.VSCODE_BUILD_LINUX_ARMHF }}
-                    VSCODE_BUILD_LINUX_ARM64: ${{ parameters.VSCODE_BUILD_LINUX_ARM64 }}
-
-          - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_ALPINE, true)) }}:
-            - job: CLIAlpineX64
-              pool:
-                name: 1es-ubuntu-20.04-x64
-                os: linux
-              steps:
-                - template: build/azure-pipelines/alpine/cli-build-alpine.yml@self
-                  parameters:
-                    VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                    VSCODE_BUILD_ALPINE: ${{ parameters.VSCODE_BUILD_ALPINE }}
-
-          - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true)) }}:
-            - job: CLIAlpineARM64
-              pool:
-                name: 1es-mariner-2.0-arm64
-                os: linux
-                hostArchitecture: arm64
-              container: ubuntu-2004-arm64
-              steps:
-                - template: build/azure-pipelines/alpine/cli-build-alpine.yml@self
-                  parameters:
-                    VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                    VSCODE_BUILD_ALPINE_ARM64: ${{ parameters.VSCODE_BUILD_ALPINE_ARM64 }}
-
-          - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
-            - job: CLIMacOSX64
-              pool:
-                name: Azure Pipelines
-                image: macOS-11
-                os: macOS
-              steps:
-                - template: build/azure-pipelines/darwin/cli-build-darwin.yml@self
-                  parameters:
-                    VSCODE_CHECK_ONLY: ${{ variables.VSCODE_CIBUILD }}
-                    VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                    VSCODE_BUILD_MACOS: ${{ parameters.VSCODE_BUILD_MACOS }}
-
-          - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true)) }}:
-            - job: CLIMacOSARM64
-              pool:
-                name: Azure Pipelines
-                image: macOS-11
-                os: macOS
-              steps:
-                - template: build/azure-pipelines/darwin/cli-build-darwin.yml@self
-                  parameters:
-                    VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                    VSCODE_BUILD_MACOS_ARM64: ${{ parameters.VSCODE_BUILD_MACOS_ARM64 }}
-
-          - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
-            - job: CLIWindowsX64
-              pool:
-                name: 1es-windows-2019-x64
-                os: windows
-              steps:
-                - template: build/azure-pipelines/win32/cli-build-win32.yml@self
-                  parameters:
-                    VSCODE_CHECK_ONLY: ${{ variables.VSCODE_CIBUILD }}
-                    VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                    VSCODE_BUILD_WIN32: ${{ parameters.VSCODE_BUILD_WIN32 }}
-
-          - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
-            - job: CLIWindowsARM64
-              pool:
-                name: 1es-windows-2019-x64
-                os: windows
-              steps:
-                - template: build/azure-pipelines/win32/cli-build-win32.yml@self
-                  parameters:
-                    VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
-                    VSCODE_BUILD_WIN32_ARM64: ${{ parameters.VSCODE_BUILD_WIN32_ARM64 }}
+          - job: WindowsSDL
+            variables:
+              - group: 'API Scan'
+            steps:
+              - template: build/azure-pipelines/sdl-scan.yml@self
 
       - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_WINDOWS'], true)) }}:
         - stage: Windows
           dependsOn:
             - Compile
-            - CompileCLI
+            - ${{ if or(eq(parameters.VSCODE_BUILD_LINUX, true),eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true),eq(parameters.VSCODE_BUILD_LINUX_ARM64, true),eq(parameters.VSCODE_BUILD_ALPINE, true),eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true),eq(parameters.VSCODE_BUILD_MACOS, true),eq(parameters.VSCODE_BUILD_MACOS_ARM64, true),eq(parameters.VSCODE_BUILD_WIN32, true),eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
+              - CompileCLI
           pool:
             name: 1es-windows-2019-x64
             os: windows
@@ -410,7 +424,8 @@ extends:
         - stage: Linux
           dependsOn:
             - Compile
-            - CompileCLI
+            - ${{ if or(eq(parameters.VSCODE_BUILD_LINUX, true),eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true),eq(parameters.VSCODE_BUILD_LINUX_ARM64, true),eq(parameters.VSCODE_BUILD_ALPINE, true),eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true),eq(parameters.VSCODE_BUILD_MACOS, true),eq(parameters.VSCODE_BUILD_MACOS_ARM64, true),eq(parameters.VSCODE_BUILD_WIN32, true),eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
+              - CompileCLI
           pool:
             name: 1es-ubuntu-20.04-x64
             os: linux
@@ -568,7 +583,8 @@ extends:
         - stage: Alpine
           dependsOn:
             - Compile
-            - CompileCLI
+            - ${{ if or(eq(parameters.VSCODE_BUILD_LINUX, true),eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true),eq(parameters.VSCODE_BUILD_LINUX_ARM64, true),eq(parameters.VSCODE_BUILD_ALPINE, true),eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true),eq(parameters.VSCODE_BUILD_MACOS, true),eq(parameters.VSCODE_BUILD_MACOS_ARM64, true),eq(parameters.VSCODE_BUILD_WIN32, true),eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
+              - CompileCLI
           pool:
             name: 1es-ubuntu-20.04-x64
             os: linux
@@ -594,10 +610,11 @@ extends:
         - stage: macOS
           dependsOn:
             - Compile
-            - CompileCLI
+            - ${{ if or(eq(parameters.VSCODE_BUILD_LINUX, true),eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true),eq(parameters.VSCODE_BUILD_LINUX_ARM64, true),eq(parameters.VSCODE_BUILD_ALPINE, true),eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true),eq(parameters.VSCODE_BUILD_MACOS, true),eq(parameters.VSCODE_BUILD_MACOS_ARM64, true),eq(parameters.VSCODE_BUILD_WIN32, true),eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
+              - CompileCLI
           pool:
             name: Azure Pipelines
-            image: macOS-11
+            image: macOS-13
             os: macOS
           variables:
             BUILDSECMON_OPT_IN: true

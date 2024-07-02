@@ -3,10 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { Emitter, Event } from 'vs/base/common/event';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ISettableObservable, autorun, derived, ITransaction, observableFromEvent, observableValue, transaction, keepObserved, waitForState, autorunHandleChanges, observableSignal } from 'vs/base/common/observable';
 import { BaseObservable, IObservable, IObserver } from 'vs/base/common/observableInternal/base';
+import { derivedDisposable } from 'vs/base/common/observableInternal/derived';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('observables', () => {
@@ -1235,6 +1237,35 @@ suite('observables', () => {
 			assert.deepStrictEqual(log.getAndClearEntries(), [
 				'rejected {\"state\":\"error\"}'
 			]);
+		});
+
+		test('derived as lazy', () => {
+			const store = new DisposableStore();
+			const log = new Log();
+			let i = 0;
+			const d = derivedDisposable(() => {
+				const id = i++;
+				log.log('myDerived ' + id);
+				return {
+					dispose: () => log.log(`disposed ${id}`)
+				};
+			});
+
+			d.get();
+			assert.deepStrictEqual(log.getAndClearEntries(), ['myDerived 0', 'disposed 0']);
+			d.get();
+			assert.deepStrictEqual(log.getAndClearEntries(), ['myDerived 1', 'disposed 1']);
+
+			d.keepObserved(store);
+			assert.deepStrictEqual(log.getAndClearEntries(), []);
+			d.get();
+			assert.deepStrictEqual(log.getAndClearEntries(), ['myDerived 2']);
+			d.get();
+			assert.deepStrictEqual(log.getAndClearEntries(), []);
+
+			store.dispose();
+
+			assert.deepStrictEqual(log.getAndClearEntries(), ['disposed 2']);
 		});
 	});
 

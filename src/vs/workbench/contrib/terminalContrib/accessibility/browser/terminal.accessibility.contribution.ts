@@ -193,6 +193,8 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 		}
 		if (command.exitCode) {
 			this._accessibilitySignalService.playSignal(AccessibilitySignal.terminalCommandFailed);
+		} else {
+			this._accessibilitySignalService.playSignal(AccessibilitySignal.terminalCommandSucceeded);
 		}
 	}
 

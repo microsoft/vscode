@@ -3,12 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MarkdownString } from 'vs/base/common/htmlContent';
 import { DisposableMap, IDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
+import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { AccessibleViewType, ExtensionContentProvider } from 'vs/platform/accessibility/browser/accessibleView';
 import { AccessibleViewRegistry } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { FocusedViewContext } from 'vs/workbench/common/contextkeys';
@@ -41,9 +39,9 @@ export class ExtensionAccessibilityHelpDialogContribution extends Disposable {
 
 function registerAccessibilityHelpAction(keybindingService: IKeybindingService, viewDescriptor: IViewDescriptor): IDisposable {
 	const disposableStore = new DisposableStore();
-	const helpContent = resolveExtensionHelpContent(keybindingService, viewDescriptor.accessibilityHelpContent);
-	if (!helpContent) {
-		throw new Error('No help content for view');
+	const content = viewDescriptor.accessibilityHelpContent?.value;
+	if (!content) {
+		throw new Error('No content provided for the accessibility help dialog');
 	}
 	disposableStore.add(AccessibleViewRegistry.register({
 		priority: 95,
@@ -55,10 +53,11 @@ function registerAccessibilityHelpAction(keybindingService: IKeybindingService, 
 			return new ExtensionContentProvider(
 				viewDescriptor.id,
 				{ type: AccessibleViewType.Help },
-				() => helpContent.value,
-				() => viewsService.openView(viewDescriptor.id, true)
+				() => content,
+				() => viewsService.openView(viewDescriptor.id, true),
 			);
-		}
+		},
+		dispose: () => { },
 	}));
 
 	disposableStore.add(keybindingService.onDidUpdateKeybindings(() => {
@@ -66,29 +65,4 @@ function registerAccessibilityHelpAction(keybindingService: IKeybindingService, 
 		disposableStore.add(registerAccessibilityHelpAction(keybindingService, viewDescriptor));
 	}));
 	return disposableStore;
-}
-
-function resolveExtensionHelpContent(keybindingService: IKeybindingService, content?: MarkdownString): MarkdownString | undefined {
-	if (!content) {
-		return;
-	}
-	let resolvedContent = typeof content === 'string' ? content : content.value;
-	const matches = resolvedContent.matchAll(/\<keybinding:(?<commandId>.*)\>/gm);
-	for (const match of [...matches]) {
-		const commandId = match?.groups?.commandId;
-		if (match?.length && commandId) {
-			const keybinding = keybindingService.lookupKeybinding(commandId)?.getAriaLabel();
-			let kbLabel = keybinding;
-			if (!kbLabel) {
-				const args = URI.parse(`command:workbench.action.openGlobalKeybindings?${encodeURIComponent(JSON.stringify(commandId))}`);
-				kbLabel = ` [Configure a keybinding](${args})`;
-			} else {
-				kbLabel = ' (' + keybinding + ')';
-			}
-			resolvedContent = resolvedContent.replace(match[0], kbLabel);
-		}
-	}
-	const result = new MarkdownString(resolvedContent);
-	result.isTrusted = true;
-	return result;
 }

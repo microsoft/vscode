@@ -138,14 +138,10 @@ export function bundle(entryPoints: IEntryPoint[], config: ILoaderConfig, callba
 	const loader: any = loaderModule.exports;
 	config.isBuild = true;
 	config.paths = config.paths || {};
-	if (!config.paths['vs/nls']) {
-		config.paths['vs/nls'] = 'out-build/vs/nls.build';
-	}
 	if (!config.paths['vs/css']) {
 		config.paths['vs/css'] = 'out-build/vs/css.build';
 	}
 	config.buildForceInvokeFactory = config.buildForceInvokeFactory || {};
-	config.buildForceInvokeFactory['vs/nls'] = true;
 	config.buildForceInvokeFactory['vs/css'] = true;
 	loader.config(config);
 
@@ -156,7 +152,6 @@ export function bundle(entryPoints: IEntryPoint[], config: ILoaderConfig, callba
 				r += '.js';
 			}
 			// avoid packaging the build version of plugins:
-			r = r.replace('vs/nls.build.js', 'vs/nls.js');
 			r = r.replace('vs/css.build.js', 'vs/css.js');
 			return { path: r, amdModuleId: entry.amdModuleId };
 		};
@@ -365,6 +360,9 @@ function removeDuplicateTSBoilerplate(destFiles: IConcatFile[]): IConcatFile[] {
 		{ start: /^var __param/, end: /^};$/ },
 		{ start: /^var __awaiter/, end: /^};$/ },
 		{ start: /^var __generator/, end: /^};$/ },
+		{ start: /^var __createBinding/, end: /^}\)\);$/ },
+		{ start: /^var __setModuleDefault/, end: /^}\);$/ },
+		{ start: /^var __importStar/, end: /^};$/ },
 	];
 
 	destFiles.forEach((destFile) => {

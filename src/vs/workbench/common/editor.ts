@@ -1079,6 +1079,12 @@ export interface IEditorCommandsContext {
 	preserveFocus?: boolean;
 }
 
+export function isEditorCommandsContext(context: unknown): context is IEditorCommandsContext {
+	const candidate = context as IEditorCommandsContext | undefined;
+
+	return typeof candidate?.groupId === 'number';
+}
+
 /**
  * More information around why an editor was closed in the model.
  */
@@ -1162,6 +1168,9 @@ export const enum GroupModelChangeKind {
 	GROUP_LABEL,
 	GROUP_LOCKED,
 
+	/* Editors Change */
+	EDITORS_SELECTION,
+
 	/* Editor Changes */
 	EDITOR_OPEN,
 	EDITOR_CLOSE,
@@ -1207,6 +1216,7 @@ interface IEditorPartConfiguration {
 	tabActionLocation?: 'left' | 'right';
 	tabActionCloseVisibility?: boolean;
 	tabActionUnpinVisibility?: boolean;
+	alwaysShowEditorActions?: boolean;
 	tabSizing?: 'fit' | 'shrink' | 'fixed';
 	tabSizingFixedMinWidth?: number;
 	tabSizingFixedMaxWidth?: number;

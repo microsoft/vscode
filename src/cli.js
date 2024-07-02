@@ -6,6 +6,10 @@
 //@ts-check
 'use strict';
 
+/**
+ * @import { IProductConfiguration } from './vs/base/common/product'
+ */
+
 // Delete `VSCODE_CWD` very early even before
 // importing bootstrap files. We have seen
 // reports where `code .` would use the wrong
@@ -16,17 +20,29 @@ delete process.env['VSCODE_CWD'];
 
 const bootstrap = require('./bootstrap');
 const bootstrapNode = require('./bootstrap-node');
-const product = require('../product.json');
-
-// Enable portable support
+/** @type {Partial<IProductConfiguration>} */
 // @ts-ignore
-bootstrapNode.configurePortable(product);
+const product = require('../product.json');
+const { resolveNLSConfiguration } = require('./vs/base/node/nls');
 
-// Enable ASAR support
-bootstrap.enableASARSupport();
+async function start() {
 
-// Signal processes that we got launched as CLI
-process.env['VSCODE_CLI'] = '1';
+	// NLS
+	const nlsConfiguration = await resolveNLSConfiguration({ userLocale: 'en', osLocale: 'en', commit: product.commit, userDataPath: '', nlsMetadataPath: __dirname });
+	process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfiguration); // required for `bootstrap-amd` to pick up NLS messages
 
-// Load CLI through AMD loader
-require('./bootstrap-amd').load('vs/code/node/cli');
+	// Enable portable support
+	// @ts-ignore
+	bootstrapNode.configurePortable(product);
+
+	// Enable ASAR support
+	bootstrap.enableASARSupport();
+
+	// Signal processes that we got launched as CLI
+	process.env['VSCODE_CLI'] = '1';
+
+	// Load CLI through AMD loader
+	require('./bootstrap-amd').load('vs/code/node/cli');
+}
+
+start();

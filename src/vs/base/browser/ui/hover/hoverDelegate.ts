@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IHoverWidget, IUpdatableHoverOptions } from 'vs/base/browser/ui/hover/hover';
+import type { IHoverWidget, IManagedHoverOptions } from 'vs/base/browser/ui/hover/hover';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -13,7 +13,7 @@ export interface IHoverDelegateTarget extends IDisposable {
 	x?: number;
 }
 
-export interface IHoverDelegateOptions extends IUpdatableHoverOptions {
+export interface IHoverDelegateOptions extends IManagedHoverOptions {
 	/**
 	 * The content to display in the primary section of the hover. The type of text determines the
 	 * default `hideOnHover` behavior.

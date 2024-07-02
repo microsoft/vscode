@@ -41,7 +41,7 @@ import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService
 import { ITextResourceConfigurationService, ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IPosition, Position as EditorPosition } from 'vs/editor/common/core/position';
 import { IMenuService, MenuId, IMenu, IMenuChangeEvent } from 'vs/platform/actions/common/actions';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyValue, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MockContextKeyService, MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { ITextBufferFactory, DefaultEndOfLine, EndOfLinePreference, ITextSnapshot } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
@@ -52,7 +52,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IDecorationsService, IResourceDecorationChangeEvent, IDecoration, IDecorationData, IDecorationsProvider } from 'vs/workbench/services/decorations/common/decorations';
 import { IDisposable, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IEditorGroupsService, IEditorGroup, GroupsOrder, GroupsArrangement, GroupDirection, IMergeGroupOptions, IEditorReplacement, IFindGroupScope, EditorGroupLayout, ICloseEditorOptions, GroupOrientation, ICloseAllEditorsOptions, ICloseEditorsFilter, IEditorDropTargetDelegate, IEditorPart, IAuxiliaryEditorPart, IEditorGroupsContainer, IAuxiliaryEditorPartCreateEvent, IEditorWorkingSet } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroupsService, IEditorGroup, GroupsOrder, GroupsArrangement, GroupDirection, IMergeGroupOptions, IEditorReplacement, IFindGroupScope, EditorGroupLayout, ICloseEditorOptions, GroupOrientation, ICloseAllEditorsOptions, ICloseEditorsFilter, IEditorDropTargetDelegate, IEditorPart, IAuxiliaryEditorPart, IEditorGroupsContainer, IAuxiliaryEditorPartCreateEvent, IEditorWorkingSet, IEditorGroupContextKeyProvider, IEditorWorkingSetOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, ISaveEditorsOptions, IRevertAllEditorsOptions, PreferredGroup, IEditorsChangeEvent, ISaveEditorsResult } from 'vs/workbench/services/editor/common/editorService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorPaneRegistry, EditorPaneDescriptor } from 'vs/workbench/browser/editor';
@@ -396,7 +396,8 @@ export class TestServiceAccessor {
 		@IInstantiationService public instantiationService: IInstantiationService,
 		@IElevatedFileService public elevatedFileService: IElevatedFileService,
 		@IWorkspaceTrustRequestService public workspaceTrustRequestService: TestWorkspaceTrustRequestService,
-		@IDecorationsService public decorationsService: IDecorationsService
+		@IDecorationsService public decorationsService: IDecorationsService,
+		@IProgressService public progressService: IProgressService,
 	) { }
 }
 
@@ -841,7 +842,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	getPart(group: number | IEditorGroup): IEditorPart { return this; }
 	saveWorkingSet(name: string): IEditorWorkingSet { throw new Error('Method not implemented.'); }
 	getWorkingSets(): IEditorWorkingSet[] { throw new Error('Method not implemented.'); }
-	applyWorkingSet(workingSet: IEditorWorkingSet | 'empty'): Promise<boolean> { throw new Error('Method not implemented.'); }
+	applyWorkingSet(workingSet: IEditorWorkingSet | 'empty', options?: IEditorWorkingSetOptions): Promise<boolean> { throw new Error('Method not implemented.'); }
 	deleteWorkingSet(workingSet: IEditorWorkingSet): Promise<boolean> { throw new Error('Method not implemented.'); }
 	getGroups(_order?: GroupsOrder): readonly IEditorGroup[] { return this.groups; }
 	getGroup(identifier: number): IEditorGroup | undefined { return this.groups.find(group => group.id === identifier); }
@@ -867,6 +868,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	centerLayout(active: boolean): void { }
 	isLayoutCentered(): boolean { return false; }
 	createEditorDropTarget(container: HTMLElement, delegate: IEditorDropTargetDelegate): IDisposable { return Disposable.None; }
+	registerContextKeyProvider<T extends ContextKeyValue>(_provider: IEditorGroupContextKeyProvider<T>): IDisposable { throw new Error('not implemented'); }
 
 	partOptions!: IEditorPartOptions;
 	enforcePartOptions(options: IEditorPartOptions): IDisposable { return Disposable.None; }
@@ -884,6 +886,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 	groupsView: IEditorGroupsView = undefined!;
 	activeEditorPane!: IVisibleEditorPane;
 	activeEditor!: EditorInput;
+	selectedEditors: EditorInput[] = [];
 	previewEditor!: EditorInput;
 	count!: number;
 	stickyCount!: number;
@@ -927,6 +930,8 @@ export class TestEditorGroupView implements IEditorGroupView {
 	isSticky(_editor: EditorInput): boolean { return false; }
 	isTransient(_editor: EditorInput): boolean { return false; }
 	isActive(_editor: EditorInput | IUntypedEditorInput): boolean { return false; }
+	setSelection(_activeSelectedEditor: EditorInput, _inactiveSelectedEditors: EditorInput[]): Promise<void> { throw new Error('not implemented'); }
+	isSelected(_editor: EditorInput): boolean { return false; }
 	contains(candidate: EditorInput | IUntypedEditorInput): boolean { return false; }
 	moveEditor(_editor: EditorInput, _target: IEditorGroup, _options?: IEditorOptions): boolean { return true; }
 	moveEditors(_editors: EditorInputWithOptions[], _target: IEditorGroup): boolean { return true; }
@@ -1359,7 +1364,7 @@ export class TestLifecycleService extends Disposable implements ILifecycleServic
 
 		this._onWillShutdown.fire({
 			join: p => {
-				this.shutdownJoiners.push(p);
+				this.shutdownJoiners.push(typeof p === 'function' ? p() : p);
 			},
 			joiners: () => [],
 			force: () => { /* No-Op in tests */ },
@@ -1400,8 +1405,8 @@ export class TestWillShutdownEvent implements WillShutdownEvent {
 	reason = ShutdownReason.CLOSE;
 	token = CancellationToken.None;
 
-	join(promise: Promise<void>, joiner: IWillShutdownEventJoiner): void {
-		this.value.push(promise);
+	join(promise: Promise<void> | (() => Promise<void>), joiner: IWillShutdownEventJoiner): void {
+		this.value.push(typeof promise === 'function' ? promise() : promise);
 	}
 
 	force() { /* No-Op in tests */ }
@@ -1541,6 +1546,10 @@ export class TestHostService implements IHostService {
 
 	readonly colorScheme = ColorScheme.DARK;
 	onDidChangeColorScheme = Event.None;
+
+	getPathForFile(file: File): string | undefined {
+		return undefined;
+	}
 }
 
 export class TestFilesConfigurationService extends FilesConfigurationService {
@@ -1837,30 +1846,35 @@ export class TestEditorPart extends MainEditorPart implements IEditorGroupsServi
 
 	saveWorkingSet(name: string): IEditorWorkingSet { throw new Error('Method not implemented.'); }
 	getWorkingSets(): IEditorWorkingSet[] { throw new Error('Method not implemented.'); }
-	applyWorkingSet(workingSet: IEditorWorkingSet | 'empty'): Promise<boolean> { throw new Error('Method not implemented.'); }
+	applyWorkingSet(workingSet: IEditorWorkingSet | 'empty', options?: IEditorWorkingSetOptions): Promise<boolean> { throw new Error('Method not implemented.'); }
 	deleteWorkingSet(workingSet: IEditorWorkingSet): Promise<boolean> { throw new Error('Method not implemented.'); }
+
+	registerContextKeyProvider<T extends ContextKeyValue>(provider: IEditorGroupContextKeyProvider<T>): IDisposable { throw new Error('Method not implemented.'); }
 }
 
-export async function createEditorPart(instantiationService: IInstantiationService, disposables: DisposableStore): Promise<TestEditorPart> {
+export class TestEditorParts extends EditorParts {
+	testMainPart!: TestEditorPart;
 
-	class TestEditorParts extends EditorParts {
+	protected override createMainEditorPart(): MainEditorPart {
+		this.testMainPart = this.instantiationService.createInstance(TestEditorPart, this);
 
-		testMainPart!: TestEditorPart;
-
-		protected override createMainEditorPart(): MainEditorPart {
-			this.testMainPart = instantiationService.createInstance(TestEditorPart, this);
-
-			return this.testMainPart;
-		}
+		return this.testMainPart;
 	}
+}
 
-	const part = disposables.add(instantiationService.createInstance(TestEditorParts)).testMainPart;
+export async function createEditorParts(instantiationService: IInstantiationService, disposables: DisposableStore): Promise<TestEditorParts> {
+	const parts = instantiationService.createInstance(TestEditorParts);
+	const part = disposables.add(parts).testMainPart;
 	part.create(document.createElement('div'));
 	part.layout(1080, 800, 0, 0);
 
-	await part.whenReady;
+	await parts.whenReady;
 
-	return part;
+	return parts;
+}
+
+export async function createEditorPart(instantiationService: IInstantiationService, disposables: DisposableStore): Promise<TestEditorPart> {
+	return (await createEditorParts(instantiationService, disposables)).testMainPart;
 }
 
 export class TestListService implements IListService {
@@ -2103,13 +2117,13 @@ export class TestRemoteAgentService implements IRemoteAgentService {
 	async logTelemetry(eventName: string, data?: ITelemetryData): Promise<void> { }
 	async flushTelemetry(): Promise<void> { }
 	async getRoundTripTime(): Promise<number | undefined> { return undefined; }
+	async endConnection(): Promise<void> { }
 }
 
 export class TestRemoteExtensionsScannerService implements IRemoteExtensionsScannerService {
 	declare readonly _serviceBrand: undefined;
 	async whenExtensionsReady(): Promise<void> { }
 	scanExtensions(): Promise<IExtensionDescription[]> { throw new Error('Method not implemented.'); }
-	scanSingleExtension(): Promise<IExtensionDescription | null> { throw new Error('Method not implemented.'); }
 }
 
 export class TestWorkbenchExtensionEnablementService implements IWorkbenchExtensionEnablementService {
@@ -2187,6 +2201,7 @@ export class TestWorkbenchExtensionManagementService implements IWorkbenchExtens
 	toggleAppliationScope(): Promise<ILocalExtension> { throw new Error('Not Supported'); }
 	installExtensionsFromProfile(): Promise<ILocalExtension[]> { throw new Error('Not Supported'); }
 	whenProfileChanged(from: IUserDataProfile, to: IUserDataProfile): Promise<void> { throw new Error('Not Supported'); }
+	getInstalledWorkspaceExtensionLocations(): URI[] { throw new Error('Method not implemented.'); }
 	getInstalledWorkspaceExtensions(): Promise<ILocalExtension[]> { throw new Error('Method not implemented.'); }
 	installResourceExtension(): Promise<ILocalExtension> { throw new Error('Method not implemented.'); }
 	getExtensions(): Promise<IResourceExtension[]> { throw new Error('Method not implemented.'); }

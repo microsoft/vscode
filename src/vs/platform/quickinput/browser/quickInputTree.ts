@@ -36,8 +36,9 @@ import { ltrim } from 'vs/base/common/strings';
 import { RenderIndentGuides } from 'vs/base/browser/ui/tree/abstractTree';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { isCancellationError } from 'vs/base/common/errors';
-import type { IHoverWidget, IUpdatableHoverTooltipMarkdownString } from 'vs/base/browser/ui/hover/hover';
+import type { IHoverWidget, IManagedHoverTooltipMarkdownString } from 'vs/base/browser/ui/hover/hover';
 import { QuickPickFocus } from '../common/quickInput';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 const $ = dom.$;
 
@@ -433,7 +434,7 @@ class QuickPickItemElementRenderer extends BaseQuickInputListRenderer<QuickPickI
 		}
 
 		// Label
-		let descriptionTitle: IUpdatableHoverTooltipMarkdownString | undefined;
+		let descriptionTitle: IManagedHoverTooltipMarkdownString | undefined;
 		// if we have a tooltip, that will be the hover,
 		// with the saneDescription as fallback if it
 		// is defined
@@ -464,7 +465,7 @@ class QuickPickItemElementRenderer extends BaseQuickInputListRenderer<QuickPickI
 
 		// Detail
 		if (element.saneDetail) {
-			let title: IUpdatableHoverTooltipMarkdownString | undefined;
+			let title: IManagedHoverTooltipMarkdownString | undefined;
 			// If we have a tooltip, we want that to be shown and not any other hover
 			if (!element.saneTooltip) {
 				title = {
@@ -565,7 +566,7 @@ class QuickPickSeparatorElementRenderer extends BaseQuickInputListRenderer<Quick
 		data.icon.className = '';
 
 		// Label
-		let descriptionTitle: IUpdatableHoverTooltipMarkdownString | undefined;
+		let descriptionTitle: IManagedHoverTooltipMarkdownString | undefined;
 		// if we have a tooltip, that will be the hover,
 		// with the saneDescription as fallback if it
 		// is defined
@@ -590,7 +591,7 @@ class QuickPickSeparatorElementRenderer extends BaseQuickInputListRenderer<Quick
 
 		// Detail
 		if (element.saneDetail) {
-			let title: IUpdatableHoverTooltipMarkdownString | undefined;
+			let title: IManagedHoverTooltipMarkdownString | undefined;
 			// If we have a tooltip, we want that to be shown and not any other hover
 			if (!element.saneTooltip) {
 				title = {
@@ -706,7 +707,8 @@ export class QuickInputTree extends Disposable {
 		private hoverDelegate: IHoverDelegate,
 		private linkOpenerDelegate: (content: string) => void,
 		id: string,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
 		super();
 		this._container = dom.append(this.parent, $('.quick-input-list'));
@@ -901,13 +903,13 @@ export class QuickInputTree extends Disposable {
 		this._register(this._tree.onMouseOver(async e => {
 			// If we hover over an anchor element, we don't want to show the hover because
 			// the anchor may have a tooltip that we want to show instead.
-			if (e.browserEvent.target instanceof HTMLAnchorElement) {
+			if (dom.isHTMLAnchorElement(e.browserEvent.target)) {
 				delayer.cancel();
 				return;
 			}
 			if (
 				// anchors are an exception as called out above so we skip them here
-				!(e.browserEvent.relatedTarget instanceof HTMLAnchorElement) &&
+				!(dom.isHTMLAnchorElement(e.browserEvent.relatedTarget)) &&
 				// check if the mouse is still over the same element
 				dom.isAncestor(e.browserEvent.relatedTarget as Node, e.element?.element as Node)
 			) {
@@ -1114,6 +1116,20 @@ export class QuickInputTree extends Disposable {
 		}
 		this._tree.setChildren(null, elements);
 		this._onChangedVisibleCount.fire(visibleCount);
+
+		// Accessibility hack, unfortunately on next tick
+		// https://github.com/microsoft/vscode/issues/211976
+		if (this.accessibilityService.isScreenReaderOptimized()) {
+			setTimeout(() => {
+				const focusedElement = this._tree.getHTMLElement().querySelector(`.monaco-list-row.focused`);
+				const parent = focusedElement?.parentNode;
+				if (focusedElement && parent) {
+					const nextSibling = focusedElement.nextSibling;
+					focusedElement.remove();
+					parent.insertBefore(focusedElement, nextSibling);
+				}
+			}, 0);
+		}
 	}
 
 	getElementsCount(): number {

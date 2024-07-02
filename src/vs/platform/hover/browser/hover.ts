@@ -7,7 +7,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { addStandardDisposableListener } from 'vs/base/browser/dom';
+import { addStandardDisposableListener, isHTMLElement } from 'vs/base/browser/dom';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import type { IHoverDelegate2, IHoverOptions, IHoverWidget } from 'vs/base/browser/ui/hover/hover';
 
@@ -54,7 +54,7 @@ export class WorkbenchHoverDelegate extends Disposable implements IHoverDelegate
 
 		// close hover on escape
 		this.hoverDisposables.clear();
-		const targets = options.target instanceof HTMLElement ? [options.target] : options.target.targetElements;
+		const targets = isHTMLElement(options.target) ? [options.target] : options.target.targetElements;
 		for (const target of targets) {
 			this.hoverDisposables.add(addStandardDisposableListener(target, 'keydown', (e) => {
 				if (e.equals(KeyCode.Escape)) {
@@ -63,7 +63,7 @@ export class WorkbenchHoverDelegate extends Disposable implements IHoverDelegate
 			}));
 		}
 
-		const id = options.content instanceof HTMLElement ? undefined : options.content.toString();
+		const id = isHTMLElement(options.content) ? undefined : options.content.toString();
 
 		return this.hoverService.showHover({
 			...options,

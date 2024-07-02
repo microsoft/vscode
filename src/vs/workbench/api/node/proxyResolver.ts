@@ -35,6 +35,7 @@ export function connectProxyResolver(
 		lookupProxyAuthorization: lookupProxyAuthorization.bind(undefined, extHostLogService, mainThreadTelemetry, configProvider, {}, initData.remote.isRemote),
 		getProxyURL: () => configProvider.getConfiguration('http').get('proxy'),
 		getProxySupport: () => configProvider.getConfiguration('http').get<ProxySupportSetting>('proxySupport') || 'off',
+		getNoProxyConfig: () => configProvider.getConfiguration('http').get<string[]>('noProxy') || [],
 		addCertificatesV1: () => certSettingV1(configProvider),
 		addCertificatesV2: () => certSettingV2(configProvider),
 		log: extHostLogService,
@@ -67,6 +68,11 @@ export function connectProxyResolver(
 				certs.then(certs => extHostLogService.trace('ProxyResolver#loadAdditionalCertificates: Loaded certificates from main process', certs.length));
 				promises.push(certs);
 			}
+			// Using https.globalAgent because it is shared with proxy.test.ts and mutable.
+			if (initData.environment.extensionTestsLocationURI && (https.globalAgent as any).testCertificates?.length) {
+				extHostLogService.trace('ProxyResolver#loadAdditionalCertificates: Loading test certificates');
+				promises.push(Promise.resolve((https.globalAgent as any).testCertificates as string[]));
+			}
 			return (await Promise.all(promises)).flat();
 		},
 		env: process.env,
@@ -77,11 +83,16 @@ export function connectProxyResolver(
 }
 
 function createPatchedModules(params: ProxyAgentParams, resolveProxy: ReturnType<typeof createProxyResolver>) {
+
+	function mergeModules(module: any, patch: any) {
+		return Object.assign(module.default || module, patch);
+	}
+
 	return {
-		http: Object.assign(http, createHttpPatch(params, http, resolveProxy)),
-		https: Object.assign(https, createHttpPatch(params, https, resolveProxy)),
-		net: Object.assign(net, createNetPatch(params, net)),
-		tls: Object.assign(tls, createTlsPatch(params, tls))
+		http: mergeModules(http, createHttpPatch(params, http, resolveProxy)),
+		https: mergeModules(https, createHttpPatch(params, https, resolveProxy)),
+		net: mergeModules(net, createNetPatch(params, net)),
+		tls: mergeModules(tls, createTlsPatch(params, tls))
 	};
 }
 

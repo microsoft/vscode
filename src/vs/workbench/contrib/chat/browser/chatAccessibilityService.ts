@@ -10,6 +10,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { AccessibilityProgressSignalScheduler } from 'vs/platform/accessibilitySignal/browser/progressAccessibilitySignalScheduler';
 import { IChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { renderStringAsPlaintext } from 'vs/base/browser/markdownRenderer';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 
 const CHAT_RESPONSE_PENDING_ALLOWANCE_MS = 4000;
 export class ChatAccessibilityService extends Disposable implements IChatAccessibilityService {
@@ -32,13 +34,13 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 	acceptResponse(response: IChatResponseViewModel | string | undefined, requestId: number): void {
 		this._pendingSignalMap.deleteAndDispose(requestId);
 		const isPanelChat = typeof response !== 'string';
-		const responseContent = typeof response === 'string' ? response : response?.response.asString();
+		const responseContent = typeof response === 'string' ? response : response?.response.toString();
 		this._accessibilitySignalService.playSignal(AccessibilitySignal.chatResponseReceived, { allowManyInParallel: true });
-		if (!response) {
+		if (!response || !responseContent) {
 			return;
 		}
 		const errorDetails = isPanelChat && response.errorDetails ? ` ${response.errorDetails.message}` : '';
-		status(responseContent + errorDetails);
+		const plainTextResponse = renderStringAsPlaintext(new MarkdownString(responseContent));
+		status(plainTextResponse + errorDetails);
 	}
 }
-

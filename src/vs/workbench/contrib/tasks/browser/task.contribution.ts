@@ -23,7 +23,7 @@ import { IOutputChannelRegistry, Extensions as OutputExt } from 'vs/workbench/se
 import { ITaskEvent, TaskEventKind, TaskGroup, TaskSettingId, TASKS_CATEGORY, TASK_RUNNING_STATE } from 'vs/workbench/contrib/tasks/common/tasks';
 import { ITaskService, TaskCommandsRegistered, TaskExecutionSupportedContext } from 'vs/workbench/contrib/tasks/common/taskService';
 
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { RunAutomaticTasks, ManageAutomaticTaskRunning } from 'vs/workbench/contrib/tasks/browser/runAutomaticTasks';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
@@ -109,7 +109,7 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 			}
 
 			if (promise && (event.kind === TaskEventKind.Active) && (this._activeTasksCount === 1)) {
-				this._progressService.withProgress({ location: ProgressLocation.Window, command: 'workbench.action.tasks.showTasks', type: 'loading' }, progress => {
+				this._progressService.withProgress({ location: ProgressLocation.Window, command: 'workbench.action.tasks.showTasks' }, progress => {
 					progress.report({ message: nls.localize('building', 'Building...') });
 					return promise!;
 				}).then(() => {
@@ -431,15 +431,24 @@ schema.oneOf = [...(schemaVersion2.oneOf || []), ...(schemaVersion1.oneOf || [])
 const jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>Registry.as(jsonContributionRegistry.Extensions.JSONContribution);
 jsonRegistry.registerSchema(tasksSchemaId, schema);
 
-ProblemMatcherRegistry.onMatcherChanged(() => {
-	updateProblemMatchers();
-	jsonRegistry.notifySchemaChanged(tasksSchemaId);
-});
+export class TaskRegistryContribution extends Disposable implements IWorkbenchContribution {
+	static ID = 'taskRegistryContribution';
+	constructor() {
+		super();
 
-TaskDefinitionRegistry.onDefinitionsChanged(() => {
-	updateTaskDefinitions();
-	jsonRegistry.notifySchemaChanged(tasksSchemaId);
-});
+		this._register(ProblemMatcherRegistry.onMatcherChanged(() => {
+			updateProblemMatchers();
+			jsonRegistry.notifySchemaChanged(tasksSchemaId);
+		}));
+
+		this._register(TaskDefinitionRegistry.onDefinitionsChanged(() => {
+			updateTaskDefinitions();
+			jsonRegistry.notifySchemaChanged(tasksSchemaId);
+		}));
+	}
+}
+registerWorkbenchContribution2(TaskRegistryContribution.ID, TaskRegistryContribution, WorkbenchPhase.AfterRestored);
+
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 configurationRegistry.registerConfiguration({

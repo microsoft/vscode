@@ -295,9 +295,7 @@ export class VisibleLinesCollection<T extends IVisibleLine> {
 			// Remove from DOM
 			for (let i = 0, len = deleted.length; i < len; i++) {
 				const lineDomNode = deleted[i].getDomNode();
-				if (lineDomNode) {
-					this.domNode.domNode.removeChild(lineDomNode);
-				}
+				lineDomNode?.remove();
 			}
 		}
 
@@ -310,9 +308,7 @@ export class VisibleLinesCollection<T extends IVisibleLine> {
 			// Remove from DOM
 			for (let i = 0, len = deleted.length; i < len; i++) {
 				const lineDomNode = deleted[i].getDomNode();
-				if (lineDomNode) {
-					this.domNode.domNode.removeChild(lineDomNode);
-				}
+				lineDomNode?.remove();
 			}
 		}
 
@@ -481,9 +477,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 	private _removeLinesBefore(ctx: IRendererContext<T>, removeCount: number): void {
 		for (let i = 0; i < removeCount; i++) {
 			const lineDomNode = ctx.lines[i].getDomNode();
-			if (lineDomNode) {
-				this.domNode.removeChild(lineDomNode);
-			}
+			lineDomNode?.remove();
 		}
 		ctx.lines.splice(0, removeCount);
 	}
@@ -502,9 +496,7 @@ class ViewLayerRenderer<T extends IVisibleLine> {
 
 		for (let i = 0; i < removeCount; i++) {
 			const lineDomNode = ctx.lines[removeIndex + i].getDomNode();
-			if (lineDomNode) {
-				this.domNode.removeChild(lineDomNode);
-			}
+			lineDomNode?.remove();
 		}
 		ctx.lines.splice(removeIndex, removeCount);
 	}

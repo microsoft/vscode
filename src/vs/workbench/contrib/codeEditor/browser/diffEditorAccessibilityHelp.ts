@@ -36,22 +36,13 @@ export class DiffEditorAccessibilityHelp implements IAccessibleViewImplentation 
 			return;
 		}
 
-		const next = keybindingService.lookupKeybinding(AccessibleDiffViewerNext.id)?.getAriaLabel();
-		const previous = keybindingService.lookupKeybinding(AccessibleDiffViewerPrev.id)?.getAriaLabel();
-		let switchSides;
-		const switchSidesKb = keybindingService.lookupKeybinding('diffEditor.switchSide')?.getAriaLabel();
-		if (switchSidesKb) {
-			switchSides = localize('msg3', "Run the command Diff Editor: Switch Side ({0}) to toggle between the original and modified editors.", switchSidesKb);
-		} else {
-			switchSides = localize('switchSidesNoKb', "Run the command Diff Editor: Switch Side, which is currently not triggerable via keybinding, to toggle between the original and modified editors.");
-		}
-
+		const switchSides = localize('msg3', "Run the command Diff Editor: Switch Side<keybinding:diffEditor.switchSide> to toggle between the original and modified editors.");
 		const diffEditorActiveAnnouncement = localize('msg5', "The setting, accessibility.verbosity.diffEditorActive, controls if a diff editor announcement is made when it becomes the active editor.");
 
 		const keys = ['accessibility.signals.diffLineDeleted', 'accessibility.signals.diffLineInserted', 'accessibility.signals.diffLineModified'];
 		const content = [
 			localize('msg1', "You are in a diff editor."),
-			localize('msg2', "View the next ({0}) or previous ({1}) diff in diff review mode, which is optimized for screen readers.", next, previous),
+			localize('msg2', "View the next<keybinding:{0}> or previous<keybinding:{1}> diff in diff review mode, which is optimized for screen readers.", AccessibleDiffViewerNext.id, AccessibleDiffViewerPrev.id),
 			switchSides,
 			diffEditorActiveAnnouncement,
 			localize('msg4', "To control which accessibility signals should be played, the following settings can be configured: {0}.", keys.join(', ')),
@@ -70,4 +61,5 @@ export class DiffEditorAccessibilityHelp implements IAccessibleViewImplentation 
 			options: { type: AccessibleViewType.Help }
 		};
 	}
+	dispose() { }
 }

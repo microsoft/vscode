@@ -3,17 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { basename } from 'vs/base/common/path';
 import { coalesce } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Iterable } from 'vs/base/common/iterator';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
+import { URI } from 'vs/base/common/uri';
+import { Location } from 'vs/editor/common/languages';
+import { IChatWidgetService, showChatView } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatDynamicVariableModel } from 'vs/workbench/contrib/chat/browser/contrib/chatDynamicVariables';
+import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatModel, IChatRequestVariableData, IChatRequestVariableEntry } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ChatRequestDynamicVariablePart, ChatRequestVariablePart, IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatContentReference } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestVariableValue, IChatVariableData, IChatVariableResolver, IChatVariableResolverProgress, IChatVariablesService, IDynamicVariable } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { ChatContextAttachments } from 'vs/workbench/contrib/chat/browser/contrib/chatContextAttachments';
+import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 
 interface IChatData {
 	data: IChatVariableData;
@@ -26,11 +32,12 @@ export class ChatVariablesService implements IChatVariablesService {
 	private _resolver = new Map<string, IChatData>();
 
 	constructor(
-		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IViewsService private readonly viewsService: IViewsService,
 	) {
 	}
 
-	async resolveVariables(prompt: IParsedChatRequest, model: IChatModel, progress: (part: IChatVariableResolverProgress) => void, token: CancellationToken): Promise<IChatRequestVariableData> {
+	async resolveVariables(prompt: IParsedChatRequest, attachedContextVariables: IChatRequestVariableEntry[] | undefined, model: IChatModel, progress: (part: IChatVariableResolverProgress) => void, token: CancellationToken): Promise<IChatRequestVariableData> {
 		let resolvedVariables: IChatRequestVariableEntry[] = [];
 		const jobs: Promise<any>[] = [];
 
@@ -49,21 +56,49 @@ export class ChatVariablesService implements IChatVariablesService {
 						};
 						jobs.push(data.resolver(prompt.text, part.variableArg, model, variableProgressCallback, token).then(value => {
 							if (value) {
-								resolvedVariables[i] = { name: part.variableName, range: part.range, value, references };
+								resolvedVariables[i] = { id: data.data.id, modelDescription: data.data.modelDescription, name: part.variableName, range: part.range, value, references };
 							}
 						}).catch(onUnexpectedExternalError));
 					}
 				} else if (part instanceof ChatRequestDynamicVariablePart) {
-					resolvedVariables[i] = { name: part.referenceText, range: part.range, value: part.data };
+					resolvedVariables[i] = { id: part.id, name: part.referenceText, range: part.range, value: part.data };
+				}
+			});
+
+		const resolvedAttachedContext: IChatRequestVariableEntry[] = [];
+		attachedContextVariables
+			?.forEach((attachment, i) => {
+				const data = this._resolver.get(attachment.name?.toLowerCase());
+				if (data) {
+					const references: IChatContentReference[] = [];
+					const variableProgressCallback = (item: IChatVariableResolverProgress) => {
+						if (item.kind === 'reference') {
+							references.push(item);
+							return;
+						}
+						progress(item);
+					};
+					jobs.push(data.resolver(prompt.text, '', model, variableProgressCallback, token).then(value => {
+						if (value) {
+							resolvedAttachedContext[i] = { id: data.data.id, modelDescription: data.data.modelDescription, name: attachment.name, range: attachment.range, value, references };
+						}
+					}).catch(onUnexpectedExternalError));
+				} else if (attachment.isDynamic) {
+					resolvedAttachedContext[i] = { id: attachment.id, name: attachment.name, value: attachment.value };
 				}
 			});
 
 		await Promise.allSettled(jobs);
 
+		// Make array not sparse
 		resolvedVariables = coalesce<IChatRequestVariableEntry>(resolvedVariables);
 
 		// "reverse", high index first so that replacement is simple
 		resolvedVariables.sort((a, b) => b.range!.start - a.range!.start);
+
+		// resolvedAttachedContext is a sparse array
+		resolvedVariables.push(...coalesce(resolvedAttachedContext));
+
 
 		return {
 			variables: resolvedVariables,
@@ -119,5 +154,32 @@ export class ChatVariablesService implements IChatVariablesService {
 		return toDisposable(() => {
 			this._resolver.delete(key);
 		});
+	}
+
+	async attachContext(name: string, value: string | URI | Location, location: ChatAgentLocation) {
+		if (location !== ChatAgentLocation.Panel) {
+			return;
+		}
+
+		await showChatView(this.viewsService);
+		const widget = this.chatWidgetService.lastFocusedWidget;
+		if (!widget || !widget.viewModel) {
+			return;
+		}
+
+		const key = name.toLowerCase();
+		if (key === 'file' && typeof value !== 'string') {
+			const uri = URI.isUri(value) ? value : value.uri;
+			const range = 'range' in value ? value.range : undefined;
+			widget.getContrib<ChatContextAttachments>(ChatContextAttachments.ID)?.setContext(false, { value, id: uri.toString() + (range?.toString() ?? ''), name: basename(uri.path), isFile: true, isDynamic: true });
+			return;
+		}
+
+		const resolved = this._resolver.get(key);
+		if (!resolved) {
+			return;
+		}
+
+		widget.getContrib<ChatContextAttachments>(ChatContextAttachments.ID)?.setContext(false, { ...resolved.data, value });
 	}
 }

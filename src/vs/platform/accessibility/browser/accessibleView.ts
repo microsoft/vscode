@@ -8,6 +8,7 @@ import { IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { IPickerQuickAccessItem } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { Event } from 'vs/base/common/event';
 import { IAction } from 'vs/base/common/actions';
+import { IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 
 export const IAccessibleViewService = createDecorator<IAccessibleViewService>('accessibleViewService');
 
@@ -60,6 +61,11 @@ export interface IAccessibleViewOptions {
 	 * If this provider might want to request to be shown again, provide an ID.
 	 */
 	id?: AccessibleViewProviderId;
+
+	/**
+	 * Keybinding items to configure
+	 */
+	configureKeybindingItems?: IQuickPickItem[];
 }
 
 
@@ -113,6 +119,8 @@ export interface IAccessibleViewService {
 	 */
 	getOpenAriaHint(verbositySettingKey: string): string | null;
 	getCodeBlockContext(): ICodeBlockActionContext | undefined;
+	configureKeybindings(): void;
+	openHelpLink(): void;
 }
 
 
@@ -133,9 +141,11 @@ export class AdvancedContentProvider implements IAccessibleViewContentProvider {
 		public provideContent: () => string,
 		public onClose: () => void,
 		public verbositySettingKey: string,
+		public onOpen?: () => void,
 		public actions?: IAction[],
 		public next?: () => void,
 		public previous?: () => void,
+		public onDidChangeContent?: Event<void>,
 		public onKeyDown?: (e: IKeyboardEvent) => void,
 		public getSymbols?: () => IAccessibleViewSymbol[],
 		public onDidRequestClearLastProvider?: Event<AccessibleViewProviderId>,
@@ -149,9 +159,11 @@ export class ExtensionContentProvider implements IBasicContentProvider {
 		public options: IAccessibleViewOptions,
 		public provideContent: () => string,
 		public onClose: () => void,
+		public onOpen?: () => void,
 		public next?: () => void,
 		public previous?: () => void,
 		public actions?: IAction[],
+		public onDidChangeContent?: Event<void>,
 	) { }
 }
 
@@ -160,7 +172,9 @@ export interface IBasicContentProvider {
 	options: IAccessibleViewOptions;
 	onClose(): void;
 	provideContent(): string;
+	onOpen?(): void;
 	actions?: IAction[];
 	previous?(): void;
 	next?(): void;
+	onDidChangeContent?: Event<void>;
 }

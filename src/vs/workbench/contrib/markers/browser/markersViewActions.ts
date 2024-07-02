@@ -92,7 +92,7 @@ export class MarkersFilters extends Disposable {
 	set showErrors(showErrors: boolean) {
 		if (this._showErrors.get() !== showErrors) {
 			this._showErrors.set(showErrors);
-			this._onDidChange.fire(<IMarkersFiltersChangeEvent>{ showErrors: true });
+			this._onDidChange.fire({ showErrors: true });
 		}
 	}
 
@@ -103,7 +103,7 @@ export class MarkersFilters extends Disposable {
 	set showInfos(showInfos: boolean) {
 		if (this._showInfos.get() !== showInfos) {
 			this._showInfos.set(showInfos);
-			this._onDidChange.fire(<IMarkersFiltersChangeEvent>{ showInfos: true });
+			this._onDidChange.fire({ showInfos: true });
 		}
 	}
 

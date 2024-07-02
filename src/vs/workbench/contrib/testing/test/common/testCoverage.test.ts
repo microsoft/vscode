@@ -8,14 +8,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { SinonSandbox, createSandbox } from 'sinon';
-import { Iterable } from 'vs/base/common/iterator';
 import { URI } from 'vs/base/common/uri';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { onObservableChange } from 'vs/workbench/contrib/testing/common/observableUtils';
 import { ICoverageAccessor, TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
-import { TestId } from 'vs/workbench/contrib/testing/common/testId';
+import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { IFileCoverage } from 'vs/workbench/contrib/testing/common/testTypes';
 
 suite('TestCoverage', () => {
@@ -30,7 +29,7 @@ suite('TestCoverage', () => {
 		coverageAccessor = {
 			getCoverageDetails: sandbox.stub().resolves([]),
 		};
-		testCoverage = new TestCoverage('taskId', { extUri: { ignorePathCasing: () => true } } as any, coverageAccessor);
+		testCoverage = new TestCoverage({} as LiveTestResult, 'taskId', { extUri: { ignorePathCasing: () => true } } as any, coverageAccessor);
 	});
 
 	teardown(() => {
@@ -68,7 +67,6 @@ suite('TestCoverage', () => {
 		assert.deepEqual(fileCoverage?.statement, raw1.statement);
 		assert.deepEqual(fileCoverage?.branch, raw1.branch);
 		assert.deepEqual(fileCoverage?.declaration, raw1.declaration);
-		assert.strictEqual(fileCoverage?.existsInExtHost, true);
 
 		assert.strictEqual(testCoverage.getComputedForUri(raw1.uri), testCoverage.getUri(raw1.uri));
 		assert.strictEqual(testCoverage.getComputedForUri(URI.file('/path/to/x')), undefined);
@@ -81,7 +79,6 @@ suite('TestCoverage', () => {
 		assert.deepEqual(dirCoverage?.statement, { covered: 15, total: 30 });
 		assert.deepEqual(dirCoverage?.branch, { covered: 6, total: 15 });
 		assert.deepEqual(dirCoverage?.declaration, raw1.declaration);
-		assert.strictEqual(dirCoverage?.existsInExtHost, false);
 	});
 
 	test('should incrementally diff updates to existing files', async () => {
@@ -133,62 +130,5 @@ suite('TestCoverage', () => {
 				"file:///path/to/file2",
 			],
 		]);
-	});
-
-	test('adds per-test data to files', async () => {
-		const { raw1 } = addTests();
-
-		const raw3: IFileCoverage = {
-			id: '1',
-			testId: TestId.fromString('my-test'),
-			uri: URI.file('/path/to/file'),
-			statement: { covered: 12, total: 24 },
-			branch: { covered: 7, total: 10 },
-			declaration: { covered: 2, total: 5 },
-		};
-		testCoverage.append(raw3, undefined);
-
-		const fileCoverage = testCoverage.getUri(raw1.uri);
-		assert.strictEqual(fileCoverage?.perTestData?.size, 1);
-
-		const perTestCoverage = Iterable.first(fileCoverage!.perTestData!.values());
-		assert.deepStrictEqual(perTestCoverage?.statement, raw3.statement);
-		assert.deepStrictEqual(perTestCoverage?.branch, raw3.branch);
-		assert.deepStrictEqual(perTestCoverage?.declaration, raw3.declaration);
-
-		// should be unchanged:
-		assert.deepEqual(fileCoverage?.statement, { covered: 10, total: 20 });
-		assert.deepEqual(fileCoverage?.existsInExtHost, true);
-		const dirCoverage = testCoverage.getComputedForUri(URI.file('/path/to'));
-		assert.deepEqual(dirCoverage?.statement, { covered: 15, total: 30 });
-	});
-
-	test('works if per-test data is added first', async () => {
-		const raw3: IFileCoverage = {
-			id: '1',
-			testId: TestId.fromString('my-test'),
-			uri: URI.file('/path/to/file'),
-			statement: { covered: 12, total: 24 },
-			branch: { covered: 7, total: 10 },
-			declaration: { covered: 2, total: 5 },
-		};
-		testCoverage.append(raw3, undefined);
-
-		const fileCoverage = testCoverage.getUri(raw3.uri);
-		assert.deepEqual(fileCoverage?.existsInExtHost, false);
-
-		addTests();
-
-		assert.strictEqual(fileCoverage?.perTestData?.size, 1);
-		const perTestCoverage = Iterable.first(fileCoverage!.perTestData!.values());
-		assert.deepStrictEqual(perTestCoverage?.statement, raw3.statement);
-		assert.deepStrictEqual(perTestCoverage?.branch, raw3.branch);
-		assert.deepStrictEqual(perTestCoverage?.declaration, raw3.declaration);
-
-		// should be the expected values:
-		assert.deepEqual(fileCoverage?.statement, { covered: 10, total: 20 });
-		assert.deepEqual(fileCoverage?.existsInExtHost, true);
-		const dirCoverage = testCoverage.getComputedForUri(URI.file('/path/to'));
-		assert.deepEqual(dirCoverage?.statement, { covered: 15, total: 30 });
 	});
 });

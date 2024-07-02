@@ -39,18 +39,24 @@
 .interactive-item-container .header .user {
 	display: flex;
 	align-items: center;
-	gap: 6px;
+	gap: 8px;
 }
 
 .interactive-item-container .header .username {
 	margin: 0;
-	font-size: 12px;
+	font-size: 13px;
 	font-weight: 600;
 }
 
-.interactive-item-container .header .detail-container {
-	font-size: 0.9em;
-	opacity: 0.7;
+.interactive-item-container .detail-container {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	overflow: hidden;
+}
+
+.interactive-item-container .detail-container .detail .agentOrSlashCommandDetected A {
+	cursor: pointer;
+	color: var(--vscode-textLink-foreground);
 }
 
 .interactive-item-container .chat-animated-ellipsis {
@@ -124,23 +130,6 @@
 	font-size: 14px;
 }
 
-.interactive-item-container .header .agent-avatar-container {
-	margin-left: -30px;
-	transition: margin 0.15s ease-out;
-	transition-delay: 0.5s;
-	z-index: -1;
-}
-
-.interactive-item-container .header .agent-avatar-container.loading {
-	margin-left: 0px;
-	z-index: 1;
-}
-
-.interactive-item-container .header .agent-avatar-container.complete {
-	margin-left: -12px;
-	z-index: 1;
-}
-
 .monaco-list-row:not(.focused) .interactive-item-container:not(:hover) .header .monaco-toolbar,
 .monaco-list:not(:focus-within) .monaco-list-row .interactive-item-container:not(:hover) .header .monaco-toolbar,
 .monaco-list-row:not(.focused) .interactive-item-container:not(:hover) .header .monaco-toolbar .action-label,
@@ -180,6 +169,10 @@
 
 .interactive-item-container .value {
 	width: 100%;
+}
+
+.interactive-item-container > .value .chat-used-context {
+	margin-bottom: 8px;
 }
 
 .interactive-item-container .value .rendered-markdown table {
@@ -229,7 +222,7 @@
 
 .interactive-item-container .value {
 	white-space: normal;
-	word-wrap: break-word;
+	overflow-wrap: anywhere;
 }
 
 .interactive-item-container .value > :last-child.rendered-markdown > :last-child {
@@ -277,6 +270,10 @@
 
 .interactive-item-container .value .rendered-markdown li {
 	line-height: 1.3rem;
+}
+
+.interactive-item-container .value .rendered-markdown img {
+	max-width: 100%;
 }
 
 .interactive-item-container .monaco-tokenized-source,
@@ -345,6 +342,34 @@
 	margin: 8px 0;
 }
 
+.interactive-item-container.minimal {
+	flex-direction: row;
+}
+
+.interactive-item-container.minimal .column.left {
+	padding-top: 2px;
+	display: inline-block;
+	flex-grow: 0;
+}
+
+.interactive-item-container.minimal .column.right {
+	display: inline-block;
+	flex-grow: 1;
+}
+
+.interactive-item-container.minimal .user > .username {
+	display: none;
+}
+
+.interactive-item-container.minimal .detail-container {
+	font-size: unset;
+}
+
+.interactive-item-container.minimal > .header {
+	position: absolute;
+	right: 0;
+}
+
 .interactive-session .interactive-input-and-execute-toolbar {
 	display: flex;
 	box-sizing: border-box;
@@ -361,6 +386,7 @@
 
 .interactive-session .interactive-input-part.compact .interactive-input-and-execute-toolbar {
 	margin-bottom: 0;
+	border-radius: 2px;
 }
 
 .interactive-session .interactive-input-and-side-toolbar {
@@ -448,6 +474,14 @@
 	margin-top: 1px;
 }
 
+.chat-used-context-list .codicon-warning {
+	color: var(--vscode-notificationsWarningIcon-foreground); /* Have to override default styles which apply to all lists */
+}
+
+.chat-used-context-list .monaco-icon-label-container {
+	color: var(--vscode-interactive-session-foreground);
+}
+
 .chat-notification-widget .chat-warning-codicon .codicon-warning {
 	color: var(--vscode-notificationsWarningIcon-foreground) !important; /* Have to override default styles which apply to all lists */
 }
@@ -471,14 +505,54 @@
 
 .interactive-session .interactive-input-part.compact {
 	margin: 0;
-	padding: 6px 0px;
+	padding: 8px 0 0 0
 }
 
-.interactive-session .chat-implicit-context {
-	padding: 8px 8px 13px;
-	margin-bottom: -5px;
-	border: 1px solid var(--vscode-input-border, var(--vscode-input-background, transparent));
-	border-radius: 6px 6px 0px 0px;
+.interactive-session .chat-attached-context .chat-attached-context-attachment {
+	display: flex;
+	gap: 4px;
+}
+
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button:hover {
+	cursor: pointer;
+}
+
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button {
+	display: flex;
+	align-items: center;
+}
+
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label-container {
+	display: flex;
+}
+
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label-container .monaco-highlighted-label {
+	display: flex !important;
+	align-items: center !important;
+}
+
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label .monaco-button.codicon.codicon-close,
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-button.codicon.codicon-close {
+	color: var(--vscode-descriptionForeground);
+}
+
+.interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label .codicon {
+	padding-left: 4px;
+}
+
+.interactive-session .chat-attached-context {
+	padding: 0 0 8px 0;
+	display: flex;
+	gap: 4px;
+	flex-wrap: wrap;
+}
+
+.interactive-session .chat-attached-context .chat-attached-context-attachment {
+	padding: 2px;
+	border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
+	border-radius: 4px;
+	height: 18px;
+	max-width: 100%;
 }
 
 .interactive-session-followups {
@@ -510,6 +584,12 @@
 	display: block;
 	color: var(--vscode-textLink-foreground);
 	font-size: 12px;
+
+	/* clamp to max 3 lines */
+	display: -webkit-box;
+	-webkit-line-clamp: 3;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
 }
 
 .interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups code {
@@ -615,7 +695,6 @@
 .interactive-item-container .chat-resource-widget,
 .interactive-item-container .chat-agent-widget .monaco-button {
 	border-radius: 4px;
-	white-space: nowrap;
 	padding: 1px 3px;
 }
 
@@ -631,7 +710,7 @@
 .interactive-session .chat-used-context {
 	display: flex;
 	flex-direction: column;
-	gap: 6px;
+	gap: 2px;
 }
 
 .interactive-response-progress-tree,
@@ -640,7 +719,7 @@
 	border: 1px solid var(--vscode-chat-requestBorder);
 	border-radius: 4px;
 	margin-bottom: 8px;
-	padding: 4px;
+	padding: 6px 8px;
 }
 
 .interactive-item-container .chat-notification-widget {
@@ -653,8 +732,7 @@
 
 .interactive-session .chat-used-context-label {
 	font-size: 12px;
-	color: var(--vscode-foreground);
-	opacity: 0.8;
+	color: var(--vscode-descriptionForeground);
 	user-select: none;
 }
 
@@ -665,11 +743,19 @@
 .interactive-session .chat-used-context-label .monaco-button {
 	/* unset Button styles */
 	display: inline-flex;
+	gap: 4px;
 	width: 100%;
 	border: none;
-	padding: 0;
+	border-radius: 4px;
+	padding: 4px 8px 4px 0;
 	text-align: initial;
 	justify-content: initial;
+}
+
+.interactive-session .chat-used-context-label .monaco-button:hover {
+	background-color: var(--vscode-list-hoverBackground);
+	color: var(--vscode-foreground);
+
 }
 
 .interactive-session .chat-used-context-label .monaco-text-button:focus {
@@ -729,28 +815,4 @@
 .interactive-item-container .chat-command-button .monaco-button .codicon {
 	margin-left: 0;
 	margin-top: 1px;
-}
-
-.chat-confirmation-widget {
-	border: 1px solid var(--vscode-chat-requestBorder);
-	border-radius: 4px;
-	margin-bottom: 16px;
-	padding: 12px 16px 16px;
-}
-
-.chat-confirmation-widget .chat-confirmation-widget-title {
-	font-weight: 600;
-}
-
-.chat-confirmation-widget .chat-confirmation-widget-title p {
-	margin: 0 0 4px 0;
-}
-
-.chat-confirmation-widget .chat-confirmation-widget-message .rendered-markdown p {
-	margin-top: 0;
-}
-
-.chat-confirmation-widget .chat-confirmation-buttons-container {
-	display: flex;
-	gap: 8px;
 }

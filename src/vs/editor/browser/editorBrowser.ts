@@ -250,11 +250,21 @@ export interface IOverlayWidgetPosition {
 	 * The position preference for the overlay widget.
 	 */
 	preference: OverlayWidgetPositionPreference | IOverlayWidgetPositionCoordinates | null;
+
+	/**
+	 * When set, stacks with other overlay widgets with the same preference,
+	 * in an order determined by the ordinal value.
+	 */
+	stackOridinal?: number;
 }
 /**
  * An overlay widgets renders on top of the text.
  */
 export interface IOverlayWidget {
+	/**
+	 * Event fired when the widget layout changes.
+	 */
+	onDidLayout?: Event<void>;
 	/**
 	 * Render this overlay widget in a location where it could overflow the editor's view dom node.
 	 */

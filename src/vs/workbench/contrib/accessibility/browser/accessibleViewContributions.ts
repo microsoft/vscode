@@ -4,22 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { accessibleViewIsShown } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import * as strings from 'vs/base/common/strings';
 import { AccessibilityHelpAction, AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 import { AccessibleViewType, AdvancedContentProvider, ExtensionContentProvider, IAccessibleViewService } from 'vs/platform/accessibility/browser/accessibleView';
 import { AccessibleViewRegistry } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-
-export function descriptionForCommand(commandId: string, msg: string, noKbMsg: string, keybindingService: IKeybindingService): string {
-	const kb = keybindingService.lookupKeybinding(commandId);
-	if (kb) {
-		return strings.format(msg, kb.getAriaLabel());
-	}
-	return strings.format(noKbMsg, commandId);
-}
-
 
 export class AccesibleViewHelpContribution extends Disposable {
 	static ID: 'accesibleViewHelpContribution';

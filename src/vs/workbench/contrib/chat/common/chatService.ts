@@ -3,17 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DeferredPromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { IRange, Range } from 'vs/editor/common/core/range';
+import { ISelection } from 'vs/editor/common/core/selection';
 import { Command, Location, TextEdit } from 'vs/editor/common/languages';
 import { FileType } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ChatModel, IChatModel, IChatRequestModel, IChatRequestVariableData, IExportableChatData, ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatModel, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatRequestVariableEntry, IChatResponseModel, IExportableChatData, ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatParserContext } from 'vs/workbench/contrib/chat/common/chatRequestParser';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
@@ -75,7 +77,7 @@ export interface IChatContentVariableReference {
 
 export interface IChatContentReference {
 	reference: URI | Location | IChatContentVariableReference;
-	iconPath?: ThemeIcon | { light: URI; dark: URI };
+	iconPath?: ThemeIcon | { light: URI; dark?: URI };
 	kind: 'reference';
 }
 
@@ -107,8 +109,14 @@ export interface IChatProgressMessage {
 }
 
 export interface IChatTask extends IChatTaskDto {
-	task?: () => Promise<string | void>;
-	isSettled?: () => boolean;
+	deferred: DeferredPromise<string | void>;
+	progress: (IChatWarningMessage | IChatContentReference)[];
+	onDidAddProgress: Event<IChatWarningMessage | IChatContentReference>;
+	add(progress: IChatWarningMessage | IChatContentReference): void;
+
+	complete: (result: string | void) => void;
+	task: () => Promise<string | void>;
+	isSettled: () => boolean;
 }
 
 export interface IChatTaskDto {
@@ -152,6 +160,7 @@ export interface IChatConfirmation {
 	title: string;
 	message: string;
 	data: any;
+	isUsed?: boolean;
 	kind: 'confirmation';
 }
 
@@ -180,15 +189,14 @@ export interface IChatFollowup {
 	tooltip?: string;
 }
 
-// Name has to match the one in vscode.d.ts for some reason
-export enum InteractiveSessionVoteDirection {
+export enum ChatAgentVoteDirection {
 	Down = 0,
 	Up = 1
 }
 
 export interface IChatVoteAction {
 	kind: 'vote';
-	direction: InteractiveSessionVoteDirection;
+	direction: ChatAgentVoteDirection;
 	reportIssue?: boolean;
 }
 
@@ -244,6 +252,7 @@ export type ChatUserAction = IChatVoteAction | IChatCopyAction | IChatInsertActi
 export interface IChatUserActionEvent {
 	action: ChatUserAction;
 	agentId: string | undefined;
+	command: string | undefined;
 	sessionId: string;
 	requestId: string;
 	result: IChatAgentResult | undefined;
@@ -281,20 +290,44 @@ export interface IChatTransferredSessionData {
 	inputValue: string;
 }
 
-export interface IChatSendRequestData {
+export interface IChatSendRequestResponseState {
+	responseCreatedPromise: Promise<IChatResponseModel>;
 	responseCompletePromise: Promise<void>;
+}
+
+export interface IChatSendRequestData extends IChatSendRequestResponseState {
 	agent: IChatAgentData;
 	slashCommand?: IChatAgentCommand;
 }
 
+export interface IChatEditorLocationData {
+	type: ChatAgentLocation.Editor;
+	document: URI;
+	selection: ISelection;
+	wholeRange: IRange;
+}
+
+export interface IChatNotebookLocationData {
+	type: ChatAgentLocation.Notebook;
+	sessionInputUri: URI;
+}
+
+export interface IChatTerminalLocationData {
+	type: ChatAgentLocation.Terminal;
+	// TBD
+}
+
+export type IChatLocationData = IChatEditorLocationData | IChatNotebookLocationData | IChatTerminalLocationData;
+
 export interface IChatSendRequestOptions {
-	implicitVariablesEnabled?: boolean;
 	location?: ChatAgentLocation;
+	locationData?: IChatLocationData;
 	parserContext?: IChatParserContext;
 	attempt?: number;
 	noCommandDetection?: boolean;
 	acceptedConfirmationData?: any[];
 	rejectedConfirmationData?: any[];
+	attachedContext?: IChatRequestVariableEntry[];
 
 	/** The target agent ID can be specified with this property instead of using @ in 'message' */
 	agentId?: string;
@@ -320,7 +353,7 @@ export interface IChatService {
 	sendRequest(sessionId: string, message: string, options?: IChatSendRequestOptions): Promise<IChatSendRequestData | undefined>;
 
 	resendRequest(request: IChatRequestModel, options?: IChatSendRequestOptions): Promise<void>;
-
+	adoptRequest(sessionId: string, request: IChatRequestModel): Promise<void>;
 	removeRequest(sessionid: string, requestId: string): Promise<void>;
 	cancelCurrentRequestForSession(sessionId: string): void;
 	clearSession(sessionId: string): void;

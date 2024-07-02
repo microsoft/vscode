@@ -196,6 +196,21 @@ export class NativeWindow extends BaseWindow {
 			}
 		});
 
+		// Shared Process crash reported from main
+		ipcRenderer.on('vscode:reportSharedProcessCrash', (event: unknown, error: string) => {
+			this.notificationService.prompt(
+				Severity.Error,
+				localize('sharedProcessCrash', "A shared background process terminated unexpectedly. Please restart the application to recover."),
+				[{
+					label: localize('restart', "Restart"),
+					run: () => this.nativeHostService.relaunch()
+				}],
+				{
+					priority: NotificationPriority.URGENT
+				}
+			);
+		});
+
 		// Support openFiles event for existing and new files
 		ipcRenderer.on('vscode:openFiles', (event: unknown, request: IOpenFileRequest) => { this.onOpenFiles(request); });
 
@@ -236,7 +251,7 @@ export class NativeWindow extends BaseWindow {
 			);
 		});
 
-		ipcRenderer.on('vscode:showTranslatedBuildWarning', (event: unknown, message: string) => {
+		ipcRenderer.on('vscode:showTranslatedBuildWarning', () => {
 			this.notificationService.prompt(
 				Severity.Warning,
 				localize("runningTranslated", "You are running an emulated version of {0}. For better performance download the native arm64 version of {0} build for your machine.", this.productService.nameLong),
@@ -248,13 +263,30 @@ export class NativeWindow extends BaseWindow {
 						const insidersURL = 'https://code.visualstudio.com/docs/?dv=osx&build=insiders';
 						this.openerService.open(quality === 'stable' ? stableURL : insidersURL);
 					}
-				}]
+				}],
+				{
+					priority: NotificationPriority.URGENT
+				}
+			);
+		});
+
+		ipcRenderer.on('vscode:showArgvParseWarning', (event: unknown, message: string) => {
+			this.notificationService.prompt(
+				Severity.Warning,
+				localize("showArgvParseWarning", "The runtime arguments file 'argv.json' contains errors. Please correct them and restart."),
+				[{
+					label: localize('showArgvParseWarningAction', "Open File"),
+					run: () => this.editorService.openEditor({ resource: this.nativeEnvironmentService.argvResource })
+				}],
+				{
+					priority: NotificationPriority.URGENT
+				}
 			);
 		});
 
 		// Fullscreen Events
-		ipcRenderer.on('vscode:enterFullScreen', async () => { setFullscreen(true, mainWindow); });
-		ipcRenderer.on('vscode:leaveFullScreen', async () => { setFullscreen(false, mainWindow); });
+		ipcRenderer.on('vscode:enterFullScreen', () => setFullscreen(true, mainWindow));
+		ipcRenderer.on('vscode:leaveFullScreen', () => setFullscreen(false, mainWindow));
 
 		// Proxy Login Dialog
 		ipcRenderer.on('vscode:openProxyAuthenticationDialog', async (event: unknown, payload: { authInfo: AuthInfo; username?: string; password?: string; replyChannel: string }) => {
