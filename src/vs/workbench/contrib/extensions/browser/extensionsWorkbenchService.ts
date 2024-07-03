@@ -1077,7 +1077,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				message: isEnabled
 					? nls.localize('confirmEnableAutoUpdate', "Do you want to enable auto update for all extensions?")
 					: nls.localize('confirmDisableAutoUpdate', "Do you want to disable auto update for all extensions?"),
-				detail: nls.localize('confirmEnableDisableAutoUpdateDetail', "This will reset the auto update settings you have set for individual extensions."),
+				detail: nls.localize('confirmEnableDisableAutoUpdateDetail', "This will reset any auto update settings you have set for individual extensions."),
 			});
 			if (!result.confirmed) {
 				return;
