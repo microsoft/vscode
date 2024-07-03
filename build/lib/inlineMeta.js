@@ -11,20 +11,22 @@ function inlineMeta(result, ctx) {
     return result.pipe(es.through(function (file) {
         if (matchesFile(file, ctx)) {
             let content = file.contents.toString();
-            let changed = false;
+            let markerFound = false;
             const packageMarker = 'BUILD_INSERT_PACKAGE_CONFIGURATION:"BUILD_INSERT_PACKAGE_CONFIGURATION"';
             if (content.includes(packageMarker)) {
                 content = content.replace(packageMarker, JSON.stringify(JSON.parse(ctx.packageJsonFn())).slice(1, -1) /* trim braces */);
-                changed = true;
+                markerFound = true;
             }
             const productMarker = 'BUILD_INSERT_PRODUCT_CONFIGURATION:"BUILD_INSERT_PRODUCT_CONFIGURATION"';
             if (content.includes(productMarker)) {
                 content = content.replace(productMarker, JSON.stringify(JSON.parse(ctx.productJsonFn())).slice(1, -1) /* trim braces */);
-                changed = true;
+                markerFound = true;
             }
-            if (changed) {
-                file.contents = Buffer.from(content);
+            if (!markerFound) {
+                this.emit('error', new Error(`Unable to inline metadata because markers where not found in ${file.basename}.`));
+                return;
             }
+            file.contents = Buffer.from(content);
         }
         this.emit('data', file);
     }));
