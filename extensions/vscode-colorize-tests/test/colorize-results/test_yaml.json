@@ -71,7 +71,7 @@
 	},
 	{
 		"c": "step",
-		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.key.yaml string.unquoted.other.yaml entity.name.tag.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.key.yaml string.unquoted.plain.yaml entity.name.tag.yaml",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -211,7 +211,7 @@
 	},
 	{
 		"c": "instrument",
-		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.value.yaml meta.mapping.yaml meta.map.key.yaml string.unquoted.other.yaml entity.name.tag.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.value.yaml meta.mapping.yaml meta.map.key.yaml string.unquoted.plain.yaml entity.name.tag.yaml",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -253,16 +253,16 @@
 	},
 	{
 		"c": "Lasik 2000",
-		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.value.yaml meta.mapping.yaml meta.map.value.yaml string.unquoted.other.out.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.value.yaml meta.mapping.yaml meta.map.value.yaml string.unquoted.plain.out.yaml",
 		"r": {
 			"dark_plus": "string: #CE9178",
-			"light_plus": "string.unquoted.other.out.yaml: #0000FF",
+			"light_plus": "string.unquoted.plain.out.yaml: #0000FF",
 			"dark_vs": "string: #CE9178",
-			"light_vs": "string.unquoted.other.out.yaml: #0000FF",
+			"light_vs": "string.unquoted.plain.out.yaml: #0000FF",
 			"hc_black": "string: #CE9178",
 			"dark_modern": "string: #CE9178",
-			"hc_light": "string.unquoted.other.out.yaml: #0F4A85",
-			"light_modern": "string.unquoted.other.out.yaml: #0000FF"
+			"hc_light": "string.unquoted.plain.out.yaml: #0F4A85",
+			"light_modern": "string.unquoted.plain.out.yaml: #0000FF"
 		}
 	},
 	{
@@ -295,7 +295,7 @@
 	},
 	{
 		"c": "pulseEnergy",
-		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.value.yaml meta.mapping.yaml meta.map.key.yaml string.unquoted.other.yaml entity.name.tag.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.value.yaml meta.mapping.yaml meta.map.key.yaml string.unquoted.plain.yaml entity.name.tag.yaml",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -337,7 +337,7 @@
 	},
 	{
 		"c": "5.4",
-		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.value.yaml meta.mapping.yaml meta.map.value.yaml string.unquoted.other.out.yaml constant.numeric.float.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.value.yaml meta.mapping.yaml meta.map.value.yaml string.unquoted.plain.out.yaml constant.numeric.float.yaml",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -379,7 +379,7 @@
 	},
 	{
 		"c": "spotSize",
-		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.value.yaml meta.mapping.yaml meta.map.key.yaml string.unquoted.other.yaml entity.name.tag.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.value.yaml meta.mapping.yaml meta.map.key.yaml string.unquoted.plain.yaml entity.name.tag.yaml",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -421,16 +421,16 @@
 	},
 	{
 		"c": "1mm",
-		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.value.yaml meta.mapping.yaml meta.map.value.yaml string.unquoted.other.out.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.value.yaml meta.mapping.yaml meta.map.value.yaml string.unquoted.plain.out.yaml",
 		"r": {
 			"dark_plus": "string: #CE9178",
-			"light_plus": "string.unquoted.other.out.yaml: #0000FF",
+			"light_plus": "string.unquoted.plain.out.yaml: #0000FF",
 			"dark_vs": "string: #CE9178",
-			"light_vs": "string.unquoted.other.out.yaml: #0000FF",
+			"light_vs": "string.unquoted.plain.out.yaml: #0000FF",
 			"hc_black": "string: #CE9178",
 			"dark_modern": "string: #CE9178",
-			"hc_light": "string.unquoted.other.out.yaml: #0F4A85",
-			"light_modern": "string.unquoted.other.out.yaml: #0000FF"
+			"hc_light": "string.unquoted.plain.out.yaml: #0F4A85",
+			"light_modern": "string.unquoted.plain.out.yaml: #0000FF"
 		}
 	},
 	{
@@ -463,7 +463,7 @@
 	},
 	{
 		"c": "step",
-		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.key.yaml string.unquoted.other.yaml entity.name.tag.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.key.yaml string.unquoted.plain.yaml entity.name.tag.yaml",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -603,7 +603,7 @@
 	},
 	{
 		"c": "step",
-		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.key.yaml string.unquoted.other.yaml entity.name.tag.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.key.yaml string.unquoted.plain.yaml entity.name.tag.yaml",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -729,30 +729,30 @@
 	},
 	{
 		"c": "2mm",
-		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.value.yaml string.unquoted.other.out.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.value.yaml string.unquoted.plain.out.yaml",
 		"r": {
 			"dark_plus": "string: #CE9178",
-			"light_plus": "string.unquoted.other.out.yaml: #0000FF",
+			"light_plus": "string.unquoted.plain.out.yaml: #0000FF",
 			"dark_vs": "string: #CE9178",
-			"light_vs": "string.unquoted.other.out.yaml: #0000FF",
+			"light_vs": "string.unquoted.plain.out.yaml: #0000FF",
 			"hc_black": "string: #CE9178",
 			"dark_modern": "string: #CE9178",
-			"hc_light": "string.unquoted.other.out.yaml: #0F4A85",
-			"light_modern": "string.unquoted.other.out.yaml: #0000FF"
+			"hc_light": "string.unquoted.plain.out.yaml: #0F4A85",
+			"light_modern": "string.unquoted.plain.out.yaml: #0000FF"
 		}
 	},
 	{
 		"c": " ",
-		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.value.yaml string.unquoted.other.out.yaml punctuation.whitespace.separator.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.value.yaml string.unquoted.plain.out.yaml punctuation.whitespace.separator.yaml",
 		"r": {
 			"dark_plus": "string: #CE9178",
-			"light_plus": "string.unquoted.other.out.yaml: #0000FF",
+			"light_plus": "string.unquoted.plain.out.yaml: #0000FF",
 			"dark_vs": "string: #CE9178",
-			"light_vs": "string.unquoted.other.out.yaml: #0000FF",
+			"light_vs": "string.unquoted.plain.out.yaml: #0000FF",
 			"hc_black": "string: #CE9178",
 			"dark_modern": "string: #CE9178",
-			"hc_light": "string.unquoted.other.out.yaml: #0F4A85",
-			"light_modern": "string.unquoted.other.out.yaml: #0000FF"
+			"hc_light": "string.unquoted.plain.out.yaml: #0F4A85",
+			"light_modern": "string.unquoted.plain.out.yaml: #0000FF"
 		}
 	},
 	{
@@ -785,7 +785,7 @@
 	},
 	{
 		"c": "step",
-		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.key.yaml string.unquoted.other.yaml entity.name.tag.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.key.yaml string.unquoted.plain.yaml entity.name.tag.yaml",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -897,7 +897,7 @@
 	},
 	{
 		"c": "name",
-		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.flow.mapping.yaml meta.flow.map.implicit.yaml meta.flow.map.key.yaml string.unquoted.other.in.yaml entity.name.tag.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.flow.mapping.yaml meta.flow.map.implicit.yaml meta.flow.map.key.yaml string.unquoted.plain.in.yaml entity.name.tag.yaml",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -939,16 +939,16 @@
 	},
 	{
 		"c": "John Smith",
-		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.flow.mapping.yaml meta.flow.map.implicit.yaml meta.flow.pair.value.yaml string.unquoted.other.in.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.flow.mapping.yaml meta.flow.map.implicit.yaml meta.flow.pair.value.yaml string.unquoted.plain.in.yaml",
 		"r": {
 			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
+			"light_plus": "string.unquoted.plain.in.yaml: #0000FF",
 			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
+			"light_vs": "string.unquoted.plain.in.yaml: #0000FF",
 			"hc_black": "string: #CE9178",
 			"dark_modern": "string: #CE9178",
-			"hc_light": "string: #0F4A85",
-			"light_modern": "string: #A31515"
+			"hc_light": "string.unquoted.plain.in.yaml: #0F4A85",
+			"light_modern": "string.unquoted.plain.in.yaml: #0000FF"
 		}
 	},
 	{
@@ -981,7 +981,7 @@
 	},
 	{
 		"c": "age",
-		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.flow.mapping.yaml meta.flow.map.implicit.yaml meta.flow.map.key.yaml string.unquoted.other.in.yaml entity.name.tag.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.flow.mapping.yaml meta.flow.map.implicit.yaml meta.flow.map.key.yaml string.unquoted.plain.in.yaml entity.name.tag.yaml",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -1023,7 +1023,7 @@
 	},
 	{
 		"c": "33",
-		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.flow.mapping.yaml meta.flow.map.implicit.yaml meta.flow.pair.value.yaml string.unquoted.other.in.yaml constant.numeric.integer.decimal.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.flow.mapping.yaml meta.flow.map.implicit.yaml meta.flow.pair.value.yaml string.unquoted.plain.in.yaml constant.numeric.integer.decimal.yaml",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -1079,7 +1079,7 @@
 	},
 	{
 		"c": "name",
-		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.key.yaml string.unquoted.other.yaml entity.name.tag.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.key.yaml string.unquoted.plain.yaml entity.name.tag.yaml",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -1121,16 +1121,16 @@
 	},
 	{
 		"c": "Mary Smith",
-		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.value.yaml string.unquoted.other.out.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.value.yaml string.unquoted.plain.out.yaml",
 		"r": {
 			"dark_plus": "string: #CE9178",
-			"light_plus": "string.unquoted.other.out.yaml: #0000FF",
+			"light_plus": "string.unquoted.plain.out.yaml: #0000FF",
 			"dark_vs": "string: #CE9178",
-			"light_vs": "string.unquoted.other.out.yaml: #0000FF",
+			"light_vs": "string.unquoted.plain.out.yaml: #0000FF",
 			"hc_black": "string: #CE9178",
 			"dark_modern": "string: #CE9178",
-			"hc_light": "string.unquoted.other.out.yaml: #0F4A85",
-			"light_modern": "string.unquoted.other.out.yaml: #0000FF"
+			"hc_light": "string.unquoted.plain.out.yaml: #0F4A85",
+			"light_modern": "string.unquoted.plain.out.yaml: #0000FF"
 		}
 	},
 	{
@@ -1149,7 +1149,7 @@
 	},
 	{
 		"c": "age",
-		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.key.yaml string.unquoted.other.yaml entity.name.tag.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.key.yaml string.unquoted.plain.yaml entity.name.tag.yaml",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -1191,7 +1191,7 @@
 	},
 	{
 		"c": "27",
-		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.value.yaml string.unquoted.other.out.yaml constant.numeric.integer.decimal.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.value.yaml string.unquoted.plain.out.yaml constant.numeric.integer.decimal.yaml",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #098658",
@@ -1233,7 +1233,7 @@
 	},
 	{
 		"c": "en",
-		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.key.yaml string.unquoted.other.yaml entity.name.tag.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.key.yaml string.unquoted.plain.yaml entity.name.tag.yaml",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -1289,16 +1289,16 @@
 	},
 	{
 		"c": "John Smith",
-		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.value.yaml meta.flow.sequence.yaml string.unquoted.other.in.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.value.yaml meta.flow.sequence.yaml string.unquoted.plain.in.yaml",
 		"r": {
 			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
+			"light_plus": "string.unquoted.plain.in.yaml: #0000FF",
 			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
+			"light_vs": "string.unquoted.plain.in.yaml: #0000FF",
 			"hc_black": "string: #CE9178",
 			"dark_modern": "string: #CE9178",
-			"hc_light": "string: #0F4A85",
-			"light_modern": "string: #A31515"
+			"hc_light": "string.unquoted.plain.in.yaml: #0F4A85",
+			"light_modern": "string.unquoted.plain.in.yaml: #0000FF"
 		}
 	},
 	{
@@ -1331,16 +1331,16 @@
 	},
 	{
 		"c": "Bill Jones",
-		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.value.yaml meta.flow.sequence.yaml string.unquoted.other.in.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.value.yaml meta.flow.sequence.yaml string.unquoted.plain.in.yaml",
 		"r": {
 			"dark_plus": "string: #CE9178",
-			"light_plus": "string: #A31515",
+			"light_plus": "string.unquoted.plain.in.yaml: #0000FF",
 			"dark_vs": "string: #CE9178",
-			"light_vs": "string: #A31515",
+			"light_vs": "string.unquoted.plain.in.yaml: #0000FF",
 			"hc_black": "string: #CE9178",
 			"dark_modern": "string: #CE9178",
-			"hc_light": "string: #0F4A85",
-			"light_modern": "string: #A31515"
+			"hc_light": "string.unquoted.plain.in.yaml: #0F4A85",
+			"light_modern": "string.unquoted.plain.in.yaml: #0000FF"
 		}
 	},
 	{
@@ -1387,7 +1387,7 @@
 	},
 	{
 		"c": "men",
-		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.key.yaml string.unquoted.other.yaml entity.name.tag.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.key.yaml string.unquoted.plain.yaml entity.name.tag.yaml",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -1457,16 +1457,16 @@
 	},
 	{
 		"c": "Mary Smith",
-		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.value.yaml meta.block.sequence.yaml string.unquoted.other.out.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.value.yaml meta.block.sequence.yaml string.unquoted.plain.out.yaml",
 		"r": {
 			"dark_plus": "string: #CE9178",
-			"light_plus": "string.unquoted.other.out.yaml: #0000FF",
+			"light_plus": "string.unquoted.plain.out.yaml: #0000FF",
 			"dark_vs": "string: #CE9178",
-			"light_vs": "string.unquoted.other.out.yaml: #0000FF",
+			"light_vs": "string.unquoted.plain.out.yaml: #0000FF",
 			"hc_black": "string: #CE9178",
 			"dark_modern": "string: #CE9178",
-			"hc_light": "string.unquoted.other.out.yaml: #0F4A85",
-			"light_modern": "string.unquoted.other.out.yaml: #0000FF"
+			"hc_light": "string.unquoted.plain.out.yaml: #0F4A85",
+			"light_modern": "string.unquoted.plain.out.yaml: #0000FF"
 		}
 	},
 	{
@@ -1513,16 +1513,16 @@
 	},
 	{
 		"c": "Susan Williams",
-		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.value.yaml meta.block.sequence.yaml string.unquoted.other.out.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.block.sequence.yaml meta.mapping.yaml meta.map.value.yaml meta.block.sequence.yaml string.unquoted.plain.out.yaml",
 		"r": {
 			"dark_plus": "string: #CE9178",
-			"light_plus": "string.unquoted.other.out.yaml: #0000FF",
+			"light_plus": "string.unquoted.plain.out.yaml: #0000FF",
 			"dark_vs": "string: #CE9178",
-			"light_vs": "string.unquoted.other.out.yaml: #0000FF",
+			"light_vs": "string.unquoted.plain.out.yaml: #0000FF",
 			"hc_black": "string: #CE9178",
 			"dark_modern": "string: #CE9178",
-			"hc_light": "string.unquoted.other.out.yaml: #0F4A85",
-			"light_modern": "string.unquoted.other.out.yaml: #0000FF"
+			"hc_light": "string.unquoted.plain.out.yaml: #0F4A85",
+			"light_modern": "string.unquoted.plain.out.yaml: #0000FF"
 		}
 	}
 ]

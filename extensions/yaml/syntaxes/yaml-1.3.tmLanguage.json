@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/RedCMD/YAML-Syntax-Highlighter/commit/7d674f43f3762ee0c0720052c3119b7b3e0d5b62",
+	"version": "https://github.com/RedCMD/YAML-Syntax-Highlighter/commit/287c71aeb0773759497822b5e5ce4bdc4d5ef2aa",
 	"name": "YAML 1.3",
 	"scopeName": "source.yaml.1.3",
 	"comment": "https://spec.yaml.io/main/spec/1.3.0/",
@@ -635,7 +635,7 @@
 			"comment": "https://yaml.org/spec/1.2.2/#rule-ns-plain-one-line (BLOCK-KEY)",
 			"begin": "\\G(?=[\\x{85}[^-?:,\\[\\]{}#&*!|>'\"%@` \\p{Cntrl}\\p{Surrogate}\\x{FEFF FFFE FFFF}]]|[?:-](?![\r\n\t ]))",
 			"end": "(?=[\t ]*+:[\r\n\t ]|(?>[\t ]++|\\G)#)",
-			"name": "meta.map.key.yaml string.unquoted.other.yaml entity.name.tag.yaml",
+			"name": "meta.map.key.yaml string.unquoted.plain.yaml entity.name.tag.yaml",
 			"patterns": [
 				{
 					"include": "#tag-implicit-plain-out"
@@ -856,7 +856,7 @@
 				{
 					"begin": "\\G",
 					"end": "(?=(?>[\t ]++|\\G)#)",
-					"name": "string.unquoted.other.out.yaml",
+					"name": "string.unquoted.plain.out.yaml",
 					"patterns": [
 						{
 							"include": "#tag-implicit-plain-out"
@@ -1229,7 +1229,7 @@
 			"comment": "https://yaml.org/spec/1.2.2/#rule-ns-plain-multi-line (FLOW-IN)",
 			"begin": "(?=[\\x{85}[^-?:,\\[\\]{}#&*!|>'\"%@` \\p{Cntrl}\\p{Surrogate}\\x{FEFF FFFE FFFF}]]|[?:-](?![\r\n\t ,\\[\\]{}]))",
 			"end": "(?=(?>[\t ]++|\\G)#|[\t ]*+[,\\[\\]{}])",
-			"name": "string.unquoted.other.in.yaml",
+			"name": "string.unquoted.plain.in.yaml",
 			"patterns": [
 				{
 					"include": "#tag-implicit-plain-in"
@@ -1259,7 +1259,7 @@
 			"comment": "https://yaml.org/spec/1.2.2/#rule-ns-plain-one-line (FLOW-OUT)",
 			"begin": "(?=[\\x{85}[^-?:,\\[\\]{}#&*!|>'\"%@` \\p{Cntrl}\\p{Surrogate}\\x{FEFF FFFE FFFF}]]|[?:-](?![\r\n\t ]))",
 			"end": "(?=[\t ]*+:[\r\n\t ]|[\t ]++#)",
-			"name": "meta.map.key.yaml string.unquoted.other.yaml entity.name.tag.yaml",
+			"name": "meta.map.key.yaml string.unquoted.plain.yaml entity.name.tag.yaml",
 			"patterns": [
 				{
 					"include": "#tag-implicit-plain-out"
@@ -1285,7 +1285,7 @@
 			"comment": "https://yaml.org/spec/1.2.2/#rule-ns-s-implicit-yaml-key (FLOW-KEY)",
 			"begin": "\\G(?![\r\n\t #])",
 			"end": "(?=[\t ]*+(?>:[\r\n\t ,\\[\\]{}]|[,\\[\\]{}])|[\t ]++#)",
-			"name": "meta.flow.map.key.yaml string.unquoted.other.in.yaml entity.name.tag.yaml",
+			"name": "meta.flow.map.key.yaml string.unquoted.plain.in.yaml entity.name.tag.yaml",
 			"patterns": [
 				{
 					"include": "#tag-implicit-plain-in"

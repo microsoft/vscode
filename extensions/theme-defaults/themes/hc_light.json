@@ -224,7 +224,7 @@
 				"string.quoted.pug",
 				"string.interpolated.pug",
 				"string.unquoted.plain.in.yaml",
-				"string.unquoted.other.out.yaml",
+				"string.unquoted.plain.out.yaml",
 				"string.unquoted.block.yaml",
 				"string.quoted.single.yaml",
 				"string.quoted.double.xml",
