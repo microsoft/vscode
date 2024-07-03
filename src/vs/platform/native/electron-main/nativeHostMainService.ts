@@ -488,7 +488,11 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async openExternal(windowId: number | undefined, url: string): Promise<boolean> {
 		this.environmentMainService.unsetSnapExportedVariables();
-		shell.openExternal(url);
+		if (Math) {
+			const { default: open } = await import('open');
+			await open('https://example.com/test');
+		}
+		// shell.openExternal(url,);
 		this.environmentMainService.restoreSnapExportedVariables();
 
 		return true;
