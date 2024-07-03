@@ -6,10 +6,7 @@
 'use strict';
 
 const gulp = require('gulp');
-const merge = require('gulp-merge-json');
 const fs = require('fs');
-const os = require('os');
-const cp = require('child_process');
 const path = require('path');
 const es = require('event-stream');
 const vfs = require('vinyl-fs');
@@ -21,6 +18,7 @@ const { getVersion } = require('./lib/getVersion');
 const task = require('./lib/task');
 const buildfile = require('../src/buildfile');
 const optimize = require('./lib/optimize');
+const inlineMeta = require('./lib/inlineMeta');
 const root = path.dirname(__dirname);
 const commit = getVersion(root);
 const packageJson = require('../package.json');
@@ -85,6 +83,12 @@ const windowBootstrapFiles = [
 	'out-build/bootstrap-window.js'
 ];
 
+const commonJSEntryPoints = [
+	'out-build/main.js',
+	'out-build/cli.js',
+	'out-build/bootstrap-fork.js'
+];
+
 const optimizeVSCodeTask = task.define('optimize-vscode', task.series(
 	util.rimraf('out-vscode'),
 	// Optimize: bundles source files automatically based on
@@ -103,11 +107,7 @@ const optimizeVSCodeTask = task.define('optimize-vscode', task.series(
 			},
 			commonJS: {
 				src: 'out-build',
-				entryPoints: [
-					'out-build/main.js',
-					'out-build/cli.js',
-					'out-build/bootstrap-fork.js',
-				],
+				entryPoints: commonJSEntryPoints,
 				platform: 'node',
 				external: [
 					'electron',
@@ -247,14 +247,21 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			packageJsonUpdates.desktopName = `${product.applicationName}-url-handler.desktop`;
 		}
 
+		let packageJsonContents;
 		const packageJsonStream = gulp.src(['package.json'], { base: '.' })
-			.pipe(json(packageJsonUpdates));
+			.pipe(json(packageJsonUpdates))
+			.pipe(es.through(function (file) {
+				packageJsonContents = file.contents.toString();
+				this.emit('data', file);
+			}));
 
-		const date = new Date().toISOString();
-		const productJsonUpdate = { commit, date, checksums, version };
-
+		let productJsonContents;
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
-			.pipe(json(productJsonUpdate));
+			.pipe(json({ commit, date: new Date().toISOString(), checksums, version }))
+			.pipe(es.through(function (file) {
+				productJsonContents = file.contents.toString();
+				this.emit('data', file);
+			}));
 
 		const license = gulp.src([product.licenseFileName, 'ThirdPartyNotices.txt', 'licenses/**'], { base: '.', allowEmpty: true });
 
@@ -386,6 +393,8 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 				.pipe(replace('@@APPNAME@@', product.applicationName))
 				.pipe(rename('bin/' + product.applicationName)));
 		}
+
+		result = inlineMeta(result, commonJSEntryPoints, packageJsonContents, productJsonContents);
 
 		return result.pipe(vfs.dest(destination));
 	};
