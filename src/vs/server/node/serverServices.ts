@@ -77,6 +77,7 @@ import { RemoteExtensionsScannerChannel, RemoteExtensionsScannerService } from '
 import { RemoteExtensionsScannerChannelName } from 'vs/platform/remote/common/remoteExtensionsScanner';
 import { RemoteUserDataProfilesServiceChannel } from 'vs/platform/userDataProfile/common/userDataProfileIpc';
 import { NodePtyHostStarter } from 'vs/platform/terminal/node/nodePtyHostStarter';
+import { CSSDevelopmentService, ICSSDevelopmentService } from 'vs/platform/environment/node/cssDevService';
 
 const eventPrefix = 'monacoworkbench';
 
@@ -90,6 +91,8 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	const environmentService = new ServerEnvironmentService(args, productService);
 	services.set(IEnvironmentService, environmentService);
 	services.set(INativeEnvironmentService, environmentService);
+
+	services.set(ICSSDevelopmentService, new SyncDescriptor(CSSDevelopmentService, undefined, true));
 
 	const loggerService = new LoggerService(getLogLevel(environmentService), environmentService.logsHome);
 	services.set(ILoggerService, loggerService);

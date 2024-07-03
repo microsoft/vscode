@@ -14,7 +14,7 @@ import { getMediaMime } from 'vs/base/common/mime';
 import { isLinux } from 'vs/base/common/platform';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IServerEnvironmentService } from 'vs/server/node/serverEnvironmentService';
-import { extname, dirname, join, normalize, relative } from 'vs/base/common/path';
+import { extname, dirname, join, normalize } from 'vs/base/common/path';
 import { FileAccess, connectionTokenCookieName, connectionTokenQueryName, Schemas, builtinExtensionsPath } from 'vs/base/common/network';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -29,7 +29,7 @@ import { isString } from 'vs/base/common/types';
 import { CharCode } from 'vs/base/common/charCode';
 import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { isESM } from 'vs/base/common/amd';
-import { spawn } from 'child_process';
+import { ICSSDevelopmentService } from 'vs/platform/environment/node/cssDevService';
 
 const textMimeType: { [ext: string]: string | undefined } = {
 	'.html': 'text/html',
@@ -110,6 +110,7 @@ export class WebClientServer {
 		@ILogService private readonly _logService: ILogService,
 		@IRequestService private readonly _requestService: IRequestService,
 		@IProductService private readonly _productService: IProductService,
+		@ICSSDevelopmentService private readonly _cssDevService: ICSSDevelopmentService
 	) {
 		this._webExtensionResourceUrlTemplate = this._productService.extensionsGallery?.resourceUrlTemplate ? URI.parse(this._productService.extensionsGallery.resourceUrlTemplate) : undefined;
 
@@ -363,25 +364,9 @@ export class WebClientServer {
 		// DEV: The server needs to send along all CSS modules so that the client can construct the
 		// DEV: import-map.
 		// DEV ---------------------------------------------------------------------------------------
-		if (!this._environmentService.isBuilt && isESM) {
-			// SCAN all CSS files and inline them as importmap
-			const rg = await import('@vscode/ripgrep');
-			const cssModules = await new Promise<string[]>((resolve, reject) => {
-				const chunks: string[][] = [];
-				const decoder = new TextDecoder();
-				const process = spawn(rg.rgPath, ['-g', '**/*.css', '--files', join(APP_ROOT, 'out')], {});
-
-				process.stdout.on('data', data => {
-					const chunk = decoder.decode(data, { stream: true });
-					chunks.push(chunk.split('\n'));
-				});
-				process.on('error', err => reject(err));
-				process.on('close', () => {
-					resolve(chunks.flat().map(path => relative(APP_ROOT, path)));
-				});
-			});
-
-			values['WORKBENCH_DEV_CSS_MODULES'] = JSON.stringify(cssModules.filter(Boolean));
+		if (this._cssDevService.isEnabled) {
+			const cssModules = await this._cssDevService.getCssModules();
+			values['WORKBENCH_DEV_CSS_MODULES'] = JSON.stringify(cssModules);
 		}
 
 		if (useTestResolver) {

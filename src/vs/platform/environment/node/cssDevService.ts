@@ -9,16 +9,18 @@ import { isESM } from 'vs/base/common/amd';
 import { encodeBase64, VSBuffer } from 'vs/base/common/buffer';
 import { FileAccess } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 
-export const IWindowDevelopmentService = createDecorator<IWindowDevelopmentService>('IWindowDevelopmentService');
+export const ICSSDevelopmentService = createDecorator<ICSSDevelopmentService>('ICSSDevelopmentService');
 
-export interface IWindowDevelopmentService {
+export interface ICSSDevelopmentService {
 
 	_serviceBrand: undefined;
 
+	isEnabled: boolean;
+	getCssModules(): Promise<string[]>;
 	appendDevSearchParams(uri: URI): Promise<URI>;
 }
 
@@ -27,28 +29,33 @@ export const enum SearchParamsKeys {
 }
 
 
-export class WindowDevelopmentService implements IWindowDevelopmentService {
+export class CSSDevelopmentService implements ICSSDevelopmentService {
 
 	declare _serviceBrand: undefined;
 
 	private _cssModules?: Promise<string[]>;
 
 	constructor(
-		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
+		@IEnvironmentService private readonly envService: IEnvironmentService,
 		@ILogService private readonly logService: ILogService
 	) { }
 
+	get isEnabled(): boolean {
+		return !this.envService.isBuilt && isESM;
+	}
+
+	getCssModules(): Promise<string[]> {
+		this._cssModules ??= this.computeCssModules();
+		return this._cssModules;
+	}
+
 	async appendDevSearchParams(uri: URI): Promise<URI> {
 
-		if (this.environmentMainService.isBuilt || !isESM) {
+		if (!this.isEnabled) {
 			return uri;
 		}
 
-		if (!this._cssModules) {
-			this._cssModules = this.computeCssModules();
-		}
-
-		const cssModules = await this._cssModules;
+		const cssModules = await this.getCssModules();
 
 		const cssData = await new Response((await new Response(cssModules.join(',')).blob()).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer();
 
@@ -61,8 +68,12 @@ export class WindowDevelopmentService implements IWindowDevelopmentService {
 	}
 
 	private async computeCssModules(): Promise<string[]> {
+		if (!this.isEnabled) {
+			return [];
+		}
+
 		const rg = await import('@vscode/ripgrep');
-		return await new Promise<string[]>((resolve, reject) => {
+		return await new Promise<string[]>((resolve) => {
 			const chunks: string[][] = [];
 			const decoder = new TextDecoder();
 			const basePath = FileAccess.asFileUri('').fsPath;
@@ -72,9 +83,12 @@ export class WindowDevelopmentService implements IWindowDevelopmentService {
 				const chunk = decoder.decode(data, { stream: true });
 				chunks.push(chunk.split('\n').filter(Boolean));
 			});
-			process.on('error', err => reject(err));
+			process.on('error', err => {
+				this.logService.error('FAILED to compute CSS data', err);
+				resolve([]);
+			});
 			process.on('close', () => {
-				resolve(chunks.flat().map(path => relative(basePath, path)));
+				resolve(chunks.flat().map(path => relative(basePath, path)).filter(Boolean).sort());
 			});
 		});
 	}

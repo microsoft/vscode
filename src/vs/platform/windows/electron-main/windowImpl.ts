@@ -44,8 +44,8 @@ import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService'
 import { firstOrDefault } from 'vs/base/common/arrays';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { release } from 'os';
-import { IWindowDevelopmentService } from 'vs/platform/windows/electron-main/windowDevService';
 import { isESM } from 'vs/base/common/amd';
+import { ICSSDevelopmentService } from 'vs/platform/environment/node/windowDevService';
 
 export interface IWindowCreationOptions {
 	readonly state: IWindowState;
@@ -594,7 +594,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		@IProductService private readonly productService: IProductService,
 		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
-		@IWindowDevelopmentService private windowDevService: IWindowDevelopmentService,
+		@ICSSDevelopmentService private windowDevService: ICSSDevelopmentService,
 		@IStateService stateService: IStateService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {

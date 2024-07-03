@@ -23,7 +23,7 @@ import { isESM } from 'vs/base/common/amd';
 import { zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
 import { ICodeWindow, IWindowState } from 'vs/platform/window/electron-main/window';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
-import { IWindowDevelopmentService } from 'vs/platform/windows/electron-main/windowDevService';
+import { ICSSDevelopmentService } from 'vs/platform/environment/node/windowDevService';
 
 interface IBrowserWindowOptions {
 	backgroundColor: string | undefined;
@@ -51,7 +51,7 @@ export class IssueMainService implements IIssueMainService {
 		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService,
 		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
-		@IWindowDevelopmentService private readonly windowDevService: IWindowDevelopmentService,
+		@ICSSDevelopmentService private readonly windowDevService: ICSSDevelopmentService,
 	) { }
 
 	//#region Used by renderer
