@@ -119,33 +119,38 @@ export type SchemaToType<T> = T extends { type: 'string' }
 	? Array<SchemaToType<I>>
 	: never;
 
-interface Ref { schemas: IJSONSchema[]; id?: string }
+interface Equals { schemas: IJSONSchema[]; id?: string }
 
 export function getCompressedContent(schema: IJSONSchema): string {
 	let hasDups = false;
 
-	const refByString = new Map<string, Ref>();
-	const nodeToRef = new Map<IJSONSchema, Ref>();
+
+	// visit all schema nodes and collect the ones that are equal
+	const equalsByString = new Map<string, Equals>();
+	const nodeToEquals = new Map<IJSONSchema, Equals>();
 	const visitSchemas = (next: IJSONSchema) => {
+		if (schema === next) {
+			return true;
+		}
 		const val = JSON.stringify(next);
 		if (val.length < 30) {
 			// the $ref takes around 25 chars, so we don't save anything
 			return true;
 		}
-		const ref = refByString.get(val);
-		if (!ref) {
-			const newRef = { schemas: [next] };
-			refByString.set(val, newRef);
-			nodeToRef.set(next, newRef);
+		const eq = equalsByString.get(val);
+		if (!eq) {
+			const newEq = { schemas: [next] };
+			equalsByString.set(val, newEq);
+			nodeToEquals.set(next, newEq);
 			return true;
 		}
-		ref.schemas.push(next);
-		nodeToRef.set(next, ref);
+		eq.schemas.push(next);
+		nodeToEquals.set(next, eq);
 		hasDups = true;
 		return false;
 	};
 	traverseNodes(schema, visitSchemas);
-	refByString.clear();
+	equalsByString.clear();
 
 	if (!hasDups) {
 		return JSON.stringify(schema);
@@ -162,13 +167,13 @@ export function getCompressedContent(schema: IJSONSchema): string {
 	function stringify(root: IJSONSchema): string {
 		return JSON.stringify(root, (_key: string, value: any) => {
 			if (value !== root) {
-				const same = nodeToRef.get(value);
-				if (same && same.schemas.length > 1) {
-					if (!same.id) {
-						same.id = `_${definitions.length}`;
-						definitions.push(same.schemas[0]);
+				const eq = nodeToEquals.get(value);
+				if (eq && eq.schemas.length > 1) {
+					if (!eq.id) {
+						eq.id = `_${definitions.length}`;
+						definitions.push(eq.schemas[0]);
 					}
-					return { $ref: `#/${defNodeName}/${same.id}` };
+					return { $ref: `#/${defNodeName}/${eq.id}` };
 				}
 			}
 			return value;
