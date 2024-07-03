@@ -888,3 +888,36 @@ export function getScopes(): [string, ConfigurationScope | undefined][] {
 	scopes.push(['task', ConfigurationScope.RESOURCE]);
 	return scopes;
 }
+
+export function getAllConfigurationProperties(configurationNode: IConfigurationNode[]): IStringDictionary<IRegisteredConfigurationPropertySchema> {
+	const result: IStringDictionary<IRegisteredConfigurationPropertySchema> = {};
+	for (const configuration of configurationNode) {
+		const properties = configuration.properties;
+		if (types.isObject(properties)) {
+			for (const key in properties) {
+				result[key] = properties[key];
+			}
+		}
+		if (configuration.allOf) {
+			Object.assign(result, getAllConfigurationProperties(configuration.allOf));
+		}
+	}
+	return result;
+}
+
+export function parseScope(scope: string): ConfigurationScope {
+	switch (scope) {
+		case 'application':
+			return ConfigurationScope.APPLICATION;
+		case 'machine':
+			return ConfigurationScope.MACHINE;
+		case 'resource':
+			return ConfigurationScope.RESOURCE;
+		case 'machine-overridable':
+			return ConfigurationScope.MACHINE_OVERRIDABLE;
+		case 'language-overridable':
+			return ConfigurationScope.LANGUAGE_OVERRIDABLE;
+		default:
+			return ConfigurationScope.WINDOW;
+	}
+}
