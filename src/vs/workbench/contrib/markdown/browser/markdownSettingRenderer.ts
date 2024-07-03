@@ -15,7 +15,6 @@ import { IAction } from 'vs/base/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { Schemas } from 'vs/base/common/network';
-import { IProductService } from 'vs/platform/product/common/productService';
 
 export class SimpleSettingRenderer {
 	private readonly codeSettingRegex: RegExp;
@@ -31,9 +30,8 @@ export class SimpleSettingRenderer {
 		@IPreferencesService private readonly _preferencesService: IPreferencesService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
-		@IProductService productService: IProductService
 	) {
-		this.codeSettingRegex = new RegExp(`^<a (href)="${productService.urlProtocol}://settings/([^\s"/]+)(?:/([^"]+))?">`);
+		this.codeSettingRegex = new RegExp(`^<a (href)=".*code.*://settings/([^\\s"]+)"(?:\\s*codesetting="([^"]+)")?>`);
 		this._defaultSettings = new DefaultSettings([], ConfigurationTarget.USER);
 	}
 

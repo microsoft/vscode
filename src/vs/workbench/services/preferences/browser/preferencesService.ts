@@ -599,12 +599,10 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	/**
 	 * Should be of the format:
-	 * 	code://settings/settingName/optionalSettingValue
+	 * 	code://settings/settingName
 	 * Examples:
-	 * 	code://settings/files.autoSave/afterDelay
 	 * 	code://settings/files.autoSave
 	 *
-	 * The optionalSettingValue is not currently used.
 	 */
 	async handleURL(uri: URI): Promise<boolean> {
 		if (uri.authority !== SETTINGS_AUTHORITY) {
