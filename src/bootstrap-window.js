@@ -7,6 +7,7 @@
 
 //@ts-check
 'use strict';
+
 /**
  * @import { ISandboxConfiguration } from './vs/base/parts/sandbox/common/sandboxTypes'
  */
@@ -135,6 +136,9 @@ const isESM = false;
 				};
 
 				const baseUrl = new URL(`vscode-file://vscode-app${fileRoot}/`);
+				/**
+				 * @type { { imports: Record<string, string> }}
+				 */
 				const importMap = { imports: {} };
 				const cssData = Uint8Array.from(atob(cssDataBase64), c => c.charCodeAt(0));
 				await new Response(new Blob([cssData], { type: 'application/octet-binary' }).stream().pipeThrough(new DecompressionStream('gzip'))).text().then(value => {
@@ -210,7 +214,6 @@ const isESM = false;
 			// Configure loader
 			require.config(loaderConfig);
 
-
 			// Signal before require()
 			if (typeof options?.beforeRequire === 'function') {
 				options.beforeRequire(configuration);
@@ -220,6 +223,9 @@ const isESM = false;
 			require(modulePaths, invokeResult, onUnexpectedError);
 		}
 
+		/**
+		 * @param {any} firstModule
+		 */
 		async function invokeResult(firstModule) {
 			try {
 

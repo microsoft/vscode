@@ -131,6 +131,7 @@ let nlsConfigurationPromise = undefined;
 const osLocale = processZhLocale((app.getPreferredSystemLanguages()?.[0] ?? 'en').toLowerCase());
 const userLocale = getUserDefinedLocale(argvConfig);
 if (userLocale) {
+	// @ts-ignore
 	const { resolveNLSConfiguration } = require('./vs/base/node/nls${requireExtension}');
 	nlsConfigurationPromise = resolveNLSConfiguration({
 		userLocale,
