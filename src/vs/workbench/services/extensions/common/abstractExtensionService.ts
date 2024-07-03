@@ -51,7 +51,7 @@ import { ExtensionMessageCollector, ExtensionPoint, ExtensionsRegistry, IExtensi
 import { LazyCreateExtensionHostManager } from 'vs/workbench/services/extensions/common/lazyCreateExtensionHostManager';
 import { ResponsiveState } from 'vs/workbench/services/extensions/common/rpcProtocol';
 import { IExtensionActivationHost as IWorkspaceContainsActivationHost, checkActivateWorkspaceContainsExtension, checkGlobFileExists } from 'vs/workbench/services/extensions/common/workspaceContains';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ILifecycleService, WillShutdownJoinerOrder } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IExtensionHostExitInfo, IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 const hasOwnProperty = Object.hasOwnProperty;
@@ -192,6 +192,16 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 					this._logService.info(`AbstractExtensionService.onDidUninstallExtension fired for ${event.identifier.id}`);
 				}
 				this._handleDeltaExtensions(new DeltaExtensionsQueueItem([], [event.identifier.id]));
+			}
+		}));
+
+		this._register(this._lifecycleService.onWillShutdown(event => {
+			if (this._remoteAgentService.getConnection()) {
+				event.join(() => this._remoteAgentService.endConnection(), {
+					id: 'join.disconnectRemote',
+					label: nls.localize('disconnectRemote', "Disconnect Remote Agent"),
+					order: WillShutdownJoinerOrder.Last // after others have joined that might depend on a remote connection
+				});
 			}
 		}));
 
@@ -653,8 +663,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	//#region Stopping / Starting / Restarting
 
-	public stopExtensionHosts(reason: string): Promise<boolean> {
-		return this._doStopExtensionHostsWithVeto(reason);
+	public stopExtensionHosts(reason: string, auto?: boolean): Promise<boolean> {
+		return this._doStopExtensionHostsWithVeto(reason, auto);
 	}
 
 	protected _doStopExtensionHosts(): void {
@@ -675,7 +685,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		}
 	}
 
-	private async _doStopExtensionHostsWithVeto(reason: string): Promise<boolean> {
+	private async _doStopExtensionHostsWithVeto(reason: string, auto?: boolean): Promise<boolean> {
 		const vetos: (boolean | Promise<boolean>)[] = [];
 		const vetoReasons = new Set<string>();
 
@@ -704,16 +714,18 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		if (!veto) {
 			this._doStopExtensionHosts();
 		} else {
-			const vetoReasonsArray = Array.from(vetoReasons);
+			if (!auto) {
+				const vetoReasonsArray = Array.from(vetoReasons);
 
-			this._logService.warn(`Extension host was not stopped because of veto (stop reason: ${reason}, veto reason: ${vetoReasonsArray.join(', ')})`);
+				this._logService.warn(`Extension host was not stopped because of veto (stop reason: ${reason}, veto reason: ${vetoReasonsArray.join(', ')})`);
+				await this._dialogService.warn(
+					nls.localize('extensionStopVetoMessage', "The following operation was blocked: {0}", reason),
+					vetoReasonsArray.length === 1 ?
+						nls.localize('extensionStopVetoDetailsOne', "The reason for blocking the operation: {0}", vetoReasonsArray[0]) :
+						nls.localize('extensionStopVetoDetailsMany', "The reasons for blocking the operation:\n- {0}", vetoReasonsArray.join('\n -')),
+				);
+			}
 
-			await this._dialogService.warn(
-				nls.localize('extensionStopVetoMessage', "The following operation was blocked: {0}", reason),
-				vetoReasonsArray.length === 1 ?
-					nls.localize('extensionStopVetoDetailsOne', "The reason for blocking the operation: {0}", vetoReasonsArray[0]) :
-					nls.localize('extensionStopVetoDetailsMany', "The reasons for blocking the operation:\n- {0}", vetoReasonsArray.join('\n -')),
-			);
 		}
 
 		return !veto;

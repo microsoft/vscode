@@ -11,7 +11,7 @@ import { NativeTextSearchManager } from 'vs/workbench/services/search/node/textS
 
 export class TextSearchEngineAdapter {
 
-	constructor(private query: ITextQuery) { }
+	constructor(private query: ITextQuery, private numThreads?: number) { }
 
 	search(token: CancellationToken, onResult: (matches: ISerializedFileMatch[]) => void, onMessage: (message: IProgressMessage) => void): Promise<ISerializedSearchSuccess> {
 		if ((!this.query.folderQueries || !this.query.folderQueries.length) && (!this.query.extraFileResources || !this.query.extraFileResources.length)) {
@@ -30,7 +30,7 @@ export class TextSearchEngineAdapter {
 				onMessage({ message: msg });
 			}
 		};
-		const textSearchManager = new NativeTextSearchManager(this.query, new RipgrepTextSearchEngine(pretendOutputChannel), pfs);
+		const textSearchManager = new NativeTextSearchManager(this.query, new RipgrepTextSearchEngine(pretendOutputChannel, this.numThreads), pfs);
 		return new Promise((resolve, reject) => {
 			return textSearchManager
 				.search(

@@ -123,8 +123,8 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(vscode.authentication.registerAuthenticationProvider('microsoft', 'Microsoft', {
 		onDidChangeSessions: loginService.onDidChangeSessions,
-		getSessions: (scopes: string[]) => loginService.getSessions(scopes),
-		createSession: async (scopes: string[]) => {
+		getSessions: (scopes: string[], options?: vscode.AuthenticationProviderSessionOptions) => loginService.getSessions(scopes, options?.account),
+		createSession: async (scopes: string[], options?: vscode.AuthenticationProviderSessionOptions) => {
 			try {
 				/* __GDPR__
 					"login" : {
@@ -138,7 +138,7 @@ export async function activate(context: vscode.ExtensionContext) {
 					scopes: JSON.stringify(scopes.map(s => s.replace(/[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}/i, '{guid}'))),
 				});
 
-				return await loginService.createSession(scopes);
+				return await loginService.createSession(scopes, options?.account);
 			} catch (e) {
 				/* __GDPR__
 					"loginFailed" : { "owner": "TylerLeonhardt", "comment": "Used to determine how often users run into issues with the login flow." }

@@ -203,11 +203,13 @@ export class AzureActiveDirectoryService {
 		return this._sessionChangeEmitter.event;
 	}
 
-	public getSessions(scopes?: string[]): Promise<vscode.AuthenticationSession[]> {
+	public getSessions(scopes?: string[], account?: vscode.AuthenticationSessionAccountInformation): Promise<vscode.AuthenticationSession[]> {
 		if (!scopes) {
 			this._logger.info('Getting sessions for all scopes...');
-			const sessions = this._tokens.map(token => this.convertToSessionSync(token));
-			this._logger.info(`Got ${sessions.length} sessions for all scopes...`);
+			const sessions = this._tokens
+				.filter(token => !account?.label || token.account.label === account.label)
+				.map(token => this.convertToSessionSync(token));
+			this._logger.info(`Got ${sessions.length} sessions for all scopes${account ? ` for account '${account.label}'` : ''}...`);
 			return Promise.resolve(sessions);
 		}
 
@@ -238,23 +240,43 @@ export class AzureActiveDirectoryService {
 			tenant: this.getTenantId(scopes),
 		};
 
-		this._logger.trace(`[${scopeData.scopeStr}] Queued getting sessions`);
-		return this._sequencer.queue(modifiedScopesStr, () => this.doGetSessions(scopeData));
+		this._logger.trace(`[${scopeData.scopeStr}] Queued getting sessions` + account ? ` for ${account?.label}` : '');
+		return this._sequencer.queue(modifiedScopesStr, () => this.doGetSessions(scopeData, account));
 	}
 
-	private async doGetSessions(scopeData: IScopeData): Promise<vscode.AuthenticationSession[]> {
-		this._logger.info(`[${scopeData.scopeStr}] Getting sessions`);
+	private async doGetSessions(scopeData: IScopeData, account?: vscode.AuthenticationSessionAccountInformation): Promise<vscode.AuthenticationSession[]> {
+		this._logger.info(`[${scopeData.scopeStr}] Getting sessions` + account ? ` for ${account?.label}` : '');
 
-		const matchingTokens = this._tokens.filter(token => token.scope === scopeData.scopeStr);
+		const matchingTokens = this._tokens
+			.filter(token => token.scope === scopeData.scopeStr)
+			.filter(token => !account?.label || token.account.label === account.label);
 		// If we still don't have a matching token try to get a new token from an existing token by using
 		// the refreshToken. This is documented here:
 		// https://docs.microsoft.com/en-us/azure/active-directory/develop/v2-oauth2-auth-code-flow#refresh-the-access-token
 		// "Refresh tokens are valid for all permissions that your client has already received consent for."
 		if (!matchingTokens.length) {
-			// Get a token with the correct client id.
-			const token = scopeData.clientId === DEFAULT_CLIENT_ID
-				? this._tokens.find(t => t.refreshToken && !t.scope.includes('VSCODE_CLIENT_ID'))
-				: this._tokens.find(t => t.refreshToken && t.scope.includes(`VSCODE_CLIENT_ID:${scopeData.clientId}`));
+			// Get a token with the correct client id and account.
+			let token: IToken | undefined;
+			for (const t of this._tokens) {
+				// No refresh token, so we can't make a new token from this session
+				if (!t.refreshToken) {
+					continue;
+				}
+				// Need to make sure the account matches if we were provided one
+				if (account?.label && t.account.label !== account.label) {
+					continue;
+				}
+				// If the client id is the default client id, then check for the absence of the VSCODE_CLIENT_ID scope
+				if (scopeData.clientId === DEFAULT_CLIENT_ID && !t.scope.includes('VSCODE_CLIENT_ID')) {
+					token = t;
+					break;
+				}
+				// If the client id is not the default client id, then check for the matching VSCODE_CLIENT_ID scope
+				if (scopeData.clientId !== DEFAULT_CLIENT_ID && t.scope.includes(`VSCODE_CLIENT_ID:${scopeData.clientId}`)) {
+					token = t;
+					break;
+				}
+			}
 
 			if (token) {
 				this._logger.trace(`[${scopeData.scopeStr}] '${token.sessionId}' Found a matching token with a different scopes '${token.scope}'. Attempting to get a new session using the existing session.`);
@@ -275,7 +297,7 @@ export class AzureActiveDirectoryService {
 			.map(result => (result as PromiseFulfilledResult<vscode.AuthenticationSession>).value);
 	}
 
-	public createSession(scopes: string[]): Promise<vscode.AuthenticationSession> {
+	public createSession(scopes: string[], account?: vscode.AuthenticationSessionAccountInformation): Promise<vscode.AuthenticationSession> {
 		let modifiedScopes = [...scopes];
 		if (!modifiedScopes.includes('openid')) {
 			modifiedScopes.push('openid');
@@ -301,11 +323,11 @@ export class AzureActiveDirectoryService {
 		};
 
 		this._logger.trace(`[${scopeData.scopeStr}] Queued creating session`);
-		return this._sequencer.queue(scopeData.scopeStr, () => this.doCreateSession(scopeData));
+		return this._sequencer.queue(scopeData.scopeStr, () => this.doCreateSession(scopeData, account));
 	}
 
-	private async doCreateSession(scopeData: IScopeData): Promise<vscode.AuthenticationSession> {
-		this._logger.info(`[${scopeData.scopeStr}] Creating session`);
+	private async doCreateSession(scopeData: IScopeData, account?: vscode.AuthenticationSessionAccountInformation): Promise<vscode.AuthenticationSession> {
+		this._logger.info(`[${scopeData.scopeStr}] Creating session` + account ? ` for ${account?.label}` : '');
 
 		const runsRemote = vscode.env.remoteName !== undefined;
 		const runsServerless = vscode.env.remoteName === undefined && vscode.env.uiKind === vscode.UIKind.Web;
@@ -316,17 +338,17 @@ export class AzureActiveDirectoryService {
 
 		return await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: vscode.l10n.t('Signing in to your account...'), cancellable: true }, async (_progress, token) => {
 			if (runsRemote || runsServerless) {
-				return await this.createSessionWithoutLocalServer(scopeData, token);
+				return await this.createSessionWithoutLocalServer(scopeData, account?.label, token);
 			}
 
 			try {
-				return await this.createSessionWithLocalServer(scopeData, token);
+				return await this.createSessionWithLocalServer(scopeData, account?.label, token);
 			} catch (e) {
 				this._logger.error(`[${scopeData.scopeStr}] Error creating session: ${e}`);
 
 				// If the error was about starting the server, try directly hitting the login endpoint instead
 				if (e.message === 'Error listening to server' || e.message === 'Closed' || e.message === 'Timeout waiting for port') {
-					return this.createSessionWithoutLocalServer(scopeData, token);
+					return this.createSessionWithoutLocalServer(scopeData, account?.label, token);
 				}
 
 				throw e;
@@ -334,7 +356,7 @@ export class AzureActiveDirectoryService {
 		});
 	}
 
-	private async createSessionWithLocalServer(scopeData: IScopeData, token: vscode.CancellationToken): Promise<vscode.AuthenticationSession> {
+	private async createSessionWithLocalServer(scopeData: IScopeData, loginHint: string | undefined, token: vscode.CancellationToken): Promise<vscode.AuthenticationSession> {
 		this._logger.trace(`[${scopeData.scopeStr}] Starting login flow with local server`);
 		const codeVerifier = generateCodeVerifier();
 		const codeChallenge = await generateCodeChallenge(codeVerifier);
@@ -344,11 +366,15 @@ export class AzureActiveDirectoryService {
 			client_id: scopeData.clientId,
 			redirect_uri: redirectUrl,
 			scope: scopeData.scopesToSend,
-			prompt: 'select_account',
 			code_challenge_method: 'S256',
 			code_challenge: codeChallenge,
-		}).toString();
-		const loginUrl = new URL(`${scopeData.tenant}/oauth2/v2.0/authorize?${qs}`, this._env.activeDirectoryEndpointUrl).toString();
+		});
+		if (loginHint) {
+			qs.set('login_hint', loginHint);
+		} else {
+			qs.set('prompt', 'select_account');
+		}
+		const loginUrl = new URL(`${scopeData.tenant}/oauth2/v2.0/authorize?${qs.toString()}`, this._env.activeDirectoryEndpointUrl).toString();
 		const server = new LoopbackAuthServer(path.join(__dirname, '../media'), loginUrl);
 		await server.start();
 
@@ -370,7 +396,7 @@ export class AzureActiveDirectoryService {
 		return session;
 	}
 
-	private async createSessionWithoutLocalServer(scopeData: IScopeData, token: vscode.CancellationToken): Promise<vscode.AuthenticationSession> {
+	private async createSessionWithoutLocalServer(scopeData: IScopeData, loginHint: string | undefined, token: vscode.CancellationToken): Promise<vscode.AuthenticationSession> {
 		this._logger.trace(`[${scopeData.scopeStr}] Starting login flow without local server`);
 		let callbackUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.microsoft-authentication`));
 		const nonce = generateCodeVerifier();
@@ -383,17 +409,22 @@ export class AzureActiveDirectoryService {
 		const codeVerifier = generateCodeVerifier();
 		const codeChallenge = await generateCodeChallenge(codeVerifier);
 		const signInUrl = new URL(`${scopeData.tenant}/oauth2/v2.0/authorize`, this._env.activeDirectoryEndpointUrl);
-		signInUrl.search = new URLSearchParams({
+		const qs = new URLSearchParams({
 			response_type: 'code',
 			client_id: encodeURIComponent(scopeData.clientId),
 			response_mode: 'query',
 			redirect_uri: redirectUrl,
 			state,
 			scope: scopeData.scopesToSend,
-			prompt: 'select_account',
 			code_challenge_method: 'S256',
 			code_challenge: codeChallenge,
-		}).toString();
+		});
+		if (loginHint) {
+			qs.append('login_hint', loginHint);
+		} else {
+			qs.append('prompt', 'select_account');
+		}
+		signInUrl.search = qs.toString();
 		const uri = vscode.Uri.parse(signInUrl.toString());
 		vscode.env.openExternal(uri);
 

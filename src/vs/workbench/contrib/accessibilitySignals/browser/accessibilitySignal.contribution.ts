@@ -10,11 +10,11 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from 'vs/workbench/com
 import { AccessibilitySignalLineDebuggerContribution } from 'vs/workbench/contrib/accessibilitySignals/browser/accessibilitySignalDebuggerContribution';
 import { ShowAccessibilityAnnouncementHelp, ShowSignalSoundHelp } from 'vs/workbench/contrib/accessibilitySignals/browser/commands';
 import { EditorTextPropertySignalsContribution } from 'vs/workbench/contrib/accessibilitySignals/browser/editorTextPropertySignalsContribution';
-import { wrapInReloadableClass } from 'vs/workbench/contrib/accessibilitySignals/browser/reloadableWorkbenchContribution';
+import { wrapInReloadableClass0 } from 'vs/platform/observable/common/wrapInReloadableClass';
 
 registerSingleton(IAccessibilitySignalService, AccessibilitySignalService, InstantiationType.Delayed);
 
-registerWorkbenchContribution2('EditorTextPropertySignalsContribution', wrapInReloadableClass(() => EditorTextPropertySignalsContribution), WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2('EditorTextPropertySignalsContribution', wrapInReloadableClass0(() => EditorTextPropertySignalsContribution), WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2('AccessibilitySignalLineDebuggerContribution', AccessibilitySignalLineDebuggerContribution, WorkbenchPhase.AfterRestored);
 
 registerAction2(ShowSignalSoundHelp);

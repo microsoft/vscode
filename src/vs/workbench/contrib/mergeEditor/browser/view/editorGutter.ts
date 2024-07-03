@@ -10,12 +10,12 @@ import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditor
 import { LineRange } from 'vs/workbench/contrib/mergeEditor/browser/model/lineRange';
 
 export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends Disposable {
-	private readonly scrollTop = observableFromEvent(
+	private readonly scrollTop = observableFromEvent(this,
 		this._editor.onDidScrollChange,
 		(e) => /** @description editor.onDidScrollChange */ this._editor.getScrollTop()
 	);
 	private readonly isScrollTopZero = this.scrollTop.map((scrollTop) => /** @description isScrollTopZero */ scrollTop === 0);
-	private readonly modelAttached = observableFromEvent(
+	private readonly modelAttached = observableFromEvent(this,
 		this._editor.onDidChangeModel,
 		(e) => /** @description editor.onDidChangeModel */ this._editor.hasModel()
 	);
