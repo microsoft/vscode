@@ -19,7 +19,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { IWordWrapTransientState, readTransientState, writeTransientState } from 'vs/workbench/contrib/codeEditor/browser/toggleWordWrap';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
-import { CellEditState, CellFocusMode, CursorAtBoundary, CursorAtLineBoundary, IEditableCellViewModel, INotebookCellDecorationOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFocusMode, CellLayoutChangeEvent, CursorAtBoundary, CursorAtLineBoundary, IEditableCellViewModel, INotebookCellDecorationOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
 import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
