@@ -23,10 +23,12 @@ function inlineMeta(result, ctx) {
                 markerFound = true;
             }
             if (!markerFound) {
-                this.emit('error', new Error(`Unable to inline metadata because markers where not found in ${file.basename}.`));
-                return;
+                // this.emit('error', new Error(`Unable to inline metadata because markers where not found in ${file.basename}.`));
+                // return;
             }
-            file.contents = Buffer.from(content);
+            else {
+                file.contents = Buffer.from(content);
+            }
         }
         this.emit('data', file);
     }));

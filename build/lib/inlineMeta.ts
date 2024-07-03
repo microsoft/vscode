@@ -32,11 +32,11 @@ export function inlineMeta(result: NodeJS.ReadWriteStream, ctx: IInlineMetaConte
 			}
 
 			if (!markerFound) {
-				this.emit('error', new Error(`Unable to inline metadata because markers where not found in ${file.basename}.`));
-				return;
+				// this.emit('error', new Error(`Unable to inline metadata because markers where not found in ${file.basename}.`));
+				// return;
+			} else {
+				file.contents = Buffer.from(content);
 			}
-
-			file.contents = Buffer.from(content);
 		}
 
 		this.emit('data', file);
