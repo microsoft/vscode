@@ -35,7 +35,7 @@ import { IJSONEditingService } from 'vs/workbench/services/configuration/common/
 import { GroupDirection, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, SIDE_GROUP, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 import { KeybindingsEditorInput } from 'vs/workbench/services/preferences/browser/keybindingsEditorInput';
-import { DEFAULT_SETTINGS_EDITOR_SETTING, FOLDER_SETTINGS_PATH, IKeybindingsEditorOptions, IKeybindingsEditorPane, IOpenSettingsOptions, IPreferencesEditorModel, IPreferencesService, ISetting, ISettingsEditorOptions, USE_SPLIT_JSON_SETTING, validateSettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
+import { DEFAULT_SETTINGS_EDITOR_SETTING, FOLDER_SETTINGS_PATH, IKeybindingsEditorOptions, IKeybindingsEditorPane, IOpenSettingsOptions, IPreferencesEditorModel, IPreferencesService, ISetting, ISettingsEditorOptions, SETTINGS_AUTHORITY, USE_SPLIT_JSON_SETTING, validateSettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { defaultKeybindingsContents, DefaultKeybindingsEditorModel, DefaultRawSettingsEditorModel, DefaultSettings, DefaultSettingsEditorModel, Settings2EditorModel, SettingsEditorModel, WorkspaceConfigurationEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -46,7 +46,6 @@ import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestCont
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IURLService } from 'vs/platform/url/common/url';
-import { PreferencesUrlHandler } from 'vs/workbench/services/preferences/common/preferencesUrlHandler';
 
 const emptyEditableSettingsContent = '{\n}';
 
@@ -92,7 +91,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			modelService.updateModel(model, defaultKeybindingsContents(keybindingService));
 		}));
 
-		this._register(urlService.registerHandler(instantiationService.createInstance(PreferencesUrlHandler)));
+		this._register(urlService.registerHandler(this));
 	}
 
 	readonly defaultKeybindingsResource = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/keybindings.json' });
@@ -596,6 +595,31 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		}
 
 		return position;
+	}
+
+	/**
+	 * Should be of the format:
+	 * 	code://settings/settingName/optionalSettingValue
+	 * Examples:
+	 * 	code://settings/files.autoSave/afterDelay
+	 * 	code://settings/files.autoSave
+	 *
+	 * The optionalSettingValue is not currently used.
+	 */
+	async handleURL(uri: URI): Promise<boolean> {
+		if (uri.authority !== SETTINGS_AUTHORITY) {
+			return false;
+		}
+
+		const openSettingsOptions: IOpenSettingsOptions = {};
+		const settingInfo = uri.path.split('/').filter(part => !!part);
+		if (settingInfo.length === 0) {
+			return false;
+		}
+		openSettingsOptions.query = settingInfo[0];
+
+		this.openSettings(openSettingsOptions);
+		return true;
 	}
 
 	public override dispose(): void {

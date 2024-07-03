@@ -15,10 +15,11 @@ import { IAction } from 'vs/base/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { Schemas } from 'vs/base/common/network';
-
-const codeSettingRegex = /^<a (href)=".*code.*:\/\/settings\/([^\s"\/]+)(?:\/([^"]+))?">/;
+import { IProductService } from 'vs/platform/product/common/productService';
 
 export class SimpleSettingRenderer {
+	private readonly codeSettingRegex: RegExp;
+
 	private _defaultSettings: DefaultSettings;
 	private _updatedSettings = new Map<string, any>(); // setting ID to user's original setting value
 	private _encounteredSettings = new Map<string, ISetting>(); // setting ID to setting
@@ -30,7 +31,9 @@ export class SimpleSettingRenderer {
 		@IPreferencesService private readonly _preferencesService: IPreferencesService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
+		@IProductService productService: IProductService
 	) {
+		this.codeSettingRegex = new RegExp(`^<a (href)="${productService.urlProtocol}://settings/([^\s"/]+)(?:/([^"]+))?">`);
 		this._defaultSettings = new DefaultSettings([], ConfigurationTarget.USER);
 	}
 
@@ -44,12 +47,12 @@ export class SimpleSettingRenderer {
 
 	getHtmlRenderer(): (html: string) => string {
 		return (html): string => {
-			const match = codeSettingRegex.exec(html);
+			const match = this.codeSettingRegex.exec(html);
 			if (match && match.length === 4) {
 				const settingId = match[2];
 				const rendered = this.render(settingId, match[3]);
 				if (rendered) {
-					html = html.replace(codeSettingRegex, rendered);
+					html = html.replace(this.codeSettingRegex, rendered);
 				}
 			}
 			return html;

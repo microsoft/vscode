@@ -9,6 +9,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/uti
 import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SimpleSettingRenderer } from 'vs/workbench/contrib/markdown/browser/markdownSettingRenderer';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
@@ -55,13 +56,15 @@ suite('Markdown Setting Renderer Test', () => {
 	let preferencesService: IPreferencesService;
 	let contextMenuService: IContextMenuService;
 	let settingRenderer: SimpleSettingRenderer;
+	let productService: IProductService;
 
 	suiteSetup(() => {
 		configurationService = new MarkdownConfigurationService();
 		preferencesService = <IPreferencesService>{};
 		contextMenuService = <IContextMenuService>{};
+		productService = <IProductService>{ urlProtocol: 'code-oss' };
 		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration(configuration);
-		settingRenderer = new SimpleSettingRenderer(configurationService, contextMenuService, preferencesService, { publicLog2: () => { } } as any, { writeText: async () => { } } as any);
+		settingRenderer = new SimpleSettingRenderer(configurationService, contextMenuService, preferencesService, { publicLog2: () => { } } as any, { writeText: async () => { } } as any, productService);
 	});
 
 	suiteTeardown(() => {
