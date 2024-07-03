@@ -233,7 +233,7 @@ export class NativeWindow extends Disposable {
 		ipcRenderer.on('vscode:leaveFullScreen', async () => { setFullscreen(false); });
 
 		// Proxy Login Dialog
-		ipcRenderer.on('vscode:openProxyAuthenticationDialog', async (event: unknown, payload: { authInfo: AuthInfo; username?: string; password?: string; replyChannel: string }) => {
+		ipcRenderer.on('vscode:openProxyAuthenticationDialog', async (event: unknown, payload: { authInfo: AuthInfo; username?: string; password?: string; replyChannel: string; }) => {
 			const rememberCredentialsKey = 'window.rememberProxyCredentials';
 			const rememberCredentials = this.storageService.getBoolean(rememberCredentialsKey, StorageScope.APPLICATION);
 			const result = await this.dialogService.input({
@@ -737,19 +737,6 @@ export class NativeWindow extends Disposable {
 			// Refs https://docs.microsoft.com/en-us/windows/win32/api/winnt/ns-winnt-osversioninfoa
 			if (eolReleases.get(majorVersion)?.has(minorVersion)) {
 				const message = localize('windowseolmessage', "{0} on {1} will soon stop receiving updates. Consider upgrading your windows version.", this.productService.nameLong, eolReleases.get(majorVersion)?.get(minorVersion));
-				const actions = [{
-					label: localize('windowseolBannerLearnMore', "Learn More"),
-					href: 'https://aka.ms/vscode-faq-old-windows'
-				}];
-
-				this.bannerService.show({
-					id: 'windowseol.banner',
-					message,
-					ariaLabel: localize('windowseolarialabel', "{0}. Use navigation keys to access banner actions.", message),
-					actions,
-					icon: Codicon.warning
-				});
-
 				this.notificationService.prompt(
 					Severity.Warning,
 					message,
