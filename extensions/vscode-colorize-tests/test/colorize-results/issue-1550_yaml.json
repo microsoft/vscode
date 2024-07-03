@@ -1,7 +1,7 @@
 [
 	{
 		"c": "test1",
-		"t": "source.yaml string.unquoted.plain.out.yaml entity.name.tag.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.mapping.yaml meta.map.key.yaml string.unquoted.other.yaml entity.name.tag.yaml",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -15,7 +15,7 @@
 	},
 	{
 		"c": "  ",
-		"t": "source.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.mapping.yaml punctuation.whitespace.separator.yaml",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -29,7 +29,7 @@
 	},
 	{
 		"c": ":",
-		"t": "source.yaml punctuation.separator.key-value.mapping.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.mapping.yaml meta.map.value.yaml punctuation.separator.map.value.yaml",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -43,7 +43,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.mapping.yaml meta.map.value.yaml punctuation.whitespace.separator.yaml",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -57,21 +57,21 @@
 	},
 	{
 		"c": "dsd",
-		"t": "source.yaml string.unquoted.plain.out.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.mapping.yaml meta.map.value.yaml string.unquoted.other.out.yaml",
 		"r": {
 			"dark_plus": "string: #CE9178",
-			"light_plus": "string.unquoted.plain.out.yaml: #0000FF",
+			"light_plus": "string.unquoted.other.out.yaml: #0000FF",
 			"dark_vs": "string: #CE9178",
-			"light_vs": "string.unquoted.plain.out.yaml: #0000FF",
+			"light_vs": "string.unquoted.other.out.yaml: #0000FF",
 			"hc_black": "string: #CE9178",
 			"dark_modern": "string: #CE9178",
-			"hc_light": "string.unquoted.plain.out.yaml: #0F4A85",
-			"light_modern": "string.unquoted.plain.out.yaml: #0000FF"
+			"hc_light": "string.unquoted.other.out.yaml: #0F4A85",
+			"light_modern": "string.unquoted.other.out.yaml: #0000FF"
 		}
 	},
 	{
 		"c": "test2",
-		"t": "source.yaml string.unquoted.plain.out.yaml entity.name.tag.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.mapping.yaml meta.map.key.yaml string.unquoted.other.yaml entity.name.tag.yaml",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -85,7 +85,7 @@
 	},
 	{
 		"c": "  ",
-		"t": "source.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.mapping.yaml punctuation.whitespace.separator.yaml",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -99,7 +99,7 @@
 	},
 	{
 		"c": ":",
-		"t": "source.yaml punctuation.separator.key-value.mapping.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.mapping.yaml meta.map.value.yaml punctuation.separator.map.value.yaml",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -113,7 +113,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.mapping.yaml meta.map.value.yaml punctuation.whitespace.separator.yaml",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -127,21 +127,21 @@
 	},
 	{
 		"c": "abc-def",
-		"t": "source.yaml string.unquoted.plain.out.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.mapping.yaml meta.map.value.yaml string.unquoted.other.out.yaml",
 		"r": {
 			"dark_plus": "string: #CE9178",
-			"light_plus": "string.unquoted.plain.out.yaml: #0000FF",
+			"light_plus": "string.unquoted.other.out.yaml: #0000FF",
 			"dark_vs": "string: #CE9178",
-			"light_vs": "string.unquoted.plain.out.yaml: #0000FF",
+			"light_vs": "string.unquoted.other.out.yaml: #0000FF",
 			"hc_black": "string: #CE9178",
 			"dark_modern": "string: #CE9178",
-			"hc_light": "string.unquoted.plain.out.yaml: #0F4A85",
-			"light_modern": "string.unquoted.plain.out.yaml: #0000FF"
+			"hc_light": "string.unquoted.other.out.yaml: #0F4A85",
+			"light_modern": "string.unquoted.other.out.yaml: #0000FF"
 		}
 	},
 	{
 		"c": "test-3",
-		"t": "source.yaml string.unquoted.plain.out.yaml entity.name.tag.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.mapping.yaml meta.map.key.yaml string.unquoted.other.yaml entity.name.tag.yaml",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -155,7 +155,7 @@
 	},
 	{
 		"c": "  ",
-		"t": "source.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.mapping.yaml punctuation.whitespace.separator.yaml",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -169,7 +169,7 @@
 	},
 	{
 		"c": ":",
-		"t": "source.yaml punctuation.separator.key-value.mapping.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.mapping.yaml meta.map.value.yaml punctuation.separator.map.value.yaml",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -183,7 +183,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.mapping.yaml meta.map.value.yaml punctuation.whitespace.separator.yaml",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -197,21 +197,21 @@
 	},
 	{
 		"c": "abcdef",
-		"t": "source.yaml string.unquoted.plain.out.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.mapping.yaml meta.map.value.yaml string.unquoted.other.out.yaml",
 		"r": {
 			"dark_plus": "string: #CE9178",
-			"light_plus": "string.unquoted.plain.out.yaml: #0000FF",
+			"light_plus": "string.unquoted.other.out.yaml: #0000FF",
 			"dark_vs": "string: #CE9178",
-			"light_vs": "string.unquoted.plain.out.yaml: #0000FF",
+			"light_vs": "string.unquoted.other.out.yaml: #0000FF",
 			"hc_black": "string: #CE9178",
 			"dark_modern": "string: #CE9178",
-			"hc_light": "string.unquoted.plain.out.yaml: #0F4A85",
-			"light_modern": "string.unquoted.plain.out.yaml: #0000FF"
+			"hc_light": "string.unquoted.other.out.yaml: #0F4A85",
+			"light_modern": "string.unquoted.other.out.yaml: #0000FF"
 		}
 	},
 	{
 		"c": "test-4",
-		"t": "source.yaml string.unquoted.plain.out.yaml entity.name.tag.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.mapping.yaml meta.map.key.yaml string.unquoted.other.yaml entity.name.tag.yaml",
 		"r": {
 			"dark_plus": "entity.name.tag: #569CD6",
 			"light_plus": "entity.name.tag: #800000",
@@ -225,7 +225,7 @@
 	},
 	{
 		"c": "  ",
-		"t": "source.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.mapping.yaml punctuation.whitespace.separator.yaml",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -239,7 +239,7 @@
 	},
 	{
 		"c": ":",
-		"t": "source.yaml punctuation.separator.key-value.mapping.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.mapping.yaml meta.map.value.yaml punctuation.separator.map.value.yaml",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -253,7 +253,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.mapping.yaml meta.map.value.yaml punctuation.whitespace.separator.yaml",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -267,16 +267,16 @@
 	},
 	{
 		"c": "abc-def",
-		"t": "source.yaml string.unquoted.plain.out.yaml",
+		"t": "source.yaml meta.stream.yaml meta.document.yaml meta.mapping.yaml meta.map.value.yaml string.unquoted.other.out.yaml",
 		"r": {
 			"dark_plus": "string: #CE9178",
-			"light_plus": "string.unquoted.plain.out.yaml: #0000FF",
+			"light_plus": "string.unquoted.other.out.yaml: #0000FF",
 			"dark_vs": "string: #CE9178",
-			"light_vs": "string.unquoted.plain.out.yaml: #0000FF",
+			"light_vs": "string.unquoted.other.out.yaml: #0000FF",
 			"hc_black": "string: #CE9178",
 			"dark_modern": "string: #CE9178",
-			"hc_light": "string.unquoted.plain.out.yaml: #0F4A85",
-			"light_modern": "string.unquoted.plain.out.yaml: #0000FF"
+			"hc_light": "string.unquoted.other.out.yaml: #0F4A85",
+			"light_modern": "string.unquoted.other.out.yaml: #0000FF"
 		}
 	}
 ]
