@@ -14,12 +14,20 @@
 let product = { BUILD_INSERT_PRODUCT_CONFIGURATION: 'BUILD_INSERT_PRODUCT_CONFIGURATION' }; // DO NOT MODIFY, PATCHED DURING BUILD
 if (product['BUILD_INSERT_PRODUCT_CONFIGURATION']) {
 	product = require('../product.json'); // Running out of sources
+
+	if (!process.env['VSCODE_DEV']) {
+		console.warn('Product.json configuration is NOT inlined. That is a problem with the build.');
+	}
 }
 
 /** @type object & { BUILD_INSERT_PACKAGE_CONFIGURATION?: string } */
 let pkg = { BUILD_INSERT_PACKAGE_CONFIGURATION: 'BUILD_INSERT_PACKAGE_CONFIGURATION' }; // DO NOT MODIFY, PATCHED DURING BUILD
 if (pkg['BUILD_INSERT_PACKAGE_CONFIGURATION']) {
 	pkg = require('../package.json'); // Running out of sources
+
+	if (!process.env['VSCODE_DEV']) {
+		console.warn('Package.json configuration is NOT inlined. That is a problem with the build.');
+	}
 }
 
 exports.product = product;
