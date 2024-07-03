@@ -206,17 +206,26 @@ async function createServer() {
 		// rewrite the URL so the static server can handle the request correctly
 		request.url = request.url.slice(prefix.length);
 
+		function massagePath(p) {
+			if (args.esm) {
+				// TODO@jrieken FISHY but it enables snapshot
+				// in ESM browser tests
+				p = String(p).replace(prefix, rootDir);
+			}
+			return p;
+		}
+
 		switch (request.url) {
 			case '/remoteMethod/__readFileInTests':
-				return remoteMethod(request, response, p => fs.promises.readFile(p, 'utf-8'));
+				return remoteMethod(request, response, p => fs.promises.readFile(massagePath(p), 'utf-8'));
 			case '/remoteMethod/__writeFileInTests':
-				return remoteMethod(request, response, (p, contents) => fs.promises.writeFile(p, contents));
+				return remoteMethod(request, response, (p, contents) => fs.promises.writeFile(massagePath(p), contents));
 			case '/remoteMethod/__readDirInTests':
-				return remoteMethod(request, response, p => fs.promises.readdir(p));
+				return remoteMethod(request, response, p => fs.promises.readdir(massagePath(p)));
 			case '/remoteMethod/__unlinkInTests':
-				return remoteMethod(request, response, p => fs.promises.unlink(p));
+				return remoteMethod(request, response, p => fs.promises.unlink(massagePath(p)));
 			case '/remoteMethod/__mkdirPInTests':
-				return remoteMethod(request, response, p => fs.promises.mkdir(p, { recursive: true }));
+				return remoteMethod(request, response, p => fs.promises.mkdir(massagePath(p), { recursive: true }));
 			default:
 				return serveStatic.handle(request, response);
 		}
