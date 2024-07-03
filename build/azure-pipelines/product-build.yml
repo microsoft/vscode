@@ -207,9 +207,7 @@ stages:
       - job: SignMacos
         timeoutInMinutes: 90
         pool:
-          name: Azure Pipelines
-          image: macOS-13
-          os: macOS
+          vmImage: 'macOS-latest'
         steps:
           - template: esrp.yml
 
