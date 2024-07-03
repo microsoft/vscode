@@ -5,22 +5,20 @@
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.date = void 0;
-const path = require("path");
-const fs = require("fs");
-let resolvedDate = undefined;
-if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
-    // When building in CI make sure to use
-    // the same date for all artifacts
-    if (!fs.existsSync(path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, 'date'))) {
-        resolvedDate = new Date().toISOString();
-        fs.writeFileSync(path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, 'date'), resolvedDate);
+function getRoundedBuildDate() {
+    const now = new Date();
+    const minutes = now.getMinutes();
+    if (minutes >= 30) {
+        now.setHours(now.getHours() + 1);
     }
-    else {
-        resolvedDate = fs.readFileSync(path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, 'date')).toString();
-    }
+    now.setMinutes(0, 0, 0);
+    return now;
 }
-if (!resolvedDate) {
-    resolvedDate = new Date().toISOString();
-}
-exports.date = resolvedDate;
+/**
+ * An attempt to produce a stable date for the build that can be
+ * used across processes and build steps that run in parallel almost
+ * at the same time. The current time is rounded up or down to the
+ * closest hour.
+ */
+exports.date = getRoundedBuildDate();
 //# sourceMappingURL=date.js.map
