@@ -104,7 +104,7 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 					};
 				}
 
-				const thisPriorityInfo = coalesce([<NotebookPriorityInfo>{ isFromSettings: false, filenamePatterns: includes }, ...allPriorityInfo.get(viewType) ?? []]);
+				const thisPriorityInfo = coalesce<NotebookPriorityInfo>([{ isFromSettings: false, filenamePatterns: includes }, ...allPriorityInfo.get(viewType) ?? []]);
 				const otherEditorsPriorityInfo = Array.from(allPriorityInfo.keys())
 					.flatMap(key => {
 						if (key !== viewType) {

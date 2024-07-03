@@ -15,9 +15,10 @@ import { isObject, isString } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IHeaders } from 'vs/base/parts/request/common/request';
 import { localize } from 'vs/nls';
-import { allSettings, ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { allSettings, ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry, IRegisteredConfigurationPropertySchema, getAllConfigurationProperties, parseScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { EXTENSION_IDENTIFIER_PATTERN, IExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -30,12 +31,40 @@ export function getDisallowedIgnoredSettings(): string[] {
 	return Object.keys(allSettings).filter(setting => !!allSettings[setting].disallowSyncIgnore);
 }
 
-export function getDefaultIgnoredSettings(): string[] {
+export function getDefaultIgnoredSettings(excludeExtensions: boolean = false): string[] {
 	const allSettings = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
-	const ignoreSyncSettings = Object.keys(allSettings).filter(setting => !!allSettings[setting].ignoreSync);
-	const machineSettings = Object.keys(allSettings).filter(setting => allSettings[setting].scope === ConfigurationScope.MACHINE || allSettings[setting].scope === ConfigurationScope.MACHINE_OVERRIDABLE);
+	const ignoredSettings = getIgnoredSettings(allSettings, excludeExtensions);
 	const disallowedSettings = getDisallowedIgnoredSettings();
-	return distinct([...ignoreSyncSettings, ...machineSettings, ...disallowedSettings]);
+	return distinct([...ignoredSettings, ...disallowedSettings]);
+}
+
+export function getIgnoredSettingsForExtension(manifest: IExtensionManifest): string[] {
+	if (!manifest.contributes?.configuration) {
+		return [];
+	}
+	const configurations = Array.isArray(manifest.contributes.configuration) ? manifest.contributes.configuration : [manifest.contributes.configuration];
+	if (!configurations.length) {
+		return [];
+	}
+	const properties = getAllConfigurationProperties(configurations);
+	return getIgnoredSettings(properties, false);
+}
+
+function getIgnoredSettings(properties: IStringDictionary<IRegisteredConfigurationPropertySchema>, excludeExtensions: boolean): string[] {
+	const ignoredSettings = new Set<string>();
+	for (const key in properties) {
+		if (excludeExtensions && !!properties[key].source) {
+			continue;
+		}
+		const scope = isString(properties[key].scope) ? parseScope(properties[key].scope) : properties[key].scope;
+		if (properties[key].ignoreSync
+			|| scope === ConfigurationScope.MACHINE
+			|| scope === ConfigurationScope.MACHINE_OVERRIDABLE
+		) {
+			ignoredSettings.add(key);
+		}
+	}
+	return [...ignoredSettings.values()];
 }
 
 export const USER_DATA_SYNC_CONFIGURATION_SCOPE = 'settingsSync';
@@ -591,7 +620,7 @@ export interface IUserDataSyncUtilService {
 	readonly _serviceBrand: undefined;
 	resolveUserBindings(userbindings: string[]): Promise<IStringDictionary<string>>;
 	resolveFormattingOptions(resource: URI): Promise<FormattingOptions>;
-	resolveDefaultIgnoredSettings(): Promise<string[]>;
+	resolveDefaultCoreIgnoredSettings(): Promise<string[]>;
 }
 
 export const IUserDataSyncLogService = createDecorator<IUserDataSyncLogService>('IUserDataSyncLogService');

@@ -4237,6 +4237,7 @@ registerThemingParticipant((theme, collector) => {
 		// Override inactive selection bg
 		const inputBackgroundColor = theme.getColor(inputBackground);
 		if (inputBackgroundColor) {
+			collector.addRule(`.scm-view .scm-editor-container .monaco-editor-background { background-color: ${inputBackgroundColor}; } `);
 			collector.addRule(`.scm-view .scm-editor-container .monaco-editor .selected-text { background-color: ${inputBackgroundColor.transparent(0.4)}; }`);
 		}
 
@@ -4246,10 +4247,6 @@ registerThemingParticipant((theme, collector) => {
 			collector.addRule(`.scm-view .scm-editor-container .monaco-editor .view-line span.inline-selected-text { color: ${inputForegroundColor}; }`);
 		}
 
-		const backgroundColor = theme.getColor(inputBackground);
-		if (backgroundColor) {
-			collector.addRule(`.scm-view .scm-editor-container .monaco-editor-background { background-color: ${backgroundColor}; } `);
-		}
 		collector.addRule(`.scm-view .scm-editor-container .monaco-editor .focused .selected-text { background-color: ${selectionBackgroundColor}; }`);
 	} else {
 		// Use editor selection color if theme has not set a selection background color
