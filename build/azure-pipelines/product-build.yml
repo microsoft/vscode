@@ -1,214 +1,220 @@
-# pr: none
+pr: none
 
-# schedules:
-#   - cron: "0 5 * * Mon-Fri"
-#     displayName: Mon-Fri at 7:00
-#     branches:
-#       include:
-#         - main
+schedules:
+  - cron: "0 5 * * Mon-Fri"
+    displayName: Mon-Fri at 7:00
+    branches:
+      include:
+        - main
 
 trigger:
   branches:
     include: ["main", "release/*"]
 
-# parameters:
-#   - name: VSCODE_QUALITY
-#     displayName: Quality
-#     type: string
-#     default: insider
-#     values:
-#       - exploration
-#       - insider
-#       - stable
-#   - name: NPM_REGISTRY
-#     displayName: "Custom NPM Registry"
-#     type: string
-#     default: 'https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/npm/registry/'
-#   - name: CARGO_REGISTRY
-#     displayName: "Custom Cargo Registry"
-#     type: string
-#     default: 'sparse+https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/Cargo/index/'
-#   - name: VSCODE_BUILD_WIN32
-#     displayName: "🎯 Windows x64"
-#     type: boolean
-#     default: true
-#   - name: VSCODE_BUILD_WIN32_ARM64
-#     displayName: "🎯 Windows arm64"
-#     type: boolean
-#     default: true
-#   - name: VSCODE_BUILD_LINUX
-#     displayName: "🎯 Linux x64"
-#     type: boolean
-#     default: true
-#   - name: VSCODE_BUILD_LINUX_X64_LEGACY_SERVER
-#     displayName: "🎯 Linux x64 Legacy Server"
-#     type: boolean
-#     default: true
-#   - name: VSCODE_BUILD_LINUX_ARM64
-#     displayName: "🎯 Linux arm64"
-#     type: boolean
-#     default: true
-#   - name: VSCODE_BUILD_LINUX_ARM64_LEGACY_SERVER
-#     displayName: "🎯 Linux arm64 Legacy Server"
-#     type: boolean
-#     default: true
-#   - name: VSCODE_BUILD_LINUX_ARMHF
-#     displayName: "🎯 Linux armhf"
-#     type: boolean
-#     default: true
-#   - name: VSCODE_BUILD_LINUX_ARMHF_LEGACY_SERVER
-#     displayName: "🎯 Linux armhf Legacy Server"
-#     type: boolean
-#     default: true
-#   - name: VSCODE_BUILD_ALPINE
-#     displayName: "🎯 Alpine x64"
-#     type: boolean
-#     default: true
-#   - name: VSCODE_BUILD_ALPINE_ARM64
-#     displayName: "🎯 Alpine arm64"
-#     type: boolean
-#     default: true
-#   - name: VSCODE_BUILD_MACOS
-#     displayName: "🎯 macOS x64"
-#     type: boolean
-#     default: true
-#   - name: VSCODE_BUILD_MACOS_ARM64
-#     displayName: "🎯 macOS arm64"
-#     type: boolean
-#     default: true
-#   - name: VSCODE_BUILD_MACOS_UNIVERSAL
-#     displayName: "🎯 macOS universal"
-#     type: boolean
-#     default: true
-#   - name: VSCODE_BUILD_WEB
-#     displayName: "🎯 Web"
-#     type: boolean
-#     default: true
-#   - name: VSCODE_PUBLISH
-#     displayName: "Publish to builds.code.visualstudio.com"
-#     type: boolean
-#     default: true
-#   - name: VSCODE_RELEASE
-#     displayName: "Release build if successful"
-#     type: boolean
-#     default: false
-#   - name: VSCODE_COMPILE_ONLY
-#     displayName: "Run Compile stage exclusively"
-#     type: boolean
-#     default: false
-#   - name: VSCODE_STEP_ON_IT
-#     displayName: "Skip tests"
-#     type: boolean
-#     default: false
+parameters:
+  - name: VSCODE_QUALITY
+    displayName: Quality
+    type: string
+    default: insider
+    values:
+      - exploration
+      - insider
+      - stable
+  - name: NPM_REGISTRY
+    displayName: "Custom NPM Registry"
+    type: string
+    default: 'https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/npm/registry/'
+  - name: CARGO_REGISTRY
+    displayName: "Custom Cargo Registry"
+    type: string
+    default: 'sparse+https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/Cargo/index/'
+  - name: VSCODE_BUILD_WIN32
+    displayName: "🎯 Windows x64"
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_WIN32_ARM64
+    displayName: "🎯 Windows arm64"
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_LINUX
+    displayName: "🎯 Linux x64"
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_LINUX_X64_LEGACY_SERVER
+    displayName: "🎯 Linux x64 Legacy Server"
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_LINUX_ARM64
+    displayName: "🎯 Linux arm64"
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_LINUX_ARM64_LEGACY_SERVER
+    displayName: "🎯 Linux arm64 Legacy Server"
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_LINUX_ARMHF
+    displayName: "🎯 Linux armhf"
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_LINUX_ARMHF_LEGACY_SERVER
+    displayName: "🎯 Linux armhf Legacy Server"
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_ALPINE
+    displayName: "🎯 Alpine x64"
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_ALPINE_ARM64
+    displayName: "🎯 Alpine arm64"
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_MACOS
+    displayName: "🎯 macOS x64"
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_MACOS_ARM64
+    displayName: "🎯 macOS arm64"
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_MACOS_UNIVERSAL
+    displayName: "🎯 macOS universal"
+    type: boolean
+    default: true
+  - name: VSCODE_BUILD_WEB
+    displayName: "🎯 Web"
+    type: boolean
+    default: true
+  - name: VSCODE_PUBLISH
+    displayName: "Publish to builds.code.visualstudio.com"
+    type: boolean
+    default: true
+  - name: VSCODE_RELEASE
+    displayName: "Release build if successful"
+    type: boolean
+    default: false
+  - name: VSCODE_COMPILE_ONLY
+    displayName: "Run Compile stage exclusively"
+    type: boolean
+    default: false
+  - name: VSCODE_STEP_ON_IT
+    displayName: "Skip tests"
+    type: boolean
+    default: false
 
-# variables:
-#   - name: VSCODE_PRIVATE_BUILD
-#     value: ${{ ne(variables['Build.Repository.Uri'], 'https://github.com/microsoft/vscode.git') }}
-#   - name: NPM_REGISTRY
-#     value: ${{ parameters.NPM_REGISTRY }}
-#   - name: CARGO_REGISTRY
-#     value: ${{ parameters.CARGO_REGISTRY }}
-#   - name: VSCODE_QUALITY
-#     value: ${{ parameters.VSCODE_QUALITY }}
-#   - name: VSCODE_BUILD_STAGE_WINDOWS
-#     value: ${{ or(eq(parameters.VSCODE_BUILD_WIN32, true), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}
-#   - name: VSCODE_BUILD_STAGE_LINUX
-#     value: ${{ or(eq(parameters.VSCODE_BUILD_LINUX, true), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true)) }}
-#   - name: VSCODE_BUILD_STAGE_LINUX_LEGACY_SERVER
-#     value: ${{ or(eq(parameters.VSCODE_BUILD_LINUX_X64_LEGACY_SERVER, true), eq(parameters.VSCODE_BUILD_LINUX_ARMHF_LEGACY_SERVER, true), eq(parameters.VSCODE_BUILD_LINUX_ARM64_LEGACY_SERVER, true)) }}
-#   - name: VSCODE_BUILD_STAGE_ALPINE
-#     value: ${{ or(eq(parameters.VSCODE_BUILD_ALPINE, true), eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true)) }}
-#   - name: VSCODE_BUILD_STAGE_MACOS
-#     value: ${{ or(eq(parameters.VSCODE_BUILD_MACOS, true), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true)) }}
-#   - name: VSCODE_BUILD_STAGE_WEB
-#     value: ${{ eq(parameters.VSCODE_BUILD_WEB, true) }}
-#   - name: VSCODE_CIBUILD
-#     value: ${{ in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI') }}
-#   - name: VSCODE_PUBLISH
-#     value: ${{ and(eq(parameters.VSCODE_PUBLISH, true), eq(variables.VSCODE_CIBUILD, false), eq(parameters.VSCODE_COMPILE_ONLY, false)) }}
-#   - name: VSCODE_SCHEDULEDBUILD
-#     value: ${{ eq(variables['Build.Reason'], 'Schedule') }}
-#   - name: VSCODE_7PM_BUILD
-#     value: ${{ in(variables['Build.Reason'], 'BuildCompletion', 'ResourceTrigger') }}
-#   - name: VSCODE_STEP_ON_IT
-#     value: ${{ eq(parameters.VSCODE_STEP_ON_IT, true) }}
-#   - name: VSCODE_BUILD_MACOS_UNIVERSAL
-#     value: ${{ and(eq(parameters.VSCODE_BUILD_MACOS, true), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true), eq(parameters.VSCODE_BUILD_MACOS_UNIVERSAL, true)) }}
-#   - name: PRSS_CDN_URL
-#     value: https://vscode.download.prss.microsoft.com/dbazure/download
-#   - name: PRSS_RELEASE_TENANT_ID
-#     value: 975f013f-7f24-47e8-a7d3-abc4752bf346
-#   - name: PRSS_RELEASE_CLIENT_ID
-#     value: c24324f7-e65f-4c45-8702-ed2d4c35df99
-#   - name: PRSS_PROVISION_TENANT_ID
-#     value: 72f988bf-86f1-41af-91ab-2d7cd011db47
-#   - name: AZURE_DOCUMENTDB_ENDPOINT
-#     value: https://vscode.documents.azure.com:443/
-#   - name: VSCODE_MIXIN_REPO
-#     value: microsoft/vscode-distro
-#   - name: skipComponentGovernanceDetection
-#     value: true
-#   - name: Codeql.SkipTaskAutoInjection
-#     value: true
-#   - name: ARTIFACT_PREFIX
-#     value: ''
+variables:
+  - name: VSCODE_PRIVATE_BUILD
+    value: ${{ ne(variables['Build.Repository.Uri'], 'https://github.com/microsoft/vscode.git') }}
+  - name: NPM_REGISTRY
+    value: ${{ parameters.NPM_REGISTRY }}
+  - name: CARGO_REGISTRY
+    value: ${{ parameters.CARGO_REGISTRY }}
+  - name: VSCODE_QUALITY
+    value: ${{ parameters.VSCODE_QUALITY }}
+  - name: VSCODE_BUILD_STAGE_WINDOWS
+    value: ${{ or(eq(parameters.VSCODE_BUILD_WIN32, true), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}
+  - name: VSCODE_BUILD_STAGE_LINUX
+    value: ${{ or(eq(parameters.VSCODE_BUILD_LINUX, true), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true)) }}
+  - name: VSCODE_BUILD_STAGE_LINUX_LEGACY_SERVER
+    value: ${{ or(eq(parameters.VSCODE_BUILD_LINUX_X64_LEGACY_SERVER, true), eq(parameters.VSCODE_BUILD_LINUX_ARMHF_LEGACY_SERVER, true), eq(parameters.VSCODE_BUILD_LINUX_ARM64_LEGACY_SERVER, true)) }}
+  - name: VSCODE_BUILD_STAGE_ALPINE
+    value: ${{ or(eq(parameters.VSCODE_BUILD_ALPINE, true), eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true)) }}
+  - name: VSCODE_BUILD_STAGE_MACOS
+    value: ${{ or(eq(parameters.VSCODE_BUILD_MACOS, true), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true)) }}
+  - name: VSCODE_BUILD_STAGE_WEB
+    value: ${{ eq(parameters.VSCODE_BUILD_WEB, true) }}
+  - name: VSCODE_CIBUILD
+    value: ${{ in(variables['Build.Reason'], 'IndividualCI', 'BatchedCI') }}
+  - name: VSCODE_PUBLISH
+    value: ${{ and(eq(parameters.VSCODE_PUBLISH, true), eq(variables.VSCODE_CIBUILD, false), eq(parameters.VSCODE_COMPILE_ONLY, false)) }}
+  - name: VSCODE_SCHEDULEDBUILD
+    value: ${{ eq(variables['Build.Reason'], 'Schedule') }}
+  - name: VSCODE_7PM_BUILD
+    value: ${{ in(variables['Build.Reason'], 'BuildCompletion', 'ResourceTrigger') }}
+  - name: VSCODE_STEP_ON_IT
+    value: ${{ eq(parameters.VSCODE_STEP_ON_IT, true) }}
+  - name: VSCODE_BUILD_MACOS_UNIVERSAL
+    value: ${{ and(eq(parameters.VSCODE_BUILD_MACOS, true), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true), eq(parameters.VSCODE_BUILD_MACOS_UNIVERSAL, true)) }}
+  - name: PRSS_CDN_URL
+    value: https://vscode.download.prss.microsoft.com/dbazure/download
+  - name: PRSS_RELEASE_TENANT_ID
+    value: 975f013f-7f24-47e8-a7d3-abc4752bf346
+  - name: PRSS_RELEASE_CLIENT_ID
+    value: c24324f7-e65f-4c45-8702-ed2d4c35df99
+  - name: PRSS_PROVISION_TENANT_ID
+    value: 72f988bf-86f1-41af-91ab-2d7cd011db47
+  - name: AZURE_DOCUMENTDB_ENDPOINT
+    value: https://vscode.documents.azure.com:443/
+  - name: VSCODE_MIXIN_REPO
+    value: microsoft/vscode-distro
+  - name: skipComponentGovernanceDetection
+    value: true
+  - name: Codeql.SkipTaskAutoInjection
+    value: true
+  - name: ARTIFACT_PREFIX
+    value: ''
 
-# name: "$(Date:yyyyMMdd).$(Rev:r) (${{ parameters.VSCODE_QUALITY }})"
+name: "$(Date:yyyyMMdd).$(Rev:r) (${{ parameters.VSCODE_QUALITY }})"
 
-# resources:
-#   pipelines:
-#     - pipeline: vscode-7pm-kick-off
-#       source: 'VS Code 7PM Kick-Off'
-#       trigger: true
-#   repositories:
-#     - repository: 1ESPipelines
-#       type: git
-#       name: 1ESPipelineTemplates/1ESPipelineTemplates
-#       ref: refs/tags/release
+resources:
+  pipelines:
+    - pipeline: vscode-7pm-kick-off
+      source: 'VS Code 7PM Kick-Off'
+      trigger: true
+  repositories:
+    - repository: 1ESPipelines
+      type: git
+      name: 1ESPipelineTemplates/1ESPipelineTemplates
+      ref: refs/tags/release
 
-# extends:
-#   template: v1/1ES.Official.PipelineTemplate.yml@1esPipelines
-#   parameters:
-#     sdl:
-#       tsa:
-#         enabled: true
-#         config:
-#           codebaseName: 'devdiv_$(Build.Repository.Name)'
-#           serviceTreeID: '79c048b2-322f-4ed5-a1ea-252a1250e4b3'
-#           instanceUrl: 'https://devdiv.visualstudio.com/defaultcollection'
-#           projectName: 'DevDiv'
-#           areaPath: "DevDiv\\VS Code (compliance tracking only)\\Visual Studio Code Client"
-#           notificationAliases: ['monacotools@microsoft.com']
-#           validateToolOutput: None
-#           allTools: true
-#       codeql:
-#         compiled:
-#           enabled: true
-#         runSourceLanguagesInSourceAnalysis: true
-#       credscan:
-#         suppressionsFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/CredScanSuppressions.json
-#       eslint:
-#         enabled: true
-#         enableExclusions: true
-#         exclusionsFilePath: $(Build.SourcesDirectory)/.eslintignore
-#       sourceAnalysisPool: 1es-windows-2022-x64
-#     containers:
-#       snapcraft:
-#         image: vscodehub.azurecr.io/vscode-linux-build-agent:snapcraft-x64
-#       ubuntu-2004-arm64:
-#         image: onebranch.azurecr.io/linux/ubuntu-2004-arm64:latest
-#     authenticatedContainerRegistries:
-#       - registry: onebranch.azurecr.io
-#         tenant: AME
-#         identity: 1ESPipelineIdentity
-
-jobs:
-  - job: SignMacos
-    timeoutInMinutes: 90
-    pool:
-      vmImage: 'macOS-13'
-    steps:
-      - template: esrp.yml
+extends:
+  template: v1/1ES.Official.PipelineTemplate.yml@1esPipelines
+  parameters:
+    sdl:
+      tsa:
+        enabled: true
+        config:
+          codebaseName: 'devdiv_$(Build.Repository.Name)'
+          serviceTreeID: '79c048b2-322f-4ed5-a1ea-252a1250e4b3'
+          instanceUrl: 'https://devdiv.visualstudio.com/defaultcollection'
+          projectName: 'DevDiv'
+          areaPath: "DevDiv\\VS Code (compliance tracking only)\\Visual Studio Code Client"
+          notificationAliases: ['monacotools@microsoft.com']
+          validateToolOutput: None
+          allTools: true
+      codeql:
+        compiled:
+          enabled: true
+        runSourceLanguagesInSourceAnalysis: true
+      credscan:
+        suppressionsFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/CredScanSuppressions.json
+      eslint:
+        enabled: true
+        enableExclusions: true
+        exclusionsFilePath: $(Build.SourcesDirectory)/.eslintignore
+      sourceAnalysisPool: 1es-windows-2022-x64
+    containers:
+      snapcraft:
+        image: vscodehub.azurecr.io/vscode-linux-build-agent:snapcraft-x64
+      ubuntu-2004-arm64:
+        image: onebranch.azurecr.io/linux/ubuntu-2004-arm64:latest
+    authenticatedContainerRegistries:
+      - registry: onebranch.azurecr.io
+        tenant: AME
+        identity: 1ESPipelineIdentity
+    stages:
+      - stage: SignMacos
+        jobs:
+          - deployment: SignMacOS
+            environment: 'SignMacOS'
+            pool:
+              name: Azure Pipelines
+              image: macOS-13
+              os: macOS
+            strategy:
+              runOnce:
+                deploy:
+                  steps:
+                    - template: build/azure-pipelines/esrp.yml@self
 
       # - stage: Compile
       #   jobs:
