@@ -394,7 +394,11 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 				.pipe(rename('bin/' + product.applicationName)));
 		}
 
-		result = inlineMeta(result, commonJSEntryPoints, packageJsonContents, productJsonContents);
+		result = inlineMeta(result, {
+			targets: commonJSEntryPoints.map(entryPoint => ({ path: entryPoint, base: '.' })),
+			packageJsonFn: () => packageJsonContents,
+			productJsonFn: () => productJsonContents
+		});
 
 		return result.pipe(vfs.dest(destination));
 	};
