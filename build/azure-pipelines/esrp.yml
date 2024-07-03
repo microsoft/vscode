@@ -12,7 +12,7 @@ steps:
     inputs:
       ConnectedServiceName: 'esrp-codesign'
       FolderPath: '$(Build.ArtifactStagingDirectory)'
-      Pattern: 'file.txt'
+      Pattern: 'VSCode-darwin.zip'
       UseMinimatch: true
       signConfigType: inlineSignParams
       inlineOperation: |
