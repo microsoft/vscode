@@ -201,15 +201,14 @@ trigger:
 #       - registry: onebranch.azurecr.io
 #         tenant: AME
 #         identity: 1ESPipelineIdentity
-stages:
-  - stage: SignMacos
-    jobs:
-      - job: SignMacos
-        timeoutInMinutes: 90
-        pool:
-          vmImage: 'macOS-latest'
-        steps:
-          - template: esrp.yml
+
+jobs:
+  - job: SignMacos
+    timeoutInMinutes: 90
+    pool:
+      vmImage: 'macOS-13'
+    steps:
+      - template: esrp.yml
 
       # - stage: Compile
       #   jobs:
