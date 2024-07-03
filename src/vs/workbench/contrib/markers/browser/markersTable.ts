@@ -187,8 +187,8 @@ class MarkerMessageColumnRenderer implements ITableRenderer<MarkerTableItem, IMa
 	}
 
 	renderElement(element: MarkerTableItem, index: number, templateData: IMarkerHighlightedLabelColumnTemplateData, height: number | undefined): void {
-		templateData.columnElement.title = element.marker.message;
-		templateData.highlightedLabel.set(element.marker.message, element.messageMatches);
+		templateData.columnElement.title = element.marker.message.toString();
+		templateData.highlightedLabel.set(element.marker.message.toString(), element.messageMatches);
 	}
 
 	disposeTemplate(templateData: IMarkerHighlightedLabelColumnTemplateData): void {
@@ -452,7 +452,7 @@ export class MarkersTable extends Disposable implements IProblemsWidget {
 				if (this.filterOptions.textFilter.text) {
 					const sourceMatches = marker.marker.source ? FilterOptions._filter(this.filterOptions.textFilter.text, marker.marker.source) ?? undefined : undefined;
 					const codeMatches = marker.marker.code ? FilterOptions._filter(this.filterOptions.textFilter.text, typeof marker.marker.code === 'string' ? marker.marker.code : marker.marker.code.value) ?? undefined : undefined;
-					const messageMatches = FilterOptions._messageFilter(this.filterOptions.textFilter.text, marker.marker.message) ?? undefined;
+					const messageMatches = FilterOptions._messageFilter(this.filterOptions.textFilter.text, marker.marker.message.toString()) ?? undefined;
 					const fileMatches = FilterOptions._messageFilter(this.filterOptions.textFilter.text, this.labelService.getUriLabel(marker.resource, { relative: true })) ?? undefined;
 					const ownerMatches = FilterOptions._messageFilter(this.filterOptions.textFilter.text, marker.marker.owner) ?? undefined;
 
