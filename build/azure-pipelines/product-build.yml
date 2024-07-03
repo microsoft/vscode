@@ -167,7 +167,7 @@ resources:
       ref: refs/tags/release
 
 extends:
-  template: v1/1ES.Unofficial.PipelineTemplate.yml@1esPipelines
+  template: v1/1ES.Official.PipelineTemplate.yml@1esPipelines
   parameters:
     sdl:
       tsa:
@@ -182,8 +182,9 @@ extends:
           validateToolOutput: None
           allTools: true
       codeql:
+        binaryLanguages: cpp,java,go
         compiled:
-          enabled: false
+          enabled: true
         runSourceLanguagesInSourceAnalysis: true
       credscan:
         suppressionsFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/CredScanSuppressions.json
