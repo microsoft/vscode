@@ -401,7 +401,7 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 		}
 
 		result = inlineMeta(result, {
-			targets: commonJSEntryPoints.map(entryPoint => ({ path: entryPoint, base: '.' })),
+			targets: commonJSEntryPoints,
 			packageJsonFn: () => packageJsonContents,
 			productJsonFn: () => productJsonContents
 		});
