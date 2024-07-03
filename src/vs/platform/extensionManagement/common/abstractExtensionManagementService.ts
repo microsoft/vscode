@@ -196,6 +196,24 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 		this.participants.push(participant);
 	}
 
+	async resetPinnedStateForAllUserExtensions(pinned: boolean): Promise<void> {
+		try {
+			await this.joinAllSettled(this.userDataProfilesService.profiles.map(
+				async profile => {
+					const extensions = await this.getInstalled(ExtensionType.User, profile.extensionsResource);
+					await this.joinAllSettled(extensions.map(
+						async extension => {
+							if (extension.pinned !== pinned) {
+								await this.updateMetadata(extension, { pinned }, profile.extensionsResource);
+							}
+						}));
+				}));
+		} catch (error) {
+			this.logService.error('Error while resetting pinned state for all user extensions', getErrorMessage(error));
+			throw error;
+		}
+	}
+
 	protected async installExtensions(extensions: InstallableExtension[]): Promise<InstallExtensionResult[]> {
 		const installExtensionResultsMap = new Map<string, InstallExtensionResult & { profileLocation: URI }>();
 		const installingExtensionsMap = new Map<string, { task: IInstallExtensionTask; root: IInstallExtensionTask | undefined }>();

@@ -18,7 +18,7 @@ suite("CodeEditorWidget", () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function withTestFixture(
-		cb: (args: { editor: ICodeEditor; viewModel: ViewModel; log: Log; derived: IObservable<string>; }) => void
+		cb: (args: { editor: ICodeEditor; viewModel: ViewModel; log: Log; derived: IObservable<string> }) => void
 	) {
 		withEditorSetupTestFixture(undefined, cb);
 	}
@@ -27,7 +27,7 @@ suite("CodeEditorWidget", () => {
 		preSetupCallback:
 			| ((editor: ICodeEditor, disposables: DisposableStore) => void)
 			| undefined,
-		cb: (args: { editor: ICodeEditor; viewModel: ViewModel; log: Log; derived: IObservable<string>; }) => void
+		cb: (args: { editor: ICodeEditor; viewModel: ViewModel; log: Log; derived: IObservable<string> }) => void
 	) {
 		withTestCodeEditor("hello world", {}, (editor, viewModel) => {
 			const disposables = new DisposableStore();
