@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isObject } from 'vs/base/common/types';
-
 export type JSONSchemaType = 'string' | 'number' | 'integer' | 'boolean' | 'null' | 'array' | 'object';
 
 export interface IJSONSchema {
@@ -121,67 +119,33 @@ export type SchemaToType<T> = T extends { type: 'string' }
 	? Array<SchemaToType<I>>
 	: never;
 
-interface Partition { stringified: string; schemas: IJSONSchema[]; id: string }
-
-class Partitions {
-	private partitionByString: Map<string, Partition> | undefined;
-	private nodeToPartition: Map<IJSONSchema, Partition> | undefined;
-
-	private idCount: number = 0;
-
-	constructor(private firstSchema: IJSONSchema, private property: string) {
-	}
-
-	private addNewDefinition(str: string, schema: IJSONSchema): Partition {
-		const def = { stringified: str, schemas: [this.firstSchema], id: `${this.property}-${this.idCount++}` };
-		this.partitionByString!.set(str, def);
-		this.nodeToPartition!.set(schema, def);
-		return def;
-	}
-
-	public add(schema: IJSONSchema): boolean {
-		if (this.partitionByString === undefined || this.nodeToPartition === undefined) {
-			this.partitionByString = new Map<string, Partition>();
-			this.nodeToPartition = new Map<IJSONSchema, Partition>();
-			this.addNewDefinition(JSON.stringify(this.firstSchema), this.firstSchema);
-		}
-
-		const str = JSON.stringify(schema);
-		const def = this.partitionByString.get(str);
-		if (!def) {
-			this.addNewDefinition(str, schema);
-			return false;
-		}
-		def.schemas.push(schema);
-		this.nodeToPartition.set(schema, def);
-		return true;
-	}
-
-	public get(schema: IJSONSchema): Partition | undefined {
-		return this.nodeToPartition?.get(schema);
-	}
-}
-
+interface Ref { schemas: IJSONSchema[]; id?: string }
 
 export function getCompressedContent(schema: IJSONSchema): string {
-	const start = new Date();
 	let hasDups = false;
 
-	const groupByProperty = new Map<string, Partitions>();
-	const visitSchemas = (property: string, next: IJSONSchema) => {
-		let group = groupByProperty.get(property);
-		if (!group) {
-			group = new Partitions(next, property);
-			groupByProperty.set(property, group);
+	const refByString = new Map<string, Ref>();
+	const nodeToRef = new Map<IJSONSchema, Ref>();
+	const visitSchemas = (next: IJSONSchema) => {
+		const val = JSON.stringify(next);
+		if (val.length < 30) {
+			// the $ref takes around 25 chars, so we don't save anything
 			return true;
 		}
-		const isDup = group.add(next);
-		if (isDup) {
-			hasDups = true;
+		const ref = refByString.get(val);
+		if (!ref) {
+			const newRef = { schemas: [next] };
+			refByString.set(val, newRef);
+			nodeToRef.set(next, newRef);
+			return true;
 		}
-		return !isDup;
+		ref.schemas.push(next);
+		nodeToRef.set(next, ref);
+		hasDups = true;
+		return false;
 	};
 	traverseNodes(schema, visitSchemas);
+	refByString.clear();
 
 	if (!hasDups) {
 		return JSON.stringify(schema);
@@ -192,30 +156,50 @@ export function getCompressedContent(schema: IJSONSchema): string {
 		defNodeName += '_';
 	}
 
-	let dups = 0;
+	// used to collect all schemas that are later put in `$defs`. The index in the array is the id of the schema.
+	const definitions: IJSONSchema[] = [];
 
-	const definitions: Record<string, IJSONSchema> = {};
-	const str = JSON.stringify(schema, (key, value) => {
-		const partitions = groupByProperty.get(key);
-		if (partitions) {
-			const def = partitions.get(value);
-			if (def && def.schemas.length > 1) {
-				dups++;
-				definitions[def.id] = def.schemas[0];
-				return { $ref: `#${defNodeName}/${def.id}` };
+	function stringify(root: IJSONSchema): string {
+		return JSON.stringify(root, (_key: string, value: any) => {
+			if (value !== root) {
+				const same = nodeToRef.get(value);
+				if (same && same.schemas.length > 1) {
+					if (!same.id) {
+						same.id = `_${definitions.length}`;
+						definitions.push(same.schemas[0]);
+					}
+					return { $ref: `#/${defNodeName}/${same.id}` };
+				}
 			}
-		}
-		return value;
-	});
+			return value;
+		});
+	}
 
-	console.log(`Found ${dups} duplicates in schema. Took ${new Date().getTime() - start.getTime()}ms.`);
+	// stringify the schema and replace duplicate subtrees with $ref
+	// this will add new items to the definitions array
+	const str = stringify(schema);
 
-	return `${str.substring(0, str.length - 1)},"${defNodeName}":${JSON.stringify(definitions)}`;
+	// now stringify the definitions. Each invication of stringify cann add new items to the definitions array, so the length can grow while we iterate
+	const defStrings: string[] = [];
+	for (let i = 0; i < definitions.length; i++) {
+		defStrings.push(`"_${i}":${stringify(definitions[i])}`);
+	}
+	if (defStrings.length) {
+		return `${str.substring(0, str.length - 1)},"${defNodeName}":{${defStrings.join(',')}}}`;
+	}
+	return str;
 }
 
 type IJSONSchemaRef = IJSONSchema | boolean;
 
-function traverseNodes(root: IJSONSchema, visit: (property: string, schema: IJSONSchema) => boolean) {
+function isObject(thing: any): thing is object {
+	return typeof thing === 'object' && thing !== null;
+}
+
+/*
+ * Traverse a JSON schema and visit each schema node
+*/
+function traverseNodes(root: IJSONSchema, visit: (schema: IJSONSchema) => boolean) {
 	if (!root || typeof root !== 'object') {
 		return;
 	}
@@ -232,7 +216,7 @@ function traverseNodes(root: IJSONSchema, visit: (property: string, schema: IJSO
 				for (const key in map) {
 					const entry = map[key];
 					if (isObject(entry)) {
-						toWalk.push([key, entry]);
+						toWalk.push(entry);
 					}
 				}
 			}
@@ -261,15 +245,11 @@ function traverseNodes(root: IJSONSchema, visit: (property: string, schema: IJSO
 		}
 	};
 
-	const toWalk: (IJSONSchema | [string, IJSONSchema])[] = [root];
+	const toWalk: IJSONSchema[] = [root];
 
 	let next = toWalk.pop();
 	while (next) {
-		let visitChildern = true;
-		if (Array.isArray(next)) {
-			visitChildern = visit(next[0], next[1]);
-			next = next[1];
-		}
+		const visitChildern = visit(next);
 		if (visitChildern) {
 			collectEntries(next.additionalItems, next.additionalProperties, next.not, next.contains, next.propertyNames, next.if, next.then, next.else, next.unevaluatedItems, next.unevaluatedProperties);
 			collectMapEntries(next.definitions, next.$defs, next.properties, next.patternProperties, <IJSONSchemaMap>next.dependencies, next.dependentSchemas);

@@ -369,8 +369,6 @@ async function startClientWithParticipants(context: ExtensionContext, languagePa
 		if (uri.scheme !== 'http' && uri.scheme !== 'https') {
 			return workspace.openTextDocument(uri).then(doc => {
 				schemaDocuments[uri.toString()] = true;
-				runtime.logOutputChannel.info(`Loaded ${uri.toString()}, size ${doc.getText().length} characters`);
-				window.showTextDocument(doc, ViewColumn.Beside);
 				return doc.getText();
 			}, error => {
 				return Promise.reject(new ResponseError(2, error.toString()));
