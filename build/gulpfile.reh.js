@@ -441,9 +441,10 @@ function tweakProductForServerWeb(product) {
 					platform: 'node',
 					external: [
 						'minimist',
-						// TODO: we cannot inline `product.json` because
+						// We cannot inline `product.json` from here because
 						// it is being changed during build time at a later
 						// point in time (such as `checksums`)
+						// We have a manual step to inline these later.
 						'../product.json',
 						'../package.json'
 					]
