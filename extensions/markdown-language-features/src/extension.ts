@@ -27,7 +27,7 @@ export async function activate(context: vscode.ExtensionContext) {
 }
 
 function startServer(context: vscode.ExtensionContext, parser: IMdParser): Promise<MdLanguageClient> {
-	const isDebugBuild = context.extension.packageJSON.main.indexOf('/out/');
+	const isDebugBuild = context.extension.packageJSON.main.includes('/out/');
 
 	const serverModule = context.asAbsolutePath(
 		isDebugBuild
