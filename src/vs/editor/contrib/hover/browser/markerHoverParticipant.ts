@@ -7,7 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { CancelablePromise, createCancelablePromise, disposableTimeout } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { isMarkdownString } from 'vs/base/common/htmlContent';
+import { IMarkdownString, isMarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { basename } from 'vs/base/common/resources';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -23,30 +23,32 @@ import { CodeActionController } from 'vs/editor/contrib/codeAction/browser/codeA
 import { CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
 import { MarkerController, NextMarkerAction } from 'vs/editor/contrib/gotoError/browser/gotoError';
 import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverPart, IRenderedHoverParts, RenderedHoverParts } from 'vs/editor/contrib/hover/browser/hoverTypes';
-import { renderMarkdownInContainer } from 'vs/editor/contrib/hover/browser/markdownHoverParticipant';
+import { MarkdownHover, renderMarkdownInContainer } from 'vs/editor/contrib/hover/browser/markdownHoverParticipant';
 import * as nls from 'vs/nls';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IMarker, IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Progress } from 'vs/platform/progress/common/progress';
 
+
 const $ = dom.$;
 
-export class MarkerHover implements IHoverPart {
+export class MarkerHover extends MarkdownHover implements IHoverPart {
+	readonly marker: IMarker;
 
 	constructor(
-		public readonly owner: IEditorHoverParticipant<MarkerHover>,
-		public readonly range: Range,
-		public readonly marker: IMarker,
-	) { }
+		owner: IEditorHoverParticipant<MarkerHover>,
+		range: Range,
+		contents: IMarkdownString[],
+		marker: IMarker,
+	) {
+		super(owner, range, contents, false, 1, undefined);
+		this.marker = marker;
 
-	public isValidForHoverAnchor(anchor: HoverAnchor): boolean {
-		return (
-			anchor.type === HoverAnchorType.Range
-			&& this.range.startColumn <= anchor.range.startColumn
-			&& this.range.endColumn >= anchor.range.endColumn
-		);
+
 	}
+
+
 }
 
 const markerCodeActionTrigger: CodeActionTrigger = {
@@ -88,7 +90,9 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 			}
 
 			const range = new Range(anchor.range.startLineNumber, startColumn, anchor.range.startLineNumber, endColumn);
-			result.push(new MarkerHover(this, range, marker));
+			if (isMarkdownString(marker.message)) {
+				result.push(new MarkerHover(this, range, [marker.message], marker));
+			}
 		}
 
 		return result;
@@ -118,13 +122,13 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 		const disposables: DisposableStore = new DisposableStore();
 		const hoverElement = $('div.hover-row');
 		const markerElement = dom.append(hoverElement, $('div.marker.hover-contents'));
-		const { source, message, code, relatedInformation } = markerHover.marker;
+		const { source, message, code, relatedInformation, } = markerHover.marker;
 
 		this._editor.applyFontInfo(markerElement);
 		const messageElement = dom.append(markerElement, $('span'));
 		messageElement.style.whiteSpace = 'pre-wrap';
 		if (isMarkdownString(message)) {
-			disposables.add(renderMarkdownInContainer(this._editor, messageElement, [message], this._languageService, this._openerService, context.onContentsChanged));
+			disposables.add(renderMarkdownInContainer(this._editor, markerHover, this._languageService, this._openerService, context.onContentsChanged));
 		} else {
 			messageElement.innerText = message;
 		}
