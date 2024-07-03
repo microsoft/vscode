@@ -42,9 +42,8 @@ function startServer(programArgs) {
 		const env = { ...process.env };
 		const entryPoint = path.join(__dirname, '..', 'out', 'server-main.js');
 
-		const args = [entryPoint, ...programArgs];
 		console.log(`Starting server: ${entryPoint} ${programArgs.join(' ')}`);
-		const proc = cp.spawn(process.execPath, args, { env, stdio: [process.stdin, null, process.stderr] });
+		const proc = cp.spawn(process.execPath, [entryPoint, ...programArgs], { env, stdio: [process.stdin, null, process.stderr] });
 		proc.stdout.on('data', e => {
 			const data = e.toString();
 			process.stdout.write(data);
