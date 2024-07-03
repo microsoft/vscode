@@ -394,6 +394,9 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 	private templatePromise: CancelablePromise<void> | undefined;
 	private template: IUserDataProfileTemplate | null = null;
 
+	private defaultName: string;
+	private defaultIcon: string | undefined;
+
 	constructor(
 		name: string,
 		copyFrom: URI | IUserDataProfile | undefined,
@@ -417,6 +420,7 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 			commandService,
 			instantiationService,
 		);
+		this.defaultName = name;
 		this._copyFrom = copyFrom;
 		this._copyFlags = this.getCopyFlagsFrom(copyFrom);
 		this.initialize();
@@ -473,8 +477,12 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 			if (this.copyFrom instanceof URI) {
 				await this.resolveTemplate(this.copyFrom);
 				if (this.template) {
-					this.name = this.template.name ?? '';
-					this.icon = this.template.icon;
+					if (this.defaultName === this.name) {
+						this.name = this.defaultName = this.template.name ?? '';
+					}
+					if (this.defaultIcon === this.icon) {
+						this.icon = this.defaultIcon = this.template.icon;
+					}
 					this.setCopyFlag(ProfileResourceType.Settings, !!this.template.settings);
 					this.setCopyFlag(ProfileResourceType.Keybindings, !!this.template.keybindings);
 					this.setCopyFlag(ProfileResourceType.Tasks, !!this.template.tasks);
@@ -485,8 +493,12 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 			}
 
 			if (isUserDataProfile(this.copyFrom)) {
-				this.name = `${this.copyFrom.name} (Copy)`;
-				this.icon = this.copyFrom.icon;
+				if (this.defaultName === this.name) {
+					this.name = this.defaultName = localize('copy from', "{0} (Copy)", this.copyFrom.name);
+				}
+				if (this.defaultIcon === this.icon) {
+					this.icon = this.defaultIcon = this.copyFrom.icon;
+				}
 				this.setCopyFlag(ProfileResourceType.Settings, true);
 				this.setCopyFlag(ProfileResourceType.Keybindings, true);
 				this.setCopyFlag(ProfileResourceType.Tasks, true);
@@ -495,8 +507,12 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 				return;
 			}
 
-			this.name = localize('untitled', "Untitled");
-			this.icon = undefined;
+			if (this.defaultName === this.name) {
+				this.name = this.defaultName = localize('untitled', "Untitled");
+			}
+			if (this.defaultIcon === this.icon) {
+				this.icon = this.defaultIcon = undefined;
+			}
 			this.setCopyFlag(ProfileResourceType.Settings, false);
 			this.setCopyFlag(ProfileResourceType.Keybindings, false);
 			this.setCopyFlag(ProfileResourceType.Tasks, false);
