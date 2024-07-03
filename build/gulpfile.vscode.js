@@ -194,6 +194,8 @@ function computeChecksum(filename) {
 	return hash;
 }
 
+const buildDate = new Date().toISOString();
+
 function packageTask(platform, arch, sourceFolderName, destinationFolderName, opts) {
 	opts = opts || {};
 
@@ -258,7 +260,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 
 		let productJsonContents;
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
-			.pipe(json({ commit, date: new Date().toISOString(), checksums, version }))
+			.pipe(json({ commit, date: buildDate, checksums, version }))
 			.pipe(es.through(function (file) {
 				productJsonContents = file.contents.toString();
 				this.emit('data', file);

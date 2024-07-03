@@ -232,6 +232,8 @@ function nodejs(platform, arch) {
 	}
 }
 
+const buildDate = new Date().toISOString();
+
 function packageTask(type, platform, arch, sourceFolderName, destinationFolderName) {
 	const destination = path.join(BUILD_ROOT, destinationFolderName);
 
@@ -303,7 +305,7 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 
 		let productJsonContents;
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
-			.pipe(json({ commit, date: new Date().toISOString(), version }))
+			.pipe(json({ commit, date: buildDate, version }))
 			.pipe(es.through(function (file) {
 				productJsonContents = file.contents.toString();
 				this.emit('data', file);
