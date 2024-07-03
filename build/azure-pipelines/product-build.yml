@@ -211,7 +211,7 @@ stages:
           image: macOS-13
           os: macOS
         steps:
-          - template: build/azure-pipelines/esrp.yml
+          - template: esrp.yml
 
       # - stage: Compile
       #   jobs:
