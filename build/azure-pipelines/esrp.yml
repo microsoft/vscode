@@ -2,7 +2,6 @@ steps:
   - script: |
       set -e
       echo "hello world" > $(Build.ArtifactStagingDirectory)/file.txt
-      # curl -o $(Build.ArtifactStagingDirectory)/VSCode-darwin.zip https://vscode.download.prss.microsoft.com/dbazure/download/insider/327279994e030d1a7da815c1d6d0e9c45bf673cc/VSCode-darwin.zip
 
   - task: UseDotNet@2
     inputs:

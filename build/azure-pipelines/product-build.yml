@@ -204,17 +204,14 @@ extends:
     stages:
       - stage: SignMacos
         jobs:
-          - deployment: SignMacOS
-            environment: 'SignMacOS'
+          - job: SignMacos
+            timeoutInMinutes: 90
             pool:
               name: Azure Pipelines
               image: macOS-13
               os: macOS
-            strategy:
-              runOnce:
-                deploy:
-                  steps:
-                    - template: build/azure-pipelines/esrp.yml@self
+            steps:
+              - template: build/azure-pipelines/esrp.yml@self
 
       # - stage: Compile
       #   jobs:
