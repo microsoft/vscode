@@ -91,6 +91,8 @@ class SecretStorageProvider implements ISecretStorageProvider {
 
 	config.secretStorageProvider = new SecretStorageProvider();
 
+	config.commands = [{ id: 'membrane.refreshPage', handler: () => window.location.reload() }];
+
 	const domElement = document.body;
 	create(domElement, config);
 })();
