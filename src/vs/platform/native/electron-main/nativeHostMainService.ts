@@ -493,13 +493,14 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		const defaultBrowser = this.configurationService.getValue<string>('workbench.defaultBrowser');
 		if (defaultBrowser) {
 			const { default: open } = await import('open');
-			await open('https://example.com/test', {
+			await open(url, {
 				app: {
 					name: defaultBrowser
 				}
 			});
+		} else {
+			shell.openExternal(url);
 		}
-		// shell.openExternal(url,);
 		this.environmentMainService.restoreSnapExportedVariables();
 
 		return true;
