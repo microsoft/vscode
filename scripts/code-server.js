@@ -43,10 +43,6 @@ function startServer(programArgs) {
 		const entryPoint = path.join(__dirname, '..', 'out', 'server-main.js');
 
 		const args = [entryPoint, ...programArgs];
-		if (process.env['VSCODE_DEV']) {
-			args.unshift('--experimental-loader', path.join(__dirname, '..', 'out', 'server-loader.mjs'));
-		}
-
 		console.log(`Starting server: ${entryPoint} ${programArgs.join(' ')}`);
 		const proc = cp.spawn(process.execPath, args, { env, stdio: [process.stdin, null, process.stderr] });
 		proc.stdout.on('data', e => {

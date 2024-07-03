@@ -7,7 +7,6 @@ import * as _fs from 'fs';
 import * as _url from 'url';
 import * as _cp from 'child_process';
 import * as _http from 'http';
-import * as _os from 'os';
 import { cwd } from 'vs/base/common/process';
 import { dirname, extname, resolve, join } from 'vs/base/common/path';
 import { parseArgs, buildHelpMessage, buildVersionMessage, OPTIONS, OptionDescriptions, ErrorReporter } from 'vs/platform/environment/node/argv';
@@ -240,14 +239,7 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 				cmdLine.push('--update-extensions');
 			}
 
-			let execArgv: string[] | undefined;
-			// ESM-uncomment-begin
-			// if (process.env['VSCODE_DEV']) {
-			// 	execArgv = ['--experimental-loader', join(__dirname, '../../../server-loader.mjs')];
-			// }
-			// ESM-uncomment-end
-
-			const cp = _cp.fork(join(__dirname, '../../../server-main.js'), cmdLine, { stdio: 'inherit', execArgv });
+			const cp = _cp.fork(join(__dirname, '../../../server-main.js'), cmdLine, { stdio: 'inherit' });
 			cp.on('error', err => console.log(err));
 			return;
 		}

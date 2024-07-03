@@ -201,8 +201,8 @@ export class Client implements IChannelClient, IDisposable {
 			}
 
 			// ESM-uncomment-begin
-			// if (process.execArgv.includes('--experimental-loader')) {
-			// 	const idx = process.execArgv.indexOf('--experimental-loader');
+			// if (process.execArgv.includes('--import')) {
+			// 	const idx = process.execArgv.indexOf('--import');
 			// 	forkOpts.execArgv.push(process.execArgv[idx], process.execArgv[idx + 1]);
 			// }
 			// ESM-uncomment-end

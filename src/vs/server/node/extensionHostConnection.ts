@@ -263,7 +263,8 @@ export class ExtensionHostConnection extends Disposable {
 
 			// ESM-uncomment-begin
 			// if (process.env['VSCODE_DEV']) {
-			// 	execArgv.push('--experimental-loader', FileAccess.asFileUri('server-loader.mjs').fsPath);
+			// 	const serverLoaderFsPath = FileAccess.asFileUri('server-loader.mjs').fsPath;
+			// 	execArgv.push('--import', `data:text/javascript,import { register } from "node:module"; import { pathToFileURL } from "node:url"; register('${serverLoaderFsPath}', pathToFileURL('./'));`);
 			// }
 			// ESM-uncomment-end
 

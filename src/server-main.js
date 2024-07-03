@@ -6,6 +6,17 @@
 // @ts-check
 'use strict';
 
+// ESM-uncomment-begin
+// // !!!NOTE
+// // !!!NOTE: this must come before any import statements.
+// // !!!NOTE
+// if (process.env['VSCODE_DEV']) {
+// 	const { register } = require('node:module');
+// 	const { pathToFileURL } = require('node:url');
+// 	register('./server-loader.mjs', pathToFileURL(__filename));
+// }
+// ESM-uncomment-end
+
 /**
  * @import { IProductConfiguration } from './vs/base/common/product'
  * @import { INLSConfiguration } from './vs/nls'
