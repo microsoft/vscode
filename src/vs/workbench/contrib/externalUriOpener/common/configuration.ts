@@ -64,6 +64,19 @@ export const externalUriOpenersConfigurationNode: IConfigurationNode = {
 	}
 };
 
+export const defaultBrowserNode: IConfigurationNode = {
+	...workbenchConfigurationNodeBase,
+	properties: {
+		'workbench.defaultBrowser': {
+			type: 'string',
+			markdownDescription: nls.localize('defaultBrowser', "Configure the default browser to use for opening http or https links"),
+			defaultSnippets: [{
+				body: 'google-chrome'
+			}],
+		}
+	}
+};
+
 export function updateContributedOpeners(enumValues: string[], enumDescriptions: string[]): void {
 	externalUriOpenerIdSchemaAddition.enum = enumValues;
 	externalUriOpenerIdSchemaAddition.enumDescriptions = enumDescriptions;

@@ -44,6 +44,7 @@ import { IV8Profile } from 'vs/platform/profiling/common/profiling';
 import { IAuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindows';
 import { IAuxiliaryWindow } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindow';
 import { CancellationError } from 'vs/base/common/errors';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -62,7 +63,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		@ILogService private readonly logService: ILogService,
 		@IProductService private readonly productService: IProductService,
 		@IThemeMainService private readonly themeMainService: IThemeMainService,
-		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService
+		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 	}
@@ -488,9 +490,14 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async openExternal(windowId: number | undefined, url: string): Promise<boolean> {
 		this.environmentMainService.unsetSnapExportedVariables();
-		if (Math) {
+		const defaultBrowser = this.configurationService.getValue<string>('workbench.defaultBrowser');
+		if (defaultBrowser) {
 			const { default: open } = await import('open');
-			await open('https://example.com/test');
+			await open('https://example.com/test', {
+				app: {
+					name: defaultBrowser
+				}
+			});
 		}
 		// shell.openExternal(url,);
 		this.environmentMainService.restoreSnapExportedVariables();
