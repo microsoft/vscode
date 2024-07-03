@@ -165,7 +165,7 @@ export class SimpleCompletionModel {
 
 				} else {
 					// by default match `word` against the `label`
-					const match = scoreFn(word, wordLow, wordPos, item.completion.label, item.labelLow, 0, this._fuzzyScoreOptions);
+					const match = scoreFn(word, wordLow, wordPos, item.completion.completionText ?? item.completion.label, item.labelLow, 0, this._fuzzyScoreOptions);
 					if (!match) {
 						continue; // NO match
 					}
@@ -177,7 +177,7 @@ export class SimpleCompletionModel {
 			target.push(item);
 
 			// update stats
-			labelLengths.push(item.completion.label.length);
+			labelLengths.push((item.completion.completionText ?? item.completion.label).length);
 		}
 
 		this._filteredItems = target.sort((a, b) => b.score[0] - a.score[0]);

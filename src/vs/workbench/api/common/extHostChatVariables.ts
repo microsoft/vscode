@@ -64,10 +64,6 @@ export class ExtHostChatVariables implements ExtHostChatVariablesShape {
 			this._proxy.$unregisterVariable(handle);
 		});
 	}
-
-	attachContext(name: string, value: string | vscode.Location | vscode.Uri | unknown, location: vscode.ChatLocation.Panel) {
-		this._proxy.$attachContext(name, extHostTypes.Location.isLocation(value) ? typeConvert.Location.from(value) : value, typeConvert.ChatLocation.from(location));
-	}
 }
 
 class ChatVariableResolverResponseStream {

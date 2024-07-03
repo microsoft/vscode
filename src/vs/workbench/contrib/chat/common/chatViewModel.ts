@@ -13,9 +13,9 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILogService } from 'vs/platform/log/common/log';
 import { annotateVulnerabilitiesInText } from 'vs/workbench/contrib/chat/common/annotations';
 import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameService, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ChatModelInitState, IChatModel, IChatRequestModel, IChatResponseModel, IChatTextEditGroup, IChatWelcomeMessageContent, IResponse } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatModelInitState, IChatModel, IChatProgressRenderableResponseContent, IChatRequestModel, IChatResponseModel, IChatTextEditGroup, IChatWelcomeMessageContent, IResponse } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { ChatAgentVoteDirection, IChatCommandButton, IChatConfirmation, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, IChatTask, IChatUsedContext, IChatWarningMessage } from 'vs/workbench/contrib/chat/common/chatService';
+import { ChatAgentVoteDirection, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseErrorDetails, IChatTask, IChatUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
 import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { CodeBlockModelCollection } from './codeBlockModelCollection';
 
@@ -78,6 +78,13 @@ export interface IChatResponseMarkdownRenderData {
 	originalMarkdown: IMarkdownString;
 }
 
+export interface IChatResponseMarkdownRenderData2 {
+	renderedWordCount: number;
+	lastRenderTime: number;
+	isFullyRendered: boolean;
+	originalMarkdown: IMarkdownString;
+}
+
 export interface IChatProgressMessageRenderData {
 	progressMessage: IChatProgressMessage;
 
@@ -101,13 +108,28 @@ export interface IChatTaskRenderData {
 	progressLength: number;
 }
 
-export type IChatRenderData = IChatResponseProgressFileTreeData | IChatResponseMarkdownRenderData | IChatProgressMessageRenderData | IChatCommandButton | IChatTextEditGroup | IChatConfirmation | IChatTaskRenderData | IChatWarningMessage;
 export interface IChatResponseRenderData {
-	renderedParts: IChatRenderData[];
+	renderedParts: IChatRendererContent[];
+
+	renderedWordCount: number;
+	lastRenderTime: number;
 }
 
+/**
+ * Content type for references used during rendering, not in the model
+ */
+export interface IChatReferences {
+	references: ReadonlyArray<IChatContentReference>;
+	kind: 'references';
+}
+
+/**
+ * Type for content parts rendered by IChatListRenderer
+ */
+export type IChatRendererContent = IChatProgressRenderableResponseContent | IChatReferences;
+
 export interface IChatLiveUpdateData {
-	loadingStartTime: number;
+	firstWordTime: number;
 	lastUpdateTime: number;
 	impliedWordLoadRate: number;
 	lastWordCount: number;
@@ -484,7 +506,7 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 
 		if (!_model.isComplete) {
 			this._contentUpdateTimings = {
-				loadingStartTime: Date.now(),
+				firstWordTime: 0,
 				lastUpdateTime: Date.now(),
 				impliedWordLoadRate: 0,
 				lastWordCount: 0
@@ -492,15 +514,17 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 		}
 
 		this._register(_model.onDidChange(() => {
+			// This should be true, if the model is changing
 			if (this._contentUpdateTimings) {
-				// This should be true, if the model is changing
 				const now = Date.now();
-				const wordCount = countWords(_model.response.asString());
-				const timeDiff = now - this._contentUpdateTimings.loadingStartTime;
+				const wordCount = countWords(_model.response.toString());
+
+				// Apply a min time difference, or the rate is typically too high for first few words
+				const timeDiff = Math.max(now - this._contentUpdateTimings.firstWordTime, 250);
 				const impliedWordLoadRate = this._contentUpdateTimings.lastWordCount / (timeDiff / 1000);
-				this.trace('onDidChange', `Update- got ${this._contentUpdateTimings.lastWordCount} words over ${timeDiff}ms = ${impliedWordLoadRate} words/s. ${wordCount} words are now available.`);
+				this.trace('onDidChange', `Update- got ${this._contentUpdateTimings.lastWordCount} words over last ${timeDiff}ms = ${impliedWordLoadRate} words/s. ${wordCount} words are now available.`);
 				this._contentUpdateTimings = {
-					loadingStartTime: this._contentUpdateTimings.loadingStartTime,
+					firstWordTime: this._contentUpdateTimings.firstWordTime === 0 && this.response.value.some(v => v.kind === 'markdownContent') ? now : this._contentUpdateTimings.firstWordTime,
 					lastUpdateTime: now,
 					impliedWordLoadRate,
 					lastWordCount: wordCount

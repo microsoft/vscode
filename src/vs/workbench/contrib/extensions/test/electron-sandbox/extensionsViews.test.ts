@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ExtensionsListView } from 'vs/workbench/contrib/extensions/browser/extensionsViews';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
@@ -505,9 +505,6 @@ suite('ExtensionsViews Tests', () => {
 			}]
 		});
 
-		testableView.dispose();
-		testableView = disposableStore.add(instantiationService.createInstance(ExtensionsListView, {}, { id: '', title: '' }));
-
 		return testableView.show('search-me').then(result => {
 			const options: IQueryOptions = queryTarget.args[0][0];
 
@@ -531,9 +528,6 @@ suite('ExtensionsViews Tests', () => {
 		];
 
 		const queryTarget = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...realResults));
-
-		testableView.dispose();
-		disposableStore.add(testableView = instantiationService.createInstance(ExtensionsListView, {}, { id: '', title: '' }));
 
 		return testableView.show('search-me @sort:installs').then(result => {
 			const options: IQueryOptions = queryTarget.args[0][0];
@@ -574,4 +568,3 @@ suite('ExtensionsViews Tests', () => {
 	}
 
 });
-

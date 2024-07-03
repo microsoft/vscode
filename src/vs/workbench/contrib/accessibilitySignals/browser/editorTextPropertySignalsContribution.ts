@@ -35,7 +35,7 @@ export class EditorTextPropertySignalsContribution extends Disposable implements
 			.some(signal => observableFromValueWithChangeEvent(this, this._accessibilitySignalService.getEnabledState(signal, false)).read(reader))
 	);
 
-	private readonly _activeEditorObservable = observableFromEvent(
+	private readonly _activeEditorObservable = observableFromEvent(this,
 		this._editorService.onDidActiveEditorChange,
 		(_) => {
 			const activeTextEditorControl = this._editorService.activeTextEditorControl;
@@ -73,7 +73,7 @@ export class EditorTextPropertySignalsContribution extends Disposable implements
 		let lastLine = -1;
 		const ignoredLineSignalsForCurrentLine = new Set<TextProperty>();
 
-		const timeouts = new DisposableStore();
+		const timeouts = store.add(new DisposableStore());
 
 		const propertySources = this._textProperties.map(p => ({ source: p.createSource(editor, editorModel), property: p }));
 
@@ -104,7 +104,7 @@ export class EditorTextPropertySignalsContribution extends Disposable implements
 
 				for (const modality of ['sound', 'announcement'] as AccessibilityModality[]) {
 					if (this._accessibilitySignalService.getEnabledState(signal, false, modality).value) {
-						const delay = this._accessibilitySignalService.getDelayMs(signal, modality) + (didType.get() ? 1000 : 0);
+						const delay = this._accessibilitySignalService.getDelayMs(signal, modality, mode) + (didType.get() ? 1000 : 0);
 
 						timeouts.add(disposableTimeout(() => {
 							if (source.isPresent(position, mode, undefined)) {

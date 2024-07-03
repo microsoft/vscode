@@ -2,6 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
+import * as fs from 'fs';
 import * as osLib from 'os';
 import { Promises } from 'vs/base/common/async';
 import { getNodeType, parse, ParseError } from 'vs/base/common/json';
@@ -178,7 +180,7 @@ export async function collectLaunchConfigs(folder: string): Promise<WorkspaceSta
 		const launchConfigs = new Map<string, number>();
 		const launchConfig = join(folder, '.vscode', 'launch.json');
 
-		const contents = await pfs.readFile(launchConfig);
+		const contents = await fs.promises.readFile(launchConfig);
 
 		const errors: ParseError[] = [];
 		const json = parse(contents.toString(), errors);

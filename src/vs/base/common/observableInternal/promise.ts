@@ -6,7 +6,7 @@ import { autorun } from 'vs/base/common/observableInternal/autorun';
 import { IObservable, IReader, observableValue, transaction } from './base';
 import { Derived, derived } from 'vs/base/common/observableInternal/derived';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { DebugNameData, Owner } from 'vs/base/common/observableInternal/debugName';
+import { DebugNameData, DebugOwner } from 'vs/base/common/observableInternal/debugName';
 import { strictEquals } from 'vs/base/common/equals';
 import { CancellationError } from 'vs/base/common/errors';
 
@@ -40,6 +40,10 @@ export class ObservableLazy<T> {
  * A promise whose state is observable.
  */
 export class ObservablePromise<T> {
+	public static fromFn<T>(fn: () => Promise<T>): ObservablePromise<T> {
+		return new ObservablePromise(fn());
+	}
+
 	private readonly _value = observableValue<PromiseResult<T> | undefined>(this, undefined);
 
 	/**
@@ -179,7 +183,7 @@ export function derivedWithCancellationToken<T>(computeFn: (reader: IReader, can
 export function derivedWithCancellationToken<T>(owner: object, computeFn: (reader: IReader, cancellationToken: CancellationToken) => T): IObservable<T>;
 export function derivedWithCancellationToken<T>(computeFnOrOwner: ((reader: IReader, cancellationToken: CancellationToken) => T) | object, computeFnOrUndefined?: ((reader: IReader, cancellationToken: CancellationToken) => T)): IObservable<T> {
 	let computeFn: (reader: IReader, store: CancellationToken) => T;
-	let owner: Owner;
+	let owner: DebugOwner;
 	if (computeFnOrUndefined === undefined) {
 		computeFn = computeFnOrOwner as any;
 		owner = undefined;

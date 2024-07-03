@@ -6,7 +6,7 @@
 import { Dimension } from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { derived, derivedWithStore, observableValue, recomputeInitiallyAndOnChange } from 'vs/base/common/observable';
-import { readHotReloadableExport } from 'vs/editor/browser/widget/diffEditor/utils';
+import { readHotReloadableExport } from 'vs/base/common/hotReloadHelpers';
 import { IMultiDiffEditorModel } from 'vs/editor/browser/widget/multiDiffEditor/model';
 import { IMultiDiffEditorViewState, IMultiDiffResourceId, MultiDiffEditorWidgetImpl } from 'vs/editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl';
 import { MultiDiffEditorViewModel } from './multiDiffEditorViewModel';

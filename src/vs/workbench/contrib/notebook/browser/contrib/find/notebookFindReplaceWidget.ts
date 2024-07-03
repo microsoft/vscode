@@ -3,55 +3,56 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
+import 'vs/css!./notebookFindReplaceWidget';
+import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { AnchorAlignment, IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
+import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
 import { FindInput, IFindInputOptions } from 'vs/base/browser/ui/findinput/findInput';
 import { ReplaceInput } from 'vs/base/browser/ui/findinput/replaceInput';
 import { IMessage as InputBoxMessage } from 'vs/base/browser/ui/inputbox/inputBox';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
+import { ISashEvent, Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
+import { IToggleStyles, Toggle } from 'vs/base/browser/ui/toggle/toggle';
 import { Widget } from 'vs/base/browser/ui/widget';
+import { Action, ActionRunner, IAction, IActionRunner, Separator } from 'vs/base/common/actions';
 import { Delayer } from 'vs/base/common/async';
+import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import 'vs/css!./notebookFindReplaceWidget';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { isSafari } from 'vs/base/common/platform';
+import { ThemeIcon } from 'vs/base/common/themables';
+import { Range } from 'vs/editor/common/core/range';
 import { FindReplaceState, FindReplaceStateChangedEvent } from 'vs/editor/contrib/find/browser/findState';
 import { findNextMatchIcon, findPreviousMatchIcon, findReplaceAllIcon, findReplaceIcon, findSelectionIcon, SimpleButton } from 'vs/editor/contrib/find/browser/findWidget';
-import * as nls from 'vs/nls';
-import { ContextScopedReplaceInput, registerAndCreateHistoryNavigationContext } from 'vs/platform/history/browser/contextScopedHistoryWidget';
+import { parseReplaceString, ReplacePattern } from 'vs/editor/contrib/find/browser/replacePattern';
+import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IMenu } from 'vs/platform/actions/common/actions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { ContextScopedReplaceInput, registerAndCreateHistoryNavigationContext } from 'vs/platform/history/browser/contextScopedHistoryWidget';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { defaultInputBoxStyles, defaultProgressBarStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { asCssVariable, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerIcon, widgetClose } from 'vs/platform/theme/common/iconRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { parseReplaceString, ReplacePattern } from 'vs/editor/contrib/find/browser/replacePattern';
-import { Codicon } from 'vs/base/common/codicons';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Action, ActionRunner, IAction, IActionRunner, Separator } from 'vs/base/common/actions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IMenu } from 'vs/platform/actions/common/actions';
-import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { AnchorAlignment, IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { filterIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { NotebookFindFilters } from 'vs/workbench/contrib/notebook/browser/contrib/find/findFilters';
-import { isSafari } from 'vs/base/common/platform';
-import { ISashEvent, Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
-import { INotebookDeltaDecoration, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { defaultInputBoxStyles, defaultProgressBarStyles, defaultToggleStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { IToggleStyles, Toggle } from 'vs/base/browser/ui/toggle/toggle';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
-import { asCssVariable, inputActiveOptionBackground, inputActiveOptionBorder, inputActiveOptionForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IShowNotebookFindWidgetOptions } from 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFindWidget';
+import { ICellModelDecorations, ICellModelDeltaDecorations, ICellViewModel, INotebookDeltaDecoration, INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { NotebookFindScopeType, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
 const NLS_PREVIOUS_MATCH_BTN_LABEL = nls.localize('label.previousMatchButton', "Previous Match");
-// const NLS_FILTER_BTN_LABEL = nls.localize('label.findFilterButton', "Search in View");
 const NLS_NEXT_MATCH_BTN_LABEL = nls.localize('label.nextMatchButton', "Next Match");
-const NLS_FIND_IN_CELL_SELECTION_BTN_LABEL = nls.localize('label.findInCellSelectionButton', "Find in Cell Selection");
+const NLS_TOGGLE_SELECTION_FIND_TITLE = nls.localize('label.toggleSelectionFind', "Find in Selection");
 const NLS_CLOSE_BTN_LABEL = nls.localize('label.closeButton', "Close");
 const NLS_TOGGLE_REPLACE_MODE_BTN_LABEL = nls.localize('label.toggleReplaceButton', "Toggle Replace");
 const NLS_REPLACE_INPUT_LABEL = nls.localize('label.replace', "Replace");
@@ -66,7 +67,7 @@ const NOTEBOOK_FIND_IN_MARKUP_PREVIEW = nls.localize('notebook.find.filter.findI
 const NOTEBOOK_FIND_IN_CODE_INPUT = nls.localize('notebook.find.filter.findInCodeInput', "Code Cell Source");
 const NOTEBOOK_FIND_IN_CODE_OUTPUT = nls.localize('notebook.find.filter.findInCodeOutput', "Code Cell Output");
 
-const NOTEBOOK_FIND_WIDGET_INITIAL_WIDTH = 318;
+const NOTEBOOK_FIND_WIDGET_INITIAL_WIDTH = 419;
 const NOTEBOOK_FIND_WIDGET_INITIAL_HORIZONTAL_PADDING = 4;
 class NotebookFindFilterActionViewItem extends DropdownMenuActionViewItem {
 	constructor(readonly filters: NotebookFindFilters, action: IAction, options: IActionViewItemOptions, actionRunner: IActionRunner, @IContextMenuService contextMenuService: IContextMenuService) {
@@ -319,8 +320,8 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	private _filters: NotebookFindFilters;
 
 	private readonly inSelectionToggle: Toggle;
-	private searchInSelectionEnabled: boolean;
-	private selectionDecorationIds: string[] = [];
+	private cellSelectionDecorationIds: string[] = [];
+	private textSelectionDecorationIds: ICellModelDecorations[] = [];
 
 	constructor(
 		@IContextViewService private readonly _contextViewService: IContextViewService,
@@ -341,7 +342,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 			codeOutput: boolean;
 		}>(NotebookSetting.findFilters) ?? { markupSource: true, markupPreview: true, codeSource: true, codeOutput: true };
 
-		this._filters = new NotebookFindFilters(findFilters.markupSource, findFilters.markupPreview, findFilters.codeSource, findFilters.codeOutput, false, []);
+		this._filters = new NotebookFindFilters(findFilters.markupSource, findFilters.markupPreview, findFilters.codeSource, findFilters.codeOutput, { findScopeType: NotebookFindScopeType.None });
 		this._state.change({ filters: this._filters }, false);
 
 		this._filters.onDidChange(() => {
@@ -386,6 +387,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 			null,
 			this._contextViewService,
 			{
+				// width:FIND_INPUT_AREA_WIDTH,
 				label: NLS_FIND_INPUT_LABEL,
 				placeholder: NLS_FIND_INPUT_PLACEHOLDER,
 				validation: (value: string): InputBoxMessage | null => {
@@ -462,22 +464,54 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 
 		this.inSelectionToggle = this._register(new Toggle({
 			icon: findSelectionIcon,
-			title: NLS_FIND_IN_CELL_SELECTION_BTN_LABEL,
+			title: NLS_TOGGLE_SELECTION_FIND_TITLE,
 			isChecked: false,
 			inputActiveOptionBackground: asCssVariable(inputActiveOptionBackground),
 			inputActiveOptionBorder: asCssVariable(inputActiveOptionBorder),
 			inputActiveOptionForeground: asCssVariable(inputActiveOptionForeground),
 		}));
+		this.inSelectionToggle.domNode.style.display = 'inline';
 
 		this.inSelectionToggle.onChange(() => {
 			const checked = this.inSelectionToggle.checked;
-			this._filters.searchInRanges = checked;
 			if (checked) {
-				this._filters.selectedRanges = this._notebookEditor.getSelections();
-				this.setCellSelectionDecorations();
+				// selection logic:
+				// 1. if there are multiple cells, do that.
+				// 2. if there is only one cell, do the following:
+				// 		- if there is a multi-line range highlighted, textual in selection
+				// 		- if there is no range, cell in selection for that cell
+
+				const cellSelection: ICellRange[] = this._notebookEditor.getSelections();
+				const textSelection: Range[] = this._notebookEditor.getSelectionViewModels()[0].getSelections();
+
+				if (cellSelection.length > 1 || cellSelection.some(range => range.end - range.start > 1)) {
+					this._filters.findScope = {
+						findScopeType: NotebookFindScopeType.Cells,
+						selectedCellRanges: cellSelection
+					};
+					this.setCellSelectionDecorations();
+
+				} else if (textSelection.length > 1 || textSelection.some(range => range.endLineNumber - range.startLineNumber >= 1)) {
+					this._filters.findScope = {
+						findScopeType: NotebookFindScopeType.Text,
+						selectedCellRanges: cellSelection,
+						selectedTextRanges: textSelection
+					};
+					this.setTextSelectionDecorations(textSelection, this._notebookEditor.getSelectionViewModels()[0]);
+
+				} else {
+					this._filters.findScope = {
+						findScopeType: NotebookFindScopeType.Cells,
+						selectedCellRanges: cellSelection
+					};
+					this.setCellSelectionDecorations();
+				}
 			} else {
-				this._filters.selectedRanges = [];
+				this._filters.findScope = {
+					findScopeType: NotebookFindScopeType.None
+				};
 				this.clearCellSelectionDecorations();
+				this.clearTextSelectionDecorations();
 			}
 		});
 
@@ -495,22 +529,6 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this._innerFindDomNode.appendChild(this.nextBtn.domNode);
 		this._innerFindDomNode.appendChild(this.inSelectionToggle.domNode);
 		this._innerFindDomNode.appendChild(closeBtn.domNode);
-
-		this.searchInSelectionEnabled = this._configurationService.getValue<boolean>(NotebookSetting.findScope);
-		this.inSelectionToggle.domNode.style.display = this.searchInSelectionEnabled ? 'inline' : 'none';
-
-		this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(NotebookSetting.findScope)) {
-				this.searchInSelectionEnabled = this._configurationService.getValue<boolean>(NotebookSetting.findScope);
-				if (this.searchInSelectionEnabled) {
-					this.inSelectionToggle.domNode.style.display = 'inline';
-				} else {
-					this.inSelectionToggle.domNode.style.display = 'none';
-					this.inSelectionToggle.checked = false;
-					this.clearCellSelectionDecorations();
-				}
-			}
-		});
 
 		// _domNode wraps _innerDomNode, ensuring that
 		this._domNode.appendChild(this._innerFindDomNode);
@@ -704,11 +722,37 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 				options: { className: 'nb-multiCellHighlight', outputClassName: 'nb-multiCellHighlight' }
 			} satisfies INotebookDeltaDecoration);
 		}
-		this.selectionDecorationIds = this._notebookEditor.deltaCellDecorations([], decorations);
+		this.cellSelectionDecorationIds = this._notebookEditor.deltaCellDecorations([], decorations);
 	}
 
 	private clearCellSelectionDecorations() {
-		this._notebookEditor.deltaCellDecorations(this.selectionDecorationIds, []);
+		this._notebookEditor.deltaCellDecorations(this.cellSelectionDecorationIds, []);
+	}
+
+	private setTextSelectionDecorations(textRanges: Range[], cell: ICellViewModel) {
+		this._notebookEditor.changeModelDecorations(changeAccessor => {
+			const decorations: ICellModelDeltaDecorations[] = [];
+			for (const range of textRanges) {
+				decorations.push({
+					ownerId: cell.handle,
+					decorations: [{
+						range: range,
+						options: {
+							description: 'text search range for notebook search scope',
+							isWholeLine: true,
+							className: 'nb-findScope'
+						}
+					}]
+				});
+			}
+			this.textSelectionDecorationIds = changeAccessor.deltaDecorations([], decorations);
+		});
+	}
+
+	private clearTextSelectionDecorations() {
+		this._notebookEditor.changeModelDecorations(changeAccessor => {
+			changeAccessor.deltaDecorations(this.textSelectionDecorationIds, []);
+		});
 	}
 
 	protected _updateMatchesCount(): void {
@@ -717,9 +761,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	override dispose() {
 		super.dispose();
 
-		if (this._domNode && this._domNode.parentElement) {
-			this._domNode.parentElement.removeChild(this._domNode);
-		}
+		this._domNode.remove();
 	}
 
 	public getDomNode() {
@@ -750,18 +792,9 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this._findInput.focus();
 	}
 
-	public show(initialInput?: string, options?: { focus?: boolean; searchInRanges?: boolean; selectedRanges?: ICellRange[] }): void {
+	public show(initialInput?: string, options?: IShowNotebookFindWidgetOptions): void {
 		if (initialInput) {
 			this._findInput.setValue(initialInput);
-		}
-
-		if (this.searchInSelectionEnabled && options?.searchInRanges !== undefined) {
-			this._filters.searchInRanges = options.searchInRanges;
-			this.inSelectionToggle.checked = options.searchInRanges;
-			if (options.searchInRanges && options.selectedRanges) {
-				this._filters.selectedRanges = options.selectedRanges;
-				this.setCellSelectionDecorations();
-			}
 		}
 
 		this._isVisible = true;
@@ -812,7 +845,10 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	public hide(): void {
 		if (this._isVisible) {
 			this.inSelectionToggle.checked = false;
-			this._notebookEditor.deltaCellDecorations(this.selectionDecorationIds, []);
+			this._notebookEditor.deltaCellDecorations(this.cellSelectionDecorationIds, []);
+			this._notebookEditor.changeModelDecorations(changeAccessor => {
+				changeAccessor.deltaDecorations(this.textSelectionDecorationIds, []);
+			});
 
 			this._domNode.classList.remove('visible-transition');
 			this._domNode.setAttribute('aria-hidden', 'true');

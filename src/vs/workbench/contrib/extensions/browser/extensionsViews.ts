@@ -41,7 +41,6 @@ import { CancelablePromise, createCancelablePromise, ThrottledDelayer } from 'vs
 import { IProductService } from 'vs/platform/product/common/productService';
 import { SeverityIcon } from 'vs/platform/severityIcon/browser/severityIcon';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
@@ -214,9 +213,7 @@ export class ExtensionsListView extends ViewPane {
 					return localize('extensions', "Extensions");
 				}
 			},
-			overrideStyles: {
-				listBackground: SIDE_BAR_BACKGROUND
-			},
+			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 			openOnSingleClick: true
 		}) as WorkbenchPagedList<IExtension>;
 		this._register(this.list.onContextMenu(e => this.onContextMenu(e), this));

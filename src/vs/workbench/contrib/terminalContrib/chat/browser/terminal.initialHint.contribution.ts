@@ -29,8 +29,15 @@ import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal
 import 'vs/css!./media/terminalInitialHint';
 import { TerminalInitialHintSettingId } from 'vs/workbench/contrib/terminalContrib/chat/common/terminalInitialHintConfiguration';
 import { ChatAgentLocation, IChatAgent, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 
 const $ = dom.$;
+
+const enum Constants {
+	InitialHintHideStorageKey = 'terminal.initialHint.hide'
+}
 
 export class InitialHintAddon extends Disposable implements ITerminalAddon {
 	private readonly _onDidRequestCreateHint = this._register(new Emitter<void>());
@@ -90,11 +97,22 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
+		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super();
+
+		// Reset hint state when config changes
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(TerminalInitialHintSettingId.Enabled)) {
+				this._storageService.remove(Constants.InitialHintHideStorageKey, StorageScope.APPLICATION);
+			}
+		}));
 	}
 
 	xtermOpen(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
+		if (this._storageService.getBoolean(Constants.InitialHintHideStorageKey, StorageScope.APPLICATION, false)) {
+			return;
+		}
 		if (this._terminalGroupService.instances.length + this._terminalEditorService.instances.length !== 1) {
 			// only show for the first terminal
 			return;
@@ -108,7 +126,7 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 	private _createHint(): void {
 		const instance = this._instance instanceof TerminalInstance ? this._instance : undefined;
 		const commandDetectionCapability = instance?.capabilities.get(TerminalCapability.CommandDetection);
-		if (!instance || !this._xterm || this._hintWidget || !commandDetectionCapability || commandDetectionCapability.promptInputModel.value || instance.reconnectionProperties) {
+		if (!instance || !this._xterm || this._hintWidget || !commandDetectionCapability || commandDetectionCapability.promptInputModel.value || !!instance.shellLaunchConfig.attachPersistentProcess) {
 			return;
 		}
 
@@ -130,19 +148,24 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 				marker,
 				x: this._xterm.raw.buffer.active.cursorX + 1,
 			});
+			if (this._decoration) {
+				this._register(this._decoration);
+			}
 		}
 
-		this._register(this._xterm.raw.onKey(() => {
-			this._decoration?.dispose();
-			this._addon?.dispose();
+		this._register(this._xterm.raw.onKey(() => this.dispose()));
+
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(TerminalInitialHintSettingId.Enabled) && !this._configurationService.getValue(TerminalInitialHintSettingId.Enabled)) {
+				this.dispose();
+			}
 		}));
 
 		const inputModel = commandDetectionCapability.promptInputModel;
 		if (inputModel) {
 			this._register(inputModel.onDidChangeInput(() => {
 				if (inputModel.value) {
-					this._decoration?.dispose();
-					this._addon?.dispose();
+					this.dispose();
 				}
 			}));
 		}
@@ -181,8 +204,6 @@ export class TerminalInitialHintContribution extends Disposable implements ITerm
 }
 registerTerminalContribution(TerminalInitialHintContribution.ID, TerminalInitialHintContribution, false);
 
-
-
 class TerminalInitialHintWidget extends Disposable {
 
 
@@ -199,7 +220,9 @@ class TerminalInitialHintWidget extends Disposable {
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IProductService private readonly productService: IProductService,
-		@ITerminalService private readonly terminalService: ITerminalService
+		@ITerminalService private readonly terminalService: ITerminalService,
+		@IStorageService private readonly _storageService: IStorageService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService
 	) {
 		super();
 		this.toDispose.add(_instance.onDidFocus(() => {
@@ -229,6 +252,7 @@ class TerminalInitialHintWidget extends Disposable {
 		let ariaLabel = `Ask ${providerName} something or start typing to dismiss.`;
 
 		const handleClick = () => {
+			this._storageService.store(Constants.InitialHintHideStorageKey, true, StorageScope.APPLICATION, StorageTarget.USER);
 			this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', {
 				id: 'terminalInlineChat.hintAction',
 				from: 'hint'
@@ -237,6 +261,7 @@ class TerminalInitialHintWidget extends Disposable {
 		};
 		this.toDispose.add(this.commandService.onDidExecuteCommand(e => {
 			if (e.commandId === TerminalChatCommandId.Start) {
+				this._storageService.store(Constants.InitialHintHideStorageKey, true, StorageScope.APPLICATION, StorageTarget.USER);
 				this.dispose();
 			}
 		}));
@@ -312,8 +337,23 @@ class TerminalInitialHintWidget extends Disposable {
 				this.domNode = undefined;
 			}));
 
+			this.toDispose.add(dom.addDisposableListener(this.domNode, dom.EventType.CONTEXT_MENU, (e) => {
+				this.contextMenuService.showContextMenu({
+					getAnchor: () => { return new StandardMouseEvent(dom.getActiveWindow(), e); },
+					getActions: () => {
+						return [{
+							id: 'workench.action.disableTerminalInitialHint',
+							label: localize('disableInitialHint', "Disable Initial Hint"),
+							tooltip: localize('disableInitialHint', "Disable Initial Hint"),
+							enabled: true,
+							class: undefined,
+							run: () => this.configurationService.updateValue(TerminalInitialHintSettingId.Enabled, false)
+						}
+						];
+					}
+				});
+			}));
 		}
-
 		return this.domNode;
 	}
 

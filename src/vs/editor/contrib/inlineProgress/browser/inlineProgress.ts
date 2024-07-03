@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { CancelablePromise, disposableTimeout } from 'vs/base/common/async';
+import { disposableTimeout } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { noBreakWhitespace } from 'vs/base/common/strings';
@@ -114,13 +114,13 @@ export class InlineProgressManager extends Disposable {
 	private readonly _showPromise = this._register(new MutableDisposable());
 
 	private readonly _currentDecorations: IEditorDecorationsCollection;
-	private readonly _currentWidget = new MutableDisposable<InlineProgressWidget>();
+	private readonly _currentWidget = this._register(new MutableDisposable<InlineProgressWidget>());
 
 	private _operationIdPool = 0;
 	private _currentOperation?: number;
 
 	constructor(
-		readonly id: string,
+		private readonly id: string,
 		private readonly _editor: ICodeEditor,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
@@ -129,7 +129,12 @@ export class InlineProgressManager extends Disposable {
 		this._currentDecorations = _editor.createDecorationsCollection();
 	}
 
-	public async showWhile<R>(position: IPosition, title: string, promise: CancelablePromise<R>): Promise<R> {
+	public override dispose(): void {
+		super.dispose();
+		this._currentDecorations.clear();
+	}
+
+	public async showWhile<R>(position: IPosition, title: string, promise: Promise<R>, delegate: InlineProgressDelegate, delayOverride?: number): Promise<R> {
 		const operationId = this._operationIdPool++;
 		this._currentOperation = operationId;
 
@@ -143,9 +148,9 @@ export class InlineProgressManager extends Disposable {
 			}]);
 
 			if (decorationIds.length > 0) {
-				this._currentWidget.value = this._instantiationService.createInstance(InlineProgressWidget, this.id, this._editor, range, title, promise);
+				this._currentWidget.value = this._instantiationService.createInstance(InlineProgressWidget, this.id, this._editor, range, title, delegate);
 			}
-		}, this._showDelay);
+		}, delayOverride ?? this._showDelay);
 
 		try {
 			return await promise;

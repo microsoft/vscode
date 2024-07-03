@@ -2068,69 +2068,70 @@ export class CommandCenter {
 		let noStagedChanges = repository.indexGroup.resourceStates.length === 0;
 		let noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0;
 
-		if (promptToSaveFilesBeforeCommit !== 'never') {
-			let documents = workspace.textDocuments
-				.filter(d => !d.isUntitled && d.isDirty && isDescendant(repository.root, d.uri.fsPath));
+		if (!opts.empty) {
+			if (promptToSaveFilesBeforeCommit !== 'never') {
+				let documents = workspace.textDocuments
+					.filter(d => !d.isUntitled && d.isDirty && isDescendant(repository.root, d.uri.fsPath));
 
-			if (promptToSaveFilesBeforeCommit === 'staged' || repository.indexGroup.resourceStates.length > 0) {
-				documents = documents
-					.filter(d => repository.indexGroup.resourceStates.some(s => pathEquals(s.resourceUri.fsPath, d.uri.fsPath)));
-			}
-
-			if (documents.length > 0) {
-				const message = documents.length === 1
-					? l10n.t('The following file has unsaved changes which won\'t be included in the commit if you proceed: {0}.\n\nWould you like to save it before committing?', path.basename(documents[0].uri.fsPath))
-					: l10n.t('There are {0} unsaved files.\n\nWould you like to save them before committing?', documents.length);
-				const saveAndCommit = l10n.t('Save All & Commit Changes');
-				const commit = l10n.t('Commit Changes');
-				const pick = await window.showWarningMessage(message, { modal: true }, saveAndCommit, commit);
-
-				if (pick === saveAndCommit) {
-					await Promise.all(documents.map(d => d.save()));
-
-					// After saving the dirty documents, if there are any documents that are part of the
-					// index group we have to add them back in order for the saved changes to be committed
+				if (promptToSaveFilesBeforeCommit === 'staged' || repository.indexGroup.resourceStates.length > 0) {
 					documents = documents
 						.filter(d => repository.indexGroup.resourceStates.some(s => pathEquals(s.resourceUri.fsPath, d.uri.fsPath)));
-					await repository.add(documents.map(d => d.uri));
+				}
 
-					noStagedChanges = repository.indexGroup.resourceStates.length === 0;
-					noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0;
-				} else if (pick !== commit) {
+				if (documents.length > 0) {
+					const message = documents.length === 1
+						? l10n.t('The following file has unsaved changes which won\'t be included in the commit if you proceed: {0}.\n\nWould you like to save it before committing?', path.basename(documents[0].uri.fsPath))
+						: l10n.t('There are {0} unsaved files.\n\nWould you like to save them before committing?', documents.length);
+					const saveAndCommit = l10n.t('Save All & Commit Changes');
+					const commit = l10n.t('Commit Changes');
+					const pick = await window.showWarningMessage(message, { modal: true }, saveAndCommit, commit);
+
+					if (pick === saveAndCommit) {
+						await Promise.all(documents.map(d => d.save()));
+
+						// After saving the dirty documents, if there are any documents that are part of the
+						// index group we have to add them back in order for the saved changes to be committed
+						documents = documents
+							.filter(d => repository.indexGroup.resourceStates.some(s => pathEquals(s.resourceUri.fsPath, d.uri.fsPath)));
+						await repository.add(documents.map(d => d.uri));
+
+						noStagedChanges = repository.indexGroup.resourceStates.length === 0;
+						noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0;
+					} else if (pick !== commit) {
+						return; // do not commit on cancel
+					}
+				}
+			}
+
+			// no changes, and the user has not configured to commit all in this case
+			if (!noUnstagedChanges && noStagedChanges && !enableSmartCommit && !opts.all && !opts.amend) {
+				const suggestSmartCommit = config.get<boolean>('suggestSmartCommit') === true;
+
+				if (!suggestSmartCommit) {
+					return;
+				}
+
+				// prompt the user if we want to commit all or not
+				const message = l10n.t('There are no staged changes to commit.\n\nWould you like to stage all your changes and commit them directly?');
+				const yes = l10n.t('Yes');
+				const always = l10n.t('Always');
+				const never = l10n.t('Never');
+				const pick = await window.showWarningMessage(message, { modal: true }, yes, always, never);
+
+				if (pick === always) {
+					config.update('enableSmartCommit', true, true);
+				} else if (pick === never) {
+					config.update('suggestSmartCommit', false, true);
+					return;
+				} else if (pick !== yes) {
 					return; // do not commit on cancel
 				}
 			}
-		}
 
-		// no changes, and the user has not configured to commit all in this case
-		if (!noUnstagedChanges && noStagedChanges && !enableSmartCommit && !opts.empty && !opts.all) {
-			const suggestSmartCommit = config.get<boolean>('suggestSmartCommit') === true;
-
-			if (!suggestSmartCommit) {
-				return;
+			// smart commit
+			if (enableSmartCommit && !opts.all) {
+				opts = { ...opts, all: noStagedChanges };
 			}
-
-			// prompt the user if we want to commit all or not
-			const message = l10n.t('There are no staged changes to commit.\n\nWould you like to stage all your changes and commit them directly?');
-			const yes = l10n.t('Yes');
-			const always = l10n.t('Always');
-			const never = l10n.t('Never');
-			const pick = await window.showWarningMessage(message, { modal: true }, yes, always, never);
-
-			if (pick === always) {
-				config.update('enableSmartCommit', true, true);
-			} else if (pick === never) {
-				config.update('suggestSmartCommit', false, true);
-				return;
-			} else if (pick !== yes) {
-				return; // do not commit on cancel
-			}
-		}
-
-		if (opts.all === undefined) {
-			opts = { ...opts, all: noStagedChanges };
-		} else if (!opts.all && noStagedChanges && !opts.empty) {
-			opts = { ...opts, all: true };
 		}
 
 		// enable signing of commits if configured
@@ -2515,9 +2516,26 @@ export class CommandCenter {
 			: l10n.t('Select a branch or tag to checkout');
 
 		quickPick.show();
-
 		picks.push(... await createCheckoutItems(repository, opts?.detached));
-		quickPick.items = [...commands, ...picks];
+
+		const setQuickPickItems = () => {
+			switch (true) {
+				case quickPick.value === '':
+					quickPick.items = [...commands, ...picks];
+					break;
+				case commands.length === 0:
+					quickPick.items = picks;
+					break;
+				case picks.length === 0:
+					quickPick.items = commands;
+					break;
+				default:
+					quickPick.items = [...picks, { label: '', kind: QuickPickItemKind.Separator }, ...commands];
+					break;
+			}
+		};
+
+		setQuickPickItems();
 		quickPick.busy = false;
 
 		const choice = await new Promise<QuickPickItem | undefined>(c => {
@@ -2532,22 +2550,7 @@ export class CommandCenter {
 
 				c(undefined);
 			})));
-			disposables.push(quickPick.onDidChangeValue(value => {
-				switch (true) {
-					case value === '':
-						quickPick.items = [...commands, ...picks];
-						break;
-					case commands.length === 0:
-						quickPick.items = picks;
-						break;
-					case picks.length === 0:
-						quickPick.items = commands;
-						break;
-					default:
-						quickPick.items = [...picks, { label: '', kind: QuickPickItemKind.Separator }, ...commands];
-						break;
-				}
-			}));
+			disposables.push(quickPick.onDidChangeValue(() => setQuickPickItems()));
 		});
 
 		dispose(disposables);

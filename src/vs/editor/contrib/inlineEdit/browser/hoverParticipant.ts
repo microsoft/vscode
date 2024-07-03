@@ -3,17 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { constObservable } from 'vs/base/common/observable';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecoration } from 'vs/editor/common/model';
-import { HoverAnchor, HoverAnchorType, HoverForeignElementAnchor, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
+import { HoverAnchor, HoverAnchorType, HoverForeignElementAnchor, IEditorHoverParticipant, IEditorHoverRenderContext, IHoverPart, IRenderedHoverPart, IRenderedHoverParts, RenderedHoverParts } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { InlineEditController } from 'vs/editor/contrib/inlineEdit/browser/inlineEditController';
 import { InlineEditHintsContentWidget } from 'vs/editor/contrib/inlineEdit/browser/inlineEditHintsWidget';
+import * as nls from 'vs/nls';
 
 export class InlineEditHover implements IHoverPart {
 	constructor(
@@ -86,8 +87,8 @@ export class InlineEditHoverParticipant implements IEditorHoverParticipant<Inlin
 		return [];
 	}
 
-	renderHoverParts(context: IEditorHoverRenderContext, hoverParts: InlineEditHover[]): IDisposable {
-		const disposableStore = new DisposableStore();
+	renderHoverParts(context: IEditorHoverRenderContext, hoverParts: InlineEditHover[]): IRenderedHoverParts<InlineEditHover> {
+		const disposables = new DisposableStore();
 
 		this._telemetryService.publicLog2<{}, {
 			owner: 'hediet';
@@ -97,9 +98,17 @@ export class InlineEditHoverParticipant implements IEditorHoverParticipant<Inlin
 		const w = this._instantiationService.createInstance(InlineEditHintsContentWidget, this._editor, false,
 			constObservable(null),
 		);
-		context.fragment.appendChild(w.getDomNode());
-		disposableStore.add(w);
+		disposables.add(w);
+		const widgetNode: HTMLElement = w.getDomNode();
+		const renderedHoverPart: IRenderedHoverPart<InlineEditHover> = {
+			hoverPart: hoverParts[0],
+			hoverElement: widgetNode,
+			dispose: () => disposables.dispose()
+		};
+		return new RenderedHoverParts([renderedHoverPart]);
+	}
 
-		return disposableStore;
+	getAccessibleContent(hoverPart: InlineEditHover): string {
+		return nls.localize('hoverAccessibilityInlineEdits', 'There are inline edits here.');
 	}
 }

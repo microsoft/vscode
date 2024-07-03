@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 // @ts-check
 
-/// <reference no-default-lib="true"/>
 /// <reference lib="webworker" />
 
 const sw = /** @type {ServiceWorkerGlobalScope} */ (/** @type {any} */ (self));
@@ -168,7 +167,7 @@ sw.addEventListener('message', async (event) => {
 
 sw.addEventListener('fetch', (event) => {
 	const requestUrl = new URL(event.request.url);
-	if (requestUrl.protocol === 'https:' && requestUrl.hostname.endsWith('.' + resourceBaseAuthority)) {
+	if (typeof resourceBaseAuthority === 'string' && requestUrl.protocol === 'https:' && requestUrl.hostname.endsWith('.' + resourceBaseAuthority)) {
 		switch (event.request.method) {
 			case 'GET':
 			case 'HEAD': {

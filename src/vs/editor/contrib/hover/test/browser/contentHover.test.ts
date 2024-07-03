@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { ContentHoverController } from 'vs/editor/contrib/hover/browser/contentHoverController';
+import { RenderedContentHover } from 'vs/editor/contrib/hover/browser/contentHoverRendered';
 import { IHoverPart } from 'vs/editor/contrib/hover/browser/hoverTypes';
 import { TestCodeEditorInstantiationOptions, withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 
@@ -18,7 +18,7 @@ suite('Content Hover', () => {
 	test('issue #151235: Gitlens hover shows up in the wrong place', () => {
 		const text = 'just some text';
 		withTestCodeEditor(text, {}, (editor) => {
-			const actual = ContentHoverController.computeHoverRanges(
+			const actual = RenderedContentHover.computeHoverPositions(
 				editor,
 				new Range(5, 5, 5, 5),
 				[<IHoverPart>{ range: new Range(4, 1, 5, 6) }]
@@ -27,8 +27,7 @@ suite('Content Hover', () => {
 				actual,
 				{
 					showAtPosition: new Position(5, 5),
-					showAtSecondaryPosition: new Position(5, 5),
-					highlightRange: new Range(4, 1, 5, 6)
+					showAtSecondaryPosition: new Position(5, 5)
 				}
 			);
 		});
@@ -38,7 +37,7 @@ suite('Content Hover', () => {
 		const text = 'just some text';
 		const opts: TestCodeEditorInstantiationOptions = { wordWrap: 'wordWrapColumn', wordWrapColumn: 6 };
 		withTestCodeEditor(text, opts, (editor) => {
-			const actual = ContentHoverController.computeHoverRanges(
+			const actual = RenderedContentHover.computeHoverPositions(
 				editor,
 				new Range(1, 8, 1, 8),
 				[<IHoverPart>{ range: new Range(1, 1, 1, 15) }]
@@ -47,8 +46,7 @@ suite('Content Hover', () => {
 				actual,
 				{
 					showAtPosition: new Position(1, 8),
-					showAtSecondaryPosition: new Position(1, 6),
-					highlightRange: new Range(1, 1, 1, 15)
+					showAtSecondaryPosition: new Position(1, 6)
 				}
 			);
 		});

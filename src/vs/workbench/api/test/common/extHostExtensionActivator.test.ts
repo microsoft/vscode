@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { promiseWithResolvers, timeout } from 'vs/base/common/async';
+import { Mutable } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { ExtensionIdentifier, IExtensionDescription, IRelaxedExtensionDescription, TargetPlatform } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription, TargetPlatform } from 'vs/platform/extensions/common/extensions';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { ActivatedExtension, EmptyExtension, ExtensionActivationTimes, ExtensionsActivator, IExtensionsActivatorHost } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { ExtensionDescriptionRegistry, IActivationEventsReader } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
@@ -85,8 +86,8 @@ suite('ExtensionsActivator', () => {
 	test('Supports having resolved extensions', async () => {
 		const host = new SimpleExtensionsActivatorHost();
 		const bExt = desc(idB);
-		delete (<IRelaxedExtensionDescription>bExt).main;
-		delete (<IRelaxedExtensionDescription>bExt).browser;
+		delete (<Mutable<IExtensionDescription>>bExt).main;
+		delete (<Mutable<IExtensionDescription>>bExt).browser;
 		const activator = createActivator(host, [
 			desc(idA, [idB])
 		], [bExt]);
@@ -103,7 +104,7 @@ suite('ExtensionsActivator', () => {
 			[idB, extActivationB]
 		]);
 		const bExt = desc(idB);
-		(<IRelaxedExtensionDescription>bExt).api = 'none';
+		(<Mutable<IExtensionDescription>>bExt).api = 'none';
 		const activator = createActivator(host, [
 			desc(idA, [idB])
 		], [bExt]);
@@ -274,7 +275,8 @@ suite('ExtensionsActivator', () => {
 			activationEvents,
 			main: 'index.js',
 			targetPlatform: TargetPlatform.UNDEFINED,
-			extensionDependencies: deps.map(d => d.value)
+			extensionDependencies: deps.map(d => d.value),
+			enabledApiProposals: undefined,
 		};
 	}
 

@@ -171,6 +171,8 @@ export class MenuId {
 	static readonly InteractiveCellDelete = new MenuId('InteractiveCellDelete');
 	static readonly InteractiveCellExecute = new MenuId('InteractiveCellExecute');
 	static readonly InteractiveInputExecute = new MenuId('InteractiveInputExecute');
+	static readonly InteractiveInputConfig = new MenuId('InteractiveInputConfig');
+	static readonly ReplInputExecute = new MenuId('ReplInputExecute');
 	static readonly IssueReporter = new MenuId('IssueReporter');
 	static readonly NotebookToolbar = new MenuId('NotebookToolbar');
 	static readonly NotebookStickyScrollContext = new MenuId('NotebookStickyScrollContext');
@@ -209,6 +211,7 @@ export class MenuId {
 	static readonly TerminalStickyScrollContext = new MenuId('TerminalStickyScrollContext');
 	static readonly WebviewContext = new MenuId('WebviewContext');
 	static readonly InlineCompletionsActions = new MenuId('InlineCompletionsActions');
+	static readonly InlineEditsActions = new MenuId('InlineEditsActions');
 	static readonly InlineEditActions = new MenuId('InlineEditActions');
 	static readonly NewFile = new MenuId('NewFile');
 	static readonly MergeInput1Toolbar = new MenuId('MergeToolbar1Toolbar');

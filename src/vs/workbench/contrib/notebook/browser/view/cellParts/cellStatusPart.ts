@@ -31,7 +31,7 @@ import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/hover/
 import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import type { IUpdatableHoverTooltipMarkdownString } from 'vs/base/browser/ui/hover/hover';
+import type { IManagedHoverTooltipMarkdownString } from 'vs/base/browser/ui/hover/hover';
 
 const $ = DOM.$;
 
@@ -123,12 +123,15 @@ export class CellEditorStatusBar extends CellContentPart {
 
 
 	override didRenderCell(element: ICellViewModel): void {
-		this.updateContext(<INotebookCellActionContext>{
-			ui: true,
-			cell: element,
-			notebookEditor: this._notebookEditor,
-			$mid: MarshalledId.NotebookCellActionContext
-		});
+		if (this._notebookEditor.hasModel()) {
+			const context: (INotebookCellActionContext & { $mid: number }) = {
+				ui: true,
+				cell: element,
+				notebookEditor: this._notebookEditor,
+				$mid: MarshalledId.NotebookCellActionContext
+			};
+			this.updateContext(context);
+		}
 
 		if (this._editor) {
 			// Focus Mode
@@ -235,7 +238,7 @@ export class CellEditorStatusBar extends CellContentPart {
 			if (renderedItems.length > newItems.length) {
 				const deleted = renderedItems.splice(newItems.length, renderedItems.length - newItems.length);
 				for (const deletedItem of deleted) {
-					container.removeChild(deletedItem.container);
+					deletedItem.container.remove();
 					deletedItem.dispose();
 				}
 			}
@@ -327,8 +330,8 @@ class CellStatusBarItem extends Disposable {
 		this.container.setAttribute('role', role || '');
 
 		if (item.tooltip) {
-			const hoverContent = typeof item.tooltip === 'string' ? item.tooltip : { markdown: item.tooltip } as IUpdatableHoverTooltipMarkdownString;
-			this._itemDisposables.add(this._hoverService.setupUpdatableHover(this._hoverDelegate, this.container, hoverContent));
+			const hoverContent = typeof item.tooltip === 'string' ? item.tooltip : { markdown: item.tooltip, markdownNotSupportedFallback: undefined } satisfies IManagedHoverTooltipMarkdownString;
+			this._itemDisposables.add(this._hoverService.setupManagedHover(this._hoverDelegate, this.container, hoverContent));
 		}
 
 		this.container.classList.toggle('cell-status-item-has-command', !!item.command);
