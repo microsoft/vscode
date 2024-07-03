@@ -125,7 +125,6 @@ export class GettingStartedPage extends EditorPane {
 	private readonly detailsPageDisposables: DisposableStore = new DisposableStore();
 	private readonly mediaDisposables: DisposableStore = new DisposableStore();
 
-	// Ensure that the these are initialized before use.
 	// Currently initialized before use in buildCategoriesSlide and scrollToCategory
 	private recentlyOpened!: Promise<IRecentlyOpened>;
 	private gettingStartedCategories!: IResolvedWalkthrough[];
