@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import { mainWindow } from 'vs/base/browser/window';
+import { coalesce, firstOrDefault } from 'vs/base/common/arrays';
 import { Event } from 'vs/base/common/event';
-import { ILayoutService, ILayoutOffsetInfo } from 'vs/platform/layout/browser/layoutService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { coalesce, firstOrDefault } from 'vs/base/common/arrays';
-import { mainWindow } from 'vs/base/browser/window';
+import { ILayoutOffsetInfo, ILayoutService } from 'vs/platform/layout/browser/layoutService';
 
 class StandaloneLayoutService implements ILayoutService {
 	declare readonly _serviceBrand: undefined;
@@ -48,6 +48,8 @@ class StandaloneLayoutService implements ILayoutService {
 	getContainer() {
 		return this.activeContainer;
 	}
+
+	whenContainerStylesLoaded() { return undefined; }
 
 	focus(): void {
 		this._codeEditorService.getFocusedCodeEditor()?.focus();

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { firstOrDefault } from 'vs/base/common/arrays';
 import { IEditorIdentifier, IEditorCommandsContext, CloseDirection, SaveReason, EditorsOrder, EditorInputCapabilities, DEFAULT_EDITOR_ASSOCIATION, GroupIdentifier, EditorResourceAccessor } from 'vs/workbench/common/editor';
@@ -13,8 +13,8 @@ import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/bro
 import { GoFilter, IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { CLOSE_EDITOR_COMMAND_ID, MOVE_ACTIVE_EDITOR_COMMAND_ID, ActiveEditorMoveCopyArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor, LAYOUT_EDITOR_GROUPS_COMMAND_ID, UNPIN_EDITOR_COMMAND_ID, COPY_ACTIVE_EDITOR_COMMAND_ID, SPLIT_EDITOR, resolveCommandsContext, getCommandsContext, TOGGLE_MAXIMIZE_EDITOR_GROUP } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { IEditorGroupsService, IEditorGroup, GroupsArrangement, GroupLocation, GroupDirection, preferredSideBySideGroupDirection, IFindGroupScope, GroupOrientation, EditorGroupLayout, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { CLOSE_EDITOR_COMMAND_ID, MOVE_ACTIVE_EDITOR_COMMAND_ID, ActiveEditorMoveCopyArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor, LAYOUT_EDITOR_GROUPS_COMMAND_ID, UNPIN_EDITOR_COMMAND_ID, COPY_ACTIVE_EDITOR_COMMAND_ID, SPLIT_EDITOR, resolveCommandsContext, getCommandsContext, TOGGLE_MAXIMIZE_EDITOR_GROUP, MOVE_EDITOR_INTO_NEW_WINDOW_COMMAND_ID, COPY_EDITOR_INTO_NEW_WINDOW_COMMAND_ID, MOVE_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID, COPY_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID, NEW_EMPTY_EDITOR_WINDOW_COMMAND_ID as NEW_EMPTY_EDITOR_WINDOW_COMMAND_ID, resolveEditorsContext, getEditorsContext } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { IEditorGroupsService, IEditorGroup, GroupsArrangement, GroupLocation, GroupDirection, preferredSideBySideGroupDirection, IFindGroupScope, GroupOrientation, EditorGroupLayout, GroupsOrder, MergeGroupMode } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
@@ -30,12 +30,14 @@ import { Action2, IAction2Options, MenuId } from 'vs/platform/actions/common/act
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IKeybindingRule, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { ActiveEditorAvailableEditorIdsContext, ActiveEditorContext, ActiveEditorGroupEmptyContext, AuxiliaryBarVisibleContext, EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext, MultipleEditorGroupsContext, SideBarVisibleContext } from 'vs/workbench/common/contextkeys';
+import { ActiveEditorAvailableEditorIdsContext, ActiveEditorContext, ActiveEditorGroupEmptyContext, AuxiliaryBarVisibleContext, EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext, IsAuxiliaryWindowFocusedContext, MultipleEditorGroupsContext, SideBarVisibleContext } from 'vs/workbench/common/contextkeys';
 import { URI } from 'vs/base/common/uri';
 import { getActiveDocument } from 'vs/base/browser/dom';
+import { ICommandActionTitle } from 'vs/platform/action/common/action';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 
 class ExecuteCommandAction extends Action2 {
 
@@ -60,11 +62,12 @@ abstract class AbstractSplitEditorAction extends Action2 {
 		return preferredSideBySideGroupDirection(configurationService);
 	}
 
-	override async run(accessor: ServicesAccessor, context?: IEditorIdentifier): Promise<void> {
+	override async run(accessor: ServicesAccessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext): Promise<void> {
 		const editorGroupService = accessor.get(IEditorGroupsService);
 		const configurationService = accessor.get(IConfigurationService);
 
-		splitEditor(editorGroupService, this.getDirection(configurationService), context);
+		const commandContext = getCommandsContext(accessor, resourceOrContext, context);
+		splitEditor(editorGroupService, this.getDirection(configurationService), commandContext ? [commandContext] : undefined);
 	}
 }
 
@@ -75,7 +78,7 @@ export class SplitEditorAction extends AbstractSplitEditorAction {
 	constructor() {
 		super({
 			id: SplitEditorAction.ID,
-			title: { value: localize('splitEditor', "Split Editor"), original: 'Split Editor' },
+			title: localize2('splitEditor', 'Split Editor'),
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -91,7 +94,7 @@ export class SplitEditorOrthogonalAction extends AbstractSplitEditorAction {
 	constructor() {
 		super({
 			id: 'workbench.action.splitEditorOrthogonal',
-			title: { value: localize('splitEditorOrthogonal', "Split Editor Orthogonal"), original: 'Split Editor Orthogonal' },
+			title: localize2('splitEditorOrthogonal', 'Split Editor Orthogonal'),
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -113,7 +116,7 @@ export class SplitEditorLeftAction extends ExecuteCommandAction {
 	constructor() {
 		super({
 			id: SPLIT_EDITOR_LEFT,
-			title: { value: localize('splitEditorGroupLeft', "Split Editor Left"), original: 'Split Editor Left' },
+			title: localize2('splitEditorGroupLeft', 'Split Editor Left'),
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -129,7 +132,7 @@ export class SplitEditorRightAction extends ExecuteCommandAction {
 	constructor() {
 		super({
 			id: SPLIT_EDITOR_RIGHT,
-			title: { value: localize('splitEditorGroupRight', "Split Editor Right"), original: 'Split Editor Right' },
+			title: localize2('splitEditorGroupRight', 'Split Editor Right'),
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -147,7 +150,7 @@ export class SplitEditorUpAction extends ExecuteCommandAction {
 	constructor() {
 		super({
 			id: SPLIT_EDITOR_UP,
-			title: { value: localize('splitEditorGroupUp', "Split Editor Up"), original: 'Split Editor Up' },
+			title: localize2('splitEditorGroupUp', "Split Editor Up"),
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -165,7 +168,7 @@ export class SplitEditorDownAction extends ExecuteCommandAction {
 	constructor() {
 		super({
 			id: SPLIT_EDITOR_DOWN,
-			title: { value: localize('splitEditorGroupDown', "Split Editor Down"), original: 'Split Editor Down' },
+			title: localize2('splitEditorGroupDown', "Split Editor Down"),
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -181,7 +184,7 @@ export class JoinTwoGroupsAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.joinTwoGroups',
-			title: { value: localize('joinTwoGroups', "Join Editor Group with Next Group"), original: 'Join Editor Group with Next Group' },
+			title: localize2('joinTwoGroups', 'Join Editor Group with Next Group'),
 			f1: true,
 			category: Categories.View
 		});
@@ -216,7 +219,7 @@ export class JoinAllGroupsAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.joinAllGroups',
-			title: { value: localize('joinAllGroups', "Join All Editor Groups"), original: 'Join All Editor Groups' },
+			title: localize2('joinAllGroups', 'Join All Editor Groups'),
 			f1: true,
 			category: Categories.View
 		});
@@ -225,7 +228,7 @@ export class JoinAllGroupsAction extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const editorGroupService = accessor.get(IEditorGroupsService);
 
-		editorGroupService.mergeAllGroups();
+		editorGroupService.mergeAllGroups(editorGroupService.activeGroup);
 	}
 }
 
@@ -234,7 +237,7 @@ export class NavigateBetweenGroupsAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.navigateEditorGroups',
-			title: { value: localize('navigateEditorGroups', "Navigate Between Editor Groups"), original: 'Navigate Between Editor Groups' },
+			title: localize2('navigateEditorGroups', 'Navigate Between Editor Groups'),
 			f1: true,
 			category: Categories.View
 		});
@@ -253,7 +256,7 @@ export class FocusActiveGroupAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.focusActiveEditorGroup',
-			title: { value: localize('focusActiveEditorGroup', "Focus Active Editor Group"), original: 'Focus Active Editor Group' },
+			title: localize2('focusActiveEditorGroup', 'Focus Active Editor Group'),
 			f1: true,
 			category: Categories.View
 		});
@@ -288,7 +291,7 @@ export class FocusFirstGroupAction extends AbstractFocusGroupAction {
 	constructor() {
 		super({
 			id: 'workbench.action.focusFirstEditorGroup',
-			title: { value: localize('focusFirstEditorGroup', "Focus First Editor Group"), original: 'Focus First Editor Group' },
+			title: localize2('focusFirstEditorGroup', 'Focus First Editor Group'),
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -304,7 +307,7 @@ export class FocusLastGroupAction extends AbstractFocusGroupAction {
 	constructor() {
 		super({
 			id: 'workbench.action.focusLastEditorGroup',
-			title: { value: localize('focusLastEditorGroup', "Focus Last Editor Group"), original: 'Focus Last Editor Group' },
+			title: localize2('focusLastEditorGroup', 'Focus Last Editor Group'),
 			f1: true,
 			category: Categories.View
 		}, { location: GroupLocation.LAST });
@@ -316,7 +319,7 @@ export class FocusNextGroup extends AbstractFocusGroupAction {
 	constructor() {
 		super({
 			id: 'workbench.action.focusNextGroup',
-			title: { value: localize('focusNextGroup', "Focus Next Editor Group"), original: 'Focus Next Editor Group' },
+			title: localize2('focusNextGroup', 'Focus Next Editor Group'),
 			f1: true,
 			category: Categories.View
 		}, { location: GroupLocation.NEXT });
@@ -328,7 +331,7 @@ export class FocusPreviousGroup extends AbstractFocusGroupAction {
 	constructor() {
 		super({
 			id: 'workbench.action.focusPreviousGroup',
-			title: { value: localize('focusPreviousGroup', "Focus Previous Editor Group"), original: 'Focus Previous Editor Group' },
+			title: localize2('focusPreviousGroup', 'Focus Previous Editor Group'),
 			f1: true,
 			category: Categories.View
 		}, { location: GroupLocation.PREVIOUS });
@@ -340,7 +343,7 @@ export class FocusLeftGroup extends AbstractFocusGroupAction {
 	constructor() {
 		super({
 			id: 'workbench.action.focusLeftGroup',
-			title: { value: localize('focusLeftGroup', "Focus Left Editor Group"), original: 'Focus Left Editor Group' },
+			title: localize2('focusLeftGroup', 'Focus Left Editor Group'),
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -356,7 +359,7 @@ export class FocusRightGroup extends AbstractFocusGroupAction {
 	constructor() {
 		super({
 			id: 'workbench.action.focusRightGroup',
-			title: { value: localize('focusRightGroup', "Focus Right Editor Group"), original: 'Focus Right Editor Group' },
+			title: localize2('focusRightGroup', 'Focus Right Editor Group'),
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -372,7 +375,7 @@ export class FocusAboveGroup extends AbstractFocusGroupAction {
 	constructor() {
 		super({
 			id: 'workbench.action.focusAboveGroup',
-			title: { value: localize('focusAboveGroup', "Focus Editor Group Above"), original: 'Focus Editor Group Above' },
+			title: localize2('focusAboveGroup', 'Focus Editor Group Above'),
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -388,7 +391,7 @@ export class FocusBelowGroup extends AbstractFocusGroupAction {
 	constructor() {
 		super({
 			id: 'workbench.action.focusBelowGroup',
-			title: { value: localize('focusBelowGroup', "Focus Editor Group Below"), original: 'Focus Editor Group Below' },
+			title: localize2('focusBelowGroup', 'Focus Editor Group Below'),
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -435,7 +438,7 @@ export class UnpinEditorAction extends Action {
 	}
 }
 
-export class CloseOneEditorAction extends Action {
+export class CloseEditorTabAction extends Action {
 
 	static readonly ID = 'workbench.action.closeActiveEditor';
 	static readonly LABEL = localize('closeOneEditor', "Close");
@@ -449,33 +452,28 @@ export class CloseOneEditorAction extends Action {
 	}
 
 	override async run(context?: IEditorCommandsContext): Promise<void> {
-		let group: IEditorGroup | undefined;
-		let editorIndex: number | undefined;
-		if (context) {
-			group = this.editorGroupService.getGroup(context.groupId);
-
-			if (group) {
-				editorIndex = context.editorIndex; // only allow editor at index if group is valid
-			}
-		}
-
+		const group = context ? this.editorGroupService.getGroup(context.groupId) : this.editorGroupService.activeGroup;
 		if (!group) {
-			group = this.editorGroupService.activeGroup;
-		}
-
-		// Close specific editor in group
-		if (typeof editorIndex === 'number') {
-			const editorAtIndex = group.getEditorByIndex(editorIndex);
-			if (editorAtIndex) {
-				await group.closeEditor(editorAtIndex, { preserveFocus: context?.preserveFocus });
-				return;
-			}
-		}
-
-		// Otherwise close active editor in group
-		if (group.activeEditor) {
-			await group.closeEditor(group.activeEditor, { preserveFocus: context?.preserveFocus });
+			// group mentioned in context does not exist
 			return;
+		}
+
+		const targetEditor = context?.editorIndex !== undefined ? group.getEditorByIndex(context.editorIndex) : group.activeEditor;
+		if (!targetEditor) {
+			// No editor open or editor at index does not exist
+			return;
+		}
+
+		const editors: EditorInput[] = [];
+		if (group.isSelected(targetEditor)) {
+			editors.push(...group.selectedEditors);
+		} else {
+			editors.push(targetEditor);
+		}
+
+		// Close specific editors in group
+		for (const editor of editors) {
+			await group.closeEditor(editor, { preserveFocus: context?.preserveFocus });
 		}
 	}
 }
@@ -485,7 +483,7 @@ export class RevertAndCloseEditorAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.revertAndCloseActiveEditor',
-			title: { value: localize('revertAndCloseActiveEditor', "Revert and Close Editor"), original: 'Revert and Close Editor' },
+			title: localize2('revertAndCloseActiveEditor', 'Revert and Close Editor'),
 			f1: true,
 			category: Categories.View
 		});
@@ -524,7 +522,7 @@ export class CloseLeftEditorsInGroupAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.closeEditorsToTheLeft',
-			title: { value: localize('closeEditorsToTheLeft', "Close Editors to the Left in Group"), original: 'Close Editors to the Left in Group' },
+			title: localize2('closeEditorsToTheLeft', 'Close Editors to the Left in Group'),
 			f1: true,
 			category: Categories.View
 		});
@@ -567,6 +565,8 @@ abstract class AbstractCloseAllAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const editorService = accessor.get(IEditorService);
+		const logService = accessor.get(ILogService);
+		const progressService = accessor.get(IProgressService);
 		const editorGroupService = accessor.get(IEditorGroupsService);
 		const filesConfigurationService = accessor.get(IFilesConfigurationService);
 		const fileDialogService = accessor.get(IFileDialogService);
@@ -604,14 +604,14 @@ abstract class AbstractCloseAllAction extends Action2 {
 
 			// Editor will be saved on focus change when a
 			// dialog appears, so just track that separate
-			else if (filesConfigurationService.getAutoSaveMode() === AutoSaveMode.ON_FOCUS_CHANGE && !editor.hasCapability(EditorInputCapabilities.Untitled)) {
+			else if (!editor.hasCapability(EditorInputCapabilities.Untitled) && filesConfigurationService.getAutoSaveMode(editor).mode === AutoSaveMode.ON_FOCUS_CHANGE) {
 				dirtyAutoSaveOnFocusChangeEditors.add({ editor, groupId });
 			}
 
 			// Windows, Linux: editor will be saved on window change
 			// when a native dialog appears, so just track that separate
 			// (see https://github.com/microsoft/vscode/issues/134250)
-			else if ((isNative && (isWindows || isLinux)) && filesConfigurationService.getAutoSaveMode() === AutoSaveMode.ON_WINDOW_CHANGE && !editor.hasCapability(EditorInputCapabilities.Untitled)) {
+			else if ((isNative && (isWindows || isLinux)) && !editor.hasCapability(EditorInputCapabilities.Untitled) && filesConfigurationService.getAutoSaveMode(editor).mode === AutoSaveMode.ON_WINDOW_CHANGE) {
 				dirtyAutoSaveOnWindowChangeEditors.add({ editor, groupId });
 			}
 
@@ -639,7 +639,7 @@ abstract class AbstractCloseAllAction extends Action2 {
 				case ConfirmResult.CANCEL:
 					return;
 				case ConfirmResult.DONT_SAVE:
-					await editorService.revert(editors, { soft: true });
+					await this.revertEditors(editorService, logService, progressService, editors);
 					break;
 				case ConfirmResult.SAVE:
 					await editorService.save(editors, { reason: SaveReason.EXPLICIT });
@@ -659,7 +659,7 @@ abstract class AbstractCloseAllAction extends Action2 {
 					case ConfirmResult.CANCEL:
 						return;
 					case ConfirmResult.DONT_SAVE:
-						await editorService.revert(editors, { soft: true });
+						await this.revertEditors(editorService, logService, progressService, editors);
 						break;
 					case ConfirmResult.SAVE:
 						await editorService.save(editors, { reason: SaveReason.EXPLICIT });
@@ -687,6 +687,33 @@ abstract class AbstractCloseAllAction extends Action2 {
 		// sure to bring up another confirm dialog for those editors
 		// specifically.
 		return this.doCloseAll(editorGroupService);
+	}
+
+	private revertEditors(editorService: IEditorService, logService: ILogService, progressService: IProgressService, editors: IEditorIdentifier[]): Promise<void> {
+		return progressService.withProgress({
+			location: ProgressLocation.Window, 	// use window progress to not be too annoying about this operation
+			delay: 800,							// delay so that it only appears when operation takes a long time
+			title: localize('reverting', "Reverting Editors..."),
+		}, () => this.doRevertEditors(editorService, logService, editors));
+	}
+
+	private async doRevertEditors(editorService: IEditorService, logService: ILogService, editors: IEditorIdentifier[]): Promise<void> {
+		try {
+			// We first attempt to revert all editors with `soft: false`, to ensure that
+			// working copies revert to their state on disk. Even though we close editors,
+			// it is possible that other parties hold a reference to the working copy
+			// and expect it to be in a certain state after the editor is closed without
+			// saving.
+			await editorService.revert(editors);
+		} catch (error) {
+			logService.error(error);
+
+			// if that fails, since we are about to close the editor, we accept that
+			// the editor cannot be reverted and instead do a soft revert that just
+			// enables us to close the editor. With this, a user can always close a
+			// dirty editor even when reverting fails.
+			await editorService.revert(editors, { soft: true });
+		}
 	}
 
 	private async revealEditorsToConfirm(editors: ReadonlyArray<IEditorIdentifier>, editorGroupService: IEditorGroupsService): Promise<void> {
@@ -717,7 +744,7 @@ abstract class AbstractCloseAllAction extends Action2 {
 export class CloseAllEditorsAction extends AbstractCloseAllAction {
 
 	static readonly ID = 'workbench.action.closeAllEditors';
-	static readonly LABEL = { value: localize('closeAllEditors', "Close All Editors"), original: 'Close All Editors' };
+	static readonly LABEL = localize2('closeAllEditors', 'Close All Editors');
 
 	constructor() {
 		super({
@@ -743,7 +770,7 @@ export class CloseAllEditorGroupsAction extends AbstractCloseAllAction {
 	constructor() {
 		super({
 			id: 'workbench.action.closeAllGroups',
-			title: { value: localize('closeAllGroups', "Close All Editor Groups"), original: 'Close All Editor Groups' },
+			title: localize2('closeAllGroups', 'Close All Editor Groups'),
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -771,7 +798,7 @@ export class CloseEditorsInOtherGroupsAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.closeEditorsInOtherGroups',
-			title: { value: localize('closeEditorsInOtherGroups', "Close Editors in Other Groups"), original: 'Close Editors in Other Groups' },
+			title: localize2('closeEditorsInOtherGroups', 'Close Editors in Other Groups'),
 			f1: true,
 			category: Categories.View
 		});
@@ -796,7 +823,7 @@ export class CloseEditorInAllGroupsAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.closeEditorInAllGroups',
-			title: { value: localize('closeEditorInAllGroups', "Close Editor in All Groups"), original: 'Close Editor in All Groups' },
+			title: localize2('closeEditorInAllGroups', 'Close Editor in All Groups'),
 			f1: true,
 			category: Categories.View
 		});
@@ -893,7 +920,7 @@ export class MoveGroupLeftAction extends AbstractMoveGroupAction {
 	constructor() {
 		super({
 			id: 'workbench.action.moveActiveEditorGroupLeft',
-			title: { value: localize('moveActiveGroupLeft', "Move Editor Group Left"), original: 'Move Editor Group Left' },
+			title: localize2('moveActiveGroupLeft', 'Move Editor Group Left'),
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -909,7 +936,7 @@ export class MoveGroupRightAction extends AbstractMoveGroupAction {
 	constructor() {
 		super({
 			id: 'workbench.action.moveActiveEditorGroupRight',
-			title: { value: localize('moveActiveGroupRight', "Move Editor Group Right"), original: 'Move Editor Group Right' },
+			title: localize2('moveActiveGroupRight', 'Move Editor Group Right'),
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -925,7 +952,7 @@ export class MoveGroupUpAction extends AbstractMoveGroupAction {
 	constructor() {
 		super({
 			id: 'workbench.action.moveActiveEditorGroupUp',
-			title: { value: localize('moveActiveGroupUp', "Move Editor Group Up"), original: 'Move Editor Group Up' },
+			title: localize2('moveActiveGroupUp', 'Move Editor Group Up'),
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -941,7 +968,7 @@ export class MoveGroupDownAction extends AbstractMoveGroupAction {
 	constructor() {
 		super({
 			id: 'workbench.action.moveActiveEditorGroupDown',
-			title: { value: localize('moveActiveGroupDown', "Move Editor Group Down"), original: 'Move Editor Group Down' },
+			title: localize2('moveActiveGroupDown', 'Move Editor Group Down'),
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -967,7 +994,7 @@ export class DuplicateGroupLeftAction extends AbstractDuplicateGroupAction {
 	constructor() {
 		super({
 			id: 'workbench.action.duplicateActiveEditorGroupLeft',
-			title: { value: localize('duplicateActiveGroupLeft', "Duplicate Editor Group Left"), original: 'Duplicate Editor Group Left' },
+			title: localize2('duplicateActiveGroupLeft', 'Duplicate Editor Group Left'),
 			f1: true,
 			category: Categories.View
 		}, GroupDirection.LEFT);
@@ -979,7 +1006,7 @@ export class DuplicateGroupRightAction extends AbstractDuplicateGroupAction {
 	constructor() {
 		super({
 			id: 'workbench.action.duplicateActiveEditorGroupRight',
-			title: { value: localize('duplicateActiveGroupRight', "Duplicate Editor Group Right"), original: 'Duplicate Editor Group Right' },
+			title: localize2('duplicateActiveGroupRight', 'Duplicate Editor Group Right'),
 			f1: true,
 			category: Categories.View
 		}, GroupDirection.RIGHT);
@@ -991,7 +1018,7 @@ export class DuplicateGroupUpAction extends AbstractDuplicateGroupAction {
 	constructor() {
 		super({
 			id: 'workbench.action.duplicateActiveEditorGroupUp',
-			title: { value: localize('duplicateActiveGroupUp', "Duplicate Editor Group Up"), original: 'Duplicate Editor Group Up' },
+			title: localize2('duplicateActiveGroupUp', 'Duplicate Editor Group Up'),
 			f1: true,
 			category: Categories.View
 		}, GroupDirection.UP);
@@ -1003,7 +1030,7 @@ export class DuplicateGroupDownAction extends AbstractDuplicateGroupAction {
 	constructor() {
 		super({
 			id: 'workbench.action.duplicateActiveEditorGroupDown',
-			title: { value: localize('duplicateActiveGroupDown', "Duplicate Editor Group Down"), original: 'Duplicate Editor Group Down' },
+			title: localize2('duplicateActiveGroupDown', 'Duplicate Editor Group Down'),
 			f1: true,
 			category: Categories.View
 		}, GroupDirection.DOWN);
@@ -1015,7 +1042,7 @@ export class MinimizeOtherGroupsAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.minimizeOtherEditors',
-			title: { value: localize('minimizeOtherEditorGroups', "Expand Editor Group"), original: 'Expand Editor Group' },
+			title: localize2('minimizeOtherEditorGroups', 'Expand Editor Group'),
 			f1: true,
 			category: Categories.View,
 			precondition: MultipleEditorGroupsContext
@@ -1034,7 +1061,7 @@ export class MinimizeOtherGroupsHideSidebarAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.minimizeOtherEditorsHideSidebar',
-			title: { value: localize('minimizeOtherEditorGroupsHideSidebar', "Expand Editor Group and Hide Side Bars"), original: 'Expand Editor Group and Hide Side Bars' },
+			title: localize2('minimizeOtherEditorGroupsHideSidebar', 'Expand Editor Group and Hide Side Bars'),
 			f1: true,
 			category: Categories.View,
 			precondition: ContextKeyExpr.or(MultipleEditorGroupsContext, SideBarVisibleContext, AuxiliaryBarVisibleContext)
@@ -1056,7 +1083,7 @@ export class ResetGroupSizesAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.evenEditorWidths',
-			title: { value: localize('evenEditorGroups', "Reset Editor Group Sizes"), original: 'Reset Editor Group Sizes' },
+			title: localize2('evenEditorGroups', 'Reset Editor Group Sizes'),
 			f1: true,
 			category: Categories.View
 		});
@@ -1074,7 +1101,7 @@ export class ToggleGroupSizesAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.toggleEditorWidths',
-			title: { value: localize('toggleEditorWidths', "Toggle Editor Group Sizes"), original: 'Toggle Editor Group Sizes' },
+			title: localize2('toggleEditorWidths', 'Toggle Editor Group Sizes'),
 			f1: true,
 			category: Categories.View
 		});
@@ -1087,13 +1114,12 @@ export class ToggleGroupSizesAction extends Action2 {
 	}
 }
 
-
 export class MaximizeGroupHideSidebarAction extends Action2 {
 
 	constructor() {
 		super({
 			id: 'workbench.action.maximizeEditorHideSidebar',
-			title: { value: localize('maximizeEditorHideSidebar', "Maximize Editor Group and Hide Side Bars"), original: 'Maximize Editor Group and Hide Side Bars' },
+			title: localize2('maximizeEditorHideSidebar', 'Maximize Editor Group and Hide Side Bars'),
 			f1: true,
 			category: Categories.View,
 			precondition: ContextKeyExpr.or(ContextKeyExpr.and(EditorPartMaximizedEditorGroupContext.negate(), EditorPartMultipleEditorGroupsContext), SideBarVisibleContext, AuxiliaryBarVisibleContext)
@@ -1118,7 +1144,7 @@ export class ToggleMaximizeEditorGroupAction extends Action2 {
 	constructor() {
 		super({
 			id: TOGGLE_MAXIMIZE_EDITOR_GROUP,
-			title: { value: localize('toggleMaximizeEditorGroup', "Toggle Maximize Editor Group"), original: 'Toggle Maximize Editor Group' },
+			title: localize2('toggleMaximizeEditorGroup', 'Toggle Maximize Editor Group'),
 			f1: true,
 			category: Categories.View,
 			precondition: ContextKeyExpr.or(EditorPartMultipleEditorGroupsContext, EditorPartMaximizedEditorGroupContext),
@@ -1145,7 +1171,8 @@ export class ToggleMaximizeEditorGroupAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext): Promise<void> {
 		const editorGroupsService = accessor.get(IEditorGroupsService);
-		const { group } = resolveCommandsContext(editorGroupsService, getCommandsContext(resourceOrContext, context));
+
+		const { group } = resolveCommandsContext(editorGroupsService, getCommandsContext(accessor, resourceOrContext, context));
 		editorGroupsService.toggleMaximizeGroup(group);
 	}
 }
@@ -1179,7 +1206,7 @@ export class OpenNextEditor extends AbstractNavigateEditorAction {
 	constructor() {
 		super({
 			id: 'workbench.action.nextEditor',
-			title: { value: localize('openNextEditor', "Open Next Editor"), original: 'Open Next Editor' },
+			title: localize2('openNextEditor', 'Open Next Editor'),
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -1227,7 +1254,7 @@ export class OpenPreviousEditor extends AbstractNavigateEditorAction {
 	constructor() {
 		super({
 			id: 'workbench.action.previousEditor',
-			title: { value: localize('openPreviousEditor', "Open Previous Editor"), original: 'Open Previous Editor' },
+			title: localize2('openPreviousEditor', 'Open Previous Editor'),
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -1275,7 +1302,7 @@ export class OpenNextEditorInGroup extends AbstractNavigateEditorAction {
 	constructor() {
 		super({
 			id: 'workbench.action.nextEditorInGroup',
-			title: { value: localize('nextEditorInGroup', "Open Next Editor in Group"), original: 'Open Next Editor in Group' },
+			title: localize2('nextEditorInGroup', 'Open Next Editor in Group'),
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -1302,7 +1329,7 @@ export class OpenPreviousEditorInGroup extends AbstractNavigateEditorAction {
 	constructor() {
 		super({
 			id: 'workbench.action.previousEditorInGroup',
-			title: { value: localize('openPreviousEditorInGroup', "Open Previous Editor in Group"), original: 'Open Previous Editor in Group' },
+			title: localize2('openPreviousEditorInGroup', 'Open Previous Editor in Group'),
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -1329,7 +1356,7 @@ export class OpenFirstEditorInGroup extends AbstractNavigateEditorAction {
 	constructor() {
 		super({
 			id: 'workbench.action.firstEditorInGroup',
-			title: { value: localize('firstEditorInGroup', "Open First Editor in Group"), original: 'Open First Editor in Group' },
+			title: localize2('firstEditorInGroup', 'Open First Editor in Group'),
 			f1: true,
 			category: Categories.View
 		});
@@ -1348,7 +1375,7 @@ export class OpenLastEditorInGroup extends AbstractNavigateEditorAction {
 	constructor() {
 		super({
 			id: 'workbench.action.lastEditorInGroup',
-			title: { value: localize('lastEditorInGroup', "Open Last Editor in Group"), original: 'Open Last Editor in Group' },
+			title: localize2('lastEditorInGroup', 'Open Last Editor in Group'),
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -1379,7 +1406,10 @@ export class NavigateForwardAction extends Action2 {
 	constructor() {
 		super({
 			id: NavigateForwardAction.ID,
-			title: { value: localize('navigateForward', "Go Forward"), original: 'Go Forward', mnemonicTitle: localize({ key: 'miForward', comment: ['&& denotes a mnemonic'] }, "&&Forward") },
+			title: {
+				...localize2('navigateForward', "Go Forward"),
+				mnemonicTitle: localize({ key: 'miForward', comment: ['&& denotes a mnemonic'] }, "&&Forward")
+			},
 			f1: true,
 			icon: Codicon.arrowRight,
 			precondition: ContextKeyExpr.has('canNavigateForward'),
@@ -1411,7 +1441,10 @@ export class NavigateBackwardsAction extends Action2 {
 	constructor() {
 		super({
 			id: NavigateBackwardsAction.ID,
-			title: { value: localize('navigateBack', "Go Back"), original: 'Go Back', mnemonicTitle: localize({ key: 'miBack', comment: ['&& denotes a mnemonic'] }, "&&Back") },
+			title: {
+				...localize2('navigateBack', "Go Back"),
+				mnemonicTitle: localize({ key: 'miBack', comment: ['&& denotes a mnemonic'] }, "&&Back")
+			},
 			f1: true,
 			precondition: ContextKeyExpr.has('canNavigateBack'),
 			icon: Codicon.arrowLeft,
@@ -1440,7 +1473,7 @@ export class NavigatePreviousAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.navigateLast',
-			title: { value: localize('navigatePrevious', "Go Previous"), original: 'Go Previous' },
+			title: localize2('navigatePrevious', 'Go Previous'),
 			f1: true
 		});
 	}
@@ -1457,7 +1490,7 @@ export class NavigateForwardInEditsAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.navigateForwardInEditLocations',
-			title: { value: localize('navigateForwardInEdits', "Go Forward in Edit Locations"), original: 'Go Forward in Edit Locations' },
+			title: localize2('navigateForwardInEdits', 'Go Forward in Edit Locations'),
 			f1: true
 		});
 	}
@@ -1474,7 +1507,7 @@ export class NavigateBackwardsInEditsAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.navigateBackInEditLocations',
-			title: { value: localize('navigateBackInEdits', "Go Back in Edit Locations"), original: 'Go Back in Edit Locations' },
+			title: localize2('navigateBackInEdits', 'Go Back in Edit Locations'),
 			f1: true
 		});
 	}
@@ -1491,7 +1524,7 @@ export class NavigatePreviousInEditsAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.navigatePreviousInEditLocations',
-			title: { value: localize('navigatePreviousInEdits', "Go Previous in Edit Locations"), original: 'Go Previous in Edit Locations' },
+			title: localize2('navigatePreviousInEdits', 'Go Previous in Edit Locations'),
 			f1: true
 		});
 	}
@@ -1508,7 +1541,7 @@ export class NavigateToLastEditLocationAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.navigateToLastEditLocation',
-			title: { value: localize('navigateToLastEditLocation', "Go to Last Edit Location"), original: 'Go to Last Edit Location' },
+			title: localize2('navigateToLastEditLocation', 'Go to Last Edit Location'),
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -1529,7 +1562,7 @@ export class NavigateForwardInNavigationsAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.navigateForwardInNavigationLocations',
-			title: { value: localize('navigateForwardInNavigations', "Go Forward in Navigation Locations"), original: 'Go Forward in Navigation Locations' },
+			title: localize2('navigateForwardInNavigations', 'Go Forward in Navigation Locations'),
 			f1: true
 		});
 	}
@@ -1546,7 +1579,7 @@ export class NavigateBackwardsInNavigationsAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.navigateBackInNavigationLocations',
-			title: { value: localize('navigateBackInNavigations', "Go Back in Navigation Locations"), original: 'Go Back in Navigation Locations' },
+			title: localize2('navigateBackInNavigations', 'Go Back in Navigation Locations'),
 			f1: true
 		});
 	}
@@ -1563,7 +1596,7 @@ export class NavigatePreviousInNavigationsAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.navigatePreviousInNavigationLocations',
-			title: { value: localize('navigatePreviousInNavigationLocations', "Go Previous in Navigation Locations"), original: 'Go Previous in Navigation Locations' },
+			title: localize2('navigatePreviousInNavigationLocations', 'Go Previous in Navigation Locations'),
 			f1: true
 		});
 	}
@@ -1580,7 +1613,7 @@ export class NavigateToLastNavigationLocationAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.navigateToLastNavigationLocation',
-			title: { value: localize('navigateToLastNavigationLocation', "Go to Last Navigation Location"), original: 'Go to Last Navigation Location' },
+			title: localize2('navigateToLastNavigationLocation', 'Go to Last Navigation Location'),
 			f1: true
 		});
 	}
@@ -1599,7 +1632,7 @@ export class ReopenClosedEditorAction extends Action2 {
 	constructor() {
 		super({
 			id: ReopenClosedEditorAction.ID,
-			title: { value: localize('reopenClosedEditor', "Reopen Closed Editor"), original: 'Reopen Closed Editor' },
+			title: localize2('reopenClosedEditor', 'Reopen Closed Editor'),
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -1623,7 +1656,7 @@ export class ClearRecentFilesAction extends Action2 {
 	constructor() {
 		super({
 			id: ClearRecentFilesAction.ID,
-			title: { value: localize('clearRecentFiles', "Clear Recently Opened..."), original: 'Clear Recently Opened...' },
+			title: localize2('clearRecentFiles', 'Clear Recently Opened...'),
 			f1: true,
 			category: Categories.File
 		});
@@ -1661,7 +1694,7 @@ export class ShowEditorsInActiveGroupByMostRecentlyUsedAction extends Action2 {
 	constructor() {
 		super({
 			id: ShowEditorsInActiveGroupByMostRecentlyUsedAction.ID,
-			title: { value: localize('showEditorsInActiveGroup', "Show Editors in Active Group By Most Recently Used"), original: 'Show Editors in Active Group By Most Recently Used' },
+			title: localize2('showEditorsInActiveGroup', 'Show Editors in Active Group By Most Recently Used'),
 			f1: true,
 			category: Categories.View
 		});
@@ -1681,7 +1714,7 @@ export class ShowAllEditorsByAppearanceAction extends Action2 {
 	constructor() {
 		super({
 			id: ShowAllEditorsByAppearanceAction.ID,
-			title: { value: localize('showAllEditors', "Show All Editors By Appearance"), original: 'Show All Editors By Appearance' },
+			title: localize2('showAllEditors', 'Show All Editors By Appearance'),
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -1708,7 +1741,7 @@ export class ShowAllEditorsByMostRecentlyUsedAction extends Action2 {
 	constructor() {
 		super({
 			id: ShowAllEditorsByMostRecentlyUsedAction.ID,
-			title: { value: localize('showAllEditorsByMostRecentlyUsed', "Show All Editors By Most Recently Used"), original: 'Show All Editors By Most Recently Used' },
+			title: localize2('showAllEditorsByMostRecentlyUsed', 'Show All Editors By Most Recently Used'),
 			f1: true,
 			category: Categories.View
 		});
@@ -1749,7 +1782,7 @@ export class QuickAccessPreviousRecentlyUsedEditorAction extends AbstractQuickAc
 	constructor() {
 		super({
 			id: 'workbench.action.quickOpenPreviousRecentlyUsedEditor',
-			title: { value: localize('quickOpenPreviousRecentlyUsedEditor', "Quick Open Previous Recently Used Editor"), original: 'Quick Open Previous Recently Used Editor' },
+			title: localize2('quickOpenPreviousRecentlyUsedEditor', 'Quick Open Previous Recently Used Editor'),
 			f1: true,
 			category: Categories.View
 		}, AllEditorsByMostRecentlyUsedQuickAccess.PREFIX, undefined);
@@ -1761,7 +1794,7 @@ export class QuickAccessLeastRecentlyUsedEditorAction extends AbstractQuickAcces
 	constructor() {
 		super({
 			id: 'workbench.action.quickOpenLeastRecentlyUsedEditor',
-			title: { value: localize('quickOpenLeastRecentlyUsedEditor', "Quick Open Least Recently Used Editor"), original: 'Quick Open Least Recently Used Editor' },
+			title: localize2('quickOpenLeastRecentlyUsedEditor', 'Quick Open Least Recently Used Editor'),
 			f1: true,
 			category: Categories.View
 		}, AllEditorsByMostRecentlyUsedQuickAccess.PREFIX, undefined);
@@ -1773,7 +1806,7 @@ export class QuickAccessPreviousRecentlyUsedEditorInGroupAction extends Abstract
 	constructor() {
 		super({
 			id: 'workbench.action.quickOpenPreviousRecentlyUsedEditorInGroup',
-			title: { value: localize('quickOpenPreviousRecentlyUsedEditorInGroup', "Quick Open Previous Recently Used Editor in Group"), original: 'Quick Open Previous Recently Used Editor in Group' },
+			title: localize2('quickOpenPreviousRecentlyUsedEditorInGroup', 'Quick Open Previous Recently Used Editor in Group'),
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -1793,7 +1826,7 @@ export class QuickAccessLeastRecentlyUsedEditorInGroupAction extends AbstractQui
 	constructor() {
 		super({
 			id: 'workbench.action.quickOpenLeastRecentlyUsedEditorInGroup',
-			title: { value: localize('quickOpenLeastRecentlyUsedEditorInGroup', "Quick Open Least Recently Used Editor in Group"), original: 'Quick Open Least Recently Used Editor in Group' },
+			title: localize2('quickOpenLeastRecentlyUsedEditorInGroup', 'Quick Open Least Recently Used Editor in Group'),
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -1815,7 +1848,7 @@ export class QuickAccessPreviousEditorFromHistoryAction extends Action2 {
 	constructor() {
 		super({
 			id: QuickAccessPreviousEditorFromHistoryAction.ID,
-			title: { value: localize('navigateEditorHistoryByInput', "Quick Open Previous Editor from History"), original: 'Quick Open Previous Editor from History' },
+			title: localize2('navigateEditorHistoryByInput', 'Quick Open Previous Editor from History'),
 			f1: true
 		});
 	}
@@ -1843,7 +1876,7 @@ export class OpenNextRecentlyUsedEditorAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.openNextRecentlyUsedEditor',
-			title: { value: localize('openNextRecentlyUsedEditor', "Open Next Recently Used Editor"), original: 'Open Next Recently Used Editor' },
+			title: localize2('openNextRecentlyUsedEditor', 'Open Next Recently Used Editor'),
 			f1: true,
 			category: Categories.View
 		});
@@ -1861,7 +1894,7 @@ export class OpenPreviousRecentlyUsedEditorAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.openPreviousRecentlyUsedEditor',
-			title: { value: localize('openPreviousRecentlyUsedEditor', "Open Previous Recently Used Editor"), original: 'Open Previous Recently Used Editor' },
+			title: localize2('openPreviousRecentlyUsedEditor', 'Open Previous Recently Used Editor'),
 			f1: true,
 			category: Categories.View
 		});
@@ -1879,7 +1912,7 @@ export class OpenNextRecentlyUsedEditorInGroupAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.openNextRecentlyUsedEditorInGroup',
-			title: { value: localize('openNextRecentlyUsedEditorInGroup', "Open Next Recently Used Editor In Group"), original: 'Open Next Recently Used Editor In Group' },
+			title: localize2('openNextRecentlyUsedEditorInGroup', 'Open Next Recently Used Editor In Group'),
 			f1: true,
 			category: Categories.View
 		});
@@ -1898,7 +1931,7 @@ export class OpenPreviousRecentlyUsedEditorInGroupAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.openPreviousRecentlyUsedEditorInGroup',
-			title: { value: localize('openPreviousRecentlyUsedEditorInGroup', "Open Previous Recently Used Editor In Group"), original: 'Open Previous Recently Used Editor In Group' },
+			title: localize2('openPreviousRecentlyUsedEditorInGroup', 'Open Previous Recently Used Editor In Group'),
 			f1: true,
 			category: Categories.View
 		});
@@ -1917,7 +1950,7 @@ export class ClearEditorHistoryAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.clearEditorHistory',
-			title: { value: localize('clearEditorHistory', "Clear Editor History"), original: 'Clear Editor History' },
+			title: localize2('clearEditorHistory', 'Clear Editor History'),
 			f1: true
 		});
 	}
@@ -1948,7 +1981,7 @@ export class MoveEditorLeftInGroupAction extends ExecuteCommandAction {
 	constructor() {
 		super({
 			id: 'workbench.action.moveEditorLeftInGroup',
-			title: { value: localize('moveEditorLeft', "Move Editor Left"), original: 'Move Editor Left' },
+			title: localize2('moveEditorLeft', 'Move Editor Left'),
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.PageUp,
@@ -1958,7 +1991,7 @@ export class MoveEditorLeftInGroupAction extends ExecuteCommandAction {
 			},
 			f1: true,
 			category: Categories.View
-		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'left' } as ActiveEditorMoveCopyArguments);
+		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'left' } satisfies ActiveEditorMoveCopyArguments);
 	}
 }
 
@@ -1967,7 +2000,7 @@ export class MoveEditorRightInGroupAction extends ExecuteCommandAction {
 	constructor() {
 		super({
 			id: 'workbench.action.moveEditorRightInGroup',
-			title: { value: localize('moveEditorRight', "Move Editor Right"), original: 'Move Editor Right' },
+			title: localize2('moveEditorRight', 'Move Editor Right'),
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.PageDown,
@@ -1977,7 +2010,7 @@ export class MoveEditorRightInGroupAction extends ExecuteCommandAction {
 			},
 			f1: true,
 			category: Categories.View
-		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'right' } as ActiveEditorMoveCopyArguments);
+		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'right' } satisfies ActiveEditorMoveCopyArguments);
 	}
 }
 
@@ -1986,7 +2019,7 @@ export class MoveEditorToPreviousGroupAction extends ExecuteCommandAction {
 	constructor() {
 		super({
 			id: 'workbench.action.moveEditorToPreviousGroup',
-			title: { value: localize('moveEditorToPreviousGroup', "Move Editor into Previous Group"), original: 'Move Editor into Previous Group' },
+			title: localize2('moveEditorToPreviousGroup', 'Move Editor into Previous Group'),
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.LeftArrow,
@@ -1996,7 +2029,7 @@ export class MoveEditorToPreviousGroupAction extends ExecuteCommandAction {
 			},
 			f1: true,
 			category: Categories.View,
-		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'previous', by: 'group' } as ActiveEditorMoveCopyArguments);
+		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'previous', by: 'group' } satisfies ActiveEditorMoveCopyArguments);
 	}
 }
 
@@ -2005,7 +2038,7 @@ export class MoveEditorToNextGroupAction extends ExecuteCommandAction {
 	constructor() {
 		super({
 			id: 'workbench.action.moveEditorToNextGroup',
-			title: { value: localize('moveEditorToNextGroup', "Move Editor into Next Group"), original: 'Move Editor into Next Group' },
+			title: localize2('moveEditorToNextGroup', 'Move Editor into Next Group'),
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -2015,7 +2048,7 @@ export class MoveEditorToNextGroupAction extends ExecuteCommandAction {
 				}
 			},
 			category: Categories.View
-		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'next', by: 'group' } as ActiveEditorMoveCopyArguments);
+		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'next', by: 'group' } satisfies ActiveEditorMoveCopyArguments);
 	}
 }
 
@@ -2024,10 +2057,10 @@ export class MoveEditorToAboveGroupAction extends ExecuteCommandAction {
 	constructor() {
 		super({
 			id: 'workbench.action.moveEditorToAboveGroup',
-			title: { value: localize('moveEditorToAboveGroup', "Move Editor into Group Above"), original: 'Move Editor into Group Above' },
+			title: localize2('moveEditorToAboveGroup', 'Move Editor into Group Above'),
 			f1: true,
 			category: Categories.View
-		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'up', by: 'group' } as ActiveEditorMoveCopyArguments);
+		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'up', by: 'group' } satisfies ActiveEditorMoveCopyArguments);
 	}
 }
 
@@ -2036,10 +2069,10 @@ export class MoveEditorToBelowGroupAction extends ExecuteCommandAction {
 	constructor() {
 		super({
 			id: 'workbench.action.moveEditorToBelowGroup',
-			title: { value: localize('moveEditorToBelowGroup', "Move Editor into Group Below"), original: 'Move Editor into Group Below' },
+			title: localize2('moveEditorToBelowGroup', 'Move Editor into Group Below'),
 			f1: true,
 			category: Categories.View
-		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'down', by: 'group' } as ActiveEditorMoveCopyArguments);
+		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'down', by: 'group' } satisfies ActiveEditorMoveCopyArguments);
 	}
 }
 
@@ -2048,10 +2081,10 @@ export class MoveEditorToLeftGroupAction extends ExecuteCommandAction {
 	constructor() {
 		super({
 			id: 'workbench.action.moveEditorToLeftGroup',
-			title: { value: localize('moveEditorToLeftGroup', "Move Editor into Left Group"), original: 'Move Editor into Left Group' },
+			title: localize2('moveEditorToLeftGroup', 'Move Editor into Left Group'),
 			f1: true,
 			category: Categories.View
-		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'left', by: 'group' } as ActiveEditorMoveCopyArguments);
+		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'left', by: 'group' } satisfies ActiveEditorMoveCopyArguments);
 	}
 }
 
@@ -2060,10 +2093,10 @@ export class MoveEditorToRightGroupAction extends ExecuteCommandAction {
 	constructor() {
 		super({
 			id: 'workbench.action.moveEditorToRightGroup',
-			title: { value: localize('moveEditorToRightGroup', "Move Editor into Right Group"), original: 'Move Editor into Right Group' },
+			title: localize2('moveEditorToRightGroup', 'Move Editor into Right Group'),
 			f1: true,
 			category: Categories.View
-		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'right', by: 'group' } as ActiveEditorMoveCopyArguments);
+		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'right', by: 'group' } satisfies ActiveEditorMoveCopyArguments);
 	}
 }
 
@@ -2072,7 +2105,7 @@ export class MoveEditorToFirstGroupAction extends ExecuteCommandAction {
 	constructor() {
 		super({
 			id: 'workbench.action.moveEditorToFirstGroup',
-			title: { value: localize('moveEditorToFirstGroup', "Move Editor into First Group"), original: 'Move Editor into First Group' },
+			title: localize2('moveEditorToFirstGroup', 'Move Editor into First Group'),
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -2082,7 +2115,7 @@ export class MoveEditorToFirstGroupAction extends ExecuteCommandAction {
 				}
 			},
 			category: Categories.View
-		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'first', by: 'group' } as ActiveEditorMoveCopyArguments);
+		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'first', by: 'group' } satisfies ActiveEditorMoveCopyArguments);
 	}
 }
 
@@ -2091,7 +2124,7 @@ export class MoveEditorToLastGroupAction extends ExecuteCommandAction {
 	constructor() {
 		super({
 			id: 'workbench.action.moveEditorToLastGroup',
-			title: { value: localize('moveEditorToLastGroup', "Move Editor into Last Group"), original: 'Move Editor into Last Group' },
+			title: localize2('moveEditorToLastGroup', 'Move Editor into Last Group'),
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -2101,7 +2134,7 @@ export class MoveEditorToLastGroupAction extends ExecuteCommandAction {
 				}
 			},
 			category: Categories.View
-		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'last', by: 'group' } as ActiveEditorMoveCopyArguments);
+		}, MOVE_ACTIVE_EDITOR_COMMAND_ID, { to: 'last', by: 'group' } satisfies ActiveEditorMoveCopyArguments);
 	}
 }
 
@@ -2110,10 +2143,10 @@ export class SplitEditorToPreviousGroupAction extends ExecuteCommandAction {
 	constructor() {
 		super({
 			id: 'workbench.action.splitEditorToPreviousGroup',
-			title: { value: localize('splitEditorToPreviousGroup', "Split Editor into Previous Group"), original: 'Split Editor into Previous Group' },
+			title: localize2('splitEditorToPreviousGroup', 'Split Editor into Previous Group'),
 			f1: true,
 			category: Categories.View
-		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'previous', by: 'group' } as ActiveEditorMoveCopyArguments);
+		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'previous', by: 'group' } satisfies ActiveEditorMoveCopyArguments);
 	}
 }
 
@@ -2122,10 +2155,10 @@ export class SplitEditorToNextGroupAction extends ExecuteCommandAction {
 	constructor() {
 		super({
 			id: 'workbench.action.splitEditorToNextGroup',
-			title: { value: localize('splitEditorToNextGroup', "Split Editor into Next Group"), original: 'Split Editor into Next Group' },
+			title: localize2('splitEditorToNextGroup', 'Split Editor into Next Group'),
 			f1: true,
 			category: Categories.View
-		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'next', by: 'group' } as ActiveEditorMoveCopyArguments);
+		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'next', by: 'group' } satisfies ActiveEditorMoveCopyArguments);
 	}
 }
 
@@ -2134,10 +2167,10 @@ export class SplitEditorToAboveGroupAction extends ExecuteCommandAction {
 	constructor() {
 		super({
 			id: 'workbench.action.splitEditorToAboveGroup',
-			title: { value: localize('splitEditorToAboveGroup', "Split Editor into Group Above"), original: 'Split Editor into Group Above' },
+			title: localize2('splitEditorToAboveGroup', 'Split Editor into Group Above'),
 			f1: true,
 			category: Categories.View
-		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'up', by: 'group' } as ActiveEditorMoveCopyArguments);
+		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'up', by: 'group' } satisfies ActiveEditorMoveCopyArguments);
 	}
 }
 
@@ -2146,10 +2179,10 @@ export class SplitEditorToBelowGroupAction extends ExecuteCommandAction {
 	constructor() {
 		super({
 			id: 'workbench.action.splitEditorToBelowGroup',
-			title: { value: localize('splitEditorToBelowGroup', "Split Editor into Group Below"), original: 'Split Editor into Group Below' },
+			title: localize2('splitEditorToBelowGroup', 'Split Editor into Group Below'),
 			f1: true,
 			category: Categories.View
-		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'down', by: 'group' } as ActiveEditorMoveCopyArguments);
+		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'down', by: 'group' } satisfies ActiveEditorMoveCopyArguments);
 	}
 }
 
@@ -2161,10 +2194,10 @@ export class SplitEditorToLeftGroupAction extends ExecuteCommandAction {
 	constructor() {
 		super({
 			id: 'workbench.action.splitEditorToLeftGroup',
-			title: { value: localize('splitEditorToLeftGroup', "Split Editor into Left Group"), original: 'Split Editor into Left Group' },
+			title: localize2('splitEditorToLeftGroup', "Split Editor into Left Group"),
 			f1: true,
 			category: Categories.View
-		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'left', by: 'group' } as ActiveEditorMoveCopyArguments);
+		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'left', by: 'group' } satisfies ActiveEditorMoveCopyArguments);
 	}
 }
 
@@ -2173,10 +2206,10 @@ export class SplitEditorToRightGroupAction extends ExecuteCommandAction {
 	constructor() {
 		super({
 			id: 'workbench.action.splitEditorToRightGroup',
-			title: { value: localize('splitEditorToRightGroup', "Split Editor into Right Group"), original: 'Split Editor into Right Group' },
+			title: localize2('splitEditorToRightGroup', 'Split Editor into Right Group'),
 			f1: true,
 			category: Categories.View
-		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'right', by: 'group' } as ActiveEditorMoveCopyArguments);
+		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'right', by: 'group' } satisfies ActiveEditorMoveCopyArguments);
 	}
 }
 
@@ -2185,10 +2218,10 @@ export class SplitEditorToFirstGroupAction extends ExecuteCommandAction {
 	constructor() {
 		super({
 			id: 'workbench.action.splitEditorToFirstGroup',
-			title: { value: localize('splitEditorToFirstGroup', "Split Editor into First Group"), original: 'Split Editor into First Group' },
+			title: localize2('splitEditorToFirstGroup', 'Split Editor into First Group'),
 			f1: true,
 			category: Categories.View
-		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'first', by: 'group' } as ActiveEditorMoveCopyArguments);
+		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'first', by: 'group' } satisfies ActiveEditorMoveCopyArguments);
 	}
 }
 
@@ -2197,10 +2230,10 @@ export class SplitEditorToLastGroupAction extends ExecuteCommandAction {
 	constructor() {
 		super({
 			id: 'workbench.action.splitEditorToLastGroup',
-			title: { value: localize('splitEditorToLastGroup', "Split Editor into Last Group"), original: 'Split Editor into Last Group' },
+			title: localize2('splitEditorToLastGroup', 'Split Editor into Last Group'),
 			f1: true,
 			category: Categories.View
-		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'last', by: 'group' } as ActiveEditorMoveCopyArguments);
+		}, COPY_ACTIVE_EDITOR_COMMAND_ID, { to: 'last', by: 'group' } satisfies ActiveEditorMoveCopyArguments);
 	}
 }
 
@@ -2211,10 +2244,10 @@ export class EditorLayoutSingleAction extends ExecuteCommandAction {
 	constructor() {
 		super({
 			id: EditorLayoutSingleAction.ID,
-			title: { value: localize('editorLayoutSingle', "Single Column Editor Layout"), original: 'Single Column Editor Layout' },
+			title: localize2('editorLayoutSingle', 'Single Column Editor Layout'),
 			f1: true,
 			category: Categories.View
-		}, LAYOUT_EDITOR_GROUPS_COMMAND_ID, { groups: [{}] } as EditorGroupLayout);
+		}, LAYOUT_EDITOR_GROUPS_COMMAND_ID, { groups: [{}], orientation: GroupOrientation.HORIZONTAL } satisfies EditorGroupLayout);
 	}
 }
 
@@ -2225,10 +2258,10 @@ export class EditorLayoutTwoColumnsAction extends ExecuteCommandAction {
 	constructor() {
 		super({
 			id: EditorLayoutTwoColumnsAction.ID,
-			title: { value: localize('editorLayoutTwoColumns', "Two Columns Editor Layout"), original: 'Two Columns Editor Layout' },
+			title: localize2('editorLayoutTwoColumns', 'Two Columns Editor Layout'),
 			f1: true,
 			category: Categories.View
-		}, LAYOUT_EDITOR_GROUPS_COMMAND_ID, { groups: [{}, {}], orientation: GroupOrientation.HORIZONTAL } as EditorGroupLayout);
+		}, LAYOUT_EDITOR_GROUPS_COMMAND_ID, { groups: [{}, {}], orientation: GroupOrientation.HORIZONTAL } satisfies EditorGroupLayout);
 	}
 }
 
@@ -2239,10 +2272,10 @@ export class EditorLayoutThreeColumnsAction extends ExecuteCommandAction {
 	constructor() {
 		super({
 			id: EditorLayoutThreeColumnsAction.ID,
-			title: { value: localize('editorLayoutThreeColumns', "Three Columns Editor Layout"), original: 'Three Columns Editor Layout' },
+			title: localize2('editorLayoutThreeColumns', 'Three Columns Editor Layout'),
 			f1: true,
 			category: Categories.View
-		}, LAYOUT_EDITOR_GROUPS_COMMAND_ID, { groups: [{}, {}, {}], orientation: GroupOrientation.HORIZONTAL } as EditorGroupLayout);
+		}, LAYOUT_EDITOR_GROUPS_COMMAND_ID, { groups: [{}, {}, {}], orientation: GroupOrientation.HORIZONTAL } satisfies EditorGroupLayout);
 	}
 }
 
@@ -2253,10 +2286,10 @@ export class EditorLayoutTwoRowsAction extends ExecuteCommandAction {
 	constructor() {
 		super({
 			id: EditorLayoutTwoRowsAction.ID,
-			title: { value: localize('editorLayoutTwoRows', "Two Rows Editor Layout"), original: 'Two Rows Editor Layout' },
+			title: localize2('editorLayoutTwoRows', 'Two Rows Editor Layout'),
 			f1: true,
 			category: Categories.View
-		}, LAYOUT_EDITOR_GROUPS_COMMAND_ID, { groups: [{}, {}], orientation: GroupOrientation.VERTICAL } as EditorGroupLayout);
+		}, LAYOUT_EDITOR_GROUPS_COMMAND_ID, { groups: [{}, {}], orientation: GroupOrientation.VERTICAL } satisfies EditorGroupLayout);
 	}
 }
 
@@ -2267,10 +2300,10 @@ export class EditorLayoutThreeRowsAction extends ExecuteCommandAction {
 	constructor() {
 		super({
 			id: EditorLayoutThreeRowsAction.ID,
-			title: { value: localize('editorLayoutThreeRows', "Three Rows Editor Layout"), original: 'Three Rows Editor Layout' },
+			title: localize2('editorLayoutThreeRows', 'Three Rows Editor Layout'),
 			f1: true,
 			category: Categories.View
-		}, LAYOUT_EDITOR_GROUPS_COMMAND_ID, { groups: [{}, {}, {}], orientation: GroupOrientation.VERTICAL } as EditorGroupLayout);
+		}, LAYOUT_EDITOR_GROUPS_COMMAND_ID, { groups: [{}, {}, {}], orientation: GroupOrientation.VERTICAL } satisfies EditorGroupLayout);
 	}
 }
 
@@ -2281,10 +2314,10 @@ export class EditorLayoutTwoByTwoGridAction extends ExecuteCommandAction {
 	constructor() {
 		super({
 			id: EditorLayoutTwoByTwoGridAction.ID,
-			title: { value: localize('editorLayoutTwoByTwoGrid', "Grid Editor Layout (2x2)"), original: 'Grid Editor Layout (2x2)' },
+			title: localize2('editorLayoutTwoByTwoGrid', 'Grid Editor Layout (2x2)'),
 			f1: true,
 			category: Categories.View
-		}, LAYOUT_EDITOR_GROUPS_COMMAND_ID, { groups: [{ groups: [{}, {}] }, { groups: [{}, {}] }] } as EditorGroupLayout);
+		}, LAYOUT_EDITOR_GROUPS_COMMAND_ID, { groups: [{ groups: [{}, {}] }, { groups: [{}, {}] }], orientation: GroupOrientation.HORIZONTAL } satisfies EditorGroupLayout);
 	}
 }
 
@@ -2295,10 +2328,10 @@ export class EditorLayoutTwoColumnsBottomAction extends ExecuteCommandAction {
 	constructor() {
 		super({
 			id: EditorLayoutTwoColumnsBottomAction.ID,
-			title: { value: localize('editorLayoutTwoColumnsBottom', "Two Columns Bottom Editor Layout"), original: 'Two Columns Bottom Editor Layout' },
+			title: localize2('editorLayoutTwoColumnsBottom', 'Two Columns Bottom Editor Layout'),
 			f1: true,
 			category: Categories.View
-		}, LAYOUT_EDITOR_GROUPS_COMMAND_ID, { groups: [{}, { groups: [{}, {}] }], orientation: GroupOrientation.VERTICAL } as EditorGroupLayout);
+		}, LAYOUT_EDITOR_GROUPS_COMMAND_ID, { groups: [{}, { groups: [{}, {}] }], orientation: GroupOrientation.VERTICAL } satisfies EditorGroupLayout);
 	}
 }
 
@@ -2309,10 +2342,10 @@ export class EditorLayoutTwoRowsRightAction extends ExecuteCommandAction {
 	constructor() {
 		super({
 			id: EditorLayoutTwoRowsRightAction.ID,
-			title: { value: localize('editorLayoutTwoRowsRight', "Two Rows Right Editor Layout"), original: 'Two Rows Right Editor Layout' },
+			title: localize2('editorLayoutTwoRowsRight', 'Two Rows Right Editor Layout'),
 			f1: true,
 			category: Categories.View
-		}, LAYOUT_EDITOR_GROUPS_COMMAND_ID, { groups: [{}, { groups: [{}, {}] }], orientation: GroupOrientation.HORIZONTAL } as EditorGroupLayout);
+		}, LAYOUT_EDITOR_GROUPS_COMMAND_ID, { groups: [{}, { groups: [{}, {}] }], orientation: GroupOrientation.HORIZONTAL } satisfies EditorGroupLayout);
 	}
 }
 
@@ -2357,7 +2390,7 @@ export class NewEditorGroupLeftAction extends AbstractCreateEditorGroupAction {
 	constructor() {
 		super({
 			id: 'workbench.action.newGroupLeft',
-			title: { value: localize('newGroupLeft', "New Editor Group to the Left"), original: 'New Editor Group to the Left' },
+			title: localize2('newGroupLeft', 'New Editor Group to the Left'),
 			f1: true,
 			category: Categories.View
 		}, GroupDirection.LEFT);
@@ -2369,7 +2402,7 @@ export class NewEditorGroupRightAction extends AbstractCreateEditorGroupAction {
 	constructor() {
 		super({
 			id: 'workbench.action.newGroupRight',
-			title: { value: localize('newGroupRight', "New Editor Group to the Right"), original: 'New Editor Group to the Right' },
+			title: localize2('newGroupRight', 'New Editor Group to the Right'),
 			f1: true,
 			category: Categories.View
 		}, GroupDirection.RIGHT);
@@ -2381,7 +2414,7 @@ export class NewEditorGroupAboveAction extends AbstractCreateEditorGroupAction {
 	constructor() {
 		super({
 			id: 'workbench.action.newGroupAbove',
-			title: { value: localize('newGroupAbove', "New Editor Group Above"), original: 'New Editor Group Above' },
+			title: localize2('newGroupAbove', 'New Editor Group Above'),
 			f1: true,
 			category: Categories.View
 		}, GroupDirection.UP);
@@ -2393,7 +2426,7 @@ export class NewEditorGroupBelowAction extends AbstractCreateEditorGroupAction {
 	constructor() {
 		super({
 			id: 'workbench.action.newGroupBelow',
-			title: { value: localize('newGroupBelow', "New Editor Group Below"), original: 'New Editor Group Below' },
+			title: localize2('newGroupBelow', 'New Editor Group Below'),
 			f1: true,
 			category: Categories.View
 		}, GroupDirection.DOWN);
@@ -2405,7 +2438,7 @@ export class ToggleEditorTypeAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.toggleEditorType',
-			title: { value: localize('toggleEditorType', "Toggle Editor Type"), original: 'Toggle Editor Type' },
+			title: localize2('toggleEditorType', 'Toggle Editor Type'),
 			f1: true,
 			category: Categories.View,
 			precondition: ActiveEditorAvailableEditorIdsContext
@@ -2451,7 +2484,7 @@ export class ReOpenInTextEditorAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.reopenTextEditor',
-			title: { value: localize('reopenTextEditor', "Reopen Editor With Text Editor"), original: 'Reopen Editor With Text Editor' },
+			title: localize2('reopenTextEditor', 'Reopen Editor With Text Editor'),
 			f1: true,
 			category: Categories.View,
 			precondition: ActiveEditorAvailableEditorIdsContext
@@ -2486,33 +2519,173 @@ export class ReOpenInTextEditorAction extends Action2 {
 	}
 }
 
-export class ExperimentalMoveEditorIntoNewWindowAction extends Action2 {
 
-	constructor() {
+abstract class BaseMoveCopyEditorToNewWindowAction extends Action2 {
+
+	constructor(
+		id: string,
+		title: ICommandActionTitle,
+		keybinding: Omit<IKeybindingRule, 'id'> | undefined,
+		private readonly move: boolean
+	) {
 		super({
-			id: 'workbench.action.experimentalMoveEditorIntoNewWindowAction',
-			title: {
-				value: localize('popEditorOut', "Move Active Editor into a New Window (Experimental)"),
-				mnemonicTitle: localize({ key: 'miPopEditorOut', comment: ['&& denotes a mnemonic'] }, "&&Move Active Editor into a New Window (Experimental)"),
-				original: 'Move Active Editor into a New Window (Experimental)'
-			},
+			id,
+			title,
 			category: Categories.View,
 			precondition: ActiveEditorContext,
+			keybinding,
 			f1: true
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const editorService = accessor.get(IEditorService);
+	override async run(accessor: ServicesAccessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext) {
 		const editorGroupService = accessor.get(IEditorGroupsService);
-
-		const activeEditorPane = editorService.activeEditorPane;
-		if (!activeEditorPane) {
+		const editorsContext = resolveEditorsContext(getEditorsContext(accessor, resourceOrContext, context));
+		if (editorsContext.length === 0) {
 			return;
 		}
 
 		const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart();
 
-		activeEditorPane.group.moveEditor(activeEditorPane.input, auxiliaryEditorPart.activeGroup);
+		const sourceGroup = editorsContext[0].group; // only single group supported for move/copy for now
+		const sourceEditors = editorsContext.filter(({ group }) => group === sourceGroup);
+		if (this.move) {
+			sourceGroup.moveEditors(sourceEditors, auxiliaryEditorPart.activeGroup);
+		} else {
+			sourceGroup.copyEditors(sourceEditors, auxiliaryEditorPart.activeGroup);
+		}
+
+		auxiliaryEditorPart.activeGroup.focus();
+	}
+}
+
+export class MoveEditorToNewWindowAction extends BaseMoveCopyEditorToNewWindowAction {
+
+	constructor() {
+		super(
+			MOVE_EDITOR_INTO_NEW_WINDOW_COMMAND_ID,
+			{
+				...localize2('moveEditorToNewWindow', "Move Editor into New Window"),
+				mnemonicTitle: localize({ key: 'miMoveEditorToNewWindow', comment: ['&& denotes a mnemonic'] }, "&&Move Editor into New Window"),
+			},
+			undefined,
+			true
+		);
+	}
+}
+
+export class CopyEditorToNewindowAction extends BaseMoveCopyEditorToNewWindowAction {
+
+	constructor() {
+		super(
+			COPY_EDITOR_INTO_NEW_WINDOW_COMMAND_ID,
+			{
+				...localize2('copyEditorToNewWindow', "Copy Editor into New Window"),
+				mnemonicTitle: localize({ key: 'miCopyEditorToNewWindow', comment: ['&& denotes a mnemonic'] }, "&&Copy Editor into New Window"),
+			},
+			{ primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyO), weight: KeybindingWeight.WorkbenchContrib },
+			false
+		);
+	}
+}
+
+abstract class BaseMoveCopyEditorGroupToNewWindowAction extends Action2 {
+
+	constructor(
+		id: string,
+		title: ICommandActionTitle,
+		private readonly move: boolean
+	) {
+		super({
+			id,
+			title,
+			category: Categories.View,
+			f1: true
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorGroupService = accessor.get(IEditorGroupsService);
+		const activeGroup = editorGroupService.activeGroup;
+
+		const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart();
+
+		editorGroupService.mergeGroup(activeGroup, auxiliaryEditorPart.activeGroup, {
+			mode: this.move ? MergeGroupMode.MOVE_EDITORS : MergeGroupMode.COPY_EDITORS
+		});
+
+		auxiliaryEditorPart.activeGroup.focus();
+	}
+}
+
+export class MoveEditorGroupToNewWindowAction extends BaseMoveCopyEditorGroupToNewWindowAction {
+
+	constructor() {
+		super(
+			MOVE_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID,
+			{
+				...localize2('moveEditorGroupToNewWindow', "Move Editor Group into New Window"),
+				mnemonicTitle: localize({ key: 'miMoveEditorGroupToNewWindow', comment: ['&& denotes a mnemonic'] }, "&&Move Editor Group into New Window"),
+			},
+			true
+		);
+	}
+}
+
+export class CopyEditorGroupToNewWindowAction extends BaseMoveCopyEditorGroupToNewWindowAction {
+
+	constructor() {
+		super(
+			COPY_EDITOR_GROUP_INTO_NEW_WINDOW_COMMAND_ID,
+			{
+				...localize2('copyEditorGroupToNewWindow', "Copy Editor Group into New Window"),
+				mnemonicTitle: localize({ key: 'miCopyEditorGroupToNewWindow', comment: ['&& denotes a mnemonic'] }, "&&Copy Editor Group into New Window"),
+			},
+			false
+		);
+	}
+}
+
+export class RestoreEditorsToMainWindowAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.restoreEditorsToMainWindow',
+			title: {
+				...localize2('restoreEditorsToMainWindow', "Restore Editors into Main Window"),
+				mnemonicTitle: localize({ key: 'miRestoreEditorsToMainWindow', comment: ['&& denotes a mnemonic'] }, "&&Restore Editors into Main Window"),
+			},
+			f1: true,
+			precondition: IsAuxiliaryWindowFocusedContext,
+			category: Categories.View
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorGroupService = accessor.get(IEditorGroupsService);
+
+		editorGroupService.mergeAllGroups(editorGroupService.mainPart.activeGroup);
+	}
+}
+
+export class NewEmptyEditorWindowAction extends Action2 {
+
+	constructor() {
+		super({
+			id: NEW_EMPTY_EDITOR_WINDOW_COMMAND_ID,
+			title: {
+				...localize2('newEmptyEditorWindow', "New Empty Editor Window"),
+				mnemonicTitle: localize({ key: 'miNewEmptyEditorWindow', comment: ['&& denotes a mnemonic'] }, "&&New Empty Editor Window"),
+			},
+			f1: true,
+			category: Categories.View
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorGroupService = accessor.get(IEditorGroupsService);
+
+		const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart();
+		auxiliaryEditorPart.activeGroup.focus();
 	}
 }

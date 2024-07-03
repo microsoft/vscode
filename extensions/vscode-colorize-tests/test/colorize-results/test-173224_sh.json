@@ -1,7 +1,7 @@
 [
 	{
 		"c": "alias",
-		"t": "source.shell meta.expression.assignment.shell storage.type.alias.shell",
+		"t": "source.shell meta.expression.assignment.alias.shell storage.type.alias.shell",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -15,7 +15,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.shell meta.expression.assignment.shell",
+		"t": "source.shell meta.expression.assignment.alias.shell",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -29,7 +29,7 @@
 	},
 	{
 		"c": "brew_list",
-		"t": "source.shell meta.expression.assignment.shell variable.other.assignment.shell",
+		"t": "source.shell meta.expression.assignment.alias.shell variable.other.assignment.shell",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -43,7 +43,7 @@
 	},
 	{
 		"c": "=",
-		"t": "source.shell meta.expression.assignment.shell keyword.operator.assignment.shell",
+		"t": "source.shell meta.expression.assignment.alias.shell keyword.operator.assignment.shell",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -57,7 +57,7 @@
 	},
 	{
 		"c": "\"",
-		"t": "source.shell meta.expression.assignment.shell string.quoted.double.shell punctuation.definition.string.begin.shell",
+		"t": "source.shell meta.expression.assignment.alias.shell string.quoted.double.shell punctuation.definition.string.begin.shell",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -71,7 +71,7 @@
 	},
 	{
 		"c": "brew leaves",
-		"t": "source.shell meta.expression.assignment.shell string.quoted.double.shell",
+		"t": "source.shell meta.expression.assignment.alias.shell string.quoted.double.shell",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -85,7 +85,7 @@
 	},
 	{
 		"c": "\"",
-		"t": "source.shell meta.expression.assignment.shell string.quoted.double.shell punctuation.definition.string.end.shell",
+		"t": "source.shell meta.expression.assignment.alias.shell string.quoted.double.shell punctuation.definition.string.end.shell",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -99,7 +99,7 @@
 	},
 	{
 		"c": "alias",
-		"t": "source.shell meta.expression.assignment.shell storage.type.alias.shell",
+		"t": "source.shell meta.expression.assignment.alias.shell storage.type.alias.shell",
 		"r": {
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
@@ -113,7 +113,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.shell meta.expression.assignment.shell",
+		"t": "source.shell meta.expression.assignment.alias.shell",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -127,7 +127,7 @@
 	},
 	{
 		"c": "brew-list",
-		"t": "source.shell meta.expression.assignment.shell variable.other.assignment.shell",
+		"t": "source.shell meta.expression.assignment.alias.shell variable.other.assignment.shell",
 		"r": {
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
@@ -141,7 +141,7 @@
 	},
 	{
 		"c": "=",
-		"t": "source.shell meta.expression.assignment.shell keyword.operator.assignment.shell",
+		"t": "source.shell meta.expression.assignment.alias.shell keyword.operator.assignment.shell",
 		"r": {
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
@@ -155,7 +155,7 @@
 	},
 	{
 		"c": "\"",
-		"t": "source.shell meta.expression.assignment.shell string.quoted.double.shell punctuation.definition.string.begin.shell",
+		"t": "source.shell meta.expression.assignment.alias.shell string.quoted.double.shell punctuation.definition.string.begin.shell",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -169,7 +169,7 @@
 	},
 	{
 		"c": "brew leaves",
-		"t": "source.shell meta.expression.assignment.shell string.quoted.double.shell",
+		"t": "source.shell meta.expression.assignment.alias.shell string.quoted.double.shell",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -183,7 +183,7 @@
 	},
 	{
 		"c": "\"",
-		"t": "source.shell meta.expression.assignment.shell string.quoted.double.shell punctuation.definition.string.end.shell",
+		"t": "source.shell meta.expression.assignment.alias.shell string.quoted.double.shell punctuation.definition.string.end.shell",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",

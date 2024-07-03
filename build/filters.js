@@ -81,6 +81,7 @@ module.exports.indentationFilter = [
 	'!resources/linux/snap/electron-launch',
 	'!build/ext.js',
 	'!build/npm/gyp/patches/gyp_spectre_mitigation_support.patch',
+	'!product.overrides.json',
 
 	// except specific folders
 	'!test/automation/out/**',

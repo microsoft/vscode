@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import assert from 'assert';
+import { isHTMLAnchorElement } from 'vs/base/browser/dom';
 import { isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
@@ -16,24 +16,17 @@ import { workbenchInstantiationService } from 'vs/workbench/test/browser/workben
 
 suite('Debug - Link Detector', () => {
 
-	let disposables: DisposableStore;
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let linkDetector: LinkDetector;
 
 	/**
 	 * Instantiate a {@link LinkDetector} for use by the functions being tested.
 	 */
 	setup(() => {
-		disposables = new DisposableStore();
 		const instantiationService: TestInstantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
 		instantiationService.stub(ITunnelService, { canTunnel: () => false });
 		linkDetector = instantiationService.createInstance(LinkDetector);
 	});
-
-	teardown(() => {
-		disposables.dispose();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	/**
 	 * Assert that a given Element is an anchor element.
@@ -41,7 +34,7 @@ suite('Debug - Link Detector', () => {
 	 * @param element The Element to verify.
 	 */
 	function assertElementIsLink(element: Element) {
-		assert(element instanceof HTMLAnchorElement);
+		assert(isHTMLAnchorElement(element));
 	}
 
 	test('noLinks', () => {

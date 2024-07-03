@@ -39,7 +39,7 @@ export class ExpandLineSelectionAction extends EditorAction {
 			CursorChangeReason.Explicit,
 			CursorMoveCommands.expandLineSelection(viewModel, viewModel.getCursorStates())
 		);
-		viewModel.revealPrimaryCursor(args.source, true);
+		viewModel.revealAllCursors(args.source, true);
 	}
 }
 

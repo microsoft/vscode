@@ -6,7 +6,7 @@
 import 'vs/platform/update/common/update.config.contribution';
 
 import { app, dialog } from 'electron';
-import { unlinkSync } from 'fs';
+import { unlinkSync, promises } from 'fs';
 import { URI } from 'vs/base/common/uri';
 import { coalesce, distinct } from 'vs/base/common/arrays';
 import { Promises } from 'vs/base/common/async';
@@ -71,6 +71,7 @@ import { LogService } from 'vs/platform/log/common/logService';
 import { massageMessageBoxOptions } from 'vs/platform/dialogs/common/dialogs';
 import { SaveStrategy, StateService } from 'vs/platform/state/node/stateService';
 import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataProvider';
+import { addUNCHostToAllowlist, getUNCHost } from 'vs/base/node/unc';
 
 /**
  * The main VS Code entry point.
@@ -138,7 +139,7 @@ class CodeMain {
 				Event.once(lifecycleMainService.onWillShutdown)(evt => {
 					fileService.dispose();
 					configurationService.dispose();
-					evt.join('instanceLockfile', FSPromises.unlink(environmentMainService.mainLockfile).catch(() => { /* ignored */ }));
+					evt.join('instanceLockfile', promises.unlink(environmentMainService.mainLockfile).catch(() => { /* ignored */ }));
 				});
 
 				return instantiationService.createInstance(CodeApplication, mainProcessNodeIpcServer, instanceEnvironment).startup();
@@ -249,14 +250,14 @@ class CodeMain {
 
 			// Environment service (paths)
 			Promise.all<string | undefined>([
-				environmentMainService.extensionsPath,
-				environmentMainService.codeCachePath,
+				this.allowWindowsUNCPath(environmentMainService.extensionsPath), // enable extension paths on UNC drives...
+				environmentMainService.codeCachePath,							 // ...other user-data-derived paths should already be enlisted from `main.js`
 				environmentMainService.logsHome.with({ scheme: Schemas.file }).fsPath,
 				userDataProfilesMainService.defaultProfile.globalStorageHome.with({ scheme: Schemas.file }).fsPath,
 				environmentMainService.workspaceStorageHome.with({ scheme: Schemas.file }).fsPath,
 				environmentMainService.localHistoryHome.with({ scheme: Schemas.file }).fsPath,
 				environmentMainService.backupHome
-			].map(path => path ? FSPromises.mkdir(path, { recursive: true }) : undefined)),
+			].map(path => path ? promises.mkdir(path, { recursive: true }) : undefined)),
 
 			// State service
 			stateService.init(),
@@ -267,6 +268,17 @@ class CodeMain {
 
 		// Initialize user data profiles after initializing the state
 		userDataProfilesMainService.init();
+	}
+
+	private allowWindowsUNCPath(path: string): string {
+		if (isWindows) {
+			const host = getUNCHost(path);
+			if (host) {
+				addUNCHostToAllowlist(host);
+			}
+		}
+
+		return path;
 	}
 
 	private async claimInstance(logService: ILogService, environmentMainService: IEnvironmentMainService, lifecycleMainService: ILifecycleMainService, instantiationService: IInstantiationService, productService: IProductService, retry: boolean): Promise<NodeIPCServer> {

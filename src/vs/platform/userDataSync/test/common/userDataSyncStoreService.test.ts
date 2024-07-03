@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { timeout } from 'vs/base/common/async';
 import { newWriteableBufferStream } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -416,6 +416,9 @@ suite('UserDataSyncRequestsSession', () => {
 		async resolveProxy() { return undefined; },
 		async loadCertificates() { return []; }
 	};
+
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('too many requests are thrown when limit exceeded', async () => {
 		const testObject = new RequestsSession(1, 500, requestService, new NullLogService());

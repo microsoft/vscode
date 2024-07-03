@@ -1,0 +1,32 @@
+[
+  {
+    content: {
+      value: "text before",
+      isTrusted: false,
+      supportThemeIcons: false,
+      supportHtml: false
+    },
+    kind: "markdownContent"
+  },
+  {
+    inlineReference: {
+      scheme: "https",
+      authority: "microsoft.com",
+      path: "/",
+      query: "",
+      fragment: "",
+      _formatted: null,
+      _fsPath: null
+    },
+    kind: "inlineReference"
+  },
+  {
+    content: {
+      value: "text after",
+      isTrusted: false,
+      supportThemeIcons: false,
+      supportHtml: false
+    },
+    kind: "markdownContent"
+  }
+]

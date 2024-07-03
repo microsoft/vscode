@@ -12,8 +12,12 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import localizedStrings from 'vs/platform/languagePacks/common/localizedStrings';
 import { ILogFile, getLogs } from 'vs/platform/log/browser/log';
+import { ILogService } from 'vs/platform/log/common/log';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IWindowDriver, IElement, ILocaleInfo, ILocalizedStrings } from 'vs/workbench/services/driver/common/driver';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import type { Terminal as XtermTerminal } from '@xterm/xterm';
 
 export class BrowserWindowDriver implements IWindowDriver {
 
@@ -21,6 +25,7 @@ export class BrowserWindowDriver implements IWindowDriver {
 		@IFileService private readonly fileService: IFileService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@ILogService private readonly logService: ILogService
 	) {
 	}
 
@@ -28,8 +33,12 @@ export class BrowserWindowDriver implements IWindowDriver {
 		return getLogs(this.fileService, this.environmentService);
 	}
 
-	whenWorkbenchRestored(): Promise<void> {
-		return this.lifecycleService.when(LifecyclePhase.Restored);
+	async whenWorkbenchRestored(): Promise<void> {
+		this.logService.info('[driver] Waiting for restored lifecycle phase...');
+		await this.lifecycleService.when(LifecyclePhase.Restored);
+		this.logService.info('[driver] Restored lifecycle phase reached. Waiting for contributions...');
+		await Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).whenRestored;
+		this.logService.info('[driver] Workbench contributions created.');
 	}
 
 	async setValue(selector: string, text: string): Promise<void> {
@@ -166,13 +175,13 @@ export class BrowserWindowDriver implements IWindowDriver {
 			throw new Error(`Element not found: ${selector}`);
 		}
 
-		const xterm = (element as any).xterm;
+		const xterm = (element as any).xterm as (XtermTerminal | undefined);
 
 		if (!xterm) {
 			throw new Error(`Xterm not found: ${selector}`);
 		}
 
-		xterm._core.coreService.triggerDataEvent(text);
+		xterm.input(text);
 	}
 
 	getLocaleInfo(): Promise<ILocaleInfo> {

@@ -2,8 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
+import assert from 'assert';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ContextKeyExpr, ContextKeyExpression, implies } from 'vs/platform/contextkey/common/contextkey';
 
 function createContext(ctx: any) {
@@ -15,6 +16,9 @@ function createContext(ctx: any) {
 }
 
 suite('ContextKeyExpr', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('ContextKeyExpr.equals', () => {
 		const a = ContextKeyExpr.and(
 			ContextKeyExpr.has('a1'),

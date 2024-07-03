@@ -6,7 +6,7 @@
 				"git": {
 					"name": "chromium",
 					"repositoryUrl": "https://chromium.googlesource.com/chromium/src",
-					"commitHash": "88c0a3606e1a856ad43651130d27bb880e1833d6"
+					"commitHash": "f1a45d7ded05d64ca8136cc142ddc0c271b1dd43"
 				}
 			},
 			"licenseDetail": [
@@ -40,7 +40,7 @@
 				"SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE."
 			],
 			"isOnlyProductionDependency": true,
-			"version": "114.0.5735.289"
+			"version": "122.0.6261.156"
 		},
 		{
 			"component": {
@@ -48,7 +48,7 @@
 				"git": {
 					"name": "ffmpeg",
 					"repositoryUrl": "https://chromium.googlesource.com/chromium/third_party/ffmpeg",
-					"commitHash": "8d21d41d8bec5c0b266ee305d1a708dc5c23b594"
+					"commitHash": "17525de887d54b970ffdd421a0879c1db1952307"
 				}
 			},
 			"isOnlyProductionDependency": true,
@@ -516,11 +516,11 @@
 				"git": {
 					"name": "nodejs",
 					"repositoryUrl": "https://github.com/nodejs/node",
-					"commitHash": "a94966ffc114e831d4a917a97f9958d3385ab6f7"
+					"commitHash": "9b1bf44ea9e7785e38c93b7d22d32dbca262df6c"
 				}
 			},
 			"isOnlyProductionDependency": true,
-			"version": "18.15.0"
+			"version": "20.11.1"
 		},
 		{
 			"component": {
@@ -528,12 +528,12 @@
 				"git": {
 					"name": "electron",
 					"repositoryUrl": "https://github.com/electron/electron",
-					"commitHash": "bb6a7d443b4f00680d05cc703b4d7ae180fdde03"
+					"commitHash": "f9ed0eaee4b172733872c2f84e5061882dd08e5c"
 				}
 			},
 			"isOnlyProductionDependency": true,
 			"license": "MIT",
-			"version": "25.9.4"
+			"version": "29.4.0"
 		},
 		{
 			"component": {

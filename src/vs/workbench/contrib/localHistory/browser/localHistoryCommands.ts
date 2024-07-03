@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
@@ -32,7 +32,7 @@ import { firstOrDefault } from 'vs/base/common/arrays';
 import { getLocalHistoryDateFormatter, LOCAL_HISTORY_ICON_RESTORE, LOCAL_HISTORY_MENU_CONTEXT_KEY } from 'vs/workbench/contrib/localHistory/browser/localHistory';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
-const LOCAL_HISTORY_CATEGORY = { value: localize('localHistory.category', "Local History"), original: 'Local History' };
+const LOCAL_HISTORY_CATEGORY = localize2('localHistory.category', 'Local History');
 
 export interface ITimelineCommandArgument {
 	uri: URI;
@@ -41,7 +41,7 @@ export interface ITimelineCommandArgument {
 
 //#region Compare with File
 
-export const COMPARE_WITH_FILE_LABEL = { value: localize('localHistory.compareWithFile', "Compare with File"), original: 'Compare with File' };
+export const COMPARE_WITH_FILE_LABEL = localize2('localHistory.compareWithFile', 'Compare with File');
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -75,7 +75,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.localHistory.compareWithPrevious',
-			title: { value: localize('localHistory.compareWithPrevious', "Compare with Previous"), original: 'Compare with Previous' },
+			title: localize2('localHistory.compareWithPrevious', 'Compare with Previous'),
 			menu: {
 				id: MenuId.TimelineItemContext,
 				group: '1_compare',
@@ -115,7 +115,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.localHistory.selectForCompare',
-			title: { value: localize('localHistory.selectForCompare', "Select for Compare"), original: 'Select for Compare' },
+			title: localize2('localHistory.selectForCompare', 'Select for Compare'),
 			menu: {
 				id: MenuId.TimelineItemContext,
 				group: '2_compare_with',
@@ -140,7 +140,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.localHistory.compareWithSelected',
-			title: { value: localize('localHistory.compareWithSelected', "Compare with Selected"), original: 'Compare with Selected' },
+			title: localize2('localHistory.compareWithSelected', 'Compare with Selected'),
 			menu: {
 				id: MenuId.TimelineItemContext,
 				group: '2_compare_with',
@@ -177,7 +177,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.localHistory.open',
-			title: { value: localize('localHistory.open', "Show Contents"), original: 'Show Contents' },
+			title: localize2('localHistory.open', 'Show Contents'),
 			menu: {
 				id: MenuId.TimelineItemContext,
 				group: '3_contents',
@@ -199,7 +199,7 @@ registerAction2(class extends Action2 {
 
 //#region Restore Contents
 
-const RESTORE_CONTENTS_LABEL = { value: localize('localHistory.restore', "Restore Contents"), original: 'Restore Contents' };
+const RESTORE_CONTENTS_LABEL = localize2('localHistory.restore', 'Restore Contents');
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -314,7 +314,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.localHistory.restoreViaPicker',
-			title: { value: localize('localHistory.restoreViaPicker', "Find Entry to Restore"), original: 'Find Entry to Restore' },
+			title: localize2('localHistory.restoreViaPicker', 'Find Entry to Restore'),
 			f1: true,
 			category: LOCAL_HISTORY_CATEGORY
 		});
@@ -402,7 +402,7 @@ registerAction2(class extends Action2 {
 	}
 });
 
-MenuRegistry.appendMenuItem(MenuId.TimelineTitle, { command: { id: 'workbench.action.localHistory.restoreViaPicker', title: { value: localize('localHistory.restoreViaPickerMenu', "Local History: Find Entry to Restore..."), original: 'Local History: Find Entry to Restore...' } }, group: 'submenu', order: 1 });
+MenuRegistry.appendMenuItem(MenuId.TimelineTitle, { command: { id: 'workbench.action.localHistory.restoreViaPicker', title: localize2('localHistory.restoreViaPickerMenu', 'Local History: Find Entry to Restore...') }, group: 'submenu', order: 1 });
 
 //#endregion
 
@@ -412,7 +412,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.localHistory.rename',
-			title: { value: localize('localHistory.rename', "Rename"), original: 'Rename' },
+			title: localize2('localHistory.rename', 'Rename'),
 			menu: {
 				id: MenuId.TimelineItemContext,
 				group: '5_edit',
@@ -451,7 +451,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.localHistory.delete',
-			title: { value: localize('localHistory.delete', "Delete"), original: 'Delete' },
+			title: localize2('localHistory.delete', 'Delete'),
 			menu: {
 				id: MenuId.TimelineItemContext,
 				group: '5_edit',
@@ -497,7 +497,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.localHistory.deleteAll',
-			title: { value: localize('localHistory.deleteAll', "Delete All"), original: 'Delete All' },
+			title: localize2('localHistory.deleteAll', 'Delete All'),
 			f1: true,
 			category: LOCAL_HISTORY_CATEGORY
 		});
@@ -531,7 +531,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.localHistory.create',
-			title: { value: localize('localHistory.create', "Create Entry"), original: 'Create Entry' },
+			title: localize2('localHistory.create', 'Create Entry'),
 			f1: true,
 			category: LOCAL_HISTORY_CATEGORY,
 			precondition: ActiveEditorContext

@@ -3,10 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { MonotonousArray, findFirstMonotonous, findLastMonotonous } from 'vs/base/common/arraysFind';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Arrays', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('findLastMonotonous', () => {
 		const array = [1, 4, 5, 7, 55, 59, 60, 61, 64, 69];
 

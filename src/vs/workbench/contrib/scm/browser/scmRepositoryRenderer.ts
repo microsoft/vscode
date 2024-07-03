@@ -4,31 +4,55 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/scm';
-import { IDisposable, DisposableStore, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore, combinedDisposable } from 'vs/base/common/lifecycle';
+import { autorun } from 'vs/base/common/observable';
 import { append, $ } from 'vs/base/browser/dom';
-import { ISCMRepository, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMProvider, ISCMRepository, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IAction } from 'vs/base/common/actions';
-import { connectPrimaryMenu, isSCMRepository, StatusBarAction } from './util';
+import { ActionRunner, IAction } from 'vs/base/common/actions';
+import { connectPrimaryMenu, getRepositoryResourceCount, isSCMRepository, StatusBarAction } from './util';
 import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
 import { FuzzyScore } from 'vs/base/common/filters';
-import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IListRenderer } from 'vs/base/browser/ui/list/list';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { basename } from 'vs/base/common/resources';
 import { IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IManagedHover } from 'vs/base/browser/ui/hover/hover';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+
+export class RepositoryActionRunner extends ActionRunner {
+	constructor(private readonly getSelectedRepositories: () => ISCMRepository[]) {
+		super();
+	}
+
+	protected override async runAction(action: IAction, context: ISCMProvider): Promise<void> {
+		if (!(action instanceof MenuItemAction)) {
+			return super.runAction(action, context);
+		}
+
+		const selection = this.getSelectedRepositories().map(r => r.provider);
+		const actionContext = selection.some(s => s === context) ? selection : [context];
+
+		await action.run(...actionContext);
+	}
+}
 
 interface RepositoryTemplate {
 	readonly label: HTMLElement;
+	readonly labelCustomHover: IManagedHover;
 	readonly name: HTMLElement;
 	readonly description: HTMLElement;
 	readonly countContainer: HTMLElement;
 	readonly count: CountBadge;
-	readonly toolBar: ToolBar;
+	readonly toolBar: WorkbenchToolBar;
 	readonly elementDisposables: DisposableStore;
 	readonly templateDisposable: IDisposable;
 }
@@ -39,11 +63,16 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 	get templateId(): string { return RepositoryRenderer.TEMPLATE_ID; }
 
 	constructor(
-		private actionViewItemProvider: IActionViewItemProvider,
+		private readonly toolbarMenuId: MenuId,
+		private readonly actionViewItemProvider: IActionViewItemProvider,
 		@ISCMViewService private scmViewService: ISCMViewService,
 		@ICommandService private commandService: ICommandService,
+		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
+		@IHoverService private hoverService: IHoverService,
+		@IKeybindingService private keybindingService: IKeybindingService,
+		@IMenuService private menuService: IMenuService,
+		@ITelemetryService private telemetryService: ITelemetryService
 	) { }
 
 	renderTemplate(container: HTMLElement): RepositoryTemplate {
@@ -54,36 +83,29 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 
 		const provider = append(container, $('.scm-provider'));
 		const label = append(provider, $('.label'));
+		const labelCustomHover = this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), label, '', {});
 		const name = append(label, $('span.name'));
 		const description = append(label, $('span.description'));
 		const actions = append(provider, $('.actions'));
-		const toolBar = new ToolBar(actions, this.contextMenuService, { actionViewItemProvider: this.actionViewItemProvider });
+		const toolBar = new WorkbenchToolBar(actions, { actionViewItemProvider: this.actionViewItemProvider, resetMenu: this.toolbarMenuId }, this.menuService, this.contextKeyService, this.contextMenuService, this.keybindingService, this.commandService, this.telemetryService);
 		const countContainer = append(provider, $('.count'));
 		const count = new CountBadge(countContainer, {}, defaultCountBadgeStyles);
 		const visibilityDisposable = toolBar.onDidChangeDropdownVisibility(e => provider.classList.toggle('active', e));
 
-		const templateDisposable = combinedDisposable(visibilityDisposable, toolBar);
+		const templateDisposable = combinedDisposable(labelCustomHover, visibilityDisposable, toolBar);
 
-		return { label, name, description, countContainer, count, toolBar, elementDisposables: new DisposableStore(), templateDisposable };
+		return { label, labelCustomHover, name, description, countContainer, count, toolBar, elementDisposables: new DisposableStore(), templateDisposable };
 	}
 
 	renderElement(arg: ISCMRepository | ITreeNode<ISCMRepository, FuzzyScore>, index: number, templateData: RepositoryTemplate, height: number | undefined): void {
 		const repository = isSCMRepository(arg) ? arg : arg.element;
 
+		templateData.name.textContent = repository.provider.name;
 		if (repository.provider.rootUri) {
-			const folder = this.workspaceContextService.getWorkspaceFolder(repository.provider.rootUri);
-
-			if (folder?.uri.toString() === repository.provider.rootUri.toString()) {
-				templateData.name.textContent = folder.name;
-			} else {
-				templateData.name.textContent = basename(repository.provider.rootUri);
-			}
-
-			templateData.label.title = `${repository.provider.label}: ${repository.provider.rootUri.fsPath}`;
+			templateData.labelCustomHover.update(`${repository.provider.label}: ${repository.provider.rootUri.fsPath}`);
 			templateData.description.textContent = repository.provider.label;
 		} else {
-			templateData.label.title = repository.provider.label;
-			templateData.name.textContent = repository.provider.label;
+			templateData.labelCustomHover.update(repository.provider.label);
 			templateData.description.textContent = '';
 		}
 
@@ -94,31 +116,21 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 			templateData.toolBar.setActions([...statusPrimaryActions, ...menuPrimaryActions], menuSecondaryActions);
 		};
 
-		const onDidChangeProvider = () => {
-			const commands = repository.provider.statusBarCommands || [];
+		templateData.elementDisposables.add(autorun(reader => {
+			const commands = repository.provider.statusBarCommands.read(reader) ?? [];
 			statusPrimaryActions = commands.map(c => new StatusBarAction(c, this.commandService));
 			updateToolbar();
-
-			const count = repository.provider.count || 0;
-			templateData.countContainer.setAttribute('data-count', String(count));
-			templateData.count.setCount(count);
-		};
-
-		// TODO@joao TODO@lszomoru
-		let disposed = false;
-		templateData.elementDisposables.add(toDisposable(() => disposed = true));
-		templateData.elementDisposables.add(repository.provider.onDidChange(() => {
-			if (disposed) {
-				return;
-			}
-
-			onDidChangeProvider();
 		}));
 
-		onDidChangeProvider();
+		templateData.elementDisposables.add(autorun(reader => {
+			const count = repository.provider.count.read(reader) ?? getRepositoryResourceCount(repository.provider);
+			templateData.countContainer.setAttribute('data-count', String(count));
+			templateData.count.setCount(count);
+		}));
 
-		const menus = this.scmViewService.menus.getRepositoryMenus(repository.provider);
-		templateData.elementDisposables.add(connectPrimaryMenu(menus.titleMenu.menu, (primary, secondary) => {
+		const repositoryMenus = this.scmViewService.menus.getRepositoryMenus(repository.provider);
+		const menu = this.toolbarMenuId === MenuId.SCMTitle ? repositoryMenus.titleMenu.menu : repositoryMenus.repositoryMenu;
+		templateData.elementDisposables.add(connectPrimaryMenu(menu, (primary, secondary) => {
 			menuPrimaryActions = primary;
 			menuSecondaryActions = secondary;
 			updateToolbar();

@@ -52,14 +52,8 @@ const BUILD_TARGETS = [
 
 const serverResources = [
 
-	// Bootstrap
-	'out-build/bootstrap.js',
-	'out-build/bootstrap-fork.js',
-	'out-build/bootstrap-amd.js',
-	'out-build/bootstrap-node.js',
-
-	// Performance
-	'out-build/vs/base/common/performance.js',
+	// NLS
+	'out-build/nls.messages.json',
 
 	// Process monitor
 	'out-build/vs/base/node/cpuUsage.sh',
@@ -82,6 +76,9 @@ const serverWithWebResources = [
 	// Include all of server...
 	...serverResources,
 
+	// NLS
+	'out-build/nls.messages.js',
+
 	// ...and all of web
 	...vscodeWebResourceIncludes
 ];
@@ -89,23 +86,23 @@ const serverWithWebResources = [
 const serverEntryPoints = [
 	{
 		name: 'vs/server/node/server.main',
-		exclude: ['vs/css', 'vs/nls']
+		exclude: ['vs/css']
 	},
 	{
 		name: 'vs/server/node/server.cli',
-		exclude: ['vs/css', 'vs/nls']
+		exclude: ['vs/css']
 	},
 	{
 		name: 'vs/workbench/api/node/extensionHostProcess',
-		exclude: ['vs/css', 'vs/nls']
+		exclude: ['vs/css']
 	},
 	{
 		name: 'vs/platform/files/node/watcher/watcherMain',
-		exclude: ['vs/css', 'vs/nls']
+		exclude: ['vs/css']
 	},
 	{
 		name: 'vs/platform/terminal/node/ptyHostMain',
-		exclude: ['vs/css', 'vs/nls']
+		exclude: ['vs/css']
 	}
 ];
 
@@ -125,17 +122,18 @@ function getNodeVersion() {
 	return { nodeVersion, internalNodeVersion };
 }
 
-function getNodeChecksum(nodeVersion, platform, arch) {
+function getNodeChecksum(nodeVersion, platform, arch, glibcPrefix) {
 	let expectedName;
 	switch (platform) {
 		case 'win32':
-			expectedName = `win-${arch}/node.exe`;
+			expectedName = product.nodejsRepository !== 'https://nodejs.org' ?
+				`win-${arch}-node.exe` : `win-${arch}/node.exe`;
 			break;
 
 		case 'darwin':
 		case 'alpine':
 		case 'linux':
-			expectedName = `node-v${nodeVersion}-${platform}-${arch}.tar.gz`;
+			expectedName = `node-v${nodeVersion}${glibcPrefix}-${platform}-${arch}.tar.gz`;
 			break;
 	}
 
@@ -193,7 +191,8 @@ function nodejs(platform, arch) {
 
 	log(`Downloading node.js ${nodeVersion} ${platform} ${arch} from ${product.nodejsRepository}...`);
 
-	const checksumSha256 = getNodeChecksum(nodeVersion, platform, arch);
+	const glibcPrefix = process.env['VSCODE_NODE_GLIBC'] ?? '';
+	const checksumSha256 = getNodeChecksum(nodeVersion, platform, arch, glibcPrefix);
 
 	if (checksumSha256) {
 		log(`Using SHA256 checksum for checking integrity: ${checksumSha256}`);
@@ -210,7 +209,7 @@ function nodejs(platform, arch) {
 		case 'darwin':
 		case 'linux':
 			return (product.nodejsRepository !== 'https://nodejs.org' ?
-				fetchGithub(product.nodejsRepository, { version: `${nodeVersion}-${internalNodeVersion}`, name: `node-v${nodeVersion}-${platform}-${arch}.tar.gz`, checksumSha256 }) :
+				fetchGithub(product.nodejsRepository, { version: `${nodeVersion}-${internalNodeVersion}`, name: `node-v${nodeVersion}${glibcPrefix}-${platform}-${arch}.tar.gz`, checksumSha256 }) :
 				fetchUrls(`/dist/v${nodeVersion}/node-v${nodeVersion}-${platform}-${arch}.tar.gz`, { base: 'https://nodejs.org', checksumSha256 })
 			).pipe(flatmap(stream => stream.pipe(gunzip()).pipe(untar())))
 				.pipe(filter('**/node'))
@@ -372,6 +371,20 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 			);
 		}
 
+		if (platform === 'linux' && process.env['VSCODE_NODE_GLIBC'] === '-glibc-2.17') {
+			result = es.merge(result,
+				gulp.src(`resources/server/bin/helpers/check-requirements-linux-legacy.sh`, { base: '.' })
+					.pipe(rename(`bin/helpers/check-requirements.sh`))
+					.pipe(util.setExecutableBit())
+			);
+		} else if (platform === 'linux' || platform === 'alpine') {
+			result = es.merge(result,
+				gulp.src(`resources/server/bin/helpers/check-requirements-linux.sh`, { base: '.' })
+					.pipe(rename(`bin/helpers/check-requirements.sh`))
+					.pipe(util.setExecutableBit())
+			);
+		}
+
 		return result.pipe(vfs.dest(destination));
 	};
 }
@@ -405,7 +418,8 @@ function tweakProductForServerWeb(product) {
 					src: 'out-build',
 					entryPoints: [
 						'out-build/server-main.js',
-						'out-build/server-cli.js'
+						'out-build/server-cli.js',
+						'out-build/bootstrap-fork.js',
 					],
 					platform: 'node',
 					external: [
@@ -424,7 +438,7 @@ function tweakProductForServerWeb(product) {
 	const minifyTask = task.define(`minify-vscode-${type}`, task.series(
 		optimizeTask,
 		util.rimraf(`out-vscode-${type}-min`),
-		optimize.minifyTask(`out-vscode-${type}`, `https://ticino.blob.core.windows.net/sourcemaps/${commit}/core`)
+		optimize.minifyTask(`out-vscode-${type}`, `https://main.vscode-cdn.net/sourcemaps/${commit}/core`)
 	));
 	gulp.task(minifyTask);
 

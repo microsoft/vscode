@@ -46,4 +46,12 @@
 	border-radius: 10px;
 	font-size: 12px;
 	position: absolute;
+	/*
+	 * Browsers apply an effect to the drag image when the div becomes too
+	 * large which makes them unreadable. Use max width so it does not happen
+	 */
+	max-width: 120px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }

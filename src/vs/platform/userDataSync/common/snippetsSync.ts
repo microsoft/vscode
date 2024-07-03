@@ -404,7 +404,7 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 		const local: IStringDictionary<IFileContent> = {};
 		for (const resourcePreview of resourcePreviews) {
 			if (resourcePreview.fileContent) {
-				local[this.extUri.basename(resourcePreview.localResource!)] = resourcePreview.fileContent;
+				local[this.extUri.basename(resourcePreview.localResource)] = resourcePreview.fileContent;
 			}
 		}
 		await this.backupLocal(JSON.stringify(this.toSnippetsContents(local)));
@@ -413,7 +413,7 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 	private async updateLocalSnippets(resourcePreviews: ISnippetsAcceptedResourcePreview[], force: boolean): Promise<void> {
 		for (const { fileContent, acceptResult, localResource, remoteResource, localChange } of resourcePreviews) {
 			if (localChange !== Change.None) {
-				const key = remoteResource ? this.extUri.basename(remoteResource) : this.extUri.basename(localResource!);
+				const key = remoteResource ? this.extUri.basename(remoteResource) : this.extUri.basename(localResource);
 				const resource = this.extUri.joinPath(this.snippetsFolder, key);
 
 				// Removed
@@ -446,7 +446,7 @@ export class SnippetsSynchroniser extends AbstractSynchroniser implements IUserD
 
 		for (const { acceptResult, localResource, remoteResource, remoteChange } of resourcePreviews) {
 			if (remoteChange !== Change.None) {
-				const key = localResource ? this.extUri.basename(localResource) : this.extUri.basename(remoteResource!);
+				const key = localResource ? this.extUri.basename(localResource) : this.extUri.basename(remoteResource);
 				if (remoteChange === Change.Deleted) {
 					delete newSnippets[key];
 				} else {

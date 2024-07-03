@@ -11,7 +11,8 @@ import 'vs/css!./gridview';
 import { Box, GridView, IGridViewOptions, IGridViewStyles, IView as IGridViewView, IViewSize, orthogonal, Sizing as GridViewSizing, GridLocation } from './gridview';
 import type { SplitView, AutoSizing as SplitViewAutoSizing } from 'vs/base/browser/ui/splitview/splitview';
 
-export { IViewSize, LayoutPriority, Orientation, orthogonal } from './gridview';
+export type { IViewSize };
+export { LayoutPriority, Orientation, orthogonal } from './gridview';
 
 export const enum Direction {
 	Up,

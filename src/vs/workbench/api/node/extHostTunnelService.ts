@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import { exec } from 'child_process';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Emitter } from 'vs/base/common/event';
@@ -37,10 +38,10 @@ export function getSockets(stdout: string): Record<string, { pid: number; socket
 			});
 		}
 	});
-	const socketMap = mapped.reduce((m, socket) => {
+	const socketMap = mapped.reduce((m: Record<string, typeof mapped[0]>, socket) => {
 		m[socket.socket] = socket;
 		return m;
-	}, {} as Record<string, typeof mapped[0]>);
+	}, {});
 	return socketMap;
 }
 
@@ -96,10 +97,10 @@ export function loadConnectionTable(stdout: string): Record<string, string>[] {
 	const lines = stdout.trim().split('\n');
 	const names = lines.shift()!.trim().split(/\s+/)
 		.filter(name => name !== 'rx_queue' && name !== 'tm->when');
-	const table = lines.map(line => line.trim().split(/\s+/).reduce((obj, value, i) => {
+	const table = lines.map(line => line.trim().split(/\s+/).reduce((obj: Record<string, string>, value, i) => {
 		obj[names[i] || i] = value;
 		return obj;
-	}, {} as Record<string, string>));
+	}, {}));
 	return table;
 }
 
@@ -126,10 +127,10 @@ export function getRootProcesses(stdout: string) {
 }
 
 export async function findPorts(connections: { socket: number; ip: string; port: number }[], socketMap: Record<string, { pid: number; socket: number }>, processes: { pid: number; cwd: string; cmd: string }[]): Promise<CandidatePort[]> {
-	const processMap = processes.reduce((m, process) => {
+	const processMap = processes.reduce((m: Record<string, typeof processes[0]>, process) => {
 		m[process.pid] = process;
 		return m;
-	}, {} as Record<string, typeof processes[0]>);
+	}, {});
 
 	const ports: CandidatePort[] = [];
 	connections.forEach(({ socket, ip, port }) => {
@@ -243,8 +244,8 @@ export class NodeExtHostTunnelService extends ExtHostTunnelService {
 		let tcp: string = '';
 		let tcp6: string = '';
 		try {
-			tcp = await pfs.Promises.readFile('/proc/net/tcp', 'utf8');
-			tcp6 = await pfs.Promises.readFile('/proc/net/tcp6', 'utf8');
+			tcp = await fs.promises.readFile('/proc/net/tcp', 'utf8');
+			tcp6 = await fs.promises.readFile('/proc/net/tcp6', 'utf8');
 		} catch (e) {
 			// File reading error. No additional handling needed.
 		}
@@ -265,10 +266,10 @@ export class NodeExtHostTunnelService extends ExtHostTunnelService {
 			try {
 				const pid: number = Number(childName);
 				const childUri = resources.joinPath(URI.file('/proc'), childName);
-				const childStat = await pfs.Promises.stat(childUri.fsPath);
+				const childStat = await fs.promises.stat(childUri.fsPath);
 				if (childStat.isDirectory() && !isNaN(pid)) {
-					const cwd = await pfs.Promises.readlink(resources.joinPath(childUri, 'cwd').fsPath);
-					const cmd = await pfs.Promises.readFile(resources.joinPath(childUri, 'cmdline').fsPath, 'utf8');
+					const cwd = await fs.promises.readlink(resources.joinPath(childUri, 'cwd').fsPath);
+					const cmd = await fs.promises.readFile(resources.joinPath(childUri, 'cmdline').fsPath, 'utf8');
 					processes.push({ pid, cwd, cmd });
 				}
 			} catch (e) {

@@ -70,9 +70,13 @@
 		],
 		"local/code-translation-remind": "warn",
 		"local/code-no-native-private": "warn",
+		"local/code-parameter-properties-must-have-explicit-accessibility": "warn",
 		"local/code-no-nls-in-standalone-editor": "warn",
+		"local/code-no-potentially-unsafe-disposables": "warn",
+		"local/code-no-dangerous-type-assertions": "off",
 		"local/code-no-standalone-editor": "warn",
 		"local/code-no-unexternalized-strings": "warn",
+		"local/code-must-use-super-dispose": "warn",
 		"local/code-declare-service-brand": "warn",
 		"local/code-layering": [
 			"warn",
@@ -119,6 +123,7 @@
 				"**/*.test.ts"
 			],
 			"rules": {
+				"local/code-must-use-super-dispose": "off",
 				"local/code-no-test-only": "error",
 				"local/code-no-test-async-suite": "warn",
 				"local/code-no-unexternalized-strings": "off",
@@ -128,10 +133,45 @@
 						{
 							"message": "Expression must be awaited",
 							"functions": [
-								"assertSnapshot"
+								"assertSnapshot",
+								"assertHeap"
 							]
 						}
 					]
+				]
+			}
+		},
+		{
+			"files": [
+				"src/vs/**/*.test.ts"
+			],
+			"rules": {
+				"local/code-ensure-no-disposables-leak-in-test": [
+					"warn",
+					{
+						// Files should (only) be removed from the list they adopt the leak detector
+						"exclude": [
+							"src/vs/editor/contrib/codeAction/test/browser/codeActionModel.test.ts",
+							"src/vs/platform/configuration/test/common/configuration.test.ts",
+							"src/vs/platform/opener/test/common/opener.test.ts",
+							"src/vs/platform/registry/test/common/platform.test.ts",
+							"src/vs/platform/workspace/test/common/workspace.test.ts",
+							"src/vs/platform/workspaces/test/electron-main/workspaces.test.ts",
+							"src/vs/workbench/api/test/browser/mainThreadConfiguration.test.ts",
+							"src/vs/workbench/api/test/node/extHostTunnelService.test.ts",
+							"src/vs/workbench/contrib/bulkEdit/test/browser/bulkCellEdits.test.ts",
+							"src/vs/workbench/contrib/chat/test/common/chatWordCounter.test.ts",
+							"src/vs/workbench/contrib/editSessions/test/browser/editSessions.test.ts",
+							"src/vs/workbench/contrib/extensions/test/common/extensionQuery.test.ts",
+							"src/vs/workbench/contrib/notebook/test/browser/notebookExecutionService.test.ts",
+							"src/vs/workbench/contrib/notebook/test/browser/notebookExecutionStateService.test.ts",
+							"src/vs/workbench/contrib/tasks/test/common/problemMatcher.test.ts",
+							"src/vs/workbench/contrib/tasks/test/common/taskConfiguration.test.ts",
+							"src/vs/workbench/services/commands/test/common/commandService.test.ts",
+							"src/vs/workbench/services/userActivity/test/browser/domActivityTracker.test.ts",
+							"src/vs/workbench/test/browser/quickAccess.test.ts"
+						]
+					}
 				]
 			}
 		},
@@ -258,7 +298,7 @@
 		},
 		{
 			"files": [
-				"src/**/{browser,electron-sandbox}/*.ts"
+				"src/**/{browser,electron-sandbox}/**/*.ts"
 			],
 			"rules": {
 				"local/code-no-global-document-listener": "warn",
@@ -267,6 +307,10 @@
 					{
 						"selector": "BinaryExpression[operator='instanceof'][right.name='MouseEvent']",
 						"message": "Use DOM.isMouseEvent() to support multi-window scenarios."
+					},
+					{
+						"selector": "BinaryExpression[operator='instanceof'][right.name=/^HTML\\w+/]",
+						"message": "Use DOM.isHTMLElement() and related methods to support multi-window scenarios."
 					},
 					{
 						"selector": "BinaryExpression[operator='instanceof'][right.name='KeyboardEvent']",
@@ -601,7 +645,6 @@
 							"events",
 							"fs",
 							"fs/promises",
-							"graceful-fs",
 							"http",
 							"https",
 							"minimist",
@@ -623,7 +666,7 @@
 							"vscode-regexpp",
 							"vscode-textmate",
 							"worker_threads",
-							"@xterm/addon-canvas",
+							"@xterm/addon-clipboard",
 							"@xterm/addon-image",
 							"@xterm/addon-search",
 							"@xterm/addon-serialize",
@@ -810,7 +853,11 @@
 							}, // TODO@layers
 							"tas-client-umd", // node module allowed even in /common/
 							"vscode-textmate", // node module allowed even in /common/
-							"@vscode/vscode-languagedetection" // node module allowed even in /common/
+							"@vscode/vscode-languagedetection", // node module allowed even in /common/
+							{
+								"when": "hasBrowser",
+								"pattern": "@xterm/xterm"
+							} // node module allowed even in /browser/
 						]
 					},
 					{
@@ -969,11 +1016,7 @@
 						]
 					},
 					{
-						"target": "src/vs/workbench/{workbench.desktop.main.nls.js,workbench.web.main.nls.js}",
-						"restrictions": []
-					},
-					{
-						"target": "src/vs/{loader.d.ts,css.ts,css.build.ts,monaco.d.ts,nls.ts,nls.build.ts,nls.mock.ts}",
+						"target": "src/vs/{loader.d.ts,css.ts,css.build.ts,monaco.d.ts,nls.ts}",
 						"restrictions": []
 					},
 					{
@@ -1035,6 +1078,19 @@
 							"@playwright/*",
 							"*" // node modules
 						]
+					}
+				]
+			}
+		},
+		{
+			"files": [
+				"src/vs/workbench/contrib/notebook/browser/view/renderers/*.ts"
+			],
+			"rules": {
+				"local/code-no-runtime-import": [
+					"error",
+					{
+						"src/vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts": ["**/*"]
 					}
 				]
 			}

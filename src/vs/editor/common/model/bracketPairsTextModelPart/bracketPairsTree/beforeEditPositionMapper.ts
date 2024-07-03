@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Range } from 'vs/editor/common/core/range';
-import { Length, lengthAdd, lengthDiffNonNegative, lengthLessThanEqual, LengthObj, lengthOfString, lengthToObj, positionToLength, toLength } from './length';
+import { Length, lengthAdd, lengthDiffNonNegative, lengthLessThanEqual, lengthOfString, lengthToObj, positionToLength, toLength } from './length';
+import { TextLength } from 'vs/editor/common/core/textLength';
 import { IModelContentChange } from 'vs/editor/common/textModelEvents';
 
 export class TextEditInfo {
@@ -73,7 +74,7 @@ export class BeforeEditPositionMapper {
 		return lengthDiffNonNegative(offset, nextChangeOffset);
 	}
 
-	private translateOldToCur(oldOffsetObj: LengthObj): Length {
+	private translateOldToCur(oldOffsetObj: TextLength): Length {
 		if (oldOffsetObj.lineCount === this.deltaLineIdxInOld) {
 			return toLength(oldOffsetObj.lineCount + this.deltaOldToNewLineCount, oldOffsetObj.columnCount + this.deltaOldToNewColumnCount);
 		} else {
@@ -126,9 +127,9 @@ class TextEditInfoCache {
 		return new TextEditInfoCache(edit.startOffset, edit.endOffset, edit.newLength);
 	}
 
-	public readonly endOffsetBeforeObj: LengthObj;
-	public readonly endOffsetAfterObj: LengthObj;
-	public readonly offsetObj: LengthObj;
+	public readonly endOffsetBeforeObj: TextLength;
+	public readonly endOffsetAfterObj: TextLength;
+	public readonly offsetObj: TextLength;
 
 	constructor(
 		startOffset: Length,

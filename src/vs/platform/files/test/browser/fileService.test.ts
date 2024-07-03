@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { DeferredPromise, timeout } from 'vs/base/common/async';
 import { bufferToReadable, bufferToStream, VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -81,7 +81,7 @@ suite('File Service', () => {
 		assert.strictEqual(service.hasCapability(resource, FileSystemProviderCapabilities.Readonly), true);
 		assert.strictEqual(service.hasCapability(resource, FileSystemProviderCapabilities.FileOpenReadWriteClose), false);
 
-		registrationDisposable!.dispose();
+		registrationDisposable.dispose();
 
 		assert.strictEqual(await service.canHandleResource(resource), false);
 		assert.strictEqual(service.hasProvider(resource), false);

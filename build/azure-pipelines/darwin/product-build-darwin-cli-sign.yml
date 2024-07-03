@@ -46,7 +46,7 @@ steps:
     workingDirectory: build
     displayName: Install build dependencies
 
-  - template: ../cli/cli-darwin-sign.yml
+  - template: ../cli/cli-darwin-sign.yml@self
     parameters:
       VSCODE_CLI_ARTIFACTS:
         - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:

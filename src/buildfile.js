@@ -9,7 +9,7 @@
  */
 function createModuleDescription(name, exclude) {
 
-	let excludes = ['vs/css', 'vs/nls'];
+	let excludes = ['vs/css'];
 	if (Array.isArray(exclude) && exclude.length > 0) {
 		excludes = excludes.concat(exclude);
 	}
@@ -32,7 +32,7 @@ exports.base = [
 	{
 		name: 'vs/editor/common/services/editorSimpleWorker',
 		include: ['vs/base/common/worker/simpleWorker'],
-		exclude: ['vs/nls'],
+		exclude: [],
 		prepend: [
 			{ path: 'vs/loader.js' },
 			{ path: 'vs/base/worker/workerMain.js' }
@@ -41,7 +41,7 @@ exports.base = [
 	},
 	{
 		name: 'vs/base/common/worker/simpleWorker',
-		exclude: ['vs/nls'],
+		exclude: [],
 	}
 ];
 
@@ -57,7 +57,8 @@ exports.workbenchDesktop = [
 	createModuleDescription('vs/workbench/contrib/debug/node/telemetryApp'),
 	createModuleDescription('vs/platform/files/node/watcher/watcherMain'),
 	createModuleDescription('vs/platform/terminal/node/ptyHostMain'),
-	createModuleDescription('vs/workbench/api/node/extensionHostProcess')
+	createModuleDescription('vs/workbench/api/node/extensionHostProcess'),
+	createModuleDescription('vs/workbench/contrib/issue/electron-sandbox/issueReporterMain'),
 ];
 
 exports.workbenchWeb = [
@@ -76,7 +77,6 @@ exports.code = [
 	createModuleDescription('vs/code/electron-main/main'),
 	createModuleDescription('vs/code/node/cli'),
 	createModuleDescription('vs/code/node/cliProcessMain', ['vs/code/node/cli']),
-	createModuleDescription('vs/code/electron-sandbox/issue/issueReporterMain'),
 	createModuleDescription('vs/code/node/sharedProcess/sharedProcessMain'),
 	createModuleDescription('vs/code/electron-sandbox/processExplorer/processExplorerMain')
 ];

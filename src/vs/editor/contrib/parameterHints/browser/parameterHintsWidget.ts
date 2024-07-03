@@ -17,7 +17,7 @@ import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentW
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import * as languages from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
 import { ParameterHintsModel } from 'vs/editor/contrib/parameterHints/browser/parameterHintsModel';
 import { Context } from 'vs/editor/contrib/parameterHints/browser/provideSignatureHelp';
 import * as nls from 'vs/nls';
@@ -26,6 +26,8 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { listHighlightForeground, registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { ThemeIcon } from 'vs/base/common/themables';
+import { StopWatch } from 'vs/base/common/stopwatch';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 const $ = dom.$;
 
@@ -61,6 +63,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IOpenerService openerService: IOpenerService,
 		@ILanguageService languageService: ILanguageService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -272,12 +275,30 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 	}
 
 	private renderMarkdownDocs(markdown: IMarkdownString | undefined): IMarkdownRenderResult {
+		const stopWatch = new StopWatch();
 		const renderedContents = this.renderDisposeables.add(this.markdownRenderer.render(markdown, {
 			asyncRenderCallback: () => {
 				this.domNodes?.scrollbar.scanDomNode();
 			}
 		}));
 		renderedContents.element.classList.add('markdown-docs');
+
+		type RenderMarkdownPerformanceClassification = {
+			owner: 'donjayamanne';
+			comment: 'Measure the time taken to render markdown for parameter hints';
+			renderDuration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Time in ms to render the markdown' };
+		};
+
+		type RenderMarkdownPerformanceEvent = {
+			renderDuration: number;
+		};
+		const renderDuration = stopWatch.elapsed();
+		if (renderDuration > 300) {
+			this.telemetryService.publicLog2<RenderMarkdownPerformanceEvent, RenderMarkdownPerformanceClassification>('parameterHints.parseMarkdown', {
+				renderDuration
+			});
+		}
+
 		return renderedContents;
 	}
 
@@ -366,4 +387,4 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 	}
 }
 
-registerColor('editorHoverWidget.highlightForeground', { dark: listHighlightForeground, light: listHighlightForeground, hcDark: listHighlightForeground, hcLight: listHighlightForeground }, nls.localize('editorHoverWidgetHighlightForeground', 'Foreground color of the active item in the parameter hint.'));
+registerColor('editorHoverWidget.highlightForeground', listHighlightForeground, nls.localize('editorHoverWidgetHighlightForeground', 'Foreground color of the active item in the parameter hint.'));

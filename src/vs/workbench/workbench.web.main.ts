@@ -39,6 +39,8 @@ import 'vs/workbench/services/search/browser/searchService';
 import 'vs/workbench/services/textfile/browser/browserTextFileService';
 import 'vs/workbench/services/keybinding/browser/keyboardLayoutService';
 import 'vs/workbench/services/extensions/browser/extensionService';
+import 'vs/workbench/services/extensionManagement/browser/extensionsProfileScannerService';
+import 'vs/workbench/services/extensions/browser/extensionsScannerService';
 import 'vs/workbench/services/extensionManagement/browser/webExtensionsScannerService';
 import 'vs/workbench/services/extensionManagement/common/extensionManagementServerService';
 import 'vs/workbench/services/telemetry/browser/telemetryService';
@@ -84,8 +86,8 @@ import { UserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDat
 import { AccessibilityService } from 'vs/platform/accessibility/browser/accessibilityService';
 import { ICustomEndpointTelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullEndpointTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { ITitleService } from 'vs/workbench/services/title/common/titleService';
-import { TitlebarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
+import { ITitleService } from 'vs/workbench/services/title/browser/titleService';
+import { BrowserTitleService } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
 import { ITimerService, TimerService } from 'vs/workbench/services/timer/browser/timerService';
 import { IDiagnosticsService, NullDiagnosticsService } from 'vs/platform/diagnostics/common/diagnostics';
 import { ILanguagePackService } from 'vs/platform/languagePacks/common/languagePacks';
@@ -101,7 +103,7 @@ registerSingleton(IUserDataSyncAccountService, UserDataSyncAccountService, Insta
 registerSingleton(IUserDataSyncService, UserDataSyncService, InstantiationType.Delayed);
 registerSingleton(IUserDataSyncResourceProviderService, UserDataSyncResourceProviderService, InstantiationType.Delayed);
 registerSingleton(IUserDataAutoSyncService, UserDataAutoSyncService, InstantiationType.Eager /* Eager to start auto sync */);
-registerSingleton(ITitleService, TitlebarPart, InstantiationType.Eager);
+registerSingleton(ITitleService, BrowserTitleService, InstantiationType.Eager);
 registerSingleton(IExtensionTipsService, ExtensionTipsService, InstantiationType.Delayed);
 registerSingleton(ITimerService, TimerService, InstantiationType.Delayed);
 registerSingleton(ICustomEndpointTelemetryService, NullEndpointTelemetryService, InstantiationType.Delayed);

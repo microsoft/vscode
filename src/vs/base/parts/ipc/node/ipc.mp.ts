@@ -16,7 +16,12 @@ import { firstOrDefault } from 'vs/base/common/arrays';
  */
 class Protocol implements IMessagePassingProtocol {
 
-	readonly onMessage = Event.fromNodeEventEmitter<VSBuffer>(this.port, 'message', (e: MessageEvent) => VSBuffer.wrap(e.data));
+	readonly onMessage = Event.fromNodeEventEmitter<VSBuffer>(this.port, 'message', (e: MessageEvent) => {
+		if (e.data) {
+			return VSBuffer.wrap(e.data);
+		}
+		return VSBuffer.alloc(0);
+	});
 
 	constructor(private port: MessagePortMain) {
 

@@ -11,7 +11,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ILanguageService } from 'vs/editor/common/languages/language';
@@ -44,6 +44,7 @@ export class MarkupCell extends Disposable {
 	private foldingState: CellFoldingState;
 	private cellEditorOptions: CellEditorOptions;
 	private editorOptions: IEditorOptions;
+	private _isDisposed: boolean = false;
 
 	constructor(
 		private readonly notebookEditor: IActiveNotebookEditorDelegate,
@@ -174,9 +175,31 @@ export class MarkupCell extends Disposable {
 			}
 		}));
 
-		this._register(this.cellEditorOptions.onDidChange(() => {
-			this.updateEditorOptions(this.cellEditorOptions.getUpdatedValue(this.viewCell.internalMetadata, this.viewCell.uri));
-		}));
+		this._register(this.cellEditorOptions.onDidChange(() => this.updateMarkupCellOptions()));
+	}
+
+	private updateMarkupCellOptions(): any {
+		this.updateEditorOptions(this.cellEditorOptions.getUpdatedValue(this.viewCell.internalMetadata, this.viewCell.uri));
+
+		if (this.editor) {
+			this.editor.updateOptions(this.cellEditorOptions.getUpdatedValue(this.viewCell.internalMetadata, this.viewCell.uri));
+
+			const cts = new CancellationTokenSource();
+			this._register({ dispose() { cts.dispose(true); } });
+			raceCancellation(this.viewCell.resolveTextModel(), cts.token).then(model => {
+				if (this._isDisposed) {
+					return;
+				}
+
+				if (model) {
+					model.updateOptions({
+						indentSize: this.cellEditorOptions.indentSize,
+						tabSize: this.cellEditorOptions.tabSize,
+						insertSpaces: this.cellEditorOptions.insertSpaces,
+					});
+				}
+			});
+		}
 	}
 
 	private updateCollapsedState() {
@@ -205,12 +228,14 @@ export class MarkupCell extends Disposable {
 			e.added.forEach(options => {
 				if (options.className) {
 					this.notebookEditor.deltaCellContainerClassNames(this.viewCell.id, [options.className], []);
+					this.templateData.rootContainer.classList.add(options.className);
 				}
 			});
 
 			e.removed.forEach(options => {
 				if (options.className) {
 					this.notebookEditor.deltaCellContainerClassNames(this.viewCell.id, [], [options.className]);
+					this.templateData.rootContainer.classList.remove(options.className);
 				}
 			});
 		}));
@@ -218,11 +243,14 @@ export class MarkupCell extends Disposable {
 		this.viewCell.getCellDecorations().forEach(options => {
 			if (options.className) {
 				this.notebookEditor.deltaCellContainerClassNames(this.viewCell.id, [options.className], []);
+				this.templateData.rootContainer.classList.add(options.className);
 			}
 		});
 	}
 
 	override dispose() {
+		this._isDisposed = true;
+
 		// move focus back to the cell list otherwise the focus goes to body
 		if (this.notebookEditor.getActiveCell() === this.viewCell && this.viewCell.focusMode === CellFocusMode.Editor && (this.notebookEditor.hasEditorFocus() || this.notebookEditor.getDomNode().ownerDocument.activeElement === this.notebookEditor.getDomNode().ownerDocument.body)) {
 			this.notebookEditor.focusContainer();
@@ -321,7 +349,7 @@ export class MarkupCell extends Disposable {
 			// create a special context key service that set the inCompositeEditor-contextkey
 			const editorContextKeyService = this.contextKeyService.createScoped(this.templateData.editorPart);
 			EditorContextKeys.inCompositeEditor.bindTo(editorContextKeyService).set(true);
-			const editorInstaService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, editorContextKeyService]));
+			const editorInstaService = this.editorDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, editorContextKeyService])));
 			this.editorDisposables.add(editorContextKeyService);
 
 			this.editor = this.editorDisposables.add(editorInstaService.createInstance(CodeEditorWidget, this.templateData.editorContainer, {
@@ -354,6 +382,11 @@ export class MarkupCell extends Disposable {
 				}
 
 				this.editor!.setModel(model);
+				model.updateOptions({
+					indentSize: this.cellEditorOptions.indentSize,
+					tabSize: this.cellEditorOptions.tabSize,
+					insertSpaces: this.cellEditorOptions.insertSpaces,
+				});
 
 				const realContentHeight = this.editor!.getContentHeight();
 				if (realContentHeight !== editorHeight) {
@@ -380,7 +413,7 @@ export class MarkupCell extends Disposable {
 
 		this.viewCell.editorHeight = editorHeight;
 		this.focusEditorIfNeeded();
-		this.renderedEditors.set(this.viewCell, this.editor!);
+		this.renderedEditors.set(this.viewCell, this.editor);
 	}
 
 	private viewUpdatePreview(): void {

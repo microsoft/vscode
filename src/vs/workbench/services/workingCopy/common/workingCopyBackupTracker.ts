@@ -10,7 +10,7 @@ import { IWorkingCopy, IWorkingCopyIdentifier, WorkingCopyCapabilities } from 'v
 import { ILogService } from 'vs/platform/log/common/log';
 import { ShutdownReason, ILifecycleService, LifecyclePhase, InternalBeforeShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 import { Promises } from 'vs/base/common/async';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -84,15 +84,13 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 	// Delay creation of backups when content changes to avoid too much
 	// load on the backup service when the user is typing into the editor
 	// Since we always schedule a backup, even when auto save is on, we
-	// have different scheduling delays based on auto save. This helps to
-	// avoid a (not critical but also not really wanted) race between saving
-	// (after 1s per default) and making a backup of the working copy.
+	// have different scheduling delays based on auto save configuration.
+	// With 'delayed' we avoid a (not critical but also not really wanted)
+	// race between saving (after 1s per default) and making a backup of
+	// the working copy.
 	private static readonly DEFAULT_BACKUP_SCHEDULE_DELAYS = {
-		[AutoSaveMode.OFF]: 1000,
-		[AutoSaveMode.ON_FOCUS_CHANGE]: 1000,
-		[AutoSaveMode.ON_WINDOW_CHANGE]: 1000,
-		[AutoSaveMode.AFTER_SHORT_DELAY]: 2000, // explicitly higher to prevent races
-		[AutoSaveMode.AFTER_LONG_DELAY]: 1000
+		['default']: 1000,
+		['delayed']: 2000
 	};
 
 	// A map from working copy to a version ID we compute on each content
@@ -229,12 +227,14 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 			return workingCopy.backupDelay; // respect working copy override
 		}
 
-		let autoSaveMode = this.filesConfigurationService.getAutoSaveMode();
+		let backupScheduleDelay: 'default' | 'delayed';
 		if (workingCopy.capabilities & WorkingCopyCapabilities.Untitled) {
-			autoSaveMode = AutoSaveMode.OFF; // auto-save is never on for untitled working copies
+			backupScheduleDelay = 'default'; // auto-save is never on for untitled working copies
+		} else {
+			backupScheduleDelay = this.filesConfigurationService.hasShortAutoSaveDelay(workingCopy.resource) ? 'delayed' : 'default';
 		}
 
-		return WorkingCopyBackupTracker.DEFAULT_BACKUP_SCHEDULE_DELAYS[autoSaveMode];
+		return WorkingCopyBackupTracker.DEFAULT_BACKUP_SCHEDULE_DELAYS[backupScheduleDelay];
 	}
 
 	protected getContentVersion(workingCopy: IWorkingCopy): number {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { IIdentityProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { CompressibleObjectTree, ICompressibleTreeRenderer, ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
@@ -250,12 +250,14 @@ suite('CompressibleObjectTree', function () {
 		disposeTemplate(): void { }
 	}
 
+	const ds = ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('empty', function () {
 		const container = document.createElement('div');
 		container.style.width = '200px';
 		container.style.height = '200px';
 
-		const tree = new CompressibleObjectTree<number>('test', container, new Delegate(), [new Renderer()]);
+		const tree = ds.add(new CompressibleObjectTree<number>('test', container, new Delegate(), [new Renderer()]));
 		tree.layout(200);
 
 		assert.strictEqual(getRowsTextContent(container).length, 0);
@@ -266,7 +268,7 @@ suite('CompressibleObjectTree', function () {
 		container.style.width = '200px';
 		container.style.height = '200px';
 
-		const tree = new CompressibleObjectTree<number>('test', container, new Delegate(), [new Renderer()]);
+		const tree = ds.add(new CompressibleObjectTree<number>('test', container, new Delegate(), [new Renderer()]));
 		tree.layout(200);
 
 		tree.setChildren(null, [
@@ -289,7 +291,7 @@ suite('CompressibleObjectTree', function () {
 		container.style.width = '200px';
 		container.style.height = '200px';
 
-		const tree = new CompressibleObjectTree<number>('test', container, new Delegate(), [new Renderer()]);
+		const tree = ds.add(new CompressibleObjectTree<number>('test', container, new Delegate(), [new Renderer()]));
 		tree.layout(200);
 
 		tree.setChildren(null, [
@@ -341,7 +343,7 @@ suite('CompressibleObjectTree', function () {
 		container.style.width = '200px';
 		container.style.height = '200px';
 
-		const tree = new CompressibleObjectTree<number>('test', container, new Delegate(), [new Renderer()]);
+		const tree = ds.add(new CompressibleObjectTree<number>('test', container, new Delegate(), [new Renderer()]));
 		tree.layout(200);
 
 		tree.setChildren(null, [

@@ -9,7 +9,7 @@ import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPosit
 import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IQuickInputService, IQuickInputButton, IQuickPickItem, IQuickPick, IInputBox, IQuickNavigateConfiguration, IPickOptions, QuickPickInput, IInputOptions, IQuickWidget } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickPickItem, IQuickPick, IInputBox, IQuickNavigateConfiguration, IPickOptions, QuickPickInput, IInputOptions, IQuickWidget } from 'vs/platform/quickinput/common/quickInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -18,7 +18,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { QuickInputController, IQuickInputControllerHost } from 'vs/platform/quickinput/browser/quickInputController';
 import { QuickInputService } from 'vs/platform/quickinput/browser/quickInputService';
 import { createSingleCallFunction } from 'vs/base/common/functional';
-import { IQuickAccessController } from 'vs/platform/quickinput/common/quickAccess';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 class EditorScopedQuickInputService extends QuickInputService {
 
@@ -29,9 +29,16 @@ class EditorScopedQuickInputService extends QuickInputService {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
-		@ICodeEditorService codeEditorService: ICodeEditorService
+		@ICodeEditorService codeEditorService: ICodeEditorService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
-		super(instantiationService, contextKeyService, themeService, new EditorScopedLayoutService(editor.getContainerDomNode(), codeEditorService));
+		super(
+			instantiationService,
+			contextKeyService,
+			themeService,
+			new EditorScopedLayoutService(editor.getContainerDomNode(), codeEditorService),
+			configurationService,
+		);
 
 		// Use the passed in code editor as host for the quick input widget
 		const contribution = QuickInputEditorContribution.get(editor);
@@ -41,6 +48,7 @@ class EditorScopedQuickInputService extends QuickInputService {
 				_serviceBrand: undefined,
 				get mainContainer() { return widget.getDomNode(); },
 				getContainer() { return widget.getDomNode(); },
+				whenContainerStylesLoaded() { return undefined; },
 				get containers() { return [widget.getDomNode()]; },
 				get activeContainer() { return widget.getDomNode(); },
 				get mainContainerDimension() { return editor.getLayoutInfo(); },
@@ -91,10 +99,9 @@ export class StandaloneQuickInputService implements IQuickInputService {
 		return quickInputService;
 	}
 
-	get quickAccess(): IQuickAccessController { return this.activeService.quickAccess; }
-
-	get backButton(): IQuickInputButton { return this.activeService.backButton; }
-
+	get currentQuickInput() { return this.activeService.currentQuickInput; }
+	get quickAccess() { return this.activeService.quickAccess; }
+	get backButton() { return this.activeService.backButton; }
 	get onShow() { return this.activeService.onShow; }
 	get onHide() { return this.activeService.onHide; }
 

@@ -17,12 +17,15 @@ export class ToggleTabFocusModeAction extends Action2 {
 	constructor() {
 		super({
 			id: ToggleTabFocusModeAction.ID,
-			title: { value: nls.localize({ key: 'toggle.tabMovesFocus', comment: ['Turn on/off use of tab key for moving focus around VS Code'] }, 'Toggle Tab Key Moves Focus'), original: 'Toggle Tab Key Moves Focus' },
+			title: nls.localize2({ key: 'toggle.tabMovesFocus', comment: ['Turn on/off use of tab key for moving focus around VS Code'] }, 'Toggle Tab Key Moves Focus'),
 			precondition: undefined,
 			keybinding: {
 				primary: KeyMod.CtrlCmd | KeyCode.KeyM,
 				mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KeyM },
 				weight: KeybindingWeight.EditorContrib
+			},
+			metadata: {
+				description: nls.localize2('tabMovesFocusDescriptions', "Determines whether the tab key moves focus around the workbench or inserts the tab character in the current editor. This is also called tab trapping, tab navigation, or tab focus mode."),
 			},
 			f1: true
 		});

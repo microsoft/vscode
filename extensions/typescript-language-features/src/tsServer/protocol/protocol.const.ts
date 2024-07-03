@@ -78,6 +78,7 @@ export enum EventName {
 	syntaxDiag = 'syntaxDiag',
 	semanticDiag = 'semanticDiag',
 	suggestionDiag = 'suggestionDiag',
+	regionSemanticDiag = 'regionSemanticDiag',
 	configFileDiag = 'configFileDiag',
 	telemetry = 'telemetry',
 	projectLanguageServiceState = 'projectLanguageServiceState',
@@ -88,6 +89,9 @@ export enum EventName {
 	surveyReady = 'surveyReady',
 	projectLoadingStart = 'projectLoadingStart',
 	projectLoadingFinish = 'projectLoadingFinish',
+	createFileWatcher = 'createFileWatcher',
+	createDirectoryWatcher = 'createDirectoryWatcher',
+	closeFileWatcher = 'closeFileWatcher',
 }
 
 export enum OrganizeImportsMode {

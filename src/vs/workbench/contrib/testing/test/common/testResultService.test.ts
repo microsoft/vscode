@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { timeout } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { NullLogService } from 'vs/platform/log/common/log';
+import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { TestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
 import { HydratedTestResult, LiveTestResult, TaskRawOutput, TestResultItemChange, TestResultItemChangeReason, resultItemParents } from 'vs/workbench/contrib/testing/common/testResult';
@@ -30,8 +32,8 @@ suite('Workbench - Test Results Service', () => {
 	let tests: TestTestCollection;
 
 	const defaultOpts = (testIds: string[]): ResolvedTestRunRequest => ({
+		group: TestRunProfileBitset.Run,
 		targets: [{
-			profileGroup: TestRunProfileBitset.Run,
 			profileId: 0,
 			controllerId: 'ctrlId',
 			testIds,
@@ -44,7 +46,7 @@ suite('Workbench - Test Results Service', () => {
 			persist: boolean,
 			request: ResolvedTestRunRequest,
 		) {
-			super(id, persist, request);
+			super(id, persist, request, NullTelemetryService);
 			ds.add(this);
 		}
 
@@ -207,8 +209,17 @@ suite('Workbench - Test Results Service', () => {
 		}
 
 		setup(() => {
-			storage = ds.add(new InMemoryResultStorage(ds.add(new TestStorageService()), new NullLogService()));
-			results = ds.add(new TestTestResultService(new MockContextKeyService(), storage, ds.add(new TestProfileService(new MockContextKeyService(), ds.add(new TestStorageService())))));
+			storage = ds.add(new InMemoryResultStorage({
+				asCanonicalUri(uri) {
+					return uri;
+				},
+			} as IUriIdentityService, ds.add(new TestStorageService()), new NullLogService()));
+			results = ds.add(new TestTestResultService(
+				new MockContextKeyService(),
+				storage,
+				ds.add(new TestProfileService(new MockContextKeyService(), ds.add(new TestStorageService()))),
+				NullTelemetryService,
+			));
 		});
 
 		test('pushes new result', () => {
@@ -226,6 +237,7 @@ suite('Workbench - Test Results Service', () => {
 				new MockContextKeyService(),
 				storage,
 				ds.add(new TestProfileService(new MockContextKeyService(), ds.add(new TestStorageService()))),
+				NullTelemetryService,
 			));
 
 			assert.strictEqual(0, results.results.length);
@@ -251,6 +263,7 @@ suite('Workbench - Test Results Service', () => {
 				'',
 				false,
 				defaultOpts([]),
+				NullTelemetryService,
 			));
 			results.clear();
 
@@ -263,6 +276,7 @@ suite('Workbench - Test Results Service', () => {
 				'',
 				false,
 				defaultOpts([]),
+				NullTelemetryService,
 			));
 
 			assert.deepStrictEqual(results.results, [r2, r]);
@@ -273,6 +287,10 @@ suite('Workbench - Test Results Service', () => {
 		});
 
 		const makeHydrated = async (completedAt = 42, state = TestResultState.Passed) => new HydratedTestResult({
+			asCanonicalUri(uri) {
+				return uri;
+			},
+		} as IUriIdentityService, {
 			completedAt,
 			id: 'some-id',
 			tasks: [{ id: 't', name: undefined }],

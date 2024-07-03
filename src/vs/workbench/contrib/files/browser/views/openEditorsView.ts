@@ -18,17 +18,17 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SaveAllInGroupAction, CloseGroupAction } from 'vs/workbench/contrib/files/browser/fileActions';
 import { OpenEditorsFocusedContext, ExplorerFocusedContext, IFilesConfiguration, OpenEditor } from 'vs/workbench/contrib/files/common/files';
 import { CloseAllEditorsAction, CloseEditorAction, UnpinEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
-import { IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { asCssVariable, badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
-import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction } from 'vs/base/browser/ui/list/list';
+import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, ListDragOverEffectPosition, ListDragOverEffectType } from 'vs/base/browser/ui/list/list';
 import { ResourceLabels, IResourceLabel } from 'vs/workbench/browser/labels';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { DisposableMap, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { MenuId, Action2, registerAction2, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { OpenEditorsDirtyEditorContext, OpenEditorsGroupContext, OpenEditorsReadonlyEditorContext, SAVE_ALL_LABEL, SAVE_ALL_COMMAND_ID, NEW_UNTITLED_FILE_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileConstants';
+import { OpenEditorsDirtyEditorContext, OpenEditorsGroupContext, OpenEditorsReadonlyEditorContext, SAVE_ALL_LABEL, SAVE_ALL_COMMAND_ID, NEW_UNTITLED_FILE_COMMAND_ID, OpenEditorsSelectedFileOrUntitledContext } from 'vs/workbench/contrib/files/browser/fileConstants';
 import { ResourceContextKey, MultipleEditorGroupsContext } from 'vs/workbench/common/contextkeys';
 import { CodeDataTransfers, containsDragType } from 'vs/platform/dnd/browser/dnd';
 import { ResourcesDropHandler, fillEditorsDragData } from 'vs/workbench/browser/dnd';
@@ -36,10 +36,10 @@ import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDragAndDropData, DataTransfers } from 'vs/base/browser/dnd';
 import { memoize } from 'vs/base/common/decorators';
-import { ElementsDragAndDropData, NativeDragAndDropData } from 'vs/base/browser/ui/list/listView';
+import { ElementsDragAndDropData, ListViewTargetSector, NativeDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkingCopy, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
-import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
@@ -53,6 +53,9 @@ import { Schemas } from 'vs/base/common/network';
 import { extUriIgnorePathCase } from 'vs/base/common/resources';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { mainWindow } from 'vs/base/browser/window';
+import { EditorGroupView } from 'vs/workbench/browser/parts/editor/editorGroupView';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { IFileService } from 'vs/platform/files/common/files';
 
 const $ = dom.$;
 
@@ -66,15 +69,12 @@ export class OpenEditorsView extends ViewPane {
 	private dirtyCountElement!: HTMLElement;
 	private listRefreshScheduler: RunOnceScheduler | undefined;
 	private structuralRefreshDelay: number;
+	private dnd: OpenEditorsDragAndDrop | undefined;
 	private list: WorkbenchList<OpenEditor | IEditorGroup> | undefined;
 	private listLabels: ResourceLabels | undefined;
 	private needsRefresh = false;
 	private elements: (OpenEditor | IEditorGroup)[] = [];
 	private sortOrder: 'editorOrder' | 'alphabetical' | 'fullPath';
-	private resourceContext!: ResourceContextKey;
-	private groupFocusedContext!: IContextKey<boolean>;
-	private dirtyEditorFocusedContext!: IContextKey<boolean>;
-	private readonlyEditorFocusedContext!: IContextKey<boolean>;
 	private blockFocusActiveEditorTracking = false;
 
 	constructor(
@@ -88,11 +88,13 @@ export class OpenEditorsView extends ViewPane {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@IOpenerService openerService: IOpenerService,
+		@IFileService private readonly fileService: IFileService
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 
 		this.structuralRefreshDelay = 0;
 		this.sortOrder = configurationService.getValue('explorer.openEditors.sortOrder');
@@ -116,7 +118,7 @@ export class OpenEditorsView extends ViewPane {
 			this.listRefreshScheduler?.schedule(this.structuralRefreshDelay);
 		};
 
-		const groupDisposables = new Map<number, IDisposable>();
+		const groupDisposables = this._register(new DisposableMap<number>());
 		const addGroupListener = (group: IEditorGroup) => {
 			const groupModelChangeListener = group.onDidModelChange(e => {
 				if (this.listRefreshScheduler?.isScheduled()) {
@@ -154,7 +156,6 @@ export class OpenEditorsView extends ViewPane {
 				}
 			});
 			groupDisposables.set(group.id, groupModelChangeListener);
-			this._register(groupDisposables.get(group.id)!);
 		};
 
 		this.editorGroupService.groups.forEach(g => addGroupListener(g));
@@ -165,7 +166,7 @@ export class OpenEditorsView extends ViewPane {
 		this._register(this.editorGroupService.onDidMoveGroup(() => updateWholeList()));
 		this._register(this.editorGroupService.onDidChangeActiveGroup(() => this.focusActiveEditor()));
 		this._register(this.editorGroupService.onDidRemoveGroup(group => {
-			dispose(groupDisposables.get(group.id));
+			groupDisposables.deleteAndDispose(group.id);
 			updateWholeList();
 		}));
 	}
@@ -197,16 +198,17 @@ export class OpenEditorsView extends ViewPane {
 		if (this.listLabels) {
 			this.listLabels.clear();
 		}
+
+		this.dnd = new OpenEditorsDragAndDrop(this.sortOrder, this.instantiationService, this.editorGroupService);
+
 		this.listLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
 		this.list = this.instantiationService.createInstance(WorkbenchList, 'OpenEditors', container, delegate, [
 			new EditorGroupRenderer(this.keybindingService, this.instantiationService),
 			new OpenEditorRenderer(this.listLabels, this.instantiationService, this.keybindingService, this.configurationService)
 		], {
 			identityProvider: { getId: (element: OpenEditor | IEditorGroup) => element instanceof OpenEditor ? element.getId() : element.id.toString() },
-			dnd: new OpenEditorsDragAndDrop(this.instantiationService, this.editorGroupService),
-			overrideStyles: {
-				listBackground: this.getBackgroundColor()
-			},
+			dnd: this.dnd,
+			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 			accessibilityProvider: new OpenEditorsAccessibilityProvider()
 		}) as WorkbenchList<OpenEditor | IEditorGroup>;
 		this._register(this.list);
@@ -241,32 +243,8 @@ export class OpenEditorsView extends ViewPane {
 
 		this.updateSize();
 
-		// Bind context keys
-		OpenEditorsFocusedContext.bindTo(this.list.contextKeyService);
-		ExplorerFocusedContext.bindTo(this.list.contextKeyService);
-
-		this.resourceContext = this.instantiationService.createInstance(ResourceContextKey);
-		this._register(this.resourceContext);
-		this.groupFocusedContext = OpenEditorsGroupContext.bindTo(this.contextKeyService);
-		this.dirtyEditorFocusedContext = OpenEditorsDirtyEditorContext.bindTo(this.contextKeyService);
-		this.readonlyEditorFocusedContext = OpenEditorsReadonlyEditorContext.bindTo(this.contextKeyService);
-
+		this.handleContextKeys();
 		this._register(this.list.onContextMenu(e => this.onListContextMenu(e)));
-		this.list.onDidChangeFocus(e => {
-			this.resourceContext.reset();
-			this.groupFocusedContext.reset();
-			this.dirtyEditorFocusedContext.reset();
-			this.readonlyEditorFocusedContext.reset();
-			const element = e.elements.length ? e.elements[0] : undefined;
-			if (element instanceof OpenEditor) {
-				const resource = element.getResource();
-				this.dirtyEditorFocusedContext.set(element.editor.isDirty() && !element.editor.isSaving());
-				this.readonlyEditorFocusedContext.set(!!element.editor.isReadonly());
-				this.resourceContext.set(resource ?? null);
-			} else if (!!element) {
-				this.groupFocusedContext.set(true);
-			}
-		});
 
 		// Open when selecting via keyboard
 		this._register(this.list.onMouseMiddleClick(e => {
@@ -311,6 +289,52 @@ export class OpenEditorsView extends ViewPane {
 		const containerModel = this.viewDescriptorService.getViewContainerModel(this.viewDescriptorService.getViewContainerByViewId(this.id)!)!;
 		this._register(containerModel.onDidChangeAllViewDescriptors(() => {
 			this.updateSize();
+		}));
+	}
+
+	private handleContextKeys() {
+		if (!this.list) {
+			return;
+		}
+
+		// Bind context keys
+		OpenEditorsFocusedContext.bindTo(this.list.contextKeyService);
+		ExplorerFocusedContext.bindTo(this.list.contextKeyService);
+
+		const groupFocusedContext = OpenEditorsGroupContext.bindTo(this.contextKeyService);
+		const dirtyEditorFocusedContext = OpenEditorsDirtyEditorContext.bindTo(this.contextKeyService);
+		const readonlyEditorFocusedContext = OpenEditorsReadonlyEditorContext.bindTo(this.contextKeyService);
+		const openEditorsSelectedFileOrUntitledContext = OpenEditorsSelectedFileOrUntitledContext.bindTo(this.contextKeyService);
+
+		const resourceContext = this.instantiationService.createInstance(ResourceContextKey);
+		this._register(resourceContext);
+
+		this._register(this.list.onDidChangeFocus(e => {
+			resourceContext.reset();
+			groupFocusedContext.reset();
+			dirtyEditorFocusedContext.reset();
+			readonlyEditorFocusedContext.reset();
+
+			const element = e.elements.length ? e.elements[0] : undefined;
+			if (element instanceof OpenEditor) {
+				const resource = element.getResource();
+				dirtyEditorFocusedContext.set(element.editor.isDirty() && !element.editor.isSaving());
+				readonlyEditorFocusedContext.set(!!element.editor.isReadonly());
+				resourceContext.set(resource ?? null);
+			} else if (!!element) {
+				groupFocusedContext.set(true);
+			}
+		}));
+
+		this._register(this.list.onDidChangeSelection(e => {
+			const selectedAreFileOrUntitled = e.elements.every(e => {
+				if (e instanceof OpenEditor) {
+					const resource = e.getResource();
+					return resource && (resource.scheme === Schemas.untitled || this.fileService.hasProvider(resource));
+				}
+				return false;
+			});
+			openEditorsSelectedFileOrUntitledContext.set(selectedAreFileOrUntitled);
 		}));
 	}
 
@@ -447,6 +471,9 @@ export class OpenEditorsView extends ViewPane {
 		// Trigger a 'repaint' when decoration settings change or the sort order changed
 		if (event.affectsConfiguration('explorer.decorations') || event.affectsConfiguration('explorer.openEditors.sortOrder')) {
 			this.sortOrder = this.configurationService.getValue('explorer.openEditors.sortOrder');
+			if (this.dnd) {
+				this.dnd.sortOrder = this.sortOrder;
+			}
 			this.listRefreshScheduler?.schedule();
 		}
 	}
@@ -460,7 +487,7 @@ export class OpenEditorsView extends ViewPane {
 	private updateDirtyIndicator(workingCopy?: IWorkingCopy): void {
 		if (workingCopy) {
 			const gotDirty = workingCopy.isDirty();
-			if (gotDirty && !(workingCopy.capabilities & WorkingCopyCapabilities.Untitled) && this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
+			if (gotDirty && !(workingCopy.capabilities & WorkingCopyCapabilities.Untitled) && this.filesConfigurationService.hasShortAutoSaveDelay(workingCopy.resource)) {
 				return; // do not indicate dirty of working copies that are auto saved after short delay
 			}
 		}
@@ -650,7 +677,8 @@ class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplat
 			italic: openedEditor.isPreview(),
 			extraClasses: ['open-editor'].concat(openedEditor.editor.getLabelExtraClasses()),
 			fileDecorations: this.configurationService.getValue<IFilesConfiguration>().explorer.decorations,
-			title: editor.getTitle(Verbosity.LONG)
+			title: editor.getTitle(Verbosity.LONG),
+			icon: editor.getIcon()
 		});
 		const editorAction = openedEditor.isSticky() ? this.unpinEditorAction : this.closeEditorAction;
 		if (!templateData.actionBar.hasAction(editorAction)) {
@@ -670,10 +698,18 @@ class OpenEditorRenderer implements IListRenderer<OpenEditor, IOpenEditorTemplat
 
 class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGroup> {
 
+	private _sortOrder: 'editorOrder' | 'alphabetical' | 'fullPath';
+	public set sortOrder(value: 'editorOrder' | 'alphabetical' | 'fullPath') {
+		this._sortOrder = value;
+	}
+
 	constructor(
+		sortOrder: 'editorOrder' | 'alphabetical' | 'fullPath',
 		private instantiationService: IInstantiationService,
 		private editorGroupService: IEditorGroupsService
-	) { }
+	) {
+		this._sortOrder = sortOrder;
+	}
 
 	@memoize private get dropHandler(): ResourcesDropHandler {
 		return this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: false });
@@ -715,26 +751,68 @@ class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGro
 		}
 	}
 
-	onDragOver(data: IDragAndDropData, _targetElement: OpenEditor | IEditorGroup, _targetIndex: number, originalEvent: DragEvent): boolean | IListDragOverReaction {
+	onDragOver(data: IDragAndDropData, _targetElement: OpenEditor | IEditorGroup, _targetIndex: number, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): boolean | IListDragOverReaction {
 		if (data instanceof NativeDragAndDropData) {
-			return containsDragType(originalEvent, DataTransfers.FILES, CodeDataTransfers.FILES);
+			if (!containsDragType(originalEvent, DataTransfers.FILES, CodeDataTransfers.FILES)) {
+				return false;
+			}
 		}
 
-		return true;
+		if (this._sortOrder !== 'editorOrder') {
+			if (data instanceof ElementsDragAndDropData) {
+				// No reordering supported when sorted
+				return false;
+			} else {
+				// Allow droping files to open them
+				return { accept: true, effect: { type: ListDragOverEffectType.Move }, feedback: [-1] };
+			}
+		}
+
+		let dropEffectPosition: ListDragOverEffectPosition | undefined = undefined;
+		switch (targetSector) {
+			case ListViewTargetSector.TOP:
+			case ListViewTargetSector.CENTER_TOP:
+				dropEffectPosition = (_targetIndex === 0 && _targetElement instanceof EditorGroupView) ? ListDragOverEffectPosition.After : ListDragOverEffectPosition.Before; break;
+			case ListViewTargetSector.CENTER_BOTTOM:
+			case ListViewTargetSector.BOTTOM:
+				dropEffectPosition = ListDragOverEffectPosition.After; break;
+		}
+
+		return { accept: true, effect: { type: ListDragOverEffectType.Move, position: dropEffectPosition }, feedback: [_targetIndex] };
 	}
 
-	drop(data: IDragAndDropData, targetElement: OpenEditor | IEditorGroup | undefined, _targetIndex: number, originalEvent: DragEvent): void {
-		const group = targetElement instanceof OpenEditor ? targetElement.group : targetElement || this.editorGroupService.groups[this.editorGroupService.count - 1];
-		const index = targetElement instanceof OpenEditor ? targetElement.group.getIndexOfEditor(targetElement.editor) : 0;
+	drop(data: IDragAndDropData, targetElement: OpenEditor | IEditorGroup | undefined, _targetIndex: number, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): void {
+		let group = targetElement instanceof OpenEditor ? targetElement.group : targetElement || this.editorGroupService.groups[this.editorGroupService.count - 1];
+		let targetEditorIndex = targetElement instanceof OpenEditor ? targetElement.group.getIndexOfEditor(targetElement.editor) : 0;
+
+		switch (targetSector) {
+			case ListViewTargetSector.TOP:
+			case ListViewTargetSector.CENTER_TOP:
+				if (targetElement instanceof EditorGroupView && group.index !== 0) {
+					group = this.editorGroupService.groups[group.index - 1];
+					targetEditorIndex = group.count;
+				}
+				break;
+			case ListViewTargetSector.BOTTOM:
+			case ListViewTargetSector.CENTER_BOTTOM:
+				if (targetElement instanceof OpenEditor) {
+					targetEditorIndex++;
+				}
+				break;
+		}
 
 		if (data instanceof ElementsDragAndDropData) {
-			const elementsData = data.elements;
-			elementsData.forEach((oe: OpenEditor, offset) => {
-				oe.group.moveEditor(oe.editor, group, { index: index + offset, preserveFocus: true });
-			});
+			for (const oe of data.elements) {
+				const sourceEditorIndex = oe.group.getIndexOfEditor(oe.editor);
+				if (oe.group === group && sourceEditorIndex < targetEditorIndex) {
+					targetEditorIndex--;
+				}
+				oe.group.moveEditor(oe.editor, group, { index: targetEditorIndex, preserveFocus: true });
+				targetEditorIndex++;
+			}
 			this.editorGroupService.activateGroup(group);
 		} else {
-			this.dropHandler.handleDrop(originalEvent, mainWindow, () => group, () => group.focus(), { index });
+			this.dropHandler.handleDrop(originalEvent, mainWindow, () => group, () => group.focus(), { index: targetEditorIndex });
 		}
 	}
 
@@ -761,7 +839,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.toggleEditorGroupLayout',
-			title: { value: nls.localize('flipLayout', "Toggle Vertical/Horizontal Editor Layout"), original: 'Toggle Vertical/Horizontal Editor Layout' },
+			title: nls.localize2('flipLayout', "Toggle Vertical/Horizontal Editor Layout"),
 			f1: true,
 			keybinding: {
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.Digit0,
@@ -786,12 +864,11 @@ registerAction2(class extends Action2 {
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
-	group: '4_flip',
+	group: '5_flip',
 	command: {
 		id: toggleEditorGroupLayoutId,
 		title: {
-			original: 'Flip Layout',
-			value: nls.localize('miToggleEditorLayoutWithoutMnemonic', "Flip Layout"),
+			...nls.localize2('miToggleEditorLayoutWithoutMnemonic', "Flip Layout"),
 			mnemonicTitle: nls.localize({ key: 'miToggleEditorLayout', comment: ['&& denotes a mnemonic'] }, "Flip &&Layout")
 		}
 	},
@@ -802,7 +879,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.files.saveAll',
-			title: { value: SAVE_ALL_LABEL, original: 'Save All' },
+			title: SAVE_ALL_LABEL,
 			f1: true,
 			icon: Codicon.saveAll,
 			menu: {
@@ -848,7 +925,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'openEditors.newUntitledFile',
-			title: { value: nls.localize('newUntitledFile', "New Untitled Text File"), original: 'New Untitled Text File' },
+			title: nls.localize2('newUntitledFile', "New Untitled Text File"),
 			f1: false,
 			icon: Codicon.newFile,
 			menu: {

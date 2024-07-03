@@ -296,22 +296,25 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 				scopes: JSON.stringify(scopes),
 			});
 
+			const sessions = await this._sessionsPromise;
 
+			const accounts = new Set(sessions.map(session => session.account.label));
+			const existingLogin = accounts.size <= 1 ? sessions[0]?.account.label : await vscode.window.showQuickPick([...accounts], { placeHolder: 'Choose an account that you would like to log in to' });
 			const scopeString = sortedScopes.join(' ');
-			const token = await this._githubServer.login(scopeString);
+			const token = await this._githubServer.login(scopeString, existingLogin);
 			const session = await this.tokenToSession(token, scopes);
 			this.afterSessionLoad(session);
 
-			const sessions = await this._sessionsPromise;
 			const sessionIndex = sessions.findIndex(s => s.id === session.id || arrayEquals([...s.scopes].sort(), sortedScopes));
+			const removed = new Array<vscode.AuthenticationSession>();
 			if (sessionIndex > -1) {
-				sessions.splice(sessionIndex, 1, session);
+				removed.push(...sessions.splice(sessionIndex, 1, session));
 			} else {
 				sessions.push(session);
 			}
 			await this.storeSessions(sessions);
 
-			this._sessionChangeEmitter.fire({ added: [session], removed: [], changed: [] });
+			this._sessionChangeEmitter.fire({ added: [session], removed, changed: [] });
 
 			this._logger.info('Login success!');
 

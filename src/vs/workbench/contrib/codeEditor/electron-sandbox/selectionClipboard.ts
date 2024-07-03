@@ -16,9 +16,7 @@ import { IEditorContribution, Handler } from 'vs/editor/common/editorCommon';
 import { EndOfLinePreference } from 'vs/editor/common/model';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { mainWindow } from 'vs/base/browser/window';
@@ -92,27 +90,28 @@ export class SelectionClipboard extends Disposable implements IEditorContributio
 	}
 }
 
-class SelectionClipboardPastePreventer extends Disposable implements IWorkbenchContribution {
+class LinuxSelectionClipboardPastePreventer extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.linuxSelectionClipboardPastePreventer';
+
 	constructor(
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super();
 
-		if (platform.isLinux) {
-			this._register(Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposables }) => {
-				disposables.add(addDisposableListener(window.document, 'mouseup', e => {
-					if (e.button === 1) {
-						// middle button
-						const config = configurationService.getValue<{ selectionClipboard: boolean }>('editor');
-						if (!config.selectionClipboard) {
-							// selection clipboard is disabled
-							// try to stop the upcoming paste
-							e.preventDefault();
-						}
+		this._register(Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposables }) => {
+			disposables.add(addDisposableListener(window.document, 'mouseup', e => {
+				if (e.button === 1) {
+					// middle button
+					const config = configurationService.getValue<{ selectionClipboard: boolean }>('editor');
+					if (!config.selectionClipboard) {
+						// selection clipboard is disabled
+						// try to stop the upcoming paste
+						e.preventDefault();
 					}
-				}));
-			}, { window: mainWindow, disposables: this._store }));
-		}
+				}
+			}));
+		}, { window: mainWindow, disposables: this._store }));
 	}
 }
 
@@ -142,7 +141,7 @@ class PasteSelectionClipboardAction extends EditorAction {
 }
 
 registerEditorContribution(SelectionClipboardContributionID, SelectionClipboard, EditorContributionInstantiation.Eager); // eager because it needs to listen to selection change events
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(SelectionClipboardPastePreventer, LifecyclePhase.Ready);
 if (platform.isLinux) {
+	registerWorkbenchContribution2(LinuxSelectionClipboardPastePreventer.ID, LinuxSelectionClipboardPastePreventer, WorkbenchPhase.BlockRestore); // eager because it listens to mouse-up events globally
 	registerEditorAction(PasteSelectionClipboardAction);
 }

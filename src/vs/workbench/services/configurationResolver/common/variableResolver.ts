@@ -368,6 +368,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 						return match;
 					}
 					case 'pathSeparator':
+					case '/':
 						return paths.sep;
 
 					default:

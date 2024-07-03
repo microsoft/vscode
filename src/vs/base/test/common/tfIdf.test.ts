@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { TfIdfCalculator, TfIdfDocument, TfIdfScore } from 'vs/base/common/tfIdf';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 /**
  * Generates all permutations of an array.
@@ -39,6 +40,7 @@ function assertScoreOrdersEqual(actualScores: TfIdfScore[], expectedScoreKeys: s
 }
 
 suite('TF-IDF Calculator', function () {
+	ensureNoDisposablesAreLeakedInTestSuite();
 	test('Should return no scores when no documents are given', () => {
 		const tfidf = new TfIdfCalculator();
 		const scores = tfidf.calculateScores('something', CancellationToken.None);

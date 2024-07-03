@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { getErrorMessage } from 'vs/base/common/errors';
+import { ErrorNoTelemetry, getErrorMessage } from 'vs/base/common/errors';
 import { mark } from 'vs/base/common/performance';
 
 class MissingStoresError extends Error {
@@ -125,8 +125,8 @@ export class IndexedDB {
 					c(request.result);
 				}
 			};
-			transaction.onerror = () => e(transaction.error);
-			transaction.onabort = () => e(transaction.error);
+			transaction.onerror = () => e(transaction.error ? ErrorNoTelemetry.fromError(transaction.error) : new ErrorNoTelemetry('unknown error'));
+			transaction.onabort = () => e(transaction.error ? ErrorNoTelemetry.fromError(transaction.error) : new ErrorNoTelemetry('unknown error'));
 			const request = dbRequestFn(transaction.objectStore(store));
 		}).finally(() => this.pendingTransactions.splice(this.pendingTransactions.indexOf(transaction), 1));
 	}

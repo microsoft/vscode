@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { $, asCssValueWithDefault, h, multibyteAwareBtoa, trackAttributes, copyAttributes, disposableWindowInterval } from 'vs/base/browser/dom';
-import { mainWindow } from 'vs/base/browser/window';
+import assert from 'assert';
+import { $, asCssValueWithDefault, h, multibyteAwareBtoa, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, isHTMLElement } from 'vs/base/browser/dom';
+import { ensureCodeWindow, isAuxiliaryWindow, mainWindow } from 'vs/base/browser/window';
 import { DeferredPromise, timeout } from 'vs/base/common/async';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('dom', () => {
 	test('hasClass', () => {
@@ -84,7 +85,7 @@ suite('dom', () => {
 		test('should build simple nodes', () => {
 			const div = $('div');
 			assert(div);
-			assert(div instanceof HTMLElement);
+			assert(isHTMLElement(div));
 			assert.strictEqual(div.tagName, 'DIV');
 			assert(!div.firstChild);
 		});
@@ -92,7 +93,7 @@ suite('dom', () => {
 		test('should build nodes with id', () => {
 			const div = $('div#foo');
 			assert(div);
-			assert(div instanceof HTMLElement);
+			assert(isHTMLElement(div));
 			assert.strictEqual(div.tagName, 'DIV');
 			assert.strictEqual(div.id, 'foo');
 		});
@@ -100,7 +101,7 @@ suite('dom', () => {
 		test('should build nodes with class-name', () => {
 			const div = $('div.foo');
 			assert(div);
-			assert(div instanceof HTMLElement);
+			assert(isHTMLElement(div));
 			assert.strictEqual(div.tagName, 'DIV');
 			assert.strictEqual(div.className, 'foo');
 		});
@@ -135,15 +136,15 @@ suite('dom', () => {
 	suite('h', () => {
 		test('should build simple nodes', () => {
 			const div = h('div');
-			assert(div.root instanceof HTMLElement);
+			assert(isHTMLElement(div.root));
 			assert.strictEqual(div.root.tagName, 'DIV');
 
 			const span = h('span');
-			assert(span.root instanceof HTMLElement);
+			assert(isHTMLElement(span.root));
 			assert.strictEqual(span.root.tagName, 'SPAN');
 
 			const img = h('img');
-			assert(img.root instanceof HTMLElement);
+			assert(isHTMLElement(img.root));
 			assert.strictEqual(img.root.tagName, 'IMG');
 		});
 
@@ -338,6 +339,28 @@ suite('dom', () => {
 		});
 	});
 
+	test('window utilities', () => {
+		const windows = Array.from(getWindows());
+		assert.strictEqual(windows.length, 1);
+		assert.strictEqual(getWindowsCount(), 1);
+		const windowId = getWindowId(mainWindow);
+		assert.ok(typeof windowId === 'number');
+		assert.strictEqual(getWindowById(windowId)?.window, mainWindow);
+		assert.strictEqual(getWindowById(undefined, true).window, mainWindow);
+		assert.strictEqual(hasWindow(windowId), true);
+		assert.strictEqual(isAuxiliaryWindow(mainWindow), false);
+		ensureCodeWindow(mainWindow, 1);
+		assert.ok(typeof mainWindow.vscodeWindowId === 'number');
+
+		const div = document.createElement('div');
+		assert.strictEqual(getWindow(div), mainWindow);
+		assert.strictEqual(getDocument(div), mainWindow.document);
+
+		const event = document.createEvent('MouseEvent');
+		assert.strictEqual(getWindow(event), mainWindow);
+		assert.strictEqual(getDocument(event), mainWindow.document);
+	});
+
 	suite('disposableWindowInterval', () => {
 		test('basics', async () => {
 			let count = 0;
@@ -383,4 +406,6 @@ suite('dom', () => {
 			assert.strictEqual(count, 0);
 		});
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

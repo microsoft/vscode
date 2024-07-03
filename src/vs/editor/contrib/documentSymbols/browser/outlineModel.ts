@@ -469,8 +469,8 @@ export class OutlineModelService implements IOutlineModelService {
 
 		const listener = token.onCancellationRequested(() => {
 			// last -> cancel provider request, remove cached promise
-			if (--data!.promiseCnt === 0) {
-				data!.source.cancel();
+			if (--data.promiseCnt === 0) {
+				data.source.cancel();
 				this._cache.delete(textModel.id);
 			}
 		});

@@ -7,7 +7,7 @@ import { DataTransfers, IDragAndDropData } from 'vs/base/browser/dnd';
 import { DragAndDropObserver, EventType, addDisposableListener, onDidRegisterWindow } from 'vs/base/browser/dom';
 import { DragMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IListDragAndDrop } from 'vs/base/browser/ui/list/list';
-import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
+import { ElementsDragAndDropData, ListViewTargetSector } from 'vs/base/browser/ui/list/listView';
 import { ITreeDragOverReaction } from 'vs/base/browser/ui/tree/tree';
 import { coalesce } from 'vs/base/common/arrays';
 import { UriList, VSDataTransfer } from 'vs/base/common/dataTransfer';
@@ -479,14 +479,14 @@ export class CompositeDragAndDropObserver extends Disposable {
 				if (callbacks.onDragEnter) {
 					const data = this.readDragData('composite') || this.readDragData('view');
 					if (data) {
-						callbacks.onDragEnter({ eventData: e, dragAndDropData: data! });
+						callbacks.onDragEnter({ eventData: e, dragAndDropData: data });
 					}
 				}
 			},
 			onDragLeave: e => {
 				const data = this.readDragData('composite') || this.readDragData('view');
 				if (callbacks.onDragLeave && data) {
-					callbacks.onDragLeave({ eventData: e, dragAndDropData: data! });
+					callbacks.onDragLeave({ eventData: e, dragAndDropData: data });
 				}
 			},
 			onDrop: e => {
@@ -496,10 +496,10 @@ export class CompositeDragAndDropObserver extends Disposable {
 						return;
 					}
 
-					callbacks.onDrop({ eventData: e, dragAndDropData: data! });
+					callbacks.onDrop({ eventData: e, dragAndDropData: data });
 
 					// Fire drag event in case drop handler destroys the dragged element
-					this.onDragEnd.fire({ eventData: e, dragAndDropData: data! });
+					this.onDragEnd.fire({ eventData: e, dragAndDropData: data });
 				}
 			},
 			onDragOver: e => {
@@ -511,7 +511,7 @@ export class CompositeDragAndDropObserver extends Disposable {
 						return;
 					}
 
-					callbacks.onDragOver({ eventData: e, dragAndDropData: data! });
+					callbacks.onDragOver({ eventData: e, dragAndDropData: data });
 				}
 			}
 		}));
@@ -552,7 +552,7 @@ export class CompositeDragAndDropObserver extends Disposable {
 					return;
 				}
 
-				this.onDragEnd.fire({ eventData: e, dragAndDropData: data! });
+				this.onDragEnd.fire({ eventData: e, dragAndDropData: data });
 			},
 			onDragEnter: e => {
 				if (callbacks.onDragEnter) {
@@ -562,7 +562,7 @@ export class CompositeDragAndDropObserver extends Disposable {
 					}
 
 					if (data) {
-						callbacks.onDragEnter({ eventData: e, dragAndDropData: data! });
+						callbacks.onDragEnter({ eventData: e, dragAndDropData: data });
 					}
 				}
 			},
@@ -572,7 +572,7 @@ export class CompositeDragAndDropObserver extends Disposable {
 					return;
 				}
 
-				callbacks.onDragLeave?.({ eventData: e, dragAndDropData: data! });
+				callbacks.onDragLeave?.({ eventData: e, dragAndDropData: data });
 			},
 			onDrop: e => {
 				if (callbacks.onDrop) {
@@ -581,10 +581,10 @@ export class CompositeDragAndDropObserver extends Disposable {
 						return;
 					}
 
-					callbacks.onDrop({ eventData: e, dragAndDropData: data! });
+					callbacks.onDrop({ eventData: e, dragAndDropData: data });
 
 					// Fire drag event in case drop handler destroys the dragged element
-					this.onDragEnd.fire({ eventData: e, dragAndDropData: data! });
+					this.onDragEnd.fire({ eventData: e, dragAndDropData: data });
 				}
 			},
 			onDragOver: e => {
@@ -594,7 +594,7 @@ export class CompositeDragAndDropObserver extends Disposable {
 						return;
 					}
 
-					callbacks.onDragOver({ eventData: e, dragAndDropData: data! });
+					callbacks.onDragOver({ eventData: e, dragAndDropData: data });
 				}
 			}
 		}));
@@ -653,11 +653,11 @@ export class ResourceListDnDHandler<T> implements IListDragAndDrop<T> {
 		}
 	}
 
-	onDragOver(data: IDragAndDropData, targetElement: T, targetIndex: number, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
+	onDragOver(data: IDragAndDropData, targetElement: T, targetIndex: number, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
 		return false;
 	}
 
-	drop(data: IDragAndDropData, targetElement: T, targetIndex: number, originalEvent: DragEvent): void { }
+	drop(data: IDragAndDropData, targetElement: T, targetIndex: number, targetSector: ListViewTargetSector | undefined, originalEvent: DragEvent): void { }
 
 	dispose(): void { }
 }

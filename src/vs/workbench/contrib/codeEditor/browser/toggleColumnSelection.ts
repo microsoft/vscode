@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -23,9 +23,8 @@ export class ToggleColumnSelectionAction extends Action2 {
 		super({
 			id: ToggleColumnSelectionAction.ID,
 			title: {
-				value: localize('toggleColumnSelection', "Toggle Column Selection Mode"),
+				...localize2('toggleColumnSelection', "Toggle Column Selection Mode"),
 				mnemonicTitle: localize({ key: 'miColumnSelection', comment: ['&& denotes a mnemonic'] }, "Column &&Selection Mode"),
-				original: 'Toggle Column Selection Mode'
 			},
 			f1: true,
 			toggled: ContextKeyExpr.equals('config.editor.columnSelection', true),

@@ -62,7 +62,7 @@ export class UserDataSyncClient extends Disposable {
 
 		const userRoamingDataHome = URI.file('userdata').with({ scheme: Schemas.inMemory });
 		const userDataSyncHome = joinPath(userRoamingDataHome, '.sync');
-		const environmentService = this.instantiationService.stub(IEnvironmentService, <Partial<IEnvironmentService>>{
+		const environmentService = this.instantiationService.stub(IEnvironmentService, {
 			userDataSyncHome,
 			userRoamingDataHome,
 			cacheHome: joinPath(userRoamingDataHome, 'cache'),
@@ -95,7 +95,7 @@ export class UserDataSyncClient extends Disposable {
 
 		const storageService = this._register(new TestStorageService(userDataProfilesService.defaultProfile));
 		this.instantiationService.stub(IStorageService, this._register(storageService));
-		this.instantiationService.stub(IUserDataProfileStorageService, this._register(new TestUserDataProfileStorageService(storageService)));
+		this.instantiationService.stub(IUserDataProfileStorageService, this._register(new TestUserDataProfileStorageService(false, storageService)));
 
 		const configurationService = this._register(new ConfigurationService(userDataProfilesService.defaultProfile.settingsResource, fileService, new NullPolicyService(), logService));
 		await configurationService.initialize();
@@ -117,7 +117,7 @@ export class UserDataSyncClient extends Disposable {
 		this.instantiationService.stub(IUserDataSyncUtilService, new TestUserDataSyncUtilService());
 		this.instantiationService.stub(IUserDataSyncEnablementService, this._register(this.instantiationService.createInstance(UserDataSyncEnablementService)));
 
-		this.instantiationService.stub(IExtensionManagementService, <Partial<IExtensionManagementService>>{
+		this.instantiationService.stub(IExtensionManagementService, {
 			async getInstalled() { return []; },
 			onDidInstallExtensions: new Emitter<readonly InstallExtensionResult[]>().event,
 			onDidUninstallExtension: new Emitter<DidUninstallExtensionEvent>().event,
@@ -125,7 +125,7 @@ export class UserDataSyncClient extends Disposable {
 		this.instantiationService.stub(IGlobalExtensionEnablementService, this._register(this.instantiationService.createInstance(GlobalExtensionEnablementService)));
 		this.instantiationService.stub(IExtensionStorageService, this._register(this.instantiationService.createInstance(ExtensionStorageService)));
 		this.instantiationService.stub(IIgnoredExtensionsManagementService, this.instantiationService.createInstance(IgnoredExtensionsManagementService));
-		this.instantiationService.stub(IExtensionGalleryService, <Partial<IExtensionGalleryService>>{
+		this.instantiationService.stub(IExtensionGalleryService, {
 			isEnabled() { return true; },
 			async getCompatibleExtension() { return null; }
 		});

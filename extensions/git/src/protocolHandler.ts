@@ -4,10 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { UriHandler, Uri, window, Disposable, commands, LogOutputChannel, l10n } from 'vscode';
-import { dispose } from './util';
+import { dispose, isWindows } from './util';
 import * as querystring from 'querystring';
 
-const schemes = new Set(['file', 'git', 'http', 'https', 'ssh']);
+const schemes = isWindows ?
+	new Set(['git', 'http', 'https', 'ssh']) :
+	new Set(['file', 'git', 'http', 'https', 'ssh']);
+
 const refRegEx = /^$|[~\^:\\\*\s\[\]]|^-|^\.|\/\.|\.\.|\.lock\/|\.lock$|\/$|\.$/;
 
 export class GitProtocolHandler implements UriHandler {

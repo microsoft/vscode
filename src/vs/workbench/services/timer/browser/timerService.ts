@@ -66,6 +66,7 @@ export interface IMemoryInfo {
 		"timers.ellapsedViewletRestore" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedPanelRestore" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedEditorRestore" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+		"timers.ellapsedWorkbenchContributions" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"timers.ellapsedWorkbench" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"platform" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 		"release" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
@@ -365,6 +366,16 @@ export interface IStartupMetrics {
 		readonly ellapsedEditorRestore: number;
 
 		/**
+		 * The time it took to create all workbench contributions on the starting and ready
+		 * lifecycle phase, thus blocking `ellapsedWorkbench`.
+		 *
+		 * * Happens in the renderer-process
+		 * * Measured with the `willCreateWorkbenchContributions/1` and `didCreateWorkbenchContributions/2` performance marks.
+		 *
+		 */
+		readonly ellapsedWorkbenchContributions: number;
+
+		/**
 		 * The time it took to create the workbench.
 		 *
 		 * * Happens in the renderer-process
@@ -435,6 +446,12 @@ export interface ITimerService {
 	 * @param to to mark name
 	 */
 	getDuration(from: string, to: string): number;
+
+	/**
+	 * Return the timestamp of a mark.
+	 * @param mark mark name
+	 */
+	getStartTime(mark: string): number;
 }
 
 export const ITimerService = createDecorator<ITimerService>('timerService');
@@ -458,6 +475,11 @@ class PerfMarks {
 			return 0;
 		}
 		return toEntry.startTime - fromEntry.startTime;
+	}
+
+	getStartTime(mark: string): number {
+		const entry = this._findEntry(mark);
+		return entry ? entry.startTime : -1;
 	}
 
 	private _findEntry(name: string): perf.PerformanceMark | void {
@@ -590,6 +612,10 @@ export abstract class AbstractTimerService implements ITimerService {
 		return this._marks.getDuration(from, to);
 	}
 
+	getStartTime(mark: string): number {
+		return this._marks.getStartTime(mark);
+	}
+
 	private _reportStartupTimes(metrics: IStartupMetrics): void {
 		// report IStartupMetrics as telemetry
 		/* __GDPR__
@@ -625,7 +651,7 @@ export abstract class AbstractTimerService implements ITimerService {
 			comment: 'Information about a performance marker';
 			source: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Where this marker was generated, e.g main, renderer, extension host' };
 			name: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The name of this marker (as defined in source code)' };
-			startTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The absolute timestamp (unix time)' };
+			startTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The absolute timestamp (unix time)' };
 		};
 
 		for (const mark of marks) {
@@ -686,6 +712,7 @@ export abstract class AbstractTimerService implements ITimerService {
 				ellapsedEditorRestore: this._marks.getDuration('code/willRestoreEditors', 'code/didRestoreEditors'),
 				ellapsedViewletRestore: this._marks.getDuration('code/willRestoreViewlet', 'code/didRestoreViewlet'),
 				ellapsedPanelRestore: this._marks.getDuration('code/willRestorePanel', 'code/didRestorePanel'),
+				ellapsedWorkbenchContributions: this._marks.getDuration('code/willCreateWorkbenchContributions/1', 'code/didCreateWorkbenchContributions/2'),
 				ellapsedWorkbench: this._marks.getDuration('code/willStartWorkbench', 'code/didStartWorkbench'),
 				ellapsedExtensionsReady: this._marks.getDuration(startMark, 'code/didLoadExtensions'),
 				ellapsedRenderer: this._marks.getDuration('code/didStartRenderer', 'code/didStartWorkbench')

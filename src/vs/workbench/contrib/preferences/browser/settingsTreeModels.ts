@@ -17,7 +17,7 @@ import { FOLDER_SCOPES, WORKSPACE_SCOPES, REMOTE_MACHINE_SCOPES, LOCAL_MACHINE_S
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
-import { ConfigurationScope, EditPresentationTypes, Extensions, IConfigurationRegistry, IExtensionInfo } from 'vs/platform/configuration/common/configurationRegistry';
+import { ConfigurationDefaultValueSource, ConfigurationScope, EditPresentationTypes, Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
@@ -135,7 +135,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	 * The source of the default value to display.
 	 * This value also accounts for extension-contributed language-specific default value overrides.
 	 */
-	defaultValueSource: string | IExtensionInfo | undefined;
+	defaultValueSource: ConfigurationDefaultValueSource | undefined;
 
 	/**
 	 * Whether the setting is configured in the selected scope.
@@ -792,11 +792,25 @@ function isIncludeSetting(setting: ISetting): boolean {
 	return setting.key === 'files.readonlyInclude';
 }
 
-function isObjectRenderableSchema({ type }: IJSONSchema): boolean {
-	return type === 'string' || type === 'boolean' || type === 'integer' || type === 'number';
+// The values of the following settings when a default values has been removed
+export function objectSettingSupportsRemoveDefaultValue(key: string): boolean {
+	return key === 'workbench.editor.customLabels.patterns';
+}
+
+function isObjectRenderableSchema({ type }: IJSONSchema, key: string): boolean {
+	if (type === 'string' || type === 'boolean' || type === 'integer' || type === 'number') {
+		return true;
+	}
+
+	if (objectSettingSupportsRemoveDefaultValue(key) && Array.isArray(type) && type.length === 2) {
+		return type.includes('null') && (type.includes('string') || type.includes('boolean') || type.includes('integer') || type.includes('number'));
+	}
+
+	return false;
 }
 
 function isObjectSetting({
+	key,
 	type,
 	objectProperties,
 	objectPatternProperties,
@@ -838,7 +852,7 @@ function isObjectSetting({
 		return [schema];
 	}).flat();
 
-	return flatSchemas.every(isObjectRenderableSchema);
+	return flatSchemas.every((schema) => isObjectRenderableSchema(schema, key));
 }
 
 function settingTypeEnumRenderable(_type: string | string[]) {
@@ -866,7 +880,7 @@ export class SearchResultModel extends SettingsTreeModel {
 		viewState: ISettingsEditorViewState,
 		settingsOrderByTocIndex: Map<string, number> | null,
 		isWorkspaceTrusted: boolean,
-		@IWorkbenchConfigurationService private readonly configurationService: IWorkbenchConfigurationService,
+		@IWorkbenchConfigurationService configurationService: IWorkbenchConfigurationService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@ILanguageService languageService: ILanguageService,
 		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
@@ -884,18 +898,13 @@ export class SearchResultModel extends SettingsTreeModel {
 			}
 		}
 
-		const tocHiddenDuringSearch = this.configurationService.getValue('workbench.settings.settingsSearchTocBehavior') === 'hide';
-		if (!tocHiddenDuringSearch) {
-			// Sort the settings according to internal order if indexed.
-			if (this.settingsOrderByTocIndex) {
-				filterMatches.sort((a, b) => compareTwoNullableNumbers(a.setting.internalOrder, b.setting.internalOrder));
-			}
-			return filterMatches;
+		// The search only has filters, so we can sort by the order in the TOC.
+		if (!this._viewState.query) {
+			return filterMatches.sort((a, b) => compareTwoNullableNumbers(a.setting.internalOrder, b.setting.internalOrder));
 		}
 
-		// The table of contents is hidden during the search.
-		// The settings could appear in a more haphazard order.
-		// Sort the settings according to their score.
+		// Sort the settings according to their relevancy.
+		// https://github.com/microsoft/vscode/issues/197773
 		filterMatches.sort((a, b) => {
 			if (a.matchType !== b.matchType) {
 				// Sort by match type if the match types are not the same.

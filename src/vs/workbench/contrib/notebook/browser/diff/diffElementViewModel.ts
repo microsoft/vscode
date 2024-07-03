@@ -567,7 +567,7 @@ export class SingleSideDiffElementViewModel extends DiffElementViewModelBase {
 		super(mainDocumentTextModel, original, modified, type, editorEventDispatcher, initData);
 		this.type = type;
 
-		this._register(this.cellViewModel!.onDidChangeOutputLayout(() => {
+		this._register(this.cellViewModel.onDidChangeOutputLayout(() => {
 			this._layout({ recomputeOutput: true });
 		}));
 	}
@@ -590,11 +590,11 @@ export class SingleSideDiffElementViewModel extends DiffElementViewModelBase {
 	}
 
 	getOutputOffsetInContainer(diffSide: DiffSide, index: number) {
-		return this.cellViewModel!.getOutputOffset(index);
+		return this.cellViewModel.getOutputOffset(index);
 	}
 
 	getOutputOffsetInCell(diffSide: DiffSide, index: number) {
-		const offsetInOutputsContainer = this.cellViewModel!.getOutputOffset(index);
+		const offsetInOutputsContainer = this.cellViewModel.getOutputOffset(index);
 
 		return this._layoutInfo.editorHeight
 			+ this._layoutInfo.editorMargin
@@ -620,7 +620,7 @@ export class SingleSideDiffElementViewModel extends DiffElementViewModelBase {
 	}
 
 	getCellByUri(cellUri: URI): IGenericCellViewModel {
-		return this.cellViewModel!;
+		return this.cellViewModel;
 	}
 }
 

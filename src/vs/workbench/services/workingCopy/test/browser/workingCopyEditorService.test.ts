@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
@@ -27,7 +27,7 @@ suite('WorkingCopyEditorService', () => {
 	});
 
 	test('registry - basics', () => {
-		const service = disposables.add(new WorkingCopyEditorService(new TestEditorService()));
+		const service = disposables.add(new WorkingCopyEditorService(disposables.add(new TestEditorService())));
 
 		let handlerEvent: IWorkingCopyEditorHandler | undefined = undefined;
 		disposables.add(service.onDidRegisterHandler(handler => {

@@ -49,7 +49,7 @@ if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo.
 echo ### Colorize tests
-call "%INTEGRATION_TEST_ELECTRON_PATH%" %~dp0\..\extensions\vscode-colorize-tests\test --extensionDevelopmentPath=%~dp0\..\extensions\vscode-colorize-tests --extensionTestsPath=%~dp0\..\extensions\vscode-colorize-tests\out %API_TESTS_EXTRA_ARGS%
+call yarn test-extension -l vscode-colorize-tests
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo.
@@ -89,7 +89,7 @@ echo.
 echo ### Configuration editing tests
 set CFWORKSPACE=%TEMPDIR%\cf-%RANDOM%
 mkdir %CFWORKSPACE%
-call "%INTEGRATION_TEST_ELECTRON_PATH%" %CFWORKSPACE% --extensionDevelopmentPath=%~dp0\..\extensions\configuration-editing --extensionTestsPath=%~dp0\..\extensions\configuration-editing\out\test %API_TESTS_EXTRA_ARGS%
+call yarn test-extension -l configuration-editing
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo.

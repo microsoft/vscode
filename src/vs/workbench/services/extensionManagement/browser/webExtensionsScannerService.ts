@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IBuiltinExtensionsScannerService, ExtensionType, IExtensionIdentifier, IExtension, IExtensionManifest, TargetPlatform } from 'vs/platform/extensions/common/extensions';
+import { IBuiltinExtensionsScannerService, ExtensionType, IExtensionIdentifier, IExtension, IExtensionManifest, TargetPlatform, IRelaxedExtensionManifest, parseEnabledApiProposalNames } from 'vs/platform/extensions/common/extensions';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IScannedExtension, IWebExtensionsScannerService, ScanOptions } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { isWeb, Language } from 'vs/base/common/platform';
@@ -19,7 +19,7 @@ import { IExtensionGalleryService, IExtensionInfo, IGalleryExtension, IGalleryMe
 import { areSameExtensions, getGalleryExtensionId, getExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ITranslations, localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import * as semver from 'vs/base/common/semver/semver';
 import { isString, isUndefined } from 'vs/base/common/types';
 import { getErrorMessage } from 'vs/base/common/errors';
@@ -99,6 +99,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	private readonly systemExtensionsCacheResource: URI | undefined = undefined;
 	private readonly customBuiltinExtensionsCacheResource: URI | undefined = undefined;
 	private readonly resourcesAccessQueueMap = new ResourceMap<Queue<IWebExtension[]>>();
+	private readonly extensionsEnabledWithApiProposalVersion: string[];
 
 	constructor(
 		@IBrowserWorkbenchEnvironmentService private readonly environmentService: IBrowserWorkbenchEnvironmentService,
@@ -123,6 +124,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			// Eventually update caches
 			lifecycleService.when(LifecyclePhase.Eventually).then(() => this.updateCaches());
 		}
+		this.extensionsEnabledWithApiProposalVersion = productService.extensionsEnabledWithApiProposalVersion?.map(id => id.toLowerCase()) ?? [];
 	}
 
 	private _customBuiltinExtensionsInfoPromise: Promise<{ extensions: ExtensionInfo[]; extensionsToMigrate: [string, string][]; extensionLocations: URI[]; extensionGalleryResources: URI[] }> | undefined;
@@ -239,7 +241,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 					this.logService.info(`Skipping invalid additional builtin extension ${webExtension.identifier.id}`);
 				}
 			} catch (error) {
-				this.logService.info(`Error while fetching the additional builtin extension ${location.toString()}.`, getErrorMessage(error));
+				this.logService.info(`Error while fetching the additional builtin extension ${extensionLocation.toString()}.`, getErrorMessage(error));
 			}
 		}));
 		return result;
@@ -375,9 +377,13 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		const result = new Map<string, IWebExtension>();
 		const extensionInfos: IExtensionInfo[] = [];
 		await Promise.all(extensionGalleryResources.map(async extensionGalleryResource => {
-			const webExtension = await this.toWebExtensionFromExtensionGalleryResource(extensionGalleryResource);
-			result.set(webExtension.identifier.id.toLowerCase(), webExtension);
-			extensionInfos.push({ id: webExtension.identifier.id, version: webExtension.version });
+			try {
+				const webExtension = await this.toWebExtensionFromExtensionGalleryResource(extensionGalleryResource);
+				result.set(webExtension.identifier.id.toLowerCase(), webExtension);
+				extensionInfos.push({ id: webExtension.identifier.id, version: webExtension.version });
+			} catch (error) {
+				this.logService.info(`Ignoring additional builtin extension from gallery resource ${extensionGalleryResource.toString()} because there is an error while converting it into web extension`, getErrorMessage(error));
+			}
 		}));
 		const galleryExtensions = await this.galleryService.getExtensions(extensionInfos, CancellationToken.None);
 		for (const galleryExtension of galleryExtensions) {
@@ -731,7 +737,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 
 	private async toScannedExtension(webExtension: IWebExtension, isBuiltin: boolean, type: ExtensionType = ExtensionType.User): Promise<IScannedExtension> {
 		const validations: [Severity, string][] = [];
-		let manifest: IExtensionManifest | undefined = webExtension.manifest;
+		let manifest: IRelaxedExtensionManifest | undefined = webExtension.manifest;
 
 		if (!manifest) {
 			try {
@@ -762,13 +768,18 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 
 		const uuid = (<IGalleryMetadata | undefined>webExtension.metadata)?.id;
 
-		validations.push(...validateExtensionManifest(this.productService.version, this.productService.date, webExtension.location, manifest, false));
+		const validateApiVersion = this.extensionsEnabledWithApiProposalVersion.includes(webExtension.identifier.id.toLowerCase());
+		validations.push(...validateExtensionManifest(this.productService.version, this.productService.date, webExtension.location, manifest, false, validateApiVersion));
 		let isValid = true;
 		for (const [severity, message] of validations) {
 			if (severity === Severity.Error) {
 				isValid = false;
 				this.logService.error(message);
 			}
+		}
+
+		if (manifest.enabledApiProposals && validateApiVersion) {
+			manifest.enabledApiProposals = parseEnabledApiProposalNames([...manifest.enabledApiProposals]);
 		}
 
 		return {
@@ -796,7 +807,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		return [];
 	}
 
-	private async translateManifest(manifest: IExtensionManifest, nlsURL: ITranslations | URI, fallbackNLS?: ITranslations | URI): Promise<IExtensionManifest> {
+	private async translateManifest(manifest: IExtensionManifest, nlsURL: ITranslations | URI, fallbackNLS?: ITranslations | URI): Promise<IRelaxedExtensionManifest> {
 		try {
 			const translations = URI.isUri(nlsURL) ? await this.getTranslations(nlsURL) : nlsURL;
 			const fallbackTranslations = URI.isUri(fallbackNLS) ? await this.getTranslations(fallbackNLS) : fallbackNLS;
@@ -936,6 +947,10 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 				update = true;
 				webExtension.location = migratedLocation;
 			}
+			if (isUndefined(webExtension.metadata?.hasPreReleaseVersion) && webExtension.metadata?.preRelease) {
+				update = true;
+				webExtension.metadata.hasPreReleaseVersion = true;
+			}
 			return webExtension;
 		}));
 		if (update) {
@@ -983,7 +998,7 @@ if (isWeb) {
 		constructor() {
 			super({
 				id: 'workbench.extensions.action.openInstalledWebExtensionsResource',
-				title: { value: localize('openInstalledWebExtensionsResource', "Open Installed Web Extensions Resource"), original: 'Open Installed Web Extensions Resource' },
+				title: localize2('openInstalledWebExtensionsResource', 'Open Installed Web Extensions Resource'),
 				category: Categories.Developer,
 				f1: true,
 				precondition: IsWebContext

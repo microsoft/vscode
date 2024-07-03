@@ -126,7 +126,7 @@ export class TempFileMergeEditorModeFactory implements IMergeEditorInputModelFac
 
 class TempFileMergeEditorInputModel extends EditorModel implements IMergeEditorInputModel {
 	private readonly savedAltVersionId = observableValue(this, this.model.resultTextModel.getAlternativeVersionId());
-	private readonly altVersionId = observableFromEvent(
+	private readonly altVersionId = observableFromEvent(this,
 		e => this.model.resultTextModel.onDidChangeContent(e),
 		() =>
 			/** @description getAlternativeVersionId */ this.model.resultTextModel.getAlternativeVersionId()
@@ -340,7 +340,7 @@ export class WorkspaceMergeEditorModeFactory implements IMergeEditorInputModelFa
 }
 
 class WorkspaceMergeEditorInputModel extends EditorModel implements IMergeEditorInputModel {
-	public readonly isDirty = observableFromEvent(
+	public readonly isDirty = observableFromEvent(this,
 		Event.any(this.resultTextFileModel.onDidChangeDirty, this.resultTextFileModel.onDidSaveError),
 		() => /** @description isDirty */ this.resultTextFileModel.isDirty()
 	);
@@ -473,7 +473,7 @@ class WorkspaceMergeEditorInputModel extends EditorModel implements IMergeEditor
 				primaryButton: someUnhandledConflicts
 					? localize({ key: 'workspace.closeWithConflicts', comment: ['&& denotes a mnemonic'] }, '&&Close with Conflicts')
 					: localize({ key: 'workspace.close', comment: ['&& denotes a mnemonic'] }, '&&Close'),
-				checkbox: { label: localize('noMoreWarn', "Don't ask again") }
+				checkbox: { label: localize('noMoreWarn', "Do not ask me again") }
 			});
 
 			if (checkboxChecked) {

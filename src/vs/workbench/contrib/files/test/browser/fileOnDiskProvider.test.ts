@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/browser/workbenchTestServices';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -34,7 +34,7 @@ suite('Files - FileOnDiskContentProvider', () => {
 		const content = await provider.provideTextContent(uri.with({ scheme: 'conflictResolution', query: JSON.stringify({ scheme: uri.scheme }) }));
 
 		assert.ok(content);
-		assert.strictEqual(snapshotToString(content!.createSnapshot()), 'Hello Html');
+		assert.strictEqual(snapshotToString(content.createSnapshot()), 'Hello Html');
 		assert.strictEqual(accessor.fileService.getLastReadFileUri().scheme, uri.scheme);
 		assert.strictEqual(accessor.fileService.getLastReadFileUri().path, uri.path);
 

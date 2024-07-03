@@ -3,11 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { merge } from 'vs/platform/userDataSync/common/extensionsMerge';
 import { ILocalSyncExtension, ISyncExtension } from 'vs/platform/userDataSync/common/userDataSync';
 
 suite('ExtensionsMerge', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('merge returns local extension if remote does not exist', () => {
 		const localExtensions = [

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { flatten } from 'vs/base/common/arrays';
 import { debounce } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { hash } from 'vs/base/common/hash';
@@ -20,15 +19,31 @@ import { RemoteTunnel, ITunnelService, TunnelProtocol, TunnelPrivacyId, LOCALHOS
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { isNumber, isObject, isString } from 'vs/base/common/types';
 import { deepClone } from 'vs/base/common/objects';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 const MISMATCH_LOCAL_PORT_COOLDOWN = 10 * 1000; // 10 seconds
 const TUNNELS_TO_RESTORE = 'remote.tunnels.toRestore';
+const TUNNELS_TO_RESTORE_EXPIRATION = 'remote.tunnels.toRestoreExpiration';
+const RESTORE_EXPIRATION_TIME = 1000 * 60 * 60 * 24 * 14; // 2 weeks
 export const ACTIVATION_EVENT = 'onTunnel';
 export const forwardedPortsViewEnabled = new RawContextKey<boolean>('forwardedPortsViewEnabled', false, nls.localize('tunnel.forwardedPortsViewEnabled', "Whether the Ports view is enabled."));
+
+export interface RestorableTunnel {
+	remoteHost: string;
+	remotePort: number;
+	localAddress: string;
+	localUri: URI;
+	protocol: TunnelProtocol;
+	localPort?: number;
+	name?: string;
+	source: {
+		source: TunnelSource;
+		description: string;
+	};
+}
 
 export interface Tunnel {
 	remoteHost: string;
@@ -406,7 +421,7 @@ export class TunnelModel extends Disposable {
 	private knownPortsRestoreValue: string | undefined;
 	private restoreComplete = false;
 	private onRestoreComplete: Emitter<void> = new Emitter();
-	private unrestoredExtensionTunnels: Map<string, Tunnel> = new Map();
+	private unrestoredExtensionTunnels: Map<string, RestorableTunnel> = new Map();
 	private sessionCachedProperties: Map<string, Partial<TunnelProperties>> = new Map();
 
 	private portAttributesProviders: PortAttributesProvider[] = [];
@@ -526,14 +541,22 @@ export class TunnelModel extends Disposable {
 		return URI.parse(`${protocol}://${localAddress}`);
 	}
 
-	private async getStorageKey(): Promise<string | undefined> {
+	private async addStorageKeyPostfix(prefix: string): Promise<string | undefined> {
 		const workspace = this.workspaceContextService.getWorkspace();
 		const workspaceHash = workspace.configuration ? hash(workspace.configuration.path) : (workspace.folders.length > 0 ? hash(workspace.folders[0].uri.path) : undefined);
 		if (workspaceHash === undefined) {
 			this.logService.debug('Could not get workspace hash for forwarded ports storage key.');
 			return undefined;
 		}
-		return `${TUNNELS_TO_RESTORE}.${this.environmentService.remoteAuthority}.${workspaceHash}`;
+		return `${prefix}.${this.environmentService.remoteAuthority}.${workspaceHash}`;
+	}
+
+	private async getTunnelRestoreStorageKey(): Promise<string | undefined> {
+		return this.addStorageKeyPostfix(TUNNELS_TO_RESTORE);
+	}
+
+	private async getRestoreExpirationStorageKey(): Promise<string | undefined> {
+		return this.addStorageKeyPostfix(TUNNELS_TO_RESTORE_EXPIRATION);
 	}
 
 	private async getTunnelRestoreValue(): Promise<string | undefined> {
@@ -543,7 +566,7 @@ export class TunnelModel extends Disposable {
 			await this.storeForwarded();
 			return deprecatedValue;
 		}
-		const storageKey = await this.getStorageKey();
+		const storageKey = await this.getTunnelRestoreStorageKey();
 		if (!storageKey) {
 			return undefined;
 		}
@@ -551,10 +574,11 @@ export class TunnelModel extends Disposable {
 	}
 
 	async restoreForwarded() {
+		this.cleanupExpiredTunnelsForRestore();
 		if (this.configurationService.getValue('remote.restoreForwardedPorts')) {
 			const tunnelRestoreValue = await this.tunnelRestoreValue;
 			if (tunnelRestoreValue && (tunnelRestoreValue !== this.knownPortsRestoreValue)) {
-				const tunnels = <Tunnel[] | undefined>JSON.parse(tunnelRestoreValue) ?? [];
+				const tunnels = <RestorableTunnel[] | undefined>JSON.parse(tunnelRestoreValue) ?? [];
 				this.logService.trace(`ForwardedPorts: (TunnelModel) restoring ports ${tunnels.map(tunnel => tunnel.remotePort).join(', ')}`);
 				for (const tunnel of tunnels) {
 					const alreadyForwarded = mapHasAddressLocalhostOrAllInterfaces(this.detected, tunnel.remoteHost, tunnel.remotePort);
@@ -564,7 +588,6 @@ export class TunnelModel extends Disposable {
 							remote: { host: tunnel.remoteHost, port: tunnel.remotePort },
 							local: tunnel.localPort,
 							name: tunnel.name,
-							privacy: tunnel.privacy,
 							elevateIfNeeded: true,
 							source: tunnel.source
 						});
@@ -580,7 +603,7 @@ export class TunnelModel extends Disposable {
 
 		if (!this.restoreListener) {
 			// It's possible that at restore time the value hasn't synced.
-			const key = await this.getStorageKey();
+			const key = await this.getTunnelRestoreStorageKey();
 			this.restoreListener = this._register(new DisposableStore());
 			this.restoreListener.add(this.storageService.onDidChangeValue(StorageScope.PROFILE, undefined, this.restoreListener)(async (e) => {
 				if (e.key === key) {
@@ -591,17 +614,50 @@ export class TunnelModel extends Disposable {
 		}
 	}
 
+	private cleanupExpiredTunnelsForRestore() {
+		const keys = this.storageService.keys(StorageScope.PROFILE, StorageTarget.USER).filter(key => key.startsWith(TUNNELS_TO_RESTORE_EXPIRATION));
+		for (const key of keys) {
+			const expiration = this.storageService.getNumber(key, StorageScope.PROFILE);
+			if (expiration && expiration < Date.now()) {
+				this.tunnelRestoreValue = Promise.resolve(undefined);
+				const storageKey = key.replace(TUNNELS_TO_RESTORE_EXPIRATION, TUNNELS_TO_RESTORE);
+				this.storageService.remove(key, StorageScope.PROFILE);
+				this.storageService.remove(storageKey, StorageScope.PROFILE);
+			}
+		}
+	}
+
 	@debounce(1000)
 	private async storeForwarded() {
 		if (this.configurationService.getValue('remote.restoreForwardedPorts')) {
-			const valueToStore = JSON.stringify(Array.from(this.forwarded.values()));
-			if (valueToStore !== this.knownPortsRestoreValue) {
-				this.knownPortsRestoreValue = valueToStore;
-				const key = await this.getStorageKey();
-				if (key) {
-					this.storageService.store(key, this.knownPortsRestoreValue, StorageScope.PROFILE, StorageTarget.USER);
-				}
+			const forwarded = Array.from(this.forwarded.values());
+			const restorableTunnels: RestorableTunnel[] = forwarded.map(tunnel => {
+				return {
+					remoteHost: tunnel.remoteHost,
+					remotePort: tunnel.remotePort,
+					localPort: tunnel.localPort,
+					name: tunnel.name,
+					localAddress: tunnel.localAddress,
+					localUri: tunnel.localUri,
+					protocol: tunnel.protocol,
+					source: tunnel.source,
+				};
+			});
+			let valueToStore: string | undefined;
+			if (forwarded.length > 0) {
+				valueToStore = JSON.stringify(restorableTunnels);
 			}
+
+			const key = await this.getTunnelRestoreStorageKey();
+			const expirationKey = await this.getRestoreExpirationStorageKey();
+			if (!valueToStore && key && expirationKey) {
+				this.storageService.remove(key, StorageScope.PROFILE);
+				this.storageService.remove(expirationKey, StorageScope.PROFILE);
+			} else if ((valueToStore !== this.knownPortsRestoreValue) && key && expirationKey) {
+				this.storageService.store(key, valueToStore, StorageScope.PROFILE, StorageTarget.USER);
+				this.storageService.store(expirationKey, Date.now() + RESTORE_EXPIRATION_TIME, StorageScope.PROFILE, StorageTarget.USER);
+			}
+			this.knownPortsRestoreValue = valueToStore;
 		}
 	}
 
@@ -699,7 +755,7 @@ export class TunnelModel extends Disposable {
 			if (updateProps) {
 				tunnelProperties.name = updateProps.name ?? tunnelProperties.name;
 				tunnelProperties.local = (('local' in updateProps) ? updateProps.local : (('localPort' in updateProps) ? updateProps.localPort : undefined)) ?? tunnelProperties.local;
-				tunnelProperties.privacy = updateProps.privacy ?? tunnelProperties.privacy;
+				tunnelProperties.privacy = tunnelProperties.privacy;
 			}
 		}
 		return tunnelProperties;
@@ -931,14 +987,14 @@ export class TunnelModel extends Disposable {
 		}
 
 		// Group calls to provide attributes by pid.
-		const allProviderResults = await Promise.all(flatten(this.portAttributesProviders.map(provider => {
+		const allProviderResults = await Promise.all(this.portAttributesProviders.flatMap(provider => {
 			return Array.from(pidToPortsMapping.entries()).map(entry => {
 				const portGroup = entry[1];
 				const matchingCandidate = matchingCandidates.get(portGroup[0]);
 				return provider.providePortAttributes(portGroup,
-					matchingCandidate?.pid, matchingCandidate?.detail, new CancellationTokenSource().token);
+					matchingCandidate?.pid, matchingCandidate?.detail, CancellationToken.None);
 			});
-		})));
+		}));
 		const providedAttributes: Map<number, ProvidedPortAttributes> = new Map();
 		allProviderResults.forEach(attributes => attributes.forEach(attribute => {
 			if (attribute) {

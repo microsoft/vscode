@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
@@ -31,7 +31,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'notebook.diff.switchToText',
 			icon: openAsTextIcon,
-			title: { value: localize('notebook.diff.switchToText', "Open Text Diff Editor"), original: 'Open Text Diff Editor' },
+			title: localize2('notebook.diff.switchToText', 'Open Text Diff Editor'),
 			precondition: ActiveEditorContext.isEqualTo(NotebookTextDiffEditor.ID),
 			menu: [{
 				id: MenuId.EditorTitle,
@@ -252,7 +252,7 @@ class ToggleRenderAction extends Action2 {
 registerAction2(class extends ToggleRenderAction {
 	constructor() {
 		super('notebook.diff.showOutputs',
-			{ value: localize('notebook.diff.showOutputs', "Show Outputs Differences"), original: 'Show Outputs Differences' },
+			localize2('notebook.diff.showOutputs', 'Show Outputs Differences'),
 			ActiveEditorContext.isEqualTo(NotebookTextDiffEditor.ID),
 			ContextKeyExpr.notEquals('config.notebook.diff.ignoreOutputs', true),
 			2,
@@ -265,7 +265,7 @@ registerAction2(class extends ToggleRenderAction {
 registerAction2(class extends ToggleRenderAction {
 	constructor() {
 		super('notebook.diff.showMetadata',
-			{ value: localize('notebook.diff.showMetadata', "Show Metadata Differences"), original: 'Show Metadata Differences' },
+			localize2('notebook.diff.showMetadata', 'Show Metadata Differences'),
 			ActiveEditorContext.isEqualTo(NotebookTextDiffEditor.ID),
 			ContextKeyExpr.notEquals('config.notebook.diff.ignoreMetadata', true),
 			1,

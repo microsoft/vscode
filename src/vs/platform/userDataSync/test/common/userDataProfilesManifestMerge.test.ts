@@ -3,13 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IUserDataProfile, toUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { merge } from 'vs/platform/userDataSync/common/userDataProfilesManifestMerge';
 import { ISyncUserDataProfile } from 'vs/platform/userDataSync/common/userDataSync';
 
 suite('UserDataProfilesManifestMerge', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('merge returns local profiles if remote does not exist', () => {
 		const localProfiles: IUserDataProfile[] = [

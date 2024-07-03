@@ -32,7 +32,7 @@ import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userData
 type IncompatibleSyncSourceClassification = {
 	owner: 'sandy081';
 	comment: 'Information about the sync resource that is incompatible';
-	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'settings sync resource. eg., settings, keybindings...' };
+	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'settings sync resource. eg., settings, keybindings...' };
 };
 
 export function isRemoteUserData(thing: any): thing is IRemoteUserData {

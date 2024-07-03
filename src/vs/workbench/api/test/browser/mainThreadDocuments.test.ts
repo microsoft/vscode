@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { BoundModelReferenceCollection } from 'vs/workbench/api/browser/mainThreadDocuments';
 import { timeout } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
 import { extUri } from 'vs/base/common/resources';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('BoundModelReferenceCollection', function () {
 
@@ -20,6 +21,8 @@ suite('BoundModelReferenceCollection', function () {
 	teardown(function () {
 		col.dispose();
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('max age', async function () {
 

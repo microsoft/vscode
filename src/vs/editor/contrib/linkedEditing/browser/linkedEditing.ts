@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as arrays from 'vs/base/common/arrays';
-import { CancelablePromise, createCancelablePromise, Delayer, first } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { Delayer, first } from 'vs/base/common/async';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Color } from 'vs/base/common/color';
 import { isCancellationError, onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
@@ -66,7 +66,7 @@ export class LinkedEditingContribution extends Disposable implements IEditorCont
 	private _rangeUpdateTriggerPromise: Promise<any> | null;
 	private _rangeSyncTriggerPromise: Promise<any> | null;
 
-	private _currentRequest: CancelablePromise<any> | null;
+	private _currentRequestCts: CancellationTokenSource | null;
 	private _currentRequestPosition: Position | null;
 	private _currentRequestModelVersion: number | null;
 
@@ -102,7 +102,7 @@ export class LinkedEditingContribution extends Disposable implements IEditorCont
 		this._rangeUpdateTriggerPromise = null;
 		this._rangeSyncTriggerPromise = null;
 
-		this._currentRequest = null;
+		this._currentRequestCts = null;
 		this._currentRequestPosition = null;
 		this._currentRequestModelVersion = null;
 
@@ -258,9 +258,9 @@ export class LinkedEditingContribution extends Disposable implements IEditorCont
 	public clearRanges(): void {
 		this._visibleContextKey.set(false);
 		this._currentDecorations.clear();
-		if (this._currentRequest) {
-			this._currentRequest.cancel();
-			this._currentRequest = null;
+		if (this._currentRequestCts) {
+			this._currentRequestCts.cancel();
+			this._currentRequestCts = null;
 			this._currentRequestPosition = null;
 		}
 	}
@@ -305,61 +305,60 @@ export class LinkedEditingContribution extends Disposable implements IEditorCont
 
 		this._currentRequestPosition = position;
 		this._currentRequestModelVersion = modelVersionId;
-		const request = createCancelablePromise(async token => {
-			try {
-				const sw = new StopWatch(false);
-				const response = await getLinkedEditingRanges(this._providers, model, position, token);
-				this._debounceInformation.update(model, sw.elapsed());
-				if (request !== this._currentRequest) {
-					return;
-				}
-				this._currentRequest = null;
-				if (modelVersionId !== model.getVersionId()) {
-					return;
-				}
 
-				let ranges: IRange[] = [];
-				if (response?.ranges) {
-					ranges = response.ranges;
-				}
+		const currentRequestCts = this._currentRequestCts = new CancellationTokenSource();
+		try {
+			const sw = new StopWatch(false);
+			const response = await getLinkedEditingRanges(this._providers, model, position, currentRequestCts.token);
+			this._debounceInformation.update(model, sw.elapsed());
+			if (currentRequestCts !== this._currentRequestCts) {
+				return;
+			}
+			this._currentRequestCts = null;
+			if (modelVersionId !== model.getVersionId()) {
+				return;
+			}
 
-				this._currentWordPattern = response?.wordPattern || this._languageWordPattern;
+			let ranges: IRange[] = [];
+			if (response?.ranges) {
+				ranges = response.ranges;
+			}
 
-				let foundReferenceRange = false;
-				for (let i = 0, len = ranges.length; i < len; i++) {
-					if (Range.containsPosition(ranges[i], position)) {
-						foundReferenceRange = true;
-						if (i !== 0) {
-							const referenceRange = ranges[i];
-							ranges.splice(i, 1);
-							ranges.unshift(referenceRange);
-						}
-						break;
+			this._currentWordPattern = response?.wordPattern || this._languageWordPattern;
+
+			let foundReferenceRange = false;
+			for (let i = 0, len = ranges.length; i < len; i++) {
+				if (Range.containsPosition(ranges[i], position)) {
+					foundReferenceRange = true;
+					if (i !== 0) {
+						const referenceRange = ranges[i];
+						ranges.splice(i, 1);
+						ranges.unshift(referenceRange);
 					}
-				}
-
-				if (!foundReferenceRange) {
-					// Cannot do linked editing if the ranges are not where the cursor is...
-					this.clearRanges();
-					return;
-				}
-
-				const decorations: IModelDeltaDecoration[] = ranges.map(range => ({ range: range, options: LinkedEditingContribution.DECORATION }));
-				this._visibleContextKey.set(true);
-				this._currentDecorations.set(decorations);
-				this._syncRangesToken++; // cancel any pending syncRanges call
-			} catch (err) {
-				if (!isCancellationError(err)) {
-					onUnexpectedError(err);
-				}
-				if (this._currentRequest === request || !this._currentRequest) {
-					// stop if we are still the latest request
-					this.clearRanges();
+					break;
 				}
 			}
-		});
-		this._currentRequest = request;
-		return request;
+
+			if (!foundReferenceRange) {
+				// Cannot do linked editing if the ranges are not where the cursor is...
+				this.clearRanges();
+				return;
+			}
+
+			const decorations: IModelDeltaDecoration[] = ranges.map(range => ({ range: range, options: LinkedEditingContribution.DECORATION }));
+			this._visibleContextKey.set(true);
+			this._currentDecorations.set(decorations);
+			this._syncRangesToken++; // cancel any pending syncRanges call
+		} catch (err) {
+			if (!isCancellationError(err)) {
+				onUnexpectedError(err);
+			}
+			if (this._currentRequestCts === currentRequestCts || !this._currentRequestCts) {
+				// stop if we are still the latest request
+				this.clearRanges();
+			}
+		}
+
 	}
 
 	// for testing

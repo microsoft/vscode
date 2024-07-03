@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -31,6 +31,7 @@ suite('NotebookProviderInfoStore', function () {
 			new class extends mock<IStorageService>() {
 				override get() { return ''; }
 				override store() { }
+				override getObject() { return {}; }
 			},
 			new class extends mock<IExtensionService>() {
 				override onDidRegisterExtensions = Event.None;
@@ -55,7 +56,6 @@ suite('NotebookProviderInfoStore', function () {
 			displayName: 'foo',
 			selectors: [{ filenamePattern: '*.foo' }],
 			priority: RegisteredEditorPriority.default,
-			exclusive: false,
 			providerDisplayName: 'foo',
 		});
 		const barInfo = new NotebookProviderInfo({
@@ -64,7 +64,6 @@ suite('NotebookProviderInfoStore', function () {
 			displayName: 'bar',
 			selectors: [{ filenamePattern: '*.bar' }],
 			priority: RegisteredEditorPriority.default,
-			exclusive: false,
 			providerDisplayName: 'bar',
 		});
 

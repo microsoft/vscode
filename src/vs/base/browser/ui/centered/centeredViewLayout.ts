@@ -66,12 +66,12 @@ export class CenteredViewLayout implements IDisposable {
 	private didLayout = false;
 	private emptyViews: ISplitViewView<{ top: number; left: number }>[] | undefined;
 	private readonly splitViewDisposables = new DisposableStore();
-	private centeredLayoutFixedWidth = true;
 
 	constructor(
 		private container: HTMLElement,
 		private view: IView,
-		public state: CenteredViewState = { ...defaultState }
+		public state: CenteredViewState = { ...defaultState },
+		private centeredLayoutFixedWidth: boolean = false
 	) {
 		this.container.appendChild(this.view.element);
 		// Make sure to hide the split view overflow like sashes #52892
@@ -166,7 +166,7 @@ export class CenteredViewLayout implements IDisposable {
 		}
 
 		if (active) {
-			this.container.removeChild(this.view.element);
+			this.view.element.remove();
 			this.splitView = new SplitView(this.container, {
 				inverseAltBehavior: true,
 				orientation: Orientation.HORIZONTAL,
@@ -195,9 +195,7 @@ export class CenteredViewLayout implements IDisposable {
 
 			this.resizeSplitViews();
 		} else {
-			if (this.splitView) {
-				this.container.removeChild(this.splitView.el);
-			}
+			this.splitView?.el.remove();
 			this.splitViewDisposables.clear();
 			this.splitView?.dispose();
 			this.splitView = undefined;

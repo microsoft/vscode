@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
+import assert from 'assert';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ITextModel } from 'vs/editor/common/model';
 import { FoldingContext, FoldingRange, FoldingRangeProvider, ProviderResult } from 'vs/editor/common/languages';
@@ -29,6 +29,8 @@ class TestFoldingRangeProvider implements FoldingRangeProvider {
 }
 
 suite('Syntax folding', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	function r(start: number, end: number): IndentRange {
 		return { start, end };
 	}
@@ -109,5 +111,4 @@ suite('Syntax folding', () => {
 
 		model.dispose();
 	});
-	ensureNoDisposablesAreLeakedInTestSuite();
 });

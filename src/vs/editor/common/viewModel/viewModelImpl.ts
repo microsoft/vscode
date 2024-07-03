@@ -19,7 +19,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { ICommand, ICursorState, IViewState, ScrollType } from 'vs/editor/common/editorCommon';
 import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguration';
-import { EndOfLinePreference, IAttachedView, ICursorStateComputer, IIdentifiedSingleEditOperation, ITextModel, PositionAffinity, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { EndOfLinePreference, IAttachedView, ICursorStateComputer, IGlyphMarginLanesModel, IIdentifiedSingleEditOperation, ITextModel, PositionAffinity, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { IActiveIndentGuideInfo, BracketGuideOptions, IndentGuide } from 'vs/editor/common/textModelGuides';
 import { ModelDecorationMinimapOptions, ModelDecorationOptions, ModelDecorationOverviewRulerOptions } from 'vs/editor/common/model/textModel';
 import * as textModelEvents from 'vs/editor/common/textModelEvents';
@@ -39,6 +39,7 @@ import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecora
 import { FocusChangedEvent, HiddenAreasChangedEvent, ModelContentChangedEvent, ModelDecorationsChangedEvent, ModelLanguageChangedEvent, ModelLanguageConfigurationChangedEvent, ModelOptionsChangedEvent, ModelTokensChangedEvent, OutgoingViewModelEvent, ReadOnlyEditAttemptEvent, ScrollChangedEvent, ViewModelEventDispatcher, ViewModelEventsCollector, ViewZonesChangedEvent } from 'vs/editor/common/viewModelEventDispatcher';
 import { IViewModelLines, ViewModelLinesFromModelAsIs, ViewModelLinesFromProjectedModel } from 'vs/editor/common/viewModel/viewModelLines';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { GlyphMarginLanesModel } from 'vs/editor/common/viewModel/glyphLanesModel';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
@@ -58,6 +59,7 @@ export class ViewModel extends Disposable implements IViewModel {
 	public readonly viewLayout: ViewLayout;
 	private readonly _cursor: CursorsController;
 	private readonly _decorations: ViewModelDecorations;
+	public readonly glyphLanes: IGlyphMarginLanesModel;
 
 	constructor(
 		editorId: number,
@@ -69,6 +71,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		private readonly languageConfigurationService: ILanguageConfigurationService,
 		private readonly _themeService: IThemeService,
 		private readonly _attachedView: IAttachedView,
+		private readonly _transactionalTarget: IBatchableTarget,
 	) {
 		super();
 
@@ -81,6 +84,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		this._updateConfigurationViewLineCount = this._register(new RunOnceScheduler(() => this._updateConfigurationViewLineCountNow(), 0));
 		this._hasFocus = false;
 		this._viewportStart = ViewportStart.create(this.model);
+		this.glyphLanes = new GlyphMarginLanesModel(0);
 
 		if (USE_IDENTITY_LINES_COLLECTION && this.model.isTooLargeForTokenization()) {
 
@@ -253,6 +257,11 @@ export class ViewModel extends Disposable implements IViewModel {
 
 		if (e.hasChanged(EditorOption.readOnly)) {
 			// Must read again all decorations due to readOnly filtering
+			this._decorations.reset();
+			eventsCollector.emitViewEvent(new viewEvents.ViewDecorationsChangedEvent(null));
+		}
+
+		if (e.hasChanged(EditorOption.renderValidationDecorations)) {
 			this._decorations.reset();
 			eventsCollector.emitViewEvent(new viewEvents.ViewDecorationsChangedEvent(null));
 		}
@@ -801,7 +810,8 @@ export class ViewModel extends Disposable implements IViewModel {
 
 	public modifyPosition(position: Position, offset: number): Position {
 		const modelPosition = this.coordinatesConverter.convertViewPositionToModelPosition(position);
-		return this.model.modifyPosition(modelPosition, offset);
+		const resultModelPosition = this.model.modifyPosition(modelPosition, offset);
+		return this.coordinatesConverter.convertModelPositionToViewPosition(resultModelPosition);
 	}
 
 	public deduceModelPositionRelativeToViewPosition(viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position {
@@ -1060,6 +1070,9 @@ export class ViewModel extends Disposable implements IViewModel {
 	public executeCommands(commands: ICommand[], source?: string | null | undefined): void {
 		this._executeCursorEdit(eventsCollector => this._cursor.executeCommands(eventsCollector, commands, source));
 	}
+	public revealAllCursors(source: string | null | undefined, revealHorizontal: boolean, minimalReveal: boolean = false): void {
+		this._withViewEventsCollector(eventsCollector => this._cursor.revealAll(eventsCollector, source, minimalReveal, viewEvents.VerticalRevealType.Simple, revealHorizontal, ScrollType.Smooth));
+	}
 	public revealPrimaryCursor(source: string | null | undefined, revealHorizontal: boolean, minimalReveal: boolean = false): void {
 		this._withViewEventsCollector(eventsCollector => this._cursor.revealPrimary(eventsCollector, source, minimalReveal, viewEvents.VerticalRevealType.Simple, revealHorizontal, ScrollType.Smooth));
 	}
@@ -1090,12 +1103,18 @@ export class ViewModel extends Disposable implements IViewModel {
 	//#endregion
 
 	private _withViewEventsCollector<T>(callback: (eventsCollector: ViewModelEventsCollector) => T): T {
-		try {
-			const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
-			return callback(eventsCollector);
-		} finally {
-			this._eventDispatcher.endEmitViewEvents();
-		}
+		return this._transactionalTarget.batchChanges(() => {
+			try {
+				const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
+				return callback(eventsCollector);
+			} finally {
+				this._eventDispatcher.endEmitViewEvents();
+			}
+		});
+	}
+
+	public batchEvents(callback: () => void): void {
+		this._withViewEventsCollector(() => { callback(); });
 	}
 
 	normalizePosition(position: Position, affinity: PositionAffinity): Position {
@@ -1109,6 +1128,13 @@ export class ViewModel extends Disposable implements IViewModel {
 	getLineIndentColumn(lineNumber: number): number {
 		return this._lines.getLineIndentColumn(lineNumber);
 	}
+}
+
+export interface IBatchableTarget {
+	/**
+	 * Allows the target to apply the changes introduced by the callback in a batch.
+	*/
+	batchChanges<T>(cb: () => T): T;
 }
 
 class ViewportStart implements IDisposable {

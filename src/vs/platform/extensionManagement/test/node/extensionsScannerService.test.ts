@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
+import assert from 'assert';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { dirname, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
@@ -347,6 +347,8 @@ suite('NativeExtensionsScanerService Test', () => {
 });
 
 suite('ExtensionScannerInput', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('compare inputs - location', () => {
 		const anInput = (location: URI, mtime: number | undefined) => new ExtensionScannerInput(location, mtime, undefined, undefined, false, undefined, ExtensionType.User, true, true, '1.1.1', undefined, undefined, true, undefined, {});

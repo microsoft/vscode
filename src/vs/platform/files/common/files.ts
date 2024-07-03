@@ -246,14 +246,6 @@ export interface IFileService {
 	/**
 	 * Allows to start a watcher that reports file/folder change events on the provided resource.
 	 *
-	 * The watcher runs correlated and thus, file events will be reported on the returned
-	 * `IFileSystemWatcher` and not on the generic `IFileService.onDidFilesChange` event.
-	 */
-	watch(resource: URI, options: IWatchOptionsWithCorrelation): IFileSystemWatcher;
-
-	/**
-	 * Allows to start a watcher that reports file/folder change events on the provided resource.
-	 *
 	 * The watcher runs uncorrelated and thus will report all events from `IFileService.onDidFilesChange`.
 	 * This means, most listeners in the application will receive your events. It is encouraged to
 	 * use correlated watchers (via `IWatchOptionsWithCorrelation`) to limit events to your listener.
@@ -527,6 +519,15 @@ export interface IWatchOptionsWithoutCorrelation {
 	 * always matched relative to the watched folder.
 	 */
 	includes?: Array<string | IRelativePattern>;
+
+	/**
+	 * If provided, allows to filter the events that the watcher should consider
+	 * for emitting. If not provided, all events are emitted.
+	 *
+	 * For example, to emit added and updated events, set to:
+	 * `FileChangeFilter.ADDED | FileChangeFilter.UPDATED`.
+	 */
+	filter?: FileChangeFilter;
 }
 
 export interface IWatchOptions extends IWatchOptionsWithoutCorrelation {
@@ -537,6 +538,12 @@ export interface IWatchOptions extends IWatchOptionsWithoutCorrelation {
 	 * id.
 	 */
 	readonly correlationId?: number;
+}
+
+export const enum FileChangeFilter {
+	UPDATED = 1 << 1,
+	ADDED = 1 << 2,
+	DELETED = 1 << 3
 }
 
 export interface IWatchOptionsWithCorrelation extends IWatchOptions {
@@ -1453,25 +1460,30 @@ export interface IGlobPatterns {
 }
 
 export interface IFilesConfiguration {
-	files: {
-		associations: { [filepattern: string]: string };
-		exclude: IExpression;
-		watcherExclude: IGlobPatterns;
-		watcherInclude: string[];
-		encoding: string;
-		autoGuessEncoding: boolean;
-		defaultLanguage: string;
-		trimTrailingWhitespace: boolean;
-		autoSave: string;
-		autoSaveDelay: number;
-		eol: string;
-		enableTrash: boolean;
-		hotExit: string;
-		saveConflictResolution: 'askUser' | 'overwriteFileOnDisk';
-		readonlyInclude: IGlobPatterns;
-		readonlyExclude: IGlobPatterns;
-		readonlyFromPermissions: boolean;
-	};
+	files: IFilesConfigurationNode;
+}
+
+export interface IFilesConfigurationNode {
+	associations: { [filepattern: string]: string };
+	exclude: IExpression;
+	watcherExclude: IGlobPatterns;
+	watcherInclude: string[];
+	encoding: string;
+	autoGuessEncoding: boolean;
+	candidateGuessEncodings: string[];
+	defaultLanguage: string;
+	trimTrailingWhitespace: boolean;
+	autoSave: string;
+	autoSaveDelay: number;
+	autoSaveWorkspaceFilesOnly: boolean;
+	autoSaveWhenNoErrors: boolean;
+	eol: string;
+	enableTrash: boolean;
+	hotExit: string;
+	saveConflictResolution: 'askUser' | 'overwriteFileOnDisk';
+	readonlyInclude: IGlobPatterns;
+	readonlyExclude: IGlobPatterns;
+	readonlyFromPermissions: boolean;
 }
 
 //#endregion

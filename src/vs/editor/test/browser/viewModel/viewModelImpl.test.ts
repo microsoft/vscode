@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -352,6 +352,24 @@ suite('ViewModel', () => {
 				assert.deepStrictEqual(viewModel.normalizePosition(new Position(1, 11), PositionAffinity.Right), new Position(1, 13));
 				assert.deepStrictEqual(viewModel.normalizePosition(new Position(1, 12), PositionAffinity.Right), new Position(1, 13));
 				assert.deepStrictEqual(viewModel.normalizePosition(new Position(1, 13), PositionAffinity.Right), new Position(1, 13));
+			}
+		);
+	});
+
+	test('issue #193262: Incorrect implementation of modifyPosition', () => {
+		testViewModel(
+			[
+				'just some text'
+			],
+			{
+				wordWrap: 'wordWrapColumn',
+				wordWrapColumn: 5
+			},
+			(viewModel, model) => {
+				assert.deepStrictEqual(
+					new Position(3, 1),
+					viewModel.modifyPosition(new Position(3, 2), -1)
+				);
 			}
 		);
 	});

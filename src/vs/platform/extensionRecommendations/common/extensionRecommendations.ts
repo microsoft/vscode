@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const enum RecommendationSource {
@@ -43,6 +44,6 @@ export interface IExtensionRecommendationNotificationService {
 	hasToIgnoreRecommendationNotifications(): boolean;
 
 	promptImportantExtensionsInstallNotification(recommendations: IExtensionRecommendations): Promise<RecommendationsNotificationResult>;
-	promptWorkspaceRecommendations(recommendations: string[]): Promise<void>;
+	promptWorkspaceRecommendations(recommendations: Array<string | URI>): Promise<void>;
 }
 

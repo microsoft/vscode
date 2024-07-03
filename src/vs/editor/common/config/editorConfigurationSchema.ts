@@ -175,6 +175,11 @@ const editorConfiguration: IConfigurationNode = {
 			default: diffEditorDefaultOptions.renderMarginRevertIcon,
 			description: nls.localize('renderMarginRevertIcon', "When enabled, the diff editor shows arrows in its glyph margin to revert changes.")
 		},
+		'diffEditor.renderGutterMenu': {
+			type: 'boolean',
+			default: diffEditorDefaultOptions.renderGutterMenu,
+			description: nls.localize('renderGutterMenu', "When enabled, the diff editor shows a special gutter for revert and stage actions.")
+		},
 		'diffEditor.ignoreTrimWhitespace': {
 			type: 'boolean',
 			default: diffEditorDefaultOptions.ignoreTrimWhitespace,

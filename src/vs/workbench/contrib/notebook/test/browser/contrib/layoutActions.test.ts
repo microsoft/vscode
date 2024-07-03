@@ -3,10 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ToggleCellToolbarPositionAction } from 'vs/workbench/contrib/notebook/browser/contrib/layout/layoutActions';
 
 suite('Notebook Layout Actions', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('Toggle Cell Toolbar Position', async function () {
 		const action = new ToggleCellToolbarPositionAction();
 

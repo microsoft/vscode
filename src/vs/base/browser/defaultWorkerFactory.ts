@@ -7,6 +7,7 @@ import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { COI } from 'vs/base/common/network';
 import { IWorker, IWorkerCallback, IWorkerFactory, logOnceWebWorkerWarning } from 'vs/base/common/worker/simpleWorker';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 
 const ttPolicy = createTrustedTypesPolicy('defaultWorkerFactory', { createScriptURL: value => value });
 
@@ -49,27 +50,35 @@ export function getWorkerBootstrapUrl(scriptPath: string, label: string): string
 	if (/^((http:)|(https:)|(file:))/.test(scriptPath) && scriptPath.substring(0, globalThis.origin.length) !== globalThis.origin) {
 		// this is the cross-origin case
 		// i.e. the webpage is running at a different origin than where the scripts are loaded from
-		const myPath = 'vs/base/worker/defaultWorkerFactory.js';
-		const workerBaseUrl = require.toUrl(myPath).slice(0, -myPath.length); // explicitly using require.toUrl(), see https://github.com/microsoft/vscode/issues/107440#issuecomment-698982321
-		const js = `/*${label}*/globalThis.MonacoEnvironment={baseUrl: '${workerBaseUrl}'};const ttPolicy = globalThis.trustedTypes?.createPolicy('defaultWorkerFactory', { createScriptURL: value => value });importScripts(ttPolicy?.createScriptURL('${scriptPath}') ?? '${scriptPath}');/*${label}*/`;
-		const blob = new Blob([js], { type: 'application/javascript' });
-		return URL.createObjectURL(blob);
-	}
-
-	const start = scriptPath.lastIndexOf('?');
-	const end = scriptPath.lastIndexOf('#', start);
-	const params = start > 0
-		? new URLSearchParams(scriptPath.substring(start + 1, ~end ? end : undefined))
-		: new URLSearchParams();
-
-	COI.addSearchParam(params, true, true);
-	const search = params.toString();
-
-	if (!search) {
-		return `${scriptPath}#${label}`;
 	} else {
-		return `${scriptPath}?${params.toString()}#${label}`;
+		const start = scriptPath.lastIndexOf('?');
+		const end = scriptPath.lastIndexOf('#', start);
+		const params = start > 0
+			? new URLSearchParams(scriptPath.substring(start + 1, ~end ? end : undefined))
+			: new URLSearchParams();
+
+		COI.addSearchParam(params, true, true);
+		const search = params.toString();
+		if (!search) {
+			scriptPath = `${scriptPath}#${label}`;
+		} else {
+			scriptPath = `${scriptPath}?${params.toString()}#${label}`;
+		}
 	}
+
+	const factoryModuleId = 'vs/base/worker/defaultWorkerFactory.js';
+	const workerBaseUrl = require.toUrl(factoryModuleId).slice(0, -factoryModuleId.length); // explicitly using require.toUrl(), see https://github.com/microsoft/vscode/issues/107440#issuecomment-698982321
+	const blob = new Blob([[
+		`/*${label}*/`,
+		`globalThis.MonacoEnvironment = { baseUrl: '${workerBaseUrl}' };`,
+		// VSCODE_GLOBALS: NLS
+		`globalThis._VSCODE_NLS_MESSAGES = ${JSON.stringify(globalThis._VSCODE_NLS_MESSAGES)};`,
+		`globalThis._VSCODE_NLS_LANGUAGE = ${JSON.stringify(globalThis._VSCODE_NLS_LANGUAGE)};`,
+		`const ttPolicy = globalThis.trustedTypes?.createPolicy('defaultWorkerFactory', { createScriptURL: value => value });`,
+		`importScripts(ttPolicy?.createScriptURL('${scriptPath}') ?? '${scriptPath}');`,
+		`/*${label}*/`
+	].join('')], { type: 'application/javascript' });
+	return URL.createObjectURL(blob);
 }
 // ESM-comment-end
 
@@ -84,13 +93,14 @@ function isPromiseLike<T>(obj: any): obj is PromiseLike<T> {
  * A worker that uses HTML5 web workers so that is has
  * its own global scope and its own thread.
  */
-class WebWorker implements IWorker {
+class WebWorker extends Disposable implements IWorker {
 
 	private readonly id: number;
 	private readonly label: string;
 	private worker: Promise<Worker> | null;
 
 	constructor(moduleId: string, id: number, label: string, onMessageCallback: IWorkerCallback, onErrorCallback: (err: any) => void) {
+		super();
 		this.id = id;
 		this.label = label;
 		const workerOrPromise = getWorker(label);
@@ -109,6 +119,15 @@ class WebWorker implements IWorker {
 				w.addEventListener('error', onErrorCallback);
 			}
 		});
+		this._register(toDisposable(() => {
+			this.worker?.then(w => {
+				w.onmessage = null;
+				w.onmessageerror = null;
+				w.removeEventListener('error', onErrorCallback);
+				w.terminate();
+			});
+			this.worker = null;
+		}));
 	}
 
 	public getId(): number {
@@ -124,11 +143,6 @@ class WebWorker implements IWorker {
 				onUnexpectedError(new Error(`FAILED to post message to '${this.label}'-worker`, { cause: err }));
 			}
 		});
-	}
-
-	public dispose(): void {
-		this.worker?.then(w => w.terminate());
-		this.worker = null;
 	}
 }
 

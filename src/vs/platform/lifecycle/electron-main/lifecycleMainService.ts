@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, Event as ElectronEvent } from 'electron';
 import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { Barrier, Promises, timeout } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -18,6 +18,7 @@ import { IStateService } from 'vs/platform/state/node/state';
 import { ICodeWindow, LoadReason, UnloadReason } from 'vs/platform/window/electron-main/window';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
+import { IAuxiliaryWindow } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindow';
 
 export const ILifecycleMainService = createDecorator<ILifecycleMainService>('lifecycleMainService');
 
@@ -130,6 +131,11 @@ export interface ILifecycleMainService {
 	 * Make a `ICodeWindow` known to the lifecycle main service.
 	 */
 	registerWindow(window: ICodeWindow): void;
+
+	/**
+	 * Make a `IAuxiliaryWindow` known to the lifecycle main service.
+	 */
+	registerAuxWindow(auxWindow: IAuxiliaryWindow): void;
 
 	/**
 	 * Reload a window. All lifecycle event handlers are triggered.
@@ -422,7 +428,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 
 		// Window Before Closing: Main -> Renderer
 		const win = assertIsDefined(window.win);
-		win.on('close', e => {
+		windowListeners.add(Event.fromNodeEventEmitter<ElectronEvent>(win, 'close')(e => {
 
 			// The window already acknowledged to be closed
 			const windowId = window.id;
@@ -451,10 +457,8 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 				// No veto, close window now
 				window.close();
 			});
-		});
-
-		// Window After Closing
-		win.on('closed', () => {
+		}));
+		windowListeners.add(Event.fromNodeEventEmitter<ElectronEvent>(win, 'closed')(() => {
 			this.trace(`Lifecycle#window.on('closed') - window ID ${window.id}`);
 
 			// update window count
@@ -469,7 +473,37 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 			if (this.windowCounter === 0 && (!isMacintosh || this._quitRequested)) {
 				this.fireOnWillShutdown(ShutdownReason.QUIT);
 			}
-		});
+		}));
+	}
+
+	registerAuxWindow(auxWindow: IAuxiliaryWindow): void {
+		const win = assertIsDefined(auxWindow.win);
+
+		const windowListeners = new DisposableStore();
+		windowListeners.add(Event.fromNodeEventEmitter<ElectronEvent>(win, 'close')(e => {
+			this.trace(`Lifecycle#auxWindow.on('close') - window ID ${auxWindow.id}`);
+
+			if (this._quitRequested) {
+				this.trace(`Lifecycle#auxWindow.on('close') - preventDefault() because quit requested`);
+
+				// When quit is requested, Electron will close all
+				// auxiliary windows before closing the main windows.
+				// This prevents us from storing the auxiliary window
+				// state on shutdown and thus we prevent closing if
+				// quit is requested.
+				//
+				// Interestingly, this will not prevent the application
+				// from quitting because the auxiliary windows will still
+				// close once the owning window closes.
+
+				e.preventDefault();
+			}
+		}));
+		windowListeners.add(Event.fromNodeEventEmitter<ElectronEvent>(win, 'closed')(() => {
+			this.trace(`Lifecycle#auxWindow.on('closed') - window ID ${auxWindow.id}`);
+
+			windowListeners.dispose();
+		}));
 	}
 
 	async reload(window: ICodeWindow, cli?: NativeParsedArgs): Promise<void> {

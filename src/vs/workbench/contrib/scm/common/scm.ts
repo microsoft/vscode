@@ -14,11 +14,12 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { ResourceTree } from 'vs/base/common/resourceTree';
 import { ISCMHistoryProvider, ISCMHistoryProviderMenus } from 'vs/workbench/contrib/scm/common/history';
+import { ITextModel } from 'vs/editor/common/model';
+import { IObservable } from 'vs/base/common/observable';
 
 export const VIEWLET_ID = 'workbench.view.scm';
 export const VIEW_PANE_ID = 'workbench.scm';
 export const REPOSITORIES_VIEW_PANE_ID = 'workbench.scm.repositories';
-export const SYNC_VIEW_PANE_ID = 'workbench.scm.sync';
 
 export interface IBaselineResourceProvider {
 	getBaselineResource(resource: URI): Promise<URI>;
@@ -40,6 +41,8 @@ export interface ISCMResource {
 	readonly decorations: ISCMResourceDecorations;
 	readonly contextValue: string | undefined;
 	readonly command: Command | undefined;
+	readonly multiDiffEditorOriginalUri: URI | undefined;
+	readonly multiDiffEditorModifiedUri: URI | undefined;
 	open(preserveFocus: boolean): Promise<void>;
 }
 
@@ -54,28 +57,30 @@ export interface ISCMResourceGroup {
 	readonly label: string;
 	readonly hideWhenEmpty: boolean;
 	readonly onDidChange: Event<void>;
+
+	readonly multiDiffEditorEnableViewChanges: boolean;
 }
 
 export interface ISCMProvider extends IDisposable {
 	readonly id: string;
 	readonly label: string;
 	readonly contextValue: string;
+	readonly name: string;
 
 	readonly groups: readonly ISCMResourceGroup[];
 	readonly onDidChangeResourceGroups: Event<void>;
 	readonly onDidChangeResources: Event<void>;
 
 	readonly rootUri?: URI;
-	readonly inputBoxDocumentUri: URI;
-	readonly count?: number;
-	readonly commitTemplate: string;
+	readonly inputBoxTextModel: ITextModel;
+	readonly count: IObservable<number | undefined>;
+	readonly commitTemplate: IObservable<string>;
 	readonly historyProvider?: ISCMHistoryProvider;
-	readonly onDidChangeCommitTemplate: Event<string>;
+	readonly historyProviderObs: IObservable<ISCMHistoryProvider | undefined>;
 	readonly onDidChangeHistoryProvider: Event<void>;
-	readonly onDidChangeStatusBarCommands?: Event<readonly Command[]>;
 	readonly acceptInputCommand?: Command;
 	readonly actionButton?: ISCMActionButtonDescriptor;
-	readonly statusBarCommands?: readonly Command[];
+	readonly statusBarCommands: IObservable<readonly Command[] | undefined>;
 	readonly onDidChange: Event<void>;
 
 	getOriginalResource(uri: URI): Promise<URI | null>;
@@ -84,12 +89,6 @@ export interface ISCMProvider extends IDisposable {
 export interface ISCMInputValueProviderContext {
 	readonly resourceGroupId: string;
 	readonly resources: readonly URI[];
-}
-
-export interface ISCMInputValueProvider {
-	readonly label: string;
-	readonly icon?: URI | { light: URI; dark: URI } | ThemeIcon;
-	provideValue(repositoryId: string, context: ISCMInputValueProviderContext[]): Promise<string | undefined>;
 }
 
 export const enum InputValidationType {
@@ -115,12 +114,6 @@ export enum SCMInputChangeReason {
 export interface ISCMInputChangeEvent {
 	readonly value: string;
 	readonly reason?: SCMInputChangeReason;
-}
-
-export interface ISCMInputActionButtonDescriptor {
-	command: Command;
-	icon?: URI | { light: URI; dark: URI } | ThemeIcon;
-	enabled: boolean;
 }
 
 export interface ISCMActionButtonDescriptor {
@@ -155,9 +148,6 @@ export interface ISCMInput {
 	visible: boolean;
 	readonly onDidChangeVisibility: Event<boolean>;
 
-	actionButton: ISCMInputActionButtonDescriptor | undefined;
-	readonly onDidChangeActionButton: Event<void>;
-
 	setFocus(): void;
 	readonly onDidChangeFocus: Event<void>;
 
@@ -183,12 +173,9 @@ export interface ISCMService {
 	readonly repositoryCount: number;
 
 	registerSCMProvider(provider: ISCMProvider): ISCMRepository;
+
 	getRepository(id: string): ISCMRepository | undefined;
-
-	readonly onDidChangeInputValueProviders: Event<void>;
-	readonly inputValueProviders: Iterable<ISCMInputValueProvider>;
-
-	registerSCMInputValueProvider(provider: ISCMInputValueProvider): IDisposable;
+	getRepository(resource: URI): ISCMRepository | undefined;
 }
 
 export interface ISCMTitleMenu {
@@ -202,6 +189,7 @@ export interface ISCMRepositoryMenus {
 	readonly titleMenu: ISCMTitleMenu;
 	readonly historyProviderMenu: ISCMHistoryProviderMenus | undefined;
 	readonly repositoryMenu: IMenu;
+	readonly repositoryContextMenu: IMenu;
 	getResourceGroupMenu(group: ISCMResourceGroup): IMenu;
 	getResourceMenu(resource: ISCMResource): IMenu;
 	getResourceFolderMenu(group: ISCMResourceGroup): IMenu;

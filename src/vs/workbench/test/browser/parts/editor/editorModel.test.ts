@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { IModelService } from 'vs/editor/common/services/model';
@@ -61,7 +61,7 @@ suite('EditorModel', () => {
 		instantiationService.stub(IDialogService, dialogService);
 		instantiationService.stub(INotificationService, notificationService);
 		instantiationService.stub(IUndoRedoService, undoRedoService);
-		instantiationService.stub(IEditorService, new TestEditorService());
+		instantiationService.stub(IEditorService, disposables.add(new TestEditorService()));
 		instantiationService.stub(IThemeService, new TestThemeService());
 		instantiationService.stub(ILanguageConfigurationService, disposables.add(new TestLanguageConfigurationService()));
 		instantiationService.stub(IStorageService, disposables.add(new TestStorageService()));

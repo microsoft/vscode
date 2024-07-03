@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { IResourceDiffEditorInput, IResourceSideBySideEditorInput, isResourceDiffEditorInput, isResourceSideBySideEditorInput, isUntitledResourceEditorInput } from 'vs/workbench/common/editor';
 import { workbenchInstantiationService, registerTestEditor, TestFileEditorInput, registerTestResourceEditor, registerTestSideBySideEditor } from 'vs/workbench/test/browser/workbenchTestServices';
@@ -129,14 +129,14 @@ suite('TextEditorService', () => {
 		// Untyped Input (untitled with file path)
 		input = disposables.add(service.createTextEditor({ resource: URI.file('/some/path.txt'), forceUntitled: true, options: { selection: { startLineNumber: 1, startColumn: 1 } } }));
 		assert(input instanceof UntitledTextEditorInput);
-		assert.ok((input as UntitledTextEditorInput).model.hasAssociatedFilePath);
+		assert.ok((input as UntitledTextEditorInput).hasAssociatedFilePath);
 
 		// Untyped Input (untitled with untitled resource)
 		untypedInput = { resource: URI.parse('untitled://Untitled-1'), forceUntitled: true, options: { selection: { startLineNumber: 1, startColumn: 1 } } };
 		assert.ok(isUntitledResourceEditorInput(untypedInput));
 		input = disposables.add(service.createTextEditor(untypedInput));
 		assert(input instanceof UntitledTextEditorInput);
-		assert.ok(!(input as UntitledTextEditorInput).model.hasAssociatedFilePath);
+		assert.ok(!(input as UntitledTextEditorInput).hasAssociatedFilePath);
 
 		// Untyped input (untitled with custom resource, but forceUntitled)
 		untypedInput = { resource: URI.file('/fake'), forceUntitled: true };
@@ -149,7 +149,7 @@ suite('TextEditorService', () => {
 
 		input = disposables.add(service.createTextEditor({ resource: URI.parse('untitled-custom://some/path'), forceUntitled: true, options: { selection: { startLineNumber: 1, startColumn: 1 } } }));
 		assert(input instanceof UntitledTextEditorInput);
-		assert.ok((input as UntitledTextEditorInput).model.hasAssociatedFilePath);
+		assert.ok((input as UntitledTextEditorInput).hasAssociatedFilePath);
 
 		provider.dispose();
 

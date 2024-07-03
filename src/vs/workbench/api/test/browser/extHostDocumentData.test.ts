@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { URI } from 'vs/base/common/uri';
 import { ExtHostDocumentData } from 'vs/workbench/api/common/extHostDocumentData';
 import { Position } from 'vs/workbench/api/common/extHostTypes';
@@ -440,6 +440,8 @@ suite('ExtHostDocumentData updates line mapping', () => {
 		testLineMappingDirectionAfterEvents(lines, '\r\n', AssertDocumentLineMappingDirection.PositionToOffset, e);
 		testLineMappingDirectionAfterEvents(lines, '\r\n', AssertDocumentLineMappingDirection.OffsetToPosition, e);
 	}
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('line mapping', () => {
 		testLineMappingAfterEvents([

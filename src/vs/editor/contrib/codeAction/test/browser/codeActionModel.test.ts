@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
+import { promiseWithResolvers } from 'vs/base/common/async';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
@@ -56,10 +57,8 @@ suite('CodeActionModel', () => {
 	});
 
 	test('Oracle -> marker added', async () => {
-		let done: () => void;
-		const donePromise = new Promise<void>(resolve => {
-			done = resolve;
-		});
+		const { promise: donePromise, resolve: done } = promiseWithResolvers<void>();
+
 		await runWithFakedTimers({ useFakeTimers: true }, () => {
 			const reg = registry.register(languageId, testProvider);
 			disposables.add(reg);
@@ -127,9 +126,7 @@ suite('CodeActionModel', () => {
 	});
 
 	test('Oracle -> should only auto trigger once for cursor and marker update right after each other', async () => {
-		let done: () => void;
-		const donePromise = new Promise<void>(resolve => { done = resolve; });
-
+		const { promise: donePromise, resolve: done } = promiseWithResolvers<void>();
 		await runWithFakedTimers({ useFakeTimers: true }, () => {
 			const reg = registry.register(languageId, testProvider);
 			disposables.add(reg);

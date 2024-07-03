@@ -6,7 +6,7 @@
 import { Action } from 'vs/base/common/actions';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { SerializedError } from 'vs/base/common/errors';
+import { SerializedError, transformErrorFromSerialization } from 'vs/base/common/errors';
 import { FileAccess } from 'vs/base/common/network';
 import Severity from 'vs/base/common/severity';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -73,19 +73,13 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 		this._internalExtensionService._onDidActivateExtension(extensionId, codeLoadingTime, activateCallTime, activateResolvedTime, activationReason);
 	}
 	$onExtensionRuntimeError(extensionId: ExtensionIdentifier, data: SerializedError): void {
-		const error = new Error();
-		error.name = data.name;
-		error.message = data.message;
-		error.stack = data.stack;
+		const error = transformErrorFromSerialization(data);
 		this._internalExtensionService._onExtensionRuntimeError(extensionId, error);
 		console.error(`[${extensionId.value}]${error.message}`);
 		console.error(error.stack);
 	}
 	async $onExtensionActivationError(extensionId: ExtensionIdentifier, data: SerializedError, missingExtensionDependency: MissingExtensionDependency | null): Promise<void> {
-		const error = new Error();
-		error.name = data.name;
-		error.message = data.message;
-		error.stack = data.stack;
+		const error = transformErrorFromSerialization(data);
 
 		this._internalExtensionService._onDidActivateExtensionError(extensionId, error);
 
@@ -171,7 +165,7 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 				message: localize('uninstalledDep', "Cannot activate the '{0}' extension because it depends on the '{1}' extension from '{2}', which is not installed. Would you like to install the extension and reload the window?", extName, dependencyExtension.displayName, dependencyExtension.publisherDisplayName),
 				actions: {
 					primary: [new Action('install', localize('install missing dep', "Install and Reload"), '', true,
-						() => this._extensionsWorkbenchService.install(dependencyExtension!)
+						() => this._extensionsWorkbenchService.install(dependencyExtension)
 							.then(() => this._hostService.reload(), e => this._notificationService.error(e)))]
 				}
 			});

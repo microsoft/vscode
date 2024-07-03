@@ -3,65 +3,56 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ContextView, ContextViewDOMPosition } from 'vs/base/browser/ui/contextview/contextview';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { ContextView, ContextViewDOMPosition, IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
-import { IContextViewDelegate, IContextViewService } from './contextView';
+import { IContextViewDelegate, IContextViewService, IOpenContextView } from './contextView';
+import { getWindow } from 'vs/base/browser/dom';
 
-export class ContextViewService extends Disposable implements IContextViewService {
-	declare readonly _serviceBrand: undefined;
+export class ContextViewHandler extends Disposable implements IContextViewProvider {
 
-	private currentViewDisposable: IDisposable = Disposable.None;
-	private contextView: ContextView;
-	private container: HTMLElement | null;
-	private shadowRoot: boolean | undefined;
+	private openContextView: IOpenContextView | undefined;
+	protected readonly contextView = this._register(new ContextView(this.layoutService.mainContainer, ContextViewDOMPosition.ABSOLUTE));
 
 	constructor(
 		@ILayoutService private readonly layoutService: ILayoutService
 	) {
 		super();
 
-		this.container = layoutService.mainContainer;
-		this.contextView = this._register(new ContextView(this.container, ContextViewDOMPosition.ABSOLUTE));
 		this.layout();
-
 		this._register(layoutService.onDidLayoutContainer(() => this.layout()));
 	}
 
 	// ContextView
 
-	private setContainer(container: HTMLElement, domPosition?: ContextViewDOMPosition): void {
-		this.container = container;
-		this.contextView.setContainer(container, domPosition || ContextViewDOMPosition.ABSOLUTE);
-	}
-
-	showContextView(delegate: IContextViewDelegate, container?: HTMLElement, shadowRoot?: boolean): IDisposable {
+	showContextView(delegate: IContextViewDelegate, container?: HTMLElement, shadowRoot?: boolean): IOpenContextView {
+		let domPosition: ContextViewDOMPosition;
 		if (container) {
-			if (container !== this.container || this.shadowRoot !== shadowRoot) {
-				this.setContainer(container, shadowRoot ? ContextViewDOMPosition.FIXED_SHADOW : ContextViewDOMPosition.FIXED);
+			if (container === this.layoutService.getContainer(getWindow(container))) {
+				domPosition = ContextViewDOMPosition.ABSOLUTE;
+			} else if (shadowRoot) {
+				domPosition = ContextViewDOMPosition.FIXED_SHADOW;
+			} else {
+				domPosition = ContextViewDOMPosition.FIXED;
 			}
 		} else {
-			if (this.container !== this.layoutService.activeContainer) {
-				this.setContainer(this.layoutService.activeContainer, ContextViewDOMPosition.ABSOLUTE);
-			}
+			domPosition = ContextViewDOMPosition.ABSOLUTE;
 		}
 
-		this.shadowRoot = shadowRoot;
+		this.contextView.setContainer(container ?? this.layoutService.activeContainer, domPosition);
 
 		this.contextView.show(delegate);
 
-		const disposable = toDisposable(() => {
-			if (this.currentViewDisposable === disposable) {
-				this.hideContextView();
+		const openContextView: IOpenContextView = {
+			close: () => {
+				if (this.openContextView === openContextView) {
+					this.hideContextView();
+				}
 			}
-		});
+		};
 
-		this.currentViewDisposable = disposable;
-		return disposable;
-	}
-
-	getContextViewElement(): HTMLElement {
-		return this.contextView.getViewElement();
+		this.openContextView = openContextView;
+		return openContextView;
 	}
 
 	layout(): void {
@@ -70,5 +61,15 @@ export class ContextViewService extends Disposable implements IContextViewServic
 
 	hideContextView(data?: any): void {
 		this.contextView.hide(data);
+		this.openContextView = undefined;
+	}
+}
+
+export class ContextViewService extends ContextViewHandler implements IContextViewService {
+
+	declare readonly _serviceBrand: undefined;
+
+	getContextViewElement(): HTMLElement {
+		return this.contextView.getViewElement();
 	}
 }

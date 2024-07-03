@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { workbenchInstantiationService, TestServiceAccessor, ITestTextFileEditorModelManager } from 'vs/workbench/test/browser/workbenchTestServices';
 import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from 'vs/base/test/common/utils';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -92,7 +92,7 @@ suite('Files - TextFileService', () => {
 		accessor.fileDialogService.setPickFileToSave(model.resource);
 
 		await model.resolve();
-		model!.textEditorModel!.setValue('foo');
+		model.textEditorModel!.setValue('foo');
 		assert.ok(accessor.textFileService.isDirty(model.resource));
 
 		await accessor.textFileService.revert(model.resource);
@@ -104,7 +104,7 @@ suite('Files - TextFileService', () => {
 		(<ITestTextFileEditorModelManager>accessor.textFileService.files).add(model.resource, model);
 
 		await model.resolve();
-		model!.textEditorModel!.setValue('foo');
+		model.textEditorModel!.setValue('foo');
 		assert.ok(accessor.textFileService.isDirty(model.resource));
 
 		let eventCounter = 0;

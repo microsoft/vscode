@@ -6,12 +6,12 @@
 export type JSONLanguageStatus = { schemas: string[] };
 
 import {
-	workspace, window, languages, commands, ExtensionContext, extensions, Uri, ColorInformation,
+	workspace, window, languages, commands, LogOutputChannel, ExtensionContext, extensions, Uri, ColorInformation,
 	Diagnostic, StatusBarAlignment, TextEditor, TextDocument, FormattingOptions, CancellationToken, FoldingRange,
 	ProviderResult, TextEdit, Range, Position, Disposable, CompletionItem, CompletionList, CompletionContext, Hover, MarkdownString, FoldingContext, DocumentSymbol, SymbolInformation, l10n
 } from 'vscode';
 import {
-	LanguageClientOptions, RequestType, NotificationType, FormattingOptions as LSPFormattingOptions,
+	LanguageClientOptions, RequestType, NotificationType, FormattingOptions as LSPFormattingOptions, DocumentDiagnosticReportKind,
 	DidChangeConfigurationNotification, HandleDiagnosticsSignature, ResponseError, DocumentRangeFormattingParams,
 	DocumentRangeFormattingRequest, ProvideCompletionItemsSignature, ProvideHoverSignature, BaseLanguageClient, ProvideFoldingRangeSignature, ProvideDocumentSymbolsSignature, ProvideDocumentColorsSignature
 } from 'vscode-languageclient';
@@ -19,6 +19,7 @@ import {
 
 import { hash } from './utils/hash';
 import { createDocumentSymbolsLimitItem, createLanguageStatusItem, createLimitStatusItem } from './languageStatus';
+import { getLanguageParticipants, LanguageParticipants } from './languageParticipants';
 
 namespace VSCodeContentRequest {
 	export const type: RequestType<string, string, any> = new RequestType('vscode/content');
@@ -126,6 +127,10 @@ export type LanguageClientConstructor = (name: string, description: string, clie
 export interface Runtime {
 	schemaRequests: SchemaRequestService;
 	telemetry?: TelemetryReporter;
+	readonly timer: {
+		setTimeout(callback: (...args: any[]) => void, ms: number, ...args: any[]): Disposable;
+	};
+	logOutputChannel: LogOutputChannel;
 }
 
 export interface SchemaRequestService {
@@ -141,13 +146,48 @@ let jsoncFoldingLimit = 5000;
 let jsonColorDecoratorLimit = 5000;
 let jsoncColorDecoratorLimit = 5000;
 
-export async function startClient(context: ExtensionContext, newLanguageClient: LanguageClientConstructor, runtime: Runtime): Promise<BaseLanguageClient> {
+export interface AsyncDisposable {
+	dispose(): Promise<void>;
+}
 
-	const toDispose = context.subscriptions;
+export async function startClient(context: ExtensionContext, newLanguageClient: LanguageClientConstructor, runtime: Runtime): Promise<AsyncDisposable> {
+	const languageParticipants = getLanguageParticipants();
+	context.subscriptions.push(languageParticipants);
+
+	let client: Disposable | undefined = await startClientWithParticipants(context, languageParticipants, newLanguageClient, runtime);
+
+	let restartTrigger: Disposable | undefined;
+	languageParticipants.onDidChange(() => {
+		if (restartTrigger) {
+			restartTrigger.dispose();
+		}
+		restartTrigger = runtime.timer.setTimeout(async () => {
+			if (client) {
+				runtime.logOutputChannel.info('Extensions have changed, restarting JSON server...');
+				runtime.logOutputChannel.info('');
+				const oldClient = client;
+				client = undefined;
+				await oldClient.dispose();
+				client = await startClientWithParticipants(context, languageParticipants, newLanguageClient, runtime);
+			}
+		}, 2000);
+	});
+
+	return {
+		dispose: async () => {
+			restartTrigger?.dispose();
+			await client?.dispose();
+		}
+	};
+}
+
+async function startClientWithParticipants(context: ExtensionContext, languageParticipants: LanguageParticipants, newLanguageClient: LanguageClientConstructor, runtime: Runtime): Promise<AsyncDisposable> {
+
+	const toDispose: Disposable[] = [];
 
 	let rangeFormatting: Disposable | undefined = undefined;
 
-	const documentSelector = ['json', 'jsonc'];
+	const documentSelector = languageParticipants.documentSelector;
 
 	const schemaResolutionErrorStatusBarItem = window.createStatusBarItem('status.json.resolveError', StatusBarAlignment.Right, 0);
 	schemaResolutionErrorStatusBarItem.name = l10n.t('JSON: Schema Resolution Error');
@@ -190,6 +230,21 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 		}
 	}));
 
+	function filterSchemaErrorDiagnostics(uri: Uri, diagnostics: Diagnostic[]): Diagnostic[] {
+		const schemaErrorIndex = diagnostics.findIndex(isSchemaResolveError);
+		if (schemaErrorIndex !== -1) {
+			const schemaResolveDiagnostic = diagnostics[schemaErrorIndex];
+			fileSchemaErrors.set(uri.toString(), schemaResolveDiagnostic.message);
+			if (!schemaDownloadEnabled) {
+				diagnostics = diagnostics.filter(d => !isSchemaResolveError(d));
+			}
+			if (window.activeTextEditor && window.activeTextEditor.document.uri.toString() === uri.toString()) {
+				schemaResolutionErrorStatusBarItem.show();
+			}
+		}
+		return diagnostics;
+	}
+
 	// Options to control the language client
 	const clientOptions: LanguageClientOptions = {
 		// Register the server for json documents
@@ -208,25 +263,16 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 			workspace: {
 				didChangeConfiguration: () => client.sendNotification(DidChangeConfigurationNotification.type, { settings: getSettings() })
 			},
+			provideDiagnostics: async (uriOrDoc, previousResolutId, token, next) => {
+				const diagnostics = await next(uriOrDoc, previousResolutId, token);
+				if (diagnostics && diagnostics.kind === DocumentDiagnosticReportKind.Full) {
+					const uri = uriOrDoc instanceof Uri ? uriOrDoc : uriOrDoc.uri;
+					diagnostics.items = filterSchemaErrorDiagnostics(uri, diagnostics.items);
+				}
+				return diagnostics;
+			},
 			handleDiagnostics: (uri: Uri, diagnostics: Diagnostic[], next: HandleDiagnosticsSignature) => {
-				const schemaErrorIndex = diagnostics.findIndex(isSchemaResolveError);
-
-				if (schemaErrorIndex === -1) {
-					fileSchemaErrors.delete(uri.toString());
-					return next(uri, diagnostics);
-				}
-
-				const schemaResolveDiagnostic = diagnostics[schemaErrorIndex];
-				fileSchemaErrors.set(uri.toString(), schemaResolveDiagnostic.message);
-
-				if (!schemaDownloadEnabled) {
-					diagnostics = diagnostics.filter(d => !isSchemaResolveError(d));
-				}
-
-				if (window.activeTextEditor && window.activeTextEditor.document.uri.toString() === uri.toString()) {
-					schemaResolutionErrorStatusBarItem.show();
-				}
-
+				diagnostics = filterSchemaErrorDiagnostics(uri, diagnostics);
 				next(uri, diagnostics);
 			},
 			// testing the replace / insert mode
@@ -306,6 +352,7 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 		}
 	};
 
+	clientOptions.outputChannel = runtime.logOutputChannel;
 	// Create the language client and start the client.
 	const client = newLanguageClient('json', languageServerDescription, clientOptions);
 	client.registerProposedFeatures();
@@ -490,7 +537,13 @@ export async function startClient(context: ExtensionContext, newLanguageClient: 
 		});
 	}
 
-	return client;
+	return {
+		dispose: async () => {
+			await client.stop();
+			toDispose.forEach(d => d.dispose());
+			rangeFormatting?.dispose();
+		}
+	};
 }
 
 function getSchemaAssociations(_context: ExtensionContext): ISchemaAssociation[] {

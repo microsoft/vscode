@@ -123,7 +123,7 @@ export class TestExplorerFilterState extends Disposable implements ITestExplorer
 		let globText = '';
 		let lastIndex = 0;
 		for (const match of text.matchAll(tagRe)) {
-			let nextIndex = match.index! + match[0].length;
+			let nextIndex = match.index + match[0].length;
 
 			const tag = match[0];
 			if (allTestFilterTerms.includes(tag as TestFilterTerm)) {
@@ -199,6 +199,7 @@ export const enum TestFilterTerm {
 	Failed = '@failed',
 	Executed = '@executed',
 	CurrentDoc = '@doc',
+	OpenedFiles = '@openedFiles',
 	Hidden = '@hidden',
 }
 
@@ -206,5 +207,6 @@ const allTestFilterTerms: readonly TestFilterTerm[] = [
 	TestFilterTerm.Failed,
 	TestFilterTerm.Executed,
 	TestFilterTerm.CurrentDoc,
+	TestFilterTerm.OpenedFiles,
 	TestFilterTerm.Hidden,
 ];

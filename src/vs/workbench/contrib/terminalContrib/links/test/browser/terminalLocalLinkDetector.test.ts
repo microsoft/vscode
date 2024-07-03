@@ -32,6 +32,10 @@ const unixLinks: (string | { link: string; resource: URI })[] = [
 	'/foo/[bar].baz',
 	'/foo/[bar]/baz',
 	'/foo/bar+more',
+	// URI file://
+	{ link: 'file:///foo', resource: URI.file('/foo') },
+	{ link: 'file:///foo/bar', resource: URI.file('/foo/bar') },
+	{ link: 'file:///foo/bar%20baz', resource: URI.file('/foo/bar baz') },
 	// User home
 	{ link: '~/foo', resource: URI.file('/home/foo') },
 	// Relative
@@ -51,6 +55,10 @@ const windowsLinks: (string | { link: string; resource: URI })[] = [
 	'c:\\foo\\bar',
 	'c:\\foo\\bar+more',
 	'c:\\foo/bar\\baz',
+	// URI file://
+	{ link: 'file:///c:/foo', resource: URI.file('c:\\foo') },
+	{ link: 'file:///c:/foo/bar', resource: URI.file('c:\\foo\\bar') },
+	{ link: 'file:///c:/foo/bar%20baz', resource: URI.file('c:\\foo\\bar baz') },
 	// User home
 	{ link: '~\\foo', resource: URI.file('C:\\Home\\foo') },
 	{ link: '~/foo', resource: URI.file('C:\\Home\\foo') },
@@ -114,7 +122,9 @@ const supportedLinkFormats: LinkFormatInfo[] = [
 	{ urlFormat: '{0} [{1}, {2}]', line: '5', column: '3' },
 	{ urlFormat: '{0}: [{1}, {2}]', line: '5', column: '3' },
 	{ urlFormat: '{0}",{1}', line: '5' },
-	{ urlFormat: '{0}\',{1}', line: '5' }
+	{ urlFormat: '{0}\',{1}', line: '5' },
+	{ urlFormat: '{0}#{1}', line: '5' },
+	{ urlFormat: '{0}#{1}:{2}', line: '5', column: '5' }
 ];
 
 const windowsFallbackLinks: (string | { link: string; resource: URI })[] = [
@@ -128,6 +138,10 @@ const supportedFallbackLinkFormats: LinkFormatInfo[] = [
 	// Python style error: File "<path>", line <line>
 	{ urlFormat: 'File "{0}"', linkCellStartOffset: 5 },
 	{ urlFormat: 'File "{0}", line {1}', line: '5', linkCellStartOffset: 5 },
+	// Unknown tool #200166: FILE  <path>:<line>:<col>
+	{ urlFormat: ' FILE  {0}', linkCellStartOffset: 7 },
+	{ urlFormat: ' FILE  {0}:{1}', line: '5', linkCellStartOffset: 7 },
+	{ urlFormat: ' FILE  {0}:{1}:{2}', line: '5', column: '3', linkCellStartOffset: 7 },
 	// Some C++ compile error formats
 	{ urlFormat: '{0}({1}) :', line: '5', linkCellEndOffset: -2 },
 	{ urlFormat: '{0}({1},{2}) :', line: '5', column: '3', linkCellEndOffset: -2 },

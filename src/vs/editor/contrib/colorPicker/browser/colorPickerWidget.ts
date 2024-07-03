@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PixelRatio } from 'vs/base/browser/browser';
+import { PixelRatio } from 'vs/base/browser/pixelRatio';
 import * as dom from 'vs/base/browser/dom';
 import { GlobalPointerMoveMonitor } from 'vs/base/browser/globalPointerMoveMonitor';
 import { Widget } from 'vs/base/browser/ui/widget';
@@ -117,9 +117,9 @@ class CloseButton extends Disposable {
 
 		const closeButton = dom.append(innerDiv, $('.button' + ThemeIcon.asCSSSelector(registerIcon('color-picker-close', Codicon.close, localize('closeIcon', 'Icon to close the color picker')))));
 		closeButton.classList.add('close-icon');
-		this._button.onclick = () => {
+		this._register(dom.addDisposableListener(this._button, dom.EventType.CLICK, () => {
 			this._onClicked.fire();
-		};
+		}));
 	}
 }
 
@@ -455,9 +455,9 @@ export class InsertButton extends Disposable {
 		this._button = dom.append(container, document.createElement('button'));
 		this._button.classList.add('insert-button');
 		this._button.textContent = 'Insert';
-		this._button.onclick = e => {
+		this._register(dom.addDisposableListener(this._button, dom.EventType.CLICK, () => {
 			this._onClicked.fire();
-		};
+		}));
 	}
 
 	public get button(): HTMLElement {
@@ -468,6 +468,7 @@ export class InsertButton extends Disposable {
 export class ColorPickerWidget extends Widget implements IEditorHoverColorPickerWidget {
 
 	private static readonly ID = 'editor.contrib.colorPickerWidget';
+	private readonly _domNode: HTMLElement;
 
 	body: ColorPickerBody;
 	header: ColorPickerHeader;
@@ -475,13 +476,13 @@ export class ColorPickerWidget extends Widget implements IEditorHoverColorPicker
 	constructor(container: Node, readonly model: ColorPickerModel, private pixelRatio: number, themeService: IThemeService, standaloneColorPicker: boolean = false) {
 		super();
 
-		this._register(PixelRatio.onDidChange(() => this.layout()));
+		this._register(PixelRatio.getInstance(dom.getWindow(container)).onDidChange(() => this.layout()));
 
-		const element = $('.colorpicker-widget');
-		container.appendChild(element);
+		this._domNode = $('.colorpicker-widget');
+		container.appendChild(this._domNode);
 
-		this.header = this._register(new ColorPickerHeader(element, this.model, themeService, standaloneColorPicker));
-		this.body = this._register(new ColorPickerBody(element, this.model, this.pixelRatio, standaloneColorPicker));
+		this.header = this._register(new ColorPickerHeader(this._domNode, this.model, themeService, standaloneColorPicker));
+		this.body = this._register(new ColorPickerBody(this._domNode, this.model, this.pixelRatio, standaloneColorPicker));
 	}
 
 	getId(): string {
@@ -490,5 +491,9 @@ export class ColorPickerWidget extends Widget implements IEditorHoverColorPicker
 
 	layout(): void {
 		this.body.layout();
+	}
+
+	get domNode(): HTMLElement {
+		return this._domNode;
 	}
 }

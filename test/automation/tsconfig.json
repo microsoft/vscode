@@ -9,7 +9,7 @@
 		"sourceMap": true,
 		"declaration": true,
 		"lib": [
-			"es2020",
+			"esnext", // for #201187
 			"dom"
 		]
 	},

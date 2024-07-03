@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { MainThreadCommandsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -11,8 +11,10 @@ import { SingleProxyRPCProtocol } from 'vs/workbench/api/test/common/testRPCProt
 import { mock } from 'vs/base/test/common/mock';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('ExtHostCommands', function () {
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('dispose calls unregister', function () {
 

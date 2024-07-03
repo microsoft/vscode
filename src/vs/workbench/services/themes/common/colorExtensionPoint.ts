@@ -8,6 +8,11 @@ import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/exte
 import { IColorRegistry, Extensions as ColorRegistryExtensions } from 'vs/platform/theme/common/colorRegistry';
 import { Color } from 'vs/base/common/color';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { Extensions, IExtensionFeatureTableRenderer, IExtensionFeaturesRegistry, IRenderedData, IRowData, ITableData } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 
 interface IColorExtensionPoint {
 	id: string;
@@ -150,5 +155,56 @@ export class ColorExtensionPoint {
 	}
 }
 
+class ColorDataRenderer extends Disposable implements IExtensionFeatureTableRenderer {
 
+	readonly type = 'table';
 
+	shouldRender(manifest: IExtensionManifest): boolean {
+		return !!manifest.contributes?.colors;
+	}
+
+	render(manifest: IExtensionManifest): IRenderedData<ITableData> {
+		const colors = manifest.contributes?.colors || [];
+		if (!colors.length) {
+			return { data: { headers: [], rows: [] }, dispose: () => { } };
+		}
+
+		const headers = [
+			nls.localize('id', "ID"),
+			nls.localize('description', "Description"),
+			nls.localize('defaultDark', "Dark Default"),
+			nls.localize('defaultLight', "Light Default"),
+			nls.localize('defaultHC', "High Contrast Default"),
+		];
+
+		const toColor = (colorReference: string): Color | undefined => colorReference[0] === '#' ? Color.fromHex(colorReference) : undefined;
+
+		const rows: IRowData[][] = colors.sort((a, b) => a.id.localeCompare(b.id))
+			.map(color => {
+				return [
+					new MarkdownString().appendMarkdown(`\`${color.id}\``),
+					color.description,
+					toColor(color.defaults.dark) ?? new MarkdownString().appendMarkdown(`\`${color.defaults.dark}\``),
+					toColor(color.defaults.light) ?? new MarkdownString().appendMarkdown(`\`${color.defaults.light}\``),
+					toColor(color.defaults.highContrast) ?? new MarkdownString().appendMarkdown(`\`${color.defaults.highContrast}\``),
+				];
+			});
+
+		return {
+			data: {
+				headers,
+				rows
+			},
+			dispose: () => { }
+		};
+	}
+}
+
+Registry.as<IExtensionFeaturesRegistry>(Extensions.ExtensionFeaturesRegistry).registerExtensionFeature({
+	id: 'colors',
+	label: nls.localize('colors', "Colors"),
+	access: {
+		canToggle: false
+	},
+	renderer: new SyncDescriptor(ColorDataRenderer),
+});

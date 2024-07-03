@@ -31,6 +31,7 @@ import { StopWatch } from 'vs/base/common/stopwatch';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { TelemetryTrustedValue } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
+import { generateUuid } from 'vs/base/common/uuid';
 
 interface CommandHandler {
 	callback: Function;
@@ -291,7 +292,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		type ExtensionActionTelemetryMeta = {
 			extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the extension handling the command, informing which extensions provide most-used functionality.' };
 			id: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the command, to understand which specific extension features are most popular.' };
-			duration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The duration of the command execution, to detect performance issues' };
+			duration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The duration of the command execution, to detect performance issues' };
 			owner: 'digitarald';
 			comment: 'Used to gain insight on the most popular commands used from extensions';
 		};
@@ -342,7 +343,7 @@ export const IExtHostCommands = createDecorator<IExtHostCommands>('IExtHostComma
 
 export class CommandsConverter implements extHostTypeConverter.Command.ICommandsConverter {
 
-	readonly delegatingCommandId: string = `__vsc${Date.now().toString(36)} `;
+	readonly delegatingCommandId: string = `__vsc${generateUuid()}`;
 	private readonly _cache = new Map<string, vscode.Command>();
 	private _cachIdPool = 0;
 

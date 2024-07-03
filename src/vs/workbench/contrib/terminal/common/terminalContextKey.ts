@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 
 export const enum TerminalContextKeyStrings {
 	IsOpen = 'terminalIsOpen',
@@ -132,4 +134,28 @@ export namespace TerminalContextKeys {
 
 	/** Whether shell integration is enabled in the active terminal. This only considers full VS Code shell integration. */
 	export const terminalShellIntegrationEnabled = new RawContextKey<boolean>(TerminalContextKeyStrings.TerminalShellIntegrationEnabled, false, localize('terminalShellIntegrationEnabled', "Whether shell integration is enabled in the active terminal"));
+
+	export const shouldShowViewInlineActions = ContextKeyExpr.and(
+		ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
+		ContextKeyExpr.notEquals(`config.${TerminalSettingId.TabsHideCondition}`, 'never'),
+		ContextKeyExpr.or(
+			ContextKeyExpr.not(`config.${TerminalSettingId.TabsEnabled}`),
+			ContextKeyExpr.and(
+				ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleTerminal'),
+				ContextKeyExpr.equals(TerminalContextKeyStrings.GroupCount, 1)
+			),
+			ContextKeyExpr.and(
+				ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleTerminalOrNarrow'),
+				ContextKeyExpr.or(
+					ContextKeyExpr.equals(TerminalContextKeyStrings.GroupCount, 1),
+					ContextKeyExpr.has(TerminalContextKeyStrings.TabsNarrow)
+				)
+			),
+			ContextKeyExpr.and(
+				ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleGroup'),
+				ContextKeyExpr.equals(TerminalContextKeyStrings.GroupCount, 1)
+			),
+			ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'always')
+		)
+	);
 }

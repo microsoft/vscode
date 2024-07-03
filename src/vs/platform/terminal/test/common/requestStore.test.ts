@@ -27,7 +27,7 @@ suite('RequestStore', () => {
 		const request = requestStore.createRequest({ arg: 'foo' });
 		strictEqual(typeof eventArgs?.requestId, 'number');
 		strictEqual(eventArgs?.arg, 'foo');
-		requestStore.acceptReply(eventArgs!.requestId, { data: 'bar' });
+		requestStore.acceptReply(eventArgs.requestId, { data: 'bar' });
 		const result = await request;
 		strictEqual(result.data, 'bar');
 	});

@@ -304,7 +304,12 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		// read through encoding library
 		return toDecodeStream(stream, {
 			acceptTextOnly: options?.acceptTextOnly ?? false,
-			guessEncoding: options?.autoGuessEncoding || this.textResourceConfigurationService.getValue(resource, 'files.autoGuessEncoding'),
+			guessEncoding:
+				options?.autoGuessEncoding ||
+				this.textResourceConfigurationService.getValue(resource, 'files.autoGuessEncoding'),
+			candidateGuessEncodings:
+				options?.candidateGuessEncodings ||
+				this.textResourceConfigurationService.getValue(resource, 'files.candidateGuessEncodings'),
 			overwriteEncoding: async detectedEncoding => {
 				const { encoding } = await this.encoding.getPreferredReadEncoding(resource, options, detectedEncoding ?? undefined);
 
@@ -560,7 +565,10 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		}
 
 		// save model
-		return targetModel.save(options);
+		return targetModel.save({
+			...options,
+			from: source
+		});
 	}
 
 	private async confirmOverwrite(resource: URI): Promise<boolean> {

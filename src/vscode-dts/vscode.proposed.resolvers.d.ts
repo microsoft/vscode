@@ -124,6 +124,10 @@ declare module 'vscode' {
 			 * One of the the options must have the ID "private".
 			 */
 			privacyOptions: TunnelPrivacy[];
+			/**
+			 * Defaults to true for backwards compatibility.
+			 */
+			protocol?: boolean;
 		};
 	}
 
@@ -137,7 +141,8 @@ declare module 'vscode' {
 	export enum CandidatePortSource {
 		None = 0,
 		Process = 1,
-		Output = 2
+		Output = 2,
+		Hybrid = 3
 	}
 
 	export type ResolverResult = (ResolvedAuthority | ManagedResolvedAuthority) & ResolvedOptions & TunnelInformation;

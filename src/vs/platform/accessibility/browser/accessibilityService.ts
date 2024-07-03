@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { addDisposableListener } from 'vs/base/browser/dom';
-import { alert } from 'vs/base/browser/ui/aria/aria';
+import { alert, status } from 'vs/base/browser/ui/aria/aria';
 import { mainWindow } from 'vs/base/browser/window';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -23,6 +23,9 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 	protected _configMotionReduced: 'auto' | 'on' | 'off';
 	protected _systemMotionReduced: boolean;
 	protected readonly _onDidChangeReducedMotion = new Emitter<void>();
+
+	private _linkUnderlinesEnabled: boolean;
+	protected readonly _onDidChangeLinkUnderline = new Emitter<void>();
 
 	constructor(
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
@@ -50,7 +53,10 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 		this._systemMotionReduced = reduceMotionMatcher.matches;
 		this._configMotionReduced = this._configurationService.getValue<'auto' | 'on' | 'off'>('workbench.reduceMotion');
 
+		this._linkUnderlinesEnabled = this._configurationService.getValue('accessibility.underlineLinks');
+
 		this.initReducedMotionListeners(reduceMotionMatcher);
+		this.initLinkUnderlineListeners();
 	}
 
 	private initReducedMotionListeners(reduceMotionMatcher: MediaQueryList) {
@@ -70,6 +76,29 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 
 		updateRootClasses();
 		this._register(this.onDidChangeReducedMotion(() => updateRootClasses()));
+	}
+
+	private initLinkUnderlineListeners() {
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('accessibility.underlineLinks')) {
+				const linkUnderlinesEnabled = this._configurationService.getValue<boolean>('accessibility.underlineLinks');
+				this._linkUnderlinesEnabled = linkUnderlinesEnabled;
+				this._onDidChangeLinkUnderline.fire();
+			}
+		}));
+
+		const updateLinkUnderlineClasses = () => {
+			const underlineLinks = this._linkUnderlinesEnabled;
+			this._layoutService.mainContainer.classList.toggle('underline-links', underlineLinks);
+		};
+
+		updateLinkUnderlineClasses();
+
+		this._register(this.onDidChangeLinkUnderlines(() => updateLinkUnderlineClasses()));
+	}
+
+	public onDidChangeLinkUnderlines(listener: () => void) {
+		return this._onDidChangeLinkUnderline.event(listener);
 	}
 
 	get onDidChangeScreenReaderOptimized(): Event<void> {
@@ -109,5 +138,9 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 
 	alert(message: string): void {
 		alert(message);
+	}
+
+	status(message: string): void {
+		status(message);
 	}
 }

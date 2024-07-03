@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { SerializedError, errorHandler, onUnexpectedError } from 'vs/base/common/errors';
 import { isFirefox, isSafari } from 'vs/base/common/platform';
 import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
-import { ExtensionIdentifier, IExtensionDescription, IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
@@ -47,7 +48,7 @@ suite('ExtensionHostMain#ErrorHandler - Wrapping prepareStackTrace can cause slo
 			declare readonly _serviceBrand: undefined;
 			getExtensionPathIndex() {
 				return new class extends ExtensionPaths {
-					override findSubstr(key: URI): Readonly<IRelaxedExtensionDescription> | undefined {
+					override findSubstr(key: URI): IExtensionDescription | undefined {
 						findSubstrCount++;
 						return nullExtensionDescription;
 					}
@@ -68,6 +69,8 @@ suite('ExtensionHostMain#ErrorHandler - Wrapping prepareStackTrace can cause slo
 
 	let existingErrorHandler: (e: any) => void;
 	let findSubstrCount = 0;
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	suiteSetup(async function () {
 		existingErrorHandler = errorHandler.getUnexpectedErrorHandler();
