@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Terminal } from '@xterm/headless';
+import type { Terminal } from '@xterm/xterm';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { PromptInputModel, type IPromptInputModelState } from 'vs/platform/terminal/common/capabilities/commandDetection/promptInputModel';
@@ -58,7 +58,7 @@ suite('PromptInputModel', () => {
 	}
 
 	setup(async () => {
-		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/headless')>('@xterm/headless', 'lib-headless/xterm-headless.js')).Terminal;
+		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 		xterm = store.add(new TerminalCtor({ allowProposedApi: true }));
 		onCommandStart = store.add(new Emitter());
 		onCommandExecuted = store.add(new Emitter());

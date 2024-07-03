@@ -738,8 +738,7 @@
 							"vs/platform/*/~",
 							"tas-client-umd", // node module allowed even in /common/
 							"@microsoft/1ds-core-js", // node module allowed even in /common/
-							"@microsoft/1ds-post-js", // node module allowed even in /common/
-							"@xterm/headless" // node module allowed even in /common/
+							"@microsoft/1ds-post-js" // node module allowed even in /common/
 						]
 					},
 					{
