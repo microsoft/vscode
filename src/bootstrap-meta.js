@@ -13,6 +13,7 @@
 /** @type Partial<IProductConfiguration> & { BUILD_INSERT_PRODUCT_CONFIGURATION?: string } */
 let product = { BUILD_INSERT_PRODUCT_CONFIGURATION: 'BUILD_INSERT_PRODUCT_CONFIGURATION' }; // DO NOT MODIFY, PATCHED DURING BUILD
 if (product['BUILD_INSERT_PRODUCT_CONFIGURATION']) {
+	// @ts-ignore
 	product = require('../product.json'); // Running out of sources
 
 	if (!process.env['VSCODE_DEV']) {
@@ -23,6 +24,7 @@ if (product['BUILD_INSERT_PRODUCT_CONFIGURATION']) {
 /** @type object & { BUILD_INSERT_PACKAGE_CONFIGURATION?: string } */
 let pkg = { BUILD_INSERT_PACKAGE_CONFIGURATION: 'BUILD_INSERT_PACKAGE_CONFIGURATION' }; // DO NOT MODIFY, PATCHED DURING BUILD
 if (pkg['BUILD_INSERT_PACKAGE_CONFIGURATION']) {
+	// @ts-ignore
 	pkg = require('../package.json'); // Running out of sources
 
 	if (!process.env['VSCODE_DEV']) {
