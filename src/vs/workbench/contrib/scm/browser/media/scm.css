@@ -492,22 +492,6 @@
 	margin-top: 1px;
 }
 
-.scm-view .scm-editor-placeholder {
-	position: absolute;
-	pointer-events: none;
-	z-index: 1;
-	padding: 2px 6px;
-	box-sizing: border-box;
-	overflow: hidden;
-	white-space: nowrap;
-	text-overflow: ellipsis;
-	color: var(--vscode-input-placeholderForeground);
-}
-
-.scm-view .scm-editor-placeholder.hidden {
-	display: none;
-}
-
 .scm-view .scm-editor-container .monaco-editor-background,
 .scm-view .scm-editor-container .monaco-editor,
 .scm-view .scm-editor-container .monaco-editor .margin,
@@ -520,6 +504,10 @@
 
 .scm-view .scm-editor-container .mtk1 {
 	color: var(--vscode-input-foreground);
+}
+
+.scm-view .scm-editor-container .placeholder-text.mtk1 {
+	color: var(--vscode-input-placeholderForeground);
 }
 
 /* Repositories */

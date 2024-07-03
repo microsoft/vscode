@@ -161,7 +161,7 @@ export class CodeBlockPart extends Disposable {
 		this.element = $('.interactive-result-code-block');
 
 		this.contextKeyService = this._register(contextKeyService.createScoped(this.element));
-		const scopedInstantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, this.contextKeyService]));
+		const scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, this.contextKeyService])));
 		const editorElement = dom.append(this.element, $('.interactive-result-editor'));
 		this.editor = this.createEditor(scopedInstantiationService, editorElement, {
 			...getSimpleEditorOptions(this.configurationService),
@@ -191,7 +191,7 @@ export class CodeBlockPart extends Disposable {
 
 		const toolbarElement = dom.append(this.element, $('.interactive-result-code-block-toolbar'));
 		const editorScopedService = this.editor.contextKeyService.createScoped(toolbarElement);
-		const editorScopedInstantiationService = scopedInstantiationService.createChild(new ServiceCollection([IContextKeyService, editorScopedService]));
+		const editorScopedInstantiationService = this._register(scopedInstantiationService.createChild(new ServiceCollection([IContextKeyService, editorScopedService])));
 		this.toolbar = this._register(editorScopedInstantiationService.createInstance(MenuWorkbenchToolBar, toolbarElement, menuId, {
 			menuOptions: {
 				shouldForwardArgs: true
@@ -509,7 +509,7 @@ export class CodeCompareBlockPart extends Disposable {
 		this.messageElement.tabIndex = 0;
 
 		this.contextKeyService = this._register(contextKeyService.createScoped(this.element));
-		const scopedInstantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, this.contextKeyService]));
+		const scopedInstantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, this.contextKeyService])));
 		const editorHeader = dom.append(this.element, $('.interactive-result-header.show-file-icons'));
 		const editorElement = dom.append(this.element, $('.interactive-result-editor'));
 		this.diffEditor = this.createDiffEditor(scopedInstantiationService, editorElement, {
@@ -540,7 +540,7 @@ export class CodeCompareBlockPart extends Disposable {
 		this.resourceLabel = this._register(scopedInstantiationService.createInstance(ResourceLabel, editorHeader, { supportIcons: true }));
 
 		const editorScopedService = this.diffEditor.getModifiedEditor().contextKeyService.createScoped(editorHeader);
-		const editorScopedInstantiationService = scopedInstantiationService.createChild(new ServiceCollection([IContextKeyService, editorScopedService]));
+		const editorScopedInstantiationService = this._register(scopedInstantiationService.createChild(new ServiceCollection([IContextKeyService, editorScopedService])));
 		this.toolbar = this._register(editorScopedInstantiationService.createInstance(MenuWorkbenchToolBar, editorHeader, menuId, {
 			menuOptions: {
 				shouldForwardArgs: true

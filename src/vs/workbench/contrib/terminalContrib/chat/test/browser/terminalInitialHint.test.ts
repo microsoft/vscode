@@ -2,8 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-// eslint-disable-next-line local/code-import-patterns, local/code-amd-node-module
-import { Terminal } from '@xterm/xterm';
+
+import type { Terminal } from '@xterm/xterm';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ShellIntegrationAddon } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
 import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
@@ -14,6 +14,7 @@ import { Emitter } from 'vs/base/common/event';
 import { strictEqual } from 'assert';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { ChatAgentLocation, IChatAgent } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { importAMDNodeModule } from 'vs/amdX';
 
 // Test TerminalInitialHintAddon
 
@@ -46,9 +47,10 @@ suite('Terminal Initial Hint Addon', () => {
 		locations: [ChatAgentLocation.fromRaw('editor')],
 		invoke: async () => { return {}; }
 	};
-	setup(() => {
+	setup(async () => {
 		const instantiationService = workbenchInstantiationService({}, store);
-		xterm = store.add(new Terminal());
+		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
+		xterm = store.add(new TerminalCtor());
 		const shellIntegrationAddon = store.add(new ShellIntegrationAddon('', true, undefined, new NullLogService));
 		initialHintAddon = store.add(instantiationService.createInstance(InitialHintAddon, shellIntegrationAddon.capabilities, onDidChangeAgents));
 		store.add(initialHintAddon.onDidRequestCreateHint(() => eventCount++));

@@ -25,7 +25,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { TestExtensionTipsService, TestSharedProcessService } from 'vs/workbench/test/electron-sandbox/workbenchTestServices';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ProgressService } from 'vs/workbench/services/progress/browser/progressService';
@@ -57,6 +57,7 @@ import { FileService } from 'vs/platform/files/common/fileService';
 import { UserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfileService';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { toUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 suite('ExtensionsWorkbenchServiceTest', () => {
 
@@ -111,7 +112,8 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 				return local;
 			},
 			async canInstall() { return true; },
-			getTargetPlatform: async () => getTargetPlatform(platform, arch)
+			getTargetPlatform: async () => getTargetPlatform(platform, arch),
+			async resetPinnedStateForAllUserExtensions(pinned: boolean) { }
 		});
 
 		instantiationService.stub(IExtensionManagementServerService, anExtensionManagementServerService({
@@ -1431,10 +1433,35 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		await testObject.updateAutoUpdateEnablementFor(testObject.local[0], false);
 
-		assert.strictEqual(testObject.local[0].local?.pinned, true);
+		assert.strictEqual(testObject.local[0].local?.pinned, undefined);
 		assert.strictEqual(testObject.local[1].local?.pinned, undefined);
 
-		assert.deepStrictEqual(testObject.getSelectedExtensionsToAutoUpdate(), []);
+		assert.deepStrictEqual(testObject.getEnabledAutoUpdateExtensions(), []);
+		assert.deepStrictEqual(testObject.getDisabledAutoUpdateExtensions(), ['pub.a']);
+	});
+
+	test('Test disable autoupdate for extension when auto update is enabled for enabled extensions', async () => {
+		stubConfiguration('onlyEnabledExtensions');
+
+		const extension1 = aLocalExtension('a');
+		const extension2 = aLocalExtension('b');
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extension1, extension2]);
+		instantiationService.stub(IExtensionManagementService, 'updateMetadata', (local: Mutable<ILocalExtension>, metadata: Partial<Metadata>) => {
+			local.pinned = !!metadata.pinned;
+			return local;
+		});
+		testObject = await aWorkbenchService();
+
+		assert.strictEqual(testObject.local[0].local?.pinned, undefined);
+		assert.strictEqual(testObject.local[1].local?.pinned, undefined);
+
+		await testObject.updateAutoUpdateEnablementFor(testObject.local[0], false);
+
+		assert.strictEqual(testObject.local[0].local?.pinned, undefined);
+		assert.strictEqual(testObject.local[1].local?.pinned, undefined);
+
+		assert.deepStrictEqual(testObject.getEnabledAutoUpdateExtensions(), []);
+		assert.deepStrictEqual(testObject.getDisabledAutoUpdateExtensions(), ['pub.a']);
 	});
 
 	test('Test enable autoupdate for extension when auto update is enabled for all', async () => {
@@ -1453,10 +1480,33 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		await testObject.updateAutoUpdateEnablementFor(testObject.local[0], false);
 		await testObject.updateAutoUpdateEnablementFor(testObject.local[0], true);
 
+		assert.strictEqual(testObject.local[0].local?.pinned, undefined);
+		assert.strictEqual(testObject.local[1].local?.pinned, undefined);
+
+		assert.deepStrictEqual(testObject.getEnabledAutoUpdateExtensions(), []);
+		assert.deepStrictEqual(testObject.getDisabledAutoUpdateExtensions(), []);
+	});
+
+	test('Test enable autoupdate for pinned extension when auto update is enabled', async () => {
+		const extension1 = aLocalExtension('a', undefined, { pinned: true });
+		const extension2 = aLocalExtension('b');
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extension1, extension2]);
+		instantiationService.stub(IExtensionManagementService, 'updateMetadata', (local: Mutable<ILocalExtension>, metadata: Partial<Metadata>) => {
+			local.pinned = !!metadata.pinned;
+			return local;
+		});
+		testObject = await aWorkbenchService();
+
+		assert.strictEqual(testObject.local[0].local?.pinned, true);
+		assert.strictEqual(testObject.local[1].local?.pinned, undefined);
+
+		await testObject.updateAutoUpdateEnablementFor(testObject.local[0], true);
+
 		assert.strictEqual(testObject.local[0].local?.pinned, false);
 		assert.strictEqual(testObject.local[1].local?.pinned, undefined);
 
-		assert.deepStrictEqual(testObject.getSelectedExtensionsToAutoUpdate(), []);
+		assert.deepStrictEqual(testObject.getEnabledAutoUpdateExtensions(), []);
+		assert.deepStrictEqual(testObject.getDisabledAutoUpdateExtensions(), []);
 	});
 
 	test('Test updateAutoUpdateEnablementFor throws error when auto update is disabled', async () => {
@@ -1489,46 +1539,6 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		}
 	});
 
-	test('Test updateAutoUpdateEnablementFor throws error for extension id when auto update mode is onlySelectedExtensions', async () => {
-		stubConfiguration('onlySelectedExtensions');
-
-		const extension1 = aLocalExtension('a');
-		const extension2 = aLocalExtension('b');
-		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extension1, extension2]);
-		testObject = await aWorkbenchService();
-
-		try {
-			await testObject.updateAutoUpdateEnablementFor(testObject.local[0].identifier.id, true);
-			assert.fail('error expected');
-		} catch (error) {
-			// expected
-		}
-	});
-
-	test('Test enable autoupdate for extension when auto update is set to onlySelectedExtensions', async () => {
-		stubConfiguration('onlySelectedExtensions');
-
-		const extension1 = aLocalExtension('a', undefined, { pinned: true });
-		const extension2 = aLocalExtension('b', undefined, { pinned: true });
-		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extension1, extension2]);
-		instantiationService.stub(IExtensionManagementService, 'updateMetadata', (local: Mutable<ILocalExtension>, metadata: Partial<Metadata>) => {
-			local.pinned = !!metadata.pinned;
-			return local;
-		});
-		testObject = await aWorkbenchService();
-
-		assert.strictEqual(testObject.local[0].local?.pinned, true);
-		assert.strictEqual(testObject.local[1].local?.pinned, true);
-
-		await testObject.updateAutoUpdateEnablementFor(testObject.local[0], true);
-
-		assert.strictEqual(testObject.local[0].local?.pinned, false);
-		assert.strictEqual(testObject.local[1].local?.pinned, true);
-
-		assert.deepStrictEqual(testObject.getSelectedExtensionsToAutoUpdate(), ['pub.a']);
-		assert.equal(instantiationService.get(IConfigurationService).getValue(AutoUpdateConfigurationKey), 'onlySelectedExtensions');
-	});
-
 	test('Test enable autoupdate for extension when auto update is disabled', async () => {
 		stubConfiguration(false);
 
@@ -1546,15 +1556,43 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 		await testObject.updateAutoUpdateEnablementFor(testObject.local[0], true);
 
-		assert.strictEqual(testObject.local[0].local?.pinned, false);
+		assert.strictEqual(testObject.local[0].local?.pinned, true);
 		assert.strictEqual(testObject.local[1].local?.pinned, true);
 
-		assert.deepStrictEqual(testObject.getSelectedExtensionsToAutoUpdate(), ['pub.a']);
-		assert.equal(instantiationService.get(IConfigurationService).getValue(AutoUpdateConfigurationKey), 'onlySelectedExtensions');
+		assert.deepStrictEqual(testObject.getEnabledAutoUpdateExtensions(), ['pub.a']);
+		assert.deepStrictEqual(testObject.getDisabledAutoUpdateExtensions(), []);
 	});
 
-	test('Test disable autoupdate for extension when auto update is set to onlySelectedExtensions', async () => {
-		stubConfiguration('onlySelectedExtensions');
+	test('Test reset autoupdate extensions state when auto update is disabled', async () => {
+		instantiationService.stub(IDialogService, {
+			confirm: () => Promise.resolve({ confirmed: true })
+		});
+
+		const extension1 = aLocalExtension('a', undefined, { pinned: true });
+		const extension2 = aLocalExtension('b', undefined, { pinned: true });
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extension1, extension2]);
+		instantiationService.stub(IExtensionManagementService, 'updateMetadata', (local: Mutable<ILocalExtension>, metadata: Partial<Metadata>) => {
+			local.pinned = !!metadata.pinned;
+			return local;
+		});
+		testObject = await aWorkbenchService();
+
+		await testObject.updateAutoUpdateEnablementFor(testObject.local[0], false);
+
+		assert.deepStrictEqual(testObject.getEnabledAutoUpdateExtensions(), []);
+		assert.deepStrictEqual(testObject.getDisabledAutoUpdateExtensions(), ['pub.a']);
+
+		await testObject.updateAutoUpdateValue(false);
+
+		assert.deepStrictEqual(testObject.getEnabledAutoUpdateExtensions(), []);
+		assert.deepStrictEqual(testObject.getDisabledAutoUpdateExtensions(), []);
+	});
+
+	test('Test reset autoupdate extensions state when auto update is enabled', async () => {
+		stubConfiguration(false);
+		instantiationService.stub(IDialogService, {
+			confirm: () => Promise.resolve({ confirmed: true })
+		});
 
 		const extension1 = aLocalExtension('a', undefined, { pinned: true });
 		const extension2 = aLocalExtension('b', undefined, { pinned: true });
@@ -1566,100 +1604,14 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		testObject = await aWorkbenchService();
 
 		await testObject.updateAutoUpdateEnablementFor(testObject.local[0], true);
-		await testObject.updateAutoUpdateEnablementFor(testObject.local[0], false);
 
-		assert.strictEqual(testObject.local[0].local?.pinned, true);
-		assert.strictEqual(testObject.local[1].local?.pinned, true);
-		assert.deepStrictEqual(testObject.getSelectedExtensionsToAutoUpdate(), []);
-		assert.equal(instantiationService.get(IConfigurationService).getValue(AutoUpdateConfigurationKey), false);
-	});
+		assert.deepStrictEqual(testObject.getEnabledAutoUpdateExtensions(), ['pub.a']);
+		assert.deepStrictEqual(testObject.getDisabledAutoUpdateExtensions(), []);
 
-	test('Test enable auto update for publisher when auto update mode is onlySelectedExtensions', async () => {
-		stubConfiguration('onlySelectedExtensions');
+		await testObject.updateAutoUpdateValue(true);
 
-		const extension1 = aLocalExtension('a', undefined, { pinned: true });
-		const extension2 = aLocalExtension('b', undefined, { pinned: true });
-		const extension3 = aLocalExtension('a', { publisher: 'pub2' }, { pinned: true });
-		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extension1, extension2, extension3]);
-		instantiationService.stub(IExtensionManagementService, 'updateMetadata', (local: ILocalExtension, metadata: Partial<Metadata>) => {
-			local.pinned = !!metadata.pinned;
-			return local;
-		});
-		testObject = await aWorkbenchService();
-
-		await testObject.updateAutoUpdateEnablementFor(testObject.local[0].publisher, true);
-
-		assert.strictEqual(testObject.local[0].local?.pinned, false);
-		assert.strictEqual(testObject.local[1].local?.pinned, false);
-		assert.strictEqual(testObject.local[2].local?.pinned, true);
-		assert.deepStrictEqual(testObject.getSelectedExtensionsToAutoUpdate(), ['pub']);
-	});
-
-	test('Test disable auto update for publisher when auto update mode is onlySelectedExtensions', async () => {
-		stubConfiguration('onlySelectedExtensions');
-
-		const extension1 = aLocalExtension('a', undefined, { pinned: true });
-		const extension2 = aLocalExtension('b', undefined, { pinned: true });
-		const extension3 = aLocalExtension('a', { publisher: 'pub2' }, { pinned: true });
-		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extension1, extension2, extension3]);
-		instantiationService.stub(IExtensionManagementService, 'updateMetadata', (local: ILocalExtension, metadata: Partial<Metadata>) => {
-			local.pinned = !!metadata.pinned;
-			return local;
-		});
-		testObject = await aWorkbenchService();
-
-		await testObject.updateAutoUpdateEnablementFor(testObject.local[0].publisher, true);
-		await testObject.updateAutoUpdateEnablementFor(testObject.local[0].publisher, false);
-
-		assert.strictEqual(testObject.local[0].local?.pinned, true);
-		assert.strictEqual(testObject.local[1].local?.pinned, true);
-		assert.strictEqual(testObject.local[2].local?.pinned, true);
-		assert.deepStrictEqual(testObject.getSelectedExtensionsToAutoUpdate(), []);
-	});
-
-	test('Test disable auto update for an extension when auto update for publisher is enabled and update mode is onlySelectedExtensions', async () => {
-		stubConfiguration('onlySelectedExtensions');
-
-		const extension1 = aLocalExtension('a', undefined, { pinned: true });
-		const extension2 = aLocalExtension('b', undefined, { pinned: true });
-		const extension3 = aLocalExtension('a', { publisher: 'pub2' }, { pinned: true });
-		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extension1, extension2, extension3]);
-		instantiationService.stub(IExtensionManagementService, 'updateMetadata', (local: ILocalExtension, metadata: Partial<Metadata>) => {
-			local.pinned = !!metadata.pinned;
-			return local;
-		});
-		testObject = await aWorkbenchService();
-
-		await testObject.updateAutoUpdateEnablementFor(testObject.local[0].publisher, true);
-		await testObject.updateAutoUpdateEnablementFor(testObject.local[0], false);
-
-		assert.strictEqual(testObject.local[0].local?.pinned, true);
-		assert.strictEqual(testObject.local[1].local?.pinned, false);
-		assert.strictEqual(testObject.local[2].local?.pinned, true);
-		assert.deepStrictEqual(testObject.getSelectedExtensionsToAutoUpdate(), ['pub', '-pub.a']);
-	});
-
-	test('Test enable auto update for an extension when auto updates is enabled for publisher and disabled for extension and update mode is onlySelectedExtensions', async () => {
-		stubConfiguration('onlySelectedExtensions');
-
-		const extension1 = aLocalExtension('a', undefined, { pinned: true });
-		const extension2 = aLocalExtension('b', undefined, { pinned: true });
-		const extension3 = aLocalExtension('a', { publisher: 'pub2' }, { pinned: true });
-		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extension1, extension2, extension3]);
-		instantiationService.stub(IExtensionManagementService, 'updateMetadata', (local: ILocalExtension, metadata: Partial<Metadata>) => {
-			local.pinned = !!metadata.pinned;
-			return local;
-		});
-		testObject = await aWorkbenchService();
-
-		await testObject.updateAutoUpdateEnablementFor(testObject.local[0].publisher, true);
-		await testObject.updateAutoUpdateEnablementFor(testObject.local[0], false);
-		await testObject.updateAutoUpdateEnablementFor(testObject.local[0], true);
-
-		assert.strictEqual(testObject.local[0].local?.pinned, false);
-		assert.strictEqual(testObject.local[1].local?.pinned, false);
-		assert.strictEqual(testObject.local[2].local?.pinned, true);
-		assert.deepStrictEqual(testObject.getSelectedExtensionsToAutoUpdate(), ['pub']);
+		assert.deepStrictEqual(testObject.getEnabledAutoUpdateExtensions(), []);
+		assert.deepStrictEqual(testObject.getDisabledAutoUpdateExtensions(), []);
 	});
 
 	async function aWorkbenchService(): Promise<ExtensionsWorkbenchService> {
@@ -1673,13 +1625,22 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			[AutoUpdateConfigurationKey]: autoUpdateValue ?? true,
 			[AutoCheckUpdatesConfigurationKey]: autoCheckUpdatesValue ?? true
 		};
+		const emitter = disposableStore.add(new Emitter<IConfigurationChangeEvent>());
 		instantiationService.stub(IConfigurationService, {
-			onDidChangeConfiguration: () => { return undefined!; },
+			onDidChangeConfiguration: emitter.event,
 			getValue: (key?: any) => {
 				return key ? values[key] : undefined;
 			},
 			updateValue: async (key: string, value: any) => {
 				values[key] = value;
+				emitter.fire({
+					affectedKeys: new Set([key]),
+					source: ConfigurationTarget.USER,
+					change: { keys: [], overrides: [] },
+					affectsConfiguration(configuration, overrides) {
+						return true;
+					},
+				});
 			}
 		});
 	}
@@ -1752,6 +1713,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			},
 			getTargetPlatform: async () => getTargetPlatform(platform, arch),
 			async getExtensionsControlManifest() { return <IExtensionsControlManifest>{ malicious: [], deprecated: {}, search: [] }; },
+			async resetPinnedStateForAllUserExtensions(pinned: boolean) { }
 		};
 	}
 });

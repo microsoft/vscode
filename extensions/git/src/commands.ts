@@ -2104,7 +2104,7 @@ export class CommandCenter {
 			}
 
 			// no changes, and the user has not configured to commit all in this case
-			if (!noUnstagedChanges && noStagedChanges && !enableSmartCommit && !opts.all) {
+			if (!noUnstagedChanges && noStagedChanges && !enableSmartCommit && !opts.all && !opts.amend) {
 				const suggestSmartCommit = config.get<boolean>('suggestSmartCommit') === true;
 
 				if (!suggestSmartCommit) {
@@ -2128,10 +2128,9 @@ export class CommandCenter {
 				}
 			}
 
-			if (opts.all === undefined) {
+			// smart commit
+			if (enableSmartCommit && !opts.all) {
 				opts = { ...opts, all: noStagedChanges };
-			} else if (!opts.all && noStagedChanges) {
-				opts = { ...opts, all: true };
 			}
 		}
 
@@ -2517,9 +2516,26 @@ export class CommandCenter {
 			: l10n.t('Select a branch or tag to checkout');
 
 		quickPick.show();
-
 		picks.push(... await createCheckoutItems(repository, opts?.detached));
-		quickPick.items = [...commands, ...picks];
+
+		const setQuickPickItems = () => {
+			switch (true) {
+				case quickPick.value === '':
+					quickPick.items = [...commands, ...picks];
+					break;
+				case commands.length === 0:
+					quickPick.items = picks;
+					break;
+				case picks.length === 0:
+					quickPick.items = commands;
+					break;
+				default:
+					quickPick.items = [...picks, { label: '', kind: QuickPickItemKind.Separator }, ...commands];
+					break;
+			}
+		};
+
+		setQuickPickItems();
 		quickPick.busy = false;
 
 		const choice = await new Promise<QuickPickItem | undefined>(c => {
@@ -2534,22 +2550,7 @@ export class CommandCenter {
 
 				c(undefined);
 			})));
-			disposables.push(quickPick.onDidChangeValue(value => {
-				switch (true) {
-					case value === '':
-						quickPick.items = [...commands, ...picks];
-						break;
-					case commands.length === 0:
-						quickPick.items = picks;
-						break;
-					case picks.length === 0:
-						quickPick.items = commands;
-						break;
-					default:
-						quickPick.items = [...picks, { label: '', kind: QuickPickItemKind.Separator }, ...commands];
-						break;
-				}
-			}));
+			disposables.push(quickPick.onDidChangeValue(() => setQuickPickItems()));
 		});
 
 		dispose(disposables);

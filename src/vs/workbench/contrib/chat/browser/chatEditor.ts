@@ -58,7 +58,7 @@ export class ChatEditor extends EditorPane {
 
 	protected override createEditor(parent: HTMLElement): void {
 		this._scopedContextKeyService = this._register(this.contextKeyService.createScoped(parent));
-		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService]));
+		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
 
 		this.widget = this._register(
 			scopedInstantiationService.createInstance(

@@ -60,7 +60,6 @@ import { ExtensionEnablementWorkspaceTrustTransitionParticipant } from 'vs/workb
 import { clearSearchResultsIcon, configureRecommendedIcon, extensionsViewIcon, filterIcon, installWorkspaceRecommendedIcon, refreshIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { EXTENSION_CATEGORIES } from 'vs/platform/extensions/common/extensions';
 import { Disposable, DisposableStore, IDisposable, isDisposable } from 'vs/base/common/lifecycle';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Query } from 'vs/workbench/contrib/extensions/common/extensionQuery';
@@ -79,6 +78,7 @@ import { CONTEXT_KEYBINDINGS_EDITOR } from 'vs/workbench/contrib/preferences/com
 import { DeprecatedExtensionsChecker } from 'vs/workbench/contrib/extensions/browser/deprecatedExtensionsChecker';
 import { ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { IConfigurationMigrationRegistry, Extensions as ConfigurationMigrationExtensions } from 'vs/workbench/common/configuration';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService, InstantiationType.Eager /* Auto updates extensions */);
@@ -126,17 +126,15 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 		...extensionsConfigurationNodeBase,
 		properties: {
 			'extensions.autoUpdate': {
-				enum: [true, 'onlyEnabledExtensions', 'onlySelectedExtensions', false,],
+				enum: [true, 'onlyEnabledExtensions', false,],
 				enumItemLabels: [
 					localize('all', "All Extensions"),
 					localize('enabled', "Only Enabled Extensions"),
-					localize('selected', "Only Selected Extensions"),
 					localize('none', "None"),
 				],
 				enumDescriptions: [
-					localize('extensions.autoUpdate.true', 'Download and install updates automatically for all extensions except for those updates are ignored.'),
-					localize('extensions.autoUpdate.enabled', 'Download and install updates automatically only for enabled extensions except for those updates are ignored. Disabled extensions are not updated automatically.'),
-					localize('extensions.autoUpdate.selected', 'Download and install updates automatically only for selected extensions.'),
+					localize('extensions.autoUpdate.true', 'Download and install updates automatically for all extensions.'),
+					localize('extensions.autoUpdate.enabled', 'Download and install updates automatically only for enabled extensions.'),
 					localize('extensions.autoUpdate.false', 'Extensions are not automatically updated.'),
 				],
 				description: localize('extensions.autoUpdate', "Controls the automatic update behavior of extensions. The updates are fetched from a Microsoft online service."),
@@ -633,57 +631,38 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			}
 		});
 
-		const autoUpdateExtensionsSubMenu = new MenuId('autoUpdateExtensionsSubMenu');
-		MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, {
-			submenu: autoUpdateExtensionsSubMenu,
-			title: localize('configure auto updating extensions', "Auto Update Extensions"),
-			when: ContextKeyExpr.and(ContextKeyExpr.equals('viewContainer', VIEWLET_ID), CONTEXT_HAS_GALLERY),
-			group: '1_updates',
-			order: 5,
+		const enableAutoUpdateWhenCondition = ContextKeyExpr.equals(`config.${AutoUpdateConfigurationKey}`, false);
+		this.registerExtensionAction({
+			id: 'workbench.extensions.action.enableAutoUpdate',
+			title: localize2('enableAutoUpdate', 'Enable Auto Update for All Extensions'),
+			category: ExtensionsLocalizedLabel,
+			precondition: enableAutoUpdateWhenCondition,
+			menu: [{
+				id: MenuId.ViewContainerTitle,
+				order: 5,
+				group: '1_updates',
+				when: enableAutoUpdateWhenCondition
+			}, {
+				id: MenuId.CommandPalette,
+			}],
+			run: (accessor: ServicesAccessor) => accessor.get(IExtensionsWorkbenchService).updateAutoUpdateValue(true)
 		});
 
+		const disableAutoUpdateWhenCondition = ContextKeyExpr.notEquals(`config.${AutoUpdateConfigurationKey}`, false);
 		this.registerExtensionAction({
-			id: 'configureExtensionsAutoUpdate.all',
-			title: localize('configureExtensionsAutoUpdate.all', "All Extensions"),
-			toggled: ContextKeyExpr.and(ContextKeyExpr.has(`config.${AutoUpdateConfigurationKey}`), ContextKeyExpr.notEquals(`config.${AutoUpdateConfigurationKey}`, 'onlyEnabledExtensions'), ContextKeyExpr.notEquals(`config.${AutoUpdateConfigurationKey}`, 'onlySelectedExtensions')),
+			id: 'workbench.extensions.action.disableAutoUpdate',
+			title: localize2('disableAutoUpdate', 'Disable Auto Update for All Extensions'),
+			precondition: disableAutoUpdateWhenCondition,
+			category: ExtensionsLocalizedLabel,
 			menu: [{
-				id: autoUpdateExtensionsSubMenu,
-				order: 1,
+				id: MenuId.ViewContainerTitle,
+				order: 5,
+				group: '1_updates',
+				when: disableAutoUpdateWhenCondition
+			}, {
+				id: MenuId.CommandPalette,
 			}],
-			run: (accessor: ServicesAccessor) => accessor.get(IConfigurationService).updateValue(AutoUpdateConfigurationKey, true)
-		});
-
-		this.registerExtensionAction({
-			id: 'configureExtensionsAutoUpdate.enabled',
-			title: localize('configureExtensionsAutoUpdate.enabled', "Enabled Extensions"),
-			toggled: ContextKeyExpr.equals(`config.${AutoUpdateConfigurationKey}`, 'onlyEnabledExtensions'),
-			menu: [{
-				id: autoUpdateExtensionsSubMenu,
-				order: 2,
-			}],
-			run: (accessor: ServicesAccessor) => accessor.get(IConfigurationService).updateValue(AutoUpdateConfigurationKey, 'onlyEnabledExtensions')
-		});
-
-		this.registerExtensionAction({
-			id: 'configureExtensionsAutoUpdate.selected',
-			title: localize('configureExtensionsAutoUpdate.selected', "Selected Extensions"),
-			toggled: ContextKeyExpr.equals(`config.${AutoUpdateConfigurationKey}`, 'onlySelectedExtensions'),
-			menu: [{
-				id: autoUpdateExtensionsSubMenu,
-				order: 2,
-			}],
-			run: (accessor: ServicesAccessor) => accessor.get(IConfigurationService).updateValue(AutoUpdateConfigurationKey, 'onlySelectedExtensions')
-		});
-
-		this.registerExtensionAction({
-			id: 'configureExtensionsAutoUpdate.none',
-			title: localize('configureExtensionsAutoUpdate.none', "None"),
-			toggled: ContextKeyExpr.equals(`config.${AutoUpdateConfigurationKey}`, false),
-			menu: [{
-				id: autoUpdateExtensionsSubMenu,
-				order: 3,
-			}],
-			run: (accessor: ServicesAccessor) => accessor.get(IConfigurationService).updateValue(AutoUpdateConfigurationKey, false)
+			run: (accessor: ServicesAccessor) => accessor.get(IExtensionsWorkbenchService).updateAutoUpdateValue(false)
 		});
 
 		this.registerExtensionAction({
@@ -720,24 +699,6 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 					}
 				});
 			}
-		});
-
-		this.registerExtensionAction({
-			id: 'workbench.extensions.action.disableAutoUpdate',
-			title: localize2('disableAutoUpdate', 'Disable Auto Update for All Extensions'),
-			category: ExtensionsLocalizedLabel,
-			f1: true,
-			precondition: CONTEXT_HAS_GALLERY,
-			run: (accessor: ServicesAccessor) => accessor.get(IConfigurationService).updateValue(AutoUpdateConfigurationKey, false)
-		});
-
-		this.registerExtensionAction({
-			id: 'workbench.extensions.action.enableAutoUpdate',
-			title: localize2('enableAutoUpdate', 'Enable Auto Update for All Extensions'),
-			category: ExtensionsLocalizedLabel,
-			f1: true,
-			precondition: CONTEXT_HAS_GALLERY,
-			run: (accessor: ServicesAccessor) => accessor.get(IConfigurationService).updateValue(AutoUpdateConfigurationKey, true)
 		});
 
 		this.registerExtensionAction({
@@ -1384,18 +1345,23 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			id: ToggleAutoUpdateForExtensionAction.ID,
 			title: ToggleAutoUpdateForExtensionAction.LABEL,
 			category: ExtensionsLocalizedLabel,
+			precondition: ContextKeyExpr.and(ContextKeyExpr.or(ContextKeyExpr.notEquals(`config.${AutoUpdateConfigurationKey}`, 'onlyEnabledExtensions'), ContextKeyExpr.equals('isExtensionEnabled', true)), ContextKeyExpr.not('extensionDisallowInstall')),
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: UPDATE_ACTIONS_GROUP,
 				order: 1,
-				when: ContextKeyExpr.and(ContextKeyExpr.not('inExtensionEditor'), ContextKeyExpr.equals('extensionStatus', 'installed'), ContextKeyExpr.not('isBuiltinExtension'), ContextKeyExpr.or(ContextKeyExpr.equals(`config.${AutoUpdateConfigurationKey}`, 'onlySelectedExtensions'), ContextKeyExpr.equals(`config.${AutoUpdateConfigurationKey}`, false)),)
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.not('inExtensionEditor'),
+					ContextKeyExpr.equals('extensionStatus', 'installed'),
+					ContextKeyExpr.not('isBuiltinExtension'),
+				)
 			},
 			run: async (accessor: ServicesAccessor, id: string) => {
 				const instantiationService = accessor.get(IInstantiationService);
 				const extensionWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 				const extension = extensionWorkbenchService.local.find(e => areSameExtensions(e.identifier, { id }));
 				if (extension) {
-					const action = instantiationService.createInstance(ToggleAutoUpdateForExtensionAction, false, []);
+					const action = instantiationService.createInstance(ToggleAutoUpdateForExtensionAction);
 					action.extension = extension;
 					return action.run();
 				}
@@ -1406,11 +1372,12 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			id: ToggleAutoUpdatesForPublisherAction.ID,
 			title: { value: ToggleAutoUpdatesForPublisherAction.LABEL, original: 'Auto Update (Publisher)' },
 			category: ExtensionsLocalizedLabel,
+			precondition: ContextKeyExpr.equals(`config.${AutoUpdateConfigurationKey}`, false),
 			menu: {
 				id: MenuId.ExtensionContext,
 				group: UPDATE_ACTIONS_GROUP,
 				order: 2,
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'installed'), ContextKeyExpr.not('isBuiltinExtension'), ContextKeyExpr.or(ContextKeyExpr.equals(`config.${AutoUpdateConfigurationKey}`, 'onlySelectedExtensions'), ContextKeyExpr.equals(`config.${AutoUpdateConfigurationKey}`, false)),)
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('extensionStatus', 'installed'), ContextKeyExpr.not('isBuiltinExtension'))
 			},
 			run: async (accessor: ServicesAccessor, id: string) => {
 				const instantiationService = accessor.get(IInstantiationService);
@@ -1842,3 +1809,14 @@ if (isWeb) {
 
 // Running Extensions
 registerAction2(ShowRuntimeExtensionsAction);
+
+Registry.as<IConfigurationMigrationRegistry>(ConfigurationMigrationExtensions.ConfigurationMigration)
+	.registerConfigurationMigrations([{
+		key: AutoUpdateConfigurationKey,
+		migrateFn: (value, accessor) => {
+			if (value === 'onlySelectedExtensions') {
+				return { value: false };
+			}
+			return [];
+		}
+	}]);
