@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-EnfegwWkkVl5XI5EPvw9QR4tqOkoO1Uaj+Ot/RVrckU=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-DXeP32g8BdMsVuVabYTmznoTH59F7M7UtV0vXemEFqc=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 
 	<!-- Disable pinch zooming -->
@@ -808,9 +808,14 @@
 				return;
 			}
 
-			hostMessaging.postMessage('drag', {
-				shiftKey: e.shiftKey
-			});
+
+			// Only handle drags from outside editor for now
+			if (e.dataTransfer.items.length && Array.prototype.every.call(e.dataTransfer.items, item => item.kind === 'file')) {
+				hostMessaging.postMessage('drag', {
+					shiftKey: e.shiftKey
+				});
+			}
+
 		}
 
 		function handleInnerDropEvent(/**@type {DragEvent} */e) {
