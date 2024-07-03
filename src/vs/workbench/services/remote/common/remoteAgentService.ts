@@ -37,6 +37,11 @@ export interface IRemoteAgentService {
 	 */
 	getRoundTripTime(): Promise<number | undefined>;
 
+	/**
+	 * Gracefully ends the current connection, if any.
+	 */
+	endConnection(): Promise<void>;
+
 	getDiagnosticInfo(options: IDiagnosticInfoOptions): Promise<IDiagnosticInfo | undefined>;
 	updateTelemetryLevel(telemetryLevel: TelemetryLevel): Promise<void>;
 	logTelemetry(eventName: string, data?: ITelemetryData): Promise<void>;
@@ -54,6 +59,7 @@ export interface IRemoteAgentConnection {
 	readonly onReconnecting: Event<void>;
 	readonly onDidStateChange: Event<PersistentConnectionEvent>;
 
+	end(): Promise<void>;
 	dispose(): void;
 	getChannel<T extends IChannel>(channelName: string): T;
 	withChannel<T extends IChannel, R>(channelName: string, callback: (channel: T) => Promise<R>): Promise<R>;

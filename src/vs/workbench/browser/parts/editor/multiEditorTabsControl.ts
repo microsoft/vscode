@@ -684,7 +684,20 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		this.layout(this.dimensions, { forceRevealActiveTab: true });
 	}
 
+	private previousSelectedCount = 0;
 	updateEditorSelections(): void {
+		// We only need to redraw from here when a selection got removed
+		// otherwise it will be handled by the open editor change event.
+		// Checking count is currently enough but might require checking
+		// each editor in the future if selection is changed programatically.
+		const newSelectedCount = this.tabsModel.selectedEditors.length;
+		const previousSelectedCount = this.previousSelectedCount;
+		this.previousSelectedCount = newSelectedCount;
+
+		if (newSelectedCount >= previousSelectedCount) {
+			return;
+		}
+
 		this.forEachTab((editor, tabIndex, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => {
 			this.redrawTabSelectedActiveAndDirty(this.groupsView.activeGroup === this.groupView, editor, tabContainer, tabActionBar);
 		});
@@ -1093,7 +1106,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				}
 
 				// Apply some datatransfer types to allow for dragging the element outside of the application
-				this.doFillResourceDataTransfers([editor], e, isNewWindowOperation);
+				this.doFillResourceDataTransfers(selectedEditors, e, isNewWindowOperation);
 
 				scheduleAtNextAnimationFrame(getWindow(this.parent), () => this.updateDropFeedback(tab, false, e, tabIndex));
 			},
