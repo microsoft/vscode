@@ -124,11 +124,15 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 		const markerElement = dom.append(hoverElement, $('div.marker.hover-contents'));
 		const { source, message, code, relatedInformation, } = markerHover.marker;
 
+		console.log({ marker: markerHover.marker });
 		this._editor.applyFontInfo(markerElement);
 		const messageElement = dom.append(markerElement, $('span'));
 		messageElement.style.whiteSpace = 'pre-wrap';
 		if (isMarkdownString(message)) {
-			disposables.add(renderMarkdownInContainer(this._editor, markerHover, this._languageService, this._openerService, context.onContentsChanged));
+			const renderedMarkdownPart = renderMarkdownInContainer(this._editor, markerHover, this._languageService, this._openerService, context.onContentsChanged);
+			disposables.add(renderedMarkdownPart);
+			const renderedMarkdownElement = renderedMarkdownPart.hoverElement;
+			messageElement.append(renderedMarkdownElement);
 		} else {
 			messageElement.innerText = message;
 		}
