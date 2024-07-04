@@ -407,6 +407,10 @@ class MenuImpl implements IMenu {
 		this.onDidChange = this._onDidChange.event;
 	}
 
+	contexts(): ReadonlySet<string> {
+		return new Set([...this._menuInfo.structureContextKeys, ...this._menuInfo.preconditionContextKeys, ...this._menuInfo.toggledContextKeys]);
+	}
+
 	getActions(options?: IMenuActionOptions | undefined): [string, (MenuItemAction | SubmenuItemAction)[]][] {
 		return this._menuInfo.createActionGroups(options);
 	}

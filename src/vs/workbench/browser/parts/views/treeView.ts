@@ -36,7 +36,7 @@ import { createActionViewItem, createAndFillInContextMenuActions } from 'vs/plat
 import { Action2, IMenuService, MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr, ContextKeyExpression, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, ContextKeyExpression, IContextKey, IContextKeyChangeEvent, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { FileKind } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -717,6 +717,9 @@ abstract class AbstractTreeView extends Disposable implements ITreeView {
 			dnd: this.treeViewDnd,
 			overrideStyles: getLocationBasedViewColors(this.viewLocation).listOverrideStyles
 		}) as WorkbenchAsyncDataTree<ITreeItem, ITreeItem, FuzzyScore>);
+
+		this.treeDisposables.add(renderer.onDidChangeMenuContext(e => e.forEach(e => this.tree?.rerender(e))));
+
 		this.treeDisposables.add(this.tree);
 		treeMenus.setContextKeyService(this.tree.contextKeyService);
 		aligner.tree = this.tree;
@@ -1164,6 +1167,7 @@ interface ITreeExplorerTemplateData {
 	readonly checkboxContainer: HTMLElement;
 	checkbox?: TreeItemCheckbox;
 	readonly actionBar: ActionBar;
+	actionContexts?: ReadonlySet<string>;
 }
 
 class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyScore, ITreeExplorerTemplateData> {
@@ -1172,6 +1176,9 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 
 	private readonly _onDidChangeCheckboxState: Emitter<readonly ITreeItem[]> = this._register(new Emitter<readonly ITreeItem[]>());
 	readonly onDidChangeCheckboxState: Event<readonly ITreeItem[]> = this._onDidChangeCheckboxState.event;
+
+	private _onDidChangeMenuContext: Emitter<readonly ITreeItem[]> = this._register(new Emitter<readonly ITreeItem[]>());
+	readonly onDidChangeMenuContext: Event<readonly ITreeItem[]> = this._onDidChangeMenuContext.event;
 
 	private _actionRunner: MultipleSelectionActionRunner | undefined;
 	private _hoverDelegate: IHoverDelegate;
@@ -1200,6 +1207,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		this._register(checkboxStateHandler.onDidChangeCheckboxState(items => {
 			this.updateCheckboxes(items);
 		}));
+		this._register(this.contextKeyService.onDidChangeContext(e => this.onDidChangeContext(e)));
 	}
 
 	get templateId(): string {
@@ -1339,8 +1347,9 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 
 		templateData.actionBar.context = { $treeViewId: this.treeViewId, $treeItemHandle: node.handle } satisfies TreeViewItemHandleArg;
 
-		const menuActions = this.menus.getResourceActions([node], templateData.elementDisposable);
+		const menuActions = this.menus.getResourceActions([node]);
 		templateData.actionBar.push(menuActions.actions, { icon: true, label: false });
+		templateData.actionContexts = menuActions.contexts;
 
 		if (this._actionRunner) {
 			templateData.actionBar.actionRunner = this._actionRunner;
@@ -1426,6 +1435,20 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			}
 		}
 		return node.collapsibleState === TreeItemCollapsibleState.Collapsed || node.collapsibleState === TreeItemCollapsibleState.Expanded ? FileKind.FOLDER : FileKind.FILE;
+	}
+
+	private onDidChangeContext(e: IContextKeyChangeEvent) {
+		const items: ITreeItem[] = [];
+		for (const [_, elements] of this._renderedElements) {
+			for (const element of elements) {
+				if (element.rendered.actionContexts && e.affectsSome(element.rendered.actionContexts)) {
+					items.push(element.original.element);
+				}
+			}
+		}
+		if (items.length) {
+			this._onDidChangeMenuContext.fire(items);
+		}
 	}
 
 	private updateCheckboxes(items: ITreeItem[]) {
@@ -1606,11 +1629,17 @@ class TreeMenus implements IDisposable {
 		@IMenuService private readonly menuService: IMenuService
 	) { }
 
-	getResourceActions(elements: ITreeItem[], disposableStore: DisposableStore): { actions: IAction[] } {
-		const actions = this.getActions(MenuId.ViewItemContext, elements, disposableStore);
-		return { actions: actions.primary };
+	/**
+	 * Gets only the actions that apply to all of the given elements.
+	 */
+	getResourceActions(elements: ITreeItem[]): { actions: IAction[]; contexts: ReadonlySet<string> } {
+		const actions = this.getActions(MenuId.ViewItemContext, elements);
+		return { actions: actions.primary, contexts: actions.contexts };
 	}
 
+	/**
+	 * Gets only the actions that apply to all of the given elements.
+	 */
 	getResourceContextActions(elements: ITreeItem[]): IAction[] {
 		return this.getActions(MenuId.ViewItemContext, elements).secondary;
 	}
@@ -1659,13 +1688,14 @@ class TreeMenus implements IDisposable {
 		return groups;
 	}
 
-	private getActions(menuId: MenuId, elements: ITreeItem[], listen?: DisposableStore): { primary: IAction[]; secondary: IAction[] } {
+	private getActions(menuId: MenuId, elements: ITreeItem[]): { primary: IAction[]; secondary: IAction[]; contexts: ReadonlySet<string> } {
 		if (!this.contextKeyService) {
-			return { primary: [], secondary: [] };
+			return { primary: [], secondary: [], contexts: new Set() };
 		}
 
 		let primaryGroups: Map<string, IAction>[] = [];
 		let secondaryGroups: Map<string, IAction>[] = [];
+		const contexts = new Set<string>();
 		for (let i = 0; i < elements.length; i++) {
 			const element = elements[i];
 			const contextKeyService = this.contextKeyService.createOverlay([
@@ -1685,15 +1715,11 @@ class TreeMenus implements IDisposable {
 				this.filterNonUniversalActions(primaryGroups, result.primary);
 				this.filterNonUniversalActions(secondaryGroups, result.secondary);
 			}
-			if (listen && elements.length === 1) {
-				listen.add(menu.onDidChange(() => this._onDidChange.fire(element)));
-				listen.add(menu);
-			} else {
-				menu.dispose();
-			}
+			menu.contexts().forEach(context => contexts.add(context));
+			menu.dispose();
 		}
 
-		return { primary: this.buildMenu(primaryGroups), secondary: this.buildMenu(secondaryGroups) };
+		return { primary: this.buildMenu(primaryGroups), secondary: this.buildMenu(secondaryGroups), contexts };
 	}
 
 	dispose() {

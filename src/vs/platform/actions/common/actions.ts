@@ -272,6 +272,7 @@ export interface IMenuChangeEvent {
 export interface IMenu extends IDisposable {
 	readonly onDidChange: Event<IMenuChangeEvent>;
 	getActions(options?: IMenuActionOptions): [string, Array<MenuItemAction | SubmenuItemAction>][];
+	contexts(): ReadonlySet<string>;
 }
 
 export const IMenuService = createDecorator<IMenuService>('menuService');

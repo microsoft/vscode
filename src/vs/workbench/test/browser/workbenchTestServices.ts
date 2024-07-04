@@ -550,6 +550,7 @@ export class TestMenuService implements IMenuService {
 
 	createMenu(_id: MenuId, _scopedKeybindingService: IContextKeyService): IMenu {
 		return {
+			contexts: () => new Set(),
 			onDidChange: Event.None,
 			dispose: () => undefined,
 			getActions: () => []
