@@ -658,6 +658,8 @@ class QuickPickSeparatorElementRenderer extends BaseQuickInputListRenderer<Quick
 
 export class QuickInputTree extends Disposable {
 
+	//#region QuickInputTree Events
+
 	private readonly _onKeyDown = new Emitter<StandardKeyboardEvent>();
 	/**
 	 * Event that is fired when the tree receives a keydown.
@@ -690,6 +692,8 @@ export class QuickInputTree extends Disposable {
 
 	private readonly _elementChecked = new Emitter<{ element: IQuickPickElement; checked: boolean }>();
 	private readonly _elementCheckedEventBufferer = new EventBufferer();
+
+	//#endregion
 
 	private _hasCheckboxes = false;
 
@@ -745,7 +749,8 @@ export class QuickInputTree extends Disposable {
 	get onDidChangeFocus() {
 		return Event.map(
 			this._tree.onDidChangeFocus,
-			e => e.elements.filter((e): e is QuickPickItemElement => e instanceof QuickPickItemElement).map(e => e.item)
+			e => e.elements.filter((e): e is QuickPickItemElement => e instanceof QuickPickItemElement).map(e => e.item),
+			this._store
 		);
 	}
 
@@ -756,8 +761,17 @@ export class QuickInputTree extends Disposable {
 			e => ({
 				items: e.elements.filter((e): e is QuickPickItemElement => e instanceof QuickPickItemElement).map(e => e.item),
 				event: e.browserEvent
-			})
+			}),
+			this._store
 		);
+	}
+
+	get displayed() {
+		return this._container.style.display !== 'none';
+	}
+
+	set displayed(value: boolean) {
+		this._container.style.display = value ? '' : 'none';
 	}
 
 	get scrollTop() {
@@ -887,14 +901,14 @@ export class QuickInputTree extends Disposable {
 			const visibleCount = this._itemElements.filter(e => !e.hidden).length;
 			this._visibleCountObservable.set(visibleCount, undefined);
 			if (this._hasCheckboxes) {
-				this._fireCheckedEvents();
+				this._updateCheckedObservables();
 			}
 		}));
 	}
 
 	private _registerOnElementChecked() {
 		// Only fire the last event when buffered
-		this._register(this._elementCheckedEventBufferer.wrapEvent(this._elementChecked.event, (_, e) => e)(_ => this._fireCheckedEvents()));
+		this._register(this._elementCheckedEventBufferer.wrapEvent(this._elementChecked.event, (_, e) => e)(_ => this._updateCheckedObservables()));
 	}
 
 	private _registerOnContextMenu() {
@@ -1055,7 +1069,7 @@ export class QuickInputTree extends Disposable {
 				}
 				currentSeparatorElement = new QuickPickSeparatorElement(
 					index,
-					(event: IQuickPickSeparatorButtonEvent) => this.fireSeparatorButtonTriggered(event),
+					e => this._onSeparatorButtonTriggered.fire(e),
 					item
 				);
 				element = currentSeparatorElement;
@@ -1070,7 +1084,7 @@ export class QuickInputTree extends Disposable {
 				const qpi = new QuickPickItemElement(
 					index,
 					this._hasCheckboxes,
-					(event: IQuickPickItemButtonEvent<IQuickPickItem>) => this.fireButtonTriggered(event),
+					e => this._onButtonTriggered.fire(e),
 					this._elementChecked,
 					item,
 					separator,
@@ -1088,31 +1102,7 @@ export class QuickInputTree extends Disposable {
 			return result;
 		}, new Array<IQuickPickElement>());
 
-		const elements = new Array<IObjectTreeElement<IQuickPickElement>>();
-		let visibleCount = 0;
-		for (const element of this._elementTree) {
-			if (element instanceof QuickPickSeparatorElement) {
-				elements.push({
-					element,
-					collapsible: false,
-					collapsed: false,
-					children: element.children.map(e => ({
-						element: e,
-						collapsible: false,
-						collapsed: false,
-					})),
-				});
-				visibleCount += element.children.length + 1; // +1 for the separator itself;
-			} else {
-				elements.push({
-					element,
-					collapsible: false,
-					collapsed: false,
-				});
-				visibleCount++;
-			}
-		}
-		this._tree.setChildren(null, elements);
+		this._setElementsToTree(this._elementTree);
 
 		// Accessibility hack, unfortunately on next tick
 		// https://github.com/microsoft/vscode/issues/211976
@@ -1129,17 +1119,6 @@ export class QuickInputTree extends Disposable {
 		}
 	}
 
-	getElementsCount(): number {
-		return this._inputElements.length;
-	}
-
-	getFocusedElements() {
-		return this._tree.getFocus()
-			.filter((e): e is IQuickPickElement => !!e)
-			.map(e => e.item)
-			.filter((e): e is IQuickPickItem => !!e);
-	}
-
 	setFocusedElements(items: IQuickPickItem[]) {
 		const elements = items.map(item => this._itemElements.find(e => e.item === item))
 			.filter((e): e is QuickPickItemElement => !!e);
@@ -1154,12 +1133,6 @@ export class QuickInputTree extends Disposable {
 
 	getActiveDescendant() {
 		return this._tree.getHTMLElement().getAttribute('aria-activedescendant');
-	}
-
-	getSelectedElements() {
-		return this._tree.getSelection()
-			.filter((e): e is IQuickPickElement => !!e && !!(e as QuickPickItemElement).item)
-			.map(e => e.item);
 	}
 
 	setSelectedElements(items: IQuickPickItem[]) {
@@ -1200,13 +1173,24 @@ export class QuickInputTree extends Disposable {
 				this._tree.scrollTop = 0;
 				this._tree.focusFirst(undefined, (e) => e.element instanceof QuickPickItemElement);
 				break;
-			case QuickPickFocus.Second:
+			case QuickPickFocus.Second: {
 				this._tree.scrollTop = 0;
-				this._tree.setFocus([this._itemElements[1]]);
+				let isSecondItem = false;
+				this._tree.focusFirst(undefined, (e) => {
+					if (!(e.element instanceof QuickPickItemElement)) {
+						return false;
+					}
+					if (isSecondItem) {
+						return true;
+					}
+					isSecondItem = !isSecondItem;
+					return false;
+				});
 				break;
+			}
 			case QuickPickFocus.Last:
 				this._tree.scrollTop = this._tree.scrollHeight;
-				this._tree.setFocus([this._itemElements[this._itemElements.length - 1]]);
+				this._tree.focusLast(undefined, (e) => e.element instanceof QuickPickItemElement);
 				break;
 			case QuickPickFocus.Next: {
 				const prevFocus = this._tree.getFocus();
@@ -1308,7 +1292,7 @@ export class QuickInputTree extends Disposable {
 					// If we didn't move, then we should just move to the end
 					// of the list.
 					this._tree.scrollTop = this._tree.scrollHeight;
-					this._tree.setFocus([this._itemElements[this._itemElements.length - 1]]);
+					this._tree.focusLast(undefined, (e) => e.element instanceof QuickPickItemElement);
 				}
 				break;
 			}
@@ -1470,28 +1454,7 @@ export class QuickInputTree extends Disposable {
 			return result;
 		}, new Array<IQuickPickElement>());
 
-		const elements = new Array<IObjectTreeElement<IQuickPickElement>>();
-		for (const element of finalElements) {
-			if (element instanceof QuickPickSeparatorElement) {
-				elements.push({
-					element,
-					collapsible: false,
-					collapsed: false,
-					children: element.children.map(e => ({
-						element: e,
-						collapsible: false,
-						collapsed: false,
-					})),
-				});
-			} else {
-				elements.push({
-					element,
-					collapsible: false,
-					collapsed: false,
-				});
-			}
-		}
-		this._tree.setChildren(null, elements);
+		this._setElementsToTree(finalElements);
 		this._tree.layout();
 		return true;
 	}
@@ -1507,14 +1470,6 @@ export class QuickInputTree extends Disposable {
 				}
 			}
 		});
-	}
-
-	display(display: boolean) {
-		this._container.style.display = display ? '' : 'none';
-	}
-
-	isDisplayed() {
-		return this._container.style.display !== 'none';
 	}
 
 	style(styles: IListStyles) {
@@ -1551,6 +1506,31 @@ export class QuickInputTree extends Disposable {
 
 	//#region private methods
 
+	private _setElementsToTree(elements: IQuickPickElement[]) {
+		const treeElements = new Array<IObjectTreeElement<IQuickPickElement>>();
+		for (const element of elements) {
+			if (element instanceof QuickPickSeparatorElement) {
+				treeElements.push({
+					element,
+					collapsible: false,
+					collapsed: false,
+					children: element.children.map(e => ({
+						element: e,
+						collapsible: false,
+						collapsed: false,
+					})),
+				});
+			} else {
+				treeElements.push({
+					element,
+					collapsible: false,
+					collapsed: false,
+				});
+			}
+		}
+		this._tree.setChildren(null, treeElements);
+	}
+
 	private _allVisibleChecked(elements: QuickPickItemElement[], whenNoneVisible = true) {
 		for (let i = 0, n = elements.length; i < n; i++) {
 			const element = elements[i];
@@ -1565,19 +1545,11 @@ export class QuickInputTree extends Disposable {
 		return whenNoneVisible;
 	}
 
-	private _fireCheckedEvents() {
+	private _updateCheckedObservables() {
 		this._allVisibleCheckedObservable.set(this._allVisibleChecked(this._itemElements, false), undefined);
 		const checkedCount = this._itemElements.filter(element => element.checked).length;
 		this._checkedCountObservable.set(checkedCount, undefined);
 		this._checkedElementsObservable.set(this.getCheckedElements(), undefined);
-	}
-
-	private fireButtonTriggered(event: IQuickPickItemButtonEvent<IQuickPickItem>) {
-		this._onButtonTriggered.fire(event);
-	}
-
-	private fireSeparatorButtonTriggered(event: IQuickPickSeparatorButtonEvent) {
-		this._onSeparatorButtonTriggered.fire(event);
 	}
 
 	/**
