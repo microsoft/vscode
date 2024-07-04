@@ -20,7 +20,7 @@ variables:
   - name: VSCODE_QUALITY
     value: oss
   - name: VSCODE_BUILD_DATE
-    value: $[pipeline.startTime]
+    value: $(Date:yyyy-MM-ddTHH:mm:ssZ)
   - name: VSCODE_STEP_ON_IT
     value: false
 
