@@ -49,6 +49,7 @@ steps:
     - template: ../cli/cli-compile.yml@self
       parameters:
         VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
+        VSCODE_BUILD_DATE: ${{ parameters.VSCODE_BUILD_DATE }}
         VSCODE_CLI_TARGET: x86_64-pc-windows-msvc
         VSCODE_CLI_ARTIFACT: unsigned_vscode_cli_win32_x64_cli
         VSCODE_CHECK_ONLY: ${{ parameters.VSCODE_CHECK_ONLY }}
@@ -61,6 +62,7 @@ steps:
     - template: ../cli/cli-compile.yml@self
       parameters:
         VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
+        VSCODE_BUILD_DATE: ${{ parameters.VSCODE_BUILD_DATE }}
         VSCODE_CLI_TARGET: aarch64-pc-windows-msvc
         VSCODE_CLI_ARTIFACT: unsigned_vscode_cli_win32_arm64_cli
         VSCODE_CHECK_ONLY: ${{ parameters.VSCODE_CHECK_ONLY }}

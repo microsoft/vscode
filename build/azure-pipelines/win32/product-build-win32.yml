@@ -179,6 +179,7 @@ steps:
     - template: product-build-win32-test.yml@self
       parameters:
         VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
+        VSCODE_BUILD_DATE: ${{ parameters.VSCODE_BUILD_DATE }}
         VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
         VSCODE_RUN_UNIT_TESTS: ${{ parameters.VSCODE_RUN_UNIT_TESTS }}
         VSCODE_RUN_INTEGRATION_TESTS: ${{ parameters.VSCODE_RUN_INTEGRATION_TESTS }}

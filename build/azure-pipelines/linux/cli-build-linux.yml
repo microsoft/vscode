@@ -95,6 +95,7 @@ steps:
     - template: ../cli/cli-compile.yml@self
       parameters:
         VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
+        VSCODE_BUILD_DATE: ${{ parameters.VSCODE_BUILD_DATE }}
         VSCODE_CLI_TARGET: aarch64-unknown-linux-gnu
         VSCODE_CLI_ARTIFACT: vscode_cli_linux_arm64_cli
         VSCODE_CHECK_ONLY: ${{ parameters.VSCODE_CHECK_ONLY }}
@@ -107,6 +108,7 @@ steps:
     - template: ../cli/cli-compile.yml@self
       parameters:
         VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
+        VSCODE_BUILD_DATE: ${{ parameters.VSCODE_BUILD_DATE }}
         VSCODE_CLI_TARGET: x86_64-unknown-linux-gnu
         VSCODE_CLI_ARTIFACT: vscode_cli_linux_x64_cli
         VSCODE_CHECK_ONLY: ${{ parameters.VSCODE_CHECK_ONLY }}
@@ -119,6 +121,7 @@ steps:
     - template: ../cli/cli-compile.yml@self
       parameters:
         VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
+        VSCODE_BUILD_DATE: ${{ parameters.VSCODE_BUILD_DATE }}
         VSCODE_CLI_TARGET: armv7-unknown-linux-gnueabihf
         VSCODE_CLI_ARTIFACT: vscode_cli_linux_armhf_cli
         VSCODE_CHECK_ONLY: ${{ parameters.VSCODE_CHECK_ONLY }}
