@@ -3,9 +3,6 @@ parameters:
     type: string
 
 steps:
-  - script: |
-      echo $BUILD_DATE
-
   - task: NodeTool@0
     inputs:
       versionSource: fromFile
