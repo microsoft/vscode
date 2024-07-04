@@ -124,8 +124,8 @@ function joinSequenceDiffsByShifting(sequence1: ISequence, sequence2: ISequence,
 
 /**
  * fixes issues like this:
- * seq1: [		pass] [		pass]
- * seq2: [		pass] [	pass]
+ * seq1: [    pass] [    pass]
+ * seq2: [    pass] [  pass]
  */
 function checkSequencesIsStronglyEqual(sequence1: ISequence, seq1OffsetS: number, seq1OffsetE: number, sequence2: ISequence, seq2OffsetS: number, seq2OffsetE: number): boolean {
 	function equal(sequence1: ISequence, seq1OffsetS: number, seq1OffsetE: number, sequence2: ISequence, seq2OffsetS: number, seq2OffsetE: number): boolean {
