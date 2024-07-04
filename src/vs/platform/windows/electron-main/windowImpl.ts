@@ -45,7 +45,8 @@ import { firstOrDefault } from 'vs/base/common/arrays';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { release } from 'os';
 import { isESM } from 'vs/base/common/amd';
-import { ICSSDevelopmentService } from 'vs/platform/environment/node/windowDevService';
+import { ICSSDevelopmentService } from 'vs/platform/environment/node/cssDevService';
+
 
 export interface IWindowCreationOptions {
 	readonly state: IWindowState;

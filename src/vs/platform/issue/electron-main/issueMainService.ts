@@ -23,7 +23,7 @@ import { isESM } from 'vs/base/common/amd';
 import { zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
 import { ICodeWindow, IWindowState } from 'vs/platform/window/electron-main/window';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
-import { ICSSDevelopmentService } from 'vs/platform/environment/node/windowDevService';
+import { ICSSDevelopmentService } from 'vs/platform/environment/node/cssDevService';
 
 interface IBrowserWindowOptions {
 	backgroundColor: string | undefined;
