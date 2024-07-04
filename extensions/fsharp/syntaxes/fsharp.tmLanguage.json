@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/ionide/ionide-fsgrammar/commit/7d029a46f17637228b2ee85dd02e511c3e8039b3",
+	"version": "https://github.com/ionide/ionide-fsgrammar/commit/0100f551f6c32598a58aba97344bf828673fec7a",
 	"name": "fsharp",
 	"scopeName": "source.fsharp",
 	"patterns": [
@@ -617,7 +617,7 @@
 				},
 				{
 					"name": "constant.numeric.float.fsharp",
-					"match": "\\b-?[0-9][0-9_]*((\\.([0-9][0-9_]*([eE][+-]??[0-9][0-9_]*)?)?)|([eE][+-]??[0-9][0-9_]*))"
+					"match": "\\b-?[0-9][0-9_]*((\\.(?!\\.)([0-9][0-9_]*([eE][+-]??[0-9][0-9_]*)?)?)|([eE][+-]??[0-9][0-9_]*))"
 				},
 				{
 					"name": "constant.numeric.integer.nativeint.fsharp",
@@ -635,7 +635,7 @@
 		},
 		"abstract_definition": {
 			"name": "abstract.definition.fsharp",
-			"begin": "\\b(abstract)\\s+(member)?(\\s+\\[\\<.*\\>\\])?\\s*([_[:alpha:]0-9,\\._`\\s]+)(<)?",
+			"begin": "\\b(static)?\\s+(abstract)\\s+(member)?(\\s+\\[\\<.*\\>\\])?\\s*([_[:alpha:]0-9,\\._`\\s]+)(<)?",
 			"end": "\\s*(with)\\b|=|$",
 			"beginCaptures": {
 				"1": {
@@ -645,6 +645,9 @@
 					"name": "keyword.fsharp"
 				},
 				"3": {
+					"name": "keyword.fsharp"
+				},
+				"4": {
 					"name": "support.function.attribute.fsharp"
 				},
 				"5": {
@@ -933,7 +936,7 @@
 			"patterns": [
 				{
 					"name": "binding.fsharp",
-					"begin": "\\b(let mutable|static let mutable|static let|let inline|let|and|member val|static member inline|static member|default|member|override|let!)(\\s+rec|mutable)?(\\s+\\[\\<.*\\>\\])?\\s*(private|internal|public)?\\s+(\\[[^-=]*\\]|[_[:alpha:]]([_[:alpha:]0-9\\._]+)*|``[_[:alpha:]]([_[:alpha:]0-9\\._`\\s]+|(?<=,)\\s)*)?",
+					"begin": "\\b(let mutable|static let mutable|static let|let inline|let|and|member val|member inline|static member inline|static member|default|member|override|let!)(\\s+rec|mutable)?(\\s+\\[\\<.*\\>\\])?\\s*(private|internal|public)?\\s+(\\[[^-=]*\\]|[_[:alpha:]]([_[:alpha:]0-9\\._]+)*|``[_[:alpha:]]([_[:alpha:]0-9\\._`\\s]+|(?<=,)\\s)*)?",
 					"end": "\\s*((with\\b)|(=|\\n+=|(?<=\\=)))",
 					"beginCaptures": {
 						"1": {
@@ -1008,7 +1011,7 @@
 				},
 				{
 					"name": "binding.fsharp",
-					"begin": "\\b(static val mutable|val mutable|val)(\\s+rec|mutable)?(\\s+\\[\\<.*\\>\\])?\\s*(private|internal|public)?\\s+(\\[[^-=]*\\]|[_[:alpha:]]([_[:alpha:]0-9,\\._]+)*|``[_[:alpha:]]([_[:alpha:]0-9,\\._`\\s]+|(?<=,)\\s)*)?",
+					"begin": "\\b(static val mutable|val mutable|val inline|val)(\\s+rec|mutable)?(\\s+\\[\\<.*\\>\\])?\\s*(private|internal|public)?\\s+(\\[[^-=]*\\]|[_[:alpha:]]([_[:alpha:]0-9,\\._]+)*|``[_[:alpha:]]([_[:alpha:]0-9,\\._`\\s]+|(?<=,)\\s)*)?",
 					"end": "\\n$",
 					"beginCaptures": {
 						"1": {

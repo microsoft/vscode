@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 // version: 2
+// https://github.com/microsoft/vscode/issues/213274
 
 declare module 'vscode' {
 

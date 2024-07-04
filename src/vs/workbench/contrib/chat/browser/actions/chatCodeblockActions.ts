@@ -112,6 +112,7 @@ export function registerChatCodeBlockActions() {
 				const chatService = accessor.get(IChatService);
 				chatService.notifyUserAction({
 					agentId: context.element.agent?.id,
+					command: context.element.slashCommand?.name,
 					sessionId: context.element.sessionId,
 					requestId: context.element.requestId,
 					result: context.element.result,
@@ -157,6 +158,7 @@ export function registerChatCodeBlockActions() {
 		if (element) {
 			chatService.notifyUserAction({
 				agentId: element.agent?.id,
+				command: element.slashCommand?.name,
 				sessionId: element.sessionId,
 				requestId: element.requestId,
 				result: element.result,
@@ -184,7 +186,7 @@ export function registerChatCodeBlockActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.insertCodeBlock',
-				title: localize2('interactive.insertCodeBlock.label', "Insert at Cursor"),
+				title: localize2('interactive.insertCodeBlock.label', "Apply in Editor"),
 				precondition: CONTEXT_CHAT_ENABLED,
 				f1: true,
 				category: CHAT_CATEGORY,
@@ -356,6 +358,7 @@ export function registerChatCodeBlockActions() {
 				const chatService = accessor.get(IChatService);
 				chatService.notifyUserAction({
 					agentId: context.element.agent?.id,
+					command: context.element.slashCommand?.name,
 					sessionId: context.element.sessionId,
 					requestId: context.element.requestId,
 					result: context.element.result,
@@ -401,6 +404,7 @@ export function registerChatCodeBlockActions() {
 			if (isResponseVM(context.element)) {
 				chatService.notifyUserAction({
 					agentId: context.element.agent?.id,
+					command: context.element.slashCommand?.name,
 					sessionId: context.element.sessionId,
 					requestId: context.element.requestId,
 					result: context.element.result,
@@ -493,6 +497,7 @@ export function registerChatCodeBlockActions() {
 			if (isResponseVM(context.element)) {
 				chatService.notifyUserAction({
 					agentId: context.element.agent?.id,
+					command: context.element.slashCommand?.name,
 					sessionId: context.element.sessionId,
 					requestId: context.element.requestId,
 					result: context.element.result,

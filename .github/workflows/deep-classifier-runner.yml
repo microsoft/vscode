@@ -40,9 +40,7 @@ jobs:
           excludeLabels: feature-request|testplan-item
           configPath: classifier
           blobContainerName: vscode-issue-classifier
-          blobStorageKey: ${{secrets.AZURE_BLOB_STORAGE_CONNECTION_STRING}}
           token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
-          appInsightsKey: ${{secrets.TRIAGE_ACTIONS_APP_INSIGHTS}}
       - name: Set up Python 3.7
         uses: actions/setup-python@v5
         with:

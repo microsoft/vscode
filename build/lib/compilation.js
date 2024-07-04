@@ -41,7 +41,7 @@ function getTypeScriptCompilerOptions(src) {
     options.newLine = /\r\n/.test(fs.readFileSync(__filename, 'utf8')) ? 0 : 1;
     return options;
 }
-function createCompile(src, build, emitError, transpileOnly) {
+function createCompile(src, { build, emitError, transpileOnly, preserveEnglish }) {
     const tsb = require('./tsb');
     const sourcemaps = require('gulp-sourcemaps');
     const projectPath = path.join(__dirname, '../../', src, 'tsconfig.json');
@@ -71,7 +71,7 @@ function createCompile(src, build, emitError, transpileOnly) {
             .pipe(util.loadSourcemaps())
             .pipe(compilation(token))
             .pipe(noDeclarationsFilter)
-            .pipe(util.$if(build, nls.nls()))
+            .pipe(util.$if(build, nls.nls({ preserveEnglish })))
             .pipe(noDeclarationsFilter.restore)
             .pipe(util.$if(!transpileOnly, sourcemaps.write('.', {
             addComment: false,
@@ -90,7 +90,7 @@ function createCompile(src, build, emitError, transpileOnly) {
 }
 function transpileTask(src, out, swc) {
     const task = () => {
-        const transpile = createCompile(src, false, true, { swc });
+        const transpile = createCompile(src, { build: false, emitError: true, transpileOnly: { swc }, preserveEnglish: false });
         const srcPipe = gulp.src(`${src}/**`, { base: `${src}` });
         return srcPipe
             .pipe(transpile())
@@ -104,7 +104,7 @@ function compileTask(src, out, build, options = {}) {
         if (os.totalmem() < 4_000_000_000) {
             throw new Error('compilation requires 4GB of RAM');
         }
-        const compile = createCompile(src, build, true, false);
+        const compile = createCompile(src, { build, emitError: true, transpileOnly: false, preserveEnglish: !!options.preserveEnglish });
         const srcPipe = gulp.src(`${src}/**`, { base: `${src}` });
         const generator = new MonacoGenerator(false);
         if (src === 'src') {
@@ -141,7 +141,7 @@ function compileTask(src, out, build, options = {}) {
 }
 function watchTask(out, build) {
     const task = () => {
-        const compile = createCompile('src', build, false, false);
+        const compile = createCompile('src', { build, emitError: false, transpileOnly: false, preserveEnglish: false });
         const src = gulp.src('src/**', { base: 'src' });
         const watchSrc = watch('src/**', { base: 'src', readDelay: 200 });
         const generator = new MonacoGenerator(true);

@@ -34,7 +34,6 @@ import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { PixelRatio } from 'vs/base/browser/pixelRatio';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { IOutline } from 'vs/workbench/services/outline/browser/outline';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Codicon } from 'vs/base/common/codicons';
@@ -85,7 +84,7 @@ class OutlineItem extends BreadcrumbsItem {
 		}
 
 		const template = renderer.renderTemplate(container);
-		renderer.renderElement(<ITreeNode<any, any>>{
+		renderer.renderElement({
 			element,
 			children: [],
 			depth: 0,

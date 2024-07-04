@@ -22,7 +22,7 @@ import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry'
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { ContextMenuController } from 'vs/editor/contrib/contextmenu/browser/contextmenu';
-import { PlaceholderTextContribution } from 'vs/editor/contrib/placeholderText/browser/placeholderText.contribution';
+import { PlaceholderTextContribution } from '../../placeholderText/browser/placeholderTextContribution';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { MenuId } from 'vs/platform/actions/common/actions';

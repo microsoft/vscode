@@ -8,6 +8,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -32,7 +33,8 @@ export class EmptyCellEditorHintContribution extends EmptyTextEditorHintContribu
 		@IInlineChatSessionService inlineChatSessionService: IInlineChatSessionService,
 		@IChatAgentService chatAgentService: IChatAgentService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IProductService productService: IProductService
+		@IProductService productService: IProductService,
+		@IContextMenuService contextMenuService: IContextMenuService
 	) {
 		super(
 			editor,
@@ -44,7 +46,8 @@ export class EmptyCellEditorHintContribution extends EmptyTextEditorHintContribu
 			inlineChatSessionService,
 			chatAgentService,
 			telemetryService,
-			productService
+			productService,
+			contextMenuService
 		);
 
 		const activeEditor = getNotebookEditorFromEditorPane(this._editorService.activeEditorPane);

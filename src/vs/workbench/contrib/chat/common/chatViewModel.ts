@@ -129,7 +129,7 @@ export interface IChatReferences {
 export type IChatRendererContent = IChatProgressRenderableResponseContent | IChatReferences;
 
 export interface IChatLiveUpdateData {
-	loadingStartTime: number;
+	firstWordTime: number;
 	lastUpdateTime: number;
 	impliedWordLoadRate: number;
 	lastWordCount: number;
@@ -506,7 +506,7 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 
 		if (!_model.isComplete) {
 			this._contentUpdateTimings = {
-				loadingStartTime: Date.now(),
+				firstWordTime: 0,
 				lastUpdateTime: Date.now(),
 				impliedWordLoadRate: 0,
 				lastWordCount: 0
@@ -514,15 +514,17 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 		}
 
 		this._register(_model.onDidChange(() => {
+			// This should be true, if the model is changing
 			if (this._contentUpdateTimings) {
-				// This should be true, if the model is changing
 				const now = Date.now();
-				const wordCount = countWords(_model.response.asString());
-				const timeDiff = now - this._contentUpdateTimings.loadingStartTime;
+				const wordCount = countWords(_model.response.toString());
+
+				// Apply a min time difference, or the rate is typically too high for first few words
+				const timeDiff = Math.max(now - this._contentUpdateTimings.firstWordTime, 250);
 				const impliedWordLoadRate = this._contentUpdateTimings.lastWordCount / (timeDiff / 1000);
-				this.trace('onDidChange', `Update- got ${this._contentUpdateTimings.lastWordCount} words over ${timeDiff}ms = ${impliedWordLoadRate} words/s. ${wordCount} words are now available.`);
+				this.trace('onDidChange', `Update- got ${this._contentUpdateTimings.lastWordCount} words over last ${timeDiff}ms = ${impliedWordLoadRate} words/s. ${wordCount} words are now available.`);
 				this._contentUpdateTimings = {
-					loadingStartTime: this._contentUpdateTimings.loadingStartTime,
+					firstWordTime: this._contentUpdateTimings.firstWordTime === 0 && this.response.value.some(v => v.kind === 'markdownContent') ? now : this._contentUpdateTimings.firstWordTime,
 					lastUpdateTime: now,
 					impliedWordLoadRate,
 					lastWordCount: wordCount

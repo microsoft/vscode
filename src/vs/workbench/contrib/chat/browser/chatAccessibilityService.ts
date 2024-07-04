@@ -34,7 +34,7 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 	acceptResponse(response: IChatResponseViewModel | string | undefined, requestId: number): void {
 		this._pendingSignalMap.deleteAndDispose(requestId);
 		const isPanelChat = typeof response !== 'string';
-		const responseContent = typeof response === 'string' ? response : response?.response.asString();
+		const responseContent = typeof response === 'string' ? response : response?.response.toString();
 		this._accessibilitySignalService.playSignal(AccessibilitySignal.chatResponseReceived, { allowManyInParallel: true });
 		if (!response || !responseContent) {
 			return;
@@ -44,4 +44,3 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 		status(plainTextResponse + errorDetails);
 	}
 }
-

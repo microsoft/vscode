@@ -10,7 +10,7 @@ import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IRange, Range } from 'vs/editor/common/core/range';
+import { Range } from 'vs/editor/common/core/range';
 import { IValidEditOperation } from 'vs/editor/common/model';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
@@ -27,8 +27,6 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { EmptyResponse, ErrorResponse, HunkData, ReplyResponse, Session, SessionExchange, SessionWholeRange, StashedSession, TelemetryData, TelemetryDataClassification } from './inlineChatSession';
 import { IInlineChatSessionEndEvent, IInlineChatSessionEvent, IInlineChatSessionService, ISessionKeyComputer, Recording } from './inlineChatSessionService';
-import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
-import { ISelection } from 'vs/editor/common/core/selection';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 
@@ -46,19 +44,6 @@ export class InlineChatError extends Error {
 	}
 }
 
-const _inlineChatContext = '_inlineChatContext';
-const _inlineChatDocument = '_inlineChatDocument';
-
-class InlineChatContext {
-
-	static readonly variableName = '_inlineChatContext';
-
-	constructor(
-		readonly uri: URI,
-		readonly selection: ISelection,
-		readonly wholeRange: IRange,
-	) { }
-}
 
 export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
@@ -92,37 +77,8 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IChatService private readonly _chatService: IChatService,
-		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
-		@IChatVariablesService chatVariableService: IChatVariablesService,
-	) {
-
-
-		// MARK: implicit variable for editor selection and (tracked) whole range
-
-		this._store.add(chatVariableService.registerVariable(
-			{ id: _inlineChatContext, name: _inlineChatContext, description: '', hidden: true },
-			async (_message, _arg, model) => {
-				for (const [, data] of this._sessions) {
-					if (data.session.chatModel === model) {
-						return JSON.stringify(new InlineChatContext(data.session.textModelN.uri, data.editor.getSelection()!, data.session.wholeRange.trackedInitialRange));
-					}
-				}
-				return undefined;
-			}
-		));
-		this._store.add(chatVariableService.registerVariable(
-			{ id: _inlineChatDocument, name: _inlineChatDocument, description: '', hidden: true },
-			async (_message, _arg, model) => {
-				for (const [, data] of this._sessions) {
-					if (data.session.chatModel === model) {
-						return data.session.textModelN.uri;
-					}
-				}
-				return undefined;
-			}
-		));
-
-	}
+		@IChatAgentService private readonly _chatAgentService: IChatAgentService
+	) { }
 
 	dispose() {
 		this._store.dispose();
