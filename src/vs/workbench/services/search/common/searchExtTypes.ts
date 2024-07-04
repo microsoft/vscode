@@ -55,9 +55,11 @@ export type ProviderResult<T> = T | undefined | null | Thenable<T | undefined | 
 export interface RelativePattern {
 
 	/**
-	 * A base file path to which this pattern will be matched against relatively.
+	 * A base file path to which this pattern will be matched against relatively. The
+	 * file path must be absolute, should not have any trailing path separators and
+	 * not include any relative segments (`.` or `..`).
 	 */
-	base: string;
+	baseUri: URI;
 
 	/**
 	 * A file glob pattern like `*.{ts,js}` that will be matched on file paths

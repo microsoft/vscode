@@ -339,7 +339,9 @@ suite('ExtHostSearch', () => {
 							'foo': true
 						},
 						excludePattern: {
-							'bar': true
+							pattern: {
+								'bar': true
+							}
 						}
 					},
 					{ folder: rootFolderB }
@@ -378,7 +380,9 @@ suite('ExtHostSearch', () => {
 							'*.jsx': true
 						},
 						excludePattern: {
-							'*.js': false
+							pattern: {
+								'*.js': false
+							}
 						}
 					}
 				]
@@ -496,15 +500,19 @@ suite('ExtHostSearch', () => {
 					{
 						folder: rootFolderA,
 						excludePattern: {
-							'folder/*.css': {
-								when: '$(basename).scss'
+							pattern: {
+								'folder/*.css': {
+									when: '$(basename).scss'
+								}
 							}
 						}
 					},
 					{
 						folder: rootFolderB,
 						excludePattern: {
-							'*.js': false
+							pattern: {
+								'*.js': false
+							}
 						}
 					}
 				]
@@ -877,7 +885,9 @@ suite('ExtHostSearch', () => {
 							'foo': true
 						},
 						excludePattern: {
-							'bar': true
+							pattern: {
+								'bar': true
+							}
 						}
 					},
 					{ folder: rootFolderB }
@@ -916,7 +926,9 @@ suite('ExtHostSearch', () => {
 							'*.jsx': true
 						},
 						excludePattern: {
-							'*.js': false
+							pattern: {
+								'*.js': false
+							}
 						}
 					}
 				]
@@ -1042,15 +1054,19 @@ suite('ExtHostSearch', () => {
 					{
 						folder: rootFolderA,
 						excludePattern: {
-							'folder/*.css': {
-								when: '$(basename).scss'
+							pattern: {
+								'folder/*.css': {
+									when: '$(basename).scss'
+								}
 							}
 						}
 					},
 					{
 						folder: rootFolderB,
 						excludePattern: {
-							'*.js': false
+							pattern: {
+								'*.js': false
+							}
 						}
 					}
 				]

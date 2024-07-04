@@ -14,7 +14,7 @@ import { createRegExp, escapeRegExpCharacters } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { IExtendedExtensionSearchOptions, SearchError, SearchErrorCode, serializeSearchError } from 'vs/workbench/services/search/common/search';
-import { Range, TextSearchComplete, TextSearchContext, TextSearchMatch, TextSearchOptions, TextSearchPreviewOptions, TextSearchQuery, TextSearchResult } from 'vs/workbench/services/search/common/searchExtTypes';
+import { Range, TextSearchComplete, TextSearchContext, TextSearchMatch, TextSearchPreviewOptions, TextSearchQuery, TextSearchResult } from 'vs/workbench/services/search/common/searchExtTypes';
 import { AST as ReAST, RegExpParser, RegExpVisitor } from 'vscode-regexpp';
 import { rgPath } from '@vscode/ripgrep';
 import { anchorGlob, createTextSearchResult, IOutputChannel, Maybe } from './ripgrepSearchUtils';
@@ -27,7 +27,7 @@ export class RipgrepTextSearchEngine {
 
 	constructor(private outputChannel: IOutputChannel, private readonly _numThreads?: number | undefined) { }
 
-	provideTextSearchResults(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): Promise<TextSearchComplete> {
+	provideTextSearchResults(query: TextSearchQuery, options: RipgrepTextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): Promise<TextSearchComplete> {
 		this.outputChannel.appendLine(`provideTextSearchResults ${query.pattern}, ${JSON.stringify({
 			...options,
 			...{
@@ -402,7 +402,7 @@ export function getRgArgs(query: TextSearchQuery, options: RipgrepTextSearchOpti
 		});
 	}
 
-	options.excludes
+	options.excludes.map(e => typeof (e) === 'string' ? e : e.pattern)
 		.map(anchorGlob)
 		.forEach(rgGlob => args.push('-g', `!${rgGlob}`));
 

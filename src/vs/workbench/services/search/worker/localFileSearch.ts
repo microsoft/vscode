@@ -15,6 +15,7 @@ import { IgnoreFile } from 'vs/workbench/services/search/common/ignoreFile';
 import { createRegExp } from 'vs/base/common/strings';
 import { Promises } from 'vs/base/common/async';
 import { ExtUri } from 'vs/base/common/resources';
+import { revive } from 'vs/base/common/marshalling';
 
 const PERF = false;
 
@@ -176,7 +177,7 @@ export class LocalFileSearchSimpleWorker implements ILocalFileSearchSimpleWorker
 
 	private async walkFolderQuery(handle: IWorkerFileSystemDirectoryHandle, queryProps: ICommonQueryProps<URI>, folderQuery: IFolderQuery<URI>, extUri: ExtUri, onFile: (file: FileNode) => any, token: CancellationToken): Promise<void> {
 
-		const folderExcludes = glob.parse(folderQuery.excludePattern ?? {}, { trimForExclusions: true }) as glob.ParsedExpression;
+		const folderExcludes = glob.parse(folderQuery.excludePattern?.pattern ?? {}, { trimForExclusions: true }) as glob.ParsedExpression;
 
 		// For folders, only check if the folder is explicitly excluded so walking continues.
 		const isFolderExcluded = (path: string, basename: string, hasSibling: (query: string) => boolean) => {
@@ -303,10 +304,7 @@ function createSearchRegExp(options: IPatternInfo): RegExp {
 }
 
 function reviveFolderQuery(folderQuery: IFolderQuery<UriComponents>): IFolderQuery<URI> {
-	return {
-		...folderQuery,
-		folder: URI.revive(folderQuery.folder),
-	};
+	return revive(folderQuery);
 }
 
 function reviveQueryProps(queryProps: ICommonQueryProps<UriComponents>): ICommonQueryProps<URI> {
