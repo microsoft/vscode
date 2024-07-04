@@ -500,6 +500,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 				}
 			});
 		} catch {
+			// fall back to open url using electron shell
 			shell.openExternal(url);
 		}
 	}
