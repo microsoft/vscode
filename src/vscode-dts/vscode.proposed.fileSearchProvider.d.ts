@@ -8,16 +8,6 @@ declare module 'vscode' {
 	// https://github.com/microsoft/vscode/issues/73524
 
 	/**
-	 * The parameters of a query for file search.
-	 */
-	export interface FileSearchQuery {
-		/**
-		 * The search pattern to match against file paths.
-		 */
-		pattern: string;
-	}
-
-	/**
 	 * Options that apply to file search.
 	 */
 	export interface FileSearchOptions extends SearchProviderOptions {
@@ -40,11 +30,11 @@ declare module 'vscode' {
 	export interface FileSearchProvider {
 		/**
 		 * Provide the set of files that match a certain file path pattern.
-		 * @param query The parameters for this query.
+		 * @param pattern The search pattern to match against file paths.
 		 * @param options A set of options to consider while searching files.
 		 * @param token A cancellation token.
 		 */
-		provideFileSearchResults(query: FileSearchQuery, options: FileSearchOptions, token: CancellationToken): ProviderResult<Uri[]>;
+		provideFileSearchResults(pattern: string, options: FileSearchOptions, token: CancellationToken): ProviderResult<Uri[]>;
 	}
 
 	export namespace workspace {

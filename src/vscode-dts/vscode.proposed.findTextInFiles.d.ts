@@ -32,31 +32,10 @@ declare module 'vscode' {
 		/**
 		 * Number of lines of context to include before and after each match.
 		 */
-		surroundingContext: number;
-
-		/**
-		 * Number of lines of context to include before each match.
-		 * @deprecated
-		 */
-		beforeContext: number;
-
-		/**
-		 * Number of lines of context to include after each match.
-		 * @deprecated
-		 */
-		afterContext: number;
+		surroundingContext?: number;
 	}
 
 	export namespace workspace {
-		/**
-		 * Search text in files across all {@link workspace.workspaceFolders workspace folders} in the workspace.
-		 * @param query The query parameters for the search - the search string, whether it's case-sensitive, or a regex, or matches whole words.
-		 * @param callback A callback, called for each result
-		 * @param token A token that can be used to signal cancellation to the underlying search engine.
-		 * @return A thenable that resolves when the search is complete.
-		 */
-		export function findTextInFiles(query: TextSearchQuery, callback: (result: TextSearchResult) => void, token?: CancellationToken): Thenable<TextSearchComplete>;
-
 		/**
 		 * Search text in files across all {@link workspace.workspaceFolders workspace folders} in the workspace.
 		 * @param query The query parameters for the search - the search string, whether it's case-sensitive, or a regex, or matches whole words.
@@ -65,6 +44,6 @@ declare module 'vscode' {
 		 * @param token A token that can be used to signal cancellation to the underlying search engine.
 		 * @return A thenable that resolves when the search is complete.
 		 */
-		export function findTextInFiles(query: TextSearchQuery, options: FindTextInFilesOptions, callback: (result: TextSearchResult) => void, token?: CancellationToken): Thenable<TextSearchComplete>;
+		export function findTextInFiles(query: TextSearchQuery, callback: (result: TextSearchResult) => void, options?: FindTextInFilesOptions, token?: CancellationToken): Thenable<TextSearchComplete>;
 	}
 }

@@ -54,7 +54,7 @@ declare module 'vscode' {
 		/**
 		 * Files that match an `excludes` glob pattern should be excluded from the search.
 		 */
-		excludes: string[];
+		excludes: GlobPattern[];
 
 		/**
 		 * Whether files located at the workspace root that exclude files, like .gitignore, should be respected.
@@ -79,18 +79,29 @@ declare module 'vscode' {
 		 * See the vscode setting `"search.useParentIgnoreFiles"` for more information.
 		 */
 		useParentIgnoreFiles: boolean;
+		/**
+		 * Which file locations we should look for ignore (.gitignore or .ignore) files to respect.
+		 * Any time that `parent` or `global` is set to `true`, `local` will also be `true`.
+		 */
+		useIgnoreFiles: {
+			/**
+			 * Use ignore files at the current workspace root.
+			 */
+			local: boolean;
+			/**
+			 * Use ignore files at the parent directory.
+			 */
+			parent: boolean;
+			/**
+			 * Use global ignore files.
+			 */
+			global: boolean;
+		};
 
 		/**
 		 * The maximum number of results to be returned.
 		 */
 		maxResults: number;
-
-		/**
-		 * Whether external files that exclude files, like .gitignore, should be respected.
-		 * See the vscode setting `"search.useIgnoreFiles"`.
-		 * @deprecated
-		 */
-		useIgnoreFiles: boolean;
 	}
 
 	/**
@@ -135,19 +146,6 @@ declare module 'vscode' {
 		 * Number of lines of context to include before and after each match.
 		 */
 		surroundingContext: number;
-
-
-		/**
-		 * Number of lines of context to include before each match.
-		 * @deprecated
-		 */
-		beforeContext: number;
-
-		/**
-		 * Number of lines of context to include after each match.
-		 * @deprecated
-		 */
-		afterContext: number;
 	}
 
 	/**

@@ -15,14 +15,9 @@ declare module 'vscode' {
 		exclude?: GlobPattern;
 
 		/**
-		 * Whether to use the values for files.exclude. Defaults to true.
+		 * Which settings to follow when searching for files. Defaults to {@link ExcludeSettingOptions.searchAndFilesExclude}.
 		 */
-		useDefaultExcludes?: boolean;
-
-		/**
-		 * Whether to use the values for search.exclude. Defaults to true. Will not be followed if `useDefaultExcludes` is set to `false`.
-		 */
-		useDefaultSearchExcludes?: boolean;
+		useExcludeSettings?: ExcludeSettingOptions;
 
 		/**
 		 * The maximum number of results to search for
@@ -30,27 +25,25 @@ declare module 'vscode' {
 		maxResults?: number;
 
 		/**
-		 * Whether external files that exclude files, like .gitignore, should be respected.
-		 * Defaults to the value for `search.useIgnoreFiles` in settings.
-		 * For more info, see the setting listed above.
+		 * Which file locations we should look for ignore (.gitignore or .ignore) files to respect.
+		 * When `undefined`, we will follow settings (or assume the value if only one is valid) using the value for the corresponding `search.use*IgnoreFiles` settting.
+		 * Any time that `parent` or `global` is set to `true`, `local` must also be `true`.
+		 * Will log an error if an invalid combination is set.
 		 */
-		useLocalIgnoreFiles?: boolean;
-
-		/**
-		 * Whether global files that exclude files, like .gitignore, should be respected.
-		 * Must set `useIgnoreFiles` to `true` to use this.
-		 * Defaults to the value for `search.useGlobalIgnoreFiles` in settings.
-		 * For more info, see the setting listed above.
-		 */
-		useGlobalIgnoreFiles?: boolean;
-
-		/**
-		 * Whether files in parent directories that exclude files, like .gitignore, should be respected.
-		 * Must set `useIgnoreFiles` to `true` to use this.
-		 * Defaults to the value for `search.useParentIgnoreFiles` in settings.
-		 * For more info, see the setting listed above.
-		 */
-		useParentIgnoreFiles?: boolean;
+		useIgnoreFiles?: {
+			/**
+			 * Use ignore files at the current workspace root.
+			 */
+			local?: boolean;
+			/**
+			 * Use ignore files at the parent directory.
+			 */
+			parent?: boolean;
+			/**
+			 * Use global ignore files.
+			 */
+			global?: boolean;
+		};
 
 		/**
 		 * Whether symlinks should be followed while searching.
@@ -58,6 +51,27 @@ declare module 'vscode' {
 		 * For more info, see the setting listed above.
 		 */
 		followSymlinks?: boolean;
+	}
+
+	/*
+	* Options for following search.exclude and files.exclude settings.
+	*/
+	export enum ExcludeSettingOptions {
+		/*
+		 * Don't use any exclude settings.
+		 */
+		none = 1,
+		/*
+		 * Use:
+		 * - files.exclude setting
+		 */
+		filesExclude = 2,
+		/*
+		 * Use:
+		 * - files.exclude setting
+		 * - search.exclude setting
+		 */
+		searchAndFilesExclude = 3
 	}
 
 	/**
