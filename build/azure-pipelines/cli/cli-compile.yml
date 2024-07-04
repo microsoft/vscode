@@ -1,6 +1,8 @@
 parameters:
   - name: VSCODE_QUALITY
     type: string
+  - name: VSCODE_BUILD_DATE
+    type: string
   - name: VSCODE_CLI_TARGET
     type: string
   - name: VSCODE_CLI_ARTIFACT
