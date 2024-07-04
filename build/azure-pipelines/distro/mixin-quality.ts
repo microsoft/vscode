@@ -5,6 +5,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import * as os from 'os';
 
 interface IBuiltInExtension {
 	readonly name: string;
@@ -34,9 +35,23 @@ function main() {
 		throw new Error('Missing VSCODE_QUALITY, skipping mixin');
 	}
 
-	log(`process.env.BUILD_ARTIFACTSTAGINGDIRECTORY: ${process.env['BUILD_ARTIFACTSTAGINGDIRECTORY']}`);
-	log(`process.env.BUILD_SOURCEVERSION: ${process.env['BUILD_SOURCEVERSION']}`);
-	log(`process.env.AGENT_BUILDDIRECTORY: ${process.env['AGENT_BUILDDIRECTORY']}`);
+	if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
+		log(`process.env.BUILD_ARTIFACTSTAGINGDIRECTORY: ${process.env['BUILD_ARTIFACTSTAGINGDIRECTORY']}`);
+		log(`process.env.BUILD_SOURCEVERSION: ${process.env['BUILD_SOURCEVERSION']}`);
+		log(`process.env.AGENT_BUILDDIRECTORY: ${process.env['AGENT_BUILDDIRECTORY']}`);
+		log(`os.tmpDir(): ${os.tmpdir()}`);
+
+		let resolvedDate: string;
+		const resolvedDatePath = path.join(os.tmpdir(), `${process.env['BUILD_SOURCEVERSION']!}.date`);
+		if (!fs.existsSync(resolvedDatePath)) {
+			resolvedDate = new Date().toISOString();
+			fs.writeFileSync(resolvedDatePath, resolvedDate);
+			log(`Writing ${resolvedDate} to ${resolvedDatePath}`);
+		} else {
+			resolvedDate = fs.readFileSync(resolvedDatePath).toString();
+			log(`Reading ${resolvedDate} from ${resolvedDatePath}`);
+		}
+	}
 
 	log(`Mixing in distro quality...`);
 
@@ -78,6 +93,19 @@ function main() {
 		}
 
 		log(distroPath, '✔︎');
+	}
+
+	if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
+		let resolvedDate: string;
+		const resolvedDatePath = path.join(os.tmpdir(), `${process.env['BUILD_SOURCEVERSION']!}.date`);
+		if (!fs.existsSync(resolvedDatePath)) {
+			resolvedDate = new Date().toISOString();
+			fs.writeFileSync(resolvedDatePath, resolvedDate);
+			log(`Writing ${resolvedDate} to ${resolvedDatePath}`);
+		} else {
+			resolvedDate = fs.readFileSync(resolvedDatePath).toString();
+			log(`Reading ${resolvedDate} from ${resolvedDatePath}`);
+		}
 	}
 }
 

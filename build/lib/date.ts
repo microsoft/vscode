@@ -3,16 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-let dateObj: string;
+import * as path from 'path';
+import * as fs from 'fs';
 
-if (process.env.VSCODE_BUILD_DATE) {
-	dateObj = process.env.VSCODE_BUILD_DATE;
-} else {
-	dateObj = 'dynamic-unknown-date';
+let resolvedDate: string | undefined = undefined;
+
+if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
+
+	// When building in CI make sure to use
+	// the same date for all artifacts
+
+	const resolvedDatePath = path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, 'date');
+	if (!fs.existsSync(resolvedDatePath)) {
+		resolvedDate = new Date().toISOString();
+		fs.writeFileSync(resolvedDatePath, resolvedDate);
+	} else {
+		resolvedDate = fs.readFileSync(resolvedDatePath).toString();
+	}
 }
 
-/**
- * If running in Azure CI, will return the date the build was started.
- * Falls back to current date otherwise.
- */
-export const date = dateObj;
+if (!resolvedDate) {
+	resolvedDate = new Date().toISOString();
+}
+
+export const date = resolvedDate;

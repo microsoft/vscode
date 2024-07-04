@@ -5,16 +5,23 @@
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.date = void 0;
-let dateObj;
-if (process.env.VSCODE_BUILD_DATE) {
-    dateObj = process.env.VSCODE_BUILD_DATE;
+const path = require("path");
+const fs = require("fs");
+let resolvedDate = undefined;
+if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
+    // When building in CI make sure to use
+    // the same date for all artifacts
+    const resolvedDatePath = path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, 'date');
+    if (!fs.existsSync(resolvedDatePath)) {
+        resolvedDate = new Date().toISOString();
+        fs.writeFileSync(resolvedDatePath, resolvedDate);
+    }
+    else {
+        resolvedDate = fs.readFileSync(resolvedDatePath).toString();
+    }
 }
-else {
-    dateObj = 'dynamic-unknown-date';
+if (!resolvedDate) {
+    resolvedDate = new Date().toISOString();
 }
-/**
- * If running in Azure CI, will return the date the build was started.
- * Falls back to current date otherwise.
- */
-exports.date = dateObj;
+exports.date = resolvedDate;
 //# sourceMappingURL=date.js.map
