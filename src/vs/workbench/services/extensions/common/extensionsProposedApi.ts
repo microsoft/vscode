@@ -120,11 +120,11 @@ class ApiProposalsMarkdowneRenderer extends Disposable implements IExtensionFeat
 	readonly type = 'markdown';
 
 	shouldRender(manifest: IExtensionManifest): boolean {
-		return !!manifest.enabledApiProposals?.length;
+		return !!manifest.originalEnabledApiProposals?.length || !!manifest.enabledApiProposals?.length;
 	}
 
 	render(manifest: IExtensionManifest): IRenderedData<IMarkdownString> {
-		const enabledApiProposals = manifest.enabledApiProposals || [];
+		const enabledApiProposals = manifest.originalEnabledApiProposals ?? manifest.enabledApiProposals ?? [];
 		const data = new MarkdownString();
 		if (enabledApiProposals.length) {
 			for (const proposal of enabledApiProposals) {

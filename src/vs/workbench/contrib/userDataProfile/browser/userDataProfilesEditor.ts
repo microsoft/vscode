@@ -937,9 +937,9 @@ class AbstractProfileResourceTreeRenderer extends Disposable {
 			case ProfileResourceType.Keybindings:
 				return localize('keybindings', "Keyboard Shortcuts");
 			case ProfileResourceType.Snippets:
-				return localize('snippets', "User Snippets");
+				return localize('snippets', "Snippets");
 			case ProfileResourceType.Tasks:
-				return localize('tasks', "User Tasks");
+				return localize('tasks', "Tasks");
 			case ProfileResourceType.Extensions:
 				return localize('extensions', "Extensions");
 		}

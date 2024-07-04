@@ -33,6 +33,7 @@ import { getLocalHistoryDateFormatter, LOCAL_HISTORY_ICON_RESTORE, LOCAL_HISTORY
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 const LOCAL_HISTORY_CATEGORY = localize2('localHistory.category', 'Local History');
+const CTX_LOCAL_HISTORY_ENABLED = ContextKeyExpr.has('config.workbench.localHistory.enabled');
 
 export interface ITimelineCommandArgument {
 	uri: URI;
@@ -316,7 +317,8 @@ registerAction2(class extends Action2 {
 			id: 'workbench.action.localHistory.restoreViaPicker',
 			title: localize2('localHistory.restoreViaPicker', 'Find Entry to Restore'),
 			f1: true,
-			category: LOCAL_HISTORY_CATEGORY
+			category: LOCAL_HISTORY_CATEGORY,
+			precondition: CTX_LOCAL_HISTORY_ENABLED
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
@@ -402,7 +404,7 @@ registerAction2(class extends Action2 {
 	}
 });
 
-MenuRegistry.appendMenuItem(MenuId.TimelineTitle, { command: { id: 'workbench.action.localHistory.restoreViaPicker', title: localize2('localHistory.restoreViaPickerMenu', 'Local History: Find Entry to Restore...') }, group: 'submenu', order: 1 });
+MenuRegistry.appendMenuItem(MenuId.TimelineTitle, { command: { id: 'workbench.action.localHistory.restoreViaPicker', title: localize2('localHistory.restoreViaPickerMenu', 'Local History: Find Entry to Restore...') }, group: 'submenu', order: 1, when: CTX_LOCAL_HISTORY_ENABLED });
 
 //#endregion
 
@@ -499,7 +501,8 @@ registerAction2(class extends Action2 {
 			id: 'workbench.action.localHistory.deleteAll',
 			title: localize2('localHistory.deleteAll', 'Delete All'),
 			f1: true,
-			category: LOCAL_HISTORY_CATEGORY
+			category: LOCAL_HISTORY_CATEGORY,
+			precondition: CTX_LOCAL_HISTORY_ENABLED
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
@@ -534,7 +537,7 @@ registerAction2(class extends Action2 {
 			title: localize2('localHistory.create', 'Create Entry'),
 			f1: true,
 			category: LOCAL_HISTORY_CATEGORY,
-			precondition: ActiveEditorContext
+			precondition: ContextKeyExpr.and(CTX_LOCAL_HISTORY_ENABLED, ActiveEditorContext)
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {

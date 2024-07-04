@@ -566,8 +566,7 @@ export abstract class AbstractTimerService implements ITimerService {
 					const t1 = performance.now();
 					fib(24);
 					const value = Math.round(performance.now() - t1);
-					// eslint-disable-next-line no-restricted-globals
-					postMessage({ value: tooSlow ? -1 : value });
+					self.postMessage({ value: tooSlow ? -1 : value });
 
 				}).toString();
 

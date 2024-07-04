@@ -192,6 +192,11 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	disallowSyncIgnore?: boolean;
 
 	/**
+	 * Disallow extensions to contribute configuration default value for this setting.
+	 */
+	disallowConfigurationDefault?: boolean;
+
+	/**
 	 * Labels for enumeration items
 	 */
 	enumItemLabels?: string[];
@@ -233,12 +238,11 @@ export interface IConfigurationNode {
 	restrictedProperties?: string[];
 }
 
-export type ConfigurationDefaultSource = IExtensionInfo | string;
-export type ConfigurationDefaultValueSource = ConfigurationDefaultSource | Map<string, ConfigurationDefaultSource>;
+export type ConfigurationDefaultValueSource = IExtensionInfo | Map<string, IExtensionInfo>;
 
 export interface IConfigurationDefaults {
 	overrides: IStringDictionary<any>;
-	source?: ConfigurationDefaultSource;
+	source?: IExtensionInfo;
 }
 
 export type IRegisteredConfigurationPropertySchema = IConfigurationPropertySchema & {
@@ -369,7 +373,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 							if (source) {
 								let objectConfigurationSources = valuesSources.get(configuration);
 								if (!objectConfigurationSources) {
-									objectConfigurationSources = new Map<string, ConfigurationDefaultSource>();
+									objectConfigurationSources = new Map<string, IExtensionInfo>();
 									valuesSources.set(configuration, objectConfigurationSources);
 								}
 								if (!(objectConfigurationSources instanceof Map)) {
@@ -398,7 +402,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 						description: nls.localize('defaultLanguageConfiguration.description', "Configure settings to be overridden for the {0} language.", plainKey),
 						$ref: resourceLanguageSettingsSchemaId,
 						defaultDefaultValue: defaultValue,
-						source: types.isString(source) ? undefined : source,
+						source,
 						defaultValueSource: source
 					};
 					overrideIdentifiers.push(...overrideIdentifiersFromKey(key));
@@ -425,7 +429,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 
 						newDefaultValue = { ...existingDefaultValue, ...newDefaultValue };
 
-						newDefaultValueSource = existingDefaultOverride?.source ?? new Map<string, ConfigurationDefaultSource>();
+						newDefaultValueSource = existingDefaultOverride?.source ?? new Map<string, IExtensionInfo>();
 						if (!(newDefaultValueSource instanceof Map)) {
 							console.error('defaultValueSource is not a Map');
 							continue;
@@ -464,7 +468,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 
 		for (const { overrides, source } of defaultConfigurations) {
 			for (const key in overrides) {
-				const id = types.isString(source) ? source : source?.id;
+				const id = source?.id;
 
 				const configurationDefaultsOverride = this.configurationDefaultsOverrides.get(key);
 				if (!configurationDefaultsOverride) {
@@ -476,7 +480,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 						const overrideValue = overrides[key][configuration];
 
 						if (types.isObject(overrideValue)) {
-							const configurationSource = configurationDefaultsOverride.valuesSources?.get(configuration) as Map<string, ConfigurationDefaultSource> | undefined;
+							const configurationSource = configurationDefaultsOverride.valuesSources?.get(configuration) as Map<string, IExtensionInfo> | undefined;
 
 							for (const overrideObjectKey of Object.keys(overrideValue)) {
 								const keySource = configurationSource?.get(overrideObjectKey);
@@ -529,7 +533,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 					}
 					// Otherwise, remove the default value if the source matches
 					else {
-						const configurationDefaultsOverrideSourceId = types.isString(configurationDefaultsOverride.source) ? configurationDefaultsOverride.source : configurationDefaultsOverride.source?.id;
+						const configurationDefaultsOverrideSourceId = configurationDefaultsOverride.source?.id;
 						if (id !== configurationDefaultsOverrideSourceId) {
 							continue; // Another source is overriding this default value
 						}
@@ -802,8 +806,14 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 
 	private updatePropertyDefaultValue(key: string, property: IRegisteredConfigurationPropertySchema): void {
 		const configurationdefaultOverride = this.configurationDefaultsOverrides.get(key);
-		let defaultValue = configurationdefaultOverride?.value;
-		let defaultSource = configurationdefaultOverride?.source;
+		let defaultValue = undefined;
+		let defaultSource = undefined;
+		if (configurationdefaultOverride
+			&& (!property.disallowConfigurationDefault || !configurationdefaultOverride.source) // Prevent overriding the default value if the property is disallowed to be overridden by configuration defaults from extensions
+		) {
+			defaultValue = configurationdefaultOverride.value;
+			defaultSource = configurationdefaultOverride.source;
+		}
 		if (types.isUndefined(defaultValue)) {
 			defaultValue = property.defaultDefaultValue;
 			defaultSource = undefined;
