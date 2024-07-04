@@ -33,6 +33,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { ChatModel, IChatRequestModel, IChatResponseModel, IChatTextEditGroupState } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IChatAgent } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IDocumentDiff } from 'vs/editor/common/diff/documentDiffProvider';
 
 
 export type TelemetryData = {
@@ -88,15 +89,6 @@ export class SessionWholeRange {
 		}
 	}
 
-	trackEdits(edits: ISingleEditOperation[]): void {
-		const newDeco: IModelDeltaDecoration[] = [];
-		for (const edit of edits) {
-			newDeco.push({ range: edit.range, options: SessionWholeRange._options });
-		}
-		this._decorationIds.push(...this._textModel.deltaDecorations([], newDeco));
-		this._onDidChange.fire(this);
-	}
-
 	fixup(changes: readonly DetailedLineRangeMapping[]): void {
 
 		const newDeco: IModelDeltaDecoration[] = [];
@@ -138,7 +130,7 @@ export class Session {
 
 	private _lastInput: SessionPrompt | undefined;
 	private _isUnstashed: boolean = false;
-	private readonly _exchange: SessionExchange[] = [];
+	private readonly _exchanges: SessionExchange[] = [];
 	private readonly _startTime = new Date();
 	private readonly _teldata: TelemetryData;
 
@@ -155,7 +147,7 @@ export class Session {
 		 */
 		readonly textModel0: ITextModel,
 		/**
-		 * The document into which AI edits went, when live this is `targetUri` otherwise it is a temporary document
+		 * The model of the editor
 		 */
 		readonly textModelN: ITextModel,
 		readonly agent: IChatAgent,
@@ -199,17 +191,35 @@ export class Session {
 
 	addExchange(exchange: SessionExchange): void {
 		this._isUnstashed = false;
-		const newLen = this._exchange.push(exchange);
+		const newLen = this._exchanges.push(exchange);
 		this._teldata.rounds += `${newLen}|`;
 		// this._teldata.responseTypes += `${exchange.response instanceof ReplyResponse ? exchange.response.responseType : InlineChatResponseTypes.Empty}|`;
 	}
 
-	get exchanges(): readonly SessionExchange[] {
-		return this._exchange;
+	get lastExchange(): SessionExchange | undefined {
+		return this._exchanges[this._exchanges.length - 1];
 	}
 
-	get lastExchange(): SessionExchange | undefined {
-		return this._exchange[this._exchange.length - 1];
+	async undoChangesUntil(requestId: string): Promise<boolean> {
+		const idx = this._exchanges.findIndex(candidate => candidate.prompt.request.id === requestId);
+		if (idx < 0) {
+			return false;
+		}
+		// undo till this point
+		this.hunkData.ignoreTextModelNChanges = true;
+		try {
+			const targetAltVersion = this._exchanges[idx].prompt.modelAltVersionId;
+			while (targetAltVersion < this.textModelN.getAlternativeVersionId() && this.textModelN.canUndo()) {
+				await this.textModelN.undo();
+			}
+		} finally {
+			this.hunkData.ignoreTextModelNChanges = false;
+		}
+		// TODO@jrieken cannot do this yet because some parts still rely on
+		// exchanges being around...
+		// // remove this and following exchanges
+		// this._exchanges.length = idx;
+		return true;
 	}
 
 	get hasChangedText(): boolean {
@@ -259,7 +269,7 @@ export class Session {
 			when: this._startTime,
 			exchanges: []
 		};
-		for (const exchange of this._exchange) {
+		for (const exchange of this._exchanges) {
 			const response = exchange.response;
 			if (response instanceof ReplyResponse) {
 				result.exchanges.push({ prompt: exchange.prompt.value, res: response.chatResponse });
@@ -555,9 +565,9 @@ export class HunkData {
 		this._textModel0.pushEditOperations(null, edits, () => null);
 	}
 
-	async recompute(editState: IChatTextEditGroupState) {
+	async recompute(editState: IChatTextEditGroupState, diff?: IDocumentDiff | null) {
 
-		const diff = await this._editorWorkerService.computeDiff(this._textModel0.uri, this._textModelN.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: Number.MAX_SAFE_INTEGER, computeMoves: false }, 'advanced');
+		diff ??= await this._editorWorkerService.computeDiff(this._textModel0.uri, this._textModelN.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: Number.MAX_SAFE_INTEGER, computeMoves: false }, 'advanced');
 
 		if (!diff || diff.changes.length === 0) {
 			// return new HunkData([], session);

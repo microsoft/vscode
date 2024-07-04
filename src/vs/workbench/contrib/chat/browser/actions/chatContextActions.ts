@@ -30,9 +30,14 @@ import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVari
 import { AnythingQuickAccessProvider } from 'vs/workbench/contrib/search/browser/anythingQuickAccess';
 import { ISymbolQuickPickItem, SymbolsQuickAccessProvider } from 'vs/workbench/contrib/search/browser/symbolsQuickAccess';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { EditorType } from 'vs/editor/common/editorCommon';
+import { compare } from 'vs/base/common/strings';
 
 export function registerChatContextActions() {
 	registerAction2(AttachContextAction);
+	registerAction2(AttachFileAction);
+	registerAction2(AttachSelectionAction);
 }
 
 export type IChatContextQuickPickItem = IFileQuickPickItem | IDynamicVariableQuickPickItem | IStaticVariableQuickPickItem | IGotoSymbolQuickPickItem | ISymbolQuickPickItem | IQuickAccessQuickPickItem;
@@ -75,6 +80,58 @@ export interface IQuickAccessQuickPickItem extends IQuickPickItem {
 	value: string;
 
 	prefix: string;
+}
+
+class AttachFileAction extends Action2 {
+
+	static readonly ID = 'workbench.action.chat.attachFile';
+
+	constructor() {
+		super({
+			id: AttachFileAction.ID,
+			title: localize2('workbench.action.chat.attachFile.label', "Attach File"),
+			category: CHAT_CATEGORY,
+			f1: false
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+		const variablesService = accessor.get(IChatVariablesService);
+		const textEditorService = accessor.get(IEditorService);
+
+		const activeUri = textEditorService.activeEditor?.resource;
+		if (textEditorService.activeTextEditorControl?.getEditorType() === EditorType.ICodeEditor && activeUri && [Schemas.file, Schemas.vscodeRemote].includes(activeUri.scheme)) {
+			variablesService.attachContext('file', activeUri, ChatAgentLocation.Panel);
+		}
+	}
+}
+
+class AttachSelectionAction extends Action2 {
+
+	static readonly ID = 'workbench.action.chat.attachSelection';
+
+	constructor() {
+		super({
+			id: AttachSelectionAction.ID,
+			title: localize2('workbench.action.chat.attachSelection.label', "Add Selection to Chat"),
+			category: CHAT_CATEGORY,
+			f1: false
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+		const variablesService = accessor.get(IChatVariablesService);
+		const textEditorService = accessor.get(IEditorService);
+
+		const activeEditor = textEditorService.activeTextEditorControl;
+		const activeUri = textEditorService.activeEditor?.resource;
+		if (textEditorService.activeTextEditorControl?.getEditorType() === EditorType.ICodeEditor && activeUri && [Schemas.file, Schemas.vscodeRemote].includes(activeUri.scheme)) {
+			const selection = activeEditor?.getSelection();
+			if (selection) {
+				variablesService.attachContext('file', { uri: activeUri, range: selection }, ChatAgentLocation.Panel);
+			}
+		}
+	}
 }
 
 class AttachContextAction extends Action2 {
@@ -231,7 +288,21 @@ class AttachContextAction extends Action2 {
 			prefix: SymbolsQuickAccessProvider.PREFIX
 		});
 
-		this._show(quickInputService, commandService, widget, quickPickItems);
+		function extractTextFromIconLabel(label: string | undefined): string {
+			if (!label) {
+				return '';
+			}
+			const match = label.match(/\$\([^\)]+\)\s*(.+)/);
+			return match ? match[1] : label;
+		}
+
+		this._show(quickInputService, commandService, widget, quickPickItems.sort(function (a, b) {
+
+			const first = extractTextFromIconLabel(a.label).toUpperCase();
+			const second = extractTextFromIconLabel(b.label).toUpperCase();
+
+			return compare(first, second);
+		}));
 	}
 
 	private _show(quickInputService: IQuickInputService, commandService: ICommandService, widget: IChatWidget, quickPickItems: (IChatContextQuickPickItem | QuickPickItem)[], query: string = '') {

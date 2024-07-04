@@ -103,26 +103,6 @@ export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerS
 		return extensions;
 	}
 
-	async scanSingleExtension(extensionLocation: URI, isBuiltin: boolean, language?: string): Promise<IExtensionDescription | null> {
-		await this._whenBuiltinExtensionsReady;
-
-		const extensionPath = extensionLocation.scheme === Schemas.file ? extensionLocation.fsPath : null;
-
-		if (!extensionPath) {
-			return null;
-		}
-
-		const extension = await this._scanSingleExtension(extensionPath, isBuiltin, language ?? platform.language);
-
-		if (!extension) {
-			return null;
-		}
-
-		this._massageWhenConditions([extension]);
-
-		return extension;
-	}
-
 	private async _scanExtensions(profileLocation: URI, language: string, workspaceInstalledExtensionLocations: URI[] | undefined, extensionDevelopmentPath: string[] | undefined, languagePackId: string | undefined): Promise<IExtensionDescription[]> {
 		await this._ensureLanguagePackIsInstalled(language, languagePackId);
 
@@ -166,13 +146,6 @@ export class RemoteExtensionsScannerService implements IRemoteExtensionsScannerS
 	private async _scanInstalledExtensions(profileLocation: URI, language: string): Promise<IExtensionDescription[]> {
 		const scannedExtensions = await this._extensionsScannerService.scanUserExtensions({ profileLocation, language, useCache: true });
 		return scannedExtensions.map(e => toExtensionDescription(e, false));
-	}
-
-	private async _scanSingleExtension(extensionPath: string, isBuiltin: boolean, language: string): Promise<IExtensionDescription | null> {
-		const extensionLocation = URI.file(resolve(extensionPath));
-		const type = isBuiltin ? ExtensionType.System : ExtensionType.User;
-		const scannedExtension = await this._extensionsScannerService.scanExistingExtension(extensionLocation, type, { language });
-		return scannedExtension ? toExtensionDescription(scannedExtension, false) : null;
 	}
 
 	private async _ensureLanguagePackIsInstalled(language: string, languagePackId: string | undefined): Promise<void> {
@@ -350,10 +323,6 @@ export class RemoteExtensionsScannerChannel implements IServerChannel {
 					languagePackId
 				);
 				return extensions.map(extension => transformOutgoingURIs(extension, uriTransformer));
-			}
-			case 'scanSingleExtension': {
-				const extension = await this.service.scanSingleExtension(URI.revive(uriTransformer.transformIncoming(args[0])), args[1], args[2]);
-				return extension ? transformOutgoingURIs(extension, uriTransformer) : null;
 			}
 		}
 		throw new Error('Invalid call');

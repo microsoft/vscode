@@ -177,7 +177,7 @@ class SplitPaneContainer extends Disposable {
 
 		// Remove old split view
 		while (this._container.children.length > 0) {
-			this._container.removeChild(this._container.children[0]);
+			this._container.children[0].remove();
 		}
 		this._splitViewDisposables.clear();
 		this._splitView.dispose();
@@ -288,7 +288,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 		this._onPanelOrientationChanged.fire(this._terminalLocation === ViewContainerLocation.Panel && this._panelPosition === Position.BOTTOM ? Orientation.HORIZONTAL : Orientation.VERTICAL);
 		this._register(toDisposable(() => {
 			if (this._container && this._groupElement) {
-				this._container.removeChild(this._groupElement);
+				this._groupElement.remove();
 				this._groupElement = undefined;
 			}
 		}));

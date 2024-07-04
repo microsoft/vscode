@@ -3736,6 +3736,11 @@ declare namespace monaco.editor {
 		 */
 		peekWidgetDefaultFocus?: 'tree' | 'editor';
 		/**
+		 * Sets a placeholder for the editor.
+		 * If set, the placeholder is shown if the editor is empty.
+		*/
+		placeholder?: string | undefined;
+		/**
 		 * Controls whether the definition link opens element in the peek widget.
 		 * Defaults to false.
 		 */
@@ -4929,68 +4934,69 @@ declare namespace monaco.editor {
 		pasteAs = 85,
 		parameterHints = 86,
 		peekWidgetDefaultFocus = 87,
-		definitionLinkOpensInPeek = 88,
-		quickSuggestions = 89,
-		quickSuggestionsDelay = 90,
-		readOnly = 91,
-		readOnlyMessage = 92,
-		renameOnType = 93,
-		renderControlCharacters = 94,
-		renderFinalNewline = 95,
-		renderLineHighlight = 96,
-		renderLineHighlightOnlyWhenFocus = 97,
-		renderValidationDecorations = 98,
-		renderWhitespace = 99,
-		revealHorizontalRightPadding = 100,
-		roundedSelection = 101,
-		rulers = 102,
-		scrollbar = 103,
-		scrollBeyondLastColumn = 104,
-		scrollBeyondLastLine = 105,
-		scrollPredominantAxis = 106,
-		selectionClipboard = 107,
-		selectionHighlight = 108,
-		selectOnLineNumbers = 109,
-		showFoldingControls = 110,
-		showUnused = 111,
-		snippetSuggestions = 112,
-		smartSelect = 113,
-		smoothScrolling = 114,
-		stickyScroll = 115,
-		stickyTabStops = 116,
-		stopRenderingLineAfter = 117,
-		suggest = 118,
-		suggestFontSize = 119,
-		suggestLineHeight = 120,
-		suggestOnTriggerCharacters = 121,
-		suggestSelection = 122,
-		tabCompletion = 123,
-		tabIndex = 124,
-		unicodeHighlighting = 125,
-		unusualLineTerminators = 126,
-		useShadowDOM = 127,
-		useTabStops = 128,
-		wordBreak = 129,
-		wordSegmenterLocales = 130,
-		wordSeparators = 131,
-		wordWrap = 132,
-		wordWrapBreakAfterCharacters = 133,
-		wordWrapBreakBeforeCharacters = 134,
-		wordWrapColumn = 135,
-		wordWrapOverride1 = 136,
-		wordWrapOverride2 = 137,
-		wrappingIndent = 138,
-		wrappingStrategy = 139,
-		showDeprecated = 140,
-		inlayHints = 141,
-		editorClassName = 142,
-		pixelRatio = 143,
-		tabFocusMode = 144,
-		layoutInfo = 145,
-		wrappingInfo = 146,
-		defaultColorDecorators = 147,
-		colorDecoratorsActivatedOn = 148,
-		inlineCompletionsAccessibilityVerbose = 149
+		placeholder = 88,
+		definitionLinkOpensInPeek = 89,
+		quickSuggestions = 90,
+		quickSuggestionsDelay = 91,
+		readOnly = 92,
+		readOnlyMessage = 93,
+		renameOnType = 94,
+		renderControlCharacters = 95,
+		renderFinalNewline = 96,
+		renderLineHighlight = 97,
+		renderLineHighlightOnlyWhenFocus = 98,
+		renderValidationDecorations = 99,
+		renderWhitespace = 100,
+		revealHorizontalRightPadding = 101,
+		roundedSelection = 102,
+		rulers = 103,
+		scrollbar = 104,
+		scrollBeyondLastColumn = 105,
+		scrollBeyondLastLine = 106,
+		scrollPredominantAxis = 107,
+		selectionClipboard = 108,
+		selectionHighlight = 109,
+		selectOnLineNumbers = 110,
+		showFoldingControls = 111,
+		showUnused = 112,
+		snippetSuggestions = 113,
+		smartSelect = 114,
+		smoothScrolling = 115,
+		stickyScroll = 116,
+		stickyTabStops = 117,
+		stopRenderingLineAfter = 118,
+		suggest = 119,
+		suggestFontSize = 120,
+		suggestLineHeight = 121,
+		suggestOnTriggerCharacters = 122,
+		suggestSelection = 123,
+		tabCompletion = 124,
+		tabIndex = 125,
+		unicodeHighlighting = 126,
+		unusualLineTerminators = 127,
+		useShadowDOM = 128,
+		useTabStops = 129,
+		wordBreak = 130,
+		wordSegmenterLocales = 131,
+		wordSeparators = 132,
+		wordWrap = 133,
+		wordWrapBreakAfterCharacters = 134,
+		wordWrapBreakBeforeCharacters = 135,
+		wordWrapColumn = 136,
+		wordWrapOverride1 = 137,
+		wordWrapOverride2 = 138,
+		wrappingIndent = 139,
+		wrappingStrategy = 140,
+		showDeprecated = 141,
+		inlayHints = 142,
+		editorClassName = 143,
+		pixelRatio = 144,
+		tabFocusMode = 145,
+		layoutInfo = 146,
+		wrappingInfo = 147,
+		defaultColorDecorators = 148,
+		colorDecoratorsActivatedOn = 149,
+		inlineCompletionsAccessibilityVerbose = 150
 	}
 
 	export const EditorOptions: {
@@ -5003,8 +5009,8 @@ declare namespace monaco.editor {
 		screenReaderAnnounceInlineSuggestion: IEditorOption<EditorOption.screenReaderAnnounceInlineSuggestion, boolean>;
 		autoClosingBrackets: IEditorOption<EditorOption.autoClosingBrackets, 'always' | 'languageDefined' | 'beforeWhitespace' | 'never'>;
 		autoClosingComments: IEditorOption<EditorOption.autoClosingComments, 'always' | 'languageDefined' | 'beforeWhitespace' | 'never'>;
-		autoClosingDelete: IEditorOption<EditorOption.autoClosingDelete, 'always' | 'never' | 'auto'>;
-		autoClosingOvertype: IEditorOption<EditorOption.autoClosingOvertype, 'always' | 'never' | 'auto'>;
+		autoClosingDelete: IEditorOption<EditorOption.autoClosingDelete, 'auto' | 'always' | 'never'>;
+		autoClosingOvertype: IEditorOption<EditorOption.autoClosingOvertype, 'auto' | 'always' | 'never'>;
 		autoClosingQuotes: IEditorOption<EditorOption.autoClosingQuotes, 'always' | 'languageDefined' | 'beforeWhitespace' | 'never'>;
 		autoIndent: IEditorOption<EditorOption.autoIndent, EditorAutoIndentStrategy>;
 		automaticLayout: IEditorOption<EditorOption.automaticLayout, boolean>;
@@ -5016,7 +5022,7 @@ declare namespace monaco.editor {
 		codeLensFontFamily: IEditorOption<EditorOption.codeLensFontFamily, string>;
 		codeLensFontSize: IEditorOption<EditorOption.codeLensFontSize, number>;
 		colorDecorators: IEditorOption<EditorOption.colorDecorators, boolean>;
-		colorDecoratorActivatedOn: IEditorOption<EditorOption.colorDecoratorsActivatedOn, 'clickAndHover' | 'click' | 'hover'>;
+		colorDecoratorActivatedOn: IEditorOption<EditorOption.colorDecoratorsActivatedOn, 'hover' | 'clickAndHover' | 'click'>;
 		colorDecoratorsLimit: IEditorOption<EditorOption.colorDecoratorsLimit, number>;
 		columnSelection: IEditorOption<EditorOption.columnSelection, boolean>;
 		comments: IEditorOption<EditorOption.comments, Readonly<Required<IEditorCommentsOptions>>>;
@@ -5083,6 +5089,7 @@ declare namespace monaco.editor {
 		pasteAs: IEditorOption<EditorOption.pasteAs, Readonly<Required<IPasteAsOptions>>>;
 		parameterHints: IEditorOption<EditorOption.parameterHints, Readonly<Required<IEditorParameterHintOptions>>>;
 		peekWidgetDefaultFocus: IEditorOption<EditorOption.peekWidgetDefaultFocus, 'tree' | 'editor'>;
+		placeholder: IEditorOption<EditorOption.placeholder, string>;
 		definitionLinkOpensInPeek: IEditorOption<EditorOption.definitionLinkOpensInPeek, boolean>;
 		quickSuggestions: IEditorOption<EditorOption.quickSuggestions, InternalQuickSuggestionsOptions>;
 		quickSuggestionsDelay: IEditorOption<EditorOption.quickSuggestionsDelay, number>;
@@ -5124,13 +5131,13 @@ declare namespace monaco.editor {
 		tabCompletion: IEditorOption<EditorOption.tabCompletion, 'on' | 'off' | 'onlySnippets'>;
 		tabIndex: IEditorOption<EditorOption.tabIndex, number>;
 		unicodeHighlight: IEditorOption<EditorOption.unicodeHighlighting, any>;
-		unusualLineTerminators: IEditorOption<EditorOption.unusualLineTerminators, 'auto' | 'off' | 'prompt'>;
+		unusualLineTerminators: IEditorOption<EditorOption.unusualLineTerminators, 'off' | 'auto' | 'prompt'>;
 		useShadowDOM: IEditorOption<EditorOption.useShadowDOM, boolean>;
 		useTabStops: IEditorOption<EditorOption.useTabStops, boolean>;
 		wordBreak: IEditorOption<EditorOption.wordBreak, 'normal' | 'keepAll'>;
 		wordSegmenterLocales: IEditorOption<EditorOption.wordSegmenterLocales, {}>;
 		wordSeparators: IEditorOption<EditorOption.wordSeparators, string>;
-		wordWrap: IEditorOption<EditorOption.wordWrap, 'on' | 'off' | 'wordWrapColumn' | 'bounded'>;
+		wordWrap: IEditorOption<EditorOption.wordWrap, 'wordWrapColumn' | 'on' | 'off' | 'bounded'>;
 		wordWrapBreakAfterCharacters: IEditorOption<EditorOption.wordWrapBreakAfterCharacters, string>;
 		wordWrapBreakBeforeCharacters: IEditorOption<EditorOption.wordWrapBreakBeforeCharacters, string>;
 		wordWrapColumn: IEditorOption<EditorOption.wordWrapColumn, number>;
@@ -7939,6 +7946,11 @@ declare namespace monaco.languages {
 		arguments?: any[];
 	}
 
+	export interface CommentThreadRevealOptions {
+		preserveFocus: boolean;
+		focusReply: boolean;
+	}
+
 	export interface CommentAuthorInformation {
 		name: string;
 		iconPath?: UriComponents;
@@ -8053,7 +8065,7 @@ declare namespace monaco.languages {
 		 *
 		 * @param document The document to provide mapped edits for.
 		 * @param codeBlocks Code blocks that come from an LLM's reply.
-		 * 						"Insert at cursor" in the panel chat only sends one edit that the user clicks on, but inline chat can send multiple blocks and let the lang server decide what to do with them.
+		 * 						"Apply in Editor" in the panel chat only sends one edit that the user clicks on, but inline chat can send multiple blocks and let the lang server decide what to do with them.
 		 * @param context The context for providing mapped edits.
 		 * @param token A cancellation token.
 		 * @returns A provider result of text edits.

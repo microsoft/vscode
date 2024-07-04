@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import * as fs from 'fs';
+import assert from 'assert';
 import { tmpdir } from 'os';
 import { realcase, realcaseSync, realpath, realpathSync } from 'vs/base/node/extpath';
 import { Promises } from 'vs/base/node/pfs';
@@ -16,7 +17,7 @@ flakySuite('Extpath', () => {
 	setup(() => {
 		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'extpath');
 
-		return Promises.mkdir(testDir, { recursive: true });
+		return fs.promises.mkdir(testDir, { recursive: true });
 	});
 
 	teardown(() => {

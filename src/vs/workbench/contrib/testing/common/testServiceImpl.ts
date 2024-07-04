@@ -28,7 +28,7 @@ import { canUseProfileWithTest, ITestProfileService } from 'vs/workbench/contrib
 import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { AmbiguousRunTestsRequest, IMainThreadTestController, IMainThreadTestHostProxy, ITestFollowups, ITestService } from 'vs/workbench/contrib/testing/common/testService';
-import { ResolvedTestRunRequest, TestDiffOpType, TestMessageFollowupRequest, TestsDiff } from 'vs/workbench/contrib/testing/common/testTypes';
+import { InternalTestItem, ITestRunProfile, ResolvedTestRunRequest, TestDiffOpType, TestMessageFollowupRequest, TestsDiff } from 'vs/workbench/contrib/testing/common/testTypes';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class TestService extends Disposable implements ITestService {
@@ -133,24 +133,36 @@ export class TestService extends Disposable implements ITestService {
 	 * @inheritdoc
 	 */
 	public async runTests(req: AmbiguousRunTestsRequest, token = CancellationToken.None): Promise<ITestResult> {
+		// We try to ensure that all tests in the request will be run, preferring
+		// to use default profiles for each controller when possible.
+		const byProfile: { profile: ITestRunProfile; tests: InternalTestItem[] }[] = [];
+		for (const test of req.tests) {
+			const existing = byProfile.find(p => canUseProfileWithTest(p.profile, test));
+			if (existing) {
+				existing.tests.push(test);
+				continue;
+			}
+
+			const allProfiles = this.testProfiles.getControllerProfiles(test.controllerId)
+				.filter(p => (p.group & req.group) !== 0 && canUseProfileWithTest(p, test));
+			const bestProfile = allProfiles.find(p => p.isDefault) || allProfiles[0];
+			if (!bestProfile) {
+				continue;
+			}
+
+			byProfile.push({ profile: bestProfile, tests: [test] });
+		}
+
 		const resolved: ResolvedTestRunRequest = {
-			targets: [],
+			targets: byProfile.map(({ profile, tests }) => ({
+				profileId: profile.profileId,
+				controllerId: tests[0].controllerId,
+				testIds: tests.map(t => t.item.extId),
+			})),
+			group: req.group,
 			exclude: req.exclude?.map(t => t.item.extId),
 			continuous: req.continuous,
 		};
-
-		// First, try to run the tests using the default run profiles...
-		for (const profile of this.testProfiles.getGroupDefaultProfiles(req.group)) {
-			const testIds = req.tests.filter(t => canUseProfileWithTest(profile, t)).map(t => t.item.extId);
-			if (testIds.length) {
-				resolved.targets.push({
-					testIds: testIds,
-					profileGroup: profile.group,
-					profileId: profile.profileId,
-					controllerId: profile.controllerId,
-				});
-			}
-		}
 
 		// If no tests are covered by the defaults, just use whatever the defaults
 		// for their controller are. This can happen if the user chose specific
@@ -169,7 +181,6 @@ export class TestService extends Disposable implements ITestService {
 					if (profile) {
 						resolved.targets.push({
 							testIds: byProfile.map(t => t.test.item.extId),
-							profileGroup: req.group,
 							profileId: profile.profileId,
 							controllerId: profile.controllerId,
 						});

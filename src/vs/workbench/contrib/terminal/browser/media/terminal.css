@@ -73,8 +73,8 @@
 }
 
 .monaco-workbench .xterm {
-	/* All terminals have at least 10px left/right edge padding and 2 padding on the bottom (so underscores on last line are visible */
-	padding: 0 10px 2px;
+	/* All terminals have at least 20px left, 10px right edge padding and 2 padding on the bottom (so underscores on last line are visible) */
+	padding: 0 10px 2px 20px;
 }
 
 .monaco-workbench .terminal-editor .xterm,
@@ -129,15 +129,6 @@
 .xterm.enable-mouse-events .xterm-screen  { cursor: default; }
 .xterm.xterm-cursor-pointer .xterm-screen { cursor: pointer; }
 .xterm.column-select.focus .xterm-screen  { cursor: crosshair; }
-
-.monaco-workbench .terminal-editor .xterm {
-	padding-left: 20px !important;
-}
-
-.monaco-workbench .pane-body.integrated-terminal .terminal-group .monaco-split-view2.horizontal .split-view-view:first-child .xterm,
-.integrated-terminal.shell-integration .xterm {
-	padding-left: 20px !important;
-}
 
 .monaco-workbench .terminal-editor .terminal-group .monaco-split-view2.horizontal .split-view-view:last-child .xterm,
 .monaco-workbench .pane-body.integrated-terminal .terminal-group .monaco-split-view2.horizontal .split-view-view:last-child .xterm {

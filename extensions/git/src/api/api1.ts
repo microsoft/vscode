@@ -44,6 +44,7 @@ export class ApiRepositoryState implements RepositoryState {
 	get mergeChanges(): Change[] { return this._repository.mergeGroup.resourceStates.map(r => new ApiChange(r)); }
 	get indexChanges(): Change[] { return this._repository.indexGroup.resourceStates.map(r => new ApiChange(r)); }
 	get workingTreeChanges(): Change[] { return this._repository.workingTreeGroup.resourceStates.map(r => new ApiChange(r)); }
+	get untrackedChanges(): Change[] { return this._repository.untrackedGroup.resourceStates.map(r => new ApiChange(r)); }
 
 	readonly onDidChange: Event<void> = this._repository.onDidRunGitStatus;
 

@@ -9,7 +9,7 @@ import { Mimes } from 'vs/base/common/mime';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IPosition } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
+import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as model from 'vs/editor/common/model';
@@ -19,12 +19,12 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { IWordWrapTransientState, readTransientState, writeTransientState } from 'vs/workbench/contrib/codeEditor/browser/toggleWordWrap';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
-import { CellEditState, CellFocusMode, CursorAtBoundary, CursorAtLineBoundary, IEditableCellViewModel, INotebookCellDecorationOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFocusMode, CellLayoutChangeEvent, CursorAtBoundary, CursorAtLineBoundary, IEditableCellViewModel, INotebookCellDecorationOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
 import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, INotebookCellStatusBarItem, INotebookSearchOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, INotebookCellStatusBarItem, INotebookFindOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export abstract class BaseCellViewModel extends Disposable {
 
@@ -158,6 +158,16 @@ export abstract class BaseCellViewModel extends Disposable {
 		this._onDidChangeState.fire({ outputCollapsedChanged: true });
 	}
 
+	protected _commentHeight = 0;
+
+	set commentHeight(height: number) {
+		if (this._commentHeight === height) {
+			return;
+		}
+		this._commentHeight = height;
+		this.layoutChange({ commentHeight: true }, 'BaseCellViewModel#commentHeight');
+	}
+
 	private _isDisposed = false;
 
 	constructor(
@@ -204,7 +214,7 @@ export abstract class BaseCellViewModel extends Disposable {
 	abstract updateOptions(e: NotebookOptionsChangeEvent): void;
 	abstract getHeight(lineHeight: number): number;
 	abstract onDeselect(): void;
-	abstract layoutChange(change: any): void;
+	abstract layoutChange(change: CellLayoutChangeEvent, source?: string): void;
 
 	assertTextModelAttached(): boolean {
 		if (this.textModel && this._textEditor && this._textEditor.getModel() === this.textModel) {
@@ -258,7 +268,12 @@ export abstract class BaseCellViewModel extends Disposable {
 			writeTransientState(editor.getModel(), this._editorTransientState, this._codeEditorService);
 		}
 
-		this._textEditor?.changeDecorations((accessor) => {
+		if (this._isDisposed) {
+			// Restore View State could adjust the editor layout and trigger a list view update. The list view update might then dispose this view model.
+			return;
+		}
+
+		editor.changeDecorations((accessor) => {
 			this._resolvedDecorations.forEach((value, key) => {
 				if (key.startsWith('_lazy_')) {
 					// lazy ones
@@ -272,7 +287,7 @@ export abstract class BaseCellViewModel extends Disposable {
 			});
 		});
 
-		this._editorListeners.push(this._textEditor.onDidChangeCursorSelection(() => { this._onDidChangeState.fire({ selectionChanged: true }); }));
+		this._editorListeners.push(editor.onDidChangeCursorSelection(() => { this._onDidChangeState.fire({ selectionChanged: true }); }));
 		const inlineChatController = InlineChatController.get(this._textEditor);
 		if (inlineChatController) {
 			this._editorListeners.push(inlineChatController.onWillStartSession(() => {
@@ -281,7 +296,7 @@ export abstract class BaseCellViewModel extends Disposable {
 				}
 			}));
 		}
-		// this._editorListeners.push(this._textEditor.onKeyDown(e => this.handleKeyDown(e)));
+
 		this._onDidChangeState.fire({ selectionChanged: true });
 		this._onDidChangeEditorAttachState.fire();
 	}
@@ -645,20 +660,21 @@ export abstract class BaseCellViewModel extends Disposable {
 
 	protected abstract onDidChangeTextModelContent(): void;
 
-	protected cellStartFind(value: string, options: INotebookSearchOptions): model.FindMatch[] | null {
+	protected cellStartFind(value: string, options: INotebookFindOptions): model.FindMatch[] | null {
 		let cellMatches: model.FindMatch[] = [];
+
+		const lineCount = this.textBuffer.getLineCount();
+		const findRange: IRange[] = options.findScope?.selectedTextRanges ?? [new Range(1, 1, lineCount, this.textBuffer.getLineLength(lineCount) + 1)];
 
 		if (this.assertTextModelAttached()) {
 			cellMatches = this.textModel!.findMatches(
 				value,
-				false,
+				findRange,
 				options.regex || false,
 				options.caseSensitive || false,
 				options.wholeWord ? options.wordSeparators || null : null,
 				options.regex || false);
 		} else {
-			const lineCount = this.textBuffer.getLineCount();
-			const fullRange = new Range(1, 1, lineCount, this.textBuffer.getLineLength(lineCount) + 1);
 			const searchParams = new SearchParams(value, options.regex || false, options.caseSensitive || false, options.wholeWord ? options.wordSeparators || null : null,);
 			const searchData = searchParams.parseSearchRequest();
 
@@ -666,7 +682,9 @@ export abstract class BaseCellViewModel extends Disposable {
 				return null;
 			}
 
-			cellMatches = this.textBuffer.findMatchesLineByLine(fullRange, searchData, options.regex || false, 1000);
+			findRange.forEach(range => {
+				cellMatches.push(...this.textBuffer.findMatchesLineByLine(new Range(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn), searchData, options.regex || false, 1000));
+			});
 		}
 
 		return cellMatches;

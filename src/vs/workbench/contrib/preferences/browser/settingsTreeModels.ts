@@ -17,7 +17,7 @@ import { FOLDER_SCOPES, WORKSPACE_SCOPES, REMOTE_MACHINE_SCOPES, LOCAL_MACHINE_S
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
-import { ConfigurationScope, EditPresentationTypes, Extensions, IConfigurationRegistry, IExtensionInfo } from 'vs/platform/configuration/common/configurationRegistry';
+import { ConfigurationDefaultValueSource, ConfigurationScope, EditPresentationTypes, Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
@@ -135,7 +135,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	 * The source of the default value to display.
 	 * This value also accounts for extension-contributed language-specific default value overrides.
 	 */
-	defaultValueSource: string | IExtensionInfo | undefined;
+	defaultValueSource: ConfigurationDefaultValueSource | undefined;
 
 	/**
 	 * Whether the setting is configured in the selected scope.
@@ -792,11 +792,25 @@ function isIncludeSetting(setting: ISetting): boolean {
 	return setting.key === 'files.readonlyInclude';
 }
 
-function isObjectRenderableSchema({ type }: IJSONSchema): boolean {
-	return type === 'string' || type === 'boolean' || type === 'integer' || type === 'number';
+// The values of the following settings when a default values has been removed
+export function objectSettingSupportsRemoveDefaultValue(key: string): boolean {
+	return key === 'workbench.editor.customLabels.patterns';
+}
+
+function isObjectRenderableSchema({ type }: IJSONSchema, key: string): boolean {
+	if (type === 'string' || type === 'boolean' || type === 'integer' || type === 'number') {
+		return true;
+	}
+
+	if (objectSettingSupportsRemoveDefaultValue(key) && Array.isArray(type) && type.length === 2) {
+		return type.includes('null') && (type.includes('string') || type.includes('boolean') || type.includes('integer') || type.includes('number'));
+	}
+
+	return false;
 }
 
 function isObjectSetting({
+	key,
 	type,
 	objectProperties,
 	objectPatternProperties,
@@ -838,7 +852,7 @@ function isObjectSetting({
 		return [schema];
 	}).flat();
 
-	return flatSchemas.every(isObjectRenderableSchema);
+	return flatSchemas.every((schema) => isObjectRenderableSchema(schema, key));
 }
 
 function settingTypeEnumRenderable(_type: string | string[]) {

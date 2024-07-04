@@ -12,6 +12,7 @@ import { EditorAutoIndentStrategy } from 'vs/editor/common/config/editorOptions'
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { IViewLineTokens } from 'vs/editor/common/tokens/lineTokens';
 import { IndentationContextProcessor, isLanguageDifferentFromLineStart, ProcessedIndentRulesSupport } from 'vs/editor/common/languages/supports/indentationLineProcessor';
+import { CursorConfiguration } from 'vs/editor/common/cursorCommon';
 
 export interface IVirtualModel {
 	tokenization: {
@@ -357,13 +358,14 @@ export function getIndentForEnter(
  * this line doesn't match decreaseIndentPattern, we should not adjust the indentation.
  */
 export function getIndentActionForType(
-	autoIndent: EditorAutoIndentStrategy,
+	cursorConfig: CursorConfiguration,
 	model: ITextModel,
 	range: Range,
 	ch: string,
 	indentConverter: IIndentConverter,
 	languageConfigurationService: ILanguageConfigurationService
 ): string | null {
+	const autoIndent = cursorConfig.autoIndent;
 	if (autoIndent < EditorAutoIndentStrategy.Full) {
 		return null;
 	}
@@ -402,6 +404,29 @@ export function getIndentActionForType(
 		}
 
 		return indentation;
+	}
+
+	const previousLineNumber = range.startLineNumber - 1;
+	if (previousLineNumber > 0) {
+		const previousLine = model.getLineContent(previousLineNumber);
+		if (indentRulesSupport.shouldIndentNextLine(previousLine) && indentRulesSupport.shouldIncrease(textAroundRangeWithCharacter)) {
+			const inheritedIndentationData = getInheritIndentForLine(autoIndent, model, range.startLineNumber, false, languageConfigurationService);
+			const inheritedIndentation = inheritedIndentationData?.indentation;
+			if (inheritedIndentation !== undefined) {
+				const currentLine = model.getLineContent(range.startLineNumber);
+				const actualCurrentIndentation = strings.getLeadingWhitespace(currentLine);
+				const inferredCurrentIndentation = indentConverter.shiftIndent(inheritedIndentation);
+				// If the inferred current indentation is not equal to the actual current indentation, then the indentation has been intentionally changed, in that case keep it
+				const inferredIndentationEqualsActual = inferredCurrentIndentation === actualCurrentIndentation;
+				const textAroundRangeContainsOnlyWhitespace = /^\s*$/.test(textAroundRange);
+				const autoClosingPairs = cursorConfig.autoClosingPairs.autoClosingPairsOpenByEnd.get(ch);
+				const autoClosingPairExists = autoClosingPairs && autoClosingPairs.length > 0;
+				const isChFirstNonWhitespaceCharacterAndInAutoClosingPair = autoClosingPairExists && textAroundRangeContainsOnlyWhitespace;
+				if (inferredIndentationEqualsActual && isChFirstNonWhitespaceCharacterAndInAutoClosingPair) {
+					return inheritedIndentation;
+				}
+			}
+		}
 	}
 
 	return null;

@@ -1036,9 +1036,6 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 				// We want focus to exist in the list if there are items so that space can be used to toggle
 				this.ui.list.shouldLoop = !this.canSelectMany;
 				this.ui.list.filter(this.filterValue(this.ui.inputBox.value));
-				this.ui.checkAll.checked = this.ui.list.getAllVisibleChecked();
-				this.ui.visibleCount.setCount(this.ui.list.getVisibleCount());
-				this.ui.count.setCount(this.ui.list.getCheckedCount());
 				switch (this._itemActivation) {
 					case ItemActivation.NONE:
 						this._itemActivation = ItemActivation.FIRST; // only valid once, then unset

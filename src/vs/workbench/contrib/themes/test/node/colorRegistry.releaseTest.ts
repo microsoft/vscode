@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IColorRegistry, Extensions, ColorContribution, asCssVariableName } from 'vs/platform/theme/common/colorRegistry';
 import { asTextOrError } from 'vs/platform/request/common/request';
 import * as pfs from 'vs/base/node/pfs';
 import * as path from 'vs/base/common/path';
-import * as assert from 'assert';
+import assert from 'assert';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { RequestService } from 'vs/platform/request/node/requestService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -40,7 +41,7 @@ suite('Color Registry', function () {
 
 	test(`update colors in ${knwonVariablesFileName}`, async function () {
 		const varFilePath = FileAccess.asFileUri(`vs/../../build/lib/stylelint/${knwonVariablesFileName}`).fsPath;
-		const content = (await pfs.Promises.readFile(varFilePath)).toString();
+		const content = (await fs.promises.readFile(varFilePath)).toString();
 
 		const variablesInfo = JSON.parse(content);
 
@@ -171,7 +172,7 @@ async function getColorsFromExtension(): Promise<{ [id: string]: string }> {
 	const result: { [id: string]: string } = Object.create(null);
 	for (const folder of extFolders) {
 		try {
-			const packageJSON = JSON.parse((await pfs.Promises.readFile(path.join(extPath, folder, 'package.json'))).toString());
+			const packageJSON = JSON.parse((await fs.promises.readFile(path.join(extPath, folder, 'package.json'))).toString());
 			const contributes = packageJSON['contributes'];
 			if (contributes) {
 				const colors = contributes['colors'];

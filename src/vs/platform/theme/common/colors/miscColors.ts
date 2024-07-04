@@ -16,7 +16,7 @@ import { contrastBorder, focusBorder } from 'vs/platform/theme/common/colors/bas
 // ----- sash
 
 export const sashHoverBorder = registerColor('sash.hoverBorder',
-	{ dark: focusBorder, light: focusBorder, hcDark: focusBorder, hcLight: focusBorder },
+	focusBorder,
 	nls.localize('sashActiveBorder', "Border color of active sashes."));
 
 
