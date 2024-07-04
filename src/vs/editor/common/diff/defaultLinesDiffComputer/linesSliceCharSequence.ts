@@ -165,6 +165,10 @@ export class LinesSliceCharSequence implements ISequence {
 		const end = findFirstMonotonous(this.firstCharOffsetByLine, x => range.endExclusive <= x) ?? this.elements.length;
 		return new OffsetRange(start, end);
 	}
+
+	public isEmpty(offset: number): boolean {
+		return this.lines[offset].trim().length === 0;
+	}
 }
 
 function isWordChar(charCode: number): boolean {

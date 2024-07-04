@@ -48,10 +48,19 @@ function joinSequenceDiffsByShifting(sequence1: ISequence, sequence2: ISequence,
 			const length = cur.seq1Range.start - prevResult.seq1Range.endExclusive;
 			let d;
 			for (d = 1; d <= length; d++) {
+				const seq1OffsetS = cur.seq1Range.start - d;
+				const seq1OffsetE = cur.seq1Range.endExclusive - d;
+				const seq2OffsetS = cur.seq2Range.start - d;
+				const seq2OffsetE = cur.seq2Range.endExclusive - d;
 				if (
-					sequence1.getElement(cur.seq1Range.start - d) !== sequence1.getElement(cur.seq1Range.endExclusive - d) ||
-					sequence2.getElement(cur.seq2Range.start - d) !== sequence2.getElement(cur.seq2Range.endExclusive - d)) {
+					sequence1.getElement(seq1OffsetS) !== sequence1.getElement(seq1OffsetE) ||
+					sequence2.getElement(seq2OffsetS) !== sequence2.getElement(seq2OffsetE)) {
 					break;
+				} else {
+					// check two sequence is strongly equal
+					if (checkSequencesIsStronglyEqual(sequence1, seq1OffsetS, seq1OffsetE, sequence2, seq2OffsetS, seq2OffsetE)) {
+						break;
+					}
 				}
 			}
 			d--;
@@ -111,6 +120,33 @@ function joinSequenceDiffsByShifting(sequence1: ISequence, sequence2: ISequence,
 	}
 
 	return result2;
+}
+
+/**
+ * fixes issues like this:
+ * seq1: [		pass] [		pass]
+ * seq2: [		pass] [	pass]
+ */
+function checkSequencesIsStronglyEqual(sequence1: ISequence, seq1OffsetS: number, seq1OffsetE: number, sequence2: ISequence, seq2OffsetS: number, seq2OffsetE: number): boolean {
+	function equal(sequence1: ISequence, seq1OffsetS: number, seq1OffsetE: number, sequence2: ISequence, seq2OffsetS: number, seq2OffsetE: number): boolean {
+		if (sequence1.getElement(seq1OffsetS) === sequence1.getElement(seq1OffsetE) &&
+			!sequence1.isEmpty(seq1OffsetS) && !sequence1.isEmpty(seq1OffsetE) &&
+			!sequence1.isStronglyEqual(seq1OffsetS, seq1OffsetE) &&
+			((sequence1 as any).lines[seq1OffsetS] === (sequence2 as any).lines[seq2OffsetS]) &&
+			sequence2.isStronglyEqual(seq2OffsetS, seq2OffsetE)) {
+			return true;
+		}
+		return false;
+	}
+
+	if (equal(sequence1, seq1OffsetS, seq1OffsetE, sequence2, seq2OffsetS, seq2OffsetE)) {
+		return true;
+	}
+
+	if (equal(sequence2, seq2OffsetS, seq2OffsetE, sequence1, seq1OffsetS, seq1OffsetE)) {
+		return true;
+	}
+	return false;
 }
 
 // align character level diffs at whitespace characters

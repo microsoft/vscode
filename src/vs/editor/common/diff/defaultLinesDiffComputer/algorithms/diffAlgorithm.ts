@@ -155,6 +155,8 @@ export interface ISequence {
 	 * It prevents shifting to less matching lines.
 	 */
 	isStronglyEqual(offset1: number, offset2: number): boolean;
+
+	isEmpty(offset: number): boolean;
 }
 
 export interface ITimeout {
