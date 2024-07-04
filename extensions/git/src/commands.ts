@@ -1390,6 +1390,7 @@ export class CommandCenter {
 		const scmResources = [...workingTree, ...untracked, ...resolved, ...unresolved];
 
 		this.logger.debug(`git.stage.scmResources ${scmResources.length} `);
+
 		if (!scmResources.length) {
 			return;
 		}

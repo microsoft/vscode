@@ -141,6 +141,7 @@ class MainThreadSCMResource implements ISCMResource {
 		readonly decorations: ISCMResourceDecorations,
 		readonly contextValue: string | undefined,
 		readonly command: Command | undefined,
+		readonly doubleClickCommand: Command | undefined,
 		readonly multiDiffEditorOriginalUri: URI | undefined,
 		readonly multiDiffEditorModifiedUri: URI | undefined,
 	) { }
@@ -391,7 +392,7 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 
 			for (const [start, deleteCount, rawResources] of groupSlices) {
 				const resources = rawResources.map(rawResource => {
-					const [handle, sourceUri, icons, tooltip, strikeThrough, faded, contextValue, command, multiDiffEditorOriginalUri, multiDiffEditorModifiedUri] = rawResource;
+					const [handle, sourceUri, icons, tooltip, strikeThrough, faded, contextValue, command, doubleClickCommand, multiDiffEditorOriginalUri, multiDiffEditorModifiedUri] = rawResource;
 
 					const [light, dark] = icons;
 					const icon = ThemeIcon.isThemeIcon(light) ? light : URI.revive(light);
@@ -415,6 +416,7 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 						decorations,
 						contextValue || undefined,
 						command,
+						doubleClickCommand,
 						URI.revive(multiDiffEditorOriginalUri),
 						URI.revive(multiDiffEditorModifiedUri),
 					);

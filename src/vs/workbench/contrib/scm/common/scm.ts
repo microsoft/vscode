@@ -41,6 +41,7 @@ export interface ISCMResource {
 	readonly decorations: ISCMResourceDecorations;
 	readonly contextValue: string | undefined;
 	readonly command: Command | undefined;
+	readonly doubleClickCommand: Command | undefined;
 	readonly multiDiffEditorOriginalUri: URI | undefined;
 	readonly multiDiffEditorModifiedUri: URI | undefined;
 	open(preserveFocus: boolean): Promise<void>;

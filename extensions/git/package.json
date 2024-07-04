@@ -3171,6 +3171,12 @@
           "maximum": 100,
           "markdownDescription": "%config.similarityThreshold%",
           "scope": "resource"
+        },
+        "git.stageOnDoubleClick": {
+          "type": "boolean",
+          "scope": "window",
+          "default": false,
+          "description": "%config.stageOnDoubleClick%"
         }
       }
     },

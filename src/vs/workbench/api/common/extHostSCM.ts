@@ -462,6 +462,17 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 						this._resourceStatesCommandsMap.set(handle, r.command);
 					}
 				}
+				let doubleClickCommand: ICommandDto | undefined;
+				if (r.doubleClickCommand) {
+					const disposables = new DisposableStore();
+					doubleClickCommand = this._commands.converter.toInternal(r.doubleClickCommand, disposables);
+					const existing = this._resourceStatesDisposablesMap.get(handle)
+					if (existing && existing instanceof DisposableStore) {
+						existing.add(disposables)
+					} else {
+						this._resourceStatesDisposablesMap.set(handle, disposables);
+					}
+				}
 
 				const hasScmMultiDiffEditorProposalEnabled = isProposedApiEnabled(this._extension, 'scmMultiDiffEditor');
 				const multiFileDiffEditorOriginalUri = hasScmMultiDiffEditorProposalEnabled ? r.multiDiffEditorOriginalUri : undefined;
@@ -477,7 +488,7 @@ class ExtHostSourceControlResourceGroup implements vscode.SourceControlResourceG
 				const faded = r.decorations && !!r.decorations.faded;
 				const contextValue = r.contextValue || '';
 
-				const rawResource = [handle, sourceUri, icons, tooltip, strikeThrough, faded, contextValue, command, multiFileDiffEditorOriginalUri, multiFileDiffEditorModifiedUri] as SCMRawResource;
+				const rawResource = [handle, sourceUri, icons, tooltip, strikeThrough, faded, contextValue, command, doubleClickCommand, multiFileDiffEditorOriginalUri, multiFileDiffEditorModifiedUri] as SCMRawResource;
 
 				return { rawResource, handle };
 			});
