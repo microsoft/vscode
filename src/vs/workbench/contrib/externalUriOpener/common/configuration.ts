@@ -70,9 +70,6 @@ export const defaultBrowserNode: IConfigurationNode = {
 		'workbench.defaultBrowser': {
 			type: 'string',
 			markdownDescription: nls.localize('defaultBrowser', "Configure the default browser to use for opening http or https links"),
-			defaultSnippets: [{
-				body: 'google-chrome'
-			}],
 		}
 	}
 };
