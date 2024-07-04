@@ -29,7 +29,17 @@ declare module 'vscode' {
 		/**
 		 * Options that dictate how the search query is presented
 		 */
-		presentationOptions?: FindTextInFilesResultPresentationOptions;
+		presentationOptions?: {
+			/**
+			 * Options to specify the size of the result text preview.
+			 */
+			previewOptions?: TextSearchPreviewOptions;
+
+			/**
+			 * Number of lines of context to include before and after each match.
+			 */
+			surroundingContext?: number;
+		};
 
 		/**
 		 * The maximum number of results to search for
@@ -42,22 +52,6 @@ declare module 'vscode' {
 		 */
 		encoding?: string;
 
-	}
-
-	/**
-	 * Options that dictate how the search query is presented
-	 */
-	export interface FindTextInFilesResultPresentationOptions {
-
-		/**
-		 * Options to specify the size of the result text preview.
-		 */
-		previewOptions?: TextSearchPreviewOptions;
-
-		/**
-		 * Number of lines of context to include before and after each match.
-		 */
-		surroundingContext?: number;
 	}
 
 	export namespace workspace {
