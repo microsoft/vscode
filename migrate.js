@@ -62,7 +62,6 @@ function migrateOne(filePath, fileContents) {
 			filePath.endsWith('vs/base/common/performance.js')
 			|| filePath.endsWith('vs/base/common/jsonc.js')
 			|| filePath.endsWith('vs/platform/environment/node/userDataPath.js')
-			|| filePath.endsWith('vs/base/node/languagePacks.js')
 			|| filePath.endsWith('vs/base/node/unc.js')
 			|| filePath.endsWith('vs/base/node/nls.js')
 			|| filePath.endsWith('bootstrap-meta.js')
