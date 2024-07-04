@@ -501,7 +501,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async openExternal(windowId: number | undefined, url: string): Promise<boolean> {
 		this.environmentMainService.unsetSnapExportedVariables();
-		const defaultBrowser = this.configurationService.getValue<string>('workbench.defaultBrowser');
+		const defaultBrowser = this.configurationService.getValue<string>('workbench.browser');
 		if (matchesHttpScheme(url) && defaultBrowser) {
 			await this.openInExternalBrowser(url, defaultBrowser);
 		} else {
