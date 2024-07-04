@@ -102,6 +102,8 @@ parameters:
     default: false
 
 variables:
+  - name: BUILD_DATE
+    value: $[pipeline.startTime]
   - name: VSCODE_PRIVATE_BUILD
     value: ${{ ne(variables['Build.Repository.Uri'], 'https://github.com/microsoft/vscode.git') }}
   - name: NPM_REGISTRY
