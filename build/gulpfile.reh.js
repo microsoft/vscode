@@ -76,9 +76,6 @@ const serverWithWebResources = [
 	// Include all of server...
 	...serverResources,
 
-	// NLS
-	'out-build/nls.messages.js',
-
 	// ...and all of web
 	...vscodeWebResourceIncludes
 ];

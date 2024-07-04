@@ -38,6 +38,9 @@ const vscodeWebResourceIncludes = [
 	'out-build/vs/base/browser/ui/codicons/codicon/**/*.ttf',
 	'out-build/vs/**/markdown.css',
 
+	// NLS
+	'out-build/nls.messages.js',
+
 	// Webview
 	'out-build/vs/workbench/contrib/webview/browser/pre/*.js',
 	'out-build/vs/workbench/contrib/webview/browser/pre/*.html',
