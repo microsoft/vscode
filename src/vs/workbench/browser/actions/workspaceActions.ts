@@ -8,6 +8,7 @@ import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder, hasWorkspaceFileExtension } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ITextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL, PICK_WORKSPACE_FOLDER_COMMAND_ID, SET_ROOT_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -23,6 +24,9 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { IsMacNativeContext } from 'vs/platform/contextkey/common/contextkeys';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
+
+
+
 
 const workspacesCategory: ILocalizedString = localize2('workspaces', 'Workspaces');
 
@@ -46,10 +50,18 @@ export class OpenFileAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor, data?: ITelemetryData): Promise<void> {
 		const fileDialogService = accessor.get(IFileDialogService);
+		const activeTextEditor = accessor.get(ITextEditorService).activeTextEditor;
 
-		return fileDialogService.pickFileAndOpen({ forceNewWindow: false, telemetryExtraData: data });
+		if (activeTextEditor) {
+			const filePath = activeTextEditor.document.uri.fsPath;
+			const folderPath = path.dirname(filePath);
+			return fileDialogService.pickFileAndOpen({ folderUri: folderPath, telemetryExtraData: data });
+		} else {
+			// Handle the case where no editor is active (optional)
+		}
 	}
 }
+
 
 export class OpenFolderAction extends Action2 {
 
