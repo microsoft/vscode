@@ -11,6 +11,8 @@ import { AccessibleViewProviderId, AccessibleViewType } from 'vs/platform/access
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
+import { MarkdownString } from 'vs/base/common/htmlContent';
+import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
 
 export class InlineChatAccessibleView implements IAccessibleViewImplentation {
 	readonly priority = 100;
@@ -35,11 +37,12 @@ export class InlineChatAccessibleView implements IAccessibleViewImplentation {
 		return {
 			id: AccessibleViewProviderId.InlineChat,
 			verbositySettingKey: AccessibilityVerbositySettingId.InlineChat,
-			provideContent(): string { return responseContent; },
+			provideContent(): string { return renderMarkdownAsPlaintext(new MarkdownString(responseContent), true); },
 			onClose() {
 				controller.focus();
 			},
 			options: { type: AccessibleViewType.View }
 		};
 	}
+	dispose() { }
 }

@@ -23,7 +23,7 @@ import { IEditorPaneRegistry, EditorPaneDescriptor } from 'vs/workbench/browser/
 import { ILabelService } from 'vs/platform/label/common/label';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExplorerService, UNDO_REDO_SOURCE } from 'vs/workbench/contrib/files/browser/explorerService';
-import { SUPPORTED_ENCODINGS } from 'vs/workbench/services/textfile/common/encoding';
+import { GUESSABLE_ENCODINGS, SUPPORTED_ENCODINGS } from 'vs/workbench/services/textfile/common/encoding';
 import { Schemas } from 'vs/base/common/network';
 import { WorkspaceWatcher } from 'vs/workbench/contrib/files/browser/workspaceWatcher';
 import { editorConfigurationBaseNode } from 'vs/editor/common/config/editorConfigurationSchema';
@@ -202,6 +202,17 @@ configurationRegistry.registerConfiguration({
 			'markdownDescription': nls.localize('autoGuessEncoding', "When enabled, the editor will attempt to guess the character set encoding when opening files. This setting can also be configured per language. Note, this setting is not respected by text search. Only {0} is respected.", '`#files.encoding#`'),
 			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE
 		},
+		'files.candidateGuessEncodings': {
+			'type': 'array',
+			'items': {
+				'type': 'string',
+				'enum': Object.keys(GUESSABLE_ENCODINGS),
+				'enumDescriptions': Object.keys(GUESSABLE_ENCODINGS).map(key => GUESSABLE_ENCODINGS[key].labelLong)
+			},
+			'default': [],
+			'markdownDescription': nls.localize('candidateGuessEncodings', "List of character set encodings that the editor should attempt to guess in the order they are listed. In case it cannot be determined, {0} is respected", '`#files.encoding#`'),
+			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE
+		},
 		'files.eol': {
 			'type': 'string',
 			'enum': [
@@ -270,13 +281,13 @@ configurationRegistry.registerConfiguration({
 		'files.autoSaveWorkspaceFilesOnly': {
 			'type': 'boolean',
 			'default': false,
-			'markdownDescription': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'autoSaveWorkspaceFilesOnly' }, "When enabled, will limit [auto save](https://code.visualstudio.com/docs/editor/codebasics#_save-auto-save) of editors to files that are inside the opened workspace. Only applies when `#files.autoSave#` is enabled."),
+			'markdownDescription': nls.localize('autoSaveWorkspaceFilesOnly', "When enabled, will limit [auto save](https://code.visualstudio.com/docs/editor/codebasics#_save-auto-save) of editors to files that are inside the opened workspace. Only applies when {0} is enabled.", '`#files.autoSave#`'),
 			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE
 		},
 		'files.autoSaveWhenNoErrors': {
 			'type': 'boolean',
 			'default': false,
-			'markdownDescription': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'autoSaveWhenNoErrors' }, "When enabled, will limit [auto save](https://code.visualstudio.com/docs/editor/codebasics#_save-auto-save) of editors to files that have no errors reported in them at the time the auto save is triggered. Only applies when `#files.autoSave#` is enabled."),
+			'markdownDescription': nls.localize('autoSaveWhenNoErrors', "When enabled, will limit [auto save](https://code.visualstudio.com/docs/editor/codebasics#_save-auto-save) of editors to files that have no errors reported in them at the time the auto save is triggered. Only applies when {0} is enabled.", '`#files.autoSave#`'),
 			scope: ConfigurationScope.LANGUAGE_OVERRIDABLE
 		},
 		'files.watcherExclude': {

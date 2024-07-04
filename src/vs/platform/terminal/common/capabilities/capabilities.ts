@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import type { IPromptInputModel } from 'vs/platform/terminal/common/capabilities/commandDetection/promptInputModel';
+import type { IPromptInputModel, ISerializedPromptInputModel } from 'vs/platform/terminal/common/capabilities/commandDetection/promptInputModel';
 import { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetection/terminalCommand';
 import { ITerminalOutputMatch, ITerminalOutputMatcher } from 'vs/platform/terminal/common/terminal';
 import { ReplayEntry } from 'vs/platform/terminal/common/terminalProcess';
@@ -169,11 +169,6 @@ export interface ICommandDetectionCapability {
 	readonly executingCommandObject: ITerminalCommand | undefined;
 	/** The current cwd at the cursor's position. */
 	readonly cwd: string | undefined;
-	/**
-	 * Whether a command is currently being input. If the a command is current not being input or
-	 * the state cannot reliably be detected the fallback of undefined will be used.
-	 */
-	readonly hasInput: boolean | undefined;
 	readonly currentCommand: ICurrentPartialCommand | undefined;
 	readonly onCommandStarted: Event<ITerminalCommand>;
 	readonly onCommandFinished: Event<ITerminalCommand>;
@@ -306,6 +301,7 @@ export interface IMarkProperties {
 export interface ISerializedCommandDetectionCapability {
 	isWindowsPty: boolean;
 	commands: ISerializedTerminalCommand[];
+	promptInputModel: ISerializedPromptInputModel | undefined;
 }
 export interface IPtyHostProcessReplayEvent {
 	events: ReplayEntry[];

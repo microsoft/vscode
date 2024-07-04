@@ -106,11 +106,17 @@ export class TerminalSearchLinkOpener implements ITerminalLinkOpener {
 		// Try extract any trailing line and column numbers by matching the text against parsed
 		// links. This will give a search link `foo` on a line like `"foo", line 10` to open the
 		// quick pick with `foo:10` as the contents.
+		//
+		// This also normalizes the path to remove suffixes like :10 or :5.0-4
 		if (link.contextLine) {
 			const parsedLinks = detectLinks(link.contextLine, this._getOS());
-			const matchingParsedLink = parsedLinks.find(parsedLink => parsedLink.suffix && link.text === parsedLink.path.text);
+			// Optimistically check that the link _starts with_ the parsed link text. If so,
+			// continue to use the parsed link
+			const matchingParsedLink = parsedLinks.find(parsedLink => parsedLink.suffix && link.text.startsWith(parsedLink.path.text));
 			if (matchingParsedLink) {
 				if (matchingParsedLink.suffix?.row !== undefined) {
+					// Normalize the path based on the parsed link
+					text = matchingParsedLink.path.text;
 					text += `:${matchingParsedLink.suffix.row}`;
 					if (matchingParsedLink.suffix?.col !== undefined) {
 						text += `:${matchingParsedLink.suffix.col}`;

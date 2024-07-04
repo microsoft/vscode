@@ -27,12 +27,13 @@ function registerQuickPickCommandAndKeybindingRule(rule: PartialExcept<ICommandA
 	});
 }
 
+const ctrlKeyMod = isMacintosh ? KeyMod.WinCtrl : KeyMod.CtrlCmd;
+
 // This function will generate all the combinations of keybindings for the given primary keybinding
 function getSecondary(primary: number, secondary: number[], options: { withAltMod?: boolean; withCtrlMod?: boolean; withCmdMod?: boolean } = {}): number[] {
 	if (options.withAltMod) {
 		secondary.push(KeyMod.Alt + primary);
 	}
-	const ctrlKeyMod = isMacintosh ? KeyMod.WinCtrl : KeyMod.CtrlCmd;
 	if (options.withCtrlMod) {
 		secondary.push(ctrlKeyMod + primary);
 		if (options.withAltMod) {
@@ -81,12 +82,12 @@ registerQuickPickCommandAndKeybindingRule(
 	{ withAltMod: true, withCtrlMod: true, withCmdMod: true }
 );
 registerQuickPickCommandAndKeybindingRule(
-	{ id: 'quickInput.first', primary: KeyCode.Home, handler: focusHandler(QuickPickFocus.First) },
-	{ withAltMod: true, withCtrlMod: true, withCmdMod: true }
+	{ id: 'quickInput.first', primary: ctrlKeyMod + KeyCode.Home, handler: focusHandler(QuickPickFocus.First) },
+	{ withAltMod: true, withCmdMod: true }
 );
 registerQuickPickCommandAndKeybindingRule(
-	{ id: 'quickInput.last', primary: KeyCode.End, handler: focusHandler(QuickPickFocus.Last) },
-	{ withAltMod: true, withCtrlMod: true, withCmdMod: true }
+	{ id: 'quickInput.last', primary: ctrlKeyMod + KeyCode.End, handler: focusHandler(QuickPickFocus.Last) },
+	{ withAltMod: true, withCmdMod: true }
 );
 registerQuickPickCommandAndKeybindingRule(
 	{ id: 'quickInput.next', primary: KeyCode.DownArrow, handler: focusHandler(QuickPickFocus.Next) },

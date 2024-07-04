@@ -35,7 +35,7 @@ import { MergeGroupMode, IMergeGroupOptions } from 'vs/workbench/services/editor
 import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode, DragAndDropObserver, isMouseEvent, getWindow } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
 import { IEditorGroupsView, EditorServiceImpl, IEditorGroupView, IInternalEditorOpenOptions, IEditorPartsView } from 'vs/workbench/browser/parts/editor/editor';
-import { CloseOneEditorAction, UnpinEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
+import { CloseEditorTabAction, UnpinEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { assertAllDefined, assertIsDefined } from 'vs/base/common/types';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { basenameOrAuthority } from 'vs/base/common/resources';
@@ -111,7 +111,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	private tabsScrollbar: ScrollableElement | undefined;
 	private tabSizingFixedDisposables: DisposableStore | undefined;
 
-	private readonly closeEditorAction = this._register(this.instantiationService.createInstance(CloseOneEditorAction, CloseOneEditorAction.ID, CloseOneEditorAction.LABEL));
+	private readonly closeEditorAction = this._register(this.instantiationService.createInstance(CloseEditorTabAction, CloseEditorTabAction.ID, CloseEditorTabAction.LABEL));
 	private readonly unpinEditorAction = this._register(this.instantiationService.createInstance(UnpinEditorAction, UnpinEditorAction.ID, UnpinEditorAction.LABEL));
 
 	private readonly tabResourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, DEFAULT_LABELS_CONTAINER));
@@ -684,7 +684,20 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		this.layout(this.dimensions, { forceRevealActiveTab: true });
 	}
 
+	private previousSelectedCount = 0;
 	updateEditorSelections(): void {
+		// We only need to redraw from here when a selection got removed
+		// otherwise it will be handled by the open editor change event.
+		// Checking count is currently enough but might require checking
+		// each editor in the future if selection is changed programatically.
+		const newSelectedCount = this.tabsModel.selectedEditors.length;
+		const previousSelectedCount = this.previousSelectedCount;
+		this.previousSelectedCount = newSelectedCount;
+
+		if (newSelectedCount >= previousSelectedCount) {
+			return;
+		}
+
 		this.forEachTab((editor, tabIndex, tabContainer, tabLabelWidget, tabLabel, tabActionBar) => {
 			this.redrawTabSelectedActiveAndDirty(this.groupsView.activeGroup === this.groupView, editor, tabContainer, tabActionBar);
 		});
@@ -889,14 +902,15 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			const editor = this.tabsModel.getEditorByIndex(tabIndex);
 			if (editor) {
 				if (e.shiftKey) {
-					let anchor;
+					let anchor: EditorInput;
 					if (this.lastSingleSelectSelectedEditor && this.tabsModel.isSelected(this.lastSingleSelectSelectedEditor)) {
 						// The last selected editor is the anchor
 						anchor = this.lastSingleSelectSelectedEditor;
 					} else {
 						// The active editor is the anchor
-						this.lastSingleSelectSelectedEditor = this.groupView.activeEditor!;
-						anchor = this.groupView.activeEditor!;
+						const activeEditor = assertIsDefined(this.groupView.activeEditor);
+						this.lastSingleSelectSelectedEditor = activeEditor;
+						anchor = activeEditor;
 					}
 					await this.selectEditorsBetween(editor, anchor);
 				} else if ((e.ctrlKey && !isMacintosh) || (e.metaKey && isMacintosh)) {
@@ -1092,7 +1106,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				}
 
 				// Apply some datatransfer types to allow for dragging the element outside of the application
-				this.doFillResourceDataTransfers([editor], e, isNewWindowOperation);
+				this.doFillResourceDataTransfers(selectedEditors, e, isNewWindowOperation);
 
 				scheduleAtNextAnimationFrame(getWindow(this.parent), () => this.updateDropFeedback(tab, false, e, tabIndex));
 			},
@@ -1287,37 +1301,37 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			throw new BugIndicatingError();
 		}
 
-		const anchorIndex = this.groupView.getIndexOfEditor(anchor);
-		if (anchorIndex === -1) {
+		const anchorEditorIndex = this.groupView.getIndexOfEditor(anchor);
+		if (anchorEditorIndex === -1) {
 			throw new BugIndicatingError();
 		}
 
-		const selection = this.groupView.selectedEditors;
+		let selection = this.groupView.selectedEditors;
 
 		// Unselect editors on other side of anchor in relation to the target
-		let currentIndex = anchorIndex;
-		while (currentIndex >= 0 && currentIndex <= this.groupView.count - 1) {
-			currentIndex = anchorIndex < editorIndex ? currentIndex - 1 : currentIndex + 1;
+		let currentEditorIndex = anchorEditorIndex;
+		while (currentEditorIndex >= 0 && currentEditorIndex <= this.groupView.count - 1) {
+			currentEditorIndex = anchorEditorIndex < editorIndex ? currentEditorIndex - 1 : currentEditorIndex + 1;
 
-			if (!this.tabsModel.isSelected(currentIndex)) {
-				break;
-			}
-
-			const currentEditor = this.groupView.getEditorByIndex(currentIndex);
+			const currentEditor = this.groupView.getEditorByIndex(currentEditorIndex);
 			if (!currentEditor) {
 				break;
 			}
 
-			selection.filter(editor => !editor.matches(currentEditor));
+			if (!this.groupView.isSelected(currentEditor)) {
+				break;
+			}
+
+			selection = selection.filter(editor => !editor.matches(currentEditor));
 		}
 
 		// Select editors between anchor and target
-		const fromIndex = anchorIndex < editorIndex ? anchorIndex : editorIndex;
-		const toIndex = anchorIndex < editorIndex ? editorIndex : anchorIndex;
+		const fromEditorIndex = anchorEditorIndex < editorIndex ? anchorEditorIndex : editorIndex;
+		const toEditorIndex = anchorEditorIndex < editorIndex ? editorIndex : anchorEditorIndex;
 
-		const editorsToSelect = this.groupView.getEditors(EditorsOrder.SEQUENTIAL).slice(fromIndex, toIndex + 1);
+		const editorsToSelect = this.groupView.getEditors(EditorsOrder.SEQUENTIAL).slice(fromEditorIndex, toEditorIndex + 1);
 		for (const editor of editorsToSelect) {
-			if (!this.tabsModel.isSelected(editor)) {
+			if (!this.groupView.isSelected(editor)) {
 				selection.push(editor);
 			}
 		}
@@ -1334,7 +1348,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			return;
 		}
 
-		let newActiveEditor = this.groupView.activeEditor!;
+		let newActiveEditor = assertIsDefined(this.groupView.activeEditor);
 
 		// If active editor is bing unselected then find the most recently opened selected editor
 		// that is not the editor being unselected
@@ -1342,7 +1356,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			const recentEditors = this.groupView.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE);
 			for (let i = 1; i < recentEditors.length; i++) { // First one is the active editor
 				const recentEditor = recentEditors[i];
-				if (this.tabsModel.isSelected(recentEditor)) {
+				if (this.groupView.isSelected(recentEditor)) {
 					newActiveEditor = recentEditor;
 					break;
 				}
@@ -1355,7 +1369,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 	private async unselectAllEditors(): Promise<void> {
 		if (this.groupView.selectedEditors.length > 1) {
-			await this.groupView.setSelection(this.groupView.activeEditor!, []);
+			const activeEditor = assertIsDefined(this.groupView.activeEditor);
+			await this.groupView.setSelection(activeEditor, []);
 		}
 	}
 
@@ -1643,7 +1658,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	private doRedrawTabActive(isGroupActive: boolean, allowBorderTop: boolean, editor: EditorInput, tabContainer: HTMLElement, tabActionBar: ActionBar): void {
-
 		const isActive = this.tabsModel.isActive(editor);
 		const isSelected = this.tabsModel.isSelected(editor);
 
@@ -1657,7 +1671,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		if (isActive) {
 			const activeTabBorderColorBottom = this.getColor(isGroupActive ? TAB_ACTIVE_BORDER : TAB_UNFOCUSED_ACTIVE_BORDER);
 			tabContainer.classList.toggle('tab-border-bottom', !!activeTabBorderColorBottom);
-			tabContainer.style.setProperty('--tab-border-bottom-color', activeTabBorderColorBottom?.toString() ?? '');
+			tabContainer.style.setProperty('--tab-border-bottom-color', activeTabBorderColorBottom ?? '');
 		}
 
 		// Set border TOP if theme defined color
@@ -2219,30 +2233,30 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		else if (this.editorTransfer.hasData(DraggedEditorIdentifier.prototype)) {
 			const data = this.editorTransfer.getData(DraggedEditorIdentifier.prototype);
 			if (Array.isArray(data) && data.length > 0) {
-				const sourceGroup = data.length ? this.editorPartsView.getGroup(data[0].identifier.groupId) : undefined;
-				const isLocalMove = sourceGroup === this.groupView;
+				const sourceGroup = this.editorPartsView.getGroup(data[0].identifier.groupId);
+				if (sourceGroup) {
+					for (const de of data) {
+						const editor = de.identifier.editor;
 
-				// Keep the same order when moving / copying editors within the same group
-				for (const de of data) {
-					const editor = de.identifier.editor;
+						// Only allow moving/copying from a single group source
+						if (sourceGroup.id !== de.identifier.groupId) {
+							continue;
+						}
 
-					// Only allow moving/copying from a single group source
-					if (!sourceGroup || sourceGroup.id !== de.identifier.groupId) {
-						continue;
+						// Keep the same order when moving / copying editors within the same group
+						const sourceEditorIndex = sourceGroup.getIndexOfEditor(editor);
+						if (sourceGroup === this.groupView && sourceEditorIndex < targetEditorIndex) {
+							targetEditorIndex--;
+						}
+
+						if (this.isMoveOperation(e, de.identifier.groupId, editor)) {
+							sourceGroup.moveEditor(editor, this.groupView, { ...options, index: targetEditorIndex });
+						} else {
+							sourceGroup.copyEditor(editor, this.groupView, { ...options, index: targetEditorIndex });
+						}
+
+						targetEditorIndex++;
 					}
-
-					const sourceEditorIndex = sourceGroup.getIndexOfEditor(editor);
-					if (isLocalMove && sourceEditorIndex < targetEditorIndex) {
-						targetEditorIndex--;
-					}
-
-					if (this.isMoveOperation(e, de.identifier.groupId, editor)) {
-						sourceGroup.moveEditor(editor, this.groupView, { ...options, index: targetEditorIndex });
-					} else {
-						sourceGroup.copyEditor(editor, this.groupView, { ...options, index: targetEditorIndex });
-					}
-
-					targetEditorIndex++;
 				}
 			}
 

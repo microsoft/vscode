@@ -46,7 +46,7 @@
 	"For-Of Loop": {
 		"prefix": "forof",
 		"body": [
-			"for (const ${1:iterator} of ${2:object}) {",
+			"for (const ${1:element} of ${2:object}) {",
 			"\t$TM_SELECTED_TEXT$0",
 			"}"
 		],

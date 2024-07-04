@@ -350,7 +350,14 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 			if (result !== false) {
 				await Promises.settled(workingCopies.map(workingCopy => workingCopy.isModified() ? workingCopy.save(saveOptions) : Promise.resolve(true)));
 			}
-		}, localize('saveBeforeShutdown', "Saving editors with unsaved changes is taking a bit longer..."));
+		},
+			localize('saveBeforeShutdown', "Saving editors with unsaved changes is taking a bit longer..."),
+			undefined,
+			// Do not pick `Dialog` as location for reporting progress if it is likely
+			// that the save operation will itself open a dialog for asking for the
+			// location to save to for untitled or scratchpad working copies.
+			// https://github.com/microsoft/vscode-internalbacklog/issues/4943
+			workingCopies.some(workingCopy => workingCopy.capabilities & WorkingCopyCapabilities.Untitled || workingCopy.capabilities & WorkingCopyCapabilities.Scratchpad) ? ProgressLocation.Window : ProgressLocation.Dialog);
 	}
 
 	private doRevertAllBeforeShutdown(modifiedWorkingCopies: IWorkingCopy[]): Promise<void> {
@@ -439,13 +446,13 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 		}, localize('discardBackupsBeforeShutdown', "Discarding backups is taking a bit longer..."));
 	}
 
-	private withProgressAndCancellation(promiseFactory: (token: CancellationToken) => Promise<void>, title: string, detail?: string): Promise<void> {
+	private withProgressAndCancellation(promiseFactory: (token: CancellationToken) => Promise<void>, title: string, detail?: string, location = ProgressLocation.Dialog): Promise<void> {
 		const cts = new CancellationTokenSource();
 
 		return this.progressService.withProgress({
-			location: ProgressLocation.Dialog, 	// use a dialog to prevent the user from making any more changes now (https://github.com/microsoft/vscode/issues/122774)
-			cancellable: true, 					// allow to cancel (https://github.com/microsoft/vscode/issues/112278)
-			delay: 800, 						// delay so that it only appears when operation takes a long time
+			location, 			// by default use a dialog to prevent the user from making any more changes now (https://github.com/microsoft/vscode/issues/122774)
+			cancellable: true, 	// allow to cancel (https://github.com/microsoft/vscode/issues/112278)
+			delay: 800, 		// delay so that it only appears when operation takes a long time
 			title,
 			detail
 		}, () => raceCancellation(promiseFactory(cts.token), cts.token), () => cts.dispose(true));

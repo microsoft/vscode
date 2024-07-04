@@ -17,7 +17,7 @@ import { LineRange } from 'vs/editor/common/core/lineRange';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
-import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel, IValidEditOperation, MinimapPosition, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, IValidEditOperation, MinimapPosition, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewModel';
@@ -26,7 +26,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { Progress } from 'vs/platform/progress/common/progress';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
-import { HunkInformation, ReplyResponse, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { HunkInformation, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { InlineChatZoneWidget } from './inlineChatZoneWidget';
 import { CTX_INLINE_CHAT_CHANGE_HAS_DIFF, CTX_INLINE_CHAT_CHANGE_SHOWS_DIFF, CTX_INLINE_CHAT_DOCUMENT_CHANGED, InlineChatConfigKeys, minimapInlineChatDiffInserted, overviewRulerInlineChatDiffInserted } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { HunkState } from './inlineChatSession';
@@ -99,7 +99,7 @@ export abstract class EditModeStrategy {
 					continue;
 				}
 
-				await editor.apply(request.response, item);
+				await editor.apply(request.response, item, undefined);
 
 				if (item.uri.scheme === Schemas.untitled) {
 					const untitled = this._textFileService.untitled.get(item.uri);
@@ -136,9 +136,7 @@ export abstract class EditModeStrategy {
 
 	abstract makeChanges(edits: ISingleEditOperation[], obs: IEditObserver, undoStopBefore: boolean): Promise<void>;
 
-	abstract undoChanges(altVersionId: number): Promise<void>;
-
-	abstract renderChanges(response: ReplyResponse): Promise<Position | undefined>;
+	abstract renderChanges(): Promise<Position | undefined>;
 
 	move?(next: boolean): void;
 
@@ -192,14 +190,7 @@ export class PreviewStrategy extends EditModeStrategy {
 	override async makeProgressiveChanges(): Promise<void> {
 	}
 
-	override async undoChanges(altVersionId: number): Promise<void> {
-		const { textModelN } = this._session;
-		await undoModelUntil(textModelN, altVersionId);
-	}
-
-	override async renderChanges(response: ReplyResponse): Promise<undefined> {
-
-	}
+	override async renderChanges(): Promise<undefined> { }
 
 	hasFocus(): boolean {
 		return this._zone.widget.hasFocus();
@@ -313,11 +304,6 @@ export class LiveStrategy extends EditModeStrategy {
 		return super.cancel();
 	}
 
-	override async undoChanges(altVersionId: number): Promise<void> {
-		const { textModelN } = this._session;
-		await undoModelUntil(textModelN, altVersionId);
-	}
-
 	override async makeChanges(edits: ISingleEditOperation[], obs: IEditObserver, undoStopBefore: boolean): Promise<void> {
 		return this._makeChanges(edits, obs, undefined, undefined, undoStopBefore);
 	}
@@ -378,7 +364,7 @@ export class LiveStrategy extends EditModeStrategy {
 
 	private readonly _hunkDisplayData = new Map<HunkInformation, HunkDisplayData>();
 
-	override async renderChanges(response: ReplyResponse) {
+	override async renderChanges() {
 
 		this._progressiveEditingDecorations.clear();
 
@@ -545,7 +531,6 @@ export class LiveStrategy extends EditModeStrategy {
 
 			if (widgetData) {
 				this._zone.updatePositionAndHeight(widgetData.position);
-				this._editor.revealPositionInCenterIfOutsideViewport(widgetData.position);
 
 				const remainingHunks = this._session.hunkData.pending;
 				this._updateSummaryMessage(remainingHunks, this._session.hunkData.size);
@@ -592,7 +577,7 @@ export class LiveStrategy extends EditModeStrategy {
 			message = localize('change.0', "Nothing changed.");
 		} else if (remaining === 1) {
 			message = needsReview
-				? localize('review.1', "$(info) Accept or discard 1 change")
+				? localize('review.1', "$(info) Accept or Discard change")
 				: localize('change.1', "1 change");
 		} else {
 			message = needsReview
@@ -617,14 +602,6 @@ export class LiveStrategy extends EditModeStrategy {
 		return [];
 	}
 }
-
-
-async function undoModelUntil(model: ITextModel, targetAltVersion: number): Promise<void> {
-	while (targetAltVersion < model.getAlternativeVersionId() && model.canUndo()) {
-		await model.undo();
-	}
-}
-
 
 function changeDecorationsAndViewZones(editor: ICodeEditor, callback: (accessor: IModelDecorationsChangeAccessor, viewZoneAccessor: IViewZoneChangeAccessor) => void): void {
 	editor.changeDecorations(decorationsAccessor => {

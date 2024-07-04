@@ -134,7 +134,13 @@ export interface ISpeechService {
 	recognizeKeyword(token: CancellationToken): Promise<KeywordRecognitionStatus>;
 }
 
-export const SPEECH_LANGUAGE_CONFIG = 'accessibility.voice.speechLanguage';
+export const enum AccessibilityVoiceSettingId {
+	SpeechTimeout = 'accessibility.voice.speechTimeout',
+	AutoSynthesize = 'accessibility.voice.autoSynthesize',
+	SpeechLanguage = 'accessibility.voice.speechLanguage',
+}
+
+export const SPEECH_LANGUAGE_CONFIG = AccessibilityVoiceSettingId.SpeechLanguage;
 
 export const SPEECH_LANGUAGES = {
 	['da-DK']: {

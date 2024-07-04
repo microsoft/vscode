@@ -692,6 +692,13 @@ export interface IEditorOptions {
 	 * Defaults to false.
 	 */
 	peekWidgetDefaultFocus?: 'tree' | 'editor';
+
+	/**
+	 * Sets a placeholder for the editor.
+	 * If set, the placeholder is shown if the editor is empty.
+	*/
+	placeholder?: string | undefined;
+
 	/**
 	 * Controls whether the definition link opens element in the peek widget.
 	 * Defaults to false.
@@ -3071,6 +3078,10 @@ export interface IEditorMinimapOptions {
 	 * Font size of section headers. Defaults to 9.
 	 */
 	sectionHeaderFontSize?: number;
+	/**
+	 * Spacing between the section header characters (in CSS px). Defaults to 1.
+	 */
+	sectionHeaderLetterSpacing?: number;
 }
 
 /**
@@ -3093,6 +3104,7 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 			showRegionSectionHeaders: true,
 			showMarkSectionHeaders: true,
 			sectionHeaderFontSize: 9,
+			sectionHeaderLetterSpacing: 1,
 		};
 		super(
 			EditorOption.minimap, 'minimap', defaults,
@@ -3162,6 +3174,11 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 					type: 'number',
 					default: defaults.sectionHeaderFontSize,
 					description: nls.localize('minimap.sectionHeaderFontSize', "Controls the font size of section headers in the minimap.")
+				},
+				'editor.minimap.sectionHeaderLetterSpacing': {
+					type: 'number',
+					default: defaults.sectionHeaderLetterSpacing,
+					description: nls.localize('minimap.sectionHeaderLetterSpacing', "Controls the amount of space (in pixels) between characters of section header. This helps the readability of the header in small font sizes.")
 				}
 			}
 		);
@@ -3184,6 +3201,7 @@ class EditorMinimap extends BaseEditorOption<EditorOption.minimap, IEditorMinima
 			showRegionSectionHeaders: boolean(input.showRegionSectionHeaders, this.defaultValue.showRegionSectionHeaders),
 			showMarkSectionHeaders: boolean(input.showMarkSectionHeaders, this.defaultValue.showMarkSectionHeaders),
 			sectionHeaderFontSize: EditorFloatOption.clamp(input.sectionHeaderFontSize ?? this.defaultValue.sectionHeaderFontSize, 4, 32),
+			sectionHeaderLetterSpacing: EditorFloatOption.clamp(input.sectionHeaderLetterSpacing ?? this.defaultValue.sectionHeaderLetterSpacing, 0, 5),
 		};
 	}
 }
@@ -3336,6 +3354,25 @@ class EditorPixelRatio extends ComputedEditorOption<EditorOption.pixelRatio, num
 
 //#endregion
 
+//#region
+
+class PlaceholderOption extends BaseEditorOption<EditorOption.placeholder, string | undefined, string | undefined> {
+	constructor() {
+		super(EditorOption.placeholder, 'placeholder', undefined);
+	}
+
+	public validate(input: any): string | undefined {
+		if (typeof input === 'undefined') {
+			return this.defaultValue;
+		}
+		if (typeof input === 'string') {
+			return input;
+		}
+		return this.defaultValue;
+	}
+}
+//#endregion
+
 //#region quickSuggestions
 
 export type QuickSuggestionsValue = 'on' | 'inline' | 'off';
@@ -3394,7 +3431,7 @@ class EditorQuickSuggestions extends BaseEditorOption<EditorOption.quickSuggesti
 				},
 			},
 			default: defaults,
-			markdownDescription: nls.localize('quickSuggestions', "Controls whether suggestions should automatically show up while typing. This can be controlled for typing in comments, strings, and other code. Quick suggestion can be configured to show as ghost text or with the suggest widget. Also be aware of the '{0}'-setting which controls if suggestions are triggered by special characters.", `#editor.suggestOnTriggerCharacters#`)
+			markdownDescription: nls.localize('quickSuggestions', "Controls whether suggestions should automatically show up while typing. This can be controlled for typing in comments, strings, and other code. Quick suggestion can be configured to show as ghost text or with the suggest widget. Also be aware of the {0}-setting which controls if suggestions are triggered by special characters.", '`#editor.suggestOnTriggerCharacters#`')
 		});
 		this.defaultValue = defaults;
 	}
@@ -4647,7 +4684,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 						nls.localize('suggest.insertMode.whenQuickSuggestion', "Select a suggestion only when triggering IntelliSense as you type."),
 					],
 					default: defaults.selectionMode,
-					markdownDescription: nls.localize('suggest.selectionMode', "Controls whether a suggestion is selected when the widget shows. Note that this only applies to automatically triggered suggestions (`#editor.quickSuggestions#` and `#editor.suggestOnTriggerCharacters#`) and that a suggestion is always selected when explicitly invoked, e.g via `Ctrl+Space`.")
+					markdownDescription: nls.localize('suggest.selectionMode', "Controls whether a suggestion is selected when the widget shows. Note that this only applies to automatically triggered suggestions ({0} and {1}) and that a suggestion is always selected when explicitly invoked, e.g via `Ctrl+Space`.", '`#editor.quickSuggestions#`', '`#editor.suggestOnTriggerCharacters#`')
 				},
 				'editor.suggest.snippetsPreventQuickSuggestions': {
 					type: 'boolean',
@@ -5343,6 +5380,7 @@ export const enum EditorOption {
 	pasteAs,
 	parameterHints,
 	peekWidgetDefaultFocus,
+	placeholder,
 	definitionLinkOpensInPeek,
 	quickSuggestions,
 	quickSuggestionsDelay,
@@ -5873,6 +5911,7 @@ export const EditorOptions = {
 			description: nls.localize('peekWidgetDefaultFocus', "Controls whether to focus the inline editor or the tree in the peek widget.")
 		}
 	)),
+	placeholder: register(new PlaceholderOption()),
 	definitionLinkOpensInPeek: register(new EditorBooleanOption(
 		EditorOption.definitionLinkOpensInPeek, 'definitionLinkOpensInPeek', false,
 		{ description: nls.localize('definitionLinkOpensInPeek', "Controls whether the Go to Definition mouse gesture always opens the peek widget.") }

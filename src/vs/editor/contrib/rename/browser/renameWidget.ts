@@ -6,7 +6,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import * as aria from 'vs/base/browser/ui/aria/aria';
-import { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
+import { IManagedHover } from 'vs/base/browser/ui/hover/hover';
 import { getBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
@@ -900,7 +900,7 @@ class InputWithButton implements IDisposable {
 	private _domNode: HTMLDivElement | undefined;
 	private _inputNode: HTMLInputElement | undefined;
 	private _buttonNode: HTMLElement | undefined;
-	private _buttonHover: IUpdatableHover | undefined;
+	private _buttonHover: IManagedHover | undefined;
 	private _buttonGenHoverText: string | undefined;
 	private _buttonCancelHoverText: string | undefined;
 	private _sparkleIcon: HTMLElement | undefined;
@@ -934,7 +934,7 @@ class InputWithButton implements IDisposable {
 
 			this._buttonGenHoverText = nls.localize('generateRenameSuggestionsButton', "Generate new name suggestions");
 			this._buttonCancelHoverText = nls.localize('cancelRenameSuggestionsButton', "Cancel");
-			this._buttonHover = getBaseLayerHoverDelegate().setupUpdatableHover(getDefaultHoverDelegate('element'), this._buttonNode, this._buttonGenHoverText);
+			this._buttonHover = getBaseLayerHoverDelegate().setupManagedHover(getDefaultHoverDelegate('element'), this._buttonNode, this._buttonGenHoverText);
 			this._disposables.add(this._buttonHover);
 
 			this._domNode.appendChild(this._buttonNode);

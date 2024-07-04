@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
 import { assertSnapshot } from 'vs/base/test/common/snapshot';
@@ -127,7 +127,7 @@ suite('ChatService', () => {
 		await testService.addCompleteRequest(model.sessionId, 'test request', undefined, 0, { message: 'test response' });
 		assert.strictEqual(model.getRequests().length, 1);
 		assert.ok(model.getRequests()[0].response);
-		assert.strictEqual(model.getRequests()[0].response?.response.asString(), 'test response');
+		assert.strictEqual(model.getRequests()[0].response?.response.toString(), 'test response');
 	});
 
 	test('sendRequest fails', async () => {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableMap, DisposableStore, IDisposable, isDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, isDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { isString } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
@@ -12,7 +12,7 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 import { IProductService } from 'vs/platform/product/common/productService';
 import { ISecretStorageService } from 'vs/platform/secrets/common/secrets';
 import { IAuthenticationAccessService } from 'vs/workbench/services/authentication/browser/authenticationAccessService';
-import { AuthenticationProviderInformation, AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationCreateSessionOptions, IAuthenticationProvider, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
+import { AuthenticationProviderInformation, AuthenticationSession, AuthenticationSessionAccount, AuthenticationSessionsChangeEvent, IAuthenticationCreateSessionOptions, IAuthenticationProvider, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { ActivationKind, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
@@ -164,10 +164,10 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		throw new Error(`No authentication provider '${id}' is currently registered.`);
 	}
 
-	async getSessions(id: string, scopes?: string[], activateImmediate: boolean = false): Promise<ReadonlyArray<AuthenticationSession>> {
+	async getSessions(id: string, scopes?: string[], account?: AuthenticationSessionAccount, activateImmediate: boolean = false): Promise<ReadonlyArray<AuthenticationSession>> {
 		const authProvider = this._authenticationProviders.get(id) || await this.tryActivateProvider(id, activateImmediate);
 		if (authProvider) {
-			return await authProvider.getSessions(scopes);
+			return await authProvider.getSessions(scopes, { account });
 		} else {
 			throw new Error(`No authentication provider '${id}' is currently registered.`);
 		}
@@ -177,7 +177,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		const authProvider = this._authenticationProviders.get(id) || await this.tryActivateProvider(id, !!options?.activateImmediate);
 		if (authProvider) {
 			return await authProvider.createSession(scopes, {
-				sessionToRecreate: options?.sessionToRecreate
+				account: options?.account
 			});
 		} else {
 			throw new Error(`No authentication provider '${id}' is currently registered.`);
@@ -200,10 +200,12 @@ export class AuthenticationService extends Disposable implements IAuthentication
 			return provider;
 		}
 
+		const store = new DisposableStore();
+
 		// When activate has completed, the extension has made the call to `registerAuthenticationProvider`.
 		// However, activate cannot block on this, so the renderer may not have gotten the event yet.
 		const didRegister: Promise<IAuthenticationProvider> = new Promise((resolve, _) => {
-			this.onDidRegisterAuthenticationProvider(e => {
+			store.add(Event.once(this.onDidRegisterAuthenticationProvider)(e => {
 				if (e.id === providerId) {
 					provider = this._authenticationProviders.get(providerId);
 					if (provider) {
@@ -212,16 +214,18 @@ export class AuthenticationService extends Disposable implements IAuthentication
 						throw new Error(`No authentication provider '${providerId}' is currently registered.`);
 					}
 				}
-			});
+			}));
 		});
 
 		const didTimeout: Promise<IAuthenticationProvider> = new Promise((_, reject) => {
-			setTimeout(() => {
+			const handle = setTimeout(() => {
 				reject('Timed out waiting for authentication provider to register');
 			}, 5000);
+
+			store.add(toDisposable(() => clearTimeout(handle)));
 		});
 
-		return Promise.race([didRegister, didTimeout]);
+		return Promise.race([didRegister, didTimeout]).finally(() => store.dispose());
 	}
 }
 

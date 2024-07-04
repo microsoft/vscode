@@ -234,7 +234,7 @@ export class TypeScriptServerSpawner {
 					tsServerLog = { type: 'file', uri: logFilePath };
 
 					args.push('--logVerbosity', TsServerLogLevel.toString(configuration.tsServerLogLevel));
-					args.push('--logFile', `"${logFilePath.fsPath}"`);
+					args.push('--logFile', logFilePath.fsPath);
 				}
 			}
 		}
@@ -271,7 +271,11 @@ export class TypeScriptServerSpawner {
 
 		args.push('--noGetErrOnBackgroundUpdate');
 
-		if (apiVersion.gte(API.v544) && configuration.useVsCodeWatcher) {
+		if (
+			apiVersion.gte(API.v544)
+			&& configuration.useVsCodeWatcher
+			&& !apiVersion.isYarnPnp() // Disable for yarn pnp as it currently breaks with the VS Code watcher
+		) {
 			args.push('--canUseWatchEvents');
 		}
 

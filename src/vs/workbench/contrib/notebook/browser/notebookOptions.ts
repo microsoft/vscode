@@ -137,11 +137,11 @@ export class NotebookOptions extends Disposable {
 
 	constructor(
 		readonly targetWindow: CodeWindow,
-		private readonly configurationService: IConfigurationService,
-		private readonly notebookExecutionStateService: INotebookExecutionStateService,
-		private readonly codeEditorService: ICodeEditorService,
 		private isReadonly: boolean,
-		private readonly overrides?: { cellToolbarInteraction: string; globalToolbar: boolean; stickyScrollEnabled: boolean; dragAndDropEnabled: boolean }
+		private readonly overrides: { cellToolbarInteraction: string; globalToolbar: boolean; stickyScrollEnabled: boolean; dragAndDropEnabled: boolean } | undefined,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@INotebookExecutionStateService private readonly notebookExecutionStateService: INotebookExecutionStateService,
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 	) {
 		super();
 		const showCellStatusBar = this.configurationService.getValue<ShowCellStatusBarType>(NotebookSetting.showCellStatusBar);

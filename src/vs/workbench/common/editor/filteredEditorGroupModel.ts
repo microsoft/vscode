@@ -42,7 +42,7 @@ abstract class FilteredEditorGroupModel extends Disposable implements IReadonlyE
 	isTransient(editorOrIndex: EditorInput | number): boolean { return this.model.isTransient(editorOrIndex); }
 	isSticky(editorOrIndex: EditorInput | number): boolean { return this.model.isSticky(editorOrIndex); }
 	isActive(editor: EditorInput | IUntypedEditorInput): boolean { return this.model.isActive(editor); }
-	isSelected(editor: EditorInput | number): boolean { return this.model.isSelected(editor); }
+	isSelected(editorOrIndex: EditorInput | number): boolean { return this.model.isSelected(editorOrIndex); }
 
 	isFirst(editor: EditorInput): boolean {
 		return this.model.isFirst(editor, this.getEditors(EditorsOrder.SEQUENTIAL));

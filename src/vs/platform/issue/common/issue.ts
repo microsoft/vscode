@@ -127,18 +127,25 @@ export const IIssueMainService = createDecorator<IIssueMainService>('issueServic
 
 export interface IIssueMainService {
 	readonly _serviceBrand: undefined;
-	stopTracing(): Promise<void>;
-	openReporter(data: IssueReporterData): Promise<void>;
-	openProcessExplorer(data: ProcessExplorerData): Promise<void>;
-	getSystemStatus(): Promise<string>;
 
 	// Used by the issue reporter
-
-	$getSystemInfo(): Promise<SystemInfo>;
-	$getPerformanceInfo(): Promise<PerformanceInfo>;
+	openReporter(data: IssueReporterData): Promise<void>;
 	$reloadWithExtensionsDisabled(): Promise<void>;
 	$showConfirmCloseDialog(): Promise<void>;
 	$showClipboardDialog(): Promise<boolean>;
 	$sendReporterMenu(extensionId: string, extensionName: string): Promise<IssueReporterData | undefined>;
 	$closeReporter(): Promise<void>;
+}
+
+export const IProcessMainService = createDecorator<IProcessMainService>('processService');
+
+export interface IProcessMainService {
+	readonly _serviceBrand: undefined;
+	getSystemStatus(): Promise<string>;
+	stopTracing(): Promise<void>;
+	openProcessExplorer(data: ProcessExplorerData): Promise<void>;
+
+	// Used by the process explorer
+	$getSystemInfo(): Promise<SystemInfo>;
+	$getPerformanceInfo(): Promise<PerformanceInfo>;
 }

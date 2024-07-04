@@ -49,6 +49,9 @@ export interface IBaseOpenWindowsOptions {
 	 * If not set, defaults to the remote authority of the current window.
 	 */
 	readonly remoteAuthority?: string | null;
+
+	readonly forceProfile?: string;
+	readonly forceTempProfile?: boolean;
 }
 
 export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
@@ -64,9 +67,6 @@ export interface IOpenWindowOptions extends IBaseOpenWindowsOptions {
 	readonly gotoLineMode?: boolean;
 
 	readonly waitMarkerFileURI?: URI;
-
-	readonly forceProfile?: string;
-	readonly forceTempProfile?: boolean;
 }
 
 export interface IAddFoldersRequest {
@@ -158,6 +158,7 @@ export interface IWindowSettings {
 	readonly enableMenuBarMnemonics: boolean;
 	readonly closeWhenEmpty: boolean;
 	readonly clickThroughInactive: boolean;
+	readonly newWindowProfile: string;
 	readonly density: IDensitySettings;
 }
 
@@ -348,6 +349,7 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 
 	machineId: string;
 	sqmId: string;
+	devDeviceId: string;
 
 	execPath: string;
 	backupPath?: string;

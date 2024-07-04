@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import * as fs from 'fs';
 import * as os from 'os';
 import { isUNC, toSlashes } from 'vs/base/common/extpath';
@@ -112,7 +112,7 @@ flakySuite('WorkspacesManagementMainService', () => {
 		const fileService = new FileService(logService);
 		service = new WorkspacesManagementMainService(environmentMainService, logService, new UserDataProfilesMainService(new StateService(SaveStrategy.DELAYED, environmentMainService, logService, fileService), new UriIdentityService(fileService), environmentMainService, fileService, logService), new TestBackupMainService(), new TestDialogMainService());
 
-		return pfs.Promises.mkdir(untitledWorkspacesHomePath, { recursive: true });
+		return fs.promises.mkdir(untitledWorkspacesHomePath, { recursive: true });
 	});
 
 	teardown(() => {

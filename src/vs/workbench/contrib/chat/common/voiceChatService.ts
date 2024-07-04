@@ -126,7 +126,7 @@ export class VoiceChatService extends Disposable implements IVoiceChatService {
 		const disposables = new DisposableStore();
 
 		const onSessionStoppedOrCanceled = (dispose: boolean) => {
-			this.activeVoiceChatSessions--;
+			this.activeVoiceChatSessions = Math.max(0, this.activeVoiceChatSessions - 1);
 			if (this.activeVoiceChatSessions === 0) {
 				this.voiceChatInProgress.reset();
 			}
@@ -152,7 +152,8 @@ export class VoiceChatService extends Disposable implements IVoiceChatService {
 		disposables.add(session.onDidChange(e => {
 			switch (e.status) {
 				case SpeechToTextStatus.Recognizing:
-				case SpeechToTextStatus.Recognized:
+				case SpeechToTextStatus.Recognized: {
+					let massagedEvent: IVoiceChatTextEvent = e;
 					if (e.text) {
 						const startsWithAgent = e.text.startsWith(VoiceChatService.PHRASES_UPPER[VoiceChatService.AGENT_PREFIX]) || e.text.startsWith(VoiceChatService.PHRASES_LOWER[VoiceChatService.AGENT_PREFIX]);
 						const startsWithSlashCommand = e.text.startsWith(VoiceChatService.PHRASES_UPPER[VoiceChatService.COMMAND_PREFIX]) || e.text.startsWith(VoiceChatService.PHRASES_LOWER[VoiceChatService.COMMAND_PREFIX]);
@@ -208,15 +209,16 @@ export class VoiceChatService extends Disposable implements IVoiceChatService {
 								}
 							}
 
-							emitter.fire({
+							massagedEvent = {
 								status: e.status,
 								text: (transformedWords ?? originalWords).join(' '),
 								waitingForInput
-							});
-
-							break;
+							};
 						}
 					}
+					emitter.fire(massagedEvent);
+					break;
+				}
 				case SpeechToTextStatus.Started:
 					this.activeVoiceChatSessions++;
 					this.voiceChatInProgress.set(true);
@@ -226,7 +228,7 @@ export class VoiceChatService extends Disposable implements IVoiceChatService {
 					onSessionStoppedOrCanceled(false);
 					emitter.fire(e);
 					break;
-				default:
+				case SpeechToTextStatus.Error:
 					emitter.fire(e);
 					break;
 			}
