@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IConfigurationNode, IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { IConfigurationNode, IConfigurationRegistry, Extensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import * as nls from 'vs/nls';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
@@ -70,8 +70,10 @@ export const defaultBrowserNode: IConfigurationNode = {
 		'workbench.defaultBrowser': {
 			type: 'string',
 			markdownDescription: nls.localize('defaultBrowser', "Configure the default browser to use for opening http or https links"),
+
 		}
-	}
+	},
+	scope: ConfigurationScope.APPLICATION
 };
 
 export function updateContributedOpeners(enumValues: string[], enumDescriptions: string[]): void {
