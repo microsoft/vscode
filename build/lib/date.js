@@ -7,10 +7,10 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.date = void 0;
 let dateObj;
 if (process.env.VSCODE_BUILD_DATE) {
-    dateObj = new Date(process.env.VSCODE_BUILD_DATE);
+    dateObj = process.env.VSCODE_BUILD_DATE;
 }
 else {
-    dateObj = new Date();
+    dateObj = 'dynamic-unknown-date';
 }
 /**
  * If running in Azure CI, will return the date the build was started.

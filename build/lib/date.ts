@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-let dateObj: Date;
+let dateObj: string;
 
 if (process.env.VSCODE_BUILD_DATE) {
-	dateObj = new Date(process.env.VSCODE_BUILD_DATE);
+	dateObj = process.env.VSCODE_BUILD_DATE;
 } else {
-	dateObj = new Date();
+	dateObj = 'dynamic-unknown-date';
 }
 
 /**
