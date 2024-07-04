@@ -519,6 +519,7 @@ ${this.description}
 }
 
 const EXTENSIONS_AUTO_UPDATE_KEY = 'extensions.autoUpdate';
+const EXTENSIONS_DONOT_AUTO_UPDATE_KEY = 'extensions.donotAutoUpdate';
 
 class Extensions extends Disposable {
 
@@ -991,14 +992,29 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		this.initializeAutoUpdate();
 		this.reportInstalledExtensionsTelemetry();
 		this._register(Event.debounce(this.onChange, () => undefined, 100)(() => this.reportProgressFromOtherSources()));
-		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, EXTENSIONS_AUTO_UPDATE_KEY, this._store)(e => this.onDidSelectedExtensionToAutoUpdateValueChange(false)));
+		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, EXTENSIONS_AUTO_UPDATE_KEY, this._store)(e => this.onDidSelectedExtensionToAutoUpdateValueChange()));
+		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION, EXTENSIONS_DONOT_AUTO_UPDATE_KEY, this._store)(e => this.onDidSelectedExtensionToAutoUpdateValueChange()));
 	}
 
 	private initializeAutoUpdate(): void {
+		// Initialise Auto Update Value
+		let autoUpdateValue = this.getAutoUpdateValue();
+
 		// Register listeners for auto updates
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AutoUpdateConfigurationKey)) {
-				this.onDidAutoUpdateConfigurationChange();
+				const wasAutoUpdateEnabled = autoUpdateValue !== false;
+				autoUpdateValue = this.getAutoUpdateValue();
+				const isAutoUpdateEnabled = this.isAutoUpdateEnabled();
+				if (wasAutoUpdateEnabled !== isAutoUpdateEnabled) {
+					this.setEnabledAutoUpdateExtensions([]);
+					this.setDisabledAutoUpdateExtensions([]);
+					this._onChange.fire(undefined);
+					this.extensionManagementService.resetPinnedStateForAllUserExtensions(!isAutoUpdateEnabled);
+				}
+				if (isAutoUpdateEnabled) {
+					this.eventuallyAutoUpdateExtensions();
+				}
 			}
 			if (e.affectsConfiguration(AutoCheckUpdatesConfigurationKey)) {
 				if (this.isAutoCheckUpdatesEnabled()) {
@@ -1013,9 +1029,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}));
 		this._register(Event.debounce(this.onChange, () => undefined, 100)(() => this.hasOutdatedExtensionsContextKey.set(this.outdated.length > 0)));
 		this._register(this.updateService.onStateChange(e => {
-			if (!this.isAutoUpdateEnabled()) {
-				return;
-			}
 			if ((e.type === StateType.CheckingForUpdates && e.explicit) || e.type === StateType.AvailableForDownload || e.type === StateType.Downloaded) {
 				this.eventuallyCheckForUpdates(true);
 			}
@@ -1041,6 +1054,36 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				this.registerAutoRestartListener();
 			}
 		}));
+	}
+
+	private isAutoUpdateEnabled(): boolean {
+		return this.getAutoUpdateValue() !== false;
+	}
+
+	getAutoUpdateValue(): AutoUpdateConfigurationValue {
+		const autoUpdate = this.configurationService.getValue<AutoUpdateConfigurationValue>(AutoUpdateConfigurationKey);
+		if (<any>autoUpdate === 'onlySelectedExtensions') {
+			return false;
+		}
+		return isBoolean(autoUpdate) || autoUpdate === 'onlyEnabledExtensions' ? autoUpdate : true;
+	}
+
+	async updateAutoUpdateValue(value: AutoUpdateConfigurationValue): Promise<void> {
+		const wasEnabled = this.isAutoUpdateEnabled();
+		const isEnabled = value !== false;
+		if (wasEnabled !== isEnabled) {
+			const result = await this.dialogService.confirm({
+				title: nls.localize('confirmEnableDisableAutoUpdate', "Auto Update Extensions"),
+				message: isEnabled
+					? nls.localize('confirmEnableAutoUpdate', "Do you want to enable auto update for all extensions?")
+					: nls.localize('confirmDisableAutoUpdate', "Do you want to disable auto update for all extensions?"),
+				detail: nls.localize('confirmEnableDisableAutoUpdateDetail', "This will reset any auto update settings you have set for individual extensions."),
+			});
+			if (!result.confirmed) {
+				return;
+			}
+		}
+		await this.configurationService.updateValue(AutoUpdateConfigurationKey, value);
 	}
 
 	private readonly autoRestartListenerDisposable = this._register(new MutableDisposable());
@@ -1606,15 +1649,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return ExtensionState.Uninstalled;
 	}
 
-	private async onDidAutoUpdateConfigurationChange(): Promise<void> {
-		await this.updateExtensionsPinnedState();
-		if (this.isAutoUpdateEnabled()) {
-			this.checkForUpdates();
-		} else {
-			this.setSelectedExtensionsToAutoUpdate([]);
-		}
-	}
-
 	async checkForUpdates(onlyBuiltin?: boolean): Promise<void> {
 		if (!this.galleryService.isEnabled()) {
 			return;
@@ -1700,18 +1734,9 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			return;
 		}
 		await Promise.allSettled(extensions.map(extensions => extensions.syncInstalledExtensionsWithGallery(gallery, this.getProductVersion())));
-		if (this.isAutoUpdateEnabled()) {
+		if (this.outdated.length) {
 			this.eventuallyAutoUpdateExtensions();
 		}
-	}
-
-	getAutoUpdateValue(): AutoUpdateConfigurationValue {
-		const autoUpdate = this.configurationService.getValue<AutoUpdateConfigurationValue>(AutoUpdateConfigurationKey);
-		return isBoolean(autoUpdate) || autoUpdate === 'onlyEnabledExtensions' || autoUpdate === 'onlySelectedExtensions' ? autoUpdate : true;
-	}
-
-	isAutoUpdateEnabled(): boolean {
-		return this.getAutoUpdateValue() !== false;
 	}
 
 	private isAutoCheckUpdatesEnabled(): boolean {
@@ -1721,7 +1746,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	private eventuallyCheckForUpdates(immediate = false): void {
 		this.updatesCheckDelayer.cancel();
 		this.updatesCheckDelayer.trigger(async () => {
-			if (this.isAutoUpdateEnabled() || this.isAutoCheckUpdatesEnabled()) {
+			if (this.isAutoCheckUpdatesEnabled()) {
 				await this.checkForUpdates();
 			}
 			this.eventuallyCheckForUpdates();
@@ -1762,10 +1787,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	private async autoUpdateExtensions(): Promise<void> {
-		if (!this.isAutoUpdateEnabled()) {
-			return;
-		}
-
 		const toUpdate = this.outdated.filter(e => !e.local?.pinned && this.shouldAutoUpdateExtension(e));
 		if (!toUpdate.length) {
 			return;
@@ -1798,32 +1819,43 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return undefined;
 	}
 
-	private async updateExtensionsPinnedState(): Promise<void> {
-		await Promise.all(this.installed.map(async e => {
-			if (e.isBuiltin) {
-				return;
-			}
-			const shouldBePinned = !this.shouldAutoUpdateExtension(e);
-			if (e.local && e.local.pinned !== shouldBePinned) {
-				await this.extensionManagementService.updateMetadata(e.local, { pinned: shouldBePinned });
-			}
-		}));
-	}
-
 	private shouldAutoUpdateExtension(extension: IExtension): boolean {
-		const autoUpdate = this.getAutoUpdateValue();
-		if (isBoolean(autoUpdate)) {
-			return autoUpdate;
+		if (extension.deprecationInfo?.disallowInstall) {
+			return false;
 		}
 
-		if (autoUpdate === 'onlyEnabledExtensions') {
+		const autoUpdateValue = this.getAutoUpdateValue();
+
+		if (autoUpdateValue === false) {
+			const extensionsToAutoUpdate = this.getEnabledAutoUpdateExtensions();
+			const extensionId = extension.identifier.id.toLowerCase();
+			if (extensionsToAutoUpdate.includes(extensionId)) {
+				return true;
+			}
+			if (this.isAutoUpdateEnabledForPublisher(extension.publisher) && !extensionsToAutoUpdate.includes(`-${extensionId}`)) {
+				return true;
+			}
+			return false;
+		}
+
+		if (extension.pinned) {
+			return false;
+		}
+
+		const disabledAutoUpdateExtensions = this.getDisabledAutoUpdateExtensions();
+		if (disabledAutoUpdateExtensions.includes(extension.identifier.id.toLowerCase())) {
+			return false;
+		}
+
+		if (autoUpdateValue === true) {
+			return true;
+		}
+
+		if (autoUpdateValue === 'onlyEnabledExtensions') {
 			return this.extensionEnablementService.isEnabledEnablementState(extension.enablementState);
 		}
 
-		const extensionsToAutoUpdate = this.getSelectedExtensionsToAutoUpdate();
-		const extensionId = extension.identifier.id.toLowerCase();
-		return extensionsToAutoUpdate.includes(extensionId) ||
-			(!extensionsToAutoUpdate.includes(`-${extensionId}`) && this.isAutoUpdateEnabledForPublisher(extension.publisher));
+		return false;
 	}
 
 	isAutoUpdateEnabledFor(extensionOrPublisher: IExtension | string): boolean {
@@ -1831,16 +1863,12 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			if (EXTENSION_IDENTIFIER_REGEX.test(extensionOrPublisher)) {
 				throw new Error('Expected publisher string, found extension identifier');
 			}
-			const autoUpdate = this.getAutoUpdateValue();
-			if (isBoolean(autoUpdate)) {
-				return autoUpdate;
-			}
-			if (autoUpdate === 'onlyEnabledExtensions') {
-				return false;
+			if (this.isAutoUpdateEnabled()) {
+				return true;
 			}
 			return this.isAutoUpdateEnabledForPublisher(extensionOrPublisher);
 		}
-		return !extensionOrPublisher.local?.pinned && this.shouldAutoUpdateExtension(extensionOrPublisher);
+		return this.shouldAutoUpdateExtension(extensionOrPublisher);
 	}
 
 	private isAutoUpdateEnabledForPublisher(publisher: string): boolean {
@@ -1849,101 +1877,135 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	async updateAutoUpdateEnablementFor(extensionOrPublisher: IExtension | string, enable: boolean): Promise<void> {
-		const autoUpdateValue = this.getAutoUpdateValue();
-
-		if (autoUpdateValue === true || autoUpdateValue === 'onlyEnabledExtensions') {
+		if (this.isAutoUpdateEnabled()) {
 			if (isString(extensionOrPublisher)) {
 				throw new Error('Expected extension, found publisher string');
 			}
 			if (!extensionOrPublisher.local) {
 				throw new Error('Only installed extensions can be pinned');
 			}
-			await this.extensionManagementService.updateMetadata(extensionOrPublisher.local, { pinned: !enable });
-			if (enable) {
-				this.eventuallyAutoUpdateExtensions();
-			}
-			return;
-		}
 
-		if (autoUpdateValue === false && enable) {
-			await this.configurationService.updateValue(AutoUpdateConfigurationKey, 'onlySelectedExtensions');
-		}
-
-		let update = false;
-		const autoUpdateExtensions = this.getSelectedExtensionsToAutoUpdate();
-		if (isString(extensionOrPublisher)) {
-			if (EXTENSION_IDENTIFIER_REGEX.test(extensionOrPublisher)) {
-				throw new Error('Expected publisher string, found extension identifier');
-			}
-			extensionOrPublisher = extensionOrPublisher.toLowerCase();
-			if (this.isAutoUpdateEnabledFor(extensionOrPublisher) !== enable) {
-				update = true;
-				if (enable) {
-					autoUpdateExtensions.push(extensionOrPublisher);
-				} else {
-					if (autoUpdateExtensions.includes(extensionOrPublisher)) {
-						autoUpdateExtensions.splice(autoUpdateExtensions.indexOf(extensionOrPublisher), 1);
-					}
-				}
-			}
-		} else {
+			const disabledAutoUpdateExtensions = this.getDisabledAutoUpdateExtensions();
 			const extensionId = extensionOrPublisher.identifier.id.toLowerCase();
-			const enableAutoUpdatesForPublisher = this.isAutoUpdateEnabledFor(extensionOrPublisher.publisher.toLowerCase());
-			const enableAutoUpdatesForExtension = autoUpdateExtensions.includes(extensionId);
-			const disableAutoUpdatesForExtension = autoUpdateExtensions.includes(`-${extensionId}`);
-
+			const extensionIndex = disabledAutoUpdateExtensions.indexOf(extensionId);
 			if (enable) {
-				if (disableAutoUpdatesForExtension) {
-					autoUpdateExtensions.splice(autoUpdateExtensions.indexOf(`-${extensionId}`), 1);
-					update = true;
-				}
-				if (enableAutoUpdatesForPublisher) {
-					if (enableAutoUpdatesForExtension) {
-						autoUpdateExtensions.splice(autoUpdateExtensions.indexOf(extensionId), 1);
-						update = true;
-					}
-				} else {
-					if (!enableAutoUpdatesForExtension) {
-						autoUpdateExtensions.push(extensionId);
-						update = true;
-					}
-				}
-				if (extensionOrPublisher.local?.pinned) {
-					await this.extensionManagementService.updateMetadata(extensionOrPublisher.local, { pinned: false });
+				if (extensionIndex !== -1) {
+					disabledAutoUpdateExtensions.splice(extensionIndex, 1);
 				}
 			}
-			// Disable Auto Updates
 			else {
-				if (enableAutoUpdatesForExtension) {
-					autoUpdateExtensions.splice(autoUpdateExtensions.indexOf(extensionId), 1);
-					update = true;
+				if (extensionIndex === -1) {
+					disabledAutoUpdateExtensions.push(extensionId);
 				}
-				if (enableAutoUpdatesForPublisher) {
-					if (!disableAutoUpdatesForExtension) {
-						autoUpdateExtensions.push(`-${extensionId}`);
-						update = true;
+			}
+			this.setDisabledAutoUpdateExtensions(disabledAutoUpdateExtensions);
+			if (enable && extensionOrPublisher.pinned) {
+				await this.extensionManagementService.updateMetadata(extensionOrPublisher.local, { pinned: false });
+			}
+			this._onChange.fire(extensionOrPublisher);
+		}
+
+		else {
+			const enabledAutoUpdateExtensions = this.getEnabledAutoUpdateExtensions();
+			if (isString(extensionOrPublisher)) {
+				if (EXTENSION_IDENTIFIER_REGEX.test(extensionOrPublisher)) {
+					throw new Error('Expected publisher string, found extension identifier');
+				}
+				extensionOrPublisher = extensionOrPublisher.toLowerCase();
+				if (this.isAutoUpdateEnabledFor(extensionOrPublisher) !== enable) {
+					if (enable) {
+						enabledAutoUpdateExtensions.push(extensionOrPublisher);
+					} else {
+						if (enabledAutoUpdateExtensions.includes(extensionOrPublisher)) {
+							enabledAutoUpdateExtensions.splice(enabledAutoUpdateExtensions.indexOf(extensionOrPublisher), 1);
+						}
 					}
-				} else {
+				}
+				this.setEnabledAutoUpdateExtensions(enabledAutoUpdateExtensions);
+				for (const e of this.installed) {
+					if (e.publisher.toLowerCase() === extensionOrPublisher) {
+						this._onChange.fire(e);
+					}
+				}
+			} else {
+				const extensionId = extensionOrPublisher.identifier.id.toLowerCase();
+				const enableAutoUpdatesForPublisher = this.isAutoUpdateEnabledFor(extensionOrPublisher.publisher.toLowerCase());
+				const enableAutoUpdatesForExtension = enabledAutoUpdateExtensions.includes(extensionId);
+				const disableAutoUpdatesForExtension = enabledAutoUpdateExtensions.includes(`-${extensionId}`);
+
+				if (enable) {
 					if (disableAutoUpdatesForExtension) {
-						autoUpdateExtensions.splice(autoUpdateExtensions.indexOf(`-${extensionId}`), 1);
-						update = true;
+						enabledAutoUpdateExtensions.splice(enabledAutoUpdateExtensions.indexOf(`-${extensionId}`), 1);
+					}
+					if (enableAutoUpdatesForPublisher) {
+						if (enableAutoUpdatesForExtension) {
+							enabledAutoUpdateExtensions.splice(enabledAutoUpdateExtensions.indexOf(extensionId), 1);
+						}
+					} else {
+						if (!enableAutoUpdatesForExtension) {
+							enabledAutoUpdateExtensions.push(extensionId);
+						}
 					}
 				}
+				// Disable Auto Updates
+				else {
+					if (enableAutoUpdatesForExtension) {
+						enabledAutoUpdateExtensions.splice(enabledAutoUpdateExtensions.indexOf(extensionId), 1);
+					}
+					if (enableAutoUpdatesForPublisher) {
+						if (!disableAutoUpdatesForExtension) {
+							enabledAutoUpdateExtensions.push(`-${extensionId}`);
+						}
+					} else {
+						if (disableAutoUpdatesForExtension) {
+							enabledAutoUpdateExtensions.splice(enabledAutoUpdateExtensions.indexOf(`-${extensionId}`), 1);
+						}
+					}
+				}
+				this.setEnabledAutoUpdateExtensions(enabledAutoUpdateExtensions);
+				this._onChange.fire(extensionOrPublisher);
 			}
 		}
-		if (update) {
-			this.setSelectedExtensionsToAutoUpdate(autoUpdateExtensions);
-			await this.onDidSelectedExtensionToAutoUpdateValueChange(true);
-			if (autoUpdateValue === 'onlySelectedExtensions' && autoUpdateExtensions.length === 0) {
-				await this.configurationService.updateValue(AutoUpdateConfigurationKey, false);
-			}
+
+		if (enable) {
+			this.autoUpdateExtensions();
 		}
 	}
 
-	private async onDidSelectedExtensionToAutoUpdateValueChange(forceUpdate: boolean): Promise<void> {
-		if (forceUpdate || this.selectedExtensionsToAutoUpdateValue !== this.getSelectedExtensionsToAutoUpdateValue() /* This checks if current window changed the value or not */) {
-			await this.updateExtensionsPinnedState();
-			this.eventuallyAutoUpdateExtensions();
+	private onDidSelectedExtensionToAutoUpdateValueChange(): void {
+		if (
+			this.enabledAuotUpdateExtensionsValue !== this.getEnabledAutoUpdateExtensionsValue() /* This checks if current window changed the value or not */
+			|| this.disabledAutoUpdateExtensionsValue !== this.getDisabledAutoUpdateExtensionsValue() /* This checks if current window changed the value or not */
+		) {
+			const userExtensions = this.installed.filter(e => !e.isBuiltin);
+			const groupBy = (extensions: IExtension[]): IExtension[][] => {
+				const shouldAutoUpdate: IExtension[] = [];
+				const shouldNotAutoUpdate: IExtension[] = [];
+				for (const extension of extensions) {
+					if (this.shouldAutoUpdateExtension(extension)) {
+						shouldAutoUpdate.push(extension);
+					} else {
+						shouldNotAutoUpdate.push(extension);
+					}
+				}
+				return [shouldAutoUpdate, shouldNotAutoUpdate];
+			};
+
+			const [wasShouldAutoUpdate, wasShouldNotAutoUpdate] = groupBy(userExtensions);
+			this._enabledAutoUpdateExtensionsValue = undefined;
+			this._disabledAutoUpdateExtensionsValue = undefined;
+			const [shouldAutoUpdate, shouldNotAutoUpdate] = groupBy(userExtensions);
+
+			for (const e of wasShouldAutoUpdate ?? []) {
+				if (shouldNotAutoUpdate?.includes(e)) {
+					this._onChange.fire(e);
+				}
+			}
+			for (const e of wasShouldNotAutoUpdate ?? []) {
+				if (shouldAutoUpdate?.includes(e)) {
+					this._onChange.fire(e);
+				}
+			}
 		}
 	}
 
@@ -2082,10 +2144,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 		if (!extension) {
 			throw new Error(nls.localize('unknown', "Unable to install extension"));
-		}
-
-		if (installOptions.version) {
-			await this.updateAutoUpdateEnablementFor(extension, false);
 		}
 
 		if (installOptions.enable) {
@@ -2571,12 +2629,12 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	private getPublishersToAutoUpdate(): string[] {
-		return this.getSelectedExtensionsToAutoUpdate().filter(id => !EXTENSION_IDENTIFIER_REGEX.test(id));
+		return this.getEnabledAutoUpdateExtensions().filter(id => !EXTENSION_IDENTIFIER_REGEX.test(id));
 	}
 
-	getSelectedExtensionsToAutoUpdate(): string[] {
+	getEnabledAutoUpdateExtensions(): string[] {
 		try {
-			const parsedValue = JSON.parse(this.selectedExtensionsToAutoUpdateValue);
+			const parsedValue = JSON.parse(this.enabledAuotUpdateExtensionsValue);
 			if (Array.isArray(parsedValue)) {
 				return parsedValue;
 			}
@@ -2584,32 +2642,70 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return [];
 	}
 
-	private setSelectedExtensionsToAutoUpdate(selectedExtensionsToAutoUpdate: string[]): void {
-		this.selectedExtensionsToAutoUpdateValue = JSON.stringify(selectedExtensionsToAutoUpdate);
+	private setEnabledAutoUpdateExtensions(enabledAutoUpdateExtensions: string[]): void {
+		this.enabledAuotUpdateExtensionsValue = JSON.stringify(enabledAutoUpdateExtensions);
 	}
 
-	private _selectedExtensionsToAutoUpdateValue: string | undefined;
-	private get selectedExtensionsToAutoUpdateValue(): string {
-		if (!this._selectedExtensionsToAutoUpdateValue) {
-			this._selectedExtensionsToAutoUpdateValue = this.getSelectedExtensionsToAutoUpdateValue();
+	private _enabledAutoUpdateExtensionsValue: string | undefined;
+	private get enabledAuotUpdateExtensionsValue(): string {
+		if (!this._enabledAutoUpdateExtensionsValue) {
+			this._enabledAutoUpdateExtensionsValue = this.getEnabledAutoUpdateExtensionsValue();
 		}
 
-		return this._selectedExtensionsToAutoUpdateValue;
+		return this._enabledAutoUpdateExtensionsValue;
 	}
 
-	private set selectedExtensionsToAutoUpdateValue(placeholderViewContainesValue: string) {
-		if (this.selectedExtensionsToAutoUpdateValue !== placeholderViewContainesValue) {
-			this._selectedExtensionsToAutoUpdateValue = placeholderViewContainesValue;
-			this.setSelectedExtensionsToAutoUpdateValue(placeholderViewContainesValue);
+	private set enabledAuotUpdateExtensionsValue(enabledAuotUpdateExtensionsValue: string) {
+		if (this.enabledAuotUpdateExtensionsValue !== enabledAuotUpdateExtensionsValue) {
+			this._enabledAutoUpdateExtensionsValue = enabledAuotUpdateExtensionsValue;
+			this.setEnabledAutoUpdateExtensionsValue(enabledAuotUpdateExtensionsValue);
 		}
 	}
 
-	private getSelectedExtensionsToAutoUpdateValue(): string {
+	private getEnabledAutoUpdateExtensionsValue(): string {
 		return this.storageService.get(EXTENSIONS_AUTO_UPDATE_KEY, StorageScope.APPLICATION, '[]');
 	}
 
-	private setSelectedExtensionsToAutoUpdateValue(value: string): void {
+	private setEnabledAutoUpdateExtensionsValue(value: string): void {
 		this.storageService.store(EXTENSIONS_AUTO_UPDATE_KEY, value, StorageScope.APPLICATION, StorageTarget.USER);
+	}
+
+	getDisabledAutoUpdateExtensions(): string[] {
+		try {
+			const parsedValue = JSON.parse(this.disabledAutoUpdateExtensionsValue);
+			if (Array.isArray(parsedValue)) {
+				return parsedValue;
+			}
+		} catch (e) { /* Ignore */ }
+		return [];
+	}
+
+	private setDisabledAutoUpdateExtensions(disabledAutoUpdateExtensions: string[]): void {
+		this.disabledAutoUpdateExtensionsValue = JSON.stringify(disabledAutoUpdateExtensions);
+	}
+
+	private _disabledAutoUpdateExtensionsValue: string | undefined;
+	private get disabledAutoUpdateExtensionsValue(): string {
+		if (!this._disabledAutoUpdateExtensionsValue) {
+			this._disabledAutoUpdateExtensionsValue = this.getDisabledAutoUpdateExtensionsValue();
+		}
+
+		return this._disabledAutoUpdateExtensionsValue;
+	}
+
+	private set disabledAutoUpdateExtensionsValue(disabledAutoUpdateExtensionsValue: string) {
+		if (this.disabledAutoUpdateExtensionsValue !== disabledAutoUpdateExtensionsValue) {
+			this._disabledAutoUpdateExtensionsValue = disabledAutoUpdateExtensionsValue;
+			this.setDisabledAutoUpdateExtensionsValue(disabledAutoUpdateExtensionsValue);
+		}
+	}
+
+	private getDisabledAutoUpdateExtensionsValue(): string {
+		return this.storageService.get(EXTENSIONS_DONOT_AUTO_UPDATE_KEY, StorageScope.APPLICATION, '[]');
+	}
+
+	private setDisabledAutoUpdateExtensionsValue(value: string): void {
+		this.storageService.store(EXTENSIONS_DONOT_AUTO_UPDATE_KEY, value, StorageScope.APPLICATION, StorageTarget.USER);
 	}
 
 }

@@ -957,7 +957,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		}
 
 		// Proxy
-		if (!e || e.affectsConfiguration('http.proxy')) {
+		if (!e || e.affectsConfiguration('http.proxy') || e.affectsConfiguration('http.noProxy')) {
 			let newHttpProxy = (this.configurationService.getValue<string>('http.proxy') || '').trim()
 				|| (process.env['https_proxy'] || process.env['HTTPS_PROXY'] || process.env['http_proxy'] || process.env['HTTP_PROXY'] || '').trim() // Not standardized.
 				|| undefined;
@@ -966,7 +966,8 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				newHttpProxy = newHttpProxy.substr(0, newHttpProxy.length - 1);
 			}
 
-			const newNoProxy = (process.env['no_proxy'] || process.env['NO_PROXY'] || '').trim() || undefined; // Not standardized.
+			const newNoProxy = (this.configurationService.getValue<string[]>('http.noProxy') || []).map((item) => item.trim()).join(',')
+				|| (process.env['no_proxy'] || process.env['NO_PROXY'] || '').trim() || undefined; // Not standardized.
 			if ((newHttpProxy || '').indexOf('@') === -1 && (newHttpProxy !== this.currentHttpProxy || newNoProxy !== this.currentNoProxy)) {
 				this.currentHttpProxy = newHttpProxy;
 				this.currentNoProxy = newNoProxy;

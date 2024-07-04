@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import { top } from 'vs/base/common/arrays';
 import { DeferredPromise } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -403,7 +404,7 @@ export class WorkspaceStorageMain extends BaseStorageMain {
 		}
 
 		// Ensure storage folder exists
-		await Promises.mkdir(workspaceStorageFolderPath, { recursive: true });
+		await fs.promises.mkdir(workspaceStorageFolderPath, { recursive: true });
 
 		// Write metadata into folder (but do not await)
 		this.ensureWorkspaceStorageFolderMeta(workspaceStorageFolderPath);

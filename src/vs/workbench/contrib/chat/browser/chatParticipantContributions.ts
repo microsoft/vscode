@@ -239,7 +239,6 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 							name: providerDescriptor.name,
 							fullName: providerDescriptor.fullName,
 							isDefault: providerDescriptor.isDefault,
-							defaultImplicitVariables: providerDescriptor.defaultImplicitVariables,
 							locations: isNonEmptyArray(providerDescriptor.locations) ?
 								providerDescriptor.locations.map(ChatAgentLocation.fromRaw) :
 								[ChatAgentLocation.Panel],

@@ -47,7 +47,7 @@ import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
 import { ITestResult, LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { ITestService, getContextForTestItem, testsInFile } from 'vs/workbench/contrib/testing/common/testService';
+import { ITestService, getContextForTestItem, simplifyTestsToExecute, testsInFile } from 'vs/workbench/contrib/testing/common/testService';
 import { IRichLocation, ITestMessage, ITestRunProfile, IncrementalTestCollectionItem, InternalTestItem, TestDiffOpType, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
 import { ITestDecoration as IPublicTestDecoration, ITestingDecorationsService, TestDecorations } from 'vs/workbench/contrib/testing/common/testingDecorations';
 import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
@@ -806,7 +806,7 @@ abstract class RunTestDecoration {
 
 	protected runWith(profile: TestRunProfileBitset) {
 		return this.testService.runTests({
-			tests: this.tests.map(({ test }) => test),
+			tests: simplifyTestsToExecute(this.testService.collection, this.tests.map(({ test }) => test)),
 			group: profile,
 		});
 	}

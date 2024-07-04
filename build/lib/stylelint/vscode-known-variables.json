@@ -138,6 +138,7 @@
 		"--vscode-editor-findRangeHighlightBorder",
 		"--vscode-editor-focusedStackFrameHighlightBackground",
 		"--vscode-editor-foldBackground",
+		"--vscode-editor-foldPlaceholderForeground",
 		"--vscode-editor-foreground",
 		"--vscode-editor-hoverHighlightBackground",
 		"--vscode-editor-inactiveSelectionBackground",

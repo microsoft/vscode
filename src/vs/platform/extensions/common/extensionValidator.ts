@@ -240,7 +240,7 @@ export function isValidVersion(_inputVersion: string | INormalizedVersion, _inpu
 
 type ProductDate = string | Date | undefined;
 
-export function validateExtensionManifest(productVersion: string, productDate: ProductDate, extensionLocation: URI, extensionManifest: IExtensionManifest, extensionIsBuiltin: boolean): readonly [Severity, string][] {
+export function validateExtensionManifest(productVersion: string, productDate: ProductDate, extensionLocation: URI, extensionManifest: IExtensionManifest, extensionIsBuiltin: boolean, validateApiVersion: boolean): readonly [Severity, string][] {
 	const validations: [Severity, string][] = [];
 	if (typeof extensionManifest.publisher !== 'undefined' && typeof extensionManifest.publisher !== 'string') {
 		validations.push([Severity.Error, nls.localize('extensionDescription.publisher', "property publisher must be of type `string`.")]);
@@ -322,7 +322,7 @@ export function validateExtensionManifest(productVersion: string, productDate: P
 		}
 	}
 
-	if (extensionManifest.enabledApiProposals?.length) {
+	if (validateApiVersion && extensionManifest.enabledApiProposals?.length) {
 		const incompatibleNotices: string[] = [];
 		if (!areApiProposalsCompatible([...extensionManifest.enabledApiProposals], incompatibleNotices)) {
 			for (const notice of incompatibleNotices) {

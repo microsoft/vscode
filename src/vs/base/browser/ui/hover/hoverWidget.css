@@ -134,6 +134,11 @@
 	padding-right: 4px;
 }
 
+.monaco-hover .hover-row.status-bar .actions .action-container a {
+	color: var(--vscode-textLink-foreground);
+	text-decoration: var(--text-link-decoration);
+}
+
 .monaco-hover .markdown-hover .hover-contents .codicon {
 	color: inherit;
 	font-size: inherit;

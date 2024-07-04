@@ -562,6 +562,7 @@ class ExtensionsScanner extends Disposable {
 		@IUriIdentityService protected readonly uriIdentityService: IUriIdentityService,
 		@IFileService protected readonly fileService: IFileService,
 		@IProductService productService: IProductService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@ILogService protected readonly logService: ILogService
 	) {
 		super();
@@ -657,10 +658,7 @@ class ExtensionsScanner extends Disposable {
 				const type = metadata?.isSystem ? ExtensionType.System : input.type;
 				const isBuiltin = type === ExtensionType.System || !!metadata?.isBuiltin;
 				manifest = await this.translateManifest(input.location, manifest, ExtensionScannerInput.createNlsConfiguration(input));
-				if (manifest.enabledApiProposals && !this.extensionsEnabledWithApiProposalVersion?.includes(id.toLowerCase())) {
-					manifest.enabledApiProposals = parseEnabledApiProposalNames([...manifest.enabledApiProposals]);
-				}
-				const extension: IRelaxedScannedExtension = {
+				let extension: IRelaxedScannedExtension = {
 					type,
 					identifier,
 					manifest,
@@ -672,7 +670,13 @@ class ExtensionsScanner extends Disposable {
 					isValid: true,
 					validations: []
 				};
-				return input.validate ? this.validate(extension, input) : extension;
+				if (input.validate) {
+					extension = this.validate(extension, input);
+				}
+				if (manifest.enabledApiProposals && (!this.environmentService.isBuilt || this.extensionsEnabledWithApiProposalVersion.includes(id.toLowerCase()))) {
+					manifest.enabledApiProposals = parseEnabledApiProposalNames([...manifest.enabledApiProposals]);
+				}
+				return extension;
 			}
 		} catch (e) {
 			if (input.type !== ExtensionType.System) {
@@ -684,7 +688,8 @@ class ExtensionsScanner extends Disposable {
 
 	validate(extension: IRelaxedScannedExtension, input: ExtensionScannerInput): IRelaxedScannedExtension {
 		let isValid = true;
-		const validations = validateExtensionManifest(input.productVersion, input.productDate, input.location, extension.manifest, extension.isBuiltin);
+		const validateApiVersion = this.environmentService.isBuilt && this.extensionsEnabledWithApiProposalVersion.includes(extension.identifier.id.toLowerCase());
+		const validations = validateExtensionManifest(input.productVersion, input.productDate, input.location, extension.manifest, extension.isBuiltin, validateApiVersion);
 		for (const [severity, message] of validations) {
 			if (severity === Severity.Error) {
 				isValid = false;
@@ -886,9 +891,10 @@ class CachedExtensionsScanner extends ExtensionsScanner {
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IFileService fileService: IFileService,
 		@IProductService productService: IProductService,
+		@IEnvironmentService environmentService: IEnvironmentService,
 		@ILogService logService: ILogService
 	) {
-		super(obsoleteFile, extensionsProfileScannerService, uriIdentityService, fileService, productService, logService);
+		super(obsoleteFile, extensionsProfileScannerService, uriIdentityService, fileService, productService, environmentService, logService);
 	}
 
 	override async scanExtensions(input: ExtensionScannerInput): Promise<IRelaxedScannedExtension[]> {

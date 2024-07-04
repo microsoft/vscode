@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 // NOTE: VSCode's copy of nodejs path library to be usable in common (non-node) namespace
-// Copied from: https://github.com/nodejs/node/blob/v16.14.2/lib/path.js
+// Copied from: https://github.com/nodejs/node/commits/v20.9.0/lib/path.js
+// Excluding: the change that adds primordials
+// (https://github.com/nodejs/node/commit/187a862d221dec42fa9a5c4214e7034d9092792f and others)
 
 /**
  * Copyright Joyent, Inc. and other Node contributors.
@@ -159,11 +161,15 @@ function normalizeString(path: string, allowAboveRoot: boolean, separator: strin
 	return res;
 }
 
+function formatExt(ext: string): string {
+	return ext ? `${ext[0] === '.' ? '' : '.'}${ext}` : '';
+}
+
 function _format(sep: string, pathObject: ParsedPath) {
 	validateObject(pathObject, 'pathObject');
 	const dir = pathObject.dir || pathObject.root;
 	const base = pathObject.base ||
-		`${pathObject.name || ''}${pathObject.ext || ''}`;
+		`${pathObject.name || ''}${formatExt(pathObject.ext)}`;
 	if (!dir) {
 		return base;
 	}
@@ -185,7 +191,7 @@ export interface IPath {
 	resolve(...pathSegments: string[]): string;
 	relative(from: string, to: string): string;
 	dirname(path: string): string;
-	basename(path: string, ext?: string): string;
+	basename(path: string, suffix?: string): string;
 	extname(path: string): string;
 	format(pathObject: ParsedPath): string;
 	parse(path: string): ParsedPath;
@@ -207,7 +213,7 @@ export const win32: IPath = {
 			let path;
 			if (i >= 0) {
 				path = pathSegments[i];
-				validateString(path, 'path');
+				validateString(path, `paths[${i}]`);
 
 				// Skip empty entries
 				if (path.length === 0) {
@@ -757,9 +763,9 @@ export const win32: IPath = {
 		return path.slice(0, end);
 	},
 
-	basename(path: string, ext?: string): string {
-		if (ext !== undefined) {
-			validateString(ext, 'ext');
+	basename(path: string, suffix?: string): string {
+		if (suffix !== undefined) {
+			validateString(suffix, 'suffix');
 		}
 		validateString(path, 'path');
 		let start = 0;
@@ -776,11 +782,11 @@ export const win32: IPath = {
 			start = 2;
 		}
 
-		if (ext !== undefined && ext.length > 0 && ext.length <= path.length) {
-			if (ext === path) {
+		if (suffix !== undefined && suffix.length > 0 && suffix.length <= path.length) {
+			if (suffix === path) {
 				return '';
 			}
-			let extIdx = ext.length - 1;
+			let extIdx = suffix.length - 1;
 			let firstNonSlashEnd = -1;
 			for (i = path.length - 1; i >= start; --i) {
 				const code = path.charCodeAt(i);
@@ -800,7 +806,7 @@ export const win32: IPath = {
 					}
 					if (extIdx >= 0) {
 						// Try to match the explicit extension
-						if (code === ext.charCodeAt(extIdx)) {
+						if (code === suffix.charCodeAt(extIdx)) {
 							if (--extIdx === -1) {
 								// We matched the extension, so mark this as the end of our path
 								// component
@@ -1095,7 +1101,7 @@ export const posix: IPath = {
 		for (let i = pathSegments.length - 1; i >= -1 && !resolvedAbsolute; i--) {
 			const path = i >= 0 ? pathSegments[i] : posixCwd();
 
-			validateString(path, 'path');
+			validateString(path, `paths[${i}]`);
 
 			// Skip empty entries
 			if (path.length === 0) {
@@ -1280,9 +1286,9 @@ export const posix: IPath = {
 		return path.slice(0, end);
 	},
 
-	basename(path: string, ext?: string): string {
-		if (ext !== undefined) {
-			validateString(ext, 'ext');
+	basename(path: string, suffix?: string): string {
+		if (suffix !== undefined) {
+			validateString(suffix, 'ext');
 		}
 		validateString(path, 'path');
 
@@ -1291,11 +1297,11 @@ export const posix: IPath = {
 		let matchedSlash = true;
 		let i;
 
-		if (ext !== undefined && ext.length > 0 && ext.length <= path.length) {
-			if (ext === path) {
+		if (suffix !== undefined && suffix.length > 0 && suffix.length <= path.length) {
+			if (suffix === path) {
 				return '';
 			}
-			let extIdx = ext.length - 1;
+			let extIdx = suffix.length - 1;
 			let firstNonSlashEnd = -1;
 			for (i = path.length - 1; i >= 0; --i) {
 				const code = path.charCodeAt(i);
@@ -1315,7 +1321,7 @@ export const posix: IPath = {
 					}
 					if (extIdx >= 0) {
 						// Try to match the explicit extension
-						if (code === ext.charCodeAt(extIdx)) {
+						if (code === suffix.charCodeAt(extIdx)) {
 							if (--extIdx === -1) {
 								// We matched the extension, so mark this as the end of our path
 								// component

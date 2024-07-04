@@ -7,13 +7,14 @@
   "enabledApiProposals": [
     "activeComment",
     "authSession",
-    "defaultChatParticipant",
     "chatParticipantPrivate",
+    "chatProvider",
     "chatVariableResolver",
-    "contribViewsRemote",
     "contribStatusBarItems",
+    "contribViewsRemote",
     "createFileSystemWatcher",
     "customEditorMove",
+    "defaultChatParticipant",
     "diffCommand",
     "documentFiltersExclusive",
     "documentPaste",
@@ -27,6 +28,8 @@
     "findTextInFiles",
     "fsChunks",
     "interactive",
+    "languageStatusText",
+    "lmTools",
     "mappedEditsProvider",
     "notebookCellExecutionState",
     "notebookDeprecated",
@@ -35,26 +38,24 @@
     "notebookMime",
     "portsAttributes",
     "quickPickSortByLabel",
-    "languageStatusText",
     "resolvers",
     "scmActionButton",
     "scmSelectedProvider",
     "scmTextDocument",
     "scmValidation",
     "taskPresentationGroup",
+    "telemetry",
     "terminalDataWriteEvent",
     "terminalDimensions",
     "terminalShellIntegration",
-    "tunnels",
     "testObserver",
     "textSearchProvider",
     "timeline",
     "tokenInformation",
     "treeViewActiveItem",
     "treeViewReveal",
-    "workspaceTrust",
-    "telemetry",
-    "lmTools"
+    "tunnels",
+    "workspaceTrust"
   ],
   "private": true,
   "activationEvents": [],
@@ -64,6 +65,11 @@
   },
   "icon": "media/icon.png",
   "contributes": {
+    "languageModels": [
+      {
+        "vendor": "test-lm-vendor"
+      }
+    ],
     "chatParticipants": [
       {
         "id": "api-test.participant",

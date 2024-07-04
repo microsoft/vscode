@@ -131,7 +131,7 @@ flakySuite('BackupMainService', () => {
 
 		environmentService = new EnvironmentMainService(parseArgs(process.argv, OPTIONS), { _serviceBrand: undefined, ...product });
 
-		await Promises.mkdir(backupHome, { recursive: true });
+		await fs.promises.mkdir(backupHome, { recursive: true });
 
 		configService = new TestConfigurationService();
 		stateMainService = new InMemoryTestStateMainService();
@@ -584,8 +584,8 @@ flakySuite('BackupMainService', () => {
 			assert.strictEqual(((await service.getDirtyWorkspaces()).length), 0);
 
 			try {
-				await Promises.mkdir(path.join(folderBackupPath, Schemas.file), { recursive: true });
-				await Promises.mkdir(path.join(workspaceBackupPath, Schemas.untitled), { recursive: true });
+				await fs.promises.mkdir(path.join(folderBackupPath, Schemas.file), { recursive: true });
+				await fs.promises.mkdir(path.join(workspaceBackupPath, Schemas.untitled), { recursive: true });
 			} catch (error) {
 				// ignore - folder might exist already
 			}

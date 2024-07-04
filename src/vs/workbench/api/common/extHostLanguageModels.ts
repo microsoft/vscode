@@ -6,7 +6,7 @@
 import { AsyncIterableObject, AsyncIterableSource } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { CancellationError } from 'vs/base/common/errors';
+import { CancellationError, SerializedError, transformErrorForSerialization, transformErrorFromSerialization } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -212,7 +212,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 				return;
 			}
 
-			this._proxy.$handleResponsePart(requestId, { index: fragment.index, part });
+			this._proxy.$reportResponsePart(requestId, { index: fragment.index, part });
 		});
 
 		let p: Promise<any>;
@@ -243,9 +243,9 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		}
 
 		p.then(() => {
-			this._proxy.$handleResponseDone(requestId, undefined);
+			this._proxy.$reportResponseDone(requestId, undefined);
 		}, err => {
-			this._proxy.$handleResponseDone(requestId, err);
+			this._proxy.$reportResponseDone(requestId, transformErrorForSerialization(err));
 		});
 	}
 
@@ -411,7 +411,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		}
 	}
 
-	async $acceptResponseDone(requestId: number, error: any | undefined): Promise<void> {
+	async $acceptResponseDone(requestId: number, error: SerializedError | undefined): Promise<void> {
 		const data = this._pendingRequest.get(requestId);
 		if (!data) {
 			return;
@@ -420,7 +420,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		if (error) {
 			// we error the stream because that's the only way to signal
 			// that the request has failed
-			data.res.reject(error);
+			data.res.reject(transformErrorFromSerialization(error));
 		} else {
 			data.res.resolve();
 		}

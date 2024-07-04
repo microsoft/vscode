@@ -394,6 +394,9 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 	private templatePromise: CancelablePromise<void> | undefined;
 	private template: IUserDataProfileTemplate | null = null;
 
+	private defaultName: string;
+	private defaultIcon: string | undefined;
+
 	constructor(
 		name: string,
 		copyFrom: URI | IUserDataProfile | undefined,
@@ -417,6 +420,7 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 			commandService,
 			instantiationService,
 		);
+		this.defaultName = name;
 		this._copyFrom = copyFrom;
 		this._copyFlags = this.getCopyFlagsFrom(copyFrom);
 		this.initialize();
@@ -473,8 +477,12 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 			if (this.copyFrom instanceof URI) {
 				await this.resolveTemplate(this.copyFrom);
 				if (this.template) {
-					this.name = this.template.name ?? '';
-					this.icon = this.template.icon;
+					if (this.defaultName === this.name) {
+						this.name = this.defaultName = this.template.name ?? '';
+					}
+					if (this.defaultIcon === this.icon) {
+						this.icon = this.defaultIcon = this.template.icon;
+					}
 					this.setCopyFlag(ProfileResourceType.Settings, !!this.template.settings);
 					this.setCopyFlag(ProfileResourceType.Keybindings, !!this.template.keybindings);
 					this.setCopyFlag(ProfileResourceType.Tasks, !!this.template.tasks);
@@ -485,8 +493,12 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 			}
 
 			if (isUserDataProfile(this.copyFrom)) {
-				this.name = `${this.copyFrom.name} (Copy)`;
-				this.icon = this.copyFrom.icon;
+				if (this.defaultName === this.name) {
+					this.name = this.defaultName = localize('copy from', "{0} (Copy)", this.copyFrom.name);
+				}
+				if (this.defaultIcon === this.icon) {
+					this.icon = this.defaultIcon = this.copyFrom.icon;
+				}
 				this.setCopyFlag(ProfileResourceType.Settings, true);
 				this.setCopyFlag(ProfileResourceType.Keybindings, true);
 				this.setCopyFlag(ProfileResourceType.Tasks, true);
@@ -495,8 +507,12 @@ export class NewProfileElement extends AbstractUserDataProfileElement {
 				return;
 			}
 
-			this.name = localize('untitled', "Untitled");
-			this.icon = undefined;
+			if (this.defaultName === this.name) {
+				this.name = this.defaultName = localize('untitled', "Untitled");
+			}
+			if (this.defaultIcon === this.icon) {
+				this.icon = this.defaultIcon = undefined;
+			}
 			this.setCopyFlag(ProfileResourceType.Settings, false);
 			this.setCopyFlag(ProfileResourceType.Keybindings, false);
 			this.setCopyFlag(ProfileResourceType.Tasks, false);
@@ -716,14 +732,14 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			localize('active', "Use for Current Window"),
 			ThemeIcon.asClassName(Codicon.check),
 			true,
-			() => this.userDataProfileManagementService.switchProfile(profile)
+			() => this.userDataProfileManagementService.switchProfile(profileElement.profile)
 		));
 
 		const copyFromProfileAction = disposables.add(new Action(
 			'userDataProfile.copyFromProfile',
 			localize('copyFromProfile', "Duplicate..."),
 			ThemeIcon.asClassName(Codicon.copy),
-			true, () => this.createNewProfile(profile)
+			true, () => this.createNewProfile(profileElement.profile)
 		));
 
 		const exportAction = disposables.add(new Action(
@@ -731,7 +747,7 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			localize('export', "Export..."),
 			ThemeIcon.asClassName(Codicon.export),
 			true,
-			() => this.exportProfile(profile)
+			() => this.exportProfile(profileElement.profile)
 		));
 
 		const deleteAction = disposables.add(new Action(
@@ -739,20 +755,20 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			localize('delete', "Delete"),
 			ThemeIcon.asClassName(Codicon.trash),
 			true,
-			() => this.removeProfile(profile)
+			() => this.removeProfile(profileElement.profile)
 		));
 
 		const newWindowAction = disposables.add(new Action(
 			'userDataProfile.newWindow',
-			localize('open new window', "New Window"),
+			localize('open new window', "Open New Window with this Profile"),
 			ThemeIcon.asClassName(Codicon.emptyWindow),
 			true,
-			() => this.openWindow(profile)
+			() => this.openWindow(profileElement.profile)
 		));
 
 		const useAsNewWindowProfileAction = disposables.add(new Action(
 			'userDataProfile.useAsNewWindowProfile',
-			localize('use as new window', "Use for New Windows", profile.name),
+			localize('use as new window', "Use for New Windows"),
 			undefined,
 			true,
 			() => profileElement.toggleNewWindowProfile()
@@ -788,9 +804,9 @@ export class UserDataProfilesEditorModel extends EditorModel {
 			[primaryActions, secondaryActions]
 		));
 
-		activateAction.checked = this.userDataProfileService.currentProfile.id === profile.id;
+		activateAction.checked = this.userDataProfileService.currentProfile.id === profileElement.profile.id;
 		disposables.add(this.userDataProfileService.onDidChangeCurrentProfile(() =>
-			activateAction.checked = this.userDataProfileService.currentProfile.id === profile.id));
+			activateAction.checked = this.userDataProfileService.currentProfile.id === profileElement.profile.id));
 
 		useAsNewWindowProfileAction.checked = profileElement.isNewWindowProfile;
 		disposables.add(profileElement.onDidChange(e => {

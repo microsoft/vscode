@@ -1,4 +1,9 @@
 name: "Deep Classifier: Scraper"
+
+permissions:
+  id-token: write
+  contents: read
+
 on:
   schedule:
     - cron: 0 0 15 * * # 15th of the month
@@ -9,7 +14,13 @@ on:
 jobs:
   main:
     runs-on: ubuntu-latest
+    environment: main
     steps:
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
       - name: Checkout Actions
         uses: actions/checkout@v4
         with:
@@ -25,6 +36,4 @@ jobs:
         uses: ./actions/classifier-deep/train/fetch-issues
         with:
           blobContainerName: vscode-issue-classifier
-          blobStorageKey: ${{secrets.AZURE_BLOB_STORAGE_CONNECTION_STRING}}
           token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
-          appInsightsKey: ${{secrets.TRIAGE_ACTIONS_APP_INSIGHTS}}
