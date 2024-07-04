@@ -158,6 +158,9 @@ export class ExtensionManagementChannel implements IServerChannel {
 				const e = await this.service.updateMetadata(transformIncomingExtension(args[0], uriTransformer), args[1], transformIncomingURI(args[2], uriTransformer));
 				return transformOutgoingExtension(e, uriTransformer);
 			}
+			case 'resetPinnedStateForAllUserExtensions': {
+				return this.service.resetPinnedStateForAllUserExtensions(args[0]);
+			}
 			case 'getExtensionsControlManifest': {
 				return this.service.getExtensionsControlManifest();
 			}
@@ -287,6 +290,10 @@ export class ExtensionManagementChannelClient extends Disposable implements IExt
 	updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>, extensionsProfileResource?: URI): Promise<ILocalExtension> {
 		return Promise.resolve(this.channel.call<ILocalExtension>('updateMetadata', [local, metadata, extensionsProfileResource]))
 			.then(extension => transformIncomingExtension(extension, null));
+	}
+
+	resetPinnedStateForAllUserExtensions(pinned: boolean): Promise<void> {
+		return this.channel.call<void>('resetPinnedStateForAllUserExtensions', [pinned]);
 	}
 
 	toggleAppliationScope(local: ILocalExtension, fromProfileLocation: URI): Promise<ILocalExtension> {

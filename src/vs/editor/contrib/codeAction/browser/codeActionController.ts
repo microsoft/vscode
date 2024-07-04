@@ -39,8 +39,6 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 import { CodeActionAutoApply, CodeActionFilter, CodeActionItem, CodeActionKind, CodeActionSet, CodeActionTrigger, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
 import { CodeActionModel, CodeActionsState } from 'vs/editor/contrib/codeAction/browser/codeActionModel';
 import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-
 
 interface IActionShowOptions {
 	readonly includeDisabledActions?: boolean;
@@ -79,8 +77,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 		@ICommandService private readonly _commandService: ICommandService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
 
@@ -107,29 +104,6 @@ export class CodeActionController extends Disposable implements IEditorContribut
 	}
 
 	private async showCodeActionsFromLightbulb(actions: CodeActionSet, at: IAnchor | IPosition): Promise<void> {
-
-		// Telemetry for showing code actions from lightbulb. Shows us how often it was clicked.
-		type ShowCodeActionListEvent = {
-			codeActionListLength: number;
-			codeActions: string[];
-			codeActionProviders: string[];
-		};
-
-		type ShowListEventClassification = {
-			codeActionListLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The length of the code action list from the lightbulb widget.' };
-			codeActions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The title of code actions in this menu.' };
-			codeActionProviders: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider of code actions in this menu.' };
-			owner: 'justschen';
-			comment: 'Event used to gain insights into what code actions are being shown';
-		};
-
-		this._telemetryService.publicLog2<ShowCodeActionListEvent, ShowListEventClassification>('codeAction.showCodeActionsFromLightbulb', {
-			codeActionListLength: actions.validActions.length,
-			codeActions: actions.validActions.map(action => action.action.title),
-			codeActionProviders: actions.validActions.map(action => action.provider?.displayName ?? ''),
-		});
-
-
 		if (actions.allAIFixes && actions.validActions.length === 1) {
 			const actionItem = actions.validActions[0];
 			const command = actionItem.action.command;
@@ -312,28 +286,6 @@ export class CodeActionController extends Disposable implements IEditorContribut
 			onHide: (didCancel?) => {
 				this._editor?.focus();
 				currentDecorations.clear();
-				// Telemetry for showing code actions here. only log on `showLightbulb`. Logs when code action list is quit out.
-				if (options.fromLightbulb && didCancel !== undefined) {
-					type ShowCodeActionListEvent = {
-						codeActionListLength: number;
-						didCancel: boolean;
-						codeActions: string[];
-					};
-
-					type ShowListEventClassification = {
-						codeActionListLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The length of the code action list when quit out. Can be from any code action menu.' };
-						didCancel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the code action was cancelled or selected.' };
-						codeActions: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'What code actions were available when cancelled.' };
-						owner: 'justschen';
-						comment: 'Event used to gain insights into how many valid code actions are being shown';
-					};
-
-					this._telemetryService.publicLog2<ShowCodeActionListEvent, ShowListEventClassification>('codeAction.showCodeActionList.onHide', {
-						codeActionListLength: actions.validActions.length,
-						didCancel: didCancel,
-						codeActions: actions.validActions.map(action => action.action.title),
-					});
-				}
 			},
 			onHover: async (action: CodeActionItem, token: CancellationToken) => {
 				if (token.isCancellationRequested) {

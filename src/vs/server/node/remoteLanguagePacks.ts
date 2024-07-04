@@ -3,46 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
 import { FileAccess } from 'vs/base/common/network';
-import * as path from 'vs/base/common/path';
-
-import * as lp from 'vs/base/node/languagePacks';
+import { join } from 'vs/base/common/path';
+import type { INLSConfiguration } from 'vs/nls';
+import { resolveNLSConfiguration } from 'vs/base/node/nls';
+import { Promises } from 'vs/base/node/pfs';
 import product from 'vs/platform/product/common/product';
 
-const metaData = path.join(FileAccess.asFileUri('').fsPath, 'nls.metadata.json');
-const _cache: Map<string, Promise<lp.NLSConfiguration>> = new Map();
+const nlsMetadataPath = join(FileAccess.asFileUri('').fsPath);
+const defaultMessagesFile = join(nlsMetadataPath, 'nls.messages.json');
+const nlsConfigurationCache = new Map<string, Promise<INLSConfiguration>>();
 
-function exists(file: string) {
-	return new Promise(c => fs.exists(file, c));
-}
+export async function getNLSConfiguration(language: string, userDataPath: string): Promise<INLSConfiguration> {
+	if (!product.commit || !(await Promises.exists(defaultMessagesFile))) {
+		return {
+			userLocale: 'en',
+			osLocale: 'en',
+			resolvedLanguage: 'en',
+			defaultMessagesFile,
 
-export function getNLSConfiguration(language: string, userDataPath: string): Promise<lp.NLSConfiguration> {
-	return exists(metaData).then((fileExists) => {
-		if (!fileExists || !product.commit) {
-			// console.log(`==> MetaData or commit unknown. Using default language.`);
-			// The OS Locale on the remote side really doesn't matter, so we return the default locale
-			return Promise.resolve({ locale: 'en', osLocale: 'en', availableLanguages: {} });
-		}
-		const key = `${language}||${userDataPath}`;
-		let result = _cache.get(key);
-		if (!result) {
-			// The OS Locale on the remote side really doesn't matter, so we pass in the same language
-			result = lp.getNLSConfiguration(product.commit, userDataPath, metaData, language, language).then(value => {
-				if (InternalNLSConfiguration.is(value)) {
-					value._languagePackSupport = true;
-				}
-				return value;
-			});
-			_cache.set(key, result);
-		}
-		return result;
-	});
-}
-
-export namespace InternalNLSConfiguration {
-	export function is(value: lp.NLSConfiguration): value is lp.InternalNLSConfiguration {
-		const candidate: lp.InternalNLSConfiguration = value as lp.InternalNLSConfiguration;
-		return candidate && typeof candidate._languagePackId === 'string';
+			// NLS: below 2 are a relic from old times only used by vscode-nls and deprecated
+			locale: 'en',
+			availableLanguages: {}
+		};
 	}
+
+	const cacheKey = `${language}||${userDataPath}`;
+	let result = nlsConfigurationCache.get(cacheKey);
+	if (!result) {
+		result = resolveNLSConfiguration({ userLocale: language, osLocale: language, commit: product.commit, userDataPath, nlsMetadataPath });
+		nlsConfigurationCache.set(cacheKey, result);
+	}
+
+	return result;
 }

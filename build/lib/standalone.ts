@@ -118,10 +118,7 @@ export function extractEditor(options: tss.ITreeShakingOptions & { destRoot: str
 		'vs/css.build.ts',
 		'vs/css.ts',
 		'vs/loader.js',
-		'vs/loader.d.ts',
-		'vs/nls.build.ts',
-		'vs/nls.ts',
-		'vs/nls.mock.ts',
+		'vs/loader.d.ts'
 	].forEach(copyFile);
 }
 

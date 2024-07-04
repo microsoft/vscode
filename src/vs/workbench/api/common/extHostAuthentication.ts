@@ -32,7 +32,6 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 	readonly onDidChangeSessions: Event<vscode.AuthenticationSessionsChangeEvent> = this._onDidChangeSessions.event;
 
 	private _getSessionTaskSingler = new TaskSingler<vscode.AuthenticationSession | undefined>();
-	private _getSessionsTaskSingler = new TaskSingler<ReadonlyArray<vscode.AuthenticationSession>>();
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService
@@ -51,16 +50,6 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 			await this._proxy.$ensureProvider(providerId);
 			const extensionName = requestingExtension.displayName || requestingExtension.name;
 			return this._proxy.$getSession(providerId, scopes, extensionId, extensionName, options);
-		});
-	}
-
-	async getSessions(requestingExtension: IExtensionDescription, providerId: string, scopes: readonly string[]): Promise<ReadonlyArray<vscode.AuthenticationSession>> {
-		const extensionId = ExtensionIdentifier.toKey(requestingExtension.identifier);
-		const sortedScopes = [...scopes].sort().join(' ');
-		return await this._getSessionsTaskSingler.getOrCreate(`${extensionId} ${sortedScopes}`, async () => {
-			await this._proxy.$ensureProvider(providerId);
-			const extensionName = requestingExtension.displayName || requestingExtension.name;
-			return this._proxy.$getSessions(providerId, scopes, extensionId, extensionName);
 		});
 	}
 

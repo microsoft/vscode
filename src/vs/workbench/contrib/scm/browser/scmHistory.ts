@@ -5,6 +5,7 @@
 
 import { lastOrDefault } from 'vs/base/common/arrays';
 import { deepClone } from 'vs/base/common/objects';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { ISCMHistoryItem, ISCMHistoryItemGraphNode, ISCMHistoryItemViewModel } from 'vs/workbench/contrib/scm/common/history';
 
 const SWIMLANE_HEIGHT = 22;
@@ -13,6 +14,21 @@ const CIRCLE_RADIUS = 4;
 const SWIMLANE_CURVE_RADIUS = 5;
 
 const graphColors = ['#007ACC', '#BC3FBC', '#BF8803', '#CC6633', '#F14C4C', '#16825D'];
+
+function getNextColorIndex(colorIndex: number): number {
+	return colorIndex < graphColors.length - 1 ? colorIndex + 1 : 1;
+}
+
+function getLabelColorIndex(historyItem: ISCMHistoryItem, colorMap: Map<string, number>): number | undefined {
+	for (const label of historyItem.labels ?? []) {
+		const colorIndex = colorMap.get(label.title);
+		if (colorIndex !== undefined) {
+			return colorIndex;
+		}
+	}
+
+	return undefined;
+}
 
 function createPath(stroke: string): SVGPathElement {
 	const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
@@ -59,74 +75,72 @@ export function renderSCMHistoryItemGraph(historyItemViewModel: ISCMHistoryItemV
 	const inputSwimlanes = historyItemViewModel.inputSwimlanes;
 	const outputSwimlanes = historyItemViewModel.outputSwimlanes;
 
+	// Find the history item in the input swimlanes
 	const inputIndex = inputSwimlanes.findIndex(node => node.id === historyItem.id);
-	const outputIndex = historyItem.parentIds.length === 0 ? -1 : outputSwimlanes.findIndex(node => node.id === historyItem.parentIds[0]);
 
+	// Circle index - use the input swimlane index if present, otherwise add it to the end
 	const circleIndex = inputIndex !== -1 ? inputIndex : inputSwimlanes.length;
-	const circleColorIndex = inputIndex !== -1 ? inputSwimlanes[inputIndex].color : outputSwimlanes[circleIndex]?.color ?? 0;
 
+	// Circle color - use the output swimlane color if present, otherwise the input swimlane color
+	const circleColorIndex = circleIndex < outputSwimlanes.length ? outputSwimlanes[circleIndex].color : inputSwimlanes[circleIndex].color;
+
+	let outputSwimlaneIndex = 0;
 	for (let index = 0; index < inputSwimlanes.length; index++) {
-		const node = inputSwimlanes[index];
 		const color = graphColors[inputSwimlanes[index].color];
 
-		// Not the current commit
-		if (node.id !== historyItem.id) {
-			if (index < outputSwimlanes.length && node.id === outputSwimlanes[index].id) {
-				// Draw |
-				const path = drawVerticalLine(SWIMLANE_WIDTH * (index + 1), 0, SWIMLANE_HEIGHT, color);
-				svg.append(path);
-			} else {
+		// Current commit
+		if (inputSwimlanes[index].id === historyItem.id) {
+			// Base commit
+			if (index !== circleIndex) {
 				const d: string[] = [];
 				const path = createPath(color);
 
-				// Draw |
-				d.push(`M ${SWIMLANE_WIDTH * (index + 1)} 0`);
-				d.push(`V 6`);
-
 				// Draw /
-				d.push(`A ${SWIMLANE_CURVE_RADIUS} ${SWIMLANE_CURVE_RADIUS} 0 0 1 ${(SWIMLANE_WIDTH * (index + 1)) - SWIMLANE_CURVE_RADIUS} ${SWIMLANE_HEIGHT / 2}`);
-
-				// Start walking backwards from the current index and
-				// find the first occurrence in the output swimlanes
-				// array
-				let nodeOutputIndex = -1;
-				for (let j = Math.min(index, outputSwimlanes.length) - 1; j >= 0; j--) {
-					if (outputSwimlanes[j].id === node.id) {
-						nodeOutputIndex = j;
-						break;
-					}
-				}
+				d.push(`M ${SWIMLANE_WIDTH * (index + 1)} 0`);
+				d.push(`A ${SWIMLANE_WIDTH} ${SWIMLANE_WIDTH} 0 0 1 ${SWIMLANE_WIDTH * (index)} ${SWIMLANE_WIDTH}`);
 
 				// Draw -
-				d.push(`H ${(SWIMLANE_WIDTH * (nodeOutputIndex + 1)) + SWIMLANE_CURVE_RADIUS}`);
-
-				// Draw /
-				d.push(`A ${SWIMLANE_CURVE_RADIUS} ${SWIMLANE_CURVE_RADIUS} 0 0 0 ${SWIMLANE_WIDTH * (nodeOutputIndex + 1)} ${(SWIMLANE_HEIGHT / 2) + SWIMLANE_CURVE_RADIUS}`);
-
-				// Draw |
-				d.push(`V ${SWIMLANE_HEIGHT}`);
+				d.push(`H ${SWIMLANE_WIDTH * (circleIndex + 1)}`);
 
 				path.setAttribute('d', d.join(' '));
 				svg.append(path);
+			} else {
+				outputSwimlaneIndex++;
 			}
+		} else {
+			// Not the current commit
+			if (outputSwimlaneIndex < outputSwimlanes.length &&
+				inputSwimlanes[index].id === outputSwimlanes[outputSwimlaneIndex].id) {
+				if (index === outputSwimlaneIndex) {
+					// Draw |
+					const path = drawVerticalLine(SWIMLANE_WIDTH * (index + 1), 0, SWIMLANE_HEIGHT, color);
+					svg.append(path);
+				} else {
+					const d: string[] = [];
+					const path = createPath(color);
 
-			continue;
-		}
+					// Draw |
+					d.push(`M ${SWIMLANE_WIDTH * (index + 1)} 0`);
+					d.push(`V 6`);
 
-		// Base commit
-		if (index !== circleIndex) {
-			const d: string[] = [];
-			const path = createPath(color);
+					// Draw /
+					d.push(`A ${SWIMLANE_CURVE_RADIUS} ${SWIMLANE_CURVE_RADIUS} 0 0 1 ${(SWIMLANE_WIDTH * (index + 1)) - SWIMLANE_CURVE_RADIUS} ${SWIMLANE_HEIGHT / 2}`);
 
-			// Draw /
-			d.push(`M ${SWIMLANE_WIDTH * (index + 1)} 0`);
-			d.push(`A ${SWIMLANE_WIDTH} ${SWIMLANE_WIDTH} 0 0 1 ${SWIMLANE_WIDTH * (index)} ${SWIMLANE_WIDTH}`);
+					// Draw -
+					d.push(`H ${(SWIMLANE_WIDTH * (outputSwimlaneIndex + 1)) + SWIMLANE_CURVE_RADIUS}`);
 
-			// Draw -
-			d.push(`H ${SWIMLANE_WIDTH * (circleIndex + 1)}`);
+					// Draw /
+					d.push(`A ${SWIMLANE_CURVE_RADIUS} ${SWIMLANE_CURVE_RADIUS} 0 0 0 ${SWIMLANE_WIDTH * (outputSwimlaneIndex + 1)} ${(SWIMLANE_HEIGHT / 2) + SWIMLANE_CURVE_RADIUS}`);
 
-			path.setAttribute('d', d.join(' '));
-			svg.append(path);
+					// Draw |
+					d.push(`V ${SWIMLANE_HEIGHT}`);
+
+					path.setAttribute('d', d.join(' '));
+					svg.append(path);
+				}
+
+				outputSwimlaneIndex++;
+			}
 		}
 	}
 
@@ -153,14 +167,14 @@ export function renderSCMHistoryItemGraph(historyItemViewModel: ISCMHistoryItemV
 		svg.append(path);
 	}
 
-	// Draw | to circle
+	// Draw | to *
 	if (inputIndex !== -1) {
-		const path = drawVerticalLine(SWIMLANE_WIDTH * (circleIndex + 1), 0, SWIMLANE_HEIGHT / 2, graphColors[circleColorIndex]);
+		const path = drawVerticalLine(SWIMLANE_WIDTH * (circleIndex + 1), 0, SWIMLANE_HEIGHT / 2, graphColors[inputSwimlanes[inputIndex].color]);
 		svg.append(path);
 	}
 
-	// Draw | from circle
-	if (outputIndex !== -1) {
+	// Draw | from *
+	if (historyItem.parentIds.length > 0) {
 		const path = drawVerticalLine(SWIMLANE_WIDTH * (circleIndex + 1), SWIMLANE_HEIGHT / 2, SWIMLANE_HEIGHT, graphColors[circleColorIndex]);
 		svg.append(path);
 	}
@@ -174,6 +188,13 @@ export function renderSCMHistoryItemGraph(historyItemViewModel: ISCMHistoryItemV
 		const circleInner = drawCircle(circleIndex, CIRCLE_RADIUS - 1, graphColors[circleColorIndex]);
 		svg.append(circleInner);
 	} else {
+		// HEAD
+		// TODO@lszomoru - implement a better way to determine if the commit is HEAD
+		if (historyItem.labels?.some(l => ThemeIcon.isThemeIcon(l.icon) && l.icon.id === 'target')) {
+			const outerCircle = drawCircle(circleIndex, CIRCLE_RADIUS + 2, graphColors[circleColorIndex]);
+			svg.append(outerCircle);
+		}
+
 		// Node
 		const circle = drawCircle(circleIndex, CIRCLE_RADIUS, graphColors[circleColorIndex]);
 		svg.append(circle);
@@ -186,7 +207,7 @@ export function renderSCMHistoryItemGraph(historyItemViewModel: ISCMHistoryItemV
 	return svg;
 }
 
-export function toISCMHistoryItemViewModelArray(historyItems: ISCMHistoryItem[]): ISCMHistoryItemViewModel[] {
+export function toISCMHistoryItemViewModelArray(historyItems: ISCMHistoryItem[], colorMap = new Map<string, number>()): ISCMHistoryItemViewModel[] {
 	let colorIndex = -1;
 	const viewModels: ISCMHistoryItemViewModel[] = [];
 
@@ -205,8 +226,8 @@ export function toISCMHistoryItemViewModelArray(historyItems: ISCMHistoryItem[])
 				if (node.id === historyItem.id) {
 					if (!firstParentAdded) {
 						outputSwimlanes.push({
-							...deepClone(node),
-							id: historyItem.parentIds[0]
+							id: historyItem.parentIds[0],
+							color: getLabelColorIndex(historyItem, colorMap) ?? node.color
 						});
 						firstParentAdded = true;
 					}
@@ -219,7 +240,9 @@ export function toISCMHistoryItemViewModelArray(historyItems: ISCMHistoryItem[])
 
 			// Add unprocessed parent(s) to the output
 			for (let i = firstParentAdded ? 1 : 0; i < historyItem.parentIds.length; i++) {
-				colorIndex = colorIndex < graphColors.length - 1 ? colorIndex + 1 : 1;
+				// Color index (label -> next color)
+				colorIndex = getLabelColorIndex(historyItem, colorMap) ?? getNextColorIndex(colorIndex);
+
 				outputSwimlanes.push({
 					id: historyItem.parentIds[i],
 					color: colorIndex

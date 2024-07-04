@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import { hostname, release } from 'os';
 import { raceTimeout } from 'vs/base/common/async';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -13,7 +14,6 @@ import { isAbsolute, join } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
 import { cwd } from 'vs/base/common/process';
 import { URI } from 'vs/base/common/uri';
-import { Promises } from 'vs/base/node/pfs';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
 import { IDownloadService } from 'vs/platform/download/common/download';
@@ -124,7 +124,7 @@ class CliMain extends Disposable {
 		await Promise.all([
 			this.allowWindowsUNCPath(environmentService.appSettingsHome.with({ scheme: Schemas.file }).fsPath),
 			this.allowWindowsUNCPath(environmentService.extensionsPath)
-		].map(path => path ? Promises.mkdir(path, { recursive: true }) : undefined));
+		].map(path => path ? fs.promises.mkdir(path, { recursive: true }) : undefined));
 
 		// Logger
 		const loggerService = new LoggerService(getLogLevel(environmentService), environmentService.logsHome);

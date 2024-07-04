@@ -149,7 +149,7 @@ suite('ChatModel', () => {
 
 		model2.acceptResponseProgress(request1, { content: new MarkdownString('Hello'), kind: 'markdownContent' });
 
-		assert.strictEqual(request1.response.response.asString(), 'Hello');
+		assert.strictEqual(request1.response.response.toString(), 'Hello');
 	});
 });
 
@@ -162,7 +162,7 @@ suite('Response', () => {
 		response.updateContent({ content: new MarkdownString('markdown2'), kind: 'markdownContent' });
 		await assertSnapshot(response.value);
 
-		assert.strictEqual(response.asString(), 'markdown1markdown2');
+		assert.strictEqual(response.toString(), 'markdown1markdown2');
 	});
 
 	test('not mergeable markdown', async () => {

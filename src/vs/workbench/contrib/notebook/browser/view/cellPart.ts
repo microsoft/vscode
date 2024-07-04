@@ -16,7 +16,7 @@ import { ICellExecutionStateChangedEvent } from 'vs/workbench/contrib/notebook/c
  */
 export abstract class CellContentPart extends Disposable {
 	protected currentCell: ICellViewModel | undefined;
-	protected readonly cellDisposables = new DisposableStore();
+	protected readonly cellDisposables = this._register(new DisposableStore());
 
 	constructor() {
 		super();

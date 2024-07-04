@@ -33,18 +33,18 @@ export class MainThreadLanguageModelTools extends Disposable implements MainThre
 		return this._languageModelToolsService.invokeTool(name, parameters, token);
 	}
 
-	$registerTool(id: string): void {
+	$registerTool(name: string): void {
 		const disposable = this._languageModelToolsService.registerToolImplementation(
-			id,
+			name,
 			{
 				invoke: async (parameters, token) => {
-					return await this._proxy.$invokeTool(id, parameters, token);
+					return await this._proxy.$invokeTool(name, parameters, token);
 				},
 			});
-		this._tools.set(id, disposable);
+		this._tools.set(name, disposable);
 	}
 
-	$unregisterTool(id: string): void {
-		this._tools.deleteAndDispose(id);
+	$unregisterTool(name: string): void {
+		this._tools.deleteAndDispose(name);
 	}
 }
