@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { handleVetos } from 'vs/platform/lifecycle/common/lifecycle';
-import { ShutdownReason, ILifecycleService, IWillShutdownEventJoiner } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ShutdownReason, ILifecycleService, IWillShutdownEventJoiner, WillShutdownJoinerOrder } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -155,19 +155,24 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 
 	protected async handleWillShutdown(reason: ShutdownReason): Promise<void> {
 		const joiners: Promise<void>[] = [];
+		const lastJoiners: (() => Promise<void>)[] = [];
 		const pendingJoiners = new Set<IWillShutdownEventJoiner>();
 		const cts = new CancellationTokenSource();
-
 		this._onWillShutdown.fire({
 			reason,
 			token: cts.token,
 			joiners: () => Array.from(pendingJoiners.values()),
-			join(promise, joiner) {
-				joiners.push(promise);
-
-				// Track promise completion
+			join(promiseOrPromiseFn, joiner) {
 				pendingJoiners.add(joiner);
-				promise.finally(() => pendingJoiners.delete(joiner));
+
+				if (joiner.order === WillShutdownJoinerOrder.Last) {
+					const promiseFn = typeof promiseOrPromiseFn === 'function' ? promiseOrPromiseFn : () => promiseOrPromiseFn;
+					lastJoiners.push(() => promiseFn().finally(() => pendingJoiners.delete(joiner)));
+				} else {
+					const promise = typeof promiseOrPromiseFn === 'function' ? promiseOrPromiseFn() : promiseOrPromiseFn;
+					promise.finally(() => pendingJoiners.delete(joiner));
+					joiners.push(promise);
+				}
 			},
 			force: () => {
 				cts.dispose(true);
@@ -181,10 +186,16 @@ export class NativeLifecycleService extends AbstractLifecycleService {
 		try {
 			await raceCancellation(Promises.settled(joiners), cts.token);
 		} catch (error) {
-			this.logService.error(`[lifecycle]: Error during will-shutdown phase (error: ${toErrorMessage(error)})`); // this error will not prevent the shutdown
-		} finally {
-			longRunningWillShutdownWarning.dispose();
+			this.logService.error(`[lifecycle]: Error during will-shutdown phase in default joiners (error: ${toErrorMessage(error)})`);
 		}
+
+		try {
+			await raceCancellation(Promises.settled(lastJoiners.map(lastJoiner => lastJoiner())), cts.token);
+		} catch (error) {
+			this.logService.error(`[lifecycle]: Error during will-shutdown phase in last joiners (error: ${toErrorMessage(error)})`);
+		}
+
+		longRunningWillShutdownWarning.dispose();
 	}
 
 	shutdown(): Promise<void> {

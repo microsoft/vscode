@@ -51,6 +51,7 @@ export function registerChatTitleActions() {
 			const chatService = accessor.get(IChatService);
 			chatService.notifyUserAction({
 				agentId: item.agent?.id,
+				command: item.slashCommand?.name,
 				sessionId: item.sessionId,
 				requestId: item.requestId,
 				result: item.result,
@@ -90,6 +91,7 @@ export function registerChatTitleActions() {
 			const chatService = accessor.get(IChatService);
 			chatService.notifyUserAction({
 				agentId: item.agent?.id,
+				command: item.slashCommand?.name,
 				sessionId: item.sessionId,
 				requestId: item.requestId,
 				result: item.result,
@@ -128,6 +130,7 @@ export function registerChatTitleActions() {
 			const chatService = accessor.get(IChatService);
 			chatService.notifyUserAction({
 				agentId: item.agent?.id,
+				command: item.slashCommand?.name,
 				sessionId: item.sessionId,
 				requestId: item.requestId,
 				result: item.result,
@@ -174,7 +177,7 @@ export function registerChatTitleActions() {
 					return;
 				}
 
-				const value = item.response.asString();
+				const value = item.response.toString();
 				const splitContents = splitMarkdownAndCodeBlocks(value);
 
 				const focusRange = notebookEditor.getFocus();

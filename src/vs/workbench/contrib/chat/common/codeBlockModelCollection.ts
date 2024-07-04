@@ -22,6 +22,13 @@ export class CodeBlockModelCollection extends Disposable {
 		vulns: readonly IMarkdownVulnerability[];
 	}>();
 
+	/**
+	 * Max number of models to keep in memory.
+	 *
+	 * Currently always maintains the most recently created models.
+	 */
+	private readonly maxModelCount = 100;
+
 	constructor(
 		@ILanguageService private readonly languageService: ILanguageService,
 		@ITextModelService private readonly textModelService: ITextModelService
@@ -52,7 +59,26 @@ export class CodeBlockModelCollection extends Disposable {
 		const uri = this.getUri(sessionId, chat, codeBlockIndex);
 		const ref = this.textModelService.createModelReference(uri);
 		this._models.set(uri, { model: ref, vulns: [] });
+
+		while (this._models.size > this.maxModelCount) {
+			const first = Array.from(this._models.keys()).at(0);
+			if (!first) {
+				break;
+			}
+			this.delete(first);
+		}
+
 		return { model: ref.then(ref => ref.object), vulns: [] };
+	}
+
+	private delete(codeBlockUri: URI) {
+		const entry = this._models.get(codeBlockUri);
+		if (!entry) {
+			return;
+		}
+
+		entry.model.then(ref => ref.dispose());
+		this._models.delete(codeBlockUri);
 	}
 
 	clear(): void {

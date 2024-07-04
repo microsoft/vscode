@@ -17,7 +17,6 @@ import { computeIndentLevel } from 'vs/editor/common/model/utils';
 import { autoFixCommandId, quickFixCommandId } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { CodeActionSet, CodeActionTrigger } from 'vs/editor/contrib/codeAction/common/types';
 import * as nls from 'vs/nls';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 namespace LightBulbState {
@@ -62,8 +61,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 
 	constructor(
 		private readonly _editor: ICodeEditor,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@ICommandService commandService: ICommandService
+		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
 		super();
 

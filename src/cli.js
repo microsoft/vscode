@@ -16,17 +16,27 @@ delete process.env['VSCODE_CWD'];
 
 const bootstrap = require('./bootstrap');
 const bootstrapNode = require('./bootstrap-node');
-const product = require('../product.json');
+const product = require('./bootstrap-meta').product;
+const { resolveNLSConfiguration } = require('./vs/base/node/nls');
 
-// Enable portable support
-// @ts-ignore
-bootstrapNode.configurePortable(product);
+async function start() {
 
-// Enable ASAR support
-bootstrap.enableASARSupport();
+	// NLS
+	const nlsConfiguration = await resolveNLSConfiguration({ userLocale: 'en', osLocale: 'en', commit: product.commit, userDataPath: '', nlsMetadataPath: __dirname });
+	process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfiguration); // required for `bootstrap-amd` to pick up NLS messages
 
-// Signal processes that we got launched as CLI
-process.env['VSCODE_CLI'] = '1';
+	// Enable portable support
+	// @ts-ignore
+	bootstrapNode.configurePortable(product);
 
-// Load CLI through AMD loader
-require('./bootstrap-amd').load('vs/code/node/cli');
+	// Enable ASAR support
+	bootstrap.enableASARSupport();
+
+	// Signal processes that we got launched as CLI
+	process.env['VSCODE_CLI'] = '1';
+
+	// Load CLI through AMD loader
+	require('./bootstrap-amd').load('vs/code/node/cli');
+}
+
+start();

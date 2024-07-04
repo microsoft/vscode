@@ -36,7 +36,7 @@ suite('PreferencesService', () => {
 		// PreferencesService creates a PreferencesEditorInput which depends on IPreferencesService, add the real one, not a stub
 		const collection = new ServiceCollection();
 		collection.set(IPreferencesService, new SyncDescriptor(PreferencesService));
-		const instantiationService = testInstantiationService.createChild(collection);
+		const instantiationService = disposables.add(testInstantiationService.createChild(collection));
 		testObject = disposables.add(instantiationService.createInstance(PreferencesService));
 	});
 	test('options are preserved when calling openEditor', async () => {

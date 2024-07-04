@@ -607,6 +607,15 @@ const y = 2;
 				assert.deepStrictEqual(newTokens, completeTokens);
 			});
 
+			test(`incomplete ${name} in asterisk list`, () => {
+				const text = `* list item one\n* list item two and ${delimiter}text`;
+				const tokens = marked.lexer(text);
+				const newTokens = fillInIncompleteTokens(tokens);
+
+				const completeTokens = marked.lexer(text + delimiter);
+				assert.deepStrictEqual(newTokens, completeTokens);
+			});
+
 			test(`incomplete ${name} in numbered list`, () => {
 				const text = `1. list item one\n2. list item two and ${delimiter}text`;
 				const tokens = marked.lexer(text);

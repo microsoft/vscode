@@ -15,11 +15,11 @@ import { editorWidgetBackground, editorFindMatchHighlightBorder, editorFindMatch
 
 
 export const listFocusBackground = registerColor('list.focusBackground',
-	{ dark: null, light: null, hcDark: null, hcLight: null },
+	null,
 	nls.localize('listFocusBackground', "List/Tree background color for the focused item when the list/tree is active. An active list/tree has keyboard focus, an inactive does not."));
 
 export const listFocusForeground = registerColor('list.focusForeground',
-	{ dark: null, light: null, hcDark: null, hcLight: null },
+	null,
 	nls.localize('listFocusForeground', "List/Tree foreground color for the focused item when the list/tree is active. An active list/tree has keyboard focus, an inactive does not."));
 
 export const listFocusOutline = registerColor('list.focusOutline',
@@ -27,7 +27,7 @@ export const listFocusOutline = registerColor('list.focusOutline',
 	nls.localize('listFocusOutline', "List/Tree outline color for the focused item when the list/tree is active. An active list/tree has keyboard focus, an inactive does not."));
 
 export const listFocusAndSelectionOutline = registerColor('list.focusAndSelectionOutline',
-	{ dark: null, light: null, hcDark: null, hcLight: null },
+	null,
 	nls.localize('listFocusAndSelectionOutline', "List/Tree outline color for the focused item when the list/tree is active and selected. An active list/tree has keyboard focus, an inactive does not."));
 
 export const listActiveSelectionBackground = registerColor('list.activeSelectionBackground',
@@ -39,7 +39,7 @@ export const listActiveSelectionForeground = registerColor('list.activeSelection
 	nls.localize('listActiveSelectionForeground', "List/Tree foreground color for the selected item when the list/tree is active. An active list/tree has keyboard focus, an inactive does not."));
 
 export const listActiveSelectionIconForeground = registerColor('list.activeSelectionIconForeground',
-	{ dark: null, light: null, hcDark: null, hcLight: null },
+	null,
 	nls.localize('listActiveSelectionIconForeground', "List/Tree icon foreground color for the selected item when the list/tree is active. An active list/tree has keyboard focus, an inactive does not."));
 
 export const listInactiveSelectionBackground = registerColor('list.inactiveSelectionBackground',
@@ -47,19 +47,19 @@ export const listInactiveSelectionBackground = registerColor('list.inactiveSelec
 	nls.localize('listInactiveSelectionBackground', "List/Tree background color for the selected item when the list/tree is inactive. An active list/tree has keyboard focus, an inactive does not."));
 
 export const listInactiveSelectionForeground = registerColor('list.inactiveSelectionForeground',
-	{ dark: null, light: null, hcDark: null, hcLight: null },
+	null,
 	nls.localize('listInactiveSelectionForeground', "List/Tree foreground color for the selected item when the list/tree is inactive. An active list/tree has keyboard focus, an inactive does not."));
 
 export const listInactiveSelectionIconForeground = registerColor('list.inactiveSelectionIconForeground',
-	{ dark: null, light: null, hcDark: null, hcLight: null },
+	null,
 	nls.localize('listInactiveSelectionIconForeground', "List/Tree icon foreground color for the selected item when the list/tree is inactive. An active list/tree has keyboard focus, an inactive does not."));
 
 export const listInactiveFocusBackground = registerColor('list.inactiveFocusBackground',
-	{ dark: null, light: null, hcDark: null, hcLight: null },
+	null,
 	nls.localize('listInactiveFocusBackground', "List/Tree background color for the focused item when the list/tree is inactive. An active list/tree has keyboard focus, an inactive does not."));
 
 export const listInactiveFocusOutline = registerColor('list.inactiveFocusOutline',
-	{ dark: null, light: null, hcDark: null, hcLight: null },
+	null,
 	nls.localize('listInactiveFocusOutline', "List/Tree outline color for the focused item when the list/tree is inactive. An active list/tree has keyboard focus, an inactive does not."));
 
 export const listHoverBackground = registerColor('list.hoverBackground',
@@ -67,7 +67,7 @@ export const listHoverBackground = registerColor('list.hoverBackground',
 	nls.localize('listHoverBackground', "List/Tree background when hovering over items using the mouse."));
 
 export const listHoverForeground = registerColor('list.hoverForeground',
-	{ dark: null, light: null, hcDark: null, hcLight: null },
+	null,
 	nls.localize('listHoverForeground', "List/Tree foreground when hovering over items using the mouse."));
 
 export const listDropOverBackground = registerColor('list.dropBackground',
@@ -109,7 +109,7 @@ export const listFilterWidgetNoMatchesOutline = registerColor('listFilterWidget.
 	nls.localize('listFilterWidgetNoMatchesOutline', 'Outline color of the type filter widget in lists and trees, when there are no matches.'));
 
 export const listFilterWidgetShadow = registerColor('listFilterWidget.shadow',
-	{ dark: widgetShadow, light: widgetShadow, hcDark: widgetShadow, hcLight: widgetShadow },
+	widgetShadow,
 	nls.localize('listFilterWidgetShadow', 'Shadow color of the type filter widget in lists and trees.'));
 
 export const listFilterMatchHighlight = registerColor('list.filterMatchBackground',
@@ -132,7 +132,7 @@ export const treeIndentGuidesStroke = registerColor('tree.indentGuidesStroke',
 	nls.localize('treeIndentGuidesStroke', "Tree stroke color for the indentation guides."));
 
 export const treeInactiveIndentGuidesStroke = registerColor('tree.inactiveIndentGuidesStroke',
-	{ dark: transparent(treeIndentGuidesStroke, 0.4), light: transparent(treeIndentGuidesStroke, 0.4), hcDark: transparent(treeIndentGuidesStroke, 0.4), hcLight: transparent(treeIndentGuidesStroke, 0.4) },
+	transparent(treeIndentGuidesStroke, 0.4),
 	nls.localize('treeInactiveIndentGuidesStroke', "Tree stroke color for the indentation guides that are not active."));
 
 

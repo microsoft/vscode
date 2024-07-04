@@ -44,7 +44,6 @@
 		"./vs/code/electron-sandbox/processExplorer/processExplorer.js",
 		"./vs/code/electron-sandbox/workbench/workbench.js",
 		"./vs/workbench/contrib/issue/electron-sandbox/issueReporter.js",
-		"./vs/workbench/contrib/webview/browser/pre/service-worker.js",
 		"./typings",
 		"./vs/**/*.ts",
 		"vscode-dts/vscode.proposed.*.d.ts",

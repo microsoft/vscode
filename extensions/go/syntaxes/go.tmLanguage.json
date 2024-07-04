@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/worlpaker/go-syntax/commit/092c45ec9a51fe40188408d1371f123eaa4796fa",
+	"version": "https://github.com/worlpaker/go-syntax/commit/21f28840e04d4fa04682d19d6fe64de437f40b64",
 	"name": "Go",
 	"scopeName": "source.go",
 	"patterns": [
@@ -321,7 +321,7 @@
 					"name": "punctuation.definition.begin.bracket.square.go"
 				}
 			},
-			"end": "(?:(\\])((?:(?:(?:[\\*\\[\\]]+)?(?:\\<\\-\\s*)?\\bchan\\b(?:\\s*\\<\\-)?\\s*)+)?(?!(?:[\\[\\]\\*]+)?\\b(?:func|struct|map)\\b)(?:[\\*\\[\\]]+)?(?:[\\w\\.]+))?)",
+			"end": "(?:(\\])((?:(?:(?:[\\*\\[\\]]+)?(?:\\<\\-\\s*)?\\bchan\\b(?:\\s*\\<\\-)?\\s*)+)?(?!(?:[\\[\\]\\*]+)?\\b(?:func|struct|map)\\b)(?:[\\*\\[\\]]+)?(?:[\\w\\.]+)(?:\\[(?:(?:[\\w\\.\\*\\[\\]\\{\\}]+)(?:(?:\\,\\s*(?:[\\w\\.\\*\\[\\]\\{\\}]+))*))?\\])?)?)",
 			"endCaptures": {
 				"1": {
 					"name": "punctuation.definition.end.bracket.square.go"
@@ -1862,7 +1862,7 @@
 				},
 				{
 					"comment": "property variables and types",
-					"match": "(?:((?:(?:\\w+\\,\\s*)+)?(?:\\w+\\s+))([\\s\\S]+))",
+					"match": "(?:((?:(?:\\w+\\,\\s*)+)?(?:\\w+\\s+))([^\\`]+))",
 					"captures": {
 						"1": {
 							"patterns": [
@@ -2004,6 +2004,29 @@
 						},
 						{
 							"include": "$self"
+						}
+					]
+				},
+				{
+					"comment": "one type only with multi line raw string",
+					"begin": "(?:((?:(?:\\s*(?:[\\*\\[\\]]+)?(?:\\<\\-\\s*)?\\bchan\\b(?:\\s*\\<\\-)?\\s*)+)?(?<!\\,\\s*)(?:[\\w\\.\\*]+)\\s*)(?=\\`))",
+					"beginCaptures": {
+						"1": {
+							"patterns": [
+								{
+									"include": "#type-declarations"
+								},
+								{
+									"match": "\\w+",
+									"name": "entity.name.type.go"
+								}
+							]
+						}
+					},
+					"end": "(?=\\`)",
+					"patterns": [
+						{
+							"include": "#raw_string_literals"
 						}
 					]
 				},
@@ -2192,7 +2215,7 @@
 							]
 						}
 					},
-					"end": "(?:(?<=\\])((?:\\s+)(?:(?:(?:[\\*\\[\\]]+)?(?:\\<\\-\\s*)?\\bchan\\b(?:\\s*\\<\\-)?\\s*)+)?(?:(?!(?:[\\[\\]\\*]+)?(?:\\bstruct\\b|\\binterface\\b|\\bfunc\\b))[\\w\\.\\-\\*\\[\\]]+))?)",
+					"end": "(?:(?<=\\])((?:\\s+)(?:(?:(?:[\\*\\[\\]]+)?(?:\\<\\-\\s*)?\\bchan\\b(?:\\s*\\<\\-)?\\s*)+)?(?:(?!(?:[\\[\\]\\*]+)?(?:\\bstruct\\b|\\binterface\\b|\\bfunc\\b))[\\w\\.\\-\\*\\[\\]]+(?:\\,\\s+[\\w\\.\\[\\]\\*]+)*))?)",
 					"endCaptures": {
 						"1": {
 							"patterns": [
@@ -2270,6 +2293,9 @@
 			"patterns": [
 				{
 					"include": "#struct_variables_types"
+				},
+				{
+					"include": "#interface_variables_types"
 				},
 				{
 					"include": "#type-declarations-without-brackets"
@@ -2439,7 +2465,7 @@
 		},
 		"switch_types": {
 			"comment": "switch type assertions, only highlights types after case keyword",
-			"begin": "(?<=\\bswitch\\b)(?:\\s*)(?:(\\w+\\s*\\:\\=)?\\s*([\\w\\.\\*\\(\\)\\[\\]]+))(\\.\\(\\btype\\b\\)\\s*)(\\{)",
+			"begin": "(?<=\\bswitch\\b)(?:\\s*)(?:(\\w+\\s*\\:\\=)?\\s*([\\w\\.\\*\\(\\)\\[\\]\\+/\\-\\%\\<\\>\\|\\&]+))(\\.\\(\\btype\\b\\)\\s*)(\\{)",
 			"beginCaptures": {
 				"1": {
 					"patterns": [
@@ -2770,7 +2796,7 @@
 		},
 		"slice_index_variables": {
 			"comment": "slice index and capacity variables, to not scope them as property variables",
-			"match": "(?<=\\w\\[)((?:(?:\\b[\\w\\.\\*\\+/\\-\\*\\%\\<\\>\\|\\&]+\\:)|(?:\\:\\b[\\w\\.\\*\\+/\\-\\*\\%\\<\\>\\|\\&]+))(?:\\b[\\w\\.\\*\\+/\\-\\*\\%\\<\\>\\|\\&]+)?(?:\\:\\b[\\w\\.\\*\\+/\\-\\*\\%\\<\\>\\|\\&]+)?)(?=\\])",
+			"match": "(?<=\\w\\[)((?:(?:\\b[\\w\\.\\*\\+/\\-\\%\\<\\>\\|\\&]+\\:)|(?:\\:\\b[\\w\\.\\*\\+/\\-\\%\\<\\>\\|\\&]+))(?:\\b[\\w\\.\\*\\+/\\-\\%\\<\\>\\|\\&]+)?(?:\\:\\b[\\w\\.\\*\\+/\\-\\%\\<\\>\\|\\&]+)?)(?=\\])",
 			"captures": {
 				"1": {
 					"patterns": [
@@ -2786,8 +2812,8 @@
 			}
 		},
 		"property_variables": {
-			"comment": "Property variables in struct | parameter field in struct initialization",
-			"match": "(?:(?:((?:\\b[\\w\\.]+)(?:\\:(?!\\=))))(?:(?:\\s*([\\w\\.\\*\\&\\[\\]]+)(\\.\\w+)(?![\\w\\.\\*\\&\\[\\]]*(?:\\{|\\()))((?:\\s*(?:\\<|\\>|\\<\\=|\\>\\=|\\=\\=|\\!\\=|\\|\\||\\&\\&|\\+|/|\\-|\\*|\\%|\\||\\&)\\s*(?:[\\w\\.\\*\\&\\[\\]]+)(?:\\.\\w+)(?![\\w\\.\\*\\&\\[\\]]*(?:\\{|\\()))*))?)",
+			"comment": "Property variables in struct",
+			"match": "((?:\\b[\\w\\.]+)(?:\\:(?!\\=)))",
 			"captures": {
 				"1": {
 					"patterns": [
@@ -2797,68 +2823,6 @@
 						{
 							"match": "\\w+",
 							"name": "variable.other.property.go"
-						}
-					]
-				},
-				"2": {
-					"patterns": [
-						{
-							"include": "#type-declarations"
-						},
-						{
-							"match": "\\w+",
-							"name": "variable.other.go"
-						},
-						{
-							"include": "$self"
-						}
-					]
-				},
-				"3": {
-					"patterns": [
-						{
-							"include": "#type-declarations"
-						},
-						{
-							"match": "\\w+",
-							"name": "variable.other.property.field.go"
-						},
-						{
-							"include": "$self"
-						}
-					]
-				},
-				"4": {
-					"patterns": [
-						{
-							"match": "([\\w\\.\\*\\&\\[\\]]+)(\\.\\w+)",
-							"captures": {
-								"1": {
-									"patterns": [
-										{
-											"include": "#type-declarations"
-										},
-										{
-											"match": "\\w+",
-											"name": "variable.other.go"
-										}
-									]
-								},
-								"2": {
-									"patterns": [
-										{
-											"include": "#type-declarations"
-										},
-										{
-											"match": "\\w+",
-											"name": "variable.other.property.field.go"
-										}
-									]
-								}
-							}
-						},
-						{
-							"include": "$self"
 						}
 					]
 				}
@@ -2932,11 +2896,14 @@
 				"2": {
 					"patterns": [
 						{
-							"include": "#type-declarations"
-						},
-						{
 							"match": "\\binvalid\\b\\s+\\btype\\b",
 							"name": "invalid.field.go"
+						},
+						{
+							"include": "#type-declarations-without-brackets"
+						},
+						{
+							"include": "#parameter-variable-types"
 						},
 						{
 							"match": "\\w+",

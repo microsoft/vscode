@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// eslint-disable-next-line local/code-import-patterns, local/code-amd-node-module
-import { Terminal } from '@xterm/xterm';
-
+import type { Terminal } from '@xterm/xterm';
 import { strictEqual } from 'assert';
 import { getActiveDocument } from 'vs/base/browser/dom';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
@@ -30,6 +28,7 @@ import { events as windows11_pwsh_namespace_completion } from 'vs/workbench/cont
 import { events as windows11_pwsh_type_before_prompt } from 'vs/workbench/contrib/terminalContrib/suggest/test/browser/recordings/windows11_pwsh_type_before_prompt';
 import { events as windows11_pwsh_writehost_multiline_nav_up } from 'vs/workbench/contrib/terminalContrib/suggest/test/browser/recordings/windows11_pwsh_writehost_multiline_nav_up';
 import { events as windows11_pwsh_writehost_multiline } from 'vs/workbench/contrib/terminalContrib/suggest/test/browser/recordings/windows11_pwsh_writehost_multiline';
+import { importAMDNodeModule } from 'vs/amdX';
 
 const recordedTestCases: { name: string; events: RecordedSessionEvent[] }[] = [
 	{ name: 'macos_bash_echo_simple', events: macos_bash_echo_simple as any as RecordedSessionEvent[] },
@@ -69,7 +68,7 @@ suite('Terminal Contrib Suggest Recordings', () => {
 	let suggestWidgetVisibleContextKey: IContextKey<boolean>;
 	let suggestAddon: SuggestAddon;
 
-	setup(() => {
+	setup(async () => {
 		const instantiationService = workbenchInstantiationService({
 			configurationService: () => new TestConfigurationService({
 				files: { autoSave: false },
@@ -84,7 +83,8 @@ suite('Terminal Contrib Suggest Recordings', () => {
 				}
 			})
 		}, store);
-		xterm = store.add(new Terminal({ allowProposedApi: true }));
+		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
+		xterm = store.add(new TerminalCtor({ allowProposedApi: true }));
 		const shellIntegrationAddon = store.add(new ShellIntegrationAddon('', true, undefined, new NullLogService));
 		capabilities = shellIntegrationAddon.capabilities;
 		suggestWidgetVisibleContextKey = TerminalContextKeys.suggestWidgetVisible.bindTo(instantiationService.get(IContextKeyService));
