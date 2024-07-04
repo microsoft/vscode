@@ -85,19 +85,23 @@ function getCommandsContext(accessor: ServicesAccessor, commandArgs: unknown[]):
 }
 
 function moveCurrentEditorContextToFront(editorContext: IEditorCommandsContext, multiEditorContext: IEditorCommandsContext[]): IEditorCommandsContext[] {
+	if (multiEditorContext.length <= 1) {
+		return multiEditorContext;
+	}
+
 	const editorContextIndex = multiEditorContext.findIndex(context =>
 		context.groupId === editorContext.groupId &&
-		context.editorIndex === editorContext.editorIndex &&
-		context.preserveFocus === editorContext.preserveFocus
+		(editorContext.editorIndex === undefined || context.editorIndex === editorContext.editorIndex) &&
+		(editorContext.preserveFocus === undefined || context.preserveFocus === editorContext.preserveFocus)
 	);
 
-	if (editorContextIndex !== -1) {
-		multiEditorContext.splice(editorContextIndex, 1);
-	} else {
+	if (editorContextIndex === -1) {
 		throw new Error('Invalid multi select editor context');
 	}
 
-	multiEditorContext.unshift(editorContext);
+	const currentContext = multiEditorContext[editorContextIndex];
+	multiEditorContext.splice(editorContextIndex, 1);
+	multiEditorContext.unshift(currentContext);
 
 	return multiEditorContext;
 }
