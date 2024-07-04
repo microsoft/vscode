@@ -21,6 +21,9 @@ $Global:__LastHistoryId = -1
 $Nonce = $env:VSCODE_NONCE
 $env:VSCODE_NONCE = $null
 
+$isStable = $env:VSCODE_STABLE
+$env:VSCODE_STABLE = $null
+
 $osVersion = [System.Environment]::OSVersion.Version
 $isWindows10 = $IsWindows -and $osVersion.Major -eq 10 -and $osVersion.Minor -eq 0 -and $osVersion.Build -lt 22000
 
@@ -95,7 +98,9 @@ function Global:Prompt() {
 
 	# Prompt
 	# OSC 633 ; <Property>=<Value> ST
-	$Result += "$([char]0x1b)]633;P;Prompt=$(__VSCode-Escape-Value $OriginalPrompt)`a"
+	if ($isStable -eq "0") {
+		$Result += "$([char]0x1b)]633;P;Prompt=$(__VSCode-Escape-Value $OriginalPrompt)`a"
+	}
 
 	# Write command started
 	$Result += "$([char]0x1b)]633;B`a"
@@ -142,9 +147,11 @@ else {
 }
 
 # Set ContinuationPrompt property
-$ContinuationPrompt = (Get-PSReadLineOption).ContinuationPrompt
-if ($ContinuationPrompt) {
-	[Console]::Write("$([char]0x1b)]633;P;ContinuationPrompt=$(__VSCode-Escape-Value $ContinuationPrompt)`a")
+if ($isStable -eq "0") {
+	$ContinuationPrompt = (Get-PSReadLineOption).ContinuationPrompt
+	if ($ContinuationPrompt) {
+		[Console]::Write("$([char]0x1b)]633;P;ContinuationPrompt=$(__VSCode-Escape-Value $ContinuationPrompt)`a")
+	}
 }
 
 # Set always on key handlers which map to default VS Code keybindings
@@ -169,8 +176,9 @@ function Set-MappedKeyHandlers {
 	Set-MappedKeyHandler -Chord Shift+Enter -Sequence 'F12,c'
 	Set-MappedKeyHandler -Chord Shift+End -Sequence 'F12,d'
 
-	# Conditionally enable suggestions
-	if ($env:VSCODE_SUGGEST -eq '1') {
+	# Enable suggestions if the environment variable is set and Windows PowerShell is not being used
+	# as APIs are not available to support this feature
+	if ($env:VSCODE_SUGGEST -eq '1' -and $PSVersionTable.PSVersion -ge "6.0") {
 		Remove-Item Env:VSCODE_SUGGEST
 
 		# VS Code send completions request (may override Ctrl+Spacebar)
@@ -207,7 +215,19 @@ function Send-Completions {
 		$completions = TabExpansion2 -inputScript $completionPrefix -cursorColumn $cursorIndex
 		if ($null -ne $completions.CompletionMatches) {
 			$result += ";$($completions.ReplacementIndex);$($completions.ReplacementLength);$($cursorIndex);"
-			$result += $completions.CompletionMatches | ConvertTo-Json -Compress
+			if ($completions.CompletionMatches.Count -gt 0 -and $completions.CompletionMatches.Where({ $_.ResultType -eq 3 -or $_.ResultType -eq 4 })) {
+				$json = [System.Collections.ArrayList]@($completions.CompletionMatches)
+				# Add . and .. to the completions list
+				$json.Add([System.Management.Automation.CompletionResult]::new(
+					'.', '.', [System.Management.Automation.CompletionResultType]::ProviderContainer, (Get-Location).Path)
+				)
+				$json.Add([System.Management.Automation.CompletionResult]::new(
+					'..', '..', [System.Management.Automation.CompletionResultType]::ProviderContainer, (Split-Path (Get-Location) -Parent))
+				)
+				$result += $json | ConvertTo-Json -Compress
+			} else {
+				$result += $completions.CompletionMatches | ConvertTo-Json -Compress
+			}
 		}
 	}
 	# If there is no space, get completions using CompletionCompleters as it gives us more

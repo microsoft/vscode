@@ -47,7 +47,7 @@ export class ChatResponseAccessibleView implements IAccessibleViewImplentation {
 
 			widget.focus(focusedItem);
 			const isWelcome = focusedItem instanceof ChatWelcomeMessageModel;
-			let responseContent = isResponseVM(focusedItem) ? focusedItem.response.asString() : undefined;
+			let responseContent = isResponseVM(focusedItem) ? focusedItem.response.toString() : undefined;
 			if (isWelcome) {
 				const welcomeReplyContents = [];
 				for (const content of focusedItem.content) {

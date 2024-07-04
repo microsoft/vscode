@@ -39,6 +39,7 @@
 .extension-verified-publisher > .extension-verified-publisher-domain {
 	padding-left: 2px;
 	color: var(--vscode-extensionIcon-verifiedForeground);
+	text-decoration: var(--text-link-decoration);
 }
 
 .extension-bookmark {

@@ -9,7 +9,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { observableValue } from 'vs/base/common/observable';
 import { IDisposable, DisposableStore, combinedDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, IInputValidation, ISCMViewService, InputValidationType, ISCMActionButtonDescriptor } from 'vs/workbench/contrib/scm/common/scm';
-import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceSplices, SCMGroupFeatures, MainContext, SCMHistoryItemGroupDto } from '../common/extHost.protocol';
+import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceSplices, SCMGroupFeatures, MainContext, SCMHistoryItemGroupDto, SCMHistoryItemDto } from '../common/extHost.protocol';
 import { Command } from 'vs/editor/common/languages';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -27,8 +27,6 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { Schemas } from 'vs/base/common/network';
 import { ITextModel } from 'vs/editor/common/model';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 function getIconFromIconDto(iconDto?: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon): URI | { light: URI; dark: URI } | ThemeIcon | undefined {
 	if (iconDto === undefined) {
@@ -41,6 +39,13 @@ function getIconFromIconDto(iconDto?: UriComponents | { light: UriComponents; da
 		const icon = iconDto as { light: UriComponents; dark: UriComponents };
 		return { light: URI.revive(icon.light), dark: URI.revive(icon.dark) };
 	}
+}
+
+function toISCMHistoryItem(historyItemDto: SCMHistoryItemDto): ISCMHistoryItem {
+	const icon = getIconFromIconDto(historyItemDto.icon);
+	const labels = historyItemDto.labels?.map(l => ({ title: l.title, icon: getIconFromIconDto(l.icon) }));
+
+	return { ...historyItemDto, icon, labels };
 }
 
 class SCMInputBoxContentProvider extends Disposable implements ITextModelContentProvider {
@@ -177,12 +182,17 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 
 	async provideHistoryItems(historyItemGroupId: string, options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined> {
 		const historyItems = await this.proxy.$provideHistoryItems(this.handle, historyItemGroupId, options, CancellationToken.None);
-		return historyItems?.map(historyItem => ({ ...historyItem, icon: getIconFromIconDto(historyItem.icon) }));
+		return historyItems?.map(historyItem => toISCMHistoryItem(historyItem));
+	}
+
+	async provideHistoryItems2(options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined> {
+		const historyItems = await this.proxy.$provideHistoryItems2(this.handle, options, CancellationToken.None);
+		return historyItems?.map(historyItem => toISCMHistoryItem(historyItem));
 	}
 
 	async provideHistoryItemSummary(historyItemId: string, historyItemParentId: string | undefined): Promise<ISCMHistoryItem | undefined> {
 		const historyItem = await this.proxy.$provideHistoryItemSummary(this.handle, historyItemId, historyItemParentId, CancellationToken.None);
-		return historyItem ? { ...historyItem, icon: getIconFromIconDto(historyItem.icon) } : undefined;
+		return historyItem ? toISCMHistoryItem(historyItem) : undefined;
 	}
 
 	async provideHistoryItemChanges(historyItemId: string, historyItemParentId: string | undefined): Promise<ISCMHistoryItemChange[] | undefined> {
@@ -272,9 +282,7 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 		private readonly _inputBoxTextModel: ITextModel,
 		private readonly _quickDiffService: IQuickDiffService,
 		private readonly _uriIdentService: IUriIdentityService,
-		private readonly _workspaceContextService: IWorkspaceContextService,
-		private readonly _environmentService: IWorkbenchEnvironmentService,
-		private readonly _logService: ILogService
+		private readonly _workspaceContextService: IWorkspaceContextService
 	) {
 		if (_rootUri) {
 			const folder = this._workspaceContextService.getWorkspaceFolder(_rootUri);
@@ -299,9 +307,6 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 		}
 
 		if (typeof features.statusBarCommands !== 'undefined') {
-			if (this._environmentService.enableSmokeTestDriver) {
-				this._logService.info(`MainThreadSCMProvider#updateSourceControl (${this._id}): ${features.statusBarCommands.map(c => c.title).join(', ')}`);
-			}
 			this._statusBarCommands.set(features.statusBarCommands, undefined);
 		}
 
@@ -482,9 +487,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@IQuickDiffService private readonly quickDiffService: IQuickDiffService,
 		@IUriIdentityService private readonly _uriIdentService: IUriIdentityService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@ILogService private readonly logService: ILogService
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostSCM);
 
@@ -505,7 +508,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		this._repositoryBarriers.set(handle, new Barrier());
 
 		const inputBoxTextModelRef = await this.textModelService.createModelReference(URI.revive(inputBoxDocumentUri));
-		const provider = new MainThreadSCMProvider(this._proxy, handle, id, label, rootUri ? URI.revive(rootUri) : undefined, inputBoxTextModelRef.object.textEditorModel, this.quickDiffService, this._uriIdentService, this.workspaceContextService, this.environmentService, this.logService);
+		const provider = new MainThreadSCMProvider(this._proxy, handle, id, label, rootUri ? URI.revive(rootUri) : undefined, inputBoxTextModelRef.object.textEditorModel, this.quickDiffService, this._uriIdentService, this.workspaceContextService);
 		const repository = this.scmService.registerSCMProvider(provider);
 		this._repositories.set(handle, repository);
 

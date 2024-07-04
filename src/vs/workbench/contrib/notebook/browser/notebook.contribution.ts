@@ -187,8 +187,8 @@ class NotebookDiffEditorSerializer implements IEditorSerializer {
 }
 type SerializedNotebookEditorData = { resource: URI; preferredResource: URI; viewType: string; options?: NotebookEditorInputOptions };
 class NotebookEditorSerializer implements IEditorSerializer {
-	canSerialize(): boolean {
-		return true;
+	canSerialize(input: EditorInput): boolean {
+		return input.typeId === NotebookEditorInput.ID;
 	}
 	serialize(input: EditorInput): string {
 		assertType(input instanceof NotebookEditorInput);
@@ -644,7 +644,7 @@ class SimpleNotebookWorkingCopyEditorHandler extends Disposable implements IWork
 
 	private handlesSync(workingCopy: IWorkingCopyIdentifier): string /* viewType */ | undefined {
 		const viewType = this._getViewType(workingCopy);
-		if (!viewType || viewType === 'interactive') {
+		if (!viewType || viewType === 'interactive' || extname(workingCopy.resource) === '.replNotebook') {
 			return undefined;
 		}
 
@@ -1054,11 +1054,6 @@ configurationRegistry.registerConfiguration({
 				codeOutput: true
 			},
 			tags: ['notebookLayout']
-		},
-		[NotebookSetting.findScope]: {
-			markdownDescription: nls.localize('notebook.experimental.find.scope.enabled', "Enables the user to search within a selection of cells in the notebook. When enabled, the user will see a \"Find in Cell Selection\" icon in the notebook find widget."),
-			type: 'boolean',
-			default: false,
 		},
 		[NotebookSetting.remoteSaving]: {
 			markdownDescription: nls.localize('notebook.remoteSaving', "Enables the incremental saving of notebooks between processes and across Remote connections. When enabled, only the changes to the notebook are sent to the extension host, improving performance for large notebooks and slow network connections."),

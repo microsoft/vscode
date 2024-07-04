@@ -12,11 +12,13 @@ const util = require('./lib/util');
 const { getVersion } = require('./lib/getVersion');
 const task = require('./lib/task');
 const optimize = require('./lib/optimize');
+const { inlineMeta } = require('./lib/inlineMeta');
 const product = require('../product.json');
 const rename = require('gulp-rename');
 const replace = require('gulp-replace');
 const filter = require('gulp-filter');
 const { getProductionDependencies } = require('./lib/dependencies');
+const { date } = require('./lib/date');
 const vfs = require('vinyl-fs');
 const packageJson = require('../package.json');
 const flatmap = require('gulp-flatmap');
@@ -52,14 +54,8 @@ const BUILD_TARGETS = [
 
 const serverResources = [
 
-	// Bootstrap
-	'out-build/bootstrap.js',
-	'out-build/bootstrap-fork.js',
-	'out-build/bootstrap-amd.js',
-	'out-build/bootstrap-node.js',
-
-	// Performance
-	'out-build/vs/base/common/performance.js',
+	// NLS
+	'out-build/nls.messages.json',
 
 	// Process monitor
 	'out-build/vs/base/node/cpuUsage.sh',
@@ -89,23 +85,23 @@ const serverWithWebResources = [
 const serverEntryPoints = [
 	{
 		name: 'vs/server/node/server.main',
-		exclude: ['vs/css', 'vs/nls']
+		exclude: ['vs/css']
 	},
 	{
 		name: 'vs/server/node/server.cli',
-		exclude: ['vs/css', 'vs/nls']
+		exclude: ['vs/css']
 	},
 	{
 		name: 'vs/workbench/api/node/extensionHostProcess',
-		exclude: ['vs/css', 'vs/nls']
+		exclude: ['vs/css']
 	},
 	{
 		name: 'vs/platform/files/node/watcher/watcherMain',
-		exclude: ['vs/css', 'vs/nls']
+		exclude: ['vs/css']
 	},
 	{
 		name: 'vs/platform/terminal/node/ptyHostMain',
-		exclude: ['vs/css', 'vs/nls']
+		exclude: ['vs/css']
 	}
 ];
 
@@ -116,6 +112,12 @@ const serverWithWebEntryPoints = [
 
 	// Include workbench web
 	...vscodeWebEntryPoints
+];
+
+const commonJSEntryPoints = [
+	'out-build/server-main.js',
+	'out-build/server-cli.js',
+	'out-build/bootstrap-fork.js',
 ];
 
 function getNodeVersion() {
@@ -183,7 +185,6 @@ if (defaultNodeTask) {
 function nodejs(platform, arch) {
 	const { fetchUrls, fetchGithub } = require('./lib/fetch');
 	const untar = require('gulp-untar');
-	const crypto = require('crypto');
 
 	if (arch === 'armhf') {
 		arch = 'armv7l';
@@ -289,13 +290,22 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 		}
 
 		const name = product.nameShort;
+
+		let packageJsonContents;
 		const packageJsonStream = gulp.src(['remote/package.json'], { base: 'remote' })
-			.pipe(json({ name, version, dependencies: undefined, optionalDependencies: undefined }));
+			.pipe(json({ name, version, dependencies: undefined, optionalDependencies: undefined }))
+			.pipe(es.through(function (file) {
+				packageJsonContents = file.contents.toString();
+				this.emit('data', file);
+			}));
 
-		const date = new Date().toISOString();
-
+		let productJsonContents;
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
-			.pipe(json({ commit, date, version }));
+			.pipe(json({ commit, date, version }))
+			.pipe(es.through(function (file) {
+				productJsonContents = file.contents.toString();
+				this.emit('data', file);
+			}));
 
 		const license = gulp.src(['remote/LICENSE'], { base: 'remote', allowEmpty: true });
 
@@ -388,6 +398,12 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 			);
 		}
 
+		result = inlineMeta(result, {
+			targetPaths: commonJSEntryPoints,
+			packageJsonFn: () => packageJsonContents,
+			productJsonFn: () => productJsonContents
+		});
+
 		return result.pipe(vfs.dest(destination));
 	};
 }
@@ -419,16 +435,14 @@ function tweakProductForServerWeb(product) {
 				},
 				commonJS: {
 					src: 'out-build',
-					entryPoints: [
-						'out-build/server-main.js',
-						'out-build/server-cli.js'
-					],
+					entryPoints: commonJSEntryPoints,
 					platform: 'node',
 					external: [
 						'minimist',
-						// TODO: we cannot inline `product.json` because
+						// We cannot inline `product.json` from here because
 						// it is being changed during build time at a later
 						// point in time (such as `checksums`)
+						// We have a manual step to inline these later.
 						'../product.json',
 						'../package.json'
 					]

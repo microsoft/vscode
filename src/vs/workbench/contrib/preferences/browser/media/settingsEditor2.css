@@ -408,7 +408,8 @@
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-title .setting-item-overrides a.modified-scope {
-	text-decoration: underline;
+	color: var(--vscode-textLink-foreground);
+	text-decoration: var(--text-link-decoration);
 	cursor: pointer;
 }
 
@@ -510,6 +511,11 @@
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .edit-in-settings-button,
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown a > code {
 	color: var(--vscode-textLink-foreground);
+}
+
+.settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown a,
+.settings-editor > .settings-body .settings-tree-container .setting-item-contents .edit-in-settings-button {
+	text-decoration: var(--text-link-decoration);
 }
 
 .settings-editor > .settings-body .settings-tree-container .setting-item-contents .setting-item-markdown a:focus,

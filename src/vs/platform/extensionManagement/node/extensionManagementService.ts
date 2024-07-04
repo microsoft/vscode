@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import { Promises, Queue } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -363,7 +364,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		const collectFilesFromDirectory = async (dir: string): Promise<string[]> => {
 			let entries = await pfs.Promises.readdir(dir);
 			entries = entries.map(e => path.join(dir, e));
-			const stats = await Promise.all(entries.map(e => pfs.Promises.stat(e)));
+			const stats = await Promise.all(entries.map(e => fs.promises.stat(e)));
 			let promise: Promise<string[]> = Promise.resolve([]);
 			stats.forEach((stat, index) => {
 				const entry = entries[index];
@@ -484,6 +485,17 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 	}
 }
 
+type UpdateMetadataErrorClassification = {
+	owner: 'sandy081';
+	comment: 'Update metadata error';
+	extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'extension identifier' };
+	code?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'error code' };
+};
+type UpdateMetadataErrorEvent = {
+	extensionId: string;
+	code?: string;
+};
+
 export class ExtensionsScanner extends Disposable {
 
 	private readonly uninstalledResource: URI;
@@ -501,6 +513,7 @@ export class ExtensionsScanner extends Disposable {
 		@IExtensionsScannerService private readonly extensionsScannerService: IExtensionsScannerService,
 		@IExtensionsProfileScannerService private readonly extensionsProfileScannerService: IExtensionsProfileScannerService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		super();
@@ -582,7 +595,8 @@ export class ExtensionsScanner extends Disposable {
 			try {
 				await this.extensionsScannerService.updateMetadata(extensionLocation, metadata);
 			} catch (error) {
-				throw toExtensionManagementError(error, ExtensionManagementErrorCode.UpdateMetadata);
+				this.telemetryService.publicLog2<UpdateMetadataErrorEvent, UpdateMetadataErrorClassification>('extension:extract', { extensionId: extensionKey.id, code: `${toFileOperationResult(error)}` });
+				throw toExtensionManagementError(error, ExtensionManagementErrorCode.UpdateExistingMetadata);
 			}
 		} else {
 			try {
@@ -602,6 +616,7 @@ export class ExtensionsScanner extends Disposable {
 				try {
 					await this.extensionsScannerService.updateMetadata(tempLocation, metadata);
 				} catch (error) {
+					this.telemetryService.publicLog2<UpdateMetadataErrorEvent, UpdateMetadataErrorClassification>('extension:extract', { extensionId: extensionKey.id, code: `${toFileOperationResult(error)}` });
 					throw toExtensionManagementError(error, ExtensionManagementErrorCode.UpdateMetadata);
 				}
 
@@ -657,6 +672,7 @@ export class ExtensionsScanner extends Disposable {
 				await this.extensionsScannerService.updateMetadata(local.location, metadata);
 			}
 		} catch (error) {
+			this.telemetryService.publicLog2<UpdateMetadataErrorEvent, UpdateMetadataErrorClassification>('extension:extract', { extensionId: local.identifier.id, code: `${toFileOperationResult(error)}` });
 			throw toExtensionManagementError(error, ExtensionManagementErrorCode.UpdateMetadata);
 		}
 		return this.scanLocalExtension(local.location, local.type, profileLocation);
@@ -956,16 +972,15 @@ class InstallExtensionInProfileTask extends AbstractExtensionTask<ILocalExtensio
 						throw new Error(nls.localize('restartCode', "Please restart VS Code before reinstalling {0}.", this.manifest.displayName || this.manifest.name));
 					}
 				}
-			} else {
-				// Remove the extension with same version if it is already uninstalled.
-				// Installing a VSIX extension shall replace the existing extension always.
-				const existingWithSameVersion = await this.unsetIfUninstalled(this.extensionKey);
-				if (existingWithSameVersion) {
-					try {
-						await this.extensionsScanner.removeExtension(existingWithSameVersion, 'existing');
-					} catch (e) {
-						throw new Error(nls.localize('restartCode', "Please restart VS Code before reinstalling {0}.", this.manifest.displayName || this.manifest.name));
-					}
+			}
+			// Remove the extension with same version if it is already uninstalled.
+			// Installing a VSIX extension shall replace the existing extension always.
+			const existingWithSameVersion = await this.unsetIfUninstalled(this.extensionKey);
+			if (existingWithSameVersion) {
+				try {
+					await this.extensionsScanner.removeExtension(existingWithSameVersion, 'existing');
+				} catch (e) {
+					throw new Error(nls.localize('restartCode', "Please restart VS Code before reinstalling {0}.", this.manifest.displayName || this.manifest.name));
 				}
 			}
 

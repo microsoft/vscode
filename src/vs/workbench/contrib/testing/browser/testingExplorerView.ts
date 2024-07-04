@@ -821,12 +821,12 @@ class TestingExplorerViewModel extends Disposable {
 			this.tree.rerender();
 		}));
 
-		const allOpenEditorInputs = observableFromEvent(
+		const allOpenEditorInputs = observableFromEvent(this,
 			editorService.onDidEditorsChange,
 			() => new Set(editorGroupsService.groups.flatMap(g => g.editors).map(e => e.resource).filter(isDefined)),
 		);
 
-		const activeResource = observableFromEvent(editorService.onDidActiveEditorChange, () => {
+		const activeResource = observableFromEvent(this, editorService.onDidActiveEditorChange, () => {
 			if (editorService.activeEditor instanceof DiffEditorInput) {
 				return editorService.activeEditor.primary.resource;
 			} else {

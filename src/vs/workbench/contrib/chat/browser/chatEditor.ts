@@ -50,13 +50,15 @@ export class ChatEditor extends EditorPane {
 		super(ChatEditorInput.EditorID, group, telemetryService, themeService, storageService);
 	}
 
-	public async clear() {
-		return this.instantiationService.invokeFunction(clearChatEditor);
+	private async clear() {
+		if (this.input) {
+			return this.instantiationService.invokeFunction(clearChatEditor, this.input as ChatEditorInput);
+		}
 	}
 
 	protected override createEditor(parent: HTMLElement): void {
 		this._scopedContextKeyService = this._register(this.contextKeyService.createScoped(parent));
-		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService]));
+		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
 
 		this.widget = this._register(
 			scopedInstantiationService.createInstance(
@@ -75,7 +77,7 @@ export class ChatEditor extends EditorPane {
 		this.widget.setVisible(true);
 	}
 
-	protected override  setEditorVisible(visible: boolean): void {
+	protected override setEditorVisible(visible: boolean): void {
 		super.setEditorVisible(visible);
 
 		this.widget?.setVisible(visible);

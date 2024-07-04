@@ -275,7 +275,7 @@ export class QuickInputController extends Disposable {
 						} else {
 							selectors.push('input[type=text]');
 						}
-						if (this.getUI().list.isDisplayed()) {
+						if (this.getUI().list.displayed) {
 							selectors.push('.monaco-list');
 						}
 						// focus links if there are any
@@ -580,7 +580,6 @@ export class QuickInputController extends Disposable {
 		ui.count.setCount(0);
 		dom.reset(ui.message);
 		ui.progressBar.stop();
-		ui.list.setElements([]);
 		ui.list.matchOnDescription = false;
 		ui.list.matchOnDetail = false;
 		ui.list.matchOnLabel = true;
@@ -615,7 +614,7 @@ export class QuickInputController extends Disposable {
 		ui.customButtonContainer.style.display = visibilities.customButton ? '' : 'none';
 		ui.message.style.display = visibilities.message ? '' : 'none';
 		ui.progressBar.getContainer().style.display = visibilities.progressBar ? '' : 'none';
-		ui.list.display(!!visibilities.list);
+		ui.list.displayed = !!visibilities.list;
 		ui.container.classList.toggle('show-checkboxes', !!visibilities.checkBox);
 		ui.container.classList.toggle('hidden-input', !visibilities.inputBox && !visibilities.description);
 		this.updateLayout(); // TODO
@@ -684,7 +683,7 @@ export class QuickInputController extends Disposable {
 	}
 
 	navigate(next: boolean, quickNavigate?: IQuickNavigateConfiguration) {
-		if (this.isVisible() && this.getUI().list.isDisplayed()) {
+		if (this.isVisible() && this.getUI().list.displayed) {
 			this.getUI().list.focus(next ? QuickPickFocus.Next : QuickPickFocus.Previous);
 			if (quickNavigate && this.controller instanceof QuickPick) {
 				this.controller.quickNavigate = quickNavigate;

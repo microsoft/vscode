@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import { BrowserWindow } from 'electron';
 import { Emitter, Event } from 'vs/base/common/event';
 import { parse } from 'vs/base/common/json';
@@ -102,7 +103,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 	}
 
 	resolveLocalWorkspace(uri: URI): Promise<IResolvedWorkspace | undefined> {
-		return this.doResolveLocalWorkspace(uri, path => Promises.readFile(path, 'utf8'));
+		return this.doResolveLocalWorkspace(uri, path => fs.promises.readFile(path, 'utf8'));
 	}
 
 	private doResolveLocalWorkspace(uri: URI, contentsFn: (path: string) => string): IResolvedWorkspace | undefined;
@@ -169,7 +170,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 		const { workspace, storedWorkspace } = this.newUntitledWorkspace(folders, remoteAuthority);
 		const configPath = workspace.configPath.fsPath;
 
-		await Promises.mkdir(dirname(configPath), { recursive: true });
+		await fs.promises.mkdir(dirname(configPath), { recursive: true });
 		await Promises.writeFile(configPath, JSON.stringify(storedWorkspace, null, '\t'));
 
 		this.untitledWorkspaces.push({ workspace, remoteAuthority });

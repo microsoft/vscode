@@ -216,8 +216,15 @@ export class InstantiationService implements IInstantiationService {
 
 		let cycleCount = 0;
 		const stack = [{ id, desc, _trace }];
+		const seen = new Set<string>();
 		while (stack.length) {
 			const item = stack.pop()!;
+
+			if (seen.has(String(item.id))) {
+				continue;
+			}
+			seen.add(String(item.id));
+
 			graph.lookupOrInsertNode(item);
 
 			// a weak but working heuristic for cycle checks

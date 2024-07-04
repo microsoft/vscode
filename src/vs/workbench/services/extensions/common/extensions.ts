@@ -10,12 +10,12 @@ import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { getExtensionId, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ImplicitActivationEvents } from 'vs/platform/extensionManagement/common/implicitActivationEvents';
 import { ExtensionIdentifier, ExtensionIdentifierMap, ExtensionIdentifierSet, ExtensionType, IExtension, IExtensionContributions, IExtensionDescription, TargetPlatform } from 'vs/platform/extensions/common/extensions';
+import { ApiProposalName } from 'vs/platform/extensions/common/extensionsApiProposals';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IV8Profile } from 'vs/platform/profiling/common/profiling';
 import { ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensionHostKind';
 import { IExtensionDescriptionDelta, IExtensionDescriptionSnapshot } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { ExtensionRunningLocation } from 'vs/workbench/services/extensions/common/extensionRunningLocation';
-import { ApiProposalName } from 'vs/workbench/services/extensions/common/extensionsApiProposals';
 import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
 export const nullExtensionDescription = Object.freeze<IExtensionDescription>({
@@ -28,7 +28,7 @@ export const nullExtensionDescription = Object.freeze<IExtensionDescription>({
 	isBuiltin: false,
 	targetPlatform: TargetPlatform.UNDEFINED,
 	isUserBuiltin: false,
-	isUnderDevelopment: false,
+	isUnderDevelopment: false
 });
 
 export type WebWorkerExtHostConfigValue = boolean | 'auto';
@@ -569,7 +569,7 @@ export function toExtensionDescription(extension: IExtension, isUnderDevelopment
 		uuid: extension.identifier.uuid,
 		targetPlatform: extension.targetPlatform,
 		publisherDisplayName: extension.publisherDisplayName,
-		...extension.manifest,
+		...extension.manifest
 	};
 }
 

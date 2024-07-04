@@ -22,8 +22,6 @@
 }(this, function () {
 	const Module = typeof require === 'function' ? require('module') : undefined;
 	const path = typeof require === 'function' ? require('path') : undefined;
-	const fs = typeof require === 'function' ? require('fs') : undefined;
-	const util = typeof require === 'function' ? require('util') : undefined;
 
 	//#region global bootstrapping
 
@@ -118,141 +116,8 @@
 
 	//#endregion
 
-
-	//#region NLS helpers
-
-	/**
-	 * @returns {{locale?: string, availableLanguages: {[lang: string]: string;}, pseudo?: boolean } | undefined}
-	 */
-	function setupNLS() {
-
-		// Get the nls configuration as early as possible.
-		const process = safeProcess();
-		/** @type {{ availableLanguages: {}; loadBundle?: (bundle: string, language: string, cb: (err: Error | undefined, result: string | undefined) => void) => void; _resolvedLanguagePackCoreLocation?: string; _corruptedFile?: string }} */
-		let nlsConfig = { availableLanguages: {} };
-		if (process && process.env['VSCODE_NLS_CONFIG']) {
-			try {
-				nlsConfig = JSON.parse(process.env['VSCODE_NLS_CONFIG']);
-			} catch (e) {
-				// Ignore
-			}
-		}
-
-		if (nlsConfig._resolvedLanguagePackCoreLocation) {
-			const bundles = Object.create(null);
-
-			/**
-			 * @param {string} bundle
-			 * @param {string} language
-			 * @param {(err: Error | undefined, result: string | undefined) => void} cb
-			 */
-			nlsConfig.loadBundle = function (bundle, language, cb) {
-				const result = bundles[bundle];
-				if (result) {
-					cb(undefined, result);
-
-					return;
-				}
-
-				// @ts-ignore
-				safeReadNlsFile(nlsConfig._resolvedLanguagePackCoreLocation, `${bundle.replace(/\//g, '!')}.nls.json`).then(function (content) {
-					const json = JSON.parse(content);
-					bundles[bundle] = json;
-
-					cb(undefined, json);
-				}).catch((error) => {
-					try {
-						if (nlsConfig._corruptedFile) {
-							safeWriteNlsFile(nlsConfig._corruptedFile, 'corrupted').catch(function (error) { console.error(error); });
-						}
-					} finally {
-						cb(error, undefined);
-					}
-				});
-			};
-		}
-
-		return nlsConfig;
-	}
-
-	/**
-	 * @returns {typeof import('./vs/base/parts/sandbox/electron-sandbox/globals') | undefined}
-	 */
-	function safeSandboxGlobals() {
-		const globals = (typeof self === 'object' ? self : typeof global === 'object' ? global : {});
-
-		// @ts-ignore
-		return globals.vscode;
-	}
-
-	/**
-	 * @returns {import('./vs/base/parts/sandbox/electron-sandbox/globals').ISandboxNodeProcess | NodeJS.Process | undefined}
-	 */
-	function safeProcess() {
-		const sandboxGlobals = safeSandboxGlobals();
-		if (sandboxGlobals) {
-			return sandboxGlobals.process; // Native environment (sandboxed)
-		}
-
-		if (typeof process !== 'undefined') {
-			return process; // Native environment (non-sandboxed)
-		}
-
-		return undefined;
-	}
-
-	/**
-	 * @returns {import('./vs/base/parts/sandbox/electron-sandbox/electronTypes').IpcRenderer | undefined}
-	 */
-	function safeIpcRenderer() {
-		const sandboxGlobals = safeSandboxGlobals();
-		if (sandboxGlobals) {
-			return sandboxGlobals.ipcRenderer;
-		}
-
-		return undefined;
-	}
-
-	/**
-	 * @param {string[]} pathSegments
-	 * @returns {Promise<string>}
-	 */
-	async function safeReadNlsFile(...pathSegments) {
-		const ipcRenderer = safeIpcRenderer();
-		if (ipcRenderer) {
-			return ipcRenderer.invoke('vscode:readNlsFile', ...pathSegments);
-		}
-
-		if (fs && path && util) {
-			return (await util.promisify(fs.readFile)(path.join(...pathSegments))).toString();
-		}
-
-		throw new Error('Unsupported operation (read NLS files)');
-	}
-
-	/**
-	 * @param {string} path
-	 * @param {string} content
-	 * @returns {Promise<void>}
-	 */
-	function safeWriteNlsFile(path, content) {
-		const ipcRenderer = safeIpcRenderer();
-		if (ipcRenderer) {
-			return ipcRenderer.invoke('vscode:writeNlsFile', path, content);
-		}
-
-		if (fs && util) {
-			return util.promisify(fs.writeFile)(path, content);
-		}
-
-		throw new Error('Unsupported operation (write NLS files)');
-	}
-
-	//#endregion
-
 	return {
 		enableASARSupport,
-		setupNLS,
 		fileUriFromPath
 	};
 }));
