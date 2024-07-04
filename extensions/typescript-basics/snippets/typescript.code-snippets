@@ -266,6 +266,15 @@
 		],
 		"description": "Set Timeout Function"
 	},
+	"Set Interval Function": {
+		"prefix": "setinterval",
+		"body": [
+			"setInterval(() => {",
+			"\t$TM_SELECTED_TEXT$0",
+			"}, ${1:interval});"
+		],
+		"description": "Set Interval Function"
+	},
 	"Region Start": {
 		"prefix": "#region",
 		"body": [
