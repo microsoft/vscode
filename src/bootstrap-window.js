@@ -131,8 +131,7 @@ const isESM = false;
 				document.head.appendChild(style);
 
 				globalThis._VSCODE_CSS_LOAD = function (url) {
-					// @ts-ignore
-					style.sheet.insertRule(`@import url(${url});`);
+					style.textContent += `@import url(${url});\n`;
 				};
 
 				const baseUrl = new URL(`vscode-file://vscode-app${fileRoot}/`);
