@@ -655,20 +655,19 @@ function registerFocusEditorGroupAtIndexCommands(): void {
 }
 
 export function splitEditor(editorGroupService: IEditorGroupsService, direction: GroupDirection, resolvedContext: IResolvedEditorCommandsContext): void {
-	const groupContext = resolvedContext.groupedEditors[0];
-	if (!groupContext) {
+	if (!resolvedContext.groupedEditors.length) {
 		return;
 	}
 
 	// Only support splitting from one source group
-	const sourceGroup = groupContext.group;
+	const { group, editors } = resolvedContext.groupedEditors[0];
 	const preserveFocus = resolvedContext.preserveFocus;
-	const newGroup = editorGroupService.addGroup(sourceGroup, direction);
+	const newGroup = editorGroupService.addGroup(group, direction);
 
-	for (const editorToCopy of resolvedContext.groupedEditors[0].editors) {
+	for (const editorToCopy of editors) {
 		// Split editor (if it can be split)
 		if (editorToCopy && !editorToCopy.hasCapability(EditorInputCapabilities.Singleton)) {
-			sourceGroup.copyEditor(editorToCopy, newGroup, { preserveFocus });
+			group.copyEditor(editorToCopy, newGroup, { preserveFocus });
 		}
 	}
 
@@ -702,7 +701,7 @@ function registerCloseEditorCommands() {
 		let keepStickyEditors: boolean | undefined = undefined;
 		if (forceCloseStickyEditors) {
 			keepStickyEditors = false; // explicitly close sticky editors
-		} else if (args.length > 1) {
+		} else if (args.length) {
 			keepStickyEditors = false; // we have a context, as such this command was used e.g. from the tab context menu
 		} else {
 			keepStickyEditors = editorGroupsService.partOptions.preventPinnedEditorClose === 'keyboard' || editorGroupsService.partOptions.preventPinnedEditorClose === 'keyboardAndMouse'; // respect setting otherwise
@@ -733,9 +732,9 @@ function registerCloseEditorCommands() {
 		const resolvedContext = resolveCommandsContext(accessor, args);
 		const preserveFocus = resolvedContext.preserveFocus;
 
-		return Promise.all(resolvedContext.groupedEditors.map(async groupContext => {
-			const editorsToClose = groupContext.editors.filter(editor => !keepStickyEditors || !groupContext.group.isSticky(editor));
-			await groupContext.group.closeEditors(editorsToClose, { preserveFocus });
+		return Promise.all(resolvedContext.groupedEditors.map(async ({ group, editors }) => {
+			const editorsToClose = editors.filter(editor => !keepStickyEditors || !group.isSticky(editor));
+			await group.closeEditors(editorsToClose, { preserveFocus });
 		}));
 	}
 
@@ -761,8 +760,8 @@ function registerCloseEditorCommands() {
 		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyW),
 		handler: (accessor, ...args: unknown[]) => {
 			const resolvedContext = resolveCommandsContext(accessor, args);
-			return Promise.all(resolvedContext.groupedEditors.map(async groupContext => {
-				await groupContext.group.closeAllEditors({ excludeSticky: true });
+			return Promise.all(resolvedContext.groupedEditors.map(async ({ group }) => {
+				await group.closeAllEditors({ excludeSticky: true });
 			}));
 		}
 	});
@@ -790,8 +789,8 @@ function registerCloseEditorCommands() {
 		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyU),
 		handler: (accessor, ...args: unknown[]) => {
 			const resolvedContext = resolveCommandsContext(accessor, args);
-			return Promise.all(resolvedContext.groupedEditors.map(async groupContext => {
-				await groupContext.group.closeEditors({ savedOnly: true, excludeSticky: true }, { preserveFocus: resolvedContext.preserveFocus });
+			return Promise.all(resolvedContext.groupedEditors.map(async ({ group }) => {
+				await group.closeEditors({ savedOnly: true, excludeSticky: true }, { preserveFocus: resolvedContext.preserveFocus });
 			}));
 		}
 	});
@@ -805,16 +804,16 @@ function registerCloseEditorCommands() {
 		handler: (accessor, ...args: unknown[]) => {
 			const resolvedContext = resolveCommandsContext(accessor, args);
 
-			return Promise.all(resolvedContext.groupedEditors.map(async groupContext => {
-				const editorsToClose = groupContext.group.getEditors(EditorsOrder.SEQUENTIAL, { excludeSticky: true }).filter(editor => !groupContext.editors.includes(editor));
+			return Promise.all(resolvedContext.groupedEditors.map(async ({ group, editors }) => {
+				const editorsToClose = group.getEditors(EditorsOrder.SEQUENTIAL, { excludeSticky: true }).filter(editor => !editors.includes(editor));
 
-				for (const editorToKeep of groupContext.editors) {
+				for (const editorToKeep of editors) {
 					if (editorToKeep) {
-						groupContext.group.pinEditor(editorToKeep);
+						group.pinEditor(editorToKeep);
 					}
 				}
 
-				await groupContext.group.closeEditors(editorsToClose, { preserveFocus: resolvedContext.preserveFocus });
+				await group.closeEditors(editorsToClose, { preserveFocus: resolvedContext.preserveFocus });
 			}));
 		}
 	});
@@ -827,12 +826,12 @@ function registerCloseEditorCommands() {
 		handler: async (accessor, ...args: unknown[]) => {
 			const resolvedContext = resolveCommandsContext(accessor, args);
 			if (resolvedContext.groupedEditors.length) {
-				const groupContext = resolvedContext.groupedEditors[0];
-				if (groupContext.group.activeEditor) {
-					groupContext.group.pinEditor(groupContext.group.activeEditor);
+				const { group, editors } = resolvedContext.groupedEditors[0];
+				if (group.activeEditor) {
+					group.pinEditor(group.activeEditor);
 				}
 
-				await groupContext.group.closeEditors({ direction: CloseDirection.RIGHT, except: groupContext.editors[0], excludeSticky: true }, { preserveFocus: resolvedContext.preserveFocus });
+				await group.closeEditors({ direction: CloseDirection.RIGHT, except: editors[0], excludeSticky: true }, { preserveFocus: resolvedContext.preserveFocus });
 			}
 		}
 	});
@@ -850,10 +849,8 @@ function registerCloseEditorCommands() {
 			const resolvedContext = resolveCommandsContext(accessor, args);
 			const editorReplacements = new Map<IEditorGroup, IEditorReplacement[]>();
 
-			for (const groupContext of resolvedContext.groupedEditors) {
-				const group = groupContext.group;
-
-				for (const editor of groupContext.editors) {
+			for (const { group, editors } of resolvedContext.groupedEditors) {
+				for (const editor of editors) {
 					const untypedEditor = editor.toUntyped();
 					if (!untypedEditor) {
 						return; // Resolver can only resolve untyped editors
@@ -916,12 +913,12 @@ function registerCloseEditorCommands() {
 		const editorGroupService = accessor.get(IEditorGroupsService);
 
 		const resolvedContext = resolveCommandsContext(accessor, args);
-		const groupContext = resolvedContext.groupedEditors[0];
-		if (groupContext) {
-			await groupContext.group.closeAllEditors();
+		if (resolvedContext.groupedEditors.length) {
+			const { group } = resolvedContext.groupedEditors[0];
+			await group.closeAllEditors();
 
-			if (groupContext.group.count === 0 && editorGroupService.getGroup(groupContext.group.id) /* could be gone by now */) {
-				editorGroupService.removeGroup(groupContext.group); // only remove group if it is now empty
+			if (group.count === 0 && editorGroupService.getGroup(group.id) /* could be gone by now */) {
+				editorGroupService.removeGroup(group); // only remove group if it is now empty
 			}
 		}
 	});
@@ -963,17 +960,17 @@ function registerSplitEditorInGroupCommands(): void {
 	async function splitEditorInGroup(accessor: ServicesAccessor, resolvedContext: IResolvedEditorCommandsContext): Promise<void> {
 		const instantiationService = accessor.get(IInstantiationService);
 
-		const groupContext = resolvedContext.groupedEditors[0];
-		if (!groupContext) {
+		if (!resolvedContext.groupedEditors.length) {
 			return;
 		}
 
-		const editor = groupContext.editors[0];
+		const { group, editors } = resolvedContext.groupedEditors[0];
+		const editor = editors[0];
 		if (!editor) {
 			return;
 		}
 
-		await groupContext.group.replaceEditors([{
+		await group.replaceEditors([{
 			editor,
 			replacement: instantiationService.createInstance(SideBySideEditorInput, undefined, undefined, editor, editor),
 			forceReplaceDirty: true
@@ -1001,13 +998,12 @@ function registerSplitEditorInGroupCommands(): void {
 	});
 
 	async function joinEditorInGroup(resolvedContext: IResolvedEditorCommandsContext): Promise<void> {
-		const groupContext = resolvedContext.groupedEditors[0];
-		if (!groupContext) {
+		if (!resolvedContext.groupedEditors.length) {
 			return;
 		}
 
-		const group = groupContext.group;
-		const editor = groupContext.editors[0];
+		const { group, editors } = resolvedContext.groupedEditors[0];
+		const editor = editors[0];
 		if (!editor) {
 			return;
 		}
@@ -1066,19 +1062,15 @@ function registerSplitEditorInGroupCommands(): void {
 		}
 		async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 			const resolvedContext = resolveCommandsContext(accessor, args);
-			const groupContext = resolvedContext.groupedEditors[0];
-			if (!groupContext) {
+			if (!resolvedContext.groupedEditors.length) {
 				return;
 			}
 
-			const editor = groupContext.editors[0];
-			if (!editor) {
-				return;
-			}
+			const { editors } = resolvedContext.groupedEditors[0];
 
-			if (editor instanceof SideBySideEditorInput) {
+			if (editors[0] instanceof SideBySideEditorInput) {
 				await joinEditorInGroup(resolvedContext);
-			} else if (editor) {
+			} else if (editors[0]) {
 				await splitEditorInGroup(accessor, resolvedContext);
 			}
 		}
@@ -1195,9 +1187,9 @@ function registerOtherEditorCommands(): void {
 		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.Enter),
 		handler: async (accessor, ...args: unknown[]) => {
 			const resolvedContext = resolveCommandsContext(accessor, args);
-			for (const groupContext of resolvedContext.groupedEditors) {
-				for (const editor of groupContext.editors) {
-					groupContext.group.pinEditor(editor);
+			for (const { group, editors } of resolvedContext.groupedEditors) {
+				for (const editor of editors) {
+					group.pinEditor(editor);
 				}
 			}
 		}
@@ -1271,9 +1263,9 @@ function registerOtherEditorCommands(): void {
 		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.Shift | KeyCode.Enter),
 		handler: async (accessor, ...args: unknown[]) => {
 			const resolvedContext = resolveCommandsContext(accessor, args);
-			for (const groupContext of resolvedContext.groupedEditors) {
-				for (const editor of groupContext.editors) {
-					groupContext.group.stickEditor(editor);
+			for (const { group, editors } of resolvedContext.groupedEditors) {
+				for (const editor of editors) {
+					group.stickEditor(editor);
 				}
 			}
 		}
@@ -1313,9 +1305,9 @@ function registerOtherEditorCommands(): void {
 		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.Shift | KeyCode.Enter),
 		handler: async (accessor, ...args: unknown[]) => {
 			const resolvedContext = resolveCommandsContext(accessor, args);
-			for (const groupContext of resolvedContext.groupedEditors) {
-				for (const editor of groupContext.editors) {
-					groupContext.group.unstickEditor(editor);
+			for (const { group, editors } of resolvedContext.groupedEditors) {
+				for (const editor of editors) {
+					group.unstickEditor(editor);
 				}
 			}
 		}
