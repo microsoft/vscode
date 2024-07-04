@@ -386,7 +386,7 @@ suite('DefaultConfiguration', () => {
 					}
 				}
 			},
-			source: 'source1'
+			source: { id: 'source1', displayName: 'source1' }
 		};
 
 		const node2 = {
@@ -398,7 +398,7 @@ suite('DefaultConfiguration', () => {
 					}
 				}
 			},
-			source: 'source2'
+			source: { id: 'source2', displayName: 'source2' }
 		};
 		configurationRegistry.registerDefaultConfigurations([node1]);
 		configurationRegistry.registerDefaultConfigurations([node2]);
