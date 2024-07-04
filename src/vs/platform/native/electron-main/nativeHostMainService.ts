@@ -490,13 +490,18 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 
 	private async openInExternalBrowser(url: string, defaultBrowser: string) {
-		const { default: open } = await import('open');
-		const appName = Object.hasOwn(open.apps, defaultBrowser) ? open.apps[(defaultBrowser as keyof typeof open['apps'])] : defaultBrowser;
-		await open(url, {
-			app: {
-				name: appName
-			}
-		});
+		try {
+
+			const { default: open } = await import('open');
+			const appName = Object.hasOwn(open.apps, defaultBrowser) ? open.apps[(defaultBrowser as keyof typeof open['apps'])] : defaultBrowser;
+			await open(url, {
+				app: {
+					name: appName
+				}
+			});
+		} catch {
+			shell.openExternal(url);
+		}
 	}
 
 	async openExternal(windowId: number | undefined, url: string): Promise<boolean> {
