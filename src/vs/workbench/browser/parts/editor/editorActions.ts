@@ -1175,9 +1175,8 @@ export class ToggleMaximizeEditorGroupAction extends Action2 {
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 
 		const resolvedContext = resolveCommandsContext(accessor, args);
-		const groupContext = resolvedContext.groupedEditors[0];
-		if (groupContext) {
-			editorGroupsService.toggleMaximizeGroup(groupContext.group);
+		if (!resolvedContext.groupedEditors.length) {
+			editorGroupsService.toggleMaximizeGroup(resolvedContext.groupedEditors[0].group);
 		}
 	}
 }
@@ -2546,21 +2545,21 @@ abstract class BaseMoveCopyEditorToNewWindowAction extends Action2 {
 	override async run(accessor: ServicesAccessor, ...args: unknown[]) {
 		const editorGroupService = accessor.get(IEditorGroupsService);
 		const resolvedContext = resolveCommandsContext(accessor, args);
-		const groupContext = resolvedContext.groupedEditors[0];
-		if (!groupContext) {
+		if (!resolvedContext.groupedEditors.length) {
 			return;
 		}
 
 		const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart();
 
-		const sourceGroup = groupContext.group; // only single group supported for move/copy for now
+		// only single group supported for move/copy for now
+		const { group, editors } = resolvedContext.groupedEditors[0];
 		const options = { preserveFocus: resolvedContext.preserveFocus };
-		const sourceEditors = groupContext.editors.map(editor => ({ editor, options }));
+		const editorsWithOptions = editors.map(editor => ({ editor, options }));
 
 		if (this.move) {
-			sourceGroup.moveEditors(sourceEditors, auxiliaryEditorPart.activeGroup);
+			group.moveEditors(editorsWithOptions, auxiliaryEditorPart.activeGroup);
 		} else {
-			sourceGroup.copyEditors(sourceEditors, auxiliaryEditorPart.activeGroup);
+			group.copyEditors(editorsWithOptions, auxiliaryEditorPart.activeGroup);
 		}
 
 		auxiliaryEditorPart.activeGroup.focus();
