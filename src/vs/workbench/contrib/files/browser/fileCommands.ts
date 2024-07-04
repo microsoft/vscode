@@ -519,7 +519,7 @@ CommandsRegistry.registerCommand({
 		if (!resolvedContext.groupedEditors.length) {
 			groups = editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
 		} else {
-			groups = resolvedContext.groupedEditors.map(groupContext => groupContext.group);
+			groups = resolvedContext.groupedEditors.map(({ group }) => group);
 		}
 
 		return saveDirtyEditorsOfGroups(accessor, groups, { reason: SaveReason.EXPLICIT });
