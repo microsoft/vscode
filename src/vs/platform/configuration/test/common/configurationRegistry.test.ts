@@ -31,6 +31,24 @@ suite('ConfigurationRegistry', () => {
 		assert.deepStrictEqual(configurationRegistry.getConfigurationProperties()['[lang]'].default, { a: 2, c: 3 });
 	});
 
+	test('configuration override defaults - prevent overriding default value', async () => {
+		configurationRegistry.registerConfiguration({
+			'id': '_test_default',
+			'type': 'object',
+			'properties': {
+				'config.preventDefaultValueOverride': {
+					'type': 'object',
+					default: { a: 0 },
+					'disallowConfigurationDefault': true
+				}
+			}
+		});
+
+		configurationRegistry.registerDefaultConfigurations([{ overrides: { 'config.preventDefaultValueOverride': { a: 1, b: 2 } } }]);
+
+		assert.deepStrictEqual(configurationRegistry.getConfigurationProperties()['config.preventDefaultValueOverride'].default, { a: 0 });
+	});
+
 	test('configuration override defaults - merges defaults', async () => {
 		configurationRegistry.registerDefaultConfigurations([{ overrides: { '[lang]': { a: 1, b: 2 } } }]);
 		configurationRegistry.registerDefaultConfigurations([{ overrides: { '[lang]': { a: 2, c: 3 } } }]);
@@ -91,8 +109,8 @@ suite('ConfigurationRegistry', () => {
 			}
 		});
 
-		const overrides1 = [{ overrides: { 'config': { a: 1, b: 2 } }, source: 'source1' }];
-		const overrides2 = [{ overrides: { 'config': { a: 2, c: 3 } }, source: 'source2' }];
+		const overrides1 = [{ overrides: { 'config': { a: 1, b: 2 } }, source: { id: 'source1', displayName: 'source1' } }];
+		const overrides2 = [{ overrides: { 'config': { a: 2, c: 3 } }, source: { id: 'source2', displayName: 'source2' } }];
 
 		configurationRegistry.registerDefaultConfigurations(overrides1);
 		configurationRegistry.registerDefaultConfigurations(overrides2);
