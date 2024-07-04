@@ -51,7 +51,7 @@ export class IssueMainService implements IIssueMainService {
 		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService,
 		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
-		@ICSSDevelopmentService private readonly windowDevService: ICSSDevelopmentService,
+		@ICSSDevelopmentService private readonly cssDevelopmentService: ICSSDevelopmentService,
 	) { }
 
 	//#region Used by renderer
@@ -72,6 +72,13 @@ export class IssueMainService implements IIssueMainService {
 					alwaysOnTop: false
 				}, 'issue-reporter');
 
+
+				// DEV: list all CSS modules and send them the new window
+				let cssModules: string[] | undefined;
+				if (this.cssDevelopmentService) {
+					cssModules = await this.cssDevelopmentService.getCssModules();
+				}
+
 				// Store into config object URL
 				issueReporterWindowConfigUrl.update({
 					appRoot: this.environmentMainService.appRoot,
@@ -89,10 +96,11 @@ export class IssueMainService implements IIssueMainService {
 						// VSCODE_GLOBALS: NLS
 						messages: globalThis._VSCODE_NLS_MESSAGES,
 						language: globalThis._VSCODE_NLS_LANGUAGE
-					}
+					},
+					cssModules
 				});
 
-				const windowUrl = await this.windowDevService.appendDevSearchParams(FileAccess.asBrowserUri(`vs/workbench/contrib/issue/electron-sandbox/issueReporter${this.environmentMainService.isBuilt ? '' : '-dev'}.html`));
+				const windowUrl = FileAccess.asBrowserUri(`vs/workbench/contrib/issue/electron-sandbox/issueReporter${this.environmentMainService.isBuilt ? '' : '-dev'}.html`);
 				this.issueReporterWindow.loadURL(windowUrl.toString(true));
 
 				this.issueReporterWindow.on('close', () => {

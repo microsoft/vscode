@@ -56,6 +56,7 @@ import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electr
 import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService';
 import { IAuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindows';
 import { IAuxiliaryWindow } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindow';
+import { ICSSDevelopmentService } from 'vs/platform/environment/node/cssDevService';
 
 //#region Helper Interfaces
 
@@ -229,7 +230,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		@IFileService private readonly fileService: IFileService,
 		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
 		@IThemeMainService private readonly themeMainService: IThemeMainService,
-		@IAuxiliaryWindowsMainService private readonly auxiliaryWindowsMainService: IAuxiliaryWindowsMainService
+		@IAuxiliaryWindowsMainService private readonly auxiliaryWindowsMainService: IAuxiliaryWindowsMainService,
+		@ICSSDevelopmentService private readonly cssDevelopmentService: ICSSDevelopmentService
 	) {
 		super();
 
@@ -1474,6 +1476,10 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			policiesData: this.policyService.serialize(),
 			continueOn: this.environmentMainService.continueOn
 		};
+
+		if (this.cssDevelopmentService.isEnabled) {
+			configuration.cssModules = await this.cssDevelopmentService.getCssModules();
+		}
 
 		// New window
 		if (!window) {

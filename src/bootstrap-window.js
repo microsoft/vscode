@@ -118,11 +118,11 @@ const isESM = false;
 
 			// DEV ---------------------------------------------------------------------------------------
 			// DEV: This is for development and enables loading CSS via import-statements via import-maps.
-			// DEV: For each CSS modules that we have we define an entry in the import map that maps to
+			// DEV: For each CSS modules that we have we defined an entry in the import map that maps to
 			// DEV: a blob URL that loads the CSS via a dynamic @import-rule.
 			// DEV ---------------------------------------------------------------------------------------
-			const cssDataBase64 = new URLSearchParams(window.location.search).get('_devCssData');
-			if (cssDataBase64) {
+			if (configuration.cssModules) {
+				performance.mark('code/willAddCssLoader');
 
 				const style = document.createElement('style');
 				style.type = 'text/css';
@@ -140,16 +140,12 @@ const isESM = false;
 				 * @type { { imports: Record<string, string> }}
 				 */
 				const importMap = { imports: {} };
-				const cssData = Uint8Array.from(atob(cssDataBase64), c => c.charCodeAt(0));
-				await new Response(new Blob([cssData], { type: 'application/octet-binary' }).stream().pipeThrough(new DecompressionStream('gzip'))).text().then(value => {
-					const cssModules = value.split(',');
-					for (const cssModule of cssModules) {
-						const cssUrl = new URL(cssModule, baseUrl).href;
-						const jsSrc = `globalThis._VSCODE_CSS_LOAD('${cssUrl}');\n`;
-						const blob = new Blob([jsSrc], { type: 'application/javascript' });
-						importMap.imports[cssUrl] = URL.createObjectURL(blob);
-					}
-				});
+				for (const cssModule of configuration.cssModules) {
+					const cssUrl = new URL(cssModule, baseUrl).href;
+					const jsSrc = `globalThis._VSCODE_CSS_LOAD('${cssUrl}');\n`;
+					const blob = new Blob([jsSrc], { type: 'application/javascript' });
+					importMap.imports[cssUrl] = URL.createObjectURL(blob);
+				}
 
 				const ttp = window.trustedTypes?.createPolicy('vscode-bootstrapImportMap', { createScript(value) { return value; }, });
 				const importMapSrc = JSON.stringify(importMap, undefined, 2);
@@ -159,6 +155,8 @@ const isESM = false;
 				// @ts-ignore
 				importMapScript.textContent = ttp?.createScript(importMapSrc) ?? importMapSrc;
 				document.head.appendChild(importMapScript);
+
+				performance.mark('code/didAddCssLoader');
 			}
 
 			const filePaths = modulePaths.map((modulePath) => (`${configuration.appRoot}/out/${modulePath}.js`));

@@ -45,7 +45,6 @@ import { firstOrDefault } from 'vs/base/common/arrays';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { release } from 'os';
 import { isESM } from 'vs/base/common/amd';
-import { ICSSDevelopmentService } from 'vs/platform/environment/node/cssDevService';
 
 
 export interface IWindowCreationOptions {
@@ -595,7 +594,6 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		@IProductService private readonly productService: IProductService,
 		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
-		@ICSSDevelopmentService private windowDevService: ICSSDevelopmentService,
 		@IStateService stateService: IStateService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
@@ -1037,10 +1035,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		// Indicate we are navigting now
 		this.readyState = ReadyState.NAVIGATING;
 
-		let winUri = FileAccess.asBrowserUri(`vs/code/electron-sandbox/workbench/workbench${this.environmentMainService.isBuilt ? '' : '-dev'}.html`);
-
-		// attach CSS dev data
-		winUri = await this.windowDevService.appendDevSearchParams(winUri);
+		const winUri = FileAccess.asBrowserUri(`vs/code/electron-sandbox/workbench/workbench${this.environmentMainService.isBuilt ? '' : '-dev'}.html`);
 
 		// Load URL
 		this._win.loadURL(winUri.toString(true));

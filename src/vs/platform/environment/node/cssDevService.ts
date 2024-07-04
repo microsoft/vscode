@@ -6,9 +6,8 @@
 import { spawn } from 'child_process';
 import { relative } from 'path';
 import { isESM } from 'vs/base/common/amd';
-import { encodeBase64, VSBuffer } from 'vs/base/common/buffer';
 import { FileAccess } from 'vs/base/common/network';
-import { URI } from 'vs/base/common/uri';
+import { StopWatch } from 'vs/base/common/stopwatch';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -16,18 +15,10 @@ import { ILogService } from 'vs/platform/log/common/log';
 export const ICSSDevelopmentService = createDecorator<ICSSDevelopmentService>('ICSSDevelopmentService');
 
 export interface ICSSDevelopmentService {
-
 	_serviceBrand: undefined;
-
 	isEnabled: boolean;
 	getCssModules(): Promise<string[]>;
-	appendDevSearchParams(uri: URI): Promise<URI>;
 }
-
-export const enum SearchParamsKeys {
-	CSS_DATA = '_devCssData'
-}
-
 
 export class CSSDevelopmentService implements ICSSDevelopmentService {
 
@@ -49,24 +40,6 @@ export class CSSDevelopmentService implements ICSSDevelopmentService {
 		return this._cssModules;
 	}
 
-	async appendDevSearchParams(uri: URI): Promise<URI> {
-
-		if (!this.isEnabled) {
-			return uri;
-		}
-
-		const cssModules = await this.getCssModules();
-
-		const cssData = await new Response((await new Response(cssModules.join(',')).blob()).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer();
-
-		const params = new URLSearchParams(uri.query);
-		params.append(SearchParamsKeys.CSS_DATA, encodeBase64(VSBuffer.wrap(new Uint8Array(cssData))));
-
-		this.logService.info(`[VSCODE_DEV], sending ${cssModules.length} CSS modules (${cssData.byteLength} bytes)`);
-
-		return uri.with({ query: params.toString() });
-	}
-
 	private async computeCssModules(): Promise<string[]> {
 		if (!this.isEnabled) {
 			return [];
@@ -74,6 +47,9 @@ export class CSSDevelopmentService implements ICSSDevelopmentService {
 
 		const rg = await import('@vscode/ripgrep');
 		return await new Promise<string[]>((resolve) => {
+
+			const sw = StopWatch.create();
+
 			const chunks: string[][] = [];
 			const decoder = new TextDecoder();
 			const basePath = FileAccess.asFileUri('').fsPath;
@@ -84,11 +60,13 @@ export class CSSDevelopmentService implements ICSSDevelopmentService {
 				chunks.push(chunk.split('\n').filter(Boolean));
 			});
 			process.on('error', err => {
-				this.logService.error('FAILED to compute CSS data', err);
+				this.logService.error('[CSS_DEV] FAILED to compute CSS data', err);
 				resolve([]);
 			});
 			process.on('close', () => {
-				resolve(chunks.flat().map(path => relative(basePath, path)).filter(Boolean).sort());
+				const result = chunks.flat().map(path => relative(basePath, path)).filter(Boolean).sort();
+				resolve(result);
+				this.logService.info(`[CSS_DEV] DONE, ${result.length} css modules (${Math.round(sw.elapsed())}ms)`);
 			});
 		});
 	}
