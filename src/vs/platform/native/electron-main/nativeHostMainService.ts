@@ -44,6 +44,8 @@ import { IV8Profile } from 'vs/platform/profiling/common/profiling';
 import { IAuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindows';
 import { IAuxiliaryWindow } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindow';
 import { CancellationError } from 'vs/base/common/errors';
+import { IProxyAuthService } from 'vs/platform/native/electron-main/auth';
+import { AuthInfo, Credentials } from 'vs/platform/request/common/request';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -62,7 +64,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		@ILogService private readonly logService: ILogService,
 		@IProductService private readonly productService: IProductService,
 		@IThemeMainService private readonly themeMainService: IThemeMainService,
-		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService
+		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService,
+		@IProxyAuthService private readonly proxyAuthService: IProxyAuthService
 	) {
 		super();
 	}
@@ -770,6 +773,10 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		const session = window?.win?.webContents?.session;
 
 		return session?.resolveProxy(url);
+	}
+
+	async lookupAuthorization(_windowId: number | undefined, authInfo: AuthInfo): Promise<Credentials | undefined> {
+		return this.proxyAuthService.lookupAuthorization(authInfo);
 	}
 
 	async loadCertificates(_windowId: number | undefined): Promise<string[]> {
