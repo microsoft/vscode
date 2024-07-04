@@ -145,6 +145,11 @@ export function matchesSomeScheme(target: URI | string, ...schemes: string[]): b
 	return schemes.some(scheme => matchesScheme(target, scheme));
 }
 
+
+export function matchesHttpScheme(target: URI | string,): boolean {
+	return matchesSomeScheme(target, Schemas.http, Schemas.https);
+}
+
 export const connectionTokenCookieName = 'vscode-tkn';
 export const connectionTokenQueryName = 'tkn';
 
