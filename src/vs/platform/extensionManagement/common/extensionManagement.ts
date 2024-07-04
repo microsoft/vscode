@@ -538,6 +538,7 @@ export interface IExtensionManagementService {
 	getExtensionsControlManifest(): Promise<IExtensionsControlManifest>;
 	copyExtensions(fromProfileLocation: URI, toProfileLocation: URI): Promise<void>;
 	updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>, profileLocation: URI): Promise<ILocalExtension>;
+	resetPinnedStateForAllUserExtensions(pinned: boolean): Promise<void>;
 
 	download(extension: IGalleryExtension, operation: InstallOperation, donotVerifySignature: boolean): Promise<URI>;
 
