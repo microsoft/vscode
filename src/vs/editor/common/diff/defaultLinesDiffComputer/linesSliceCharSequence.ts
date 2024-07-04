@@ -167,7 +167,7 @@ export class LinesSliceCharSequence implements ISequence {
 	}
 
 	public isEmpty(offset: number): boolean {
-		return this.lines[offset].trim().length === 0;
+		return this.lines[offset] ? this.lines[offset].trim().length === 0 : true;
 	}
 }
 
