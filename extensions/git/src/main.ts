@@ -48,7 +48,7 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 	}
 
 	const info = await findGit(pathHints, gitPath => {
-		logger.info(l10n.t('Validating found git in: "{0}"', gitPath));
+		logger.info(l10n.t('[main] Validating found git in: "{0}"', gitPath));
 		if (excludes.length === 0) {
 			return true;
 		}
@@ -56,7 +56,7 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 		const normalized = path.normalize(gitPath).replace(/[\r\n]+$/, '');
 		const skip = excludes.some(e => normalized.startsWith(e));
 		if (skip) {
-			logger.info(l10n.t('Skipped found git in: "{0}"', gitPath));
+			logger.info(l10n.t('[main] Skipped found git in: "{0}"', gitPath));
 		}
 		return !skip;
 	}, logger);
@@ -66,7 +66,7 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 	try {
 		ipcServer = await createIPCServer(context.storagePath);
 	} catch (err) {
-		logger.error(`Failed to create git IPC: ${err}`);
+		logger.error(`[main] Failed to create git IPC: ${err}`);
 	}
 
 	const askpass = new Askpass(ipcServer);
@@ -79,7 +79,7 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 	const terminalEnvironmentManager = new TerminalEnvironmentManager(context, [askpass, gitEditor, ipcServer]);
 	disposables.push(terminalEnvironmentManager);
 
-	logger.info(l10n.t('Using git "{0}" from "{1}"', info.version, info.path));
+	logger.info(l10n.t('[main] Using git "{0}" from "{1}"', info.version, info.path));
 
 	const git = new Git({
 		gitPath: info.path,
@@ -187,7 +187,7 @@ export async function _activate(context: ExtensionContext): Promise<GitExtension
 	disposables.push(logger);
 
 	const onDidChangeLogLevel = (logLevel: LogLevel) => {
-		logger.appendLine(l10n.t('Log level: {0}', LogLevel[logLevel]));
+		logger.appendLine(l10n.t('[main] Log level: {0}', LogLevel[logLevel]));
 	};
 	disposables.push(logger.onDidChangeLogLevel(onDidChangeLogLevel));
 	onDidChangeLogLevel(logger.logLevel);
@@ -212,12 +212,12 @@ export async function _activate(context: ExtensionContext): Promise<GitExtension
 		const model = await createModel(context, logger, telemetryReporter, disposables);
 		return new GitExtensionImpl(model);
 	} catch (err) {
+		console.warn(err.message);
+		logger.warn(`[main] Failed to create model: ${err}`);
+
 		if (!/Git installation not found/.test(err.message || '')) {
 			throw err;
 		}
-
-		console.warn(err.message);
-		logger.warn(err.message);
 
 		/* __GDPR__
 			"git.missing" : {
