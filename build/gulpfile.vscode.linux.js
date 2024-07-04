@@ -13,7 +13,6 @@ const vfs = require('vinyl-fs');
 const { rimraf } = require('./lib/util');
 const { getVersion } = require('./lib/getVersion');
 const task = require('./lib/task');
-const { date } = require('./lib/date');
 const packageJson = require('../package.json');
 const product = require('../product.json');
 const dependenciesGenerator = require('./linux/dependencies-generator');
@@ -26,7 +25,7 @@ const exec = util.promisify(cp.exec);
 const root = path.dirname(__dirname);
 const commit = getVersion(root);
 
-const linuxPackageRevision = Math.floor(date.getTime() / 1000);
+const linuxPackageRevision = Math.floor(new Date().getTime() / 1000);
 
 /**
  * @param {string} arch
