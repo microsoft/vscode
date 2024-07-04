@@ -14,6 +14,9 @@ function main() {
     if (!quality) {
         throw new Error('Missing VSCODE_QUALITY, skipping mixin');
     }
+    log(`process.env.BUILD_ARTIFACTSTAGINGDIRECTORY: ${process.env['BUILD_ARTIFACTSTAGINGDIRECTORY']}`);
+    log(`process.env.BUILD_SOURCEVERSION: ${process.env['BUILD_SOURCEVERSION']}`);
+    log(`process.env.AGENT_BUILDDIRECTORY: ${process.env['AGENT_BUILDDIRECTORY']}`);
     log(`Mixing in distro quality...`);
     const basePath = `.build/distro/mixin/${quality}`;
     for (const name of fs.readdirSync(basePath)) {
