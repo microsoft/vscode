@@ -7,7 +7,6 @@
 'use strict';
 
 /**
- * @import { IProductConfiguration } from './vs/base/common/product'
  * @import { INLSConfiguration } from './vs/nls'
  * @import { NativeParsedArgs } from './vs/platform/environment/common/argv'
  */
@@ -23,9 +22,7 @@ const bootstrapNode = require('./bootstrap-node');
 const { getUserDataPath } = require('./vs/platform/environment/node/userDataPath');
 const { parse } = require('./vs/base/common/jsonc');
 const { getUNCHost, addUNCHostToAllowlist } = require('./vs/base/node/unc');
-/** @type {Partial<IProductConfiguration>} */
-// @ts-ignore
-const product = require('../product.json');
+const product = require('./bootstrap-meta').product;
 const { app, protocol, crashReporter, Menu } = require('electron');
 
 // Enable portable support
