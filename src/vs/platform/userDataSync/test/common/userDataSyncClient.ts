@@ -355,7 +355,7 @@ export class TestUserDataSyncUtilService implements IUserDataSyncUtilService {
 
 	_serviceBrand: any;
 
-	async resolveDefaultIgnoredSettings(): Promise<string[]> {
+	async resolveDefaultCoreIgnoredSettings(): Promise<string[]> {
 		return getDefaultIgnoredSettings();
 	}
 

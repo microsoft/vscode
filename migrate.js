@@ -65,6 +65,7 @@ function migrateOne(filePath, fileContents) {
 			|| filePath.endsWith('vs/base/node/languagePacks.js')
 			|| filePath.endsWith('vs/base/node/unc.js')
 			|| filePath.endsWith('vs/base/node/nls.js')
+			|| filePath.endsWith('bootstrap-meta.js')
 		) {
 			// Create .cjs duplicates of these files
 			const cjsFilePath = filePath.replace(/\.js$/, '.cjs');

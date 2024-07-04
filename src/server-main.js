@@ -18,7 +18,6 @@
 // ESM-uncomment-end
 
 /**
- * @import { IProductConfiguration } from './vs/base/common/product'
  * @import { INLSConfiguration } from './vs/nls'
  */
 
@@ -35,9 +34,7 @@ const isESM = false;
 const requireExtension = (isESM ? '.cjs' : '');
 
 const performance = require('perf_hooks').performance;
-/** @type {Partial<IProductConfiguration>} */
-// @ts-ignore
-const product = require('../product.json');
+const product = require('./bootstrap-meta').product;
 const readline = require('readline');
 const http = require('http');
 const { resolveNLSConfiguration } = require(`./vs/base/node/nls${requireExtension}`);
