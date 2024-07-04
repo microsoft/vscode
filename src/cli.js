@@ -6,10 +6,6 @@
 //@ts-check
 'use strict';
 
-/**
- * @import { IProductConfiguration } from './vs/base/common/product'
- */
-
 // Delete `VSCODE_CWD` very early even before
 // importing bootstrap files. We have seen
 // reports where `code .` would use the wrong
@@ -20,9 +16,7 @@ delete process.env['VSCODE_CWD'];
 
 const bootstrap = require('./bootstrap');
 const bootstrapNode = require('./bootstrap-node');
-/** @type {Partial<IProductConfiguration>} */
-// @ts-ignore
-const product = require('../product.json');
+const product = require('./bootstrap-meta').product;
 const { resolveNLSConfiguration } = require('./vs/base/node/nls');
 
 async function start() {

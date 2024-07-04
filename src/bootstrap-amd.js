@@ -8,6 +8,7 @@
 
 /**
  * @typedef {import('./vs/nls').INLSConfiguration} INLSConfiguration
+ * @import { IProductConfiguration } from './vs/base/common/product'
  */
 
 // Store the node.js require function in a variable
@@ -19,8 +20,8 @@ const nodeRequire = require;
 globalThis._VSCODE_NODE_MODULES = new Proxy(Object.create(null), { get: (_target, mod) => nodeRequire(String(mod)) });
 
 // VSCODE_GLOBALS: package/product.json
-/** @type Record<string, any> */
-globalThis._VSCODE_PRODUCT_JSON = require('../product.json');
+/** @type Partial<IProductConfiguration> */
+globalThis._VSCODE_PRODUCT_JSON = require('./bootstrap-meta').product;
 if (process.env['VSCODE_DEV']) {
 	// Patch product overrides when running out of sources
 	try {
@@ -29,7 +30,7 @@ if (process.env['VSCODE_DEV']) {
 		globalThis._VSCODE_PRODUCT_JSON = Object.assign(globalThis._VSCODE_PRODUCT_JSON, overrides);
 	} catch (error) { /* ignore */ }
 }
-globalThis._VSCODE_PACKAGE_JSON = require('../package.json');
+globalThis._VSCODE_PACKAGE_JSON = require('./bootstrap-meta').pkg;
 
 // @ts-ignore
 const loader = require('./vs/loader');
