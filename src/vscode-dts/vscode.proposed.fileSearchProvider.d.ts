@@ -8,14 +8,67 @@ declare module 'vscode' {
 	// https://github.com/microsoft/vscode/issues/73524
 
 	/**
+	 * Options unique to finding files to target
+	 */
+	export interface FileTargetOptions {
+		/**
+		 * The root folder to search within.
+		 */
+		folder: Uri;
+
+		/**
+		 * Files that match an `includes` glob pattern should be included in the search.
+		 */
+		includes: string[];
+
+		/**
+		 * Files that match an `excludes` glob pattern should be excluded from the search.
+		 */
+		excludes: GlobPattern[];
+
+		/**
+		 * Whether symlinks should be followed while searching.
+		 * See the vscode setting `"search.followSymlinks"` for more information.
+		 */
+		followSymlinks: boolean;
+
+		/**
+		 * Which file locations we should look for ignore (.gitignore or .ignore) files to respect.
+		 * Any time that `parent` or `global` is set to `true`, `local` will also be `true`.
+		 */
+		useIgnoreFiles: {
+			/**
+			 * Use ignore files at the current workspace root.
+			 */
+			local: boolean;
+			/**
+			 * Use ignore files at the parent directory.
+			 */
+			parent: boolean;
+			/**
+			 * Use global ignore files.
+			 */
+			global: boolean;
+		};
+	}
+
+	/**
 	 * Options that apply to file search.
 	 */
-	export interface FileSearchOptions extends SearchProviderOptions {
+	export interface FileSearchOptions {
+		/**
+		 * Options for choosing which files to include in the search
+		 */
+		fileTargetOptions: FileTargetOptions;
 		/**
 		 * A CancellationToken that represents the session for this search query. If the provider chooses to, this object can be used as the key for a cache,
 		 * and searches with the same session object can search the same cache. When the token is cancelled, the session is complete and the cache can be cleared.
 		 */
 		session: CancellationToken;
+		/**
+		 * The maximum number of results to be returned.
+		 */
+		maxResults: number;
 	}
 
 	/**
@@ -32,9 +85,11 @@ declare module 'vscode' {
 		 * Provide the set of files that match a certain file path pattern.
 		 * @param pattern The search pattern to match against file paths.
 		 * @param options A set of options to consider while searching files.
+		 * @param session A CancellationToken that represents the session for this search query. If the provider chooses to, this object can be used as the key for a cache,
+		 * and searches with the same session object can search the same cache. When the token is cancelled, the session is complete and the cache can be cleared.
 		 * @param token A cancellation token.
 		 */
-		provideFileSearchResults(pattern: string, options: FileSearchOptions, token: CancellationToken): ProviderResult<Uri[]>;
+		provideFileSearchResults(pattern: string, options: FileSearchOptions, session: CancellationToken, token: CancellationToken): ProviderResult<Uri[]>;
 	}
 
 	export namespace workspace {

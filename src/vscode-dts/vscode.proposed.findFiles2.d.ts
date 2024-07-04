@@ -5,9 +5,7 @@
 
 declare module 'vscode' {
 
-	export interface FindFiles2Options {
-		// note: this is just FindTextInFilesOptions without select properties (include, previewOptions, beforeContext, afterContext)
-
+	export interface FindFilesTargetOptions {
 		/**
 		 * A {@link GlobPattern glob pattern} that defines files and folders to exclude. The glob pattern
 		 * will be matched against the file paths of resulting matches relative to their workspace.
@@ -18,11 +16,6 @@ declare module 'vscode' {
 		 * Which settings to follow when searching for files. Defaults to {@link ExcludeSettingOptions.searchAndFilesExclude}.
 		 */
 		useExcludeSettings?: ExcludeSettingOptions;
-
-		/**
-		 * The maximum number of results to search for
-		 */
-		maxResults?: number;
 
 		/**
 		 * Which file locations we should look for ignore (.gitignore or .ignore) files to respect.
@@ -51,6 +44,18 @@ declare module 'vscode' {
 		 * For more info, see the setting listed above.
 		 */
 		followSymlinks?: boolean;
+	}
+
+	export interface FindFiles2Options {
+		/**
+		 * options that dictate which files to target
+		 */
+		fileTargetOptions?: FindFilesTargetOptions;
+
+		/**
+		 * The maximum number of results to search for
+		 */
+		maxResults?: number;
 	}
 
 	/*

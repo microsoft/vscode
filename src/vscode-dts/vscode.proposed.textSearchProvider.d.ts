@@ -37,54 +37,11 @@ declare module 'vscode' {
 		isWordMatch?: boolean;
 	}
 
-	/**
-	 * Options common to file and text search
-	 */
-	export interface SearchProviderOptions {
+	export interface TextSearchProviderFileTargetOptions extends FileTargetOptions {
 		/**
-		 * The root folder to search within.
+		 * exclude files larger than `maxFileSize` in bytes.
 		 */
-		folder: Uri;
-
-		/**
-		 * Files that match an `includes` glob pattern should be included in the search.
-		 */
-		includes: string[];
-
-		/**
-		 * Files that match an `excludes` glob pattern should be excluded from the search.
-		 */
-		excludes: GlobPattern[];
-
-		/**
-		 * Whether symlinks should be followed while searching.
-		 * See the vscode setting `"search.followSymlinks"` for more information.
-		 */
-		followSymlinks: boolean;
-
-		/**
-		 * Which file locations we should look for ignore (.gitignore or .ignore) files to respect.
-		 * Any time that `parent` or `global` is set to `true`, `local` will also be `true`.
-		 */
-		useIgnoreFiles: {
-			/**
-			 * Use ignore files at the current workspace root.
-			 */
-			local: boolean;
-			/**
-			 * Use ignore files at the parent directory.
-			 */
-			parent: boolean;
-			/**
-			 * Use global ignore files.
-			 */
-			global: boolean;
-		};
-
-		/**
-		 * The maximum number of results to be returned.
-		 */
-		maxResults: number;
+		maxFileSize: number;
 	}
 
 	/**
@@ -105,9 +62,9 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Options that apply to text search.
+	 * Options that dictate how the search query is presented
 	 */
-	export interface TextSearchProviderOptions extends SearchProviderOptions {
+	export interface TextResultPresentationOptions {
 
 		/**
 		 * Options to specify the size of the result text preview.
@@ -115,20 +72,35 @@ declare module 'vscode' {
 		previewOptions: TextSearchPreviewOptions;
 
 		/**
-		 * Exclude files larger than `maxFileSize` in bytes.
+		 * Number of lines of context to include before and after each match.
 		 */
-		maxFileSize: number;
+		surroundingContext: number;
+	}
+
+	/**
+	 * Options that apply to text search.
+	 */
+	export interface TextSearchProviderOptions {
+		/**
+		 * Options for choosing which files to include in the search
+		 */
+		fileTargetOptions: TextSearchProviderFileTargetOptions;
+
+		/**
+		 * Options that dictate how the search query is presented
+		 */
+		textSearchResultPreviewOptions: TextResultPresentationOptions
+
+		/**
+		 * The maximum number of results to be returned.
+		 */
+		maxResults: number;
 
 		/**
 		 * Interpret files using this encoding.
 		 * See the vscode setting `"files.encoding"`
 		 */
 		encoding: string;
-
-		/**
-		 * Number of lines of context to include before and after each match.
-		 */
-		surroundingContext: number;
 	}
 
 	/**
@@ -241,7 +213,7 @@ declare module 'vscode' {
 		 * @param progress A progress callback that must be invoked for all results.
 		 * @param token A cancellation token.
 		 */
-		provideTextSearchResults(query: TextSearchQuery, options: TextSearchProviderOptions, progress: Progress<TextSearchResult>, token: CancellationToken): ProviderResult<TextSearchComplete>;
+		provideTextSearchResults(query: TextSearchQuery, Options: TextSearchProviderOptions, progress: Progress<TextSearchResult>, token: CancellationToken): ProviderResult<TextSearchComplete>;
 	}
 
 	export namespace workspace {

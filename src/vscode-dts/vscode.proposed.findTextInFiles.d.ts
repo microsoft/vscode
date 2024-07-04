@@ -7,22 +7,47 @@ declare module 'vscode' {
 
 	// https://github.com/microsoft/vscode/issues/59924
 
-	/**
-	 * Options that can be set on a findTextInFiles search.
-	 */
-	export interface FindTextInFilesOptions extends FindFiles2Options {
+	export interface FindTextInFilesTargetOptions extends FindFilesTargetOptions {
+
 		/**
 		 * A {@link GlobPattern glob pattern} that defines the files to search for. The glob pattern
 		 * will be matched against the file paths of files relative to their workspace. Use a {@link RelativePattern relative pattern}
 		 * to restrict the search results to a {@link WorkspaceFolder workspace folder}.
 		 */
 		include?: GlobPattern;
+	}
+
+	/**
+	 * Options that can be set on a findTextInFiles search.
+	 */
+	export interface FindTextInFilesOptions {
+		/**
+		 * options that dictate which files to target
+		 */
+		fileTargetOptions?: FindTextInFilesTargetOptions;
+
+		/**
+		 * Options that dictate how the search query is presented
+		 */
+		presentationOptions?: FindTextInFilesResultPresentationOptions;
+
+		/**
+		 * The maximum number of results to search for
+		 */
+		maxResults?: number;
 
 		/**
 		 * Interpret files using this encoding.
 		 * See the vscode setting `"files.encoding"`
 		 */
 		encoding?: string;
+
+	}
+
+	/**
+	 * Options that dictate how the search query is presented
+	 */
+	export interface FindTextInFilesResultPresentationOptions {
 
 		/**
 		 * Options to specify the size of the result text preview.
@@ -39,8 +64,8 @@ declare module 'vscode' {
 		/**
 		 * Search text in files across all {@link workspace.workspaceFolders workspace folders} in the workspace.
 		 * @param query The query parameters for the search - the search string, whether it's case-sensitive, or a regex, or matches whole words.
-		 * @param options An optional set of query options. Include and exclude patterns, maxResults, etc.
 		 * @param callback A callback, called for each result
+		 * @param options A set of query options.
 		 * @param token A token that can be used to signal cancellation to the underlying search engine.
 		 * @return A thenable that resolves when the search is complete.
 		 */
