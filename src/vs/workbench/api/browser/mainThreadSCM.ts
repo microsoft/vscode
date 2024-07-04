@@ -624,17 +624,6 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		provider.$updateGroupContextValue(groupHandle, contextValue);
 	}
 
-	$updateGroupContextValue(sourceControlHandle: number, groupHandle: number, contextValue: string): void {
-		const repository = this._repositories.get(sourceControlHandle);
-
-		if (!repository) {
-			return;
-		}
-
-		const provider = repository.provider as MainThreadSCMProvider;
-		provider.$updateGroupContextValue(groupHandle, contextValue);
-	}
-
 	async $spliceResourceStates(sourceControlHandle: number, splices: SCMRawResourceSplices[]): Promise<void> {
 		await this._repositoryBarriers.get(sourceControlHandle)?.wait();
 		const repository = this._repositories.get(sourceControlHandle);
