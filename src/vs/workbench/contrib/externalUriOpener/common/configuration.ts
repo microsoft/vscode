@@ -67,9 +67,9 @@ export const externalUriOpenersConfigurationNode: IConfigurationNode = {
 export const defaultBrowserNode: IConfigurationNode = {
 	...workbenchConfigurationNodeBase,
 	properties: {
-		'workbench.defaultBrowser': {
+		'workbench.browser': {
 			type: 'string',
-			markdownDescription: nls.localize('defaultBrowser', "Configure the default browser to use for opening http or https links"),
+			markdownDescription: nls.localize('browser', "Configure the default browser to use for opening http or https links. This can either be the name of the browser binary or an absolute path."),
 
 		}
 	},
