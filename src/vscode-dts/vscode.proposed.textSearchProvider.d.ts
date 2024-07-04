@@ -57,28 +57,11 @@ declare module 'vscode' {
 		excludes: GlobPattern[];
 
 		/**
-		 * Whether files located at the workspace root that exclude files, like .gitignore, should be respected.
-		 * See the vscode setting `"search.useIgnoreFiles"` for more information.
-		 */
-		useLocalIgnoreFiles: boolean;
-
-		/**
 		 * Whether symlinks should be followed while searching.
 		 * See the vscode setting `"search.followSymlinks"` for more information.
 		 */
 		followSymlinks: boolean;
 
-		/**
-		 * Whether global files that exclude files, like .gitignore, should be respected.
-		 * See the vscode setting `"search.useGlobalIgnoreFiles"` for more information.
-		 */
-		useGlobalIgnoreFiles: boolean;
-
-		/**
-		 * Whether files in parent directories that exclude files, like .gitignore, should be respected.
-		 * See the vscode setting `"search.useParentIgnoreFiles"` for more information.
-		 */
-		useParentIgnoreFiles: boolean;
 		/**
 		 * Which file locations we should look for ignore (.gitignore or .ignore) files to respect.
 		 * Any time that `parent` or `global` is set to `true`, `local` will also be `true`.
