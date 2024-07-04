@@ -488,16 +488,22 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		window?.setDocumentEdited(edited);
 	}
 
+
+	private async openInExternalBrowser(url: string, defaultBrowser: string) {
+		const { default: open } = await import('open');
+		const appName = Object.hasOwn(open.apps, defaultBrowser) ? open.apps[(defaultBrowser as keyof typeof open['apps'])] : defaultBrowser;
+		await open(url, {
+			app: {
+				name: appName
+			}
+		});
+	}
+
 	async openExternal(windowId: number | undefined, url: string): Promise<boolean> {
 		this.environmentMainService.unsetSnapExportedVariables();
 		const defaultBrowser = this.configurationService.getValue<string>('workbench.defaultBrowser');
 		if (matchesHttpScheme(url) && defaultBrowser) {
-			const { default: open } = await import('open');
-			await open(url, {
-				app: {
-					name: defaultBrowser
-				}
-			});
+			await this.openInExternalBrowser(url, defaultBrowser);
 		} else {
 			shell.openExternal(url);
 		}
