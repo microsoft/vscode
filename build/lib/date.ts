@@ -22,4 +22,4 @@ function getRoundedBuildDate() {
  * at the same time. The current time is rounded up or down to the
  * closest hour.
  */
-export const date = getRoundedBuildDate();
+export const date = getRoundedBuildDate().toISOString();
