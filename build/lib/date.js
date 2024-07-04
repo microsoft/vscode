@@ -20,5 +20,5 @@ function getRoundedBuildDate() {
  * at the same time. The current time is rounded up or down to the
  * closest hour.
  */
-exports.date = getRoundedBuildDate();
+exports.date = getRoundedBuildDate().toISOString();
 //# sourceMappingURL=date.js.map
