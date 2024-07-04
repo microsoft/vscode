@@ -26,7 +26,7 @@ declare module 'vscode' {
 		/**
 		 * The ranges which allow new comment threads creation.
 		 */
-		ranges?: Range[]
+		ranges?: Range[];
 	}
 
 	export interface CommentController {

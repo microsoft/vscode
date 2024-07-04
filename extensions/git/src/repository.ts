@@ -1112,8 +1112,8 @@ export class Repository implements Disposable {
 		return this.run(Operation.Diff, () => this.repository.diffBetweenShortStat(ref1, ref2));
 	}
 
-	getMergeBase(ref1: string, ref2: string): Promise<string | undefined> {
-		return this.run(Operation.MergeBase, () => this.repository.getMergeBase(ref1, ref2));
+	getMergeBase(ref1: string, ref2: string, ...refs: string[]): Promise<string | undefined> {
+		return this.run(Operation.MergeBase, () => this.repository.getMergeBase(ref1, ref2, ...refs));
 	}
 
 	async hashObject(data: string): Promise<string> {

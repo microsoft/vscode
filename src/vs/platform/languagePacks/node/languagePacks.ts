@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import { createHash } from 'crypto';
 import { equals } from 'vs/base/common/arrays';
 import { Queue } from 'vs/base/common/async';
@@ -180,7 +181,7 @@ class LanguagePacksCache extends Disposable {
 	private withLanguagePacks<T>(fn: (languagePacks: { [language: string]: ILanguagePack }) => T | null = () => null): Promise<T> {
 		return this.languagePacksFileLimiter.queue(() => {
 			let result: T | null = null;
-			return Promises.readFile(this.languagePacksFilePath, 'utf8')
+			return fs.promises.readFile(this.languagePacksFilePath, 'utf8')
 				.then(undefined, err => err.code === 'ENOENT' ? Promise.resolve('{}') : Promise.reject(err))
 				.then<{ [language: string]: ILanguagePack }>(raw => { try { return JSON.parse(raw); } catch (e) { return {}; } })
 				.then(languagePacks => { result = fn(languagePacks); return languagePacks; })

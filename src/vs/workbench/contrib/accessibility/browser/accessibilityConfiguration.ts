@@ -662,6 +662,11 @@ const configuration: IConfigurationNode = {
 				'announcement': 'never'
 			}
 		},
+		'accessibility.underlineLinks': {
+			'type': 'boolean',
+			'description': localize('accessibility.underlineLinks', "Controls whether links should be underlined in the workbench."),
+			'default': false,
+		},
 	}
 };
 

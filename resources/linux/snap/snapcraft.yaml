@@ -77,8 +77,8 @@ parts:
 
 apps:
   @@NAME@@:
-    command: electron-launch $SNAP/usr/share/@@NAME@@/bin/@@NAME@@
+    command: electron-launch $SNAP/usr/share/@@NAME@@/bin/@@NAME@@ --no-sandbox
     common-id: @@NAME@@.desktop
 
   url-handler:
-    command: electron-launch $SNAP/usr/share/@@NAME@@/bin/@@NAME@@ --open-url
+    command: electron-launch $SNAP/usr/share/@@NAME@@/bin/@@NAME@@ --open-url --no-sandbox

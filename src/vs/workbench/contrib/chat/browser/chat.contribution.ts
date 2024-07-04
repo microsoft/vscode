@@ -60,7 +60,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import '../common/chatColors';
 import { registerChatContextActions } from 'vs/workbench/contrib/chat/browser/actions/chatContextActions';
 import { registerChatDeveloperActions } from 'vs/workbench/contrib/chat/browser/actions/chatDeveloperActions';
-import { LanguageModelToolsExtensionPointHandler } from 'vs/workbench/contrib/chat/common/tools/toolsContributions';
+import { LanguageModelToolsExtensionPointHandler } from 'vs/workbench/contrib/chat/common/tools/languageModelToolsContribution';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -176,7 +176,8 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 			command: 'clear',
 			detail: nls.localize('clear', "Start a new chat"),
 			sortText: 'z2_clear',
-			executeImmediately: true
+			executeImmediately: true,
+			locations: [ChatAgentLocation.Panel]
 		}, async () => {
 			commandService.executeCommand(ACTION_ID_NEW_CHAT);
 		}));
@@ -184,7 +185,8 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 			command: 'help',
 			detail: '',
 			sortText: 'z1_help',
-			executeImmediately: true
+			executeImmediately: true,
+			locations: [ChatAgentLocation.Panel]
 		}, async (prompt, progress) => {
 			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Panel);
 			const agents = chatAgentService.getAgents();

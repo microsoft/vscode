@@ -49,6 +49,14 @@ export interface IPromptInputModelState {
 	readonly ghostTextIndex: number;
 }
 
+export interface ISerializedPromptInputModel {
+	readonly modelState: IPromptInputModelState;
+	readonly commandStartX: number;
+	readonly lastPromptLine: string | undefined;
+	readonly continuationPrompt: string | undefined;
+	readonly lastUserInput: string;
+}
+
 export class PromptInputModel extends Disposable implements IPromptInputModel {
 	private _state: PromptInputState = PromptInputState.Unknown;
 
@@ -140,6 +148,26 @@ export class PromptInputModel extends Disposable implements IPromptInputModel {
 			result += value.substring(this.cursorIndex);
 		}
 		return result;
+	}
+
+	serialize(): ISerializedPromptInputModel {
+		return {
+			modelState: this._createStateObject(),
+			commandStartX: this._commandStartX,
+			lastPromptLine: this._lastPromptLine,
+			continuationPrompt: this._continuationPrompt,
+			lastUserInput: this._lastUserInput
+		};
+	}
+
+	deserialize(serialized: ISerializedPromptInputModel): void {
+		this._value = serialized.modelState.value;
+		this._cursorIndex = serialized.modelState.cursorIndex;
+		this._ghostTextIndex = serialized.modelState.ghostTextIndex;
+		this._commandStartX = serialized.commandStartX;
+		this._lastPromptLine = serialized.lastPromptLine;
+		this._continuationPrompt = serialized.continuationPrompt;
+		this._lastUserInput = serialized.lastUserInput;
 	}
 
 	private _handleCommandStart(command: { marker: IMarker }) {

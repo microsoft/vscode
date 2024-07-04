@@ -42,6 +42,7 @@ import 'vs/editor/contrib/links/browser/links';
 import 'vs/editor/contrib/longLinesHelper/browser/longLinesHelper';
 import 'vs/editor/contrib/multicursor/browser/multicursor';
 import 'vs/editor/contrib/inlineEdit/browser/inlineEdit.contribution';
+import 'vs/editor/contrib/inlineEdits/browser/inlineEdits.contribution';
 import 'vs/editor/contrib/parameterHints/browser/parameterHints';
 import 'vs/editor/contrib/placeholderText/browser/placeholderText.contribution';
 import 'vs/editor/contrib/rename/browser/rename';

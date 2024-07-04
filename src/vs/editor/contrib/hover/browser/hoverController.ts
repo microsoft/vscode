@@ -417,24 +417,24 @@ export class HoverController extends Disposable implements IEditorContribution {
 		return this._contentWidget?.widget.isResizing || false;
 	}
 
-	public focusedMarkdownHoverIndex(): number {
-		return this._getOrCreateContentWidget().focusedMarkdownHoverIndex();
+	public focusedHoverPartIndex(): number {
+		return this._getOrCreateContentWidget().focusedHoverPartIndex();
 	}
 
-	public markdownHoverContentAtIndex(index: number): string {
-		return this._getOrCreateContentWidget().markdownHoverContentAtIndex(index);
+	public doesHoverAtIndexSupportVerbosityAction(index: number, action: HoverVerbosityAction): boolean {
+		return this._getOrCreateContentWidget().doesHoverAtIndexSupportVerbosityAction(index, action);
 	}
 
-	public doesMarkdownHoverAtIndexSupportVerbosityAction(index: number, action: HoverVerbosityAction): boolean {
-		return this._getOrCreateContentWidget().doesMarkdownHoverAtIndexSupportVerbosityAction(index, action);
-	}
-
-	public updateMarkdownHoverVerbosityLevel(action: HoverVerbosityAction, index?: number, focus?: boolean): void {
-		this._getOrCreateContentWidget().updateMarkdownHoverVerbosityLevel(action, index, focus);
+	public updateHoverVerbosityLevel(action: HoverVerbosityAction, index: number, focus?: boolean): void {
+		this._getOrCreateContentWidget().updateHoverVerbosityLevel(action, index, focus);
 	}
 
 	public focus(): void {
 		this._contentWidget?.focus();
+	}
+
+	public focusHoverPartWithIndex(index: number): void {
+		this._contentWidget?.focusHoverPartWithIndex(index);
 	}
 
 	public scrollUp(): void {
@@ -471,6 +471,14 @@ export class HoverController extends Disposable implements IEditorContribution {
 
 	public getWidgetContent(): string | undefined {
 		return this._contentWidget?.getWidgetContent();
+	}
+
+	public getAccessibleWidgetContent(): string | undefined {
+		return this._contentWidget?.getAccessibleWidgetContent();
+	}
+
+	public getAccessibleWidgetContentAtIndex(index: number): string | undefined {
+		return this._contentWidget?.getAccessibleWidgetContentAtIndex(index);
 	}
 
 	public get isColorPickerVisible(): boolean | undefined {

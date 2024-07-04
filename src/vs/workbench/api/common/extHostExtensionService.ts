@@ -498,9 +498,10 @@ export abstract class AbstractExtHostExtensionService extends Disposable impleme
 	private _loadExtensionContext(extensionDescription: IExtensionDescription): Promise<vscode.ExtensionContext> {
 
 		const lanuageModelAccessInformation = this._extHostLanguageModels.createLanguageModelAccessInformation(extensionDescription);
-		const globalState = new ExtensionGlobalMemento(extensionDescription, this._storage);
-		const workspaceState = new ExtensionMemento(extensionDescription.identifier.value, false, this._storage);
-		const secrets = new ExtensionSecrets(extensionDescription, this._secretState);
+		// TODO: These should probably be disposed when the extension deactivates
+		const globalState = this._register(new ExtensionGlobalMemento(extensionDescription, this._storage));
+		const workspaceState = this._register(new ExtensionMemento(extensionDescription.identifier.value, false, this._storage));
+		const secrets = this._register(new ExtensionSecrets(extensionDescription, this._secretState));
 		const extensionMode = extensionDescription.isUnderDevelopment
 			? (this._initData.environment.extensionTestsLocationURI ? ExtensionMode.Test : ExtensionMode.Development)
 			: ExtensionMode.Production;

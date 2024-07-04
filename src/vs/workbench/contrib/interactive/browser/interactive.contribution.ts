@@ -458,6 +458,11 @@ registerAction2(class extends Action2 {
 			title: localize2('interactive.execute', 'Execute Code'),
 			category: interactiveWindowCategory,
 			keybinding: [{
+				// when: NOTEBOOK_CELL_LIST_FOCUSED,
+				when: ContextKeyExpr.equals('activeEditor', 'workbench.editor.interactive'),
+				primary: KeyMod.CtrlCmd | KeyCode.Enter,
+				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
+			}, {
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals('activeEditor', 'workbench.editor.interactive'),
 					ContextKeyExpr.equals('config.interactiveWindow.executeWithShiftEnter', true)
@@ -470,11 +475,6 @@ registerAction2(class extends Action2 {
 					ContextKeyExpr.equals('config.interactiveWindow.executeWithShiftEnter', false)
 				),
 				primary: KeyCode.Enter,
-				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
-			}, {
-				// when: NOTEBOOK_CELL_LIST_FOCUSED,
-				when: ContextKeyExpr.equals('activeEditor', 'workbench.editor.interactive'),
-				primary: KeyMod.CtrlCmd | KeyCode.Enter,
 				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
 			}],
 			menu: [

@@ -6,9 +6,8 @@
 import { IDimension } from 'vs/base/browser/dom';
 import { findLast } from 'vs/base/common/arraysFind';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { isHotReloadEnabled, registerHotReloadHandler } from 'vs/base/common/hotReload';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, IReader, ISettableObservable, autorun, autorunHandleChanges, autorunOpts, autorunWithStore, observableSignalFromEvent, observableValue, transaction } from 'vs/base/common/observable';
+import { IObservable, ISettableObservable, autorun, autorunHandleChanges, autorunOpts, autorunWithStore, observableValue, transaction } from 'vs/base/common/observable';
 import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
 import { ICodeEditor, IOverlayWidget, IViewZone } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
@@ -296,29 +295,6 @@ export function applyStyle(domNode: HTMLElement, style: Partial<{ [TKey in keyof
 			domNode.style[key as any] = val as any;
 		}
 	});
-}
-
-export function readHotReloadableExport<T>(value: T, reader: IReader | undefined): T {
-	observeHotReloadableExports([value], reader);
-	return value;
-}
-
-export function observeHotReloadableExports(values: any[], reader: IReader | undefined): void {
-	if (isHotReloadEnabled()) {
-		const o = observableSignalFromEvent(
-			'reload',
-			event => registerHotReloadHandler(({ oldExports }) => {
-				if (![...Object.values(oldExports)].some(v => values.includes(v))) {
-					return undefined;
-				}
-				return (_newExports) => {
-					event(undefined);
-					return true;
-				};
-			})
-		);
-		o.read(reader);
-	}
 }
 
 export function applyViewZones(editor: ICodeEditor, viewZones: IObservable<IObservableViewZone[]>, setIsUpdating?: (isUpdatingViewZones: boolean) => void, zoneIds?: Set<string>): IDisposable {
