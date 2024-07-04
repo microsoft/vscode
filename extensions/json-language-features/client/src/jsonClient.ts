@@ -366,10 +366,13 @@ async function startClientWithParticipants(context: ExtensionContext, languagePa
 			return Promise.reject(new ResponseError(3, l10n.t('Unable to load {0}', uri.toString())));
 		}
 		if (uri.scheme !== 'http' && uri.scheme !== 'https') {
+			console.log('open ' + uri);
 			return workspace.openTextDocument(uri).then(doc => {
+				console.log('content ' + uri, doc.getText().length);
 				schemaDocuments[uri.toString()] = true;
 				return doc.getText();
 			}, error => {
+				console.log('error ' + uri, error);
 				return Promise.reject(new ResponseError(2, error.toString()));
 			});
 		} else if (schemaDownloadEnabled) {

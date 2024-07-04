@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { getCompressedContent, IJSONSchema } from 'vs/base/common/jsonSchema';
 import * as platform from 'vs/platform/registry/common/platform';
 
 export const Extensions = {
@@ -35,6 +35,12 @@ export interface IJSONContributionRegistry {
 	 * Get all schemas
 	 */
 	getSchemaContributions(): ISchemaContributions;
+
+	/**
+	 * Gets the (compressed) content of the schema with the given schema ID (if any
+	 * @param uri The id of the schema
+	 */
+	getSchemaContent(uri: string): string | undefined;
 }
 
 
@@ -72,6 +78,11 @@ class JSONContributionRegistry implements IJSONContributionRegistry {
 		return {
 			schemas: this.schemasById,
 		};
+	}
+
+	public getSchemaContent(uri: string): string | undefined {
+		const schema = this.schemasById[uri];
+		return schema ? getCompressedContent(schema) : undefined;
 	}
 
 }
