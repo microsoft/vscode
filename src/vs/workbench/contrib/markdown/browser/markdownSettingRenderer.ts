@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { IPreferencesService, ISetting, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
+import { IPreferencesService, ISetting } from 'vs/workbench/services/preferences/common/preferences';
 import { settingKeyToDisplayFormat } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
 import { URI } from 'vs/base/common/uri';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { DefaultSettings } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IAction } from 'vs/base/common/actions';
@@ -19,7 +18,6 @@ import { Schemas } from 'vs/base/common/network';
 export class SimpleSettingRenderer {
 	private readonly codeSettingRegex: RegExp;
 
-	private _defaultSettings: DefaultSettings;
 	private _updatedSettings = new Map<string, any>(); // setting ID to user's original setting value
 	private _encounteredSettings = new Map<string, ISetting>(); // setting ID to setting
 	private _featuredSettings = new Map<string, any>(); // setting ID to feature value
@@ -32,7 +30,6 @@ export class SimpleSettingRenderer {
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 	) {
 		this.codeSettingRegex = new RegExp(`^<a (href)=".*code.*://settings/([^\\s"]+)"(?:\\s*codesetting="([^"]+)")?>`);
-		this._defaultSettings = new DefaultSettings([], ConfigurationTarget.USER);
 	}
 
 	get featuredSettingStates(): Map<string, boolean> {
@@ -61,25 +58,11 @@ export class SimpleSettingRenderer {
 		return `${Schemas.codeSetting}://${settingId}${value ? `/${value}` : ''}`;
 	}
 
-	private settingsGroups: ISettingsGroup[] | undefined = undefined;
 	private getSetting(settingId: string): ISetting | undefined {
-		if (!this.settingsGroups) {
-			this.settingsGroups = this._defaultSettings.getSettingsGroups();
-		}
 		if (this._encounteredSettings.has(settingId)) {
 			return this._encounteredSettings.get(settingId);
 		}
-		for (const group of this.settingsGroups) {
-			for (const section of group.sections) {
-				for (const setting of section.settings) {
-					if (setting.key === settingId) {
-						this._encounteredSettings.set(settingId, setting);
-						return setting;
-					}
-				}
-			}
-		}
-		return undefined;
+		return this._preferencesService.getSetting(settingId);
 	}
 
 	parseValue(settingId: string, value: string): any {
