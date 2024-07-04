@@ -417,6 +417,40 @@ class MoveViewsBetweenPanelsAction extends Action2 {
 	}
 }
 
+
+// Move Pear AI extension to secondary side bar (Auxiliary Bar) (we want secondary side bar to be default loaction for extension)
+class MovePearExtensionToAuxBarAction extends MoveViewsBetweenPanelsAction {
+    static readonly ID = 'workbench.action.movePearExtensionToAuxBar';
+		readonly PearExtensionId;
+
+    constructor() {
+        super(ViewContainerLocation.Sidebar, ViewContainerLocation.AuxiliaryBar, {
+            id: MovePearExtensionToAuxBarAction.ID,
+            title: localize2('movePearExtensionToAuxBar', "Move Pear Extension to Auxiliary Bar"),
+            category: Categories.View,
+            f1: true
+        });
+        this.PearExtensionId = 'workbench.view.extension.PearAI';
+    }
+
+    override run(accessor: ServicesAccessor): void {
+        const viewDescriptorService = accessor.get(IViewDescriptorService);
+        const layoutService = accessor.get(IWorkbenchLayoutService);
+        const viewsService = accessor.get(IViewsService);
+
+        const viewContainer = viewDescriptorService.getViewContainerById(this.PearExtensionId);
+				const destination = ViewContainerLocation.AuxiliaryBar;
+
+        if (viewContainer) {
+            viewDescriptorService.moveViewContainerToLocation(viewContainer, destination, undefined, this.desc.id);
+            layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+            viewsService.openViewContainer(viewContainer.id, true);
+        }
+    }
+}
+
+registerAction2(MovePearExtensionToAuxBarAction);
+
 // --- Move Panel Views To Secondary Side Bar
 
 class MovePanelToSidePanelAction extends MoveViewsBetweenPanelsAction {
