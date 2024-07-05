@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { isFirefox } from 'vs/base/common/platform';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -179,7 +180,11 @@ suite('WordOperations', () => {
 		assert.deepStrictEqual(actual, EXPECTED);
 	});
 
-	test('cursorWordLeft - Recognize words', () => {
+	test('cursorWordLeft - Recognize words', function () {
+		if (isFirefox) {
+			// https://github.com/microsoft/vscode/issues/219843
+			return this.skip();
+		}
 		const EXPECTED = [
 			'|/* |これ|は|テスト|です |/*',
 		].join('\n');
@@ -399,7 +404,11 @@ suite('WordOperations', () => {
 		assert.deepStrictEqual(actual, EXPECTED);
 	});
 
-	test('cursorWordRight - Recognize words', () => {
+	test('cursorWordRight - Recognize words', function () {
+		if (isFirefox) {
+			// https://github.com/microsoft/vscode/issues/219843
+			return this.skip();
+		}
 		const EXPECTED = [
 			'/*| これ|は|テスト|です|/*|',
 		].join('\n');
