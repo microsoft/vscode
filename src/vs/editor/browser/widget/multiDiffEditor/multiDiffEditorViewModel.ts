@@ -69,8 +69,9 @@ export class DocumentDiffItemViewModel extends Disposable {
 		{ contentHeight: 500, selections: undefined, }
 	);
 
-	public get originalUri(): URI | undefined { return this.entry.value!.original?.uri; }
-	public get modifiedUri(): URI | undefined { return this.entry.value!.modified?.uri; }
+	public get documentDiffItem(): IDocumentDiffItem { return this.entry.value!; }
+	public get originalUri(): URI | undefined { return this.documentDiffItem.original?.uri; }
+	public get modifiedUri(): URI | undefined { return this.documentDiffItem.modified?.uri; }
 
 	public readonly isActive: IObservable<boolean> = derived(this, reader => this._editorViewModel.activeDiffItem.read(reader) === this);
 

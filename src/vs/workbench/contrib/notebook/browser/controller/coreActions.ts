@@ -13,7 +13,7 @@ import { getNotebookEditorFromEditorPane, IActiveNotebookEditor, ICellViewModel,
 import { INTERACTIVE_WINDOW_IS_ACTIVE_EDITOR, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_KERNEL_SOURCE_COUNT } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { ICellRange, isICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorCommandsContext } from 'vs/workbench/common/editor';
+import { isEditorCommandsContext } from 'vs/workbench/common/editor';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
@@ -220,9 +220,6 @@ export abstract class NotebookMultiCellAction extends Action2 {
 	private isCellToolbarContext(context?: unknown): context is INotebookCellToolbarActionContext {
 		return !!context && !!(context as INotebookActionContext).notebookEditor && (context as any).$mid === MarshalledId.NotebookCellActionContext;
 	}
-	private isEditorContext(context?: unknown): boolean {
-		return !!context && (context as IEditorCommandsContext).groupId !== undefined;
-	}
 
 	/**
 	 * The action/command args are resolved in following order
@@ -233,7 +230,7 @@ export abstract class NotebookMultiCellAction extends Action2 {
 	async run(accessor: ServicesAccessor, ...additionalArgs: any[]): Promise<void> {
 		const context = additionalArgs[0];
 		const isFromCellToolbar = this.isCellToolbarContext(context);
-		const isFromEditorToolbar = this.isEditorContext(context);
+		const isFromEditorToolbar = isEditorCommandsContext(context);
 		const from = isFromCellToolbar ? 'cellToolbar' : (isFromEditorToolbar ? 'editorToolbar' : 'other');
 		const telemetryService = accessor.get(ITelemetryService);
 

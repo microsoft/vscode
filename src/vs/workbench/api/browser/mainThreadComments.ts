@@ -30,7 +30,6 @@ import { MarshalledCommentThread } from 'vs/workbench/common/comments';
 import { revealCommentThread } from 'vs/workbench/contrib/comments/browser/commentsController';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { CommentThreadRevealOptions } from 'vs/editor/common/languages';
 
 export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 	private _input?: languages.CommentInput;
@@ -643,7 +642,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		provider.updateCommentingRanges(resourceHints);
 	}
 
-	async $revealCommentThread(handle: number, commentThreadHandle: number, options: CommentThreadRevealOptions): Promise<void> {
+	async $revealCommentThread(handle: number, commentThreadHandle: number, options: languages.CommentThreadRevealOptions): Promise<void> {
 		const provider = this._commentControllers.get(handle);
 
 		if (!provider) {
