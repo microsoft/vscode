@@ -1337,9 +1337,15 @@ export class CommandCenter {
 		await repository.move(from, to);
 	}
 
-	@command('git.stage')
-	async stage(...resourceStates: SourceControlResourceState[]): Promise<void> {
+	@command('git.stage', { repository: true })
+	async stage(repository: Repository, ...resourceStates: SourceControlResourceState[]): Promise<void> {
 		this.logger.debug(`git.stage ${resourceStates.length} `);
+
+		const filesConfig = workspace.getConfiguration('files', Uri.file(repository.root));
+		const autoSaveConfig = filesConfig.get<'off' | 'afterDelay' | 'onFocusChange' | 'onWindowChange'>('autoSave');
+		if (autoSaveConfig === 'onFocusChange') {
+			await Promise.all(window.visibleTextEditors.filter(editor => editor.document.isDirty).map(editor => editor.document.save()));
+		}
 
 		resourceStates = resourceStates.filter(s => !!s);
 
