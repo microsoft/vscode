@@ -36,7 +36,7 @@ import { ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
 import { ButtonBar } from 'vs/base/browser/ui/button/button';
 import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { Mutable } from 'vs/base/common/types';
-import { IResourceDiffEditorInput } from 'vs/workbench/common/editor';
+import { IMultiDiffEditorResource, IResourceDiffEditorInput, IResourceMultiDiffEditorInput } from 'vs/workbench/common/editor';
 import { IMultiDiffEditorOptions, IMultiDiffResourceId } from 'vs/editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl';
 import { IRange } from 'vs/editor/common/core/range';
 import { CachedFunction, LRUCachedFunction } from 'vs/base/common/cache';
@@ -369,16 +369,20 @@ export class BulkEditPane extends ViewPane {
 		}, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 	}
 
-	private readonly _computeResourceDiffEditorInputs = new LRUCachedFunction(async (fileOperations: BulkFileOperation[]) => {
-		const computeDiffEditorInput = new CachedFunction<BulkFileOperation, Promise<IResourceDiffEditorInput>>(async (fileOperation) => {
+	private readonly _computeResourceDiffEditorInputs = new LRUCachedFunction<
+		BulkFileOperation[],
+		Promise<{ resources: IMultiDiffEditorResource[]; getResourceDiffEditorInputIdOfOperation: (operation: BulkFileOperation) => Promise<IMultiDiffResourceId> }>
+	>(async (fileOperations) => {
+		const computeDiffEditorInput = new CachedFunction<BulkFileOperation, Promise<IMultiDiffEditorResource>>(async (fileOperation) => {
 			const fileOperationUri = fileOperation.uri;
 			const previewUri = this._currentProvider!.asPreviewUri(fileOperationUri);
 			// delete
 			if (fileOperation.type & BulkFileOperationType.Delete) {
 				return {
 					original: { resource: URI.revive(previewUri) },
-					modified: { resource: undefined }
-				};
+					modified: { resource: undefined },
+					goToFileResource: fileOperation.uri,
+				} satisfies IMultiDiffEditorResource;
 
 			}
 			// rename, create, edits
@@ -392,8 +396,9 @@ export class BulkEditPane extends ViewPane {
 				}
 				return {
 					original: { resource: URI.revive(leftResource) },
-					modified: { resource: URI.revive(previewUri) }
-				};
+					modified: { resource: URI.revive(previewUri) },
+					goToFileResource: leftResource,
+				} satisfies IMultiDiffEditorResource;
 			}
 		});
 
