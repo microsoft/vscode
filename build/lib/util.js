@@ -405,12 +405,18 @@ function buildWebNodePaths(outDir) {
     result.taskName = 'build-web-node-paths';
     return result;
 }
+function log(...args) {
+    console.log(`[${new Date().toLocaleTimeString('en', { hour12: false })}]`, '[util]', ...args);
+}
 function addDateToProductJson() {
     const result = () => new Promise((resolve, _) => {
         const productJsonPath = path.join(root, 'product.json');
-        const productJson = JSON.parse(fs.readFileSync(productJsonPath, 'utf8'));
+        log(`Adding date to product.json in ${productJsonPath}`);
+        let productJson = JSON.parse(fs.readFileSync(productJsonPath, 'utf8'));
         productJson.date = new Date().toISOString();
         fs.writeFileSync(productJsonPath, JSON.stringify(productJson, null, '\t'), 'utf8');
+        productJson = JSON.parse(fs.readFileSync(productJsonPath, 'utf8'));
+        log(`Product.json now has date: ${productJson.date}`);
         resolve();
     });
     result.taskName = 'build-add-date-to-product-json';

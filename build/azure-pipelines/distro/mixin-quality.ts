@@ -68,6 +68,9 @@ function main() {
 				log('Inheriting OSS built-in extensions', builtInExtensions.map(e => e.name));
 			}
 
+			log(`The OSS product.json path is: ${ossPath}`);
+			log(`Product.json has date: ${oss.date}`);
+
 			const result = { webBuiltInExtensions: oss.webBuiltInExtensions, ...distro, builtInExtensions, date: oss.date };
 			fs.writeFileSync(ossPath, JSON.stringify(result, null, '\t'), 'utf8');
 		} else {
