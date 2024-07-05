@@ -11,6 +11,7 @@ import { ResourceMap } from '../utils/resourceMap';
 import { TelemetryReporter } from '../logging/telemetry';
 import { TypeScriptServiceConfiguration } from '../configuration/configuration';
 import { equals } from '../utils/objects';
+import { FileDiagnosticPerformanceData } from '../tsServer/protocol/protocol';
 
 function diagnosticsEquals(a: vscode.Diagnostic, b: vscode.Diagnostic): boolean {
 	if (a === b) {
@@ -194,6 +195,31 @@ class DiagnosticsTelemetryManager extends Disposable {
 		this._registerTelemetryEventEmitter();
 	}
 
+	public logDiagnosticsPerformanceTelemetry(performanceData: FileDiagnosticPerformanceData[]): void {
+		performanceData.forEach(data => {
+			/* __GDPR__
+				"diagnostics.performance" : {
+					"owner": "mjbvz",
+					"syntaxDiagDuration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"semanticDiagDuration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"suggestionDiagDuration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"regionSemanticDiagDuration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"${include}": [
+						"${TypeScriptCommonProperties}"
+					]
+				}
+			*/
+			this._telemetryReporter.logTelemetry('diagnostics.performance',
+				{
+					syntaxDiagDuration: data.syntaxDiag,
+					semanticDiagDuration: data.semanticDiag,
+					suggestionDiagDuration: data.suggestionDiag,
+					regionSemanticDiagDuration: data.regionSemanticDiag,
+				},
+			);
+		});
+	}
+
 	private _updateAllDiagnosticCodesAfterTimeout() {
 		clearTimeout(this._timeout);
 		this._timeout = setTimeout(() => this._updateDiagnosticCodes(), 5000);
@@ -257,6 +283,8 @@ export class DiagnosticsManager extends Disposable {
 
 	private readonly _updateDelay = 50;
 
+	private readonly _diagnosticsTelemetryManager: DiagnosticsTelemetryManager | undefined;
+
 	constructor(
 		owner: string,
 		configuration: TypeScriptServiceConfiguration,
@@ -270,7 +298,7 @@ export class DiagnosticsManager extends Disposable {
 		this._currentDiagnostics = this._register(vscode.languages.createDiagnosticCollection(owner));
 		// Here we are selecting only 1 user out of 1000 to send telemetry diagnostics
 		if (Math.random() * 1000 <= 1 || configuration.enableDiagnosticsTelemetry) {
-			this._register(new DiagnosticsTelemetryManager(telemetryReporter, this._currentDiagnostics));
+			this._diagnosticsTelemetryManager = this._register(new DiagnosticsTelemetryManager(telemetryReporter, this._currentDiagnostics));
 		}
 	}
 
@@ -347,6 +375,12 @@ export class DiagnosticsManager extends Disposable {
 
 	public getDiagnostics(file: vscode.Uri): ReadonlyArray<vscode.Diagnostic> {
 		return this._currentDiagnostics.get(file) || [];
+	}
+
+	public logDiagnosticsPerformanceTelemetry(performanceData: FileDiagnosticPerformanceData[] | undefined): void {
+		if (performanceData && this._diagnosticsTelemetryManager) {
+			this._diagnosticsTelemetryManager.logDiagnosticsPerformanceTelemetry(performanceData);
+		}
 	}
 
 	private scheduleDiagnosticsUpdate(file: vscode.Uri) {
