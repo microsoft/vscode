@@ -27,9 +27,7 @@
 	bootstrapWindow.load([
 		// 'workbench.desktop.main', // ESM-BUNDLED
 		'vs/workbench/workbench.desktop.main',
-		// ESM-comment-begin
 		'vs/css!vs/workbench/workbench.desktop.main'
-		// ESM-comment-end
 	],
 		function (desktopMain, configuration) {
 

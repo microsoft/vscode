@@ -158,8 +158,23 @@ const isESM = false;
 				performance.mark('code/didAddCssLoader');
 			}
 
-			const filePaths = modulePaths.map((modulePath) => (`${configuration.appRoot}/out/${modulePath}.js`));
-			const result = Promise.all(filePaths.map((filePath) => import(filePath)));
+			const result = Promise.all(modulePaths.map(modulePath => {
+				if (modulePath.includes('vs/css!')) {
+					// ESM/CSS when seeing the old `vs/css!` prefix we use that as a signal to
+					// load CSS via a <link> tag
+					const cssModule = modulePath.replace('vs/css!', '');
+					const link = document.createElement('link');
+					link.rel = 'stylesheet';
+					link.href = `${configuration.appRoot}/out/${cssModule}.css`;
+					document.head.appendChild(link);
+					return Promise.resolve();
+
+				} else {
+					// ESM/JS module loading
+					return import(`${configuration.appRoot}/out/${modulePath}.js`);
+				}
+			}));
+
 			result.then((res) => invokeResult(res[0]), onUnexpectedError);
 		} else {
 			/**

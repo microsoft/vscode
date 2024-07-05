@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 //@ts-check
-
+const watcher = require('@parcel/watcher');
 const esbuild = require('esbuild');
 const path = require('path');
 const fs = require('fs');
@@ -15,6 +15,8 @@ const buildfile = require('./src/buildfile');
 const srcFolder = path.join(__dirname, 'src2');
 const dstFolder = path.join(__dirname, 'out');
 
+const watch = process.argv.includes('--watch');
+const minify = process.argv.includes('--minify');
 
 const allEntryPointFromTheAmdWorld = (function () {
 
@@ -113,32 +115,94 @@ const commonOptions = {
 		'.svg': 'file',
 		'.png': 'file',
 		'.sh': 'file',
-	},
+	}
 };
 
-for (const [platform, entryPoints] of Object.entries(entryPointsByPlatform)) {
-	if (entryPoints.length === 0) {
-		continue;
-	}
-	build({
-		...commonOptions,
-		// @ts-ignore
-		platform,
-		entryPoints,
-	});
+if (minify) {
+	commonOptions.minifyWhitespace = true;
+	commonOptions.minifySyntax = true;
+	commonOptions.minifyIdentifiers = true;
 }
+
+(async () => {
+
+	/** @type {Promise<import ('esbuild').BuildContext>[]} */
+	const tasks = [];
+
+	for (const [platform, entryPoints] of Object.entries(entryPointsByPlatform)) {
+		if (entryPoints.length === 0) {
+			continue;
+		}
+		const ctx = build({
+			...commonOptions,
+			// @ts-ignore
+			platform,
+			entryPoints,
+		});
+		tasks.push(ctx);
+	}
+
+
+	const context = await Promise.all(tasks);
+
+	if (watch) {
+
+
+		let currentRebuild = undefined;
+		let doOneMoreRebuild = false;
+		const rebuild = async () => {
+
+			if (currentRebuild) {
+				doOneMoreRebuild = true;
+				return;
+			}
+
+			const t1 = Date.now();
+			doOneMoreRebuild = false;
+			const build = Promise.all(context.map(ctx => ctx.rebuild()));
+			currentRebuild = build.finally(() => {
+				console.log(`Rebuilt in ${Date.now() - t1}ms`);
+				currentRebuild = undefined;
+				if (doOneMoreRebuild) {
+					rebuild();
+				}
+			});
+		};
+
+		watcher.subscribe(__dirname, (error, events) => {
+			for (const event of events) {
+				console.log(`File change detected: ${event.path}`);
+			}
+			rebuild();
+		}, {
+			ignore: [
+				`**/.git/**`,
+				`**/node_modules/**`,
+				`**/out/**`,
+				`**/*.txt`,
+			]
+		});
+
+	} else {
+		// cleanup
+		context.forEach(ctx => ctx.dispose());
+	}
+
+})();
 
 copyResources([
 	'main.js',
 	'bootstrap.js',
+	'bootstrap-amd.js',
+	'bootstrap-fork.js',
 	'bootstrap-node.js',
+	'bootstrap-window.js',
 	'vs/base/common/performance.js',
 	'vs/platform/environment/node/userDataPath.js',
 	'vs/base/common/stripComments.js',
 	'vs/base/node/languagePacks.js',
 	'vs/code/electron-sandbox/workbench/workbench-dev.html',
 	'vs/base/parts/sandbox/electron-browser/preload.js',
-	'bootstrap-window.js',
 	'vs/code/electron-sandbox/workbench/workbench.js',
 	'vs/code/electron-browser/sharedProcess/sharedProcess-dev.html',
 ]);
@@ -184,23 +248,33 @@ function writeDestFile(srcFilePath, fileContents) {
 
 /**
  * @param {import ('esbuild').BuildOptions} opts
+ * @returns {Promise<import('esbuild').BuildContext<import ('esbuild').BuildOptions>>}
  */
-function build(opts) {
-	esbuild.build(opts).then((result) => {
+async function build(opts) {
 
-		if (result.errors.length > 0) {
-			console.error(result.errors);
+	const t1 = Date.now();
+
+
+	const ctx = await esbuild.context(opts);
+
+	const result = await ctx.rebuild();
+	if (result.errors.length > 0) {
+		console.error(result.errors);
+	}
+
+	const warnings = result.warnings.filter(candidate => {
+		if (candidate.id === 'suspicious-nullish-coalescing') {
+			return false;
 		}
-
-		const warnings = result.warnings.filter(candidate => {
-			if (candidate.id === 'suspicious-nullish-coalescing') {
-				return false;
-			}
-			return true;
-		});
-
-		if (warnings.length > 0) {
-			console.error(warnings);
-		}
+		return true;
 	});
+
+	if (warnings.length > 0) {
+		console.error(warnings);
+	}
+
+	// @ts-expect-error
+	console.log(`Built in ${Date.now() - t1}ms \n- ${opts.entryPoints.map(entry => entry.in).join('\n- ')} `);
+
+	return ctx;
 }
