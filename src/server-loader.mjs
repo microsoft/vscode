@@ -18,15 +18,15 @@ import { join } from 'node:path';
 
 const _specifierToUrl = {};
 
-export async function initialize() {
+export async function initialize(injectPath) {
 	// populate mappings
 
-	const serverPackageJSONPath = fileURLToPath(new URL('../remote/package.json', import.meta.url));
-	const packageJSON = JSON.parse(String(await promises.readFile(serverPackageJSONPath)));
+	const injectPackageJSONPath = fileURLToPath(new URL('../package.json', pathToFileURL(injectPath)));
+	const packageJSON = JSON.parse(String(await promises.readFile(injectPackageJSONPath)));
 
 	for (const [name] of Object.entries(packageJSON.dependencies)) {
 		try {
-			const path = join(serverPackageJSONPath, `../node_modules/${name}/package.json`);
+			const path = join(injectPackageJSONPath, `../node_modules/${name}/package.json`);
 			let { main } = JSON.parse(String(await promises.readFile(path)));
 
 			if (!main) {
@@ -35,7 +35,7 @@ export async function initialize() {
 			if (!main.endsWith('.js')) {
 				main += '.js';
 			}
-			const mainPath = join(serverPackageJSONPath, `../node_modules/${name}/${main}`);
+			const mainPath = join(injectPackageJSONPath, `../node_modules/${name}/${main}`);
 			_specifierToUrl[name] = pathToFileURL(mainPath).href;
 
 		} catch (err) {
@@ -44,14 +44,14 @@ export async function initialize() {
 		}
 	}
 
-	console.log('[DEV] Initialized node_modules redirector');
+	console.log(`[HOOKS] Initialized node_modules redirector for: ${injectPath}`);
 }
 
 export async function resolve(specifier, context, nextResolve) {
 
 	const newSpecifier = _specifierToUrl[specifier];
 	if (newSpecifier !== undefined) {
-		// console.log('[ESM_LOADER]', specifier, '--->', newSpecifier);
+		// console.log('[HOOKS]', specifier, '--->', newSpecifier);
 		return {
 			format: 'commonjs',
 			shortCircuit: true,

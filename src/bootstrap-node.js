@@ -6,6 +6,13 @@
 //@ts-check
 'use strict';
 
+// ESM-comment-begin
+const isESM = false;
+// ESM-comment-end
+// ESM-uncomment-begin
+// const isESM = true;
+// ESM-uncomment-end
+
 // Setup current working directory in all our node & electron processes
 // - Windows: call `process.chdir()` to always set application folder as cwd
 // -  all OS: store the `process.cwd()` inside `VSCODE_CWD` for consistent lookups
@@ -43,28 +50,38 @@ exports.injectNodeModuleLookupPath = function (injectPath) {
 		throw new Error('Missing injectPath');
 	}
 
-	const Module = require('module');
-	const path = require('path');
+	const Module = require('node:module');
 
-	const nodeModulesPath = path.join(__dirname, '../node_modules');
+	if (isESM) {
+		// register a loader hook
+		// SEE https://nodejs.org/docs/latest/api/module.html#initialize
+		const { pathToFileURL } = require('node:url');
+		Module.register('./server-loader.mjs', { parentURL: pathToFileURL(__filename), data: injectPath });
 
-	// @ts-ignore
-	const originalResolveLookupPaths = Module._resolveLookupPaths;
+	} else {
 
-	// @ts-ignore
-	Module._resolveLookupPaths = function (moduleName, parent) {
-		const paths = originalResolveLookupPaths(moduleName, parent);
-		if (Array.isArray(paths)) {
-			for (let i = 0, len = paths.length; i < len; i++) {
-				if (paths[i] === nodeModulesPath) {
-					paths.splice(i, 0, injectPath);
-					break;
+		const path = require('path');
+
+		const nodeModulesPath = path.join(__dirname, '../node_modules');
+
+		// @ts-ignore
+		const originalResolveLookupPaths = Module._resolveLookupPaths;
+
+		// @ts-ignore
+		Module._resolveLookupPaths = function (moduleName, parent) {
+			const paths = originalResolveLookupPaths(moduleName, parent);
+			if (Array.isArray(paths)) {
+				for (let i = 0, len = paths.length; i < len; i++) {
+					if (paths[i] === nodeModulesPath) {
+						paths.splice(i, 0, injectPath);
+						break;
+					}
 				}
 			}
-		}
 
-		return paths;
-	};
+			return paths;
+		};
+	}
 };
 
 exports.removeGlobalNodeModuleLookupPaths = function () {
