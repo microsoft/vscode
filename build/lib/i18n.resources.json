@@ -561,6 +561,10 @@
 		{
 			"name": "vs/workbench/contrib/authentication",
 			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/replNotebook",
+			"project": "vscode-workbench"
 		}
 	]
 }
