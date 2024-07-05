@@ -12,7 +12,7 @@ import { memoize } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { matchesSomeScheme, Schemas } from 'vs/base/common/network';
-import { dirname, join, resolve } from 'vs/base/common/path';
+import { dirname, join, posix, resolve, win32 } from 'vs/base/common/path';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { AddFirstParameterToFunctions } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
@@ -509,8 +509,18 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	private async openExternalBrowser(url: string) {
 		const configuredBrowser = this.configurationService.getValue<string>('workbench.externalBrowser');
 		if (!configuredBrowser) {
-			shell.openExternal(url);
-			return;
+			return shell.openExternal(url);
+		}
+
+		if (configuredBrowser.includes(posix.sep) || configuredBrowser.includes(win32.sep)) {
+			const browserPathExists = await Promises.exists(configuredBrowser);
+			if (!browserPathExists) {
+				this.logService.error(`Configured external browser path does not exist: ${configuredBrowser}`);
+				return shell.openExternal(url);
+			}
+		} else if (!['edge', 'chrome', 'firefox'].some(supportedBrowserAlias => configuredBrowser === supportedBrowserAlias)) {
+			this.logService.error(`Configured external browser alias is unknown: ${configuredBrowser}`);
+			return shell.openExternal(url);
 		}
 
 		try {
@@ -525,9 +535,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			});
 		} catch (error) {
 			this.logService.error(`Unable to open external URL '${url}' using browser '${configuredBrowser}' due to ${error}.`);
-
-			// Fallback to default browser
-			shell.openExternal(url);
+			return shell.openExternal(url);
 		}
 	}
 
