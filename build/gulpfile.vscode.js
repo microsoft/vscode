@@ -15,6 +15,7 @@ const replace = require('gulp-replace');
 const filter = require('gulp-filter');
 const util = require('./lib/util');
 const { getVersion } = require('./lib/getVersion');
+const { date } = require('./lib/date');
 const task = require('./lib/task');
 const buildfile = require('../src/buildfile');
 const optimize = require('./lib/optimize');
@@ -258,7 +259,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 
 		let productJsonContents;
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
-			.pipe(json({ commit, checksums, version }))
+			.pipe(json({ commit, date, checksums, version }))
 			.pipe(es.through(function (file) {
 				productJsonContents = file.contents.toString();
 				this.emit('data', file);

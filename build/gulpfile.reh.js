@@ -18,6 +18,7 @@ const rename = require('gulp-rename');
 const replace = require('gulp-replace');
 const filter = require('gulp-filter');
 const { getProductionDependencies } = require('./lib/dependencies');
+const { date } = require('./lib/date');
 const vfs = require('vinyl-fs');
 const packageJson = require('../package.json');
 const flatmap = require('gulp-flatmap');
@@ -300,7 +301,7 @@ function packageTask(type, platform, arch, sourceFolderName, destinationFolderNa
 
 		let productJsonContents;
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
-			.pipe(json({ commit, version }))
+			.pipe(json({ commit, date, version }))
 			.pipe(es.through(function (file) {
 				productJsonContents = file.contents.toString();
 				this.emit('data', file);
