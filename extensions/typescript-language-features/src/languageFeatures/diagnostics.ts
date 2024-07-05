@@ -11,6 +11,7 @@ import { ResourceMap } from '../utils/resourceMap';
 import { TelemetryReporter } from '../logging/telemetry';
 import { TypeScriptServiceConfiguration } from '../configuration/configuration';
 import { equals } from '../utils/objects';
+// @ts-expect-error until ts 5.6
 import { DiagnosticPerformanceData as TsDiagnosticPerformanceData } from '../tsServer/protocol/protocol';
 
 function diagnosticsEquals(a: vscode.Diagnostic, b: vscode.Diagnostic): boolean {
@@ -212,9 +213,13 @@ class DiagnosticsTelemetryManager extends Disposable {
 			*/
 			this._telemetryReporter.logTelemetry('diagnostics.performance',
 				{
+					// @ts-expect-error until ts 5.6
 					syntaxDiagDuration: data.syntaxDiag,
+					// @ts-expect-error until ts 5.6
 					semanticDiagDuration: data.semanticDiag,
+					// @ts-expect-error until ts 5.6
 					suggestionDiagDuration: data.suggestionDiag,
+					// @ts-expect-error until ts 5.6
 					regionSemanticDiagDuration: data.regionSemanticDiag,
 					fileLineCount: data.fileLineCount,
 				},
