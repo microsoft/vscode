@@ -90,7 +90,7 @@ class AMDModuleImporter {
 			throw new Error(`Cannot resolve dependencies for script ${scriptSrc}. The dependencies are: ${defineCall.dependencies.join(', ')}`);
 		}
 		if (typeof defineCall.callback === 'function') {
-			return defineCall.callback([]);
+			return defineCall.callback.apply(globalThis, []);
 		} else {
 			return defineCall.callback;
 		}
@@ -152,7 +152,10 @@ class AMDModuleImporter {
 			const content = fs.readFileSync(filePath).toString();
 			const scriptSource = module.wrap(content.replace(/^#!.*/, ''));
 			const script = new vm.Script(scriptSource);
-			const compileWrapper = script.runInThisContext();
+			const compileWrapper = script.runInThisContext({
+				filename: scriptSrc,
+				displayErrors: true
+			});
 			compileWrapper.apply();
 			return this._defineCalls.pop();
 
