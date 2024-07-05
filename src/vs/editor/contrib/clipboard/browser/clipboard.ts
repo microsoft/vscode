@@ -7,7 +7,7 @@ import * as browser from 'vs/base/browser/browser';
 import { getActiveDocument } from 'vs/base/browser/dom';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
-import { CopyOptions, InMemoryClipboardMetadataManager } from 'vs/editor/browser/controller/textAreaInput';
+import { CopyOptions, InMemoryClipboardMetadataManager } from 'vs/editor/browser/controller/editContext/textArea/textAreaInput';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Command, EditorAction, MultiCommand, registerEditorAction } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';

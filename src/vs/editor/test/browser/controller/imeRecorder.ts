@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TextAreaWrapper } from 'vs/editor/browser/controller/textAreaInput';
+import { TextAreaWrapper } from 'vs/editor/browser/controller/editContext/textArea/textAreaInput';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { IRecorded, IRecordedCompositionEvent, IRecordedEvent, IRecordedInputEvent, IRecordedKeyboardEvent, IRecordedTextareaState } from 'vs/editor/test/browser/controller/imeRecordedTypes';
 import * as browser from 'vs/base/browser/browser';

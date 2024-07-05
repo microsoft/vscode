@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { OperatingSystem } from 'vs/base/common/platform';
-import { IBrowser } from 'vs/editor/browser/controller/textAreaInput';
+import { IBrowser } from 'vs/editor/browser/controller/editContext/textArea/textAreaInput';
 
 export interface IRecordedTextareaState {
 	selectionDirection: 'forward' | 'backward' | 'none';

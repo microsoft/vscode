@@ -7,6 +7,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { env } from 'vs/base/common/process';
 
 export function isHotReloadEnabled(): boolean {
+	return true;
 	return env && !!env['VSCODE_DEV'];
 }
 export function registerHotReloadHandler(handler: HotReloadHandler): IDisposable {

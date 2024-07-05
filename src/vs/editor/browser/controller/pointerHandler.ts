@@ -10,7 +10,7 @@ import { mainWindow } from 'vs/base/browser/window';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { IPointerHandlerHelper, MouseHandler } from 'vs/editor/browser/controller/mouseHandler';
-import { TextAreaSyntethicEvents } from 'vs/editor/browser/controller/textAreaInput';
+import { TextAreaSyntethicEvents } from 'vs/editor/browser/controller/editContext/textArea/textAreaInput';
 import { NavigationCommandRevealType } from 'vs/editor/browser/coreCommands';
 import { IMouseTarget, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { EditorMouseEvent, EditorPointerEventFactory } from 'vs/editor/browser/editorDom';
