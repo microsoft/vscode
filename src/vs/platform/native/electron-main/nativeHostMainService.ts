@@ -488,34 +488,44 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		window?.setDocumentEdited(edited);
 	}
 
-
-	private async openInExternalBrowser(url: string, defaultBrowser: string) {
-		try {
-
-			const { default: open } = await import('open');
-			const appName = Object.hasOwn(open.apps, defaultBrowser) ? open.apps[(defaultBrowser as keyof typeof open['apps'])] : defaultBrowser;
-			await open(url, {
-				app: {
-					name: appName
-				}
-			});
-		} catch {
-			// fall back to open url using electron shell
-			shell.openExternal(url);
-		}
-	}
-
 	async openExternal(windowId: number | undefined, url: string): Promise<boolean> {
 		this.environmentMainService.unsetSnapExportedVariables();
-		const defaultBrowser = this.configurationService.getValue<string>('workbench.browser');
-		if (matchesSomeScheme(url, Schemas.http, Schemas.https) && defaultBrowser) {
-			await this.openInExternalBrowser(url, defaultBrowser);
-		} else {
-			shell.openExternal(url);
+		try {
+			if (matchesSomeScheme(url, Schemas.http, Schemas.https)) {
+				this.openExternalBrowser(url);
+			} else {
+				shell.openExternal(url);
+			}
+		} finally {
+			this.environmentMainService.restoreSnapExportedVariables();
 		}
-		this.environmentMainService.restoreSnapExportedVariables();
 
 		return true;
+	}
+
+	private async openExternalBrowser(url: string) {
+		const configuredBrowser = this.configurationService.getValue<string>('workbench.browser');
+		if (!configuredBrowser) {
+			shell.openExternal(url);
+			return;
+		}
+
+		try {
+			const { default: open } = await import('open');
+			await open(url, {
+				app: {
+					// Use `open.apps` helper to allow cross-platform browser
+					// aliases to be looked up properly. Fallback to the
+					// configured value if not found.
+					name: Object.hasOwn(open.apps, configuredBrowser) ? open.apps[(configuredBrowser as keyof typeof open['apps'])] : configuredBrowser
+				}
+			});
+		} catch (error) {
+			this.logService.error(`Unable to open external URL '${url}' using browser '${configuredBrowser}' due to ${error}.`);
+
+			// Fallback to default browser
+			shell.openExternal(url);
+		}
 	}
 
 	moveItemToTrash(windowId: number | undefined, fullPath: string): Promise<void> {
