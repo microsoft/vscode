@@ -7,12 +7,13 @@ import * as path from 'path';
 import { ProgressLocation, Uri, commands, env, l10n, window } from 'vscode';
 import { Log } from './common/logger';
 import { Config } from './config';
-import { UriEventHandler } from './github';
+import { EnterpriseSettings, UriEventHandler } from './github';
 import { fetching } from './node/fetch';
 import { LoopbackAuthServer } from './node/authServer';
 import { promiseFromEvent } from './common/utils';
 import { isHostedGitHubEnterprise } from './common/env';
 import { NETWORK_ERROR, TIMED_OUT_ERROR, USER_CANCELLATION_ERROR } from './common/errors';
+import { URLSearchParams } from 'url';
 
 interface IGitHubDeviceCodeResponse {
 	device_code: string;
@@ -28,6 +29,8 @@ interface IFlowOptions {
 	readonly supportsGitHubEnterpriseServer: boolean;
 	// A GitHub Enterprise Server that is hosted by GitHub for an organization
 	readonly supportsHostedGitHubEnterprise: boolean;
+	// A Github Enterprise Server that is hosted by Github but does not follow the <org>.ghe.com domain format
+	readonly supportsGithubEnterpriseSSO: boolean;
 
 	// Runtimes - there are constraints on which runtimes support which flows
 	readonly supportsWebWorkerExtensionHost: boolean;
@@ -44,7 +47,8 @@ interface IFlowOptions {
 export const enum GitHubTarget {
 	DotCom,
 	Enterprise,
-	HostedEnterprise
+	HostedEnterprise,
+	EnterpriseSSO,
 }
 
 export const enum ExtensionHost {
@@ -68,6 +72,7 @@ interface IFlowTriggerOptions {
 	callbackUri: Uri;
 	uriHandler: UriEventHandler;
 	enterpriseUri?: Uri;
+	enterpriseSettings?: EnterpriseSettings;
 	existingLogin?: string;
 }
 
@@ -134,6 +139,7 @@ const allFlows: IFlow[] = [
 			// other flows that work well.
 			supportsGitHubEnterpriseServer: false,
 			supportsHostedGitHubEnterprise: true,
+			supportsGithubEnterpriseSSO: true,
 			supportsRemoteExtensionHost: true,
 			supportsWebWorkerExtensionHost: true,
 			// exchanging a code for a token requires a client secret
@@ -150,8 +156,8 @@ const allFlows: IFlow[] = [
 			nonce,
 			callbackUri,
 			uriHandler,
-			enterpriseUri,
-			existingLogin
+			existingLogin,
+			enterpriseSettings,
 		}: IFlowTriggerOptions): Promise<string> {
 			logger.info(`Trying without local server... (${scopes})`);
 			return await window.withProgress<string>({
@@ -164,33 +170,44 @@ const allFlows: IFlow[] = [
 				cancellable: true
 			}, async (_, token) => {
 				const promise = uriHandler.waitForCode(logger, scopes, nonce, token);
-
-				const searchParams = new URLSearchParams([
+				const loginAuthorizeSearchParams = new URLSearchParams([
 					['client_id', Config.gitHubClientId],
 					['redirect_uri', redirectUri.toString(true)],
 					['scope', scopes],
-					['state', encodeURIComponent(callbackUri.toString(true))]
+					['state', encodeURIComponent(callbackUri.toString(true))],
 				]);
 				if (existingLogin) {
-					searchParams.append('login', existingLogin);
+					loginAuthorizeSearchParams.append('login', existingLogin);
+				}
+				const loginAuthorizeUri = baseUri.with({
+					path: '/login/oauth/authorize',
+					query: loginAuthorizeSearchParams.toString()
+				});
+				let uri = loginAuthorizeUri;
+
+				if (enterpriseSettings?.ssoId !== undefined) {
+					const searchParams = new URLSearchParams([
+						['return_to', encodeURIComponent(loginAuthorizeUri.toString(true))],
+					]);
+					uri = Uri.parse(baseUri.with({
+						path: `/enterprises/${enterpriseSettings.ssoId}/sso`,
+						query: searchParams.toString()
+					}).toString(true));
 				}
 
-				// The extra toString, parse is apparently needed for env.openExternal
-				// to open the correct URL.
-				const uri = Uri.parse(baseUri.with({
-					path: '/login/oauth/authorize',
-					query: searchParams.toString()
-				}).toString(true));
-				await env.openExternal(uri);
+				logger.info(`opening ${uri.toString(true)}`);
+				// This cast from string to any is needed due to issue described in https://github.com/microsoft/vscode/issues/85930
+				await env.openExternal(<any>(uri.toString(true)));
 
 				const code = await promise;
+				logger.info(`received code`);
 
 				const proxyEndpoints: { [providerId: string]: string } | undefined = await commands.executeCommand('workbench.getCodeExchangeProxyEndpoints');
 				const endpointUrl = proxyEndpoints?.github
 					? Uri.parse(`${proxyEndpoints.github}login/oauth/access_token`)
 					: baseUri.with({ path: '/login/oauth/access_token' });
 
-				const accessToken = await exchangeCodeForToken(logger, endpointUrl, redirectUri, code, enterpriseUri);
+				const accessToken = await exchangeCodeForToken(logger, endpointUrl, redirectUri, code, enterpriseSettings?.uri);
 				return accessToken;
 			});
 		}
@@ -205,6 +222,7 @@ const allFlows: IFlow[] = [
 			// other flows that work well.
 			supportsGitHubEnterpriseServer: false,
 			supportsHostedGitHubEnterprise: true,
+			supportsGithubEnterpriseSSO: false,
 			// Opening a port on the remote side can't be open in the browser on
 			// the client side so this flow won't work in remote extension hosts
 			supportsRemoteExtensionHost: false,
@@ -220,8 +238,8 @@ const allFlows: IFlow[] = [
 			baseUri,
 			redirectUri,
 			logger,
-			enterpriseUri,
-			existingLogin
+			existingLogin,
+			enterpriseSettings,
 		}: IFlowTriggerOptions): Promise<string> {
 			logger.info(`Trying with local server... (${scopes})`);
 			return await window.withProgress<string>({
@@ -269,7 +287,7 @@ const allFlows: IFlow[] = [
 					baseUri.with({ path: '/login/oauth/access_token' }),
 					redirectUri,
 					codeToExchange,
-					enterpriseUri);
+					enterpriseSettings?.uri);
 				return accessToken;
 			});
 		}
@@ -280,6 +298,7 @@ const allFlows: IFlow[] = [
 			supportsGitHubDotCom: true,
 			supportsGitHubEnterpriseServer: true,
 			supportsHostedGitHubEnterprise: true,
+			supportsGithubEnterpriseSSO: true,
 			supportsRemoteExtensionHost: true,
 			// CORS prevents this from working in web workers
 			supportsWebWorkerExtensionHost: false,
@@ -287,9 +306,8 @@ const allFlows: IFlow[] = [
 			supportsSupportedClients: true,
 			supportsUnsupportedClients: true
 		};
-		async trigger({ scopes, baseUri, logger }: IFlowTriggerOptions) {
+		async trigger({ scopes, baseUri, logger, enterpriseSettings }: IFlowTriggerOptions) {
 			logger.info(`Trying device code flow... (${scopes})`);
-
 			// Get initial device code
 			const uri = baseUri.with({
 				path: '/login/device/code',
@@ -306,6 +324,7 @@ const allFlows: IFlow[] = [
 			}
 
 			const json = await result.json() as IGitHubDeviceCodeResponse;
+			logger.info(`json: ${json.verification_uri}`);
 
 			const button = l10n.t('Copy & Continue to GitHub');
 			const modalResult = await window.showInformationMessage(
@@ -321,8 +340,19 @@ const allFlows: IFlow[] = [
 
 			await env.clipboard.writeText(json.user_code);
 
-			const uriToOpen = await env.asExternalUri(Uri.parse(json.verification_uri));
-			await env.openExternal(uriToOpen);
+			let verificationUri = json.verification_uri;
+			if (enterpriseSettings?.ssoId !== undefined) {
+				verificationUri = baseUri.with({
+					path: `/enterprises/${enterpriseSettings.ssoId}/sso`,
+					query: new URLSearchParams([
+						['return_to', encodeURIComponent(verificationUri)],
+					]).toString(),
+				}).toString(true);
+			}
+
+			const uriToOpen = await env.asExternalUri(Uri.parse(verificationUri));
+			// This cast from string to any is needed due to issue described in https://github.com/microsoft/vscode/issues/85930
+			await env.openExternal(<any>(uriToOpen.toString(true)));
 
 			return await this.waitForDeviceCodeAccessToken(baseUri, json);
 		}
@@ -394,6 +424,7 @@ const allFlows: IFlow[] = [
 			supportsGitHubDotCom: true,
 			supportsGitHubEnterpriseServer: true,
 			supportsHostedGitHubEnterprise: true,
+			supportsGithubEnterpriseSSO: false,
 			supportsRemoteExtensionHost: true,
 			supportsWebWorkerExtensionHost: true,
 			supportsNoClientSecret: true,
@@ -483,6 +514,9 @@ export function getFlows(query: IFlowQuery) {
 				break;
 			case GitHubTarget.HostedEnterprise:
 				useFlow &&= flow.options.supportsHostedGitHubEnterprise;
+				break;
+			case GitHubTarget.EnterpriseSSO:
+				useFlow &&= flow.options.supportsGithubEnterpriseSSO;
 				break;
 		}
 

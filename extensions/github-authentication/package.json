@@ -43,7 +43,11 @@
       "properties": {
         "github-enterprise.uri": {
           "type": "string",
-          "description": "GitHub Enterprise Server URI"
+          "description": "GitHub Enterprise Server URI. Can't be used along with github-enterprise.sso-id"
+        },
+        "github-enterprise.sso-id": {
+          "type": "string",
+          "description": "GitHub Enterprise Name. Can't be used along with github-enterprise.uri"
         }
       }
     }
