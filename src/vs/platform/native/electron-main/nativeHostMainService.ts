@@ -45,6 +45,8 @@ import { IAuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electr
 import { IAuxiliaryWindow } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindow';
 import { CancellationError } from 'vs/base/common/errors';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IProxyAuthService } from 'vs/platform/native/electron-main/auth';
+import { AuthInfo, Credentials } from 'vs/platform/request/common/request';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -65,6 +67,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		@IThemeMainService private readonly themeMainService: IThemeMainService,
 		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IProxyAuthService private readonly proxyAuthService: IProxyAuthService
 	) {
 		super();
 	}
@@ -804,6 +807,10 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		const session = window?.win?.webContents?.session;
 
 		return session?.resolveProxy(url);
+	}
+
+	async lookupAuthorization(_windowId: number | undefined, authInfo: AuthInfo): Promise<Credentials | undefined> {
+		return this.proxyAuthService.lookupAuthorization(authInfo);
 	}
 
 	async loadCertificates(_windowId: number | undefined): Promise<string[]> {

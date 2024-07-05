@@ -17,6 +17,7 @@ import { URI } from 'vs/base/common/uri';
 import { ILogService, LogLevel as LogServiceLevel } from 'vs/platform/log/common/log';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { LogLevel, createHttpPatch, createProxyResolver, createTlsPatch, ProxySupportSetting, ProxyAgentParams, createNetPatch, loadSystemCertificates } from '@vscode/proxy-agent';
+import { AuthInfo } from 'vs/platform/request/common/request';
 
 const systemCertificatesV2Default = false;
 
@@ -32,7 +33,7 @@ export function connectProxyResolver(
 	const doUseHostProxy = typeof useHostProxy === 'boolean' ? useHostProxy : !initData.remote.isRemote;
 	const params: ProxyAgentParams = {
 		resolveProxy: url => extHostWorkspace.resolveProxy(url),
-		lookupProxyAuthorization: lookupProxyAuthorization.bind(undefined, extHostLogService, mainThreadTelemetry, configProvider, {}, initData.remote.isRemote),
+		lookupProxyAuthorization: lookupProxyAuthorization.bind(undefined, extHostWorkspace, extHostLogService, mainThreadTelemetry, configProvider, {}, initData.remote.isRemote),
 		getProxyURL: () => configProvider.getConfiguration('http').get('proxy'),
 		getProxySupport: () => configProvider.getConfiguration('http').get<ProxySupportSetting>('proxySupport') || 'off',
 		getNoProxyConfig: () => configProvider.getConfiguration('http').get<string[]>('noProxy') || [],
@@ -140,6 +141,7 @@ function configureModuleLoading(extensionService: ExtHostExtensionService, looku
 }
 
 async function lookupProxyAuthorization(
+	extHostWorkspace: IExtHostWorkspaceProvider,
 	extHostLogService: ILogService,
 	mainThreadTelemetry: MainThreadTelemetryShape,
 	configProvider: ExtHostConfigProvider,
@@ -147,7 +149,7 @@ async function lookupProxyAuthorization(
 	isRemote: boolean,
 	proxyURL: string,
 	proxyAuthenticate: string | string[] | undefined,
-	state: { kerberosRequested?: boolean }
+	state: { kerberosRequested?: boolean; basicAuthAttempt?: number }
 ): Promise<string | undefined> {
 	const cached = proxyAuthenticateCache[proxyURL];
 	if (proxyAuthenticate) {
@@ -170,6 +172,30 @@ async function lookupProxyAuthorization(
 			return 'Negotiate ' + response;
 		} catch (err) {
 			extHostLogService.error('ProxyResolver#lookupProxyAuthorization Kerberos authentication failed', err);
+		}
+	} else {
+		const header = authenticate.find(a => /^Basic( |$)/i.test(a));
+		if (header) {
+			try {
+				state.basicAuthAttempt = (state.basicAuthAttempt || 0) + 1;
+				const realm = / realm="([^"]+)"/i.exec(header)?.[1];
+				extHostLogService.debug('ProxyResolver#lookupProxyAuthorization Basic authentication lookup', `proxyURL:${proxyURL}`, `realm:${realm}`);
+				const url = new URL(proxyURL);
+				const authInfo: AuthInfo = {
+					scheme: 'basic',
+					host: url.hostname,
+					port: Number(url.port),
+					realm: realm || '',
+					isProxy: true,
+					attempt: state.basicAuthAttempt,
+				};
+				const credentials = await extHostWorkspace.lookupAuthorization(authInfo);
+				if (credentials) {
+					return 'Basic ' + Buffer.from(`${credentials.username}:${credentials.password}`).toString('base64');
+				}
+			} catch (err) {
+				extHostLogService.error('ProxyResolver#lookupProxyAuthorization Kerberos authentication failed', err);
+			}
 		}
 	}
 	return undefined;
