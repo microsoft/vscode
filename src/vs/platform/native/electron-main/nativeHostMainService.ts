@@ -504,7 +504,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	private async openExternalBrowser(url: string) {
-		const configuredBrowser = this.configurationService.getValue<string>('workbench.browser');
+		const configuredBrowser = this.configurationService.getValue<string>('workbench.externalBrowser');
 		if (!configuredBrowser) {
 			shell.openExternal(url);
 			return;
