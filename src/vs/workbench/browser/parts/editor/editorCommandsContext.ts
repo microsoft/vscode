@@ -118,17 +118,19 @@ function getEditorContextFromCommandArgs(accessor: ServicesAccessor, commandArgs
 	}
 
 	const editorService = accessor.get(IEditorService);
+	const editorGroupsService = accessor.get(IEditorGroupsService);
 
 	// Otherwise, try to find the editor group by the URI of the resource
 	for (const uri of filteredArgs as URI[]) {
 		const editorIdentifiers = editorService.findEditors(uri);
 		if (editorIdentifiers.length) {
-			return editorIdentifiers[0];
+			const editorIdentifier = editorIdentifiers[0];
+			const group = editorGroupsService.getGroup(editorIdentifier.groupId);
+			return { groupId: editorIdentifier.groupId, editorIndex: group?.getIndexOfEditor(editorIdentifier.editor) };
 		}
 	}
 
 	const listService = accessor.get(IListService);
-	const editorGroupsService = accessor.get(IEditorGroupsService);
 
 	// If there is no context in the arguments, try to find the context from the focused list
 	// if the action was executed from a list
