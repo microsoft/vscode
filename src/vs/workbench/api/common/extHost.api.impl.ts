@@ -1753,6 +1753,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			NewSymbolNameTriggerKind: extHostTypes.NewSymbolNameTriggerKind,
 			InlineEdit: extHostTypes.InlineEdit,
 			InlineEditTriggerKind: extHostTypes.InlineEditTriggerKind,
+			EncodingMode: extHostTypes.EncodingMode,
 		};
 	};
 }

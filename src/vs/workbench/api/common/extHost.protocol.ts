@@ -83,6 +83,7 @@ import * as search from 'vs/workbench/services/search/common/search';
 import { ISaveProfileResult } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import type { TerminalShellExecutionCommandLineConfidence } from 'vscode';
 import { AuthInfo, Credentials } from 'vs/platform/request/common/request';
+import { EncodingMode } from 'vs/workbench/services/textfile/common/textfiles';
 
 export interface IWorkspaceData extends IStaticWorkspaceData {
 	folders: { uri: UriComponents; name: string; index: number }[];
@@ -282,6 +283,8 @@ export interface MainThreadTextEditorsShape extends IDisposable {
 	$tryApplyEdits(id: string, modelVersionId: number, edits: ISingleEditOperation[], opts: IApplyEditsOptions): Promise<boolean>;
 	$tryInsertSnippet(id: string, modelVersionId: number, template: string, selections: readonly IRange[], opts: IUndoStopOptions): Promise<boolean>;
 	$getDiffInformation(id: string): Promise<IChange[]>;
+	$tryGetEncoding(id: string): Promise<string | undefined>;
+	$trySetEncoding(id: string, encoding: string, mode: EncodingMode): Promise<void>;
 }
 
 export interface MainThreadTreeViewsShape extends IDisposable {

@@ -11,11 +11,12 @@ import { IRange } from 'vs/editor/common/core/range';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { IResolvedTextEditorConfiguration, ITextEditorConfigurationUpdate, MainThreadTextEditorsShape } from 'vs/workbench/api/common/extHost.protocol';
 import * as TypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import { EndOfLine, Position, Range, Selection, SnippetString, TextEditorLineNumbersStyle, TextEditorRevealType } from 'vs/workbench/api/common/extHostTypes';
+import { EncodingMode, EndOfLine, Position, Range, Selection, SnippetString, TextEditorLineNumbersStyle, TextEditorRevealType } from 'vs/workbench/api/common/extHostTypes';
 import type * as vscode from 'vscode';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Lazy } from 'vs/base/common/lazy';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import * as TextFiles from 'vs/workbench/services/textfile/common/textfiles';
 
 export class TextEditorDecorationType {
 
@@ -566,6 +567,13 @@ export class ExtHostTextEditor {
 			},
 			hide() {
 				_proxy.$tryHideEditor(id);
+			},
+			getEncoding(): Promise<string | undefined> {
+				return _proxy.$tryGetEncoding(id);
+			},
+			setEncoding(encoding: string, mode: EncodingMode): Promise<void> {
+				const _mode: TextFiles.EncodingMode = mode === EncodingMode.Encode ? TextFiles.EncodingMode.Encode : TextFiles.EncodingMode.Decode;
+				return _proxy.$trySetEncoding(id, encoding, _mode);
 			}
 		});
 	}

@@ -4638,3 +4638,11 @@ export enum InlineEditTriggerKind {
 }
 
 //#endregion
+
+//#region
+export enum EncodingMode {
+	Encode = 0,
+	Decode = 1
+}
+
+//#endregion

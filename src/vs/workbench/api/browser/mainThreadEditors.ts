@@ -29,6 +29,8 @@ import { IEditorControl } from 'vs/workbench/common/editor';
 import { getCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { DirtyDiffContribution } from 'vs/workbench/contrib/scm/browser/dirtydiffDecorator';
+import { toEditorWithEncodingSupport } from 'vs/workbench/browser/parts/editor/editorStatus';
+import { EncodingMode } from 'vs/workbench/services/textfile/common/textfiles';
 
 export interface IMainThreadEditorLocator {
 	getEditor(id: string): MainThreadTextEditor | undefined;
@@ -273,6 +275,52 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		}
 
 		return Promise.resolve([]);
+	}
+
+	$tryGetEncoding(id: string): Promise<string | undefined> {
+		const editor = this._editorLocator.getEditor(id);
+
+		if (!editor) {
+			return Promise.reject(new Error('No such TextEditor'));
+		}
+
+		const editorPanes = this._editorService.visibleEditorPanes;
+		for (const editorPane of editorPanes) {
+			if (editor.matches(editorPane)) {
+				const encodingSupport = toEditorWithEncodingSupport(editorPane.input);
+				if (!encodingSupport) {
+					return Promise.reject(new Error('No file active at this time'));
+				}
+
+				const encoding = encodingSupport.getEncoding();
+
+				return Promise.resolve(encoding);
+			}
+		}
+
+		return Promise.reject(new Error('No text editor active at this time'));
+	}
+
+	$trySetEncoding(id: string, encoding: string, mode: EncodingMode): Promise<void> {
+		const editor = this._editorLocator.getEditor(id);
+
+		if (!editor) {
+			return Promise.reject(new Error('No such TextEditor'));
+		}
+
+		const editorPanes = this._editorService.visibleEditorPanes;
+		for (const editorPane of editorPanes) {
+			if (editor.matches(editorPane)) {
+				const encodingSupport = toEditorWithEncodingSupport(editorPane.input);
+				if (!encodingSupport) {
+					return Promise.reject(new Error('No file active at this time'));
+				}
+
+				return encodingSupport.setEncoding(encoding, mode);
+			}
+		}
+
+		return Promise.reject(new Error('No text editor active at this time'));
 	}
 }
 
