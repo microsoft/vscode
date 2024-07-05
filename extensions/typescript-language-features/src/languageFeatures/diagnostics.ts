@@ -175,6 +175,10 @@ class DiagnosticSettings {
 	}
 }
 
+interface DiagnosticPerformanceData extends TsDiagnosticPerformanceData {
+	fileLineCount?: number;
+}
+
 class DiagnosticsTelemetryManager extends Disposable {
 
 	private readonly _diagnosticCodesMap = new Map<number, number>();
@@ -280,10 +284,6 @@ class DiagnosticsTelemetryManager extends Disposable {
 		clearTimeout(this._timeout);
 		clearInterval(this._telemetryEmitter);
 	}
-}
-
-interface DiagnosticPerformanceData extends TsDiagnosticPerformanceData {
-	fileLineCount?: number;
 }
 
 export class DiagnosticsManager extends Disposable {
