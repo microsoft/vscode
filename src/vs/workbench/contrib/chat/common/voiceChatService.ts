@@ -70,13 +70,13 @@ export class VoiceChatService extends Disposable implements IVoiceChatService {
 	private static readonly COMMAND_PREFIX = chatSubcommandLeader;
 
 	private static readonly PHRASES_LOWER = {
-		[VoiceChatService.AGENT_PREFIX]: 'at',
-		[VoiceChatService.COMMAND_PREFIX]: 'slash'
+		[this.AGENT_PREFIX]: 'at',
+		[this.COMMAND_PREFIX]: 'slash'
 	};
 
 	private static readonly PHRASES_UPPER = {
-		[VoiceChatService.AGENT_PREFIX]: 'At',
-		[VoiceChatService.COMMAND_PREFIX]: 'Slash'
+		[this.AGENT_PREFIX]: 'At',
+		[this.COMMAND_PREFIX]: 'Slash'
 	};
 
 	private static readonly CHAT_AGENT_ALIAS = new Map<string, string>([['vscode', 'code']]);
