@@ -6,7 +6,7 @@
 
 	<meta http-equiv="Content-Security-Policy"
 
-	content="default-src 'none'; script-src 'sha256-AZxl4WdGVPMvkA/hvRAieQN9RhZciawMO9rNnNNOe08=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+	content="default-src 'none'; script-src 'sha256-do0JYOd6tnX/oPD1hA0DsaK1A/PBXPScl/63LG7W6A0=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 
 	<!-- Disable pinch zooming -->
@@ -1169,7 +1169,7 @@
 								break;
 							}
 
-							if (el.nodeType === 1 && el.nodeName === 'A' && el.href) {
+							if (el.nodeType === Node.ELEMENT_NODE && el.nodeName === 'A' && el.href) {
 								linkState = {
 									href: el.href
 								}
