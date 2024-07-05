@@ -25,7 +25,7 @@ import { isWeb, isWindows } from 'vs/base/common/platform';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { getResourceForCommand, getMultiSelectedResources, getOpenEditorsViewMultiSelection, IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
-import { getMultiSelectedEditorContexts } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { resolveCommandsContext } from 'vs/workbench/browser/parts/editor/editorCommandsContext';
 import { Schemas } from 'vs/base/common/network';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -35,7 +35,6 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { basename, joinPath, isEqual } from 'vs/base/common/resources';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { coalesce } from 'vs/base/common/arrays';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/embeddedCodeEditorWidget';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -514,13 +513,13 @@ CommandsRegistry.registerCommand({
 	handler: (accessor, _: URI | object, editorContext: IEditorCommandsContext) => {
 		const editorGroupService = accessor.get(IEditorGroupsService);
 
-		const contexts = getMultiSelectedEditorContexts(editorContext, accessor.get(IListService), accessor.get(IEditorGroupsService));
+		const resolvedContext = resolveCommandsContext(accessor, [editorContext]);
 
 		let groups: readonly IEditorGroup[] | undefined = undefined;
-		if (!contexts.length) {
+		if (!resolvedContext.groupedEditors.length) {
 			groups = editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
 		} else {
-			groups = coalesce(contexts.map(context => editorGroupService.getGroup(context.groupId)));
+			groups = resolvedContext.groupedEditors.map(({ group }) => group);
 		}
 
 		return saveDirtyEditorsOfGroups(accessor, groups, { reason: SaveReason.EXPLICIT });
