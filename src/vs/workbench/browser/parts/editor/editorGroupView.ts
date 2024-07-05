@@ -568,8 +568,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Show active editor (intentionally not using async to keep
 		// `restoreEditors` from executing in same stack)
-		return this.doShowEditor(activeEditor, { active: true, isNew: false /* restored */ }, options, internalOptions).then(() => {
-			this.titleControl.openEditors(this.editors);
+		const result = this.doShowEditor(activeEditor, { active: true, isNew: false /* restored */ }, options, internalOptions).then(() => {
 
 			// Set focused now if this is the active group and focus has
 			// not changed meanwhile. This prevents focus from being
@@ -580,6 +579,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				this.focus();
 			}
 		});
+
+		// Restore editors in title control
+		this.titleControl.openEditors(this.editors);
+
+		return result;
 	}
 
 	//#region event handling
