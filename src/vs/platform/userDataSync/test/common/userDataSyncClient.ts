@@ -26,7 +26,7 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IRequestService } from 'vs/platform/request/common/request';
+import { AuthInfo, Credentials, IRequestService } from 'vs/platform/request/common/request';
 import { InMemoryStorageService, IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
@@ -188,6 +188,7 @@ export class UserDataSyncTestServer implements IRequestService {
 	constructor(private readonly rateLimit = Number.MAX_SAFE_INTEGER, private readonly retryAfter?: number) { }
 
 	async resolveProxy(url: string): Promise<string | undefined> { return url; }
+	async lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined> { return undefined; }
 	async loadCertificates(): Promise<string[]> { return []; }
 
 	async request(options: IRequestOptions, token: CancellationToken): Promise<IRequestContext> {

@@ -214,7 +214,7 @@ export class OperationManager implements IOperationManager {
 			this.operations.set(operation.kind, new Set([operation]));
 		}
 
-		this.logger.trace(`Operation start: ${operation.kind} (blocking: ${operation.blocking}, readOnly: ${operation.readOnly}; retry: ${operation.retry}; showProgress: ${operation.showProgress})`);
+		this.logger.trace(`[OperationManager][start] ${operation.kind} (blocking: ${operation.blocking}, readOnly: ${operation.readOnly}; retry: ${operation.retry}; showProgress: ${operation.showProgress})`);
 	}
 
 	end(operation: Operation): void {
@@ -226,7 +226,7 @@ export class OperationManager implements IOperationManager {
 			}
 		}
 
-		this.logger.trace(`Operation end: ${operation.kind} (blocking: ${operation.blocking}, readOnly: ${operation.readOnly}; retry: ${operation.retry}; showProgress: ${operation.showProgress})`);
+		this.logger.trace(`[OperationManager][end] ${operation.kind} (blocking: ${operation.blocking}, readOnly: ${operation.readOnly}; retry: ${operation.retry}; showProgress: ${operation.showProgress})`);
 	}
 
 	getOperations(operationKind: OperationKind): Operation[] {
