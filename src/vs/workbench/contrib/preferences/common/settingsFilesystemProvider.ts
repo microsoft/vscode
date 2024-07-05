@@ -56,16 +56,18 @@ export class SettingsFileSystemProvider extends Disposable implements IFileSyste
 		throw FileSystemProviderErrorCode.FileNotFound;
 	}
 
-	async stat(resource: URI): Promise<IStat> {
-		const content = await this.readFile(resource);
-		const currentTime = Date.now();
-		return {
-			type: FileType.File,
-			permissions: FilePermission.Readonly,
-			mtime: currentTime,
-			ctime: currentTime,
-			size: content.byteLength
-		};
+	async stat(uri: URI): Promise<IStat> {
+		if (schemaRegistry.hasSchemaContent(uri.toString()) || this.preferencesService.hasDefaultSettingsContent(uri)) {
+			const currentTime = Date.now();
+			return {
+				type: FileType.File,
+				permissions: FilePermission.Readonly,
+				mtime: currentTime,
+				ctime: currentTime,
+				size: 0
+			};
+		}
+		throw FileSystemProviderErrorCode.FileNotFound;
 	}
 
 	readonly onDidChangeCapabilities = Event.None;

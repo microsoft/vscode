@@ -245,6 +245,7 @@ export interface IPreferencesService {
 
 	createPreferencesEditorModel(uri: URI): Promise<IPreferencesEditorModel<ISetting> | null>;
 	getDefaultSettingsContent(uri: URI): string | undefined;
+	hasDefaultSettingsContent(uri: URI): boolean;
 	createSettings2EditorModel(): Settings2EditorModel; // TODO
 
 	openRawDefaultSettings(): Promise<IEditorPane | undefined>;

@@ -44,6 +44,7 @@ import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestCont
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { ResourceSet } from 'vs/base/common/map';
+import { isEqual } from 'vs/base/common/resources';
 
 const emptyEditableSettingsContent = '{\n}';
 
@@ -119,6 +120,10 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return folder ? folder.toResource(FOLDER_SETTINGS_PATH) : null;
 	}
 
+	hasDefaultSettingsContent(uri: URI): boolean {
+		return this.isDefaultUserSettingsResource(uri) || isEqual(uri, this.defaultSettingsRawResource) || isEqual(uri, this.defaultKeybindingsResource);
+	}
+
 	getDefaultSettingsContent(uri: URI): string | undefined {
 		if (this.isDefaultSettingsResource(uri)) {
 			// We opened a split json editor in this case,
@@ -134,7 +139,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			return defaultSettings.getContentWithoutMostCommonlyUsed(true);
 		}
 
-		if (this.defaultSettingsRawResource.toString() === uri.toString()) {
+		if (isEqual(uri, this.defaultSettingsRawResource)) {
 			if (!this._defaultRawSettingsEditorModel) {
 				this._defaultRawSettingsEditorModel = this._register(this.instantiationService.createInstance(DefaultRawSettingsEditorModel, this.getDefaultSettings(ConfigurationTarget.USER_LOCAL)));
 				this._defaultRawSettingsEditorModel.onDidContentChanged(() => this._onDidDefaultSettingsContentChanged.fire(uri));
@@ -142,7 +147,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			return this._defaultRawSettingsEditorModel.content;
 		}
 
-		if (this.defaultKeybindingsResource.toString() === uri.toString()) {
+		if (isEqual(uri, this.defaultKeybindingsResource)) {
 			const defaultKeybindingsEditorModel = this.instantiationService.createInstance(DefaultKeybindingsEditorModel, uri);
 			return defaultKeybindingsEditorModel.content;
 		}

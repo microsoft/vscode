@@ -8,7 +8,8 @@ export type JSONLanguageStatus = { schemas: string[] };
 import {
 	workspace, window, languages, commands, LogOutputChannel, ExtensionContext, extensions, Uri, ColorInformation,
 	Diagnostic, StatusBarAlignment, TextEditor, TextDocument, FormattingOptions, CancellationToken, FoldingRange,
-	ProviderResult, TextEdit, Range, Position, Disposable, CompletionItem, CompletionList, CompletionContext, Hover, MarkdownString, FoldingContext, DocumentSymbol, SymbolInformation, l10n
+	ProviderResult, TextEdit, Range, Position, Disposable, CompletionItem, CompletionList, CompletionContext, Hover, MarkdownString, FoldingContext, DocumentSymbol, SymbolInformation, l10n,
+	RelativePattern
 } from 'vscode';
 import {
 	LanguageClientOptions, RequestType, NotificationType, FormattingOptions as LSPFormattingOptions, DocumentDiagnosticReportKind,
@@ -360,21 +361,29 @@ async function startClientWithParticipants(context: ExtensionContext, languagePa
 	const schemaDocuments: { [uri: string]: boolean } = {};
 
 	// handle content request
-	client.onRequest(VSCodeContentRequest.type, (uriPath: string) => {
+	client.onRequest(VSCodeContentRequest.type, async (uriPath: string) => {
 		const uri = Uri.parse(uriPath);
 		if (uri.scheme === 'untitled') {
-			return Promise.reject(new ResponseError(3, l10n.t('Unable to load {0}', uri.toString())));
+			throw new ResponseError(3, l10n.t('Unable to load {0}', uri.toString()));
 		}
-		if (uri.scheme !== 'http' && uri.scheme !== 'https') {
-			console.log('open ' + uri);
-			return workspace.openTextDocument(uri).then(doc => {
-				console.log('content ' + uri, doc.getText().length);
+		if (uri.scheme === 'vscode') {
+			try {
+				runtime.logOutputChannel.info('read schema from vscode: ' + uri.toString);
+				ensureFilesystemWatcherInstalled(uri);
+				const content = await workspace.fs.readFile(uri);
 				schemaDocuments[uri.toString()] = true;
-				return doc.getText();
-			}, error => {
-				console.log('error ' + uri, error);
-				return Promise.reject(new ResponseError(2, error.toString()));
-			});
+				return new TextDecoder().decode(content);
+			} catch (e) {
+				throw new ResponseError(2, e.toString(), e);
+			}
+		} else if (uri.scheme !== 'http' && uri.scheme !== 'https') {
+			try {
+				const document = await workspace.openTextDocument(uri);
+				schemaDocuments[uri.toString()] = true;
+				return document.getText();
+			} catch (e) {
+				throw new ResponseError(2, e.toString(), e);
+			}
 		} else if (schemaDownloadEnabled) {
 			if (runtime.telemetry && uri.authority === 'schema.management.azure.com') {
 				/* __GDPR__
@@ -386,11 +395,13 @@ async function startClientWithParticipants(context: ExtensionContext, languagePa
 				*/
 				runtime.telemetry.sendTelemetryEvent('json.schema', { schemaURL: uriPath });
 			}
-			return runtime.schemaRequests.getContent(uriPath).catch(e => {
-				return Promise.reject(new ResponseError(4, e.toString()));
-			});
+			try {
+				return await runtime.schemaRequests.getContent(uriPath);
+			} catch (e) {
+				throw new ResponseError(4, e.toString());
+			}
 		} else {
-			return Promise.reject(new ResponseError(1, l10n.t('Downloading schemas is disabled through setting \'{0}\'', SettingIds.enableSchemaDownload)));
+			throw new ResponseError(1, l10n.t('Downloading schemas is disabled through setting \'{0}\'', SettingIds.enableSchemaDownload));
 		}
 	});
 
@@ -418,15 +429,51 @@ async function startClientWithParticipants(context: ExtensionContext, languagePa
 			schemaResolutionErrorStatusBarItem.hide();
 		}
 	};
-
-	toDispose.push(workspace.onDidChangeTextDocument(e => handleContentChange(e.document.uri.toString())));
-	toDispose.push(workspace.onDidCloseTextDocument(d => {
-		const uriString = d.uri.toString();
+	const handleContentClosed = (uriString: string) => {
 		if (handleContentChange(uriString)) {
+			runtime.logOutputChannel.info('handleContentClosed ' + uriString);
 			delete schemaDocuments[uriString];
 		}
 		fileSchemaErrors.delete(uriString);
+	};
+
+	const watchers: Map<string, Disposable> = new Map();
+	toDispose.push(new Disposable(() => {
+		for (const d of watchers.values()) {
+			d.dispose();
+		}
 	}));
+
+
+	const ensureFilesystemWatcherInstalled = (uri: Uri) => {
+
+		const uriString = uri.toString();
+		if (!watchers.has(uriString)) {
+			try {
+				const watcher = workspace.createFileSystemWatcher(new RelativePattern(uri, '*'));
+				const handleChange = (uri: Uri) => {
+					runtime.logOutputChannel.info('FS change detected ' + uri.toString());
+					client.sendNotification(SchemaContentChangeNotification.type, uriString);
+				};
+				const createListener = watcher.onDidChange(handleChange);
+				const changeListener = watcher.onDidChange(handleChange);
+				const deleteListener = watcher.onDidDelete(() => {
+					const watcher = watchers.get(uriString);
+					if (watcher) {
+						watcher.dispose();
+						watchers.delete(uriString);
+					}
+				});
+				watchers.set(uriString, Disposable.from(watcher, createListener, changeListener, deleteListener));
+			} catch {
+				runtime.logOutputChannel.info('Problem installing a file system watcher for ' + uriString);
+			}
+		}
+	};
+
+	toDispose.push(workspace.onDidChangeTextDocument(e => handleContentChange(e.document.uri.toString())));
+	toDispose.push(workspace.onDidCloseTextDocument(d => handleContentClosed(d.uri.toString())));
+
 	toDispose.push(window.onDidChangeActiveTextEditor(handleActiveEditorChange));
 
 	const handleRetryResolveSchemaCommand = () => {

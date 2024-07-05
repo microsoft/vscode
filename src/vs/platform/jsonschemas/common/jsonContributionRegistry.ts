@@ -37,10 +37,16 @@ export interface IJSONContributionRegistry {
 	getSchemaContributions(): ISchemaContributions;
 
 	/**
-	 * Gets the (compressed) content of the schema with the given schema ID (if any
+	 * Gets the (compressed) content of the schema with the given schema ID (if any)
 	 * @param uri The id of the schema
 	 */
 	getSchemaContent(uri: string): string | undefined;
+
+	/**
+	 * Returns true if there's a schema that matches the given schema ID
+	 * @param uri The id of the schema
+	 */
+	hasSchemaContent(uri: string): boolean;
 }
 
 
@@ -83,6 +89,10 @@ class JSONContributionRegistry implements IJSONContributionRegistry {
 	public getSchemaContent(uri: string): string | undefined {
 		const schema = this.schemasById[uri];
 		return schema ? getCompressedContent(schema) : undefined;
+	}
+
+	public hasSchemaContent(uri: string): boolean {
+		return !!this.schemasById[uri];
 	}
 
 }
