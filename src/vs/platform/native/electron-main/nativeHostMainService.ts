@@ -11,7 +11,7 @@ import { promisify } from 'util';
 import { memoize } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { matchesHttpScheme, Schemas } from 'vs/base/common/network';
+import { matchesSomeScheme, Schemas } from 'vs/base/common/network';
 import { dirname, join, resolve } from 'vs/base/common/path';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { AddFirstParameterToFunctions } from 'vs/base/common/types';
@@ -508,7 +508,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	async openExternal(windowId: number | undefined, url: string): Promise<boolean> {
 		this.environmentMainService.unsetSnapExportedVariables();
 		const defaultBrowser = this.configurationService.getValue<string>('workbench.browser');
-		if (matchesHttpScheme(url) && defaultBrowser) {
+		if (matchesSomeScheme(url, Schemas.http, Schemas.https) && defaultBrowser) {
 			await this.openInExternalBrowser(url, defaultBrowser);
 		} else {
 			shell.openExternal(url);
