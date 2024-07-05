@@ -89,13 +89,13 @@ export interface ISetting {
 	extensionInfo?: IExtensionInfo;
 	validator?: (value: any) => string | null;
 	enumItemLabels?: string[];
-	allKeysAreBoolean?: boolean;
 	editPresentation?: EditPresentationTypes;
 	nonLanguageSpecificDefaultValueSource?: ConfigurationDefaultValueSource;
 	isLanguageTagSetting?: boolean;
 	categoryLabel?: string;
 
 	// Internal properties
+	allKeysAreBoolean?: boolean;
 	displayExtensionId?: string;
 	stableExtensionId?: string;
 	prereleaseExtensionId?: string;
