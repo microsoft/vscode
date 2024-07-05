@@ -91,17 +91,17 @@ function moveCurrentEditorContextToFront(editorContext: IEditorCommandsContext, 
 
 	const editorContextIndex = multiEditorContext.findIndex(context =>
 		context.groupId === editorContext.groupId &&
-		(editorContext.editorIndex === undefined || context.editorIndex === editorContext.editorIndex) &&
-		(editorContext.preserveFocus === undefined || context.preserveFocus === editorContext.preserveFocus)
+		context.editorIndex === editorContext.editorIndex
 	);
 
-	if (editorContextIndex === -1) {
-		throw new Error('Invalid multi select editor context');
+	if (editorContextIndex !== -1) {
+		multiEditorContext.splice(editorContextIndex, 1);
+		multiEditorContext.unshift(editorContext);
+	} else if (editorContext.editorIndex === undefined) {
+		multiEditorContext.unshift(editorContext);
+	} else {
+		throw new Error('Editor context not found in multi editor context');
 	}
-
-	const currentContext = multiEditorContext[editorContextIndex];
-	multiEditorContext.splice(editorContextIndex, 1);
-	multiEditorContext.unshift(currentContext);
 
 	return multiEditorContext;
 }
