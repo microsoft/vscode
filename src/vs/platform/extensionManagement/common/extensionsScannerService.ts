@@ -674,6 +674,7 @@ class ExtensionsScanner extends Disposable {
 					extension = this.validate(extension, input);
 				}
 				if (manifest.enabledApiProposals && (!this.environmentService.isBuilt || this.extensionsEnabledWithApiProposalVersion.includes(id.toLowerCase()))) {
+					manifest.originalEnabledApiProposals = manifest.enabledApiProposals;
 					manifest.enabledApiProposals = parseEnabledApiProposalNames([...manifest.enabledApiProposals]);
 				}
 				return extension;

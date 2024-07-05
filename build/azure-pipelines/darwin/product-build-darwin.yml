@@ -78,6 +78,14 @@ steps:
 
   - script: |
       set -e
+      # Refs https://github.com/microsoft/vscode/issues/219893#issuecomment-2209313109
+      sudo xcode-select --switch /Applications/Xcode_15.2.app
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+    displayName: Switch to Xcode >= 15.1
+
+  - script: |
+      set -e
+      c++ --version
       python3 -m pip install setuptools
 
       for i in {1..5}; do # try 5 times
