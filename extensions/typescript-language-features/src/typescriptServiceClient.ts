@@ -1039,7 +1039,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				this.closeFileSystemWatcher(event.body.id);
 				break;
 
-			case EventName.requestCompleted:
+			case EventName.requestCompleted: {
 				const diagnosticsDuration = (event.body as Proto.RequestCompletedEventBody).performanceData?.diagnosticsDuration;
 				if (diagnosticsDuration) {
 					this.diagnosticsManager.logDiagnosticsPerformanceTelemetry(
@@ -1053,6 +1053,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 					);
 				}
 				break;
+			}
 		}
 	}
 
