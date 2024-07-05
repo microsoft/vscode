@@ -15,6 +15,7 @@ function makeCompileBuildTask(disableMangle) {
 	return task.series(
 		util.rimraf('out-build'),
 		util.buildWebNodePaths('out-build'),
+		util.addDateToProductJson(),
 		compilation.compileApiProposalNamesTask,
 		compilation.compileTask('src', 'out-build', true, { disableMangle }),
 		optimize.optimizeLoaderTask('out-build', 'out-build', true)

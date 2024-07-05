@@ -12,7 +12,6 @@ const util = require('./lib/util');
 const { getVersion } = require('./lib/getVersion');
 const task = require('./lib/task');
 const optimize = require('./lib/optimize');
-const { date } = require('./lib/date');
 const product = require('../product.json');
 const rename = require('gulp-rename');
 const filter = require('gulp-filter');
@@ -93,8 +92,7 @@ const createVSCodeWebProductConfigurationPatcher = (product) => {
 			const productConfiguration = JSON.stringify({
 				...product,
 				version,
-				commit,
-				date
+				commit
 			});
 			return content.replace('/*BUILD->INSERT_PRODUCT_CONFIGURATION*/', () => productConfiguration.substr(1, productConfiguration.length - 2) /* without { and }*/);
 		}

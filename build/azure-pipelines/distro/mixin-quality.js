@@ -40,7 +40,7 @@ function main() {
             else {
                 log('Inheriting OSS built-in extensions', builtInExtensions.map(e => e.name));
             }
-            const result = { webBuiltInExtensions: oss.webBuiltInExtensions, ...distro, builtInExtensions };
+            const result = { webBuiltInExtensions: oss.webBuiltInExtensions, ...distro, builtInExtensions, date: oss.date };
             fs.writeFileSync(ossPath, JSON.stringify(result, null, '\t'), 'utf8');
         }
         else {

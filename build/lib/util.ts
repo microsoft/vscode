@@ -491,3 +491,20 @@ export function buildWebNodePaths(outDir: string) {
 	result.taskName = 'build-web-node-paths';
 	return result;
 }
+
+export function addDateToProductJson() {
+	const result = () => new Promise<void>((resolve, _) => {
+		// In CI we run many builds in parallel but we want each build
+		// to have the same date in `product.json`, so we patch it in
+		// very early during compilation time.
+		if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
+			const productJsonPath = path.join(root, 'product.json');
+			const productJson = JSON.parse(fs.readFileSync(path.join(root, 'product.json'), 'utf8'));
+			productJson.date = new Date().toISOString();
+			fs.writeFileSync(productJsonPath, JSON.stringify(productJson, null, '\t'), 'utf8');
+		}
+		resolve();
+	});
+	result.taskName = 'build-add-date-to-product-json';
+	return result;
+}

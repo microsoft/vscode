@@ -16,6 +16,7 @@ interface IBuiltInExtension {
 interface OSSProduct {
 	readonly builtInExtensions: IBuiltInExtension[];
 	readonly webBuiltInExtensions?: IBuiltInExtension[];
+	readonly date?: string;
 }
 
 interface Product {
@@ -67,7 +68,7 @@ function main() {
 				log('Inheriting OSS built-in extensions', builtInExtensions.map(e => e.name));
 			}
 
-			const result = { webBuiltInExtensions: oss.webBuiltInExtensions, ...distro, builtInExtensions };
+			const result = { webBuiltInExtensions: oss.webBuiltInExtensions, ...distro, builtInExtensions, date: oss.date };
 			fs.writeFileSync(ossPath, JSON.stringify(result, null, '\t'), 'utf8');
 		} else {
 			fs.cpSync(distroPath, ossPath, { force: true, recursive: true });
