@@ -157,9 +157,6 @@ function migrateTS(filePath, fileContents) {
 		return writeDestFile(filePath, fileContents);
 	}
 
-	// fileContents = patchCSSImportsAdoptedStyleSheet(filePath, fileContents);
-	// fileContents = patchFileAccess(filePath, fileContents);
-
 	const imports = discoverImports(fileContents);
 	/** @type {Replacement[]} */
 	const replacements = [];
@@ -254,104 +251,6 @@ function generateRelativeImport(filePath, importedFilepath) {
 		relativePath = './' + relativePath;
 	}
 	return relativePath;
-}
-
-/**
- * @param {string} fileContents
- */
-function rewriteDefaultImports(fileContents) {
-	const imports = new Set([
-		'assert',
-		'minimist',
-		'sinon-test',
-	]);
-	const search = /(import )(\* as )\w+ from ['"]([^'"]+)['"];/g;
-	/** @type {Replacement[]} */
-	const replacements = [];
-	do {
-		const m = search.exec(fileContents);
-		if (!m) {
-			break;
-		}
-		const pos = m.index + m[1].length;
-		const end = pos + m[2].length;
-		const importText = m[3];
-		if (imports.has(importText)) {
-			replacements.push({ pos, end, text: `` });
-		}
-	} while (true);
-
-	return replacements;
-}
-
-/**
- * @param {string} filePath
- * @param {string} fileContents
- */
-function patchCSSImportsAdoptedStyleSheet(filePath, fileContents) {
-	const search = /import ['"]vs\/css!([^'"]+)['"];/g;
-	let lastUsedVariable = 0;
-	let lastImportPos = -1;
-	/** @type {Replacement[]} */
-	const replacements = [];
-	do {
-		const m = search.exec(fileContents);
-		if (!m) {
-			break;
-		}
-
-		const pos = m.index;
-		const end = pos + m[0].length;
-
-		const variableName = ++lastUsedVariable === 1 ? 'sheet' : `sheet_${lastUsedVariable}`;
-		replacements.push({ pos, end, text: `import ${variableName} from '${m[1]}.css' assert { type: 'css' };` });
-
-		if (lastImportPos === -1) {
-			lastImportPos = findLastImportPosition(fileContents);
-		}
-		replacements.push({ pos: lastImportPos + 1, end: lastImportPos + 1, text: `registerStyleSheet(${variableName});\n` });
-	} while (true);
-
-	if (replacements.length > 0) {
-		const firstImportStart = findFirstImportPosition(fileContents);
-		const cssModuleRelativePath = path.relative(path.dirname(filePath), path.join(__dirname, 'src/vs/base/browser/css')).replace(/\\/g, '/');
-		replacements.unshift({ pos: firstImportStart, end: firstImportStart, text: `import { registerStyleSheet } from '${cssModuleRelativePath}';\n` });
-	}
-
-	fileContents = applyReplacements(fileContents, replacements);
-
-	return fileContents;
-}
-
-/**
- * @param {string} fileContents
- */
-function findFirstImportPosition(fileContents) {
-	const search = /import (([^']* from '[^']+')|('[^']+'));/g;
-	do {
-		const m = search.exec(fileContents);
-		if (m) {
-			return m.index;
-		}
-		return 0;
-	} while (true);
-}
-
-/**
- * @param {string} fileContents
- */
-function findLastImportPosition(fileContents) {
-	const search = /import (([^']* from '[^']+')|('[^']+'));/g;
-	let lastImportEnd = 0;
-	do {
-		const m = search.exec(fileContents);
-		if (!m) {
-			break;
-		}
-		lastImportEnd = m.index + m[0].length;
-	} while (true);
-
-	return lastImportEnd;
 }
 
 /** @typedef {{pos:number;end:number;text:string;}} Replacement */
