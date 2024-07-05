@@ -61,8 +61,7 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 	}
 
 	openEditor(editor: EditorInput, options: IInternalEditorOpenOptions): boolean {
-		const editorTabController = this.model.isSticky(editor) ? this.stickyEditorTabsControl : this.unstickyEditorTabsControl;
-		const didChange = editorTabController.openEditor(editor, options);
+		const didChange = this.getEditorTabsController(editor).openEditor(editor, options);
 		if (didChange) {
 			this.handleOpenedEditors();
 		}
