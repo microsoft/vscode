@@ -6,10 +6,15 @@
 import * as path from 'path';
 import * as fs from 'fs';
 
-export function buildDate(outDir: string) {
-	const result = () => new Promise<void>((resolve, _) => {
-		const root = path.join(__dirname, '..', '..');
+const root = path.join(__dirname, '..', '..');
 
+/**
+ * Writes a `outDir/date` file with the contents of the build
+ * so that other tasks during the build process can use it and
+ * all use the same date.
+ */
+export function writeISODate(outDir: string) {
+	const result = () => new Promise<void>((resolve, _) => {
 		const outDirectory = path.join(root, outDir);
 		fs.mkdirSync(outDirectory, { recursive: true });
 
@@ -20,4 +25,9 @@ export function buildDate(outDir: string) {
 	});
 	result.taskName = 'build-date-file';
 	return result;
+}
+
+export function readISODate(outDir: string): string {
+	const outDirectory = path.join(root, outDir);
+	return fs.readFileSync(path.join(outDirectory, 'date'), 'utf8');
 }
