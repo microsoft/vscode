@@ -92,7 +92,7 @@
     "@xterm/xterm": "5.6.0-beta.36",
     "http-proxy-agent": "^7.0.0",
     "https-proxy-agent": "^7.0.2",
-    "jschardet": "3.1.2",
+    "jschardet": "3.1.3",
     "kerberos": "^2.0.1",
     "minimist": "^1.2.6",
     "native-is-elevated": "0.7.0",
