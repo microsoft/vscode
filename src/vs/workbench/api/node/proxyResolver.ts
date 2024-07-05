@@ -173,29 +173,28 @@ async function lookupProxyAuthorization(
 		} catch (err) {
 			extHostLogService.error('ProxyResolver#lookupProxyAuthorization Kerberos authentication failed', err);
 		}
-	} else {
-		const header = authenticate.find(a => /^Basic( |$)/i.test(a));
-		if (header) {
-			try {
-				state.basicAuthAttempt = (state.basicAuthAttempt || 0) + 1;
-				const realm = / realm="([^"]+)"/i.exec(header)?.[1];
-				extHostLogService.debug('ProxyResolver#lookupProxyAuthorization Basic authentication lookup', `proxyURL:${proxyURL}`, `realm:${realm}`);
-				const url = new URL(proxyURL);
-				const authInfo: AuthInfo = {
-					scheme: 'basic',
-					host: url.hostname,
-					port: Number(url.port),
-					realm: realm || '',
-					isProxy: true,
-					attempt: state.basicAuthAttempt,
-				};
-				const credentials = await extHostWorkspace.lookupAuthorization(authInfo);
-				if (credentials) {
-					return 'Basic ' + Buffer.from(`${credentials.username}:${credentials.password}`).toString('base64');
-				}
-			} catch (err) {
-				extHostLogService.error('ProxyResolver#lookupProxyAuthorization Kerberos authentication failed', err);
+	}
+	const basicAuthHeader = authenticate.find(a => /^Basic( |$)/i.test(a));
+	if (basicAuthHeader) {
+		try {
+			state.basicAuthAttempt = (state.basicAuthAttempt || 0) + 1;
+			const realm = / realm="([^"]+)"/i.exec(basicAuthHeader)?.[1];
+			extHostLogService.debug('ProxyResolver#lookupProxyAuthorization Basic authentication lookup', `proxyURL:${proxyURL}`, `realm:${realm}`);
+			const url = new URL(proxyURL);
+			const authInfo: AuthInfo = {
+				scheme: 'basic',
+				host: url.hostname,
+				port: Number(url.port),
+				realm: realm || '',
+				isProxy: true,
+				attempt: state.basicAuthAttempt,
+			};
+			const credentials = await extHostWorkspace.lookupAuthorization(authInfo);
+			if (credentials) {
+				return 'Basic ' + Buffer.from(`${credentials.username}:${credentials.password}`).toString('base64');
 			}
+		} catch (err) {
+			extHostLogService.error('ProxyResolver#lookupProxyAuthorization Kerberos authentication failed', err);
 		}
 	}
 	return undefined;
