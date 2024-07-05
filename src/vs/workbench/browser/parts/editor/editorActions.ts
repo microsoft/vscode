@@ -1175,7 +1175,7 @@ export class ToggleMaximizeEditorGroupAction extends Action2 {
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 
 		const resolvedContext = resolveCommandsContext(accessor, args);
-		if (!resolvedContext.groupedEditors.length) {
+		if (resolvedContext.groupedEditors.length) {
 			editorGroupsService.toggleMaximizeGroup(resolvedContext.groupedEditors[0].group);
 		}
 	}

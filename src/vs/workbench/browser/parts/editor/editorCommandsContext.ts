@@ -14,11 +14,11 @@ import { IEditorGroup, IEditorGroupsService, isEditorGroup } from 'vs/workbench/
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export interface IResolvedEditorCommandsContext {
-	groupedEditors: {
-		group: IEditorGroup;
-		editors: EditorInput[];
+	readonly groupedEditors: {
+		readonly group: IEditorGroup;
+		readonly editors: EditorInput[];
 	}[];
-	preserveFocus: boolean;
+	readonly preserveFocus: boolean;
 }
 
 export function resolveCommandsContext(accessor: ServicesAccessor, commandArgs: unknown[]): IResolvedEditorCommandsContext {
@@ -133,7 +133,7 @@ function getEditorContextFromCommandArgs(accessor: ServicesAccessor, commandArgs
 	// If there is no context in the arguments, try to find the context from the focused list
 	// if the action was executed from a list
 	if (isListAcion) {
-		const list = listService.lastFocusedList as List<any>;
+		const list = listService.lastFocusedList as List<unknown>;
 		for (const focusedElement of list.getFocusedElements()) {
 			if (isGroupOrEditor(focusedElement)) {
 				return groupOrEditorToEditorContext(focusedElement, undefined, editorGroupsService);
@@ -150,7 +150,7 @@ function getMultiSelectContext(accessor: ServicesAccessor, editorContext: IEdito
 
 	// If the action was executed from a list, return all selected editors
 	if (isListAction) {
-		const list = listService.lastFocusedList as List<any>;
+		const list = listService.lastFocusedList as List<unknown>;
 		const selection = list.getSelectedElements().filter(isGroupOrEditor);
 
 		if (selection.length > 1) {
@@ -181,7 +181,7 @@ function groupOrEditorToEditorContext(element: IEditorIdentifier | IEditorGroup,
 	return { groupId: element.groupId, editorIndex: group ? group.getIndexOfEditor(element.editor) : -1, preserveFocus };
 }
 
-function isGroupOrEditor(element: any): element is IEditorIdentifier | IEditorGroup {
+function isGroupOrEditor(element: unknown): element is IEditorIdentifier | IEditorGroup {
 	return isEditorGroup(element) || isEditorIdentifier(element);
 }
 
