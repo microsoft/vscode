@@ -500,6 +500,7 @@ export function addDateToProductJson() {
 	const result = () => new Promise<void>((resolve, _) => {
 		const productJsonPath = path.join(root, 'product.json');
 		log(`Adding date to product.json in ${productJsonPath}`);
+		log(`Real path ${fs.realpathSync(productJsonPath)}`);
 
 		let productJson = JSON.parse(fs.readFileSync(productJsonPath, 'utf8'));
 		productJson.date = new Date().toISOString();
