@@ -272,7 +272,11 @@ export interface IMenuChangeEvent {
 export interface IMenu extends IDisposable {
 	readonly onDidChange: Event<IMenuChangeEvent>;
 	getActions(options?: IMenuActionOptions): [string, Array<MenuItemAction | SubmenuItemAction>][];
-	contexts(): ReadonlySet<string>;
+}
+
+export interface IMenuData {
+	contexts: ReadonlySet<string>;
+	actions: [string, Array<MenuItemAction | SubmenuItemAction>][];
 }
 
 export const IMenuService = createDecorator<IMenuService>('menuService');
@@ -287,12 +291,24 @@ export interface IMenuService {
 	readonly _serviceBrand: undefined;
 
 	/**
+	 * Consider using getMenuActions if you don't need to listen to events.
+	 *
 	 * Create a new menu for the given menu identifier. A menu sends events when it's entries
 	 * have changed (placement, enablement, checked-state). By default it does not send events for
 	 * submenu entries. That is more expensive and must be explicitly enabled with the
 	 * `emitEventsForSubmenuChanges` flag.
 	 */
 	createMenu(id: MenuId, contextKeyService: IContextKeyService, options?: IMenuCreateOptions): IMenu;
+
+	/**
+	 * Creates a new menu, gets the actions, and then disposes of the menu.
+	 */
+	getMenuActions(id: MenuId, contextKeyService: IContextKeyService, options?: IMenuActionOptions): [string, Array<MenuItemAction | SubmenuItemAction>][];
+
+	/**
+	 * Creates a new menu, snapshots the names of the contexts that menu depends on, and then disposes of the menu.
+	 */
+	getMenuContexts(id: MenuId): ReadonlySet<string>;
 
 	/**
 	 * Reset **all** menu item hidden states.

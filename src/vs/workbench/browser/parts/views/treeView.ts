@@ -1167,7 +1167,6 @@ interface ITreeExplorerTemplateData {
 	readonly checkboxContainer: HTMLElement;
 	checkbox?: TreeItemCheckbox;
 	readonly actionBar: ActionBar;
-	actionContexts?: ReadonlySet<string>;
 }
 
 class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyScore, ITreeExplorerTemplateData> {
@@ -1348,8 +1347,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		templateData.actionBar.context = { $treeViewId: this.treeViewId, $treeItemHandle: node.handle } satisfies TreeViewItemHandleArg;
 
 		const menuActions = this.menus.getResourceActions([node]);
-		templateData.actionBar.push(menuActions.actions, { icon: true, label: false });
-		templateData.actionContexts = menuActions.contexts;
+		templateData.actionBar.push(menuActions, { icon: true, label: false });
 
 		if (this._actionRunner) {
 			templateData.actionBar.actionRunner = this._actionRunner;
@@ -1441,7 +1439,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		const items: ITreeItem[] = [];
 		for (const [_, elements] of this._renderedElements) {
 			for (const element of elements) {
-				if (element.rendered.actionContexts && e.affectsSome(element.rendered.actionContexts)) {
+				if (e.affectsSome(this.menus.getElementOverlayContexts(element.original.element)) || e.affectsSome(this.menus.getEntireMenuContexts())) {
 					items.push(element.original.element);
 				}
 			}
@@ -1632,16 +1630,16 @@ class TreeMenus implements IDisposable {
 	/**
 	 * Gets only the actions that apply to all of the given elements.
 	 */
-	getResourceActions(elements: ITreeItem[]): { actions: IAction[]; contexts: ReadonlySet<string> } {
-		const actions = this.getActions(MenuId.ViewItemContext, elements);
-		return { actions: actions.primary, contexts: actions.contexts };
+	getResourceActions(elements: ITreeItem[]): IAction[] {
+		const actions = this.getActions(this.getMenuId(), elements);
+		return actions.primary;
 	}
 
 	/**
 	 * Gets only the actions that apply to all of the given elements.
 	 */
 	getResourceContextActions(elements: ITreeItem[]): IAction[] {
-		return this.getActions(MenuId.ViewItemContext, elements).secondary;
+		return this.getActions(this.getMenuId(), elements).secondary;
 	}
 
 	public setContextKeyService(service: IContextKeyService) {
@@ -1688,26 +1686,38 @@ class TreeMenus implements IDisposable {
 		return groups;
 	}
 
-	private getActions(menuId: MenuId, elements: ITreeItem[]): { primary: IAction[]; secondary: IAction[]; contexts: ReadonlySet<string> } {
+	public getElementOverlayContexts(element: ITreeItem): Map<string, any> {
+		return new Map([
+			['view', this.id],
+			['viewItem', element.contextValue]
+		]);
+	}
+
+	public getEntireMenuContexts(): ReadonlySet<string> {
+		return this.menuService.getMenuContexts(this.getMenuId());
+	}
+
+	public getMenuId(): MenuId {
+		return MenuId.ViewItemContext;
+	}
+
+	private getActions(menuId: MenuId, elements: ITreeItem[]): { primary: IAction[]; secondary: IAction[] } {
 		if (!this.contextKeyService) {
-			return { primary: [], secondary: [], contexts: new Set() };
+			return { primary: [], secondary: [] };
 		}
 
 		let primaryGroups: Map<string, IAction>[] = [];
 		let secondaryGroups: Map<string, IAction>[] = [];
-		const contexts = new Set<string>();
 		for (let i = 0; i < elements.length; i++) {
 			const element = elements[i];
-			const contextKeyService = this.contextKeyService.createOverlay([
-				['view', this.id],
-				['viewItem', element.contextValue]
-			]);
+			const contextKeyService = this.contextKeyService.createOverlay(this.getElementOverlayContexts(element));
 
-			const menu = this.menuService.createMenu(menuId, contextKeyService);
+			const menuData = this.menuService.getMenuActions(menuId, contextKeyService);
+
 			const primary: IAction[] = [];
 			const secondary: IAction[] = [];
-			const result = { primary, secondary, menu };
-			createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, 'inline');
+			const result = { primary, secondary };
+			createAndFillInContextMenuActions(menuData, { shouldForwardArgs: true }, result, 'inline');
 			if (i === 0) {
 				primaryGroups = this.createGroups(result.primary);
 				secondaryGroups = this.createGroups(result.secondary);
@@ -1715,11 +1725,9 @@ class TreeMenus implements IDisposable {
 				this.filterNonUniversalActions(primaryGroups, result.primary);
 				this.filterNonUniversalActions(secondaryGroups, result.secondary);
 			}
-			menu.contexts().forEach(context => contexts.add(context));
-			menu.dispose();
 		}
 
-		return { primary: this.buildMenu(primaryGroups), secondary: this.buildMenu(secondaryGroups), contexts };
+		return { primary: this.buildMenu(primaryGroups), secondary: this.buildMenu(secondaryGroups) };
 	}
 
 	dispose() {
