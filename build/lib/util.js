@@ -408,7 +408,7 @@ function buildWebNodePaths(outDir) {
 function addDateToProductJson() {
     const result = () => new Promise((resolve, _) => {
         const productJsonPath = path.join(root, 'product.json');
-        const productJson = JSON.parse(fs.readFileSync(path.join(root, 'product.json'), 'utf8'));
+        const productJson = JSON.parse(fs.readFileSync(productJsonPath, 'utf8'));
         productJson.date = new Date().toISOString();
         fs.writeFileSync(productJsonPath, JSON.stringify(productJson, null, '\t'), 'utf8');
         resolve();
