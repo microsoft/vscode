@@ -9,10 +9,10 @@ import { pushMany, compareBy, numberComparator, reverseOrder } from 'vs/base/com
 import { MonotonousArray, findLastMonotonous } from 'vs/base/common/arraysFind';
 import { SetMap } from 'vs/base/common/map';
 import { LineRange, LineRangeSet } from 'vs/editor/common/core/lineRange';
-import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { LinesSliceCharSequence } from 'vs/editor/common/diff/defaultLinesDiffComputer/linesSliceCharSequence';
 import { LineRangeFragment, isSpace } from 'vs/editor/common/diff/defaultLinesDiffComputer/utils';
 import { MyersDiffAlgorithm } from 'vs/editor/common/diff/defaultLinesDiffComputer/algorithms/myersDiffAlgorithm';
+import { Range } from 'vs/editor/common/core/range';
 
 export function computeMovedLines(
 	changes: DetailedLineRangeMapping[],
@@ -260,8 +260,8 @@ function areLinesSimilar(line1: string, line2: string, timeout: ITimeout): boole
 
 	const myersDiffingAlgorithm = new MyersDiffAlgorithm();
 	const result = myersDiffingAlgorithm.compute(
-		new LinesSliceCharSequence([line1], new OffsetRange(0, 1), false),
-		new LinesSliceCharSequence([line2], new OffsetRange(0, 1), false),
+		new LinesSliceCharSequence([line1], new Range(1, 1, 1, line1.length), false),
+		new LinesSliceCharSequence([line2], new Range(1, 1, 1, line2.length), false),
 		timeout
 	);
 	let commonNonSpaceCharCount = 0;

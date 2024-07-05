@@ -287,13 +287,13 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	}
 
 	private async doInitialScan(): Promise<void> {
-		this.logger.info('[Model] Initial repository scan started');
+		this.logger.info('[Model][doInitialScan] Initial repository scan started');
 
 		const config = workspace.getConfiguration('git');
 		const autoRepositoryDetection = config.get<boolean | 'subFolders' | 'openEditors'>('autoRepositoryDetection');
 		const parentRepositoryConfig = config.get<'always' | 'never' | 'prompt'>('openRepositoryInParentFolders', 'prompt');
 
-		this.logger.trace(`[Model] Settings: autoRepositoryDetection=${autoRepositoryDetection}, openRepositoryInParentFolders=${parentRepositoryConfig}`);
+		this.logger.trace(`[Model][doInitialScan] Settings: autoRepositoryDetection=${autoRepositoryDetection}, openRepositoryInParentFolders=${parentRepositoryConfig}`);
 
 		// Initial repository scan function
 		const initialScanFn = () => Promise.all([
@@ -325,7 +325,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			}
 		*/
 		this.telemetryReporter.sendTelemetryEvent('git.repositoryInitialScan', { autoRepositoryDetection: String(autoRepositoryDetection) }, { repositoryCount: this.openRepositories.length });
-		this.logger.info(`[Model] Initial repository scan completed - repositories(${this.repositories.length}), closed repositories (${this.closedRepositories.length}), parent repositories (${this.parentRepositories.length}), unsafe repositories (${this.unsafeRepositories.length})`);
+		this.logger.info(`[Model][doInitialScan] Initial repository scan completed - repositories(${this.repositories.length}), closed repositories (${this.closedRepositories.length}), parent repositories (${this.parentRepositories.length}), unsafe repositories (${this.unsafeRepositories.length})`);
 	}
 
 	/**
@@ -344,7 +344,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 			await Promise.all((workspace.workspaceFolders || []).map(async folder => {
 				const root = folder.uri.fsPath;
-				this.logger.trace(`[Model] Workspace folder: ${root}`);
+				this.logger.trace(`[Model][scanWorkspaceFolders] Workspace folder: ${root}`);
 
 				// Workspace folder children
 				const repositoryScanMaxDepth = (workspace.isTrusted ? workspace.getConfiguration('git', folder.uri) : config).get<number>('repositoryScanMaxDepth', 1);
@@ -354,17 +354,17 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 				// Repository scan folders
 				const scanPaths = (workspace.isTrusted ? workspace.getConfiguration('git', folder.uri) : config).get<string[]>('scanRepositories') || [];
-				this.logger.trace(`[Model] Workspace scan settings: repositoryScanMaxDepth=${repositoryScanMaxDepth}; repositoryScanIgnoredFolders=[${repositoryScanIgnoredFolders.join(', ')}]; scanRepositories=[${scanPaths.join(', ')}]`);
+				this.logger.trace(`[Model][scanWorkspaceFolders] Workspace scan settings: repositoryScanMaxDepth=${repositoryScanMaxDepth}; repositoryScanIgnoredFolders=[${repositoryScanIgnoredFolders.join(', ')}]; scanRepositories=[${scanPaths.join(', ')}]`);
 
 				for (const scanPath of scanPaths) {
 					if (scanPath === '.git') {
-						this.logger.trace('[Model] \'.git\' not supported in \'git.scanRepositories\' setting.');
+						this.logger.trace('[Model][scanWorkspaceFolders] \'.git\' not supported in \'git.scanRepositories\' setting.');
 						continue;
 					}
 
 					if (path.isAbsolute(scanPath)) {
 						const notSupportedMessage = l10n.t('Absolute paths not supported in "git.scanRepositories" setting.');
-						this.logger.warn(`[Model] ${notSupportedMessage}`);
+						this.logger.warn(`[Model][scanWorkspaceFolders] ${notSupportedMessage}`);
 						console.warn(notSupportedMessage);
 						continue;
 					}
@@ -372,12 +372,12 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 					subfolders.add(path.join(root, scanPath));
 				}
 
-				this.logger.trace(`[Model] Workspace scan sub folders: [${[...subfolders].join(', ')}]`);
+				this.logger.trace(`[Model][scanWorkspaceFolders] Workspace scan sub folders: [${[...subfolders].join(', ')}]`);
 				await Promise.all([...subfolders].map(f => this.openRepository(f)));
 			}));
 		}
 		catch (err) {
-			this.logger.warn(`[Model] scanWorkspaceFolders: ${err}`);
+			this.logger.warn(`[Model][scanWorkspaceFolders] Error: ${err}`);
 		}
 	}
 
@@ -397,7 +397,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 				}
 			}
 			catch (err) {
-				this.logger.warn(`[Model] Unable to read workspace folder '${currentFolder.path}': ${err}`);
+				this.logger.warn(`[Model][traverseWorkspaceFolder] Unable to read workspace folder '${currentFolder.path}': ${err}`);
 				continue;
 			}
 
@@ -459,11 +459,11 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 				.filter(r => !(workspace.workspaceFolders || []).some(f => isDescendant(f.uri.fsPath, r!.repository.root))) as OpenRepository[];
 
 			openRepositoriesToDispose.forEach(r => r.dispose());
-			this.logger.trace(`[Model] Workspace folders: [${possibleRepositoryFolders.map(p => p.uri.fsPath).join(', ')}]`);
+			this.logger.trace(`[Model][onDidChangeWorkspaceFolders] Workspace folders: [${possibleRepositoryFolders.map(p => p.uri.fsPath).join(', ')}]`);
 			await Promise.all(possibleRepositoryFolders.map(p => this.openRepository(p.uri.fsPath)));
 		}
 		catch (err) {
-			this.logger.warn(`[Model] onDidChangeWorkspaceFolders: ${err}`);
+			this.logger.warn(`[Model][onDidChangeWorkspaceFolders] Error: ${err}`);
 		}
 	}
 
@@ -477,7 +477,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			.filter(({ root }) => workspace.getConfiguration('git', root).get<boolean>('enabled') !== true)
 			.map(({ repository }) => repository);
 
-		this.logger.trace(`[Model] Workspace folders: [${possibleRepositoryFolders.map(p => p.uri.fsPath).join(', ')}]`);
+		this.logger.trace(`[Model][onDidChangeConfiguration] Workspace folders: [${possibleRepositoryFolders.map(p => p.uri.fsPath).join(', ')}]`);
 		possibleRepositoryFolders.forEach(p => this.openRepository(p.uri.fsPath));
 		openRepositoriesToDispose.forEach(r => r.dispose());
 	}
@@ -485,7 +485,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	private async onDidChangeVisibleTextEditors(editors: readonly TextEditor[]): Promise<void> {
 		try {
 			if (!workspace.isTrusted) {
-				this.logger.trace('[Model] Workspace is not trusted.');
+				this.logger.trace('[Model][onDidChangeVisibleTextEditors] Workspace is not trusted.');
 				return;
 			}
 
@@ -506,25 +506,25 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 				const repository = this.getRepository(uri);
 
 				if (repository) {
-					this.logger.trace(`[Model] Repository for editor resource ${uri.fsPath} already exists: ${repository.root}`);
+					this.logger.trace(`[Model][onDidChangeVisibleTextEditors] Repository for editor resource ${uri.fsPath} already exists: ${repository.root}`);
 					return;
 				}
 
-				this.logger.trace(`[Model] Open repository for editor resource ${uri.fsPath}`);
+				this.logger.trace(`[Model][onDidChangeVisibleTextEditors] Open repository for editor resource ${uri.fsPath}`);
 				await this.openRepository(path.dirname(uri.fsPath));
 			}));
 		}
 		catch (err) {
-			this.logger.warn(`[Model] onDidChangeVisibleTextEditors: ${err}`);
+			this.logger.warn(`[Model][onDidChangeVisibleTextEditors] Error: ${err}`);
 		}
 	}
 
 	@sequentialize
 	async openRepository(repoPath: string, openIfClosed = false): Promise<void> {
-		this.logger.trace(`[Model] Opening repository: ${repoPath}`);
+		this.logger.trace(`[Model][openRepository] Repository: ${repoPath}`);
 		const existingRepository = await this.getRepositoryExact(repoPath);
 		if (existingRepository) {
-			this.logger.trace(`[Model] Repository for path ${repoPath} already exists: ${existingRepository.root}`);
+			this.logger.trace(`[Model][openRepository] Repository for path ${repoPath} already exists: ${existingRepository.root}`);
 			return;
 		}
 
@@ -532,7 +532,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		const enabled = config.get<boolean>('enabled') === true;
 
 		if (!enabled) {
-			this.logger.trace('[Model] Git is not enabled');
+			this.logger.trace('[Model][openRepository] Git is not enabled');
 			return;
 		}
 
@@ -542,7 +542,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 				fs.accessSync(path.join(repoPath, 'HEAD'), fs.constants.F_OK);
 				const result = await this.git.exec(repoPath, ['-C', repoPath, 'rev-parse', '--show-cdup']);
 				if (result.stderr.trim() === '' && result.stdout.trim() === '') {
-					this.logger.trace(`[Model] Bare repository: ${repoPath}`);
+					this.logger.trace(`[Model][openRepository] Bare repository: ${repoPath}`);
 					return;
 				}
 			} catch {
@@ -552,16 +552,16 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 		try {
 			const { repositoryRoot, unsafeRepositoryMatch } = await this.getRepositoryRoot(repoPath);
-			this.logger.trace(`[Model] Repository root for path ${repoPath} is: ${repositoryRoot}`);
+			this.logger.trace(`[Model][openRepository] Repository root for path ${repoPath} is: ${repositoryRoot}`);
 
 			const existingRepository = await this.getRepositoryExact(repositoryRoot);
 			if (existingRepository) {
-				this.logger.trace(`[Model] Repository for path ${repositoryRoot} already exists: ${existingRepository.root}`);
+				this.logger.trace(`[Model][openRepository] Repository for path ${repositoryRoot} already exists: ${existingRepository.root}`);
 				return;
 			}
 
 			if (this.shouldRepositoryBeIgnored(repositoryRoot)) {
-				this.logger.trace(`[Model] Repository for path ${repositoryRoot} is ignored`);
+				this.logger.trace(`[Model][openRepository] Repository for path ${repositoryRoot} is ignored`);
 				return;
 			}
 
@@ -570,7 +570,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			if (parentRepositoryConfig !== 'always' && this.globalState.get<boolean>(`parentRepository:${repositoryRoot}`) !== true) {
 				const isRepositoryOutsideWorkspace = await this.isRepositoryOutsideWorkspace(repositoryRoot);
 				if (isRepositoryOutsideWorkspace) {
-					this.logger.trace(`[Model] Repository in parent folder: ${repositoryRoot}`);
+					this.logger.trace(`[Model][openRepository] Repository in parent folder: ${repositoryRoot}`);
 
 					if (!this._parentRepositoriesManager.hasRepository(repositoryRoot)) {
 						// Show a notification if the parent repository is opened after the initial scan
@@ -587,7 +587,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 			// Handle unsafe repositories
 			if (unsafeRepositoryMatch && unsafeRepositoryMatch.length === 3) {
-				this.logger.trace(`[Model] Unsafe repository: ${repositoryRoot}`);
+				this.logger.trace(`[Model][openRepository] Unsafe repository: ${repositoryRoot}`);
 
 				// Show a notification if the unsafe repository is opened after the initial scan
 				if (this._state === 'initialized' && !this._unsafeRepositoriesManager.hasRepository(repositoryRoot)) {
@@ -601,7 +601,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 			// Handle repositories that were closed by the user
 			if (!openIfClosed && this._closedRepositoriesManager.isRepositoryClosed(repositoryRoot)) {
-				this.logger.trace(`[Model] Repository for path ${repositoryRoot} is closed`);
+				this.logger.trace(`[Model][openRepository] Repository for path ${repositoryRoot} is closed`);
 				return;
 			}
 
@@ -612,14 +612,14 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			this.open(repository);
 			this._closedRepositoriesManager.deleteRepository(repository.root);
 
-			this.logger.info(`[Model] Opened repository: ${repository.root}`);
+			this.logger.info(`[Model][openRepository] Opened repository: ${repository.root}`);
 
 			// Do not await this, we want SCM
 			// to know about the repo asap
 			repository.status();
 		} catch (err) {
 			// noop
-			this.logger.trace(`[Model] Opening repository for path='${repoPath}' failed; ex=${err}`);
+			this.logger.trace(`[Model][openRepository] Opening repository for path='${repoPath}' failed. Error:${err}`);
 		}
 	}
 
@@ -651,7 +651,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			const repositoryRootRealPath = await fs.promises.realpath(repositoryRoot);
 			return !pathEquals(repositoryRoot, repositoryRootRealPath) ? repositoryRootRealPath : undefined;
 		} catch (err) {
-			this.logger.warn(`[Model] Failed to get repository realpath for "${repositoryRoot}": ${err}`);
+			this.logger.warn(`[Model][getRepositoryRootRealPath] Failed to get repository realpath for "${repositoryRoot}": ${err}`);
 			return undefined;
 		}
 	}
@@ -678,7 +678,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	}
 
 	private open(repository: Repository): void {
-		this.logger.trace(`[Model] Open repository: ${repository.root}`);
+		this.logger.trace(`[Model][open] Repository: ${repository.root}`);
 
 		const onDidDisappearRepository = filterEvent(repository.onDidChangeState, state => state === RepositoryState.Disposed);
 		const disappearListener = onDidDisappearRepository(() => dispose());
@@ -695,7 +695,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 		const checkForSubmodules = () => {
 			if (!shouldDetectSubmodules) {
-				this.logger.trace('[Model] Automatic detection of git submodules is not enabled.');
+				this.logger.trace('[Model][open] Automatic detection of git submodules is not enabled.');
 				return;
 			}
 
@@ -708,7 +708,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 				.slice(0, submodulesLimit)
 				.map(r => path.join(repository.root, r.path))
 				.forEach(p => {
-					this.logger.trace(`Opening submodule: '${p}'`);
+					this.logger.trace(`[Model][open] Opening submodule: '${p}'`);
 					this.eventuallyScanPossibleGitRepository(p);
 				});
 		};
@@ -770,7 +770,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			return;
 		}
 
-		this.logger.info(`[Model] Close repository: ${repository.root}`);
+		this.logger.info(`[Model][close] Repository: ${repository.root}`);
 		this._closedRepositoriesManager.addRepository(openRepository.repository.root);
 
 		openRepository.dispose();
@@ -823,7 +823,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 			return openRepositoryRealPath?.repository;
 		} catch (err) {
-			this.logger.warn(`[Model] Failed to get repository realpath for: "${repoPath}". ${err}`);
+			this.logger.warn(`[Model][getRepositoryExact] Failed to get repository realpath for: "${repoPath}". Error:${err}`);
 			return undefined;
 		}
 	}
@@ -1009,7 +1009,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 				this._workspaceFolders.set(workspaceFolder.uri.fsPath, result);
 			} catch (err) {
 				// noop - Workspace folder does not exist
-				this.logger.trace(`[Model] Failed to resolve workspace folder "${workspaceFolder.uri.fsPath}": ${err}`);
+				this.logger.trace(`[Model][getWorkspaceFolderRealPath] Failed to resolve workspace folder "${workspaceFolder.uri.fsPath}". Error:${err}`);
 			}
 		}
 
