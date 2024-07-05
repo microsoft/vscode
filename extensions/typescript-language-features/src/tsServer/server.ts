@@ -167,7 +167,7 @@ export class SingleTsServer extends Disposable implements ITypeScriptServer {
 							callback.onSuccess(undefined);
 						}
 						if ((event as Proto.RequestCompletedEvent).body.performanceData) {
-							this._onEvent.fire(event); // >> TODO: what should this be???
+							this._onEvent.fire(event);
 						}
 					} else {
 						this._tracer.traceEvent(this._serverId, event);
