@@ -83,7 +83,7 @@ suite('LinesSliceCharSequence', () => {
 			'line4: hello world',
 			'line5: bazz',
 		],
-		new Range(1, 1, 4, Number.MAX_SAFE_INTEGER), true
+		new Range(2, 1, 5, 1), true
 	);
 
 	test('translateOffset', () => {
