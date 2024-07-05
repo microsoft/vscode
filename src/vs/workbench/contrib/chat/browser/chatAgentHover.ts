@@ -39,7 +39,7 @@ export class ChatAgentHover extends Disposable {
 	) {
 		super();
 
-		const hoverElement = h(
+		const hoverElement = dom.h(
 			'.chat-agent-hover@root',
 			[
 				dom.h('.chat-agent-hover-header', [
