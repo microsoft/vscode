@@ -10,7 +10,6 @@ import { URI } from 'vs/base/common/uri';
 import { FileChangeType, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileChange, IFileDeleteOptions, IFileOverwriteOptions, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { Event, Emitter } from 'vs/base/common/event';
-import { getCompressedContent } from 'vs/base/common/jsonSchema';
 import { Registry } from 'vs/platform/registry/common/platform';
 import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -84,14 +83,12 @@ export class SettingsFileSystemProvider extends Disposable implements IFileSyste
 	}
 
 	private getSchemaContent(uri: URI): string {
-		const schema = schemaRegistry.getSchemaContent(uri.toString()) ?? {} /* Use empty schema if not yet registered */;
-
 		const startTime = Date.now();
-		const content = getCompressedContent(schema);
+		const content = schemaRegistry.getSchemaContent(uri.toString()) ?? '{}' /* Use empty schema if not yet registered */;
 		const logLevel = this.logService.getLevel();
 		if (logLevel === LogLevel.Debug || logLevel === LogLevel.Trace) {
 			const endTime = Date.now();
-			const uncompressed = JSON.stringify(schema);
+			const uncompressed = JSON.stringify(schemaRegistry.getSchemaContributions().schemas[uri.toString()]);
 			this.logService.debug(`${uri.toString()}: ${uncompressed.length} -> ${content.length} (${Math.round((uncompressed.length - content.length) / uncompressed.length * 100)}%) Took ${endTime - startTime}ms`);
 		}
 		return content;
