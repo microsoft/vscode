@@ -27,7 +27,7 @@ exports.getElectronVersion = getElectronVersion;
 exports.acquireWebNodePaths = acquireWebNodePaths;
 exports.createExternalLoaderConfig = createExternalLoaderConfig;
 exports.buildWebNodePaths = buildWebNodePaths;
-exports.addDateToProductJson = addDateToProductJson;
+exports.buildDate = buildDate;
 const es = require("event-stream");
 const _debounce = require("debounce");
 const _filter = require("gulp-filter");
@@ -408,16 +408,15 @@ function buildWebNodePaths(outDir) {
 function log(...args) {
     console.log(`[${new Date().toLocaleTimeString('en', { hour12: false })}]`, '[util]', ...args);
 }
-function addDateToProductJson() {
+function buildDate(outDir) {
     const result = () => new Promise((resolve, _) => {
-        const productJsonPath = path.join(root, 'product.json');
-        log(`Adding date to product.json in ${productJsonPath}`);
-        log(`Real path ${fs.realpathSync(productJsonPath)}`);
-        let productJson = JSON.parse(fs.readFileSync(productJsonPath, 'utf8'));
-        productJson.date = new Date().toISOString();
-        fs.writeFileSync(productJsonPath, JSON.stringify(productJson, null, '\t'), 'utf8');
-        productJson = JSON.parse(fs.readFileSync(productJsonPath, 'utf8'));
-        log(`Product.json now has date: ${productJson.date}`);
+        const root = path.join(__dirname, '..', '..');
+        const outDirectory = path.join(root, outDir);
+        fs.mkdirSync(outDirectory, { recursive: true });
+        const date = new Date().toISOString();
+        fs.writeFileSync(path.join(outDirectory, 'date'), date, 'utf8');
+        log(`Built date in ${path.join(outDirectory, 'date')} is ${date}`);
+        log(`Reading ${path.join(outDirectory, 'date')} is ${fs.readFileSync(path.join(outDirectory, 'date'), 'utf8')}`);
         resolve();
     });
     result.taskName = 'build-add-date-to-product-json';

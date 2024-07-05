@@ -40,9 +40,19 @@ function main() {
             else {
                 log('Inheriting OSS built-in extensions', builtInExtensions.map(e => e.name));
             }
-            log(`The OSS product.json path is: ${path.resolve(ossPath)}`);
-            log(`The real OSS product.json path is: ${fs.realpathSync(ossPath)}`);
-            log(`Product.json has date: ${oss.date}`);
+            // log(`The OSS product.json path is: ${path.resolve(ossPath)}`);
+            // log(`The real OSS product.json path is: ${fs.realpathSync(ossPath)}`);
+            // log(`Product.json has date: ${oss.date}`);
+            let date;
+            const datePath = path.join('out-build', 'date');
+            if (fs.existsSync(datePath)) {
+                date = fs.readFileSync(datePath, 'utf8').trim();
+                log(`The date is: ${date}`);
+            }
+            else {
+                date = 'fileMissingPasero';
+                log(`The date is missing`);
+            }
             const result = { webBuiltInExtensions: oss.webBuiltInExtensions, ...distro, builtInExtensions, date: oss.date };
             fs.writeFileSync(ossPath, JSON.stringify(result, null, '\t'), 'utf8');
         }

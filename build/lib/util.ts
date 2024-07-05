@@ -496,18 +496,19 @@ function log(...args: any[]): void {
 	console.log(`[${new Date().toLocaleTimeString('en', { hour12: false })}]`, '[util]', ...args);
 }
 
-export function addDateToProductJson() {
+export function buildDate(outDir: string) {
 	const result = () => new Promise<void>((resolve, _) => {
-		const productJsonPath = path.join(root, 'product.json');
-		log(`Adding date to product.json in ${productJsonPath}`);
-		log(`Real path ${fs.realpathSync(productJsonPath)}`);
+		const root = path.join(__dirname, '..', '..');
 
-		let productJson = JSON.parse(fs.readFileSync(productJsonPath, 'utf8'));
-		productJson.date = new Date().toISOString();
-		fs.writeFileSync(productJsonPath, JSON.stringify(productJson, null, '\t'), 'utf8');
+		const outDirectory = path.join(root, outDir);
+		fs.mkdirSync(outDirectory, { recursive: true });
 
-		productJson = JSON.parse(fs.readFileSync(productJsonPath, 'utf8'));
-		log(`Product.json now has date: ${productJson.date}`);
+		const date = new Date().toISOString();
+		fs.writeFileSync(path.join(outDirectory, 'date'), date, 'utf8');
+
+		log(`Built date in ${path.join(outDirectory, 'date')} is ${date}`);
+
+		log(`Reading ${path.join(outDirectory, 'date')} is ${fs.readFileSync(path.join(outDirectory, 'date'), 'utf8')}`);
 
 		resolve();
 	});
