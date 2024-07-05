@@ -16,7 +16,6 @@ interface IBuiltInExtension {
 interface OSSProduct {
 	readonly builtInExtensions: IBuiltInExtension[];
 	readonly webBuiltInExtensions?: IBuiltInExtension[];
-	readonly date?: string;
 }
 
 interface Product {
@@ -68,21 +67,7 @@ function main() {
 				log('Inheriting OSS built-in extensions', builtInExtensions.map(e => e.name));
 			}
 
-			// log(`The OSS product.json path is: ${path.resolve(ossPath)}`);
-			// log(`The real OSS product.json path is: ${fs.realpathSync(ossPath)}`);
-			// log(`Product.json has date: ${oss.date}`);
-
-			let date: string;
-			const datePath = path.join('out-build', 'date');
-			if (fs.existsSync(datePath)) {
-				date = fs.readFileSync(datePath, 'utf8').trim();
-				log(`The date is: ${date}`);
-			} else {
-				date = 'fileMissingPasero';
-				log(`The date is missing`);
-			}
-
-			const result = { webBuiltInExtensions: oss.webBuiltInExtensions, ...distro, builtInExtensions, date: oss.date };
+			const result = { webBuiltInExtensions: oss.webBuiltInExtensions, ...distro, builtInExtensions };
 			fs.writeFileSync(ossPath, JSON.stringify(result, null, '\t'), 'utf8');
 		} else {
 			fs.cpSync(distroPath, ossPath, { force: true, recursive: true });

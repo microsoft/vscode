@@ -27,7 +27,6 @@ exports.getElectronVersion = getElectronVersion;
 exports.acquireWebNodePaths = acquireWebNodePaths;
 exports.createExternalLoaderConfig = createExternalLoaderConfig;
 exports.buildWebNodePaths = buildWebNodePaths;
-exports.buildDate = buildDate;
 const es = require("event-stream");
 const _debounce = require("debounce");
 const _filter = require("gulp-filter");
@@ -403,23 +402,6 @@ function buildWebNodePaths(outDir) {
         resolve();
     });
     result.taskName = 'build-web-node-paths';
-    return result;
-}
-function log(...args) {
-    console.log(`[${new Date().toLocaleTimeString('en', { hour12: false })}]`, '[util]', ...args);
-}
-function buildDate(outDir) {
-    const result = () => new Promise((resolve, _) => {
-        const root = path.join(__dirname, '..', '..');
-        const outDirectory = path.join(root, outDir);
-        fs.mkdirSync(outDirectory, { recursive: true });
-        const date = new Date().toISOString();
-        fs.writeFileSync(path.join(outDirectory, 'date'), date, 'utf8');
-        log(`Built date in ${path.join(outDirectory, 'date')} is ${date}`);
-        log(`Reading ${path.join(outDirectory, 'date')} is ${fs.readFileSync(path.join(outDirectory, 'date'), 'utf8')}`);
-        resolve();
-    });
-    result.taskName = 'build-date-file';
     return result;
 }
 //# sourceMappingURL=util.js.map
