@@ -708,7 +708,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 				.slice(0, submodulesLimit)
 				.map(r => path.join(repository.root, r.path))
 				.forEach(p => {
-					this.logger.trace(`Opening submodule: '${p}'`);
+					this.logger.trace(`[Model] Opening submodule: '${p}'`);
 					this.eventuallyScanPossibleGitRepository(p);
 				});
 		};
