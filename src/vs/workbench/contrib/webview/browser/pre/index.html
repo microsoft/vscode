@@ -88,8 +88,10 @@
 		const defaultStyles = document.createElement('style');
 		defaultStyles.id = '_defaultStyles';
 		defaultStyles.textContent = `
-			html {
-				scrollbar-color: var(--vscode-scrollbarSlider-background) var(--vscode-editor-background);
+			@supports not selector(::-webkit-scrollbar) {	
+				html {
+					scrollbar-color: var(--vscode-scrollbarSlider-background) var(--vscode-editor-background);
+				}
 			}
 
 			body {
