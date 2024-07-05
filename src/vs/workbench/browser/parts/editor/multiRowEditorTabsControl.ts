@@ -64,7 +64,8 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 		const [editorTabController, otherTabController] = this.model.isSticky(editor) ? [this.stickyEditorTabsControl, this.unstickyEditorTabsControl] : [this.unstickyEditorTabsControl, this.stickyEditorTabsControl];
 		const didChange = editorTabController.openEditor(editor, options);
 		if (didChange) {
-			// HACK: To render all editor tabs on startup, otherwise only one row gets rendered
+			// We have to rerender both tab bars as the previous active tab could have moved between the two
+			// and we need to ensure that the active tab indicators have been removed from the previous active tab
 			otherTabController.openEditors([]);
 
 			this.handleOpenedEditors();
