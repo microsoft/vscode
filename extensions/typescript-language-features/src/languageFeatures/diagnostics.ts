@@ -11,7 +11,7 @@ import { ResourceMap } from '../utils/resourceMap';
 import { TelemetryReporter } from '../logging/telemetry';
 import { TypeScriptServiceConfiguration } from '../configuration/configuration';
 import { equals } from '../utils/objects';
-import { FileDiagnosticPerformanceData } from '../tsServer/protocol/protocol';
+import { DiagnosticPerformanceData as TsDiagnosticPerformanceData } from '../tsServer/protocol/protocol';
 
 function diagnosticsEquals(a: vscode.Diagnostic, b: vscode.Diagnostic): boolean {
 	if (a === b) {
@@ -195,7 +195,7 @@ class DiagnosticsTelemetryManager extends Disposable {
 		this._registerTelemetryEventEmitter();
 	}
 
-	public logDiagnosticsPerformanceTelemetry(performanceData: FileDiagnosticPerformanceData[]): void {
+	public logDiagnosticsPerformanceTelemetry(performanceData: DiagnosticPerformanceData[]): void {
 		performanceData.forEach(data => {
 			/* __GDPR__
 				"diagnostics.performance" : {
@@ -204,6 +204,7 @@ class DiagnosticsTelemetryManager extends Disposable {
 					"semanticDiagDuration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 					"suggestionDiagDuration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 					"regionSemanticDiagDuration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"fileLineCount" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 					"${include}": [
 						"${TypeScriptCommonProperties}"
 					]
@@ -215,6 +216,7 @@ class DiagnosticsTelemetryManager extends Disposable {
 					semanticDiagDuration: data.semanticDiag,
 					suggestionDiagDuration: data.suggestionDiag,
 					regionSemanticDiagDuration: data.regionSemanticDiag,
+					fileLineCount: data.fileLineCount,
 				},
 			);
 		});
@@ -273,6 +275,10 @@ class DiagnosticsTelemetryManager extends Disposable {
 		clearTimeout(this._timeout);
 		clearInterval(this._telemetryEmitter);
 	}
+}
+
+interface DiagnosticPerformanceData extends TsDiagnosticPerformanceData {
+	fileLineCount?: number;
 }
 
 export class DiagnosticsManager extends Disposable {
@@ -377,7 +383,7 @@ export class DiagnosticsManager extends Disposable {
 		return this._currentDiagnostics.get(file) || [];
 	}
 
-	public logDiagnosticsPerformanceTelemetry(performanceData: FileDiagnosticPerformanceData[] | undefined): void {
+	public logDiagnosticsPerformanceTelemetry(performanceData: DiagnosticPerformanceData[]): void {
 		if (performanceData && this._diagnosticsTelemetryManager) {
 			this._diagnosticsTelemetryManager.logDiagnosticsPerformanceTelemetry(performanceData);
 		}

@@ -1040,7 +1040,18 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				break;
 
 			case EventName.requestCompleted:
-				this.diagnosticsManager.logDiagnosticsPerformanceTelemetry((event.body as Proto.RequestCompletedEventBody).performanceData?.diagnosticsDuration);
+				const diagnosticsDuration = (event.body as Proto.RequestCompletedEventBody).performanceData?.diagnosticsDuration;
+				if (diagnosticsDuration) {
+					this.diagnosticsManager.logDiagnosticsPerformanceTelemetry(
+						diagnosticsDuration.map(fileData => {
+							const resource = this.toResource(fileData.file);
+							return {
+								...fileData,
+								lineCount: this.bufferSyncSupport.lineCount(resource),
+							};
+						})
+					);
+				}
 				break;
 		}
 	}
