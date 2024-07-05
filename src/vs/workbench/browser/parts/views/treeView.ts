@@ -1160,7 +1160,6 @@ class TreeDataSource implements IAsyncDataSource<ITreeItem, ITreeItem> {
 }
 
 interface ITreeExplorerTemplateData {
-	readonly elementDisposable: DisposableStore;
 	readonly container: HTMLElement;
 	readonly resourceLabel: IResourceLabel;
 	readonly icon: HTMLElement;
@@ -1228,7 +1227,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 			actionViewItemProvider: this.actionViewItemProvider
 		});
 
-		return { resourceLabel, icon, checkboxContainer, actionBar, container, elementDisposable: new DisposableStore() };
+		return { resourceLabel, icon, checkboxContainer, actionBar, container };
 	}
 
 	private getHover(label: string | undefined, resource: URI | null, node: ITreeItem): string | IManagedHoverTooltipMarkdownString | undefined {
@@ -1516,8 +1515,6 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 	}
 
 	disposeElement(resource: ITreeNode<ITreeItem, FuzzyScore>, index: number, templateData: ITreeExplorerTemplateData): void {
-		templateData.elementDisposable.clear();
-
 		const itemRenders = this._renderedElements.get(resource.element.handle) ?? [];
 		const renderedIndex = itemRenders.findIndex(renderedItem => templateData === renderedItem.rendered);
 
@@ -1534,7 +1531,6 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 	disposeTemplate(templateData: ITreeExplorerTemplateData): void {
 		templateData.resourceLabel.dispose();
 		templateData.actionBar.dispose();
-		templateData.elementDisposable.dispose();
 	}
 }
 

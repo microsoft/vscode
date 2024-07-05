@@ -306,7 +306,7 @@ export interface IMenuService {
 	getMenuActions(id: MenuId, contextKeyService: IContextKeyService, options?: IMenuActionOptions): [string, Array<MenuItemAction | SubmenuItemAction>][];
 
 	/**
-	 * Creates a new menu, snapshots the names of the contexts that menu depends on, and then disposes of the menu.
+	 * Gets the names of the contexts that this menu listens on.
 	 */
 	getMenuContexts(id: MenuId): ReadonlySet<string>;
 
