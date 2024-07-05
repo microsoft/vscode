@@ -124,7 +124,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 	private readonly pendingEditSessionsContext: IContextKey<boolean>;
 
 	private static APPLICATION_LAUNCHED_VIA_CONTINUE_ON_STORAGE_KEY = 'applicationLaunchedViaContinueOn';
-	private accountsMenuBadgeDisposable = this._register(new MutableDisposable());
+	private readonly accountsMenuBadgeDisposable = this._register(new MutableDisposable());
 
 	private registeredCommands = new Set<string>();
 
@@ -343,8 +343,8 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 				type ContinueOnEventOutcome = { outcome: string; hashedId?: string };
 				type ContinueOnClassificationOutcome = {
 					owner: 'joyceerhl'; comment: 'Reporting the outcome of invoking the Continue On action.';
-					outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The outcome of invoking continue edit session.' };
-					hashedId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The hash of the stored edit session id, for correlating success of stores and resumes.' };
+					outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The outcome of invoking continue edit session.' };
+					hashedId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The hash of the stored edit session id, for correlating success of stores and resumes.' };
 				};
 
 				// First ask the user to pick a destination, if necessary
@@ -509,8 +509,8 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		type ResumeEvent = { outcome: string; hashedId?: string };
 		type ResumeClassification = {
 			owner: 'joyceerhl'; comment: 'Reporting when an edit session is resumed from an edit session identifier.';
-			outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The outcome of resuming the edit session.' };
-			hashedId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The hash of the stored edit session id, for correlating success of stores and resumes.' };
+			outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The outcome of resuming the edit session.' };
+			hashedId?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The hash of the stored edit session id, for correlating success of stores and resumes.' };
 		};
 		this.telemetryService.publicLog2<ResumeEvent, ResumeClassification>('editSessions.resume');
 
@@ -767,7 +767,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 			type UploadFailedEvent = { reason: string };
 			type UploadFailedClassification = {
 				owner: 'joyceerhl'; comment: 'Reporting when Continue On server request fails.';
-				reason?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The reason that the server request failed.' };
+				reason?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason that the server request failed.' };
 			};
 
 			if (ex instanceof UserDataSyncStoreError) {
@@ -808,7 +808,7 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		type EditSessionsAuthCheckEvent = { outcome: string };
 		type EditSessionsAuthCheckClassification = {
 			owner: 'joyceerhl'; comment: 'Reporting whether we can and should store edit session as part of Continue On.';
-			outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The outcome of checking whether we can store an edit session as part of the Continue On flow.' };
+			outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The outcome of checking whether we can store an edit session as part of the Continue On flow.' };
 		};
 
 		// If the user is already signed in, we should store edit session
@@ -1004,8 +1004,8 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 		type EvaluateContinueOnDestinationEvent = { outcome: string; selection: string };
 		type EvaluateContinueOnDestinationClassification = {
 			owner: 'joyceerhl'; comment: 'Reporting the outcome of evaluating a selected Continue On destination option.';
-			selection: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The selected Continue On destination option.' };
-			outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The outcome of evaluating the selected Continue On destination option.' };
+			selection: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The selected Continue On destination option.' };
+			outcome: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The outcome of evaluating the selected Continue On destination option.' };
 		};
 
 		try {

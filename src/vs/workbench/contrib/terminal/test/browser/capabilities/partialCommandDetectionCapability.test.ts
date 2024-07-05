@@ -3,20 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { deepStrictEqual } from 'assert';
-import { PartialCommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/partialCommandDetectionCapability';
 import type { IMarker, Terminal } from '@xterm/xterm';
-import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
+import { deepStrictEqual } from 'assert';
 import { importAMDNodeModule } from 'vs/amdX';
-import { writeP } from 'vs/workbench/contrib/terminal/browser/terminalTestHelpers';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-
-interface TestTerminal extends Terminal {
-	_core: IXtermCore;
-}
+import { PartialCommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/partialCommandDetectionCapability';
+import { writeP } from 'vs/workbench/contrib/terminal/browser/terminalTestHelpers';
 
 suite('PartialCommandDetectionCapability', () => {
-	let xterm: TestTerminal;
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	let xterm: Terminal;
 	let capability: PartialCommandDetectionCapability;
 	let addEvents: IMarker[];
 
@@ -28,21 +25,19 @@ suite('PartialCommandDetectionCapability', () => {
 	setup(async () => {
 		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 
-		xterm = new TerminalCtor({ allowProposedApi: true, cols: 80 }) as TestTerminal;
-		capability = new PartialCommandDetectionCapability(xterm);
+		xterm = store.add(new TerminalCtor({ allowProposedApi: true, cols: 80 }) as Terminal);
+		capability = store.add(new PartialCommandDetectionCapability(xterm));
 		addEvents = [];
-		capability.onCommandFinished(e => addEvents.push(e));
+		store.add(capability.onCommandFinished(e => addEvents.push(e)));
 	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('should not add commands when the cursor position is too close to the left side', async () => {
 		assertCommands([]);
-		xterm._core._onData.fire('\x0d');
+		xterm.input('\x0d');
 		await writeP(xterm, '\r\n');
 		assertCommands([]);
 		await writeP(xterm, 'a');
-		xterm._core._onData.fire('\x0d');
+		xterm.input('\x0d');
 		await writeP(xterm, '\r\n');
 		assertCommands([]);
 	});
@@ -50,11 +45,11 @@ suite('PartialCommandDetectionCapability', () => {
 	test('should add commands when the cursor position is not too close to the left side', async () => {
 		assertCommands([]);
 		await writeP(xterm, 'ab');
-		xterm._core._onData.fire('\x0d');
+		xterm.input('\x0d');
 		await writeP(xterm, '\r\n\r\n');
 		assertCommands([0]);
 		await writeP(xterm, 'cd');
-		xterm._core._onData.fire('\x0d');
+		xterm.input('\x0d');
 		await writeP(xterm, '\r\n');
 		assertCommands([0, 2]);
 	});

@@ -324,6 +324,7 @@ export async function main(argv: string[]): Promise<any> {
 		// to get better profile traces. Last, we listen on stdout for a signal that tells us to
 		// stop profiling.
 		if (args['prof-startup']) {
+			const profileHost = '127.0.0.1';
 			const portMain = await findFreePort(randomPort(), 10, 3000);
 			const portRenderer = await findFreePort(portMain + 1, 10, 3000);
 			const portExthost = await findFreePort(portRenderer + 1, 10, 3000);
@@ -335,9 +336,9 @@ export async function main(argv: string[]): Promise<any> {
 
 			const filenamePrefix = randomPath(homedir(), 'prof');
 
-			addArg(argv, `--inspect-brk=${portMain}`);
-			addArg(argv, `--remote-debugging-port=${portRenderer}`);
-			addArg(argv, `--inspect-brk-extensions=${portExthost}`);
+			addArg(argv, `--inspect-brk=${profileHost}:${portMain}`);
+			addArg(argv, `--remote-debugging-port=${profileHost}:${portRenderer}`);
+			addArg(argv, `--inspect-brk-extensions=${profileHost}:${portExthost}`);
 			addArg(argv, `--prof-startup-prefix`, filenamePrefix);
 			addArg(argv, `--no-cached-data`);
 
@@ -351,7 +352,7 @@ export async function main(argv: string[]): Promise<any> {
 
 						let session: ProfilingSession;
 						try {
-							session = await profiler.startProfiling(opts);
+							session = await profiler.startProfiling({ ...opts, host: profileHost });
 						} catch (err) {
 							console.error(`FAILED to start profiling for '${name}' on port '${opts.port}'`);
 						}

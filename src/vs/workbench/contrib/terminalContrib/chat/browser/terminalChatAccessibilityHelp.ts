@@ -3,42 +3,39 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
+import { AccessibleViewProviderId, AccessibleViewType } from 'vs/platform/accessibility/browser/accessibleView';
+import { IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { AccessibilityVerbositySettingId, AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { AccessibleViewType, IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
-import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalChatCommandId, TerminalChatContextKeys } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChat';
 import { TerminalChatController } from 'vs/workbench/contrib/terminalContrib/chat/browser/terminalChatController';
 
-export class TerminalChatAccessibilityHelpContribution extends Disposable {
-	static ID = 'terminalChatAccessiblityHelp';
-	constructor() {
-		super();
-		this._register(AccessibilityHelpAction.addImplementation(110, 'terminalChat', runAccessibilityHelpAction, TerminalChatContextKeys.focused));
+export class TerminalChatAccessibilityHelp implements IAccessibleViewImplentation {
+	readonly priority = 110;
+	readonly name = 'terminalChat';
+	readonly when = TerminalChatContextKeys.focused;
+	readonly type = AccessibleViewType.Help;
+	getProvider(accessor: ServicesAccessor) {
+		const terminalService = accessor.get(ITerminalService);
+
+		const instance = terminalService.activeInstance;
+		if (!instance) {
+			return;
+		}
+
+		const helpText = getAccessibilityHelpText(accessor);
+		return {
+			id: AccessibleViewProviderId.TerminalChat,
+			verbositySettingKey: AccessibilityVerbositySettingId.TerminalChat,
+			provideContent: () => helpText,
+			onClose: () => TerminalChatController.get(instance)?.focus(),
+			options: { type: AccessibleViewType.Help }
+		};
 	}
-}
-
-export async function runAccessibilityHelpAction(accessor: ServicesAccessor): Promise<void> {
-	const accessibleViewService = accessor.get(IAccessibleViewService);
-	const terminalService = accessor.get(ITerminalService);
-
-	const instance = terminalService.activeInstance;
-	if (!instance) {
-		return;
-	}
-
-	const helpText = getAccessibilityHelpText(accessor);
-	accessibleViewService.show({
-		id: AccessibleViewProviderId.TerminalChat,
-		verbositySettingKey: AccessibilityVerbositySettingId.TerminalChat,
-		provideContent: () => helpText,
-		onClose: () => TerminalChatController.get(instance)?.focus(),
-		options: { type: AccessibleViewType.Help }
-	});
+	dispose() { }
 }
 
 export function getAccessibilityHelpText(accessor: ServicesAccessor): string {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
@@ -32,7 +32,7 @@ suite('StandaloneKeybindingService', () => {
 		const disposables = new DisposableStore();
 		const serviceCollection = new ServiceCollection();
 		const instantiationService = new InstantiationService(serviceCollection, true);
-		const configurationService = new StandaloneConfigurationService();
+		const configurationService = new StandaloneConfigurationService(new NullLogService());
 		const contextKeyService = disposables.add(new ContextKeyService(configurationService));
 		const commandService = new StandaloneCommandService(instantiationService);
 		const notificationService = new StandaloneNotificationService();

@@ -16,6 +16,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { addToValueTree, ConfigurationTarget, getConfigurationValue, IConfigurationChange, IConfigurationChangeEvent, IConfigurationCompareResult, IConfigurationData, IConfigurationModel, IConfigurationOverrides, IConfigurationUpdateOverrides, IConfigurationValue, IInspectValue, IOverrides, removeFromValueTree, toValuesTree } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope, Extensions, IConfigurationPropertySchema, IConfigurationRegistry, overrideIdentifiersFromKey, OVERRIDE_PROPERTY_REGEX } from 'vs/platform/configuration/common/configurationRegistry';
 import { FileOperation, IFileService } from 'vs/platform/files/common/files';
+import { ILogService } from 'vs/platform/log/common/log';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Workspace } from 'vs/platform/workspace/common/workspace';
 
@@ -27,13 +28,18 @@ type InspectValue<V> = IInspectValue<V> & { merged?: V };
 
 export class ConfigurationModel implements IConfigurationModel {
 
+	static createEmptyModel(logService: ILogService): ConfigurationModel {
+		return new ConfigurationModel({}, [], [], undefined, logService);
+	}
+
 	private readonly overrideConfigurations = new Map<string, ConfigurationModel>();
 
 	constructor(
-		private readonly _contents: any = {},
-		private readonly _keys: string[] = [],
-		private readonly _overrides: IOverrides[] = [],
-		readonly raw?: ReadonlyArray<IStringDictionary<any> | ConfigurationModel>
+		private readonly _contents: any,
+		private readonly _keys: string[],
+		private readonly _overrides: IOverrides[],
+		readonly raw: ReadonlyArray<IStringDictionary<any> | ConfigurationModel> | undefined,
+		private readonly logService: ILogService
 	) {
 	}
 
@@ -45,7 +51,7 @@ export class ConfigurationModel implements IConfigurationModel {
 					if (raw instanceof ConfigurationModel) {
 						return raw;
 					}
-					const parser = new ConfigurationModelParser('');
+					const parser = new ConfigurationModelParser('', this.logService);
 					parser.parseRaw(raw);
 					return parser.configurationModel;
 				});
@@ -93,7 +99,7 @@ export class ConfigurationModel implements IConfigurationModel {
 			get overrides() {
 				const overrides: { readonly identifiers: string[]; readonly value: V }[] = [];
 				for (const { contents, identifiers, keys } of that.rawConfiguration.overrides) {
-					const value = new ConfigurationModel(contents, keys).getValue<V>(section);
+					const value = new ConfigurationModel(contents, keys, [], undefined, that.logService).getValue<V>(section);
 					if (value !== undefined) {
 						overrides.push({ identifiers, value });
 					}
@@ -166,7 +172,7 @@ export class ConfigurationModel implements IConfigurationModel {
 				}
 			}
 		}
-		return new ConfigurationModel(contents, keys, overrides, raws.every(raw => raw instanceof ConfigurationModel) ? undefined : raws);
+		return new ConfigurationModel(contents, keys, overrides, raws.every(raw => raw instanceof ConfigurationModel) ? undefined : raws, this.logService);
 	}
 
 	private createOverrideConfigurationModel(identifier: string): ConfigurationModel {
@@ -197,7 +203,7 @@ export class ConfigurationModel implements IConfigurationModel {
 			contents[key] = contentsForKey;
 		}
 
-		return new ConfigurationModel(contents, this.keys, this.overrides);
+		return new ConfigurationModel(contents, this.keys, this.overrides, undefined, this.logService);
 	}
 
 	private mergeContents(source: any, target: any): void {
@@ -267,7 +273,7 @@ export class ConfigurationModel implements IConfigurationModel {
 	}
 
 	private updateValue(key: string, value: any, add: boolean): void {
-		addToValueTree(this.contents, key, value, e => console.error(e));
+		addToValueTree(this.contents, key, value, e => this.logService.error(e));
 		add = add || this.keys.indexOf(key) === -1;
 		if (add) {
 			this.keys.push(key);
@@ -276,7 +282,7 @@ export class ConfigurationModel implements IConfigurationModel {
 			this.overrides.push({
 				identifiers: overrideIdentifiersFromKey(key),
 				keys: Object.keys(this.contents[key]),
-				contents: toValuesTree(this.contents[key], message => console.error(message)),
+				contents: toValuesTree(this.contents[key], message => this.logService.error(message)),
 			});
 		}
 	}
@@ -296,10 +302,13 @@ export class ConfigurationModelParser {
 	private _restrictedConfigurations: string[] = [];
 	private _parseErrors: any[] = [];
 
-	constructor(protected readonly _name: string) { }
+	constructor(
+		protected readonly _name: string,
+		protected readonly logService: ILogService
+	) { }
 
 	get configurationModel(): ConfigurationModel {
-		return this._configurationModel || new ConfigurationModel();
+		return this._configurationModel || ConfigurationModel.createEmptyModel(this.logService);
 	}
 
 	get restrictedConfigurations(): string[] {
@@ -326,7 +335,7 @@ export class ConfigurationModelParser {
 	public parseRaw(raw: any, options?: ConfigurationParseOptions): void {
 		this._raw = raw;
 		const { contents, keys, overrides, restricted, hasExcludedProperties } = this.doParseRaw(raw, options);
-		this._configurationModel = new ConfigurationModel(contents, keys, overrides, hasExcludedProperties ? [raw] : undefined /* raw has not changed */);
+		this._configurationModel = new ConfigurationModel(contents, keys, overrides, hasExcludedProperties ? [raw] : undefined /* raw has not changed */, this.logService);
 		this._restrictedConfigurations = restricted || [];
 	}
 
@@ -379,7 +388,7 @@ export class ConfigurationModelParser {
 				json.visit(content, visitor);
 				raw = currentParent[0] || {};
 			} catch (e) {
-				console.error(`Error while parsing settings file ${this._name}: ${e}`);
+				this.logService.error(`Error while parsing settings file ${this._name}: ${e}`);
 				this._parseErrors = [e];
 			}
 		}
@@ -391,9 +400,9 @@ export class ConfigurationModelParser {
 		const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
 		const filtered = this.filter(raw, configurationProperties, true, options);
 		raw = filtered.raw;
-		const contents = toValuesTree(raw, message => console.error(`Conflict in settings file ${this._name}: ${message}`));
+		const contents = toValuesTree(raw, message => this.logService.error(`Conflict in settings file ${this._name}: ${message}`));
 		const keys = Object.keys(raw);
-		const overrides = this.toOverrides(raw, message => console.error(`Conflict in settings file ${this._name}: ${message}`));
+		const overrides = this.toOverrides(raw, message => this.logService.error(`Conflict in settings file ${this._name}: ${message}`));
 		return { contents, keys, overrides, restricted: filtered.restricted, hasExcludedProperties: filtered.hasExcludedProperties };
 	}
 
@@ -459,10 +468,11 @@ export class UserSettings extends Disposable {
 		private readonly userSettingsResource: URI,
 		protected parseOptions: ConfigurationParseOptions,
 		extUri: IExtUri,
-		private readonly fileService: IFileService
+		private readonly fileService: IFileService,
+		private readonly logService: ILogService,
 	) {
 		super();
-		this.parser = new ConfigurationModelParser(this.userSettingsResource.toString());
+		this.parser = new ConfigurationModelParser(this.userSettingsResource.toString(), logService);
 		this._register(this.fileService.watch(extUri.dirname(this.userSettingsResource)));
 		// Also listen to the resource incase the resource is a symlink - https://github.com/microsoft/vscode/issues/118134
 		this._register(this.fileService.watch(this.userSettingsResource));
@@ -478,7 +488,7 @@ export class UserSettings extends Disposable {
 			this.parser.parse(content.value.toString() || '{}', this.parseOptions);
 			return this.parser.configurationModel;
 		} catch (e) {
-			return new ConfigurationModel();
+			return ConfigurationModel.createEmptyModel(this.logService);
 		}
 	}
 
@@ -678,11 +688,12 @@ export class Configuration {
 		private _policyConfiguration: ConfigurationModel,
 		private _applicationConfiguration: ConfigurationModel,
 		private _localUserConfiguration: ConfigurationModel,
-		private _remoteUserConfiguration: ConfigurationModel = new ConfigurationModel(),
-		private _workspaceConfiguration: ConfigurationModel = new ConfigurationModel(),
-		private _folderConfigurations: ResourceMap<ConfigurationModel> = new ResourceMap<ConfigurationModel>(),
-		private _memoryConfiguration: ConfigurationModel = new ConfigurationModel(),
-		private _memoryConfigurationByResource: ResourceMap<ConfigurationModel> = new ResourceMap<ConfigurationModel>()
+		private _remoteUserConfiguration: ConfigurationModel,
+		private _workspaceConfiguration: ConfigurationModel,
+		private _folderConfigurations: ResourceMap<ConfigurationModel>,
+		private _memoryConfiguration: ConfigurationModel,
+		private _memoryConfigurationByResource: ResourceMap<ConfigurationModel>,
+		private readonly logService: ILogService
 	) {
 	}
 
@@ -696,7 +707,7 @@ export class Configuration {
 		if (overrides.resource) {
 			memoryConfiguration = this._memoryConfigurationByResource.get(overrides.resource);
 			if (!memoryConfiguration) {
-				memoryConfiguration = new ConfigurationModel();
+				memoryConfiguration = ConfigurationModel.createEmptyModel(this.logService);
 				this._memoryConfigurationByResource.set(overrides.resource, memoryConfiguration);
 			}
 		} else {
@@ -1047,21 +1058,32 @@ export class Configuration {
 		return [...keys.values()];
 	}
 
-	static parse(data: IConfigurationData): Configuration {
-		const defaultConfiguration = this.parseConfigurationModel(data.defaults);
-		const policyConfiguration = this.parseConfigurationModel(data.policy);
-		const applicationConfiguration = this.parseConfigurationModel(data.application);
-		const userConfiguration = this.parseConfigurationModel(data.user);
-		const workspaceConfiguration = this.parseConfigurationModel(data.workspace);
+	static parse(data: IConfigurationData, logService: ILogService): Configuration {
+		const defaultConfiguration = this.parseConfigurationModel(data.defaults, logService);
+		const policyConfiguration = this.parseConfigurationModel(data.policy, logService);
+		const applicationConfiguration = this.parseConfigurationModel(data.application, logService);
+		const userConfiguration = this.parseConfigurationModel(data.user, logService);
+		const workspaceConfiguration = this.parseConfigurationModel(data.workspace, logService);
 		const folders: ResourceMap<ConfigurationModel> = data.folders.reduce((result, value) => {
-			result.set(URI.revive(value[0]), this.parseConfigurationModel(value[1]));
+			result.set(URI.revive(value[0]), this.parseConfigurationModel(value[1], logService));
 			return result;
 		}, new ResourceMap<ConfigurationModel>());
-		return new Configuration(defaultConfiguration, policyConfiguration, applicationConfiguration, userConfiguration, new ConfigurationModel(), workspaceConfiguration, folders, new ConfigurationModel(), new ResourceMap<ConfigurationModel>());
+		return new Configuration(
+			defaultConfiguration,
+			policyConfiguration,
+			applicationConfiguration,
+			userConfiguration,
+			ConfigurationModel.createEmptyModel(logService),
+			workspaceConfiguration,
+			folders,
+			ConfigurationModel.createEmptyModel(logService),
+			new ResourceMap<ConfigurationModel>(),
+			logService
+		);
 	}
 
-	private static parseConfigurationModel(model: IConfigurationModel): ConfigurationModel {
-		return new ConfigurationModel(model.contents, model.keys, model.overrides);
+	private static parseConfigurationModel(model: IConfigurationModel, logService: ILogService): ConfigurationModel {
+		return new ConfigurationModel(model.contents, model.keys, model.overrides, undefined, logService);
 	}
 
 }
@@ -1097,7 +1119,13 @@ export class ConfigurationChangeEvent implements IConfigurationChangeEvent {
 	readonly affectedKeys = new Set<string>();
 	source!: ConfigurationTarget;
 
-	constructor(readonly change: IConfigurationChange, private readonly previous: { workspace?: Workspace; data: IConfigurationData } | undefined, private readonly currentConfiguraiton: Configuration, private readonly currentWorkspace?: Workspace) {
+	constructor(
+		readonly change: IConfigurationChange,
+		private readonly previous: { workspace?: Workspace; data: IConfigurationData } | undefined,
+		private readonly currentConfiguraiton: Configuration,
+		private readonly currentWorkspace: Workspace | undefined,
+		private readonly logService: ILogService
+	) {
 		for (const key of change.keys) {
 			this.affectedKeys.add(key);
 		}
@@ -1117,7 +1145,7 @@ export class ConfigurationChangeEvent implements IConfigurationChangeEvent {
 	private _previousConfiguration: Configuration | undefined = undefined;
 	get previousConfiguration(): Configuration | undefined {
 		if (!this._previousConfiguration && this.previous) {
-			this._previousConfiguration = Configuration.parse(this.previous.data);
+			this._previousConfiguration = Configuration.parse(this.previous.data, this.logService);
 		}
 		return this._previousConfiguration;
 	}

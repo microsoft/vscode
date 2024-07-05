@@ -5,25 +5,25 @@
 
 import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
 import { dispose } from 'vs/base/common/lifecycle';
+import { observableValue } from 'vs/base/common/observable';
 import * as UUID from 'vs/base/common/uuid';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { PrefixSumComputer } from 'vs/editor/common/model/prefixSumComputer';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { CellEditState, CellFindMatch, CodeCellLayoutChangeEvent, CodeCellLayoutInfo, CellLayoutState, ICellOutputViewModel, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFindMatch, CellLayoutState, CodeCellLayoutChangeEvent, CodeCellLayoutInfo, ICellOutputViewModel, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
+import { NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { CellOutputViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/cellOutputViewModel';
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, INotebookSearchOptions, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookOptionsChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
+import { CellKind, INotebookFindOptions, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICellExecutionError, ICellExecutionStateChangedEvent } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { BaseCellViewModel } from './baseCellViewModel';
-import { NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
-import { ICellExecutionStateChangedEvent } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { CellDiagnostics } from 'vs/workbench/contrib/notebook/browser/contrib/cellDiagnostics/cellDiagnostics';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export const outputDisplayLimit = 500;
 
@@ -45,11 +45,6 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	readonly onDidRemoveOutputs = this._onDidRemoveOutputs.event;
 
 	private _outputCollection: number[] = [];
-
-	private readonly _cellDiagnostics: CellDiagnostics;
-	get cellDiagnostics() {
-		return this._cellDiagnostics;
-	}
 
 	private _outputsTop: PrefixSumComputer | null = null;
 
@@ -83,16 +78,6 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 
 	get chatHeight() {
 		return this._chatHeight;
-	}
-
-	private _commentHeight = 0;
-
-	set commentHeight(height: number) {
-		if (this._commentHeight === height) {
-			return;
-		}
-		this._commentHeight = height;
-		this.layoutChange({ commentHeight: true }, 'CodeCellViewModel#commentHeight');
 	}
 
 	private _hoveringOutput: boolean = false;
@@ -150,6 +135,8 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		return this._outputViewModels;
 	}
 
+	readonly excecutionError = observableValue<ICellExecutionError | undefined>('excecutionError', undefined);
+
 	constructor(
 		viewType: string,
 		model: NotebookCellTextModel,
@@ -183,16 +170,10 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			if (outputLayoutChange) {
 				this.layoutChange({ outputHeight: true }, 'CodeCellViewModel#model.onDidChangeOutputs');
 			}
-			if (this._outputCollection.length === 0) {
-				this._cellDiagnostics.clear();
-			}
 			dispose(removedOutputs);
 		}));
 
 		this._outputCollection = new Array(this.model.outputs.length);
-
-		this._cellDiagnostics = instantiationService.createInstance(CellDiagnostics, this);
-		this._register(this._cellDiagnostics);
 
 		this._layoutInfo = {
 			fontInfo: initialNotebookLayoutInfo?.fontInfo || null,
@@ -202,6 +183,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				: 0,
 			chatHeight: 0,
 			statusBarHeight: 0,
+			commentOffset: 0,
 			commentHeight: 0,
 			outputContainerOffset: 0,
 			outputTotalHeight: 0,
@@ -298,11 +280,12 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				editorHeight,
 				editorWidth,
 				statusBarHeight,
-				commentHeight,
 				outputContainerOffset,
 				outputTotalHeight,
 				outputShowMoreContainerHeight,
 				outputShowMoreContainerOffset,
+				commentOffset: outputContainerOffset + outputTotalHeight,
+				commentHeight,
 				totalHeight,
 				codeIndicatorHeight,
 				outputIndicatorHeight,
@@ -339,11 +322,12 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 				editorWidth,
 				chatHeight: chatHeight,
 				statusBarHeight: 0,
-				commentHeight,
 				outputContainerOffset,
 				outputTotalHeight,
 				outputShowMoreContainerHeight,
 				outputShowMoreContainerOffset,
+				commentOffset: outputContainerOffset + outputTotalHeight,
+				commentHeight,
 				totalHeight,
 				codeIndicatorHeight,
 				outputIndicatorHeight,
@@ -368,22 +352,9 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		super.restoreEditorViewState(editorViewStates);
 		if (totalHeight !== undefined && this._layoutInfo.layoutState !== CellLayoutState.Measured) {
 			this._layoutInfo = {
-				fontInfo: this._layoutInfo.fontInfo,
-				chatHeight: this._layoutInfo.chatHeight,
-				editorHeight: this._layoutInfo.editorHeight,
-				editorWidth: this._layoutInfo.editorWidth,
-				statusBarHeight: this.layoutInfo.statusBarHeight,
-				commentHeight: this.layoutInfo.commentHeight,
-				outputContainerOffset: this._layoutInfo.outputContainerOffset,
-				outputTotalHeight: this._layoutInfo.outputTotalHeight,
-				outputShowMoreContainerHeight: this._layoutInfo.outputShowMoreContainerHeight,
-				outputShowMoreContainerOffset: this._layoutInfo.outputShowMoreContainerOffset,
+				...this._layoutInfo,
 				totalHeight: totalHeight,
-				codeIndicatorHeight: this._layoutInfo.codeIndicatorHeight,
-				outputIndicatorHeight: this._layoutInfo.outputIndicatorHeight,
-				bottomToolbarOffset: this._layoutInfo.bottomToolbarOffset,
 				layoutState: CellLayoutState.FromCache,
-				estimatedHasHorizontalScrolling: this._layoutInfo.estimatedHasHorizontalScrolling
 			};
 		}
 	}
@@ -448,7 +419,6 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			this.updateEditState(CellEditState.Editing, 'onDidChangeTextModelContent');
 			this._onDidChangeState.fire({ contentChanged: true });
 		}
-		this._cellDiagnostics.clear();
 	}
 
 	onDeselect() {
@@ -474,7 +444,14 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		}
 
 		this._ensureOutputsTop();
-		if (height < 28 && this._outputViewModels[index].hasMultiMimeType()) {
+
+		if (index === 0 || height > 0) {
+			this._outputViewModels[index].setVisible(true);
+		} else if (height === 0) {
+			this._outputViewModels[index].setVisible(false);
+		}
+
+		if (this._outputViewModels[index].visible.get() && height < 28) {
 			height = 28;
 		}
 
@@ -528,7 +505,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	private readonly _hasFindResult = this._register(new Emitter<boolean>());
 	public readonly hasFindResult: Event<boolean> = this._hasFindResult.event;
 
-	startFind(value: string, options: INotebookSearchOptions): CellFindMatch | null {
+	startFind(value: string, options: INotebookFindOptions): CellFindMatch | null {
 		const matches = super.cellStartFind(value, options);
 
 		if (matches === null) {

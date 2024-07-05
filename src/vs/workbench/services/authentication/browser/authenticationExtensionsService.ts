@@ -34,7 +34,7 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 	declare readonly _serviceBrand: undefined;
 	private _signInRequestItems = new Map<string, SessionRequestInfo>();
 	private _sessionAccessRequestItems = new Map<string, { [extensionId: string]: { disposables: IDisposable[]; possibleSessions: AuthenticationSession[] } }>();
-	private _accountBadgeDisposable = this._register(new MutableDisposable());
+	private readonly _accountBadgeDisposable = this._register(new MutableDisposable());
 
 	constructor(
 		@IActivityService private readonly activityService: IActivityService,
@@ -246,23 +246,30 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 			quickPick.placeholder = nls.localize('getSessionPlateholder', "Select an account for '{0}' to use or Esc to cancel", extensionName);
 
 			quickPick.onDidAccept(async _ => {
-				const session = quickPick.selectedItems[0].session ?? await this._authenticationService.createSession(providerId, scopes);
+				quickPick.dispose();
+				let session = quickPick.selectedItems[0].session;
+				if (!session) {
+					try {
+						session = await this._authenticationService.createSession(providerId, scopes);
+					} catch (e) {
+						reject(e);
+						return;
+					}
+				}
 				const accountName = session.account.label;
 
 				this._authenticationAccessService.updateAllowedExtensions(providerId, accountName, [{ id: extensionId, name: extensionName, allowed: true }]);
 				this.updateSessionPreference(providerId, extensionId, session);
 				this.removeAccessRequest(providerId, extensionId);
 
-				quickPick.dispose();
 				resolve(session);
 			});
 
 			quickPick.onDidHide(_ => {
+				quickPick.dispose();
 				if (!quickPick.selectedItems[0]) {
 					reject('User did not consent to account access');
 				}
-
-				quickPick.dispose();
 			});
 
 			quickPick.show();

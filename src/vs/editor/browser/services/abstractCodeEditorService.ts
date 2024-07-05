@@ -341,7 +341,7 @@ class RefCountedStyleSheet {
 	public unref(): void {
 		this._refCount--;
 		if (this._refCount === 0) {
-			this._styleSheet.parentNode?.removeChild(this._styleSheet);
+			this._styleSheet.remove();
 			this._parent._removeEditorStyleSheets(this._editorId);
 		}
 	}

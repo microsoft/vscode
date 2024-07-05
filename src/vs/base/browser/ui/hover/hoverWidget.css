@@ -122,6 +122,7 @@
 .monaco-hover .hover-row.status-bar .actions {
 	display: flex;
 	padding: 0px 8px;
+	width: 100%;
 }
 
 .monaco-hover .hover-row.status-bar .actions .action-container {
@@ -131,6 +132,11 @@
 
 .monaco-hover .hover-row.status-bar .actions .action-container .action .icon {
 	padding-right: 4px;
+}
+
+.monaco-hover .hover-row.status-bar .actions .action-container a {
+	color: var(--vscode-textLink-foreground);
+	text-decoration: var(--text-link-decoration);
 }
 
 .monaco-hover .markdown-hover .hover-contents .codicon {

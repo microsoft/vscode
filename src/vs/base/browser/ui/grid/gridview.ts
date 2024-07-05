@@ -1063,7 +1063,7 @@ export class GridView implements IDisposable {
 		const oldRoot = this._root;
 
 		if (oldRoot) {
-			this.element.removeChild(oldRoot.element);
+			oldRoot.element.remove();
 			oldRoot.dispose();
 		}
 
@@ -1733,7 +1733,7 @@ export class GridView implements IDisposable {
 				return {
 					node: this._deserializeNode(serializedChild, orthogonal(orientation), deserializer, node.size),
 					visible: (serializedChild as { visible?: boolean }).visible
-				} as INodeDescriptor;
+				} satisfies INodeDescriptor;
 			});
 
 			result = new BranchNode(orientation, this.layoutController, this.styles, this.proportionalLayout, node.size, orthogonalSize, undefined, children);
@@ -1831,6 +1831,6 @@ export class GridView implements IDisposable {
 	dispose(): void {
 		this.onDidSashResetRelay.dispose();
 		this.root.dispose();
-		this.element.parentElement?.removeChild(this.element);
+		this.element.remove();
 	}
 }

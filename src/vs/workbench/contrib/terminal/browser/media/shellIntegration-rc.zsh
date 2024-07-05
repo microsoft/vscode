@@ -75,11 +75,13 @@ __vsc_escape_value() {
 	for (( i = 0; i < ${#str}; ++i )); do
 		byte="${str:$i:1}"
 
-		# Escape backslashes and semi-colons
+		# Escape backslashes, semi-colons and newlines
 		if [ "$byte" = "\\" ]; then
 			token="\\\\"
 		elif [ "$byte" = ";" ]; then
 			token="\\x3b"
+		elif [ "$byte" = $'\n' ]; then
+			token="\x0a"
 		else
 			token="$byte"
 		fi
@@ -110,8 +112,8 @@ __vsc_update_cwd() {
 }
 
 __vsc_command_output_start() {
-	builtin printf '\e]633;C\a'
 	builtin printf '\e]633;E;%s;%s\a' "$(__vsc_escape_value "${__vsc_current_command}")" $__vsc_nonce
+	builtin printf '\e]633;C\a'
 }
 
 __vsc_continuation_start() {

@@ -359,7 +359,7 @@ export interface CssProperties {
 class RefCountedCssRule {
 	private _referenceCount: number = 0;
 	private _styleElement: HTMLStyleElement | undefined;
-	private _styleElementDisposables: DisposableStore;
+	private readonly _styleElementDisposables: DisposableStore;
 
 	constructor(
 		public readonly key: string,

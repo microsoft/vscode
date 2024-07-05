@@ -6,8 +6,8 @@
 import { Dimension } from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { derived, derivedWithStore, observableValue, recomputeInitiallyAndOnChange } from 'vs/base/common/observable';
-import { readHotReloadableExport } from 'vs/editor/browser/widget/diffEditor/utils';
-import { IMultiDiffEditorModel } from 'vs/editor/browser/widget/multiDiffEditor/model';
+import { readHotReloadableExport } from 'vs/base/common/hotReloadHelpers';
+import { IDocumentDiffItem, IMultiDiffEditorModel } from 'vs/editor/browser/widget/multiDiffEditor/model';
 import { IMultiDiffEditorViewState, IMultiDiffResourceId, MultiDiffEditorWidgetImpl } from 'vs/editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl';
 import { MultiDiffEditorViewModel } from './multiDiffEditorViewModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -80,6 +80,10 @@ export class MultiDiffEditorWidget extends Disposable {
 
 	public tryGetCodeEditor(resource: URI): { diffEditor: IDiffEditor; editor: ICodeEditor } | undefined {
 		return this._widgetImpl.get().tryGetCodeEditor(resource);
+	}
+
+	public findDocumentDiffItem(resource: URI): IDocumentDiffItem | undefined {
+		return this._widgetImpl.get().findDocumentDiffItem(resource);
 	}
 }
 

@@ -11,7 +11,7 @@ import { PromiseAdapter, arrayEquals, promiseFromEvent } from './common/utils';
 import { ExperimentationTelemetry } from './common/experimentationService';
 import { Log } from './common/logger';
 import { crypto } from './node/crypto';
-import { CANCELLATION_ERROR, TIMED_OUT_ERROR, USER_CANCELLATION_ERROR } from './common/errors';
+import { TIMED_OUT_ERROR, USER_CANCELLATION_ERROR } from './common/errors';
 
 interface SessionData {
 	id: string;
@@ -298,51 +298,23 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 
 			const sessions = await this._sessionsPromise;
 
+			const accounts = new Set(sessions.map(session => session.account.label));
+			const existingLogin = accounts.size <= 1 ? sessions[0]?.account.label : await vscode.window.showQuickPick([...accounts], { placeHolder: 'Choose an account that you would like to log in to' });
 			const scopeString = sortedScopes.join(' ');
-			const existingLogin = sessions[0]?.account.label;
 			const token = await this._githubServer.login(scopeString, existingLogin);
 			const session = await this.tokenToSession(token, scopes);
 			this.afterSessionLoad(session);
 
-			if (sessions.some(s => s.account.id !== session.account.id)) {
-				const otherAccountsIndexes = new Array<number>();
-				const otherAccountsLabels = new Set<string>();
-				for (let i = 0; i < sessions.length; i++) {
-					if (sessions[i].account.id !== session.account.id) {
-						otherAccountsIndexes.push(i);
-						otherAccountsLabels.add(sessions[i].account.label);
-					}
-				}
-				const proceed = vscode.l10n.t("Continue");
-				const labelstr = [...otherAccountsLabels].join(', ');
-				const result = await vscode.window.showInformationMessage(
-					vscode.l10n.t({
-						message: "You are logged into another account already ({0}).\n\nDo you want to log out of that account and log in to '{1}' instead?",
-						comment: ['{0} is a comma-separated list of account names. {1} is the account name to log into.'],
-						args: [labelstr, session.account.label]
-					}),
-					{ modal: true },
-					proceed
-				);
-				if (result !== proceed) {
-					throw new Error(CANCELLATION_ERROR);
-				}
-
-				// Remove other accounts
-				for (const i of otherAccountsIndexes) {
-					sessions.splice(i, 1);
-				}
-			}
-
 			const sessionIndex = sessions.findIndex(s => s.id === session.id || arrayEquals([...s.scopes].sort(), sortedScopes));
+			const removed = new Array<vscode.AuthenticationSession>();
 			if (sessionIndex > -1) {
-				sessions.splice(sessionIndex, 1, session);
+				removed.push(...sessions.splice(sessionIndex, 1, session));
 			} else {
 				sessions.push(session);
 			}
 			await this.storeSessions(sessions);
 
-			this._sessionChangeEmitter.fire({ added: [session], removed: [], changed: [] });
+			this._sessionChangeEmitter.fire({ added: [session], removed, changed: [] });
 
 			this._logger.info('Login success!');
 

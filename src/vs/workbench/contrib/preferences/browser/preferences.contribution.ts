@@ -46,6 +46,7 @@ import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/p
 import { IUserDataProfileService, CURRENT_PROFILE_CONTEXT } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 
 const SETTINGS_EDITOR_COMMAND_SEARCH = 'settings.action.search';
 
@@ -121,7 +122,7 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEdit
 const OPEN_USER_SETTINGS_UI_TITLE = nls.localize2('openSettings2', "Open Settings (UI)");
 const OPEN_USER_SETTINGS_JSON_TITLE = nls.localize2('openUserSettingsJson', "Open User Settings (JSON)");
 const OPEN_APPLICATION_SETTINGS_JSON_TITLE = nls.localize2('openApplicationSettingsJson', "Open Application Settings (JSON)");
-const category = nls.localize2('preferences', "Preferences");
+const category = Categories.Preferences;
 
 interface IOpenSettingsActionOptions {
 	openToSide?: boolean;
@@ -239,6 +240,9 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 				super({
 					id: 'workbench.action.openSettingsJson',
 					title: OPEN_USER_SETTINGS_JSON_TITLE,
+					metadata: {
+						description: nls.localize2('workbench.action.openSettingsJson.description', "Opens the JSON file containing the current user profile settings")
+					},
 					category,
 					f1: true,
 				});
@@ -420,8 +424,17 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					}
 				});
 			}
-			run(accessor: ServicesAccessor, resource: URI) {
-				return accessor.get(IPreferencesService).openFolderSettings({ folderUri: resource });
+			async run(accessor: ServicesAccessor, resource?: URI) {
+				if (URI.isUri(resource)) {
+					await accessor.get(IPreferencesService).openFolderSettings({ folderUri: resource });
+				} else {
+					const commandService = accessor.get(ICommandService);
+					const preferencesService = accessor.get(IPreferencesService);
+					const workspaceFolder = await commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID);
+					if (workspaceFolder) {
+						await preferencesService.openFolderSettings({ folderUri: workspaceFolder.uri });
+					}
+				}
 			}
 		}));
 		this._register(registerAction2(class extends Action2 {
@@ -1233,6 +1246,7 @@ class SettingsEditorTitleContribution extends Disposable implements IWorkbenchCo
 				ResourceContextKey.Resource.isEqualTo(this.userDataProfilesService.defaultProfile.settingsResource.toString())),
 			ContextKeyExpr.not('isInDiffEditor'));
 		const registerOpenUserSettingsEditorFromJsonAction = () => {
+			registerOpenUserSettingsEditorFromJsonActionDisposables.value = undefined;
 			registerOpenUserSettingsEditorFromJsonActionDisposables.value = registerAction2(class extends Action2 {
 				constructor() {
 					super({

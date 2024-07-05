@@ -6,9 +6,8 @@
 import { IDimension } from 'vs/base/browser/dom';
 import { findLast } from 'vs/base/common/arraysFind';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { isHotReloadEnabled, registerHotReloadHandler } from 'vs/base/common/hotReload';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, IReader, ISettableObservable, autorun, autorunHandleChanges, autorunOpts, autorunWithStore, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from 'vs/base/common/observable';
+import { IObservable, ISettableObservable, autorun, autorunHandleChanges, autorunOpts, autorunWithStore, observableValue, transaction } from 'vs/base/common/observable';
 import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
 import { ICodeEditor, IOverlayWidget, IViewZone } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
@@ -16,8 +15,6 @@ import { Range } from 'vs/editor/common/core/range';
 import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { TextLength } from 'vs/editor/common/core/textLength';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyValue, RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export function joinCombine<T>(arr1: readonly T[], arr2: readonly T[], keySelector: (val: T) => number, combine: (v1: T, v2: T) => T): readonly T[] {
 	if (arr1.length === 0) {
@@ -78,19 +75,15 @@ export function applyObservableDecorations(editor: ICodeEditor, decorations: IOb
 export function appendRemoveOnDispose(parent: HTMLElement, child: HTMLElement) {
 	parent.appendChild(child);
 	return toDisposable(() => {
-		parent.removeChild(child);
+		child.remove();
 	});
 }
 
-export function observableConfigValue<T>(key: string, defaultValue: T, configurationService: IConfigurationService): IObservable<T> {
-	return observableFromEvent(
-		(handleChange) => configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(key)) {
-				handleChange(e);
-			}
-		}),
-		() => configurationService.getValue<T>(key) ?? defaultValue,
-	);
+export function prependRemoveOnDispose(parent: HTMLElement, child: HTMLElement) {
+	parent.prepend(child);
+	return toDisposable(() => {
+		child.remove();
+	});
 }
 
 export class ObservableElementSizeObserver extends Disposable {
@@ -101,6 +94,9 @@ export class ObservableElementSizeObserver extends Disposable {
 
 	private readonly _height: ISettableObservable<number>;
 	public get height(): IObservable<number> { return this._height; }
+
+	private _automaticLayout: boolean = false;
+	public get automaticLayout(): boolean { return this._automaticLayout; }
 
 	constructor(element: HTMLElement | null, dimension: IDimension | undefined) {
 		super();
@@ -121,6 +117,7 @@ export class ObservableElementSizeObserver extends Disposable {
 	}
 
 	public setAutomaticLayout(automaticLayout: boolean): void {
+		this._automaticLayout = automaticLayout;
 		if (automaticLayout) {
 			this.elementSizeObserver.startObserving();
 		} else {
@@ -300,29 +297,6 @@ export function applyStyle(domNode: HTMLElement, style: Partial<{ [TKey in keyof
 	});
 }
 
-export function readHotReloadableExport<T>(value: T, reader: IReader | undefined): T {
-	observeHotReloadableExports([value], reader);
-	return value;
-}
-
-export function observeHotReloadableExports(values: any[], reader: IReader | undefined): void {
-	if (isHotReloadEnabled()) {
-		const o = observableSignalFromEvent(
-			'reload',
-			event => registerHotReloadHandler(({ oldExports }) => {
-				if (![...Object.values(oldExports)].some(v => values.includes(v))) {
-					return undefined;
-				}
-				return (_newExports) => {
-					event(undefined);
-					return true;
-				};
-			})
-		);
-		o.read(reader);
-	}
-}
-
 export function applyViewZones(editor: ICodeEditor, viewZones: IObservable<IObservableViewZone[]>, setIsUpdating?: (isUpdatingViewZones: boolean) => void, zoneIds?: Set<string>): IDisposable {
 	const store = new DisposableStore();
 	const lastViewZoneIds: string[] = [];
@@ -431,13 +405,6 @@ function lengthBetweenPositions(position1: Position, position2: Position): TextL
 	} else {
 		return new TextLength(position2.lineNumber - position1.lineNumber, position2.column - 1);
 	}
-}
-
-export function bindContextKey<T extends ContextKeyValue>(key: RawContextKey<T>, service: IContextKeyService, computeValue: (reader: IReader) => T): IDisposable {
-	const boundKey = key.bindTo(service);
-	return autorunOpts({ debugName: () => `Set Context Key "${key.key}"` }, reader => {
-		boundKey.set(computeValue(reader));
-	});
 }
 
 export function filterWithPrevious<T>(arr: T[], filter: (cur: T, prev: T | undefined) => boolean): T[] {

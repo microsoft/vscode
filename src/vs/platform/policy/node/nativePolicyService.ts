@@ -13,7 +13,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 export class NativePolicyService extends AbstractPolicyService implements IPolicyService {
 
 	private throttler = new Throttler();
-	private watcher = this._register(new MutableDisposable<Watcher>());
+	private readonly watcher = this._register(new MutableDisposable<Watcher>());
 
 	constructor(
 		@ILogService private readonly logService: ILogService,

@@ -27,11 +27,11 @@ import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cell
 import { ClickTargetType, IClickTarget } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellWidgets';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { CellStatusbarAlignment, INotebookCellStatusBarItem } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ITooltipMarkdownString, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/hover/hoverDelegate';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
+import type { IManagedHoverTooltipMarkdownString } from 'vs/base/browser/ui/hover/hover';
 
 const $ = DOM.$;
 
@@ -123,12 +123,15 @@ export class CellEditorStatusBar extends CellContentPart {
 
 
 	override didRenderCell(element: ICellViewModel): void {
-		this.updateContext(<INotebookCellActionContext>{
-			ui: true,
-			cell: element,
-			notebookEditor: this._notebookEditor,
-			$mid: MarshalledId.NotebookCellActionContext
-		});
+		if (this._notebookEditor.hasModel()) {
+			const context: (INotebookCellActionContext & { $mid: number }) = {
+				ui: true,
+				cell: element,
+				notebookEditor: this._notebookEditor,
+				$mid: MarshalledId.NotebookCellActionContext
+			};
+			this.updateContext(context);
+		}
 
 		if (this._editor) {
 			// Focus Mode
@@ -235,7 +238,7 @@ export class CellEditorStatusBar extends CellContentPart {
 			if (renderedItems.length > newItems.length) {
 				const deleted = renderedItems.splice(newItems.length, renderedItems.length - newItems.length);
 				for (const deletedItem of deleted) {
-					container.removeChild(deletedItem.container);
+					deletedItem.container.remove();
 					deletedItem.dispose();
 				}
 			}
@@ -272,7 +275,7 @@ class CellStatusBarItem extends Disposable {
 	}
 
 	private _currentItem!: INotebookCellStatusBarItem;
-	private _itemDisposables = this._register(new DisposableStore());
+	private readonly _itemDisposables = this._register(new DisposableStore());
 
 	constructor(
 		private readonly _context: INotebookCellActionContext,
@@ -284,6 +287,7 @@ class CellStatusBarItem extends Disposable {
 		@ICommandService private readonly _commandService: ICommandService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IThemeService private readonly _themeService: IThemeService,
+		@IHoverService private readonly _hoverService: IHoverService,
 	) {
 		super();
 
@@ -326,8 +330,8 @@ class CellStatusBarItem extends Disposable {
 		this.container.setAttribute('role', role || '');
 
 		if (item.tooltip) {
-			const hoverContent = typeof item.tooltip === 'string' ? item.tooltip : { markdown: item.tooltip } as ITooltipMarkdownString;
-			this._itemDisposables.add(setupCustomHover(this._hoverDelegate, this.container, hoverContent));
+			const hoverContent = typeof item.tooltip === 'string' ? item.tooltip : { markdown: item.tooltip, markdownNotSupportedFallback: undefined } satisfies IManagedHoverTooltipMarkdownString;
+			this._itemDisposables.add(this._hoverService.setupManagedHover(this._hoverDelegate, this.container, hoverContent));
 		}
 
 		this.container.classList.toggle('cell-status-item-has-command', !!item.command);

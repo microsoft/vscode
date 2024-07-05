@@ -42,6 +42,7 @@ import { fixedDiffEditorOptions, fixedEditorOptions, fixedEditorPadding } from '
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export function getOptimizedNestedCodeEditorWidgetOptions(): ICodeEditorWidgetOptions {
 	return {
@@ -82,6 +83,7 @@ class PropertyHeader extends Disposable {
 		},
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@ICommandService private readonly commandService: ICommandService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -125,7 +127,7 @@ class PropertyHeader extends Disposable {
 
 				return undefined;
 			}
-		}, this.menuService, this.contextKeyService, this.contextMenuService, this.keybindingService, this.telemetryService);
+		}, this.menuService, this.contextKeyService, this.contextMenuService, this.keybindingService, this.commandService, this.telemetryService);
 		this._register(this._toolbar);
 		this._toolbar.context = {
 			cell: this.cell
@@ -233,15 +235,15 @@ interface IDiffElementLayoutState {
 }
 
 abstract class AbstractElementRenderer extends Disposable {
-	protected _metadataLocalDisposable = this._register(new DisposableStore());
-	protected _outputLocalDisposable = this._register(new DisposableStore());
+	protected readonly _metadataLocalDisposable = this._register(new DisposableStore());
+	protected readonly _outputLocalDisposable = this._register(new DisposableStore());
 	protected _ignoreMetadata: boolean = false;
 	protected _ignoreOutputs: boolean = false;
 	protected _metadataHeaderContainer!: HTMLElement;
 	protected _metadataHeader!: PropertyHeader;
 	protected _metadataInfoContainer!: HTMLElement;
 	protected _metadataEditorContainer?: HTMLElement;
-	protected _metadataEditorDisposeStore!: DisposableStore;
+	protected readonly _metadataEditorDisposeStore!: DisposableStore;
 	protected _metadataEditor?: CodeEditorWidget | DiffEditorWidget;
 
 	protected _outputHeaderContainer!: HTMLElement;
@@ -255,7 +257,7 @@ abstract class AbstractElementRenderer extends Disposable {
 	protected _outputEmptyElement?: HTMLElement;
 	protected _outputLeftView?: OutputContainer;
 	protected _outputRightView?: OutputContainer;
-	protected _outputEditorDisposeStore!: DisposableStore;
+	protected readonly _outputEditorDisposeStore!: DisposableStore;
 	protected _outputEditor?: CodeEditorWidget | DiffEditorWidget;
 	protected _outputMetadataEditor?: DiffEditorWidget;
 
@@ -752,6 +754,8 @@ abstract class SingleSideDiffElement extends AbstractElementRenderer {
 		);
 		this.cell = cell;
 		this.templateData = templateData;
+
+		this.updateBorders();
 	}
 
 	init() {
@@ -1243,6 +1247,8 @@ export class ModifiedElement extends AbstractElementRenderer {
 		this.cell = cell;
 		this.templateData = templateData;
 		this._editorViewStateChanged = false;
+
+		this.updateBorders();
 	}
 
 	init() { }

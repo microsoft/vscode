@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { flatten, mapArrayOrNot } from 'vs/base/common/arrays';
+import { mapArrayOrNot } from 'vs/base/common/arrays';
 import { isThenable } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -11,7 +11,7 @@ import { Schemas } from 'vs/base/common/network';
 import * as path from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { hasSiblingPromiseFn, IAITextQuery, IExtendedExtensionSearchOptions, IFileMatch, IFolderQuery, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchResult, ITextSearchStats, QueryGlobTester, QueryType, resolvePatternsForProvider } from 'vs/workbench/services/search/common/search';
+import { DEFAULT_MAX_SEARCH_RESULTS, hasSiblingPromiseFn, IAITextQuery, IExtendedExtensionSearchOptions, IFileMatch, IFolderQuery, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchResult, ITextSearchStats, QueryGlobTester, QueryType, resolvePatternsForProvider } from 'vs/workbench/services/search/common/search';
 import { AITextSearchProvider, Range, TextSearchComplete, TextSearchMatch, TextSearchOptions, TextSearchProvider, TextSearchQuery, TextSearchResult } from 'vs/workbench/services/search/common/searchExtTypes';
 
 export interface IFileUtils {
@@ -81,11 +81,11 @@ export class TextSearchManager {
 				const someFolderHitLImit = results.some(result => !!result && !!result.limitHit);
 				resolve({
 					limitHit: this.isLimitHit || someFolderHitLImit,
-					messages: flatten(results.map(result => {
+					messages: results.flatMap(result => {
 						if (!result?.message) { return []; }
 						if (Array.isArray(result.message)) { return result.message; }
 						else { return [result.message]; }
-					})),
+					}),
 					stats: {
 						type: this.processType
 					}
@@ -200,7 +200,7 @@ export class TextSearchManager {
 		const includes = resolvePatternsForProvider(this.query.includePattern, fq.includePattern);
 		const excludes = resolvePatternsForProvider(this.query.excludePattern, fq.excludePattern);
 
-		const options = <TextSearchOptions>{
+		const options = {
 			folder: URI.from(fq.folder),
 			excludes,
 			includes,
@@ -210,7 +210,7 @@ export class TextSearchManager {
 			followSymlinks: !fq.ignoreSymlinks,
 			encoding: fq.fileEncoding && this.fileUtils.toCanonicalName(fq.fileEncoding),
 			maxFileSize: this.query.maxFileSize,
-			maxResults: this.query.maxResults,
+			maxResults: this.query.maxResults ?? DEFAULT_MAX_SEARCH_RESULTS,
 			previewOptions: this.query.previewOptions,
 			afterContext: this.query.afterContext,
 			beforeContext: this.query.beforeContext
@@ -223,7 +223,7 @@ export class TextSearchManager {
 }
 
 function patternInfoToQuery(patternInfo: IPatternInfo): TextSearchQuery {
-	return <TextSearchQuery>{
+	return {
 		isCaseSensitive: patternInfo.isCaseSensitive || false,
 		isRegExp: patternInfo.isRegExp || false,
 		isWordMatch: patternInfo.isWordMatch || false,
@@ -283,7 +283,7 @@ export class TextSearchResultsCollector {
 function extensionResultToFrontendResult(data: TextSearchResult): ITextSearchResult {
 	// Warning: result from RipgrepTextSearchEH has fake Range. Don't depend on any other props beyond these...
 	if (extensionResultIsMatch(data)) {
-		return <ITextSearchMatch>{
+		return {
 			preview: {
 				matches: mapArrayOrNot(data.preview.matches, m => ({
 					startLineNumber: m.start.line,
@@ -299,12 +299,12 @@ function extensionResultToFrontendResult(data: TextSearchResult): ITextSearchRes
 				endLineNumber: r.end.line,
 				endColumn: r.end.character
 			}))
-		};
+		} satisfies ITextSearchMatch;
 	} else {
-		return <ITextSearchContext>{
+		return {
 			text: data.text,
 			lineNumber: data.lineNumber
-		};
+		} satisfies ITextSearchContext;
 	}
 }
 

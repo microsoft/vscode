@@ -192,28 +192,28 @@ export class Gesture extends Disposable {
 				holdTime = Date.now() - data.initialTimeStamp;
 
 			if (holdTime < Gesture.HOLD_DELAY
-				&& Math.abs(data.initialPageX - arrays.tail(data.rollingPageX)) < 30
-				&& Math.abs(data.initialPageY - arrays.tail(data.rollingPageY)) < 30) {
+				&& Math.abs(data.initialPageX - arrays.tail(data.rollingPageX)!) < 30
+				&& Math.abs(data.initialPageY - arrays.tail(data.rollingPageY)!) < 30) {
 
 				const evt = this.newGestureEvent(EventType.Tap, data.initialTarget);
-				evt.pageX = arrays.tail(data.rollingPageX);
-				evt.pageY = arrays.tail(data.rollingPageY);
+				evt.pageX = arrays.tail(data.rollingPageX)!;
+				evt.pageY = arrays.tail(data.rollingPageY)!;
 				this.dispatchEvent(evt);
 
 			} else if (holdTime >= Gesture.HOLD_DELAY
-				&& Math.abs(data.initialPageX - arrays.tail(data.rollingPageX)) < 30
-				&& Math.abs(data.initialPageY - arrays.tail(data.rollingPageY)) < 30) {
+				&& Math.abs(data.initialPageX - arrays.tail(data.rollingPageX)!) < 30
+				&& Math.abs(data.initialPageY - arrays.tail(data.rollingPageY)!) < 30) {
 
 				const evt = this.newGestureEvent(EventType.Contextmenu, data.initialTarget);
-				evt.pageX = arrays.tail(data.rollingPageX);
-				evt.pageY = arrays.tail(data.rollingPageY);
+				evt.pageX = arrays.tail(data.rollingPageX)!;
+				evt.pageY = arrays.tail(data.rollingPageY)!;
 				this.dispatchEvent(evt);
 
 			} else if (activeTouchCount === 1) {
-				const finalX = arrays.tail(data.rollingPageX);
-				const finalY = arrays.tail(data.rollingPageY);
+				const finalX = arrays.tail(data.rollingPageX)!;
+				const finalY = arrays.tail(data.rollingPageY)!;
 
-				const deltaT = arrays.tail(data.rollingTimestamps) - data.rollingTimestamps[0];
+				const deltaT = arrays.tail(data.rollingTimestamps)! - data.rollingTimestamps[0];
 				const deltaX = finalX - data.rollingPageX[0];
 				const deltaY = finalY - data.rollingPageY[0];
 
@@ -345,8 +345,8 @@ export class Gesture extends Disposable {
 			const data = this.activeTouches[touch.identifier];
 
 			const evt = this.newGestureEvent(EventType.Change, data.initialTarget);
-			evt.translationX = touch.pageX - arrays.tail(data.rollingPageX);
-			evt.translationY = touch.pageY - arrays.tail(data.rollingPageY);
+			evt.translationX = touch.pageX - arrays.tail(data.rollingPageX)!;
+			evt.translationY = touch.pageY - arrays.tail(data.rollingPageY)!;
 			evt.pageX = touch.pageX;
 			evt.pageY = touch.pageY;
 			this.dispatchEvent(evt);

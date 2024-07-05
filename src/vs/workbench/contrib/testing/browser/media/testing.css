@@ -52,6 +52,11 @@
 	overflow: hidden;
 	white-space: nowrap;
 	text-overflow: ellipsis;
+
+	.monaco-list.horizontal-scrolling & {
+		width: auto;
+		overflow: visible;
+	}
 }
 
 .test-output-peek-tree .test-peek-item .name .codicon,
@@ -262,6 +267,52 @@
 	cursor: pointer;
 }
 
+.testing-followup-action {
+	position: absolute;
+	top: 100%;
+	left: 22px;
+	right: 22px;
+	margin-top: -25px;
+	line-height: 25px;
+	overflow: hidden;
+	pointer-events: none;
+	background: linear-gradient(transparent, var(--vscode-peekViewEditor-background) 50%);
+	display: flex;
+	align-items: center;
+	gap: 14px;
+
+	&.animated {
+		animation: fadeIn 150ms ease-out;
+	}
+
+	> a {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		cursor: pointer;
+		pointer-events: auto;
+		width: fit-content;
+		flex-shrink: 0;
+
+		&, .codicon {
+			color: var(--vscode-textLink-foreground);
+		}
+
+		&:hover {
+			color: var(--vscode-textLink-activeForeground);
+		}
+
+		&[aria-disabled="true"] {
+			color: inherit;
+			cursor: default;
+
+			.codicon {
+				color: inherit;
+			}
+		}
+	}
+}
+
 /** -- filter  */
 .monaco-action-bar.testing-filter-action-bar {
 	flex-shrink: 0;
@@ -358,6 +409,10 @@
 
 /** -- coverage  */
 
+.coverage-view-is-filtered > .pane-header > .actions {
+	display: block !important;
+}
+
 .test-coverage-list-item {
 	display: flex;
 	align-items: center;
@@ -394,6 +449,84 @@
 
 .test-coverage-list-item.not-covered .name {
 	opacity: 0.7;
+}
+
+.coverage-summary-widget {
+	color: var(--vscode-editor-foreground);
+	z-index: 1;
+	background: var(--vscode-editor-background);
+	left: 0;
+	width: 100%;
+	box-shadow: var(--vscode-editorStickyScroll-shadow) 0 3px 2px -2px;
+
+	> div {
+		display: flex;
+		align-items: center;
+		padding: 0 22px;
+		height: 25px;
+	}
+
+	.btn {
+		position: relative;
+		margin: 0 4px;
+		padding: 0 4px;
+
+		&:first-child {
+			margin-left: 0;
+		}
+
+		&:last-child {
+			margin-right: 0;
+		}
+	}
+
+	.stat, .action-label {
+		white-space: nowrap;
+		text-overflow: ellipsis;
+		overflow: hidden;
+		margin: 0 3px;
+	}
+
+	.action-label {
+		display: flex;
+		align-items: center;
+		font-size: 13px;
+		padding: 0 4px;
+
+		.codicon {
+			margin-right: 4px;
+		}
+	}
+
+}
+
+.test-coverage-tree-per-test-switcher {
+	display: flex;
+	background-color: var(--vscode-dropdown-background);
+	color: var(--vscode-dropdown-foreground);
+	border: 1px solid var(--vscode-dropdown-border);
+
+	margin: 3px 0;
+	cursor: pointer;
+	margin-right: 22px;
+	line-height: 20px;
+	padding: 0 6px;
+	width: fit-content;
+	max-width: calc(100% - 44px);
+
+	span {
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	&::after {
+		content: '';
+		content: var(--vscode-icon-chevron-right-content);
+		font-family: var(--vscode-icon-chevron-right-font-family);
+		font-size: 18px;
+		padding-left: 22px;
+	}
 }
 
 /** -- coverage in the explorer  */
@@ -458,65 +591,67 @@
 	outline-offset: -1px;
 }
 
-.coverage-deco-inline.coverage-deco-hit {
-	background: var(--vscode-testing-coveredBackground);
-	outline: 1px solid var(--vscode-testing-coveredBorder);
-}
+.monaco-editor {
+	.coverage-deco-inline.coverage-deco-hit {
+		background: var(--vscode-testing-coveredBackground);
+		outline: 1px solid var(--vscode-testing-coveredBorder);
+	}
 
-.coverage-deco-inline.coverage-deco-miss {
-	background: var(--vscode-testing-uncoveredBackground);
-	outline: 1px solid var(--vscode-testing-uncoveredBorder);
-}
+	.coverage-deco-inline.coverage-deco-miss {
+		background: var(--vscode-testing-uncoveredBackground);
+		outline: 1px solid var(--vscode-testing-uncoveredBorder);
+	}
 
-.hc-light .coverage-deco-inline.coverage-deco-hit,
-.hc-black .coverage-deco-inline.coverage-deco-hit {
-	outline-style: dashed;
-}
+	.hc-light .coverage-deco-inline.coverage-deco-hit,
+	.hc-black .coverage-deco-inline.coverage-deco-hit {
+		outline-style: dashed;
+	}
 
-.coverage-deco-branch-miss-indicator {
-	height: 100%;
-	width: 4ch;
-	position: relative;
-	display: inline-block;
-	font: inherit !important;
-}
+	.coverage-deco-branch-miss-indicator {
+		height: 100%;
+		width: 4ch;
+		position: relative;
+		display: inline-block;
+		font: inherit !important;
+	}
 
-.coverage-deco-branch-miss-indicator::before {
-	position: absolute;
-	top: 50%;
-	left: 50%;
-	text-align: center;
-	transform: translate(-50%, -50%);
-	padding: calc(var(--vscode-testing-coverage-lineHeight) / 10);
-	border-radius: 2px;
-	font: normal normal normal calc(var(--vscode-testing-coverage-lineHeight) / 2)/1 codicon;
-	border: 1px solid;
-}
+	.coverage-deco-branch-miss-indicator::before {
+		position: absolute;
+		top: 50%;
+		left: 50%;
+		text-align: center;
+		transform: translate(-50%, -50%);
+		padding: calc(var(--vscode-testing-coverage-lineHeight) / 10);
+		border-radius: 2px;
+		font: normal normal normal calc(var(--vscode-testing-coverage-lineHeight) / 2)/1 codicon;
+		border: 1px solid;
+	}
 
-.coverage-deco-inline-count {
-	position: relative;
-	background: var(--vscode-testing-coverCountBadgeBackground);
-	color: var(--vscode-testing-coverCountBadgeForeground);
-	font-size: 0.7em;
-	margin: 0 0.7em 0 0.4em;
-	padding: 0.2em 0 0.2em 0.2em;
-	/* display: inline-block; */
-	border-top-left-radius: 2px;
-	border-bottom-left-radius: 2px;
-}
+	.coverage-deco-inline-count {
+		position: relative;
+		background: var(--vscode-testing-coverCountBadgeBackground);
+		color: var(--vscode-testing-coverCountBadgeForeground);
+		font-size: 0.7em;
+		margin: 0 0.7em 0 0.4em;
+		padding: 0.2em 0 0.2em 0.2em;
+		/* display: inline-block; */
+		border-top-left-radius: 2px;
+		border-bottom-left-radius: 2px;
 
-.coverage-deco-inline-count::after {
-	content: '';
-	display: block;
-	position: absolute;
-	left: 100%;
-	top: 0;
-	bottom: 0;
-	width: 0.5em;
-	background-image:
-		linear-gradient(to bottom left, transparent 50%, var(--vscode-testing-coverCountBadgeBackground) 0),
-		linear-gradient(to bottom right, var(--vscode-testing-coverCountBadgeBackground) 50%, transparent 0);
-	background-size: 100% 50%;
-	background-repeat: no-repeat;
-	background-position: top, bottom;
+		&::after {
+			content: '';
+			display: block;
+			position: absolute;
+			left: 100%;
+			top: 0;
+			bottom: 0;
+			width: 0.5em;
+			background-image:
+				linear-gradient(to bottom left, transparent 50%, var(--vscode-testing-coverCountBadgeBackground) 0),
+				linear-gradient(to bottom right, var(--vscode-testing-coverCountBadgeBackground) 50%, transparent 0);
+			background-size: 100% 50%;
+			background-repeat: no-repeat;
+			background-position: top, bottom;
+		}
+	}
 }

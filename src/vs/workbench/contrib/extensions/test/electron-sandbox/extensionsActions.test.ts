@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IExtensionsWorkbenchService, ExtensionContainers } from 'vs/workbench/contrib/extensions/common/extensions';
 import * as ExtensionsActions from 'vs/workbench/contrib/extensions/browser/extensionsActions';
@@ -59,6 +59,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/uti
 import { IUpdateService, State } from 'vs/platform/update/common/update';
 import { IFileService } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
+import { Mutable } from 'vs/base/common/types';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { UserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfileService';
+import { toUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 let instantiationService: TestInstantiationService;
 let installEvent: Emitter<InstallExtensionEvent>,
@@ -100,7 +104,7 @@ function setupTest(disposables: Pick<DisposableStore, 'add'>) {
 		async getInstalled() { return []; },
 		async getInstalledWorkspaceExtensions() { return []; },
 		async getExtensionsControlManifest() { return { malicious: [], deprecated: {}, search: [] }; },
-		async updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>) {
+		async updateMetadata(local: Mutable<ILocalExtension>, metadata: Partial<Metadata>) {
 			local.identifier.uuid = metadata.id;
 			local.publisherDisplayName = metadata.publisherDisplayName!;
 			local.publisherId = metadata.publisherId!;
@@ -125,6 +129,7 @@ function setupTest(disposables: Pick<DisposableStore, 'add'>) {
 		}
 	});
 
+	instantiationService.stub(IUserDataProfileService, disposables.add(new UserDataProfileService(toUserDataProfile('test', 'test', URI.file('foo'), URI.file('cache')))));
 	instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
 	instantiationService.stub(ILabelService, { onDidChangeFormatters: disposables.add(new Emitter<IFormatterChangeEvent>()).event });
 
@@ -172,7 +177,7 @@ suite('ExtensionsActions', () => {
 						testObject.extension = paged.firstPage[0];
 						assert.ok(!testObject.enabled);
 						assert.strictEqual('Install', testObject.label);
-						assert.strictEqual('extension-action label prominent install', testObject.class);
+						assert.strictEqual('extension-action label prominent install hide', testObject.class);
 					});
 			});
 	});
@@ -186,7 +191,7 @@ suite('ExtensionsActions', () => {
 		return workbenchService.queryGallery(CancellationToken.None)
 			.then((paged) => {
 				testObject.extension = paged.firstPage[0];
-				installEvent.fire({ identifier: gallery.identifier, source: gallery });
+				installEvent.fire({ identifier: gallery.identifier, source: gallery, profileLocation: null! });
 
 				assert.ok(!testObject.enabled);
 				assert.strictEqual('Installing', testObject.label);
@@ -201,7 +206,7 @@ suite('ExtensionsActions', () => {
 		const gallery = aGalleryExtension('a');
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 		const paged = await workbenchService.queryGallery(CancellationToken.None);
-		const promise = Event.toPromise(testObject.onDidChange);
+		const promise = Event.toPromise(Event.filter(testObject.onDidChange, e => e.enabled === true));
 		testObject.extension = paged.firstPage[0];
 		await promise;
 		assert.ok(testObject.enabled);
@@ -216,8 +221,8 @@ suite('ExtensionsActions', () => {
 
 		return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
 			.then(extensions => {
-				uninstallEvent.fire({ identifier: local.identifier });
-				didUninstallEvent.fire({ identifier: local.identifier });
+				uninstallEvent.fire({ identifier: local.identifier, profileLocation: null! });
+				didUninstallEvent.fire({ identifier: local.identifier, profileLocation: null! });
 				testObject.extension = extensions[0];
 				assert.ok(!testObject.enabled);
 			});
@@ -231,8 +236,8 @@ suite('ExtensionsActions', () => {
 
 		return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
 			.then(extensions => {
-				uninstallEvent.fire({ identifier: local.identifier });
-				didUninstallEvent.fire({ identifier: local.identifier });
+				uninstallEvent.fire({ identifier: local.identifier, profileLocation: null! });
+				didUninstallEvent.fire({ identifier: local.identifier, profileLocation: null! });
 				testObject.extension = extensions[0];
 				assert.ok(!testObject.enabled);
 			});
@@ -254,7 +259,7 @@ suite('ExtensionsActions', () => {
 		return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
 			.then(extensions => {
 				testObject.extension = extensions[0];
-				uninstallEvent.fire({ identifier: local.identifier });
+				uninstallEvent.fire({ identifier: local.identifier, profileLocation: null! });
 				assert.ok(!testObject.enabled);
 				assert.strictEqual('Uninstalling', testObject.label);
 				assert.strictEqual('extension-action label uninstall uninstalling', testObject.class);
@@ -302,7 +307,7 @@ suite('ExtensionsActions', () => {
 				const gallery = aGalleryExtension('a');
 				const extension = extensions[0];
 				extension.gallery = gallery;
-				installEvent.fire({ identifier: gallery.identifier, source: gallery });
+				installEvent.fire({ identifier: gallery.identifier, source: gallery, profileLocation: null! });
 				testObject.extension = extension;
 				assert.ok(!testObject.enabled);
 			});
@@ -317,9 +322,9 @@ suite('ExtensionsActions', () => {
 		const paged = await instantiationService.get(IExtensionsWorkbenchService).queryGallery(CancellationToken.None);
 		testObject.extension = paged.firstPage[0];
 
-		installEvent.fire({ identifier: gallery.identifier, source: gallery });
+		installEvent.fire({ identifier: gallery.identifier, source: gallery, profileLocation: null! });
 		const promise = Event.toPromise(testObject.onDidChange);
-		didInstallEvent.fire([{ identifier: gallery.identifier, source: gallery, operation: InstallOperation.Install, local: aLocalExtension('a', gallery, gallery) }]);
+		didInstallEvent.fire([{ identifier: gallery.identifier, source: gallery, operation: InstallOperation.Install, local: aLocalExtension('a', gallery, gallery), profileLocation: null! }]);
 
 		await promise;
 		assert.ok(testObject.enabled);
@@ -428,7 +433,7 @@ suite('ExtensionsActions', () => {
 					c();
 				}
 			}));
-			installEvent.fire({ identifier: local.identifier, source: gallery });
+			installEvent.fire({ identifier: local.identifier, source: gallery, profileLocation: null! });
 		});
 	});
 
@@ -479,7 +484,7 @@ suite('ExtensionsActions', () => {
 			.then(page => {
 				testObject.extension = page.firstPage[0];
 
-				installEvent.fire({ identifier: gallery.identifier, source: gallery });
+				installEvent.fire({ identifier: gallery.identifier, source: gallery, profileLocation: null! });
 				assert.ok(!testObject.enabled);
 				assert.strictEqual('extension-action icon manage codicon codicon-extensions-manage hide', testObject.class);
 				assert.strictEqual('Manage', testObject.tooltip);
@@ -494,9 +499,9 @@ suite('ExtensionsActions', () => {
 
 		const paged = await instantiationService.get(IExtensionsWorkbenchService).queryGallery(CancellationToken.None);
 		testObject.extension = paged.firstPage[0];
-		installEvent.fire({ identifier: gallery.identifier, source: gallery });
+		installEvent.fire({ identifier: gallery.identifier, source: gallery, profileLocation: null! });
 		const promise = Event.toPromise(testObject.onDidChange);
-		didInstallEvent.fire([{ identifier: gallery.identifier, source: gallery, operation: InstallOperation.Install, local: aLocalExtension('a', gallery, gallery) }]);
+		didInstallEvent.fire([{ identifier: gallery.identifier, source: gallery, operation: InstallOperation.Install, local: aLocalExtension('a', gallery, gallery), profileLocation: null! }]);
 
 		await promise;
 		assert.ok(testObject.enabled);
@@ -528,7 +533,7 @@ suite('ExtensionsActions', () => {
 		return instantiationService.get(IExtensionsWorkbenchService).queryLocal()
 			.then(extensions => {
 				testObject.extension = extensions[0];
-				uninstallEvent.fire({ identifier: local.identifier });
+				uninstallEvent.fire({ identifier: local.identifier, profileLocation: null! });
 
 				assert.ok(!testObject.enabled);
 				assert.strictEqual('extension-action icon manage codicon codicon-extensions-manage', testObject.class);
@@ -734,7 +739,7 @@ suite('ExtensionsActions', () => {
 				testObject.extension = page.firstPage[0];
 				disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 
-				installEvent.fire({ identifier: gallery.identifier, source: gallery });
+				installEvent.fire({ identifier: gallery.identifier, source: gallery, profileLocation: null! });
 				assert.ok(!testObject.enabled);
 			});
 	});
@@ -747,7 +752,7 @@ suite('ExtensionsActions', () => {
 			.then(extensions => {
 				const testObject: ExtensionsActions.EnableDropDownAction = disposables.add(instantiationService.createInstance(ExtensionsActions.EnableDropDownAction));
 				testObject.extension = extensions[0];
-				uninstallEvent.fire({ identifier: local.identifier });
+				uninstallEvent.fire({ identifier: local.identifier, profileLocation: null! });
 				assert.ok(!testObject.enabled);
 			});
 	});
@@ -928,7 +933,7 @@ suite('ExtensionsActions', () => {
 				const testObject: ExtensionsActions.DisableGloballyAction = disposables.add(instantiationService.createInstance(ExtensionsActions.DisableGloballyAction));
 				testObject.extension = page.firstPage[0];
 				disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
-				installEvent.fire({ identifier: gallery.identifier, source: gallery });
+				installEvent.fire({ identifier: gallery.identifier, source: gallery, profileLocation: null! });
 				assert.ok(!testObject.enabled);
 			});
 	});
@@ -947,7 +952,7 @@ suite('ExtensionsActions', () => {
 				const testObject: ExtensionsActions.DisableGloballyAction = disposables.add(instantiationService.createInstance(ExtensionsActions.DisableGloballyAction));
 				testObject.extension = extensions[0];
 				disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
-				uninstallEvent.fire({ identifier: local.identifier });
+				uninstallEvent.fire({ identifier: local.identifier, profileLocation: null! });
 				assert.ok(!testObject.enabled);
 			});
 	});
@@ -975,7 +980,7 @@ suite('ExtensionRuntimeStateAction', () => {
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 		const paged = await workbenchService.queryGallery(CancellationToken.None);
 		testObject.extension = paged.firstPage[0];
-		installEvent.fire({ identifier: gallery.identifier, source: gallery });
+		installEvent.fire({ identifier: gallery.identifier, source: gallery, profileLocation: null! });
 
 		assert.ok(!testObject.enabled);
 	});
@@ -988,7 +993,7 @@ suite('ExtensionRuntimeStateAction', () => {
 
 		const extensions = await instantiationService.get(IExtensionsWorkbenchService).queryLocal();
 		testObject.extension = extensions[0];
-		uninstallEvent.fire({ identifier: local.identifier });
+		uninstallEvent.fire({ identifier: local.identifier, profileLocation: null! });
 		assert.ok(!testObject.enabled);
 	});
 
@@ -1009,9 +1014,9 @@ suite('ExtensionRuntimeStateAction', () => {
 		testObject.extension = paged.firstPage[0];
 		assert.ok(!testObject.enabled);
 
-		installEvent.fire({ identifier: gallery.identifier, source: gallery });
+		installEvent.fire({ identifier: gallery.identifier, source: gallery, profileLocation: null! });
 		const promise = Event.toPromise(testObject.onDidChange);
-		didInstallEvent.fire([{ identifier: gallery.identifier, source: gallery, operation: InstallOperation.Install, local: aLocalExtension('a', gallery, gallery) }]);
+		didInstallEvent.fire([{ identifier: gallery.identifier, source: gallery, operation: InstallOperation.Install, local: aLocalExtension('a', gallery, gallery), profileLocation: null! }]);
 		await promise;
 		assert.ok(testObject.enabled);
 		assert.strictEqual(testObject.tooltip, `Please restart extensions to enable this extension.`);
@@ -1034,8 +1039,8 @@ suite('ExtensionRuntimeStateAction', () => {
 		testObject.extension = paged.firstPage[0];
 		assert.ok(!testObject.enabled);
 
-		installEvent.fire({ identifier: gallery.identifier, source: gallery });
-		didInstallEvent.fire([{ identifier: gallery.identifier, source: gallery, operation: InstallOperation.Install, local: aLocalExtension('a', gallery, gallery) }]);
+		installEvent.fire({ identifier: gallery.identifier, source: gallery, profileLocation: null! });
+		didInstallEvent.fire([{ identifier: gallery.identifier, source: gallery, operation: InstallOperation.Install, local: aLocalExtension('a', gallery, gallery), profileLocation: null! }]);
 		assert.ok(!testObject.enabled);
 	});
 
@@ -1055,10 +1060,10 @@ suite('ExtensionRuntimeStateAction', () => {
 
 		testObject.extension = paged.firstPage[0];
 		const identifier = gallery.identifier;
-		installEvent.fire({ identifier, source: gallery });
-		didInstallEvent.fire([{ identifier, source: gallery, operation: InstallOperation.Install, local: aLocalExtension('a', gallery, { identifier }) }]);
-		uninstallEvent.fire({ identifier });
-		didUninstallEvent.fire({ identifier });
+		installEvent.fire({ identifier, source: gallery, profileLocation: null! });
+		didInstallEvent.fire([{ identifier, source: gallery, operation: InstallOperation.Install, local: aLocalExtension('a', gallery, { identifier }), profileLocation: null! }]);
+		uninstallEvent.fire({ identifier, profileLocation: null! });
+		didUninstallEvent.fire({ identifier, profileLocation: null! });
 
 		assert.ok(!testObject.enabled);
 	});
@@ -1079,8 +1084,8 @@ suite('ExtensionRuntimeStateAction', () => {
 		const extensions = await instantiationService.get(IExtensionsWorkbenchService).queryLocal();
 		testObject.extension = extensions[0];
 
-		uninstallEvent.fire({ identifier: local.identifier });
-		didUninstallEvent.fire({ identifier: local.identifier });
+		uninstallEvent.fire({ identifier: local.identifier, profileLocation: null! });
+		didUninstallEvent.fire({ identifier: local.identifier, profileLocation: null! });
 		assert.ok(testObject.enabled);
 		assert.strictEqual(testObject.tooltip, `Please restart extensions to complete the uninstallation of this extension.`);
 	});
@@ -1100,8 +1105,8 @@ suite('ExtensionRuntimeStateAction', () => {
 		const extensions = await instantiationService.get(IExtensionsWorkbenchService).queryLocal();
 		testObject.extension = extensions[0];
 
-		uninstallEvent.fire({ identifier: local.identifier });
-		didUninstallEvent.fire({ identifier: local.identifier });
+		uninstallEvent.fire({ identifier: local.identifier, profileLocation: null! });
+		didUninstallEvent.fire({ identifier: local.identifier, profileLocation: null! });
 		assert.ok(!testObject.enabled);
 	});
 
@@ -1120,13 +1125,13 @@ suite('ExtensionRuntimeStateAction', () => {
 		const extensions = await instantiationService.get(IExtensionsWorkbenchService).queryLocal();
 
 		testObject.extension = extensions[0];
-		uninstallEvent.fire({ identifier: local.identifier });
-		didUninstallEvent.fire({ identifier: local.identifier });
+		uninstallEvent.fire({ identifier: local.identifier, profileLocation: null! });
+		didUninstallEvent.fire({ identifier: local.identifier, profileLocation: null! });
 
 		const gallery = aGalleryExtension('a');
 		const identifier = gallery.identifier;
-		installEvent.fire({ identifier, source: gallery });
-		didInstallEvent.fire([{ identifier, source: gallery, operation: InstallOperation.Install, local }]);
+		installEvent.fire({ identifier, source: gallery, profileLocation: null! });
+		didInstallEvent.fire([{ identifier, source: gallery, operation: InstallOperation.Install, local, profileLocation: null! }]);
 
 		assert.ok(!testObject.enabled);
 	});
@@ -1155,8 +1160,8 @@ suite('ExtensionRuntimeStateAction', () => {
 				}
 			}));
 			const gallery = aGalleryExtension('a', { uuid: local.identifier.id, version: '1.0.2' });
-			installEvent.fire({ identifier: gallery.identifier, source: gallery });
-			didInstallEvent.fire([{ identifier: gallery.identifier, source: gallery, operation: InstallOperation.Install, local: aLocalExtension('a', gallery, gallery) }]);
+			installEvent.fire({ identifier: gallery.identifier, source: gallery, profileLocation: null! });
+			didInstallEvent.fire([{ identifier: gallery.identifier, source: gallery, operation: InstallOperation.Install, local: aLocalExtension('a', gallery, gallery), profileLocation: null! }]);
 		});
 	});
 
@@ -1178,8 +1183,8 @@ suite('ExtensionRuntimeStateAction', () => {
 		testObject.extension = extensions[0];
 
 		const gallery = aGalleryExtension('a', { identifier: local.identifier, version: '1.0.2' });
-		installEvent.fire({ identifier: gallery.identifier, source: gallery });
-		didInstallEvent.fire([{ identifier: gallery.identifier, source: gallery, operation: InstallOperation.Update, local: aLocalExtension('a', gallery, gallery) }]);
+		installEvent.fire({ identifier: gallery.identifier, source: gallery, profileLocation: null! });
+		didInstallEvent.fire([{ identifier: gallery.identifier, source: gallery, operation: InstallOperation.Update, local: aLocalExtension('a', gallery, gallery), profileLocation: null! }]);
 
 		assert.ok(!testObject.enabled);
 	});
@@ -1289,8 +1294,8 @@ suite('ExtensionRuntimeStateAction', () => {
 		testObject.extension = extensions[0];
 
 		const gallery = aGalleryExtension('a', { identifier: local.identifier, version: '1.0.2' });
-		installEvent.fire({ identifier: gallery.identifier, source: gallery });
-		didInstallEvent.fire([{ identifier: gallery.identifier, source: gallery, operation: InstallOperation.Install, local: aLocalExtension('a', gallery, gallery) }]);
+		installEvent.fire({ identifier: gallery.identifier, source: gallery, profileLocation: null! });
+		didInstallEvent.fire([{ identifier: gallery.identifier, source: gallery, operation: InstallOperation.Install, local: aLocalExtension('a', gallery, gallery), profileLocation: null! }]);
 		await workbenchService.setEnablement(extensions[0], EnablementState.EnabledGlobally);
 		await testObject.update();
 		assert.ok(testObject.enabled);
@@ -1314,8 +1319,8 @@ suite('ExtensionRuntimeStateAction', () => {
 		testObject.extension = paged.firstPage[0];
 		assert.ok(!testObject.enabled);
 
-		installEvent.fire({ identifier: gallery.identifier, source: gallery });
-		didInstallEvent.fire([{ identifier: gallery.identifier, source: gallery, operation: InstallOperation.Install, local: aLocalExtension('a', { ...gallery, ...{ contributes: <IExtensionContributions>{ localizations: [{ languageId: 'de', translations: [] }] } } }, gallery) }]);
+		installEvent.fire({ identifier: gallery.identifier, source: gallery, profileLocation: null! });
+		didInstallEvent.fire([{ identifier: gallery.identifier, source: gallery, operation: InstallOperation.Install, local: aLocalExtension('a', { ...gallery, ...{ contributes: <IExtensionContributions>{ localizations: [{ languageId: 'de', translations: [] }] } } }, gallery), profileLocation: null! }]);
 		assert.ok(!testObject.enabled);
 	});
 
@@ -1336,8 +1341,8 @@ suite('ExtensionRuntimeStateAction', () => {
 		testObject.extension = extensions[0];
 
 		const gallery = aGalleryExtension('a', { uuid: local.identifier.id, version: '1.0.2' });
-		installEvent.fire({ identifier: gallery.identifier, source: gallery });
-		didInstallEvent.fire([{ identifier: gallery.identifier, source: gallery, operation: InstallOperation.Install, local: aLocalExtension('a', { ...gallery, ...{ contributes: <IExtensionContributions>{ localizations: [{ languageId: 'de', translations: [] }] } } }, gallery) }]);
+		installEvent.fire({ identifier: gallery.identifier, source: gallery, profileLocation: null! });
+		didInstallEvent.fire([{ identifier: gallery.identifier, source: gallery, operation: InstallOperation.Install, local: aLocalExtension('a', { ...gallery, ...{ contributes: <IExtensionContributions>{ localizations: [{ languageId: 'de', translations: [] }] } } }, gallery), profileLocation: null! }]);
 		assert.ok(!testObject.enabled);
 	});
 
@@ -1377,7 +1382,7 @@ suite('ExtensionRuntimeStateAction', () => {
 		const remoteExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, { location: URI.file('pub.a').with({ scheme: Schemas.vscodeRemote }) });
 		const localExtensionManagementService = createExtensionManagementService([localExtension]);
 		const uninstallEvent = new Emitter<UninstallExtensionEvent>();
-		const onDidUninstallEvent = new Emitter<{ identifier: IExtensionIdentifier }>();
+		const onDidUninstallEvent = new Emitter<{ identifier: IExtensionIdentifier; profileLocation: URI }>();
 		localExtensionManagementService.onUninstallExtension = uninstallEvent.event;
 		localExtensionManagementService.onDidUninstallExtension = onDidUninstallEvent.event;
 		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, localExtensionManagementService, createExtensionManagementService([remoteExtension]));
@@ -1403,8 +1408,8 @@ suite('ExtensionRuntimeStateAction', () => {
 		assert.ok(testObject.extension);
 		assert.ok(!testObject.enabled);
 
-		uninstallEvent.fire({ identifier: localExtension.identifier });
-		didUninstallEvent.fire({ identifier: localExtension.identifier });
+		uninstallEvent.fire({ identifier: localExtension.identifier, profileLocation: null! });
+		didUninstallEvent.fire({ identifier: localExtension.identifier, profileLocation: null! });
 
 		assert.ok(!testObject.enabled);
 	});
@@ -1441,7 +1446,7 @@ suite('ExtensionRuntimeStateAction', () => {
 
 		const remoteExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, { location: URI.file('pub.a').with({ scheme: Schemas.vscodeRemote }) });
 		const promise = Event.toPromise(testObject.onDidChange);
-		onDidInstallEvent.fire([{ identifier: remoteExtension.identifier, local: remoteExtension, operation: InstallOperation.Install }]);
+		onDidInstallEvent.fire([{ identifier: remoteExtension.identifier, local: remoteExtension, operation: InstallOperation.Install, profileLocation: null! }]);
 
 		await promise;
 		assert.ok(testObject.enabled);
@@ -1480,7 +1485,7 @@ suite('ExtensionRuntimeStateAction', () => {
 
 		const localExtension = aLocalExtension('a', { extensionKind: ['ui'] }, { location: URI.file('pub.a') });
 		const promise = Event.toPromise(Event.filter(testObject.onDidChange, () => testObject.enabled));
-		onDidInstallEvent.fire([{ identifier: localExtension.identifier, local: localExtension, operation: InstallOperation.Install }]);
+		onDidInstallEvent.fire([{ identifier: localExtension.identifier, local: localExtension, operation: InstallOperation.Install, profileLocation: null! }]);
 
 		await promise;
 		assert.ok(testObject.enabled);
@@ -1728,7 +1733,7 @@ suite('RemoteInstallAction', () => {
 		testObject.extension = extensions[0];
 		assert.ok(testObject.enabled);
 		assert.strictEqual('Install in remote', testObject.label);
-		assert.strictEqual('extension-action label prominent install', testObject.class);
+		assert.strictEqual('extension-action label prominent install-other-server', testObject.class);
 	});
 
 	test('Test remote install action when installing local workspace extension', async () => {
@@ -1754,12 +1759,12 @@ suite('RemoteInstallAction', () => {
 		testObject.extension = extensions[0];
 		assert.ok(testObject.enabled);
 		assert.strictEqual('Install in remote', testObject.label);
-		assert.strictEqual('extension-action label prominent install', testObject.class);
+		assert.strictEqual('extension-action label prominent install-other-server', testObject.class);
 
-		onInstallExtension.fire({ identifier: localWorkspaceExtension.identifier, source: gallery });
+		onInstallExtension.fire({ identifier: localWorkspaceExtension.identifier, source: gallery, profileLocation: null! });
 		assert.ok(testObject.enabled);
 		assert.strictEqual('Installing', testObject.label);
-		assert.strictEqual('extension-action label install installing', testObject.class);
+		assert.strictEqual('extension-action label install-other-server installing', testObject.class);
 	});
 
 	test('Test remote install action when installing local workspace extension is finished', async () => {
@@ -1787,16 +1792,16 @@ suite('RemoteInstallAction', () => {
 		testObject.extension = extensions[0];
 		assert.ok(testObject.enabled);
 		assert.strictEqual('Install in remote', testObject.label);
-		assert.strictEqual('extension-action label prominent install', testObject.class);
+		assert.strictEqual('extension-action label prominent install-other-server', testObject.class);
 
-		onInstallExtension.fire({ identifier: localWorkspaceExtension.identifier, source: gallery });
+		onInstallExtension.fire({ identifier: localWorkspaceExtension.identifier, source: gallery, profileLocation: null! });
 		assert.ok(testObject.enabled);
 		assert.strictEqual('Installing', testObject.label);
-		assert.strictEqual('extension-action label install installing', testObject.class);
+		assert.strictEqual('extension-action label install-other-server installing', testObject.class);
 
 		const installedExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, { location: URI.file(`pub.a`).with({ scheme: Schemas.vscodeRemote }) });
 		const promise = Event.toPromise(testObject.onDidChange);
-		onDidInstallEvent.fire([{ identifier: installedExtension.identifier, local: installedExtension, operation: InstallOperation.Install }]);
+		onDidInstallEvent.fire([{ identifier: installedExtension.identifier, local: installedExtension, operation: InstallOperation.Install, profileLocation: null! }]);
 		await promise;
 		assert.ok(!testObject.enabled);
 	});
@@ -1821,7 +1826,7 @@ suite('RemoteInstallAction', () => {
 		testObject.extension = extensions[0];
 		assert.ok(testObject.enabled);
 		assert.strictEqual('Install in remote', testObject.label);
-		assert.strictEqual('extension-action label prominent install', testObject.class);
+		assert.strictEqual('extension-action label prominent install-other-server', testObject.class);
 	});
 
 	test('Test remote install action is enabled local workspace+ui extension', async () => {
@@ -1843,7 +1848,7 @@ suite('RemoteInstallAction', () => {
 		testObject.extension = extensions[0];
 		assert.ok(testObject.enabled);
 		assert.strictEqual('Install in remote', testObject.label);
-		assert.strictEqual('extension-action label prominent install', testObject.class);
+		assert.strictEqual('extension-action label prominent install-other-server', testObject.class);
 	});
 
 	test('Test remote install action is enabled for local ui+workapace extension if can install is true', async () => {
@@ -1865,7 +1870,7 @@ suite('RemoteInstallAction', () => {
 		testObject.extension = extensions[0];
 		assert.ok(testObject.enabled);
 		assert.strictEqual('Install in remote', testObject.label);
-		assert.strictEqual('extension-action label prominent install', testObject.class);
+		assert.strictEqual('extension-action label prominent install-other-server', testObject.class);
 	});
 
 	test('Test remote install action is disabled for local ui+workapace extension if can install is false', async () => {
@@ -1986,7 +1991,7 @@ suite('RemoteInstallAction', () => {
 		assert.ok(testObject.enabled);
 		assert.strictEqual('Install in remote', testObject.label);
 
-		uninstallEvent.fire({ identifier: localWorkspaceExtension.identifier });
+		uninstallEvent.fire({ identifier: localWorkspaceExtension.identifier, profileLocation: null! });
 		assert.ok(!testObject.enabled);
 	});
 
@@ -2106,7 +2111,7 @@ suite('RemoteInstallAction', () => {
 		testObject.extension = extensions[0];
 		assert.ok(testObject.enabled);
 		assert.strictEqual('Install in remote', testObject.label);
-		assert.strictEqual('extension-action label prominent install', testObject.class);
+		assert.strictEqual('extension-action label prominent install-other-server', testObject.class);
 	});
 
 	test('Test remote install action is disabled if local language pack extension is uninstalled', async () => {
@@ -2130,7 +2135,7 @@ suite('RemoteInstallAction', () => {
 		assert.ok(testObject.enabled);
 		assert.strictEqual('Install in remote', testObject.label);
 
-		uninstallEvent.fire({ identifier: languagePackExtension.identifier });
+		uninstallEvent.fire({ identifier: languagePackExtension.identifier, profileLocation: null! });
 		assert.ok(!testObject.enabled);
 	});
 });
@@ -2159,7 +2164,7 @@ suite('LocalInstallAction', () => {
 		testObject.extension = extensions[0];
 		assert.ok(testObject.enabled);
 		assert.strictEqual('Install Locally', testObject.label);
-		assert.strictEqual('extension-action label prominent install', testObject.class);
+		assert.strictEqual('extension-action label prominent install-other-server', testObject.class);
 	});
 
 	test('Test local install action is enabled for remote ui+workspace extension', async () => {
@@ -2180,7 +2185,7 @@ suite('LocalInstallAction', () => {
 		testObject.extension = extensions[0];
 		assert.ok(testObject.enabled);
 		assert.strictEqual('Install Locally', testObject.label);
-		assert.strictEqual('extension-action label prominent install', testObject.class);
+		assert.strictEqual('extension-action label prominent install-other-server', testObject.class);
 	});
 
 	test('Test local install action when installing remote ui extension', async () => {
@@ -2206,12 +2211,12 @@ suite('LocalInstallAction', () => {
 		testObject.extension = extensions[0];
 		assert.ok(testObject.enabled);
 		assert.strictEqual('Install Locally', testObject.label);
-		assert.strictEqual('extension-action label prominent install', testObject.class);
+		assert.strictEqual('extension-action label prominent install-other-server', testObject.class);
 
-		onInstallExtension.fire({ identifier: remoteUIExtension.identifier, source: gallery });
+		onInstallExtension.fire({ identifier: remoteUIExtension.identifier, source: gallery, profileLocation: null! });
 		assert.ok(testObject.enabled);
 		assert.strictEqual('Installing', testObject.label);
-		assert.strictEqual('extension-action label install installing', testObject.class);
+		assert.strictEqual('extension-action label install-other-server installing', testObject.class);
 	});
 
 	test('Test local install action when installing remote ui extension is finished', async () => {
@@ -2239,16 +2244,16 @@ suite('LocalInstallAction', () => {
 		testObject.extension = extensions[0];
 		assert.ok(testObject.enabled);
 		assert.strictEqual('Install Locally', testObject.label);
-		assert.strictEqual('extension-action label prominent install', testObject.class);
+		assert.strictEqual('extension-action label prominent install-other-server', testObject.class);
 
-		onInstallExtension.fire({ identifier: remoteUIExtension.identifier, source: gallery });
+		onInstallExtension.fire({ identifier: remoteUIExtension.identifier, source: gallery, profileLocation: null! });
 		assert.ok(testObject.enabled);
 		assert.strictEqual('Installing', testObject.label);
-		assert.strictEqual('extension-action label install installing', testObject.class);
+		assert.strictEqual('extension-action label install-other-server installing', testObject.class);
 
 		const installedExtension = aLocalExtension('a', { extensionKind: ['ui'] }, { location: URI.file(`pub.a`) });
 		const promise = Event.toPromise(testObject.onDidChange);
-		onDidInstallEvent.fire([{ identifier: installedExtension.identifier, local: installedExtension, operation: InstallOperation.Install }]);
+		onDidInstallEvent.fire([{ identifier: installedExtension.identifier, local: installedExtension, operation: InstallOperation.Install, profileLocation: null! }]);
 		await promise;
 		assert.ok(!testObject.enabled);
 	});
@@ -2273,7 +2278,7 @@ suite('LocalInstallAction', () => {
 		testObject.extension = extensions[0];
 		assert.ok(testObject.enabled);
 		assert.strictEqual('Install Locally', testObject.label);
-		assert.strictEqual('extension-action label prominent install', testObject.class);
+		assert.strictEqual('extension-action label prominent install-other-server', testObject.class);
 	});
 
 	test('Test local install action is disabled when extension is not set', async () => {
@@ -2398,7 +2403,7 @@ suite('LocalInstallAction', () => {
 		assert.ok(testObject.enabled);
 		assert.strictEqual('Install Locally', testObject.label);
 
-		uninstallEvent.fire({ identifier: remoteUIExtension.identifier });
+		uninstallEvent.fire({ identifier: remoteUIExtension.identifier, profileLocation: null! });
 		assert.ok(!testObject.enabled);
 	});
 
@@ -2497,7 +2502,7 @@ suite('LocalInstallAction', () => {
 		testObject.extension = extensions[0];
 		assert.ok(testObject.enabled);
 		assert.strictEqual('Install Locally', testObject.label);
-		assert.strictEqual('extension-action label prominent install', testObject.class);
+		assert.strictEqual('extension-action label prominent install-other-server', testObject.class);
 	});
 
 	test('Test local install action is disabled if remote language pack extension is uninstalled', async () => {
@@ -2521,7 +2526,7 @@ suite('LocalInstallAction', () => {
 		assert.ok(testObject.enabled);
 		assert.strictEqual('Install Locally', testObject.label);
 
-		uninstallEvent.fire({ identifier: languagePackExtension.identifier });
+		uninstallEvent.fire({ identifier: languagePackExtension.identifier, profileLocation: null! });
 		assert.ok(!testObject.enabled);
 	});
 
@@ -2637,7 +2642,7 @@ function createExtensionManagementService(installed: ILocalExtension[] = []): IP
 		getInstalled: () => Promise.resolve<ILocalExtension[]>(installed),
 		canInstall: async (extension: IGalleryExtension) => { return true; },
 		installFromGallery: (extension: IGalleryExtension) => Promise.reject(new Error('not supported')),
-		updateMetadata: async (local: ILocalExtension, metadata: Partial<Metadata>) => {
+		updateMetadata: async (local: Mutable<ILocalExtension>, metadata: Partial<Metadata>, profileLocation: URI) => {
 			local.identifier.uuid = metadata.id;
 			local.publisherDisplayName = metadata.publisherDisplayName!;
 			local.publisherId = metadata.publisherId!;
@@ -2647,5 +2652,3 @@ function createExtensionManagementService(installed: ILocalExtension[] = []): IP
 		async getExtensionsControlManifest() { return <IExtensionsControlManifest>{ malicious: [], deprecated: {}, search: [] }; },
 	};
 }
-
-

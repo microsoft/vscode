@@ -47,7 +47,7 @@ import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
 import { ITestResult, LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { ITestService, getContextForTestItem, testsInFile } from 'vs/workbench/contrib/testing/common/testService';
+import { ITestService, getContextForTestItem, simplifyTestsToExecute, testsInFile } from 'vs/workbench/contrib/testing/common/testService';
 import { IRichLocation, ITestMessage, ITestRunProfile, IncrementalTestCollectionItem, InternalTestItem, TestDiffOpType, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
 import { ITestDecoration as IPublicTestDecoration, ITestingDecorationsService, TestDecorations } from 'vs/workbench/contrib/testing/common/testingDecorations';
 import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
@@ -806,7 +806,7 @@ abstract class RunTestDecoration {
 
 	protected runWith(profile: TestRunProfileBitset) {
 		return this.testService.runTests({
-			tests: this.tests.map(({ test }) => test),
+			tests: simplifyTestsToExecute(this.testService.collection, this.tests.map(({ test }) => test)),
 			group: profile,
 		});
 	}
@@ -856,8 +856,8 @@ abstract class RunTestDecoration {
 				}
 
 				this.testService.runResolvedTests({
+					group: profile.group,
 					targets: [{
-						profileGroup: profile.group,
 						profileId: profile.profileId,
 						controllerId: profile.controllerId,
 						testIds: [test.item.extId]
@@ -975,7 +975,13 @@ class MultiRunTestDecoration extends RunTestDecoration implements ITestDecoratio
 		let testSubmenus: IAction[] = testItems.map(({ currentLabel, testItem }) => {
 			const actions = this.getTestContextMenuActions(testItem.test, testItem.resultItem);
 			disposable.add(actions);
-			return new SubmenuAction(testItem.test.item.extId, stripIcons(currentLabel), actions.object);
+			let label = stripIcons(currentLabel);
+			const lf = label.indexOf('\n');
+			if (lf !== -1) {
+				label = label.slice(0, lf);
+			}
+
+			return new SubmenuAction(testItem.test.item.extId, label, actions.object);
 		});
 
 

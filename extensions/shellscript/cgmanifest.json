@@ -6,11 +6,11 @@
 				"git": {
 					"name": "jeff-hykin/better-shell-syntax",
 					"repositoryUrl": "https://github.com/jeff-hykin/better-shell-syntax",
-					"commitHash": "4ba5d703087cac3c60cd57b206fd1cea0ff959cc"
+					"commitHash": "6d0bc37a6b8023a5fddf75bd2b4eb1e1f962e4c2"
 				}
 			},
 			"license": "MIT",
-			"version": "1.7.1"
+			"version": "1.8.7"
 		}
 	],
 	"version": 1

@@ -8,7 +8,6 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { HighlightedLabel, IHighlight } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { IInputValidationOptions, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IAsyncDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { Codicon } from 'vs/base/common/codicons';
@@ -20,6 +19,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { localize } from 'vs/nls';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { COPY_EVALUATE_PATH_ID, COPY_VALUE_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
@@ -49,6 +49,7 @@ export interface IRenderValueOptions {
 export interface IVariableTemplateData {
 	expression: HTMLElement;
 	name: HTMLElement;
+	type: HTMLElement;
 	value: HTMLElement;
 	label: HighlightedLabel;
 	lazyButton: HTMLElement;
@@ -61,7 +62,7 @@ export function renderViewTree(container: HTMLElement): HTMLElement {
 	return treeContainer;
 }
 
-export function renderExpressionValue(expressionOrValue: IExpressionValue | string, container: HTMLElement, options: IRenderValueOptions): void {
+export function renderExpressionValue(expressionOrValue: IExpressionValue | string, container: HTMLElement, options: IRenderValueOptions, hoverService: IHoverService): void {
 	let value = typeof expressionOrValue === 'string' ? expressionOrValue : expressionOrValue.value;
 
 	// remove stale classes
@@ -109,7 +110,7 @@ export function renderExpressionValue(expressionOrValue: IExpressionValue | stri
 
 	if (options.hover) {
 		const { store, commands, commandService } = options.hover instanceof DisposableStore ? { store: options.hover, commands: [], commandService: undefined } : options.hover;
-		store.add(setupCustomHover(getDefaultHoverDelegate('mouse'), container, () => {
+		store.add(hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), container, () => {
 			const container = dom.$('div');
 			const markdownHoverElement = dom.$('div.hover-row');
 			const hoverContentsElement = dom.append(markdownHoverElement, dom.$('div.hover-contents'));
@@ -130,13 +131,20 @@ export function renderExpressionValue(expressionOrValue: IExpressionValue | stri
 	}
 }
 
-export function renderVariable(store: DisposableStore, commandService: ICommandService, variable: Variable, data: IVariableTemplateData, showChanged: boolean, highlights: IHighlight[], linkDetector?: LinkDetector): void {
+export function renderVariable(store: DisposableStore, commandService: ICommandService, hoverService: IHoverService, variable: Variable, data: IVariableTemplateData, showChanged: boolean, highlights: IHighlight[], linkDetector?: LinkDetector, displayType?: boolean): void {
 	if (variable.available) {
+		data.type.textContent = '';
 		let text = variable.name;
 		if (variable.value && typeof variable.name === 'string') {
-			text += ':';
+			if (variable.type && displayType) {
+				text += ': ';
+				data.type.textContent = variable.type + ' =';
+			} else {
+				text += ' =';
+			}
 		}
-		data.label.set(text, highlights, variable.type ? variable.type : variable.name);
+
+		data.label.set(text, highlights, variable.type && !displayType ? variable.type : variable.name);
 		data.name.classList.toggle('virtual', variable.presentationHint?.kind === 'virtual');
 		data.name.classList.toggle('internal', variable.presentationHint?.visibility === 'internal');
 	} else if (variable.value && typeof variable.name === 'string' && variable.name) {
@@ -157,7 +165,7 @@ export function renderVariable(store: DisposableStore, commandService: ICommandS
 		hover: { store, commands, commandService },
 		colorize: true,
 		linkDetector
-	});
+	}, hoverService);
 }
 
 export interface IInputBoxOptions {
@@ -171,6 +179,7 @@ export interface IInputBoxOptions {
 export interface IExpressionTemplateData {
 	expression: HTMLElement;
 	name: HTMLSpanElement;
+	type: HTMLSpanElement;
 	value: HTMLSpanElement;
 	inputBoxContainer: HTMLElement;
 	actionBar?: ActionBar;
@@ -217,6 +226,7 @@ export abstract class AbstractExpressionsRenderer<T = IExpression> implements IT
 	constructor(
 		@IDebugService protected debugService: IDebugService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
+		@IHoverService protected readonly hoverService: IHoverService,
 	) { }
 
 	abstract get templateId(): string;
@@ -227,7 +237,10 @@ export abstract class AbstractExpressionsRenderer<T = IExpression> implements IT
 		const name = dom.append(expression, $('span.name'));
 		const lazyButton = dom.append(expression, $('span.lazy-button'));
 		lazyButton.classList.add(...ThemeIcon.asClassNameArray(Codicon.eye));
-		templateDisposable.add(setupCustomHover(getDefaultHoverDelegate('mouse'), lazyButton, localize('debug.lazyButton.tooltip', "Click to expand")));
+
+		templateDisposable.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), lazyButton, localize('debug.lazyButton.tooltip', "Click to expand")));
+		const type = dom.append(expression, $('span.type'));
+
 		const value = dom.append(expression, $('span.value'));
 
 		const label = templateDisposable.add(new HighlightedLabel(name));
@@ -240,7 +253,7 @@ export abstract class AbstractExpressionsRenderer<T = IExpression> implements IT
 			actionBar = templateDisposable.add(new ActionBar(expression));
 		}
 
-		const template: IExpressionTemplateData = { expression, name, value, label, inputBoxContainer, actionBar, elementDisposable: new DisposableStore(), templateDisposable, lazyButton, currentElement: undefined };
+		const template: IExpressionTemplateData = { expression, name, type, value, label, inputBoxContainer, actionBar, elementDisposable: new DisposableStore(), templateDisposable, lazyButton, currentElement: undefined };
 
 		templateDisposable.add(dom.addDisposableListener(lazyButton, dom.EventType.CLICK, () => {
 			if (template.currentElement) {
@@ -254,7 +267,6 @@ export abstract class AbstractExpressionsRenderer<T = IExpression> implements IT
 	public abstract renderElement(node: ITreeNode<T, FuzzyScore>, index: number, data: IExpressionTemplateData): void;
 
 	protected renderExpressionElement(element: IExpression, node: ITreeNode<T, FuzzyScore>, data: IExpressionTemplateData): void {
-		data.elementDisposable.clear();
 		data.currentElement = element;
 		this.renderExpression(node.element, data, createMatches(node.filterData));
 		if (data.actionBar) {

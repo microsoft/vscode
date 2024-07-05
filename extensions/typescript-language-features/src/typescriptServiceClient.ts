@@ -5,38 +5,39 @@
 
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { ServiceConfigurationProvider, SyntaxServerConfiguration, TsServerLogLevel, TypeScriptServiceConfiguration, areServiceConfigurationsEqual } from './configuration/configuration';
+import * as fileSchemes from './configuration/fileSchemes';
+import { Schemes } from './configuration/schemes';
 import { IExperimentationTelemetryReporter } from './experimentTelemetryReporter';
 import { DiagnosticKind, DiagnosticsManager } from './languageFeatures/diagnostics';
-import * as Proto from './tsServer/protocol/protocol';
-import { EventName } from './tsServer/protocol/protocol.const';
+import { Logger } from './logging/logger';
+import { TelemetryProperties, TelemetryReporter, VSCodeTelemetryReporter } from './logging/telemetry';
+import Tracer from './logging/tracer';
+import { ProjectType, inferredProjectCompilerOptions } from './tsconfig';
 import { API } from './tsServer/api';
 import BufferSyncSupport from './tsServer/bufferSyncSupport';
 import { OngoingRequestCancellerFactory } from './tsServer/cancellation';
 import { ILogDirectoryProvider } from './tsServer/logDirectoryProvider';
+import { NodeVersionManager } from './tsServer/nodeManager';
 import { TypeScriptPluginPathsProvider } from './tsServer/pluginPathsProvider';
+import { PluginManager, TypeScriptServerPlugin } from './tsServer/plugins';
+import * as Proto from './tsServer/protocol/protocol';
+import { EventName } from './tsServer/protocol/protocol.const';
 import { ITypeScriptServer, TsServerLog, TsServerProcessFactory, TypeScriptServerExitEvent } from './tsServer/server';
 import { TypeScriptServerError } from './tsServer/serverError';
 import { TypeScriptServerSpawner } from './tsServer/spawner';
 import { TypeScriptVersionManager } from './tsServer/versionManager';
 import { ITypeScriptVersionProvider, TypeScriptVersion } from './tsServer/versionProvider';
 import { ClientCapabilities, ClientCapability, ExecConfig, ITypeScriptServiceClient, ServerResponse, TypeScriptRequests } from './typescriptService';
-import { ServiceConfigurationProvider, SyntaxServerConfiguration, TsServerLogLevel, TypeScriptServiceConfiguration, areServiceConfigurationsEqual } from './configuration/configuration';
-import { Disposable } from './utils/dispose';
-import * as fileSchemes from './configuration/fileSchemes';
-import { Logger } from './logging/logger';
+import { Disposable, DisposableStore, disposeAll } from './utils/dispose';
 import { isWeb, isWebAndHasSharedArrayBuffers } from './utils/platform';
-import { PluginManager, TypeScriptServerPlugin } from './tsServer/plugins';
-import { TelemetryProperties, TelemetryReporter, VSCodeTelemetryReporter } from './logging/telemetry';
-import Tracer from './logging/tracer';
-import { ProjectType, inferredProjectCompilerOptions } from './tsconfig';
-import { Schemes } from './configuration/schemes';
-import { NodeVersionManager } from './tsServer/nodeManager';
 
 
 export interface TsDiagnostics {
 	readonly kind: DiagnosticKind;
 	readonly resource: vscode.Uri;
 	readonly diagnostics: Proto.Diagnostic[];
+	readonly spans?: Proto.TextSpan[];
 }
 
 interface ToCancelOnResourceChanged {
@@ -97,6 +98,12 @@ export const emptyAuthority = 'ts-nul-authority';
 
 export const inMemoryResourcePrefix = '^';
 
+interface WatchEvent {
+	updated?: Set<string>;
+	created?: Set<string>;
+	deleted?: Set<string>;
+}
+
 export default class TypeScriptServiceClient extends Disposable implements ITypeScriptServiceClient {
 
 
@@ -127,6 +134,10 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	private readonly cancellerFactory: OngoingRequestCancellerFactory;
 	private readonly versionProvider: ITypeScriptVersionProvider;
 	private readonly processFactory: TsServerProcessFactory;
+
+	private readonly watches = new Map<number, Disposable>();
+	private readonly watchEvents = new Map<number, WatchEvent>();
+	private watchChangeTimeout: NodeJS.Timeout | undefined;
 
 	constructor(
 		private readonly context: vscode.ExtensionContext,
@@ -298,6 +309,8 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		}
 
 		this.loadingIndicator.reset();
+
+		this.resetWatchers();
 	}
 
 	public restartTsServer(fromUserAction = false): void {
@@ -401,6 +414,8 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			this.info(`Using Node installation from ${nodePath} to run TS Server`);
 		}
 
+		this.resetWatchers();
+
 		const apiVersion = version.apiVersion || API.defaultVersion;
 		const mytoken = ++this.token;
 		const handle = this.typescriptServerSpawner.spawn(version, this.capabilities, this.configuration, this.pluginManager, this.cancellerFactory, {
@@ -449,7 +464,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				}
 			*/
 			this.logTelemetry('tsserver.error');
-			this.serviceExited(false);
+			this.serviceExited(false, apiVersion);
 		});
 
 		handle.onExit((data: TypeScriptServerExitEvent) => {
@@ -470,7 +485,6 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			*/
 			this.logTelemetry('tsserver.exitWithCode', { code: code ?? undefined, signal: signal ?? undefined });
 
-
 			if (this.token !== mytoken) {
 				// this is coming from an old process
 				return;
@@ -479,7 +493,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			if (handle.tsServerLog?.type === 'file') {
 				this.info(`TSServer log file: ${handle.tsServerLog.uri.fsPath}`);
 			}
-			this.serviceExited(!this.isRestarting);
+			this.serviceExited(!this.isRestarting, apiVersion);
 			this.isRestarting = false;
 		});
 
@@ -491,6 +505,11 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this._onTsServerStarted.fire({ version: version, usedApiVersion: apiVersion });
 		this._onDidChangeCapabilities.fire();
 		return this.serverState;
+	}
+
+	private resetWatchers() {
+		clearTimeout(this.watchChangeTimeout);
+		disposeAll(Array.from(this.watches.values()));
 	}
 
 	public async showVersionPicker(): Promise<void> {
@@ -593,7 +612,8 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		};
 	}
 
-	private serviceExited(restart: boolean): void {
+	private serviceExited(restart: boolean, tsVersion: API): void {
+		this.resetWatchers();
 		this.loadingIndicator.reset();
 
 		const previousState = this.serverState;
@@ -653,7 +673,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				if (!this._isPromptingAfterCrash) {
 					if (this.pluginManager.plugins.length) {
 						prompt = vscode.window.showWarningMessage<vscode.MessageItem>(
-							vscode.l10n.t("The JS/TS language service crashed.\nThis may be caused by a plugin contributed by one of these extensions: {0}.\nPlease try disabling these extensions before filing an issue against VS Code.", pluginExtensionList), reportIssueItem);
+							vscode.l10n.t("The JS/TS language service crashed.\nThis may be caused by a plugin contributed by one of these extensions: {0}.\nPlease try disabling these extensions before filing an issue against VS Code.", pluginExtensionList));
 					} else {
 						prompt = vscode.window.showWarningMessage(
 							vscode.l10n.t("The JS/TS language service crashed."),
@@ -666,17 +686,34 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				this._isPromptingAfterCrash = true;
 			}
 
-			prompt?.then(item => {
+			prompt?.then(async item => {
 				this._isPromptingAfterCrash = false;
 
 				if (item === reportIssueItem) {
+
 					const minModernTsVersion = this.versionProvider.bundledVersion.apiVersion;
 
-					if (
+					// Don't allow reporting issues using the PnP patched version of TS Server
+					if (tsVersion.isYarnPnp()) {
+						const reportIssue: vscode.MessageItem = {
+							title: vscode.l10n.t("Report issue against Yarn PnP"),
+						};
+						const response = await vscode.window.showWarningMessage(
+							vscode.l10n.t("Please report an issue against Yarn PnP"),
+							{
+								modal: true,
+								detail: vscode.l10n.t("The workspace is using a version of the TypeScript Server that has been patched by Yarn PnP. This patching is a common source of bugs."),
+							},
+							reportIssue);
+
+						if (response === reportIssue) {
+							vscode.env.openExternal(vscode.Uri.parse('https://github.com/yarnpkg/berry/issues'));
+						}
+					}
+					// Don't allow reporting issues with old TS versions
+					else if (
 						minModernTsVersion &&
-						previousState.type === ServerState.Type.Errored &&
-						previousState.error instanceof TypeScriptServerError &&
-						previousState.error.version.apiVersion?.lt(minModernTsVersion)
+						tsVersion.lt(minModernTsVersion)
 					) {
 						vscode.window.showWarningMessage(
 							vscode.l10n.t("Please update your TypeScript version"),
@@ -684,7 +721,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 								modal: true,
 								detail: vscode.l10n.t(
 									"The workspace is using an old version of TypeScript ({0}).\n\nBefore reporting an issue, please update the workspace to use TypeScript {1} or newer to make sure the bug has not already been fixed.",
-									previousState.error.version.apiVersion.displayName,
+									tsVersion.displayName,
 									minModernTsVersion.displayName),
 							});
 					} else {
@@ -911,7 +948,8 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		switch (event.event) {
 			case EventName.syntaxDiag:
 			case EventName.semanticDiag:
-			case EventName.suggestionDiag: {
+			case EventName.suggestionDiag:
+			case EventName.regionSemanticDiag: {
 				// This event also roughly signals that projects have been loaded successfully (since the TS server is synchronous)
 				this.loadingIndicator.reset();
 
@@ -920,7 +958,9 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 					this._onDiagnosticsReceived.fire({
 						kind: getDiagnosticsKind(event),
 						resource: this.toResource(diagnosticEvent.body.file),
-						diagnostics: diagnosticEvent.body.diagnostics
+						diagnostics: diagnosticEvent.body.diagnostics,
+						// @ts-expect-error until ts 5.6
+						spans: diagnosticEvent.body.spans,
 					});
 				}
 				break;
@@ -973,6 +1013,120 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			case EventName.projectLoadingFinish:
 				this.loadingIndicator.finishedLoadingProject((event as Proto.ProjectLoadingFinishEvent).body.projectName);
 				break;
+
+			case EventName.createDirectoryWatcher:
+				this.createFileSystemWatcher(
+					(event.body as Proto.CreateDirectoryWatcherEventBody).id,
+					new vscode.RelativePattern(
+						vscode.Uri.file((event.body as Proto.CreateDirectoryWatcherEventBody).path),
+						(event.body as Proto.CreateDirectoryWatcherEventBody).recursive ? '**' : '*'
+					),
+					(event.body as Proto.CreateDirectoryWatcherEventBody).ignoreUpdate
+				);
+				break;
+
+			case EventName.createFileWatcher:
+				this.createFileSystemWatcher(
+					(event.body as Proto.CreateFileWatcherEventBody).id,
+					new vscode.RelativePattern(
+						vscode.Uri.file((event.body as Proto.CreateFileWatcherEventBody).path),
+						'*'
+					)
+				);
+				break;
+
+			case EventName.closeFileWatcher:
+				this.closeFileSystemWatcher(event.body.id);
+				break;
+		}
+	}
+
+	private scheduleExecuteWatchChangeRequest() {
+		if (!this.watchChangeTimeout) {
+			this.watchChangeTimeout = setTimeout(() => {
+				this.watchChangeTimeout = undefined;
+				const allEvents = Array.from(this.watchEvents, ([id, event]) => ({
+					id,
+					updated: event.updated && Array.from(event.updated),
+					created: event.created && Array.from(event.created),
+					deleted: event.deleted && Array.from(event.deleted)
+				}));
+				this.watchEvents.clear();
+				this.executeWithoutWaitingForResponse('watchChange', allEvents);
+			}, 100); /* aggregate events over 100ms to reduce client<->server IPC overhead */
+		}
+	}
+
+	private addWatchEvent(id: number, eventType: keyof WatchEvent, path: string) {
+		let event = this.watchEvents.get(id);
+		const removeEvent = (typeOfEventToRemove: keyof WatchEvent) => {
+			if (event?.[typeOfEventToRemove]?.delete(path) && event[typeOfEventToRemove].size === 0) {
+				event[typeOfEventToRemove] = undefined;
+			}
+		};
+		const aggregateEvent = () => {
+			if (!event) {
+				this.watchEvents.set(id, event = {});
+			}
+			(event[eventType] ??= new Set()).add(path);
+		};
+		switch (eventType) {
+			case 'created':
+				removeEvent('deleted');
+				removeEvent('updated');
+				aggregateEvent();
+				break;
+			case 'deleted':
+				removeEvent('created');
+				removeEvent('updated');
+				aggregateEvent();
+				break;
+			case 'updated':
+				if (event?.created?.has(path)) {
+					return;
+				}
+				removeEvent('deleted');
+				aggregateEvent();
+				break;
+		}
+		this.scheduleExecuteWatchChangeRequest();
+	}
+
+	private createFileSystemWatcher(
+		id: number,
+		pattern: vscode.RelativePattern,
+		ignoreChangeEvents?: boolean,
+	) {
+		const disposable = new DisposableStore();
+		const watcher = disposable.add(vscode.workspace.createFileSystemWatcher(pattern, { excludes: [] /* TODO:: need to fill in excludes list */, ignoreChangeEvents }));
+		disposable.add(watcher.onDidChange(changeFile =>
+			this.addWatchEvent(id, 'updated', changeFile.fsPath)
+		));
+		disposable.add(watcher.onDidCreate(createFile =>
+			this.addWatchEvent(id, 'created', createFile.fsPath)
+		));
+		disposable.add(watcher.onDidDelete(deletedFile =>
+			this.addWatchEvent(id, 'deleted', deletedFile.fsPath)
+		));
+		disposable.add({
+			dispose: () => {
+				this.watchEvents.delete(id);
+				this.watches.delete(id);
+			}
+		});
+
+		if (this.watches.has(id)) {
+			this.closeFileSystemWatcher(id);
+		}
+		this.watches.set(id, disposable);
+	}
+
+	private closeFileSystemWatcher(
+		id: number,
+	) {
+		const existing = this.watches.get(id);
+		if (existing) {
+			existing.dispose();
 		}
 	}
 
@@ -1111,6 +1265,7 @@ function getDiagnosticsKind(event: Proto.Event) {
 		case 'syntaxDiag': return DiagnosticKind.Syntax;
 		case 'semanticDiag': return DiagnosticKind.Semantic;
 		case 'suggestionDiag': return DiagnosticKind.Suggestion;
+		case 'regionSemanticDiag': return DiagnosticKind.RegionSemantic;
 	}
 	throw new Error('Unknown dignostics kind');
 }

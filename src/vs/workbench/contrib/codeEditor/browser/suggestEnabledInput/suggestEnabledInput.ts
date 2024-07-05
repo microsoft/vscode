@@ -162,7 +162,7 @@ export class SuggestEnabledInput extends Widget {
 		const scopedContextKeyService = this.getScopedContextKeyService(contextKeyService);
 
 		const instantiationService = scopedContextKeyService
-			? defaultInstantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]))
+			? this._register(defaultInstantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])))
 			: defaultInstantiationService;
 
 		this.inputWidget = this._register(instantiationService.createInstance(CodeEditorWidget, this.stylingContainer,

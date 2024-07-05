@@ -14,7 +14,10 @@ import { TERMINAL_OVERVIEW_RULER_CURSOR_FOREGROUND_COLOR } from 'vs/workbench/co
 import { getWindow } from 'vs/base/browser/dom';
 import { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetection/terminalCommand';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+
+// HACK: Mark navigation currently depends on terminalContrib/stickyScroll
+// eslint-disable-next-line local/code-import-patterns
+import { TerminalStickyScrollSettingId } from 'vs/workbench/contrib/terminalContrib/stickyScroll/common/terminalStickyScrollConfiguration';
 
 enum Boundary {
 	Top,
@@ -41,7 +44,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 	private _navigationDecorations: IDecoration[] | undefined;
 
 	private _activeCommandGuide?: ITerminalCommand;
-	private _commandGuideDecorations = this._register(new MutableDisposable<DisposableStore>());
+	private readonly _commandGuideDecorations = this._register(new MutableDisposable<DisposableStore>());
 
 	activate(terminal: Terminal): void {
 		this._terminal = terminal;
@@ -282,7 +285,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 			{
 				bufferRange: range,
 				// Ensure scroll shows the line when sticky scroll is enabled
-				forceScroll: !!this._configurationService.getValue(TerminalSettingId.StickyScrollEnabled)
+				forceScroll: !!this._configurationService.getValue(TerminalStickyScrollSettingId.Enabled)
 			}
 		);
 	}
@@ -309,9 +312,8 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 			}
 			const startLine = command.marker.line - (command.getPromptRowCount() - 1);
 			const decorationCount = toLineIndex(command.endMarker) - startLine;
-			// Abort if the command is too long, this limitation can be lifted when
-			// xtermjs/xterm.js#4911 is handled.
-			if (decorationCount > 200) {
+			// Abort if the command is excessively long to avoid performance on hover/leave
+			if (decorationCount > 20000) {
 				return;
 			}
 			for (let i = 0; i < decorationCount; i++) {

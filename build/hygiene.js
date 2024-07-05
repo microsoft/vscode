@@ -23,7 +23,7 @@ const copyrightHeaderLines = [
 function hygiene(some, linting = true) {
 	const gulpeslint = require('gulp-eslint');
 	const gulpstylelint = require('./stylelint');
-	const tsfmt = require('typescript-formatter');
+	const formatter = require('./lib/formatter');
 
 	let errorCount = 0;
 
@@ -111,38 +111,23 @@ function hygiene(some, linting = true) {
 	});
 
 	const formatting = es.map(function (file, cb) {
-		tsfmt
-			.processString(file.path, file.contents.toString('utf8'), {
-				verify: false,
-				tsfmt: true,
-				// verbose: true,
-				// keep checkJS happy
-				editorconfig: undefined,
-				replace: undefined,
-				tsconfig: undefined,
-				tsconfigFile: undefined,
-				tsfmtFile: undefined,
-				vscode: undefined,
-				vscodeFile: undefined,
-			})
-			.then(
-				(result) => {
-					const original = result.src.replace(/\r\n/gm, '\n');
-					const formatted = result.dest.replace(/\r\n/gm, '\n');
+		try {
+			const rawInput = file.contents.toString('utf8');
+			const rawOutput = formatter.format(file.path, rawInput);
 
-					if (original !== formatted) {
-						console.error(
-							`File not formatted. Run the 'Format Document' command to fix it:`,
-							file.relative
-						);
-						errorCount++;
-					}
-					cb(null, file);
-				},
-				(err) => {
-					cb(err);
-				}
-			);
+			const original = rawInput.replace(/\r\n/gm, '\n');
+			const formatted = rawOutput.replace(/\r\n/gm, '\n');
+			if (original !== formatted) {
+				console.error(
+					`File not formatted. Run the 'Format Document' command to fix it:`,
+					file.relative
+				);
+				errorCount++;
+			}
+			cb(null, file);
+		} catch (err) {
+			cb(err);
+		}
 	});
 
 	let input;
@@ -256,7 +241,7 @@ function createGitIndexVinyls(paths) {
 
 				cp.exec(
 					process.platform === 'win32' ? `git show :${relativePath}` : `git show ':${relativePath}'`,
-					{ maxBuffer: 2000 * 1024, encoding: 'buffer' },
+					{ maxBuffer: stat.size, encoding: 'buffer' },
 					(err, out) => {
 						if (err) {
 							return e(err);

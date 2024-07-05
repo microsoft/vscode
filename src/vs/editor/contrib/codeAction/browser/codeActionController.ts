@@ -40,7 +40,6 @@ import { CodeActionAutoApply, CodeActionFilter, CodeActionItem, CodeActionKind, 
 import { CodeActionModel, CodeActionsState } from 'vs/editor/contrib/codeAction/browser/codeActionModel';
 import { HierarchicalKind } from 'vs/base/common/hierarchicalKind';
 
-
 interface IActionShowOptions {
 	readonly includeDisabledActions?: boolean;
 	readonly fromLightbulb?: boolean;
@@ -78,7 +77,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 		@ICommandService private readonly _commandService: ICommandService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
 
@@ -280,11 +279,11 @@ export class CodeActionController extends Disposable implements IEditorContribut
 
 		const delegate: IActionListDelegate<CodeActionItem> = {
 			onSelect: async (action: CodeActionItem, preview?: boolean) => {
-				this._applyCodeAction(action, /* retrigger */ true, !!preview, ApplyCodeActionReason.FromCodeActions);
-				this._actionWidgetService.hide();
+				this._applyCodeAction(action, /* retrigger */ true, !!preview, options.fromLightbulb ? ApplyCodeActionReason.FromAILightbulb : ApplyCodeActionReason.FromCodeActions);
+				this._actionWidgetService.hide(false);
 				currentDecorations.clear();
 			},
-			onHide: () => {
+			onHide: (didCancel?) => {
 				this._editor?.focus();
 				currentDecorations.clear();
 			},
@@ -301,7 +300,9 @@ export class CodeActionController extends Disposable implements IEditorContribut
 					const refactorKinds = [
 						CodeActionKind.RefactorExtract,
 						CodeActionKind.RefactorInline,
-						CodeActionKind.RefactorRewrite
+						CodeActionKind.RefactorRewrite,
+						CodeActionKind.RefactorMove,
+						CodeActionKind.Source
 					];
 
 					canPreview = refactorKinds.some(refactorKind => refactorKind.contains(hierarchicalKind));

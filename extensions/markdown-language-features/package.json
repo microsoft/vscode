@@ -16,8 +16,7 @@
     "Programming Languages"
   ],
   "enabledApiProposals": [
-    "documentPaste",
-    "dropMetadata"
+    "documentPaste"
   ],
   "activationEvents": [
     "onLanguage:markdown",
@@ -495,7 +494,7 @@
           ]
         },
         "markdown.editor.filePaste.enabled": {
-          "type": "boolean",
+          "type": "string",
           "scope": "resource",
           "markdownDescription": "%configuration.markdown.editor.filePaste.enabled%",
           "default": "smart",
@@ -708,6 +707,15 @@
             "%configuration.markdown.preferredMdPathExtensionStyle.includeExtension%",
             "%configuration.markdown.preferredMdPathExtensionStyle.removeExtension%"
           ]
+        },
+        "markdown.experimental.updateLinksOnPaste": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%configuration.markdown.experimental.updateLinksOnPaste%",
+          "scope": "resource",
+          "tags": [
+            "experimental"
+          ]
         }
       }
     },
@@ -762,7 +770,7 @@
     "dompurify": "^3.0.5",
     "highlight.js": "^11.8.0",
     "markdown-it": "^12.3.2",
-    "markdown-it-front-matter": "^0.2.1",
+    "markdown-it-front-matter": "^0.2.4",
     "morphdom": "^2.6.1",
     "picomatch": "^2.3.1",
     "vscode-languageclient": "^8.0.2",

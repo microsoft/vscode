@@ -40,7 +40,8 @@ import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditor
 import { IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { mainWindow } from 'vs/base/browser/window';
 import { setHoverDelegateFactory } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { WorkbenchHoverDelegate } from 'vs/platform/hover/browser/hover';
+import { IHoverService, WorkbenchHoverDelegate } from 'vs/platform/hover/browser/hover';
+import { setBaseLayerHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate2';
 
 /**
  * Description of an action contribution
@@ -272,6 +273,7 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ICommandService commandService: ICommandService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IHoverService hoverService: IHoverService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IThemeService themeService: IThemeService,
 		@INotificationService notificationService: INotificationService,
@@ -293,6 +295,7 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 		createAriaDomNode(options.ariaContainerElement);
 
 		setHoverDelegateFactory((placement, enableInstantHover) => instantiationService.createInstance(WorkbenchHoverDelegate, placement, enableInstantHover, {}));
+		setBaseLayerHoverDelegate(hoverService);
 	}
 
 	public addCommand(keybinding: number, handler: ICommandHandler, context?: string): string | null {
@@ -415,6 +418,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ICommandService commandService: ICommandService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IHoverService hoverService: IHoverService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IStandaloneThemeService themeService: IStandaloneThemeService,
 		@INotificationService notificationService: INotificationService,
@@ -436,7 +440,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		}
 		const _model: ITextModel | null | undefined = options.model;
 		delete options.model;
-		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, keybindingService, themeService, notificationService, accessibilityService, languageConfigurationService, languageFeaturesService);
+		super(domElement, options, instantiationService, codeEditorService, commandService, contextKeyService, hoverService, keybindingService, themeService, notificationService, accessibilityService, languageConfigurationService, languageFeaturesService);
 
 		this._configurationService = configurationService;
 		this._standaloneThemeService = themeService;

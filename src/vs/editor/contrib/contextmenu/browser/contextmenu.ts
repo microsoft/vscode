@@ -148,7 +148,7 @@ export class ContextMenuController implements IEditorContribution {
 
 		// Find actions available for menu
 		const menuActions = this._getMenuActions(this._editor.getModel(),
-			this._editor.isSimpleWidget ? MenuId.SimpleEditorContext : MenuId.EditorContext);
+			this._editor.contextMenuId);
 
 		// Show menu if we have actions to show
 		if (menuActions.length > 0) {
@@ -227,7 +227,7 @@ export class ContextMenuController implements IEditorContribution {
 		// Show menu
 		this._contextMenuIsBeingShownCount++;
 		this._contextMenuService.showContextMenu({
-			domForShadowRoot: useShadowDOM ? this._editor.getDomNode() : undefined,
+			domForShadowRoot: useShadowDOM ? this._editor.getOverflowWidgetsDomNode() ?? this._editor.getDomNode() : undefined,
 
 			getAnchor: () => anchor,
 

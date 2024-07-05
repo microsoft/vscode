@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow, Rectangle, screen } from 'electron';
+import { BrowserWindow, Rectangle, screen, WebContents } from 'electron';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -40,6 +40,8 @@ export interface IBaseWindow extends IDisposable {
 	toggleFullScreen(): void;
 
 	updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): void;
+
+	matches(webContents: WebContents): boolean;
 }
 
 export interface ICodeWindow extends IBaseWindow {

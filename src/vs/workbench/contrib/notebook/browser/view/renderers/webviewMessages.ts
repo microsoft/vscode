@@ -69,7 +69,7 @@ export interface IScrollAckMessage extends BaseToWebviewMessage {
 	readonly version: number;
 }
 
-export interface IBlurOutputMessage extends BaseToWebviewMessage {
+export interface IFocusEditorMessage extends BaseToWebviewMessage {
 	readonly type: 'focus-editor';
 	readonly cellId: string;
 	readonly focusNext?: boolean;
@@ -262,6 +262,10 @@ export interface IFocusOutputMessage {
 	readonly alternateId?: string;
 }
 
+export interface IBlurOutputMessage {
+	readonly type: 'blur-output';
+}
+
 export interface IAckOutputHeight {
 	readonly cellId: string;
 	readonly outputId: string;
@@ -395,7 +399,7 @@ export interface ITokenizedStylesChangedMessage {
 export interface IFindMessage {
 	readonly type: 'find';
 	readonly query: string;
-	readonly options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean; shouldGetSearchPreviewInfo: boolean; ownerID: string };
+	readonly options: { wholeWord?: boolean; caseSensitive?: boolean; includeMarkup: boolean; includeOutput: boolean; shouldGetSearchPreviewInfo: boolean; ownerID: string; findIds: string[] };
 }
 
 
@@ -481,6 +485,8 @@ export interface IPerformanceMessage extends BaseToWebviewMessage {
 	readonly cellId: string;
 	readonly duration: number;
 	readonly rendererId: string;
+	readonly outputSize?: number;
+	readonly mimeType?: string;
 }
 
 
@@ -494,7 +500,7 @@ export type FromWebviewMessage = WebviewInitialized |
 	IScrollToRevealMessage |
 	IWheelMessage |
 	IScrollAckMessage |
-	IBlurOutputMessage |
+	IFocusEditorMessage |
 	ICustomKernelMessage |
 	ICustomRendererMessage |
 	IClickedDataUrlMessage |
@@ -520,6 +526,7 @@ export type FromWebviewMessage = WebviewInitialized |
 
 export type ToWebviewMessage = IClearMessage |
 	IFocusOutputMessage |
+	IBlurOutputMessage |
 	IAckOutputHeightMessage |
 	ICreationRequestMessage |
 	IViewScrollTopRequestMessage |

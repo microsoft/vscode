@@ -12,6 +12,7 @@ import { IObservable, observableValue } from 'vs/base/common/observable';
 import { language } from 'vs/base/common/platform';
 import { WellDefinedPrefixTree } from 'vs/base/common/prefixTree';
 import { localize } from 'vs/nls';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IComputedStateAccessor, refreshComputedState } from 'vs/workbench/contrib/testing/common/getComputedState';
 import { TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
@@ -312,6 +313,11 @@ export class LiveTestResult extends Disposable implements ITestResult {
 		return this.testById.values();
 	}
 
+	/** Gets an included test item by ID. */
+	public getTestById(id: string) {
+		return this.testById.get(id)?.item;
+	}
+
 	private readonly computedStateAccessor: IComputedStateAccessor<TestResultItemWithChildren> = {
 		getOwnState: i => i.ownComputedState,
 		getCurrentComputedState: i => i.computedState,
@@ -334,6 +340,7 @@ export class LiveTestResult extends Disposable implements ITestResult {
 		public readonly id: string,
 		public readonly persist: boolean,
 		public readonly request: ResolvedTestRunRequest,
+		@ITelemetryService private readonly telemetry: ITelemetryService,
 	) {
 		super();
 	}
@@ -481,6 +488,21 @@ export class LiveTestResult extends Disposable implements ITestResult {
 
 		this._completedAt = Date.now();
 		this.completeEmitter.fire();
+
+		this.telemetry.publicLog2<
+			{ failures: number; passes: number; controller: string },
+			{
+				owner: 'connor4312';
+				comment: 'Test outcome metrics. This helps us understand magnitude of feature use and how to build fix suggestions.';
+				failures: { comment: 'Number of test failures'; classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+				passes: { comment: 'Number of test failures'; classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+				controller: { comment: 'The test controller being used'; classification: 'SystemMetaData'; purpose: 'FeatureInsight' };
+			}
+		>('test.outcomes', {
+			failures: this.counts[TestResultState.Errored] + this.counts[TestResultState.Failed],
+			passes: this.counts[TestResultState.Passed],
+			controller: this.request.targets.map(t => t.controllerId).join(',')
+		});
 	}
 
 	/**

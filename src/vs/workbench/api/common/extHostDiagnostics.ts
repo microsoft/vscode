@@ -234,7 +234,7 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 
 	private static _idPool: number = 0;
 	private static readonly _maxDiagnosticsPerFile: number = 1000;
-	private static readonly _maxDiagnosticsTotal: number = 1.1 * ExtHostDiagnostics._maxDiagnosticsPerFile;
+	private static readonly _maxDiagnosticsTotal: number = 1.1 * this._maxDiagnosticsPerFile;
 
 	private readonly _proxy: MainThreadDiagnosticsShape;
 	private readonly _collections = new Map<string, DiagnosticCollection>();

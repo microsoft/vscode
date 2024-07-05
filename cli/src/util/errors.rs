@@ -516,6 +516,10 @@ pub enum CodeError {
 	CouldNotCreateConnectionTokenFile(std::io::Error),
 	#[error("A tunnel with the name {0} exists and is in-use. Please pick a different name or stop the existing tunnel.")]
 	TunnelActiveAndInUse(String),
+	#[error("Timed out looking for port/socket")]
+	ServerOriginTimeout,
+	#[error("Server exited without writing port/socket: {0}")]
+	ServerUnexpectedExit(String),
 }
 
 makeAnyError!(

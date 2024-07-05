@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { URI } from 'vs/base/common/uri';
 import { workbenchInstantiationService, TestEditorService } from 'vs/workbench/test/browser/workbenchTestServices';
@@ -39,7 +39,7 @@ suite('Editor - Range decorations', () => {
 
 	setup(() => {
 		disposables = new DisposableStore();
-		instantiationService = <TestInstantiationService>workbenchInstantiationService(undefined, disposables);
+		instantiationService = workbenchInstantiationService(undefined, disposables);
 		instantiationService.stub(IEditorService, new TestEditorService());
 		instantiationService.stub(ILanguageService, LanguageService);
 		instantiationService.stub(IModelService, stubModelService(instantiationService));

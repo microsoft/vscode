@@ -197,6 +197,9 @@ registerAction2(class extends Action2 {
 				original: 'Open \'launch.json\'',
 				mnemonicTitle: nls.localize({ key: 'miOpenConfigurations', comment: ['&& denotes a mnemonic'] }, "Open &&Configurations")
 			},
+			metadata: {
+				description: nls.localize2('openLaunchConfigDescription', 'Opens the file used to configure how your program is debugged')
+			},
 			f1: true,
 			icon: debugConfigure,
 			precondition: CONTEXT_DEBUG_UX.notEqualsTo('simple'),

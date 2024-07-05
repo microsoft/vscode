@@ -64,7 +64,8 @@ impl PreReqChecker {
 		} else {
 			println!("!!! WARNING: Skipping server pre-requisite check !!!");
 			println!("!!! Server stability is not guaranteed. Proceed at your own risk. !!!");
-			(Ok(false), Ok(false))
+			// Use the legacy server for #210029
+			(Ok(true), Ok(true))
 		};
 
 		match (&gnu_a, &gnu_b, is_nixos) {

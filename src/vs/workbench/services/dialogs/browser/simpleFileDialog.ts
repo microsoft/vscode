@@ -584,9 +584,9 @@ export class SimpleFileDialog implements ISimpleFileDialog {
 		} else {
 			const newFolderIsOldFolder = resources.extUriIgnorePathCase.isEqual(this.currentFolder, valueUri);
 			const newFolderIsSubFolder = resources.extUriIgnorePathCase.isEqual(this.currentFolder, resources.dirname(valueUri));
-			const newFolderIsParent = !newFolderIsOldFolder && resources.extUriIgnorePathCase.isEqualOrParent(this.currentFolder, resources.dirname(valueUri));
-			const newFolderIsUnrelated = !newFolderIsOldFolder && !newFolderIsParent && !newFolderIsSubFolder;
-			if (this.endsWithSlash(value) || newFolderIsParent || newFolderIsUnrelated) {
+			const newFolderIsParent = resources.extUriIgnorePathCase.isEqualOrParent(this.currentFolder, resources.dirname(valueUri));
+			const newFolderIsUnrelated = !newFolderIsParent && !newFolderIsSubFolder;
+			if (!newFolderIsOldFolder && (this.endsWithSlash(value) || newFolderIsParent || newFolderIsUnrelated)) {
 				let stat: IFileStatWithPartialMetadata | undefined;
 				try {
 					stat = await this.fileService.stat(valueUri);
@@ -832,7 +832,7 @@ export class SimpleFileDialog implements ISimpleFileDialog {
 			} else if (!statDirname.isDirectory) {
 				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateNonexistentDir', 'Please enter a path that exists.');
 				return Promise.resolve(false);
-			} else if (statDirname.readonly || statDirname.locked) {
+			} else if (statDirname.readonly) {
 				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateReadonlyFolder', 'This folder cannot be used as a save destination. Please choose another folder');
 				return Promise.resolve(false);
 			}

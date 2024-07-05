@@ -22,6 +22,8 @@
 		"ports.iconRunningProcessForeground": "#369432",
 		"sideBarSectionHeader.background": "#0000",
 		"sideBarSectionHeader.border": "#ccc3",
+		"tab.selectedBackground": "#222222",
+		"tab.selectedForeground": "#ffffffa0",
 		"tab.lastPinnedBorder": "#ccc3",
 		"list.activeSelectionIconForeground": "#FFF",
 		"terminal.inactiveSelectionBackground": "#3A3D41",

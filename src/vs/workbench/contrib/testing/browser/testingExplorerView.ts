@@ -8,8 +8,8 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { ActionBar, IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Button } from 'vs/base/browser/ui/button/button';
+import type { IManagedHover } from 'vs/base/browser/ui/hover/hover';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import { ICustomHover, setupCustomHover } from 'vs/base/browser/ui/hover/updatableHoverWidget';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { DefaultKeyboardNavigationDelegate, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
@@ -22,6 +22,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { autorun, observableFromEvent } from 'vs/base/common/observable';
 import { fuzzyContains } from 'vs/base/common/strings';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { isDefined } from 'vs/base/common/types';
@@ -36,6 +37,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IHoverService } from 'vs/platform/hover/browser/hover';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -77,6 +79,7 @@ import { ITestingContinuousRunService } from 'vs/workbench/contrib/testing/commo
 import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
 import { cmpPriority, isFailedState, isStateWithResult, statesInOrder } from 'vs/workbench/contrib/testing/common/testingStates';
 import { IActivityService, IconBadge, NumberBadge } from 'vs/workbench/services/activity/common/activity';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 const enum LastFocusState {
@@ -86,10 +89,10 @@ const enum LastFocusState {
 
 export class TestingExplorerView extends ViewPane {
 	public viewModel!: TestingExplorerViewModel;
-	private filterActionBar = this._register(new MutableDisposable());
+	private readonly filterActionBar = this._register(new MutableDisposable());
 	private container!: HTMLElement;
 	private treeHeader!: HTMLElement;
-	private discoveryProgress = this._register(new MutableDisposable<UnmanagedProgress>());
+	private readonly discoveryProgress = this._register(new MutableDisposable<UnmanagedProgress>());
 	private readonly filter = this._register(new MutableDisposable<TestingExplorerFilter>());
 	private readonly filterFocusListener = this._register(new MutableDisposable());
 	private readonly dimensions = { width: 0, height: 0 };
@@ -111,10 +114,11 @@ export class TestingExplorerView extends ViewPane {
 		@IThemeService themeService: IThemeService,
 		@ITestService private readonly testService: ITestService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IHoverService hoverService: IHoverService,
 		@ITestProfileService private readonly testProfileService: ITestProfileService,
 		@ICommandService private readonly commandService: ICommandService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 
 		const relayout = this._register(new RunOnceScheduler(() => this.layoutBody(), 1));
 		this._register(this.onDidChangeViewWelcomeState(() => {
@@ -252,6 +256,7 @@ export class TestingExplorerView extends ViewPane {
 	override render(): void {
 		super.render();
 		this._register(registerNavigableContainer({
+			name: 'testingExplorerView',
 			focusNotifiers: [this],
 			focusNextWidget: () => {
 				if (!this.viewModel.tree.isDOMFocused()) {
@@ -334,8 +339,8 @@ export class TestingExplorerView extends ViewPane {
 						const { include, exclude } = this.getTreeIncludeExclude(undefined, profile);
 						this.testService.runResolvedTests({
 							exclude: exclude.map(e => e.item.extId),
+							group: profile.group,
 							targets: [{
-								profileGroup: profile.group,
 								profileId: profile.profileId,
 								controllerId: profile.controllerId,
 								testIds: include.map(i => i.item.extId),
@@ -395,7 +400,7 @@ export class TestingExplorerView extends ViewPane {
 			icon: group === TestRunProfileBitset.Run
 				? icons.testingRunAllIcon
 				: icons.testingDebugAllIcon,
-		}, undefined, undefined, undefined);
+		}, undefined, undefined, undefined, undefined);
 
 		const dropdownAction = new Action('selectRunConfig', 'Select Configuration...', 'codicon-chevron-down', true);
 
@@ -445,7 +450,7 @@ class ResultSummaryView extends Disposable {
 	private elementsWereAttached = false;
 	private badgeType: TestingCountBadge;
 	private lastBadge?: NumberBadge | IconBadge;
-	private countHover: ICustomHover;
+	private countHover: IManagedHover;
 	private readonly badgeDisposable = this._register(new MutableDisposable());
 	private readonly renderLoop = this._register(new RunOnceScheduler(() => this.render(), SUMMARY_RENDER_INTERVAL));
 	private readonly elements = dom.h('div.result-summary', [
@@ -464,6 +469,7 @@ class ResultSummaryView extends Disposable {
 		@ITestingContinuousRunService private readonly crService: ITestingContinuousRunService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IHoverService hoverService: IHoverService,
 	) {
 		super();
 
@@ -476,7 +482,7 @@ class ResultSummaryView extends Disposable {
 			}
 		}));
 
-		this.countHover = this._register(setupCustomHover(getDefaultHoverDelegate('mouse'), this.elements.count, ''));
+		this.countHover = this._register(hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this.elements.count, ''));
 
 		const ab = this._register(new ActionBar(this.elements.rerun, {
 			actionViewItemProvider: (action, options) => createActionViewItem(instantiationService, action, options),
@@ -485,7 +491,7 @@ class ResultSummaryView extends Disposable {
 			{ ...new ReRunLastRun().desc, icon: icons.testingRerunIcon },
 			{ ...new DebugLastRun().desc, icon: icons.testingDebugIcon },
 			{},
-			undefined,
+			undefined, undefined
 		), { icon: true, label: false });
 
 		this.render();
@@ -496,7 +502,7 @@ class ResultSummaryView extends Disposable {
 		const { count, root, status, duration, rerun } = this.elements;
 		if (!results.length) {
 			if (this.elementsWereAttached) {
-				this.container.removeChild(root);
+				root.remove();
 				this.elementsWereAttached = false;
 			}
 			this.container.innerText = localize('noResults', 'No test results yet.');
@@ -579,7 +585,7 @@ const enum WelcomeExperience {
 class TestingExplorerViewModel extends Disposable {
 	public tree: TestingObjectTree<FuzzyScore>;
 	private filter: TestsFilter;
-	public projection = this._register(new MutableDisposable<ITestTreeProjection>());
+	public readonly projection = this._register(new MutableDisposable<ITestTreeProjection>());
 
 	private readonly revealTimeout = new MutableDisposable();
 	private readonly _viewMode = TestingContextKeys.viewMode.bindTo(this.contextKeyService);
@@ -644,6 +650,7 @@ class TestingExplorerViewModel extends Disposable {
 		onDidChangeVisibility: Event<boolean>,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IEditorService editorService: IEditorService,
+		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@ITestService private readonly testService: ITestService,
@@ -814,27 +821,38 @@ class TestingExplorerViewModel extends Disposable {
 			this.tree.rerender();
 		}));
 
-		const onEditorChange = () => {
+		const allOpenEditorInputs = observableFromEvent(this,
+			editorService.onDidEditorsChange,
+			() => new Set(editorGroupsService.groups.flatMap(g => g.editors).map(e => e.resource).filter(isDefined)),
+		);
+
+		const activeResource = observableFromEvent(this, editorService.onDidActiveEditorChange, () => {
 			if (editorService.activeEditor instanceof DiffEditorInput) {
-				this.filter.filterToDocumentUri(editorService.activeEditor.primary.resource);
+				return editorService.activeEditor.primary.resource;
 			} else {
-				this.filter.filterToDocumentUri(editorService.activeEditor?.resource);
+				return editorService.activeEditor?.resource;
+			}
+		});
+
+		const filterText = observableFromEvent(this.filterState.text.onDidChange, () => this.filterState.text);
+		this._register(autorun(reader => {
+			filterText.read(reader);
+			if (this.filterState.isFilteringFor(TestFilterTerm.OpenedFiles)) {
+				this.filter.filterToDocumentUri([...allOpenEditorInputs.read(reader)]);
+			} else {
+				this.filter.filterToDocumentUri([activeResource.read(reader)].filter(isDefined));
 			}
 
-			if (this.filterState.isFilteringFor(TestFilterTerm.CurrentDoc)) {
+			if (this.filterState.isFilteringFor(TestFilterTerm.CurrentDoc) || this.filterState.isFilteringFor(TestFilterTerm.OpenedFiles)) {
 				this.tree.refilter();
 			}
-		};
-
-		this._register(editorService.onDidActiveEditorChange(onEditorChange));
+		}));
 
 		this._register(this.storageService.onWillSaveState(({ reason, }) => {
 			if (reason === WillSaveStateReason.SHUTDOWN) {
 				this.lastViewState.store(this.tree.getOptimizedViewState());
 			}
 		}));
-
-		onEditorChange();
 	}
 
 	/**
@@ -1063,7 +1081,7 @@ const hasNodeInOrParentOfUri = (collection: IMainThreadTestCollection, ident: IU
 };
 
 class TestsFilter implements ITreeFilter<TestExplorerTreeElement> {
-	private documentUri: URI | undefined;
+	private documentUris: URI[] = [];
 
 	constructor(
 		private readonly collection: IMainThreadTestCollection,
@@ -1098,8 +1116,8 @@ class TestsFilter implements ITreeFilter<TestExplorerTreeElement> {
 		}
 	}
 
-	public filterToDocumentUri(uri: URI | undefined) {
-		this.documentUri = uri;
+	public filterToDocumentUri(uris: readonly URI[]) {
+		this.documentUris = [...uris];
 	}
 
 	private testTags(element: TestItemTreeElement): FilterResult {
@@ -1127,15 +1145,15 @@ class TestsFilter implements ITreeFilter<TestExplorerTreeElement> {
 	}
 
 	private testLocation(element: TestItemTreeElement): FilterResult {
-		if (!this.documentUri) {
+		if (this.documentUris.length === 0) {
 			return FilterResult.Include;
 		}
 
-		if (!this.state.isFilteringFor(TestFilterTerm.CurrentDoc) || !(element instanceof TestItemTreeElement)) {
+		if ((!this.state.isFilteringFor(TestFilterTerm.CurrentDoc) && !this.state.isFilteringFor(TestFilterTerm.OpenedFiles)) || !(element instanceof TestItemTreeElement)) {
 			return FilterResult.Include;
 		}
 
-		if (hasNodeInOrParentOfUri(this.collection, this.uriIdentityService, this.documentUri, element.test.item.extId)) {
+		if (this.documentUris.some(uri => hasNodeInOrParentOfUri(this.collection, this.uriIdentityService, uri, element.test.item.extId))) {
 			return FilterResult.Include;
 		}
 
@@ -1315,7 +1333,10 @@ class ErrorRenderer implements ITreeRenderer<TestTreeErrorMessage, FuzzyScore, I
 
 	private readonly renderer: MarkdownRenderer;
 
-	constructor(@IInstantiationService instantionService: IInstantiationService) {
+	constructor(
+		@IHoverService private readonly hoverService: IHoverService,
+		@IInstantiationService instantionService: IInstantiationService,
+	) {
 		this.renderer = instantionService.createInstance(MarkdownRenderer, {});
 	}
 
@@ -1337,7 +1358,7 @@ class ErrorRenderer implements ITreeRenderer<TestTreeErrorMessage, FuzzyScore, I
 			const result = this.renderer.render(element.message, { inline: true });
 			data.label.appendChild(result.element);
 		}
-		data.disposable.add(setupCustomHover(getDefaultHoverDelegate('mouse'), data.label, element.description));
+		data.disposable.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), data.label, element.description));
 	}
 
 	disposeTemplate(data: IErrorTemplateData): void {
@@ -1367,6 +1388,7 @@ class TestItemRenderer extends Disposable
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITestingContinuousRunService private readonly crService: ITestingContinuousRunService,
+		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super();
 	}
@@ -1457,7 +1479,7 @@ class TestItemRenderer extends Disposable
 			data.icon.className += ' retired';
 		}
 
-		data.elementDisposable.add(setupCustomHover(getDefaultHoverDelegate('mouse'), data.label, getLabelForTestTreeElement(node.element)));
+		data.elementDisposable.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), data.label, getLabelForTestTreeElement(node.element)));
 		if (node.element.test.item.label.trim()) {
 			dom.reset(data.label, ...renderLabelWithIcons(node.element.test.item.label));
 		} else {

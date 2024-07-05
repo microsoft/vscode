@@ -17,8 +17,14 @@ export const EXTENSION_IDENTIFIER_PATTERN = '^([a-z0-9A-Z][a-z0-9-A-Z]*)\\.([a-z
 export const EXTENSION_IDENTIFIER_REGEX = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
 export const WEB_EXTENSION_TAG = '__web_extension';
 export const EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT = 'skipWalkthrough';
-export const EXTENSION_INSTALL_SYNC_CONTEXT = 'extensionsSync';
+export const EXTENSION_INSTALL_SOURCE_CONTEXT = 'extensionInstallSource';
 export const EXTENSION_INSTALL_DEP_PACK_CONTEXT = 'dependecyOrPackExtensionInstall';
+export const EXTENSION_INSTALL_CLIENT_TARGET_PLATFORM_CONTEXT = 'clientTargetPlatform';
+
+export const enum ExtensionInstallSource {
+	COMMAND = 'command',
+	SETTINGS_SYNC = 'settingsSync',
+}
 
 export interface IProductVersion {
 	readonly version: string;
@@ -153,6 +159,7 @@ export interface IGalleryExtensionProperties {
 	dependencies?: string[];
 	extensionPack?: string[];
 	engine?: string;
+	enabledApiProposals?: string[];
 	localizedLanguages?: string[];
 	targetPlatform: TargetPlatform;
 	isPreReleaseVersion: boolean;
@@ -198,6 +205,7 @@ export interface IGalleryExtensionVersion {
 }
 
 export interface IGalleryExtension {
+	type: 'gallery';
 	name: string;
 	identifier: IGalleryExtensionIdentifier;
 	version: string;
@@ -255,7 +263,6 @@ export interface ILocalExtension extends IExtension {
 	isMachineScoped: boolean;
 	isApplicationScoped: boolean;
 	publisherId: string | null;
-	publisherDisplayName: string | null;
 	installedTimestamp?: number;
 	isPreReleaseVersion: boolean;
 	hasPreReleaseVersion: boolean;
@@ -320,6 +327,7 @@ export interface IExtensionsControlManifest {
 	readonly malicious: IExtensionIdentifier[];
 	readonly deprecated: IStringDictionary<IDeprecationInfo>;
 	readonly search: ISearchPrefferedResults[];
+	readonly extensionsEnabledWithPreRelease?: string[];
 }
 
 export const enum InstallOperation {
@@ -361,7 +369,7 @@ export interface IExtensionGalleryService {
 	getExtensions(extensionInfos: ReadonlyArray<IExtensionInfo>, options: IExtensionQueryOptions, token: CancellationToken): Promise<IGalleryExtension[]>;
 	isExtensionCompatible(extension: IGalleryExtension, includePreRelease: boolean, targetPlatform: TargetPlatform, productVersion?: IProductVersion): Promise<boolean>;
 	getCompatibleExtension(extension: IGalleryExtension, includePreRelease: boolean, targetPlatform: TargetPlatform, productVersion?: IProductVersion): Promise<IGalleryExtension | null>;
-	getAllCompatibleVersions(extension: IGalleryExtension, includePreRelease: boolean, targetPlatform: TargetPlatform): Promise<IGalleryExtensionVersion[]>;
+	getAllCompatibleVersions(extensionIdentifier: IExtensionIdentifier, includePreRelease: boolean, targetPlatform: TargetPlatform): Promise<IGalleryExtensionVersion[]>;
 	download(extension: IGalleryExtension, location: URI, operation: InstallOperation): Promise<void>;
 	downloadSignatureArchive(extension: IGalleryExtension, location: URI): Promise<void>;
 	reportStatistic(publisher: string, name: string, version: string, type: StatisticType): Promise<void>;
@@ -375,7 +383,7 @@ export interface IExtensionGalleryService {
 export interface InstallExtensionEvent {
 	readonly identifier: IExtensionIdentifier;
 	readonly source: URI | IGalleryExtension;
-	readonly profileLocation?: URI;
+	readonly profileLocation: URI;
 	readonly applicationScoped?: boolean;
 	readonly workspaceScoped?: boolean;
 }
@@ -387,14 +395,14 @@ export interface InstallExtensionResult {
 	readonly local?: ILocalExtension;
 	readonly error?: Error;
 	readonly context?: IStringDictionary<any>;
-	readonly profileLocation?: URI;
+	readonly profileLocation: URI;
 	readonly applicationScoped?: boolean;
 	readonly workspaceScoped?: boolean;
 }
 
 export interface UninstallExtensionEvent {
 	readonly identifier: IExtensionIdentifier;
-	readonly profileLocation?: URI;
+	readonly profileLocation: URI;
 	readonly applicationScoped?: boolean;
 	readonly workspaceScoped?: boolean;
 }
@@ -402,56 +410,67 @@ export interface UninstallExtensionEvent {
 export interface DidUninstallExtensionEvent {
 	readonly identifier: IExtensionIdentifier;
 	readonly error?: string;
-	readonly profileLocation?: URI;
+	readonly profileLocation: URI;
 	readonly applicationScoped?: boolean;
 	readonly workspaceScoped?: boolean;
 }
 
-export enum ExtensionManagementErrorCode {
-	Unsupported = 'Unsupported',
-	Deprecated = 'Deprecated',
-	Malicious = 'Malicious',
-	Incompatible = 'Incompatible',
-	IncompatibleTargetPlatform = 'IncompatibleTargetPlatform',
-	ReleaseVersionNotFound = 'ReleaseVersionNotFound',
-	Invalid = 'Invalid',
-	Download = 'Download',
-	DownloadSignature = 'DownloadSignature',
-	UpdateMetadata = 'UpdateMetadata',
-	Extract = 'Extract',
-	Scanning = 'Scanning',
-	Delete = 'Delete',
-	Rename = 'Rename',
-	CorruptZip = 'CorruptZip',
-	IncompleteZip = 'IncompleteZip',
-	Signature = 'Signature',
-	NotAllowed = 'NotAllowed',
-	Gallery = 'Gallery',
-	Unknown = 'Unknown',
-	Internal = 'Internal',
+export interface DidUpdateExtensionMetadata {
+	readonly profileLocation: URI;
+	readonly local: ILocalExtension;
 }
 
-export enum ExtensionSignaturetErrorCode {
-	UnknownError = 'UnknownError',
-	PackageIsInvalidZip = 'PackageIsInvalidZip',
-	SignatureArchiveIsInvalidZip = 'SignatureArchiveIsInvalidZip',
+export const enum ExtensionGalleryErrorCode {
+	Timeout = 'Timeout',
+	Cancelled = 'Cancelled',
+	Failed = 'Failed',
+	DownloadFailedWriting = 'DownloadFailedWriting',
 }
 
-export class ExtensionManagementError extends Error {
-	constructor(message: string, readonly code: ExtensionManagementErrorCode) {
+export class ExtensionGalleryError extends Error {
+	constructor(message: string, readonly code: ExtensionGalleryErrorCode) {
 		super(message);
 		this.name = code;
 	}
 }
 
-export enum ExtensionGalleryErrorCode {
-	Timeout = 'Timeout',
+export const enum ExtensionManagementErrorCode {
+	Unsupported = 'Unsupported',
+	Deprecated = 'Deprecated',
+	Malicious = 'Malicious',
+	Incompatible = 'Incompatible',
+	IncompatibleApi = 'IncompatibleApi',
+	IncompatibleTargetPlatform = 'IncompatibleTargetPlatform',
+	ReleaseVersionNotFound = 'ReleaseVersionNotFound',
+	Invalid = 'Invalid',
+	Download = 'Download',
+	DownloadSignature = 'DownloadSignature',
+	DownloadFailedWriting = ExtensionGalleryErrorCode.DownloadFailedWriting,
+	UpdateExistingMetadata = 'UpdateExistingMetadata',
+	UpdateMetadata = 'UpdateMetadata',
+	Extract = 'Extract',
+	Scanning = 'Scanning',
+	ScanningExtension = 'ScanningExtension',
+	ReadUninstalled = 'ReadUninstalled',
+	UnsetUninstalled = 'UnsetUninstalled',
+	Delete = 'Delete',
+	Rename = 'Rename',
+	IntializeDefaultProfile = 'IntializeDefaultProfile',
+	AddToProfile = 'AddToProfile',
+	InstalledExtensionNotFound = 'InstalledExtensionNotFound',
+	PostInstall = 'PostInstall',
+	CorruptZip = 'CorruptZip',
+	IncompleteZip = 'IncompleteZip',
+	Signature = 'Signature',
+	NotAllowed = 'NotAllowed',
+	Gallery = 'Gallery',
 	Cancelled = 'Cancelled',
-	Failed = 'Failed'
+	Unknown = 'Unknown',
+	Internal = 'Internal',
 }
 
-export class ExtensionGalleryError extends Error {
-	constructor(message: string, readonly code: ExtensionGalleryErrorCode) {
+export class ExtensionManagementError extends Error {
+	constructor(message: string, readonly code: ExtensionManagementErrorCode) {
 		super(message);
 		this.name = code;
 	}
@@ -477,7 +496,14 @@ export type InstallOptions = {
 	 */
 	context?: IStringDictionary<any>;
 };
-export type UninstallOptions = { readonly donotIncludePack?: boolean; readonly donotCheckDependents?: boolean; readonly versionOnly?: boolean; readonly remove?: boolean; readonly profileLocation?: URI };
+
+export type UninstallOptions = {
+	readonly profileLocation?: URI;
+	readonly donotIncludePack?: boolean;
+	readonly donotCheckDependents?: boolean;
+	readonly versionOnly?: boolean;
+	readonly remove?: boolean;
+};
 
 export interface IExtensionManagementParticipant {
 	postInstall(local: ILocalExtension, source: URI | IGalleryExtension, options: InstallOptions, token: CancellationToken): Promise<void>;
@@ -494,7 +520,7 @@ export interface IExtensionManagementService {
 	onDidInstallExtensions: Event<readonly InstallExtensionResult[]>;
 	onUninstallExtension: Event<UninstallExtensionEvent>;
 	onDidUninstallExtension: Event<DidUninstallExtensionEvent>;
-	onDidUpdateExtensionMetadata: Event<ILocalExtension>;
+	onDidUpdateExtensionMetadata: Event<DidUpdateExtensionMetadata>;
 
 	zip(extension: ILocalExtension): Promise<URI>;
 	unzip(zipLocation: URI): Promise<IExtensionIdentifier>;
@@ -511,7 +537,8 @@ export interface IExtensionManagementService {
 	getInstalled(type?: ExtensionType, profileLocation?: URI, productVersion?: IProductVersion): Promise<ILocalExtension[]>;
 	getExtensionsControlManifest(): Promise<IExtensionsControlManifest>;
 	copyExtensions(fromProfileLocation: URI, toProfileLocation: URI): Promise<void>;
-	updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>, profileLocation?: URI): Promise<ILocalExtension>;
+	updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>, profileLocation: URI): Promise<ILocalExtension>;
+	resetPinnedStateForAllUserExtensions(pinned: boolean): Promise<void>;
 
 	download(extension: IGalleryExtension, operation: InstallOperation, donotVerifySignature: boolean): Promise<URI>;
 

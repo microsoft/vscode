@@ -52,6 +52,18 @@ export class SequenceDiff {
 		);
 	}
 
+	public static assertSorted(sequenceDiffs: SequenceDiff[]): void {
+		let last: SequenceDiff | undefined = undefined;
+		for (const cur of sequenceDiffs) {
+			if (last) {
+				if (!(last.seq1Range.endExclusive <= cur.seq1Range.start && last.seq2Range.endExclusive <= cur.seq2Range.start)) {
+					throw new BugIndicatingError('Sequence diffs must be sorted');
+				}
+			}
+			last = cur;
+		}
+	}
+
 	constructor(
 		public readonly seq1Range: OffsetRange,
 		public readonly seq2Range: OffsetRange,

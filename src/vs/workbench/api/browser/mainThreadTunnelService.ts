@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { MainThreadTunnelServiceShape, MainContext, ExtHostContext, ExtHostTunnelServiceShape, CandidatePortSource, PortAttributesSelector, TunnelDto } from 'vs/workbench/api/common/extHost.protocol';
 import { TunnelDtoConverter } from 'vs/workbench/api/common/extHostTunnelService';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { IRemoteExplorerService, PORT_AUTO_FORWARD_SETTING, PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_OUTPUT } from 'vs/workbench/services/remote/common/remoteExplorerService';
+import { IRemoteExplorerService, PORT_AUTO_FORWARD_SETTING, PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_HYBRID, PORT_AUTO_SOURCE_SETTING_OUTPUT } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { ITunnelProvider, ITunnelService, TunnelCreationOptions, TunnelProviderFeatures, TunnelOptions, RemoteTunnel, ProvidedPortAttributes, PortAttributesProvider, TunnelProtocol } from 'vs/platform/tunnel/common/tunnel';
 import { Disposable } from 'vs/base/common/lifecycle';
 import type { TunnelDescription } from 'vs/platform/remote/common/remoteAuthorityResolver';
@@ -221,6 +221,11 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 				case CandidatePortSource.Output: {
 					Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 						.registerDefaultConfigurations([{ overrides: { 'remote.autoForwardPortsSource': PORT_AUTO_SOURCE_SETTING_OUTPUT } }]);
+					break;
+				}
+				case CandidatePortSource.Hybrid: {
+					Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
+						.registerDefaultConfigurations([{ overrides: { 'remote.autoForwardPortsSource': PORT_AUTO_SOURCE_SETTING_HYBRID } }]);
 					break;
 				}
 				default: // Do nothing, the defaults for these settings should be used.

@@ -15,7 +15,7 @@ import { FILES_ASSOCIATIONS_CONFIG, IFilesConfiguration } from 'vs/platform/file
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionMessageCollector, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IExtensionDescription, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Extensions, IExtensionFeatureTableRenderer, IExtensionFeaturesRegistry, IRenderedData, IRowData, ITableData } from 'vs/workbench/services/extensionManagement/common/extensionFeatures';
@@ -23,6 +23,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { index } from 'vs/base/common/arrays';
 import { MarkdownString } from 'vs/base/common/htmlContent';
+import { isString } from 'vs/base/common/types';
 
 export interface IRawLanguageExtensionPoint {
 	id: string;
@@ -131,18 +132,26 @@ class LanguageTableRenderer extends Disposable implements IExtensionFeatureTable
 	render(manifest: IExtensionManifest): IRenderedData<ITableData> {
 		const contributes = manifest.contributes;
 		const rawLanguages = contributes?.languages || [];
-		const languages = rawLanguages.map(l => ({
-			id: l.id,
-			name: (l.aliases || [])[0] || l.id,
-			extensions: l.extensions || [],
-			hasGrammar: false,
-			hasSnippets: false
-		}));
-
+		const languages: { id: string; name: string; extensions: string[]; hasGrammar: boolean; hasSnippets: boolean }[] = [];
+		for (const l of rawLanguages) {
+			if (isValidLanguageExtensionPoint(l)) {
+				languages.push({
+					id: l.id,
+					name: (l.aliases || [])[0] || l.id,
+					extensions: l.extensions || [],
+					hasGrammar: false,
+					hasSnippets: false
+				});
+			}
+		}
 		const byId = index(languages, l => l.id);
 
 		const grammars = contributes?.grammars || [];
 		grammars.forEach(grammar => {
+			if (!isString(grammar.language)) {
+				// ignore the grammars that are only used as includes in other grammars
+				return;
+			}
 			let language = byId[grammar.language];
 
 			if (language) {
@@ -156,6 +165,10 @@ class LanguageTableRenderer extends Disposable implements IExtensionFeatureTable
 
 		const snippets = contributes?.snippets || [];
 		snippets.forEach(snippet => {
+			if (!isString(snippet.language)) {
+				// ignore invalid snippets
+				return;
+			}
 			let language = byId[snippet.language];
 
 			if (language) {
@@ -234,7 +247,7 @@ export class WorkbenchLanguageService extends LanguageService {
 
 				for (let j = 0, lenJ = extension.value.length; j < lenJ; j++) {
 					const ext = extension.value[j];
-					if (isValidLanguageExtensionPoint(ext, extension.description, extension.collector)) {
+					if (isValidLanguageExtensionPoint(ext, extension.collector)) {
 						let configuration: URI | undefined = undefined;
 						if (ext.configuration) {
 							configuration = joinPath(extension.description.extensionLocation, ext.configuration);
@@ -287,7 +300,7 @@ export class WorkbenchLanguageService extends LanguageService {
 		// Register based on settings
 		if (configuration.files?.associations) {
 			Object.keys(configuration.files.associations).forEach(pattern => {
-				const langId = configuration.files.associations[pattern];
+				const langId = configuration.files!.associations[pattern];
 				if (typeof langId !== 'string') {
 					this.logService.warn(`Ignoring configured 'files.associations' for '${pattern}' because its type is not a string but '${typeof langId}'`);
 
@@ -314,42 +327,42 @@ function isUndefinedOrStringArray(value: string[]): boolean {
 	return value.every(item => typeof item === 'string');
 }
 
-function isValidLanguageExtensionPoint(value: IRawLanguageExtensionPoint, extension: IExtensionDescription, collector: ExtensionMessageCollector): boolean {
+function isValidLanguageExtensionPoint(value: any, collector?: ExtensionMessageCollector): value is IRawLanguageExtensionPoint {
 	if (!value) {
-		collector.error(localize('invalid.empty', "Empty value for `contributes.{0}`", languagesExtPoint.name));
+		collector?.error(localize('invalid.empty', "Empty value for `contributes.{0}`", languagesExtPoint.name));
 		return false;
 	}
 	if (typeof value.id !== 'string') {
-		collector.error(localize('require.id', "property `{0}` is mandatory and must be of type `string`", 'id'));
+		collector?.error(localize('require.id', "property `{0}` is mandatory and must be of type `string`", 'id'));
 		return false;
 	}
 	if (!isUndefinedOrStringArray(value.extensions)) {
-		collector.error(localize('opt.extensions', "property `{0}` can be omitted and must be of type `string[]`", 'extensions'));
+		collector?.error(localize('opt.extensions', "property `{0}` can be omitted and must be of type `string[]`", 'extensions'));
 		return false;
 	}
 	if (!isUndefinedOrStringArray(value.filenames)) {
-		collector.error(localize('opt.filenames', "property `{0}` can be omitted and must be of type `string[]`", 'filenames'));
+		collector?.error(localize('opt.filenames', "property `{0}` can be omitted and must be of type `string[]`", 'filenames'));
 		return false;
 	}
 	if (typeof value.firstLine !== 'undefined' && typeof value.firstLine !== 'string') {
-		collector.error(localize('opt.firstLine', "property `{0}` can be omitted and must be of type `string`", 'firstLine'));
+		collector?.error(localize('opt.firstLine', "property `{0}` can be omitted and must be of type `string`", 'firstLine'));
 		return false;
 	}
 	if (typeof value.configuration !== 'undefined' && typeof value.configuration !== 'string') {
-		collector.error(localize('opt.configuration', "property `{0}` can be omitted and must be of type `string`", 'configuration'));
+		collector?.error(localize('opt.configuration', "property `{0}` can be omitted and must be of type `string`", 'configuration'));
 		return false;
 	}
 	if (!isUndefinedOrStringArray(value.aliases)) {
-		collector.error(localize('opt.aliases', "property `{0}` can be omitted and must be of type `string[]`", 'aliases'));
+		collector?.error(localize('opt.aliases', "property `{0}` can be omitted and must be of type `string[]`", 'aliases'));
 		return false;
 	}
 	if (!isUndefinedOrStringArray(value.mimetypes)) {
-		collector.error(localize('opt.mimetypes', "property `{0}` can be omitted and must be of type `string[]`", 'mimetypes'));
+		collector?.error(localize('opt.mimetypes', "property `{0}` can be omitted and must be of type `string[]`", 'mimetypes'));
 		return false;
 	}
 	if (typeof value.icon !== 'undefined') {
 		if (typeof value.icon !== 'object' || typeof value.icon.light !== 'string' || typeof value.icon.dark !== 'string') {
-			collector.error(localize('opt.icon', "property `{0}` can be omitted and must be of type `object` with properties `{1}` and `{2}` of type `string`", 'icon', 'light', 'dark'));
+			collector?.error(localize('opt.icon', "property `{0}` can be omitted and must be of type `object` with properties `{1}` and `{2}` of type `string`", 'icon', 'light', 'dark'));
 			return false;
 		}
 	}

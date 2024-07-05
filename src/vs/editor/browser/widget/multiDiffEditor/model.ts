@@ -3,14 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
+import { Event, IValueWithChangeEvent } from 'vs/base/common/event';
 import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ITextModel } from 'vs/editor/common/model';
 import { ContextKeyValue } from 'vs/platform/contextkey/common/contextkey';
 
 export interface IMultiDiffEditorModel {
-	readonly documents: readonly LazyPromise<IDocumentDiffItem>[];
-	readonly onDidChange: Event<void>;
+	readonly documents: IValueWithChangeEvent<readonly LazyPromise<IDocumentDiffItem>[]>;
 	readonly contextKeys?: Record<string, ContextKeyValue>;
 }
 

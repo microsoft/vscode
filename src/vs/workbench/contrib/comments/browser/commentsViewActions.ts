@@ -48,7 +48,7 @@ export class CommentsFilters extends Disposable {
 	set showUnresolved(showUnresolved: boolean) {
 		if (this._showUnresolved.get() !== showUnresolved) {
 			this._showUnresolved.set(showUnresolved);
-			this._onDidChange.fire(<CommentsFiltersChangeEvent>{ showUnresolved: true });
+			this._onDidChange.fire({ showUnresolved: true });
 		}
 	}
 
@@ -59,7 +59,7 @@ export class CommentsFilters extends Disposable {
 	set showResolved(showResolved: boolean) {
 		if (this._showResolved.get() !== showResolved) {
 			this._showResolved.set(showResolved);
-			this._onDidChange.fire(<CommentsFiltersChangeEvent>{ showResolved: true });
+			this._onDidChange.fire({ showResolved: true });
 		}
 	}
 

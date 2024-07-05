@@ -6,14 +6,14 @@
 import { localize } from 'vs/nls';
 import { mark } from 'vs/base/common/performance';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Dimension, EventHelper, EventType, ModifierKeyEmitter, addDisposableListener, cloneGlobalStylesheets, copyAttributes, createLinkElement, createMetaElement, getActiveWindow, getClientArea, getWindowId, isGlobalStylesheet, position, registerWindow, sharedMutationObserver, trackAttributes } from 'vs/base/browser/dom';
+import { Dimension, EventHelper, EventType, ModifierKeyEmitter, addDisposableListener, cloneGlobalStylesheets, copyAttributes, createLinkElement, createMetaElement, getActiveWindow, getClientArea, getWindowId, isGlobalStylesheet, isHTMLElement, position, registerWindow, sharedMutationObserver, trackAttributes } from 'vs/base/browser/dom';
 import { CodeWindow, ensureCodeWindow, mainWindow } from 'vs/base/browser/window';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { isWeb } from 'vs/base/common/platform';
+import { isFirefox, isWeb } from 'vs/base/common/platform';
 import { IRectangle, WindowMinimumSize } from 'vs/platform/window/common/window';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
@@ -23,6 +23,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Barrier } from 'vs/base/common/async';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { coalesce } from 'vs/base/common/arrays';
+import { getZoomLevel } from 'vs/base/browser/browser';
 
 export const IAuxiliaryWindowService = createDecorator<IAuxiliaryWindowService>('auxiliaryWindowService');
 
@@ -31,8 +33,15 @@ export interface IAuxiliaryWindowOpenEvent {
 	readonly disposables: DisposableStore;
 }
 
+export enum AuxiliaryWindowMode {
+	Maximized,
+	Normal,
+	Fullscreen
+}
+
 export interface IAuxiliaryWindowOpenOptions {
 	readonly bounds?: Partial<IRectangle>;
+	readonly mode?: AuxiliaryWindowMode;
 	readonly zoomLevel?: number;
 }
 
@@ -43,6 +52,8 @@ export interface IAuxiliaryWindowService {
 	readonly onDidOpenAuxiliaryWindow: Event<IAuxiliaryWindowOpenEvent>;
 
 	open(options?: IAuxiliaryWindowOpenOptions): Promise<IAuxiliaryWindow>;
+
+	getWindow(windowId: number): IAuxiliaryWindow | undefined;
 }
 
 export interface BeforeAuxiliaryWindowUnloadEvent {
@@ -63,6 +74,8 @@ export interface IAuxiliaryWindow extends IDisposable {
 	readonly container: HTMLElement;
 
 	layout(): void;
+
+	createState(): IAuxiliaryWindowOpenOptions;
 }
 
 export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
@@ -180,6 +193,18 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 		this._onDidLayout.fire(dimension);
 	}
 
+	createState(): IAuxiliaryWindowOpenOptions {
+		return {
+			bounds: {
+				x: this.window.screenX,
+				y: this.window.screenY,
+				width: this.window.outerWidth,
+				height: this.window.outerHeight
+			},
+			zoomLevel: getZoomLevel(this.window)
+		};
+	}
+
 	override dispose(): void {
 		if (this._store.isDisposed) {
 			return;
@@ -254,7 +279,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		type AuxiliaryWindowClassification = {
 			owner: 'bpasero';
 			comment: 'An event that fires when an auxiliary window is opened';
-			bounds: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Has window bounds provided.' };
+			bounds: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Has window bounds provided.' };
 		};
 		type AuxiliaryWindowOpenEvent = {
 			bounds: boolean;
@@ -287,9 +312,9 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 			height
 		};
 
-		if (newWindowBounds.x === activeWindowBounds.x && newWindowBounds.y === activeWindowBounds.y) {
+		if (!options?.bounds && newWindowBounds.x === activeWindowBounds.x && newWindowBounds.y === activeWindowBounds.y) {
 			// Offset the new window a bit so that it does not overlap
-			// with the active window
+			// with the active window, unless bounds are provided
 			newWindowBounds = {
 				...newWindowBounds,
 				x: newWindowBounds.x + 30,
@@ -297,7 +322,17 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 			};
 		}
 
-		const auxiliaryWindow = mainWindow.open('about:blank', undefined, `popup=yes,left=${newWindowBounds.x},top=${newWindowBounds.y},width=${newWindowBounds.width},height=${newWindowBounds.height}`);
+		const features = coalesce([
+			'popup=yes',
+			`left=${newWindowBounds.x}`,
+			`top=${newWindowBounds.y}`,
+			`width=${newWindowBounds.width}`,
+			`height=${newWindowBounds.height}`,
+			options?.mode === AuxiliaryWindowMode.Maximized ? 'window-maximized=yes' : undefined, 	// non-standard property
+			options?.mode === AuxiliaryWindowMode.Fullscreen ? 'window-fullscreen=yes' : undefined 	// non-standard property
+		]);
+
+		const auxiliaryWindow = mainWindow.open(isFirefox ? '' /* FF immediately fires an unload event if using about:blank */ : 'about:blank', undefined, features.join(','));
 		if (!auxiliaryWindow && isWeb) {
 			return (await this.dialogService.prompt({
 				type: Severity.Warning,
@@ -426,7 +461,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 				for (const node of mutation.addedNodes) {
 
 					// <style>/<link> element was added
-					if (node instanceof HTMLElement && (node.tagName.toLowerCase() === 'style' || node.tagName.toLowerCase() === 'link')) {
+					if (isHTMLElement(node) && (node.tagName.toLowerCase() === 'style' || node.tagName.toLowerCase() === 'link')) {
 						cloneNode(node);
 					}
 
@@ -474,6 +509,10 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		mark('code/auxiliaryWindow/didApplyHTML');
 
 		return container;
+	}
+
+	getWindow(windowId: number): IAuxiliaryWindow | undefined {
+		return this.windows.get(windowId);
 	}
 }
 

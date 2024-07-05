@@ -21,6 +21,7 @@ import { IEditorConfiguration } from 'vs/editor/common/config/editorConfiguratio
 import { AccessibilitySupport, IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { getWindow, getWindowById } from 'vs/base/browser/dom';
 import { PixelRatio } from 'vs/base/browser/pixelRatio';
+import { MenuId } from 'vs/platform/actions/common/actions';
 
 export interface IEditorConstructionOptions extends IEditorOptions {
 	/**
@@ -43,6 +44,7 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 	public readonly onDidChangeFast: Event<ConfigurationChangedEvent> = this._onDidChangeFast.event;
 
 	public readonly isSimpleWidget: boolean;
+	public readonly contextMenuId: MenuId;
 	private readonly _containerObserver: ElementSizeObserver;
 
 	private _isDominatedByLongLines: boolean = false;
@@ -68,12 +70,14 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 
 	constructor(
 		isSimpleWidget: boolean,
+		contextMenuId: MenuId,
 		options: Readonly<IEditorConstructionOptions>,
 		container: HTMLElement | null,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
 		super();
 		this.isSimpleWidget = isSimpleWidget;
+		this.contextMenuId = contextMenuId;
 		this._containerObserver = this._register(new ElementSizeObserver(container, options.dimension));
 		this._targetWindowId = getWindow(container).vscodeWindowId;
 

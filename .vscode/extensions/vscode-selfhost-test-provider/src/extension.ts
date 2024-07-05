@@ -1,13 +1,15 @@
-/*---------------------------------------------------------
- * Copyright (C) Microsoft Corporation. All rights reserved.
- *--------------------------------------------------------*/
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 
 import { randomBytes } from 'crypto';
 import { tmpdir } from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { coverageContext } from './coverageProvider';
+import { V8CoverageFile } from './coverageProvider';
 import { FailingDeepStrictEqualAssertFixer } from './failingDeepStrictEqualAssertFixer';
+import { FailureTracker } from './failureTracker';
 import { registerSnapshotUpdate } from './snapshot';
 import { scanTestOutput } from './testOutputScanner';
 import {
@@ -39,6 +41,17 @@ export async function activate(context: vscode.ExtensionContext) {
 	const ctrl = vscode.tests.createTestController('selfhost-test-controller', 'VS Code Tests');
 	const fileChangedEmitter = new vscode.EventEmitter<FileChangeEvent>();
 
+	context.subscriptions.push(vscode.tests.registerTestFollowupProvider({
+		async provideFollowup(_result, test, taskIndex, messageIndex, _token) {
+			return [{
+				title: '$(sparkle) Fix with Copilot',
+				command: 'github.copilot.tests.fixTestFailure',
+				arguments: [{ source: 'peekFollowup', test, message: test.taskStates[taskIndex].messages[messageIndex] }]
+			}];
+		},
+	}));
+
+
 	ctrl.resolveHandler = async test => {
 		if (!test) {
 			context.subscriptions.push(await startWatchingWorkspace(ctrl, fileChangedEmitter));
@@ -52,6 +65,12 @@ export async function activate(context: vscode.ExtensionContext) {
 			await data.updateFromDisk(ctrl, test);
 		}
 	};
+
+	guessWorkspaceFolder().then(folder => {
+		if (folder) {
+			context.subscriptions.push(new FailureTracker(context, folder.uri.fsPath));
+		}
+	});
 
 	const createRunHandler = (
 		runnerCtor: { new(folder: vscode.WorkspaceFolder): VSCodeTestRunner },
@@ -77,24 +96,30 @@ export async function activate(context: vscode.ExtensionContext) {
 			let coverageDir: string | undefined;
 			let currentArgs = args;
 			if (kind === vscode.TestRunProfileKind.Coverage) {
-				coverageDir = path.join(tmpdir(), `vscode-test-coverage-${randomBytes(8).toString('hex')}`);
-				currentArgs = [
-					...currentArgs,
-					'--coverage',
-					'--coveragePath',
-					coverageDir,
-					'--coverageFormats',
-					'json',
-					'--coverageFormats',
-					'html',
-				];
+				// todo: browser runs currently don't support per-test coverage
+				if (args.includes('--browser')) {
+					coverageDir = path.join(
+						tmpdir(),
+						`vscode-test-coverage-${randomBytes(8).toString('hex')}`
+					);
+					currentArgs = [
+						...currentArgs,
+						'--coverage',
+						'--coveragePath',
+						coverageDir,
+						'--coverageFormats',
+						'json',
+					];
+				} else {
+					currentArgs = [...currentArgs, '--per-test-coverage'];
+				}
 			}
 
 			return await scanTestOutput(
 				map,
 				task,
 				kind === vscode.TestRunProfileKind.Debug
-					? await runner.debug(currentArgs, req.include)
+					? await runner.debug(task, currentArgs, req.include)
 					: await runner.run(currentArgs, req.include),
 				coverageDir,
 				cancellationToken
@@ -171,7 +196,8 @@ export async function activate(context: vscode.ExtensionContext) {
 		true
 	);
 
-	coverage.loadDetailedCoverage = coverageContext.loadDetailedCoverage;
+	coverage.loadDetailedCoverage = async (_run, coverage) => coverage instanceof V8CoverageFile ? coverage.details : [];
+	coverage.loadDetailedCoverageForTest = async (_run, coverage, test) => coverage instanceof V8CoverageFile ? coverage.testDetails(test) : [];
 
 	for (const [name, arg] of browserArgs) {
 		const cfg = ctrl.createRunProfile(

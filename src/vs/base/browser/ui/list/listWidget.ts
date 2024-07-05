@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDragAndDropData } from 'vs/base/browser/dnd';
-import { asCssValueWithDefault, createStyleSheet, Dimension, EventHelper, getActiveElement, getWindow, isActiveElement, isMouseEvent } from 'vs/base/browser/dom';
+import { asCssValueWithDefault, createStyleSheet, Dimension, EventHelper, getActiveElement, getWindow, isActiveElement, isHTMLElement, isMouseEvent } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Gesture } from 'vs/base/browser/touch';
@@ -635,7 +635,7 @@ class DOMFocusController<T> implements IDisposable {
 
 		const tabIndexElement = focusedDomElement.querySelector('[tabIndex]');
 
-		if (!tabIndexElement || !(tabIndexElement instanceof HTMLElement) || tabIndexElement.tabIndex === -1) {
+		if (!tabIndexElement || !(isHTMLElement(tabIndexElement)) || tabIndexElement.tabIndex === -1) {
 			return;
 		}
 
@@ -1094,6 +1094,9 @@ export interface IListStyles {
 	listHoverOutline: string | undefined;
 	treeIndentGuidesStroke: string | undefined;
 	treeInactiveIndentGuidesStroke: string | undefined;
+	treeStickyScrollBackground: string | undefined;
+	treeStickyScrollBorder: string | undefined;
+	treeStickyScrollShadow: string | undefined;
 	tableColumnsBorder: string | undefined;
 	tableOddRowsBackgroundColor: string | undefined;
 }
@@ -1124,7 +1127,10 @@ export const unthemedListStyles: IListStyles = {
 	listFocusOutline: undefined,
 	listInactiveFocusOutline: undefined,
 	listSelectionOutline: undefined,
-	listHoverOutline: undefined
+	listHoverOutline: undefined,
+	treeStickyScrollBackground: undefined,
+	treeStickyScrollBorder: undefined,
+	treeStickyScrollShadow: undefined
 };
 
 const DefaultOptions: IListOptions<any> = {
