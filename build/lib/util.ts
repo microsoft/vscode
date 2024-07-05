@@ -512,6 +512,6 @@ export function buildDate(outDir: string) {
 
 		resolve();
 	});
-	result.taskName = 'build-add-date-to-product-json';
+	result.taskName = 'build-date-file';
 	return result;
 }

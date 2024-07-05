@@ -419,7 +419,7 @@ function buildDate(outDir) {
         log(`Reading ${path.join(outDirectory, 'date')} is ${fs.readFileSync(path.join(outDirectory, 'date'), 'utf8')}`);
         resolve();
     });
-    result.taskName = 'build-add-date-to-product-json';
+    result.taskName = 'build-date-file';
     return result;
 }
 //# sourceMappingURL=util.js.map
