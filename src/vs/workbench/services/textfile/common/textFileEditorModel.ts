@@ -251,7 +251,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		const softUndo = options?.soft;
 		if (!softUndo) {
 			try {
-				await this.forceResolveFromFile();
+				await this.forceResolveFromFile(true);
 			} catch (error) {
 
 				// FileNotFound means the file got deleted meanwhile, so ignore it
@@ -653,7 +653,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 	}
 
-	private async forceResolveFromFile(): Promise<void> {
+	private async forceResolveFromFile(forceFileStatUpdate?: boolean): Promise<void> {
 		if (this.isDisposed()) {
 			return; // return early when the model is invalid
 		}
@@ -668,6 +668,11 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			reload: { async: false },
 			forceReadFromFile: true
 		});
+
+		// When called following a revert it is possible that the reinstated file has an earlier mtime,
+		// for example by an SCM extension's cancel checkout operation that reinstates an older file and then executes the revert command,
+		// so forceFileStat is used by that path here
+		this.updateLastResolvedFileStat(await this.fileService.resolve(this.resource, { resolveMetadata: true }), forceFileStatUpdate);
 	}
 
 	//#endregion
@@ -998,11 +1003,11 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 	}
 
-	private updateLastResolvedFileStat(newFileStat: IFileStatWithMetadata): void {
+	private updateLastResolvedFileStat(newFileStat: IFileStatWithMetadata, force?: boolean): void {
 		const oldReadonly = this.isReadonly();
 
-		// First resolve - just take
-		if (!this.lastResolvedFileStat) {
+		// First resolve, or instructed to force - just take
+		if (!this.lastResolvedFileStat || force) {
 			this.lastResolvedFileStat = newFileStat;
 		}
 
