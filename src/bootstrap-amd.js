@@ -15,9 +15,18 @@
 const isESM = false;
 // ESM-comment-end
 // ESM-uncomment-begin
+// import * as path from 'path';
+// import { fileURLToPath } from 'url';
+// import { createRequire } from 'node:module';
+// import { product, pkg } from './bootstrap-meta.js';
+// import * as bootstrap from './bootstrap.js';
+// import * as performance from './vs/base/common/performance.js';
+//
+// const require = createRequire(import.meta.url);
 // const isESM = true;
+// const module = { exports: {} };
+// const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // ESM-uncomment-end
-const requireExtension = (isESM ? '.cjs' : '');
 
 // Store the node.js require function in a variable
 // before loading our AMD loader to avoid issues
@@ -29,7 +38,12 @@ globalThis._VSCODE_NODE_MODULES = new Proxy(Object.create(null), { get: (_target
 
 // VSCODE_GLOBALS: package/product.json
 /** @type Partial<IProductConfiguration> */
+// ESM-comment-begin
 globalThis._VSCODE_PRODUCT_JSON = require('./bootstrap-meta').product;
+// ESM-comment-end
+// ESM-uncomment-begin
+// globalThis._VSCODE_PRODUCT_JSON = { ...product };
+// ESM-uncomment-end
 if (process.env['VSCODE_DEV']) {
 	// Patch product overrides when running out of sources
 	try {
@@ -38,18 +52,22 @@ if (process.env['VSCODE_DEV']) {
 		globalThis._VSCODE_PRODUCT_JSON = Object.assign(globalThis._VSCODE_PRODUCT_JSON, overrides);
 	} catch (error) { /* ignore */ }
 }
+// ESM-comment-begin
 globalThis._VSCODE_PACKAGE_JSON = require('./bootstrap-meta').pkg;
+// ESM-comment-end
+// ESM-uncomment-begin
+// globalThis._VSCODE_PACKAGE_JSON = { ...pkg };
+// ESM-uncomment-end
 
 // @ts-ignore
 // VSCODE_GLOBALS: file root of all resources
 globalThis._VSCODE_FILE_ROOT = __dirname;
 
+// ESM-comment-begin
 const bootstrap = require('./bootstrap');
-const performance = require(`./vs/base/common/performance${requireExtension}`);
+const performance = require(`./vs/base/common/performance`);
+// ESM-comment-end
 const fs = require('fs');
-
-
-
 
 /** @type {Promise<INLSConfiguration | undefined> | undefined} */
 let setupNLSResult = undefined;
@@ -133,21 +151,14 @@ async function doSetupNLS() {
 
 //#endregion
 
-/**
- * @param {string=} entrypoint
- * @param {(value: any) => void=} onLoad
- * @param {(err: Error) => void=} onError
- */
-let load;
-
 if (isESM) {
 
 	/**
-	 * @param {string} entrypoint
-	 * @param {(value: any) => void} onLoad
-	 * @param {(err: Error) => void} onError
+	 * @param {string=} entrypoint
+	 * @param {(value: any) => void} [onLoad]
+	 * @param {(err: Error) => void} [onError]
 	 */
-	load = function (entrypoint, onLoad, onError) {
+	module.exports.load = function (entrypoint, onLoad, onError) {
 		if (!entrypoint) {
 			return;
 		}
@@ -185,10 +196,10 @@ if (isESM) {
 
 	/**
 	 * @param {string=} entrypoint
-	 * @param {(value: any) => void=} onLoad
-	 * @param {(err: Error) => void=} onError
+	 * @param {(value: any) => void} [onLoad]
+	 * @param {(err: Error) => void} [onError]
 	 */
-	load = function (entrypoint, onLoad, onError) {
+	module.exports.load = function (entrypoint, onLoad, onError) {
 		if (!entrypoint) {
 			return;
 		}
@@ -213,4 +224,6 @@ if (isESM) {
 	};
 }
 
-exports.load = load;
+// ESM-uncomment-begin
+// export const load = module.exports.load;
+// ESM-uncomment-end

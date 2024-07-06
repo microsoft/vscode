@@ -7,18 +7,27 @@
 'use strict';
 
 // ESM-comment-begin
+const path = require('path');
+const fs = require('fs');
+
 const isESM = false;
 // ESM-comment-end
 // ESM-uncomment-begin
+// import * as path from 'path';
+// import * as fs from 'fs';
+// import { fileURLToPath } from 'url';
+// import { createRequire } from 'node:module';
+//
+// const require = createRequire(import.meta.url);
 // const isESM = true;
+// const module = { exports: {} };
+// const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // ESM-uncomment-end
 
 // Setup current working directory in all our node & electron processes
 // - Windows: call `process.chdir()` to always set application folder as cwd
 // -  all OS: store the `process.cwd()` inside `VSCODE_CWD` for consistent lookups
 function setupCurrentWorkingDirectory() {
-	const path = require('path');
-
 	try {
 
 		// Store the `process.cwd()` inside `VSCODE_CWD`
@@ -45,7 +54,7 @@ setupCurrentWorkingDirectory();
  *
  * @param {string} injectPath
  */
-exports.injectNodeModuleLookupPath = function (injectPath) {
+module.exports.injectNodeModuleLookupPath = function (injectPath) {
 	if (!injectPath) {
 		throw new Error('Missing injectPath');
 	}
@@ -57,11 +66,7 @@ exports.injectNodeModuleLookupPath = function (injectPath) {
 		// SEE https://nodejs.org/docs/latest/api/module.html#initialize
 		const { pathToFileURL } = require('node:url');
 		Module.register('./server-loader.mjs', { parentURL: pathToFileURL(__filename), data: injectPath });
-
 	} else {
-
-		const path = require('path');
-
 		const nodeModulesPath = path.join(__dirname, '../node_modules');
 
 		// @ts-ignore
@@ -84,7 +89,7 @@ exports.injectNodeModuleLookupPath = function (injectPath) {
 	}
 };
 
-exports.removeGlobalNodeModuleLookupPaths = function () {
+module.exports.removeGlobalNodeModuleLookupPaths = function () {
 	const Module = require('module');
 	// @ts-ignore
 	const globalPaths = Module.globalPaths;
@@ -112,10 +117,7 @@ exports.removeGlobalNodeModuleLookupPaths = function () {
  * @param {Partial<import('./vs/base/common/product').IProductConfiguration>} product
  * @returns {{ portableDataPath: string; isPortable: boolean; }}
  */
-exports.configurePortable = function (product) {
-	const fs = require('fs');
-	const path = require('path');
-
+module.exports.configurePortable = function (product) {
 	const appRoot = path.dirname(__dirname);
 
 	/**
@@ -175,3 +177,9 @@ exports.configurePortable = function (product) {
 		isPortable
 	};
 };
+
+// ESM-uncomment-begin
+// export const injectNodeModuleLookupPath = module.exports.injectNodeModuleLookupPath;
+// export const removeGlobalNodeModuleLookupPaths = module.exports.removeGlobalNodeModuleLookupPaths;
+// export const configurePortable = module.exports.configurePortable;
+// ESM-uncomment-end

@@ -13,7 +13,8 @@
 // ESM-uncomment-end
 
 (function () {
-	function factory(path, os, productName, cwd) {
+
+	function factory() {
 		// First group matches a double quoted string
 		// Second group matches a single quoted string
 		// Third group matches a multi line comment

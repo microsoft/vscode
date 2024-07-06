@@ -5,15 +5,17 @@
 
 /// <reference path="../../../../typings/require.d.ts" />
 
+//@ts-check
+'use strict';
+
 // ESM-uncomment-begin
-// const path = globalThis._VSCODE_NODE_MODULES.path;
-// const os = globalThis._VSCODE_NODE_MODULES.os;
-// let __exports = {};
+// import * as os from 'os';
+// import * as path from 'path';
+//
+// const module = { exports: {} };
 // ESM-uncomment-end
 
-//@ts-check
 (function () {
-	'use strict';
 
 	/**
 	 * @import { NativeParsedArgs } from '../../environment/common/argv'
@@ -114,7 +116,6 @@
 		};
 	}
 
-	// ESM-comment-begin
 	if (typeof define === 'function') {
 		define(['path', 'os', 'vs/base/common/process'], function (
 			/** @type {typeof import('path')} */ path,
@@ -124,20 +125,17 @@
 			return factory(path, os, process.cwd()); // amd
 		});
 	} else if (typeof module === 'object' && typeof module.exports === 'object') {
+		// ESM-comment-begin
 		const path = require('path');
 		const os = require('os');
+		// ESM-comment-end
 
 		module.exports = factory(path, os, process.env['VSCODE_CWD'] || process.cwd()); // commonjs
 	} else {
 		throw new Error('Unknown context');
 	}
-	// ESM-comment-end
-
-	// ESM-uncomment-begin
-	// __exports = factory(path, os, process.env['VSCODE_CWD'] || process.cwd()); // esm
-	// ESM-uncomment-end
 }());
 
 // ESM-uncomment-begin
-// export const getUserDataPath = __exports.getUserDataPath;
+// export const getUserDataPath = module.exports.getUserDataPath;
 // ESM-uncomment-end

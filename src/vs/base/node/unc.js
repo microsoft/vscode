@@ -5,12 +5,12 @@
 
 /// <reference path="../../../typings/require.d.ts" />
 
+//@ts-check
+'use strict';
+
 // ESM-uncomment-begin
 // const module = { exports: {} };
 // ESM-uncomment-end
-
-//@ts-check
-'use strict';
 
 (function () {
 	function factory() {

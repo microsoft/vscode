@@ -12,25 +12,42 @@
  */
 
 // ESM-comment-begin
-const isESM = false;
-// ESM-comment-end
-// ESM-uncomment-begin
-// const isESM = true;
-// ESM-uncomment-end
-const requireExtension = (isESM ? '.cjs' : '');
-const perf = require(`./vs/base/common/performance${requireExtension}`);
-perf.mark('code/didStartMain');
-
 const path = require('path');
 const fs = require('original-fs');
 const os = require('os');
+const { app, protocol, crashReporter, Menu, contentTracing } = require('electron');
+const minimist = require('minimist');
 const bootstrap = require('./bootstrap');
 const bootstrapNode = require('./bootstrap-node');
-const { getUserDataPath } = require(`./vs/platform/environment/node/userDataPath${requireExtension}`);
-const { parse } = require(`./vs/base/common/jsonc${requireExtension}`);
-const { getUNCHost, addUNCHostToAllowlist } = require(`./vs/base/node/unc${requireExtension}`);
-const product = require(`./bootstrap-meta${requireExtension}`).product;
-const { app, protocol, crashReporter, Menu } = require('electron');
+const bootstrapAmd = require('./bootstrap-amd');
+const product = require(`./bootstrap-meta`).product;
+const { parse } = require(`./vs/base/common/jsonc`);
+const { getUserDataPath } = require(`./vs/platform/environment/node/userDataPath`);
+const perf = require(`./vs/base/common/performance`);
+const { resolveNLSConfiguration } = require('./vs/base/node/nls');
+const { getUNCHost, addUNCHostToAllowlist } = require(`./vs/base/node/unc`);
+// ESM-comment-end
+// ESM-uncomment-begin
+// import * as path from 'path';
+// import * as fs from 'original-fs';
+// import * as os from 'os';
+// import { fileURLToPath } from 'url';
+// import { app, protocol, crashReporter, Menu, contentTracing } from 'electron';
+// import minimist from 'minimist';
+// import * as bootstrap from './bootstrap.js';
+// import * as bootstrapNode from './bootstrap-node.js';
+// import * as bootstrapAmd from './bootstrap-amd.js';
+// import { product } from './bootstrap-meta.js';
+// import { parse } from './vs/base/common/jsonc.js';
+// import { getUserDataPath } from './vs/platform/environment/node/userDataPath.js';
+// import * as perf from './vs/base/common/performance.js';
+// import { resolveNLSConfiguration } from './vs/base/node/nls.js';
+// import { getUNCHost, addUNCHostToAllowlist } from './vs/base/node/unc.js';
+//
+// const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// ESM-uncomment-end
+
+perf.mark('code/didStartMain');
 
 // Enable portable support
 const portable = bootstrapNode.configurePortable(product);
@@ -128,8 +145,6 @@ let nlsConfigurationPromise = undefined;
 const osLocale = processZhLocale((app.getPreferredSystemLanguages()?.[0] ?? 'en').toLowerCase());
 const userLocale = getUserDefinedLocale(argvConfig);
 if (userLocale) {
-	// @ts-ignore
-	const { resolveNLSConfiguration } = require('./vs/base/node/nls${requireExtension}');
 	nlsConfigurationPromise = resolveNLSConfiguration({
 		userLocale,
 		osLocale,
@@ -155,8 +170,6 @@ if (process.platform === 'win32' || process.platform === 'linux') {
 // Load our code once ready
 app.once('ready', function () {
 	if (args['trace']) {
-		const contentTracing = require('electron').contentTracing;
-
 		const traceOptions = {
 			categoryFilter: args['trace-category-filter'] || '*',
 			traceOptions: args['trace-options'] || 'record-until-full,enable-sampling'
@@ -195,7 +208,7 @@ function startup(codeCachePath, nlsConfig) {
 
 	// Load main in AMD
 	perf.mark('code/willLoadMainBundle');
-	require('./bootstrap-amd').load('vs/code/electron-main/main', () => {
+	bootstrapAmd.load('vs/code/electron-main/main', () => {
 		perf.mark('code/didLoadMainBundle');
 	});
 }
@@ -505,8 +518,6 @@ function getJSFlags(cliArgs) {
  * @returns {NativeParsedArgs}
  */
 function parseCLIArgs() {
-	const minimist = require('minimist');
-
 	return minimist(process.argv, {
 		string: [
 			'user-data-dir',
@@ -675,7 +686,6 @@ async function resolveNlsConfiguration() {
 	// See above the comment about the loader and case sensitiveness
 	userLocale = processZhLocale(userLocale.toLowerCase());
 
-	const { resolveNLSConfiguration } = require(`./vs/base/node/nls${requireExtension}`);
 	return resolveNLSConfiguration({
 		userLocale,
 		osLocale,
