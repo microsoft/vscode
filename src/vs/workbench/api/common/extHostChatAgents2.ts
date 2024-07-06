@@ -237,8 +237,7 @@ class ChatAgentResponseStream {
 					if (part instanceof extHostTypes.ChatResponseReferencePart) {
 						// Ensure variable reference values get fixed up
 						this.reference(part.value, part.iconPath);
-					}
-					else {
+					} else {
 						const dto = typeConvert.ChatResponsePart.from(part, that._commandsConverter, that._sessionDisposables);
 						_report(dto);
 					}
