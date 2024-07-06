@@ -114,10 +114,10 @@
   resolved "https://registry.yarnpkg.com/@vscode/windows-registry/-/windows-registry-1.1.0.tgz#03dace7c29c46f658588b9885b9580e453ad21f9"
   integrity sha512-5AZzuWJpGscyiMOed0IuyEwt6iKmV5Us7zuwCDCFYMIq7tsvooO9BUiciywsvuthGz6UG4LSpeDeCxvgMVhnIw==
 
-"@xterm/addon-canvas@0.6.0-beta.20":
-  version "0.6.0-beta.20"
-  resolved "https://registry.yarnpkg.com/@xterm/addon-canvas/-/addon-canvas-0.6.0-beta.20.tgz#078dddef70caf880b2cb121fdda37d301fc13156"
-  integrity sha512-tHhsuqElE7LNiDJPbZzgVpmbcG2Dk6i2vh1EI+DzSByUWScDqLoeJbVPE5Xd2UW2garo24lxErpnIAlsytcA3A==
+"@xterm/addon-canvas@0.7.0":
+  version "0.7.0"
+  resolved "https://registry.yarnpkg.com/@xterm/addon-canvas/-/addon-canvas-0.7.0.tgz#d3a3835f3634e0106e108661315ae14da23e8dd7"
+  integrity sha512-LF5LYcfvefJuJ7QotNRdRSPc9YASAVDeoT5uyXS/nZshZXjYplGXRECBGiznwvhNL2I8bq1Lf5MzRwstsYQ2Iw==
 
 "@xterm/addon-image@0.7.0-beta.18":
   version "0.7.0-beta.18"
