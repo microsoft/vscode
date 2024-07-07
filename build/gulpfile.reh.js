@@ -127,21 +127,7 @@ function getNodeVersion() {
 	return { nodeVersion, internalNodeVersion };
 }
 
-function getNodeChecksum(nodeVersion, platform, arch, glibcPrefix) {
-	let expectedName;
-	switch (platform) {
-		case 'win32':
-			expectedName = product.nodejsRepository !== 'https://nodejs.org' ?
-				`win-${arch}-node.exe` : `win-${arch}/node.exe`;
-			break;
-
-		case 'darwin':
-		case 'alpine':
-		case 'linux':
-			expectedName = `node-v${nodeVersion}${glibcPrefix}-${platform}-${arch}.tar.gz`;
-			break;
-	}
-
+function getNodeChecksum(expectedName) {
 	const nodeJsChecksums = fs.readFileSync(path.join(REPO_ROOT, 'build', 'checksums', 'nodejs.txt'), 'utf8');
 	for (const line of nodeJsChecksums.split('\n')) {
 		const [checksum, name] = line.split(/\s+/);
@@ -196,7 +182,24 @@ function nodejs(platform, arch) {
 	log(`Downloading node.js ${nodeVersion} ${platform} ${arch} from ${product.nodejsRepository}...`);
 
 	const glibcPrefix = process.env['VSCODE_NODE_GLIBC'] ?? '';
-	const checksumSha256 = getNodeChecksum(nodeVersion, platform, arch, glibcPrefix);
+	let expectedName;
+	switch (platform) {
+		case 'win32':
+			expectedName = product.nodejsRepository !== 'https://nodejs.org' ?
+				`win-${arch}-node.exe` : `win-${arch}/node.exe`;
+			break;
+
+		case 'darwin':
+			expectedName = `node-v${nodeVersion}-${platform}-${arch}.tar.gz`;
+			break;
+		case 'linux':
+			expectedName = `node-v${nodeVersion}${glibcPrefix}-${platform}-${arch}.tar.gz`;
+			break;
+		case 'alpine':
+			expectedName = `node-v${nodeVersion}-linux-${arch}-musl.tar.gz`;
+			break;
+	}
+	const checksumSha256 = getNodeChecksum(expectedName);
 
 	if (checksumSha256) {
 		log(`Using SHA256 checksum for checking integrity: ${checksumSha256}`);
@@ -207,13 +210,13 @@ function nodejs(platform, arch) {
 	switch (platform) {
 		case 'win32':
 			return (product.nodejsRepository !== 'https://nodejs.org' ?
-				fetchGithub(product.nodejsRepository, { version: `${nodeVersion}-${internalNodeVersion}`, name: `win-${arch}-node.exe`, checksumSha256 }) :
+				fetchGithub(product.nodejsRepository, { version: `${nodeVersion}-${internalNodeVersion}`, name: expectedName, checksumSha256 }) :
 				fetchUrls(`/dist/v${nodeVersion}/win-${arch}/node.exe`, { base: 'https://nodejs.org', checksumSha256 }))
 				.pipe(rename('node.exe'));
 		case 'darwin':
 		case 'linux':
 			return (product.nodejsRepository !== 'https://nodejs.org' ?
-				fetchGithub(product.nodejsRepository, { version: `${nodeVersion}-${internalNodeVersion}`, name: `node-v${nodeVersion}${glibcPrefix}-${platform}-${arch}.tar.gz`, checksumSha256 }) :
+				fetchGithub(product.nodejsRepository, { version: `${nodeVersion}-${internalNodeVersion}`, name: expectedName, checksumSha256 }) :
 				fetchUrls(`/dist/v${nodeVersion}/node-v${nodeVersion}-${platform}-${arch}.tar.gz`, { base: 'https://nodejs.org', checksumSha256 })
 			).pipe(flatmap(stream => stream.pipe(gunzip()).pipe(untar())))
 				.pipe(filter('**/node'))
@@ -221,7 +224,7 @@ function nodejs(platform, arch) {
 				.pipe(rename('node'));
 		case 'alpine':
 			return product.nodejsRepository !== 'https://nodejs.org' ?
-				fetchGithub(product.nodejsRepository, { version: `${nodeVersion}-${internalNodeVersion}`, name: `node-v${nodeVersion}-${platform}-${arch}.tar.gz`, checksumSha256 })
+				fetchGithub(product.nodejsRepository, { version: `${nodeVersion}-${internalNodeVersion}`, name: expectedName, checksumSha256 })
 					.pipe(flatmap(stream => stream.pipe(gunzip()).pipe(untar())))
 					.pipe(filter('**/node'))
 					.pipe(util.setExecutableBit('**'))
