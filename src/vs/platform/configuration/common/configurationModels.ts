@@ -279,11 +279,18 @@ export class ConfigurationModel implements IConfigurationModel {
 			this.keys.push(key);
 		}
 		if (OVERRIDE_PROPERTY_REGEX.test(key)) {
-			this.overrides.push({
-				identifiers: overrideIdentifiersFromKey(key),
+			const identifiers = overrideIdentifiersFromKey(key);
+			const override = {
+				identifiers,
 				keys: Object.keys(this.contents[key]),
 				contents: toValuesTree(this.contents[key], message => this.logService.error(message)),
-			});
+			};
+			const index = this.overrides.findIndex(o => arrays.equals(o.identifiers, identifiers));
+			if (index !== -1) {
+				this.overrides[index] = override;
+			} else {
+				this.overrides.push(override);
+			}
 		}
 	}
 }

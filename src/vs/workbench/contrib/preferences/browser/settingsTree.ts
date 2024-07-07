@@ -91,7 +91,7 @@ function getIncludeExcludeDisplayValue(element: SettingsTreeSettingElement): IIn
 			// Get source if it's a default value
 			let source: string | undefined;
 			if (defaultValue === data[key] && element.setting.type === 'object' && element.defaultValueSource instanceof Map) {
-				const defaultSource = element.defaultValueSource.get(key);
+				const defaultSource = element.defaultValueSource.get(`${element.setting.key}.${key}`);
 				source = typeof defaultSource === 'string' ? defaultSource : defaultSource?.displayName;
 			}
 
@@ -190,7 +190,7 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 		// Get source if it's a default value
 		let source: string | undefined;
 		if (defaultValue === data[key] && element.setting.type === 'object' && element.defaultValueSource instanceof Map) {
-			const defaultSource = element.defaultValueSource.get(key);
+			const defaultSource = element.defaultValueSource.get(`${element.setting.key}.${key}`);
 			source = typeof defaultSource === 'string' ? defaultSource : defaultSource?.displayName;
 		}
 
