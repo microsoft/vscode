@@ -24,7 +24,7 @@
   },
   "dependencies": {
     "jsonc-parser": "^3.2.0",
-    "@octokit/rest": "19.0.4",
+    "@octokit/rest": "20.1.1",
     "tunnel": "^0.0.6"
   },
   "capabilities": {
