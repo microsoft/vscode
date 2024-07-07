@@ -99,12 +99,11 @@
     "build-notebook": "node ./esbuild"
   },
   "dependencies": {
-    "@vscode/markdown-it-katex": "^1.0.3",
-    "markdown-it": "^12.3.2"
+    "@vscode/markdown-it-katex": "^1.0.3"
   },
   "devDependencies": {
-    "@types/vscode-notebook-renderer": "^1.60.0",
-    "@types/markdown-it": "12.2.3"
+    "@types/markdown-it": "^0.0.0",
+    "@types/vscode-notebook-renderer": "^1.60.0"
   },
   "repository": {
     "type": "git",

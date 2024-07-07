@@ -2,8 +2,7 @@
 	"extends": "../tsconfig.base.json",
 	"compilerOptions": {
 		"outDir": "./out",
-		"types": [],
-		"esModuleInterop": true
+		"types": []
 	},
 	"include": [
 		"src/**/*",
