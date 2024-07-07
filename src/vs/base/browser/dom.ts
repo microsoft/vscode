@@ -1184,6 +1184,11 @@ export function isHTMLDivElement(e: unknown): e is HTMLDivElement {
 	return e instanceof HTMLDivElement || e instanceof getWindow(e as Node).HTMLDivElement;
 }
 
+export function isSVGElement(e: unknown): e is SVGElement {
+	// eslint-disable-next-line no-restricted-syntax
+	return e instanceof SVGElement || e instanceof getWindow(e as Node).SVGElement;
+}
+
 export function isMouseEvent(e: unknown): e is MouseEvent {
 	// eslint-disable-next-line no-restricted-syntax
 	return e instanceof MouseEvent || e instanceof getWindow(e as UIEvent).MouseEvent;

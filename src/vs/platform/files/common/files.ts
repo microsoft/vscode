@@ -1460,7 +1460,7 @@ export interface IGlobPatterns {
 }
 
 export interface IFilesConfiguration {
-	files: IFilesConfigurationNode;
+	files?: IFilesConfigurationNode;
 }
 
 export interface IFilesConfigurationNode {

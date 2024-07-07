@@ -366,8 +366,8 @@ export class ButtonWithDropdownExtensionActionViewItem extends ActionWithDropdow
 
 export class InstallAction extends ExtensionAction {
 
-	static readonly CLASS = `${ExtensionAction.LABEL_ACTION_CLASS} prominent install`;
-	private static readonly HIDE = `${InstallAction.CLASS} hide`;
+	static readonly CLASS = `${this.LABEL_ACTION_CLASS} prominent install`;
+	private static readonly HIDE = `${this.CLASS} hide`;
 
 	protected _manifest: IExtensionManifest | null = null;
 	set manifest(manifest: IExtensionManifest | null) {
@@ -862,8 +862,8 @@ export class UninstallAction extends ExtensionAction {
 
 abstract class AbstractUpdateAction extends ExtensionAction {
 
-	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} prominent update`;
-	private static readonly DisabledClass = `${AbstractUpdateAction.EnabledClass} disabled`;
+	private static readonly EnabledClass = `${this.LABEL_ACTION_CLASS} prominent update`;
+	private static readonly DisabledClass = `${this.EnabledClass} disabled`;
 
 	private readonly updateThrottler = new Throttler();
 
@@ -940,7 +940,7 @@ export class ToggleAutoUpdateForExtensionAction extends ExtensionAction {
 	static readonly LABEL = localize2('enableAutoUpdateLabel', "Auto Update");
 
 	private static readonly EnabledClass = `${ExtensionAction.EXTENSION_ACTION_CLASS} auto-update`;
-	private static readonly DisabledClass = `${ToggleAutoUpdateForExtensionAction.EnabledClass} hide`;
+	private static readonly DisabledClass = `${this.EnabledClass} hide`;
 
 	constructor(
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
@@ -1023,7 +1023,7 @@ export class ToggleAutoUpdatesForPublisherAction extends ExtensionAction {
 export class MigrateDeprecatedExtensionAction extends ExtensionAction {
 
 	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} migrate`;
-	private static readonly DisabledClass = `${MigrateDeprecatedExtensionAction.EnabledClass} disabled`;
+	private static readonly DisabledClass = `${this.EnabledClass} disabled`;
 
 	constructor(
 		private readonly small: boolean,
@@ -1213,7 +1213,7 @@ export class ManageExtensionAction extends DropDownExtensionAction {
 	static readonly ID = 'extensions.manage';
 
 	private static readonly Class = `${ExtensionAction.ICON_ACTION_CLASS} manage ` + ThemeIcon.asClassName(manageExtensionIcon);
-	private static readonly HideManageExtensionClass = `${ManageExtensionAction.Class} hide`;
+	private static readonly HideManageExtensionClass = `${this.Class} hide`;
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -1370,7 +1370,7 @@ export class TogglePreReleaseExtensionAction extends ExtensionAction {
 	static readonly LABEL = localize('togglePreRleaseLabel', "Pre-Release");
 
 	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} pre-release`;
-	private static readonly DisabledClass = `${TogglePreReleaseExtensionAction.EnabledClass} hide`;
+	private static readonly DisabledClass = `${this.EnabledClass} hide`;
 
 	constructor(
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
@@ -1653,7 +1653,7 @@ export class DisableDropDownAction extends ButtonWithDropDownExtensionAction {
 export class ExtensionRuntimeStateAction extends ExtensionAction {
 
 	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} reload`;
-	private static readonly DisabledClass = `${ExtensionRuntimeStateAction.EnabledClass} disabled`;
+	private static readonly DisabledClass = `${this.EnabledClass} disabled`;
 
 	updateWhenCounterExtensionChanges: boolean = true;
 
@@ -1767,7 +1767,7 @@ export class SetColorThemeAction extends ExtensionAction {
 	static readonly TITLE = localize2('workbench.extensions.action.setColorTheme', 'Set Color Theme');
 
 	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} theme`;
-	private static readonly DisabledClass = `${SetColorThemeAction.EnabledClass} disabled`;
+	private static readonly DisabledClass = `${this.EnabledClass} disabled`;
 
 	constructor(
 		@IExtensionService extensionService: IExtensionService,
@@ -1818,7 +1818,7 @@ export class SetFileIconThemeAction extends ExtensionAction {
 	static readonly TITLE = localize2('workbench.extensions.action.setFileIconTheme', 'Set File Icon Theme');
 
 	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} theme`;
-	private static readonly DisabledClass = `${SetFileIconThemeAction.EnabledClass} disabled`;
+	private static readonly DisabledClass = `${this.EnabledClass} disabled`;
 
 	constructor(
 		@IExtensionService extensionService: IExtensionService,
@@ -1868,7 +1868,7 @@ export class SetProductIconThemeAction extends ExtensionAction {
 	static readonly TITLE = localize2('workbench.extensions.action.setProductIconTheme', 'Set Product Icon Theme');
 
 	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} theme`;
-	private static readonly DisabledClass = `${SetProductIconThemeAction.EnabledClass} disabled`;
+	private static readonly DisabledClass = `${this.EnabledClass} disabled`;
 
 	constructor(
 		@IExtensionService extensionService: IExtensionService,
@@ -1919,7 +1919,7 @@ export class SetLanguageAction extends ExtensionAction {
 	static readonly TITLE = localize2('workbench.extensions.action.setDisplayLanguage', 'Set Display Language');
 
 	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} language`;
-	private static readonly DisabledClass = `${SetLanguageAction.EnabledClass} disabled`;
+	private static readonly DisabledClass = `${this.EnabledClass} disabled`;
 
 	constructor(
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
@@ -1955,7 +1955,7 @@ export class ClearLanguageAction extends ExtensionAction {
 	static readonly TITLE = localize2('workbench.extensions.action.clearLanguage', 'Clear Display Language');
 
 	private static readonly EnabledClass = `${ExtensionAction.LABEL_ACTION_CLASS} language`;
-	private static readonly DisabledClass = `${ClearLanguageAction.EnabledClass} disabled`;
+	private static readonly DisabledClass = `${this.EnabledClass} disabled`;
 
 	constructor(
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
@@ -2267,7 +2267,7 @@ export class ConfigureWorkspaceFolderRecommendedExtensionsAction extends Abstrac
 export class ExtensionStatusLabelAction extends Action implements IExtensionContainer {
 
 	private static readonly ENABLED_CLASS = `${ExtensionAction.TEXT_ACTION_CLASS} extension-status-label`;
-	private static readonly DISABLED_CLASS = `${ExtensionStatusLabelAction.ENABLED_CLASS} hide`;
+	private static readonly DISABLED_CLASS = `${this.ENABLED_CLASS} hide`;
 
 	private initialStatus: ExtensionState | null = null;
 	private status: ExtensionState | null = null;
@@ -2370,7 +2370,7 @@ export class ExtensionStatusLabelAction extends Action implements IExtensionCont
 export class ToggleSyncExtensionAction extends DropDownExtensionAction {
 
 	private static readonly IGNORED_SYNC_CLASS = `${ExtensionAction.ICON_ACTION_CLASS} extension-sync ${ThemeIcon.asClassName(syncIgnoredIcon)}`;
-	private static readonly SYNC_CLASS = `${ToggleSyncExtensionAction.ICON_ACTION_CLASS} extension-sync ${ThemeIcon.asClassName(syncEnabledIcon)}`;
+	private static readonly SYNC_CLASS = `${this.ICON_ACTION_CLASS} extension-sync ${ThemeIcon.asClassName(syncEnabledIcon)}`;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,

@@ -61,7 +61,7 @@ import { SettingsTarget } from 'vs/workbench/contrib/preferences/browser/prefere
 import { ISettingOverrideClickEvent, SettingsTreeIndicatorsLabel, getIndicatorsLabelAriaLabel } from 'vs/workbench/contrib/preferences/browser/settingsEditorSettingIndicators';
 import { ITOCEntry } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
 import { ISettingsEditorViewState, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeNewExtensionsElement, SettingsTreeSettingElement, inspectSetting, objectSettingSupportsRemoveDefaultValue, settingKeyToDisplayFormat } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
-import { ExcludeSettingWidget, IIncludeExcludeDataItem, IListDataItem, IObjectDataItem, IObjectEnumOption, IObjectKeySuggester, IObjectValueSuggester, ISettingListChangeEvent, IncludeSettingWidget, ListSettingWidget, ObjectSettingCheckboxWidget, ObjectSettingDropdownWidget, ObjectValue, SettingListEvent } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
+import { ExcludeSettingWidget, IBoolObjectDataItem, IIncludeExcludeDataItem, IListDataItem, IObjectDataItem, IObjectEnumOption, IObjectKeySuggester, IObjectValueSuggester, IncludeSettingWidget, ListSettingWidget, ObjectSettingCheckboxWidget, ObjectSettingDropdownWidget, ObjectValue, SettingListEvent } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
 import { LANGUAGE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU, compareTwoNullableNumbers } from 'vs/workbench/contrib/preferences/common/preferences';
 import { settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
 import { APPLY_ALL_PROFILES_SETTING, IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
@@ -149,6 +149,16 @@ function getObjectValueType(schema: IJSONSchema): ObjectValue['type'] {
 	}
 }
 
+function getObjectEntryValueDisplayValue(type: ObjectValue['type'], data: unknown, options: IObjectEnumOption[]): ObjectValue {
+	if (type === 'boolean') {
+		return { type, data: !!data };
+	} else if (type === 'enum') {
+		return { type, data: '' + data, options };
+	} else {
+		return { type, data: '' + data };
+	}
+}
+
 function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectDataItem[] {
 	const elementDefaultValue: Record<string, unknown> = typeof element.defaultValue === 'object'
 		? element.defaultValue ?? {}
@@ -185,23 +195,6 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 		}
 
 		if (isDefined(objectProperties) && key in objectProperties) {
-			if (element.setting.allKeysAreBoolean) {
-				return {
-					key: {
-						type: 'string',
-						data: key
-					},
-					value: {
-						type: 'boolean',
-						data: data[key]
-					},
-					keyDescription: objectProperties[key].description,
-					removable: false,
-					resetable: true,
-					source
-				} as IObjectDataItem;
-			}
-
 			const valueEnumOptions = getEnumOptionsFromSchema(objectProperties[key]);
 			return {
 				key: {
@@ -209,37 +202,29 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 					data: key,
 					options: wellDefinedKeyEnumOptions,
 				},
-				value: {
-					type: getObjectValueType(objectProperties[key]),
-					data: data[key],
-					options: valueEnumOptions,
-				},
+				value: getObjectEntryValueDisplayValue(getObjectValueType(objectProperties[key]), data[key], valueEnumOptions),
 				keyDescription: objectProperties[key].description,
 				removable: isUndefinedOrNull(defaultValue),
 				resetable: !isUndefinedOrNull(defaultValue),
 				source
-			} as IObjectDataItem;
+			} satisfies IObjectDataItem;
 		}
 
 		// The row is removable if it doesn't have a default value assigned or the setting supports removing the default value.
 		// If a default value is assigned and the user modified the default, it can be reset back to the default.
 		const removable = defaultValue === undefined || objectSettingSupportsRemoveDefaultValue(element.setting.key);
-		const resetable = defaultValue && defaultValue !== data[key];
+		const resetable = !!defaultValue && defaultValue !== data[key];
 		const schema = patternsAndSchemas.find(({ pattern }) => pattern.test(key))?.schema;
 		if (schema) {
 			const valueEnumOptions = getEnumOptionsFromSchema(schema);
 			return {
 				key: { type: 'string', data: key },
-				value: {
-					type: getObjectValueType(schema),
-					data: data[key],
-					options: valueEnumOptions,
-				},
+				value: getObjectEntryValueDisplayValue(getObjectValueType(schema), data[key], valueEnumOptions),
 				keyDescription: schema.description,
 				removable,
 				resetable,
 				source
-			} as IObjectDataItem;
+			} satisfies IObjectDataItem;
 		}
 
 		const additionalValueEnums = getEnumOptionsFromSchema(
@@ -250,17 +235,60 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 
 		return {
 			key: { type: 'string', data: key },
-			value: {
-				type: typeof objectAdditionalProperties === 'object' ? getObjectValueType(objectAdditionalProperties) : 'string',
-				data: data[key],
-				options: additionalValueEnums,
-			},
+			value: getObjectEntryValueDisplayValue(
+				typeof objectAdditionalProperties === 'object' ? getObjectValueType(objectAdditionalProperties) : 'string',
+				data[key],
+				additionalValueEnums,
+			),
 			keyDescription: typeof objectAdditionalProperties === 'object' ? objectAdditionalProperties.description : undefined,
 			removable,
 			resetable,
 			source
-		} as IObjectDataItem;
+		} satisfies IObjectDataItem;
 	}).filter(item => !isUndefinedOrNull(item.value.data));
+}
+
+function getBoolObjectDisplayValue(element: SettingsTreeSettingElement): IBoolObjectDataItem[] {
+	const elementDefaultValue: Record<string, unknown> = typeof element.defaultValue === 'object'
+		? element.defaultValue ?? {}
+		: {};
+
+	const elementScopeValue: Record<string, unknown> = typeof element.scopeValue === 'object'
+		? element.scopeValue ?? {}
+		: {};
+
+	const data = element.isConfigured ?
+		{ ...elementDefaultValue, ...elementScopeValue } :
+		elementDefaultValue;
+
+	const { objectProperties } = element.setting;
+	const displayValues: IBoolObjectDataItem[] = [];
+	for (const key in objectProperties) {
+		const defaultValue = elementDefaultValue[key];
+
+		// Get source if it's a default value
+		let source: string | undefined;
+		if (defaultValue === data[key] && element.setting.type === 'object' && element.defaultValueSource instanceof Map) {
+			const defaultSource = element.defaultValueSource.get(key);
+			source = typeof defaultSource === 'string' ? defaultSource : defaultSource?.displayName;
+		}
+
+		displayValues.push({
+			key: {
+				type: 'string',
+				data: key
+			},
+			value: {
+				type: 'boolean',
+				data: !!data[key]
+			},
+			keyDescription: objectProperties[key].description,
+			removable: false,
+			resetable: true,
+			source
+		});
+	}
+	return displayValues;
 }
 
 function createArraySuggester(element: SettingsTreeSettingElement): IObjectKeySuggester {
@@ -750,9 +778,9 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 	abstract get templateId(): string;
 
 	static readonly CONTROL_CLASS = 'setting-control-focus-target';
-	static readonly CONTROL_SELECTOR = '.' + AbstractSettingRenderer.CONTROL_CLASS;
+	static readonly CONTROL_SELECTOR = '.' + this.CONTROL_CLASS;
 	static readonly CONTENTS_CLASS = 'setting-item-contents';
-	static readonly CONTENTS_SELECTOR = '.' + AbstractSettingRenderer.CONTENTS_CLASS;
+	static readonly CONTENTS_SELECTOR = '.' + this.CONTENTS_CLASS;
 	static readonly ALL_ROWS_SELECTOR = '.monaco-list-row';
 
 	static readonly SETTING_KEY_ATTR = 'data-key';
@@ -1306,16 +1334,29 @@ abstract class AbstractSettingObjectRenderer extends AbstractSettingRenderer imp
 		}
 
 		this.addSettingElementFocusHandler(template);
-
-		common.toDispose.add(widget.onDidChangeList(e => {
-			this.onDidChangeObject(template, e);
-		}));
-
 		return template;
 	}
 
-	protected onDidChangeObject(template: ISettingObjectItemTemplate, e: SettingListEvent<IObjectDataItem>): void {
-		const widget = (template.objectCheckboxWidget ?? template.objectDropdownWidget)!;
+	renderElement(element: ITreeNode<SettingsTreeSettingElement, never>, index: number, templateData: ISettingObjectItemTemplate): void {
+		super.renderSettingElement(element, index, templateData);
+	}
+}
+
+class SettingObjectRenderer extends AbstractSettingObjectRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingObjectItemTemplate> {
+	override templateId = SETTINGS_OBJECT_TEMPLATE_ID;
+
+	renderTemplate(container: HTMLElement): ISettingObjectItemTemplate {
+		const common = this.renderCommonTemplate(null, container, 'list');
+		const widget = this._instantiationService.createInstance(ObjectSettingDropdownWidget, common.controlElement);
+		const template = this.renderTemplateWithWidget(common, widget);
+		common.toDispose.add(widget.onDidChangeList(e => {
+			this.onDidChangeObject(template, e);
+		}));
+		return template;
+	}
+
+	private onDidChangeObject(template: ISettingObjectItemTemplate, e: SettingListEvent<IObjectDataItem>): void {
+		const widget = template.objectDropdownWidget!;
 		if (template.context) {
 			const settingSupportsRemoveDefault = objectSettingSupportsRemoveDefaultValue(template.context.setting.key);
 			const defaultValue: Record<string, unknown> = typeof template.context.defaultValue === 'object'
@@ -1380,29 +1421,9 @@ abstract class AbstractSettingObjectRenderer extends AbstractSettingRenderer imp
 			});
 
 			const newObject = Object.keys(newValue).length === 0 ? undefined : newValue;
-
-			if (template.objectCheckboxWidget) {
-				template.objectCheckboxWidget.setValue(newItems);
-			} else {
-				template.objectDropdownWidget!.setValue(newItems);
-			}
-
+			template.objectDropdownWidget!.setValue(newItems);
 			template.onChange?.(newObject);
 		}
-	}
-
-	renderElement(element: ITreeNode<SettingsTreeSettingElement, never>, index: number, templateData: ISettingObjectItemTemplate): void {
-		super.renderSettingElement(element, index, templateData);
-	}
-}
-
-class SettingObjectRenderer extends AbstractSettingObjectRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingObjectItemTemplate> {
-	override templateId = SETTINGS_OBJECT_TEMPLATE_ID;
-
-	renderTemplate(container: HTMLElement): ISettingObjectItemTemplate {
-		const common = this.renderCommonTemplate(null, container, 'list');
-		const widget = this._instantiationService.createInstance(ObjectSettingDropdownWidget, common.controlElement);
-		return this.renderTemplateWithWidget(common, widget);
 	}
 
 	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingObjectItemTemplate, onChange: (value: Record<string, unknown> | undefined) => void): void {
@@ -1447,12 +1468,55 @@ class SettingBoolObjectRenderer extends AbstractSettingObjectRenderer implements
 	renderTemplate(container: HTMLElement): ISettingObjectItemTemplate {
 		const common = this.renderCommonTemplate(null, container, 'list');
 		const widget = this._instantiationService.createInstance(ObjectSettingCheckboxWidget, common.controlElement);
-		return this.renderTemplateWithWidget(common, widget);
+		const template = this.renderTemplateWithWidget(common, widget);
+		common.toDispose.add(widget.onDidChangeList(e => {
+			this.onDidChangeObject(template, e);
+		}));
+		return template;
 	}
 
-	protected override onDidChangeObject(template: ISettingObjectItemTemplate, e: ISettingListChangeEvent<IObjectDataItem>): void {
+	protected onDidChangeObject(template: ISettingObjectItemTemplate, e: SettingListEvent<IBoolObjectDataItem>): void {
 		if (template.context) {
-			super.onDidChangeObject(template, e);
+			const widget = template.objectCheckboxWidget!;
+			const defaultValue: Record<string, unknown> = typeof template.context.defaultValue === 'object'
+				? template.context.defaultValue ?? {}
+				: {};
+
+			const scopeValue: Record<string, unknown> = typeof template.context.scopeValue === 'object'
+				? template.context.scopeValue ?? {}
+				: {};
+
+			const newValue: Record<string, unknown> = { ...template.context.scopeValue }; // Initialize with scoped values as removed default values are not rendered
+			const newItems: IBoolObjectDataItem[] = [];
+
+			if (e.type !== 'change') {
+				console.warn('Unexpected event type', e.type, 'for bool object setting', template.context.setting.key);
+				return;
+			}
+
+			widget.items.forEach((item, idx) => {
+				// Item was updated
+				if (e.targetIndex === idx) {
+					newValue[e.newItem.key.data] = e.newItem.value.data;
+					newItems.push(e.newItem);
+				}
+				// All remaining items, but skip the one that we just updated
+				else if (e.newItem.key.data !== item.key.data) {
+					newValue[item.key.data] = item.value.data;
+					newItems.push(item);
+				}
+			});
+
+			Object.entries(newValue).forEach(([key, value]) => {
+				// value from the scope has changed back to the default
+				if (scopeValue[key] !== value && defaultValue[key] === value) {
+					delete newValue[key];
+				}
+			});
+
+			const newObject = Object.keys(newValue).length === 0 ? undefined : newValue;
+			template.objectCheckboxWidget!.setValue(newItems);
+			template.onChange?.(newObject);
 
 			// Focus this setting explicitly, in case we were previously
 			// focused on another setting and clicked a checkbox/value container
@@ -1462,7 +1526,7 @@ class SettingBoolObjectRenderer extends AbstractSettingObjectRenderer implements
 	}
 
 	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingObjectItemTemplate, onChange: (value: Record<string, unknown> | undefined) => void): void {
-		const items = getObjectDisplayValue(dataElement);
+		const items = getBoolObjectDisplayValue(dataElement);
 		const { key } = dataElement.setting;
 
 		template.objectCheckboxWidget!.setValue(items, {
