@@ -518,9 +518,6 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 				this.logService.error(`Configured external browser path does not exist: ${configuredBrowser}`);
 				return shell.openExternal(url);
 			}
-		} else if (!['edge', 'chrome', 'firefox'].some(supportedBrowserAlias => configuredBrowser === supportedBrowserAlias)) {
-			this.logService.error(`Configured external browser alias is unknown: ${configuredBrowser}`);
-			return shell.openExternal(url);
 		}
 
 		try {
