@@ -99,6 +99,7 @@
     "native-keymap": "^3.3.5",
     "native-watchdog": "^1.4.1",
     "node-pty": "1.1.0-beta11",
+    "open": "^8.4.2",
     "tas-client-umd": "0.2.0",
     "v8-inspect-profiler": "^0.1.1",
     "vscode-oniguruma": "1.7.0",
