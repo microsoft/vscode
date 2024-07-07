@@ -127,7 +127,7 @@ suite('ConfigurationRegistry', () => {
 
 		configurationRegistry.deregisterDefaultConfigurations(overrides2);
 
-		assert.deepStrictEqual(configurationRegistry.getConfigurationProperties()['config'].default, { a: 1, b: 2 }); // TODO this should actualy equal overrides1
+		assert.deepStrictEqual(configurationRegistry.getConfigurationProperties()['config'].default, { a: 1, b: 2 });
 
 		configurationRegistry.deregisterDefaultConfigurations(overrides1);
 
