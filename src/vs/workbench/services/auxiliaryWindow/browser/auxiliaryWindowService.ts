@@ -477,7 +477,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 				for (const node of mutation.removedNodes) {
 					const clonedNode = mapOriginalToClone.get(node);
 					if (clonedNode) {
-						clonedNode.parentNode?.removeChild(clonedNode);
+						clonedNode.remove();
 						mapOriginalToClone.delete(node);
 					}
 				}

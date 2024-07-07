@@ -86,7 +86,7 @@ export class ReplInputHintContentWidget extends Disposable implements IContentWi
 			return;
 		}
 		while (this.domNode.firstChild) {
-			this.domNode.removeChild(this.domNode.firstChild);
+			this.domNode.firstChild.remove();
 		}
 
 		const hintElement = dom.$('div.empty-hint-text');
