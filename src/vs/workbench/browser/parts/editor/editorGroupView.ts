@@ -835,7 +835,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 			// Ensure to show active editor if any
 			if (this.model.activeEditor) {
-				this.titleControl.openEditor(this.model.activeEditor);
+				this.titleControl.openEditors(this.model.getEditors(EditorsOrder.SEQUENTIAL));
 			}
 		}
 
