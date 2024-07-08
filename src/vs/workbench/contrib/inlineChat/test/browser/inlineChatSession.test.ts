@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
+import assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { mock } from 'vs/base/test/common/mock';
@@ -160,7 +160,7 @@ suite('InlineChatSession', function () {
 		} finally {
 			session.hunkData.ignoreTextModelNChanges = false;
 		}
-		await session.hunkData.recompute();
+		await session.hunkData.recompute({ applied: 0, sha1: 'fakeSha1' });
 	}
 
 	function makeEdit(edit: EditOperation | EditOperation[]) {
@@ -433,4 +433,51 @@ suite('InlineChatSession', function () {
 		assert.strictEqual(session.textModelN.getValue(), session.textModel0.getValue());
 	});
 
+	test('HunkData, accept, discardAll', async function () {
+
+		const session = await inlineChatSessionService.createSession(editor, { editMode: EditMode.Live }, CancellationToken.None);
+		assertType(session);
+
+		await makeEditAsAi([EditOperation.insert(new Position(1, 1), 'AI_EDIT\n'), EditOperation.insert(new Position(10, 1), 'AI_EDIT\n')]);
+
+		assert.strictEqual(session.hunkData.size, 2);
+		assert.ok(!session.textModel0.equalsTextBuffer(session.textModelN.getTextBuffer()));
+
+		const textModeNNow = session.textModelN.getValue();
+
+		session.hunkData.getInfo()[0].acceptChanges();
+		assert.strictEqual(textModeNNow, session.textModelN.getValue());
+
+		session.hunkData.discardAll(); // all remaining
+		assert.strictEqual(session.textModelN.getValue(), 'AI_EDIT\none\ntwo\nthree\nfour\nfive\nsix\nseven\neight\nnine\nten\neleven');
+		assert.strictEqual(session.textModelN.getValue(), session.textModel0.getValue());
+
+		inlineChatSessionService.releaseSession(session);
+	});
+
+	test('HunkData, discardAll return undo edits', async function () {
+
+		const session = await inlineChatSessionService.createSession(editor, { editMode: EditMode.Live }, CancellationToken.None);
+		assertType(session);
+
+		await makeEditAsAi([EditOperation.insert(new Position(1, 1), 'AI_EDIT\n'), EditOperation.insert(new Position(10, 1), 'AI_EDIT\n')]);
+
+		assert.strictEqual(session.hunkData.size, 2);
+		assert.ok(!session.textModel0.equalsTextBuffer(session.textModelN.getTextBuffer()));
+
+		const textModeNNow = session.textModelN.getValue();
+
+		session.hunkData.getInfo()[0].acceptChanges();
+		assert.strictEqual(textModeNNow, session.textModelN.getValue());
+
+		const undoEdits = session.hunkData.discardAll(); // all remaining
+		assert.strictEqual(session.textModelN.getValue(), 'AI_EDIT\none\ntwo\nthree\nfour\nfive\nsix\nseven\neight\nnine\nten\neleven');
+		assert.strictEqual(session.textModelN.getValue(), session.textModel0.getValue());
+
+		// undo the discards
+		session.textModelN.pushEditOperations(null, undoEdits, () => null);
+		assert.strictEqual(textModeNNow, session.textModelN.getValue());
+
+		inlineChatSessionService.releaseSession(session);
+	});
 });

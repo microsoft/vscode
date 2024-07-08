@@ -32,7 +32,6 @@ async function main(buildDir?: string) {
 		x64AsarPath,
 		arm64AsarPath,
 		filesToSkip: [
-			'product.json',
 			'Credits.rtf',
 			'CodeResources',
 			'fsevents.node',

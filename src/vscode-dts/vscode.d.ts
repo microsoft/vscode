@@ -535,7 +535,7 @@ declare module 'vscode' {
 
 	/**
 	 * Represents sources that can cause {@link window.onDidChangeTextEditorSelection selection change events}.
-	*/
+	 */
 	export enum TextEditorSelectionChangeKind {
 		/**
 		 * Selection changed due to typing in the editor.
@@ -5186,7 +5186,7 @@ declare module 'vscode' {
 
 		/**
 		 * Creates a new list of inline completion items.
-		*/
+		 */
 		constructor(items: InlineCompletionItem[]);
 	}
 
@@ -6365,7 +6365,7 @@ declare module 'vscode' {
 	export enum ConfigurationTarget {
 		/**
 		 * Global configuration
-		*/
+		 */
 		Global = 1,
 
 		/**
@@ -7851,7 +7851,7 @@ declare module 'vscode' {
 		/**
 		 * An object that keeps information about how this extension can use language models.
 		 *
-		 * @see {@link lm.sendChatRequest}
+		 * @see {@link LanguageModelChat.sendRequest}
 		 */
 		readonly languageModelAccessInformation: LanguageModelAccessInformation;
 	}
@@ -11116,8 +11116,8 @@ declare module 'vscode' {
 		canSelectMany?: boolean;
 
 		/**
-		* An optional interface to implement drag and drop in the tree view.
-		*/
+		 * An optional interface to implement drag and drop in the tree view.
+		 */
 		dragAndDropController?: TreeDragAndDropController<T>;
 
 		/**
@@ -11378,8 +11378,8 @@ declare module 'vscode' {
 	 */
 	export interface TreeCheckboxChangeEvent<T> {
 		/**
-		* The items that were checked or unchecked.
-		*/
+		 * The items that were checked or unchecked.
+		 */
 		readonly items: ReadonlyArray<[T, TreeItemCheckboxState]>;
 	}
 
@@ -11419,8 +11419,8 @@ declare module 'vscode' {
 		readonly onDidChangeVisibility: Event<TreeViewVisibilityChangeEvent>;
 
 		/**
-		* An event to signal that an element or root has either been checked or unchecked.
-		*/
+		 * An event to signal that an element or root has either been checked or unchecked.
+		 */
 		readonly onDidChangeCheckboxState: Event<TreeCheckboxChangeEvent<T>>;
 
 		/**
@@ -11697,8 +11697,8 @@ declare module 'vscode' {
 	}
 
 	/**
-	* Checkbox state of the tree item
-	*/
+	 * Checkbox state of the tree item
+	 */
 	export enum TreeItemCheckboxState {
 		/**
 		 * Determines an item is unchecked
@@ -11787,8 +11787,8 @@ declare module 'vscode' {
 		color?: ThemeColor;
 
 		/**
-		* The {@link TerminalLocation} or {@link TerminalEditorLocationOptions} or {@link TerminalSplitLocationOptions} for the terminal.
-		*/
+		 * The {@link TerminalLocation} or {@link TerminalEditorLocationOptions} or {@link TerminalSplitLocationOptions} for the terminal.
+		 */
 		location?: TerminalLocation | TerminalEditorLocationOptions | TerminalSplitLocationOptions;
 
 		/**
@@ -12668,7 +12668,7 @@ declare module 'vscode' {
 		/**
 		 * The reason why the document was changed.
 		 * Is `undefined` if the reason is not known.
-		*/
+		 */
 		readonly reason: TextDocumentChangeReason | undefined;
 	}
 
@@ -15374,7 +15374,7 @@ declare module 'vscode' {
 		 *
 		 * @param rendererId The renderer ID to communicate with
 		 * @returns A new notebook renderer messaging object.
-		*/
+		 */
 		export function createRendererMessaging(rendererId: string): NotebookRendererMessaging;
 	}
 
@@ -16183,6 +16183,13 @@ declare module 'vscode' {
 		 * When true, the debug viewlet will not be automatically revealed for this session.
 		 */
 		suppressDebugView?: boolean;
+
+		/**
+		 * Signals to the editor that the debug session was started from a test run
+		 * request. This is used to link the lifecycle of the debug session and
+		 * test run in UI actions.
+		 */
+		testRun?: TestRun;
 	}
 
 	/**
@@ -16369,7 +16376,7 @@ declare module 'vscode' {
 		/**
 		 * Add breakpoints.
 		 * @param breakpoints The breakpoints to add.
-		*/
+		 */
 		export function addBreakpoints(breakpoints: readonly Breakpoint[]): void;
 
 		/**
@@ -16907,17 +16914,17 @@ declare module 'vscode' {
 		/**
 		 * Whether it is possible to be signed into multiple accounts at once with this provider.
 		 * If not specified, will default to false.
-		*/
+		 */
 		readonly supportsMultipleAccounts?: boolean;
 	}
 
 	/**
-	* An {@link Event} which fires when an {@link AuthenticationSession} is added, removed, or changed.
-	*/
+	 * An {@link Event} which fires when an {@link AuthenticationSession} is added, removed, or changed.
+	 */
 	export interface AuthenticationProviderAuthenticationSessionsChangeEvent {
 		/**
 		 * The {@link AuthenticationSession AuthenticationSessions} of the {@link AuthenticationProvider} that have been added.
-		*/
+		 */
 		readonly added: readonly AuthenticationSession[] | undefined;
 
 		/**
@@ -17144,7 +17151,7 @@ declare module 'vscode' {
 		 * @param id Identifier for the controller, must be globally unique.
 		 * @param label A human-readable label for the controller.
 		 * @returns An instance of the {@link TestController}.
-		*/
+		 */
 		export function createTestController(id: string, label: string): TestController;
 	}
 
@@ -18504,12 +18511,12 @@ declare module 'vscode' {
 	 */
 	export enum ChatResultFeedbackKind {
 		/**
-		 * The user marked the result as helpful.
+		 * The user marked the result as unhelpful.
 		 */
 		Unhelpful = 0,
 
 		/**
-		 * The user marked the result as unhelpful.
+		 * The user marked the result as helpful.
 		 */
 		Helpful = 1,
 	}
@@ -18995,7 +19002,7 @@ declare module 'vscode' {
 	 * Represents a language model response.
 	 *
 	 * @see {@link LanguageModelAccess.chatRequest}
-	*/
+	 */
 	export interface LanguageModelChatResponse {
 
 		/**
@@ -19003,6 +19010,9 @@ declare module 'vscode' {
 		 *
 		 * *Note* that this stream will error when during data receiving an error occurs. Consumers of
 		 * the stream should handle the errors accordingly.
+		 *
+		 * To cancel the stream, the consumer can {@link CancellationTokenSource.cancel cancel} the token that was used to make the request
+		 * or break from the for-loop.
 		 *
 		 * @example
 		 * ```ts
@@ -19017,9 +19027,6 @@ declare module 'vscode' {
 		 *   console.error(e);
 		 * }
 		 * ```
-		 *
-		 * To cancel the stream, the consumer can {@link CancellationTokenSource.cancel cancel} the token that was used to make the request
-		 * or break from the for-loop.
 		 */
 		text: AsyncIterable<string>;
 	}
@@ -19042,7 +19049,7 @@ declare module 'vscode' {
 		readonly id: string;
 
 		/**
-		 * A well-know identifier of the vendor of the language model, a sample is `copilot`, but
+		 * A well-known identifier of the vendor of the language model. An example is `copilot`, but
 		 * values are defined by extensions contributing chat models and need to be looked up with them.
 		 */
 		readonly vendor: string;
@@ -19195,12 +19202,11 @@ declare module 'vscode' {
 		export const onDidChangeChatModels: Event<void>;
 
 		/**
-		 * Select chat models by a {@link LanguageModelChatSelector selector}. This can yield in multiple or no chat models and
+		 * Select chat models by a {@link LanguageModelChatSelector selector}. This can yield multiple or no chat models and
 		 * extensions must handle these cases, esp. when no chat model exists, gracefully.
 		 *
 		 * ```ts
-		 *
-		 * const models = await vscode.lm.selectChatModels({family: 'gpt-3.5-turbo'})!;
+		 * const models = await vscode.lm.selectChatModels({ family: 'gpt-3.5-turbo' });
 		 * if (models.length > 0) {
 		 * 	const [first] = models;
 		 * 	const response = await first.sendRequest(...)
@@ -19210,7 +19216,11 @@ declare module 'vscode' {
 		 * }
 		 * ```
 		 *
-		 * *Note* that extensions can hold-on to the results returned by this function and use them later. However, when the
+		 * A selector can be written to broadly match all models of a given vendor or family, or it can narrowly select one model by ID.
+		 * Keep in mind that the available set of models will change over time, but also that prompts may perform differently in
+		 * different models.
+		 *
+		 * *Note* that extensions can hold on to the results returned by this function and use them later. However, when the
 		 * {@link onDidChangeChatModels}-event is fired the list of chat models might have changed and extensions should re-query.
 		 *
 		 * @param selector A chat model selector. When omitted all chat models are returned.

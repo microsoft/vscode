@@ -1460,7 +1460,7 @@ export interface IGlobPatterns {
 }
 
 export interface IFilesConfiguration {
-	files: IFilesConfigurationNode;
+	files?: IFilesConfigurationNode;
 }
 
 export interface IFilesConfigurationNode {
@@ -1470,6 +1470,7 @@ export interface IFilesConfigurationNode {
 	watcherInclude: string[];
 	encoding: string;
 	autoGuessEncoding: boolean;
+	candidateGuessEncodings: string[];
 	defaultLanguage: string;
 	trimTrailingWhitespace: boolean;
 	autoSave: string;

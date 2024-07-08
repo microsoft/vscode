@@ -92,6 +92,7 @@ export class NotificationAccessibleView implements IAccessibleViewImplentation {
 		}
 		return getProvider();
 	}
+	dispose() { }
 }
 
 

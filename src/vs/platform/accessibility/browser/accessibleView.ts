@@ -141,9 +141,11 @@ export class AdvancedContentProvider implements IAccessibleViewContentProvider {
 		public provideContent: () => string,
 		public onClose: () => void,
 		public verbositySettingKey: string,
+		public onOpen?: () => void,
 		public actions?: IAction[],
 		public next?: () => void,
 		public previous?: () => void,
+		public onDidChangeContent?: Event<void>,
 		public onKeyDown?: (e: IKeyboardEvent) => void,
 		public getSymbols?: () => IAccessibleViewSymbol[],
 		public onDidRequestClearLastProvider?: Event<AccessibleViewProviderId>,
@@ -157,9 +159,11 @@ export class ExtensionContentProvider implements IBasicContentProvider {
 		public options: IAccessibleViewOptions,
 		public provideContent: () => string,
 		public onClose: () => void,
+		public onOpen?: () => void,
 		public next?: () => void,
 		public previous?: () => void,
 		public actions?: IAction[],
+		public onDidChangeContent?: Event<void>,
 	) { }
 }
 
@@ -168,7 +172,9 @@ export interface IBasicContentProvider {
 	options: IAccessibleViewOptions;
 	onClose(): void;
 	provideContent(): string;
+	onOpen?(): void;
 	actions?: IAction[];
 	previous?(): void;
 	next?(): void;
+	onDidChangeContent?: Event<void>;
 }

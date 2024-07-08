@@ -5,15 +5,12 @@
 
 .monaco-workbench .inline-chat-content-widget {
 	z-index: 50;
-	padding: 6px 6px 6px 6px;
+	padding: 6px;
 	border-radius: 4px;
 	background-color: var(--vscode-inlineChat-background);
 	box-shadow: 0 4px 8px var(--vscode-inlineChat-shadow);
 }
 
-.monaco-workbench .inline-chat-content-widget .hidden {
-	display: none;
-}
 
 .monaco-workbench .inline-chat-content-widget.interactive-session .interactive-session {
 	max-width: unset;
@@ -27,15 +24,11 @@
 	padding: 0;
 }
 
-.monaco-workbench .inline-chat-content-widget .message {
-	overflow: hidden;
-	color: var(--vscode-descriptionForeground);
-	font-size: 11px;
-	display: inline-flex;
+.monaco-workbench .inline-chat-content-widget.interactive-session .interactive-list {
+	display: none;
 }
 
-.monaco-workbench .inline-chat-content-widget .message > .codicon {
-	padding-right: 5px;
-	font-size: 12px;
-	line-height: 18px;
+.monaco-workbench .inline-chat-content-widget.interactive-session .toolbar {
+	display: none;
+	padding-top: 4px;
 }

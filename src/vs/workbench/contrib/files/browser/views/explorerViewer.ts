@@ -575,7 +575,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 						break;
 					} if (DOM.isActiveElement(inputBox.inputElement)) {
 						return;
-					} else if (ownerDocument.activeElement instanceof HTMLElement && DOM.hasParentWithClass(ownerDocument.activeElement, 'context-view')) {
+					} else if (DOM.isHTMLElement(ownerDocument.activeElement) && DOM.hasParentWithClass(ownerDocument.activeElement, 'context-view')) {
 						await Event.toPromise(this.contextMenuService.onDidHideContextMenu);
 					} else {
 						break;
@@ -1482,7 +1482,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 }
 
 function getIconLabelNameFromHTMLElement(target: HTMLElement | EventTarget | Element | null): { element: HTMLElement; count: number; index: number } | null {
-	if (!(target instanceof HTMLElement)) {
+	if (!(DOM.isHTMLElement(target))) {
 		return null;
 	}
 

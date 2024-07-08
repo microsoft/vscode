@@ -491,6 +491,10 @@ export interface IEditorWorkingSet {
 	readonly name: string;
 }
 
+export interface IEditorWorkingSetOptions {
+	readonly preserveFocus?: boolean;
+}
+
 export interface IEditorGroupContextKeyProvider<T extends ContextKeyValue> {
 
 	/**
@@ -573,7 +577,7 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	 *
 	 * @returns `true` when the working set as applied.
 	 */
-	applyWorkingSet(workingSet: IEditorWorkingSet | 'empty'): Promise<boolean>;
+	applyWorkingSet(workingSet: IEditorWorkingSet | 'empty', options?: IEditorWorkingSetOptions): Promise<boolean>;
 
 	/**
 	 * Deletes a working set.

@@ -16,7 +16,7 @@ export interface TokenTypesContribution {
 }
 
 export interface ITMSyntaxExtensionPoint {
-	language: string;
+	language?: string; // undefined if the grammar is only included by other grammars
 	scopeName: string;
 	path: string;
 	embeddedLanguages: IEmbeddedLanguagesMap;

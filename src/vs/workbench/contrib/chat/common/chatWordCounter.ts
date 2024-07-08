@@ -5,13 +5,18 @@
 
 export interface IWordCountResult {
 	value: string;
-	actualWordCount: number;
+	returnedWordCount: number;
+	totalWordCount: number;
 	isFullString: boolean;
 }
 
 export function getNWords(str: string, numWordsToCount: number): IWordCountResult {
-	// Match words and markdown style links
-	const allWordMatches = Array.from(str.matchAll(/\[([^\]]+)\]\(([^)]+)\)|[^\s\|\-]+/g));
+	// This regex matches each word and skips over whitespace and separators. A word is:
+	// A markdown link
+	// One chinese character
+	// One or more + - =, handled so that code like "a=1+2-3" is broken up better
+	// One or more characters that aren't whitepace or any of the above
+	const allWordMatches = Array.from(str.matchAll(/\[([^\]]+)\]\(([^)]+)\)|\p{sc=Han}|=+|\++|-+|[^\s\|\p{sc=Han}|=|\+|\-]+/gu));
 
 	const targetWords = allWordMatches.slice(0, numWordsToCount);
 
@@ -22,12 +27,13 @@ export function getNWords(str: string, numWordsToCount: number): IWordCountResul
 	const value = str.substring(0, endIndex);
 	return {
 		value,
-		actualWordCount: targetWords.length === 0 ? (value.length ? 1 : 0) : targetWords.length,
-		isFullString: endIndex >= str.length
+		returnedWordCount: targetWords.length === 0 ? (value.length ? 1 : 0) : targetWords.length,
+		isFullString: endIndex >= str.length,
+		totalWordCount: allWordMatches.length
 	};
 }
 
 export function countWords(str: string): number {
 	const result = getNWords(str, Number.MAX_SAFE_INTEGER);
-	return result.actualWordCount;
+	return result.returnedWordCount;
 }

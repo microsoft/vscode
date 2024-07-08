@@ -49,7 +49,7 @@ import { CALLSTACK_VIEW_ID, CONTEXT_CALLSTACK_ITEM_STOPPED, CONTEXT_CALLSTACK_IT
 import { StackFrame, Thread, ThreadAndSessionIds } from 'vs/workbench/contrib/debug/common/debugModel';
 import { isSessionAttach } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
-import type { IUpdatableHover } from 'vs/base/browser/ui/hover/hover';
+import type { IManagedHover } from 'vs/base/browser/ui/hover/hover';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
 
 const $ = dom.$;
@@ -136,7 +136,7 @@ async function expandTo(session: IDebugSession, tree: WorkbenchCompressibleAsync
 export class CallStackView extends ViewPane {
 	private stateMessage!: HTMLSpanElement;
 	private stateMessageLabel!: HTMLSpanElement;
-	private stateMessageLabelHover!: IUpdatableHover;
+	private stateMessageLabelHover!: IManagedHover;
 	private onCallStackChangeScheduler: RunOnceScheduler;
 	private needsRefresh = false;
 	private ignoreSelectionChangedEvent = false;
@@ -221,7 +221,7 @@ export class CallStackView extends ViewPane {
 		this.stateMessage = dom.append(container, $('span.call-stack-state-message'));
 		this.stateMessage.hidden = true;
 		this.stateMessageLabel = dom.append(this.stateMessage, $('span.label'));
-		this.stateMessageLabelHover = this._register(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), this.stateMessage, ''));
+		this.stateMessageLabelHover = this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this.stateMessage, ''));
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -465,9 +465,8 @@ export class CallStackView extends ViewPane {
 		const secondary: IAction[] = [];
 		const result = { primary, secondary };
 		const contextKeyService = this.contextKeyService.createOverlay(overlay);
-		const menu = this.menuService.createMenu(MenuId.DebugCallStackContext, contextKeyService);
-		createAndFillInContextMenuActions(menu, { arg: getContextForContributedActions(element), shouldForwardArgs: true }, result, 'inline');
-		menu.dispose();
+		const menu = this.menuService.getMenuActions(MenuId.DebugCallStackContext, contextKeyService, { arg: getContextForContributedActions(element), shouldForwardArgs: true });
+		createAndFillInContextMenuActions(menu, result, 'inline');
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
 			getActions: () => result.secondary,
@@ -582,7 +581,7 @@ class SessionsRenderer implements ICompressibleTreeRenderer<IDebugSession, Fuzzy
 	}
 
 	private doRenderElement(session: IDebugSession, matches: IMatch[], data: ISessionTemplateData): void {
-		const sessionHover = data.elementDisposable.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), data.session, localize({ key: 'session', comment: ['Session is a noun'] }, "Session")));
+		const sessionHover = data.elementDisposable.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), data.session, localize({ key: 'session', comment: ['Session is a noun'] }, "Session")));
 		data.label.set(session.getLabel(), matches);
 		const stoppedDetails = session.getStoppedDetails();
 		const thread = session.getAllThreads().find(t => t.stopped);
@@ -671,7 +670,7 @@ class ThreadsRenderer implements ICompressibleTreeRenderer<IThread, FuzzyScore, 
 
 	renderElement(element: ITreeNode<IThread, FuzzyScore>, _index: number, data: IThreadTemplateData): void {
 		const thread = element.element;
-		data.elementDisposable.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), data.thread, thread.name));
+		data.elementDisposable.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), data.thread, thread.name));
 		data.label.set(thread.name, createMatches(element.filterData));
 		data.stateLabel.textContent = thread.stateLabel;
 		data.stateLabel.classList.toggle('exception', thread.stoppedDetails?.reason === 'exception');
@@ -756,7 +755,7 @@ class StackFramesRenderer implements ICompressibleTreeRenderer<IStackFrame, Fuzz
 		if (stackFrame.source.raw.origin) {
 			title += `\n${stackFrame.source.raw.origin}`;
 		}
-		data.templateDisposable.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), data.file, title));
+		data.templateDisposable.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), data.file, title));
 
 		data.label.set(stackFrame.name, createMatches(element.filterData), stackFrame.name);
 		data.fileName.textContent = getSpecificSourceName(stackFrame);
@@ -813,7 +812,7 @@ class ErrorsRenderer implements ICompressibleTreeRenderer<string, FuzzyScore, IE
 	renderElement(element: ITreeNode<string, FuzzyScore>, index: number, data: IErrorTemplateData): void {
 		const error = element.element;
 		data.label.textContent = error;
-		data.templateDisposable.add(this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('mouse'), data.label, error));
+		data.templateDisposable.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), data.label, error));
 	}
 
 	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<string>, FuzzyScore>, index: number, templateData: IErrorTemplateData, height: number | undefined): void {
