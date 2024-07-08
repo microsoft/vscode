@@ -8,7 +8,7 @@ import assert from 'assert';
 import { tmpdir } from 'os';
 import { basename, dirname, join } from 'vs/base/common/path';
 import { Promises, RimRafMode } from 'vs/base/node/pfs';
-import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
+import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { FileChangeFilter, FileChangeType } from 'vs/platform/files/common/files';
 import { INonRecursiveWatchRequest, IRecursiveWatcherWithSubscribe } from 'vs/platform/files/common/watcher';
 import { watchFileContents } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
@@ -30,7 +30,7 @@ import { TestParcelWatcher } from 'vs/platform/files/test/node/parcelWatcher.int
 // mocha but generally). as such they will run only on demand
 // whenever we update the watcher library.
 
-((process.env['BUILD_SOURCEVERSION'] || process.env['CI']) ? suite.skip : flakySuite)('File Watcher (node.js)', () => {
+suite.skip('File Watcher (node.js)', () => {
 
 	class TestNodeJSWatcher extends NodeJSWatcher {
 

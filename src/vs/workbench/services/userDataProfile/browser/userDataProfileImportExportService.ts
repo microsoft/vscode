@@ -388,8 +388,8 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 
 		const settings: IQuickPickItem & { id: ProfileResourceType } = { id: ProfileResourceType.Settings, label: localize('settings', "Settings"), picked: !profile?.useDefaultFlags?.settings };
 		const keybindings: IQuickPickItem & { id: ProfileResourceType } = { id: ProfileResourceType.Keybindings, label: localize('keybindings', "Keyboard Shortcuts"), picked: !profile?.useDefaultFlags?.keybindings };
-		const snippets: IQuickPickItem & { id: ProfileResourceType } = { id: ProfileResourceType.Snippets, label: localize('snippets', "User Snippets"), picked: !profile?.useDefaultFlags?.snippets };
-		const tasks: IQuickPickItem & { id: ProfileResourceType } = { id: ProfileResourceType.Tasks, label: localize('tasks', "User Tasks"), picked: !profile?.useDefaultFlags?.tasks };
+		const snippets: IQuickPickItem & { id: ProfileResourceType } = { id: ProfileResourceType.Snippets, label: localize('snippets', "Snippets"), picked: !profile?.useDefaultFlags?.snippets };
+		const tasks: IQuickPickItem & { id: ProfileResourceType } = { id: ProfileResourceType.Tasks, label: localize('tasks', "Tasks"), picked: !profile?.useDefaultFlags?.tasks };
 		const extensions: IQuickPickItem & { id: ProfileResourceType } = { id: ProfileResourceType.Extensions, label: localize('extensions', "Extensions"), picked: !profile?.useDefaultFlags?.extensions };
 		const resources = [settings, keybindings, snippets, tasks, extensions];
 

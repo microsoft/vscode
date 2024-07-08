@@ -6,14 +6,8 @@
 // @ts-check
 'use strict';
 
-/**
- * @import { IProductConfiguration } from './vs/base/common/product'
- */
-
 const path = require('path');
-/** @type {Partial<IProductConfiguration>} */
-// @ts-ignore
-const product = require('../product.json');
+const product = require('./bootstrap-meta').product;
 const { resolveNLSConfiguration } = require('./vs/base/node/nls');
 
 async function start() {
