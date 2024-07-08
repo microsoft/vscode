@@ -745,12 +745,12 @@ function registerCloseEditorCommands() {
 		primary: KeyMod.CtrlCmd | KeyCode.KeyW,
 		win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KeyW] },
 		handler: (accessor, ...args: unknown[]) => {
-			return closeEditorHandler(accessor, false, args);
+			return closeEditorHandler(accessor, false, ...args);
 		}
 	});
 
 	CommandsRegistry.registerCommand(CLOSE_PINNED_EDITOR_COMMAND_ID, (accessor, ...args: unknown[]) => {
-		return closeEditorHandler(accessor, true /* force close pinned editors */, args);
+		return closeEditorHandler(accessor, true /* force close pinned editors */, ...args);
 	});
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
