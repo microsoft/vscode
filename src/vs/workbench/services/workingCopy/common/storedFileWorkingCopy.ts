@@ -1242,6 +1242,11 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 			this.lastResolvedFileStat = newFileStat;
 		}
 
+		// In all other cases update readonly flag
+		else {
+			this.lastResolvedFileStat = { ...this.lastResolvedFileStat, readonly: newFileStat.readonly };
+		}
+
 		// Signal that the readonly state changed
 		if (this.isReadonly() !== oldReadonly) {
 			this._onDidChangeReadonly.fire();

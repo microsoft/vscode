@@ -251,7 +251,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		const softUndo = options?.soft;
 		if (!softUndo) {
 			try {
-				await this.forceResolveFromFile(true);
+				await this.forceResolveFromFile();
 			} catch (error) {
 
 				// FileNotFound means the file got deleted meanwhile, so ignore it
@@ -653,7 +653,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 	}
 
-	private async forceResolveFromFile(forceFileStatUpdate?: boolean): Promise<void> {
+	private async forceResolveFromFile(): Promise<void> {
 		if (this.isDisposed()) {
 			return; // return early when the model is invalid
 		}
@@ -668,11 +668,6 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			reload: { async: false },
 			forceReadFromFile: true
 		});
-
-		// When called following a revert it is possible that the reinstated file has an earlier mtime,
-		// for example by an SCM extension's cancel checkout operation that reinstates an older file and then executes the revert command,
-		// so forceFileStat is used by that path here
-		this.updateLastResolvedFileStat(await this.fileService.resolve(this.resource, { resolveMetadata: true }), forceFileStatUpdate);
 	}
 
 	//#endregion
@@ -1003,11 +998,11 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		}
 	}
 
-	private updateLastResolvedFileStat(newFileStat: IFileStatWithMetadata, force?: boolean): void {
+	private updateLastResolvedFileStat(newFileStat: IFileStatWithMetadata): void {
 		const oldReadonly = this.isReadonly();
 
-		// First resolve, or instructed to force - just take
-		if (!this.lastResolvedFileStat || force) {
+		// First resolve - just take
+		if (!this.lastResolvedFileStat) {
 			this.lastResolvedFileStat = newFileStat;
 		}
 
@@ -1016,6 +1011,11 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// was called, the mtime could be out of sync.
 		else if (this.lastResolvedFileStat.mtime <= newFileStat.mtime) {
 			this.lastResolvedFileStat = newFileStat;
+		}
+
+		// In all other cases update readonly flag
+		else {
+			this.lastResolvedFileStat = { ...this.lastResolvedFileStat, readonly: newFileStat.readonly };
 		}
 
 		// Signal that the readonly state changed
