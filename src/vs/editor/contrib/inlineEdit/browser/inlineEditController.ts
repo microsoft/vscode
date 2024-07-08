@@ -35,11 +35,11 @@ export class InlineEditController extends Disposable {
 	static ID = 'editor.contrib.inlineEditController';
 
 	public static readonly inlineEditVisibleKey = 'inlineEditVisible';
-	public static readonly inlineEditVisibleContext = new RawContextKey<boolean>(InlineEditController.inlineEditVisibleKey, false);
+	public static readonly inlineEditVisibleContext = new RawContextKey<boolean>(this.inlineEditVisibleKey, false);
 	private _isVisibleContext = InlineEditController.inlineEditVisibleContext.bindTo(this.contextKeyService);
 
 	public static readonly cursorAtInlineEditKey = 'cursorAtInlineEdit';
-	public static readonly cursorAtInlineEditContext = new RawContextKey<boolean>(InlineEditController.cursorAtInlineEditKey, false);
+	public static readonly cursorAtInlineEditContext = new RawContextKey<boolean>(this.cursorAtInlineEditKey, false);
 	private _isCursorAtInlineEditContext = InlineEditController.cursorAtInlineEditContext.bindTo(this.contextKeyService);
 
 	public static get(editor: ICodeEditor): InlineEditController | null {
@@ -52,9 +52,9 @@ export class InlineEditController extends Disposable {
 	private _jumpBackPosition: Position | undefined;
 	private _isAccepting: ISettableObservable<boolean> = observableValue(this, false);
 
-	private readonly _enabled = observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineEdit).enabled);
-	private readonly _fontFamily = observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineEdit).fontFamily);
-	private readonly _backgroundColoring = observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineEdit).backgroundColoring);
+	private readonly _enabled = observableFromEvent(this, this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineEdit).enabled);
+	private readonly _fontFamily = observableFromEvent(this, this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineEdit).fontFamily);
+	private readonly _backgroundColoring = observableFromEvent(this, this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineEdit).backgroundColoring);
 
 
 	constructor(
@@ -84,7 +84,7 @@ export class InlineEditController extends Disposable {
 		}));
 
 		//Check if the cursor is at the ghost text
-		const cursorPosition = observableFromEvent(editor.onDidChangeCursorPosition, () => editor.getPosition());
+		const cursorPosition = observableFromEvent(this, editor.onDidChangeCursorPosition, () => editor.getPosition());
 		this._register(autorun(reader => {
 			/** @description InlineEditController.cursorPositionChanged model */
 			if (!this._enabled.read(reader)) {

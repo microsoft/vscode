@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { CommentsPanel } from 'vs/workbench/contrib/comments/browser/commentsView';

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { getDelayedChannel, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IFileChange } from 'vs/platform/files/common/files';
 import { AbstractUniversalWatcherClient, ILogMessage, IRecursiveWatcher } from 'vs/platform/files/common/watcher';
@@ -33,10 +33,10 @@ export class UniversalWatcherClient extends AbstractUniversalWatcherClient {
 			//
 			// The utility process worker services ensures to terminate
 			// the process automatically when the window closes or reloads.
-			const { client, onDidTerminate } = await this.utilityProcessWorkerWorkbenchService.createWorker({
+			const { client, onDidTerminate } = disposables.add(await this.utilityProcessWorkerWorkbenchService.createWorker({
 				moduleId: 'vs/platform/files/node/watcher/watcherMain',
 				type: 'fileWatcher'
-			});
+			}));
 
 			// React on unexpected termination of the watcher process
 			// by listening to the `onDidTerminate` event. We do not
@@ -52,13 +52,6 @@ export class UniversalWatcherClient extends AbstractUniversalWatcherClient {
 
 			return client.getChannel('watcher');
 		})()));
-
-		// Looks like universal watcher needs an explicit stop
-		// to prevent access on data structures after process
-		// exit. This only seem to be happening when used from
-		// Electron, not pure node.js.
-		// https://github.com/microsoft/vscode/issues/136264
-		disposables.add(toDisposable(() => watcher.stop()));
 
 		return watcher;
 	}

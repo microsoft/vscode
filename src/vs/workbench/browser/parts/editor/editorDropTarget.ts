@@ -92,7 +92,7 @@ class DropOverlay extends Themable {
 		this.groupView.element.appendChild(container);
 		this.groupView.element.classList.add('dragged-over');
 		this._register(toDisposable(() => {
-			this.groupView.element.removeChild(container);
+			container.remove();
 			this.groupView.element.classList.remove('dragged-over');
 		}));
 
@@ -333,8 +333,8 @@ class DropOverlay extends Themable {
 							{
 								editor: draggedEditor.identifier.editor,
 								options: fillActiveEditorViewState(sourceGroup, draggedEditor.identifier.editor, {
-									pinned: true,											// always pin dropped editor
-									sticky: sourceGroup.isSticky(firstDraggedEditor.editor)	// preserve sticky state
+									pinned: true,													// always pin dropped editor
+									sticky: sourceGroup.isSticky(draggedEditor.identifier.editor)	// preserve sticky state
 								})
 							}
 						));

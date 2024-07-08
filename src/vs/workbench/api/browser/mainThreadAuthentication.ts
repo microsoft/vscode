@@ -6,7 +6,7 @@
 import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
 import * as nls from 'vs/nls';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { IAuthenticationCreateSessionOptions, AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationService, IAuthenticationExtensionsService } from 'vs/workbench/services/authentication/common/authentication';
+import { IAuthenticationCreateSessionOptions, AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationService, IAuthenticationExtensionsService, INTERNAL_AUTH_PROVIDER_PREFIX as INTERNAL_MODEL_AUTH_PROVIDER_PREFIX, AuthenticationSessionAccount, IAuthenticationProviderSessionOptions } from 'vs/workbench/services/authentication/common/authentication';
 import { ExtHostAuthenticationShape, ExtHostContext, MainContext, MainThreadAuthenticationShape } from '../common/extHost.protocol';
 import { IDialogService, IPromptButton } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
@@ -31,6 +31,7 @@ interface AuthenticationGetSessionOptions {
 	createIfNone?: boolean;
 	forceNewSession?: boolean | AuthenticationForceNewSessionOptions;
 	silent?: boolean;
+	account?: AuthenticationSessionAccount;
 }
 
 export class MainThreadAuthenticationProvider extends Disposable implements IAuthenticationProvider {
@@ -49,8 +50,8 @@ export class MainThreadAuthenticationProvider extends Disposable implements IAut
 		this.onDidChangeSessions = onDidChangeSessionsEmitter.event;
 	}
 
-	async getSessions(scopes?: string[]) {
-		return this._proxy.$getSessions(this.id, scopes);
+	async getSessions(scopes: string[] | undefined, options: IAuthenticationProviderSessionOptions) {
+		return this._proxy.$getSessions(this.id, scopes, options);
 	}
 
 	createSession(scopes: string[], options: IAuthenticationCreateSessionOptions): Promise<AuthenticationSession> {
@@ -117,10 +118,17 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	$removeSession(providerId: string, sessionId: string): Promise<void> {
 		return this.authenticationService.removeSession(providerId, sessionId);
 	}
-	private async loginPrompt(providerName: string, extensionName: string, recreatingSession: boolean, options?: AuthenticationForceNewSessionOptions): Promise<boolean> {
-		const message = recreatingSession
-			? nls.localize('confirmRelogin', "The extension '{0}' wants you to sign in again using {1}.", extensionName, providerName)
-			: nls.localize('confirmLogin', "The extension '{0}' wants to sign in using {1}.", extensionName, providerName);
+	private async loginPrompt(provider: IAuthenticationProvider, extensionName: string, recreatingSession: boolean, options?: AuthenticationForceNewSessionOptions): Promise<boolean> {
+		let message: string;
+
+		// An internal provider is a special case which is for model access only.
+		if (provider.id.startsWith(INTERNAL_MODEL_AUTH_PROVIDER_PREFIX)) {
+			message = nls.localize('confirmModelAccess', "The extension '{0}' wants to access the language models provided by {1}.", extensionName, provider.label);
+		} else {
+			message = recreatingSession
+				? nls.localize('confirmRelogin', "The extension '{0}' wants you to sign in again using {1}.", extensionName, provider.label)
+				: nls.localize('confirmLogin', "The extension '{0}' wants to sign in using {1}.", extensionName, provider.label);
+		}
 
 		const buttons: IPromptButton<boolean | undefined>[] = [
 			{
@@ -134,7 +142,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 			buttons.push({
 				label: nls.localize('learnMore', "Learn more"),
 				run: async () => {
-					const result = this.loginPrompt(providerName, extensionName, recreatingSession, options);
+					const result = this.loginPrompt(provider, extensionName, recreatingSession, options);
 					await this.openerService.open(URI.revive(options.learnMore!), { allowCommands: true });
 					return await result;
 				}
@@ -152,7 +160,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 	}
 
 	private async doGetSession(providerId: string, scopes: string[], extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined> {
-		const sessions = await this.authenticationService.getSessions(providerId, scopes, true);
+		const sessions = await this.authenticationService.getSessions(providerId, scopes, options.account, true);
 		const provider = this.authenticationService.getProvider(providerId);
 
 		// Error cases
@@ -199,25 +207,23 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 			// We only want to show the "recreating session" prompt if we are using forceNewSession & there are sessions
 			// that we will be "forcing through".
 			const recreatingSession = !!(options.forceNewSession && sessions.length);
-			const isAllowed = await this.loginPrompt(provider.label, extensionName, recreatingSession, uiOptions);
+			const isAllowed = await this.loginPrompt(provider, extensionName, recreatingSession, uiOptions);
 			if (!isAllowed) {
 				throw new Error('User did not consent to login.');
 			}
 
 			let session;
 			if (sessions?.length && !options.forceNewSession) {
-				session = provider.supportsMultipleAccounts
+				session = provider.supportsMultipleAccounts && !options.account
 					? await this.authenticationExtensionsService.selectSession(providerId, extensionId, extensionName, scopes, sessions)
 					: sessions[0];
 			} else {
-				let sessionToRecreate: AuthenticationSession | undefined;
-				if (typeof options.forceNewSession === 'object' && options.forceNewSession.sessionToRecreate) {
-					sessionToRecreate = options.forceNewSession.sessionToRecreate as AuthenticationSession;
-				} else {
+				let account: AuthenticationSessionAccount | undefined = options.account;
+				if (!account) {
 					const sessionIdToRecreate = this.authenticationExtensionsService.getSessionPreference(providerId, extensionId, scopes);
-					sessionToRecreate = sessionIdToRecreate ? sessions.find(session => session.id === sessionIdToRecreate) : undefined;
+					account = sessionIdToRecreate ? sessions.find(session => session.id === sessionIdToRecreate)?.account : undefined;
 				}
-				session = await this.authenticationService.createSession(providerId, scopes, { activateImmediate: true, sessionToRecreate });
+				session = await this.authenticationService.createSession(providerId, scopes, { activateImmediate: true, account });
 			}
 
 			this.authenticationAccessService.updateAllowedExtensions(providerId, session.account.label, [{ id: extensionId, name: extensionName, allowed: true }]);
@@ -254,16 +260,17 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		return session;
 	}
 
-	async $getSessions(providerId: string, scopes: readonly string[], extensionId: string, extensionName: string): Promise<AuthenticationSession[]> {
-		const sessions = await this.authenticationService.getSessions(providerId, [...scopes], true);
-		const accessibleSessions = sessions.filter(s => this.authenticationAccessService.isAccessAllowed(providerId, s.account.label, extensionId));
-		if (accessibleSessions.length) {
-			this.sendProviderUsageTelemetry(extensionId, providerId);
-			for (const session of accessibleSessions) {
-				this.authenticationUsageService.addAccountUsage(providerId, session.account.label, extensionId, extensionName);
+	async $getAccounts(providerId: string): Promise<ReadonlyArray<AuthenticationSessionAccount>> {
+		const sessions = await this.authenticationService.getSessions(providerId);
+		const accounts = new Array<AuthenticationSessionAccount>();
+		const seenAccounts = new Set<string>();
+		for (const session of sessions) {
+			if (!seenAccounts.has(session.account.label)) {
+				seenAccounts.add(session.account.label);
+				accounts.push(session.account);
 			}
 		}
-		return accessibleSessions;
+		return accounts;
 	}
 
 	private sendProviderUsageTelemetry(extensionId: string, providerId: string): void {

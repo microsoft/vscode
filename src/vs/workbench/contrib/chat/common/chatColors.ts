@@ -39,6 +39,6 @@ export const chatAvatarBackground = registerColor(
 
 export const chatAvatarForeground = registerColor(
 	'chat.avatarForeground',
-	{ dark: foreground, light: foreground, hcDark: foreground, hcLight: foreground, },
+	foreground,
 	localize('chat.avatarForeground', 'The foreground color of a chat avatar.')
 );

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import { asArray, firstOrDefault } from 'vs/base/common/arrays';
 import { DeferredPromise } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -20,16 +21,20 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILogService } from 'vs/platform/log/common/log';
 import { ChatAgentLocation, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService, reviveSerializedAgent } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatRequestTextPart, IParsedChatRequest, getPromptText, reviveParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatAgentMarkdownContentWithVulnerability, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgress, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatTask, IChatTextEdit, IChatTreeData, IChatUsedContext, IChatWarningMessage, ChatAgentVoteDirection, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatAgentMarkdownContentWithVulnerability, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgressMessage, IChatResponseProgressFileTreeData, IChatTask, IChatTextEdit, IChatTreeData, IChatUsedContext, IChatWarningMessage, ChatAgentVoteDirection, isIUsedContext, IChatProgress } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 export interface IChatRequestVariableEntry {
 	id: string;
+	fullName?: string;
+	icon?: ThemeIcon;
 	name: string;
 	modelDescription?: string;
 	range?: IOffsetRange;
 	value: IChatRequestVariableValue;
 	references?: IChatContentReference[];
+	isDynamic?: boolean;
+	isFile?: boolean;
 }
 
 export interface IChatRequestVariableData {
@@ -47,13 +52,15 @@ export interface IChatRequestModel {
 	readonly response?: IChatResponseModel;
 }
 
+export interface IChatTextEditGroupState {
+	sha1: string;
+	applied: number;
+}
+
 export interface IChatTextEditGroup {
 	uri: URI;
 	edits: TextEdit[][];
-	state?: {
-		sha1: string;
-		applied: number;
-	};
+	state?: IChatTextEditGroupState;
 	kind: 'textEditGroup';
 }
 
@@ -73,7 +80,8 @@ export type IChatProgressRenderableResponseContent = Exclude<IChatProgressRespon
 
 export interface IResponse {
 	readonly value: ReadonlyArray<IChatProgressResponseContent>;
-	asString(): string;
+	toMarkdown(): string;
+	toString(): string;
 }
 
 export interface IChatResponseModel {
@@ -106,9 +114,10 @@ export class ChatRequestModel implements IChatRequestModel {
 
 	public response: ChatResponseModel | undefined;
 
-	private _id: string;
-	public get id(): string {
-		return this._id;
+	public readonly id: string;
+
+	public get session() {
+		return this._session;
 	}
 
 	public get username(): string {
@@ -132,12 +141,16 @@ export class ChatRequestModel implements IChatRequestModel {
 	}
 
 	constructor(
-		public readonly session: ChatModel,
+		private _session: ChatModel,
 		public readonly message: IParsedChatRequest,
 		private _variableData: IChatRequestVariableData,
 		private _attempt: number = 0
 	) {
-		this._id = 'request_' + ChatRequestModel.nextId++;
+		this.id = 'request_' + ChatRequestModel.nextId++;
+	}
+
+	adoptTo(session: ChatModel) {
+		this._session = session;
 	}
 }
 
@@ -147,10 +160,18 @@ export class Response implements IResponse {
 		return this._onDidChangeValue.event;
 	}
 
-	// responseParts internally tracks all the response parts, including strings which are currently resolving, so that they can be updated when they do resolve
 	private _responseParts: IChatProgressResponseContent[];
-	// responseRepr externally presents the response parts with consolidated contiguous strings (excluding tree data)
-	private _responseRepr!: string;
+
+	/**
+	 * A stringified representation of response data which might be presented to a screenreader or used when copying a response.
+	 */
+	private _responseRepr = '';
+
+	/**
+	 * Just the markdown content of the response, used for determining the rendering rate of markdown
+	 */
+	private _markdownContent = '';
+
 
 	get value(): IChatProgressResponseContent[] {
 		return this._responseParts;
@@ -164,8 +185,12 @@ export class Response implements IResponse {
 		this._updateRepr(true);
 	}
 
-	asString(): string {
+	toString(): string {
 		return this._responseRepr;
+	}
+
+	toMarkdown(): string {
+		return this._markdownContent;
 	}
 
 	clear(): void {
@@ -182,13 +207,7 @@ export class Response implements IResponse {
 				// The last part can't be merged with- not markdown, or markdown with different permissions
 				this._responseParts.push(progress);
 			} else {
-				lastResponsePart.content = {
-					value: lastResponsePart.content.value + progress.content.value,
-					isTrusted: lastResponsePart.content.isTrusted,
-					supportThemeIcons: lastResponsePart.content.supportThemeIcons,
-					supportHtml: lastResponsePart.content.supportHtml,
-					baseUri: lastResponsePart.content.baseUri
-				} satisfies IMarkdownString;
+				lastResponsePart.content = appendMarkdownString(lastResponsePart.content, progress.content);
 			}
 			this._updateRepr(quiet);
 		} else if (progress.kind === 'textEdit') {
@@ -226,7 +245,7 @@ export class Response implements IResponse {
 
 				// Replace the resolving part's content with the resolved response
 				if (typeof content === 'string') {
-					this._responseParts[responsePosition] = { ...progress, content: new MarkdownString(content) };
+					(this._responseParts[responsePosition] as IChatTask).content = new MarkdownString(content);
 				}
 				this._updateRepr(false);
 			});
@@ -246,13 +265,25 @@ export class Response implements IResponse {
 			} else if (part.kind === 'command') {
 				return part.command.title;
 			} else if (part.kind === 'textEditGroup') {
-				return '';
+				return localize('editsSummary', "Made changes.");
 			} else if (part.kind === 'progressMessage') {
 				return '';
 			} else if (part.kind === 'confirmation') {
 				return `${part.title}\n${part.message}`;
 			} else {
 				return part.content.value;
+			}
+		})
+			.filter(s => s.length > 0)
+			.join('\n\n');
+
+		this._markdownContent = this._responseParts.map(part => {
+			if (part.kind === 'inlineReference') {
+				return basename('uri' in part.inlineReference ? part.inlineReference.uri : part.inlineReference);
+			} else if (part.kind === 'markdownContent' || part.kind === 'markdownVuln') {
+				return part.content.value;
+			} else {
+				return '';
 			}
 		})
 			.filter(s => s.length > 0)
@@ -270,9 +301,10 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 
 	private static nextId = 0;
 
-	private _id: string;
-	public get id(): string {
-		return this._id;
+	public readonly id: string;
+
+	public get session() {
+		return this._session;
 	}
 
 	public get isComplete(): boolean {
@@ -345,7 +377,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 
 	constructor(
 		_response: IMarkdownString | ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference | IChatAgentMarkdownContentWithVulnerability>,
-		public readonly session: ChatModel,
+		private _session: ChatModel,
 		private _agent: IChatAgentData | undefined,
 		private _slashCommand: IChatAgentCommand | undefined,
 		public readonly requestId: string,
@@ -363,7 +395,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._followups = followups ? [...followups] : undefined;
 		this._response = new Response(_response);
 		this._register(this._response.onDidChangeValue(() => this._onDidChange.fire()));
-		this._id = 'response_' + ChatResponseModel.nextId++;
+		this.id = 'response_' + ChatResponseModel.nextId++;
 	}
 
 	/**
@@ -432,6 +464,11 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		edit.state.applied = editCount; // must not be edit.edits.length
 		this._onDidChange.fire();
 		return true;
+	}
+
+	adoptTo(session: ChatModel) {
+		this._session = session;
+		this._onDidChange.fire();
 	}
 }
 
@@ -517,10 +554,28 @@ export interface IChatAddResponseEvent {
 	response: IChatResponseModel;
 }
 
+export const enum ChatRequestRemovalReason {
+	/**
+	 * "Normal" remove
+	 */
+	Removal,
+
+	/**
+	 * Removed because the request will be resent
+	 */
+	Resend,
+
+	/**
+	 * Remove because the request is moving to another model
+	 */
+	Adoption
+}
+
 export interface IChatRemoveRequestEvent {
 	kind: 'removeRequest';
 	requestId: string;
 	responseId?: string;
+	reason: ChatRequestRemovalReason;
 }
 
 export interface IChatInitEvent {
@@ -695,7 +750,8 @@ export class ChatModel extends Disposable implements IChatModel {
 			{ variables: [] };
 
 		variableData.variables = variableData.variables.map<IChatRequestVariableEntry>((v): IChatRequestVariableEntry => {
-			if ('values' in v && Array.isArray(v.values)) {
+			// Old variables format
+			if (v && 'values' in v && Array.isArray(v.values)) {
 				return {
 					id: v.id ?? '',
 					name: v.name,
@@ -776,6 +832,26 @@ export class ChatModel extends Disposable implements IChatModel {
 		return request;
 	}
 
+	adoptRequest(request: ChatRequestModel): void {
+
+		// this doesn't use `removeRequest` because it must not dispose the request object
+		const oldOwner = request.session;
+		const index = oldOwner._requests.findIndex(candidate => candidate.id === request.id);
+
+		if (index === -1) {
+			return;
+		}
+
+		oldOwner._requests.splice(index, 1);
+
+		request.adoptTo(this);
+		request.response?.adoptTo(this);
+		this._requests.push(request);
+
+		oldOwner._onDidChange.fire({ kind: 'removeRequest', requestId: request.id, responseId: request.response?.id, reason: ChatRequestRemovalReason.Adoption });
+		this._onDidChange.fire({ kind: 'addRequest', request });
+	}
+
 	acceptResponseProgress(request: ChatRequestModel, progress: IChatProgress, quiet?: boolean): void {
 		if (!request.response) {
 			request.response = new ChatResponseModel([], this, undefined, undefined, request.id);
@@ -809,12 +885,12 @@ export class ChatModel extends Disposable implements IChatModel {
 		}
 	}
 
-	removeRequest(id: string): void {
+	removeRequest(id: string, reason: ChatRequestRemovalReason = ChatRequestRemovalReason.Removal): void {
 		const index = this._requests.findIndex(request => request.id === id);
 		const request = this._requests[index];
 
 		if (index !== -1) {
-			this._onDidChange.fire({ kind: 'removeRequest', requestId: request.id, responseId: request.response?.id });
+			this._onDidChange.fire({ kind: 'removeRequest', requestId: request.id, responseId: request.response?.id, reason });
 			this._requests.splice(index, 1);
 			request.response?.dispose();
 		}
@@ -1014,4 +1090,15 @@ export function canMergeMarkdownStrings(md1: IMarkdownString, md2: IMarkdownStri
 	return equals(md1.isTrusted, md2.isTrusted) &&
 		md1.supportHtml === md2.supportHtml &&
 		md1.supportThemeIcons === md2.supportThemeIcons;
+}
+
+export function appendMarkdownString(md1: IMarkdownString, md2: IMarkdownString | string): IMarkdownString {
+	const appendedValue = typeof md2 === 'string' ? md2 : md2.value;
+	return {
+		value: md1.value + appendedValue,
+		isTrusted: md1.isTrusted,
+		supportThemeIcons: md1.supportThemeIcons,
+		supportHtml: md1.supportHtml,
+		baseUri: md1.baseUri
+	};
 }

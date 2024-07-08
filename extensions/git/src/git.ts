@@ -1113,7 +1113,7 @@ export class Repository {
 			return result.stdout.trim();
 		}
 		catch (err) {
-			this.logger.warn(`git config failed: ${err.message}`);
+			this.logger.warn(`[Git][config] git config failed: ${err.message}`);
 			return '';
 		}
 	}
@@ -1163,6 +1163,12 @@ export class Repository {
 
 		if (options?.author) {
 			args.push(`--author="${options.author}"`);
+		}
+
+		if (options?.refNames) {
+			args.push('--topo-order');
+			args.push('--decorate=full');
+			args.push(...options.refNames);
 		}
 
 		if (options?.path) {
@@ -1233,11 +1239,11 @@ export class Repository {
 			.filter(entry => !!entry);
 	}
 
-	async bufferString(object: string, encoding: string = 'utf8', autoGuessEncoding = false): Promise<string> {
+	async bufferString(object: string, encoding: string = 'utf8', autoGuessEncoding = false, candidateGuessEncodings: string[] = []): Promise<string> {
 		const stdout = await this.buffer(object);
 
 		if (autoGuessEncoding) {
-			encoding = detectEncoding(stdout) || encoding;
+			encoding = detectEncoding(stdout, candidateGuessEncodings) || encoding;
 		}
 
 		encoding = iconv.encodingExists(encoding) ? encoding : 'utf8';
@@ -1496,9 +1502,16 @@ export class Repository {
 		return parseGitChanges(this.repositoryRoot, gitResult.stdout);
 	}
 
-	async getMergeBase(ref1: string, ref2: string): Promise<string | undefined> {
+	async getMergeBase(ref1: string, ref2: string, ...refs: string[]): Promise<string | undefined> {
 		try {
-			const args = ['merge-base', ref1, ref2];
+			const args = ['merge-base'];
+			if (refs.length !== 0) {
+				args.push('--octopus');
+				args.push(...refs);
+			}
+
+			args.push(ref1, ref2);
+
 			const result = await this.exec(args);
 
 			return result.stdout.trim();
@@ -2304,7 +2317,7 @@ export class Repository {
 			return result;
 		}
 		catch (err) {
-			this.logger.warn(err.message);
+			this.logger.warn(`[Git][getHEAD] Failed to parse HEAD file: ${err.message}`);
 		}
 
 		try {
@@ -2452,11 +2465,11 @@ export class Repository {
 			remotes.push(...await this.getRemotesFS());
 
 			if (remotes.length === 0) {
-				this.logger.info('No remotes found in the git config file.');
+				this.logger.info('[Git][getRemotes] No remotes found in the git config file');
 			}
 		}
 		catch (err) {
-			this.logger.warn(`getRemotes() - ${err.message}`);
+			this.logger.warn(`[Git][getRemotes] Error: ${err.message}`);
 
 			// Fallback to using git to get the remotes
 			remotes.push(...await this.getRemotesGit());
@@ -2592,7 +2605,7 @@ export class Repository {
 			return branch;
 		}
 
-		this.logger.warn(`No such branch: ${name}.`);
+		this.logger.warn(`[Git][getBranch] No such branch: ${name}`);
 		return Promise.reject<Branch>(new Error(`No such branch: ${name}.`));
 	}
 
@@ -2688,7 +2701,7 @@ export class Repository {
 			const result = await fs.readFile(path.join(this.dotGit.path, ref), 'utf8');
 			return result.trim();
 		} catch (err) {
-			this.logger.warn(err.message);
+			this.logger.warn(`[Git][revParse] Unable to read file: ${err.message}`);
 		}
 
 		try {

@@ -426,18 +426,18 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
 		const id = request.id;
 
 		promise.then(data => {
-			this.sendResponse(<IRawResponse>{ id, data, type: ResponseType.PromiseSuccess });
+			this.sendResponse({ id, data, type: ResponseType.PromiseSuccess });
 		}, err => {
 			if (err instanceof Error) {
-				this.sendResponse(<IRawResponse>{
+				this.sendResponse({
 					id, data: {
 						message: err.message,
 						name: err.name,
-						stack: err.stack ? (err.stack.split ? err.stack.split('\n') : err.stack) : undefined
+						stack: err.stack ? err.stack.split('\n') : undefined
 					}, type: ResponseType.PromiseError
 				});
 			} else {
-				this.sendResponse(<IRawResponse>{ id, data: err, type: ResponseType.PromiseErrorObj });
+				this.sendResponse({ id, data: err, type: ResponseType.PromiseErrorObj });
 			}
 		}).finally(() => {
 			disposable.dispose();
@@ -458,7 +458,7 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
 
 		const id = request.id;
 		const event = channel.listen(this.ctx, request.name, request.arg);
-		const disposable = event(data => this.sendResponse(<IRawResponse>{ id, data, type: ResponseType.EventFire }));
+		const disposable = event(data => this.sendResponse({ id, data, type: ResponseType.EventFire }));
 
 		this.activeRequests.set(request.id, disposable);
 	}
@@ -484,7 +484,7 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
 			console.error(`Unknown channel: ${request.channelName}`);
 
 			if (request.type === RequestType.Promise) {
-				this.sendResponse(<IRawResponse>{
+				this.sendResponse({
 					id: request.id,
 					data: { name: 'Unknown channel', message: `Channel name '${request.channelName}' timed out after ${this.timeoutDelay}ms`, stack: undefined },
 					type: ResponseType.PromiseError

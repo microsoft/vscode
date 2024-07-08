@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import * as assert from 'assert';
+import assert from 'assert';
 import { stub } from 'sinon';
 import { tail2 } from 'vs/base/common/arrays';
 import { DeferredPromise, timeout } from 'vs/base/common/async';
@@ -376,14 +376,14 @@ suite('Event', function () {
 
 		const a = ds.add(new Emitter<undefined>({
 			onListenerError(e) { allError.push(e); },
-			leakWarningThreshold: 1,
+			leakWarningThreshold: 3,
 		}));
 
-		for (let i = 0; i < 5; i++) {
+		for (let i = 0; i < 11; i++) {
 			a.event(() => { }, undefined, store);
 		}
 
-		assert.deepStrictEqual(allError.length, 4);
+		assert.deepStrictEqual(allError.length, 5);
 		const [start, tail] = tail2(allError);
 		assert.ok(tail instanceof ListenerRefusalError);
 

@@ -87,6 +87,15 @@ body.web {
 	text-decoration: none;
 }
 
+
+.monaco-workbench p > a {
+	text-decoration: var(--text-link-decoration);
+}
+
+.monaco-workbench.underline-links {
+	--text-link-decoration: underline;
+}
+
 .monaco-workbench.hc-black p > a,
 .monaco-workbench.hc-light p > a {
 	text-decoration: underline !important;

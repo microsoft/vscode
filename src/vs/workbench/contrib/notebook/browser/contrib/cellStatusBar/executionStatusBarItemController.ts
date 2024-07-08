@@ -161,13 +161,13 @@ class ExecutionStateCellStatusBarItem extends Disposable {
 		const state = runState?.state;
 		const { lastRunSuccess } = internalMetadata;
 		if (!state && lastRunSuccess) {
-			return [<INotebookCellStatusBarItem>{
+			return [{
 				text: `$(${successStateIcon.id})`,
 				color: themeColorFromId(cellStatusIconSuccess),
 				tooltip: localize('notebook.cell.status.success', "Success"),
 				alignment: CellStatusbarAlignment.Left,
 				priority: Number.MAX_SAFE_INTEGER
-			}];
+			} satisfies INotebookCellStatusBarItem];
 		} else if (!state && lastRunSuccess === false) {
 			return [{
 				text: `$(${errorStateIcon.id})`,
@@ -177,22 +177,22 @@ class ExecutionStateCellStatusBarItem extends Disposable {
 				priority: Number.MAX_SAFE_INTEGER
 			}];
 		} else if (state === NotebookCellExecutionState.Pending || state === NotebookCellExecutionState.Unconfirmed) {
-			return [<INotebookCellStatusBarItem>{
+			return [{
 				text: `$(${pendingStateIcon.id})`,
 				tooltip: localize('notebook.cell.status.pending', "Pending"),
 				alignment: CellStatusbarAlignment.Left,
 				priority: Number.MAX_SAFE_INTEGER
-			}];
+			} satisfies INotebookCellStatusBarItem];
 		} else if (state === NotebookCellExecutionState.Executing) {
 			const icon = runState?.didPause ?
 				executingStateIcon :
 				ThemeIcon.modify(executingStateIcon, 'spin');
-			return [<INotebookCellStatusBarItem>{
+			return [{
 				text: `$(${icon.id})`,
 				tooltip: localize('notebook.cell.status.executing', "Executing"),
 				alignment: CellStatusbarAlignment.Left,
 				priority: Number.MAX_SAFE_INTEGER
-			}];
+			} satisfies INotebookCellStatusBarItem];
 		}
 
 		return [];
@@ -318,12 +318,12 @@ class TimerCellStatusBarItem extends Disposable {
 
 		}
 
-		return <INotebookCellStatusBarItem>{
+		return {
 			text: formatCellDuration(duration, false),
 			alignment: CellStatusbarAlignment.Left,
 			priority: Number.MAX_SAFE_INTEGER - 5,
 			tooltip
-		};
+		} satisfies INotebookCellStatusBarItem;
 	}
 
 	override dispose() {

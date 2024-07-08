@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IProcessEnvironment, isLinux, isMacintosh } from 'vs/base/common/platform';
+import { IProcessEnvironment, isLinux } from 'vs/base/common/platform';
 
 /**
  * Options to be passed to the external program or shell.
@@ -139,13 +139,6 @@ export function removeDangerousEnvVariables(env: IProcessEnvironment | undefined
 	// Unset `DEBUG`, as an invalid value might lead to process crashes
 	// See https://github.com/microsoft/vscode/issues/130072
 	delete env['DEBUG'];
-
-	if (isMacintosh) {
-		// Unset `DYLD_LIBRARY_PATH`, as it leads to process crashes
-		// See https://github.com/microsoft/vscode/issues/104525
-		// See https://github.com/microsoft/vscode/issues/105848
-		delete env['DYLD_LIBRARY_PATH'];
-	}
 
 	if (isLinux) {
 		// Unset `LD_PRELOAD`, as it might lead to process crashes

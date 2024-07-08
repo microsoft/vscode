@@ -28,5 +28,15 @@ declare module 'vscode' {
 		 * Worth noting that we already have this problem for the `comments` property.
 		*/
 		state?: CommentThreadState | { resolved?: CommentThreadState; applicability?: CommentThreadApplicability };
+		readonly uri: Uri;
+		range: Range | undefined;
+		comments: readonly Comment[];
+		collapsibleState: CommentThreadCollapsibleState;
+		canReply: boolean;
+		contextValue?: string;
+		label?: string;
+		dispose(): void;
+		// Part of the comment reveal proposal
+		reveal(options?: CommentThreadRevealOptions): Thenable<void>;
 	}
 }

@@ -184,7 +184,7 @@ function createLineBreaks(targetWindow: Window, requests: string[], fontInfo: Fo
 		result[i] = new ModelLineProjectionData(injectionOffsets, injectionOptions, breakOffsets, breakOffsetsVisibleColumn, wrappedTextIndentLength);
 	}
 
-	targetWindow.document.body.removeChild(containerDomNode);
+	containerDomNode.remove();
 	return result;
 }
 

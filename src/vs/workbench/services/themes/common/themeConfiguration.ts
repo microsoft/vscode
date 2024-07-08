@@ -319,6 +319,10 @@ export class ThemeConfiguration {
 		return undefined;
 	}
 
+	public isDetectingColorScheme(): boolean {
+		return this.configurationService.getValue(ThemeSettings.DETECT_COLOR_SCHEME);
+	}
+
 	public getColorThemeSettingId(): ThemeSettings {
 		const preferredScheme = this.getPreferredColorScheme();
 		return preferredScheme ? colorSchemeToPreferred[preferredScheme] : ThemeSettings.COLOR_THEME;

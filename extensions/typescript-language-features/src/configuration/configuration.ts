@@ -117,13 +117,14 @@ export interface TypeScriptServiceConfiguration {
 	readonly enableProjectDiagnostics: boolean;
 	readonly maxTsServerMemory: number;
 	readonly enablePromptUseWorkspaceTsdk: boolean;
-	readonly useVsCodeWatcher: boolean;
+	readonly useVsCodeWatcher: boolean; // TODO@bpasero remove this setting eventually
 	readonly watchOptions: Proto.WatchOptions | undefined;
 	readonly includePackageJsonAutoImports: 'auto' | 'on' | 'off' | undefined;
 	readonly enableTsServerTracing: boolean;
 	readonly localNodePath: string | null;
 	readonly globalNodePath: string | null;
 	readonly workspaceSymbolsExcludeLibrarySymbols: boolean;
+	readonly enableRegionDiagnostics: boolean;
 }
 
 export function areServiceConfigurationsEqual(a: TypeScriptServiceConfiguration, b: TypeScriptServiceConfiguration): boolean {
@@ -162,6 +163,7 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 			localNodePath: this.readLocalNodePath(configuration),
 			globalNodePath: this.readGlobalNodePath(configuration),
 			workspaceSymbolsExcludeLibrarySymbols: this.readWorkspaceSymbolsExcludeLibrarySymbols(configuration),
+			enableRegionDiagnostics: this.readEnableRegionDiagnostics(configuration),
 		};
 	}
 
@@ -261,10 +263,14 @@ export abstract class BaseServiceConfigurationProvider implements ServiceConfigu
 	}
 
 	private readWebProjectWideIntellisenseSuppressSemanticErrors(configuration: vscode.WorkspaceConfiguration): boolean {
-		return configuration.get<boolean>('typescript.tsserver.web.projectWideIntellisense.suppressSemanticErrors', false);
+		return configuration.get<boolean>('typescript.tsserver.web.projectWideIntellisense.suppressSemanticErrors', true);
 	}
 
 	private readWebTypeAcquisition(configuration: vscode.WorkspaceConfiguration): boolean {
-		return configuration.get<boolean>('typescript.tsserver.web.typeAcquisition.enabled', true);
+		return configuration.get<boolean>('typescript.tsserver.web.typeAcquisition.enabled', false);
+	}
+
+	private readEnableRegionDiagnostics(configuration: vscode.WorkspaceConfiguration): boolean {
+		return configuration.get<boolean>('typescript.tsserver.enableRegionDiagnostics', true);
 	}
 }

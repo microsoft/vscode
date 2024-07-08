@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import { Event } from 'vs/base/common/event';
 import { IFileService } from 'vs/platform/files/common/files';
 import { mock } from 'vs/workbench/test/common/workbenchTestServices';

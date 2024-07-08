@@ -950,7 +950,7 @@ function measureText(targetDocument: Document, text: string, fontInfo: FontInfo,
 
 	const res = regularDomNode.offsetWidth;
 
-	targetDocument.body.removeChild(container);
+	container.remove();
 
 	return res;
 }

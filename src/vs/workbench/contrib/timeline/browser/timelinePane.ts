@@ -418,7 +418,7 @@ export class TimelinePane extends ViewPane {
 	}
 
 	private onTimelineChanged(e: TimelineChangeEvent) {
-		if (e?.uri === undefined || this.uriIdentityService.extUri.isEqual(e.uri, this.uri)) {
+		if (e?.uri === undefined || this.uriIdentityService.extUri.isEqual(URI.revive(e.uri), this.uri)) {
 			const timeline = this.timelinesBySource.get(e.id);
 			if (timeline === undefined) {
 				return;
@@ -574,6 +574,15 @@ export class TimelinePane extends ViewPane {
 		}
 
 		if (options === undefined) {
+			if (
+				!reset &&
+				timeline !== undefined &&
+				timeline.items.length > 0 &&
+				!timeline.more
+			) {
+				// If we are not resetting, have item(s), and already know there are no more to fetch, we're done here
+				return false;
+			}
 			options = { cursor: reset ? undefined : timeline?.cursor, limit: this.pageSize };
 		}
 

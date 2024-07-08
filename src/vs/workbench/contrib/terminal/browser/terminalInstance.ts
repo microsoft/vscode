@@ -88,6 +88,7 @@ import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/commo
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { shouldPasteTerminalText } from 'vs/workbench/contrib/terminal/common/terminalClipboard';
 import { TerminalIconPicker } from 'vs/workbench/contrib/terminal/browser/terminalIconPicker';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 // HACK: This file should not depend on terminalContrib
 // eslint-disable-next-line local/code-import-patterns
@@ -702,7 +703,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const verticalPadding = parseInt(computedStyle.paddingTop) + parseInt(computedStyle.paddingBottom);
 		TerminalInstance._lastKnownCanvasDimensions = new dom.Dimension(
 			Math.min(Constants.MaxCanvasWidth, width - horizontalPadding),
-			height + (this._hasScrollBar && !this._horizontalScrollbar ? -5/* scroll bar height */ : 0) - 2/* bottom padding */ - verticalPadding);
+			height - verticalPadding + (this._hasScrollBar && this._horizontalScrollbar ? -5/* scroll bar height */ : 0));
 		return TerminalInstance._lastKnownCanvasDimensions;
 	}
 
@@ -857,7 +858,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// Determine whether to send ETX (ctrl+c) before running the command. This should always
 		// happen unless command detection can reliably say that a command is being entered and
 		// there is no content in the prompt
-		if (commandDetection?.hasInput !== false) {
+		if (!commandDetection || commandDetection.promptInputModel.value.length > 0) {
 			await this.sendText('\x03', false);
 			// Wait a little before running the command to avoid the sequences being echoed while the ^C
 			// is being evaluated
@@ -1843,58 +1844,72 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	@debounce(50)
-	private async _resize(): Promise<void> {
-		this._resizeNow(false);
-	}
+	private async _resize(immediate?: boolean): Promise<void> {
+		if (!this.xterm) {
+			return;
+		}
 
-	private async _resizeNow(immediate: boolean): Promise<void> {
 		let cols = this.cols;
 		let rows = this.rows;
 
-		if (this.xterm) {
-			// Only apply these settings when the terminal is visible so that
-			// the characters are measured correctly.
-			if (this._isVisible && this._layoutSettingsChanged) {
-				const font = this.xterm.getFont();
-				const config = this._terminalConfigurationService.config;
-				this.xterm.raw.options.letterSpacing = font.letterSpacing;
-				this.xterm.raw.options.lineHeight = font.lineHeight;
-				this.xterm.raw.options.fontSize = font.fontSize;
-				this.xterm.raw.options.fontFamily = font.fontFamily;
-				this.xterm.raw.options.fontWeight = config.fontWeight;
-				this.xterm.raw.options.fontWeightBold = config.fontWeightBold;
+		// Only apply these settings when the terminal is visible so that
+		// the characters are measured correctly.
+		if (this._isVisible && this._layoutSettingsChanged) {
+			const font = this.xterm.getFont();
+			const config = this._terminalConfigurationService.config;
+			this.xterm.raw.options.letterSpacing = font.letterSpacing;
+			this.xterm.raw.options.lineHeight = font.lineHeight;
+			this.xterm.raw.options.fontSize = font.fontSize;
+			this.xterm.raw.options.fontFamily = font.fontFamily;
+			this.xterm.raw.options.fontWeight = config.fontWeight;
+			this.xterm.raw.options.fontWeightBold = config.fontWeightBold;
 
-				// Any of the above setting changes could have changed the dimensions of the
-				// terminal, re-evaluate now.
-				this._initDimensions();
-				cols = this.cols;
-				rows = this.rows;
+			// Any of the above setting changes could have changed the dimensions of the
+			// terminal, re-evaluate now.
+			this._initDimensions();
+			cols = this.cols;
+			rows = this.rows;
 
-				this._layoutSettingsChanged = false;
-			}
-
-			if (isNaN(cols) || isNaN(rows)) {
-				return;
-			}
-
-			if (cols !== this.xterm.raw.cols || rows !== this.xterm.raw.rows) {
-				if (this._fixedRows || this._fixedCols) {
-					await this._updateProperty(ProcessPropertyType.FixedDimensions, { cols: this._fixedCols, rows: this._fixedRows });
-				}
-				this._onDimensionsChanged.fire();
-			}
-
-			this.xterm.raw.resize(cols, rows);
-			TerminalInstance._lastKnownGridDimensions = { cols, rows };
+			this._layoutSettingsChanged = false;
 		}
+
+		if (isNaN(cols) || isNaN(rows)) {
+			return;
+		}
+
+		if (cols !== this.xterm.raw.cols || rows !== this.xterm.raw.rows) {
+			if (this._fixedRows || this._fixedCols) {
+				await this._updateProperty(ProcessPropertyType.FixedDimensions, { cols: this._fixedCols, rows: this._fixedRows });
+			}
+			this._onDimensionsChanged.fire();
+		}
+
+		TerminalInstance._lastKnownGridDimensions = { cols, rows };
 
 		if (immediate) {
-			// do not await, call setDimensions synchronously
-			this._processManager.setDimensions(cols, rows, true);
+			this.xterm.raw.resize(cols, rows);
+			await this._updatePtyDimensions(this.xterm.raw);
 		} else {
-			await this._processManager.setDimensions(cols, rows);
+			// Update dimensions independently as vertical resize is cheap but horizontal resize is
+			// expensive due to reflow.
+			this._resizeVertically(this.xterm.raw, rows);
+			this._resizeHorizontally(this.xterm.raw, cols);
 		}
+	}
+
+	private async _resizeVertically(rawXterm: XTermTerminal, rows: number): Promise<void> {
+		rawXterm.resize(rawXterm.cols, rows);
+		await this._updatePtyDimensions(rawXterm);
+	}
+
+	@debounce(50)
+	private async _resizeHorizontally(rawXterm: XTermTerminal, cols: number): Promise<void> {
+		rawXterm.resize(cols, rawXterm.rows);
+		await this._updatePtyDimensions(rawXterm);
+	}
+
+	private async _updatePtyDimensions(rawXterm: XTermTerminal): Promise<void> {
+		await this._processManager.setDimensions(rawXterm.cols, rawXterm.rows);
 	}
 
 	setShellType(shellType: TerminalShellType | undefined) {
@@ -1976,7 +1991,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		this._dimensionsOverride = dimensions;
 		if (immediate) {
-			this._resizeNow(true);
+			this._resize(true);
 		} else {
 			this._resize();
 		}
@@ -2288,15 +2303,14 @@ class TerminalInstanceDragAndDropController extends Disposable implements dom.ID
 		private readonly _container: HTMLElement,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
+		@IHostService private readonly _hostService: IHostService,
 	) {
 		super();
 		this._register(toDisposable(() => this._clearDropOverlay()));
 	}
 
 	private _clearDropOverlay() {
-		if (this._dropOverlay && this._dropOverlay.parentElement) {
-			this._dropOverlay.parentElement.removeChild(this._dropOverlay);
-		}
+		this._dropOverlay?.remove();
 		this._dropOverlay = undefined;
 	}
 
@@ -2372,9 +2386,9 @@ class TerminalInstanceDragAndDropController extends Disposable implements dom.ID
 			path = URI.file(JSON.parse(rawCodeFiles)[0]);
 		}
 
-		if (!path && e.dataTransfer.files.length > 0 && e.dataTransfer.files[0].path /* Electron only */) {
+		if (!path && e.dataTransfer.files.length > 0 && this._hostService.getPathForFile(e.dataTransfer.files[0])) {
 			// Check if the file was dragged from the filesystem
-			path = URI.file(e.dataTransfer.files[0].path);
+			path = URI.file(this._hostService.getPathForFile(e.dataTransfer.files[0])!);
 		}
 
 		if (!path) {

@@ -110,8 +110,6 @@ export const referenceGeneratedDepsByArch = {
 		'libxkbcommon.so.0()(64bit)',
 		'libxkbcommon.so.0(V_0.5.0)(64bit)',
 		'libxkbfile.so.1()(64bit)',
-		'libz.so.1()(64bit)',
-		'libz.so.1(ZLIB_1.2.3.4)(64bit)',
 		'rpmlib(FileDigests) <= 4.6.0-1',
 		'rtld(GNU_HASH)',
 		'xdg-utils'

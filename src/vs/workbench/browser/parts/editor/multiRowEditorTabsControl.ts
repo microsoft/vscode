@@ -61,12 +61,8 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 	}
 
 	openEditor(editor: EditorInput, options: IInternalEditorOpenOptions): boolean {
-		const [editorTabController, otherTabController] = this.model.isSticky(editor) ? [this.stickyEditorTabsControl, this.unstickyEditorTabsControl] : [this.unstickyEditorTabsControl, this.stickyEditorTabsControl];
-		const didChange = editorTabController.openEditor(editor, options);
+		const didChange = this.getEditorTabsController(editor).openEditor(editor, options);
 		if (didChange) {
-			// HACK: To render all editor tabs on startup, otherwise only one row gets rendered
-			otherTabController.openEditors([]);
-
 			this.handleOpenedEditors();
 		}
 		return didChange;
@@ -163,12 +159,9 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 		this.unstickyEditorTabsControl.setActive(isActive);
 	}
 
-	setEditorSelections(editors: EditorInput[], selected: boolean): void {
-		const stickyEditors = editors.filter(e => this.model.isSticky(e));
-		const unstickyEditors = editors.filter(e => !this.model.isSticky(e));
-
-		this.stickyEditorTabsControl.setEditorSelections(stickyEditors, selected);
-		this.unstickyEditorTabsControl.setEditorSelections(unstickyEditors, selected);
+	updateEditorSelections(): void {
+		this.stickyEditorTabsControl.updateEditorSelections();
+		this.unstickyEditorTabsControl.updateEditorSelections();
 	}
 
 	updateEditorLabel(editor: EditorInput): void {
@@ -202,7 +195,7 @@ export class MultiRowEditorControl extends Disposable implements IEditorTabsCont
 		return this.stickyEditorTabsControl.getHeight() + this.unstickyEditorTabsControl.getHeight();
 	}
 
-	public override dispose(): void {
+	override dispose(): void {
 		this.parent.classList.toggle('two-tab-bars', false);
 
 		super.dispose();

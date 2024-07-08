@@ -61,9 +61,9 @@ export class DefaultConfiguration extends Disposable {
 			const defaultOverrideValue = configurationDefaultsOverrides[key];
 			const propertySchema = configurationProperties[key];
 			if (defaultOverrideValue !== undefined) {
-				this._configurationModel.addValue(key, defaultOverrideValue);
+				this._configurationModel.setValue(key, defaultOverrideValue);
 			} else if (propertySchema) {
-				this._configurationModel.addValue(key, propertySchema.default);
+				this._configurationModel.setValue(key, propertySchema.default);
 			} else {
 				this._configurationModel.removeValue(key);
 			}

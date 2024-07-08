@@ -32,6 +32,11 @@ export class WellDefinedPrefixTree<V> {
 		return this.root.children?.values() || Iterable.empty();
 	}
 
+	/** Gets the top-level nodes of the tree */
+	public get entries(): Iterable<[string, IPrefixTreeNode<V>]> {
+		return this.root.children?.entries() || Iterable.empty();
+	}
+
 	/**
 	 * Inserts a new value in the prefix tree.
 	 * @param onNode - called for each node as we descend to the insertion point,
