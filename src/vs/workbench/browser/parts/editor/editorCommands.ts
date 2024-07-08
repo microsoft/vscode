@@ -1237,7 +1237,7 @@ function registerOtherEditorCommands(): void {
 			});
 		}
 		async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
-			setEditorGroupLock(accessor, true, args);
+			setEditorGroupLock(accessor, true, ...args);
 		}
 	});
 
@@ -1252,7 +1252,7 @@ function registerOtherEditorCommands(): void {
 			});
 		}
 		async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
-			setEditorGroupLock(accessor, false, args);
+			setEditorGroupLock(accessor, false, ...args);
 		}
 	});
 
