@@ -130,9 +130,9 @@ type TreeElement =
 
 type ShowChangesSetting = 'always' | 'never' | 'auto';
 
-registerColor('scm.historyItemAdditionsForeground', 'gitDecoration.addedResourceForeground', localize('scm.historyItemAdditionsForeground', "History item additions foreground color."));
+const historyItemAdditionsForeground = registerColor('scm.historyItemAdditionsForeground', 'gitDecoration.addedResourceForeground', localize('scm.historyItemAdditionsForeground', "History item additions foreground color."));
 
-registerColor('scm.historyItemDeletionsForeground', 'gitDecoration.deletedResourceForeground', localize('scm.historyItemDeletionsForeground', "History item deletions foreground color."));
+const historyItemDeletionsForeground = registerColor('scm.historyItemDeletionsForeground', 'gitDecoration.deletedResourceForeground', localize('scm.historyItemDeletionsForeground', "History item deletions foreground color."));
 
 registerColor('scm.historyItemStatisticsBorder', transparent(foreground, 0.2), localize('scm.historyItemStatisticsBorder', "History item statistics border color."));
 
@@ -999,7 +999,8 @@ class HistoryItem2Renderer implements ICompressibleTreeRenderer<SCMHistoryItemVi
 	get templateId(): string { return HistoryItem2Renderer.TEMPLATE_ID; }
 
 	constructor(
-		@IHoverService private readonly hoverService: IHoverService
+		@IHoverService private readonly hoverService: IHoverService,
+		@IThemeService private readonly themeService: IThemeService
 	) { }
 
 	renderTemplate(container: HTMLElement): HistoryItem2Template {
@@ -1053,12 +1054,25 @@ class HistoryItem2Renderer implements ICompressibleTreeRenderer<SCMHistoryItemVi
 			markdown.appendMarkdown(`$(account) **${historyItem.author}**\n\n`);
 		}
 
+		markdown.appendMarkdown(`${historyItem.message}\n\n`);
+
 		if (historyItem.timestamp) {
+			markdown.appendMarkdown(`---\n\n`);
+
 			const dateFormatter = new Intl.DateTimeFormat(platform.language, { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' });
-			markdown.appendMarkdown(`$(history) ${dateFormatter.format(historyItem.timestamp)}\n\n`);
+			markdown.appendMarkdown(`$(history) ${dateFormatter.format(historyItem.timestamp)}`);
 		}
 
-		markdown.appendMarkdown(historyItem.message);
+		if (historyItem.statistics?.files) {
+			const colorTheme = this.themeService.getColorTheme();
+			const historyItemAdditionsForegroundColor = colorTheme.getColor(historyItemAdditionsForeground);
+			const historyItemDeletionsForegroundColor = colorTheme.getColor(historyItemDeletionsForeground);
+
+			markdown.appendMarkdown(`  |  `);
+			markdown.appendMarkdown(`<span>${historyItem.statistics.files}</span>`);
+			markdown.appendMarkdown(historyItem.statistics.insertions ? `,&nbsp;<span style="color:${historyItemAdditionsForegroundColor};">+${historyItem.statistics.insertions}</span>` : '');
+			markdown.appendMarkdown(historyItem.statistics.deletions ? `,&nbsp;<span style="color:${historyItemDeletionsForegroundColor};">-${historyItem.statistics.deletions}</span>` : '');
+		}
 
 		return { markdown, markdownNotSupportedFallback: historyItem.message };
 	}
