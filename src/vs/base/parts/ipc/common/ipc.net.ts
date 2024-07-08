@@ -597,6 +597,8 @@ export class Client<TContext = string> extends IPCClient<TContext> {
 	override dispose(): void {
 		super.dispose();
 		const socket = this.protocol.getSocket();
+		// should be sent gracefully with a .flush(), but try to send it out as a
+		// last resort here if nothing else:
 		this.protocol.sendDisconnect();
 		this.protocol.dispose();
 		socket.end();
@@ -808,6 +810,7 @@ export interface PersistentProtocolOptions {
 export class PersistentProtocol implements IMessagePassingProtocol {
 
 	private _isReconnecting: boolean;
+	private _didSendDisconnect?: boolean;
 
 	private _outgoingUnackMsg: Queue<ProtocolMessage>;
 	private _outgoingMsgId: number;
@@ -910,9 +913,12 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 	}
 
 	sendDisconnect(): void {
-		const msg = new ProtocolMessage(ProtocolMessageType.Disconnect, 0, 0, getEmptyBuffer());
-		this._socketWriter.write(msg);
-		this._socketWriter.flush();
+		if (!this._didSendDisconnect) {
+			this._didSendDisconnect = true;
+			const msg = new ProtocolMessage(ProtocolMessageType.Disconnect, 0, 0, getEmptyBuffer());
+			this._socketWriter.write(msg);
+			this._socketWriter.flush();
+		}
 	}
 
 	sendPause(): void {

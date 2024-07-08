@@ -75,4 +75,8 @@ export namespace TestingContextKeys {
 		type: 'string',
 		description: localize('testing.testResultState', 'Value available testing/item/result indicating the state of the item.')
 	});
+	export const testProfileContextGroup = new RawContextKey<string>('testing.profile.context.group', undefined, {
+		type: 'string',
+		description: localize('testing.profile.context.group', 'Type of menu where the configure testing profile submenu exists. Either "run", "debug", or "coverage"')
+	});
 }

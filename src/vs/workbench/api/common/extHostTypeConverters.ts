@@ -53,6 +53,7 @@ import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/ed
 import { Dto } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import type * as vscode from 'vscode';
 import * as types from './extHostTypes';
+import { IToolData } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
 
 export namespace Command {
 
@@ -2556,6 +2557,8 @@ export namespace ChatResponsePart {
 			return ChatResponseDetectedParticipantPart.from(part);
 		} else if (part instanceof types.ChatResponseWarningPart) {
 			return ChatResponseWarningPart.from(part);
+		} else if (part instanceof types.ChatResponseConfirmationPart) {
+			return ChatResponseConfirmationPart.from(part);
 		}
 
 		return {
@@ -2591,7 +2594,7 @@ export namespace ChatResponsePart {
 }
 
 export namespace ChatAgentRequest {
-	export function to(request: IChatAgentRequest): vscode.ChatRequest {
+	export function to(request: IChatAgentRequest, location2: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined): vscode.ChatRequest {
 		return {
 			prompt: request.message,
 			command: request.command,
@@ -2600,7 +2603,8 @@ export namespace ChatAgentRequest {
 			references: request.variables.variables.map(ChatAgentValueReference.to),
 			location: ChatLocation.to(request.location),
 			acceptedConfirmationData: request.acceptedConfirmationData,
-			rejectedConfirmationData: request.rejectedConfirmationData
+			rejectedConfirmationData: request.rejectedConfirmationData,
+			location2
 		};
 	}
 }
@@ -2740,6 +2744,16 @@ export namespace DebugTreeItem {
 			canEdit: item.canEdit,
 			collapsibleState: (item.collapsibleState || DebugTreeItemCollapsibleState.None) as DebugTreeItemCollapsibleState,
 			contextValue: item.contextValue,
+		};
+	}
+}
+
+export namespace LanguageModelToolDescription {
+	export function to(item: IToolData): vscode.LanguageModelToolDescription {
+		return {
+			name: item.name,
+			description: item.description,
+			parametersSchema: item.parametersSchema,
 		};
 	}
 }

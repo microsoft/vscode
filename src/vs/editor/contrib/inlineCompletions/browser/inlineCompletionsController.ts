@@ -45,7 +45,7 @@ export class InlineCompletionsController extends Disposable {
 	}
 
 	private readonly _editorObs = observableCodeEditor(this.editor);
-	private readonly _positions = derived(this, reader => this._editorObs.positions.read(reader) ?? [new Position(1, 1)]);
+	private readonly _positions = derived(this, reader => this._editorObs.selections.read(reader)?.map(s => s.getEndPosition()) ?? [new Position(1, 1)]);
 
 	private readonly _suggestWidgetAdaptor = this._register(new SuggestWidgetAdaptor(
 		this.editor,

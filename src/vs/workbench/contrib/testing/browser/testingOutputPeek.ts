@@ -780,6 +780,7 @@ class FollowupActionWidget extends Disposable {
 
 	constructor(
 		private readonly container: HTMLElement,
+		private readonly editor: ICodeEditor | undefined,
 		@ITestService private readonly testService: ITestService,
 		@IQuickInputService private readonly quickInput: IQuickInputService,
 	) {
@@ -871,6 +872,10 @@ class FollowupActionWidget extends Disposable {
 		if (link.ariaDisabled !== 'true') {
 			link.ariaDisabled = 'true';
 			fu.execute();
+
+			if (this.editor) {
+				TestingOutputPeekController.get(this.editor)?.removePeek();
+			}
 		}
 	}
 }
@@ -917,7 +922,7 @@ class TestResultsViewContent extends Disposable {
 		const { historyVisible, showRevealLocationOnMessages } = this.options;
 		const isInPeekView = this.editor !== undefined;
 		const messageContainer = this.messageContainer = dom.append(containerElement, dom.$('.test-output-peek-message-container'));
-		this.followupWidget = this._register(this.instantiationService.createInstance(FollowupActionWidget, messageContainer));
+		this.followupWidget = this._register(this.instantiationService.createInstance(FollowupActionWidget, messageContainer, this.editor));
 		this.contentProviders = [
 			this._register(this.instantiationService.createInstance(DiffContentProvider, this.editor, messageContainer)),
 			this._register(this.instantiationService.createInstance(MarkdownTestMessagePeek, messageContainer)),
@@ -1097,10 +1102,9 @@ class TestResultsPeek extends PeekViewWidget {
 		super._fillHead(container);
 
 		const actions: IAction[] = [];
-		const menu = this.menuService.createMenu(MenuId.TestPeekTitle, this.contextKeyService);
-		createAndFillInActionBarActions(menu, undefined, actions);
+		const menu = this.menuService.getMenuActions(MenuId.TestPeekTitle, this.contextKeyService);
+		createAndFillInActionBarActions(menu, actions);
 		this._actionbarWidget!.push(actions, { label: false, icon: true, index: 0 });
-		menu.dispose();
 	}
 
 	protected override _fillBody(containerElement: HTMLElement): void {
@@ -2553,13 +2557,9 @@ class TreeActionsProvider {
 
 		const contextOverlay = this.contextKeyService.createOverlay(contextKeys);
 		const result = { primary, secondary };
-		const menu = this.menuService.createMenu(id, contextOverlay);
-		try {
-			createAndFillInActionBarActions(menu, { arg: element.context }, result, 'inline');
-			return result;
-		} finally {
-			menu.dispose();
-		}
+		const menu = this.menuService.getMenuActions(id, contextOverlay, { arg: element.context });
+		createAndFillInActionBarActions(menu, result, 'inline');
+		return result;
 	}
 }
 

@@ -41,7 +41,7 @@ function getTypeScriptCompilerOptions(src) {
     options.newLine = /\r\n/.test(fs.readFileSync(__filename, 'utf8')) ? 0 : 1;
     return options;
 }
-function createCompile(src, build, emitError, transpileOnly) {
+function createCompile(src, { build, emitError, transpileOnly, preserveEnglish }) {
     const tsb = require('./tsb');
     const sourcemaps = require('gulp-sourcemaps');
     const projectPath = path.join(__dirname, '../../', src, 'tsconfig.json');
@@ -71,7 +71,7 @@ function createCompile(src, build, emitError, transpileOnly) {
             .pipe(util.loadSourcemaps())
             .pipe(compilation(token))
             .pipe(noDeclarationsFilter)
-            .pipe(util.$if(build, nls.nls()))
+            .pipe(util.$if(build, nls.nls({ preserveEnglish })))
             .pipe(noDeclarationsFilter.restore)
             .pipe(util.$if(!transpileOnly, sourcemaps.write('.', {
             addComment: false,
@@ -90,7 +90,7 @@ function createCompile(src, build, emitError, transpileOnly) {
 }
 function transpileTask(src, out, swc) {
     const task = () => {
-        const transpile = createCompile(src, false, true, { swc });
+        const transpile = createCompile(src, { build: false, emitError: true, transpileOnly: { swc }, preserveEnglish: false });
         const srcPipe = gulp.src(`${src}/**`, { base: `${src}` });
         return srcPipe
             .pipe(transpile())
@@ -104,7 +104,7 @@ function compileTask(src, out, build, options = {}) {
         if (os.totalmem() < 4_000_000_000) {
             throw new Error('compilation requires 4GB of RAM');
         }
-        const compile = createCompile(src, build, true, false);
+        const compile = createCompile(src, { build, emitError: true, transpileOnly: false, preserveEnglish: !!options.preserveEnglish });
         const srcPipe = gulp.src(`${src}/**`, { base: `${src}` });
         const generator = new MonacoGenerator(false);
         if (src === 'src') {
@@ -141,7 +141,7 @@ function compileTask(src, out, build, options = {}) {
 }
 function watchTask(out, build) {
     const task = () => {
-        const compile = createCompile('src', build, false, false);
+        const compile = createCompile('src', { build, emitError: false, transpileOnly: false, preserveEnglish: false });
         const src = gulp.src('src/**', { base: 'src' });
         const watchSrc = watch('src/**', { base: 'src', readDelay: 200 });
         const generator = new MonacoGenerator(true);
@@ -234,7 +234,7 @@ class MonacoGenerator {
 function generateApiProposalNames() {
     let eol;
     try {
-        const src = fs.readFileSync('src/vs/workbench/services/extensions/common/extensionsApiProposals.ts', 'utf-8');
+        const src = fs.readFileSync('src/vs/platform/extensions/common/extensionsApiProposals.ts', 'utf-8');
         const match = /\r?\n/m.exec(src);
         eol = match ? match[0] : os.EOL;
     }
@@ -242,18 +242,27 @@ function generateApiProposalNames() {
         eol = os.EOL;
     }
     const pattern = /vscode\.proposed\.([a-zA-Z\d]+)\.d\.ts$/;
-    const proposalNames = new Set();
+    const versionPattern = /^\s*\/\/\s*version\s*:\s*(\d+)\s*$/mi;
+    const proposals = new Map();
     const input = es.through();
     const output = input
         .pipe(util.filter((f) => pattern.test(f.path)))
         .pipe(es.through((f) => {
         const name = path.basename(f.path);
         const match = pattern.exec(name);
-        if (match) {
-            proposalNames.add(match[1]);
+        if (!match) {
+            return;
         }
+        const proposalName = match[1];
+        const contents = f.contents.toString('utf8');
+        const versionMatch = versionPattern.exec(contents);
+        const version = versionMatch ? versionMatch[1] : undefined;
+        proposals.set(proposalName, {
+            proposal: `https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.${proposalName}.d.ts`,
+            version: version ? parseInt(version) : undefined
+        });
     }, function () {
-        const names = [...proposalNames.values()].sort();
+        const names = [...proposals.keys()].sort();
         const contents = [
             '/*---------------------------------------------------------------------------------------------',
             ' *  Copyright (c) Microsoft Corporation. All rights reserved.',
@@ -262,14 +271,18 @@ function generateApiProposalNames() {
             '',
             '// THIS IS A GENERATED FILE. DO NOT EDIT DIRECTLY.',
             '',
-            'export const allApiProposals = Object.freeze({',
-            `${names.map(name => `\t${name}: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.${name}.d.ts'`).join(`,${eol}`)}`,
-            '});',
-            'export type ApiProposalName = keyof typeof allApiProposals;',
+            'const _allApiProposals = {',
+            `${names.map(proposalName => {
+                const proposal = proposals.get(proposalName);
+                return `\t${proposalName}: {${eol}\t\tproposal: '${proposal.proposal}',${eol}${proposal.version ? `\t\tversion: ${proposal.version}${eol}` : ''}\t}`;
+            }).join(`,${eol}`)}`,
+            '};',
+            'export const allApiProposals = Object.freeze<{ [proposalName: string]: Readonly<{ proposal: string; version?: number }> }>(_allApiProposals);',
+            'export type ApiProposalName = keyof typeof _allApiProposals;',
             '',
         ].join(eol);
         this.emit('data', new File({
-            path: 'vs/workbench/services/extensions/common/extensionsApiProposals.ts',
+            path: 'vs/platform/extensions/common/extensionsApiProposals.ts',
             contents: Buffer.from(contents)
         }));
         this.emit('end');

@@ -3,44 +3,44 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./bulkEdit';
-import { WorkbenchAsyncDataTree, IOpenEvent } from 'vs/platform/list/browser/listService';
-import { BulkEditElement, BulkEditDelegate, TextEditElementRenderer, FileElementRenderer, BulkEditDataSource, BulkEditIdentityProvider, FileElement, TextEditElement, BulkEditAccessibilityProvider, CategoryElementRenderer, BulkEditNaviLabelProvider, CategoryElement, BulkEditSorter, compareBulkFileOperations } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditTree';
-import { FuzzyScore } from 'vs/base/common/filters';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { localize } from 'vs/nls';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { BulkEditPreviewProvider, BulkFileOperation, BulkFileOperations, BulkFileOperationType } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPreview';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { URI } from 'vs/base/common/uri';
-import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { ResourceLabels, IResourceLabelsContainer } from 'vs/workbench/browser/labels';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { MenuId } from 'vs/platform/actions/common/actions';
-import { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import type { IAsyncDataTreeViewState } from 'vs/base/browser/ui/tree/asyncDataTree';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
 import { ButtonBar } from 'vs/base/browser/ui/button/button';
-import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
+import type { IAsyncDataTreeViewState } from 'vs/base/browser/ui/tree/asyncDataTree';
+import { ITreeContextMenuEvent } from 'vs/base/browser/ui/tree/tree';
+import { CachedFunction, LRUCachedFunction } from 'vs/base/common/cache';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { FuzzyScore } from 'vs/base/common/filters';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Mutable } from 'vs/base/common/types';
-import { IResourceDiffEditorInput } from 'vs/workbench/common/editor';
+import { URI } from 'vs/base/common/uri';
+import 'vs/css!./bulkEdit';
+import { ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
 import { IMultiDiffEditorOptions, IMultiDiffResourceId } from 'vs/editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl';
 import { IRange } from 'vs/editor/common/core/range';
-import { CachedFunction, LRUCachedFunction } from 'vs/base/common/cache';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { localize } from 'vs/nls';
+import { MenuId } from 'vs/platform/actions/common/actions';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { IOpenEvent, WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ResourceLabels } from 'vs/workbench/browser/labels';
+import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
+import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { IMultiDiffEditorResource, IResourceDiffEditorInput } from 'vs/workbench/common/editor';
+import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { BulkEditPreviewProvider, BulkFileOperation, BulkFileOperations, BulkFileOperationType } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPreview';
+import { BulkEditAccessibilityProvider, BulkEditDataSource, BulkEditDelegate, BulkEditElement, BulkEditIdentityProvider, BulkEditNaviLabelProvider, BulkEditSorter, CategoryElement, CategoryElementRenderer, compareBulkFileOperations, FileElement, FileElementRenderer, TextEditElement, TextEditElementRenderer } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditTree';
+import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
 const enum State {
 	Data = 'data',
@@ -56,7 +56,7 @@ export class BulkEditPane extends ViewPane {
 	static readonly ctxGroupByFile = new RawContextKey('refactorPreview.groupByFile', true);
 	static readonly ctxHasCheckedChanges = new RawContextKey('refactorPreview.hasCheckedChanges', true);
 
-	private static readonly _memGroupByFile = `${BulkEditPane.ID}.groupByFile`;
+	private static readonly _memGroupByFile = `${this.ID}.groupByFile`;
 
 	private _tree!: WorkbenchAsyncDataTree<BulkFileOperations, BulkEditElement, FuzzyScore>;
 	private _treeDataSource!: BulkEditDataSource;
@@ -120,7 +120,7 @@ export class BulkEditPane extends ViewPane {
 
 		const resourceLabels = this._instaService.createInstance(
 			ResourceLabels,
-			<IResourceLabelsContainer>{ onDidChangeVisibility: this.onDidChangeBodyVisibility }
+			{ onDidChangeVisibility: this.onDidChangeBodyVisibility }
 		);
 		this._disposables.add(resourceLabels);
 
@@ -369,16 +369,20 @@ export class BulkEditPane extends ViewPane {
 		}, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 	}
 
-	private readonly _computeResourceDiffEditorInputs = new LRUCachedFunction(async (fileOperations: BulkFileOperation[]) => {
-		const computeDiffEditorInput = new CachedFunction<BulkFileOperation, Promise<IResourceDiffEditorInput>>(async (fileOperation) => {
+	private readonly _computeResourceDiffEditorInputs = new LRUCachedFunction<
+		BulkFileOperation[],
+		Promise<{ resources: IMultiDiffEditorResource[]; getResourceDiffEditorInputIdOfOperation: (operation: BulkFileOperation) => Promise<IMultiDiffResourceId> }>
+	>(async (fileOperations) => {
+		const computeDiffEditorInput = new CachedFunction<BulkFileOperation, Promise<IMultiDiffEditorResource>>(async (fileOperation) => {
 			const fileOperationUri = fileOperation.uri;
 			const previewUri = this._currentProvider!.asPreviewUri(fileOperationUri);
 			// delete
 			if (fileOperation.type & BulkFileOperationType.Delete) {
 				return {
 					original: { resource: URI.revive(previewUri) },
-					modified: { resource: undefined }
-				};
+					modified: { resource: undefined },
+					goToFileResource: fileOperation.uri,
+				} satisfies IMultiDiffEditorResource;
 
 			}
 			// rename, create, edits
@@ -392,8 +396,9 @@ export class BulkEditPane extends ViewPane {
 				}
 				return {
 					original: { resource: URI.revive(leftResource) },
-					modified: { resource: URI.revive(previewUri) }
-				};
+					modified: { resource: URI.revive(previewUri) },
+					goToFileResource: leftResource,
+				} satisfies IMultiDiffEditorResource;
 			}
 		});
 

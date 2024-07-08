@@ -11,9 +11,9 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { inlineChatBackground, MENU_INLINE_CHAT_CONTENT_STATUS } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { inlineChatBackground, InlineChatConfigKeys, MENU_INLINE_CHAT_CONTENT_STATUS, MENU_INLINE_CHAT_EXECUTE } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
-import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
+import { ChatWidget, IChatWidgetLocationOptions } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { editorBackground, editorForeground, inputBackground } from 'vs/platform/theme/common/colorRegistry';
 import { ChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
@@ -25,6 +25,7 @@ import { ScrollType } from 'vs/editor/common/editorCommon';
 import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { MenuItemAction } from 'vs/platform/actions/common/actions';
 import { TextOnlyMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class InlineChatContentWidget implements IContentWidget {
 
@@ -48,10 +49,11 @@ export class InlineChatContentWidget implements IContentWidget {
 	private readonly _widget: ChatWidget;
 
 	constructor(
-		location: ChatAgentLocation,
+		location: IChatWidgetLocationOptions,
 		private readonly _editor: ICodeEditor,
 		@IInstantiationService instaService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 
 		this._defaultChatModel = this._store.add(instaService.createInstance(ChatModel, undefined, ChatAgentLocation.Editor));
@@ -76,7 +78,8 @@ export class InlineChatContentWidget implements IContentWidget {
 				renderFollowups: true,
 				supportsFileReferences: false,
 				menus: {
-					telemetrySource: 'inlineChat-content'
+					telemetrySource: 'inlineChat-content',
+					executeToolbar: MENU_INLINE_CHAT_EXECUTE,
 				},
 				filter: _item => false
 			},
@@ -90,7 +93,7 @@ export class InlineChatContentWidget implements IContentWidget {
 		this._store.add(this._widget);
 		this._widget.render(this._inputContainer);
 		this._widget.setModel(this._defaultChatModel, {});
-		this._store.add(this._widget.inputEditor.onDidContentSizeChange(() => _editor.layoutContentWidget(this)));
+		this._store.add(this._widget.onDidChangeContentHeight(() => _editor.layoutContentWidget(this)));
 
 		this._domNode.tabIndex = -1;
 		this._domNode.className = 'inline-chat-content-widget interactive-session';
@@ -98,20 +101,26 @@ export class InlineChatContentWidget implements IContentWidget {
 		this._domNode.appendChild(this._inputContainer);
 
 		this._toolbarContainer.classList.add('toolbar');
+		if (configurationService.getValue<boolean>(InlineChatConfigKeys.ExpTextButtons)) {
+			this._toolbarContainer.style.display = 'inherit';
+			this._domNode.style.paddingBottom = '4px';
+		}
 		this._domNode.appendChild(this._toolbarContainer);
 
-		this._store.add(scopedInstaService.createInstance(MenuWorkbenchToolBar, this._toolbarContainer, MENU_INLINE_CHAT_CONTENT_STATUS, {
+		const toolbar = this._store.add(scopedInstaService.createInstance(MenuWorkbenchToolBar, this._toolbarContainer, MENU_INLINE_CHAT_CONTENT_STATUS, {
 			actionViewItemProvider: action => action instanceof MenuItemAction ? instaService.createInstance(TextOnlyMenuEntryActionViewItem, action, { conversational: true }) : undefined,
 			toolbarOptions: { primaryGroup: '0_main' },
 			icon: false,
 			label: true,
 		}));
 
+		this._store.add(toolbar.onDidChangeMenuItems(() => {
+			this._domNode.classList.toggle('contents', toolbar.getItemsLength() > 1);
+		}));
+
 		const tracker = dom.trackFocus(this._domNode);
 		this._store.add(tracker.onDidBlur(() => {
-			if (this._visible && this._widget.inputEditor.getModel()?.getValueLength() === 0
-				// && !"ON"
-			) {
+			if (this._visible && this._widget.inputEditor.getModel()?.getValueLength() === 0) {
 				this._onDidBlur.fire();
 			}
 		}));
@@ -179,7 +188,6 @@ export class InlineChatContentWidget implements IContentWidget {
 			this._focusNext = true;
 
 			this._editor.revealRangeNearTopIfOutsideViewport(Range.fromPositions(position), ScrollType.Immediate);
-			this._widget.inputEditor.setValue('');
 
 			const wordInfo = this._editor.getModel()?.getWordAtPosition(position);
 
@@ -193,6 +201,7 @@ export class InlineChatContentWidget implements IContentWidget {
 		if (this._visible) {
 			this._visible = false;
 			this._editor.removeContentWidget(this);
+			this._widget.inputEditor.setValue('');
 			this._widget.saveState();
 			this._widget.setVisible(false);
 		}

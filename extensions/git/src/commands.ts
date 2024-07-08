@@ -1339,14 +1339,14 @@ export class CommandCenter {
 
 	@command('git.stage')
 	async stage(...resourceStates: SourceControlResourceState[]): Promise<void> {
-		this.logger.debug(`git.stage ${resourceStates.length} `);
+		this.logger.debug(`[CommandCenter][stage] git.stage ${resourceStates.length} `);
 
 		resourceStates = resourceStates.filter(s => !!s);
 
 		if (resourceStates.length === 0 || (resourceStates[0] && !(resourceStates[0].resourceUri instanceof Uri))) {
 			const resource = this.getSCMResource();
 
-			this.logger.debug(`git.stage.getSCMResource ${resource ? resource.resourceUri.toString() : null} `);
+			this.logger.debug(`[CommandCenter][stage] git.stage.getSCMResource ${resource ? resource.resourceUri.toString() : null} `);
 
 			if (!resource) {
 				return;
@@ -1389,7 +1389,7 @@ export class CommandCenter {
 		const untracked = selection.filter(s => s.resourceGroupType === ResourceGroupType.Untracked);
 		const scmResources = [...workingTree, ...untracked, ...resolved, ...unresolved];
 
-		this.logger.debug(`git.stage.scmResources ${scmResources.length} `);
+		this.logger.debug(`[CommandCenter][stage] git.stage.scmResources ${scmResources.length} `);
 		if (!scmResources.length) {
 			return;
 		}
@@ -2063,7 +2063,7 @@ export class CommandCenter {
 			promptToSaveFilesBeforeCommit = 'never';
 		}
 
-		const enableSmartCommit = config.get<boolean>('enableSmartCommit') === true;
+		let enableSmartCommit = config.get<boolean>('enableSmartCommit') === true;
 		const enableCommitSigning = config.get<boolean>('enableCommitSigning') === true;
 		let noStagedChanges = repository.indexGroup.resourceStates.length === 0;
 		let noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0;
@@ -2103,37 +2103,38 @@ export class CommandCenter {
 				}
 			}
 
-			if (!opts.amend) {
-				// no changes, and the user has not configured to commit all in this case
-				if (!noUnstagedChanges && noStagedChanges && !enableSmartCommit && !opts.all) {
-					const suggestSmartCommit = config.get<boolean>('suggestSmartCommit') === true;
+			// no changes, and the user has not configured to commit all in this case
+			if (!noUnstagedChanges && noStagedChanges && !enableSmartCommit && !opts.all && !opts.amend) {
+				const suggestSmartCommit = config.get<boolean>('suggestSmartCommit') === true;
 
-					if (!suggestSmartCommit) {
-						return;
-					}
-
-					// prompt the user if we want to commit all or not
-					const message = l10n.t('There are no staged changes to commit.\n\nWould you like to stage all your changes and commit them directly?');
-					const yes = l10n.t('Yes');
-					const always = l10n.t('Always');
-					const never = l10n.t('Never');
-					const pick = await window.showWarningMessage(message, { modal: true }, yes, always, never);
-
-					if (pick === always) {
-						config.update('enableSmartCommit', true, true);
-					} else if (pick === never) {
-						config.update('suggestSmartCommit', false, true);
-						return;
-					} else if (pick !== yes) {
-						return; // do not commit on cancel
-					}
+				if (!suggestSmartCommit) {
+					return;
 				}
 
-				if (opts.all === undefined) {
-					opts = { ...opts, all: noStagedChanges };
-				} else if (!opts.all && noStagedChanges) {
-					opts = { ...opts, all: true };
+				// prompt the user if we want to commit all or not
+				const message = l10n.t('There are no staged changes to commit.\n\nWould you like to stage all your changes and commit them directly?');
+				const yes = l10n.t('Yes');
+				const always = l10n.t('Always');
+				const never = l10n.t('Never');
+				const pick = await window.showWarningMessage(message, { modal: true }, yes, always, never);
+
+				if (pick === always) {
+					enableSmartCommit = true;
+					config.update('enableSmartCommit', true, true);
+				} else if (pick === never) {
+					config.update('suggestSmartCommit', false, true);
+					return;
+				} else if (pick === yes) {
+					enableSmartCommit = true;
+				} else {
+					// Cancel
+					return;
 				}
+			}
+
+			// smart commit
+			if (enableSmartCommit && !opts.all) {
+				opts = { ...opts, all: noStagedChanges };
 			}
 		}
 
@@ -2519,9 +2520,26 @@ export class CommandCenter {
 			: l10n.t('Select a branch or tag to checkout');
 
 		quickPick.show();
-
 		picks.push(... await createCheckoutItems(repository, opts?.detached));
-		quickPick.items = [...commands, ...picks];
+
+		const setQuickPickItems = () => {
+			switch (true) {
+				case quickPick.value === '':
+					quickPick.items = [...commands, ...picks];
+					break;
+				case commands.length === 0:
+					quickPick.items = picks;
+					break;
+				case picks.length === 0:
+					quickPick.items = commands;
+					break;
+				default:
+					quickPick.items = [...picks, { label: '', kind: QuickPickItemKind.Separator }, ...commands];
+					break;
+			}
+		};
+
+		setQuickPickItems();
 		quickPick.busy = false;
 
 		const choice = await new Promise<QuickPickItem | undefined>(c => {
@@ -2536,22 +2554,7 @@ export class CommandCenter {
 
 				c(undefined);
 			})));
-			disposables.push(quickPick.onDidChangeValue(value => {
-				switch (true) {
-					case value === '':
-						quickPick.items = [...commands, ...picks];
-						break;
-					case commands.length === 0:
-						quickPick.items = picks;
-						break;
-					case picks.length === 0:
-						quickPick.items = commands;
-						break;
-					default:
-						quickPick.items = [...picks, { label: '', kind: QuickPickItemKind.Separator }, ...commands];
-						break;
-				}
-			}));
+			disposables.push(quickPick.onDidChangeValue(() => setQuickPickItems()));
 		});
 
 		dispose(disposables);
@@ -4404,10 +4407,10 @@ export class CommandCenter {
 	private getSCMResource(uri?: Uri): Resource | undefined {
 		uri = uri ? uri : (window.activeTextEditor && window.activeTextEditor.document.uri);
 
-		this.logger.debug(`git.getSCMResource.uri ${uri && uri.toString()}`);
+		this.logger.debug(`[CommandCenter][getSCMResource] git.getSCMResource.uri: ${uri && uri.toString()}`);
 
 		for (const r of this.model.repositories.map(r => r.root)) {
-			this.logger.debug(`repo root ${r}`);
+			this.logger.debug(`[CommandCenter][getSCMResource] repo root: ${r}`);
 		}
 
 		if (!uri) {

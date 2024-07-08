@@ -14,32 +14,32 @@ import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/se
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ChatTreeItem, IChatCodeBlockInfo, IChatListItemRendererOptions } from 'vs/workbench/contrib/chat/browser/chat';
+import { IChatCodeBlockInfo, IChatListItemRendererOptions } from 'vs/workbench/contrib/chat/browser/chat';
 import { IDisposableReference, ResourcePool } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatCollections';
+import { IChatContentPart, IChatContentPartRenderContext } from 'vs/workbench/contrib/chat/browser/chatContentParts/chatContentParts';
 import { IChatRendererDelegate } from 'vs/workbench/contrib/chat/browser/chatListRenderer';
 import { ChatMarkdownDecorationsRenderer } from 'vs/workbench/contrib/chat/browser/chatMarkdownDecorationsRenderer';
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
 import { CodeBlockPart, ICodeBlockData, localFileLanguageId, parseLocalFileData } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { IMarkdownVulnerability } from 'vs/workbench/contrib/chat/common/annotations';
+import { IChatProgressRenderableResponseContent } from 'vs/workbench/contrib/chat/common/chatModel';
 import { isRequestVM, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { CodeBlockModelCollection } from 'vs/workbench/contrib/chat/common/codeBlockModelCollection';
 
 const $ = dom.$;
 
-export class ChatMarkdownContentPart extends Disposable {
-	public readonly element: HTMLElement;
+export class ChatMarkdownContentPart extends Disposable implements IChatContentPart {
+	public readonly domNode: HTMLElement;
 	private readonly allRefs: IDisposableReference<CodeBlockPart>[] = [];
 
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
-	// TODO@roblourens this is weird, why are IChatCodeBlockInfo only for responses?
 	public readonly codeblocks: IChatCodeBlockInfo[] = [];
-	public readonly codeBlockCount: number;
 
 	constructor(
-		markdown: IMarkdownString,
-		element: ChatTreeItem,
+		private readonly markdown: IMarkdownString,
+		context: IChatContentPartRenderContext,
 		private readonly editorPool: EditorPool,
 		fillInIncompleteTokens = false,
 		codeBlockStartIndex = 0,
@@ -53,11 +53,11 @@ export class ChatMarkdownContentPart extends Disposable {
 	) {
 		super();
 
+		const element = context.element;
 		const markdownDecorationsRenderer = instantiationService.createInstance(ChatMarkdownDecorationsRenderer);
 
 		// We release editors in order so that it's more likely that the same editor will be assigned if this element is re-rendered right away, like it often is during progressive rendering
 		const orderedDisposablesList: IDisposable[] = [];
-		const codeblocks: IChatCodeBlockInfo[] = [];
 		let codeBlockIndex = codeBlockStartIndex;
 		const result = this._register(renderer.render(markdown, {
 			fillInIncompleteTokens,
@@ -94,18 +94,15 @@ export class ChatMarkdownContentPart extends Disposable {
 				// not during a renderElement OR a progressive render (when we will be firing this event anyway at the end of the render)
 				this._register(ref.object.onDidChangeContentHeight(() => this._onDidChangeHeight.fire()));
 
-				if (isResponseVM(element)) {
-					const info: IChatCodeBlockInfo = {
-						codeBlockIndex: index,
-						element,
-						focus() {
-							ref.object.focus();
-						},
-						uri: ref.object.uri
-					};
-					codeblocks.push(info);
-
-				}
+				const info: IChatCodeBlockInfo = {
+					codeBlockIndex: index,
+					element,
+					focus() {
+						ref.object.focus();
+					},
+					uri: ref.object.uri
+				};
+				this.codeblocks.push(info);
 				orderedDisposablesList.push(ref);
 				return ref.object.element;
 			},
@@ -115,8 +112,7 @@ export class ChatMarkdownContentPart extends Disposable {
 		this._register(markdownDecorationsRenderer.walkTreeAndAnnotateReferenceLinks(result.element));
 
 		orderedDisposablesList.reverse().forEach(d => this._register(d));
-		this.element = result.element;
-		this.codeBlockCount = codeBlockIndex - codeBlockStartIndex;
+		this.domNode = result.element;
 	}
 
 	private renderCodeBlock(data: ICodeBlockData, text: string, currentWidth: number, editableCodeBlock: boolean | undefined): IDisposableReference<CodeBlockPart> {
@@ -131,8 +127,16 @@ export class ChatMarkdownContentPart extends Disposable {
 		return ref;
 	}
 
+	hasSameContent(other: IChatProgressRenderableResponseContent): boolean {
+		return other.kind === 'markdownContent' && other.content.value === this.markdown.value;
+	}
+
 	layout(width: number): void {
 		this.allRefs.forEach(ref => ref.object.layout(width));
+	}
+
+	addDisposable(disposable: IDisposable): void {
+		this._register(disposable);
 	}
 }
 

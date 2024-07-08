@@ -8,7 +8,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Disposable as DisposableCls, toDisposable } from 'vs/base/common/lifecycle';
-import { ExtensionIdentifier, IExtensionDescription, IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -173,7 +173,7 @@ export abstract class ExtHostDebugServiceBase extends DisposableCls implements I
 		return item ? this.convertVisualizerTreeItem(treeId, item) : undefined;
 	}
 
-	public registerDebugVisualizationTree<T extends vscode.DebugTreeItem>(manifest: Readonly<IRelaxedExtensionDescription>, id: string, provider: vscode.DebugVisualizationTree<T>): vscode.Disposable {
+	public registerDebugVisualizationTree<T extends vscode.DebugTreeItem>(manifest: IExtensionDescription, id: string, provider: vscode.DebugVisualizationTree<T>): vscode.Disposable {
 		const extensionId = ExtensionIdentifier.toKey(manifest.identifier);
 		const key = this.extensionVisKey(extensionId, id);
 		if (this._debugVisualizationProviders.has(key)) {

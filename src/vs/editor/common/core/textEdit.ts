@@ -225,6 +225,15 @@ export class LineBasedText extends AbstractText {
 	}
 }
 
+export class ArrayText extends LineBasedText {
+	constructor(lines: string[]) {
+		super(
+			lineNumber => lines[lineNumber - 1],
+			lines.length
+		);
+	}
+}
+
 export class StringText extends AbstractText {
 	private readonly _t = new PositionOffsetTransformer(this.value);
 

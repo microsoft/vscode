@@ -143,6 +143,14 @@
 		},
 		{
 			"files": [
+				"src/**/*.ts"
+			],
+			"rules": {
+				"local/code-no-static-self-ref": "warn"
+			}
+		},
+		{
+			"files": [
 				"src/vs/**/*.test.ts"
 			],
 			"rules": {
@@ -1016,11 +1024,7 @@
 						]
 					},
 					{
-						"target": "src/vs/workbench/{workbench.desktop.main.nls.js,workbench.web.main.nls.js}",
-						"restrictions": []
-					},
-					{
-						"target": "src/vs/{loader.d.ts,css.ts,css.build.ts,monaco.d.ts,nls.ts,nls.build.ts,nls.mock.ts}",
+						"target": "src/vs/{loader.d.ts,css.ts,css.build.ts,monaco.d.ts,nls.ts}",
 						"restrictions": []
 					},
 					{
@@ -1094,7 +1098,9 @@
 				"local/code-no-runtime-import": [
 					"error",
 					{
-						"src/vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts": ["**/*"]
+						"src/vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts": [
+							"**/*"
+						]
 					}
 				]
 			}
