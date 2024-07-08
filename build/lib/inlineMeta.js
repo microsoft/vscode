@@ -33,10 +33,6 @@ function inlineMeta(result, ctx) {
             if (markerFound) {
                 file.contents = Buffer.from(content);
             }
-            else if (content.includes(packageJsonMarkerId) /*|| content.includes(productJsonMarkerId)*/) {
-                this.emit('error', new Error(`Unable to inline metadata because expected markers where not found in ${file.basename}.`));
-                return;
-            }
         }
         this.emit('data', file);
     }));
