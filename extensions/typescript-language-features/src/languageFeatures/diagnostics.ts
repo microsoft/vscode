@@ -201,15 +201,15 @@ class DiagnosticsTelemetryManager extends Disposable {
 	}
 
 	public logDiagnosticsPerformanceTelemetry(performanceData: DiagnosticPerformanceData[]): void {
-		performanceData.forEach(data => {
+		for (const data of performanceData) {
 			/* __GDPR__
 				"diagnostics.performance" : {
 					"owner": "mjbvz",
-					"syntaxDiagDuration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"semanticDiagDuration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"suggestionDiagDuration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"regionSemanticDiagDuration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-					"fileLineCount" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+					"syntaxDiagDuration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+					"semanticDiagDuration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+					"suggestionDiagDuration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+					"regionSemanticDiagDuration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+					"fileLineCount" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 					"${include}": [
 						"${TypeScriptCommonProperties}"
 					]
@@ -228,7 +228,7 @@ class DiagnosticsTelemetryManager extends Disposable {
 					fileLineCount: data.fileLineCount,
 				},
 			);
-		});
+		}
 	}
 
 	private _updateAllDiagnosticCodesAfterTimeout() {
@@ -389,9 +389,7 @@ export class DiagnosticsManager extends Disposable {
 	}
 
 	public logDiagnosticsPerformanceTelemetry(performanceData: DiagnosticPerformanceData[]): void {
-		if (performanceData && this._diagnosticsTelemetryManager) {
-			this._diagnosticsTelemetryManager.logDiagnosticsPerformanceTelemetry(performanceData);
-		}
+		this._diagnosticsTelemetryManager?.logDiagnosticsPerformanceTelemetry(performanceData);
 	}
 
 	private scheduleDiagnosticsUpdate(file: vscode.Uri) {
