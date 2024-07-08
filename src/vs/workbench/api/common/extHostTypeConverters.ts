@@ -2557,6 +2557,8 @@ export namespace ChatResponsePart {
 			return ChatResponseDetectedParticipantPart.from(part);
 		} else if (part instanceof types.ChatResponseWarningPart) {
 			return ChatResponseWarningPart.from(part);
+		} else if (part instanceof types.ChatResponseConfirmationPart) {
+			return ChatResponseConfirmationPart.from(part);
 		}
 
 		return {

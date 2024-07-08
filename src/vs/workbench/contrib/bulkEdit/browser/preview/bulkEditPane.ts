@@ -56,7 +56,7 @@ export class BulkEditPane extends ViewPane {
 	static readonly ctxGroupByFile = new RawContextKey('refactorPreview.groupByFile', true);
 	static readonly ctxHasCheckedChanges = new RawContextKey('refactorPreview.hasCheckedChanges', true);
 
-	private static readonly _memGroupByFile = `${BulkEditPane.ID}.groupByFile`;
+	private static readonly _memGroupByFile = `${this.ID}.groupByFile`;
 
 	private _tree!: WorkbenchAsyncDataTree<BulkFileOperations, BulkEditElement, FuzzyScore>;
 	private _treeDataSource!: BulkEditDataSource;

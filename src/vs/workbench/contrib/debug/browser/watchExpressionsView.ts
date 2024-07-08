@@ -373,11 +373,11 @@ export class WatchExpressionsRenderer extends AbstractExpressionsRenderer {
 
 	protected override renderActionBar(actionBar: ActionBar, expression: IExpression) {
 		const contextKeyService = getContextForWatchExpressionMenu(this.contextKeyService, expression);
-		const menu = this.menuService.createMenu(MenuId.DebugWatchContext, contextKeyService);
+		const context = expression;
+		const menu = this.menuService.getMenuActions(MenuId.DebugWatchContext, contextKeyService, { arg: context, shouldForwardArgs: false });
 
 		const primary: IAction[] = [];
-		const context = expression;
-		createAndFillInContextMenuActions(menu, { arg: context, shouldForwardArgs: false }, { primary, secondary: [] }, 'inline');
+		createAndFillInContextMenuActions(menu, { primary, secondary: [] }, 'inline');
 
 		actionBar.clear();
 		actionBar.context = context;
