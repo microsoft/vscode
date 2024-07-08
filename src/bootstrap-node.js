@@ -63,9 +63,9 @@ module.exports.injectNodeModuleLookupPath = function (injectPath) {
 
 	if (isESM) {
 		// register a loader hook
-		// SEE https://nodejs.org/docs/latest/api/module.html#initialize
-		const { pathToFileURL } = require('node:url');
-		Module.register('./server-loader.mjs', { parentURL: pathToFileURL(__filename), data: injectPath });
+		// ESM-uncomment-begin
+		// Module.register('./server-loader.mjs', { parentURL: import.meta.url, data: injectPath });
+		// ESM-uncomment-end
 	} else {
 		const nodeModulesPath = path.join(__dirname, '../node_modules');
 
