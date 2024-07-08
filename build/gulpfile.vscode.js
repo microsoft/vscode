@@ -292,6 +292,8 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 				'**/node-pty/lib/shared/conout.js',
 				'**/*.wasm',
 				'**/@vscode/vsce-sign/bin/*',
+			], [
+				'**/*.mk',
 			], 'node_modules.asar'));
 
 		let all = es.merge(
