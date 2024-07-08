@@ -149,14 +149,12 @@ export class PanelPart extends AbstractPaneCompositePart {
 	}
 
 	private fillExtraContextMenuActions(actions: IAction[]): void {
-		const panelPositionMenu = this.menuService.createMenu(MenuId.PanelPositionMenu, this.contextKeyService);
-		const panelAlignMenu = this.menuService.createMenu(MenuId.PanelAlignmentMenu, this.contextKeyService);
+		const panelPositionMenu = this.menuService.getMenuActions(MenuId.PanelPositionMenu, this.contextKeyService, { shouldForwardArgs: true });
+		const panelAlignMenu = this.menuService.getMenuActions(MenuId.PanelAlignmentMenu, this.contextKeyService, { shouldForwardArgs: true });
 		const positionActions: IAction[] = [];
 		const alignActions: IAction[] = [];
-		createAndFillInContextMenuActions(panelPositionMenu, { shouldForwardArgs: true }, { primary: [], secondary: positionActions });
-		createAndFillInContextMenuActions(panelAlignMenu, { shouldForwardArgs: true }, { primary: [], secondary: alignActions });
-		panelAlignMenu.dispose();
-		panelPositionMenu.dispose();
+		createAndFillInContextMenuActions(panelPositionMenu, { primary: [], secondary: positionActions });
+		createAndFillInContextMenuActions(panelAlignMenu, { primary: [], secondary: alignActions });
 
 		actions.push(...[
 			new Separator(),

@@ -1315,13 +1315,11 @@ class TimelinePaneCommands extends Disposable {
 			[context.key, context.value],
 		]);
 
-		const menu = this.menuService.createMenu(menuId, contextKeyService);
+		const menu = this.menuService.getMenuActions(menuId, contextKeyService, { shouldForwardArgs: true });
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
 		const result = { primary, secondary };
-		createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, 'inline');
-
-		menu.dispose();
+		createAndFillInContextMenuActions(menu, result, 'inline');
 
 		return result;
 	}
