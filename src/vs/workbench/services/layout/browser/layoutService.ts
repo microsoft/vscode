@@ -74,6 +74,10 @@ export const enum Position {
 	TOP
 }
 
+export function isHorizontal(position: Position): boolean {
+	return position === Position.BOTTOM || position === Position.TOP;
+}
+
 export const enum PanelOpensMaximizedOptions {
 	ALWAYS,
 	NEVER,
