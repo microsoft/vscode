@@ -23,7 +23,7 @@ class SecretStorageProvider implements ISecretStorageProvider {
 	async get(key: string): Promise<string | undefined> {
 		let extensionKey;
 		try {
-			// Check if the key is for an extension
+			// Check if the key is for an extension (it's a JSON string)
 			extensionKey = JSON.parse(key);
 		} catch (err) {
 			// Only keys for extensions are stored as JSON so this must not be an extension secret.
@@ -68,7 +68,7 @@ class SecretStorageProvider implements ISecretStorageProvider {
 	}
 
 	const isHttps = window.location.protocol === 'https:';
-	const isDev = new URLSearchParams(window.location.search).get('dev') === 'true';
+	const isDev = window.location.hostname === 'localhost';
 	const extensionUrl = {
 		scheme: isHttps ? 'https' : 'http',
 		path: isDev ? '/membrane-dev' : '/membrane',
@@ -80,6 +80,10 @@ class SecretStorageProvider implements ISecretStorageProvider {
 		// IMPORTANT: this filename must match the filename used in `memfs.ts`.
 		// TODO: Somehow use product.json to configure that globally
 		workspace: { workspaceUri: URI.parse('memfs:/membrane.code-workspace') },
+		payload: {
+			'skipReleaseNotes': 'true',
+			'skipWelcome': 'true',
+		},
 		trusted: true,
 		open: async (
 			_workspace: IWorkspace,
@@ -91,8 +95,18 @@ class SecretStorageProvider implements ISecretStorageProvider {
 
 	config.secretStorageProvider = new SecretStorageProvider();
 
-	config.commands = [{ id: 'membrane.refreshPage', handler: () => window.location.reload() }];
+	config.commands = [
+		// Used to refresh the page from the extension when a new version of the IDE is known to exist.
+		{ id: 'membrane.refreshPage', handler: () => window.location.reload() },
+		{
+			id: 'membrane.getLaunchParams', handler: () => {
+				// eslint-disable-next-line no-restricted-syntax
+				const meta = document.querySelector('meta[name="membrane-launch-params"]') as HTMLMetaElement;
+				return meta?.content ?? '';
+			}
+		}];
 
+	// eslint-disable-next-line no-restricted-syntax
 	const domElement = document.body;
 	create(domElement, config);
 })();
