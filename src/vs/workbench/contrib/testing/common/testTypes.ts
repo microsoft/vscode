@@ -169,6 +169,32 @@ export const enum TestMessageType {
 	Output
 }
 
+export interface ITestMessageStackTrace {
+	label: string;
+	uri: URI | undefined;
+	position: Position | undefined;
+}
+
+export namespace ITestMessageStackTrace {
+	export interface Serialized {
+		label: string;
+		uri: UriComponents | undefined;
+		position: IPosition | undefined;
+	}
+
+	export const serialize = (stack: Readonly<ITestMessageStackTrace>): Serialized => ({
+		label: stack.label,
+		uri: stack.uri?.toJSON(),
+		position: stack.position?.toJSON(),
+	});
+
+	export const deserialize = (uriIdentity: ITestUriCanonicalizer, stack: Serialized): ITestMessageStackTrace => ({
+		label: stack.label,
+		uri: stack.uri ? uriIdentity.asCanonicalUri(URI.revive(stack.uri)) : undefined,
+		position: stack.position ? Position.lift(stack.position) : undefined,
+	});
+}
+
 export interface ITestErrorMessage {
 	message: string | IMarkdownString;
 	type: TestMessageType.Error;
@@ -176,6 +202,7 @@ export interface ITestErrorMessage {
 	actual: string | undefined;
 	contextValue: string | undefined;
 	location: IRichLocation | undefined;
+	stackTrace: undefined | ITestMessageStackTrace[];
 }
 
 export namespace ITestErrorMessage {
@@ -186,6 +213,7 @@ export namespace ITestErrorMessage {
 		actual: string | undefined;
 		contextValue: string | undefined;
 		location: IRichLocation.Serialize | undefined;
+		stackTrace: undefined | ITestMessageStackTrace.Serialized[];
 	}
 
 	export const serialize = (message: Readonly<ITestErrorMessage>): Serialized => ({
@@ -195,6 +223,7 @@ export namespace ITestErrorMessage {
 		actual: message.actual,
 		contextValue: message.contextValue,
 		location: message.location && IRichLocation.serialize(message.location),
+		stackTrace: message.stackTrace?.map(ITestMessageStackTrace.serialize),
 	});
 
 	export const deserialize = (uriIdentity: ITestUriCanonicalizer, message: Serialized): ITestErrorMessage => ({
@@ -204,6 +233,7 @@ export namespace ITestErrorMessage {
 		actual: message.actual,
 		contextValue: message.contextValue,
 		location: message.location && IRichLocation.deserialize(uriIdentity, message.location),
+		stackTrace: message.stackTrace && message.stackTrace.map(s => ITestMessageStackTrace.deserialize(uriIdentity, s)),
 	});
 }
 
@@ -258,6 +288,9 @@ export namespace ITestMessage {
 
 	export const deserialize = (uriIdentity: ITestUriCanonicalizer, message: Serialized): ITestMessage =>
 		message.type === TestMessageType.Error ? ITestErrorMessage.deserialize(uriIdentity, message) : ITestOutputMessage.deserialize(uriIdentity, message);
+
+	export const isDiffable = (message: ITestMessage): message is ITestErrorMessage & { actual: string; expected: string } =>
+		message.type === TestMessageType.Error && message.actual !== undefined && message.expected !== undefined;
 }
 
 export interface ITestTaskState {
