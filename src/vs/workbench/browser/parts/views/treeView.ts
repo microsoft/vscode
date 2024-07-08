@@ -1708,12 +1708,12 @@ class TreeMenus implements IDisposable {
 			const element = elements[i];
 			const contextKeyService = this.contextKeyService.createOverlay(this.getElementOverlayContexts(element));
 
-			const menuData = this.menuService.getMenuActions(menuId, contextKeyService);
+			const menuData = this.menuService.getMenuActions(menuId, contextKeyService, { shouldForwardArgs: true });
 
 			const primary: IAction[] = [];
 			const secondary: IAction[] = [];
 			const result = { primary, secondary };
-			createAndFillInContextMenuActions(menuData, { shouldForwardArgs: true }, result, 'inline');
+			createAndFillInContextMenuActions(menuData, result, 'inline');
 			if (i === 0) {
 				primaryGroups = this.createGroups(result.primary);
 				secondaryGroups = this.createGroups(result.secondary);
