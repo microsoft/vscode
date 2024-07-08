@@ -363,23 +363,23 @@ async function startClientWithParticipants(context: ExtensionContext, languagePa
 	// handle content request
 	client.onRequest(VSCodeContentRequest.type, async (uriPath: string) => {
 		const uri = Uri.parse(uriPath);
+		const uriString = uri.toString();
 		if (uri.scheme === 'untitled') {
-			throw new ResponseError(3, l10n.t('Unable to load {0}', uri.toString()));
+			throw new ResponseError(3, l10n.t('Unable to load {0}', uriString));
 		}
 		if (uri.scheme === 'vscode') {
 			try {
-				runtime.logOutputChannel.info('read schema from vscode: ' + uri.toString);
+				runtime.logOutputChannel.info('read schema from vscode: ' + uriString);
 				ensureFilesystemWatcherInstalled(uri);
 				const content = await workspace.fs.readFile(uri);
-				schemaDocuments[uri.toString()] = true;
 				return new TextDecoder().decode(content);
 			} catch (e) {
-				throw new ResponseError(2, e.toString(), e);
+				throw new ResponseError(5, e.toString(), e);
 			}
 		} else if (uri.scheme !== 'http' && uri.scheme !== 'https') {
 			try {
 				const document = await workspace.openTextDocument(uri);
-				schemaDocuments[uri.toString()] = true;
+				schemaDocuments[uriString] = true;
 				return document.getText();
 			} catch (e) {
 				throw new ResponseError(2, e.toString(), e);
@@ -393,10 +393,10 @@ async function startClientWithParticipants(context: ExtensionContext, languagePa
 						"schemaURL" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The azure schema URL that was requested." }
 					}
 				*/
-				runtime.telemetry.sendTelemetryEvent('json.schema', { schemaURL: uriPath });
+				runtime.telemetry.sendTelemetryEvent('json.schema', { schemaURL: uriString });
 			}
 			try {
-				return await runtime.schemaRequests.getContent(uriPath);
+				return await runtime.schemaRequests.getContent(uriString);
 			} catch (e) {
 				throw new ResponseError(4, e.toString());
 			}
@@ -455,7 +455,7 @@ async function startClientWithParticipants(context: ExtensionContext, languagePa
 					runtime.logOutputChannel.info('FS change detected ' + uri.toString());
 					client.sendNotification(SchemaContentChangeNotification.type, uriString);
 				};
-				const createListener = watcher.onDidChange(handleChange);
+				const createListener = watcher.onDidCreate(handleChange);
 				const changeListener = watcher.onDidChange(handleChange);
 				const deleteListener = watcher.onDidDelete(() => {
 					const watcher = watchers.get(uriString);

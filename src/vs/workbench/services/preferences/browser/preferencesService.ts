@@ -142,7 +142,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		if (isEqual(uri, this.defaultSettingsRawResource)) {
 			if (!this._defaultRawSettingsEditorModel) {
 				this._defaultRawSettingsEditorModel = this._register(this.instantiationService.createInstance(DefaultRawSettingsEditorModel, this.getDefaultSettings(ConfigurationTarget.USER_LOCAL)));
-				this._defaultRawSettingsEditorModel.onDidContentChanged(() => this._onDidDefaultSettingsContentChanged.fire(uri));
+				this._register(this._defaultRawSettingsEditorModel.onDidContentChanged(() => this._onDidDefaultSettingsContentChanged.fire(uri)));
 			}
 			return this._defaultRawSettingsEditorModel.content;
 		}
