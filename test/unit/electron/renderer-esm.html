@@ -49,27 +49,11 @@
 		const basePath = require('path').join(__dirname, `../../../${outdir}/`);
 		const baseUrl = require('url').pathToFileURL(basePath);
 
-		// generate import map
-		const importMap = {
-			imports: {
-				assert: new URL('../test/unit/assert-esm.js', baseUrl).href,
-				sinon: new URL('../node_modules/sinon/pkg/sinon-esm.js', baseUrl).href,
-				'sinon-test': new URL('../node_modules/sinon-test/dist/sinon-test-es.js', baseUrl).href,
-			}
-		};
-
-
 		// Tests run in a renderer that IS node-enabled. Wo we will encounter imports for node-modules which isn't
 		// supported by blink/chromium. To work around this, we generate an import map that maps all node modules
 		// to a blob that exports all properties of the module as named exports and the module itself as default.
 
-		const builtin = require('module').builtinModules.filter(mod => !mod.startsWith('_') && !mod.startsWith('electron/js2c/')).sort();
-		const dependencies = Object.keys(require('../../../package.json').dependencies).sort();
-		const optionalDependencies = Object.keys(require('../../../package.json').optionalDependencies).sort();
-		const dependenciesRemote = Object.keys(require('../../../remote/package.json').dependencies).sort();
-
-		for (const name of new Set([].concat(builtin, dependencies, optionalDependencies, dependenciesRemote))) {
-
+		function asRequireBlobUri(name) {
 			let _mod;
 			try {
 				_mod = require(name);
@@ -78,7 +62,7 @@
 				// These are somewhat expected because of platform differences (windows vs mac vs linux) or because of node/electron binary differences
 				// console.error(`[ESM] Failed to require ${name}`);
 				// console.error(err);
-				continue;
+				return undefined;
 			}
 
 			// export all properties and the module itself as default
@@ -90,6 +74,32 @@
 
 			const blob = new Blob([jsSrc], { type: 'application/javascript' });
 			const url = URL.createObjectURL(blob);
+			return url;
+		}
+
+		// generate import map
+		const importMap = {
+			imports: {
+				assert: new URL('../test/unit/assert-esm.js', baseUrl).href,
+				sinon: new URL('../node_modules/sinon/pkg/sinon-esm.js', baseUrl).href,
+				'sinon-test': new URL('../node_modules/sinon-test/dist/sinon-test-es.js', baseUrl).href,
+				'electron': asRequireBlobUri('electron'),
+			}
+		};
+
+
+		const builtin = require('module').builtinModules.filter(mod => !mod.startsWith('_') && !mod.startsWith('electron/js2c/')).sort();
+		const dependencies = Object.keys(require('../../../package.json').dependencies).sort();
+		const optionalDependencies = Object.keys(require('../../../package.json').optionalDependencies).sort();
+		const dependenciesRemote = Object.keys(require('../../../remote/package.json').dependencies).sort();
+
+		for (const name of new Set([].concat(builtin, dependencies, optionalDependencies, dependenciesRemote))) {
+
+			const url = asRequireBlobUri(name);
+			if(!url) {
+				continue;
+			}
+
 			importMap.imports[name] = url;
 		}
 
