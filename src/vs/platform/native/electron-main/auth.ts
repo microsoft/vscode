@@ -12,6 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEncryptionMainService } from 'vs/platform/encryption/common/encryptionService';
+import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { AuthInfo, Credentials } from 'vs/platform/request/common/request';
@@ -54,6 +55,7 @@ export class ProxyAuthService extends Disposable implements IProxyAuthService {
 		@IEncryptionMainService private readonly encryptionMainService: IEncryptionMainService,
 		@IApplicationStorageMainService private readonly applicationStorageMainService: IApplicationStorageMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 	) {
 		super();
 
@@ -135,6 +137,26 @@ export class ProxyAuthService extends Disposable implements IProxyAuthService {
 	private async doResolveProxyCredentials(authInfo: AuthInfo, authInfoHash: string): Promise<Credentials | undefined> {
 		this.logService.trace('auth#doResolveProxyCredentials - enter', authInfo);
 
+		// For testing.
+		if (this.environmentMainService.extensionTestsLocationURI) {
+			const credentials = this.configurationService.getValue<string>('integration-test.http.proxyAuth');
+			if (credentials) {
+				const j = credentials.indexOf(':');
+				if (j !== -1) {
+					return {
+						username: credentials.substring(0, j),
+						password: credentials.substring(j + 1)
+					};
+				} else {
+					return {
+						username: credentials,
+						password: ''
+					};
+				}
+			}
+			return undefined;
+		}
+
 		// Reply with manually supplied credentials. Fail if they are wrong.
 		const newHttpProxy = (this.configurationService.getValue<string>('http.proxy') || '').trim()
 			|| (process.env['https_proxy'] || process.env['HTTPS_PROXY'] || process.env['http_proxy'] || process.env['HTTP_PROXY'] || '').trim()
@@ -145,8 +167,10 @@ export class ProxyAuthService extends Disposable implements IProxyAuthService {
 			const i = uri.authority.indexOf('@');
 			if (i !== -1) {
 				if (authInfo.attempt > 1) {
+					this.logService.trace('auth#doResolveProxyCredentials (proxy) - exit - ignoring previously used config/envvar credentials');
 					return undefined; // We tried already, let the user handle it.
 				}
+				this.logService.trace('auth#doResolveProxyCredentials (proxy) - exit - found config/envvar credentials to use');
 				const credentials = uri.authority.substring(0, i);
 				const j = credentials.indexOf(':');
 				if (j !== -1) {
