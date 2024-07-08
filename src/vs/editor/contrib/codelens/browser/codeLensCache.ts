@@ -61,10 +61,9 @@ export class CodeLensCache implements ICodeLensCache {
 		this._deserialize(raw);
 
 		// store lens data on shutdown
-		Event.once(storageService.onWillSaveState)(e => {
-			if (e.reason === WillSaveStateReason.SHUTDOWN) {
-				storageService.store(key, this._serialize(), StorageScope.WORKSPACE, StorageTarget.MACHINE);
-			}
+		const onWillSaveStateBecauseOfShutdown = Event.filter(storageService.onWillSaveState, e => e.reason === WillSaveStateReason.SHUTDOWN);
+		Event.once(onWillSaveStateBecauseOfShutdown)(e => {
+			storageService.store(key, this._serialize(), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		});
 	}
 
