@@ -112,6 +112,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 		const borderColor = this.getColor(PANEL_BORDER) || this.getColor(contrastBorder) || '';
 		container.style.borderLeftColor = borderColor;
 		container.style.borderRightColor = borderColor;
+		container.style.borderBottomColor = borderColor;
 
 		const title = this.getTitleArea();
 		if (title) {
@@ -166,10 +167,16 @@ export class PanelPart extends AbstractPaneCompositePart {
 
 	override layout(width: number, height: number, top: number, left: number): void {
 		let dimensions: Dimension;
-		if (this.layoutService.getPanelPosition() === Position.RIGHT) {
-			dimensions = new Dimension(width - 1, height); // Take into account the 1px border when layouting
-		} else {
-			dimensions = new Dimension(width, height);
+		switch (this.layoutService.getPanelPosition()) {
+			case Position.RIGHT:
+				dimensions = new Dimension(width - 1, height); // Take into account the 1px border when layouting
+				break;
+			case Position.TOP:
+				dimensions = new Dimension(width, height - 1); // Take into account the 1px border when layouting
+				break;
+			default:
+				dimensions = new Dimension(width, height);
+				break;
 		}
 
 		// Layout contents
