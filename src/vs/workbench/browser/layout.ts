@@ -1545,8 +1545,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			// Panel Size
 			const panelSize = this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_HIDDEN)
-				? this.workbenchGrid.getViewCachedVisibleSize(this.panelPartView)				
-        : ((this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_POSITION) === Position.BOTTOM || this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_POSITION) === Position.TOP) ? this.workbenchGrid.getViewSize(this.panelPartView).height : this.workbenchGrid.getViewSize(this.panelPartView).width);
+				? this.workbenchGrid.getViewCachedVisibleSize(this.panelPartView)
+				: ((this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_POSITION) === Position.BOTTOM || this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_POSITION) === Position.TOP) ? this.workbenchGrid.getViewSize(this.panelPartView).height : this.workbenchGrid.getViewSize(this.panelPartView).width);
 			this.stateModel.setInitializationValue(LayoutStateKeys.PANEL_SIZE, panelSize as number);
 
 			// Auxiliary Bar Size
