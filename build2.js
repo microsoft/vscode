@@ -13,7 +13,7 @@ const minimatch = require('minimatch');
 const buildfile = require('./src/buildfile');
 
 const srcFolder = path.join(__dirname, 'src2');
-const dstFolder = path.join(__dirname, 'out');
+const dstFolder = path.join(__dirname, 'out'); // TODO@jrieken out-build
 
 const watch = process.argv.includes('--watch');
 const minify = process.argv.includes('--minify');
@@ -107,7 +107,7 @@ const commonOptions = {
 	logLevel: 'silent',
 	bundle: true,
 	minify: false,
-	external: npmDependencies,
+	external: ['electron'].concat(npmDependencies),
 	format: 'esm',
 	outdir: dstFolder,
 	loader: {
@@ -194,15 +194,17 @@ copyResources([
 	'main.js',
 	'bootstrap.js',
 	'bootstrap-amd.js',
+	'bootstrap-meta.js',
 	'bootstrap-fork.js',
 	'bootstrap-node.js',
 	'bootstrap-window.js',
 	'vs/base/common/performance.js',
 	'vs/platform/environment/node/userDataPath.js',
-	'vs/base/common/stripComments.js',
+	'vs/base/common/jsonc.js',
 	'vs/base/node/nls.js',
 	'vs/code/electron-sandbox/workbench/workbench-dev.html',
 	'vs/base/parts/sandbox/electron-sandbox/preload.js',
+	'vs/base/parts/sandbox/electron-sandbox/preload-aux.js',
 	'vs/code/electron-sandbox/workbench/workbench.js'
 ]);
 
