@@ -165,7 +165,7 @@ export class TextureAtlasSlabAllocator implements ITextureAtlasAllocator {
 		// Find ideal slab, creating it if there is none suitable
 		const glyphWidth = rasterizedGlyph.boundingBox.right - rasterizedGlyph.boundingBox.left + 1;
 		const glyphHeight = rasterizedGlyph.boundingBox.bottom - rasterizedGlyph.boundingBox.top + 1;
-		const dpr = getActiveWindow().devicePixelRatio;
+		// const dpr = getActiveWindow().devicePixelRatio;
 
 		// TODO: Include font size as well as DPR in nearestXPixels calculation
 
