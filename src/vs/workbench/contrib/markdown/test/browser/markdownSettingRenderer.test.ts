@@ -58,7 +58,15 @@ suite('Markdown Setting Renderer Test', () => {
 
 	suiteSetup(() => {
 		configurationService = new MarkdownConfigurationService();
-		preferencesService = <IPreferencesService>{};
+		preferencesService = <IPreferencesService>{
+			getSetting: (setting) => {
+				let type = 'boolean';
+				if (setting.includes('string')) {
+					type = 'string';
+				}
+				return { type, key: setting };
+			}
+		};
 		contextMenuService = <IContextMenuService>{};
 		Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration(configuration);
 		settingRenderer = new SimpleSettingRenderer(configurationService, contextMenuService, preferencesService, { publicLog2: () => { } } as any, { writeText: async () => { } } as any);
