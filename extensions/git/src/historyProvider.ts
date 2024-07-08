@@ -146,7 +146,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		}
 
 		// Get the commits
-		const commits = await this.repository.log({ range: `${refsMergeBase}^..`, refNames });
+		const commits = await this.repository.log({ range: `${refsMergeBase}^..`, refNames, shortStats: true });
 
 		await ensureEmojis();
 
