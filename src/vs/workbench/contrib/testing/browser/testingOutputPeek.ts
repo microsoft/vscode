@@ -4,13 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { alert } from 'vs/base/browser/ui/aria/aria';
-import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { Orientation, Sizing, SplitView } from 'vs/base/browser/ui/splitview/splitview';
 import { IAction } from 'vs/base/common/actions';
-import { Limiter } from 'vs/base/common/async';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -18,7 +13,7 @@ import { stripIcons } from 'vs/base/common/iconLabels';
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Lazy } from 'vs/base/common/lazy';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { count } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./testingOutputPeek';
@@ -35,7 +30,6 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IPeekViewService, PeekViewWidget, peekViewTitleForeground, peekViewTitleInfoForeground } from 'vs/editor/contrib/peekView/browser/peekView';
 import { localize, localize2 } from 'vs/nls';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { FloatingClickMenu } from 'vs/platform/actions/browser/floatingMenu';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { Action2, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -50,7 +44,6 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
@@ -58,17 +51,16 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { renderTestMessageAsText } from 'vs/workbench/contrib/testing/browser/testMessageColorizer';
-import { DiffContentProvider, IPeekOutputRenderer, MarkdownTestMessagePeek, PlainTextMessagePeek, TerminalMessagePeek } from 'vs/workbench/contrib/testing/browser/testResultsView/testResultsOutput';
-import { InspectSubject, MessageSubject, TaskSubject, TestOutputSubject, equalsSubject, mapFindTestMessage } from 'vs/workbench/contrib/testing/browser/testResultsView/testResultsSubject';
-import { OutputPeekTree } from 'vs/workbench/contrib/testing/browser/testResultsView/testResultsTree';
+import { InspectSubject, MessageSubject, TaskSubject, TestOutputSubject, mapFindTestMessage } from 'vs/workbench/contrib/testing/browser/testResultsView/testResultsSubject';
+import { TestResultsViewContent } from 'vs/workbench/contrib/testing/browser/testResultsView/testResultsViewContent';
 import { testingMessagePeekBorder, testingPeekBorder, testingPeekHeaderBackground, testingPeekMessageHeaderBackground } from 'vs/workbench/contrib/testing/browser/theme';
 import { AutoOpenPeekViewWhen, TestingConfigKeys, getTestingConfiguration } from 'vs/workbench/contrib/testing/common/configuration';
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { IObservableValue, MutableObservableValue, staticObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
+import { MutableObservableValue, staticObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
-import { ITestResult, LiveTestResult, TestResultItemChange, TestResultItemChangeReason, resultItemParents } from 'vs/workbench/contrib/testing/common/testResult';
+import { ITestResult, TestResultItemChange, TestResultItemChangeReason, resultItemParents } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService, ResultChangeEvent } from 'vs/workbench/contrib/testing/common/testResultService';
-import { ITestFollowup, ITestService } from 'vs/workbench/contrib/testing/common/testService';
+import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { IRichLocation, ITestMessage, TestMessageType, TestResultItem } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { IShowResultOptions, ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
@@ -403,7 +395,6 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 	}
 }
 
-
 /**
  * Adds output/message peek functionality to code editors.
  */
@@ -661,278 +652,6 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 	}
 }
 
-const FOLLOWUP_ANIMATION_MIN_TIME = 500;
-
-class FollowupActionWidget extends Disposable {
-	private readonly el = dom.h('div.testing-followup-action', []);
-	private readonly visibleStore = this._register(new DisposableStore());
-
-	constructor(
-		private readonly container: HTMLElement,
-		private readonly editor: ICodeEditor | undefined,
-		@ITestService private readonly testService: ITestService,
-		@IQuickInputService private readonly quickInput: IQuickInputService,
-	) {
-		super();
-	}
-
-	public show(subject: InspectSubject) {
-		this.visibleStore.clear();
-		if (subject instanceof MessageSubject) {
-			this.showMessage(subject);
-		}
-	}
-
-	private async showMessage(subject: MessageSubject) {
-		const cts = this.visibleStore.add(new CancellationTokenSource());
-		const start = Date.now();
-
-		// Wait for completion otherwise results will not be available to the ext host:
-		if (subject.result instanceof LiveTestResult && !subject.result.completedAt) {
-			await new Promise(r => Event.once((subject.result as LiveTestResult).onComplete)(r));
-		}
-
-		const followups = await this.testService.provideTestFollowups({
-			extId: subject.test.extId,
-			messageIndex: subject.messageIndex,
-			resultId: subject.result.id,
-			taskIndex: subject.taskIndex,
-		}, cts.token);
-
-
-		if (!followups.followups.length || cts.token.isCancellationRequested) {
-			followups.dispose();
-			return;
-		}
-
-		this.visibleStore.add(followups);
-
-		dom.clearNode(this.el.root);
-		this.el.root.classList.toggle('animated', Date.now() - start > FOLLOWUP_ANIMATION_MIN_TIME);
-
-		this.el.root.appendChild(this.makeFollowupLink(followups.followups[0]));
-		if (followups.followups.length > 1) {
-			this.el.root.appendChild(this.makeMoreLink(followups.followups));
-		}
-
-		this.container.appendChild(this.el.root);
-		this.visibleStore.add(toDisposable(() => {
-			this.el.root.remove();
-		}));
-	}
-
-	private makeFollowupLink(first: ITestFollowup) {
-		const link = this.makeLink(() => this.actionFollowup(link, first));
-		dom.reset(link, ...renderLabelWithIcons(first.message));
-		return link;
-	}
-
-	private makeMoreLink(followups: ITestFollowup[]) {
-		const link = this.makeLink(() =>
-			this.quickInput.pick(followups.map((f, i) => ({
-				label: f.message,
-				index: i
-			}))).then(picked => {
-				if (picked?.length) {
-					followups[picked[0].index].execute();
-				}
-			})
-		);
-
-		link.innerText = localize('testFollowup.more', '+{0} More...', followups.length - 1);
-		return link;
-	}
-
-	private makeLink(onClick: () => void) {
-		const link = document.createElement('a');
-		link.tabIndex = 0;
-		this.visibleStore.add(dom.addDisposableListener(link, 'click', onClick));
-		this.visibleStore.add(dom.addDisposableListener(link, 'keydown', e => {
-			const event = new StandardKeyboardEvent(e);
-			if (event.equals(KeyCode.Space) || event.equals(KeyCode.Enter)) {
-				onClick();
-			}
-		}));
-
-		return link;
-	}
-
-	private actionFollowup(link: HTMLAnchorElement, fu: ITestFollowup) {
-		if (link.ariaDisabled !== 'true') {
-			link.ariaDisabled = 'true';
-			fu.execute();
-
-			if (this.editor) {
-				TestingOutputPeekController.get(this.editor)?.removePeek();
-			}
-		}
-	}
-}
-
-class TestResultsViewContent extends Disposable {
-	private static lastSplitWidth?: number;
-
-	private readonly didReveal = this._register(new Emitter<{ subject: InspectSubject; preserveFocus: boolean }>());
-	private readonly currentSubjectStore = this._register(new DisposableStore());
-	private followupWidget!: FollowupActionWidget;
-	private messageContextKeyService!: IContextKeyService;
-	private contextKeyTestMessage!: IContextKey<string>;
-	private contextKeyResultOutdated!: IContextKey<boolean>;
-
-	private dimension?: dom.Dimension;
-	private splitView!: SplitView;
-	private messageContainer!: HTMLElement;
-	private contentProviders!: IPeekOutputRenderer[];
-	private contentProvidersUpdateLimiter = this._register(new Limiter(1));
-
-	public current?: InspectSubject;
-
-	/** Fired when a tree item is selected. Populated only on .fillBody() */
-	public onDidRequestReveal!: Event<InspectSubject>;
-
-	constructor(
-		private readonly editor: ICodeEditor | undefined,
-		private readonly options: {
-			historyVisible: IObservableValue<boolean>;
-			showRevealLocationOnMessages: boolean;
-			locationForProgress: string;
-		},
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ITextModelService protected readonly modelService: ITextModelService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-	) {
-		super();
-	}
-
-	public fillBody(containerElement: HTMLElement): void {
-		const initialSpitWidth = TestResultsViewContent.lastSplitWidth;
-		this.splitView = new SplitView(containerElement, { orientation: Orientation.HORIZONTAL });
-
-		const { historyVisible, showRevealLocationOnMessages } = this.options;
-		const isInPeekView = this.editor !== undefined;
-		const messageContainer = this.messageContainer = dom.append(containerElement, dom.$('.test-output-peek-message-container'));
-		this.followupWidget = this._register(this.instantiationService.createInstance(FollowupActionWidget, messageContainer, this.editor));
-		this.contentProviders = [
-			this._register(this.instantiationService.createInstance(DiffContentProvider, this.editor, messageContainer)),
-			this._register(this.instantiationService.createInstance(MarkdownTestMessagePeek, messageContainer)),
-			this._register(this.instantiationService.createInstance(TerminalMessagePeek, messageContainer, isInPeekView)),
-			this._register(this.instantiationService.createInstance(PlainTextMessagePeek, this.editor, messageContainer)),
-		];
-
-		this.messageContextKeyService = this._register(this.contextKeyService.createScoped(containerElement));
-		this.contextKeyTestMessage = TestingContextKeys.testMessageContext.bindTo(this.messageContextKeyService);
-		this.contextKeyResultOutdated = TestingContextKeys.testResultOutdated.bindTo(this.messageContextKeyService);
-
-		const treeContainer = dom.append(containerElement, dom.$('.test-output-peek-tree'));
-		const tree = this._register(this.instantiationService.createInstance(
-			OutputPeekTree,
-			treeContainer,
-			this.didReveal.event,
-			{ showRevealLocationOnMessages, locationForProgress: this.options.locationForProgress },
-		));
-
-		this.onDidRequestReveal = tree.onDidRequestReview;
-
-		this.splitView.addView({
-			onDidChange: Event.None,
-			element: messageContainer,
-			minimumSize: 200,
-			maximumSize: Number.MAX_VALUE,
-			layout: width => {
-				TestResultsViewContent.lastSplitWidth = width;
-				if (this.dimension) {
-					for (const provider of this.contentProviders) {
-						provider.layout({ height: this.dimension.height, width });
-					}
-				}
-			},
-		}, Sizing.Distribute);
-
-		this.splitView.addView({
-			onDidChange: Event.None,
-			element: treeContainer,
-			minimumSize: 100,
-			maximumSize: Number.MAX_VALUE,
-			layout: width => {
-				if (this.dimension) {
-					tree.layout(this.dimension.height, width);
-				}
-			},
-		}, Sizing.Distribute);
-
-		const historyViewIndex = 1;
-		this.splitView.setViewVisible(historyViewIndex, historyVisible.value);
-		this._register(historyVisible.onDidChange(visible => {
-			this.splitView.setViewVisible(historyViewIndex, visible);
-		}));
-
-		if (initialSpitWidth) {
-			queueMicrotask(() => this.splitView.resizeView(0, initialSpitWidth));
-		}
-	}
-
-	/**
-	 * Shows a message in-place without showing or changing the peek location.
-	 * This is mostly used if peeking a message without a location.
-	 */
-	public reveal(opts: { subject: InspectSubject; preserveFocus: boolean }) {
-		this.didReveal.fire(opts);
-
-		if (this.current && equalsSubject(this.current, opts.subject)) {
-			return Promise.resolve();
-		}
-
-		this.current = opts.subject;
-		return this.contentProvidersUpdateLimiter.queue(async () => {
-			await Promise.all(this.contentProviders.map(p => p.update(opts.subject)));
-			this.followupWidget.show(opts.subject);
-			this.currentSubjectStore.clear();
-			this.populateFloatingClick(opts.subject);
-		});
-	}
-
-	private populateFloatingClick(subject: InspectSubject) {
-		if (!(subject instanceof MessageSubject)) {
-			return;
-		}
-
-		this.currentSubjectStore.add(toDisposable(() => {
-			this.contextKeyResultOutdated.reset();
-			this.contextKeyTestMessage.reset();
-		}));
-
-		this.contextKeyTestMessage.set(subject.contextValue || '');
-		if (subject.result instanceof LiveTestResult) {
-			this.contextKeyResultOutdated.set(subject.result.getStateById(subject.test.extId)?.retired ?? false);
-			this.currentSubjectStore.add(subject.result.onChange(ev => {
-				if (ev.item.item.extId === subject.test.extId) {
-					this.contextKeyResultOutdated.set(ev.item.retired ?? false);
-				}
-			}));
-		} else {
-			this.contextKeyResultOutdated.set(true);
-		}
-
-
-		const instaService = this.currentSubjectStore.add(this.instantiationService
-			.createChild(new ServiceCollection([IContextKeyService, this.messageContextKeyService])));
-
-		this.currentSubjectStore.add(instaService.createInstance(FloatingClickMenu, {
-			container: this.messageContainer,
-			menuId: MenuId.TestMessageContent,
-			getActionArg: () => (subject as MessageSubject).context,
-		}));
-	}
-
-	public onLayoutBody(height: number, width: number) {
-		this.dimension = new dom.Dimension(width, height);
-		this.splitView.layout(width);
-	}
-
-	public onWidth(width: number) {
-		this.splitView.layout(width);
-	}
-}
 
 class TestResultsPeek extends PeekViewWidget {
 	private static lastHeightInLines?: number;
