@@ -880,16 +880,12 @@ abstract class RunTestDecoration {
 
 	private getContributedTestActions(test: InternalTestItem, capabilities: number): IAction[] {
 		const contextOverlay = this.contextKeyService.createOverlay(getTestItemContextOverlay(test, capabilities));
-		const menu = this.menuService.createMenu(MenuId.TestItemGutter, contextOverlay);
 
-		try {
-			const target: IAction[] = [];
-			const arg = getContextForTestItem(this.testService.collection, test.item.extId);
-			createAndFillInContextMenuActions(menu, { shouldForwardArgs: true, arg }, target);
-			return target;
-		} finally {
-			menu.dispose();
-		}
+		const target: IAction[] = [];
+		const arg = getContextForTestItem(this.testService.collection, test.item.extId);
+		const menu = this.menuService.getMenuActions(MenuId.TestItemGutter, contextOverlay, { shouldForwardArgs: true, arg });
+		createAndFillInContextMenuActions(menu, target);
+		return target;
 	}
 }
 

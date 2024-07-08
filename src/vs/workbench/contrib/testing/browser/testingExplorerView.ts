@@ -365,16 +365,10 @@ export class TestingExplorerView extends ViewPane {
 			contextKeys.push(['testing.profile.context.group', 'coverage']);
 		}
 		const key = this.contextKeyService.createOverlay(contextKeys);
-		const menu = this.menuService.createMenu(MenuId.TestProfilesContext, key);
+		const menu = this.menuService.getMenuActions(MenuId.TestProfilesContext, key);
 
 		// fill if there are any actions
-		try {
-			createAndFillInContextMenuActions(menu, undefined, menuActions);
-		} finally {
-			menu.dispose();
-		}
-
-
+		createAndFillInContextMenuActions(menu, menuActions);
 
 		const postActions: IAction[] = [];
 		if (profileActions.length > 1) {
@@ -1567,20 +1561,17 @@ const getActionableElementActions = (
 	}
 
 	const contextOverlay = contextKeyService.createOverlay(contextKeys);
-	const menu = menuService.createMenu(MenuId.TestItem, contextOverlay);
+	const menu = menuService.getMenuActions(MenuId.TestItem, contextOverlay, {
+		shouldForwardArgs: true,
+	});
 
-	try {
-		const primary: IAction[] = [];
-		const secondary: IAction[] = [];
-		const result = { primary, secondary };
-		createAndFillInActionBarActions(menu, {
-			shouldForwardArgs: true,
-		}, result, 'inline');
+	const primary: IAction[] = [];
+	const secondary: IAction[] = [];
+	const result = { primary, secondary };
+	createAndFillInActionBarActions(menu, result, 'inline');
 
-		return { actions: result, contextOverlay };
-	} finally {
-		menu.dispose();
-	}
+	return { actions: result, contextOverlay };
+
 };
 
 registerThemingParticipant((theme, collector) => {
