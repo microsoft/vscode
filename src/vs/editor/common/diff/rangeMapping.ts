@@ -5,6 +5,7 @@
 
 import { BugIndicatingError } from 'vs/base/common/errors';
 import { LineRange } from 'vs/editor/common/core/lineRange';
+import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { AbstractText, SingleTextEdit } from 'vs/editor/common/core/textEdit';
 
@@ -118,6 +119,70 @@ export class LineRangeMapping {
 			);
 		}
 	}
+
+	/**
+	 * This method assumes that the LineRangeMapping describes a valid diff!
+	 * I.e. if one range is empty, the other range cannot be the entire document.
+	 * It avoids various problems when the line range points to non-existing line-numbers.
+	*/
+	public toRangeMapping2(original: string[], modified: string[]): RangeMapping {
+		if (isValidLineNumber(this.original.endLineNumberExclusive, original)
+			&& isValidLineNumber(this.modified.endLineNumberExclusive, modified)) {
+			return new RangeMapping(
+				new Range(this.original.startLineNumber, 1, this.original.endLineNumberExclusive, 1),
+				new Range(this.modified.startLineNumber, 1, this.modified.endLineNumberExclusive, 1),
+			);
+		}
+
+		if (!this.original.isEmpty && !this.modified.isEmpty) {
+			return new RangeMapping(
+				Range.fromPositions(
+					new Position(this.original.startLineNumber, 1),
+					normalizePosition(new Position(this.original.endLineNumberExclusive - 1, Number.MAX_SAFE_INTEGER), original)
+				),
+				Range.fromPositions(
+					new Position(this.modified.startLineNumber, 1),
+					normalizePosition(new Position(this.modified.endLineNumberExclusive - 1, Number.MAX_SAFE_INTEGER), modified)
+				),
+			);
+		}
+
+		if (this.original.startLineNumber > 1 && this.modified.startLineNumber > 1) {
+			return new RangeMapping(
+				Range.fromPositions(
+					normalizePosition(new Position(this.original.startLineNumber - 1, Number.MAX_SAFE_INTEGER), original),
+					normalizePosition(new Position(this.original.endLineNumberExclusive - 1, Number.MAX_SAFE_INTEGER), original)
+				),
+				Range.fromPositions(
+					normalizePosition(new Position(this.modified.startLineNumber - 1, Number.MAX_SAFE_INTEGER), modified),
+					normalizePosition(new Position(this.modified.endLineNumberExclusive - 1, Number.MAX_SAFE_INTEGER), modified)
+				),
+			);
+		}
+
+		// Situation now: one range is empty and one range touches the last line and one range starts at line 1.
+		// I don't think this can happen.
+
+		throw new BugIndicatingError();
+	}
+}
+
+function normalizePosition(position: Position, content: string[]): Position {
+	if (position.lineNumber < 1) {
+		return new Position(1, 1);
+	}
+	if (position.lineNumber > content.length) {
+		return new Position(content.length, content[content.length - 1].length + 1);
+	}
+	const line = content[position.lineNumber - 1];
+	if (position.column > line.length + 1) {
+		return new Position(position.lineNumber, line.length + 1);
+	}
+	return position;
+}
+
+function isValidLineNumber(lineNumber: number, lines: string[]): boolean {
+	return lineNumber >= 1 && lineNumber <= lines.length;
 }
 
 /**
@@ -161,6 +226,19 @@ export class DetailedLineRangeMapping extends LineRangeMapping {
  * Maps a range in the original text model to a range in the modified text model.
  */
 export class RangeMapping {
+	public static assertSorted(rangeMappings: RangeMapping[]): void {
+		for (let i = 1; i < rangeMappings.length; i++) {
+			const previous = rangeMappings[i - 1];
+			const current = rangeMappings[i];
+			if (!(
+				previous.originalRange.getEndPosition().isBeforeOrEqual(current.originalRange.getStartPosition())
+				&& previous.modifiedRange.getEndPosition().isBeforeOrEqual(current.modifiedRange.getStartPosition())
+			)) {
+				throw new BugIndicatingError('Range mappings must be sorted');
+			}
+		}
+	}
+
 	/**
 	 * The original range.
 	 */

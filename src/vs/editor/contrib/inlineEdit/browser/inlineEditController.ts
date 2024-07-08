@@ -35,11 +35,11 @@ export class InlineEditController extends Disposable {
 	static ID = 'editor.contrib.inlineEditController';
 
 	public static readonly inlineEditVisibleKey = 'inlineEditVisible';
-	public static readonly inlineEditVisibleContext = new RawContextKey<boolean>(InlineEditController.inlineEditVisibleKey, false);
+	public static readonly inlineEditVisibleContext = new RawContextKey<boolean>(this.inlineEditVisibleKey, false);
 	private _isVisibleContext = InlineEditController.inlineEditVisibleContext.bindTo(this.contextKeyService);
 
 	public static readonly cursorAtInlineEditKey = 'cursorAtInlineEdit';
-	public static readonly cursorAtInlineEditContext = new RawContextKey<boolean>(InlineEditController.cursorAtInlineEditKey, false);
+	public static readonly cursorAtInlineEditContext = new RawContextKey<boolean>(this.cursorAtInlineEditKey, false);
 	private _isCursorAtInlineEditContext = InlineEditController.cursorAtInlineEditContext.bindTo(this.contextKeyService);
 
 	public static get(editor: ICodeEditor): InlineEditController | null {

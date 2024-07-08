@@ -24,6 +24,8 @@ import { RegisteredEditorPriority, IEditorResolverService } from 'vs/workbench/s
 import { ITextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
 import { DEFAULT_SETTINGS_EDITOR_SETTING, FOLDER_SETTINGS_PATH, IPreferencesService, USE_SPLIT_JSON_SETTING } from 'vs/workbench/services/preferences/common/preferences';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { getCompressedContent, IJSONSchema } from 'vs/base/common/jsonSchema';
+import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 
 const schemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
 
@@ -43,7 +45,8 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
-		@ITextEditorService private readonly textEditorService: ITextEditorService
+		@ITextEditorService private readonly textEditorService: ITextEditorService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		this.settingsListener = this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(USE_SPLIT_JSON_SETTING) || e.affectsConfiguration(DEFAULT_SETTINGS_EDITOR_SETTING)) {
@@ -120,18 +123,29 @@ export class PreferencesContribution implements IWorkbenchContribution {
 
 	private getSchemaModel(uri: URI): ITextModel {
 		let schema = schemaRegistry.getSchemaContributions().schemas[uri.toString()] ?? {} /* Use empty schema if not yet registered */;
-		const modelContent = JSON.stringify(schema);
+		const modelContent = this.getSchemaContent(uri, schema);
 		const languageSelection = this.languageService.createById('jsonc');
 		const model = this.modelService.createModel(modelContent, languageSelection, uri);
 		const disposables = new DisposableStore();
 		disposables.add(schemaRegistry.onDidChangeSchema(schemaUri => {
 			if (schemaUri === uri.toString()) {
 				schema = schemaRegistry.getSchemaContributions().schemas[uri.toString()];
-				model.setValue(JSON.stringify(schema));
+				model.setValue(this.getSchemaContent(uri, schema));
 			}
 		}));
 		disposables.add(model.onWillDispose(() => disposables.dispose()));
 		return model;
+	}
+
+	private getSchemaContent(uri: URI, schema: IJSONSchema): string {
+		const startTime = Date.now();
+		const content = getCompressedContent(schema);
+		if (this.logService.getLevel() === LogLevel.Debug) {
+			const endTime = Date.now();
+			const uncompressed = JSON.stringify(schema);
+			this.logService.debug(`${uri.path}: ${uncompressed.length} -> ${content.length} (${Math.round((uncompressed.length - content.length) / uncompressed.length * 100)}%) Took ${endTime - startTime}ms`);
+		}
+		return content;
 	}
 
 	dispose(): void {
@@ -139,6 +153,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		dispose(this.settingsListener);
 	}
 }
+
 
 const registry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 registry.registerConfiguration({

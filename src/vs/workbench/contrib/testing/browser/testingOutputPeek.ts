@@ -1102,10 +1102,9 @@ class TestResultsPeek extends PeekViewWidget {
 		super._fillHead(container);
 
 		const actions: IAction[] = [];
-		const menu = this.menuService.createMenu(MenuId.TestPeekTitle, this.contextKeyService);
-		createAndFillInActionBarActions(menu, undefined, actions);
+		const menu = this.menuService.getMenuActions(MenuId.TestPeekTitle, this.contextKeyService);
+		createAndFillInActionBarActions(menu, actions);
 		this._actionbarWidget!.push(actions, { label: false, icon: true, index: 0 });
-		menu.dispose();
 	}
 
 	protected override _fillBody(containerElement: HTMLElement): void {
@@ -2558,13 +2557,9 @@ class TreeActionsProvider {
 
 		const contextOverlay = this.contextKeyService.createOverlay(contextKeys);
 		const result = { primary, secondary };
-		const menu = this.menuService.createMenu(id, contextOverlay);
-		try {
-			createAndFillInActionBarActions(menu, { arg: element.context }, result, 'inline');
-			return result;
-		} finally {
-			menu.dispose();
-		}
+		const menu = this.menuService.getMenuActions(id, contextOverlay, { arg: element.context });
+		createAndFillInActionBarActions(menu, result, 'inline');
+		return result;
 	}
 }
 
