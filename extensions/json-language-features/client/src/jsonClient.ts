@@ -431,7 +431,6 @@ async function startClientWithParticipants(context: ExtensionContext, languagePa
 	};
 	const handleContentClosed = (uriString: string) => {
 		if (handleContentChange(uriString)) {
-			runtime.logOutputChannel.info('handleContentClosed ' + uriString);
 			delete schemaDocuments[uriString];
 		}
 		fileSchemaErrors.delete(uriString);
@@ -452,7 +451,7 @@ async function startClientWithParticipants(context: ExtensionContext, languagePa
 			try {
 				const watcher = workspace.createFileSystemWatcher(new RelativePattern(uri, '*'));
 				const handleChange = (uri: Uri) => {
-					runtime.logOutputChannel.info('FS change detected ' + uri.toString());
+					runtime.logOutputChannel.info('schema change detected ' + uri.toString());
 					client.sendNotification(SchemaContentChangeNotification.type, uriString);
 				};
 				const createListener = watcher.onDidCreate(handleChange);
