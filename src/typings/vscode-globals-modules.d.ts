@@ -7,7 +7,6 @@
 
 declare global {
 
-
 	/**
 	 * @deprecated node modules that are in used in a context that
 	 * shouldn't have access to node_modules (node-free renderer or

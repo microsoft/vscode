@@ -33,7 +33,6 @@ import { getKeyboardLayoutId, IKeyboardLayoutInfo, IKeyboardLayoutService, IKeyb
 import { isESM } from 'vs/base/common/amd';
 import { AppResourcePath, FileAccess } from 'vs/base/common/network';
 
-
 export class BrowserKeyboardMapperFactoryBase extends Disposable {
 	// keyboard mapper
 	protected _initialized: boolean;

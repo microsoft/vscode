@@ -128,6 +128,7 @@ import { ContextViewService } from 'vs/platform/contextview/browser/contextViewS
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IListService, ListService } from 'vs/platform/list/browser/listService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
+import { WorkbenchEditorWorkerService } from 'vs/workbench/contrib/codeEditor/browser/workbenchEditorWorkerService';
 import { MarkerDecorationsService } from 'vs/editor/common/services/markerDecorationsService';
 import { IMarkerDecorationsService } from 'vs/editor/common/services/markerDecorations';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
@@ -144,7 +145,6 @@ import { IgnoredExtensionsManagementService, IIgnoredExtensionsManagementService
 import { ExtensionStorageService, IExtensionStorageService } from 'vs/platform/extensionManagement/common/extensionStorage';
 import { IUserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncLogService } from 'vs/platform/userDataSync/common/userDataSyncLog';
-import { WorkbenchEditorWorkerService } from 'vs/workbench/contrib/codeEditor/browser/workbenchEditorWorkerService';
 
 registerSingleton(IUserDataSyncLogService, UserDataSyncLogService, InstantiationType.Delayed);
 registerSingleton(IIgnoredExtensionsManagementService, IgnoredExtensionsManagementService, InstantiationType.Delayed);

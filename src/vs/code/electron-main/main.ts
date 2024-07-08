@@ -71,7 +71,6 @@ import { LogService } from 'vs/platform/log/common/logService';
 import { massageMessageBoxOptions } from 'vs/platform/dialogs/common/dialogs';
 import { SaveStrategy, StateService } from 'vs/platform/state/node/stateService';
 import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataProvider';
-
 import { addUNCHostToAllowlist, getUNCHost } from 'vs/base/node/unc';
 import { CSSDevelopmentService, ICSSDevelopmentService } from 'vs/platform/environment/node/cssDevService';
 
