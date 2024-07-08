@@ -90,7 +90,7 @@ for (const item of allEntryPointFromTheAmdWorld) {
 	} else if (item.name.match(/\/(browser|electron-sandbox|worker)\//) || item.name.endsWith('.web.main')) {
 		entryPointsByPlatform.browser.push(inOut);
 
-	} else if (item.name.match(/\/(node|electron-browser|electron-main)\//) || item.name.endsWith('.desktop.main')) {
+	} else if (item.name.match(/\/(node|electron-main)\//) || item.name.endsWith('.desktop.main')) {
 		entryPointsByPlatform.node.push(inOut);
 
 	} else {
@@ -200,11 +200,10 @@ copyResources([
 	'vs/base/common/performance.js',
 	'vs/platform/environment/node/userDataPath.js',
 	'vs/base/common/stripComments.js',
-	'vs/base/node/languagePacks.js',
+	'vs/base/node/nls.js',
 	'vs/code/electron-sandbox/workbench/workbench-dev.html',
-	'vs/base/parts/sandbox/electron-browser/preload.js',
-	'vs/code/electron-sandbox/workbench/workbench.js',
-	'vs/code/electron-browser/sharedProcess/sharedProcess-dev.html',
+	'vs/base/parts/sandbox/electron-sandbox/preload.js',
+	'vs/code/electron-sandbox/workbench/workbench.js'
 ]);
 
 /**

@@ -185,20 +185,6 @@ function migrateTS(filePath, fileContents) {
 			}
 		}
 
-		if (
-			importedFilepath === 'electron'
-			&& !filePath.endsWith('vs/base/electron-main/electron.ts')
-			&& !filePath.endsWith('vs/base/electron-browser/electron.ts')
-		) {
-			if (/electron-main/.test(filePath)) {
-				importedFilepath = 'vs/base/electron-main/electron';
-			} else if (/electron-browser/.test(filePath)) {
-				importedFilepath = 'vs/base/electron-browser/electron';
-			} else {
-				importedFilepath = 'electron';
-			}
-		}
-
 		/** @type {boolean} */
 		let isRelativeImport;
 		if (/(^\.\/)|(^\.\.\/)/.test(importedFilepath)) {
