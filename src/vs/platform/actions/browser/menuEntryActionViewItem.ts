@@ -33,8 +33,8 @@ import { defaultSelectBoxStyles } from 'vs/platform/theme/browser/defaultStyles'
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 
-export function createAndFillInContextMenuActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[] }, primaryGroup?: string): void {
-	const groups = menu.getActions(options);
+export function createAndFillInContextMenuActions(menu: IMenu | [string, Array<MenuItemAction | SubmenuItemAction>][], options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[] }, primaryGroup?: string): void {
+	const groups = (Array.isArray(menu) ? menu : menu.getActions(options));
 	const modifierKeyEmitter = ModifierKeyEmitter.getInstance();
 	const useAlternativeActions = modifierKeyEmitter.keyStatus.altKey || ((isWindows || isLinux) && modifierKeyEmitter.keyStatus.shiftKey);
 	fillInActions(groups, target, useAlternativeActions, primaryGroup ? actionGroup => actionGroup === primaryGroup : actionGroup => actionGroup === 'navigation');

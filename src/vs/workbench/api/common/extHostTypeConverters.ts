@@ -2557,6 +2557,8 @@ export namespace ChatResponsePart {
 			return ChatResponseDetectedParticipantPart.from(part);
 		} else if (part instanceof types.ChatResponseWarningPart) {
 			return ChatResponseWarningPart.from(part);
+		} else if (part instanceof types.ChatResponseConfirmationPart) {
+			return ChatResponseConfirmationPart.from(part);
 		}
 
 		return {
@@ -2592,7 +2594,7 @@ export namespace ChatResponsePart {
 }
 
 export namespace ChatAgentRequest {
-	export function to(request: IChatAgentRequest): vscode.ChatRequest {
+	export function to(request: IChatAgentRequest, location2: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined): vscode.ChatRequest {
 		return {
 			prompt: request.message,
 			command: request.command,
@@ -2601,7 +2603,8 @@ export namespace ChatAgentRequest {
 			references: request.variables.variables.map(ChatAgentValueReference.to),
 			location: ChatLocation.to(request.location),
 			acceptedConfirmationData: request.acceptedConfirmationData,
-			rejectedConfirmationData: request.rejectedConfirmationData
+			rejectedConfirmationData: request.rejectedConfirmationData,
+			location2
 		};
 	}
 }

@@ -414,6 +414,7 @@ suite('UserDataSyncRequestsSession', () => {
 		_serviceBrand: undefined,
 		async request() { return { res: { headers: {} }, stream: newWriteableBufferStream() }; },
 		async resolveProxy() { return undefined; },
+		async lookupAuthorization() { return undefined; },
 		async loadCertificates() { return []; }
 	};
 

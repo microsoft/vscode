@@ -2,13 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+/* eslint-disable local/code-import-patterns */
 
-// HACK: Ignore warnings, technically this requires browser/ but it's run on renderer.html anyway so
-// it's fine in tests. Importing @xterm/headless appears to prevent `yarn test-browser` from running
-// at all.
-// eslint-disable-next-line local/code-import-patterns, local/code-amd-node-module
-import { Terminal } from '@xterm/xterm';
-
+import type { Terminal } from '@xterm/xterm';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { PromptInputModel, type IPromptInputModelState } from 'vs/platform/terminal/common/capabilities/commandDetection/promptInputModel';
@@ -16,6 +12,7 @@ import { Emitter } from 'vs/base/common/event';
 import type { ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { notDeepStrictEqual, strictEqual } from 'assert';
 import { timeout } from 'vs/base/common/async';
+import { importAMDNodeModule } from 'vs/amdX';
 
 suite('PromptInputModel', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -61,8 +58,9 @@ suite('PromptInputModel', () => {
 		strictEqual(promptInputModel.cursorIndex, cursorIndex, `value=${promptInputModel.value}`);
 	}
 
-	setup(() => {
-		xterm = store.add(new Terminal({ allowProposedApi: true }));
+	setup(async () => {
+		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
+		xterm = store.add(new TerminalCtor({ allowProposedApi: true }));
 		onCommandStart = store.add(new Emitter());
 		onCommandExecuted = store.add(new Emitter());
 		promptInputModel = store.add(new PromptInputModel(xterm, onCommandStart.event, onCommandExecuted.event, new NullLogService));

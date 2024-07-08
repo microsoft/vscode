@@ -56,7 +56,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { createInstantHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 
-export const profilesSashBorder = registerColor('profiles.sashBorder', { dark: PANEL_BORDER, light: PANEL_BORDER, hcDark: PANEL_BORDER, hcLight: PANEL_BORDER }, localize('profilesSashBorder', "The color of the Profiles editor splitview sash border."));
+export const profilesSashBorder = registerColor('profiles.sashBorder', PANEL_BORDER, localize('profilesSashBorder', "The color of the Profiles editor splitview sash border."));
 
 export class UserDataProfilesEditor extends EditorPane implements IUserDataProfilesEditor {
 
@@ -937,9 +937,9 @@ class AbstractProfileResourceTreeRenderer extends Disposable {
 			case ProfileResourceType.Keybindings:
 				return localize('keybindings', "Keyboard Shortcuts");
 			case ProfileResourceType.Snippets:
-				return localize('snippets', "User Snippets");
+				return localize('snippets', "Snippets");
 			case ProfileResourceType.Tasks:
-				return localize('tasks', "User Tasks");
+				return localize('tasks', "Tasks");
 			case ProfileResourceType.Extensions:
 				return localize('extensions', "Extensions");
 		}
@@ -1001,9 +1001,11 @@ class ExistingProfileResourceTreeRenderer extends AbstractProfileResourceTreeRen
 
 		templateData.label.textContent = this.getResourceTypeTitle(element.resourceType);
 		if (root instanceof UserDataProfileElement && root.profile.isDefault) {
+			templateData.checkbox.domNode.removeAttribute('tabindex');
 			templateData.checkbox.domNode.classList.add('hide');
 		} else {
 			templateData.checkbox.domNode.classList.remove('hide');
+			templateData.checkbox.domNode.setAttribute('tabindex', '0');
 			templateData.checkbox.checked = root.getFlag(element.resourceType);
 			templateData.elementDisposables.add(templateData.checkbox.onChange(() => root.setFlag(element.resourceType, templateData.checkbox.checked)));
 		}
@@ -1136,6 +1138,7 @@ class ProfileResourceChildTreeItemRenderer extends AbstractProfileResourceTreeRe
 		}
 
 		if (element.checkbox) {
+			templateData.checkbox.domNode.setAttribute('tabindex', '0');
 			templateData.checkbox.domNode.classList.remove('hide');
 			templateData.checkbox.checked = element.checkbox.isChecked;
 			templateData.checkbox.domNode.ariaLabel = element.checkbox.accessibilityInformation?.label ?? '';
@@ -1143,6 +1146,7 @@ class ProfileResourceChildTreeItemRenderer extends AbstractProfileResourceTreeRe
 				templateData.checkbox.domNode.role = element.checkbox.accessibilityInformation.role;
 			}
 		} else {
+			templateData.checkbox.domNode.removeAttribute('tabindex');
 			templateData.checkbox.domNode.classList.add('hide');
 		}
 

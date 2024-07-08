@@ -109,7 +109,7 @@ export class SettingsEditor2 extends EditorPane {
 	private static TOC_RESET_WIDTH: number = 200;
 	private static EDITOR_MIN_WIDTH: number = 500;
 	// Below NARROW_TOTAL_WIDTH, we only render the editor rather than the ToC.
-	private static NARROW_TOTAL_WIDTH: number = SettingsEditor2.TOC_RESET_WIDTH + SettingsEditor2.EDITOR_MIN_WIDTH;
+	private static NARROW_TOTAL_WIDTH: number = this.TOC_RESET_WIDTH + this.EDITOR_MIN_WIDTH;
 
 	private static SUGGESTIONS: string[] = [
 		`@${MODIFIED_SETTING_TAG}`,
@@ -794,10 +794,10 @@ export class SettingsEditor2 extends EditorPane {
 		this.createTOC(this.tocTreeContainer);
 		this.createSettingsTree(this.settingsTreeContainer);
 
-		this.splitView = new SplitView(this.bodyContainer, {
+		this.splitView = this._register(new SplitView(this.bodyContainer, {
 			orientation: Orientation.HORIZONTAL,
 			proportionalLayout: true
-		});
+		}));
 		const startingWidth = this.storageService.getNumber('settingsEditor2.splitViewWidth', StorageScope.PROFILE, SettingsEditor2.TOC_RESET_WIDTH);
 		this.splitView.addView({
 			onDidChange: Event.None,
@@ -914,7 +914,7 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private createSettingsTree(container: HTMLElement): void {
-		this.settingRenderers = this.instantiationService.createInstance(SettingTreeRenderers);
+		this.settingRenderers = this._register(this.instantiationService.createInstance(SettingTreeRenderers));
 		this._register(this.settingRenderers.onDidChangeSetting(e => this.onDidChangeSetting(e.key, e.value, e.type, e.manualReset, e.scope)));
 		this._register(this.settingRenderers.onDidOpenSettings(settingKey => {
 			this.openSettingsFile({ revealSetting: { key: settingKey, edit: true } });

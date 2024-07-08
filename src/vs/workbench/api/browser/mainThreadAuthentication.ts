@@ -260,18 +260,6 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		return session;
 	}
 
-	async $getSessions(providerId: string, scopes: readonly string[], extensionId: string, extensionName: string): Promise<AuthenticationSession[]> {
-		const sessions = await this.authenticationService.getSessions(providerId, [...scopes], undefined, true);
-		const accessibleSessions = sessions.filter(s => this.authenticationAccessService.isAccessAllowed(providerId, s.account.label, extensionId));
-		if (accessibleSessions.length) {
-			this.sendProviderUsageTelemetry(extensionId, providerId);
-			for (const session of accessibleSessions) {
-				this.authenticationUsageService.addAccountUsage(providerId, session.account.label, extensionId, extensionName);
-			}
-		}
-		return accessibleSessions;
-	}
-
 	async $getAccounts(providerId: string): Promise<ReadonlyArray<AuthenticationSessionAccount>> {
 		const sessions = await this.authenticationService.getSessions(providerId);
 		const accounts = new Array<AuthenticationSessionAccount>();

@@ -957,16 +957,25 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		}
 
 		// Proxy
-		if (!e || e.affectsConfiguration('http.proxy')) {
+		if (!e || e.affectsConfiguration('http.proxy') || e.affectsConfiguration('http.noProxy')) {
 			let newHttpProxy = (this.configurationService.getValue<string>('http.proxy') || '').trim()
 				|| (process.env['https_proxy'] || process.env['HTTPS_PROXY'] || process.env['http_proxy'] || process.env['HTTP_PROXY'] || '').trim() // Not standardized.
 				|| undefined;
 
+			if (newHttpProxy?.indexOf('@') !== -1) {
+				const uri = URI.parse(newHttpProxy!);
+				const i = uri.authority.indexOf('@');
+				if (i !== -1) {
+					newHttpProxy = uri.with({ authority: uri.authority.substring(i + 1) })
+						.toString();
+				}
+			}
 			if (newHttpProxy?.endsWith('/')) {
 				newHttpProxy = newHttpProxy.substr(0, newHttpProxy.length - 1);
 			}
 
-			const newNoProxy = (process.env['no_proxy'] || process.env['NO_PROXY'] || '').trim() || undefined; // Not standardized.
+			const newNoProxy = (this.configurationService.getValue<string[]>('http.noProxy') || []).map((item) => item.trim()).join(',')
+				|| (process.env['no_proxy'] || process.env['NO_PROXY'] || '').trim() || undefined; // Not standardized.
 			if ((newHttpProxy || '').indexOf('@') === -1 && (newHttpProxy !== this.currentHttpProxy || newNoProxy !== this.currentNoProxy)) {
 				this.currentHttpProxy = newHttpProxy;
 				this.currentNoProxy = newNoProxy;
@@ -975,13 +984,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				const proxyBypassRules = newNoProxy ? `${newNoProxy},<local>` : '<local>';
 				this.logService.trace(`Setting proxy to '${proxyRules}', bypassing '${proxyBypassRules}'`);
 				this._win.webContents.session.setProxy({ proxyRules, proxyBypassRules, pacScript: '' });
-				type appWithProxySupport = Electron.App & {
-					setProxy(config: Electron.Config): Promise<void>;
-					resolveProxy(url: string): Promise<string>;
-				};
-				if (typeof (app as appWithProxySupport).setProxy === 'function') {
-					(app as appWithProxySupport).setProxy({ proxyRules, proxyBypassRules, pacScript: '' });
-				}
+				app.setProxy({ proxyRules, proxyBypassRules, pacScript: '' });
 			}
 		}
 	}

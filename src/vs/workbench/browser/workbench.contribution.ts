@@ -6,7 +6,7 @@
 import { Registry } from 'vs/platform/registry/common/platform';
 import { localize } from 'vs/nls';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { isMacintosh, isWindows, isLinux, isWeb } from 'vs/base/common/platform';
+import { isMacintosh, isWindows, isLinux, isWeb, isNative } from 'vs/base/common/platform';
 import { ConfigurationMigrationWorkbenchContribution, DynamicWorkbenchSecurityConfiguration, IConfigurationMigrationRegistry, workbenchConfigurationNodeBase, Extensions, ConfigurationKeyValuePairs, problemsConfigurationNodeBase, windowConfigurationNodeBase, DynamicWindowConfiguration } from 'vs/workbench/common/configuration';
 import { isStandalone } from 'vs/base/browser/browser';
 import { WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
@@ -29,6 +29,12 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 	registry.registerConfiguration({
 		...workbenchConfigurationNodeBase,
 		'properties': {
+			'workbench.externalBrowser': {
+				type: 'string',
+				markdownDescription: localize('browser', "Configure the browser to use for opening http or https links externally. This can either be the name of the browser (`edge`, `chrome`, `firefox`) or an absolute path to the browser's executable. Will use the system default if not set."),
+				included: isNative,
+				restricted: true
+			},
 			'workbench.editor.titleScrollbarSizing': {
 				type: 'string',
 				enum: ['default', 'large'],
@@ -113,7 +119,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				})(),
 				additionalProperties:
 				{
-					type: 'string',
+					type: ['string', 'null'],
 					markdownDescription: localize('workbench.editor.label.template', "The template which should be rendered when the pattern matches. May include the variables ${dirname}, ${filename} and ${extname}."),
 					minLength: 1,
 					pattern: '.*[a-zA-Z0-9].*'

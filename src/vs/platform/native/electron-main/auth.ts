@@ -3,14 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, AuthenticationResponseDetails, AuthInfo, Event as ElectronEvent, WebContents } from 'electron';
+import { app, AuthenticationResponseDetails, AuthInfo as ElectronAuthInfo, Event as ElectronEvent, WebContents } from 'electron';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { hash } from 'vs/base/common/hash';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEncryptionMainService } from 'vs/platform/encryption/common/encryptionService';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
+import { AuthInfo, Credentials } from 'vs/platform/request/common/request';
 import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IApplicationStorageMainService } from 'vs/platform/storage/electron-main/storageMainService';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
@@ -20,55 +24,36 @@ interface ElectronAuthenticationResponseDetails extends AuthenticationResponseDe
 }
 
 type LoginEvent = {
-	event: ElectronEvent;
+	event?: ElectronEvent;
 	authInfo: AuthInfo;
-	req: ElectronAuthenticationResponseDetails;
-
-	callback: (username?: string, password?: string) => void;
+	callback?: (username?: string, password?: string) => void;
 };
 
-type Credentials = {
-	username: string;
-	password: string;
-};
+export const IProxyAuthService = createDecorator<IProxyAuthService>('proxyAuthService');
 
-enum ProxyAuthState {
-
-	/**
-	 * Initial state: we will try to use stored credentials
-	 * first to reply to the auth challenge.
-	 */
-	Initial = 1,
-
-	/**
-	 * We used stored credentials and are still challenged,
-	 * so we will show a login dialog next.
-	 */
-	StoredCredentialsUsed,
-
-	/**
-	 * Finally, if we showed a login dialog already, we will
-	 * not show any more login dialogs until restart to reduce
-	 * the UI noise.
-	 */
-	LoginDialogShown
+export interface IProxyAuthService {
+	lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined>;
 }
 
-export class ProxyAuthHandler extends Disposable {
+export class ProxyAuthService extends Disposable implements IProxyAuthService {
+
+	declare readonly _serviceBrand: undefined;
 
 	private readonly PROXY_CREDENTIALS_SERVICE_KEY = 'proxy-credentials://';
 
-	private pendingProxyResolve: Promise<Credentials | undefined> | undefined = undefined;
+	private pendingProxyResolves = new Map<string, Promise<Credentials | undefined>>();
+	private currentDialog: Promise<Credentials | undefined> | undefined = undefined;
 
-	private state = ProxyAuthState.Initial;
+	private cancelledAuthInfoHashes = new Set<string>();
 
-	private sessionCredentials: Credentials | undefined = undefined;
+	private sessionCredentials = new Map<string, Credentials | undefined>();
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IEncryptionMainService private readonly encryptionMainService: IEncryptionMainService,
-		@IApplicationStorageMainService private readonly applicationStorageMainService: IApplicationStorageMainService
+		@IApplicationStorageMainService private readonly applicationStorageMainService: IApplicationStorageMainService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -76,39 +61,45 @@ export class ProxyAuthHandler extends Disposable {
 	}
 
 	private registerListeners(): void {
-		const onLogin = Event.fromNodeEventEmitter<LoginEvent>(app, 'login', (event: ElectronEvent, webContents: WebContents, req: ElectronAuthenticationResponseDetails, authInfo: AuthInfo, callback) => ({ event, webContents, req, authInfo, callback }));
+		const onLogin = Event.fromNodeEventEmitter<LoginEvent>(app, 'login', (event: ElectronEvent, _webContents: WebContents, req: ElectronAuthenticationResponseDetails, authInfo: ElectronAuthInfo, callback) => ({ event, authInfo: { ...authInfo, attempt: req.firstAuthAttempt ? 1 : 2 }, callback } satisfies LoginEvent));
 		this._register(onLogin(this.onLogin, this));
 	}
 
-	private async onLogin({ event, authInfo, req, callback }: LoginEvent): Promise<void> {
+	async lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined> {
+		return this.onLogin({ authInfo });
+	}
+
+	private async onLogin({ event, authInfo, callback }: LoginEvent): Promise<Credentials | undefined> {
 		if (!authInfo.isProxy) {
 			return; // only for proxy
 		}
 
-		if (!this.pendingProxyResolve && this.state === ProxyAuthState.LoginDialogShown && req.firstAuthAttempt) {
-			this.logService.trace('auth#onLogin (proxy) - exit - proxy dialog already shown');
-
-			return; // only one dialog per session at max (except when firstAuthAttempt: false which indicates a login problem)
-		}
-
 		// Signal we handle this event on our own, otherwise
 		// Electron will ignore our provided credentials.
-		event.preventDefault();
+		event?.preventDefault();
+
+		// Compute a hash over the authentication info to be used
+		// with the credentials store to return the right credentials
+		// given the properties of the auth request
+		// (see https://github.com/microsoft/vscode/issues/109497)
+		const authInfoHash = String(hash({ scheme: authInfo.scheme, host: authInfo.host, port: authInfo.port }));
 
 		let credentials: Credentials | undefined = undefined;
-		if (!this.pendingProxyResolve) {
+		let pendingProxyResolve = this.pendingProxyResolves.get(authInfoHash);
+		if (!pendingProxyResolve) {
 			this.logService.trace('auth#onLogin (proxy) - no pending proxy handling found, starting new');
 
-			this.pendingProxyResolve = this.resolveProxyCredentials(authInfo);
+			pendingProxyResolve = this.resolveProxyCredentials(authInfo, authInfoHash);
+			this.pendingProxyResolves.set(authInfoHash, pendingProxyResolve);
 			try {
-				credentials = await this.pendingProxyResolve;
+				credentials = await pendingProxyResolve;
 			} finally {
-				this.pendingProxyResolve = undefined;
+				this.pendingProxyResolves.delete(authInfoHash);
 			}
 		} else {
 			this.logService.trace('auth#onLogin (proxy) - pending proxy handling found');
 
-			credentials = await this.pendingProxyResolve;
+			credentials = await pendingProxyResolve;
 		}
 
 		// According to Electron docs, it is fine to call back without
@@ -118,14 +109,15 @@ export class ProxyAuthHandler extends Disposable {
 		// > If `callback` is called without a username or password, the authentication
 		// > request will be cancelled and the authentication error will be returned to the
 		// > page.
-		callback(credentials?.username, credentials?.password);
+		callback?.(credentials?.username, credentials?.password);
+		return credentials;
 	}
 
-	private async resolveProxyCredentials(authInfo: AuthInfo): Promise<Credentials | undefined> {
+	private async resolveProxyCredentials(authInfo: AuthInfo, authInfoHash: string): Promise<Credentials | undefined> {
 		this.logService.trace('auth#resolveProxyCredentials (proxy) - enter');
 
 		try {
-			const credentials = await this.doResolveProxyCredentials(authInfo);
+			const credentials = await this.doResolveProxyCredentials(authInfo, authInfoHash);
 			if (credentials) {
 				this.logService.trace('auth#resolveProxyCredentials (proxy) - got credentials');
 
@@ -140,14 +132,46 @@ export class ProxyAuthHandler extends Disposable {
 		return undefined;
 	}
 
-	private async doResolveProxyCredentials(authInfo: AuthInfo): Promise<Credentials | undefined> {
+	private async doResolveProxyCredentials(authInfo: AuthInfo, authInfoHash: string): Promise<Credentials | undefined> {
 		this.logService.trace('auth#doResolveProxyCredentials - enter', authInfo);
 
-		// Compute a hash over the authentication info to be used
-		// with the credentials store to return the right credentials
-		// given the properties of the auth request
-		// (see https://github.com/microsoft/vscode/issues/109497)
-		const authInfoHash = String(hash({ scheme: authInfo.scheme, host: authInfo.host, port: authInfo.port }));
+		// Reply with manually supplied credentials. Fail if they are wrong.
+		const newHttpProxy = (this.configurationService.getValue<string>('http.proxy') || '').trim()
+			|| (process.env['https_proxy'] || process.env['HTTPS_PROXY'] || process.env['http_proxy'] || process.env['HTTP_PROXY'] || '').trim()
+			|| undefined;
+
+		if (newHttpProxy?.indexOf('@') !== -1) {
+			const uri = URI.parse(newHttpProxy!);
+			const i = uri.authority.indexOf('@');
+			if (i !== -1) {
+				if (authInfo.attempt > 1) {
+					return undefined; // We tried already, let the user handle it.
+				}
+				const credentials = uri.authority.substring(0, i);
+				const j = credentials.indexOf(':');
+				if (j !== -1) {
+					return {
+						username: credentials.substring(0, j),
+						password: credentials.substring(j + 1)
+					};
+				} else {
+					return {
+						username: credentials,
+						password: ''
+					};
+				}
+			}
+		}
+
+		// Reply with session credentials unless we used them already.
+		// In that case we need to show a login dialog again because
+		// they seem invalid.
+		if (authInfo.attempt === 1 && this.sessionCredentials.has(authInfoHash)) {
+			this.logService.trace('auth#doResolveProxyCredentials (proxy) - exit - found session credentials to use');
+
+			const { username, password } = this.sessionCredentials.get(authInfoHash)!;
+			return { username, password };
+		}
 
 		let storedUsername: string | undefined;
 		let storedPassword: string | undefined;
@@ -166,11 +190,30 @@ export class ProxyAuthHandler extends Disposable {
 		// Reply with stored credentials unless we used them already.
 		// In that case we need to show a login dialog again because
 		// they seem invalid.
-		if (this.state !== ProxyAuthState.StoredCredentialsUsed && typeof storedUsername === 'string' && typeof storedPassword === 'string') {
+		if (authInfo.attempt === 1 && typeof storedUsername === 'string' && typeof storedPassword === 'string') {
 			this.logService.trace('auth#doResolveProxyCredentials (proxy) - exit - found stored credentials to use');
-			this.state = ProxyAuthState.StoredCredentialsUsed;
 
+			this.sessionCredentials.set(authInfoHash, { username: storedUsername, password: storedPassword });
 			return { username: storedUsername, password: storedPassword };
+		}
+
+		const previousDialog = this.currentDialog;
+		const currentDialog = this.currentDialog = (async () => {
+			await previousDialog;
+			const credentials = await this.showProxyCredentialsDialog(authInfo, authInfoHash, storedUsername, storedPassword);
+			if (this.currentDialog === currentDialog!) {
+				this.currentDialog = undefined;
+			}
+			return credentials;
+		})();
+		return currentDialog;
+	}
+
+	private async showProxyCredentialsDialog(authInfo: AuthInfo, authInfoHash: string, storedUsername: string | undefined, storedPassword: string | undefined): Promise<Credentials | undefined> {
+		if (this.cancelledAuthInfoHashes.has(authInfoHash)) {
+			this.logService.trace('auth#doResolveProxyCredentials (proxy) - exit - login dialog was cancelled before, not showing again');
+
+			return undefined;
 		}
 
 		// Find suitable window to show dialog: prefer to show it in the
@@ -186,14 +229,14 @@ export class ProxyAuthHandler extends Disposable {
 		this.logService.trace(`auth#doResolveProxyCredentials (proxy) - asking window ${window.id} to handle proxy login`);
 
 		// Open proxy dialog
+		const sessionCredentials = this.sessionCredentials.get(authInfoHash);
 		const payload = {
 			authInfo,
-			username: this.sessionCredentials?.username ?? storedUsername, // prefer to show already used username (if any) over stored
-			password: this.sessionCredentials?.password ?? storedPassword, // prefer to show already used password (if any) over stored
+			username: sessionCredentials?.username ?? storedUsername, // prefer to show already used username (if any) over stored
+			password: sessionCredentials?.password ?? storedPassword, // prefer to show already used password (if any) over stored
 			replyChannel: `vscode:proxyAuthResponse:${generateUuid()}`
 		};
 		window.sendWhenReady('vscode:openProxyAuthenticationDialog', CancellationToken.None, payload);
-		this.state = ProxyAuthState.LoginDialogShown;
 
 		// Handle reply
 		const loginDialogCredentials = await new Promise<Credentials | undefined>(resolve => {
@@ -229,6 +272,7 @@ export class ProxyAuthHandler extends Disposable {
 
 					// We did not get any credentials from the window (e.g. cancelled)
 					else {
+						this.cancelledAuthInfoHashes.add(authInfoHash);
 						resolve(undefined);
 					}
 				}
@@ -240,7 +284,7 @@ export class ProxyAuthHandler extends Disposable {
 		// Remember credentials for the session in case
 		// the credentials are wrong and we show the dialog
 		// again
-		this.sessionCredentials = loginDialogCredentials;
+		this.sessionCredentials.set(authInfoHash, loginDialogCredentials);
 
 		return loginDialogCredentials;
 	}

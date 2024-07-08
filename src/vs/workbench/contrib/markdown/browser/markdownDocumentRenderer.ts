@@ -32,7 +32,7 @@ img {
 }
 
 a {
-	text-decoration: none;
+	text-decoration: var(--text-link-decoration);
 }
 
 a:hover {

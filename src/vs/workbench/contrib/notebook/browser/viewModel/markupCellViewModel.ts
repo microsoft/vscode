@@ -134,6 +134,8 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 			editorWidth: initialNotebookLayoutInfo?.width
 				? this.viewContext.notebookOptions.computeMarkdownCellEditorWidth(initialNotebookLayoutInfo.width)
 				: 0,
+			commentOffset: 0,
+			commentHeight: 0,
 			bottomToolbarOffset: bottomToolbarGap,
 			totalHeight: 100,
 			layoutState: CellLayoutState.Uninitialized,
@@ -160,13 +162,14 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 				+ layoutConfiguration.markdownCellTopMargin
 				+ layoutConfiguration.markdownCellBottomMargin
 				+ bottomToolbarGap
-				+ this._statusBarHeight;
+				+ this._statusBarHeight
+				+ this._commentHeight;
 		} else {
 			// @rebornix
 			// On file open, the previewHeight + bottomToolbarGap for a cell out of viewport can be 0
 			// When it's 0, the list view will never try to render it anymore even if we scroll the cell into view.
 			// Thus we make sure it's greater than 0
-			return Math.max(1, this._previewHeight + bottomToolbarGap + foldHintHeight);
+			return Math.max(1, this._previewHeight + bottomToolbarGap + foldHintHeight + this._commentHeight);
 		}
 	}
 
@@ -204,50 +207,58 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 	}
 
 	layoutChange(state: MarkupCellLayoutChangeEvent) {
-		// recompute
-		const foldHintHeight = this._computeFoldHintHeight();
+		let totalHeight: number;
+		let foldHintHeight: number;
 		if (!this.isInputCollapsed) {
-			const editorWidth = state.outerWidth !== undefined
-				? this.viewContext.notebookOptions.computeMarkdownCellEditorWidth(state.outerWidth)
-				: this._layoutInfo.editorWidth;
-			const totalHeight = state.totalHeight === undefined
-				? (this._layoutInfo.layoutState === CellLayoutState.Uninitialized ? 100 : this._layoutInfo.totalHeight)
-				: state.totalHeight;
-			const previewHeight = this._previewHeight;
-
-			this._layoutInfo = {
-				fontInfo: state.font || this._layoutInfo.fontInfo,
-				editorWidth,
-				previewHeight,
-				chatHeight: this._chatHeight,
-				editorHeight: this._editorHeight,
-				statusBarHeight: this._statusBarHeight,
-				bottomToolbarOffset: this.viewContext.notebookOptions.computeBottomToolbarOffset(totalHeight, this.viewType),
-				totalHeight,
-				layoutState: CellLayoutState.Measured,
-				foldHintHeight
-			};
+			totalHeight = state.totalHeight === undefined ?
+				(this._layoutInfo.layoutState ===
+					CellLayoutState.Uninitialized ?
+					100 :
+					this._layoutInfo.totalHeight) :
+				state.totalHeight;
+			// recompute
+			foldHintHeight = this._computeFoldHintHeight();
 		} else {
-			const editorWidth = state.outerWidth !== undefined
-				? this.viewContext.notebookOptions.computeMarkdownCellEditorWidth(state.outerWidth)
-				: this._layoutInfo.editorWidth;
-			const totalHeight = this.viewContext.notebookOptions.computeCollapsedMarkdownCellHeight(this.viewType);
-
+			totalHeight =
+				this.viewContext.notebookOptions
+					.computeCollapsedMarkdownCellHeight(this.viewType);
 			state.totalHeight = totalHeight;
 
-			this._layoutInfo = {
-				fontInfo: state.font || this._layoutInfo.fontInfo,
-				editorWidth,
-				chatHeight: this._chatHeight,
-				editorHeight: this._editorHeight,
-				statusBarHeight: this._statusBarHeight,
-				previewHeight: this._previewHeight,
-				bottomToolbarOffset: this.viewContext.notebookOptions.computeBottomToolbarOffset(totalHeight, this.viewType),
-				totalHeight,
-				layoutState: CellLayoutState.Measured,
-				foldHintHeight: 0
-			};
+			foldHintHeight = 0;
 		}
+		let commentOffset: number;
+		if (this.getEditState() === CellEditState.Editing) {
+			const notebookLayoutConfiguration = this.viewContext.notebookOptions.getLayoutConfiguration();
+			commentOffset = notebookLayoutConfiguration.editorToolbarHeight
+				+ notebookLayoutConfiguration.cellTopMargin // CELL_TOP_MARGIN
+				+ this._chatHeight
+				+ this._editorHeight
+				+ this._statusBarHeight;
+		} else {
+			commentOffset = this._previewHeight;
+		}
+
+		this._layoutInfo = {
+			fontInfo: state.font || this._layoutInfo.fontInfo,
+			editorWidth: state.outerWidth !== undefined ?
+				this.viewContext.notebookOptions
+					.computeMarkdownCellEditorWidth(state.outerWidth) :
+				this._layoutInfo.editorWidth,
+			chatHeight: this._chatHeight,
+			editorHeight: this._editorHeight,
+			statusBarHeight: this._statusBarHeight,
+			previewHeight: this._previewHeight,
+			bottomToolbarOffset: this.viewContext.notebookOptions
+				.computeBottomToolbarOffset(
+					totalHeight, this.viewType),
+			totalHeight,
+			layoutState: CellLayoutState.Measured,
+			foldHintHeight,
+			commentOffset,
+			commentHeight: state.commentHeight ?
+				this._commentHeight :
+				this._layoutInfo.commentHeight,
+		};
 
 		this._onDidChangeLayout.fire(state);
 	}
@@ -257,16 +268,12 @@ export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewM
 		// we might already warmup the viewport so the cell has a total height computed
 		if (totalHeight !== undefined && this.layoutInfo.layoutState === CellLayoutState.Uninitialized) {
 			this._layoutInfo = {
-				fontInfo: this._layoutInfo.fontInfo,
-				editorWidth: this._layoutInfo.editorWidth,
-				previewHeight: this._layoutInfo.previewHeight,
-				bottomToolbarOffset: this._layoutInfo.bottomToolbarOffset,
+				...this.layoutInfo,
 				totalHeight: totalHeight,
 				chatHeight: this._chatHeight,
 				editorHeight: this._editorHeight,
 				statusBarHeight: this._statusBarHeight,
 				layoutState: CellLayoutState.FromCache,
-				foldHintHeight: this._layoutInfo.foldHintHeight
 			};
 			this.layoutChange({});
 		}

@@ -379,7 +379,8 @@ class MarkdownRenderedHoverParts implements IRenderedHoverParts<MarkdownHover> {
 		if (!renderedHoverPart) {
 			return undefined;
 		}
-		const accessibleContent = renderedHoverPart.hoverElement.innerText.trim();
+		const hoverElementInnerText = renderedHoverPart.hoverElement.innerText;
+		const accessibleContent = hoverElementInnerText.replace(/[^\S\n\r]+/gu, ' ');
 		return accessibleContent;
 	}
 

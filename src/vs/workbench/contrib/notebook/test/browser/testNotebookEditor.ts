@@ -178,7 +178,7 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 	}
 }
 
-export function setupInstantiationService(disposables: DisposableStore) {
+export function setupInstantiationService(disposables: Pick<DisposableStore, 'add'>) {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	const testThemeService = new TestThemeService();
 	instantiationService.stub(ILanguageService, disposables.add(new LanguageService()));
@@ -296,6 +296,7 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 		override setCellEditorSelection() { }
 		override async revealRangeInCenterIfOutsideViewportAsync() { }
 		override async layoutNotebookCell() { }
+		override async createOutput() { }
 		override async removeInset() { }
 		override async focusNotebookCell(cell: ICellViewModel, focusItem: 'editor' | 'container' | 'output') {
 			cell.focusMode = focusItem === 'editor' ? CellFocusMode.Editor

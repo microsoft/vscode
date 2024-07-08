@@ -176,7 +176,8 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 			command: 'clear',
 			detail: nls.localize('clear', "Start a new chat"),
 			sortText: 'z2_clear',
-			executeImmediately: true
+			executeImmediately: true,
+			locations: [ChatAgentLocation.Panel]
 		}, async () => {
 			commandService.executeCommand(ACTION_ID_NEW_CHAT);
 		}));
@@ -184,7 +185,8 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 			command: 'help',
 			detail: '',
 			sortText: 'z1_help',
-			executeImmediately: true
+			executeImmediately: true,
+			locations: [ChatAgentLocation.Panel]
 		}, async (prompt, progress) => {
 			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Panel);
 			const agents = chatAgentService.getAgents();

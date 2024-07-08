@@ -117,8 +117,12 @@ abstract class BaseHoverAccessibleViewProvider extends Disposable implements IAc
 		if (!this._hoverController) {
 			return;
 		}
+		if (this._focusedHoverPartIndex === -1) {
+			this._hoverController.focus();
+		} else {
+			this._hoverController.focusHoverPartWithIndex(this._focusedHoverPartIndex);
+		}
 		this._focusedHoverPartIndex = -1;
-		this._hoverController.focus();
 		this._hoverController.shouldKeepOpenOnEditorMouseMoveOrLeave = false;
 		this.dispose();
 	}

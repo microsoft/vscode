@@ -20,8 +20,8 @@ import { isEqual } from 'vs/base/common/resources';
 import { StableEditorBottomScrollState } from 'vs/editor/browser/stableEditorScroll';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ChatAgentLocation } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IChatWidgetLocationOptions } from 'vs/workbench/contrib/chat/browser/chatWidget';
 
 export class InlineChatZoneWidget extends ZoneWidget {
 
@@ -31,7 +31,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 	private _dimension?: Dimension;
 
 	constructor(
-		location: ChatAgentLocation,
+		location: IChatWidgetLocationOptions,
 		editor: ICodeEditor,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@ILogService private _logService: ILogService,

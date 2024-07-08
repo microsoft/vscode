@@ -27,6 +27,18 @@ suite('ChatMarkdownRenderer', () => {
 		await assertSnapshot(result.element.textContent);
 	});
 
+	test('supportHtml with one-line markdown', async () => {
+		const md = new MarkdownString('**hello**');
+		md.supportHtml = true;
+		const result = store.add(testRenderer.render(md));
+		await assertSnapshot(result.element.outerHTML);
+
+		const md2 = new MarkdownString('1. [_hello_](https://example.com) test **text**');
+		md2.supportHtml = true;
+		const result2 = store.add(testRenderer.render(md2));
+		await assertSnapshot(result2.element.outerHTML);
+	});
+
 	test('invalid HTML', async () => {
 		const md = new MarkdownString('1<canvas>2<details>3</details></canvas>4');
 		md.supportHtml = true;

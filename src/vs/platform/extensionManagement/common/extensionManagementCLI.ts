@@ -253,7 +253,7 @@ export class ExtensionManagementCLI {
 		const valid = await this.validateVSIX(manifest, force, installOptions.profileLocation, installedExtensions);
 		if (valid) {
 			try {
-				await this.extensionManagementService.install(vsix, installOptions);
+				await this.extensionManagementService.install(vsix, { ...installOptions, installGivenVersion: true });
 				this.logger.info(localize('successVsixInstall', "Extension '{0}' was successfully installed.", basename(vsix)));
 			} catch (error) {
 				if (isCancellationError(error)) {

@@ -525,9 +525,9 @@ export class ToggleDiffForChange extends AbstractInlineChatAction {
 			},
 			menu: {
 				id: MENU_INLINE_CHAT_WIDGET_STATUS,
-				group: 'more',
-				when: ContextKeyExpr.and(CTX_INLINE_CHAT_EDIT_MODE.isEqualTo(EditMode.Live), CTX_INLINE_CHAT_CHANGE_HAS_DIFF),
-				order: 10,
+				group: 'zzz',
+				when: ContextKeyExpr.and(CTX_INLINE_CHAT_EDIT_MODE.isEqualTo(EditMode.Live)),
+				order: 1,
 			}
 		});
 	}

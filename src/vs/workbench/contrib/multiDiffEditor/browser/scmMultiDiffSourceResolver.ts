@@ -76,7 +76,7 @@ export class ScmMultiDiffSourceResolver implements IMultiDiffSourceResolver {
 class ScmResolvedMultiDiffSource implements IResolvedMultiDiffSource {
 	private readonly _resources = observableFromEvent<MultiDiffEditorItem[]>(
 		this._group.onDidChangeResources,
-		() => /** @description resources */ this._group.resources.map(e => new MultiDiffEditorItem(e.multiDiffEditorOriginalUri, e.multiDiffEditorModifiedUri))
+		() => /** @description resources */ this._group.resources.map(e => new MultiDiffEditorItem(e.multiDiffEditorOriginalUri, e.multiDiffEditorModifiedUri, e.sourceUri))
 	);
 	readonly resources = new ValueWithChangeEventFromObservable(this._resources);
 

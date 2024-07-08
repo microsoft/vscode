@@ -411,7 +411,19 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 
 		const inlineChatWidget = this._widgetDisposableStore.add(this._instantiationService.createInstance(
 			InlineChatWidget,
-			ChatAgentLocation.Notebook,
+			{
+				location: ChatAgentLocation.Notebook,
+				resolveData: () => {
+					const sessionInputUri = this.getSessionInputUri();
+					if (!sessionInputUri) {
+						return undefined;
+					}
+					return {
+						type: ChatAgentLocation.Notebook,
+						sessionInputUri
+					};
+				}
+			},
 			{
 				statusMenuId: MENU_CELL_CHAT_WIDGET_STATUS,
 				chatWidgetViewOptions: {
@@ -665,7 +677,6 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 			store.dispose();
 
 			this._ctxHasActiveRequest.set(false);
-			this._widget.inlineChatWidget.updateProgress(false);
 			this._widget.inlineChatWidget.updateInfo('');
 			this._widget.inlineChatWidget.updateToolbar(true);
 		}

@@ -202,7 +202,9 @@ export class WorkbenchToolBar extends ToolBar {
 				if (action instanceof MenuItemAction && action.menuKeybinding) {
 					primaryActions.push(action.menuKeybinding);
 				} else if (!(action instanceof SubmenuItemAction || action instanceof ToggleMenuAction)) {
-					primaryActions.push(createConfigureKeybindingAction(action.id, undefined, this._commandService, this._keybindingService));
+					// only enable the configure keybinding action for actions that support keybindings
+					const supportsKeybindings = !!this._keybindingService.lookupKeybinding(action.id);
+					primaryActions.push(createConfigureKeybindingAction(this._commandService, this._keybindingService, action.id, undefined, supportsKeybindings));
 				}
 
 				// -- Hide Actions --
