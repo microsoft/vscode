@@ -5,40 +5,38 @@
 
 //@ts-check
 
-const fs = require('fs');
-const path = require('path');
+import { existsSync, mkdirSync, readdirSync, statSync } from 'fs';
+import { dirname, join } from 'path';
 
 /** @type {Set<string>} */
 const ensureDirCache = new Set();
 /**
- * @param {string} dirPath
+ * @param dirPath
  */
-function ensureDir(dirPath) {
+export function ensureDir(dirPath) {
 	if (ensureDirCache.has(dirPath)) {
 		return;
 	}
 	ensureDirCache.add(dirPath);
-	ensureDir(path.dirname(dirPath));
-	if (!fs.existsSync(dirPath)) {
-		fs.mkdirSync(dirPath);
+	ensureDir(dirname(dirPath));
+	if (!existsSync(dirPath)) {
+		mkdirSync(dirPath);
 	}
 }
-exports.ensureDir = ensureDir;
 
 /**
- * @param {string} dirPath
- * @param {string[]} result
+ * @param dirPath
+ * @param result
  */
-function readdir(dirPath, result) {
-	const entries = fs.readdirSync(dirPath);
+export function readdir(dirPath, result) {
+	const entries = readdirSync(dirPath);
 	for (const entry of entries) {
-		const entryPath = path.join(dirPath, entry);
-		const stat = fs.statSync(entryPath);
+		const entryPath = join(dirPath, entry);
+		const stat = statSync(entryPath);
 		if (stat.isDirectory()) {
-			readdir(path.join(dirPath, entry), result);
+			readdir(join(dirPath, entry), result);
 		} else {
 			result.push(entryPath);
 		}
 	}
 }
-exports.readdir = readdir;

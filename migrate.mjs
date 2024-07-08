@@ -5,15 +5,17 @@
 
 //@ts-check
 
-const fs = require('fs');
-const path = require('path');
-const ts = require('typescript');
-const util = require('./util');
-// @ts-ignore
-const watch = require('./build/lib/watch/index');
+import { readFileSync, writeFileSync } from 'node:fs';
+import { join, extname, dirname, relative } from 'node:path';
+import { preProcessFile } from 'typescript';
+import { readdir, ensureDir } from './util.mjs';
+import { fileURLToPath } from 'node:url';
 
-const srcFolder = path.join(__dirname, 'src');
-const dstFolder = path.join(__dirname, 'src2');
+// @ts-expect-error
+import watch from './build/lib/watch/index.js';
+
+const srcFolder = fileURLToPath(new URL('src', import.meta.url));
+const dstFolder = fileURLToPath(new URL('src2', import.meta.url));
 
 const binaryFileExtensions = new Set([
 	'.svg', '.ttf', '.png', '.sh', '.html', '.json', '.zsh', '.scpt', '.mp3', '.fish', '.ps1', '.md', '.txt', '.zip', '.pdf', '.qwoff', '.jxs', '.tst', '.wuff', '.less', '.utf16le', '.snap', '.tsx'
@@ -28,15 +30,15 @@ function migrate() {
 
 	/** @type {string[]} */
 	const files = [];
-	util.readdir(path.join(__dirname, 'src'), files);
+	readdir(srcFolder, files);
 
 	for (const filePath of files) {
-		const fileContents = fs.readFileSync(filePath);
+		const fileContents = readFileSync(filePath);
 		migrateOne(filePath, fileContents);
 	}
 
-	fs.writeFileSync(path.join(dstFolder, 'package.json'), `{"type": "module"}`);
-	fs.writeFileSync(path.join(dstFolder, '.gitignore'), `*`);
+	writeFileSync(join(dstFolder, 'package.json'), `{"type": "module"}`);
+	writeFileSync(join(dstFolder, '.gitignore'), `*`);
 
 	console.log(`~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`);
 	console.log(`COMPLETED MIGRATION of src to src2. You can now launch yarn watch or yarn watch-client`);
@@ -49,11 +51,11 @@ function migrate() {
 }
 
 /**
- * @param {string} filePath
- * @param {Buffer} fileContents
+ * @param filePath
+ * @param fileContents
  */
 function migrateOne(filePath, fileContents) {
-	const fileExtension = path.extname(filePath);
+	const fileExtension = extname(filePath);
 
 	if (fileExtension === '.ts') {
 		migrateTS(filePath, fileContents.toString());
@@ -113,12 +115,12 @@ function migrateOne(filePath, fileContents) {
 }
 
 /**
- * @param {string} fileContents
+ * @param fileContents
  * @typedef {{pos:number;end:number;}} Import
- * @return {Import[]}
+ * @return
  */
 function discoverImports(fileContents) {
-	const info = ts.preProcessFile(fileContents);
+	const info = preProcessFile(fileContents);
 	const search = /export .* from ['"]([^'"]+)['"]/g;
 	/** typedef {Import[]} */
 	let result = [];
@@ -149,8 +151,8 @@ function discoverImports(fileContents) {
 }
 
 /**
- * @param {string} filePath
- * @param {string} fileContents
+ * @param filePath
+ * @param fileContents
  */
 function migrateTS(filePath, fileContents) {
 	if (filePath.endsWith('.d.ts') || filePath.includes('/typings-esm/')) {
@@ -188,10 +190,10 @@ function migrateTS(filePath, fileContents) {
 		/** @type {boolean} */
 		let isRelativeImport;
 		if (/(^\.\/)|(^\.\.\/)/.test(importedFilepath)) {
-			importedFilepath = path.join(path.dirname(filePath), importedFilepath);
+			importedFilepath = join(dirname(filePath), importedFilepath);
 			isRelativeImport = true;
 		} else if (/^vs\//.test(importedFilepath)) {
-			importedFilepath = path.join(srcFolder, importedFilepath);
+			importedFilepath = join(srcFolder, importedFilepath);
 			isRelativeImport = true;
 		} else {
 			importedFilepath = importedFilepath;
@@ -221,8 +223,8 @@ function migrateTS(filePath, fileContents) {
 }
 
 /**
- * @param {string} filePath
- * @param {string} importedFilepath
+ * @param filePath
+ * @param importedFilepath
  */
 function generateRelativeImport(filePath, importedFilepath) {
 	/** @type {string} */
@@ -231,7 +233,7 @@ function generateRelativeImport(filePath, importedFilepath) {
 	if (!importedFilepath.endsWith('.css') && !importedFilepath.endsWith('.cjs')) {
 		importedFilepath = `${importedFilepath}.js`;
 	}
-	relativePath = path.relative(path.dirname(filePath), `${importedFilepath}`);
+	relativePath = relative(dirname(filePath), `${importedFilepath}`);
 	relativePath = relativePath.replace(/\\/g, '/');
 	if (!/(^\.\/)|(^\.\.\/)/.test(relativePath)) {
 		relativePath = './' + relativePath;
@@ -242,8 +244,8 @@ function generateRelativeImport(filePath, importedFilepath) {
 /** @typedef {{pos:number;end:number;text:string;}} Replacement */
 
 /**
- * @param {string} str
- * @param {Replacement[]} replacements
+ * @param str
+ * @param replacements
  */
 function applyReplacements(str, replacements) {
 	replacements.sort((a, b) => {
@@ -264,12 +266,12 @@ function applyReplacements(str, replacements) {
 }
 
 /**
- * @param {string} srcFilePath
- * @param {string | Buffer} fileContents
+ * @param srcFilePath
+ * @param fileContents
  */
 function writeDestFile(srcFilePath, fileContents) {
 	const destFilePath = srcFilePath.replace(srcFolder, dstFolder);
-	util.ensureDir(path.dirname(destFilePath));
+	ensureDir(dirname(destFilePath));
 
 	if (/(\.ts$)|(\.js$)|(\.html$)/.test(destFilePath)) {
 		fileContents = toggleComments(fileContents);
@@ -278,14 +280,14 @@ function writeDestFile(srcFilePath, fileContents) {
 	/** @type {Buffer | undefined} */
 	let existingFileContents = undefined;
 	try {
-		existingFileContents = fs.readFileSync(destFilePath);
+		existingFileContents = readFileSync(destFilePath);
 	} catch (err) { }
 	if (!buffersAreEqual(existingFileContents, fileContents)) {
-		fs.writeFileSync(destFilePath, fileContents);
+		writeFileSync(destFilePath, fileContents);
 	}
 
 	/**
-	 * @param {string|Buffer} fileContents
+	 * @param fileContents
 	 */
 	function toggleComments(fileContents) {
 		const lines = String(fileContents).split(/\r\n|\r|\n/);
@@ -335,8 +337,8 @@ function writeDestFile(srcFilePath, fileContents) {
 }
 
 /**
- * @param {Buffer | undefined} existingFileContents
- * @param {Buffer | string} fileContents
+ * @param existingFileContents
+ * @param fileContents
  */
 function buffersAreEqual(existingFileContents, fileContents) {
 	if (!existingFileContents) {
