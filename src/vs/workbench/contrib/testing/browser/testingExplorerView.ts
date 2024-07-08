@@ -31,7 +31,7 @@ import 'vs/css!./media/testing';
 import { MarkdownRenderer } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
 import { localize } from 'vs/nls';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
-import { MenuEntryActionViewItem, createActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { MenuEntryActionViewItem, createActionViewItem, createAndFillInActionBarActions, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -117,6 +117,7 @@ export class TestingExplorerView extends ViewPane {
 		@IHoverService hoverService: IHoverService,
 		@ITestProfileService private readonly testProfileService: ITestProfileService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IMenuService private readonly menuService: IMenuService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 
@@ -351,10 +352,23 @@ export class TestingExplorerView extends ViewPane {
 			}
 		}
 
-		// If there's only one group, don't add a heading for it in the dropdown.
-		if (participatingGroups === 1) {
-			profileActions.shift();
+		const menuActions: IAction[] = [];
+		const contextKeys: [string, unknown][] = [];
+		// allow extension author to define context for when to show the test menu actions for run or debug menus
+		if (group === TestRunProfileBitset.Run) {
+			contextKeys.push(['testing.profile.context.group', 'run']);
 		}
+		if (group === TestRunProfileBitset.Debug) {
+			contextKeys.push(['testing.profile.context.group', 'debug']);
+		}
+		if (group === TestRunProfileBitset.Coverage) {
+			contextKeys.push(['testing.profile.context.group', 'coverage']);
+		}
+		const key = this.contextKeyService.createOverlay(contextKeys);
+		const menu = this.menuService.getMenuActions(MenuId.TestProfilesContext, key);
+
+		// fill if there are any actions
+		createAndFillInContextMenuActions(menu, menuActions);
 
 		const postActions: IAction[] = [];
 		if (profileActions.length > 1) {
@@ -377,7 +391,10 @@ export class TestingExplorerView extends ViewPane {
 			));
 		}
 
-		return Separator.join(profileActions, postActions);
+		// show menu actions if there are any otherwise don't
+		return menuActions.length > 0
+			? Separator.join(profileActions, menuActions, postActions)
+			: Separator.join(profileActions, postActions);
 	}
 
 	/**
@@ -1544,20 +1561,17 @@ const getActionableElementActions = (
 	}
 
 	const contextOverlay = contextKeyService.createOverlay(contextKeys);
-	const menu = menuService.createMenu(MenuId.TestItem, contextOverlay);
+	const menu = menuService.getMenuActions(MenuId.TestItem, contextOverlay, {
+		shouldForwardArgs: true,
+	});
 
-	try {
-		const primary: IAction[] = [];
-		const secondary: IAction[] = [];
-		const result = { primary, secondary };
-		createAndFillInActionBarActions(menu, {
-			shouldForwardArgs: true,
-		}, result, 'inline');
+	const primary: IAction[] = [];
+	const secondary: IAction[] = [];
+	const result = { primary, secondary };
+	createAndFillInActionBarActions(menu, result, 'inline');
 
-		return { actions: result, contextOverlay };
-	} finally {
-		menu.dispose();
-	}
+	return { actions: result, contextOverlay };
+
 };
 
 registerThemingParticipant((theme, collector) => {

@@ -143,6 +143,14 @@
 		},
 		{
 			"files": [
+				"src/**/*.ts"
+			],
+			"rules": {
+				"local/code-no-static-self-ref": "warn"
+			}
+		},
+		{
+			"files": [
 				"src/vs/**/*.test.ts"
 			],
 			"rules": {
@@ -1090,7 +1098,9 @@
 				"local/code-no-runtime-import": [
 					"error",
 					{
-						"src/vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts": ["**/*"]
+						"src/vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts": [
+							"**/*"
+						]
 					}
 				]
 			}
