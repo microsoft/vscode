@@ -2265,6 +2265,10 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 		updateToolbar();
 	}
 
+	override dispose(): void {
+		this.repositoryDisposables.dispose();
+		super.dispose();
+	}
 }
 
 class SCMInputWidgetEditorOptions {
