@@ -2063,7 +2063,7 @@ export class CommandCenter {
 			promptToSaveFilesBeforeCommit = 'never';
 		}
 
-		const enableSmartCommit = config.get<boolean>('enableSmartCommit') === true;
+		let enableSmartCommit = config.get<boolean>('enableSmartCommit') === true;
 		const enableCommitSigning = config.get<boolean>('enableCommitSigning') === true;
 		let noStagedChanges = repository.indexGroup.resourceStates.length === 0;
 		let noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0;
@@ -2119,12 +2119,16 @@ export class CommandCenter {
 				const pick = await window.showWarningMessage(message, { modal: true }, yes, always, never);
 
 				if (pick === always) {
+					enableSmartCommit = true;
 					config.update('enableSmartCommit', true, true);
 				} else if (pick === never) {
 					config.update('suggestSmartCommit', false, true);
 					return;
-				} else if (pick !== yes) {
-					return; // do not commit on cancel
+				} else if (pick === yes) {
+					enableSmartCommit = true;
+				} else {
+					// Cancel
+					return;
 				}
 			}
 

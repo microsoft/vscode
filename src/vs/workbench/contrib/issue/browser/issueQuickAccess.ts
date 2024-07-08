@@ -65,13 +65,8 @@ export class IssueQuickAccess extends PickerQuickAccessProvider<IPickerQuickAcce
 		issuePicksConst.push({ type: 'separator', label: localize('extensions', "Extensions") });
 
 
-		// creates menu from contributed
-		const menu = this.menuService.createMenu(MenuId.IssueReporter, this.contextKeyService);
-
-		// render menu and dispose
-		const actions = menu.getActions({ renderShortTitle: true }).flatMap(entry => entry[1]);
-
-		menu.dispose();
+		// gets menu actions from contributed
+		const actions = this.menuService.getMenuActions(MenuId.IssueReporter, this.contextKeyService, { renderShortTitle: true }).flatMap(entry => entry[1]);
 
 		// create picks from contributed menu
 		actions.forEach(action => {

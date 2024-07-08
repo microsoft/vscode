@@ -16,6 +16,7 @@ import { InlineDecorationType } from 'vs/editor/common/viewModel';
 import { AdditionalLinesWidget, LineData } from 'vs/editor/contrib/inlineCompletions/browser/ghostTextWidget';
 import { GhostText } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
 import { ColumnRange, applyObservableDecorations } from 'vs/editor/contrib/inlineCompletions/browser/utils';
+import { diffDeleteDecoration } from 'vs/editor/browser/widget/diffEditor/registrations.contribution';
 
 export const INLINE_EDIT_DESCRIPTION = 'inline-edit';
 export interface IGhostTextWidgetModel {
@@ -23,7 +24,6 @@ export interface IGhostTextWidgetModel {
 	readonly ghostText: IObservable<GhostText | undefined>;
 	readonly minReservedLineCount: IObservable<number>;
 	readonly range: IObservable<IRange | undefined>;
-	readonly backgroundColoring: IObservable<boolean>;
 }
 
 export class GhostTextWidget extends Disposable {
@@ -92,7 +92,7 @@ export class GhostTextWidget extends Disposable {
 
 		let hiddenTextStartColumn: number | undefined = undefined;
 		let lastIdx = 0;
-		if (!isPureRemove) {
+		if (!isPureRemove && (isSingleLine || !range)) {
 			for (const part of ghostText.parts) {
 				let lines = part.lines;
 				//If remove range is set, we want to push all new liens to virtual area
@@ -140,7 +140,6 @@ export class GhostTextWidget extends Disposable {
 			range,
 			isSingleLine,
 			isPureRemove,
-			backgroundColoring: this.model.backgroundColoring.read(reader)
 		};
 	});
 
@@ -184,11 +183,10 @@ export class GhostTextWidget extends Disposable {
 					ranges.push(range);
 				}
 			}
-			const className = uiState.backgroundColoring ? 'inline-edit-remove backgroundColoring' : 'inline-edit-remove';
 			for (const range of ranges) {
 				decorations.push({
 					range,
-					options: { inlineClassName: className, description: 'inline-edit-remove', }
+					options: diffDeleteDecoration
 				});
 			}
 		}
@@ -215,7 +213,7 @@ export class GhostTextWidget extends Disposable {
 			derived(reader => {
 				/** @description lines */
 				const uiState = this.uiState.read(reader);
-				return uiState && !uiState.isPureRemove ? {
+				return uiState && !uiState.isPureRemove && (uiState.isSingleLine || !uiState.range) ? {
 					lineNumber: uiState.lineNumber,
 					additionalLines: uiState.additionalLines,
 					minReservedLineCount: uiState.additionalReservedLineCount,
