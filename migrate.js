@@ -35,7 +35,7 @@ function migrate() {
 		migrateOne(filePath, fileContents);
 	}
 
-	fs.writeFileSync(path.join(dstFolder, 'vs', 'package.json'), `{"type": "module"}`);
+	fs.writeFileSync(path.join(dstFolder, 'package.json'), `{"type": "module"}`);
 	fs.writeFileSync(path.join(dstFolder, '.gitignore'), `*`);
 
 	console.log(`~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~`);
