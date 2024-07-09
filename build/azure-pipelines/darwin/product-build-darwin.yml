@@ -20,7 +20,7 @@ steps:
     inputs:
       versionSource: fromFile
       versionFilePath: .nvmrc
-      nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
+      #nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - template: ../distro/download-distro.yml@self
