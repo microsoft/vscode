@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/RedCMD/YAML-Syntax-Highlighter/commit/287c71aeb0773759497822b5e5ce4bdc4d5ef2aa",
+	"version": "https://github.com/RedCMD/YAML-Syntax-Highlighter/commit/60e2e6e24c63d5a703cb04577678a2e416edd956",
 	"name": "YAML 1.0",
 	"scopeName": "source.yaml.1.0",
 	"comment": "https://yaml.org/spec/1.0/",
@@ -23,13 +23,16 @@
 					"name": "meta.stream.yaml",
 					"patterns": [
 						{
+							"include": "source.yaml.1.1#byte-order-mark"
+						},
+						{
 							"include": "#directives"
 						},
 						{
 							"include": "#document"
 						},
 						{
-							"include": "#presentation-detail"
+							"include": "source.yaml.1.1#presentation-detail"
 						}
 					]
 				},
@@ -39,13 +42,16 @@
 					"name": "meta.stream.yaml",
 					"patterns": [
 						{
+							"include": "source.yaml.1.1#byte-order-mark"
+						},
+						{
 							"include": "#directives"
 						},
 						{
 							"include": "#document"
 						},
 						{
-							"include": "#presentation-detail"
+							"include": "source.yaml.1.1#presentation-detail"
 						}
 					]
 				}
@@ -78,13 +84,13 @@
 					"name": "meta.directives.yaml",
 					"patterns": [
 						{
-							"include": "#directive-invalid"
+							"include": "source.yaml.1.1#directive-invalid"
 						},
 						{
 							"include": "#directives"
 						},
 						{
-							"include": "#presentation-detail"
+							"include": "source.yaml.1.1#presentation-detail"
 						}
 					]
 				},
@@ -96,12 +102,12 @@
 							"include": "#document"
 						},
 						{
-							"include": "#presentation-detail"
+							"include": "source.yaml.1.1#presentation-detail"
 						}
 					]
 				},
 				{
-					"include": "#presentation-detail"
+					"include": "source.yaml.1.1#presentation-detail"
 				}
 			]
 		},
@@ -150,7 +156,7 @@
 									}
 								},
 								{
-									"include": "#presentation-detail"
+									"include": "source.yaml.1.1#presentation-detail"
 								}
 							]
 						},
@@ -159,44 +165,7 @@
 							"name": "invalid.illegal.entity.other.document.end.yaml"
 						},
 						{
-							"include": "#presentation-detail"
-						}
-					]
-				}
-			]
-		},
-		"directive-invalid": {
-			"patterns": [
-				{
-					"match": "\\G\\.{3}(?=[\\x{85 2028 2029}\r\n\t ])",
-					"name": "invalid.illegal.entity.other.document.end.yaml"
-				},
-				{
-					"begin": "\\G(%)(YAML)",
-					"end": "$",
-					"beginCaptures": {
-						"1": {
-							"name": "punctuation.definition.directive.begin.yaml"
-						},
-						"2": {
-							"name": "invalid.illegal.keyword.other.directive.yaml.yaml"
-						}
-					},
-					"name": "meta.directive.yaml",
-					"patterns": [
-						{
-							"match": "\\G([\t ]++|:)([0-9]++\\.[0-9]++)?+",
-							"captures": {
-								"1": {
-									"name": "punctuation.whitespace.separator.yaml"
-								},
-								"2": {
-									"name": "constant.numeric.yaml-version.yaml"
-								}
-							}
-						},
-						{
-							"include": "#presentation-detail"
+							"include": "source.yaml.1.1#presentation-detail"
 						}
 					]
 				}
@@ -234,12 +203,15 @@
 							},
 							"patterns": [
 								{
-									"include": "#presentation-detail"
+									"include": "source.yaml.1.1#presentation-detail"
 								}
 							]
 						},
 						{
-							"include": "#presentation-detail"
+							"include": "source.yaml.1.1#byte-order-mark"
+						},
+						{
+							"include": "source.yaml.1.1#presentation-detail"
 						}
 					]
 				},
@@ -267,13 +239,13 @@
 					"include": "#block-scalar"
 				},
 				{
-					"include": "#anchor-property"
+					"include": "source.yaml.1.1#anchor-property"
 				},
 				{
 					"include": "#tag-property"
 				},
 				{
-					"include": "#alias"
+					"include": "source.yaml.1.1#alias"
 				},
 				{
 					"begin": "(?=\"|')",
@@ -284,7 +256,7 @@
 							"while": "\\G",
 							"patterns": [
 								{
-									"include": "#presentation-detail"
+									"include": "source.yaml.1.1#presentation-detail"
 								}
 							]
 						},
@@ -292,45 +264,45 @@
 							"include": "#double"
 						},
 						{
-							"include": "#single"
+							"include": "source.yaml.1.1#single"
 						}
 					]
 				},
 				{
-					"begin": "(?=\\[|{)",
-					"while": "\\G",
+					"begin": "(?={)",
+					"end": "$",
 					"patterns": [
-						{
-							"include": "#block-mapping"
-						},
-						{
-							"begin": "(?!\\G)(?![\r\n\t ])",
-							"while": "\\G",
-							"patterns": [
-								{
-									"include": "#presentation-detail"
-								}
-							]
-						},
 						{
 							"include": "#flow-mapping"
 						},
 						{
-							"include": "#flow-sequence"
+							"include": "source.yaml.1.1#presentation-detail"
 						}
 					]
 				},
 				{
-					"include": "#block-plain-out"
+					"begin": "(?=\\[)",
+					"end": "$",
+					"patterns": [
+						{
+							"include": "#flow-sequence"
+						},
+						{
+							"include": "source.yaml.1.1#presentation-detail"
+						}
+					]
 				},
 				{
-					"include": "#presentation-detail"
+					"include": "source.yaml.1.1#block-plain-out"
+				},
+				{
+					"include": "source.yaml.1.1#presentation-detail"
 				}
 			]
 		},
 		"block-mapping": {
 			"//": "The check for plain keys is expensive",
-			"begin": "(?=((?<=[-?:]) )?+)(?<![^\t ][\t ]*+:|---)\\G( *+)([\t ]*+)((?>[!&*][^\\x{85 2028 2029}\r\n\t ]*+[\t ]++)*+)(?=(?>(?#Double Quote)\"(?>[^\\\\\"]++|\\\\.)*+\"|(?#Single Quote)'(?>[^']++|'')*+'|(?#Plain)(?>[^-?:,\\[\\]{}#&*!|>'\"%@` \\p{Cntrl}\\p{Surrogate}\\x{FEFF FFFE FFFF}]|[?:-](?![\\x{85 2028 2029}\r\n\t ]))(?>[^:#]++|:(?![\\x{85 2028 2029}\r\n\t ])|(?<! |\t)#++)*+)?+(?#Map Value)[\t ]*+:[\\x{85 2028 2029}\r\n\t ]|(?#Explicit)\\?[\\x{85 2028 2029}\r\n\t ])|(?#Flow-Map/Seq)(?<=]|})([\t ]*+)(?=:)",
+			"begin": "(?=((?<=[-?:]) )?+)(?<![^\t ][\t ]*+:|---)\\G( *+)([\t ]*+)((?>[!&*][^\\x{85 2028 2029}\r\n\t ]*+[\t ]++)*+)(?=(?>(?#Double Quote)\"(?>[^\\\\\"]++|\\\\.)*+\"|(?#Single Quote)'(?>[^']++|'')*+'|(?#Flow-Map){(?>[^\\x{85 2028 2029}}]++|}[ \t]*+(?!:[\\x{85 2028 2029}\r\n\t ]))++}|(?#Flow-Seq)\\[(?>[^\\x{85 2028 2029}\\]]++|][ \t]*+(?!:[\\x{85 2028 2029}\r\n\t ]))++]|(?#Plain)(?>[^-?:,\\[\\]{}#&*!|>'\"%@` \\p{Cntrl}\\p{Surrogate}\\x{FFFE FFFF}]|[?:-](?![\\x{85 2028 2029}\r\n\t ]))(?>[^:#]++|:(?![\\x{85 2028 2029}\r\n\t ])|(?<! |\t)#++)*+)?+(?#Map Value)[\t ]*+:[\\x{85 2028 2029}\r\n\t ]|(?#Explicit)\\?[\\x{85 2028 2029}\r\n\t ])",
 			"while": "\\G(?>(\\1\\2)((?>[!&*][^\\x{85 2028 2029}\r\n\t ]*+[\t ]++)*+)((?>\t[\t ]*+)?+[^\\x{85 2028 2029}\r\n\t ?:\\-#!&*\"'\\[\\]{}0-9A-Za-z$()+./;<=\\\\^_~\\x{A0}-\\x{D7FF}\\x{E000}-\\x{FFFD}\\x{010000}-\\x{10FFFF}])?+|( *+)([\t ]*+[^\\x{85 2028 2029}\r\n#])?+)",
 			"beginCaptures": {
 				"2": {
@@ -346,18 +318,15 @@
 							"include": "#tag-property"
 						},
 						{
-							"include": "#anchor-property"
+							"include": "source.yaml.1.1#anchor-property"
 						},
 						{
-							"include": "#alias"
+							"include": "source.yaml.1.1#alias"
 						},
 						{
-							"include": "#presentation-detail"
+							"include": "source.yaml.1.1#presentation-detail"
 						}
 					]
-				},
-				"5": {
-					"name": "punctuation.whitespace.separator.yaml"
 				}
 			},
 			"whileCaptures": {
@@ -371,13 +340,13 @@
 							"include": "#tag-property"
 						},
 						{
-							"include": "#anchor-property"
+							"include": "source.yaml.1.1#anchor-property"
 						},
 						{
-							"include": "#alias"
+							"include": "source.yaml.1.1#alias"
 						},
 						{
-							"include": "#presentation-detail"
+							"include": "source.yaml.1.1#presentation-detail"
 						}
 					]
 				},
@@ -394,72 +363,19 @@
 			"name": "meta.mapping.yaml",
 			"patterns": [
 				{
-					"comment": "https://yaml.org/spec/1.2.2/#double-quoted-style (BLOCK-KEY)",
-					"begin": "\\G\"",
-					"end": "\"",
-					"beginCaptures": {
-						"0": {
-							"name": "punctuation.definition.string.begin.yaml"
-						}
-					},
-					"endCaptures": {
-						"0": {
-							"name": "punctuation.definition.string.end.yaml"
-						}
-					},
-					"name": "meta.map.key.yaml string.quoted.double.yaml entity.name.tag.yaml",
-					"patterns": [
-						{
-							"match": ".[\t ]*+$",
-							"name": "invalid.illegal.multiline-key.yaml"
-						},
-						{
-							"match": "[^\t -\\x{10FFFF}]++",
-							"name": "invalid.illegal.character.yaml"
-						},
-						{
-							"include": "#double-escape"
-						}
-					]
+					"include": "#block-map-key-double"
 				},
 				{
-					"comment": "https://yaml.org/spec/1.2.2/#rule-c-single-quoted (BLOCK-KEY)",
-					"begin": "\\G'",
-					"end": "'(?!')",
-					"beginCaptures": {
-						"0": {
-							"name": "punctuation.definition.string.begin.yaml"
-						}
-					},
-					"endCaptures": {
-						"0": {
-							"name": "punctuation.definition.string.end.yaml"
-						}
-					},
-					"name": "meta.map.key.yaml string.quoted.single.yaml entity.name.tag.yaml",
-					"patterns": [
-						{
-							"match": ".[\t ]*+$",
-							"name": "invalid.illegal.multiline-key.yaml"
-						},
-						{
-							"match": "[^\t -\\x{10FFFF}]++",
-							"name": "invalid.illegal.character.yaml"
-						},
-						{
-							"match": "''",
-							"name": "constant.character.escape.single-quote.yaml"
-						}
-					]
+					"include": "source.yaml#block-map-key-single"
 				},
 				{
-					"include": "#block-key-plain"
+					"include": "source.yaml.1.1#block-map-key-plain"
+				},
+				{
+					"include": "#block-map-key-explicit"
 				},
 				{
 					"include": "#block-map-value"
-				},
-				{
-					"include": "#block-map-explicit"
 				},
 				{
 					"include": "#flow-mapping"
@@ -468,7 +384,7 @@
 					"include": "#flow-sequence"
 				},
 				{
-					"include": "#presentation-detail"
+					"include": "source.yaml.1.1#presentation-detail"
 				}
 			]
 		},
@@ -505,10 +421,10 @@
 				}
 			]
 		},
-		"block-map-explicit": {
+		"block-map-key-explicit": {
 			"comment": "https://yaml.org/spec/1.2.2/#rule-c-l-block-map-explicit-key",
 			"begin": "(?=((?<=[-?:]) )?+)\\G( *+)(\\?)(?=[\\x{85 2028 2029}\r\n\t ])",
-			"while": "\\G(?>(\\1\\2)(?![?:0-9A-Za-z$()+./;<=\\\\^_~\\x{A0}-\\x{D7FF}\\x{E000}-\\x{FFFD}\\x{010000}-\\x{10FFFF}&&[^\\x{2028 2029 FEFF}]])((?>\t[\t ]*+)?+[^\\x{85 2028 2029}\r\n\t #\\-\\[\\]{}])?+|(?!\\1\\2)( *+)([\t ]*+[^\\x{85 2028 2029}\r\n#])?+)",
+			"while": "\\G(?>(\\1\\2)(?![?:0-9A-Za-z$()+./;<=\\\\^_~\\x{A0}-\\x{D7FF}\\x{E000}-\\x{FFFD}\\x{010000}-\\x{10FFFF}&&[^\\x{2028 2029}]])((?>\t[\t ]*+)?+[^\\x{85 2028 2029}\r\n\t #\\-\\[\\]{}])?+|(?!\\1\\2)( *+)([\t ]*+[^\\x{85 2028 2029}\r\n#])?+)",
 			"beginCaptures": {
 				"2": {
 					"name": "punctuation.whitespace.indentation.yaml"
@@ -540,10 +456,10 @@
 					"include": "#key-double"
 				},
 				{
-					"include": "#key-single"
+					"include": "source.yaml#key-single"
 				},
 				{
-					"include": "#flow-key-plain-out"
+					"include": "source.yaml.1.1#flow-key-plain-out"
 				},
 				{
 					"include": "#block-map-value"
@@ -553,12 +469,41 @@
 				}
 			]
 		},
+		"block-map-key-double": {
+			"comment": "https://yaml.org/spec/1.2.2/#double-quoted-style (BLOCK-KEY)",
+			"begin": "\\G\"",
+			"end": "\"",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.begin.yaml"
+				}
+			},
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.end.yaml"
+				}
+			},
+			"name": "meta.map.key.yaml string.quoted.double.yaml entity.name.tag.yaml",
+			"patterns": [
+				{
+					"match": ".[\t ]*+$",
+					"name": "invalid.illegal.multiline-key.yaml"
+				},
+				{
+					"match": "[^\t -\\x{10FFFF}]++",
+					"name": "invalid.illegal.character.yaml"
+				},
+				{
+					"include": "#double-escape"
+				}
+			]
+		},
 		"block-map-value": {
 			"comment": "https://yaml.org/spec/1.2.2/#rule-c-l-block-map-implicit-value",
-			"begin": "(:)(?=[\\x{85 2028 2029}\r\n\t ])",
-			"while": "\\G(?![?:!\"'0-9A-Za-z$()+./;<=\\\\^_~\\[{\\x{A0}-\\x{D7FF}\\x{E000}-\\x{FFFD}\\x{010000}-\\x{10FFFF}&&[^\\x{2028 2029 FEFF}]]|-[^\\x{85 2028 2029}\r\n\t ])",
+			"begin": ":(?=[\\x{85 2028 2029}\r\n\t ])",
+			"while": "\\G(?![?:!\"'0-9A-Za-z$()+./;<=\\\\^_~\\[{\\x{A0}-\\x{D7FF}\\x{E000}-\\x{FFFD}\\x{010000}-\\x{10FFFF}&&[^\\x{2028 2029}]]|-[^\\x{85 2028 2029}\r\n\t ])",
 			"beginCaptures": {
-				"1": {
+				"0": {
 					"name": "punctuation.separator.map.value.yaml"
 				}
 			},
@@ -566,35 +511,6 @@
 			"patterns": [
 				{
 					"include": "#block-node"
-				}
-			]
-		},
-		"block-key-plain": {
-			"comment": "https://yaml.org/spec/1.2.2/#rule-ns-plain-one-line (BLOCK-KEY)",
-			"begin": "\\G(?=[^-?:,\\[\\]{}#&*!|>'\"%@` \\p{Cntrl}\\p{Surrogate}\\x{FFFE FFFF}]|[?:-](?![\\x{85 2028 2029}\r\n\t ]))",
-			"end": "(?=[\t ]*+:[\\x{85 2028 2029}\r\n\t ]|(?>[\t ]++|\\G)#)",
-			"name": "meta.map.key.yaml string.unquoted.plain.yaml entity.name.tag.yaml",
-			"patterns": [
-				{
-					"include": "#tag-implicit-plain-out"
-				},
-				{
-					"match": "\\G([\t ]++)(.)",
-					"captures": {
-						"1": {
-							"name": "punctuation.whitespace.separator.yaml"
-						},
-						"2": {
-							"name": "invalid.illegal.multiline-key.yaml"
-						}
-					}
-				},
-				{
-					"match": "[\t ]++$",
-					"name": "punctuation.whitespace.separator.yaml"
-				},
-				{
-					"include": "#non-printable"
 				}
 			]
 		},
@@ -641,7 +557,7 @@
 							"contentName": "string.unquoted.block.yaml",
 							"patterns": [
 								{
-									"include": "#non-printable"
+									"include": "source.yaml#non-printable"
 								}
 							]
 						},
@@ -650,7 +566,7 @@
 							"end": "$",
 							"patterns": [
 								{
-									"include": "#presentation-detail"
+									"include": "source.yaml.1.1#presentation-detail"
 								}
 							]
 						}
@@ -701,7 +617,7 @@
 									"contentName": "string.unquoted.block.yaml",
 									"patterns": [
 										{
-											"include": "#non-printable"
+											"include": "source.yaml#non-printable"
 										}
 									]
 								},
@@ -734,7 +650,7 @@
 											"contentName": "string.unquoted.block.yaml",
 											"patterns": [
 												{
-													"include": "#non-printable"
+													"include": "source.yaml#non-printable"
 												}
 											]
 										}
@@ -746,7 +662,7 @@
 									"while": "\\G",
 									"patterns": [
 										{
-											"include": "#presentation-detail"
+											"include": "source.yaml.1.1#presentation-detail"
 										}
 									]
 								}
@@ -758,50 +674,9 @@
 							"end": "$",
 							"patterns": [
 								{
-									"include": "#presentation-detail"
+									"include": "source.yaml.1.1#presentation-detail"
 								}
 							]
-						}
-					]
-				}
-			]
-		},
-		"block-plain-out": {
-			"comment": "https://yaml.org/spec/1.2.2/#rule-ns-plain-multi-line (FLOW-OUT)",
-			"begin": "(?=[^-?:,\\[\\]{}#&*!|>'\"%@` \\p{Cntrl}\\p{Surrogate}\\x{FEFF FFFE FFFF}]|[?:-](?![\\x{85 2028 2029}\r\n\t ]))",
-			"while": "\\G",
-			"patterns": [
-				{
-					"begin": "\\G",
-					"end": "(?=(?>[\t ]++|\\G)#)",
-					"name": "string.unquoted.plain.out.yaml",
-					"patterns": [
-						{
-							"include": "#tag-implicit-plain-out"
-						},
-						{
-							"match": ":(?=[\\x{85 2028 2029}\r\n\t ])",
-							"name": "invalid.illegal.multiline-key.yaml"
-						},
-						{
-							"match": "\\G[\t ]++",
-							"name": "punctuation.whitespace.separator.yaml"
-						},
-						{
-							"match": "[\t ]++$",
-							"name": "punctuation.whitespace.separator.yaml"
-						},
-						{
-							"include": "#non-printable"
-						}
-					]
-				},
-				{
-					"begin": "(?!\\G)",
-					"while": "\\G",
-					"patterns": [
-						{
-							"include": "#presentation-detail"
 						}
 					]
 				}
@@ -819,7 +694,7 @@
 							"end": "(?=[:,\\]}])",
 							"patterns": [
 								{
-									"include": "#presentation-detail"
+									"include": "source.yaml.1.1#presentation-detail"
 								}
 							]
 						},
@@ -832,13 +707,13 @@
 					]
 				},
 				{
-					"include": "#anchor-property"
+					"include": "source.yaml.1.1#anchor-property"
 				},
 				{
 					"include": "#tag-property"
 				},
 				{
-					"include": "#alias"
+					"include": "source.yaml.1.1#alias"
 				},
 				{
 					"begin": "(?=\"|')",
@@ -849,7 +724,7 @@
 							"end": "(?=[:,\\]}])",
 							"patterns": [
 								{
-									"include": "#presentation-detail"
+									"include": "source.yaml.1.1#presentation-detail"
 								}
 							]
 						},
@@ -857,15 +732,15 @@
 							"include": "#double"
 						},
 						{
-							"include": "#single"
+							"include": "source.yaml.1.1#single"
 						}
 					]
 				},
 				{
-					"include": "#flow-plain-in"
+					"include": "source.yaml.1.1#flow-plain-in"
 				},
 				{
-					"include": "#presentation-detail"
+					"include": "source.yaml.1.1#presentation-detail"
 				}
 			]
 		},
@@ -900,12 +775,12 @@
 							"name": "invalid.illegal.separator.sequence.yaml"
 						},
 						{
-							"include": "#presentation-detail"
+							"include": "source.yaml.1.1#presentation-detail"
 						}
 					]
 				},
 				{
-					"include": "#flow-map-key-mapping"
+					"include": "#flow-mapping-map-key"
 				},
 				{
 					"include": "#flow-map-value-yaml"
@@ -949,12 +824,12 @@
 							"name": "invalid.illegal.separator.sequence.yaml"
 						},
 						{
-							"include": "#presentation-detail"
+							"include": "source.yaml.1.1#presentation-detail"
 						}
 					]
 				},
 				{
-					"include": "#flow-map-key-sequence"
+					"include": "#flow-sequence-map-key"
 				},
 				{
 					"include": "#flow-map-value-yaml"
@@ -967,7 +842,7 @@
 				}
 			]
 		},
-		"flow-map-key-mapping": {
+		"flow-mapping-map-key": {
 			"comment": "https://yaml.org/spec/1.2.2/#rule-ns-flow-map-entry (FLOW-IN)",
 			"patterns": [
 				{
@@ -981,7 +856,7 @@
 					"name": "meta.flow.map.explicit.yaml",
 					"patterns": [
 						{
-							"include": "#flow-map-key-mapping"
+							"include": "#flow-mapping-map-key"
 						},
 						{
 							"include": "#flow-map-value-yaml"
@@ -996,12 +871,12 @@
 				},
 				{
 					"comment": "https://yaml.org/spec/1.2.2/#rule-ns-flow-map-implicit-entry (FLOW-IN)",
-					"begin": "(?=(?>[^-?:,\\[\\]{}#&*!|>'\"%@` \\p{Cntrl}\\p{Surrogate}\\x{FEFF FFFE FFFF}]|[?:-](?![\\x{85 2028 2029}\r\n\t ,\\[\\]{}])))",
+					"begin": "(?=(?>[^-?:,\\[\\]{}#&*!|>'\"%@` \\p{Cntrl}\\p{Surrogate}\\x{FFFE FFFF}]|[?:-](?![\\x{85 2028 2029}\r\n\t ,\\[\\]{}])))",
 					"end": "(?=[,\\[\\]{}])",
 					"name": "meta.flow.map.implicit.yaml",
 					"patterns": [
 						{
-							"include": "#flow-key-plain-in"
+							"include": "source.yaml.1.1#flow-key-plain-in"
 						},
 						{
 							"match": ":(?=\\[|{)",
@@ -1011,7 +886,7 @@
 							"include": "#flow-map-value-yaml"
 						},
 						{
-							"include": "#presentation-detail"
+							"include": "source.yaml.1.1#presentation-detail"
 						}
 					]
 				},
@@ -1025,19 +900,19 @@
 							"include": "#key-double"
 						},
 						{
-							"include": "#key-single"
+							"include": "source.yaml#key-single"
 						},
 						{
 							"include": "#flow-map-value-json"
 						},
 						{
-							"include": "#presentation-detail"
+							"include": "source.yaml.1.1#presentation-detail"
 						}
 					]
 				}
 			]
 		},
-		"flow-map-key-sequence": {
+		"flow-sequence-map-key": {
 			"comment": "https://yaml.org/spec/1.2.2/#rule-ns-flow-map-entry (FLOW-IN)",
 			"patterns": [
 				{
@@ -1051,7 +926,7 @@
 					"name": "meta.flow.map.explicit.yaml",
 					"patterns": [
 						{
-							"include": "#flow-map-key-mapping"
+							"include": "#flow-mapping-map-key"
 						},
 						{
 							"include": "#flow-map-value-yaml"
@@ -1066,12 +941,12 @@
 				},
 				{
 					"comment": "https://yaml.org/spec/1.2.2/#rule-ns-flow-map-implicit-entry (FLOW-IN)",
-					"begin": "(?<=[\t ,\\[{]|^)(?=(?>[^-?:,\\[\\]{}#&*!|>'\"%@` \\p{Cntrl}\\p{Surrogate}\\x{FEFF FFFE FFFF}]|[?:-](?![\\x{85 2028 2029}\r\n\t ,\\[\\]{}]))(?>[^:#,\\[\\]{}]++|:(?![\\x{85 2028 2029}\r\n\t ,\\[\\]{}])|(?<! |\t)#++)*+:[\\x{85 2028 2029}\r\n\t ,\\[\\]{}])",
+					"begin": "(?<=[\t ,\\[{]|^)(?=(?>[^-?:,\\[\\]{}#&*!|>'\"%@` \\p{Cntrl}\\p{Surrogate}\\x{FFFE FFFF}]|[?:-](?![\\x{85 2028 2029}\r\n\t ,\\[\\]{}]))(?>[^:#,\\[\\]{}]++|:(?![\\x{85 2028 2029}\r\n\t ,\\[\\]{}])|(?<! |\t)#++)*+:[\\x{85 2028 2029}\r\n\t ,\\[\\]{}])",
 					"end": "(?=[,\\[\\]{}])",
 					"name": "meta.flow.map.implicit.yaml",
 					"patterns": [
 						{
-							"include": "#flow-key-plain-in"
+							"include": "source.yaml.1.1#flow-key-plain-in"
 						},
 						{
 							"match": ":(?=\\[|{)",
@@ -1081,7 +956,7 @@
 							"include": "#flow-map-value-yaml"
 						},
 						{
-							"include": "#presentation-detail"
+							"include": "source.yaml.1.1#presentation-detail"
 						}
 					]
 				},
@@ -1095,13 +970,13 @@
 							"include": "#key-double"
 						},
 						{
-							"include": "#key-single"
+							"include": "source.yaml#key-single"
 						},
 						{
 							"include": "#flow-map-value-json"
 						},
 						{
-							"include": "#presentation-detail"
+							"include": "source.yaml.1.1#presentation-detail"
 						}
 					]
 				}
@@ -1139,71 +1014,9 @@
 				}
 			]
 		},
-		"flow-plain-in": {
-			"comment": "https://yaml.org/spec/1.2.2/#rule-ns-plain-multi-line (FLOW-IN)",
-			"begin": "(?=[^-?:,\\[\\]{}#&*!|>'\"%@` \\p{Cntrl}\\p{Surrogate}\\x{FEFF FFFE FFFF}]|[?:-](?![\\x{85 2028 2029}\r\n\t ,\\[\\]{}]))",
-			"end": "(?=(?>[\t ]++|\\G)#|[\t ]*+[,\\[\\]{}])",
-			"name": "string.unquoted.plain.in.yaml",
-			"patterns": [
-				{
-					"include": "#tag-implicit-plain-in"
-				},
-				{
-					"match": "\\G[\t ]++",
-					"name": "punctuation.whitespace.separator.yaml"
-				},
-				{
-					"match": "[\t ]++$",
-					"name": "punctuation.whitespace.separator.yaml"
-				},
-				{
-					"match": ":(?=[\\x{85 2028 2029}\r\n\t ,\\[\\]{}])",
-					"name": "invalid.illegal.multiline-key.yaml"
-				},
-				{
-					"include": "#non-printable"
-				}
-			]
-		},
-		"flow-key-plain-out": {
-			"comment": "https://yaml.org/spec/1.2.2/#rule-ns-plain-one-line (FLOW-OUT)",
-			"begin": "(?=[^-?:,\\[\\]{}#&*!|>'\"%@` \\p{Cntrl}\\p{Surrogate}\\x{FEFF FFFE FFFF}]|[?:-](?![\\x{85 2028 2029}\r\n\t ]))",
-			"end": "(?=[\t ]*+:[\\x{85 2028 2029}\r\n\t ]|[\t ]++#)",
-			"name": "meta.map.key.yaml string.unquoted.plain.yaml entity.name.tag.yaml",
-			"patterns": [
-				{
-					"include": "#tag-implicit-plain-out"
-				},
-				{
-					"match": "\\G[\t ]++",
-					"name": "punctuation.whitespace.separator.yaml"
-				},
-				{
-					"match": "[\t ]++$",
-					"name": "punctuation.whitespace.separator.yaml"
-				},
-				{
-					"include": "#non-printable"
-				}
-			]
-		},
-		"flow-key-plain-in": {
-			"comment": "https://yaml.org/spec/1.2.2/#rule-ns-s-implicit-yaml-key (FLOW-KEY)",
-			"begin": "\\G(?![\\x{85 2028 2029}\r\n\t #])",
-			"end": "(?=[\t ]*+(?>:[\\x{85 2028 2029}\r\n\t ,\\[\\]{}]|[,\\[\\]{}])|[\t ]++#)",
-			"name": "meta.flow.map.key.yaml string.unquoted.plain.in.yaml entity.name.tag.yaml",
-			"patterns": [
-				{
-					"include": "#tag-implicit-plain-in"
-				},
-				{
-					"include": "#non-printable"
-				}
-			]
-		},
 		"key-double": {
-			"comment": "https://yaml.org/spec/1.2.2/#double-quoted-style",
-			"begin": "\\G\"",
+			"comment": "https://yaml.org/spec/1.2.2/#double-quoted-style (FLOW-OUT)",
+			"begin": "\"",
 			"end": "\"",
 			"beginCaptures": {
 				"0": {
@@ -1223,32 +1036,6 @@
 				},
 				{
 					"include": "#double-escape"
-				}
-			]
-		},
-		"key-single": {
-			"comment": "https://yaml.org/spec/1.2.2/#rule-c-single-quoted (BLOCK-KEY)",
-			"begin": "\\G'",
-			"end": "'(?!')",
-			"beginCaptures": {
-				"0": {
-					"name": "punctuation.definition.string.begin.yaml"
-				}
-			},
-			"endCaptures": {
-				"0": {
-					"name": "punctuation.definition.string.end.yaml"
-				}
-			},
-			"name": "meta.map.key.yaml string.quoted.single.yaml entity.name.tag.yaml",
-			"patterns": [
-				{
-					"match": "[^\t -\\x{10FFFF}]++",
-					"name": "invalid.illegal.character.yaml"
-				},
-				{
-					"match": "''",
-					"name": "constant.character.escape.single-quote.yaml"
 				}
 			]
 		},
@@ -1285,40 +1072,6 @@
 				}
 			]
 		},
-		"single": {
-			"comment": "https://yaml.org/spec/1.2.2/#single-quoted-style",
-			"begin": "'",
-			"end": "'(?!')",
-			"beginCaptures": {
-				"0": {
-					"name": "punctuation.definition.string.begin.yaml"
-				}
-			},
-			"endCaptures": {
-				"0": {
-					"name": "punctuation.definition.string.end.yaml"
-				}
-			},
-			"name": "string.quoted.single.yaml",
-			"patterns": [
-				{
-					"match": "(?<!')\\G[\t ]++",
-					"name": "punctuation.whitespace.separator.yaml"
-				},
-				{
-					"match": "[\t ]++$",
-					"name": "punctuation.whitespace.separator.yaml"
-				},
-				{
-					"match": "[^\\x{85 2028 2029}\r\n\t -\\x{10FFFF}]++",
-					"name": "invalid.illegal.character.yaml"
-				},
-				{
-					"match": "''",
-					"name": "constant.character.escape.single-quote.yaml"
-				}
-			]
-		},
 		"double-escape": {
 			"comment": "https://yaml.org/spec/1.2.2/#rule-c-ns-esc-char",
 			"patterns": [
@@ -1341,138 +1094,6 @@
 				{
 					"match": "\\\\(?>x[^\"]{2,0}|u[^\"]{4,0}|U[^\"]{8,0}|.)",
 					"name": "invalid.illegal.constant.character.escape.yaml"
-				}
-			]
-		},
-		"tag-implicit-plain-in": {
-			"comment": "https://yaml.org/type/index.html",
-			"patterns": [
-				{
-					"match": "\\G(?>null|Null|NULL|~)(?=[\t ]++#|[\t ]*+(?>[\\x{85 2028 2029}\r\n,\\]}]|:[\\x{85 2028 2029}\r\n\t ,\\[\\]{}]))",
-					"name": "constant.language.null.yaml"
-				},
-				{
-					"match": "\\G(?>true|True|TRUE|false|False|FALSE|y|Y|yes|Yes|YES|n|N|no|No|NO|on|On|ON|off|Off|OFF)(?=[\t ]++#|[\t ]*+(?>[\\x{85 2028 2029}\r\n,\\]}]|:[\\x{85 2028 2029}\r\n\t ,\\[\\]{}]))",
-					"name": "constant.language.boolean.yaml"
-				},
-				{
-					"match": "\\G[-+]?+(0|[1-9][0-9_]*+)(?=[\t ]++#|[\t ]*+(?>[\\x{85 2028 2029}\r\n,\\]}]|:[\\x{85 2028 2029}\r\n\t ,\\[\\]{}]))",
-					"name": "constant.numeric.integer.decimal.yaml"
-				},
-				{
-					"match": "\\G[-+]?+0b[0-1_]++(?=[\t ]++#|[\t ]*+(?>[\\x{85 2028 2029}\r\n,\\]}]|:[\\x{85 2028 2029}\r\n\t ,\\[\\]{}]))",
-					"name": "constant.numeric.integer.binary.yaml"
-				},
-				{
-					"match": "\\G[-+]?0[0-7_]++(?=[\t ]++#|[\t ]*+(?>[\\x{85 2028 2029}\r\n,\\]}]|:[\\x{85 2028 2029}\r\n\t ,\\[\\]{}]))",
-					"name": "constant.numeric.integer.octal.yaml"
-				},
-				{
-					"match": "\\G[-+]?+0x[0-9a-fA-F_]++(?=[\t ]++#|[\t ]*+(?>[\\x{85 2028 2029}\r\n,\\]}]|:[\\x{85 2028 2029}\r\n\t ,\\[\\]{}]))",
-					"name": "constant.numeric.integer.hexadecimal.yaml"
-				},
-				{
-					"match": "\\G[-+]?+[1-9][0-9_]*+(?>:[0-5]?[0-9])++(?=[\t ]++#|[\t ]*+(?>[\\x{85 2028 2029}\r\n,\\]}]|:[\\x{85 2028 2029}\r\n\t ,\\[\\]{}]))",
-					"name": "constant.numeric.integer.Sexagesimal.yaml"
-				},
-				{
-					"match": "\\G[-+]?+(?>[0-9][0-9_]*+)?+\\.[0-9.]*+(?>[eE][-+][0-9]+)?+(?=[\t ]++#|[\t ]*+(?>[\\x{85 2028 2029}\r\n,\\]}]|:[\\x{85 2028 2029}\r\n\t ,\\[\\]{}]))",
-					"name": "constant.numeric.float.decimal.yaml"
-				},
-				{
-					"match": "\\G[-+]?+[0-9][0-9_]*+(?>:[0-5]?[0-9])++\\.[0-9_]*+(?=[\t ]++#|[\t ]*+(?>[\\x{85 2028 2029}\r\n,\\]}]|:[\\x{85 2028 2029}\r\n\t ,\\[\\]{}]))",
-					"name": "constant.numeric.float.Sexagesimal.yaml"
-				},
-				{
-					"match": "\\G[-+]?+\\.(?>inf|Inf|INF)(?=[\t ]++#|[\t ]*+(?>[\\x{85 2028 2029}\r\n,\\]}]|:[\\x{85 2028 2029}\r\n\t ,\\[\\]{}]))",
-					"name": "constant.numeric.float.inf.yaml"
-				},
-				{
-					"match": "\\G\\.(?>nan|NaN|NAN)(?=[\t ]++#|[\t ]*+(?>[\\x{85 2028 2029}\r\n,\\]}]|:[\\x{85 2028 2029}\r\n\t ,\\[\\]{}]))",
-					"name": "constant.numeric.float.nan.yaml"
-				},
-				{
-					"comment": "https://www.w3.org/TR/NOTE-datetime does not allow spaces, however https://yaml.org/type/timestamp.html does, but the provided regex doesn't match the TZD space in many of the YAML examples",
-					"match": "\\G(?>[0-9]{4}-[0-9]{2,1}-[0-9]{2,1}(?>T|t|[\t ]++)[0-9]{2,1}:[0-9]{2}:[0-9]{2}(?>\\.[0-9]*+)?+[\t ]*+(?>Z|[-+][0-9]{2,1}(?>:[0-9]{2})?+)?+|[0-9]{4}-[0-9]{2}-[0-9]{2})(?=[\t ]++#|[\t ]*+(?>[\\x{85 2028 2029}\r\n,\\]}]|:[\\x{85 2028 2029}\r\n\t ,\\[\\]{}]))",
-					"name": "constant.numeric.timestamp.yaml"
-				},
-				{
-					"match": "\\G<<(?=[\t ]++#|[\t ]*+(?>[\\x{85 2028 2029}\r\n,\\]}]|:[\\x{85 2028 2029}\r\n\t ,\\[\\]{}]))",
-					"name": "constant.language.merge.yaml"
-				},
-				{
-					"match": "\\G=(?=[\t ]++#|[\t ]*+(?>[\\x{85 2028 2029}\r\n,\\]}]|:[\\x{85 2028 2029}\r\n\t ,\\[\\]{}]))",
-					"name": "constant.language.value.yaml"
-				},
-				{
-					"match": "\\G(?>!|&|\\*)(?=[\t ]++#|[\t ]*+(?>[\\x{85 2028 2029}\r\n,\\]}]|:[\\x{85 2028 2029}\r\n\t ,\\[\\]{}]))",
-					"name": "constant.language.yaml.yaml"
-				}
-			]
-		},
-		"tag-implicit-plain-out": {
-			"comment": "https://yaml.org/type/index.html",
-			"patterns": [
-				{
-					"match": "\\G(?>null|Null|NULL|~)(?=[\t ]++#|[\t ]*+(?>$|:[\\x{85 2028 2029}\r\n\t ]))",
-					"name": "constant.language.null.yaml"
-				},
-				{
-					"match": "\\G(?>true|True|TRUE|false|False|FALSE|yes|Yes|YES|y|Y|no|No|NO|n|N|on|On|ON|off|Off|OFF)(?=[\t ]++#|[\t ]*+(?>$|:[\\x{85 2028 2029}\r\n\t ]))",
-					"name": "constant.language.boolean.yaml"
-				},
-				{
-					"match": "\\G[-+]?+(0|[1-9][0-9_]*+)(?=[\t ]++#|[\t ]*+(?>$|:[\\x{85 2028 2029}\r\n\t ]))",
-					"name": "constant.numeric.integer.decimal.yaml"
-				},
-				{
-					"match": "\\G[-+]?+0b[0-1_]++(?=[\t ]++#|[\t ]*+(?>$|:[\\x{85 2028 2029}\r\n\t ]))",
-					"name": "constant.numeric.integer.binary.yaml"
-				},
-				{
-					"match": "\\G[-+]?0[0-7_]++(?=[\t ]++#|[\t ]*+(?>$|:[\\x{85 2028 2029}\r\n\t ]))",
-					"name": "constant.numeric.integer.octal.yaml"
-				},
-				{
-					"match": "\\G[-+]?+0x[0-9a-fA-F_]++(?=[\t ]++#|[\t ]*+(?>$|:[\\x{85 2028 2029}\r\n\t ]))",
-					"name": "constant.numeric.integer.hexadecimal.yaml"
-				},
-				{
-					"match": "\\G[-+]?+[1-9][0-9_]*+(?>:[0-5]?[0-9])++(?=[\t ]++#|[\t ]*+(?>$|:[\\x{85 2028 2029}\r\n\t ]))",
-					"name": "constant.numeric.integer.Sexagesimal.yaml"
-				},
-				{
-					"match": "\\G[-+]?+(?>[0-9][0-9_]*+)?+\\.[0-9.]*+(?>[eE][-+][0-9]+)?+(?=[\t ]++#|[\t ]*+(?>$|:[\\x{85 2028 2029}\r\n\t ]))",
-					"name": "constant.numeric.float.decimal.yaml"
-				},
-				{
-					"match": "\\G[-+]?+[0-9][0-9_]*+(?>:[0-5]?[0-9])++\\.[0-9_]*+(?=[\t ]++#|[\t ]*+(?>$|:[\\x{85 2028 2029}\r\n\t ]))",
-					"name": "constant.numeric.float.Sexagesimal.yaml"
-				},
-				{
-					"match": "\\G[-+]?+\\.(?>inf|Inf|INF)(?=[\t ]++#|[\t ]*+(?>$|:[\\x{85 2028 2029}\r\n\t ]))",
-					"name": "constant.numeric.float.inf.yaml"
-				},
-				{
-					"match": "\\G\\.(?>nan|NaN|NAN)(?=[\t ]++#|[\t ]*+(?>$|:[\\x{85 2028 2029}\r\n\t ]))",
-					"name": "constant.numeric.float.nan.yaml"
-				},
-				{
-					"comment": "https://www.w3.org/TR/NOTE-datetime does not allow spaces, however https://yaml.org/type/timestamp.html does, but the provided regex doesn't match the TZD space in many of the YAML examples",
-					"match": "\\G(?>[0-9]{4}-[0-9]{2,1}-[0-9]{2,1}(?>T|t|[\t ]++)[0-9]{2,1}:[0-9]{2}:[0-9]{2}(?>\\.[0-9]*+)?+[\t ]*+(?>Z|[-+][0-9]{2,1}(?>:[0-9]{2})?+)?+|[0-9]{4}-[0-9]{2}-[0-9]{2})(?=[\t ]++#|[\t ]*+(?>$|:[\\x{85 2028 2029}\r\n\t ]))",
-					"name": "constant.numeric.timestamp.yaml"
-				},
-				{
-					"match": "\\G<<(?=[\t ]++#|[\t ]*+(?>$|:[\\x{85 2028 2029}\r\n\t ]))",
-					"name": "constant.language.merge.yaml"
-				},
-				{
-					"match": "\\G=(?=[\t ]++#|[\t ]*+(?>$|:[\\x{85 2028 2029}\r\n\t ]))",
-					"name": "constant.language.value.yaml"
-				},
-				{
-					"match": "\\G(?>!|&|\\*)(?=[\t ]++#|[\t ]*+(?>$|:[\\x{85 2028 2029}\r\n\t ]))",
-					"name": "constant.language.yaml.yaml"
 				}
 			]
 		},
@@ -1520,102 +1141,9 @@
 					"include": "#double-escape"
 				},
 				{
-					"include": "#non-printable"
+					"include": "source.yaml#non-printable"
 				}
 			]
-		},
-		"anchor-property": {
-			"match": "(&)([^ \\p{Cntrl}\\p{Surrogate}\\x{2028 2029 FFFE FFFF}]++)|(&)",
-			"captures": {
-				"0": {
-					"name": "keyword.control.flow.anchor.yaml"
-				},
-				"1": {
-					"name": "punctuation.definition.anchor.yaml"
-				},
-				"2": {
-					"name": "variable.other.anchor.yaml"
-				},
-				"3": {
-					"name": "invalid.illegal.flow.anchor.yaml"
-				}
-			}
-		},
-		"alias": {
-			"begin": "(\\*)([^ \\p{Cntrl}\\p{Surrogate}\\x{2028 2029 FFFE FFFF}]++)|(\\*)",
-			"end": "(?=:[\\x{85 2028 2029}\r\n\t ,\\[\\]{}]|[,\\[\\]{}])",
-			"captures": {
-				"0": {
-					"name": "keyword.control.flow.alias.yaml"
-				},
-				"1": {
-					"name": "punctuation.definition.alias.yaml"
-				},
-				"2": {
-					"name": "variable.other.alias.yaml"
-				},
-				"3": {
-					"name": "invalid.illegal.flow.alias.yaml"
-				}
-			},
-			"patterns": [
-				{
-					"include": "#presentation-detail"
-				}
-			]
-		},
-		"presentation-detail": {
-			"patterns": [
-				{
-					"match": "[\t ]++",
-					"name": "punctuation.whitespace.separator.yaml"
-				},
-				{
-					"include": "#non-printable"
-				},
-				{
-					"include": "#comment"
-				},
-				{
-					"include": "#unknown"
-				}
-			]
-		},
-		"non-printable": {
-			"//": {
-				"85": "",
-				"2028": " ",
-				"2029": " ",
-				"10000": "𐀀",
-				"A0": " ",
-				"D7FF": "퟿",
-				"E000": "",
-				"FFFD": "�",
-				"FFFF": "￿",
-				"10FFFF": "􏿿"
-			},
-			"match": "[^\t\n\r -~\\x{85}\\x{A0}-\\x{D7FF}\\x{E000}-\\x{FFFD}\\x{010000}-\\x{10FFFF}]++",
-			"name": "invalid.illegal.non-printable.yaml"
-		},
-		"comment": {
-			"comment": "Comments must be separated from other tokens by white space characters. `space`, `tab`, `newline` or `carriage-return`. `#(.*)` causes performance issues",
-			"begin": "(?<=^|[\\x{85 2028 2029} ])#",
-			"end": "[\\x{85 2028 2029}\r\n]",
-			"captures": {
-				"0": {
-					"name": "punctuation.definition.comment.yaml"
-				}
-			},
-			"name": "comment.line.number-sign.yaml",
-			"patterns": [
-				{
-					"include": "#non-printable"
-				}
-			]
-		},
-		"unknown": {
-			"match": ".[[^\\x{85}#\"':,\\[\\]{}]&&!-~\\x{A0}-\\x{D7FF}\\x{E000}-\\x{FFFD}\\x{010000}-\\x{10FFFF}]*+",
-			"name": "invalid.illegal.unrecognized.yaml markup.strikethrough"
 		}
 	}
 }
