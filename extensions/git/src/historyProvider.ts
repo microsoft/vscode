@@ -145,29 +145,34 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			return [];
 		}
 
-		// Get the commits
-		const commits = await this.repository.log({ range: `${refsMergeBase}^..`, refNames });
-
-		await ensureEmojis();
-
 		const historyItems: SourceControlHistoryItem[] = [];
-		historyItems.push(...commits.map(commit => {
-			const newLineIndex = commit.message.indexOf('\n');
-			const subject = newLineIndex !== -1 ? commit.message.substring(0, newLineIndex) : commit.message;
 
-			const labels = this.resolveHistoryItemLabels(commit, refNames);
+		try {
+			// Get the commits
+			const commits = await this.repository.log({ range: `${refsMergeBase}^..`, refNames });
 
-			return {
-				id: commit.hash,
-				parentIds: commit.parents,
-				message: emojify(subject),
-				author: commit.authorName,
-				icon: new ThemeIcon('git-commit'),
-				timestamp: commit.authorDate?.getTime(),
-				statistics: commit.shortStat ?? { files: 0, insertions: 0, deletions: 0 },
-				labels: labels.length !== 0 ? labels : undefined
-			};
-		}));
+			await ensureEmojis();
+
+			historyItems.push(...commits.map(commit => {
+				const newLineIndex = commit.message.indexOf('\n');
+				const subject = newLineIndex !== -1 ? commit.message.substring(0, newLineIndex) : commit.message;
+
+				const labels = this.resolveHistoryItemLabels(commit, refNames);
+
+				return {
+					id: commit.hash,
+					parentIds: commit.parents,
+					message: emojify(subject),
+					author: commit.authorName,
+					icon: new ThemeIcon('git-commit'),
+					timestamp: commit.authorDate?.getTime(),
+					statistics: commit.shortStat ?? { files: 0, insertions: 0, deletions: 0 },
+					labels: labels.length !== 0 ? labels : undefined
+				};
+			}));
+		} catch (err) {
+			this.logger.error(`[GitHistoryProvider][provideHistoryItems2] Failed to get history items '${refsMergeBase}^..': ${err}`);
+		}
 
 		return historyItems;
 	}
