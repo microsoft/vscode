@@ -2354,7 +2354,8 @@ export namespace ChatResponseConfirmationPart {
 			kind: 'confirmation',
 			title: part.title,
 			message: part.message,
-			data: part.data
+			data: part.data,
+			buttons: part.buttons
 		};
 	}
 }

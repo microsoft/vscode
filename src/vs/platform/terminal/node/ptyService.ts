@@ -29,6 +29,8 @@ import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalSt
 import { IPtyHostProcessReplayEvent } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { join } from 'path';
+import { memoize } from 'vs/base/common/decorators';
+import * as performance from 'vs/base/common/performance';
 // ESM-comment-begin
 import { Terminal as XtermTerminal } from '@xterm/headless';
 // ESM-comment-end
@@ -37,8 +39,6 @@ import { Terminal as XtermTerminal } from '@xterm/headless';
 // type XtermTerminal = pkg.Terminal;
 // const { Terminal: XtermTerminal } = pkg;
 // ESM-uncomment-end
-import { memoize } from 'vs/base/common/decorators';
-import * as performance from 'vs/base/common/performance';
 
 export function traceRpc(_target: any, key: string, descriptor: any) {
 	if (typeof descriptor.value !== 'function') {

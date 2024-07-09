@@ -43,9 +43,6 @@ const minimist = require('minimist');
 // const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // ESM-uncomment-end
 
-
-
-
 perf.mark('code/server/start');
 // @ts-ignore
 global.vscodeServerStartTime = performance.now();

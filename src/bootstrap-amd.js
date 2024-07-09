@@ -7,7 +7,7 @@
 'use strict';
 
 /**
- * @typedef {import('./vs/nls').INLSConfiguration} INLSConfiguration
+ * @import { INLSConfiguration } from './vs/nls'
  * @import { IProductConfiguration } from './vs/base/common/product'
  */
 
@@ -16,6 +16,7 @@ const isESM = false;
 // ESM-comment-end
 // ESM-uncomment-begin
 // import * as path from 'path';
+// import * as fs from 'fs';
 // import { fileURLToPath } from 'url';
 // import { createRequire } from 'node:module';
 // import { product, pkg } from './bootstrap-meta.js';
@@ -59,15 +60,16 @@ globalThis._VSCODE_PACKAGE_JSON = require('./bootstrap-meta').pkg;
 // globalThis._VSCODE_PACKAGE_JSON = { ...pkg };
 // ESM-uncomment-end
 
-// @ts-ignore
 // VSCODE_GLOBALS: file root of all resources
 globalThis._VSCODE_FILE_ROOT = __dirname;
 
 // ESM-comment-begin
 const bootstrap = require('./bootstrap');
 const performance = require(`./vs/base/common/performance`);
-// ESM-comment-end
 const fs = require('fs');
+// ESM-comment-end
+
+//#region NLS helpers
 
 /** @type {Promise<INLSConfiguration | undefined> | undefined} */
 let setupNLSResult = undefined;
@@ -151,6 +153,8 @@ async function doSetupNLS() {
 
 //#endregion
 
+//#region Loader Config
+
 if (isESM) {
 
 	/**
@@ -173,7 +177,6 @@ if (isESM) {
 			import(entrypoint).then(onLoad, onError);
 		});
 	};
-
 } else {
 
 	// @ts-ignore
@@ -223,6 +226,8 @@ if (isESM) {
 		});
 	};
 }
+
+//#endregion
 
 // ESM-uncomment-begin
 // export const load = module.exports.load;

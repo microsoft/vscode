@@ -10,10 +10,10 @@
 
 /**
  * @import { ISandboxConfiguration } from './vs/base/parts/sandbox/common/sandboxTypes'
+ * @typedef {any} LoaderConfig
  */
 
-/* eslint-disable no-restricted-globals */
-
+/* eslint-disable no-restricted-globals,  */
 
 // ESM-comment-begin
 const isESM = false;
@@ -22,9 +22,8 @@ const isESM = false;
 // const isESM = true;
 // ESM-uncomment-end
 
-
 // Simple module style to support node.js and browser environments
-(function (globalThis, factory) {
+(function (factory) {
 
 	// Node.js
 	if (typeof exports === 'object') {
@@ -36,7 +35,7 @@ const isESM = false;
 		// @ts-ignore
 		globalThis.MonacoBootstrapWindow = factory();
 	}
-}(this, function () {
+}(function () {
 	const bootstrapLib = bootstrap();
 	const preloadGlobals = sandboxGlobals();
 	const safeProcess = preloadGlobals.process;
@@ -105,8 +104,8 @@ const isESM = false;
 
 		window['MonacoEnvironment'] = {};
 
-
 		if (isESM) {
+
 			// Signal before require()
 			if (typeof options?.beforeRequire === 'function') {
 				options.beforeRequire(configuration);
@@ -114,7 +113,6 @@ const isESM = false;
 
 			const fileRoot = `${configuration.appRoot}/out`;
 			globalThis._VSCODE_FILE_ROOT = fileRoot;
-
 
 			// DEV ---------------------------------------------------------------------------------------
 			// DEV: This is for development and enables loading CSS via import-statements via import-maps.
@@ -177,9 +175,7 @@ const isESM = false;
 
 			result.then((res) => invokeResult(res[0]), onUnexpectedError);
 		} else {
-			/**
-			 * @typedef {any} LoaderConfig
-			 */
+
 			/** @type {LoaderConfig} */
 			const loaderConfig = {
 				baseUrl: `${bootstrapLib.fileUriFromPath(configuration.appRoot, { isWindows: safeProcess.platform === 'win32', scheme: 'vscode-file', fallbackAuthority: 'vscode-app' })}/out`,

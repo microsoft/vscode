@@ -60,7 +60,6 @@ module.exports.injectNodeModuleLookupPath = function (injectPath) {
 	}
 
 	const Module = require('node:module');
-
 	if (isESM) {
 		// register a loader hook
 		// ESM-uncomment-begin

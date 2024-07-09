@@ -25,8 +25,7 @@ const product = require('./bootstrap-meta').product;
 // const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // ESM-uncomment-end
 
-// Delete `VSCODE_CWD` very early even before
-// importing bootstrap files. We have seen
+// Delete `VSCODE_CWD` very early. We have seen
 // reports where `code .` would use the wrong
 // current working directory due to our variable
 // somehow escaping to the parent shell

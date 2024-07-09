@@ -31,6 +31,9 @@ if (module.exports.pkg['BUILD_INSERT_PACKAGE_CONFIGURATION']) {
 	module.exports.pkg = require('../package.json'); // Running out of sources
 }
 
+module.exports.product = product;
+module.exports.pkg = pkg;
+
 // ESM-uncomment-begin
 // export const product = module.exports.product;
 // export const pkg = module.exports.pkg;
