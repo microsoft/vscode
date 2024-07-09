@@ -20,7 +20,9 @@ jobs:
       - name: Run Locker
         uses: ./actions/locker
         with:
-          token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
+          app_id: ${{ secrets.APP_ID }}
+          app_installation_id: ${{ secrets.APP_INSTALLATION_ID }}
+          app_private_key: ${{ secrets.APP_PRIVATE_KEY }}
           daysSinceClose: 45
           daysSinceUpdate: 3
           ignoredLabel: "*out-of-scope,accessibility"
