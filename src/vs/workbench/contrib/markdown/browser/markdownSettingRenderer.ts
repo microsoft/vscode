@@ -4,22 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { IPreferencesService, ISetting, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
+import { IPreferencesService, ISetting } from 'vs/workbench/services/preferences/common/preferences';
 import { settingKeyToDisplayFormat } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
 import { URI } from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { DefaultSettings } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IAction } from 'vs/base/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
-
-const codeSettingRegex = /^<code (codesetting)="([^\s"\:]+)(?::([^"]+))?">/;
+import { Schemas } from 'vs/base/common/network';
 
 export class SimpleSettingRenderer {
-	private _defaultSettings: DefaultSettings;
+	private readonly codeSettingRegex: RegExp;
+
 	private _updatedSettings = new Map<string, any>(); // setting ID to user's original setting value
 	private _encounteredSettings = new Map<string, ISetting>(); // setting ID to setting
 	private _featuredSettings = new Map<string, any>(); // setting ID to feature value
@@ -29,9 +27,9 @@ export class SimpleSettingRenderer {
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IPreferencesService private readonly _preferencesService: IPreferencesService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@IClipboardService private readonly _clipboardService: IClipboardService
+		@IClipboardService private readonly _clipboardService: IClipboardService,
 	) {
-		this._defaultSettings = new DefaultSettings([], ConfigurationTarget.USER);
+		this.codeSettingRegex = new RegExp(`^<a (href)=".*code.*://settings/([^\\s"]+)"(?:\\s*codesetting="([^"]+)")?>`);
 	}
 
 	get featuredSettingStates(): Map<string, boolean> {
@@ -44,12 +42,12 @@ export class SimpleSettingRenderer {
 
 	getHtmlRenderer(): (html: string) => string {
 		return (html): string => {
-			const match = codeSettingRegex.exec(html);
+			const match = this.codeSettingRegex.exec(html);
 			if (match && match.length === 4) {
 				const settingId = match[2];
 				const rendered = this.render(settingId, match[3]);
 				if (rendered) {
-					html = html.replace(codeSettingRegex, rendered);
+					html = html.replace(this.codeSettingRegex, rendered);
 				}
 			}
 			return html;
@@ -60,25 +58,11 @@ export class SimpleSettingRenderer {
 		return `${Schemas.codeSetting}://${settingId}${value ? `/${value}` : ''}`;
 	}
 
-	private settingsGroups: ISettingsGroup[] | undefined = undefined;
 	private getSetting(settingId: string): ISetting | undefined {
-		if (!this.settingsGroups) {
-			this.settingsGroups = this._defaultSettings.getSettingsGroups();
-		}
 		if (this._encounteredSettings.has(settingId)) {
 			return this._encounteredSettings.get(settingId);
 		}
-		for (const group of this.settingsGroups) {
-			for (const section of group.sections) {
-				for (const setting of section.settings) {
-					if (setting.key === settingId) {
-						this._encounteredSettings.set(settingId, setting);
-						return setting;
-					}
-				}
-			}
-		}
-		return undefined;
+		return this._preferencesService.getSetting(settingId);
 	}
 
 	parseValue(settingId: string, value: string): any {

@@ -13,6 +13,9 @@
     "Other"
   ],
   "api": "none",
+  "enabledApiProposals": [
+    "authGetSessions"
+  ],
   "extensionKind": [
     "ui",
     "workspace"

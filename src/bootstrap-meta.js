@@ -10,19 +10,31 @@
  * @import { IProductConfiguration } from './vs/base/common/product'
  */
 
+// ESM-uncomment-begin
+// import { createRequire } from 'node:module';
+//
+// const require = createRequire(import.meta.url);
+// const module = { exports: {} };
+// ESM-uncomment-end
+
 /** @type Partial<IProductConfiguration> & { BUILD_INSERT_PRODUCT_CONFIGURATION?: string } */
-let product = { BUILD_INSERT_PRODUCT_CONFIGURATION: 'BUILD_INSERT_PRODUCT_CONFIGURATION' }; // DO NOT MODIFY, PATCHED DURING BUILD
-if (product['BUILD_INSERT_PRODUCT_CONFIGURATION']) {
+let productObj = { BUILD_INSERT_PRODUCT_CONFIGURATION: 'BUILD_INSERT_PRODUCT_CONFIGURATION' }; // DO NOT MODIFY, PATCHED DURING BUILD
+if (productObj['BUILD_INSERT_PRODUCT_CONFIGURATION']) {
 	// @ts-ignore
-	product = require('../product.json'); // Running out of sources
+	productObj = require('../product.json'); // Running out of sources
 }
 
 /** @type object & { BUILD_INSERT_PACKAGE_CONFIGURATION?: string } */
-let pkg = { BUILD_INSERT_PACKAGE_CONFIGURATION: 'BUILD_INSERT_PACKAGE_CONFIGURATION' }; // DO NOT MODIFY, PATCHED DURING BUILD
-if (pkg['BUILD_INSERT_PACKAGE_CONFIGURATION']) {
+let pkgObj = { BUILD_INSERT_PACKAGE_CONFIGURATION: 'BUILD_INSERT_PACKAGE_CONFIGURATION' }; // DO NOT MODIFY, PATCHED DURING BUILD
+if (pkgObj['BUILD_INSERT_PACKAGE_CONFIGURATION']) {
 	// @ts-ignore
-	pkg = require('../package.json'); // Running out of sources
+	pkgObj = require('../package.json'); // Running out of sources
 }
 
-exports.product = product;
-exports.pkg = pkg;
+module.exports.product = productObj;
+module.exports.pkg = pkgObj;
+
+// ESM-uncomment-begin
+// export const product = module.exports.product;
+// export const pkg = module.exports.pkg;
+// ESM-uncomment-end

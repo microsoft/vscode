@@ -6,8 +6,9 @@
 /// <reference path="../../../../typings/require.d.ts" />
 
 //@ts-check
+'use strict';
+
 (function () {
-	'use strict';
 
 	/**
 	 * @import {INativeWindowConfiguration} from '../../../platform/window/common/window'

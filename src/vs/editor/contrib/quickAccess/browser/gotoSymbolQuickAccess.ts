@@ -48,7 +48,7 @@ export abstract class AbstractGotoSymbolQuickAccessProvider extends AbstractEdit
 
 	static PREFIX = '@';
 	static SCOPE_PREFIX = ':';
-	static PREFIX_BY_CATEGORY = `${AbstractGotoSymbolQuickAccessProvider.PREFIX}${AbstractGotoSymbolQuickAccessProvider.SCOPE_PREFIX}`;
+	static PREFIX_BY_CATEGORY = `${this.PREFIX}${this.SCOPE_PREFIX}`;
 
 	protected override readonly options: IGotoSymbolQuickAccessProviderOptions;
 

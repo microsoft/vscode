@@ -88,13 +88,13 @@ export interface ISetting {
 	extensionInfo?: IExtensionInfo;
 	validator?: (value: any) => string | null;
 	enumItemLabels?: string[];
-	allKeysAreBoolean?: boolean;
 	editPresentation?: EditPresentationTypes;
 	nonLanguageSpecificDefaultValueSource?: ConfigurationDefaultValueSource;
 	isLanguageTagSetting?: boolean;
 	categoryLabel?: string;
 
 	// Internal properties
+	allKeysAreBoolean?: boolean;
 	displayExtensionId?: string;
 	stableExtensionId?: string;
 	prereleaseExtensionId?: string;
@@ -259,6 +259,7 @@ export interface IPreferencesService {
 	openDefaultKeybindingsFile(): Promise<IEditorPane | undefined>;
 	openLanguageSpecificSettings(languageId: string, options?: IOpenSettingsOptions): Promise<IEditorPane | undefined>;
 	getEditableSettingsURI(configurationTarget: ConfigurationTarget, resource?: URI): Promise<URI | null>;
+	getSetting(settingId: string): ISetting | undefined;
 
 	createSplitJsonEditorInput(configurationTarget: ConfigurationTarget, resource: URI): EditorInput;
 }
@@ -331,3 +332,5 @@ export interface IDefineKeybindingEditorContribution extends IEditorContribution
 export const FOLDER_SETTINGS_PATH = '.vscode/settings.json';
 export const DEFAULT_SETTINGS_EDITOR_SETTING = 'workbench.settings.openDefaultSettings';
 export const USE_SPLIT_JSON_SETTING = 'workbench.settings.useSplitJSON';
+
+export const SETTINGS_AUTHORITY = 'settings';

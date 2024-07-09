@@ -160,6 +160,7 @@ export interface IChatConfirmation {
 	title: string;
 	message: string;
 	data: any;
+	buttons?: string[];
 	isUsed?: boolean;
 	kind: 'confirmation';
 }

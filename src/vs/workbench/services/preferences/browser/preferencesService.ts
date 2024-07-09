@@ -33,7 +33,7 @@ import { IJSONEditingService } from 'vs/workbench/services/configuration/common/
 import { GroupDirection, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, SIDE_GROUP, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 import { KeybindingsEditorInput } from 'vs/workbench/services/preferences/browser/keybindingsEditorInput';
-import { DEFAULT_SETTINGS_EDITOR_SETTING, FOLDER_SETTINGS_PATH, IKeybindingsEditorOptions, IKeybindingsEditorPane, IOpenSettingsOptions, IPreferencesEditorModel, IPreferencesService, ISetting, ISettingsEditorOptions, USE_SPLIT_JSON_SETTING, validateSettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
+import { DEFAULT_SETTINGS_EDITOR_SETTING, FOLDER_SETTINGS_PATH, IKeybindingsEditorOptions, IKeybindingsEditorPane, IOpenSettingsOptions, IPreferencesEditorModel, IPreferencesService, ISetting, ISettingsEditorOptions, ISettingsGroup, SETTINGS_AUTHORITY, USE_SPLIT_JSON_SETTING, validateSettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { defaultKeybindingsContents, DefaultKeybindingsEditorModel, DefaultRawSettingsEditorModel, DefaultSettings, DefaultSettingsEditorModel, Settings2EditorModel, SettingsEditorModel, WorkspaceConfigurationEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -45,6 +45,7 @@ import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/c
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { ResourceSet } from 'vs/base/common/map';
 import { isEqual } from 'vs/base/common/resources';
+import { IURLService } from 'vs/platform/url/common/url';
 
 const emptyEditableSettingsContent = '{\n}';
 
@@ -65,6 +66,10 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	private readonly _requestedDefaultSettings = new ResourceSet();
 
+	private _settingsGroups: ISettingsGroup[] | undefined = undefined;
+	private _defaultSettings: DefaultSettings | undefined = undefined;
+
+
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
@@ -81,7 +86,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		@IJSONEditingService private readonly jsonEditingService: IJSONEditingService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
-		@ITextEditorService private readonly textEditorService: ITextEditorService
+		@ITextEditorService private readonly textEditorService: ITextEditorService,
+		@IURLService urlService: IURLService
 	) {
 		super();
 		// The default keybindings.json updates based on keyboard layouts, so here we make sure
@@ -94,6 +100,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			}
 			modelService.updateModel(model, defaultKeybindingsContents(keybindingService));
 		}));
+
+		this._register(urlService.registerHandler(this));
 	}
 
 	readonly defaultKeybindingsResource = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/keybindings.json' });
@@ -584,6 +592,53 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		}
 
 		return position;
+	}
+
+	private get defaultSettings(): DefaultSettings {
+		if (!this._defaultSettings) {
+			this._defaultSettings = new DefaultSettings([], ConfigurationTarget.USER);
+		}
+		return this._defaultSettings;
+	}
+
+	getSetting(settingId: string): ISetting | undefined {
+		if (!this._settingsGroups) {
+			this._settingsGroups = this.defaultSettings.getSettingsGroups();
+		}
+
+		for (const group of this._settingsGroups) {
+			for (const section of group.sections) {
+				for (const setting of section.settings) {
+					if (setting.key === settingId) {
+						return setting;
+					}
+				}
+			}
+		}
+		return undefined;
+	}
+
+	/**
+	 * Should be of the format:
+	 * 	code://settings/settingName
+	 * Examples:
+	 * 	code://settings/files.autoSave
+	 *
+	 */
+	async handleURL(uri: URI): Promise<boolean> {
+		if (uri.authority !== SETTINGS_AUTHORITY) {
+			return false;
+		}
+
+		const openSettingsOptions: IOpenSettingsOptions = {};
+		const settingInfo = uri.path.split('/').filter(part => !!part);
+		if ((settingInfo.length === 0) || !this.getSetting(settingInfo[0])) {
+			return false;
+		}
+
+		openSettingsOptions.query = settingInfo[0];
+		this.openSettings(openSettingsOptions);
+		return true;
 	}
 
 	public override dispose(): void {
