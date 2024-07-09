@@ -3,4 +3,5 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// NOTE: THIS FILE WILL BE OVERWRITTEN DURING BUILD TIME, DO NOT EDIT
+// empty placeholder declaration for the `scm/historyItemChanges/title`-menu contribution point
+// https://github.com/microsoft/vscode/issues/201997

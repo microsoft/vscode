@@ -6,8 +6,16 @@
 /// <reference path="../../../../typings/require.d.ts" />
 
 //@ts-check
+'use strict';
+
+// ESM-uncomment-begin
+// import * as os from 'os';
+// import * as path from 'path';
+//
+// const module = { exports: {} };
+// ESM-uncomment-end
+
 (function () {
-	'use strict';
 
 	/**
 	 * @import { NativeParsedArgs } from '../../environment/common/argv'
@@ -117,11 +125,17 @@
 			return factory(path, os, process.cwd()); // amd
 		});
 	} else if (typeof module === 'object' && typeof module.exports === 'object') {
+		// ESM-comment-begin
 		const path = require('path');
 		const os = require('os');
+		// ESM-comment-end
 
 		module.exports = factory(path, os, process.env['VSCODE_CWD'] || process.cwd()); // commonjs
 	} else {
 		throw new Error('Unknown context');
 	}
 }());
+
+// ESM-uncomment-begin
+// export const getUserDataPath = module.exports.getUserDataPath;
+// ESM-uncomment-end
