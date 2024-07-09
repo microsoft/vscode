@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/RedCMD/YAML-Syntax-Highlighter/commit/5d2a15e2ee4bb9c2cc9a86a0b72aea8fa2aba1e1",
+	"version": "https://github.com/RedCMD/YAML-Syntax-Highlighter/commit/274009903e20ac6dc37ba5763fb853744e28c9b2",
 	"name": "YAML Ain't Markup Language",
 	"scopeName": "source.yaml",
 	"patterns": [
@@ -15,7 +15,81 @@
 	],
 	"repository": {
 		"parity": {
-			"comment": "Yes... That is right. Due to the changes with \\x2028, \\x2029, \\x85 and 'tags'. This is all the code I was able to reuse between all versions 1.3, 1.2, 1.1 and 1.0"
+			"comment": "Yes... That is right. Due to the changes with \\x2028, \\x2029, \\x85 and 'tags'. This is all the code I was able to reuse between all YAML versions 1.3, 1.2, 1.1 and 1.0"
+		},
+		"block-map-key-single": {
+			"comment": "https://yaml.org/spec/1.2.2/#rule-c-single-quoted (BLOCK-KEY)",
+			"begin": "\\G'",
+			"end": "'(?!')",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.begin.yaml"
+				}
+			},
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.end.yaml"
+				}
+			},
+			"name": "meta.map.key.yaml string.quoted.single.yaml entity.name.tag.yaml",
+			"patterns": [
+				{
+					"match": ".[\t ]*+$",
+					"name": "invalid.illegal.multiline-key.yaml"
+				},
+				{
+					"match": "[^\t -\\x{10FFFF}]++",
+					"name": "invalid.illegal.character.yaml"
+				},
+				{
+					"match": "''",
+					"name": "constant.character.escape.single-quote.yaml"
+				}
+			]
+		},
+		"key-single": {
+			"comment": "https://yaml.org/spec/1.2.2/#rule-c-single-quoted (FLOW-OUT)",
+			"begin": "'",
+			"end": "'(?!')",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.begin.yaml"
+				}
+			},
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.end.yaml"
+				}
+			},
+			"name": "meta.map.key.yaml string.quoted.single.yaml entity.name.tag.yaml",
+			"patterns": [
+				{
+					"match": "[^\t -\\x{10FFFF}]++",
+					"name": "invalid.illegal.character.yaml"
+				},
+				{
+					"match": "''",
+					"name": "constant.character.escape.single-quote.yaml"
+				}
+			]
+		},
+		"non-printable": {
+			"//": {
+				"85": "",
+				"2028": "",
+				"2029": "",
+				"10000": "𐀀",
+				"A0": " ",
+				"D7FF": "퟿",
+				"E000": "",
+				"FFFD": "�",
+				"FEFF": "﻿",
+				"FFFF": "￿",
+				"10FFFF": "􏿿"
+			},
+			"//match": "[\\p{Cntrl}\\p{Surrogate}\\x{FFFE FFFF}&&[^\t\n\r\\x{85}]]++",
+			"match": "[^\t\n\r -~\\x{85}\\x{A0}-\\x{D7FF}\\x{E000}-\\x{FFFD}\\x{010000}-\\x{10FFFF}]++",
+			"name": "invalid.illegal.non-printable.yaml"
 		}
 	}
 }
