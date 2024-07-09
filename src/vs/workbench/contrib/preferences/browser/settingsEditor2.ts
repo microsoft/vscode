@@ -1408,9 +1408,7 @@ export class SettingsEditor2 extends EditorPane {
 				keys.forEach(key => this.settingsTreeModel.updateElementsByName(key));
 			}
 
-			// Attempt to render the tree once rather than
-			// once for each key to avoid redundant calls to this.refreshTree()
-			this.renderTree();
+			keys.forEach(key => this.renderTree(key));
 		} else {
 			this.renderTree();
 		}
@@ -1450,7 +1448,6 @@ export class SettingsEditor2 extends EditorPane {
 					// update `list`s live, as they have a separate "submit edit" step built in before this
 					(focusedSetting.parentElement && !focusedSetting.parentElement.classList.contains('setting-item-list'))
 				) {
-
 					this.updateModifiedLabelForKey(key);
 					this.scheduleRefresh(focusedSetting, key);
 					return;
@@ -1466,8 +1463,10 @@ export class SettingsEditor2 extends EditorPane {
 		if (key) {
 			const elements = this.currentSettingsModel.getElementsByName(key);
 			if (elements && elements.length) {
-				// TODO https://github.com/microsoft/vscode/issues/57360
-				this.refreshTree();
+				if (elements.length >= 2) {
+					console.warn('More than one setting with key ' + key + ' found');
+				}
+				this.refreshSingleElement(elements[0]);
 			} else {
 				// Refresh requested for a key that we don't know about
 				return;
@@ -1481,6 +1480,12 @@ export class SettingsEditor2 extends EditorPane {
 
 	private contextViewFocused(): boolean {
 		return !!DOM.findParentWithClass(<HTMLElement>this.rootElement.ownerDocument.activeElement, 'context-view');
+	}
+
+	private refreshSingleElement(element: SettingsTreeSettingElement): void {
+		if (this.isVisible()) {
+			this.settingsTree.rerender(element);
+		}
 	}
 
 	private refreshTree(): void {
