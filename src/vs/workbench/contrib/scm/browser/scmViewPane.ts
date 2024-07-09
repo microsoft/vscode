@@ -4047,13 +4047,6 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			});
 		}
 
-		// If we only have one history item that matches
-		// the current history item group, don't show it
-		if (historyItemsElement.length === 1 &&
-			historyItemsElement[0].labels?.find(l => l.title === currentHistoryItemGroup.name)) {
-			return [];
-		}
-
 		// Create the color map
 		// TODO@lszomoru - use theme colors
 		const colorMap = new Map<string, number>([
