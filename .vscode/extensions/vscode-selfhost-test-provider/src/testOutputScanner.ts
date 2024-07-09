@@ -16,6 +16,7 @@ import * as vscode from 'vscode';
 import { istanbulCoverageContext, PerTestCoverageTracker } from './coverageProvider';
 import { attachTestMessageMetadata } from './metadata';
 import { snapshotComment } from './snapshot';
+import { StackTraceLocation, StackTraceParser } from './stackTraceParser';
 import { StreamSplitter } from './streamSplitter';
 import { getContentFromFilesystem } from './testTree';
 import { IScriptCoverage } from './v8CoverageWrangling';
@@ -288,8 +289,8 @@ export async function scanTestOutput(
 
 							enqueueExitBlocker(
 								(async () => {
-									const location = await tryDeriveStackLocation(store, rawErr, tcase!);
-									let message: vscode.TestMessage;
+									const stackInfo = await deriveStackLocations(store, rawErr, tcase!);
+									let message: vscode.TestMessage2;
 
 									if (hasDiff) {
 										message = new vscode.TestMessage(tryMakeMarkdown(err));
@@ -310,7 +311,8 @@ export async function scanTestOutput(
 										);
 									}
 
-									message.location = location ?? testFirstLine;
+									message.location = stackInfo.primary ?? testFirstLine;
+									message.stackTrace = stackInfo.stack;
 									task.failed(tcase!, message, duration);
 								})()
 							);
@@ -608,44 +610,38 @@ async function replaceAllLocations(store: SourceMapStore, str: string) {
 	return values.join('');
 }
 
-async function tryDeriveStackLocation(
+async function deriveStackLocations(
 	store: SourceMapStore,
 	stack: string,
 	tcase: vscode.TestItem
 ) {
 	locationRe.lastIndex = 0;
 
-	return new Promise<vscode.Location | undefined>(resolve => {
-		const matches = [...stack.matchAll(locationRe)];
-		let todo = matches.length;
-		if (todo === 0) {
-			return resolve(undefined);
-		}
+	const locationsRaw = [...new StackTraceParser(stack)].filter(t => t instanceof StackTraceLocation);
+	const locationsMapped = await Promise.all(locationsRaw.map(async location => {
+		const mapped = location.path.startsWith('file:') ? await store.getSourceLocation(location.path, location.lineBase1 - 1, location.columnBase1 - 1) : undefined;
+		const stack = new vscode.TestMessageStackFrame(location.label || '<anonymous>', mapped?.uri, mapped?.range.start || new vscode.Position(location.lineBase1 - 1, location.columnBase1 - 1));
+		return { location: mapped, stack };
+	}));
 
-		let best: undefined | { location: vscode.Location; i: number; score: number };
-		for (const [i, match] of matches.entries()) {
-			deriveSourceLocation(store, match)
-				.catch(() => undefined)
-				.then(location => {
-					if (location) {
-						let score = 0;
-						if (tcase.uri && tcase.uri.toString() === location.uri.toString()) {
-							score = 1;
-							if (tcase.range && tcase.range.contains(location?.range)) {
-								score = 2;
-							}
-						}
-						if (!best || score > best.score || (score === best.score && i < best.i)) {
-							best = { location, i, score };
-						}
-					}
-
-					if (!--todo) {
-						resolve(best?.location);
-					}
-				});
+	let best: undefined | { location: vscode.Location; score: number };
+	for (const { location } of locationsMapped) {
+		if (!location) {
+			continue;
 		}
-	});
+		let score = 0;
+		if (tcase.uri && tcase.uri.toString() === location.uri.toString()) {
+			score = 1;
+			if (tcase.range && tcase.range.contains(location?.range)) {
+				score = 2;
+			}
+		}
+		if (!best || score > best.score) {
+			best = { location, score };
+		}
+	}
+
+	return { stack: locationsMapped.map(s => s.stack), primary: best?.location };
 }
 
 async function deriveSourceLocation(store: SourceMapStore, parts: RegExpMatchArray) {

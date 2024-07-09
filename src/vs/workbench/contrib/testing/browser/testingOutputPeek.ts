@@ -700,6 +700,9 @@ class TestResultsPeek extends PeekViewWidget {
 			TestingContextKeys.isInPeek.bindTo(this.scopedContextKeyService).set(true);
 			const instaService = this._disposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
 			this.content = this._disposables.add(instaService.createInstance(TestResultsViewContent, this.editor, { historyVisible: this.testingPeek.historyVisible, showRevealLocationOnMessages: false, locationForProgress: Testing.ResultsViewId }));
+			this._disposables.add(this.content.onClose(() => {
+				TestingOutputPeekController.get(this.editor)?.removePeek();
+			}));
 		}
 
 		super._fillContainer(container);

@@ -34,6 +34,10 @@ export class MessageSubject {
 		return this.message.type === TestMessageType.Error ? this.message.contextValue : undefined;
 	}
 
+	public get stack() {
+		return this.message.type === TestMessageType.Error && this.message.stackTrace?.length ? this.message.stackTrace : undefined;
+	}
+
 	constructor(public readonly result: ITestResult, test: TestResultItem, public readonly taskIndex: number, public readonly messageIndex: number) {
 		this.test = test.item;
 		const messages = test.tasks[taskIndex].messages;

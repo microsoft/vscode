@@ -9,10 +9,10 @@ import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { Orientation, Sizing, SplitView } from 'vs/base/browser/ui/splitview/splitview';
 import { Limiter } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter, Event, Relay } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import 'vs/css!./testingOutputPeek';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import 'vs/css!./testResultsViewContent';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { localize } from 'vs/nls';
@@ -22,25 +22,33 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { TestResultStackWidget } from 'vs/workbench/contrib/testing/browser/testResultsView/testMessageStack';
 import { DiffContentProvider, IPeekOutputRenderer, MarkdownTestMessagePeek, PlainTextMessagePeek, TerminalMessagePeek } from 'vs/workbench/contrib/testing/browser/testResultsView/testResultsOutput';
 import { InspectSubject, MessageSubject, equalsSubject } from 'vs/workbench/contrib/testing/browser/testResultsView/testResultsSubject';
 import { OutputPeekTree } from 'vs/workbench/contrib/testing/browser/testResultsView/testResultsTree';
-import { TestingOutputPeekController } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
 import { IObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
 import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestFollowup, ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 
+const enum SubView {
+	CallStack = 0,
+	Diff = 1,
+	History = 2,
+}
 
 export class TestResultsViewContent extends Disposable {
 	private static lastSplitWidth?: number;
 
 	private readonly didReveal = this._register(new Emitter<{ subject: InspectSubject; preserveFocus: boolean }>());
 	private readonly currentSubjectStore = this._register(new DisposableStore());
+	private readonly onCloseEmitter = this._register(new Relay<void>());
 	private followupWidget!: FollowupActionWidget;
 	private messageContextKeyService!: IContextKeyService;
 	private contextKeyTestMessage!: IContextKey<string>;
 	private contextKeyResultOutdated!: IContextKey<boolean>;
+	private callStackEl!: HTMLElement;
+	private readonly callStackWidget = this._register(new MutableDisposable<TestResultStackWidget>());
 
 	private dimension?: dom.Dimension;
 	private splitView!: SplitView;
@@ -52,6 +60,8 @@ export class TestResultsViewContent extends Disposable {
 
 	/** Fired when a tree item is selected. Populated only on .fillBody() */
 	public onDidRequestReveal!: Event<InspectSubject>;
+
+	public readonly onClose = this.onCloseEmitter.event;
 
 	constructor(
 		private readonly editor: ICodeEditor | undefined,
@@ -70,11 +80,14 @@ export class TestResultsViewContent extends Disposable {
 	public fillBody(containerElement: HTMLElement): void {
 		const initialSpitWidth = TestResultsViewContent.lastSplitWidth;
 		this.splitView = new SplitView(containerElement, { orientation: Orientation.HORIZONTAL });
+		this.callStackEl = dom.append(containerElement, dom.$('.test-output-call-stack'));
 
 		const { historyVisible, showRevealLocationOnMessages } = this.options;
 		const isInPeekView = this.editor !== undefined;
 		const messageContainer = this.messageContainer = dom.append(containerElement, dom.$('.test-output-peek-message-container'));
 		this.followupWidget = this._register(this.instantiationService.createInstance(FollowupActionWidget, messageContainer, this.editor));
+		this.onCloseEmitter.input = this.followupWidget.onClose;
+
 		this.contentProviders = [
 			this._register(this.instantiationService.createInstance(DiffContentProvider, this.editor, messageContainer)),
 			this._register(this.instantiationService.createInstance(MarkdownTestMessagePeek, messageContainer)),
@@ -123,10 +136,10 @@ export class TestResultsViewContent extends Disposable {
 			},
 		}, Sizing.Distribute);
 
-		const historyViewIndex = 1;
-		this.splitView.setViewVisible(historyViewIndex, historyVisible.value);
+
+		this.splitView.setViewVisible(this.viewIndex(SubView.History), historyVisible.value);
 		this._register(historyVisible.onDidChange(visible => {
-			this.splitView.setViewVisible(historyViewIndex, visible);
+			this.splitView.setViewVisible(this.viewIndex(SubView.History), visible);
 		}));
 
 		if (initialSpitWidth) {
@@ -150,8 +163,41 @@ export class TestResultsViewContent extends Disposable {
 			await Promise.all(this.contentProviders.map(p => p.update(opts.subject)));
 			this.followupWidget.show(opts.subject);
 			this.currentSubjectStore.clear();
+			// todo@connor4312: disabled for next Insiders, finish implementing this!
+			if (Date.now() < 0) { this.updateVisiblityOfStackView(opts.subject); }
 			this.populateFloatingClick(opts.subject);
 		});
+	}
+
+	private updateVisiblityOfStackView(subject: InspectSubject) {
+		const stack = subject instanceof MessageSubject && subject.stack;
+
+		if (stack) {
+			if (!this.callStackWidget.value) {
+				const widget = this.callStackWidget.value = this.instantiationService.createInstance(TestResultStackWidget, this.callStackEl);
+				this.splitView.addView({
+					onDidChange: Event.None,
+					element: this.callStackEl,
+					minimumSize: 100,
+					maximumSize: Number.MAX_VALUE,
+					layout: width => widget.layout(undefined, width),
+				}, 150, 0);
+			}
+
+			this.callStackWidget.value.update(stack);
+		} else if (this.callStackWidget.value) {
+			this.splitView.removeView(0);
+			this.callStackWidget.dispose();
+		}
+	}
+
+	private viewIndex(subView: SubView) {
+		// the call stack view is index 0, if it's not visible then all indicies are shifted by one
+		if (!this.callStackWidget.value) {
+			return subView - 1;
+		}
+
+		return subView;
 	}
 
 	private populateFloatingClick(subject: InspectSubject) {
@@ -201,6 +247,8 @@ const FOLLOWUP_ANIMATION_MIN_TIME = 500;
 class FollowupActionWidget extends Disposable {
 	private readonly el = dom.h('div.testing-followup-action', []);
 	private readonly visibleStore = this._register(new DisposableStore());
+	private readonly onCloseEmitter = this._register(new Emitter<void>());
+	public readonly onClose = this.onCloseEmitter.event;
 
 	constructor(
 		private readonly container: HTMLElement,
@@ -298,7 +346,7 @@ class FollowupActionWidget extends Disposable {
 			fu.execute();
 
 			if (this.editor) {
-				TestingOutputPeekController.get(this.editor)?.removePeek();
+				this.onCloseEmitter.fire();
 			}
 		}
 	}
