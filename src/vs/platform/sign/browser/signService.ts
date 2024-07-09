@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { resolveAmdNodeModulePath } from 'vs/amdX';
 import { WindowIntervalTimer } from 'vs/base/browser/dom';
 import { mainWindow } from 'vs/base/browser/window';
+import { isESM } from 'vs/base/common/amd';
 import { memoize } from 'vs/base/common/decorators';
 import { FileAccess } from 'vs/base/common/network';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -87,7 +89,10 @@ export class SignService extends AbstractSignService implements ISignService {
 	}
 
 	private async getWasmBytes(): Promise<ArrayBuffer> {
-		const response = await fetch(FileAccess.asBrowserUri('vsda/../vsda_bg.wasm').toString(true));
+		const url = isESM
+			? resolveAmdNodeModulePath('vsda', 'vsda_bg.wasm')
+			: FileAccess.asBrowserUri('vsda/../vsda_bg.wasm').toString(true);
+		const response = await fetch(url);
 		if (!response.ok) {
 			throw new Error('error loading vsda');
 		}
