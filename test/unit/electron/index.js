@@ -218,6 +218,12 @@ class IPCRunner extends events.EventEmitter {
 
 app.on('ready', () => {
 
+	// needed when loading resources from the renderer, e.g xterm.js or the encoding lib
+	session.defaultSession.protocol.registerFileProtocol('vscode-file', (request, callback) => {
+		const path = new URL(request.url).pathname;
+		callback({ path });
+	});
+
 	ipcMain.on('error', (_, err) => {
 		if (!args.dev) {
 			console.error(err);
