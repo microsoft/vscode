@@ -70,4 +70,9 @@ export interface ISandboxConfiguration {
 		 */
 		language: string | undefined;
 	};
+
+	/**
+	 * DEV time only! All css-modules that we have.
+	 */
+	cssModules?: string[];
 }

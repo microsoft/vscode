@@ -39,7 +39,7 @@ import { IAddedViewDescriptorRef, ICustomViewDescriptor, IView, IViewContainerMo
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { FocusedViewContext } from 'vs/workbench/common/contextkeys';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IWorkbenchLayoutService, LayoutSettings, Position } from 'vs/workbench/services/layout/browser/layoutService';
+import { isHorizontal, IWorkbenchLayoutService, LayoutSettings } from 'vs/workbench/services/layout/browser/layoutService';
 import { IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 
 export const ViewsSubMenu = new MenuId('Views');
@@ -625,8 +625,9 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 			case ViewContainerLocation.Sidebar:
 			case ViewContainerLocation.AuxiliaryBar:
 				return Orientation.VERTICAL;
-			case ViewContainerLocation.Panel:
-				return this.layoutService.getPanelPosition() === Position.BOTTOM ? Orientation.HORIZONTAL : Orientation.VERTICAL;
+			case ViewContainerLocation.Panel: {
+				return isHorizontal(this.layoutService.getPanelPosition()) ? Orientation.HORIZONTAL : Orientation.VERTICAL;
+			}
 		}
 
 		return Orientation.VERTICAL;

@@ -145,29 +145,42 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			return [];
 		}
 
-		// Get the commits
-		const commits = await this.repository.log({ range: `${refsMergeBase}^..`, refNames, shortStats: true });
-
-		await ensureEmojis();
-
 		const historyItems: SourceControlHistoryItem[] = [];
-		historyItems.push(...commits.map(commit => {
-			const newLineIndex = commit.message.indexOf('\n');
-			const subject = newLineIndex !== -1 ? commit.message.substring(0, newLineIndex) : commit.message;
 
-			const labels = this.resolveHistoryItemLabels(commit, refNames);
+		try {
+			// Get the common ancestor commit, and commits
+			const [mergeBaseCommit, commits] = await Promise.all([
+				this.repository.getCommit(refsMergeBase),
+				this.repository.log({ range: `${refsMergeBase}..`, refNames, shortStats: true })
+			]);
 
-			return {
-				id: commit.hash,
-				parentIds: commit.parents,
-				message: emojify(subject),
-				author: commit.authorName,
-				icon: new ThemeIcon('git-commit'),
-				timestamp: commit.authorDate?.getTime(),
-				statistics: commit.shortStat ?? { files: 0, insertions: 0, deletions: 0 },
-				labels: labels.length !== 0 ? labels : undefined
-			};
-		}));
+			// Add common ancestor commit
+			if (commits.length !== 0) {
+				commits.push(mergeBaseCommit);
+			}
+
+			await ensureEmojis();
+
+			historyItems.push(...commits.map(commit => {
+				const newLineIndex = commit.message.indexOf('\n');
+				const subject = newLineIndex !== -1 ? commit.message.substring(0, newLineIndex) : commit.message;
+
+				const labels = this.resolveHistoryItemLabels(commit, refNames);
+
+				return {
+					id: commit.hash,
+					parentIds: commit.parents,
+					message: emojify(subject),
+					author: commit.authorName,
+					icon: new ThemeIcon('git-commit'),
+					timestamp: commit.authorDate?.getTime(),
+					statistics: commit.shortStat ?? { files: 0, insertions: 0, deletions: 0 },
+					labels: labels.length !== 0 ? labels : undefined
+				};
+			}));
+		} catch (err) {
+			this.logger.error(`[GitHistoryProvider][provideHistoryItems2] Failed to get history items '${refsMergeBase}..': ${err}`);
+		}
 
 		return historyItems;
 	}

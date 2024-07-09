@@ -96,7 +96,7 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { stripIcons } from 'vs/base/common/iconLabels';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { editorSelectionBackground, foreground, inputBackground, inputForeground, listActiveSelectionForeground, registerColor, selectionBackground, transparent } from 'vs/platform/theme/common/colorRegistry';
-import { IMenuWorkbenchToolBarOptions, MenuWorkbenchToolBar, WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { IMenuWorkbenchToolBarOptions, WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
 import { clamp, rot } from 'vs/base/common/numbers';
@@ -1201,7 +1201,9 @@ class HistoryItemChangeRenderer implements ICompressibleTreeRenderer<SCMHistoryI
 
 interface SeparatorTemplate {
 	readonly label: IconLabel;
-	readonly disposables: DisposableStore;
+	readonly toolBar: WorkbenchToolBar;
+	readonly elementDisposables: DisposableStore;
+	readonly templateDisposables: DisposableStore;
 }
 
 class SeparatorRenderer implements ICompressibleTreeRenderer<SCMViewSeparatorElement, void, SeparatorTemplate> {
@@ -1226,31 +1228,46 @@ class SeparatorRenderer implements ICompressibleTreeRenderer<SCMViewSeparatorEle
 		// Use default cursor & disable hover for list item
 		container.parentElement!.parentElement!.classList.add('cursor-default', 'force-no-hover');
 
-		const disposables = new DisposableStore();
+		const templateDisposables = new DisposableStore();
 		const element = append(container, $('.separator-container'));
 		const label = new IconLabel(element, { supportIcons: true, });
 		append(element, $('.separator'));
-		disposables.add(label);
+		templateDisposables.add(label);
 
-		if (this.configurationService.getValue<boolean>('scm.experimental.showHistoryGraph') !== true) {
-			const toolBar = new MenuWorkbenchToolBar(append(element, $('.actions')), MenuId.SCMChangesSeparator, { moreIcon: Codicon.gear }, this.menuService, this.contextKeyService, this.contextMenuService, this.keybindingService, this.commandService, this.telemetryService);
-			disposables.add(toolBar);
-		}
+		const options = { moreIcon: this.configurationService.getValue<boolean>('scm.experimental.showHistoryGraph') === true ? Codicon.more : Codicon.gear } satisfies IMenuWorkbenchToolBarOptions;
+		const toolBar = new WorkbenchToolBar(append(element, $('.actions')), options, this.menuService, this.contextKeyService, this.contextMenuService, this.keybindingService, this.commandService, this.telemetryService);
+		templateDisposables.add(toolBar);
 
-		return { label, disposables };
+		return { label, toolBar, elementDisposables: new DisposableStore(), templateDisposables };
 	}
 	renderElement(element: ITreeNode<SCMViewSeparatorElement, void>, index: number, templateData: SeparatorTemplate, height: number | undefined): void {
+		const currentHistoryItemGroup = element.element.repository.provider.historyProvider?.currentHistoryItemGroup;
+
+		// Label
 		templateData.label.setLabel(element.element.label, undefined, { title: element.element.ariaLabel });
+
+		// Toolbar
+		const contextKeyService = this.contextKeyService.createOverlay([
+			['scmHistoryItemGroupHasRemote', !!currentHistoryItemGroup?.remote],
+		]);
+		const menu = this.menuService.createMenu(MenuId.SCMChangesSeparator, contextKeyService);
+		templateData.elementDisposables.add(connectPrimaryMenu(menu, (primary, secondary) => {
+			templateData.toolBar.setActions(primary, secondary, [MenuId.SCMChangesSeparator]);
+		}));
 	}
 
 	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<SCMViewSeparatorElement>, void>, index: number, templateData: SeparatorTemplate, height: number | undefined): void {
 		throw new Error('Should never happen since node is incompressible');
 	}
 
-	disposeTemplate(templateData: SeparatorTemplate): void {
-		templateData.disposables.dispose();
+	disposeElement(node: ITreeNode<SCMViewSeparatorElement>, index: number, templateData: SeparatorTemplate, height: number | undefined): void {
+		templateData.elementDisposables.clear();
 	}
 
+	disposeTemplate(templateData: SeparatorTemplate): void {
+		templateData.elementDisposables.dispose();
+		templateData.templateDisposables.dispose();
+	}
 }
 
 class ListDelegate implements IListVirtualDelegate<TreeElement> {
@@ -1672,14 +1689,16 @@ MenuRegistry.appendMenuItem(MenuId.SCMChangesSeparator, {
 	title: localize('incomingChanges', "Show Incoming Changes"),
 	submenu: MenuId.SCMIncomingChangesSetting,
 	group: '1_incoming&outgoing',
-	order: 1
+	order: 1,
+	when: ContextKeyExpr.equals('config.scm.experimental.showHistoryGraph', false)
 });
 
 MenuRegistry.appendMenuItem(Menus.ChangesSettings, {
 	title: localize('incomingChanges', "Show Incoming Changes"),
 	submenu: MenuId.SCMIncomingChangesSetting,
 	group: '1_incoming&outgoing',
-	order: 1
+	order: 1,
+	when: ContextKeyExpr.equals('config.scm.experimental.showHistoryGraph', false)
 });
 
 registerAction2(class extends SCMChangesSettingAction {
@@ -1723,14 +1742,16 @@ MenuRegistry.appendMenuItem(MenuId.SCMChangesSeparator, {
 	title: localize('outgoingChanges', "Show Outgoing Changes"),
 	submenu: MenuId.SCMOutgoingChangesSetting,
 	group: '1_incoming&outgoing',
-	order: 2
+	order: 2,
+	when: ContextKeyExpr.equals('config.scm.experimental.showHistoryGraph', false)
 });
 
 MenuRegistry.appendMenuItem(Menus.ChangesSettings, {
 	title: localize('outgoingChanges', "Show Outgoing Changes"),
 	submenu: MenuId.SCMOutgoingChangesSetting,
 	group: '1_incoming&outgoing',
-	order: 2
+	order: 2,
+	when: ContextKeyExpr.equals('config.scm.experimental.showHistoryGraph', false)
 });
 
 registerAction2(class extends SCMChangesSettingAction {
@@ -1781,8 +1802,16 @@ registerAction2(class extends Action2 {
 			f1: false,
 			toggled: ContextKeyExpr.equals('config.scm.showChangesSummary', true),
 			menu: [
-				{ id: MenuId.SCMChangesSeparator, order: 3 },
-				{ id: Menus.ChangesSettings, order: 3 },
+				{
+					id: MenuId.SCMChangesSeparator,
+					order: 3,
+					when: ContextKeyExpr.equals('config.scm.experimental.showHistoryGraph', false)
+				},
+				{
+					id: Menus.ChangesSettings,
+					order: 3,
+					when: ContextKeyExpr.equals('config.scm.experimental.showHistoryGraph', false)
+				},
 			]
 		});
 	}
@@ -2179,7 +2208,7 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 	private _onDidChange = new Emitter<void>();
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
-	private readonly repositoryDisposables = new DisposableStore();
+	private readonly _disposables = this._register(new MutableDisposable<DisposableStore>());
 
 	constructor(
 		container: HTMLElement,
@@ -2207,7 +2236,7 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 	}
 
 	public setInput(input: ISCMInput): void {
-		this.repositoryDisposables.clear();
+		this._disposables.value = new DisposableStore();
 
 		const contextKeyService = this.contextKeyService.createOverlay([
 			['scmProvider', input.repository.provider.contextValue],
@@ -2215,7 +2244,7 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 			['scmProviderHasRootUri', !!input.repository.provider.rootUri]
 		]);
 
-		const menu = this.repositoryDisposables.add(this.menuService.createMenu(MenuId.SCMInputBox, contextKeyService, { emitEventsForSubmenuChanges: true }));
+		const menu = this._disposables.value.add(this.menuService.createMenu(MenuId.SCMInputBox, contextKeyService, { emitEventsForSubmenuChanges: true }));
 
 		const isEnabled = (): boolean => {
 			return input.repository.provider.groups.some(g => g.resources.length > 0);
@@ -2245,29 +2274,24 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 			this._onDidChange.fire();
 		};
 
-		this.repositoryDisposables.add(menu.onDidChange(() => updateToolbar()));
-		this.repositoryDisposables.add(input.repository.provider.onDidChangeResources(() => updateToolbar()));
-		this.repositoryDisposables.add(this.storageService.onDidChangeValue(StorageScope.PROFILE, SCMInputWidgetStorageKey.LastActionId, this.repositoryDisposables)(() => updateToolbar()));
+		this._disposables.value.add(menu.onDidChange(() => updateToolbar()));
+		this._disposables.value.add(input.repository.provider.onDidChangeResources(() => updateToolbar()));
+		this._disposables.value.add(this.storageService.onDidChangeValue(StorageScope.PROFILE, SCMInputWidgetStorageKey.LastActionId, this._disposables.value)(() => updateToolbar()));
 
 		this.actionRunner = new SCMInputWidgetActionRunner(input, this.storageService);
-		this.repositoryDisposables.add(this.actionRunner.onWillRun(e => {
+		this._disposables.value.add(this.actionRunner.onWillRun(e => {
 			if ((this.actionRunner as SCMInputWidgetActionRunner).runningActions.size === 0) {
 				super.setActions([this._cancelAction], []);
 				this._onDidChange.fire();
 			}
 		}));
-		this.repositoryDisposables.add(this.actionRunner.onDidRun(e => {
+		this._disposables.value.add(this.actionRunner.onDidRun(e => {
 			if ((this.actionRunner as SCMInputWidgetActionRunner).runningActions.size === 0) {
 				updateToolbar();
 			}
 		}));
 
 		updateToolbar();
-	}
-
-	override dispose(): void {
-		this.repositoryDisposables.dispose();
-		super.dispose();
 	}
 }
 
@@ -4021,13 +4045,6 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 				...historyProviderCacheEntry,
 				historyItems2: historyItemsMap.set(element.id, historyItemsElement)
 			});
-		}
-
-		// If we only have one history item that matches
-		// the current history item group, don't show it
-		if (historyItemsElement.length === 1 &&
-			historyItemsElement[0].labels?.find(l => l.title === currentHistoryItemGroup.name)) {
-			return [];
 		}
 
 		// Create the color map

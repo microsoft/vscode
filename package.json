@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.92.0",
-  "distro": "58e7d90e05684b6937db21dd372f7a088bdc9dc1",
+  "distro": "abf8b974fc98ae45b7729d258b0459182c617887",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -93,7 +93,7 @@
     "http-proxy-agent": "^7.0.0",
     "https-proxy-agent": "^7.0.2",
     "jschardet": "3.1.3",
-    "kerberos": "^2.0.1",
+    "kerberos": "2.1.1-alpha.0",
     "minimist": "^1.2.6",
     "native-is-elevated": "0.7.0",
     "native-keymap": "^3.3.5",
@@ -136,7 +136,7 @@
     "@vscode/l10n-dev": "0.0.35",
     "@vscode/telemetry-extractor": "^1.10.2",
     "@vscode/test-cli": "^0.0.6",
-    "@vscode/test-electron": "^2.3.8",
+    "@vscode/test-electron": "^2.4.0",
     "@vscode/test-web": "^0.0.56",
     "@vscode/v8-heap-parser": "^0.1.0",
     "@vscode/vscode-perf": "^0.0.14",
@@ -149,7 +149,7 @@
     "cssnano": "^6.0.3",
     "debounce": "^1.0.0",
     "deemon": "^1.8.0",
-    "electron": "29.4.0",
+    "electron": "30.1.2",
     "eslint": "8.36.0",
     "eslint-plugin-header": "3.1.1",
     "eslint-plugin-jsdoc": "^46.5.0",
