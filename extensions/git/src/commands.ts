@@ -3051,7 +3051,8 @@ export class CommandCenter {
 	}
 
 	@command('git.fetchRef', { repository: true })
-	async fetchRef(repository: Repository, ref: string): Promise<void> {
+	async fetchRef(repository: Repository, ref?: string): Promise<void> {
+		ref = ref ?? repository?.historyProvider.currentHistoryItemGroup?.remote?.id;
 		if (!repository || !ref) {
 			return;
 		}
@@ -3123,7 +3124,8 @@ export class CommandCenter {
 	}
 
 	@command('git.pullRef', { repository: true })
-	async pullRef(repository: Repository, ref: string): Promise<void> {
+	async pullRef(repository: Repository, ref?: string): Promise<void> {
+		ref = ref ?? repository?.historyProvider.currentHistoryItemGroup?.remote?.id;
 		if (!repository || !ref) {
 			return;
 		}
@@ -3270,8 +3272,8 @@ export class CommandCenter {
 	}
 
 	@command('git.pushRef', { repository: true })
-	async pushRef(repository: Repository, ref: string): Promise<void> {
-		if (!repository || !ref) {
+	async pushRef(repository: Repository): Promise<void> {
+		if (!repository) {
 			return;
 		}
 
