@@ -23,7 +23,7 @@ const isESM = false;
 // ESM-uncomment-end
 
 // Simple module style to support node.js and browser environments
-(function (globalThis, factory) {
+(function (factory) {
 
 	// Node.js
 	if (typeof exports === 'object') {
@@ -35,7 +35,7 @@ const isESM = false;
 		// @ts-ignore
 		globalThis.MonacoBootstrapWindow = factory();
 	}
-}(this, function () {
+}(function () {
 	const bootstrapLib = bootstrap();
 	const preloadGlobals = sandboxGlobals();
 	const safeProcess = preloadGlobals.process;
