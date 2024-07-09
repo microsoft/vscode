@@ -210,7 +210,7 @@ extends:
       - stage: SignMacos
         jobs:
           - job: SignMacos
-            timeoutInMinutes: 90
+            timeoutInMinutes: 10
             pool:
               name: Azure Pipelines
               image: macOS-13
