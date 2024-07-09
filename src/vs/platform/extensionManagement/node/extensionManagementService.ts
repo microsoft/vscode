@@ -111,12 +111,6 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 		return URI.file(location);
 	}
 
-	async unzip(zipLocation: URI): Promise<IExtensionIdentifier> {
-		this.logService.trace('ExtensionManagementService#unzip', zipLocation.toString());
-		const local = await this.install(zipLocation);
-		return local.identifier;
-	}
-
 	async getManifest(vsix: URI): Promise<IExtensionManifest> {
 		const { location, cleanup } = await this.downloadVsix(vsix);
 		const zipPath = path.resolve(location.fsPath);
@@ -354,7 +348,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 				pinned: options.installGivenVersion ? true : !!options.pinned,
 				source: 'vsix',
 			},
-			true,
+			options.keepExisting ?? true,
 			token);
 		return { local };
 	}
@@ -582,71 +576,67 @@ export class ExtensionsScanner extends Disposable {
 		const tempLocation = URI.file(path.join(this.extensionsScannerService.userExtensionsLocation.fsPath, `.${generateUuid()}`));
 		const extensionLocation = URI.file(path.join(this.extensionsScannerService.userExtensionsLocation.fsPath, folderName));
 
-		let exists = await this.fileService.exists(extensionLocation);
+		if (await this.fileService.exists(extensionLocation)) {
+			if (!removeIfExists) {
+				try {
+					return await this.scanLocalExtension(extensionLocation, ExtensionType.User);
+				} catch (error) {
+					this.logService.warn(`Error while scanning the existing extension at ${extensionLocation.path}. Deleting the existing extension and extracting it.`, getErrorMessage(error));
+				}
+			}
 
-		if (exists && removeIfExists) {
 			try {
 				await this.deleteExtensionFromLocation(extensionKey.id, extensionLocation, 'removeExisting');
 			} catch (error) {
 				throw new ExtensionManagementError(nls.localize('errorDeleting', "Unable to delete the existing folder '{0}' while installing the extension '{1}'. Please delete the folder manually and try again", extensionLocation.fsPath, extensionKey.id), ExtensionManagementErrorCode.Delete);
 			}
-			exists = false;
 		}
 
-		if (exists) {
+		try {
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+
+			// Extract
 			try {
-				await this.extensionsScannerService.updateMetadata(extensionLocation, metadata);
+				this.logService.trace(`Started extracting the extension from ${zipPath} to ${extensionLocation.fsPath}`);
+				await extract(zipPath, tempLocation.fsPath, { sourcePath: 'extension', overwrite: true }, token);
+				this.logService.info(`Extracted extension to ${extensionLocation}:`, extensionKey.id);
+			} catch (e) {
+				throw fromExtractError(e);
+			}
+
+			try {
+				await this.extensionsScannerService.updateMetadata(tempLocation, metadata);
 			} catch (error) {
 				this.telemetryService.publicLog2<UpdateMetadataErrorEvent, UpdateMetadataErrorClassification>('extension:extract', { extensionId: extensionKey.id, code: `${toFileOperationResult(error)}` });
-				throw toExtensionManagementError(error, ExtensionManagementErrorCode.UpdateExistingMetadata);
+				throw toExtensionManagementError(error, ExtensionManagementErrorCode.UpdateMetadata);
 			}
-		} else {
+
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+
+			// Rename
 			try {
-				if (token.isCancellationRequested) {
-					throw new CancellationError();
-				}
-
-				// Extract
-				try {
-					this.logService.trace(`Started extracting the extension from ${zipPath} to ${extensionLocation.fsPath}`);
-					await extract(zipPath, tempLocation.fsPath, { sourcePath: 'extension', overwrite: true }, token);
-					this.logService.info(`Extracted extension to ${extensionLocation}:`, extensionKey.id);
-				} catch (e) {
-					throw fromExtractError(e);
-				}
-
-				try {
-					await this.extensionsScannerService.updateMetadata(tempLocation, metadata);
-				} catch (error) {
-					this.telemetryService.publicLog2<UpdateMetadataErrorEvent, UpdateMetadataErrorClassification>('extension:extract', { extensionId: extensionKey.id, code: `${toFileOperationResult(error)}` });
-					throw toExtensionManagementError(error, ExtensionManagementErrorCode.UpdateMetadata);
-				}
-
-				if (token.isCancellationRequested) {
-					throw new CancellationError();
-				}
-
-				// Rename
-				try {
-					this.logService.trace(`Started renaming the extension from ${tempLocation.fsPath} to ${extensionLocation.fsPath}`);
-					await this.rename(tempLocation.fsPath, extensionLocation.fsPath);
-					this.logService.info('Renamed to', extensionLocation.fsPath);
-				} catch (error) {
-					if (error.code === 'ENOTEMPTY') {
-						this.logService.info(`Rename failed because extension was installed by another source. So ignoring renaming.`, extensionKey.id);
-						try { await this.fileService.del(tempLocation, { recursive: true }); } catch (e) { /* ignore */ }
-					} else {
-						this.logService.info(`Rename failed because of ${getErrorMessage(error)}. Deleted from extracted location`, tempLocation);
-						throw error;
-					}
-				}
-
-				this._onExtract.fire(extensionLocation);
-
+				this.logService.trace(`Started renaming the extension from ${tempLocation.fsPath} to ${extensionLocation.fsPath}`);
+				await this.rename(tempLocation.fsPath, extensionLocation.fsPath);
+				this.logService.info('Renamed to', extensionLocation.fsPath);
 			} catch (error) {
-				try { await this.fileService.del(tempLocation, { recursive: true }); } catch (e) { /* ignore */ }
-				throw error;
+				if (error.code === 'ENOTEMPTY') {
+					this.logService.info(`Rename failed because extension was installed by another source. So ignoring renaming.`, extensionKey.id);
+					try { await this.fileService.del(tempLocation, { recursive: true }); } catch (e) { /* ignore */ }
+				} else {
+					this.logService.info(`Rename failed because of ${getErrorMessage(error)}. Deleted from extracted location`, tempLocation);
+					throw error;
+				}
 			}
+
+			this._onExtract.fire(extensionLocation);
+
+		} catch (error) {
+			try { await this.fileService.del(tempLocation, { recursive: true }); } catch (e) { /* ignore */ }
+			throw error;
 		}
 
 		return this.scanLocalExtension(extensionLocation, ExtensionType.User);
