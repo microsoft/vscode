@@ -12,9 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import { CoreEditingCommands } from 'vs/editor/browser/coreCommands';
 import { getCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IPosition } from 'vs/editor/common/core/position';
-import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
-import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import * as nls from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -30,7 +28,6 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { DEFAULT_EDITOR_ASSOCIATION, IEditorPane } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
-import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { GroupDirection, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, SIDE_GROUP, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
@@ -45,6 +42,8 @@ import { isObject } from 'vs/base/common/types';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { ResourceSet } from 'vs/base/common/map';
+import { isEqual } from 'vs/base/common/resources';
 import { IURLService } from 'vs/platform/url/common/url';
 
 const emptyEditableSettingsContent = '{\n}';
@@ -55,12 +54,20 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	private readonly _onDispose = this._register(new Emitter<void>());
 
+	private readonly _onDidDefaultSettingsContentChanged = this._register(new Emitter<URI>());
+	readonly onDidDefaultSettingsContentChanged = this._onDidDefaultSettingsContentChanged.event;
+
 	private _defaultUserSettingsContentModel: DefaultSettings | undefined;
 	private _defaultWorkspaceSettingsContentModel: DefaultSettings | undefined;
 	private _defaultFolderSettingsContentModel: DefaultSettings | undefined;
 
+	private _defaultRawSettingsEditorModel: DefaultRawSettingsEditorModel | undefined;
+
+	private readonly _requestedDefaultSettings = new ResourceSet();
+
 	private _settingsGroups: ISettingsGroup[] | undefined = undefined;
 	private _defaultSettings: DefaultSettings | undefined = undefined;
+
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
@@ -74,9 +81,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IModelService private readonly modelService: IModelService,
+		@IModelService modelService: IModelService,
 		@IJSONEditingService private readonly jsonEditingService: IJSONEditingService,
-		@ILanguageService private readonly languageService: ILanguageService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
 		@ITextEditorService private readonly textEditorService: ITextEditorService,
@@ -121,52 +127,39 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return folder ? folder.toResource(FOLDER_SETTINGS_PATH) : null;
 	}
 
-	resolveModel(uri: URI): ITextModel | null {
+	hasDefaultSettingsContent(uri: URI): boolean {
+		return this.isDefaultSettingsResource(uri) || isEqual(uri, this.defaultSettingsRawResource) || isEqual(uri, this.defaultKeybindingsResource);
+	}
+
+	getDefaultSettingsContent(uri: URI): string | undefined {
 		if (this.isDefaultSettingsResource(uri)) {
 			// We opened a split json editor in this case,
 			// and this half shows the default settings.
+
 			const target = this.getConfigurationTargetFromDefaultSettingsResource(uri);
-			const languageSelection = this.languageService.createById('jsonc');
-			const model = this._register(this.modelService.createModel('', languageSelection, uri));
+			const defaultSettings = this.getDefaultSettings(target);
 
-			let defaultSettings: DefaultSettings | undefined;
-			this.configurationService.onDidChangeConfiguration(e => {
-				if (e.source === ConfigurationTarget.DEFAULT) {
-					const model = this.modelService.getModel(uri);
-					if (!model) {
-						// model has not been given out => nothing to do
-						return;
-					}
-					defaultSettings = this.getDefaultSettings(target);
-					this.modelService.updateModel(model, defaultSettings.getContentWithoutMostCommonlyUsed(true));
-					defaultSettings._onDidChange.fire();
-				}
-			});
-
-			// Check if Default settings is already created and updated in above promise
-			if (!defaultSettings) {
-				defaultSettings = this.getDefaultSettings(target);
-				this.modelService.updateModel(model, defaultSettings.getContentWithoutMostCommonlyUsed(true));
+			if (!this._requestedDefaultSettings.has(uri)) {
+				this._register(defaultSettings.onDidChange(() => this._onDidDefaultSettingsContentChanged.fire(uri)));
+				this._requestedDefaultSettings.add(uri);
 			}
-
-			return model;
+			return defaultSettings.getContentWithoutMostCommonlyUsed(true);
 		}
 
-		if (this.defaultSettingsRawResource.toString() === uri.toString()) {
-			const defaultRawSettingsEditorModel = this.instantiationService.createInstance(DefaultRawSettingsEditorModel, this.getDefaultSettings(ConfigurationTarget.USER_LOCAL));
-			const languageSelection = this.languageService.createById('jsonc');
-			const model = this._register(this.modelService.createModel(defaultRawSettingsEditorModel.content, languageSelection, uri));
-			return model;
+		if (isEqual(uri, this.defaultSettingsRawResource)) {
+			if (!this._defaultRawSettingsEditorModel) {
+				this._defaultRawSettingsEditorModel = this._register(this.instantiationService.createInstance(DefaultRawSettingsEditorModel, this.getDefaultSettings(ConfigurationTarget.USER_LOCAL)));
+				this._register(this._defaultRawSettingsEditorModel.onDidContentChanged(() => this._onDidDefaultSettingsContentChanged.fire(uri)));
+			}
+			return this._defaultRawSettingsEditorModel.content;
 		}
 
-		if (this.defaultKeybindingsResource.toString() === uri.toString()) {
+		if (isEqual(uri, this.defaultKeybindingsResource)) {
 			const defaultKeybindingsEditorModel = this.instantiationService.createInstance(DefaultKeybindingsEditorModel, uri);
-			const languageSelection = this.languageService.createById('jsonc');
-			const model = this._register(this.modelService.createModel(defaultKeybindingsEditorModel.content, languageSelection, uri));
-			return model;
+			return defaultKeybindingsEditorModel.content;
 		}
 
-		return null;
+		return undefined;
 	}
 
 	public async createPreferencesEditorModel(uri: URI): Promise<IPreferencesEditorModel<ISetting> | null> {
@@ -381,7 +374,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	public createSplitJsonEditorInput(configurationTarget: ConfigurationTarget, resource: URI): EditorInput {
 		const editableSettingsEditorInput = this.textEditorService.createTextEditor({ resource });
-		const defaultPreferencesEditorInput = this.instantiationService.createInstance(TextResourceEditorInput, this.getDefaultSettingsResource(configurationTarget), undefined, undefined, undefined, undefined);
+		const defaultPreferencesEditorInput = this.textEditorService.createTextEditor({ resource: this.getDefaultSettingsResource(configurationTarget) });
 		return this.instantiationService.createInstance(SideBySideEditorInput, editableSettingsEditorInput.getName(), undefined, defaultPreferencesEditorInput, editableSettingsEditorInput);
 	}
 
