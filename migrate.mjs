@@ -61,25 +61,6 @@ function migrateOne(filePath, fileContents) {
 		migrateTS(filePath, fileContents.toString());
 	} else if (fileExtension === '.js' || fileExtension === '.cjs') {
 		if (
-			filePath.endsWith('vs/base/common/performance.js')
-			|| filePath.endsWith('vs/base/common/jsonc.js')
-			|| filePath.endsWith('vs/platform/environment/node/userDataPath.js')
-			|| filePath.endsWith('vs/base/node/unc.js')
-			|| filePath.endsWith('vs/base/node/nls.js')
-			|| filePath.endsWith('bootstrap-meta.js')
-		) {
-			// Create .cjs duplicates of these files
-			const cjsFilePath = filePath.replace(/\.js$/, '.cjs');
-			const cjsFileContents = fileContents.toString().replace(`require('../common/performance')`, `require('../common/performance.cjs')`);
-			writeDestFile(cjsFilePath, cjsFileContents);
-			writeDestFile(filePath, fileContents.toString());
-		} else if (
-			filePath.endsWith('vs/base/parts/sandbox/electron-sandbox/preload.js')
-		) {
-			// Rename to .cjs
-			const cjsFilePath = filePath.replace(/\.js$/, '.cjs');
-			writeDestFile(cjsFilePath, fileContents);
-		} else if (
 			filePath.endsWith('vs/loader.js')
 		) {
 			// fake loader
