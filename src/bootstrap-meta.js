@@ -10,6 +10,13 @@
  * @import { IProductConfiguration } from './vs/base/common/product'
  */
 
+// ESM-uncomment-begin
+// import { createRequire } from 'node:module';
+//
+// const require = createRequire(import.meta.url);
+// const module = { exports: {} };
+// ESM-uncomment-end
+
 /** @type Partial<IProductConfiguration> & { BUILD_INSERT_PRODUCT_CONFIGURATION?: string } */
 let product = { BUILD_INSERT_PRODUCT_CONFIGURATION: 'BUILD_INSERT_PRODUCT_CONFIGURATION' }; // DO NOT MODIFY, PATCHED DURING BUILD
 if (product['BUILD_INSERT_PRODUCT_CONFIGURATION']) {
@@ -24,5 +31,10 @@ if (pkg['BUILD_INSERT_PACKAGE_CONFIGURATION']) {
 	pkg = require('../package.json'); // Running out of sources
 }
 
-exports.product = product;
-exports.pkg = pkg;
+module.exports.product = product;
+module.exports.pkg = pkg;
+
+// ESM-uncomment-begin
+// export const product = module.exports.product;
+// export const pkg = module.exports.pkg;
+// ESM-uncomment-end
