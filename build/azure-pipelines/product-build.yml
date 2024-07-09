@@ -152,6 +152,10 @@ variables:
     value: true
   - name: ARTIFACT_PREFIX
     value: ''
+  - name: Codeql.PublishDatabaseLog
+    value: true
+  - name: Codeql.Cadence
+    value: 0
 
 name: "$(Date:yyyyMMdd).$(Rev:r) (${{ parameters.VSCODE_QUALITY }})"
 
