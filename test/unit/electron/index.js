@@ -28,7 +28,6 @@ const minimist = require('minimist');
 /**
  * @type {{
  * grep: string;
- * esm: boolean;
  * run: string;
  * runGlob: string;
  * dev: boolean;
@@ -48,7 +47,7 @@ const minimist = require('minimist');
  */
 const args = minimist(process.argv.slice(2), {
 	string: ['grep', 'run', 'runGlob', 'reporter', 'reporter-options', 'waitServer', 'timeout', 'crash-reporter-directory', 'tfs', 'coveragePath', 'coverageFormats'],
-	boolean: ['build', 'esm', 'coverage', 'help', 'dev', 'per-test-coverage'],
+	boolean: ['build', 'coverage', 'help', 'dev', 'per-test-coverage'],
 	alias: {
 		'grep': ['g', 'f'],
 		'runGlob': ['glob', 'runGrep'],
@@ -219,11 +218,6 @@ class IPCRunner extends events.EventEmitter {
 
 app.on('ready', () => {
 
-	session.defaultSession.protocol.registerFileProtocol('vscode-file', (request, callback) => {
-		const path = new URL(request.url).pathname;
-		callback({ path });
-	});
-
 	ipcMain.on('error', (_, err) => {
 		if (!args.dev) {
 			console.error(err);
@@ -308,7 +302,7 @@ app.on('ready', () => {
 		win.webContents.send('run', args);
 	}
 
-	const target = url.pathToFileURL(path.join(__dirname, `renderer${args.esm ? '-esm' : ''}.html`));
+	const target = url.pathToFileURL(path.join(__dirname, 'renderer-esm.html'));
 	target.searchParams.set('argv', JSON.stringify(args));
 	win.loadURL(target.href);
 

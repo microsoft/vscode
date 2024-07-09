@@ -26,7 +26,6 @@ const { promisify } = require('node:util');
 /**
  * @type {{
  * run: string;
- * esm: boolean;
  * grep: string;
  * runGlob: string;
  * browser: string;
@@ -40,7 +39,7 @@ const { promisify } = require('node:util');
  * }}
 */
 const args = minimist(process.argv.slice(2), {
-	boolean: ['build', 'esm', 'debug', 'sequential', 'help'],
+	boolean: ['build', 'debug', 'sequential', 'help'],
 	string: ['run', 'grep', 'runGlob', 'browser', 'reporter', 'reporter-options', 'tfs'],
 	default: {
 		build: false,
@@ -56,7 +55,6 @@ const args = minimist(process.argv.slice(2), {
 	},
 	describe: {
 		build: 'run with build output (out-build)',
-		esm: 'Assume ESM output',
 		run: 'only run tests matching <relative_file_path>',
 		grep: 'only run tests matching <pattern>',
 		debug: 'do not run browsers headless',
@@ -207,11 +205,9 @@ async function createServer() {
 		request.url = request.url.slice(prefix.length);
 
 		function massagePath(p) {
-			if (args.esm) {
-				// TODO@jrieken FISHY but it enables snapshot
-				// in ESM browser tests
-				p = String(p).replace(prefix, rootDir);
-			}
+			// TODO@jrieken FISHY but it enables snapshot
+			// in ESM browser tests
+			p = String(p).replace(prefix, rootDir);
 			return p;
 		}
 
@@ -248,7 +244,7 @@ async function runTestsInBrowser(testModules, browserType) {
 	const browser = await playwright[browserType].launch({ headless: !Boolean(args.debug), devtools: Boolean(args.debug) });
 	const context = await browser.newContext();
 	const page = await context.newPage();
-	const target = new URL(server.url + (args.esm ? '/test/unit/browser/renderer-esm.html' : '/test/unit/browser/renderer.html'));
+	const target = new URL(server.url + '/test/unit/browser/renderer-esm.html');
 	target.searchParams.set('baseUrl', url.pathToFileURL(path.join(rootDir, 'src')).toString());
 	if (args.build) {
 		target.searchParams.set('build', 'true');
@@ -257,12 +253,11 @@ async function runTestsInBrowser(testModules, browserType) {
 		target.searchParams.set('ci', 'true');
 	}
 
-	if (args.esm) {
-		await promisify(require('glob'))('**/*.css', { cwd: out }).then(async cssModules => {
-			const cssData = await new Response((await new Response(cssModules.join(',')).blob()).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer();
-			target.searchParams.set('_devCssData', Buffer.from(cssData).toString('base64'));
-		});
-	}
+	// append CSS modules as query-param
+	await promisify(require('glob'))('**/*.css', { cwd: out }).then(async cssModules => {
+		const cssData = await new Response((await new Response(cssModules.join(',')).blob()).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer();
+		target.searchParams.set('_devCssData', Buffer.from(cssData).toString('base64'));
+	});
 
 	const emitter = new events.EventEmitter();
 	await page.exposeFunction('mocha_report', (type, data1, data2) => {
