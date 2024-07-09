@@ -16,7 +16,7 @@ suite('dom', () => {
 		const element = document.createElement('div');
 		element.className = 'foobar boo far';
 
-		assert(element.classList.contains('foaobar'));
+		assert(element.classList.contains('foobar'));
 		assert(element.classList.contains('boo'));
 		assert(element.classList.contains('far'));
 		assert(!element.classList.contains('bar'));
