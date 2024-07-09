@@ -21,7 +21,7 @@ import { EditorAction2 } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/codeEditor/embeddedCodeEditorWidget';
 import { EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/embeddedDiffEditorWidget';
-import { Position } from 'vs/editor/common/core/position';
+import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditor, IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -47,11 +47,12 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { renderTestMessageAsText } from 'vs/workbench/contrib/testing/browser/testMessageColorizer';
 import { InspectSubject, MessageSubject, TaskSubject, TestOutputSubject, mapFindTestMessage } from 'vs/workbench/contrib/testing/browser/testResultsView/testResultsSubject';
-import { TestResultsViewContent } from 'vs/workbench/contrib/testing/browser/testResultsView/testResultsViewContent';
+import { ITestResultsViewContentUiState, TestResultsViewContent } from 'vs/workbench/contrib/testing/browser/testResultsView/testResultsViewContent';
 import { testingMessagePeekBorder, testingPeekBorder, testingPeekHeaderBackground, testingPeekMessageHeaderBackground } from 'vs/workbench/contrib/testing/browser/theme';
 import { AutoOpenPeekViewWhen, TestingConfigKeys, getTestingConfiguration } from 'vs/workbench/contrib/testing/common/configuration';
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
@@ -60,7 +61,7 @@ import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
 import { ITestResult, TestResultItemChange, TestResultItemChangeReason, resultItemParents } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService, ResultChangeEvent } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
-import { IRichLocation, ITestMessage, TestMessageType, TestResultItem } from 'vs/workbench/contrib/testing/common/testTypes';
+import { IRichLocation, ITestMessage, ITestMessageStackFrame, TestMessageType, TestResultItem } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { IShowResultOptions, ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
 import { isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
@@ -96,6 +97,13 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 		target: StorageTarget.USER,
 	}, this.storageService)), false);
 
+	/** @inheritdoc */
+	public readonly callStackVisible = MutableObservableValue.stored(this._register(new StoredValue<boolean>({
+		key: 'testCallStackVisible',
+		scope: StorageScope.PROFILE,
+		target: StorageTarget.USER,
+	}, this.storageService)), true);
+
 	constructor(
 		@IConfigurationService private readonly configuration: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
@@ -106,9 +114,16 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 		@IViewsService private readonly viewsService: IViewsService,
 		@ICommandService private readonly commandService: ICommandService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
 		this._register(testResults.onTestChanged(this.openPeekOnFailure, this));
+
+		const callStackVisibleKey = TestingContextKeys.showCallStackInPeek.bindTo(contextKeyService);
+		this._register(this.callStackVisible.onDidChange(() => {
+			callStackVisibleKey.set(this.callStackVisible.value);
+		}));
+		callStackVisibleKey.set(this.callStackVisible.value);
 	}
 
 	/** @inheritdoc */
@@ -411,11 +426,6 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 	private readonly peek = this._register(new MutableDisposable<TestResultsPeek>());
 
 	/**
-	 * URI of the currently-visible peek, if any.
-	 */
-	private currentPeekUri: URI | undefined;
-
-	/**
 	 * Context key updated when the peek is visible/hidden.
 	 */
 	private readonly visible: IContextKey<boolean>;
@@ -442,30 +452,23 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 	}
 
 	/**
-	 * Toggles peek visibility for the URI.
-	 */
-	public toggle(uri: URI) {
-		if (this.currentPeekUri?.toString() === uri.toString()) {
-			this.peek.clear();
-		} else {
-			this.show(uri);
-		}
-	}
-
-	/**
 	 * Shows a peek for the message in the editor.
 	 */
 	public async show(uri: URI) {
 		const subject = this.retrieveTest(uri);
-		if (!subject) {
-			return;
+		if (subject) {
+			this.showSubject(subject);
 		}
+	}
 
+	/**
+	 * Shows a peek for the existing inspect subject.
+	 */
+	public async showSubject(subject: InspectSubject, frame?: ITestMessageStackFrame, uiState?: ITestResultsViewContentUiState) {
 		if (!this.peek.value) {
 			this.peek.value = this.instantiationService.createInstance(TestResultsPeek, this.editor);
 			this.peek.value.onDidClose(() => {
 				this.visible.set(false);
-				this.currentPeekUri = undefined;
 				this.peek.value = undefined;
 			});
 
@@ -477,8 +480,7 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 			alert(renderTestMessageAsText(subject.message.message));
 		}
 
-		this.peek.value.setModel(subject);
-		this.currentPeekUri = uri;
+		this.peek.value.setModel(subject, frame, uiState);
 	}
 
 	public async openAndShow(uri: URI) {
@@ -670,6 +672,8 @@ class TestResultsPeek extends PeekViewWidget {
 		@IMenuService private readonly menuService: IMenuService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ITextModelService protected readonly modelService: ITextModelService,
+		@ICodeEditorService protected readonly codeEditorService: ICodeEditorService,
+		@IUriIdentityService protected readonly uriIdentityService: IUriIdentityService,
 	) {
 		super(editor, { showFrame: true, frameWidth: 1, showArrow: true, isResizeable: true, isAccessible: true, className: 'test-output-peek' }, instantiationService);
 
@@ -699,22 +703,82 @@ class TestResultsPeek extends PeekViewWidget {
 			TestingContextKeys.isInPeek.bindTo(this.scopedContextKeyService).set(true);
 			const instaService = this._disposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
 			this.content = this._disposables.add(instaService.createInstance(TestResultsViewContent, this.editor, { historyVisible: this.testingPeek.historyVisible, showRevealLocationOnMessages: false, locationForProgress: Testing.ResultsViewId }));
+
 			this._disposables.add(this.content.onClose(() => {
 				TestingOutputPeekController.get(this.editor)?.removePeek();
+			}));
+
+			this._disposables.add(this.content.onDidChangeStackFrame(sf => {
+				if (!sf.uri) {
+					return;
+				}
+
+				if (this.uriIdentityService.extUri.isEqual(sf.uri, this.editor.getModel()?.uri)) {
+					if (sf.position) {
+						this.changePositionTo(sf.position);
+					}
+					return;
+				}
+
+				const current = this.current;
+				const uiState = this.content.uiState;
+				this.codeEditorService.openCodeEditor(
+					{
+						resource: sf.uri,
+						options: {
+							preserveFocus: true,
+							selection: sf.position ? Range.fromPositions(sf.position) : undefined,
+							transient: true,
+						}
+					},
+					this.editor,
+				).then(newEditor => {
+					if (!newEditor || !current) {
+						return;
+					}
+
+					TestingOutputPeekController.get(newEditor)?.showSubject(current, sf, uiState);
+				});
 			}));
 		}
 
 		super._fillContainer(container);
 	}
 
+	/** Moves the peek to a new position in the current editor, maintaining its position on the screen */
+	private changePositionTo(position: IPosition) {
+		const currentPosition = this.position;
+		if (!currentPosition) {
+			this.show(position, TestResultsPeek.lastHeightInLines || 10);
+			return;
+		}
+
+		const currentPositionViewOffset = this.editor.getScrolledVisiblePosition(currentPosition);
+		this.updatePositionAndHeight(position);
+
+		if (currentPositionViewOffset) {
+			const newPosition = this.editor.getTopForPosition(position.lineNumber, position.column);
+			this.editor.setScrollTop(newPosition - currentPositionViewOffset?.top);
+		}
+	}
 
 	protected override _fillHead(container: HTMLElement): void {
 		super._fillHead(container);
 
+		const menu = this.menuService.createMenu(MenuId.TestPeekTitle, this.contextKeyService);
+		const actionBar = this._actionbarWidget!;
+		this._disposables.add(menu.onDidChange(() => {
+			actions.length = 0;
+			createAndFillInActionBarActions(menu, undefined, actions);
+			while (actionBar.getAction(1)) {
+				actionBar.pull(0); // remove all but the view's default "close" button
+			}
+			actionBar.push(actions, { label: false, icon: true, index: 0 });
+		}));
+
 		const actions: IAction[] = [];
-		const menu = this.menuService.getMenuActions(MenuId.TestPeekTitle, this.contextKeyService);
-		createAndFillInActionBarActions(menu, actions);
-		this._actionbarWidget!.push(actions, { label: false, icon: true, index: 0 });
+		createAndFillInActionBarActions(menu, undefined, actions);
+		actionBar.push(actions, { label: false, icon: true, index: 0 });
 	}
 
 	protected override _fillBody(containerElement: HTMLElement): void {
@@ -729,35 +793,35 @@ class TestResultsPeek extends PeekViewWidget {
 	/**
 	 * Updates the test to be shown.
 	 */
-	public setModel(subject: InspectSubject): Promise<void> {
+	public setModel(subject: InspectSubject, frame?: ITestMessageStackFrame, uiState?: ITestResultsViewContentUiState): Promise<void> {
 		if (subject instanceof TaskSubject || subject instanceof TestOutputSubject) {
 			this.current = subject;
-			return this.showInPlace(subject);
+			return this.showInPlace(subject, frame, uiState);
 		}
 
 		const message = subject.message;
 		const previous = this.current;
-		if (!subject.revealLocation && !previous) {
+		const revealLocation = frame?.position || subject.revealLocation?.range.getStartPosition();
+		if (!revealLocation && !previous) {
 			return Promise.resolve();
 		}
 
 		this.current = subject;
-		if (!subject.revealLocation) {
-			return this.showInPlace(subject);
+		if (!revealLocation) {
+			return this.showInPlace(subject, frame, uiState);
 		}
 
-		this.show(subject.revealLocation.range, TestResultsPeek.lastHeightInLines || hintMessagePeekHeight(message));
-		const startPosition = subject.revealLocation.range.getStartPosition();
-		this.editor.revealRangeNearTopIfOutsideViewport(Range.fromPositions(startPosition), ScrollType.Smooth);
+		this.show(revealLocation, TestResultsPeek.lastHeightInLines || hintMessagePeekHeight(message));
+		this.editor.revealRangeNearTopIfOutsideViewport(Range.fromPositions(revealLocation), ScrollType.Smooth);
 
-		return this.showInPlace(subject);
+		return this.showInPlace(subject, frame, uiState);
 	}
 
 	/**
 	 * Shows a message in-place without showing or changing the peek location.
 	 * This is mostly used if peeking a message without a location.
 	 */
-	public async showInPlace(subject: InspectSubject) {
+	public async showInPlace(subject: InspectSubject, frame?: ITestMessageStackFrame, uiState?: ITestResultsViewContentUiState) {
 		if (subject instanceof MessageSubject) {
 			const message = subject.message;
 			this.setTitle(firstLine(renderTestMessageAsText(message.message)), stripIcons(subject.test.label));
@@ -765,7 +829,7 @@ class TestResultsPeek extends PeekViewWidget {
 			this.setTitle(localize('testOutputTitle', 'Test Output'));
 		}
 		this.applyTheme();
-		await this.content.reveal({ subject: subject, preserveFocus: false });
+		await this.content.reveal({ subject, frame, preserveFocus: false, uiState });
 	}
 
 	protected override _relayout(newHeightInLines: number): void {
@@ -810,6 +874,7 @@ export class TestResultsView extends ViewPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		@ITestResultService private readonly resultService: ITestResultService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
 	}
@@ -846,7 +911,18 @@ export class TestResultsView extends ViewPane {
 	private renderContent(container: HTMLElement) {
 		const content = this.content.value;
 		content.fillBody(container);
-		content.onDidRequestReveal(subject => content.reveal({ preserveFocus: true, subject }));
+		this._register(content.onDidRequestReveal(subject => content.reveal({ preserveFocus: true, subject })));
+		this._register(content.onDidChangeStackFrame(sf => {
+			if (sf.uri) {
+				this.editorService.openEditor({
+					resource: sf.uri,
+					options: {
+						preserveFocus: true,
+						selection: sf.position ? Range.fromPositions(sf.position) : undefined,
+					}
+				});
+			}
+		}));
 
 		const [lastResult] = this.resultService.results;
 		if (lastResult && lastResult.tasks.length) {
@@ -1058,5 +1134,37 @@ export class ToggleTestingPeekHistory extends Action2 {
 	public override run(accessor: ServicesAccessor) {
 		const opener = accessor.get(ITestingPeekOpener);
 		opener.historyVisible.value = !opener.historyVisible.value;
+	}
+}
+
+export class ToggleCallStackAction extends Action2 {
+	public static readonly ID = 'testing.toggleCallStack';
+	constructor() {
+		super({
+			id: ToggleCallStackAction.ID,
+			title: localize2('testing.toggleCallStack', 'Show Call Stack in Peek'),
+			metadata: {
+				description: localize2('testing.toggleCallStack.description', 'Shows or hides the history of test runs in the peek view')
+			},
+			icon: Codicon.debugLineByLine,
+			toggled: TestingContextKeys.showCallStackInPeek,
+			category: Categories.Test,
+			menu: [{
+				id: MenuId.TestCallStackContext,
+			}, {
+				id: MenuId.ViewTitle,
+				when: ContextKeyExpr.equals('view', Testing.ResultsViewId)
+			}, {
+				id: MenuId.TestPeekTitle,
+				group: 'navigation',
+				when: ContextKeyExpr.not(TestingContextKeys.showCallStackInPeek.key),
+				order: 4,
+			}],
+		});
+	}
+
+	public override run(accessor: ServicesAccessor) {
+		const opener = accessor.get(ITestingPeekOpener);
+		opener.callStackVisible.value = !opener.callStackVisible.value;
 	}
 }

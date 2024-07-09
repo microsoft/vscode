@@ -74,6 +74,7 @@ const commonEditorOptions: IEditorOptions = {
 	scrollBeyondLastLine: false,
 	links: true,
 	lineNumbers: 'off',
+	glyphMargin: false,
 	scrollbar: {
 		verticalScrollbarSize: 14,
 		horizontal: 'auto',
