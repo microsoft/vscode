@@ -100,7 +100,6 @@ export class InlayHintsController implements IEditorContribution {
 	static readonly ID: string = 'editor.contrib.InlayHints';
 
 	private static readonly _MAX_DECORATORS = 1500;
-	private static readonly _MAX_LABEL_LEN = 43;
 
 	static get(editor: ICodeEditor): InlayHintsController | undefined {
 		return editor.getContribution<InlayHintsController>(InlayHintsController.ID) ?? undefined;
@@ -473,6 +472,7 @@ export class InlayHintsController implements IEditorContribution {
 
 		//
 		const { fontSize, fontFamily, padding, isUniform } = this._getLayoutInfo();
+		const maxLabelLen = this._editor.getOption(EditorOption.inlayHints).maximumLength;
 		const fontFamilyVar = '--code-editorInlayHintsFontFamily';
 		this._editor.getContainerDomNode().style.setProperty(fontFamilyVar, fontFamily);
 
@@ -486,7 +486,7 @@ export class InlayHintsController implements IEditorContribution {
 				currentLineInfo = { line: item.anchor.range.startLineNumber, totalLen: 0 };
 			}
 
-			if (currentLineInfo.totalLen > InlayHintsController._MAX_LABEL_LEN) {
+			if (maxLabelLen && currentLineInfo.totalLen > maxLabelLen) {
 				continue;
 			}
 
@@ -549,7 +549,7 @@ export class InlayHintsController implements IEditorContribution {
 				let textlabel = part.label;
 				currentLineInfo.totalLen += textlabel.length;
 				let tooLong = false;
-				const over = currentLineInfo.totalLen - InlayHintsController._MAX_LABEL_LEN;
+				const over = (maxLabelLen ? currentLineInfo.totalLen - maxLabelLen : 0);
 				if (over > 0) {
 					textlabel = textlabel.slice(0, -over) + '…';
 					tooLong = true;
