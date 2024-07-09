@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { flatten, mapArrayOrNot } from 'vs/base/common/arrays';
+import { mapArrayOrNot } from 'vs/base/common/arrays';
 import { isThenable } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -29,14 +29,13 @@ export class TextSearchManager {
 	constructor(private query: ITextQuery, private provider: TextSearchProvider, private fileUtils: IFileUtils, private processType: ITextSearchStats['type']) { }
 
 	search(onProgress: (matches: IFileMatch[]) => void, token: CancellationToken): Promise<ISearchCompleteStats> {
-		const folderQueries = this.query.folderQueries || [];
 		const tokenSource = new CancellationTokenSource(token);
 
 		return new Promise<ISearchCompleteStats>((resolve, reject) => {
 			this.collector = new TextSearchResultsCollector(onProgress);
 
 			let isCanceled = false;
-			const onResult = (result: TextSearchResult, folderIdx: number) => {
+			const onResult = (result: TextSearchResult) => {
 				if (isCanceled) {
 					return;
 				}
@@ -48,41 +47,51 @@ export class TextSearchManager {
 						isCanceled = true;
 						tokenSource.cancel();
 
-						result = this.trimResultToSize(result, this.query.maxResults - this.resultCount);
+						result = this.trimResultToSize(
+							result,
+							this.query.maxResults - this.resultCount,
+						);
 					}
 
 					const newResultSize = this.resultSize(result);
 					this.resultCount += newResultSize;
 					if (newResultSize > 0 || !extensionResultIsMatch(result)) {
-						this.collector!.add(result, folderIdx);
+						this.collector!.add(result, 0); // MEMBRANE: Using 0 as a default folder index
 					}
 				}
 			};
 
-			// For each root folder
-			Promise.all(folderQueries.map((fq, i) => {
-				return this.searchInFolder(fq, r => onResult(r, i), tokenSource.token);
-			})).then(results => {
-				tokenSource.dispose();
-				this.collector!.flush();
+			// MEMBRANE: Single search call
+			const folderQuery = this.query.folderQueries?.[0] || {
+				folder: URI.file('/'),
+			};
+			this.searchInFolder(
+				folderQuery,
+				(r) => onResult(r),
+				tokenSource.token,
+			).then(
+				(result) => {
+					tokenSource.dispose();
+					this.collector!.flush();
 
-				const someFolderHitLImit = results.some(result => !!result && !!result.limitHit);
-				resolve({
-					limitHit: this.isLimitHit || someFolderHitLImit,
-					messages: flatten(results.map(result => {
-						if (!result?.message) { return []; }
-						if (Array.isArray(result.message)) { return result.message; }
-						else { return [result.message]; }
-					})),
-					stats: {
-						type: this.processType
-					}
-				});
-			}, (err: Error) => {
-				tokenSource.dispose();
-				const errMsg = toErrorMessage(err);
-				reject(new Error(errMsg));
-			});
+					resolve({
+						limitHit: this.isLimitHit || !!result?.limitHit,
+						messages: result?.message
+							? Array.isArray(result.message)
+								? result.message
+								: [result.message]
+							: [],
+						stats: {
+							type: this.processType,
+						},
+					});
+				},
+				(err: Error) => {
+					tokenSource.dispose();
+					const errMsg = toErrorMessage(err);
+					reject(new Error(errMsg));
+				},
+			);
 		});
 	}
 
