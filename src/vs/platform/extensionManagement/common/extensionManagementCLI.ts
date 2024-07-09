@@ -224,7 +224,7 @@ export class ExtensionManagementCLI {
 			}
 			extensionsToInstall.push({
 				extension: gallery,
-				options: { ...installOptions, installGivenVersion: !!version, isApplicationScoped: installedExtension?.isApplicationScoped },
+				options: { ...installOptions, installGivenVersion: !!version, isApplicationScoped: installOptions.isApplicationScoped || installedExtension?.isApplicationScoped },
 			});
 		}));
 

@@ -797,7 +797,6 @@ export abstract class AbstractExtensionManagementService extends Disposable impl
 
 	abstract getTargetPlatform(): Promise<TargetPlatform>;
 	abstract zip(extension: ILocalExtension): Promise<URI>;
-	abstract unzip(zipLocation: URI): Promise<IExtensionIdentifier>;
 	abstract getManifest(vsix: URI): Promise<IExtensionManifest>;
 	abstract install(vsix: URI, options?: InstallOptions): Promise<ILocalExtension>;
 	abstract installFromLocation(location: URI, profileLocation: URI): Promise<ILocalExtension>;
