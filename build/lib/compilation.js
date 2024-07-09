@@ -19,11 +19,11 @@ const util = require("./util");
 const fancyLog = require("fancy-log");
 const ansiColors = require("ansi-colors");
 const os = require("os");
+const ts = require("typescript");
 const File = require("vinyl");
 const task = require("./task");
 const index_1 = require("./mangle/index");
 const postcss_1 = require("./postcss");
-const ts = require("typescript");
 const watch = require('./watch');
 // --- gulp-tsb: compile and transpile --------------------------------
 const reporter = (0, reporter_1.createReporter)();

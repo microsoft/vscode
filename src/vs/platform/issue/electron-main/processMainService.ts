@@ -348,7 +348,7 @@ export class ProcessMainService implements IProcessMainService {
 			title: options.title,
 			backgroundColor: options.backgroundColor || ProcessMainService.DEFAULT_BACKGROUND_COLOR,
 			webPreferences: {
-				preload: FileAccess.asFileUri(`vs/base/parts/sandbox/electron-sandbox/preload.js`).fsPath,
+				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-sandbox/preload.js').fsPath,
 				additionalArguments: [`--vscode-window-config=${ipcObjectUrl.resource.toString()}`],
 				v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none',
 				enableWebSQL: false,
