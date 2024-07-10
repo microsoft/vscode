@@ -636,7 +636,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		const wordWrap = this.configurationService.getValue<IDebugConfiguration>('debug').console.wordWrap;
 		this.treeContainer.classList.toggle('word-wrap', wordWrap);
 		const linkDetector = this.instantiationService.createInstance(LinkDetector);
-		const dataSource = new ReplDataSource() satisfies IAsyncDataSource<IDebugSession, IReplElement>;
+		const dataSource: IAsyncDataSource<IDebugSession, IReplElement> = new ReplDataSource()
 		this.replDataSource = dataSource;
 		const tree = this.tree = <WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>>this.instantiationService.createInstance(
 			WorkbenchAsyncDataTree,
