@@ -13,7 +13,6 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { tokenizeToString } from 'vs/editor/common/languages/textToHtmlTokenizer';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { escape } from 'vs/base/common/strings';
-import { SimpleSettingRenderer } from 'vs/workbench/contrib/markdown/browser/markdownSettingRenderer';
 
 export const DEFAULT_MARKDOWN_STYLES = `
 body {
@@ -33,7 +32,7 @@ img {
 }
 
 a {
-	text-decoration: none;
+	text-decoration: var(--text-link-decoration);
 }
 
 a:hover {
@@ -184,6 +183,13 @@ function sanitize(documentContent: string, allowUnknownProtocols: boolean): stri
 	}
 }
 
+interface IRenderMarkdownDocumentOptions {
+	readonly shouldSanitize?: boolean;
+	readonly allowUnknownProtocols?: boolean;
+	readonly renderer?: marked.Renderer;
+	readonly token?: CancellationToken;
+}
+
 /**
  * Renders a string of markdown as a document.
  *
@@ -193,10 +199,7 @@ export async function renderMarkdownDocument(
 	text: string,
 	extensionService: IExtensionService,
 	languageService: ILanguageService,
-	shouldSanitize: boolean = true,
-	allowUnknownProtocols: boolean = false,
-	token?: CancellationToken,
-	settingRenderer?: SimpleSettingRenderer
+	options?: IRenderMarkdownDocumentOptions
 ): Promise<string> {
 
 	const highlight = (code: string, lang: string | undefined, callback: ((error: any, code: string) => void) | undefined): any => {
@@ -210,7 +213,7 @@ export async function renderMarkdownDocument(
 		}
 
 		extensionService.whenInstalledExtensionsRegistered().then(async () => {
-			if (token?.isCancellationRequested) {
+			if (options?.token?.isCancellationRequested) {
 				callback(null, '');
 				return;
 			}
@@ -222,16 +225,11 @@ export async function renderMarkdownDocument(
 		return '';
 	};
 
-	const renderer = new marked.Renderer();
-	if (settingRenderer) {
-		renderer.html = settingRenderer.getHtmlRenderer();
-	}
-
 	return new Promise<string>((resolve, reject) => {
-		marked(text, { highlight, renderer }, (err, value) => err ? reject(err) : resolve(value));
+		marked(text, { highlight, renderer: options?.renderer }, (err, value) => err ? reject(err) : resolve(value));
 	}).then(raw => {
-		if (shouldSanitize) {
-			return sanitize(raw, allowUnknownProtocols);
+		if (options?.shouldSanitize ?? true) {
+			return sanitize(raw, options?.allowUnknownProtocols ?? false);
 		} else {
 			return raw;
 		}

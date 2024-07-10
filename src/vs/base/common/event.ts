@@ -831,12 +831,15 @@ export function setGlobalLeakWarningThreshold(n: number): IDisposable {
 
 class LeakageMonitor {
 
+	private static _idPool = 1;
+
 	private _stacks: Map<string, number> | undefined;
 	private _warnCountdown: number = 0;
 
 	constructor(
+		private readonly _errorHandler: (err: Error) => void,
 		readonly threshold: number,
-		readonly name: string = Math.random().toString(18).slice(2, 5),
+		readonly name: string = (LeakageMonitor._idPool++).toString(16).padStart(3, '0')
 	) { }
 
 	dispose(): void {
@@ -862,18 +865,13 @@ class LeakageMonitor {
 			// is exceeded by 50% again
 			this._warnCountdown = threshold * 0.5;
 
-			// find most frequent listener and print warning
-			let topStack: string | undefined;
-			let topCount: number = 0;
-			for (const [stack, count] of this._stacks) {
-				if (!topStack || topCount < count) {
-					topStack = stack;
-					topCount = count;
-				}
-			}
-
-			console.warn(`[${this.name}] potential listener LEAK detected, having ${listenerCount} listeners already. MOST frequent listener (${topCount}):`);
+			const [topStack, topCount] = this.getMostFrequentStack()!;
+			const message = `[${this.name}] potential listener LEAK detected, having ${listenerCount} listeners already. MOST frequent listener (${topCount}):`;
+			console.warn(message);
 			console.warn(topStack!);
+
+			const error = new ListenerLeakError(message, topStack);
+			this._errorHandler(error);
 		}
 
 		return () => {
@@ -881,18 +879,53 @@ class LeakageMonitor {
 			this._stacks!.set(stack.value, count - 1);
 		};
 	}
+
+	getMostFrequentStack(): [string, number] | undefined {
+		if (!this._stacks) {
+			return undefined;
+		}
+		let topStack: [string, number] | undefined;
+		let topCount: number = 0;
+		for (const [stack, count] of this._stacks) {
+			if (!topStack || topCount < count) {
+				topStack = [stack, count];
+				topCount = count;
+			}
+		}
+		return topStack;
+	}
 }
 
 class Stacktrace {
 
 	static create() {
-		return new Stacktrace(new Error().stack ?? '');
+		const err = new Error();
+		return new Stacktrace(err.stack ?? '');
 	}
 
 	private constructor(readonly value: string) { }
 
 	print() {
 		console.warn(this.value.split('\n').slice(2).join('\n'));
+	}
+}
+
+// error that is logged when going over the configured listener threshold
+export class ListenerLeakError extends Error {
+	constructor(message: string, stack: string) {
+		super(message);
+		this.name = 'ListenerLeakError';
+		this.stack = stack;
+	}
+}
+
+// SEVERE error that is logged when having gone way over the configured listener
+// threshold so that the emitter refuses to accept more listeners
+export class ListenerRefusalError extends Error {
+	constructor(message: string, stack: string) {
+		super(message);
+		this.name = 'ListenerRefusalError';
+		this.stack = stack;
 	}
 }
 
@@ -921,14 +954,26 @@ const forEachListener = <T>(listeners: ListenerOrListeners<T>, fn: (c: ListenerC
 };
 
 
-const _listenerFinalizers = _enableListenerGCedWarning
-	? new FinalizationRegistry(heldValue => {
-		if (typeof heldValue === 'string') {
-			console.warn('[LEAKING LISTENER] GC\'ed a listener that was NOT yet disposed. This is where is was created:');
-			console.warn(heldValue);
+let _listenerFinalizers: FinalizationRegistry<string> | undefined;
+
+if (_enableListenerGCedWarning) {
+	const leaks: string[] = [];
+
+	setInterval(() => {
+		if (leaks.length === 0) {
+			return;
 		}
-	})
-	: undefined;
+		console.warn('[LEAKING LISTENERS] GC\'ed these listeners that were NOT yet disposed:');
+		console.warn(leaks.join('\n'));
+		leaks.length = 0;
+	}, 3000);
+
+	_listenerFinalizers = new FinalizationRegistry(heldValue => {
+		if (typeof heldValue === 'string') {
+			leaks.push(heldValue);
+		}
+	});
+}
 
 /**
  * The Emitter can be used to expose an Event to the public
@@ -988,7 +1033,9 @@ export class Emitter<T> {
 
 	constructor(options?: EmitterOptions) {
 		this._options = options;
-		this._leakageMon = _globalLeakWarningThreshold > 0 || this._options?.leakWarningThreshold ? new LeakageMonitor(this._options?.leakWarningThreshold ?? _globalLeakWarningThreshold) : undefined;
+		this._leakageMon = (_globalLeakWarningThreshold > 0 || this._options?.leakWarningThreshold)
+			? new LeakageMonitor(options?.onListenerError ?? onUnexpectedError, this._options?.leakWarningThreshold ?? _globalLeakWarningThreshold) :
+			undefined;
 		this._perfMon = this._options?._profName ? new EventProfiling(this._options._profName) : undefined;
 		this._deliveryQueue = this._options?.deliveryQueue as EventDeliveryQueuePrivate | undefined;
 	}
@@ -1032,8 +1079,15 @@ export class Emitter<T> {
 	 */
 	get event(): Event<T> {
 		this._event ??= (callback: (e: T) => any, thisArgs?: any, disposables?: IDisposable[] | DisposableStore) => {
-			if (this._leakageMon && this._size > this._leakageMon.threshold * 3) {
-				console.warn(`[${this._leakageMon.name}] REFUSES to accept new listeners because it exceeded its threshold by far`);
+			if (this._leakageMon && this._size > this._leakageMon.threshold ** 2) {
+				const message = `[${this._leakageMon.name}] REFUSES to accept new listeners because it exceeded its threshold by far (${this._size} vs ${this._leakageMon.threshold})`;
+				console.warn(message);
+
+				const tuple = this._leakageMon.getMostFrequentStack() ?? ['UNKNOWN stack', -1];
+				const error = new ListenerRefusalError(`${message}. HINT: Stack shows most frequent listener (${tuple[1]}-times)`, tuple[0]);
+				const errorHandler = this._options?.onListenerError || onUnexpectedError;
+				errorHandler(error);
+
 				return Disposable.None;
 			}
 
@@ -1086,8 +1140,9 @@ export class Emitter<T> {
 			}
 
 			if (_listenerFinalizers) {
-				const stack = new Error().stack!.split('\n').slice(2).join('\n').trim();
-				_listenerFinalizers.register(result, stack, result);
+				const stack = new Error().stack!.split('\n').slice(2, 3).join('\n').trim();
+				const match = /(file:|vscode-file:\/\/vscode-app)?(\/[^:]*:\d+:\d+)/.exec(stack);
+				_listenerFinalizers.register(result, match?.[2] ?? stack, result);
 			}
 
 			return result;

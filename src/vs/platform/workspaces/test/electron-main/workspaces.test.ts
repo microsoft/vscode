@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import assert from 'assert';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'vs/base/common/path';
@@ -23,7 +23,7 @@ flakySuite('Workspaces', () => {
 	setup(async () => {
 		testDir = getRandomTestPath(tmpDir, 'vsctests', 'workspacesmanagementmainservice');
 
-		return pfs.Promises.mkdir(testDir, { recursive: true });
+		return fs.promises.mkdir(testDir, { recursive: true });
 	});
 
 	teardown(() => {

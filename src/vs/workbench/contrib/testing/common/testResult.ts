@@ -313,6 +313,11 @@ export class LiveTestResult extends Disposable implements ITestResult {
 		return this.testById.values();
 	}
 
+	/** Gets an included test item by ID. */
+	public getTestById(id: string) {
+		return this.testById.get(id)?.item;
+	}
+
 	private readonly computedStateAccessor: IComputedStateAccessor<TestResultItemWithChildren> = {
 		getOwnState: i => i.ownComputedState,
 		getCurrentComputedState: i => i.computedState,

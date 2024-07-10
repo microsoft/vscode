@@ -11,7 +11,7 @@
 		"moduleResolution": "classic",
 		"removeComments": false,
 		"preserveConstEnums": true,
-		"target": "es2018",
+		"target": "ES2022",
 		"sourceMap": false,
 		"declaration": true
 	},
@@ -19,6 +19,7 @@
 		"typings/require.d.ts",
 		"typings/thenable.d.ts",
 		"typings/vscode-globals-product.d.ts",
+		"typings/vscode-globals-nls.d.ts",
 		"vs/loader.d.ts",
 		"vs/monaco.d.ts",
 		"vs/editor/*",

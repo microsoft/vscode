@@ -42,6 +42,9 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { getActiveWindow } from 'vs/base/browser/dom';
 import { mainWindow } from 'vs/base/browser/window';
 import { isDefined } from 'vs/base/common/types';
+import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
+import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
+import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 
 const TRIGGERED_BREAKPOINT_MAX_DELAY = 1500;
 
@@ -65,6 +68,11 @@ export class DebugSession implements IDebugSession, IDisposable {
 	private repl: ReplModel;
 	private stoppedDetails: IRawStoppedDetails[] = [];
 	private readonly statusQueue = this.rawListeners.add(new ThreadStatusScheduler());
+
+	/** Test run this debug session was spawned by */
+	public readonly correlatedTestRun?: LiveTestResult;
+	/** Whether we terminated the correlated run yet. Used so a 2nd terminate request goes through to the underlying session. */
+	private didTerminateTestRun?: boolean;
 
 	private readonly _onDidChangeState = new Emitter<void>();
 	private readonly _onDidEndAdapter = new Emitter<AdapterEndEvent | undefined>();
@@ -106,7 +114,9 @@ export class DebugSession implements IDebugSession, IDisposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ICustomEndpointTelemetryService private readonly customEndpointTelemetryService: ICustomEndpointTelemetryService,
 		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@ITestService private readonly testService: ITestService,
+		@ITestResultService testResultService: ITestResultService,
 	) {
 		this._options = options || {};
 		this.parentSession = this._options.parentSession;
@@ -124,6 +134,16 @@ export class DebugSession implements IDebugSession, IDisposable {
 				this.shutdown();
 				dispose(toDispose);
 			}));
+		}
+
+		// Cast here, it's not possible to reference a hydrated result in this code path.
+		this.correlatedTestRun = options?.testRun
+			? (testResultService.getResult(options.testRun.runId) as LiveTestResult)
+			: this.parentSession?.correlatedTestRun;
+
+		if (this.correlatedTestRun) {
+			// Listen to the test completing because the user might have taken the cancel action rather than stopping the session.
+			toDispose.add(this.correlatedTestRun.onComplete(() => this.terminate()));
 		}
 
 		const compoundRoot = this._options.compoundRoot;
@@ -387,6 +407,9 @@ export class DebugSession implements IDebugSession, IDisposable {
 		this.cancelAllRequests();
 		if (this._options.lifecycleManagedByParent && this.parentSession) {
 			await this.parentSession.terminate(restart);
+		} else if (this.correlatedTestRun && !this.correlatedTestRun.completedAt && !this.didTerminateTestRun) {
+			this.didTerminateTestRun = true;
+			this.testService.cancelTestRun(this.correlatedTestRun.id);
 		} else if (this.raw) {
 			if (this.raw.capabilities.supportsTerminateRequest && this._configuration.resolved.request === 'launch') {
 				await this.raw.terminate(restart);
@@ -662,12 +685,12 @@ export class DebugSession implements IDebugSession, IDisposable {
 		return this.raw.variables({ variablesReference, filter, start, count }, token);
 	}
 
-	evaluate(expression: string, frameId: number, context?: string): Promise<DebugProtocol.EvaluateResponse | undefined> {
+	evaluate(expression: string, frameId: number, context?: string, location?: { line: number; column: number; source: DebugProtocol.Source }): Promise<DebugProtocol.EvaluateResponse | undefined> {
 		if (!this.raw) {
 			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'evaluate'));
 		}
 
-		return this.raw.evaluate({ expression, frameId, context });
+		return this.raw.evaluate({ expression, frameId, context, line: location?.line, column: location?.column, source: location?.source });
 	}
 
 	async restartFrame(frameId: number, threadId: number): Promise<void> {
@@ -1498,8 +1521,8 @@ export class DebugSession implements IDebugSession, IDisposable {
 		this.repl.removeReplExpressions();
 	}
 
-	async addReplExpression(stackFrame: IStackFrame | undefined, name: string): Promise<void> {
-		await this.repl.addReplExpression(this, stackFrame, name);
+	async addReplExpression(stackFrame: IStackFrame | undefined, expression: string): Promise<void> {
+		await this.repl.addReplExpression(this, stackFrame, expression);
 		// Evaluate all watch expressions and fetch variables again since repl evaluation might have changed some.
 		this.debugService.getViewModel().updateViews();
 	}

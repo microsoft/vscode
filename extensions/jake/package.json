@@ -18,7 +18,7 @@
   },
   "dependencies": {},
   "devDependencies": {
-    "@types/node": "18.x"
+    "@types/node": "20.x"
   },
   "main": "./out/main",
   "activationEvents": [

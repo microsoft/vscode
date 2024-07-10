@@ -8,6 +8,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { isMacintosh } from 'vs/base/common/platform';
 import * as nls from 'vs/nls';
+import { AccessibleViewRegistry } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -17,11 +18,12 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { EditorExtensions, IEditorFactoryRegistry } from 'vs/workbench/common/editor';
+import { ChatAccessibilityHelp } from 'vs/workbench/contrib/chat/browser/actions/chatAccessibilityHelp';
 import { registerChatActions } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { ACTION_ID_NEW_CHAT, registerNewChatActions } from 'vs/workbench/contrib/chat/browser/actions/chatClearActions';
 import { registerChatCodeBlockActions, registerChatCodeCompareBlockActions } from 'vs/workbench/contrib/chat/browser/actions/chatCodeblockActions';
 import { registerChatCopyActions } from 'vs/workbench/contrib/chat/browser/actions/chatCopyActions';
-import { IChatExecuteActionContext, SubmitAction, registerChatExecuteActions } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
+import { SubmitAction, registerChatExecuteActions } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
 import { registerChatFileTreeActions } from 'vs/workbench/contrib/chat/browser/actions/chatFileTreeActions';
 import { registerChatExportActions } from 'vs/workbench/contrib/chat/browser/actions/chatImportExport';
 import { registerMoveActions } from 'vs/workbench/contrib/chat/browser/actions/chatMoveActions';
@@ -31,29 +33,34 @@ import { IChatAccessibilityService, IChatCodeBlockContextProviderService, IChatW
 import { ChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chatAccessibilityService';
 import { ChatEditor, IChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatEditor';
 import { ChatEditorInput, ChatEditorInputSerializer } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
+import { agentSlashCommandToMarkdown, agentToMarkdown } from 'vs/workbench/contrib/chat/browser/chatMarkdownDecorationsRenderer';
+import { ChatExtensionPointHandler } from 'vs/workbench/contrib/chat/browser/chatParticipantContributions';
 import { QuickChatService } from 'vs/workbench/contrib/chat/browser/chatQuick';
+import { ChatResponseAccessibleView } from 'vs/workbench/contrib/chat/browser/chatResponseAccessibleView';
 import { ChatVariablesService } from 'vs/workbench/contrib/chat/browser/chatVariables';
 import { ChatWidgetService } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { ChatCodeBlockContextProviderService } from 'vs/workbench/contrib/chat/browser/codeBlockContextProviderService';
-import 'vs/workbench/contrib/chat/browser/contrib/chatHistoryVariables';
 import 'vs/workbench/contrib/chat/browser/contrib/chatInputEditorContrib';
-import { ChatAgentLocation, ChatAgentService, IChatAgentService, IChatAgentNameService, ChatAgentNameService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import 'vs/workbench/contrib/chat/browser/contrib/chatContextAttachments';
+import 'vs/workbench/contrib/chat/browser/contrib/chatInputCompletions';
+import 'vs/workbench/contrib/chat/browser/contrib/chatInputEditorHover';
+import { ChatAgentLocation, ChatAgentNameService, ChatAgentService, IChatAgentNameService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { chatVariableLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { ChatService } from 'vs/workbench/contrib/chat/common/chatServiceImpl';
+import { LanguageModelToolsService, ILanguageModelToolsService } from 'vs/workbench/contrib/chat/common/languageModelToolsService';
 import { ChatSlashCommandService, IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { ChatWidgetHistoryService, IChatWidgetHistoryService } from 'vs/workbench/contrib/chat/common/chatWidgetHistoryService';
 import { ILanguageModelsService, LanguageModelsService } from 'vs/workbench/contrib/chat/common/languageModels';
 import { ILanguageModelStatsService, LanguageModelStatsService } from 'vs/workbench/contrib/chat/common/languageModelStats';
-import { IVoiceChatService, VoiceChatService } from 'vs/workbench/contrib/chat/common/voiceChat';
+import { IVoiceChatService, VoiceChatService } from 'vs/workbench/contrib/chat/common/voiceChatService';
 import { IEditorResolverService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorResolverService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import '../common/chatColors';
-import { ChatExtensionPointHandler } from 'vs/workbench/contrib/chat/browser/chatParticipantContributions';
-import { AccessibleViewRegistry } from 'vs/platform/accessibility/browser/accessibleViewRegistry';
-import { ChatResponseAccessibleView } from 'vs/workbench/contrib/chat/browser/chatResponseAccessibleView';
-import { ChatAccessibilityHelp } from 'vs/workbench/contrib/chat/browser/actions/chatAccessibilityHelp';
+import { registerChatContextActions } from 'vs/workbench/contrib/chat/browser/actions/chatContextActions';
+import { registerChatDeveloperActions } from 'vs/workbench/contrib/chat/browser/actions/chatDeveloperActions';
+import { LanguageModelToolsExtensionPointHandler } from 'vs/workbench/contrib/chat/common/tools/languageModelToolsContribution';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -91,12 +98,26 @@ configurationRegistry.registerConfiguration({
 		'chat.experimental.implicitContext': {
 			type: 'boolean',
 			description: nls.localize('chat.experimental.implicitContext', "Controls whether a checkbox is shown to allow the user to determine which implicit context is included with a chat participant's prompt."),
+			deprecated: true,
+			default: false
+		},
+		'chat.experimental.variables.editor': {
+			type: 'boolean',
+			description: nls.localize('chat.experimental.variables.editor', "Enables variables for editor chat."),
+			default: false
+		},
+		'chat.experimental.variables.notebook': {
+			type: 'boolean',
+			description: nls.localize('chat.experimental.variables.notebook', "Enables variables for notebook chat."),
+			default: false
+		},
+		'chat.experimental.variables.terminal': {
+			type: 'boolean',
+			description: nls.localize('chat.experimental.variables.terminal', "Enables variables for terminal chat."),
 			default: false
 		},
 	}
 });
-
-
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
 		ChatEditor,
@@ -148,13 +169,15 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 		@ICommandService commandService: ICommandService,
 		@IChatAgentService chatAgentService: IChatAgentService,
 		@IChatVariablesService chatVariablesService: IChatVariablesService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 		this._store.add(slashCommandService.registerSlashCommand({
 			command: 'clear',
 			detail: nls.localize('clear', "Start a new chat"),
 			sortText: 'z2_clear',
-			executeImmediately: true
+			executeImmediately: true,
+			locations: [ChatAgentLocation.Panel]
 		}, async () => {
 			commandService.executeCommand(ACTION_ID_NEW_CHAT);
 		}));
@@ -162,7 +185,8 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 			command: 'help',
 			detail: '',
 			sortText: 'z1_help',
-			executeImmediately: true
+			executeImmediately: true,
+			locations: [ChatAgentLocation.Panel]
 		}, async (prompt, progress) => {
 			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Panel);
 			const agents = chatAgentService.getAgents();
@@ -182,16 +206,12 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 				.filter(a => a.id !== defaultAgent?.id)
 				.filter(a => a.locations.includes(ChatAgentLocation.Panel))
 				.map(async a => {
-					const agentWithLeader = `${chatAgentLeader}${a.name}`;
-					const actionArg: IChatExecuteActionContext = { inputValue: `${agentWithLeader} ${a.metadata.sampleRequest ?? ''}` };
-					const urlSafeArg = encodeURIComponent(JSON.stringify(actionArg));
 					const description = a.description ? `- ${a.description}` : '';
-					const agentLine = `* [\`${agentWithLeader}\`](command:${SubmitAction.ID}?${urlSafeArg}) ${description}`;
+					const agentMarkdown = instantiationService.invokeFunction(accessor => agentToMarkdown(a, true, accessor));
+					const agentLine = `- ${agentMarkdown} ${description}`;
 					const commandText = a.slashCommands.map(c => {
-						const actionArg: IChatExecuteActionContext = { inputValue: `${agentWithLeader} ${chatSubcommandLeader}${c.name} ${c.sampleRequest ?? ''}` };
-						const urlSafeArg = encodeURIComponent(JSON.stringify(actionArg));
 						const description = c.description ? `- ${c.description}` : '';
-						return `\t* [\`${chatSubcommandLeader}${c.name}\`](command:${SubmitAction.ID}?${urlSafeArg}) ${description}`;
+						return `\t* ${agentSlashCommandToMarkdown(a, c)} ${description}`;
 					}).join('\n');
 
 					return (agentLine + '\n' + commandText).trim();
@@ -235,6 +255,7 @@ registerWorkbenchContribution2(ChatResolverContribution.ID, ChatResolverContribu
 workbenchContributionsRegistry.registerWorkbenchContribution(ChatSlashStaticSlashCommandsContribution, LifecyclePhase.Eventually);
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(ChatEditorInput.TypeID, ChatEditorInputSerializer);
 registerWorkbenchContribution2(ChatExtensionPointHandler.ID, ChatExtensionPointHandler, WorkbenchPhase.BlockStartup);
+registerWorkbenchContribution2(LanguageModelToolsExtensionPointHandler.ID, LanguageModelToolsExtensionPointHandler, WorkbenchPhase.BlockRestore);
 
 registerChatActions();
 registerChatCopyActions();
@@ -247,6 +268,8 @@ registerQuickChatActions();
 registerChatExportActions();
 registerMoveActions();
 registerNewChatActions();
+registerChatContextActions();
+registerChatDeveloperActions();
 
 registerSingleton(IChatService, ChatService, InstantiationType.Delayed);
 registerSingleton(IChatWidgetService, ChatWidgetService, InstantiationType.Delayed);
@@ -259,5 +282,6 @@ registerSingleton(IChatSlashCommandService, ChatSlashCommandService, Instantiati
 registerSingleton(IChatAgentService, ChatAgentService, InstantiationType.Delayed);
 registerSingleton(IChatAgentNameService, ChatAgentNameService, InstantiationType.Delayed);
 registerSingleton(IChatVariablesService, ChatVariablesService, InstantiationType.Delayed);
+registerSingleton(ILanguageModelToolsService, LanguageModelToolsService, InstantiationType.Delayed);
 registerSingleton(IVoiceChatService, VoiceChatService, InstantiationType.Delayed);
 registerSingleton(IChatCodeBlockContextProviderService, ChatCodeBlockContextProviderService, InstantiationType.Delayed);

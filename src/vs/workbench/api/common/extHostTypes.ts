@@ -271,6 +271,10 @@ export class Position {
 	toJSON(): any {
 		return { line: this.line, character: this.character };
 	}
+
+	[Symbol.for('debug.description')]() {
+		return `(${this.line}:${this.character})`;
+	}
 }
 
 @es5ClassCompat
@@ -417,6 +421,10 @@ export class Range {
 	toJSON(): any {
 		return [this.start, this.end];
 	}
+
+	[Symbol.for('debug.description')]() {
+		return getDebugDescriptionOfRange(this);
+	}
 }
 
 @es5ClassCompat
@@ -483,6 +491,29 @@ export class Selection extends Range {
 			anchor: this.anchor
 		};
 	}
+
+
+	[Symbol.for('debug.description')]() {
+		return getDebugDescriptionOfSelection(this);
+	}
+}
+
+export function getDebugDescriptionOfRange(range: vscode.Range): string {
+	return range.isEmpty
+		? `[${range.start.line}:${range.start.character})`
+		: `[${range.start.line}:${range.start.character} -> ${range.end.line}:${range.end.character})`;
+}
+
+export function getDebugDescriptionOfSelection(selection: vscode.Selection): string {
+	let rangeStr = getDebugDescriptionOfRange(selection);
+	if (!selection.isEmpty) {
+		if (selection.active.isEqual(selection.start)) {
+			rangeStr = `|${rangeStr}`;
+		} else {
+			rangeStr = `${rangeStr}|`;
+		}
+	}
+	return rangeStr;
 }
 
 const validateConnectionToken = (connectionToken: string) => {
@@ -4023,7 +4054,7 @@ export enum TestRunProfileKind {
 }
 
 @es5ClassCompat
-export class TestRunRequest implements vscode.TestRunRequest2 {
+export class TestRunRequest implements vscode.TestRunRequest {
 	constructor(
 		public readonly include: vscode.TestItem[] | undefined = undefined,
 		public readonly exclude: vscode.TestItem[] | undefined = undefined,
@@ -4038,8 +4069,10 @@ export class TestMessage implements vscode.TestMessage {
 	public expectedOutput?: string;
 	public actualOutput?: string;
 	public location?: vscode.Location;
-	/** proposed: */
 	public contextValue?: string;
+
+	/** proposed: */
+	public stackTrace?: TestMessageStackFrame[];
 
 	public static diff(message: string | vscode.MarkdownString, expected: string, actual: string) {
 		const msg = new TestMessage(message);
@@ -4054,6 +4087,19 @@ export class TestMessage implements vscode.TestMessage {
 @es5ClassCompat
 export class TestTag implements vscode.TestTag {
 	constructor(public readonly id: string) { }
+}
+
+export class TestMessageStackFrame {
+	/**
+	 * @param label The name of the stack frame
+	 * @param file The file URI of the stack frame
+	 * @param position The position of the stack frame within the file
+	 */
+	constructor(
+		public label: string,
+		public file?: vscode.Uri,
+		public position?: Position,
+	) { }
 }
 
 //#endregion
@@ -4119,6 +4165,7 @@ export class FileCoverage implements vscode.FileCoverage {
 		public statementCoverage: vscode.TestCoverageCount,
 		public branchCoverage?: vscode.TestCoverageCount,
 		public declarationCoverage?: vscode.TestCoverageCount,
+		public fromTests: vscode.TestItem[] = [],
 	) {
 	}
 }
@@ -4269,14 +4316,18 @@ export enum ChatVariableLevel {
 }
 
 export class ChatCompletionItem implements vscode.ChatCompletionItem {
+	id: string;
 	label: string | CompletionItemLabel;
+	fullName?: string | undefined;
+	icon?: vscode.ThemeIcon;
 	insertText?: string;
 	values: vscode.ChatVariableValue[];
 	detail?: string;
 	documentation?: string | MarkdownString;
 	command?: vscode.Command;
 
-	constructor(label: string | CompletionItemLabel, values: vscode.ChatVariableValue[]) {
+	constructor(id: string, label: string | CompletionItemLabel, values: vscode.ChatVariableValue[]) {
+		this.id = id;
 		this.label = label;
 		this.values = values;
 	}
@@ -4337,6 +4388,20 @@ export class ChatResponseDetectedParticipantPart {
 	}
 }
 
+export class ChatResponseConfirmationPart {
+	title: string;
+	message: string;
+	data: any;
+	buttons?: string[];
+
+	constructor(title: string, message: string, data: any, buttons?: string[]) {
+		this.title = title;
+		this.message = message;
+		this.data = data;
+		this.buttons = buttons;
+	}
+}
+
 export class ChatResponseFileTreePart {
 	value: vscode.ChatResponseFileTree[];
 	baseUri: vscode.Uri;
@@ -4347,9 +4412,9 @@ export class ChatResponseFileTreePart {
 }
 
 export class ChatResponseAnchorPart {
-	value: vscode.Uri | vscode.Location | vscode.SymbolInformation;
+	value: vscode.Uri | vscode.Location;
 	title?: string;
-	constructor(value: vscode.Uri | vscode.Location | vscode.SymbolInformation, title?: string) {
+	constructor(value: vscode.Uri | vscode.Location, title?: string) {
 		this.value = value;
 		this.title = title;
 	}
@@ -4359,6 +4424,15 @@ export class ChatResponseProgressPart {
 	value: string;
 	constructor(value: string) {
 		this.value = value;
+	}
+}
+
+export class ChatResponseProgressPart2 {
+	value: string;
+	task?: (progress: vscode.Progress<vscode.ChatResponseWarningPart>) => Thenable<string | void>;
+	constructor(value: string, task?: (progress: vscode.Progress<vscode.ChatResponseWarningPart>) => Thenable<string | void>) {
+		this.value = value;
+		this.task = task;
 	}
 }
 
@@ -4382,8 +4456,8 @@ export class ChatResponseCommandButtonPart {
 
 export class ChatResponseReferencePart {
 	value: vscode.Uri | vscode.Location | { variableName: string; value?: vscode.Uri | vscode.Location };
-	iconPath?: vscode.ThemeIcon | { light: vscode.Uri; dark: vscode.Uri };
-	constructor(value: vscode.Uri | vscode.Location | { variableName: string; value?: vscode.Uri | vscode.Location }, iconPath?: vscode.ThemeIcon | { light: vscode.Uri; dark: vscode.Uri }) {
+	iconPath?: vscode.Uri | vscode.ThemeIcon | { light: vscode.Uri; dark: vscode.Uri };
+	constructor(value: vscode.Uri | vscode.Location | { variableName: string; value?: vscode.Uri | vscode.Location }, iconPath?: vscode.Uri | vscode.ThemeIcon | { light: vscode.Uri; dark: vscode.Uri }) {
 		this.value = value;
 		this.iconPath = iconPath;
 	}
@@ -4402,7 +4476,7 @@ export class ChatRequestTurn implements vscode.ChatRequestTurn {
 	constructor(
 		readonly prompt: string,
 		readonly command: string | undefined,
-		readonly variables: vscode.ChatValueReference[],
+		readonly references: vscode.ChatPromptReference[],
 		readonly participant: string,
 	) { }
 }
@@ -4424,33 +4498,97 @@ export enum ChatLocation {
 	Editor = 4,
 }
 
+export class ChatRequestEditorData implements vscode.ChatRequestEditorData {
+	constructor(
+		readonly document: vscode.TextDocument,
+		readonly selection: vscode.Selection,
+		readonly wholeRange: vscode.Range,
+	) { }
+}
+
+export class ChatRequestNotebookData implements vscode.ChatRequestNotebookData {
+	constructor(
+		readonly cell: vscode.TextDocument
+	) { }
+}
+
 export enum LanguageModelChatMessageRole {
 	User = 1,
 	Assistant = 2,
 	System = 3
 }
 
-export class LanguageModelChatMessage2 implements vscode.LanguageModelChatMessage2 {
+export class LanguageModelFunctionResultPart implements vscode.LanguageModelChatMessageFunctionResultPart {
+
+	name: string;
+	content: string;
+	isError: boolean;
+
+	constructor(name: string, content: string, isError?: boolean) {
+		this.name = name;
+		this.content = content;
+		this.isError = isError ?? false;
+	}
+}
+
+export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage {
+
+	static User(content: string | LanguageModelFunctionResultPart, name?: string): LanguageModelChatMessage {
+		const value = new LanguageModelChatMessage(LanguageModelChatMessageRole.User, typeof content === 'string' ? content : '', name);
+		value.content2 = content;
+		return value;
+	}
+
+	static Assistant(content: string, name?: string): LanguageModelChatMessage {
+		return new LanguageModelChatMessage(LanguageModelChatMessageRole.Assistant, content, name);
+	}
 
 	role: vscode.LanguageModelChatMessageRole;
 	content: string;
+	content2: string | vscode.LanguageModelChatMessageFunctionResultPart;
 	name: string | undefined;
 
 	constructor(role: vscode.LanguageModelChatMessageRole, content: string, name?: string) {
 		this.role = role;
 		this.content = content;
+		this.content2 = content;
 		this.name = name;
 	}
 }
 
+export class LanguageModelFunctionUsePart implements vscode.LanguageModelChatResponseFunctionUsePart {
+	name: string;
+	parameters: any;
+
+	constructor(name: string, parameters: any) {
+		this.name = name;
+		this.parameters = parameters;
+	}
+}
+
+export class LanguageModelTextPart implements vscode.LanguageModelChatResponseTextPart {
+	value: string;
+
+	constructor(value: string) {
+		this.value = value;
+
+	}
+}
+
+/**
+ * @deprecated
+ */
 export class LanguageModelChatSystemMessage {
 	content: string;
-
 	constructor(content: string) {
 		this.content = content;
 	}
 }
 
+
+/**
+ * @deprecated
+ */
 export class LanguageModelChatUserMessage {
 	content: string;
 	name: string | undefined;
@@ -4461,6 +4599,9 @@ export class LanguageModelChatUserMessage {
 	}
 }
 
+/**
+ * @deprecated
+ */
 export class LanguageModelChatAssistantMessage {
 	content: string;
 	name?: string;

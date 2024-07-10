@@ -6,6 +6,7 @@
 import { notStrictEqual, strictEqual } from 'assert';
 import { getActiveWindow } from 'vs/base/browser/dom';
 import { mainWindow } from 'vs/base/browser/window';
+import { isLinux } from 'vs/base/common/platform';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -219,7 +220,7 @@ suite('Workbench - TerminalConfigurationService', () => {
 					}
 				}
 			});
-			strictEqual(terminalConfigurationService.getFont(getActiveWindow()).lineHeight, 1, 'editor.lineHeight should be 1 when terminal.integrated.lineHeight not set');
+			strictEqual(terminalConfigurationService.getFont(getActiveWindow()).lineHeight, isLinux ? 1.1 : 1, 'editor.lineHeight should be the default when terminal.integrated.lineHeight not set');
 		});
 	});
 

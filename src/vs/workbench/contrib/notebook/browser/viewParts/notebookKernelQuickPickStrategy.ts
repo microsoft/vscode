@@ -384,13 +384,13 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 				description: suggestedExtension.displayName ?? suggestedExtension.extensionIds.join(', '),
 				label: `$(${Codicon.lightbulb.id}) ` + localize('installSuggestedKernel', 'Install/Enable suggested extensions'),
 				extensionIds: suggestedExtension.extensionIds
-			} as InstallExtensionPick);
+			} satisfies InstallExtensionPick);
 		}
 		// there is no kernel, show the install from marketplace
 		quickPickItems.push({
 			id: 'install',
 			label: localize('searchForKernels', "Browse marketplace for kernel extensions"),
-		} as SearchMarketplacePick);
+		} satisfies SearchMarketplacePick);
 
 		return quickPickItems;
 	}

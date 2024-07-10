@@ -36,7 +36,11 @@ export class ExtHostSpeech implements ExtHostSpeechShape {
 		const cts = new CancellationTokenSource();
 		this.sessions.set(session, cts);
 
-		const speechToTextSession = disposables.add(provider.provideSpeechToTextSession(cts.token, language ? { language } : undefined));
+		const speechToTextSession = await provider.provideSpeechToTextSession(cts.token, language ? { language } : undefined);
+		if (!speechToTextSession) {
+			return;
+		}
+
 		disposables.add(speechToTextSession.onDidChange(e => {
 			if (cts.token.isCancellationRequested) {
 				return;
@@ -53,7 +57,7 @@ export class ExtHostSpeech implements ExtHostSpeechShape {
 		this.sessions.delete(session);
 	}
 
-	async $createTextToSpeechSession(handle: number, session: number): Promise<void> {
+	async $createTextToSpeechSession(handle: number, session: number, language?: string): Promise<void> {
 		const provider = this.providers.get(handle);
 		if (!provider) {
 			return;
@@ -64,7 +68,11 @@ export class ExtHostSpeech implements ExtHostSpeechShape {
 		const cts = new CancellationTokenSource();
 		this.sessions.set(session, cts);
 
-		const textToSpeech = disposables.add(provider.provideTextToSpeechSession(cts.token));
+		const textToSpeech = await provider.provideTextToSpeechSession(cts.token, language ? { language } : undefined);
+		if (!textToSpeech) {
+			return;
+		}
+
 		this.synthesizers.set(session, textToSpeech);
 
 		disposables.add(textToSpeech.onDidChange(e => {
@@ -79,12 +87,7 @@ export class ExtHostSpeech implements ExtHostSpeechShape {
 	}
 
 	async $synthesizeSpeech(session: number, text: string): Promise<void> {
-		const synthesizer = this.synthesizers.get(session);
-		if (!synthesizer) {
-			return;
-		}
-
-		synthesizer.synthesize(text);
+		this.synthesizers.get(session)?.synthesize(text);
 	}
 
 	async $cancelTextToSpeechSession(session: number): Promise<void> {
@@ -104,7 +107,11 @@ export class ExtHostSpeech implements ExtHostSpeechShape {
 		const cts = new CancellationTokenSource();
 		this.sessions.set(session, cts);
 
-		const keywordRecognitionSession = disposables.add(provider.provideKeywordRecognitionSession(cts.token));
+		const keywordRecognitionSession = await provider.provideKeywordRecognitionSession(cts.token);
+		if (!keywordRecognitionSession) {
+			return;
+		}
+
 		disposables.add(keywordRecognitionSession.onDidChange(e => {
 			if (cts.token.isCancellationRequested) {
 				return;

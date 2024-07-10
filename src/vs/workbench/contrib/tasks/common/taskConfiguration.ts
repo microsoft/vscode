@@ -1003,8 +1003,7 @@ namespace CommandConfiguration {
 				runtime = Tasks.RuntimeType.fromString(config.type);
 			}
 		}
-		const isShellConfiguration = ShellConfiguration.is(config.isShellCommand);
-		if (Types.isBoolean(config.isShellCommand) || isShellConfiguration) {
+		if (Types.isBoolean(config.isShellCommand) || ShellConfiguration.is(config.isShellCommand)) {
 			runtime = Tasks.RuntimeType.Shell;
 		} else if (config.isShellCommand !== undefined) {
 			runtime = !!config.isShellCommand ? Tasks.RuntimeType.Shell : Tasks.RuntimeType.Process;
@@ -1034,8 +1033,8 @@ namespace CommandConfiguration {
 		}
 		if (config.options !== undefined) {
 			result.options = CommandOptions.from(config.options, context);
-			if (result.options && result.options.shell === undefined && isShellConfiguration) {
-				result.options.shell = ShellConfiguration.from(config.isShellCommand as IShellConfiguration, context);
+			if (result.options && result.options.shell === undefined && ShellConfiguration.is(config.isShellCommand)) {
+				result.options.shell = ShellConfiguration.from(config.isShellCommand, context);
 				if (context.engine !== Tasks.ExecutionEngine.Terminal) {
 					context.taskLoadIssues.push(nls.localize('ConfigurationParser.noShell', 'Warning: shell configuration is only supported when executing tasks in the terminal.'));
 				}
@@ -1247,11 +1246,6 @@ export namespace ProblemMatcherConverter {
 	}
 }
 
-const partialSource: Partial<Tasks.TaskSource> = {
-	label: 'Workspace',
-	config: undefined
-};
-
 export namespace GroupKind {
 	export function from(this: void, external: string | IGroupKind | undefined): Tasks.TaskGroup | undefined {
 		if (external === undefined) {
@@ -1399,6 +1393,7 @@ namespace ConfigurationProperties {
 		return _isEmpty(value, properties);
 	}
 }
+const label = 'Workspace';
 
 namespace ConfiguringTask {
 
@@ -1470,15 +1465,15 @@ namespace ConfiguringTask {
 		let taskSource: Tasks.FileBasedTaskSource;
 		switch (source) {
 			case TaskConfigSource.User: {
-				taskSource = Object.assign({} as Tasks.IUserTaskSource, partialSource, { kind: Tasks.TaskSourceKind.User, config: configElement });
+				taskSource = { kind: Tasks.TaskSourceKind.User, config: configElement, label };
 				break;
 			}
 			case TaskConfigSource.WorkspaceFile: {
-				taskSource = Object.assign({} as Tasks.WorkspaceFileTaskSource, partialSource, { kind: Tasks.TaskSourceKind.WorkspaceFile, config: configElement });
+				taskSource = { kind: Tasks.TaskSourceKind.WorkspaceFile, config: configElement, label };
 				break;
 			}
 			default: {
-				taskSource = Object.assign({} as Tasks.IWorkspaceTaskSource, partialSource, { kind: Tasks.TaskSourceKind.Workspace, config: configElement });
+				taskSource = { kind: Tasks.TaskSourceKind.Workspace, config: configElement, label };
 				break;
 			}
 		}
@@ -1543,15 +1538,15 @@ namespace CustomTask {
 		let taskSource: Tasks.FileBasedTaskSource;
 		switch (source) {
 			case TaskConfigSource.User: {
-				taskSource = Object.assign({} as Tasks.IUserTaskSource, partialSource, { kind: Tasks.TaskSourceKind.User, config: { index, element: external, file: '.vscode/tasks.json', workspaceFolder: context.workspaceFolder } });
+				taskSource = { kind: Tasks.TaskSourceKind.User, config: { index, element: external, file: '.vscode/tasks.json', workspaceFolder: context.workspaceFolder }, label };
 				break;
 			}
 			case TaskConfigSource.WorkspaceFile: {
-				taskSource = Object.assign({} as Tasks.WorkspaceFileTaskSource, partialSource, { kind: Tasks.TaskSourceKind.WorkspaceFile, config: { index, element: external, file: '.vscode/tasks.json', workspaceFolder: context.workspaceFolder, workspace: context.workspace } });
+				taskSource = { kind: Tasks.TaskSourceKind.WorkspaceFile, config: { index, element: external, file: '.vscode/tasks.json', workspaceFolder: context.workspaceFolder, workspace: context.workspace }, label };
 				break;
 			}
 			default: {
-				taskSource = Object.assign({} as Tasks.IWorkspaceTaskSource, partialSource, { kind: Tasks.TaskSourceKind.Workspace, config: { index, element: external, file: '.vscode/tasks.json', workspaceFolder: context.workspaceFolder } });
+				taskSource = { kind: Tasks.TaskSourceKind.Workspace, config: { index, element: external, file: '.vscode/tasks.json', workspaceFolder: context.workspaceFolder }, label };
 				break;
 			}
 		}
@@ -2110,7 +2105,7 @@ class ConfigurationParser {
 			const name = Tasks.CommandString.value(globals.command.name);
 			const task: Tasks.CustomTask = new Tasks.CustomTask(
 				context.uuidMap.getUUID(name),
-				Object.assign({} as Tasks.IWorkspaceTaskSource, source, { config: { index: -1, element: fileConfig, workspaceFolder: context.workspaceFolder } }),
+				Object.assign({}, source, 'workspace', { config: { index: -1, element: fileConfig, workspaceFolder: context.workspaceFolder } }) satisfies Tasks.IWorkspaceTaskSource,
 				name,
 				Tasks.CUSTOMIZED_TASK_TYPE,
 				{

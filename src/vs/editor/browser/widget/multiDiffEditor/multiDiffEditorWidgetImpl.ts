@@ -30,9 +30,11 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { DiffEditorItemTemplate, TemplateData } from './diffEditorItemTemplate';
 import { DocumentDiffItemViewModel, MultiDiffEditorViewModel } from './multiDiffEditorViewModel';
 import { ObjectPool } from './objectPool';
+import { localize } from 'vs/nls';
+import { IDocumentDiffItem } from 'vs/editor/browser/widget/multiDiffEditor/model';
 
 export class MultiDiffEditorWidgetImpl extends Disposable {
-	private readonly _elements = h('div.monaco-component.multiDiffEditor', [
+	private readonly _scrollableElements = h('div.scrollContent', [
 		h('div@content', {
 			style: {
 				overflow: 'hidden',
@@ -42,33 +44,38 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		}),
 	]);
 
-	private readonly _sizeObserver = this._register(new ObservableElementSizeObserver(this._element, undefined));
-
-	private readonly _objectPool = this._register(new ObjectPool<TemplateData, DiffEditorItemTemplate>((data) => {
-		const template = this._instantiationService.createInstance(
-			DiffEditorItemTemplate,
-			this._elements.content,
-			this._elements.overflowWidgetsDomNode,
-			this._workbenchUIElementFactory
-		);
-		template.setData(data);
-		return template;
-	}));
-
 	private readonly _scrollable = this._register(new Scrollable({
 		forceIntegerValues: false,
 		scheduleAtNextAnimationFrame: (cb) => scheduleAtNextAnimationFrame(getWindow(this._element), cb),
 		smoothScrollDuration: 100,
 	}));
 
-	private readonly _scrollableElement = this._register(new SmoothScrollableElement(this._elements.root, {
+	private readonly _scrollableElement = this._register(new SmoothScrollableElement(this._scrollableElements.root, {
 		vertical: ScrollbarVisibility.Auto,
 		horizontal: ScrollbarVisibility.Auto,
 		useShadows: false,
 	}, this._scrollable));
 
-	public readonly scrollTop = observableFromEvent(this._scrollableElement.onScroll, () => /** @description scrollTop */ this._scrollableElement.getScrollPosition().scrollTop);
-	public readonly scrollLeft = observableFromEvent(this._scrollableElement.onScroll, () => /** @description scrollLeft */ this._scrollableElement.getScrollPosition().scrollLeft);
+	private readonly _elements = h('div.monaco-component.multiDiffEditor', {}, [
+		h('div', {}, [this._scrollableElement.getDomNode()]),
+		h('div.placeholder@placeholder', {}, [h('div', [localize('noChangedFiles', 'No Changed Files') as any])]),
+	]);
+
+	private readonly _sizeObserver = this._register(new ObservableElementSizeObserver(this._element, undefined));
+
+	private readonly _objectPool = this._register(new ObjectPool<TemplateData, DiffEditorItemTemplate>((data) => {
+		const template = this._instantiationService.createInstance(
+			DiffEditorItemTemplate,
+			this._scrollableElements.content,
+			this._scrollableElements.overflowWidgetsDomNode,
+			this._workbenchUIElementFactory
+		);
+		template.setData(data);
+		return template;
+	}));
+
+	public readonly scrollTop = observableFromEvent(this, this._scrollableElement.onScroll, () => /** @description scrollTop */ this._scrollableElement.getScrollPosition().scrollTop);
+	public readonly scrollLeft = observableFromEvent(this, this._scrollableElement.onScroll, () => /** @description scrollLeft */ this._scrollableElement.getScrollPosition().scrollLeft);
 
 	private readonly _viewItemsInfo = derivedWithStore<{ items: readonly VirtualizedViewItem[]; getItem: (viewModel: DocumentDiffItemViewModel) => VirtualizedViewItem }>(this,
 		(reader, store) => {
@@ -108,9 +115,9 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 	});
 
 	private readonly _contextKeyService = this._register(this._parentContextKeyService.createScoped(this._element));
-	private readonly _instantiationService = this._parentInstantiationService.createChild(
+	private readonly _instantiationService = this._register(this._parentInstantiationService.createChild(
 		new ServiceCollection([IContextKeyService, this._contextKeyService])
-	);
+	));
 
 	constructor(
 		private readonly _element: HTMLElement,
@@ -150,14 +157,20 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			this._sizeObserver.observe(dimension);
 		}));
 
-		this._elements.content.style.position = 'relative';
+		this._register(autorun((reader) => {
+			/** @description Update widget dimension */
+			const items = this._viewItems.read(reader);
+			this._elements.placeholder.classList.toggle('visible', items.length === 0);
+		}));
+
+		this._scrollableElements.content.style.position = 'relative';
 
 		this._register(autorun((reader) => {
 			/** @description Update scroll dimensions */
 			const height = this._sizeObserver.height.read(reader);
-			this._elements.root.style.height = `${height}px`;
+			this._scrollableElements.root.style.height = `${height}px`;
 			const totalHeight = this._totalHeight.read(reader);
-			this._elements.content.style.height = `${totalHeight}px`;
+			this._scrollableElements.content.style.height = `${totalHeight}px`;
 
 			const width = this._sizeObserver.width.read(reader);
 
@@ -177,7 +190,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			});
 		}));
 
-		_element.replaceChildren(this._scrollableElement.getDomNode());
+		_element.replaceChildren(this._elements.root);
 		this._register(toDisposable(() => {
 			_element.replaceChildren();
 		}));
@@ -251,6 +264,14 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		});
 	}
 
+	public findDocumentDiffItem(resource: URI): IDocumentDiffItem | undefined {
+		const item = this._viewItems.get().find(v =>
+			v.viewModel.diffEditorViewModel.model.modified.uri.toString() === resource.toString()
+			|| v.viewModel.diffEditorViewModel.model.original.uri.toString() === resource.toString()
+		);
+		return item?.viewModel.documentDiffItem;
+	}
+
 	public tryGetCodeEditor(resource: URI): { diffEditor: IDiffEditor; editor: ICodeEditor } | undefined {
 		const item = this._viewItems.get().find(v =>
 			v.viewModel.diffEditorViewModel.model.modified.uri.toString() === resource.toString()
@@ -260,6 +281,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		if (!editor) {
 			return undefined;
 		}
+
 		if (item.viewModel.diffEditorViewModel.model.modified.uri.toString() === resource.toString()) {
 			return { diffEditor: editor, editor: editor.getModifiedEditor() };
 		} else {
@@ -299,7 +321,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			itemContentHeightSumBefore += itemContentHeight + this._spaceBetweenPx;
 		}
 
-		this._elements.content.style.transform = `translateY(${-(scrollTop + contentScrollOffsetToScrollOffset)}px)`;
+		this._scrollableElements.content.style.transform = `translateY(${-(scrollTop + contentScrollOffsetToScrollOffset)}px)`;
 	}
 }
 

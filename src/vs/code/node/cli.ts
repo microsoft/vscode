@@ -39,10 +39,6 @@ function shouldSpawnCliProcess(argv: NativeParsedArgs): boolean {
 		|| !!argv['telemetry'];
 }
 
-interface IMainCli {
-	main: (argv: NativeParsedArgs) => Promise<void>;
-}
-
 export async function main(argv: string[]): Promise<any> {
 	let args: NativeParsedArgs;
 
@@ -112,7 +108,8 @@ export async function main(argv: string[]): Promise<any> {
 
 	// Extensions Management
 	else if (shouldSpawnCliProcess(args)) {
-		const cli = await new Promise<IMainCli>((resolve, reject) => require(['vs/code/node/cliProcessMain'], resolve, reject));
+
+		const cli = await import('vs/code/node/cliProcessMain');
 		await cli.main(args);
 
 		return;

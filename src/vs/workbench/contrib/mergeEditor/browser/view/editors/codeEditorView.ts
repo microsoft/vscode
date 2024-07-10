@@ -20,7 +20,8 @@ import { MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DEFAULT_EDITOR_MAX_DIMENSIONS, DEFAULT_EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
-import { observableConfigValue, setStyle } from 'vs/workbench/contrib/mergeEditor/browser/utils';
+import { setStyle } from 'vs/workbench/contrib/mergeEditor/browser/utils';
+import { observableConfigValue } from 'vs/platform/observable/common/platformObservableUtils';
 import { MergeEditorViewModel } from 'vs/workbench/contrib/mergeEditor/browser/view/viewModel';
 
 export abstract class CodeEditorView extends Disposable {
@@ -78,17 +79,17 @@ export abstract class CodeEditorView extends Disposable {
 		this.editor.updateOptions(newOptions);
 	}
 
-	public readonly isFocused = observableFromEvent(
+	public readonly isFocused = observableFromEvent(this,
 		Event.any(this.editor.onDidBlurEditorWidget, this.editor.onDidFocusEditorWidget),
 		() => /** @description editor.hasWidgetFocus */ this.editor.hasWidgetFocus()
 	);
 
-	public readonly cursorPosition = observableFromEvent(
+	public readonly cursorPosition = observableFromEvent(this,
 		this.editor.onDidChangeCursorPosition,
 		() => /** @description editor.getPosition */ this.editor.getPosition()
 	);
 
-	public readonly selection = observableFromEvent(
+	public readonly selection = observableFromEvent(this,
 		this.editor.onDidChangeCursorSelection,
 		() => /** @description editor.getSelections */ this.editor.getSelections()
 	);

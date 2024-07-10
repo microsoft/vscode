@@ -26,12 +26,22 @@ export namespace Range {
 			Math.max(0, start.line - 1), Math.max(start.offset - 1, 0),
 			Math.max(0, end.line - 1), Math.max(0, end.offset - 1));
 
-	export const toFileRangeRequestArgs = (file: string, range: vscode.Range): Proto.FileRangeRequestArgs => ({
-		file,
+	// @ts-expect-error until ts 5.6
+	export const toFileRange = (range: vscode.Range): Proto.FileRange => ({
 		startLine: range.start.line + 1,
 		startOffset: range.start.character + 1,
 		endLine: range.end.line + 1,
 		endOffset: range.end.character + 1
+	});
+
+	export const toFileRangeRequestArgs = (file: string, range: vscode.Range): Proto.FileRangeRequestArgs => ({
+		file,
+		...toFileRange(range)
+	});
+	// @ts-expect-error until ts 5.6
+	export const toFileRangesRequestArgs = (file: string, ranges: vscode.Range[]): Proto.FileRangesRequestArgs => ({
+		file,
+		ranges: ranges.map(toFileRange)
 	});
 
 	export const toFormattingRequestArgs = (file: string, range: vscode.Range): Proto.FormatRequestArgs => ({

@@ -815,18 +815,18 @@ registerAction2(class extends Action2 {
 });
 
 const ThemesSubMenu = new MenuId('ThemesSubMenu');
-MenuRegistry.appendMenuItem(MenuId.GlobalActivity, <ISubmenuItem>{
+MenuRegistry.appendMenuItem(MenuId.GlobalActivity, {
 	title: localize('themes', "Themes"),
 	submenu: ThemesSubMenu,
 	group: '2_configuration',
 	order: 7
-});
-MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, <ISubmenuItem>{
+} satisfies ISubmenuItem);
+MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
 	title: localize({ key: 'miSelectTheme', comment: ['&& denotes a mnemonic'] }, "&&Theme"),
 	submenu: ThemesSubMenu,
 	group: '2_configuration',
 	order: 7
-});
+} satisfies ISubmenuItem);
 
 MenuRegistry.appendMenuItem(ThemesSubMenu, {
 	command: {

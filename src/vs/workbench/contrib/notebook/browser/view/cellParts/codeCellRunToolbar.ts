@@ -58,12 +58,15 @@ export class RunToolbar extends CellContentPart {
 	override didRenderCell(element: ICellViewModel): void {
 		this.cellDisposables.add(registerCellToolbarStickyScroll(this.notebookEditor, element, this.runButtonContainer));
 
-		this.toolbar.context = <INotebookCellActionContext>{
-			ui: true,
-			cell: element,
-			notebookEditor: this.notebookEditor,
-			$mid: MarshalledId.NotebookCellActionContext
-		};
+		if (this.notebookEditor.hasModel()) {
+			const context: INotebookCellActionContext & { $mid: number } = {
+				ui: true,
+				cell: element,
+				notebookEditor: this.notebookEditor,
+				$mid: MarshalledId.NotebookCellActionContext
+			};
+			this.toolbar.context = context;
+		}
 	}
 
 	getCellToolbarActions(menu: IMenu): { primary: IAction[]; secondary: IAction[] } {

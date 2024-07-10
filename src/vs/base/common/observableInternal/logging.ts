@@ -114,7 +114,7 @@ export class ConsoleObservableLogger implements IObservableLogger {
 			styled(derived.debugName, { color: 'BlueViolet' }),
 			...this.formatInfo(info),
 			this.formatChanges(changedObservables),
-			{ data: [{ fn: derived._computeFn }] }
+			{ data: [{ fn: derived._debugNameData.referenceFn ?? derived._computeFn }] }
 		]));
 		changedObservables.clear();
 	}
@@ -143,7 +143,7 @@ export class ConsoleObservableLogger implements IObservableLogger {
 			formatKind('autorun'),
 			styled(autorun.debugName, { color: 'BlueViolet' }),
 			this.formatChanges(changedObservables),
-			{ data: [{ fn: autorun._runFn }] }
+			{ data: [{ fn: autorun._debugNameData.referenceFn ?? autorun._runFn }] }
 		]));
 		changedObservables.clear();
 		this.indentation++;
