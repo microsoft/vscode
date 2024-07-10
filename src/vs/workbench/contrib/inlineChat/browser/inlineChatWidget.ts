@@ -490,6 +490,7 @@ export class InlineChatWidget {
 	}
 
 	reset() {
+		this._chatWidget.setContext(true);
 		this._chatWidget.saveState();
 		this.updateChatMessage(undefined);
 

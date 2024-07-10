@@ -26,6 +26,7 @@ import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { MenuItemAction } from 'vs/platform/actions/common/actions';
 import { TextOnlyMenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 
 export class InlineChatContentWidget implements IContentWidget {
 
@@ -53,7 +54,8 @@ export class InlineChatContentWidget implements IContentWidget {
 		private readonly _editor: ICodeEditor,
 		@IInstantiationService instaService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IQuickInputService quickInputService: IQuickInputService
 	) {
 
 		this._defaultChatModel = this._store.add(instaService.createInstance(ChatModel, undefined, ChatAgentLocation.Editor));
@@ -120,7 +122,7 @@ export class InlineChatContentWidget implements IContentWidget {
 
 		const tracker = dom.trackFocus(this._domNode);
 		this._store.add(tracker.onDidBlur(() => {
-			if (this._visible && this._widget.inputEditor.getModel()?.getValueLength() === 0) {
+			if (this._visible && this._widget.inputEditor.getModel()?.getValueLength() === 0 && !quickInputService.currentQuickInput) {
 				this._onDidBlur.fire();
 			}
 		}));
@@ -193,6 +195,7 @@ export class InlineChatContentWidget implements IContentWidget {
 
 			this._position = wordInfo ? new Position(position.lineNumber, wordInfo.startColumn) : position;
 			this._editor.addContentWidget(this);
+			this._widget.setContext(true);
 			this._widget.setVisible(true);
 		}
 	}
