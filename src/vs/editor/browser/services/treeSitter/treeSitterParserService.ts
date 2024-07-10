@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TreeSitterTokenizationRegistry } from 'vs/editor/common/languages';
-import { Parser } from 'vs/base/common/web-tree-sitter/tree-sitter-web';
-import { AppResourcePath, FileAccess } from 'vs/base/common/network';
+// eslint-disable-next-line local/code-amd-node-module
+import { Parser } from '@vscode/tree-sitter-wasm';
+import { AppResourcePath, FileAccess, nodeModulesPath } from 'vs/base/common/network';
 import { ITreeSitterParserService } from 'vs/editor/common/services/treeSitterParserService';
 import { IModelService } from 'vs/editor/common/services/model';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
@@ -18,6 +19,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { setTimeout0 } from 'vs/base/common/platform';
 
 const EDITOR_EXPERIMENTAL_PREFER_TREESITTER = 'editor.experimental.preferTreeSitter';
+const moduleLocationTreeSitter: AppResourcePath = `${nodeModulesPath}/@vscode/tree-sitter-wasm/wasm`;
+const moduleLocationTreeSitterWasm: AppResourcePath = `${moduleLocationTreeSitter}/tree-sitter.wasm`;
 
 export class TreeSitterTree implements IDisposable {
 	private _tree: Parser.Tree | undefined;
@@ -80,14 +83,10 @@ export class TreeSitterParserService extends Disposable implements ITreeSitterPa
 
 		this._init = Parser.init({
 			locateFile(_file: string, _folder: string) {
-				const wasmPath: AppResourcePath = `vs/base/common/web-tree-sitter/tree-sitter.wasm`;
-				return FileAccess.asBrowserUri(wasmPath).toString(true);
+				return FileAccess.asBrowserUri(moduleLocationTreeSitterWasm).toString(true);
 			}
 		});
 		// Eventually, this should actually use an extension point to add tree sitter grammars, but for now they are hard coded in core
-		if (setting.includes('html')) {
-			this._addGrammar('html', 'tree-sitter-html');
-		}
 		if (setting.includes('typescript')) {
 			this._addGrammar('typescript', 'tree-sitter-typescript');
 		}
@@ -104,8 +103,7 @@ export class TreeSitterParserService extends Disposable implements ITreeSitterPa
 		if (!grammarName) {
 			return undefined;
 		}
-		const languageLocation: AppResourcePath = `vs/base/common/treeSitterLanguages/${grammarName?.name}`;
-		return languageLocation;
+		return moduleLocationTreeSitter;
 	}
 
 	private _registerModelServiceListeners() {

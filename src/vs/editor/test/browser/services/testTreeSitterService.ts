@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { AppResourcePath } from 'vs/base/common/network';
-import { Parser } from 'vs/base/common/web-tree-sitter/tree-sitter-web';
+import type { Parser } from '@vscode/tree-sitter-wasm';
 import { ITextModel } from 'vs/editor/common/model';
 import { ITreeSitterParserService } from 'vs/editor/common/services/treeSitterParserService';
 

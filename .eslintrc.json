@@ -642,6 +642,7 @@
 							"@vscode/policy-watcher",
 							"@vscode/proxy-agent",
 							"@vscode/spdlog",
+							"@vscode/tree-sitter-wasm",
 							"@vscode/windows-process-tree",
 							"assert",
 							"child_process",
@@ -755,7 +756,8 @@
 							"vs/base/~",
 							"vs/base/parts/*/~",
 							"vs/platform/*/~",
-							"vs/editor/~"
+							"vs/editor/~",
+							"@vscode/tree-sitter-wasm" // node module allowed even in /common/
 						]
 					},
 					{
