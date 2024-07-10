@@ -58,7 +58,7 @@ export class InlineEditSideBySideWidget extends Disposable {
 		if (!ghostText || ghostText.text.length === 0) {
 			return null;
 		}
-		if (ghostText.range.startLineNumber === ghostText.range.endLineNumber) {
+		if (ghostText.range.startLineNumber === ghostText.range.endLineNumber && !(ghostText.range.startColumn === ghostText.range.endColumn && ghostText.range.startColumn === 1)) {
 			//for inner-line suggestions we still want to use minimal ghost text
 			return null;
 		}
@@ -144,7 +144,9 @@ export class InlineEditSideBySideWidget extends Disposable {
 			if (!model) {
 				return;
 			}
-
+			if (this._position.get() === null) {
+				return;
+			}
 			const contentWidget = store.add(this._instantiationService.createInstance(
 				InlineEditSideBySideContentWidget,
 				this._editor,
