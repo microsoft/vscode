@@ -427,7 +427,7 @@ function sanitizeRenderedMarkdown(
 			if (element.attributes.getNamedItem('type')?.value === 'checkbox') {
 				element.setAttribute('disabled', '');
 			} else if (!options.replaceWithPlaintext) {
-				element.parentElement?.removeChild(element);
+				element.remove();
 			}
 		}
 
@@ -482,6 +482,7 @@ export const allowedMarkdownAttr = [
 	'alt',
 	'checked',
 	'class',
+	'colspan',
 	'controls',
 	'data-code',
 	'data-href',
@@ -493,6 +494,7 @@ export const allowedMarkdownAttr = [
 	'muted',
 	'playsinline',
 	'poster',
+	'rowspan',
 	'src',
 	'style',
 	'target',
@@ -634,7 +636,7 @@ const plainTextRenderer = new Lazy<marked.Renderer>((withCodeBlocks?: boolean) =
 const plainTextWithCodeBlocksRenderer = new Lazy<marked.Renderer>(() => {
 	const renderer = createRenderer();
 	renderer.code = (code: string): string => {
-		return '\n' + '```' + code + '```' + '\n';
+		return `\n\`\`\`\n${code}\n\`\`\`\n`;
 	};
 	return renderer;
 });
@@ -766,8 +768,8 @@ function completeListItemPattern(list: marked.Tokens.List): marked.Tokens.List |
 
 	const previousListItemsText = mergeRawTokenText(list.items.slice(0, -1));
 
-	// Grabbing the `- ` or `1. ` off the list item because I can't find a better way to do this
-	const lastListItemLead = lastListItem.raw.match(/^(\s*(-|\d+\.) +)/)?.[0];
+	// Grabbing the `- ` or `1. ` or `* ` off the list item because I can't find a better way to do this
+	const lastListItemLead = lastListItem.raw.match(/^(\s*(-|\d+\.|\*) +)/)?.[0];
 	if (!lastListItemLead) {
 		// Is badly formatted
 		return;

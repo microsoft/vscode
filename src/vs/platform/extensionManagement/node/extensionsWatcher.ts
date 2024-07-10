@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getErrorMessage } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
 import { combinedDisposable, Disposable, DisposableMap } from 'vs/base/common/lifecycle';
 import { ResourceSet } from 'vs/base/common/map';
@@ -40,7 +41,7 @@ export class ExtensionsWatcher extends Disposable {
 		private readonly logService: ILogService,
 	) {
 		super();
-		this.initialize().then(null, error => logService.error(error));
+		this.initialize().then(null, error => logService.error('Error while initializing Extensions Watcher', getErrorMessage(error)));
 	}
 
 	private async initialize(): Promise<void> {

@@ -10,7 +10,7 @@ import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IRange, Range } from 'vs/editor/common/core/range';
+import { Range } from 'vs/editor/common/core/range';
 import { IValidEditOperation } from 'vs/editor/common/model';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
@@ -22,13 +22,11 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { ChatAgentLocation, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
-import { CTX_INLINE_CHAT_HAS_AGENT, EditMode, IInlineChatResponse, IInlineChatSession } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_HAS_AGENT, EditMode } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { EmptyResponse, ErrorResponse, HunkData, ReplyResponse, Session, SessionExchange, SessionWholeRange, StashedSession, TelemetryData, TelemetryDataClassification } from './inlineChatSession';
 import { IInlineChatSessionEndEvent, IInlineChatSessionEvent, IInlineChatSessionService, ISessionKeyComputer, Recording } from './inlineChatSessionService';
-import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
-import { ISelection } from 'vs/editor/common/core/selection';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 
@@ -46,19 +44,6 @@ export class InlineChatError extends Error {
 	}
 }
 
-const _inlineChatContext = '_inlineChatContext';
-const _inlineChatDocument = '_inlineChatDocument';
-
-class InlineChatContext {
-
-	static readonly variableName = '_inlineChatContext';
-
-	constructor(
-		readonly uri: URI,
-		readonly selection: ISelection,
-		readonly wholeRange: IRange,
-	) { }
-}
 
 export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
@@ -92,37 +77,8 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IChatService private readonly _chatService: IChatService,
-		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
-		@IChatVariablesService chatVariableService: IChatVariablesService,
-	) {
-
-
-		// MARK: implicit variable for editor selection and (tracked) whole range
-
-		this._store.add(chatVariableService.registerVariable(
-			{ id: _inlineChatContext, name: _inlineChatContext, description: '', hidden: true },
-			async (_message, _arg, model) => {
-				for (const [, data] of this._sessions) {
-					if (data.session.chatModel === model) {
-						return JSON.stringify(new InlineChatContext(data.session.textModelN.uri, data.editor.getSelection()!, data.session.wholeRange.trackedInitialRange));
-					}
-				}
-				return undefined;
-			}
-		));
-		this._store.add(chatVariableService.registerVariable(
-			{ id: _inlineChatDocument, name: _inlineChatDocument, description: '', hidden: true },
-			async (_message, _arg, model) => {
-				for (const [, data] of this._sessions) {
-					if (data.session.chatModel === model) {
-						return data.session.textModelN.uri;
-					}
-				}
-				return undefined;
-			}
-		));
-
-	}
+		@IChatAgentService private readonly _chatAgentService: IChatAgentService
+	) { }
 
 	dispose() {
 		this._store.dispose();
@@ -145,13 +101,6 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		const textModel = editor.getModel();
 		const selection = editor.getSelection();
 
-		const rawSession: IInlineChatSession = {
-			id: Math.random(),
-			wholeRange: new Range(selection.selectionStartLineNumber, selection.selectionStartColumn, selection.positionLineNumber, selection.positionColumn),
-			placeholder: agent.description,
-			slashCommands: agent.slashCommands
-		};
-
 		const store = new DisposableStore();
 		this._logService.trace(`[IE] creating NEW session for ${editor.getId()}, ${agent.extensionId}`);
 
@@ -171,8 +120,6 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			if (e.kind !== 'addRequest' || !e.request.response) {
 				return;
 			}
-
-			const modelAltVersionIdNow = textModel.getAlternativeVersionId();
 
 			const { response } = e.request;
 
@@ -197,29 +144,9 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 					// epmty response
 					inlineResponse = new EmptyResponse();
 				} else {
-					// replay response
-					const raw: IInlineChatResponse = {
-						edits: { edits: [] },
-					};
-					for (const item of response.response.value) {
-						if (item.kind === 'textEditGroup') {
-							for (const group of item.edits) {
-								for (const edit of group) {
-									raw.edits.edits.push({
-										resource: item.uri,
-										textEdit: edit,
-										versionId: undefined
-									});
-								}
-							}
-						}
-					}
-
 					inlineResponse = this._instaService.createInstance(
 						ReplyResponse,
-						raw,
 						session.textModelN.uri,
-						modelAltVersionIdNow,
 						e.request,
 						response
 					);
@@ -267,7 +194,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 		let wholeRange = options.wholeRange;
 		if (!wholeRange) {
-			wholeRange = rawSession.wholeRange ? Range.lift(rawSession.wholeRange) : editor.getSelection();
+			wholeRange = new Range(selection.selectionStartLineNumber, selection.selectionStartColumn, selection.positionLineNumber, selection.positionColumn);
 		}
 
 		if (token.isCancellationRequested) {
@@ -281,7 +208,6 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			textModel0,
 			textModelN,
 			agent,
-			rawSession,
 			store.add(new SessionWholeRange(textModelN, wholeRange)),
 			store.add(new HunkData(this._editorWorkerService, textModel0, textModelN)),
 			chatModel
@@ -413,18 +339,21 @@ export class InlineChatEnabler {
 
 	private readonly _ctxHasProvider: IContextKey<boolean>;
 
+	private readonly _store = new DisposableStore();
+
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IChatAgentService chatAgentService: IChatAgentService
 	) {
 		this._ctxHasProvider = CTX_INLINE_CHAT_HAS_AGENT.bindTo(contextKeyService);
-		chatAgentService.onDidChangeAgents(() => {
+		this._store.add(chatAgentService.onDidChangeAgents(() => {
 			const hasEditorAgent = Boolean(chatAgentService.getDefaultAgent(ChatAgentLocation.Editor));
 			this._ctxHasProvider.set(hasEditorAgent);
-		});
+		}));
 	}
 
 	dispose() {
 		this._ctxHasProvider.reset();
+		this._store.dispose();
 	}
 }

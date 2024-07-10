@@ -5,7 +5,7 @@
 
 import { INodeProcess, IProcessEnvironment } from 'vs/base/common/platform';
 import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes';
-import { IpcRenderer, ProcessMemoryInfo, WebFrame } from 'vs/base/parts/sandbox/electron-sandbox/electronTypes';
+import { IpcRenderer, ProcessMemoryInfo, WebFrame, WebUtils } from 'vs/base/parts/sandbox/electron-sandbox/electronTypes';
 
 /**
  * In Electron renderers we cannot expose all of the `process` global of node.js
@@ -121,6 +121,7 @@ export const ipcMessagePort: IpcMessagePort = vscodeGlobal.ipcMessagePort;
 export const webFrame: WebFrame = vscodeGlobal.webFrame;
 export const process: ISandboxNodeProcess = vscodeGlobal.process;
 export const context: ISandboxContext = vscodeGlobal.context;
+export const webUtils: WebUtils = vscodeGlobal.webUtils;
 
 /**
  * A set of globals that are available in all windows that either

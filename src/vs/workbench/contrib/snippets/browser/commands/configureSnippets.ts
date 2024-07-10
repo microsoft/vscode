@@ -8,6 +8,7 @@ import { extname } from 'vs/base/common/path';
 import { basename, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ILanguageService } from 'vs/editor/common/languages/language';
+import { getIconClassesForLanguageId } from 'vs/editor/common/services/getIconClasses';
 import * as nls from 'vs/nls';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -115,7 +116,8 @@ async function computePicks(snippetService: ISnippetsService, userDataProfileSer
 				label: languageId,
 				description: `(${label})`,
 				filepath: joinPath(dir, `${languageId}.json`),
-				hint: true
+				hint: true,
+				iconClasses: getIconClassesForLanguageId(languageId)
 			});
 		}
 	}
@@ -225,10 +227,10 @@ export class ConfigureSnippetsAction extends SnippetsAction {
 	constructor() {
 		super({
 			id: 'workbench.action.openSnippets',
-			title: nls.localize2('openSnippet.label', "Configure User Snippets"),
+			title: nls.localize2('openSnippet.label', "Configure Snippets"),
 			shortTitle: {
-				...nls.localize2('userSnippets', "User Snippets"),
-				mnemonicTitle: nls.localize({ key: 'miOpenSnippets', comment: ['&& denotes a mnemonic'] }, "User &&Snippets"),
+				...nls.localize2('userSnippets', "Snippets"),
+				mnemonicTitle: nls.localize({ key: 'miOpenSnippets', comment: ['&& denotes a mnemonic'] }, "&&Snippets"),
 			},
 			f1: true,
 			menu: [

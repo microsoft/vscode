@@ -308,10 +308,9 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 		this._disposables.add(this._actionbarWidget!.actionRunner.onWillRun(e => this.editor.focus()));
 
 		const actions: IAction[] = [];
-		const menu = this._menuService.createMenu(MarkerNavigationWidget.TitleMenu, this._contextKeyService);
-		createAndFillInActionBarActions(menu, undefined, actions);
+		const menu = this._menuService.getMenuActions(MarkerNavigationWidget.TitleMenu, this._contextKeyService);
+		createAndFillInActionBarActions(menu, actions);
 		this._actionbarWidget!.push(actions, { label: false, icon: true, index: 0 });
-		menu.dispose();
 	}
 
 	protected override _fillTitleIcon(container: HTMLElement): void {
@@ -410,4 +409,4 @@ const editorMarkerNavigationWarningHeader = registerColor('editorMarkerNavigatio
 const editorMarkerNavigationInfo = registerColor('editorMarkerNavigationInfo.background', { dark: infoDefault, light: infoDefault, hcDark: contrastBorder, hcLight: contrastBorder }, nls.localize('editorMarkerNavigationInfo', 'Editor marker navigation widget info color.'));
 const editorMarkerNavigationInfoHeader = registerColor('editorMarkerNavigationInfo.headerBackground', { dark: transparent(editorMarkerNavigationInfo, .1), light: transparent(editorMarkerNavigationInfo, .1), hcDark: null, hcLight: null }, nls.localize('editorMarkerNavigationInfoHeaderBackground', 'Editor marker navigation widget info heading background.'));
 
-const editorMarkerNavigationBackground = registerColor('editorMarkerNavigation.background', { dark: editorBackground, light: editorBackground, hcDark: editorBackground, hcLight: editorBackground }, nls.localize('editorMarkerNavigationBackground', 'Editor marker navigation widget background.'));
+const editorMarkerNavigationBackground = registerColor('editorMarkerNavigation.background', editorBackground, nls.localize('editorMarkerNavigationBackground', 'Editor marker navigation widget background.'));

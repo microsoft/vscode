@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getActiveWindow } from 'vs/base/browser/dom';
+import { getActiveWindow, isHTMLInputElement, isHTMLTextAreaElement } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { isNative } from 'vs/base/common/platform';
@@ -37,8 +37,8 @@ export function openContextMenu(targetWindow: Window, event: MouseEvent, clipboa
 			else {
 				const clipboardText = await clipboardService.readText();
 				if (
-					element instanceof HTMLTextAreaElement ||
-					element instanceof HTMLInputElement
+					isHTMLTextAreaElement(element) ||
+					isHTMLInputElement(element)
 				) {
 					const selectionStart = element.selectionStart || 0;
 					const selectionEnd = element.selectionEnd || 0;

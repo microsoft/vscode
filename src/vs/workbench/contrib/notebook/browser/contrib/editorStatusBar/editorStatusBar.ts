@@ -10,8 +10,7 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from 'vs/workbench/common/contributions';
 import { CENTER_ACTIVE_CELL } from 'vs/workbench/contrib/notebook/browser/contrib/navigation/arrow';
 import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { SELECT_NOTEBOOK_INDENTATION_ID } from 'vs/workbench/contrib/notebook/browser/controller/editActions';
@@ -20,8 +19,9 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookKernel, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 
 class ImplictKernelSelector implements IDisposable {
 
@@ -179,8 +179,6 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(KernelStatus, LifecyclePhase.Restored);
-
 export class ActiveCellStatus extends Disposable implements IWorkbenchContribution {
 
 	private readonly _itemDisposables = this._register(new DisposableStore());
@@ -255,9 +253,7 @@ export class ActiveCellStatus extends Disposable implements IWorkbenchContributi
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ActiveCellStatus, LifecyclePhase.Restored);
-
-export class NotebookIndentationStatus extends Disposable implements IWorkbenchContribution {
+export class NotebookIndentationStatus extends Disposable {
 
 	private readonly _itemDisposables = this._register(new DisposableStore());
 	private readonly _accessor = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
@@ -339,4 +335,33 @@ export class NotebookIndentationStatus extends Disposable implements IWorkbenchC
 	}
 }
 
-registerWorkbenchContribution2(NotebookIndentationStatus.ID, NotebookIndentationStatus, WorkbenchPhase.AfterRestored); // TODO@Yoyokrazy -- unsure on the phase
+export class NotebookEditorStatusContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'notebook.contrib.editorStatus';
+
+	constructor(
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IEditorService editorService: IEditorService
+	) {
+		super();
+
+		// Main Editor Status
+		const mainInstantiationService = instantiationService.createChild(new ServiceCollection(
+			[IEditorService, editorService.createScoped('main', this._store)]
+		));
+		this._register(mainInstantiationService.createInstance(KernelStatus));
+		this._register(mainInstantiationService.createInstance(ActiveCellStatus));
+		this._register(mainInstantiationService.createInstance(NotebookIndentationStatus));
+
+		// Auxiliary Editor Status
+		this._register(editorGroupService.onDidCreateAuxiliaryEditorPart(({ part, instantiationService, disposables }) => {
+			disposables.add(instantiationService.createInstance(KernelStatus));
+			disposables.add(instantiationService.createInstance(ActiveCellStatus));
+			disposables.add(instantiationService.createInstance(NotebookIndentationStatus));
+		}));
+	}
+}
+
+
+registerWorkbenchContribution2(NotebookEditorStatusContribution.ID, NotebookEditorStatusContribution, WorkbenchPhase.AfterRestored);

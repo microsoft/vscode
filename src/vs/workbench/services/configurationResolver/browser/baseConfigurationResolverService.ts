@@ -285,7 +285,7 @@ export abstract class BaseConfigurationResolverService extends AbstractVariableR
 	private showUserInput(variable: string, inputInfos: ConfiguredInput[]): Promise<string | undefined> {
 
 		if (!inputInfos) {
-			return Promise.reject(new Error(nls.localize('inputVariable.noInputSection', "Variable '{0}' must be defined in an '{1}' section of the debug or task configuration.", variable, 'input')));
+			return Promise.reject(new Error(nls.localize('inputVariable.noInputSection', "Variable '{0}' must be defined in an '{1}' section of the debug or task configuration.", variable, 'inputs')));
 		}
 
 		// find info for the given input variable

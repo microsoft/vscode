@@ -9,7 +9,7 @@
  */
 function createModuleDescription(name, exclude) {
 
-	let excludes = ['vs/css', 'vs/nls'];
+	let excludes = ['vs/css'];
 	if (Array.isArray(exclude) && exclude.length > 0) {
 		excludes = excludes.concat(exclude);
 	}
@@ -32,7 +32,7 @@ exports.base = [
 	{
 		name: 'vs/editor/common/services/editorSimpleWorker',
 		include: ['vs/base/common/worker/simpleWorker'],
-		exclude: ['vs/nls'],
+		exclude: [],
 		prepend: [
 			{ path: 'vs/loader.js' },
 			{ path: 'vs/base/worker/workerMain.js' }
@@ -41,7 +41,7 @@ exports.base = [
 	},
 	{
 		name: 'vs/base/common/worker/simpleWorker',
-		exclude: ['vs/nls'],
+		exclude: [],
 	}
 ];
 

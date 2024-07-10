@@ -10,7 +10,7 @@ import { IDisposable, Disposable, DisposableStore, combinedDisposable, dispose, 
 import { ViewPane, IViewPaneOptions, ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { append, $, Dimension, asCSSUrl, trackFocus, clearNode, prepend, isPointerEvent, isActiveElement } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryProviderCacheEntry, SCMHistoryItemChangeTreeElement, SCMHistoryItemGroupTreeElement, SCMHistoryItemTreeElement, SCMViewSeparatorElement } from 'vs/workbench/contrib/scm/common/history';
+import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryItemViewModel, SCMHistoryItemViewModelTreeElement, ISCMHistoryProviderCacheEntry, SCMHistoryItemChangeTreeElement, SCMHistoryItemGroupTreeElement, SCMHistoryItemTreeElement, SCMViewSeparatorElement } from 'vs/workbench/contrib/scm/common/history';
 import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, SCMInputChangeReason, VIEW_PANE_ID, ISCMActionButton, ISCMActionButtonDescriptor, ISCMRepositorySortKey, ISCMInputValueProviderContext, ISCMProvider } from 'vs/workbench/contrib/scm/common/scm';
 import { ResourceLabels, IResourceLabel, IFileLabelOptions } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
@@ -23,8 +23,8 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { MenuItemAction, IMenuService, registerAction2, MenuId, IAction2Options, MenuRegistry, Action2, IMenu } from 'vs/platform/actions/common/actions';
 import { IAction, ActionRunner, Action, Separator, IActionRunner } from 'vs/base/common/actions';
 import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IThemeService, IFileIconTheme } from 'vs/platform/theme/common/themeService';
-import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, getActionViewItemProvider, isSCMActionButton, isSCMViewService, isSCMHistoryItemGroupTreeElement, isSCMHistoryItemTreeElement, isSCMHistoryItemChangeTreeElement, toDiffEditorArguments, isSCMResourceNode, isSCMHistoryItemChangeNode, isSCMViewSeparator, connectPrimaryMenu } from './util';
+import { IThemeService, IFileIconTheme, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, getActionViewItemProvider, isSCMActionButton, isSCMViewService, isSCMHistoryItemGroupTreeElement, isSCMHistoryItemTreeElement, isSCMHistoryItemChangeTreeElement, toDiffEditorArguments, isSCMResourceNode, isSCMHistoryItemChangeNode, isSCMViewSeparator, connectPrimaryMenu, isSCMHistoryItemViewModelTreeElement } from './util';
 import { WorkbenchCompressibleAsyncDataTree, IOpenEvent } from 'vs/platform/list/browser/listService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { disposableTimeout, Sequencer, ThrottledDelayer, Throttler } from 'vs/base/common/async';
@@ -41,7 +41,6 @@ import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/comm
 import { localize } from 'vs/nls';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
-import { SIDE_BAR_BACKGROUND, PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditor/codeEditorWidget';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
@@ -96,19 +95,25 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { stripIcons } from 'vs/base/common/iconLabels';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { foreground, listActiveSelectionForeground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
-import { IMenuWorkbenchToolBarOptions, MenuWorkbenchToolBar, WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { editorSelectionBackground, foreground, inputBackground, inputForeground, listActiveSelectionForeground, registerColor, selectionBackground, transparent } from 'vs/platform/theme/common/colorRegistry';
+import { IMenuWorkbenchToolBarOptions, WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
 import { clamp, rot } from 'vs/base/common/numbers';
 import { ILogService } from 'vs/platform/log/common/log';
-import { getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import type { IUpdatableHover, IUpdatableHoverTooltipMarkdownString } from 'vs/base/browser/ui/hover/hover';
-import { IHoverService } from 'vs/platform/hover/browser/hover';
+import type { IHoverOptions, IManagedHover, IManagedHoverTooltipMarkdownString } from 'vs/base/browser/ui/hover/hover';
+import { IHoverService, WorkbenchHoverDelegate } from 'vs/platform/hover/browser/hover';
 import { OpenScmGroupAction } from 'vs/workbench/contrib/multiDiffEditor/browser/scmMultiDiffSourceResolver';
 import { HoverController } from 'vs/editor/contrib/hover/browser/hoverController';
 import { ITextModel } from 'vs/editor/common/model';
+import { autorun } from 'vs/base/common/observable';
+import { createInstantHoverDelegate, getDefaultHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegateFactory';
+import { renderSCMHistoryItemGraph, toISCMHistoryItemViewModelArray } from 'vs/workbench/contrib/scm/browser/scmHistory';
+import { PlaceholderTextContribution } from 'vs/editor/contrib/placeholderText/browser/placeholderTextContribution';
+import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
+import { IHoverDelegate } from 'vs/base/browser/ui/hover/hoverDelegate';
+import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
 
 // type SCMResourceTreeNode = IResourceNode<ISCMResource, ISCMResourceGroup>;
 // type SCMHistoryItemChangeResourceTreeNode = IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement>;
@@ -121,39 +126,20 @@ type TreeElement =
 	IResourceNode<ISCMResource, ISCMResourceGroup> |
 	SCMHistoryItemGroupTreeElement |
 	SCMHistoryItemTreeElement |
+	SCMHistoryItemViewModelTreeElement |
 	SCMHistoryItemChangeTreeElement |
 	IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement> |
 	SCMViewSeparatorElement;
 
 type ShowChangesSetting = 'always' | 'never' | 'auto';
 
-registerColor('scm.historyItemAdditionsForeground', {
-	dark: 'gitDecoration.addedResourceForeground',
-	light: 'gitDecoration.addedResourceForeground',
-	hcDark: 'gitDecoration.addedResourceForeground',
-	hcLight: 'gitDecoration.addedResourceForeground'
-}, localize('scm.historyItemAdditionsForeground', "History item additions foreground color."));
+const historyItemAdditionsForeground = registerColor('scm.historyItemAdditionsForeground', 'gitDecoration.addedResourceForeground', localize('scm.historyItemAdditionsForeground', "History item additions foreground color."));
 
-registerColor('scm.historyItemDeletionsForeground', {
-	dark: 'gitDecoration.deletedResourceForeground',
-	light: 'gitDecoration.deletedResourceForeground',
-	hcDark: 'gitDecoration.deletedResourceForeground',
-	hcLight: 'gitDecoration.deletedResourceForeground'
-}, localize('scm.historyItemDeletionsForeground', "History item deletions foreground color."));
+const historyItemDeletionsForeground = registerColor('scm.historyItemDeletionsForeground', 'gitDecoration.deletedResourceForeground', localize('scm.historyItemDeletionsForeground', "History item deletions foreground color."));
 
-registerColor('scm.historyItemStatisticsBorder', {
-	dark: transparent(foreground, 0.2),
-	light: transparent(foreground, 0.2),
-	hcDark: transparent(foreground, 0.2),
-	hcLight: transparent(foreground, 0.2)
-}, localize('scm.historyItemStatisticsBorder', "History item statistics border color."));
+registerColor('scm.historyItemStatisticsBorder', transparent(foreground, 0.2), localize('scm.historyItemStatisticsBorder', "History item statistics border color."));
 
-registerColor('scm.historyItemSelectedStatisticsBorder', {
-	dark: transparent(listActiveSelectionForeground, 0.2),
-	light: transparent(listActiveSelectionForeground, 0.2),
-	hcDark: transparent(listActiveSelectionForeground, 0.2),
-	hcLight: transparent(listActiveSelectionForeground, 0.2)
-}, localize('scm.historyItemSelectedStatisticsBorder', "History item selected statistics border color."));
+registerColor('scm.historyItemSelectedStatisticsBorder', transparent(listActiveSelectionForeground, 0.2), localize('scm.historyItemSelectedStatisticsBorder', "History item selected statistics border color."));
 
 function processResourceFilterData(uri: URI, filterData: FuzzyScore | LabelFuzzyScore | undefined): [IMatch[] | undefined, IMatch[] | undefined] {
 	if (!filterData) {
@@ -857,11 +843,36 @@ class HistoryItemActionRunner extends ActionRunner {
 	}
 }
 
+class HistoryItemHoverDelegate extends WorkbenchHoverDelegate {
+	constructor(
+		private readonly viewContainerLocation: ViewContainerLocation | null,
+		private readonly sideBarPosition: Position,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IHoverService hoverService: IHoverService
+
+	) {
+		super('element', true, () => this.getHoverOptions(), configurationService, hoverService);
+	}
+
+	private getHoverOptions(): Partial<IHoverOptions> {
+		let hoverPosition: HoverPosition;
+		if (this.viewContainerLocation === ViewContainerLocation.Sidebar) {
+			hoverPosition = this.sideBarPosition === Position.LEFT ? HoverPosition.RIGHT : HoverPosition.LEFT;
+		} else if (this.viewContainerLocation === ViewContainerLocation.AuxiliaryBar) {
+			hoverPosition = this.sideBarPosition === Position.LEFT ? HoverPosition.LEFT : HoverPosition.RIGHT;
+		} else {
+			hoverPosition = HoverPosition.RIGHT;
+		}
+
+		return { position: { hoverPosition, forcePosition: true } };
+	}
+}
+
 interface HistoryItemTemplate {
 	readonly iconContainer: HTMLElement;
 	readonly label: IconLabel;
 	readonly statsContainer: HTMLElement;
-	readonly statsCustomHover: IUpdatableHover;
+	readonly statsCustomHover: IManagedHover;
 	readonly filesLabel: HTMLElement;
 	readonly insertionsLabel: HTMLElement;
 	readonly deletionsLabel: HTMLElement;
@@ -901,7 +912,7 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 		const insertionsLabel = append(statsContainer, $('.insertions-label'));
 		const deletionsLabel = append(statsContainer, $('.deletions-label'));
 
-		const statsCustomHover = this.hoverService.setupUpdatableHover(getDefaultHoverDelegate('element'), statsContainer, '');
+		const statsCustomHover = this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), statsContainer, '');
 		disposables.add(statsCustomHover);
 
 		return { iconContainer, label: iconLabel, actionBar, statsContainer, statsCustomHover, filesLabel, insertionsLabel, deletionsLabel, elementDisposables: new DisposableStore(), disposables };
@@ -935,7 +946,7 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 		throw new Error('Should never happen since node is incompressible');
 	}
 
-	private getTooltip(historyItem: SCMHistoryItemTreeElement): IUpdatableHoverTooltipMarkdownString {
+	private getTooltip(historyItem: SCMHistoryItemTreeElement): IManagedHoverTooltipMarkdownString {
 		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
 
 		if (historyItem.author) {
@@ -998,6 +1009,125 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 	}
 
 	disposeTemplate(templateData: HistoryItemTemplate): void {
+		templateData.disposables.dispose();
+	}
+}
+
+interface HistoryItem2Template {
+	readonly element: HTMLElement;
+	readonly label: IconLabel;
+	readonly graphContainer: HTMLElement;
+	readonly labelContainer: HTMLElement;
+	readonly elementDisposables: DisposableStore;
+	readonly disposables: IDisposable;
+}
+
+class HistoryItem2Renderer implements ICompressibleTreeRenderer<SCMHistoryItemViewModelTreeElement, LabelFuzzyScore, HistoryItem2Template> {
+
+	static readonly TEMPLATE_ID = 'history-item-2';
+	get templateId(): string { return HistoryItem2Renderer.TEMPLATE_ID; }
+
+	constructor(
+		private readonly hoverDelegate: IHoverDelegate,
+		@IHoverService private readonly hoverService: IHoverService,
+		@IThemeService private readonly themeService: IThemeService
+	) { }
+
+	renderTemplate(container: HTMLElement): HistoryItem2Template {
+		// hack
+		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-no-twistie');
+
+		const element = append(container, $('.history-item'));
+		const graphContainer = append(element, $('.graph-container'));
+		const iconLabel = new IconLabel(element, { supportIcons: true, supportHighlights: true, supportDescriptionHighlights: true });
+
+		const labelContainer = append(element, $('.label-container'));
+		element.appendChild(labelContainer);
+
+		return { element, graphContainer, label: iconLabel, labelContainer, elementDisposables: new DisposableStore(), disposables: new DisposableStore() };
+	}
+
+	renderElement(node: ITreeNode<SCMHistoryItemViewModelTreeElement, LabelFuzzyScore>, index: number, templateData: HistoryItem2Template, height: number | undefined): void {
+		const historyItemViewModel = node.element.historyItemViewModel;
+		const historyItem = historyItemViewModel.historyItem;
+
+		const historyItemHover = this.hoverService.setupManagedHover(this.hoverDelegate, templateData.element, this.getTooltip(historyItemViewModel));
+		templateData.elementDisposables.add(historyItemHover);
+
+		templateData.graphContainer.textContent = '';
+		templateData.graphContainer.appendChild(renderSCMHistoryItemGraph(historyItemViewModel));
+
+		const [matches, descriptionMatches] = this.processMatches(historyItemViewModel, node.filterData);
+		templateData.label.setLabel(historyItem.message, historyItem.author, { matches, descriptionMatches });
+
+		templateData.labelContainer.textContent = '';
+		if (historyItem.labels) {
+			const instantHoverDelegate = createInstantHoverDelegate();
+			templateData.elementDisposables.add(instantHoverDelegate);
+
+			for (const label of historyItem.labels) {
+				if (label.icon && ThemeIcon.isThemeIcon(label.icon)) {
+					const icon = append(templateData.labelContainer, $('div.label'));
+					icon.classList.add(...ThemeIcon.asClassNameArray(label.icon));
+
+					const hover = this.hoverService.setupManagedHover(instantHoverDelegate, icon, label.title);
+					templateData.elementDisposables.add(hover);
+				}
+			}
+		}
+	}
+
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<SCMHistoryItemViewModelTreeElement>, LabelFuzzyScore>, index: number, templateData: HistoryItem2Template, height: number | undefined): void {
+		throw new Error('Should never happen since node is incompressible');
+	}
+
+	private getTooltip(historyItemViewModel: ISCMHistoryItemViewModel): IManagedHoverTooltipMarkdownString {
+		const historyItem = historyItemViewModel.historyItem;
+		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
+
+		if (historyItem.author) {
+			markdown.appendMarkdown(`$(account) **${historyItem.author}**\n\n`);
+		}
+
+		markdown.appendMarkdown(`${historyItem.message}\n\n`);
+
+		if (historyItem.timestamp) {
+			markdown.appendMarkdown(`---\n\n`);
+
+			const dateFormatter = new Intl.DateTimeFormat(platform.language, { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' });
+			markdown.appendMarkdown(`$(history) ${dateFormatter.format(historyItem.timestamp)}`);
+		}
+
+		if (historyItem.statistics?.files) {
+			const colorTheme = this.themeService.getColorTheme();
+			const historyItemAdditionsForegroundColor = colorTheme.getColor(historyItemAdditionsForeground);
+			const historyItemDeletionsForegroundColor = colorTheme.getColor(historyItemDeletionsForeground);
+
+			markdown.appendMarkdown(`  |  `);
+			markdown.appendMarkdown(`<span>${historyItem.statistics.files}</span>`);
+			markdown.appendMarkdown(historyItem.statistics.insertions ? `,&nbsp;<span style="color:${historyItemAdditionsForegroundColor};">+${historyItem.statistics.insertions}</span>` : '');
+			markdown.appendMarkdown(historyItem.statistics.deletions ? `,&nbsp;<span style="color:${historyItemDeletionsForegroundColor};">-${historyItem.statistics.deletions}</span>` : '');
+		}
+
+		return { markdown, markdownNotSupportedFallback: historyItem.message };
+	}
+
+	private processMatches(historyItemViewModel: ISCMHistoryItemViewModel, filterData: LabelFuzzyScore | undefined): [IMatch[] | undefined, IMatch[] | undefined] {
+		if (!filterData) {
+			return [undefined, undefined];
+		}
+
+		return [
+			historyItemViewModel.historyItem.message === filterData.label ? createMatches(filterData.score) : undefined,
+			historyItemViewModel.historyItem.author === filterData.label ? createMatches(filterData.score) : undefined
+		];
+	}
+
+	disposeElement(element: ITreeNode<SCMHistoryItemViewModelTreeElement, LabelFuzzyScore>, index: number, templateData: HistoryItem2Template, height: number | undefined): void {
+		templateData.elementDisposables.clear();
+	}
+
+	disposeTemplate(templateData: HistoryItem2Template): void {
 		templateData.disposables.dispose();
 	}
 }
@@ -1071,7 +1201,9 @@ class HistoryItemChangeRenderer implements ICompressibleTreeRenderer<SCMHistoryI
 
 interface SeparatorTemplate {
 	readonly label: IconLabel;
-	readonly disposables: DisposableStore;
+	readonly toolBar: WorkbenchToolBar;
+	readonly elementDisposables: DisposableStore;
+	readonly templateDisposables: DisposableStore;
 }
 
 class SeparatorRenderer implements ICompressibleTreeRenderer<SCMViewSeparatorElement, void, SeparatorTemplate> {
@@ -1083,6 +1215,7 @@ class SeparatorRenderer implements ICompressibleTreeRenderer<SCMViewSeparatorEle
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IMenuService private readonly menuService: IMenuService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService
@@ -1095,29 +1228,46 @@ class SeparatorRenderer implements ICompressibleTreeRenderer<SCMViewSeparatorEle
 		// Use default cursor & disable hover for list item
 		container.parentElement!.parentElement!.classList.add('cursor-default', 'force-no-hover');
 
-		const disposables = new DisposableStore();
+		const templateDisposables = new DisposableStore();
 		const element = append(container, $('.separator-container'));
 		const label = new IconLabel(element, { supportIcons: true, });
 		append(element, $('.separator'));
-		disposables.add(label);
+		templateDisposables.add(label);
 
-		const toolBar = new MenuWorkbenchToolBar(append(element, $('.actions')), MenuId.SCMChangesSeparator, { moreIcon: Codicon.gear }, this.menuService, this.contextKeyService, this.contextMenuService, this.keybindingService, this.commandService, this.telemetryService);
-		disposables.add(toolBar);
+		const options = { moreIcon: this.configurationService.getValue<boolean>('scm.experimental.showHistoryGraph') === true ? Codicon.more : Codicon.gear } satisfies IMenuWorkbenchToolBarOptions;
+		const toolBar = new WorkbenchToolBar(append(element, $('.actions')), options, this.menuService, this.contextKeyService, this.contextMenuService, this.keybindingService, this.commandService, this.telemetryService);
+		templateDisposables.add(toolBar);
 
-		return { label, disposables };
+		return { label, toolBar, elementDisposables: new DisposableStore(), templateDisposables };
 	}
 	renderElement(element: ITreeNode<SCMViewSeparatorElement, void>, index: number, templateData: SeparatorTemplate, height: number | undefined): void {
+		const currentHistoryItemGroup = element.element.repository.provider.historyProvider?.currentHistoryItemGroup;
+
+		// Label
 		templateData.label.setLabel(element.element.label, undefined, { title: element.element.ariaLabel });
+
+		// Toolbar
+		const contextKeyService = this.contextKeyService.createOverlay([
+			['scmHistoryItemGroupHasRemote', !!currentHistoryItemGroup?.remote],
+		]);
+		const menu = this.menuService.createMenu(MenuId.SCMChangesSeparator, contextKeyService);
+		templateData.elementDisposables.add(connectPrimaryMenu(menu, (primary, secondary) => {
+			templateData.toolBar.setActions(primary, secondary, [MenuId.SCMChangesSeparator]);
+		}));
 	}
 
 	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<SCMViewSeparatorElement>, void>, index: number, templateData: SeparatorTemplate, height: number | undefined): void {
 		throw new Error('Should never happen since node is incompressible');
 	}
 
-	disposeTemplate(templateData: SeparatorTemplate): void {
-		templateData.disposables.dispose();
+	disposeElement(node: ITreeNode<SCMViewSeparatorElement>, index: number, templateData: SeparatorTemplate, height: number | undefined): void {
+		templateData.elementDisposables.clear();
 	}
 
+	disposeTemplate(templateData: SeparatorTemplate): void {
+		templateData.elementDisposables.dispose();
+		templateData.templateDisposables.dispose();
+	}
 }
 
 class ListDelegate implements IListVirtualDelegate<TreeElement> {
@@ -1149,6 +1299,8 @@ class ListDelegate implements IListVirtualDelegate<TreeElement> {
 			return HistoryItemGroupRenderer.TEMPLATE_ID;
 		} else if (isSCMHistoryItemTreeElement(element)) {
 			return HistoryItemRenderer.TEMPLATE_ID;
+		} else if (isSCMHistoryItemViewModelTreeElement(element)) {
+			return HistoryItem2Renderer.TEMPLATE_ID;
 		} else if (isSCMHistoryItemChangeTreeElement(element) || isSCMHistoryItemChangeNode(element)) {
 			return HistoryItemChangeRenderer.TEMPLATE_ID;
 		} else if (isSCMViewSeparator(element)) {
@@ -1227,6 +1379,10 @@ export class SCMTreeSorter implements ITreeSorter<TreeElement> {
 			}
 
 			return 0;
+		}
+
+		if (isSCMHistoryItemViewModelTreeElement(one)) {
+			return isSCMHistoryItemViewModelTreeElement(other) ? 0 : 1;
 		}
 
 		if (isSCMHistoryItemChangeTreeElement(one) || isSCMHistoryItemChangeNode(one)) {
@@ -1313,6 +1469,11 @@ export class SCMTreeKeyboardNavigationLabelProvider implements ICompressibleKeyb
 			// the author. A match in the message takes precedence over
 			// a match in the author.
 			return [element.message, element.author];
+		} else if (isSCMHistoryItemViewModelTreeElement(element)) {
+			// For a history item we want to match both the message and
+			// the author. A match in the message takes precedence over
+			// a match in the author.
+			return [element.historyItemViewModel.historyItem.message, element.historyItemViewModel.historyItem.author];
 		} else if (isSCMViewSeparator(element)) {
 			return element.label;
 		} else {
@@ -1363,6 +1524,10 @@ function getSCMResourceId(element: TreeElement): string {
 		const historyItemGroup = element.historyItemGroup;
 		const provider = historyItemGroup.repository.provider;
 		return `historyItem:${provider.id}/${historyItemGroup.id}/${element.id}/${element.parentIds.join(',')}`;
+	} else if (isSCMHistoryItemViewModelTreeElement(element)) {
+		const provider = element.repository.provider;
+		const historyItem = element.historyItemViewModel.historyItem;
+		return `historyItem2:${provider.id}/${historyItem.id}/${historyItem.parentIds.join(',')}`;
 	} else if (isSCMHistoryItemChangeTreeElement(element)) {
 		const historyItem = element.historyItem;
 		const historyItemGroup = historyItem.historyItemGroup;
@@ -1413,6 +1578,9 @@ export class SCMAccessibilityProvider implements IListAccessibilityProvider<Tree
 			return element.ariaLabel ?? `${element.label.trim()}${element.description ? `, ${element.description}` : ''}`;
 		} else if (isSCMHistoryItemTreeElement(element)) {
 			return `${stripIcons(element.message).trim()}${element.author ? `, ${element.author}` : ''}`;
+		} else if (isSCMHistoryItemViewModelTreeElement(element)) {
+			const historyItem = element.historyItemViewModel.historyItem;
+			return `${stripIcons(historyItem.message).trim()}${historyItem.author ? `, ${historyItem.author}` : ''}`;
 		} else if (isSCMHistoryItemChangeTreeElement(element)) {
 			const result = [basename(element.uri)];
 			const path = this.labelService.getUriLabel(dirname(element.uri), { relative: true, noPrefix: true });
@@ -1487,7 +1655,7 @@ MenuRegistry.appendMenuItem(MenuId.SCMTitle, {
 MenuRegistry.appendMenuItem(MenuId.SCMTitle, {
 	title: localize('scmChanges', "Incoming & Outgoing"),
 	submenu: Menus.ChangesSettings,
-	when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_PANE_ID), ContextKeys.RepositoryCount.notEqualsTo(0)),
+	when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_PANE_ID), ContextKeys.RepositoryCount.notEqualsTo(0), ContextKeyExpr.equals('config.scm.experimental.showHistoryGraph', true).negate()),
 	group: '0_view&sort',
 	order: 2
 });
@@ -1521,14 +1689,16 @@ MenuRegistry.appendMenuItem(MenuId.SCMChangesSeparator, {
 	title: localize('incomingChanges', "Show Incoming Changes"),
 	submenu: MenuId.SCMIncomingChangesSetting,
 	group: '1_incoming&outgoing',
-	order: 1
+	order: 1,
+	when: ContextKeyExpr.equals('config.scm.experimental.showHistoryGraph', false)
 });
 
 MenuRegistry.appendMenuItem(Menus.ChangesSettings, {
 	title: localize('incomingChanges', "Show Incoming Changes"),
 	submenu: MenuId.SCMIncomingChangesSetting,
 	group: '1_incoming&outgoing',
-	order: 1
+	order: 1,
+	when: ContextKeyExpr.equals('config.scm.experimental.showHistoryGraph', false)
 });
 
 registerAction2(class extends SCMChangesSettingAction {
@@ -1572,14 +1742,16 @@ MenuRegistry.appendMenuItem(MenuId.SCMChangesSeparator, {
 	title: localize('outgoingChanges', "Show Outgoing Changes"),
 	submenu: MenuId.SCMOutgoingChangesSetting,
 	group: '1_incoming&outgoing',
-	order: 2
+	order: 2,
+	when: ContextKeyExpr.equals('config.scm.experimental.showHistoryGraph', false)
 });
 
 MenuRegistry.appendMenuItem(Menus.ChangesSettings, {
 	title: localize('outgoingChanges', "Show Outgoing Changes"),
 	submenu: MenuId.SCMOutgoingChangesSetting,
 	group: '1_incoming&outgoing',
-	order: 2
+	order: 2,
+	when: ContextKeyExpr.equals('config.scm.experimental.showHistoryGraph', false)
 });
 
 registerAction2(class extends SCMChangesSettingAction {
@@ -1630,8 +1802,16 @@ registerAction2(class extends Action2 {
 			f1: false,
 			toggled: ContextKeyExpr.equals('config.scm.showChangesSummary', true),
 			menu: [
-				{ id: MenuId.SCMChangesSeparator, order: 3 },
-				{ id: Menus.ChangesSettings, order: 3 },
+				{
+					id: MenuId.SCMChangesSeparator,
+					order: 3,
+					when: ContextKeyExpr.equals('config.scm.experimental.showHistoryGraph', false)
+				},
+				{
+					id: Menus.ChangesSettings,
+					order: 3,
+					when: ContextKeyExpr.equals('config.scm.experimental.showHistoryGraph', false)
+				},
 			]
 		});
 	}
@@ -2028,7 +2208,7 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 	private _onDidChange = new Emitter<void>();
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
-	private readonly repositoryDisposables = new DisposableStore();
+	private readonly _disposables = this._register(new MutableDisposable<DisposableStore>());
 
 	constructor(
 		container: HTMLElement,
@@ -2056,7 +2236,7 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 	}
 
 	public setInput(input: ISCMInput): void {
-		this.repositoryDisposables.clear();
+		this._disposables.value = new DisposableStore();
 
 		const contextKeyService = this.contextKeyService.createOverlay([
 			['scmProvider', input.repository.provider.contextValue],
@@ -2064,7 +2244,7 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 			['scmProviderHasRootUri', !!input.repository.provider.rootUri]
 		]);
 
-		const menu = this.repositoryDisposables.add(this.menuService.createMenu(MenuId.SCMInputBox, contextKeyService, { emitEventsForSubmenuChanges: true }));
+		const menu = this._disposables.value.add(this.menuService.createMenu(MenuId.SCMInputBox, contextKeyService, { emitEventsForSubmenuChanges: true }));
 
 		const isEnabled = (): boolean => {
 			return input.repository.provider.groups.some(g => g.resources.length > 0);
@@ -2094,18 +2274,18 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 			this._onDidChange.fire();
 		};
 
-		this.repositoryDisposables.add(menu.onDidChange(() => updateToolbar()));
-		this.repositoryDisposables.add(input.repository.provider.onDidChangeResources(() => updateToolbar()));
-		this.repositoryDisposables.add(this.storageService.onDidChangeValue(StorageScope.PROFILE, SCMInputWidgetStorageKey.LastActionId, this.repositoryDisposables)(() => updateToolbar()));
+		this._disposables.value.add(menu.onDidChange(() => updateToolbar()));
+		this._disposables.value.add(input.repository.provider.onDidChangeResources(() => updateToolbar()));
+		this._disposables.value.add(this.storageService.onDidChangeValue(StorageScope.PROFILE, SCMInputWidgetStorageKey.LastActionId, this._disposables.value)(() => updateToolbar()));
 
 		this.actionRunner = new SCMInputWidgetActionRunner(input, this.storageService);
-		this.repositoryDisposables.add(this.actionRunner.onWillRun(e => {
+		this._disposables.value.add(this.actionRunner.onWillRun(e => {
 			if ((this.actionRunner as SCMInputWidgetActionRunner).runningActions.size === 0) {
 				super.setActions([this._cancelAction], []);
 				this._onDidChange.fire();
 			}
 		}));
-		this.repositoryDisposables.add(this.actionRunner.onDidRun(e => {
+		this._disposables.value.add(this.actionRunner.onDidRun(e => {
 			if ((this.actionRunner as SCMInputWidgetActionRunner).runningActions.size === 0) {
 				updateToolbar();
 			}
@@ -2113,7 +2293,6 @@ class SCMInputWidgetToolbar extends WorkbenchToolBar {
 
 		updateToolbar();
 	}
-
 }
 
 class SCMInputWidgetEditorOptions {
@@ -2237,7 +2416,6 @@ class SCMInputWidget {
 
 	private element: HTMLElement;
 	private editorContainer: HTMLElement;
-	private placeholderTextContainer: HTMLElement;
 	private readonly inputEditor: CodeEditorWidget;
 	private readonly inputEditorOptions: SCMInputWidgetEditorOptions;
 	private toolbarContainer: HTMLElement;
@@ -2328,14 +2506,11 @@ class SCMInputWidget {
 		this.repositoryDisposables.add(input.onDidChangeValidationMessage((e) => this.setValidation(e, { focus: true, timeout: true })));
 		this.repositoryDisposables.add(input.onDidChangeValidateInput((e) => triggerValidation()));
 
-		// Keep API in sync with model, update placeholder visibility and validate
-		const updatePlaceholderVisibility = () => this.placeholderTextContainer.classList.toggle('hidden', textModel.getValueLength() > 0);
+		// Keep API in sync with model and validate
 		this.repositoryDisposables.add(textModel.onDidChangeContent(() => {
 			input.setValue(textModel.getValue(), true);
-			updatePlaceholderVisibility();
 			triggerValidation();
 		}));
-		updatePlaceholderVisibility();
 
 		// Update placeholder text
 		const updatePlaceholderText = () => {
@@ -2343,8 +2518,7 @@ class SCMInputWidget {
 			const label = binding ? binding.getLabel() : (platform.isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter');
 			const placeholderText = format(input.placeholder, label);
 
-			this.inputEditor.updateOptions({ ariaLabel: placeholderText });
-			this.placeholderTextContainer.textContent = placeholderText;
+			this.inputEditor.updateOptions({ placeholder: placeholderText });
 		};
 		this.repositoryDisposables.add(input.onDidChangePlaceholder(updatePlaceholderText));
 		this.repositoryDisposables.add(this.keybindingService.onDidUpdateKeybindings(updatePlaceholderText));
@@ -2352,24 +2526,21 @@ class SCMInputWidget {
 
 		// Update input template
 		let commitTemplate = '';
-		const updateTemplate = () => {
-			if (typeof input.repository.provider.commitTemplate === 'undefined' || !input.visible) {
+		this.repositoryDisposables.add(autorun(reader => {
+			if (!input.visible) {
 				return;
 			}
 
 			const oldCommitTemplate = commitTemplate;
-			commitTemplate = input.repository.provider.commitTemplate;
+			commitTemplate = input.repository.provider.commitTemplate.read(reader);
 
 			const value = textModel.getValue();
-
 			if (value && value !== oldCommitTemplate) {
 				return;
 			}
 
 			textModel.setValue(commitTemplate);
-		};
-		this.repositoryDisposables.add(input.repository.provider.onDidChangeCommitTemplate(updateTemplate, this));
-		updateTemplate();
+		}));
 
 		// Update input enablement
 		const updateEnablement = (enabled: boolean) => {
@@ -2428,7 +2599,6 @@ class SCMInputWidget {
 	) {
 		this.element = append(container, $('.scm-editor'));
 		this.editorContainer = append(this.element, $('.scm-editor-container'));
-		this.placeholderTextContainer = append(this.editorContainer, $('.scm-editor-placeholder'));
 		this.toolbarContainer = append(this.element, $('.scm-editor-toolbar'));
 
 		this.contextKeyService = contextKeyService.createScoped(this.element);
@@ -2438,33 +2608,32 @@ class SCMInputWidget {
 		this.disposables.add(this.inputEditorOptions.onDidChange(this.onDidChangeEditorOptions, this));
 		this.disposables.add(this.inputEditorOptions);
 
-		const editorConstructionOptions = this.inputEditorOptions.getEditorConstructionOptions();
-		this.setPlaceholderFontStyles(editorConstructionOptions.fontFamily!, editorConstructionOptions.fontSize!, editorConstructionOptions.lineHeight!);
-
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
-			isSimpleWidget: true,
 			contributions: EditorExtensionsRegistry.getSomeEditorContributions([
+				CodeActionController.ID,
 				ColorDetector.ID,
 				ContextMenuController.ID,
-				DragAndDropController.ID,
 				CopyPasteController.ID,
+				DragAndDropController.ID,
 				DropIntoEditorController.ID,
+				EditorDictation.ID,
+				FormatOnType.ID,
+				HoverController.ID,
+				InlineCompletionsController.ID,
 				LinkDetector.ID,
 				MenuPreventer.ID,
 				MessageController.ID,
-				HoverController.ID,
+				PlaceholderTextContribution.ID,
 				SelectionClipboardContributionID,
 				SnippetController2.ID,
-				SuggestController.ID,
-				InlineCompletionsController.ID,
-				CodeActionController.ID,
-				FormatOnType.ID,
-				EditorDictation.ID,
-			])
+				SuggestController.ID
+			]),
+			isSimpleWidget: true
 		};
 
 		const services = new ServiceCollection([IContextKeyService, this.contextKeyService]);
 		const instantiationService2 = instantiationService.createChild(services, this.disposables);
+		const editorConstructionOptions = this.inputEditorOptions.getEditorConstructionOptions();
 		this.inputEditor = instantiationService2.createInstance(CodeEditorWidget, this.editorContainer, editorConstructionOptions, codeEditorWidgetOptions);
 		this.disposables.add(this.inputEditor);
 
@@ -2554,7 +2723,6 @@ class SCMInputWidget {
 
 		this.lastLayoutWasTrash = false;
 		this.inputEditor.layout(dimension);
-		this.placeholderTextContainer.style.width = `${dimension.width}px`;
 		this.renderValidation();
 
 		const showInputActionButton = this.configurationService.getValue<boolean>('scm.showInputActionButton') === true;
@@ -2582,10 +2750,7 @@ class SCMInputWidget {
 	}
 
 	private onDidChangeEditorOptions(): void {
-		const editorOptions = this.inputEditorOptions.getEditorOptions();
-
-		this.inputEditor.updateOptions(editorOptions);
-		this.setPlaceholderFontStyles(editorOptions.fontFamily!, editorOptions.fontSize!, editorOptions.lineHeight!);
+		this.inputEditor.updateOptions(this.inputEditorOptions.getEditorOptions());
 	}
 
 	private renderValidation(): void {
@@ -2675,11 +2840,6 @@ class SCMInputWidget {
 			26 /* 22px action + 4px margin */ :
 			39 /* 35px action + 4px margin */;
 	}
-	private setPlaceholderFontStyles(fontFamily: string, fontSize: number, lineHeight: number): void {
-		this.placeholderTextContainer.style.fontFamily = fontFamily;
-		this.placeholderTextContainer.style.fontSize = `${fontSize}px`;
-		this.placeholderTextContainer.style.lineHeight = `${lineHeight}px`;
-	}
 
 	clearValidation(): void {
 		this.validationContextView?.close();
@@ -2760,6 +2920,8 @@ export class SCMViewPane extends ViewPane {
 	private readonly revealResourceThrottler = new Throttler();
 	private readonly updateChildrenThrottler = new Throttler();
 
+	private historyProviderCache!: SCMTreeHistoryProviderCache;
+
 	private viewModeContextKey: IContextKey<ViewMode>;
 	private viewSortKeyContextKey: IContextKey<ViewSortKey>;
 	private areAllRepositoriesCollapsedContextKey: IContextKey<boolean>;
@@ -2781,6 +2943,7 @@ export class SCMViewPane extends ViewPane {
 		@ISCMViewService private readonly scmViewService: ISCMViewService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IThemeService themeService: IThemeService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -2895,11 +3058,18 @@ export class SCMViewPane extends ViewPane {
 							e.affectsConfiguration('scm.inputMinLineCount') ||
 							e.affectsConfiguration('scm.inputMaxLineCount') ||
 							e.affectsConfiguration('scm.showActionButton') ||
-							e.affectsConfiguration('scm.showChangesSummary') ||
 							e.affectsConfiguration('scm.showIncomingChanges') ||
-							e.affectsConfiguration('scm.showOutgoingChanges'),
+							e.affectsConfiguration('scm.showOutgoingChanges') ||
+							e.affectsConfiguration('scm.experimental.showHistoryGraph'),
 						this.visibilityDisposables)
 						(() => this.updateChildren(), this, this.visibilityDisposables);
+
+					Event.filter(this.configurationService.onDidChangeConfiguration,
+						e => e.affectsConfiguration('scm.showChangesSummary'), this.visibilityDisposables)
+						(() => {
+							this.historyProviderCache.clear();
+							this.updateChildren();
+						}, this, this.visibilityDisposables);
 
 					// Add visible repositories
 					this.editorService.onDidActiveEditorChange(this.onDidActiveEditorChange, this, this.visibilityDisposables);
@@ -2958,7 +3128,13 @@ export class SCMViewPane extends ViewPane {
 		historyItemActionRunner.onWillRun(() => this.tree.domFocus(), this, this.disposables);
 		this.disposables.add(historyItemActionRunner);
 
-		const treeDataSource = this.instantiationService.createInstance(SCMTreeDataSource, () => this.viewMode);
+		const historyItemHoverDelegate = this.instantiationService.createInstance(HistoryItemHoverDelegate, this.viewDescriptorService.getViewLocationById(this.id), this.layoutService.getSideBarPosition());
+		this.disposables.add(historyItemHoverDelegate);
+
+		this.historyProviderCache = this.instantiationService.createInstance(SCMTreeHistoryProviderCache);
+		this.disposables.add(this.historyProviderCache);
+
+		const treeDataSource = this.instantiationService.createInstance(SCMTreeDataSource, () => this.viewMode, this.historyProviderCache);
 		this.disposables.add(treeDataSource);
 
 		this.tree = this.instantiationService.createInstance(
@@ -2975,6 +3151,7 @@ export class SCMViewPane extends ViewPane {
 				this.instantiationService.createInstance(ResourceRenderer, () => this.viewMode, this.listLabels, getActionViewItemProvider(this.instantiationService), resourceActionRunner),
 				this.instantiationService.createInstance(HistoryItemGroupRenderer, historyItemGroupActionRunner),
 				this.instantiationService.createInstance(HistoryItemRenderer, historyItemActionRunner, getActionViewItemProvider(this.instantiationService)),
+				this.instantiationService.createInstance(HistoryItem2Renderer, historyItemHoverDelegate),
 				this.instantiationService.createInstance(HistoryItemChangeRenderer, () => this.viewMode, this.listLabels),
 				this.instantiationService.createInstance(SeparatorRenderer)
 			],
@@ -2988,9 +3165,7 @@ export class SCMViewPane extends ViewPane {
 				identityProvider: new SCMResourceIdentityProvider(),
 				sorter: new SCMTreeSorter(() => this.viewMode, () => this.viewSortKey),
 				keyboardNavigationLabelProvider: this.instantiationService.createInstance(SCMTreeKeyboardNavigationLabelProvider, () => this.viewMode),
-				overrideStyles: {
-					listBackground: this.viewDescriptorService.getViewLocationById(this.id) === ViewContainerLocation.Panel ? PANEL_BACKGROUND : SIDE_BAR_BACKGROUND
-				},
+				overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 				collapseByDefault: (e: unknown) => {
 					// Repository, Resource Group, Resource Folder (Tree), History Item Change Folder (Tree)
 					if (isSCMRepository(e) || isSCMResourceGroup(e) || isSCMResourceNode(e) || isSCMHistoryItemChangeNode(e)) {
@@ -3100,6 +3275,25 @@ export class SCMViewPane extends ViewPane {
 		} else if (isSCMHistoryItemTreeElement(e.element)) {
 			this.scmViewService.focus(e.element.historyItemGroup.repository);
 			return;
+		} else if (isSCMHistoryItemViewModelTreeElement(e.element)) {
+			const historyItem = e.element.historyItemViewModel.historyItem;
+			const historyItemParentId = historyItem.parentIds.length > 0 ? historyItem.parentIds[0] : undefined;
+
+			const historyProvider = e.element.repository.provider.historyProvider;
+			const historyItemChanges = await historyProvider?.provideHistoryItemChanges(historyItem.id, historyItemParentId);
+			if (historyItemChanges) {
+				const title = `${historyItem.id.substring(0, 8)} - ${historyItem.message}`;
+
+				const rootUri = e.element.repository.provider.rootUri;
+				const multiDiffSourceUri = rootUri ?
+					rootUri.with({ scheme: 'scm-history-item', path: `${rootUri.path}/${historyItem.id}` }) :
+					{ scheme: 'scm-history-item', path: `${e.element.repository.provider.label}/${historyItem.id}` };
+
+				await this.commandService.executeCommand('_workbench.openMultiDiffEditor', { title, multiDiffSourceUri, resources: historyItemChanges });
+			}
+
+			this.scmViewService.focus(e.element.repository);
+			return;
 		} else if (isSCMHistoryItemChangeTreeElement(e.element)) {
 			if (e.element.originalUri && e.element.modifiedUri) {
 				await this.commandService.executeCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, ...toDiffEditorArguments(e.element.uri, e.element.originalUri, e.element.modifiedUri), e);
@@ -3149,6 +3343,8 @@ export class SCMViewPane extends ViewPane {
 
 							if (resource) {
 								await this.tree.expandTo(resource);
+								this.tree.reveal(resource);
+
 								this.tree.setSelection([resource]);
 								this.tree.setFocus([resource]);
 								return;
@@ -3174,6 +3370,7 @@ export class SCMViewPane extends ViewPane {
 				}
 
 				repositoryDisposables.add(repository.provider.historyProvider.onDidChangeCurrentHistoryItemGroup(() => {
+					this.historyProviderCache.delete(repository);
 					this.updateChildren(repository);
 					this.logService.debug('SCMViewPane:onDidChangeCurrentHistoryItemGroup - update children');
 				}));
@@ -3209,6 +3406,7 @@ export class SCMViewPane extends ViewPane {
 
 		// Removed repositories
 		for (const repository of removed) {
+			this.historyProviderCache.delete(repository);
 			this.items.deleteAndDispose(repository);
 		}
 
@@ -3218,16 +3416,14 @@ export class SCMViewPane extends ViewPane {
 
 	private onListContextMenu(e: ITreeContextMenuEvent<TreeElement | null>): void {
 		if (!e.element) {
-			const menu = this.menuService.createMenu(Menus.ViewSort, this.contextKeyService);
+			const menu = this.menuService.getMenuActions(Menus.ViewSort, this.contextKeyService);
 			const actions: IAction[] = [];
-			createAndFillInContextMenuActions(menu, undefined, actions);
+			createAndFillInContextMenuActions(menu, actions);
 
 			return this.contextMenuService.showContextMenu({
 				getAnchor: () => e.anchor,
 				getActions: () => actions,
-				onHide: () => {
-					menu.dispose();
-				}
+				onHide: () => { }
 			});
 		}
 
@@ -3412,8 +3608,8 @@ export class SCMViewPane extends ViewPane {
 			return;
 		}
 
-		this.isAnyRepositoryCollapsibleContextKey.set(this.scmViewService.visibleRepositories.some(r => this.tree.hasElement(r) && this.tree.isCollapsible(r)));
-		this.areAllRepositoriesCollapsedContextKey.set(this.scmViewService.visibleRepositories.every(r => this.tree.hasElement(r) && (!this.tree.isCollapsible(r) || this.tree.isCollapsed(r))));
+		this.isAnyRepositoryCollapsibleContextKey.set(this.scmViewService.visibleRepositories.some(r => this.tree.hasNode(r) && this.tree.isCollapsible(r)));
+		this.areAllRepositoriesCollapsedContextKey.set(this.scmViewService.visibleRepositories.every(r => this.tree.hasNode(r) && (!this.tree.isCollapsible(r) || this.tree.isCollapsed(r))));
 	}
 
 	collapseAllRepositories(): void {
@@ -3559,27 +3755,52 @@ export class SCMViewPane extends ViewPane {
 	}
 }
 
-class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement> {
+class SCMTreeHistoryProviderCache extends Disposable {
+	private readonly _cache = new Map<ISCMRepository, ISCMHistoryProviderCacheEntry>();
 
-	private readonly historyProviderCache = new Map<ISCMRepository, ISCMHistoryProviderCacheEntry>();
-	private readonly repositoryDisposables = new DisposableMap<ISCMRepository, IDisposable>();
-	private readonly disposables = new DisposableStore();
+	clear(): void {
+		this._cache.clear();
+	}
 
+	delete(repository: ISCMRepository): void {
+		this._cache.delete(repository);
+	}
+
+	get(repository: ISCMRepository): ISCMHistoryProviderCacheEntry {
+		let entry = this._cache.get(repository);
+
+		if (!entry) {
+			entry = {
+				incomingHistoryItemGroup: undefined,
+				outgoingHistoryItemGroup: undefined,
+				historyItems: new Map<string, [ISCMHistoryItem | undefined, ISCMHistoryItem[]]>(),
+				historyItems2: new Map<string, ISCMHistoryItem[]>(),
+				historyItemChanges: new Map<string, ISCMHistoryItemChange[]>()
+			} satisfies ISCMHistoryProviderCacheEntry;
+
+			this._cache.set(repository, entry);
+		}
+
+		return entry;
+	}
+
+	update(repository: ISCMRepository, entry: Partial<ISCMHistoryProviderCacheEntry>): void {
+		this._cache.set(repository, {
+			...this.get(repository),
+			...entry
+		});
+	}
+}
+
+class SCMTreeDataSource extends Disposable implements IAsyncDataSource<ISCMViewService, TreeElement> {
 	constructor(
 		private readonly viewMode: () => ViewMode,
+		private readonly historyProviderCache: SCMTreeHistoryProviderCache,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ILogService private readonly logService: ILogService,
 		@ISCMViewService private readonly scmViewService: ISCMViewService,
 		@IUriIdentityService private uriIdentityService: IUriIdentityService,
 	) {
-		const onDidChangeConfiguration = Event.filter(
-			this.configurationService.onDidChangeConfiguration,
-			e => e.affectsConfiguration('scm.showChangesSummary'),
-			this.disposables);
-		this.disposables.add(onDidChangeConfiguration(() => this.historyProviderCache.clear()));
-
-		this.scmViewService.onDidChangeVisibleRepositories(this.onDidChangeVisibleRepositories, this, this.disposables);
-		this.onDidChangeVisibleRepositories({ added: this.scmViewService.visibleRepositories, removed: Iterable.empty() });
+		super();
 	}
 
 	hasChildren(inputOrElement: ISCMViewService | TreeElement): boolean {
@@ -3601,6 +3822,8 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			return true;
 		} else if (isSCMHistoryItemTreeElement(inputOrElement)) {
 			return true;
+		} else if (isSCMHistoryItemViewModelTreeElement(inputOrElement)) {
+			return false;
 		} else if (isSCMHistoryItemChangeTreeElement(inputOrElement)) {
 			return false;
 		} else if (isSCMViewSeparator(inputOrElement)) {
@@ -3667,6 +3890,17 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 
 			children.push(...historyItemGroups);
 
+			// History items
+			const historyItems = await this.getHistoryItems2(inputOrElement);
+			if (historyItems.length > 0) {
+				const label = localize('syncSeparatorHeader', "Incoming/Outgoing");
+				const ariaLabel = localize('syncSeparatorHeaderAriaLabel', "Incoming and outgoing changes");
+
+				children.push({ label, ariaLabel, repository: inputOrElement, type: 'separator' } satisfies SCMViewSeparatorElement);
+			}
+
+			children.push(...historyItems);
+
 			return children;
 		} else if (isSCMResourceGroup(inputOrElement)) {
 			if (this.viewMode() === ViewMode.List) {
@@ -3701,34 +3935,34 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 	}
 
 	private async getHistoryItemGroups(element: ISCMRepository): Promise<SCMHistoryItemGroupTreeElement[]> {
-		const { showIncomingChanges, showOutgoingChanges } = this.getConfiguration();
+		const { showIncomingChanges, showOutgoingChanges, showHistoryGraph } = this.getConfiguration();
 
 		const scmProvider = element.provider;
 		const historyProvider = scmProvider.historyProvider;
 		const currentHistoryItemGroup = historyProvider?.currentHistoryItemGroup;
 
-		if (!historyProvider || !currentHistoryItemGroup || (showIncomingChanges === 'never' && showOutgoingChanges === 'never')) {
+		if (!historyProvider || !currentHistoryItemGroup || (showIncomingChanges === 'never' && showOutgoingChanges === 'never') || showHistoryGraph) {
 			return [];
 		}
 
 		const children: SCMHistoryItemGroupTreeElement[] = [];
-		const historyProviderCacheEntry = this.getHistoryProviderCacheEntry(element);
+		const historyProviderCacheEntry = this.historyProviderCache.get(element);
 
 		let incomingHistoryItemGroup = historyProviderCacheEntry?.incomingHistoryItemGroup;
 		let outgoingHistoryItemGroup = historyProviderCacheEntry?.outgoingHistoryItemGroup;
 
 		if (!incomingHistoryItemGroup && !outgoingHistoryItemGroup) {
 			// Common ancestor, ahead, behind
-			const ancestor = await historyProvider.resolveHistoryItemGroupCommonAncestor(currentHistoryItemGroup.id, currentHistoryItemGroup.base?.id);
+			const ancestor = await historyProvider.resolveHistoryItemGroupCommonAncestor(currentHistoryItemGroup.id, currentHistoryItemGroup.remote?.id);
 			if (!ancestor) {
 				return [];
 			}
 
 			// Only show "Incoming" node if there is a base branch
-			incomingHistoryItemGroup = currentHistoryItemGroup.base ? {
-				id: currentHistoryItemGroup.base.id,
-				label: currentHistoryItemGroup.base.name,
-				ariaLabel: localize('incomingChangesAriaLabel', "Incoming changes from {0}", currentHistoryItemGroup.base.name),
+			incomingHistoryItemGroup = currentHistoryItemGroup.remote ? {
+				id: currentHistoryItemGroup.remote.id,
+				label: currentHistoryItemGroup.remote.name,
+				ariaLabel: localize('incomingChangesAriaLabel', "Incoming changes from {0}", currentHistoryItemGroup.remote.name),
 				icon: Codicon.arrowCircleDown,
 				direction: 'incoming',
 				ancestor: ancestor.id,
@@ -3749,8 +3983,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 				type: 'historyItemGroup'
 			};
 
-			this.historyProviderCache.set(element, {
-				...historyProviderCacheEntry,
+			this.historyProviderCache.update(element, {
 				incomingHistoryItemGroup,
 				outgoingHistoryItemGroup
 			});
@@ -3781,7 +4014,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			return [];
 		}
 
-		const historyProviderCacheEntry = this.getHistoryProviderCacheEntry(repository);
+		const historyProviderCacheEntry = this.historyProviderCache.get(repository);
 		const historyItemsMap = historyProviderCacheEntry.historyItems;
 		let historyItemsElement = historyProviderCacheEntry.historyItems.get(element.id);
 
@@ -3794,9 +4027,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 				await historyProvider.provideHistoryItemSummary(historyItems[0].id, element.ancestor) : undefined;
 
 			historyItemsElement = [allChanges, historyItems];
-
-			this.historyProviderCache.set(repository, {
-				...historyProviderCacheEntry,
+			this.historyProviderCache.update(repository, {
 				historyItems: historyItemsMap.set(element.id, historyItemsElement)
 			});
 		}
@@ -3822,6 +4053,53 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 		return children;
 	}
 
+	private async getHistoryItems2(element: ISCMRepository): Promise<SCMHistoryItemViewModelTreeElement[]> {
+		const { showHistoryGraph } = this.getConfiguration();
+
+		const historyProvider = element.provider.historyProvider;
+		const currentHistoryItemGroup = historyProvider?.currentHistoryItemGroup;
+
+		if (!currentHistoryItemGroup || !showHistoryGraph) {
+			return [];
+		}
+
+		const historyProviderCacheEntry = this.historyProviderCache.get(element);
+		let historyItemsElement = historyProviderCacheEntry.historyItems2.get(element.id);
+		const historyItemsMap = historyProviderCacheEntry.historyItems2;
+
+		if (!historyItemsElement) {
+			const historyItemGroupIds = [
+				currentHistoryItemGroup.id,
+				...currentHistoryItemGroup.remote ? [currentHistoryItemGroup.remote.id] : [],
+				...currentHistoryItemGroup.base ? [currentHistoryItemGroup.base.id] : [],
+			];
+
+			historyItemsElement = await historyProvider.provideHistoryItems2({ historyItemGroupIds }) ?? [];
+			this.historyProviderCache.update(element, {
+				historyItems2: historyItemsMap.set(element.id, historyItemsElement)
+			});
+		}
+
+		// Create the color map
+		// TODO@lszomoru - use theme colors
+		const colorMap = new Map<string, number>([
+			[currentHistoryItemGroup.name, 0]
+		]);
+		if (currentHistoryItemGroup.remote) {
+			colorMap.set(currentHistoryItemGroup.remote.name, 1);
+		}
+		if (currentHistoryItemGroup.base) {
+			colorMap.set(currentHistoryItemGroup.base.name, 2);
+		}
+
+		return toISCMHistoryItemViewModelArray(historyItemsElement, colorMap)
+			.map(historyItemViewModel => ({
+				repository: element,
+				historyItemViewModel,
+				type: 'historyItem2'
+			}) satisfies SCMHistoryItemViewModelTreeElement);
+	}
+
 	private async getHistoryItemChanges(element: SCMHistoryItemTreeElement): Promise<(SCMHistoryItemChangeTreeElement | IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement>)[]> {
 		const repository = element.historyItemGroup.repository;
 		const historyProvider = repository.provider.historyProvider;
@@ -3830,7 +4108,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			return [];
 		}
 
-		const historyProviderCacheEntry = this.getHistoryProviderCacheEntry(repository);
+		const historyProviderCacheEntry = this.historyProviderCache.get(repository);
 		const historyItemChangesMap = historyProviderCacheEntry.historyItemChanges;
 
 		const historyItemParentId = element.parentIds.length > 0 ? element.parentIds[0] : undefined;
@@ -3839,9 +4117,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 		if (!historyItemChanges) {
 			const historyItemParentId = element.parentIds.length > 0 ? element.parentIds[0] : undefined;
 			historyItemChanges = await historyProvider.provideHistoryItemChanges(element.id, historyItemParentId) ?? [];
-
-			this.historyProviderCache.set(repository, {
-				...historyProviderCacheEntry,
+			this.historyProviderCache.update(repository, {
 				historyItemChanges: historyItemChangesMap.set(`${element.id}/${historyItemParentId}`, historyItemChanges)
 			});
 		}
@@ -3919,57 +4195,16 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 		showChangesSummary: boolean;
 		showIncomingChanges: ShowChangesSetting;
 		showOutgoingChanges: ShowChangesSetting;
+		showHistoryGraph: boolean;
 	} {
 		return {
 			alwaysShowRepositories: this.configurationService.getValue<boolean>('scm.alwaysShowRepositories'),
 			showActionButton: this.configurationService.getValue<boolean>('scm.showActionButton'),
 			showChangesSummary: this.configurationService.getValue<boolean>('scm.showChangesSummary'),
 			showIncomingChanges: this.configurationService.getValue<ShowChangesSetting>('scm.showIncomingChanges'),
-			showOutgoingChanges: this.configurationService.getValue<ShowChangesSetting>('scm.showOutgoingChanges')
+			showOutgoingChanges: this.configurationService.getValue<ShowChangesSetting>('scm.showOutgoingChanges'),
+			showHistoryGraph: this.configurationService.getValue<boolean>('scm.experimental.showHistoryGraph')
 		};
-	}
-
-	private onDidChangeVisibleRepositories({ added, removed }: ISCMViewVisibleRepositoryChangeEvent): void {
-		// Added repositories
-		for (const repository of added) {
-			const repositoryDisposables = new DisposableStore();
-
-			repositoryDisposables.add(Event.runAndSubscribe(repository.provider.onDidChangeHistoryProvider, () => {
-				if (!repository.provider.historyProvider) {
-					this.logService.debug('SCMTreeDataSource:onDidChangeVisibleRepositories - no history provider present');
-					return;
-				}
-
-				repositoryDisposables.add(repository.provider.historyProvider.onDidChangeCurrentHistoryItemGroup(() => {
-					this.historyProviderCache.delete(repository);
-					this.logService.debug('SCMTreeDataSource:onDidChangeCurrentHistoryItemGroup - cache cleared');
-				}));
-
-				this.logService.debug('SCMTreeDataSource:onDidChangeVisibleRepositories - onDidChangeCurrentHistoryItemGroup listener added');
-			}));
-
-			this.repositoryDisposables.set(repository, repositoryDisposables);
-		}
-
-		// Removed repositories
-		for (const repository of removed) {
-			this.repositoryDisposables.deleteAndDispose(repository);
-			this.historyProviderCache.delete(repository);
-		}
-	}
-
-	private getHistoryProviderCacheEntry(repository: ISCMRepository): ISCMHistoryProviderCacheEntry {
-		return this.historyProviderCache.get(repository) ?? {
-			incomingHistoryItemGroup: undefined,
-			outgoingHistoryItemGroup: undefined,
-			historyItems: new Map<string, [ISCMHistoryItem | undefined, ISCMHistoryItem[]]>(),
-			historyItemChanges: new Map<string, ISCMHistoryItemChange[]>()
-		};
-	}
-
-	dispose(): void {
-		this.repositoryDisposables.dispose();
-		this.disposables.dispose();
 	}
 }
 
@@ -4052,3 +4287,28 @@ export class SCMActionButton implements IDisposable {
 		}
 	}
 }
+
+// Override styles in selections.ts
+registerThemingParticipant((theme, collector) => {
+	const selectionBackgroundColor = theme.getColor(selectionBackground);
+
+	if (selectionBackgroundColor) {
+		// Override inactive selection bg
+		const inputBackgroundColor = theme.getColor(inputBackground);
+		if (inputBackgroundColor) {
+			collector.addRule(`.scm-view .scm-editor-container .monaco-editor-background { background-color: ${inputBackgroundColor}; } `);
+			collector.addRule(`.scm-view .scm-editor-container .monaco-editor .selected-text { background-color: ${inputBackgroundColor.transparent(0.4)}; }`);
+		}
+
+		// Override selected fg
+		const inputForegroundColor = theme.getColor(inputForeground);
+		if (inputForegroundColor) {
+			collector.addRule(`.scm-view .scm-editor-container .monaco-editor .view-line span.inline-selected-text { color: ${inputForegroundColor}; }`);
+		}
+
+		collector.addRule(`.scm-view .scm-editor-container .monaco-editor .focused .selected-text { background-color: ${selectionBackgroundColor}; }`);
+	} else {
+		// Use editor selection color if theme has not set a selection background color
+		collector.addRule(`.scm-view .scm-editor-container .monaco-editor .focused .selected-text { background-color: ${theme.getColor(editorSelectionBackground)}; }`);
+	}
+});

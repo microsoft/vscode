@@ -49,6 +49,7 @@ export interface IFindInFilesArgs {
 	matchWholeWord?: boolean;
 	useExcludeSettingsAndIgnoreFiles?: boolean;
 	onlyOpenEditors?: boolean;
+	showIncludesExcludes?: boolean;
 }
 //#endregion
 
@@ -208,6 +209,7 @@ registerAction2(class FindInFilesAction extends Action2 {
 								matchWholeWord: { 'type': 'boolean' },
 								useExcludeSettingsAndIgnoreFiles: { 'type': 'boolean' },
 								onlyOpenEditors: { 'type': 'boolean' },
+								showIncludesExcludes: { 'type': 'boolean' }
 							}
 						}
 					},
@@ -407,6 +409,9 @@ export async function findInFilesCommand(accessor: ServicesAccessor, _args: IFin
 					updatedText = openedView.updateTextFromFindWidgetOrSelection({ allowUnselectedWord: typeof args.replace !== 'string' });
 				}
 				openedView.setSearchParameters(args);
+				if (typeof args.showIncludesExcludes === 'boolean') {
+					openedView.toggleQueryDetails(false, args.showIncludesExcludes);
+				}
 
 				openedView.searchAndReplaceWidget.focus(undefined, updatedText, updatedText);
 			}

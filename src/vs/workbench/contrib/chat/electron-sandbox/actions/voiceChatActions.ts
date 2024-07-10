@@ -665,7 +665,10 @@ export class StopListeningAndSubmitAction extends Action2 {
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				when: FocusInChatInput,
+				when: ContextKeyExpr.and(
+					FocusInChatInput,
+					AnyScopedVoiceChatInProgress
+				),
 				primary: KeyMod.CtrlCmd | KeyCode.KeyI
 			},
 			precondition: GlobalVoiceChatInProgress // need global context here because of `f1: true`
@@ -802,7 +805,7 @@ class ChatSynthesizerSessions {
 		let totalOffset = 0;
 		let complete = false;
 		do {
-			const responseLength = response.response.asString().length;
+			const responseLength = response.response.toString().length;
 			const { chunk, offset } = this.parseNextChatResponseChunk(response, totalOffset);
 			totalOffset = offset;
 			complete = response.isComplete;
@@ -815,7 +818,7 @@ class ChatSynthesizerSessions {
 				return;
 			}
 
-			if (!complete && responseLength === response.response.asString().length) {
+			if (!complete && responseLength === response.response.toString().length) {
 				await raceCancellation(Event.toPromise(response.onDidChange), token); // wait for the response to change
 			}
 		} while (!token.isCancellationRequested && !complete);
@@ -824,7 +827,7 @@ class ChatSynthesizerSessions {
 	private parseNextChatResponseChunk(response: IChatResponseModel, offset: number): { readonly chunk: string | undefined; readonly offset: number } {
 		let chunk: string | undefined = undefined;
 
-		const text = response.response.asString();
+		const text = response.response.toString();
 
 		if (response.isComplete) {
 			chunk = text.substring(offset);

@@ -6,7 +6,7 @@
 import 'vs/css!./media/review';
 import * as dom from 'vs/base/browser/dom';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import * as languages from 'vs/editor/common/languages';
 import { IMarkdownRendererOptions } from 'vs/editor/browser/widget/markdownRenderer/browser/markdownRenderer';
@@ -88,7 +88,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 
 		this._commentMenus = this.commentService.getCommentMenus(this._owner);
 
-		this._header = new CommentThreadHeader<T>(
+		this._register(this._header = new CommentThreadHeader<T>(
 			container,
 			{
 				collapse: this.collapse.bind(this)
@@ -98,12 +98,13 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 			this._contextKeyService,
 			this._scopedInstantiationService,
 			contextMenuService
-		);
+		));
 
 		this._header.updateCommentThread(this._commentThread);
 
 		const bodyElement = <HTMLDivElement>dom.$('.body');
 		container.appendChild(bodyElement);
+		this._register(toDisposable(() => bodyElement.remove()));
 
 		const tracker = this._register(dom.trackFocus(bodyElement));
 		this._register(registerNavigableContainer({

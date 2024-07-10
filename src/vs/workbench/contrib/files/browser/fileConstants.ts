@@ -35,6 +35,7 @@ export const SAVE_FILES_COMMAND_ID = 'workbench.action.files.saveFiles';
 export const OpenEditorsGroupContext = new RawContextKey<boolean>('groupFocusedInOpenEditors', false);
 export const OpenEditorsDirtyEditorContext = new RawContextKey<boolean>('dirtyEditorFocusedInOpenEditors', false);
 export const OpenEditorsReadonlyEditorContext = new RawContextKey<boolean>('readonlyEditorFocusedInOpenEditors', false);
+export const OpenEditorsSelectedFileOrUntitledContext = new RawContextKey<boolean>('openEditorsSelectedFileOrUntitled', true);
 export const ResourceSelectedForCompareContext = new RawContextKey<boolean>('resourceSelectedForCompare', false);
 
 export const REMOVE_ROOT_FOLDER_COMMAND_ID = 'removeRootFolder';

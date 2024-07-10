@@ -207,11 +207,11 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		if (editor instanceof MultiDiffEditorInput) {
 			const diffEditors: TextDiffInputDto[] = [];
 			for (const resource of (editor?.resources.get() ?? [])) {
-				if (resource.original && resource.modified) {
+				if (resource.originalUri && resource.modifiedUri) {
 					diffEditors.push({
 						kind: TabInputKind.TextDiffInput,
-						original: resource.original,
-						modified: resource.modified
+						original: resource.originalUri,
+						modified: resource.modifiedUri
 					});
 				}
 			}

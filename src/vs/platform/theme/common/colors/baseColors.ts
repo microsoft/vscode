@@ -43,7 +43,7 @@ export const activeContrastBorder = registerColor('contrastActiveBorder',
 	nls.localize('activeContrastBorder', "An extra border around active elements to separate them from others for greater contrast."));
 
 export const selectionBackground = registerColor('selection.background',
-	{ light: null, dark: null, hcDark: null, hcLight: null },
+	null,
 	nls.localize('selectionBackground', "The background color of text selections in the workbench (e.g. for input fields or text areas). Note that this does not apply to selections within the editor."));
 
 

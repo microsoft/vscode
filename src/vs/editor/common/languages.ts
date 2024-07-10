@@ -687,6 +687,11 @@ export interface InlineCompletionContext {
 	 */
 	readonly triggerKind: InlineCompletionTriggerKind;
 	readonly selectedSuggestionInfo: SelectedSuggestionInfo | undefined;
+	/**
+	 * @experimental
+	 * @internal
+	*/
+	readonly userPrompt?: string | undefined;
 }
 
 export class SelectedSuggestionInfo {
@@ -764,6 +769,12 @@ export type InlineCompletionProviderGroupId = string;
 
 export interface InlineCompletionsProvider<T extends InlineCompletions = InlineCompletions> {
 	provideInlineCompletions(model: model.ITextModel, position: Position, context: InlineCompletionContext, token: CancellationToken): ProviderResult<T>;
+
+	/**
+	 * @experimental
+	 * @internal
+	*/
+	provideInlineEdits?(model: model.ITextModel, range: Range, context: InlineCompletionContext, token: CancellationToken): ProviderResult<T>;
 
 	/**
 	 * Will be called when an item is shown.
@@ -1847,6 +1858,11 @@ export interface CommentInput {
 	uri: URI;
 }
 
+export interface CommentThreadRevealOptions {
+	preserveFocus: boolean;
+	focusReply: boolean;
+}
+
 /**
  * @internal
  */
@@ -2212,11 +2228,19 @@ export interface DocumentDropEdit {
 /**
  * @internal
  */
+export interface DocumentDropEditsSession {
+	edits: readonly DocumentDropEdit[];
+	dispose(): void;
+}
+
+/**
+ * @internal
+ */
 export interface DocumentDropEditProvider {
 	readonly id?: string;
 	readonly dropMimeTypes?: readonly string[];
 
-	provideDocumentDropEdits(model: model.ITextModel, position: IPosition, dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): ProviderResult<DocumentDropEdit[]>;
+	provideDocumentDropEdits(model: model.ITextModel, position: IPosition, dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): ProviderResult<DocumentDropEditsSession>;
 	resolveDocumentDropEdit?(edit: DocumentDropEdit, token: CancellationToken): Promise<DocumentDropEdit>;
 }
 
@@ -2238,7 +2262,7 @@ export interface MappedEditsProvider {
 	 *
 	 * @param document The document to provide mapped edits for.
 	 * @param codeBlocks Code blocks that come from an LLM's reply.
-	 * 						"Insert at cursor" in the panel chat only sends one edit that the user clicks on, but inline chat can send multiple blocks and let the lang server decide what to do with them.
+	 * 						"Apply in Editor" in the panel chat only sends one edit that the user clicks on, but inline chat can send multiple blocks and let the lang server decide what to do with them.
 	 * @param context The context for providing mapped edits.
 	 * @param token A cancellation token.
 	 * @returns A provider result of text edits.

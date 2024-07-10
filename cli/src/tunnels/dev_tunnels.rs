@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-use super::protocol::{self, PortPrivacy};
+use super::protocol::{self, PortPrivacy, PortProtocol};
 use crate::auth;
 use crate::constants::{IS_INTERACTIVE_CLI, PROTOCOL_VERSION_TAG, TUNNEL_SERVICE_USER_AGENT};
 use crate::state::{LauncherPaths, PersistedState};
@@ -221,8 +221,11 @@ impl ActiveTunnel {
 		&self,
 		port_number: u16,
 		privacy: PortPrivacy,
+		protocol: PortProtocol,
 	) -> Result<(), AnyError> {
-		self.manager.add_port_tcp(port_number, privacy).await?;
+		self.manager
+			.add_port_tcp(port_number, privacy, protocol)
+			.await?;
 		Ok(())
 	}
 
@@ -972,13 +975,14 @@ impl ActiveTunnelManager {
 		&self,
 		port_number: u16,
 		privacy: PortPrivacy,
+		protocol: PortProtocol,
 	) -> Result<(), WrappedError> {
 		self.relay
 			.lock()
 			.await
 			.add_port(&TunnelPort {
 				port_number,
-				protocol: Some(TUNNEL_PROTOCOL_AUTO.to_owned()),
+				protocol: Some(protocol.to_contract_str().to_string()),
 				access_control: Some(privacy_to_tunnel_acl(privacy)),
 				..Default::default()
 			})

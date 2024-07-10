@@ -14,6 +14,7 @@ import { isString } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IExtensionRecommendationNotificationService, IExtensionRecommendations, RecommendationsNotificationResult, RecommendationSource, RecommendationSourceToString } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -283,9 +284,18 @@ export class ExtensionRecommendationNotificationService extends Disposable imple
 			const installExtensions = async (isMachineScoped: boolean) => {
 				this.runAction(this.instantiationService.createInstance(SearchExtensionsAction, searchValue));
 				onDidInstallRecommendedExtensions(extensions);
+				const galleryExtensions: IGalleryExtension[] = [], resourceExtensions: IExtension[] = [];
+				for (const extension of extensions) {
+					if (extension.gallery) {
+						galleryExtensions.push(extension.gallery);
+					} else if (extension.resourceExtension) {
+						resourceExtensions.push(extension);
+					}
+				}
 				await Promises.settled<any>([
 					Promises.settled(extensions.map(extension => this.extensionsWorkbenchService.open(extension, { pinned: true }))),
-					this.extensionManagementService.installGalleryExtensions(extensions.map(e => ({ extension: e.gallery!, options: { isMachineScoped } })))
+					galleryExtensions.length ? this.extensionManagementService.installGalleryExtensions(galleryExtensions.map(e => ({ extension: e, options: { isMachineScoped } }))) : Promise.resolve(),
+					resourceExtensions.length ? Promise.allSettled(resourceExtensions.map(r => this.extensionsWorkbenchService.install(r))) : Promise.resolve()
 				]);
 			};
 			choices.push({

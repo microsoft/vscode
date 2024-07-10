@@ -37,7 +37,7 @@ export class WebviewThemeDataProvider extends Disposable {
 			this._reset();
 		}));
 
-		const webviewConfigurationKeys = ['editor.fontFamily', 'editor.fontWeight', 'editor.fontSize'];
+		const webviewConfigurationKeys = ['editor.fontFamily', 'editor.fontWeight', 'editor.fontSize', 'accessibility.underlineLinks'];
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (webviewConfigurationKeys.some(key => e.affectsConfiguration(key))) {
 				this._reset();
@@ -55,6 +55,7 @@ export class WebviewThemeDataProvider extends Disposable {
 			const editorFontFamily = configuration.fontFamily || EDITOR_FONT_DEFAULTS.fontFamily;
 			const editorFontWeight = configuration.fontWeight || EDITOR_FONT_DEFAULTS.fontWeight;
 			const editorFontSize = configuration.fontSize || EDITOR_FONT_DEFAULTS.fontSize;
+			const linkUnderlines = this._configurationService.getValue('accessibility.underlineLinks');
 
 			const theme = this._themeService.getColorTheme();
 			const exportedColors = colorRegistry.getColorRegistry().getColors().reduce<Record<string, string>>((colors, entry) => {
@@ -72,6 +73,7 @@ export class WebviewThemeDataProvider extends Disposable {
 				'vscode-editor-font-family': editorFontFamily,
 				'vscode-editor-font-weight': editorFontWeight,
 				'vscode-editor-font-size': editorFontSize + 'px',
+				'text-link-decoration': linkUnderlines ? 'underline' : 'none',
 				...exportedColors
 			};
 

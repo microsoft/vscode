@@ -37,6 +37,7 @@ class Tunnel implements vscode.Tunnel {
 	constructor(
 		public readonly remoteAddress: { port: number; host: string },
 		public readonly privacy: TunnelPrivacyId,
+		public readonly protocol: 'http' | 'https',
 	) { }
 
 	public setPortFormat(formatString: string) {
@@ -82,7 +83,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			{
 				tunnelFeatures: {
 					elevation: false,
-					protocol: false,
+					protocol: true,
 					privacyOptions: [
 						{ themeIcon: 'globe', id: TunnelPrivacyId.Public, label: vscode.l10n.t('Public') },
 						{ themeIcon: 'lock', id: TunnelPrivacyId.Private, label: vscode.l10n.t('Private') },
@@ -152,6 +153,7 @@ class TunnelProvider implements vscode.TunnelProvider {
 		const tunnel = new Tunnel(
 			tunnelOptions.remoteAddress,
 			(tunnelOptions.privacy as TunnelPrivacyId) || TunnelPrivacyId.Private,
+			tunnelOptions.protocol === 'https' ? 'https' : 'http',
 		);
 
 		this.tunnels.add(tunnel);
@@ -238,7 +240,7 @@ class TunnelProvider implements vscode.TunnelProvider {
 			return;
 		}
 
-		const ports = [...this.tunnels].map(t => ({ number: t.remoteAddress.port, privacy: t.privacy }));
+		const ports = [...this.tunnels].map(t => ({ number: t.remoteAddress.port, privacy: t.privacy, protocol: t.protocol }));
 		this.state.process.stdin.write(`${JSON.stringify(ports)}\n`);
 
 		if (ports.length === 0 && !this.state.cleanupTimeout) {

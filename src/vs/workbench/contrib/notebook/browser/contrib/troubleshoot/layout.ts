@@ -98,11 +98,11 @@ export class TroubleshootController extends Disposable implements INotebookEdito
 			items.push({
 				handle: i,
 				items: [
-					<INotebookCellStatusBarItem>{
+					{
 						text: `index: ${i}`,
 						alignment: CellStatusbarAlignment.Left,
 						priority: Number.MAX_SAFE_INTEGER
-					}
+					} satisfies INotebookCellStatusBarItem
 				]
 			});
 		}

@@ -271,6 +271,10 @@ export class Position {
 	toJSON(): any {
 		return { line: this.line, character: this.character };
 	}
+
+	[Symbol.for('debug.description')]() {
+		return `(${this.line}:${this.character})`;
+	}
 }
 
 @es5ClassCompat
@@ -417,6 +421,10 @@ export class Range {
 	toJSON(): any {
 		return [this.start, this.end];
 	}
+
+	[Symbol.for('debug.description')]() {
+		return getDebugDescriptionOfRange(this);
+	}
 }
 
 @es5ClassCompat
@@ -483,6 +491,29 @@ export class Selection extends Range {
 			anchor: this.anchor
 		};
 	}
+
+
+	[Symbol.for('debug.description')]() {
+		return getDebugDescriptionOfSelection(this);
+	}
+}
+
+export function getDebugDescriptionOfRange(range: vscode.Range): string {
+	return range.isEmpty
+		? `[${range.start.line}:${range.start.character})`
+		: `[${range.start.line}:${range.start.character} -> ${range.end.line}:${range.end.character})`;
+}
+
+export function getDebugDescriptionOfSelection(selection: vscode.Selection): string {
+	let rangeStr = getDebugDescriptionOfRange(selection);
+	if (!selection.isEmpty) {
+		if (selection.active.isEqual(selection.start)) {
+			rangeStr = `|${rangeStr}`;
+		} else {
+			rangeStr = `${rangeStr}|`;
+		}
+	}
+	return rangeStr;
 }
 
 const validateConnectionToken = (connectionToken: string) => {
@@ -3310,6 +3341,11 @@ export enum CommentThreadApplicability {
 	Outdated = 1
 }
 
+export enum CommentThreadFocus {
+	Reply = 1,
+	Comment = 2
+}
+
 //#endregion
 
 //#region Semantic Coloring
@@ -4038,8 +4074,10 @@ export class TestMessage implements vscode.TestMessage {
 	public expectedOutput?: string;
 	public actualOutput?: string;
 	public location?: vscode.Location;
-	/** proposed: */
 	public contextValue?: string;
+
+	/** proposed: */
+	public stackTrace?: TestMessageStackFrame[];
 
 	public static diff(message: string | vscode.MarkdownString, expected: string, actual: string) {
 		const msg = new TestMessage(message);
@@ -4054,6 +4092,19 @@ export class TestMessage implements vscode.TestMessage {
 @es5ClassCompat
 export class TestTag implements vscode.TestTag {
 	constructor(public readonly id: string) { }
+}
+
+export class TestMessageStackFrame {
+	/**
+	 * @param label The name of the stack frame
+	 * @param file The file URI of the stack frame
+	 * @param position The position of the stack frame within the file
+	 */
+	constructor(
+		public label: string,
+		public file?: vscode.Uri,
+		public position?: Position,
+	) { }
 }
 
 //#endregion
@@ -4119,7 +4170,7 @@ export class FileCoverage implements vscode.FileCoverage {
 		public statementCoverage: vscode.TestCoverageCount,
 		public branchCoverage?: vscode.TestCoverageCount,
 		public declarationCoverage?: vscode.TestCoverageCount,
-		public testItem?: vscode.TestItem,
+		public fromTests: vscode.TestItem[] = [],
 	) {
 	}
 }
@@ -4346,10 +4397,13 @@ export class ChatResponseConfirmationPart {
 	title: string;
 	message: string;
 	data: any;
-	constructor(title: string, message: string, data: any) {
+	buttons?: string[];
+
+	constructor(title: string, message: string, data: any, buttons?: string[]) {
 		this.title = title;
 		this.message = message;
 		this.data = data;
+		this.buttons = buttons;
 	}
 }
 
@@ -4449,16 +4503,45 @@ export enum ChatLocation {
 	Editor = 4,
 }
 
+export class ChatRequestEditorData implements vscode.ChatRequestEditorData {
+	constructor(
+		readonly document: vscode.TextDocument,
+		readonly selection: vscode.Selection,
+		readonly wholeRange: vscode.Range,
+	) { }
+}
+
+export class ChatRequestNotebookData implements vscode.ChatRequestNotebookData {
+	constructor(
+		readonly cell: vscode.TextDocument
+	) { }
+}
+
 export enum LanguageModelChatMessageRole {
 	User = 1,
 	Assistant = 2,
 	System = 3
 }
 
+export class LanguageModelFunctionResultPart implements vscode.LanguageModelChatMessageFunctionResultPart {
+
+	name: string;
+	content: string;
+	isError: boolean;
+
+	constructor(name: string, content: string, isError?: boolean) {
+		this.name = name;
+		this.content = content;
+		this.isError = isError ?? false;
+	}
+}
+
 export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage {
 
-	static User(content: string, name?: string): LanguageModelChatMessage {
-		return new LanguageModelChatMessage(LanguageModelChatMessageRole.User, content, name);
+	static User(content: string | LanguageModelFunctionResultPart, name?: string): LanguageModelChatMessage {
+		const value = new LanguageModelChatMessage(LanguageModelChatMessageRole.User, typeof content === 'string' ? content : '', name);
+		value.content2 = content;
+		return value;
 	}
 
 	static Assistant(content: string, name?: string): LanguageModelChatMessage {
@@ -4467,12 +4550,33 @@ export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage
 
 	role: vscode.LanguageModelChatMessageRole;
 	content: string;
+	content2: string | vscode.LanguageModelChatMessageFunctionResultPart;
 	name: string | undefined;
 
 	constructor(role: vscode.LanguageModelChatMessageRole, content: string, name?: string) {
 		this.role = role;
 		this.content = content;
+		this.content2 = content;
 		this.name = name;
+	}
+}
+
+export class LanguageModelFunctionUsePart implements vscode.LanguageModelChatResponseFunctionUsePart {
+	name: string;
+	parameters: any;
+
+	constructor(name: string, parameters: any) {
+		this.name = name;
+		this.parameters = parameters;
+	}
+}
+
+export class LanguageModelTextPart implements vscode.LanguageModelChatResponseTextPart {
+	value: string;
+
+	constructor(value: string) {
+		this.value = value;
+
 	}
 }
 

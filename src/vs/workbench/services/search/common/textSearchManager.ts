@@ -11,7 +11,7 @@ import { Schemas } from 'vs/base/common/network';
 import * as path from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { hasSiblingPromiseFn, IAITextQuery, IExtendedExtensionSearchOptions, IFileMatch, IFolderQuery, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchResult, ITextSearchStats, QueryGlobTester, QueryType, resolvePatternsForProvider } from 'vs/workbench/services/search/common/search';
+import { DEFAULT_MAX_SEARCH_RESULTS, hasSiblingPromiseFn, IAITextQuery, IExtendedExtensionSearchOptions, IFileMatch, IFolderQuery, IPatternInfo, ISearchCompleteStats, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchResult, ITextSearchStats, QueryGlobTester, QueryType, resolvePatternsForProvider } from 'vs/workbench/services/search/common/search';
 import { AITextSearchProvider, Range, TextSearchComplete, TextSearchMatch, TextSearchOptions, TextSearchProvider, TextSearchQuery, TextSearchResult } from 'vs/workbench/services/search/common/searchExtTypes';
 
 export interface IFileUtils {
@@ -210,7 +210,7 @@ export class TextSearchManager {
 			followSymlinks: !fq.ignoreSymlinks,
 			encoding: fq.fileEncoding && this.fileUtils.toCanonicalName(fq.fileEncoding),
 			maxFileSize: this.query.maxFileSize,
-			maxResults: this.query.maxResults ?? Number.MAX_SAFE_INTEGER,
+			maxResults: this.query.maxResults ?? DEFAULT_MAX_SEARCH_RESULTS,
 			previewOptions: this.query.previewOptions,
 			afterContext: this.query.afterContext,
 			beforeContext: this.query.beforeContext

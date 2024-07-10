@@ -42,16 +42,19 @@ export const IUserDataProfileManagementService = createDecorator<IUserDataProfil
 export interface IUserDataProfileManagementService {
 	readonly _serviceBrand: undefined;
 
+	createProfile(name: string, options?: IUserDataProfileOptions): Promise<IUserDataProfile>;
 	createAndEnterProfile(name: string, options?: IUserDataProfileOptions): Promise<IUserDataProfile>;
 	createAndEnterTransientProfile(): Promise<IUserDataProfile>;
 	removeProfile(profile: IUserDataProfile): Promise<void>;
-	updateProfile(profile: IUserDataProfile, updateOptions: IUserDataProfileUpdateOptions): Promise<void>;
+	updateProfile(profile: IUserDataProfile, updateOptions: IUserDataProfileUpdateOptions): Promise<IUserDataProfile>;
 	switchProfile(profile: IUserDataProfile): Promise<void>;
 	getBuiltinProfileTemplates(): Promise<IProfileTemplateInfo[]>;
 
 }
 
 export interface IUserDataProfileTemplate {
+	readonly name: string;
+	readonly icon?: string;
 	readonly settings?: string;
 	readonly keybindings?: string;
 	readonly tasks?: string;
@@ -78,15 +81,15 @@ export function toUserDataProfileUri(path: string, productService: IProductServi
 	});
 }
 
-export interface IProfileImportOptions extends IUserDataProfileOptions {
+export interface IUserDataProfileCreateOptions extends IUserDataProfileOptions {
 	readonly name?: string;
-	readonly icon?: string;
-	readonly mode?: 'preview' | 'apply' | 'both';
 	readonly resourceTypeFlags?: ProfileResourceTypeFlags;
 }
 
-export interface IUserDataProfileCreateOptions extends IUserDataProfileOptions {
-	readonly resourceTypeFlags?: ProfileResourceTypeFlags;
+export interface IProfileImportOptions extends IUserDataProfileCreateOptions {
+	readonly name?: string;
+	readonly icon?: string;
+	readonly mode?: 'preview' | 'apply' | 'both';
 }
 
 export const IUserDataProfileImportExportService = createDecorator<IUserDataProfileImportExportService>('IUserDataProfileImportExportService');
@@ -97,15 +100,15 @@ export interface IUserDataProfileImportExportService {
 	unregisterProfileContentHandler(id: string): void;
 
 	resolveProfileTemplate(uri: URI): Promise<IUserDataProfileTemplate | null>;
-	exportProfile(): Promise<void>;
-	exportProfile2(profile: IUserDataProfile): Promise<void>;
+	exportProfile(profile: IUserDataProfile): Promise<void>;
+	exportProfile2(): Promise<void>;
 	importProfile(uri: URI, options?: IProfileImportOptions): Promise<void>;
 	showProfileContents(): Promise<void>;
 	createProfile(from?: IUserDataProfile | URI): Promise<void>;
-	createFromProfile(from: IUserDataProfile, name: string, options?: IUserDataProfileCreateOptions): Promise<void>;
 	editProfile(profile: IUserDataProfile): Promise<void>;
+	createFromProfile(from: IUserDataProfile, options: IUserDataProfileCreateOptions, token: CancellationToken): Promise<IUserDataProfile | undefined>;
+	createProfileFromTemplate(profileTemplate: IUserDataProfileTemplate, options: IUserDataProfileCreateOptions, token: CancellationToken): Promise<IUserDataProfile | undefined>;
 	createTroubleshootProfile(): Promise<void>;
-	setProfile(profile: IUserDataProfileTemplate): Promise<void>;
 }
 
 export interface IProfileResourceInitializer {

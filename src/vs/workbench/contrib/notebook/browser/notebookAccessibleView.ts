@@ -20,6 +20,7 @@ export class NotebookAccessibleView implements IAccessibleViewImplentation {
 		const editorService = accessor.get(IEditorService);
 		return showAccessibleOutput(editorService);
 	}
+	dispose() { }
 }
 
 

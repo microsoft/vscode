@@ -179,11 +179,9 @@ export class NativeStartupTimings extends StartupTimings implements IWorkbenchCo
 					// Major/Minor GC Events
 					case 'MinorGC':
 						minorGCs++;
+						break;
 					case 'MajorGC':
 						majorGCs++;
-						if (event.args && typeof event.args.usedHeapSizeAfter === 'number' && typeof event.args.usedHeapSizeBefore === 'number') {
-							garbage += (event.args.usedHeapSizeBefore - event.args.usedHeapSizeAfter);
-						}
 						break;
 
 					// GC Events that block the main thread
@@ -192,6 +190,12 @@ export class NativeStartupTimings extends StartupTimings implements IWorkbenchCo
 					case 'V8.GCScavenger':
 						duration += event.dur;
 						break;
+				}
+
+				if (event.name === 'MajorGC' || event.name === 'MinorGC') {
+					if (typeof event.args?.usedHeapSizeAfter === 'number' && typeof event.args.usedHeapSizeBefore === 'number') {
+						garbage += (event.args.usedHeapSizeBefore - event.args.usedHeapSizeAfter);
+					}
 				}
 			}
 

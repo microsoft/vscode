@@ -38,6 +38,6 @@ export class SimpleCompletionItem {
 		readonly completion: ISimpleCompletion
 	) {
 		// ensure lower-variants (perf)
-		this.labelLow = this.completion.label.toLowerCase();
+		this.labelLow = (this.completion.completionText ?? this.completion.label).toLowerCase();
 	}
 }
