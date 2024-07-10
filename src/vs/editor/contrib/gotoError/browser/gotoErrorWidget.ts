@@ -308,10 +308,9 @@ export class MarkerNavigationWidget extends PeekViewWidget {
 		this._disposables.add(this._actionbarWidget!.actionRunner.onWillRun(e => this.editor.focus()));
 
 		const actions: IAction[] = [];
-		const menu = this._menuService.createMenu(MarkerNavigationWidget.TitleMenu, this._contextKeyService);
-		createAndFillInActionBarActions(menu, undefined, actions);
+		const menu = this._menuService.getMenuActions(MarkerNavigationWidget.TitleMenu, this._contextKeyService);
+		createAndFillInActionBarActions(menu, actions);
 		this._actionbarWidget!.push(actions, { label: false, icon: true, index: 0 });
-		menu.dispose();
 	}
 
 	protected override _fillTitleIcon(container: HTMLElement): void {

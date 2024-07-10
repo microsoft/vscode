@@ -6,18 +6,31 @@
 //@ts-check
 'use strict';
 
-// Delete `VSCODE_CWD` very early even before
-// importing bootstrap files. We have seen
+// ESM-comment-begin
+const bootstrap = require('./bootstrap');
+const bootstrapNode = require('./bootstrap-node');
+const bootstrapAmd = require('./bootstrap-amd');
+const { resolveNLSConfiguration } = require('./vs/base/node/nls');
+const product = require('./bootstrap-meta').product;
+// ESM-comment-end
+// ESM-uncomment-begin
+// import * as path from 'path';
+// import { fileURLToPath } from 'url';
+// import * as bootstrap from './bootstrap.js';
+// import * as bootstrapNode from './bootstrap-node.js';
+// import * as bootstrapAmd from './bootstrap-amd.js';
+// import { resolveNLSConfiguration } from './vs/base/node/nls.js';
+// import { product } from './bootstrap-meta.js';
+//
+// const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// ESM-uncomment-end
+
+// Delete `VSCODE_CWD` very early. We have seen
 // reports where `code .` would use the wrong
 // current working directory due to our variable
 // somehow escaping to the parent shell
 // (https://github.com/microsoft/vscode/issues/126399)
 delete process.env['VSCODE_CWD'];
-
-const bootstrap = require('./bootstrap');
-const bootstrapNode = require('./bootstrap-node');
-const product = require('./bootstrap-meta').product;
-const { resolveNLSConfiguration } = require('./vs/base/node/nls');
 
 async function start() {
 
@@ -36,7 +49,7 @@ async function start() {
 	process.env['VSCODE_CLI'] = '1';
 
 	// Load CLI through AMD loader
-	require('./bootstrap-amd').load('vs/code/node/cli');
+	bootstrapAmd.load('vs/code/node/cli');
 }
 
 start();
