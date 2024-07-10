@@ -4074,7 +4074,15 @@ class SCMTreeDataSource extends Disposable implements IAsyncDataSource<ISCMViewS
 				...currentHistoryItemGroup.base ? [currentHistoryItemGroup.base.id] : [],
 			];
 
-			historyItemsElement = await historyProvider.provideHistoryItems2({ historyItemGroupIds }) ?? [];
+			// Common ancestor of current, remote, base independent of the select history item group
+			const ancestor = await historyProvider.resolveHistoryItemGroupCommonAncestor2(historyItemGroupIds);
+			if (!ancestor) {
+				return [];
+			}
+
+			// History items of selected history item groups
+			historyItemsElement = await historyProvider.provideHistoryItems2({ historyItemGroupIds, limit: { id: ancestor } }) ?? [];
+
 			this.historyProviderCache.update(element, {
 				historyItems2: historyItemsMap.set(element.id, historyItemsElement)
 			});

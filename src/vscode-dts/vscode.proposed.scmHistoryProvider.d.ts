@@ -30,6 +30,7 @@ declare module 'vscode' {
 		provideHistoryItemChanges(historyItemId: string, historyItemParentId: string | undefined, token: CancellationToken): ProviderResult<SourceControlHistoryItemChange[]>;
 
 		resolveHistoryItemGroupCommonAncestor(historyItemGroupId1: string, historyItemGroupId2: string | undefined, token: CancellationToken): ProviderResult<{ id: string; ahead: number; behind: number }>;
+		resolveHistoryItemGroupCommonAncestor2(historyItemGroupIds: string[], token: CancellationToken): ProviderResult<string>;
 	}
 
 	export interface SourceControlHistoryOptions {
