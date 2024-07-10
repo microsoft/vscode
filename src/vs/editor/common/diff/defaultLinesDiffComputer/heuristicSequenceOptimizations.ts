@@ -54,13 +54,25 @@ function joinSequenceDiffsByShifting(sequence1: ISequence, sequence2: ISequence,
 				const seq2OffsetE = cur.seq2Range.endExclusive - d;
 				if (
 					sequence1.getElement(seq1OffsetS) !== sequence1.getElement(seq1OffsetE) ||
-					sequence2.getElement(seq2OffsetS) !== sequence2.getElement(seq2OffsetE)) {
+					sequence2.getElement(seq2OffsetS) !== sequence2.getElement(seq2OffsetE) ||
+					/**
+					 * fixes issues like this:
+					 * seq1:                  seq2:
+					 *      [    pass]=============[    pass]
+					 * 			[.]  ^
+					 * 			[.]  |
+					 *      [.]  |
+					 * 			[  pass]
+					 *
+					 *  1. The start and end elements of seq1 are equal.
+					 *  2. The start item of seq1 and seq2 need to be strongly equal.
+					 *
+					 * Satisfying the above will skip optimization.
+					 */
+					((!sequence1.isStronglyEqual(seq1OffsetS, seq1OffsetE) ||
+						!sequence2.isStronglyEqual(seq2OffsetS, seq2OffsetE)) &&
+						sequence1.getLineValue(seq1OffsetS) === sequence2.getLineValue(seq2OffsetS))) {
 					break;
-				} else {
-					// check two sequence is strongly equal
-					if (checkSequencesIsStronglyEqual(sequence1, seq1OffsetS, seq1OffsetE, sequence2, seq2OffsetS, seq2OffsetE)) {
-						break;
-					}
 				}
 			}
 			d--;
@@ -120,33 +132,6 @@ function joinSequenceDiffsByShifting(sequence1: ISequence, sequence2: ISequence,
 	}
 
 	return result2;
-}
-
-/**
- * fixes issues like this:
- * seq1: [    pass] [    pass]
- * seq2: [    pass] [  pass]
- */
-function checkSequencesIsStronglyEqual(sequence1: ISequence, seq1OffsetS: number, seq1OffsetE: number, sequence2: ISequence, seq2OffsetS: number, seq2OffsetE: number): boolean {
-	function equal(sequence1: ISequence, seq1OffsetS: number, seq1OffsetE: number, sequence2: ISequence, seq2OffsetS: number, seq2OffsetE: number): boolean {
-		if (sequence1.getElement(seq1OffsetS) === sequence1.getElement(seq1OffsetE) &&
-			!sequence1.isEmpty(seq1OffsetS) && !sequence1.isEmpty(seq1OffsetE) &&
-			!sequence1.isStronglyEqual(seq1OffsetS, seq1OffsetE) &&
-			((sequence1 as any).lines[seq1OffsetS] === (sequence2 as any).lines[seq2OffsetS]) &&
-			sequence2.isStronglyEqual(seq2OffsetS, seq2OffsetE)) {
-			return true;
-		}
-		return false;
-	}
-
-	if (equal(sequence1, seq1OffsetS, seq1OffsetE, sequence2, seq2OffsetS, seq2OffsetE)) {
-		return true;
-	}
-
-	if (equal(sequence2, seq2OffsetS, seq2OffsetE, sequence1, seq1OffsetS, seq1OffsetE)) {
-		return true;
-	}
-	return false;
 }
 
 // align character level diffs at whitespace characters

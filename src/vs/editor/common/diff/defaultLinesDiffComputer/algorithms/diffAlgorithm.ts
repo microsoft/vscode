@@ -156,7 +156,7 @@ export interface ISequence {
 	 */
 	isStronglyEqual(offset1: number, offset2: number): boolean;
 
-	isEmpty(offset: number): boolean;
+	getLineValue(offset: number): string;
 }
 
 export interface ITimeout {

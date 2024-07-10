@@ -166,8 +166,8 @@ export class LinesSliceCharSequence implements ISequence {
 		return new OffsetRange(start, end);
 	}
 
-	public isEmpty(offset: number): boolean {
-		return this.lines[offset] ? this.lines[offset].trim().length === 0 : true;
+	public getLineValue(offset: number): string {
+		return this.lines[offset];
 	}
 }
 
