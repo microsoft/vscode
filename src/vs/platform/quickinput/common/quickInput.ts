@@ -267,7 +267,7 @@ export interface IQuickInput extends IDisposable {
 	/**
 	 * The buttons displayed in the quick input titlebar.
 	 */
-	buttons: ReadonlyArray<IQuickInputButton>;
+	buttons: ReadonlyArray<IQuickInputTopLevelButton>;
 
 	/**
 	 * An event that is fired when a button in the quick input is triggered.
@@ -728,6 +728,10 @@ export interface IQuickInputButton {
 	 * By default, buttons are only visible when hovering over them with the mouse.
 	 */
 	alwaysVisible?: boolean;
+}
+
+export interface IQuickInputTopLevelButton extends IQuickInputButton {
+	location?: 'title' | 'inline';
 }
 
 /**
