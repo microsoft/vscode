@@ -26,7 +26,8 @@ export const enum AccessibleViewProviderId {
 	Hover = 'hover',
 	Notification = 'notification',
 	EmptyEditorHint = 'emptyEditorHint',
-	Comments = 'comments'
+	Comments = 'comments',
+	DebugConsole = 'debugConsole',
 }
 
 export const enum AccessibleViewType {

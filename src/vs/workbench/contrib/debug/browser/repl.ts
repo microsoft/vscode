@@ -72,6 +72,8 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
 import { AccessibilitySignal, IAccessibilitySignalService } from 'vs/platform/accessibilitySignal/browser/accessibilitySignalService';
 import { IHoverService } from 'vs/platform/hover/browser/hover';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { IAccessibleViewService } from 'vs/platform/accessibility/browser/accessibleView';
 
 const $ = dom.$;
 
@@ -116,6 +118,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 	private filter: ReplFilter;
 	private multiSessionRepl: IContextKey<boolean>;
 	private menu: IMenu;
+	private replDataSource: ReplDataSource | undefined;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -138,6 +141,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		@IMenuService menuService: IMenuService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@ILogService private readonly logService: ILogService,
+		@IAccessibleViewService private readonly accessibleViewService: IAccessibleViewService
 	) {
 		const filterText = storageService.get(FILTER_VALUE_STORAGE_KEY, StorageScope.WORKSPACE, '');
 		super({
@@ -526,6 +530,14 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		return this.replInput;
 	}
 
+	getReplDataSource(): ReplDataSource | undefined {
+		return this.replDataSource;
+	}
+
+	focusTree(): void {
+		this.tree?.domFocus();
+	}
+
 	override focus(): void {
 		super.focus();
 		setTimeout(() => this.replInput.focus(), 0);
@@ -624,7 +636,8 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		const wordWrap = this.configurationService.getValue<IDebugConfiguration>('debug').console.wordWrap;
 		this.treeContainer.classList.toggle('word-wrap', wordWrap);
 		const linkDetector = this.instantiationService.createInstance(LinkDetector);
-
+		const dataSource = new ReplDataSource() satisfies IAsyncDataSource<IDebugSession, IReplElement>;
+		this.replDataSource = dataSource;
 		const tree = this.tree = <WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>>this.instantiationService.createInstance(
 			WorkbenchAsyncDataTree,
 			'DebugRepl',
@@ -639,7 +652,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 				new ReplRawObjectsRenderer(linkDetector, this.hoverService),
 			],
 			// https://github.com/microsoft/TypeScript/issues/32526
-			new ReplDataSource() satisfies IAsyncDataSource<IDebugSession, IReplElement>,
+			this.replDataSource,
 			{
 				filter: this.filter,
 				accessibilityProvider: new ReplAccessibilityProvider(),
@@ -653,6 +666,11 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 				overrideStyles: this.getLocationBasedColors().listOverrideStyles
 			});
 
+		this._register(tree.onDidChangeFocus(() => {
+			// const focusedId = tree.getFocus()?.[0].getId();
+			// this._focusedId = focusedId;
+			console.log(tree.getFocus().map(f => f.toString()));
+		}));
 		this._register(tree.onDidChangeContentHeight(() => {
 			if (tree.scrollHeight !== this.previousTreeScrollHeight) {
 				// Due to rounding, the scrollTop + renderHeight will not exactly match the scrollHeight.
@@ -702,7 +720,8 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		options.suggest = { showStatusBar: true };
 		const config = this.configurationService.getValue<IDebugConfiguration>('debug');
 		options.acceptSuggestionOnEnter = config.console.acceptSuggestionOnEnter === 'on' ? 'on' : 'off';
-		options.ariaLabel = localize('debugConsole', "Debug Console");
+		const accessibleViewHint = this.accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.DebugConsole);
+		options.ariaLabel = accessibleViewHint ? localize('debugConsoleHint', "Debug Console, {0}", accessibleViewHint) : localize('debugConsole', "Debug Console");
 
 		this.replInput = this.scopedInstantiationService.createInstance(CodeEditorWidget, this.replInputContainer, options, getSimpleCodeEditorWidgetOptions());
 
@@ -939,7 +958,7 @@ class SelectReplActionViewItem extends FocusSessionActionViewItem {
 	}
 }
 
-function getReplView(viewsService: IViewsService): Repl | undefined {
+export function getReplView(viewsService: IViewsService): Repl | undefined {
 	return viewsService.getActiveViewWithId(REPL_VIEW_ID) as Repl ?? undefined;
 }
 
@@ -1126,3 +1145,4 @@ registerAction2(class extends Action2 {
 		}
 	}
 });
+

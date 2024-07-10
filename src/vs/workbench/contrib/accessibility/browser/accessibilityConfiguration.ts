@@ -58,7 +58,8 @@ export const enum AccessibilityVerbositySettingId {
 	EmptyEditorHint = 'accessibility.verbosity.emptyEditorHint',
 	ReplInputHint = 'accessibility.verbosity.replInputHint',
 	Comments = 'accessibility.verbosity.comments',
-	DiffEditorActive = 'accessibility.verbosity.diffEditorActive'
+	DiffEditorActive = 'accessibility.verbosity.diffEditorActive',
+	DebugConsole = 'accessibility.verbosity.debugConsole',
 }
 
 const baseVerbosityProperty: IConfigurationPropertySchema = {
