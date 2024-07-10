@@ -534,6 +534,10 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		return this.replDataSource;
 	}
 
+	getFocusedElement(): IReplElement | undefined {
+		return this.tree?.getFocus()?.[0];
+	}
+
 	focusTree(): void {
 		this.tree?.domFocus();
 	}
