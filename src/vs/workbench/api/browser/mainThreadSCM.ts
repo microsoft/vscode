@@ -6,7 +6,7 @@
 import { Barrier } from 'vs/base/common/async';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
-import { observableValue } from 'vs/base/common/observable';
+import { derivedOpts, observableValue } from 'vs/base/common/observable';
 import { IDisposable, DisposableStore, combinedDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, IInputValidation, ISCMViewService, InputValidationType, ISCMActionButtonDescriptor } from 'vs/workbench/contrib/scm/common/scm';
 import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceSplices, SCMGroupFeatures, MainContext, SCMHistoryItemGroupDto, SCMHistoryItemDto } from '../common/extHost.protocol';
@@ -17,7 +17,7 @@ import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IQuickDiffService, QuickDiffProvider } from 'vs/workbench/contrib/scm/common/quickDiff';
-import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryItemGroup, ISCMHistoryOptions, ISCMHistoryProvider } from 'vs/workbench/contrib/scm/common/history';
+import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryItemGroup, ISCMHistoryItemGroupWithRevision, ISCMHistoryOptions, ISCMHistoryProvider } from 'vs/workbench/contrib/scm/common/history';
 import { ResourceTree } from 'vs/base/common/resourceTree';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -46,6 +46,19 @@ function toISCMHistoryItem(historyItemDto: SCMHistoryItemDto): ISCMHistoryItem {
 	const labels = historyItemDto.labels?.map(l => ({ title: l.title, icon: getIconFromIconDto(l.icon) }));
 
 	return { ...historyItemDto, icon, labels };
+}
+
+function historyItemGroupEquals(a: ISCMHistoryItemGroup | undefined, b: ISCMHistoryItemGroup | undefined): boolean {
+	return a?.id === b?.id && a?.name === b?.name &&
+		a?.base?.id === b?.base?.id && a?.base?.name === b?.base?.name &&
+		a?.remote?.id === b?.remote?.id && a?.remote?.name === b?.remote?.name;
+}
+
+function historyItemGroupWithRevisionEquals(a: ISCMHistoryItemGroupWithRevision | undefined, b: ISCMHistoryItemGroupWithRevision | undefined): boolean {
+	return historyItemGroupEquals(a, b) &&
+		a?.revision === b?.revision &&
+		a?.base?.revision === b?.base?.revision &&
+		a?.remote?.revision === b?.remote?.revision;
 }
 
 class SCMInputBoxContentProvider extends Disposable implements ITextModelContentProvider {
@@ -164,15 +177,28 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 	private _onDidChangeCurrentHistoryItemGroup = new Emitter<void>();
 	readonly onDidChangeCurrentHistoryItemGroup = this._onDidChangeCurrentHistoryItemGroup.event;
 
-	private _currentHistoryItemGroup: ISCMHistoryItemGroup | undefined;
-	get currentHistoryItemGroup(): ISCMHistoryItemGroup | undefined { return this._currentHistoryItemGroup; }
-	set currentHistoryItemGroup(historyItemGroup: ISCMHistoryItemGroup | undefined) {
+	private _currentHistoryItemGroup: ISCMHistoryItemGroupWithRevision | undefined;
+	get currentHistoryItemGroup(): ISCMHistoryItemGroupWithRevision | undefined { return this._currentHistoryItemGroup; }
+	set currentHistoryItemGroup(historyItemGroup: ISCMHistoryItemGroupWithRevision | undefined) {
 		this._currentHistoryItemGroup = historyItemGroup;
 		this._onDidChangeCurrentHistoryItemGroup.fire();
 	}
 
-	private readonly _currentHistoryItemGroupObs = observableValue<ISCMHistoryItemGroup | undefined>(this, undefined);
-	get currentHistoryItemGroupObs() { return this._currentHistoryItemGroupObs; }
+	private readonly _currentHistoryItemGroupWithRevision = observableValue<ISCMHistoryItemGroupWithRevision | undefined>(this, undefined);
+
+	/**
+	 * Changes when the id/name changes for the current, remote, or base history item group
+	 */
+	readonly currentHistoryItemGroupObs = derivedOpts<ISCMHistoryItemGroup | undefined>({
+		owner: this, equalsFn: historyItemGroupEquals,
+	}, reader => this._currentHistoryItemGroupWithRevision.read(reader));
+
+	/**
+	 * Changes when the id/name/revision changes for the current, remote, or base history item group
+	 */
+	readonly currentHistoryItemGroupWithRevisionObs = derivedOpts<ISCMHistoryItemGroupWithRevision | undefined>({
+		owner: this, equalsFn: historyItemGroupWithRevisionEquals,
+	}, reader => this._currentHistoryItemGroupWithRevision.read(reader));
 
 	constructor(private readonly proxy: ExtHostSCMShape, private readonly handle: number) { }
 
@@ -209,8 +235,8 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 		}));
 	}
 
-	$onDidChangeCurrentHistoryItemGroup(historyItemGroup: ISCMHistoryItemGroup | undefined): void {
-		this._currentHistoryItemGroupObs.set(historyItemGroup, undefined);
+	$onDidChangeCurrentHistoryItemGroup(historyItemGroup: ISCMHistoryItemGroupWithRevision | undefined): void {
+		this._currentHistoryItemGroupWithRevision.set(historyItemGroup, undefined);
 	}
 }
 
