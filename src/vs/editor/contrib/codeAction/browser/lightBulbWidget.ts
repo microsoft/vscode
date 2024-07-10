@@ -7,10 +7,10 @@ import * as dom from 'vs/base/browser/dom';
 import { Gesture } from 'vs/base/browser/touch';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
 import 'vs/css!./lightBulbWidget';
-import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IContentWidgetPosition, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IPosition } from 'vs/editor/common/core/position';
 import { GlyphMarginLane, IModelDecorationsChangeAccessor, TrackedRangeStickiness } from 'vs/editor/common/model';
@@ -67,7 +67,6 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 	private static readonly _posPref = [ContentWidgetPositionPreference.EXACT];
 
 	private readonly _domNode: HTMLElement;
-	// private readonly _gutterDomNode: HTMLElement;
 
 	private readonly _onClick = this._register(new Emitter<{ readonly x: number; readonly y: number; readonly actions: CodeActionSet; readonly trigger: CodeActionTrigger }>());
 	public readonly onClick = this._onClick.event;
@@ -149,7 +148,6 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		}));
 
 		this._register(this._editor.onMouseDown(async (e: IEditorMouseEvent) => {
-			// if (!e.target.element?.classList.contains(LightBulbWidget.GUTTER_ICON_CLASSNAME) && !e.target.element?.classList.contains('codicon-gutter-lightbulb-auto-fix') && !e.target.element?.classList.contains('codicon-gutter-lightbulb-aifix-auto-fix') && !e.target.element?.classList.contains('codicon-gutter-lightbulb-sparkle') && !e.target.element?.classList.contains('codicon-gutter-lightbulb-sparkle-filled')) {
 			const lightbulbClasses = [
 				'codicon-' + GUTTER_LIGHTBULB_ICON.id,
 				'codicon-' + GUTTER_LIGHTBULB_AIFIX_AUTO_FIX_ICON.id,

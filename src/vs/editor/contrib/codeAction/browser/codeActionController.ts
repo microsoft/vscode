@@ -187,7 +187,7 @@ export class CodeActionController extends Disposable implements IEditorContribut
 				const validActionToApply = this.tryGetValidActionToApply(newState.trigger, actions);
 				if (validActionToApply) {
 					try {
-						this._lightBulbWidget.rawValue?.hide();
+						this.hideLightBulbWidget();
 						await this._applyCodeAction(validActionToApply, false, false, ApplyCodeActionReason.FromCodeActions);
 					} finally {
 						actions.dispose();
