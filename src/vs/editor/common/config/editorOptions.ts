@@ -4082,6 +4082,11 @@ export interface IInlineSuggestOptions {
 	 * Font family for inline suggestions.
 	 */
 	fontFamily?: string | 'default';
+
+	/**
+	 * Controls how indentation interacts with the full acceptance of inline suggest.
+	 */
+	suppressIndentationAcceptance?: boolean;
 }
 
 /**
@@ -4100,7 +4105,8 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			showToolbar: 'onHover',
 			suppressSuggestions: false,
 			keepOnBlur: false,
-			fontFamily: 'default'
+			fontFamily: 'default',
+			suppressIndentationAcceptance: false,
 		};
 
 		super(
@@ -4132,6 +4138,11 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					default: defaults.fontFamily,
 					description: nls.localize('inlineSuggest.fontFamily', "Controls the font family of the inline suggestions.")
 				},
+				'editor.inlineSuggest.suppressIndentationAcceptance': {
+					type: 'boolean',
+					default: defaults.suppressIndentationAcceptance,
+					description: nls.localize('inlineSuggest.suppressIndentationAcceptance', "Controls how indentation interacts with the full acceptance of inline suggest. If enabled, on full accept with inline suggestion prefixed by indentation, will accept the full available suggestion.")
+				}
 			}
 		);
 	}
