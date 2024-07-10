@@ -309,8 +309,14 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 	private doConnect(path: string): Promise<IDatabaseConnection> {
 		return new Promise((resolve, reject) => {
 			import('@vscode/sqlite3').then(sqlite3 => {
+				// ESM-comment-begin
+				const ctor = (this.logger.isTracing ? sqlite3.verbose().Database : sqlite3.Database);
+				// ESM-comment-end
+				// ESM-uncomment-begin
+				// const ctor = (this.logger.isTracing ? sqlite3.default.verbose().Database : sqlite3.default.Database);
+				// ESM-uncomment-end
 				const connection: IDatabaseConnection = {
-					db: new (this.logger.isTracing ? sqlite3.verbose().Database : sqlite3.Database)(path, (error: (Error & { code?: string }) | null) => {
+					db: new ctor(path, (error: (Error & { code?: string }) | null) => {
 						if (error) {
 							return (connection.db && error.code !== 'SQLITE_CANTOPEN' /* https://github.com/TryGhost/node-sqlite3/issues/1617 */) ? connection.db.close(() => reject(error)) : reject(error);
 						}

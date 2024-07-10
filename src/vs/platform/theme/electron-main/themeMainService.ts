@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow, nativeTheme } from 'electron';
+import electron from 'electron';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
@@ -64,30 +64,30 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 		this.updateSystemColorTheme();
 
 		// Color Scheme changes
-		this._register(Event.fromNodeEventEmitter(nativeTheme, 'updated')(() => this._onDidChangeColorScheme.fire(this.getColorScheme())));
+		this._register(Event.fromNodeEventEmitter(electron.nativeTheme, 'updated')(() => this._onDidChangeColorScheme.fire(this.getColorScheme())));
 	}
 
 	private updateSystemColorTheme(): void {
 		if (isLinux || this.configurationService.getValue(ThemeSettings.DETECT_COLOR_SCHEME)) {
 			// only with `system` we can detect the system color scheme
-			nativeTheme.themeSource = 'system';
+			electron.nativeTheme.themeSource = 'system';
 		} else {
 			switch (this.configurationService.getValue<'default' | 'auto' | 'light' | 'dark'>(ThemeSettings.SYSTEM_COLOR_THEME)) {
 				case 'dark':
-					nativeTheme.themeSource = 'dark';
+					electron.nativeTheme.themeSource = 'dark';
 					break;
 				case 'light':
-					nativeTheme.themeSource = 'light';
+					electron.nativeTheme.themeSource = 'light';
 					break;
 				case 'auto':
 					switch (this.getBaseTheme()) {
-						case 'vs': nativeTheme.themeSource = 'light'; break;
-						case 'vs-dark': nativeTheme.themeSource = 'dark'; break;
-						default: nativeTheme.themeSource = 'system';
+						case 'vs': electron.nativeTheme.themeSource = 'light'; break;
+						case 'vs-dark': electron.nativeTheme.themeSource = 'dark'; break;
+						default: electron.nativeTheme.themeSource = 'system';
 					}
 					break;
 				default:
-					nativeTheme.themeSource = 'system';
+					electron.nativeTheme.themeSource = 'system';
 					break;
 			}
 
@@ -97,23 +97,23 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 	getColorScheme(): IColorScheme {
 		if (isWindows) {
 			// high contrast is refelected by the shouldUseInvertedColorScheme property
-			if (nativeTheme.shouldUseHighContrastColors) {
+			if (electron.nativeTheme.shouldUseHighContrastColors) {
 				// shouldUseInvertedColorScheme is dark, !shouldUseInvertedColorScheme is light
-				return { dark: nativeTheme.shouldUseInvertedColorScheme, highContrast: true };
+				return { dark: electron.nativeTheme.shouldUseInvertedColorScheme, highContrast: true };
 			}
 		} else if (isMacintosh) {
 			// high contrast is set if one of shouldUseInvertedColorScheme or shouldUseHighContrastColors is set, reflecting the 'Invert colours' and `Increase contrast` settings in MacOS
-			if (nativeTheme.shouldUseInvertedColorScheme || nativeTheme.shouldUseHighContrastColors) {
-				return { dark: nativeTheme.shouldUseDarkColors, highContrast: true };
+			if (electron.nativeTheme.shouldUseInvertedColorScheme || electron.nativeTheme.shouldUseHighContrastColors) {
+				return { dark: electron.nativeTheme.shouldUseDarkColors, highContrast: true };
 			}
 		} else if (isLinux) {
 			// ubuntu gnome seems to have 3 states, light dark and high contrast
-			if (nativeTheme.shouldUseHighContrastColors) {
+			if (electron.nativeTheme.shouldUseHighContrastColors) {
 				return { dark: true, highContrast: true };
 			}
 		}
 		return {
-			dark: nativeTheme.shouldUseDarkColors,
+			dark: electron.nativeTheme.shouldUseDarkColors,
 			highContrast: false
 		};
 	}
@@ -170,7 +170,7 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 	}
 
 	private updateBackgroundColor(windowId: number, splash: IPartsSplash): void {
-		for (const window of BrowserWindow.getAllWindows()) {
+		for (const window of electron.BrowserWindow.getAllWindows()) {
 			if (window.id === windowId) {
 				window.setBackgroundColor(splash.colorInfo.background);
 				break;

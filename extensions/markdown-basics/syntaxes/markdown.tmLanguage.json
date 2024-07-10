@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/f75d5f55730e72ee7ff386841949048b2395e440",
+	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/7418dd20d76c72e82fadee2909e03239e9973b35",
 	"name": "Markdown",
 	"scopeName": "text.html.markdown",
 	"patterns": [
@@ -2480,14 +2480,34 @@
 			"name": "meta.separator.markdown"
 		},
 		"frontMatter": {
-			"begin": "\\A-{3}\\s*$",
-			"contentName": "meta.embedded.block.frontmatter",
+			"begin": "\\A(?=(-{3,}))",
+			"end": "^ {,3}\\1-*[ \\t]*$|^[ \\t]*\\.{3}$",
+			"applyEndPatternLast": 1,
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.end.frontmatter"
+				}
+			},
 			"patterns": [
 				{
-					"include": "source.yaml"
+					"begin": "\\A(-{3,})(.*)$",
+					"while": "^(?! {,3}\\1-*[ \\t]*$|[ \\t]*\\.{3}$)",
+					"beginCaptures": {
+						"1": {
+							"name": "punctuation.definition.begin.frontmatter"
+						},
+						"2": {
+							"name": "comment.frontmatter"
+						}
+					},
+					"contentName": "meta.embedded.block.frontmatter",
+					"patterns": [
+						{
+							"include": "source.yaml"
+						}
+					]
 				}
-			],
-			"end": "(^|\\G)-{3}|\\.{3}\\s*$"
+			]
 		},
 		"table": {
 			"name": "markup.table.markdown",

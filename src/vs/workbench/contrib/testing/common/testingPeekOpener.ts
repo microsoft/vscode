@@ -24,6 +24,9 @@ export interface ITestingPeekOpener {
 	/** Whether test history should be shown in the results output. */
 	historyVisible: MutableObservableValue<boolean>;
 
+	/** Whether the test call stack should be shown in the results output. */
+	callStackVisible: MutableObservableValue<boolean>;
+
 	/**
 	 * Tries to peek the first test error, if the item is in a failed state.
 	 * @returns a boolean indicating whether a peek was opened

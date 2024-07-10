@@ -110,6 +110,10 @@
 	line-height: 22px;
 }
 
+.scm-view .monaco-list-row .monaco-icon-label-container {
+	height: 22px;
+}
+
 .scm-view .monaco-list-row .history,
 .scm-view .monaco-list-row .history-item-group,
 .scm-view .monaco-list-row .resource-group {

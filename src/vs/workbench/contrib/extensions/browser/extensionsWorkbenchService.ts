@@ -969,7 +969,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				properties: {
 					[AutoRestartConfigurationKey]: {
 						type: 'boolean',
-						description: nls.localize('autoRestart', "If activated, extensions will automatically restart following an update if the window is not in focus."),
+						description: nls.localize('autoRestart', "If activated, extensions will automatically restart following an update if the window is not in focus. There can be a data loss if you have open Notebooks or Custom Editors."),
 						default: false,
 					}
 				}

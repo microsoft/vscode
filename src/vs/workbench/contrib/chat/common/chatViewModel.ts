@@ -13,7 +13,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILogService } from 'vs/platform/log/common/log';
 import { annotateVulnerabilitiesInText } from 'vs/workbench/contrib/chat/common/annotations';
 import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameService, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ChatModelInitState, IChatModel, IChatProgressRenderableResponseContent, IChatRequestModel, IChatResponseModel, IChatTextEditGroup, IChatWelcomeMessageContent, IResponse } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatModelInitState, IChatModel, IChatProgressRenderableResponseContent, IChatRequestModel, IChatRequestVariableEntry, IChatResponseModel, IChatTextEditGroup, IChatWelcomeMessageContent, IResponse } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatAgentVoteDirection, IChatContentReference, IChatFollowup, IChatProgressMessage, IChatResponseErrorDetails, IChatTask, IChatUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
 import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
@@ -68,6 +68,7 @@ export interface IChatRequestViewModel {
 	readonly message: IParsedChatRequest | IChatFollowup;
 	readonly messageText: string;
 	readonly attempt: number;
+	readonly variables: IChatRequestVariableEntry[];
 	currentRenderedHeight: number | undefined;
 }
 
@@ -359,6 +360,10 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 
 	get attempt() {
 		return this._model.attempt;
+	}
+
+	get variables() {
+		return this._model.variableData.variables;
 	}
 
 	currentRenderedHeight: number | undefined;
