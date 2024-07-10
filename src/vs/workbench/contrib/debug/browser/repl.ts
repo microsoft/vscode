@@ -666,11 +666,6 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 				overrideStyles: this.getLocationBasedColors().listOverrideStyles
 			});
 
-		this._register(tree.onDidChangeFocus(() => {
-			// const focusedId = tree.getFocus()?.[0].getId();
-			// this._focusedId = focusedId;
-			console.log(tree.getFocus().map(f => f.toString()));
-		}));
 		this._register(tree.onDidChangeContentHeight(() => {
 			if (tree.scrollHeight !== this.previousTreeScrollHeight) {
 				// Due to rounding, the scrollTop + renderHeight will not exactly match the scrollHeight.
@@ -1145,4 +1140,3 @@ registerAction2(class extends Action2 {
 		}
 	}
 });
-
