@@ -15,7 +15,6 @@
 const path = require('path');
 const fs = require('original-fs');
 const os = require('os');
-const minimist = require('minimist');
 const bootstrap = require('./bootstrap');
 const bootstrapNode = require('./bootstrap-node');
 const bootstrapAmd = require('./bootstrap-amd');
@@ -32,8 +31,9 @@ const { app, protocol, crashReporter, Menu, contentTracing } = require('electron
 // import * as fs from 'original-fs';
 // import * as os from 'os';
 // import { fileURLToPath } from 'url';
+// import module from 'module';
+// const require = module.createRequire(import.meta.url); // ONLY for minimist
 // import { app, protocol, crashReporter, Menu, contentTracing } from 'electron';
-// import minimist from 'minimist';
 // import * as bootstrap from './bootstrap.js';
 // import * as bootstrapNode from './bootstrap-node.js';
 // import * as bootstrapAmd from './bootstrap-amd.js';
@@ -516,6 +516,11 @@ function getJSFlags(cliArgs) {
  * @returns {NativeParsedArgs}
  */
 function parseCLIArgs() {
+	// NOTE: this must stay lazy because minimist is loaded from the asar-bundle
+	// and the time of loading this filename asar isn't ready yet, tho when running
+	// this code it is.
+	const minimist = require('minimist');
+
 	return minimist(process.argv, {
 		string: [
 			'user-data-dir',
