@@ -50,6 +50,7 @@ const vscodeEntryPoints = [
 ].flat();
 
 const vscodeResources = [
+	'out-build/loader-*.mjs',
 	'out-build/nls.messages.json',
 	'out-build/nls.keys.json',
 	'out-build/vs/**/*.{svg,png,html,jpg,mp3}',
@@ -471,9 +472,11 @@ BUILD_TARGETS.forEach(buildTarget => {
 		gulp.task(vscodeTaskCI);
 
 		const vscodeTask = task.define(`vscode${dashed(platform)}${dashed(arch)}${dashed(minified)}`, task.series(
+			// START comment for fast bundle
 			compileBuildTask,
 			compileExtensionsBuildTask,
 			compileExtensionMediaBuildTask,
+			// END comment for fast bundle
 			minified ? minifyVSCodeTask : optimizeVSCodeTask,
 			vscodeTaskCI
 		));
