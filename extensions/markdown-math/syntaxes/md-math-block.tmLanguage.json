@@ -7,9 +7,6 @@
 		},
 		{
 			"include": "#single_dollar_math_block"
-		},
-		{
-			"include": "#fenced_math_block"
 		}
 	],
 	"repository": {
@@ -75,42 +72,6 @@
 				{
 					"begin": "(^|\\G)",
 					"while": "(^|\\G)(?!.*(\\${1}))",
-					"patterns": [
-						{
-							"include": "text.html.markdown.math#math"
-						}
-					]
-				}
-			]
-		},
-		"fenced_math_block": {
-			"name": "markup.fenced_code.block.markdown",
-			"contentName": "meta.embedded.math.markdown",
-			"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:math)((\\s+|:|,|\\{|\\?)[^`]*)?$",
-			"beginCaptures": {
-				"3": {
-					"name": "punctuation.definition.math.begin.markdown"
-				},
-				"4": {
-					"name": "meta.embedded.math.markdown",
-					"patterns": [
-						{
-							"include": "text.html.markdown.math#math"
-						}
-					]
-				}
-			},
-			"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
-			"endCaptures": {
-				"3": {
-					"name": "punctuation.definition.math.end.markdown"
-				}
-			},
-			"patterns": [
-				{
-					"begin": "(^|\\G)(\\s*)(.*)",
-					"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-					"contentName": "meta.embedded.math.markdown",
 					"patterns": [
 						{
 							"include": "text.html.markdown.math#math"
