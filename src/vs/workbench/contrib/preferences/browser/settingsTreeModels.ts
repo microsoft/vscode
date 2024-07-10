@@ -203,7 +203,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	private initLabels(): void {
 		if (this.setting.title) {
 			this._displayLabel = this.setting.title;
-			this._displayCategory = '';
+			this._displayCategory = this.setting.categoryLabel ?? null;
 			return;
 		}
 		const displayKeyFormat = settingKeyToDisplayFormat(this.setting.key, this.parent!.id, this.setting.isLanguageTagSetting);

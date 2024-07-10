@@ -251,7 +251,7 @@ function emitEntryPoints(modules: IBuildModuleInfo[], entryPoints: IEntryPointMa
 
 	return {
 		// TODO@TS 2.1.2
-		files: extractStrings(removeDuplicateTSBoilerplate(result)),
+		files: extractStrings(removeAllDuplicateTSBoilerplate(result)),
 		bundleData: bundleData
 	};
 }
@@ -350,7 +350,19 @@ function extractStrings(destFiles: IConcatFile[]): IConcatFile[] {
 	return destFiles;
 }
 
-function removeDuplicateTSBoilerplate(destFiles: IConcatFile[]): IConcatFile[] {
+function removeAllDuplicateTSBoilerplate(destFiles: IConcatFile[]): IConcatFile[] {
+	destFiles.forEach((destFile) => {
+		const SEEN_BOILERPLATE: boolean[] = [];
+		destFile.sources.forEach((source) => {
+			source.contents = removeDuplicateTSBoilerplate(source.contents, SEEN_BOILERPLATE);
+		});
+	});
+
+	return destFiles;
+}
+
+export function removeDuplicateTSBoilerplate(source: string, SEEN_BOILERPLATE: boolean[] = []): string {
+
 	// Taken from typescript compiler => emitFiles
 	const BOILERPLATE = [
 		{ start: /^var __extends/, end: /^}\)\(\);$/ },
@@ -365,44 +377,37 @@ function removeDuplicateTSBoilerplate(destFiles: IConcatFile[]): IConcatFile[] {
 		{ start: /^var __importStar/, end: /^};$/ },
 	];
 
-	destFiles.forEach((destFile) => {
-		const SEEN_BOILERPLATE: boolean[] = [];
-		destFile.sources.forEach((source) => {
-			const lines = source.contents.split(/\r\n|\n|\r/);
-			const newLines: string[] = [];
-			let IS_REMOVING_BOILERPLATE = false, END_BOILERPLATE: RegExp;
+	const lines = source.split(/\r\n|\n|\r/);
+	const newLines: string[] = [];
+	let IS_REMOVING_BOILERPLATE = false, END_BOILERPLATE: RegExp;
 
-			for (let i = 0; i < lines.length; i++) {
-				const line = lines[i];
-				if (IS_REMOVING_BOILERPLATE) {
-					newLines.push('');
-					if (END_BOILERPLATE!.test(line)) {
-						IS_REMOVING_BOILERPLATE = false;
-					}
-				} else {
-					for (let j = 0; j < BOILERPLATE.length; j++) {
-						const boilerplate = BOILERPLATE[j];
-						if (boilerplate.start.test(line)) {
-							if (SEEN_BOILERPLATE[j]) {
-								IS_REMOVING_BOILERPLATE = true;
-								END_BOILERPLATE = boilerplate.end;
-							} else {
-								SEEN_BOILERPLATE[j] = true;
-							}
-						}
-					}
-					if (IS_REMOVING_BOILERPLATE) {
-						newLines.push('');
+	for (let i = 0; i < lines.length; i++) {
+		const line = lines[i];
+		if (IS_REMOVING_BOILERPLATE) {
+			newLines.push('');
+			if (END_BOILERPLATE!.test(line)) {
+				IS_REMOVING_BOILERPLATE = false;
+			}
+		} else {
+			for (let j = 0; j < BOILERPLATE.length; j++) {
+				const boilerplate = BOILERPLATE[j];
+				if (boilerplate.start.test(line)) {
+					if (SEEN_BOILERPLATE[j]) {
+						IS_REMOVING_BOILERPLATE = true;
+						END_BOILERPLATE = boilerplate.end;
 					} else {
-						newLines.push(line);
+						SEEN_BOILERPLATE[j] = true;
 					}
 				}
 			}
-			source.contents = newLines.join('\n');
-		});
-	});
-
-	return destFiles;
+			if (IS_REMOVING_BOILERPLATE) {
+				newLines.push('');
+			} else {
+				newLines.push(line);
+			}
+		}
+	}
+	return newLines.join('\n');
 }
 
 interface IPluginMap {
