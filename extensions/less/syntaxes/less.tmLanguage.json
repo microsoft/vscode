@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/radium-v/Better-Less/commit/24047277622c245dbe9309f0004d0ccb8f02636f",
+	"version": "https://github.com/radium-v/Better-Less/commit/b06a4555c711a6ef0d76cf2b4fc8b929a6ce551a",
 	"name": "Less",
 	"scopeName": "source.css.less",
 	"patterns": [
@@ -616,6 +616,9 @@
 					"include": "#filter-function"
 				},
 				{
+					"include": "#fit-content-function"
+				},
+				{
 					"include": "#format-function"
 				},
 				{
@@ -739,6 +742,9 @@
 									"include": "#less-variables"
 								},
 								{
+									"include": "#var-function"
+								},
+								{
 									"include": "#comma-delimiter"
 								},
 								{
@@ -782,6 +788,9 @@
 									"include": "#less-variables"
 								},
 								{
+									"include": "#var-function"
+								},
+								{
 									"include": "#comma-delimiter"
 								},
 								{
@@ -812,6 +821,9 @@
 				},
 				{
 					"include": "#less-variables"
+				},
+				{
+					"include": "#var-function"
 				},
 				{
 					"match": "\\b(aqua|black|blue|fuchsia|gray|green|lime|maroon|navy|olive|orange|purple|red|silver|teal|white|yellow)\\b",
@@ -903,6 +915,9 @@
 									"include": "#less-variables"
 								},
 								{
+									"include": "#var-function"
+								},
+								{
 									"match": "(?:--(?:[[-\\w][^\\x{00}-\\x{7F}]]|(?:\\\\\\h{1,6}[\\s\\t\\n\\f]?|\\\\[^\\n\\f\\h]))+|-?(?:[[_a-zA-Z][^\\x{00}-\\x{7F}]]|(?:\\\\\\h{1,6}[\\s\\t\\n\\f]?|\\\\[^\\n\\f\\h]))(?:[[-\\w][^\\x{00}-\\x{7F}]]|(?:\\\\\\h{1,6}[\\s\\t\\n\\f]?|\\\\[^\\n\\f\\h]))*)",
 									"name": "entity.other.counter-name.less"
 								},
@@ -960,6 +975,9 @@
 										},
 										{
 											"include": "#less-variables"
+										},
+										{
+											"include": "#var-function"
 										},
 										{
 											"include": "#literal-string"
@@ -1053,6 +1071,9 @@
 					},
 					"end": "(?=\\))",
 					"patterns": [
+						{
+							"include": "#var-function"
+						},
 						{
 							"include": "#comma-delimiter"
 						},
@@ -1275,6 +1296,49 @@
 				}
 			]
 		},
+		"fit-content-function": {
+			"begin": "\\b(fit-content)(?=\\()",
+			"beginCaptures": {
+				"1": {
+					"name": "support.function.grid.less"
+				}
+			},
+			"end": "\\)",
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.group.end.less"
+				}
+			},
+			"name": "meta.function-call.less",
+			"patterns": [
+				{
+					"begin": "\\(",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.definition.group.begin.less"
+						}
+					},
+					"end": "(?=\\))",
+					"patterns": [
+						{
+							"include": "#less-variables"
+						},
+						{
+							"include": "#var-function"
+						},
+						{
+							"include": "#calc-function"
+						},
+						{
+							"include": "#length-type"
+						},
+						{
+							"include": "#percentage-type"
+						}
+					]
+				}
+			]
+		},
 		"format-function": {
 			"patterns": [
 				{
@@ -1349,6 +1413,9 @@
 									"include": "#less-variables"
 								},
 								{
+									"include": "#var-function"
+								},
+								{
 									"include": "#angle-type"
 								},
 								{
@@ -1401,6 +1468,9 @@
 							"patterns": [
 								{
 									"include": "#less-variables"
+								},
+								{
+									"include": "#var-function"
 								},
 								{
 									"include": "#color-values"
@@ -1629,6 +1699,9 @@
 									"include": "#less-variables"
 								},
 								{
+									"include": "#var-function"
+								},
+								{
 									"include": "#comma-delimiter"
 								},
 								{
@@ -1703,6 +1776,9 @@
 							"patterns": [
 								{
 									"include": "#less-variables"
+								},
+								{
+									"include": "#var-function"
 								},
 								{
 									"include": "#color-values"
@@ -3361,6 +3437,9 @@
 							"include": "#less-variables"
 						},
 						{
+							"include": "#var-function"
+						},
+						{
 							"include": "#length-type"
 						},
 						{
@@ -3421,7 +3500,22 @@
 		"property-value-constants": {
 			"patterns": [
 				{
-					"match": "(?x)\\b(\n    absolute|active|add\n  |all(-(petite|small)-caps|-scroll)?\n  |alpha(betic)?\n  |alternate(-reverse)?\n  |always|annotation|antialiased|at\n  |auto(hiding-scrollbar)?\n  |avoid(-column|-page|-region)?\n  |background(-color|-image|-position|-size)?\n  |backwards|balance|baseline|below|bevel|bicubic|bidi-override|blink\n  |block(-line-height)?\n  |blur\n  |bold(er)?\n  |border(-bottom|-left|-right|-top)?-(color|radius|width|style)\n  |border-(bottom|top)-(left|right)-radius\n  |border-image(-outset|-repeat|-slice|-source|-width)?\n  |border(-bottom|-left|-right|-top|-collapse|-spacing|-box)?\n  |both|bottom\n  |box(-shadow)?\n  |break-(all|word)\n  |brightness\n  |butt(on)?\n  |capitalize\n  |cent(er|ral)\n  |char(acter-variant)?\n  |cjk-ideographic|clip|clone|close-quote\n  |closest-(corner|side)\n  |col-resize|collapse\n  |color(-stop|-burn|-dodge)?\n  |column((-count|-gap|-reverse|-rule(-color|-width)?|-width)|s)?\n  |common-ligatures|condensed|consider-shifts|contain\n  |content(-box|s)?\n  |contextual|contrast|cover\n  |crisp(-e|E)dges\n  |crop\n  |cross(hair)?\n  |da(rken|shed)\n  |default|dense|diagonal-fractions|difference|disabled\n  |discretionary-ligatures|disregard-shifts\n  |distribute(-all-lines|-letter|-space)?\n  |dotted|double|drop-shadow\n  |(nwse|nesw|ns|ew|sw|se|nw|ne|w|s|e|n)-resize\n  |ease(-in-out|-in|-out)?\n  |element|ellipsis|embed|end|EndColorStr|evenodd\n  |exclu(de(-ruby)?|sion)\n  |expanded\n  |(extra|semi|ultra)-(condensed|expanded)\n  |farthest-(corner|side)?\n  |fill(-box|-opacity)?\n  |filter|fixed|flat\n  |flex((-basis|-end|-grow|-shrink|-start)|box)?\n  |flip|flood-color\n  |font(-size(-adjust)?|-stretch|-weight)?\n  |forwards\n  |from(-image)?\n  |full-width|geometricPrecision|glyphs|gradient|grayscale\n  |grid(-height)?\n  |groove|hand|hanging|hard-light|height|help|hidden|hide\n  |historical-(forms|ligatures)\n  |horizontal(-tb)?\n  |hue\n  |ideograph(-alpha|-numeric|-parenthesis|-space|ic)\n  |inactive|include-ruby|infinite|inherit|initial\n  |inline(-block|-box|-flex(box)?|-line-height|-table)?\n  |inset|inside\n  |inter(-ideograph|-word|sect)\n  |invert|isolat(e|ion)|italic\n  |jis(04|78|83|90)\n  |justify(-all)?\n  |keep-all\n  |large[r]?\n  |last|layout|left|letter-spacing\n  |light(e[nr]|ing-color)\n  |line(-edge|-height|-through)?\n  |linear(-gradient|RGB)?\n  |lining-nums|list-item|local|loose|lowercase|lr-tb|ltr\n  |lumin(osity|ance)|manual\n  |manipulation\n  |margin(-bottom|-box|-left|-right|-top)?\n  |marker(-offset|s)?\n  |mathematical\n  |max-(content|height|lines|size|width)\n  |medium|middle\n  |min-(content|height|width)\n  |miter|mixed|move|multiply|newspaper\n  |no-(change|clip|(close|open)-quote|(common|discretionary|historical)-ligatures|contextual|drop|repeat)\n  |none|nonzero|normal|not-allowed|nowrap|oblique\n  |offset(-after|-before|-end|-start)?\n  |oldstyle-nums|opacity|open-quote\n  |optimize(Legibility|Precision|Quality|Speed)\n  |order|ordinal|ornaments\n  |outline(-color|-offset|-width)?\n  |outset|outside|over(line|-edge|lay)\n  |padding(-bottom|-box|-left|-right|-top|-box)?\n  |page|painted|paused\n  |pan-(x|left|right|y|up|down)\n  |perspective-origin\n  |petite-caps|pixelated|pointer\n  |pinch-zoom\n  |pre(-line|-wrap)?\n  |preserve-3d\n  |progid:DXImageTransform.Microsoft.(Alpha|Blur|dropshadow|gradient|Shadow)\n  |progress\n  |proportional-(nums|width)\n  |radial-gradient|recto|region|relative\n  |repeat(-[xy])?\n  |repeating-(linear|radial)-gradient\n  |replaced|reset-size|reverse|ridge|right\n  |round\n  |row(-resize|-reverse)?\n  |rtl|ruby|running|saturat(e|ion)|screen\n  |scroll(-position|bar)?\n  |separate|sepia\n  |scale-down\n  |shape-(image-threshold|margin|outside)\n  |show\n  |sideways(-lr|-rl)?\n  |simplified\n  |size\n  |slashed-zero|slice\n  |small(-caps|er)?\n  |smooth|snap|solid|soft-light\n  |space(-around|-between)?\n  |span|sRGB\n  |stack(ed-fractions)?\n  |start(ColorStr)?\n  |static\n  |step-(end|start)\n  |sticky\n  |stop-(color|opacity)\n  |stretch|strict\n  |stroke(-box|-dash(array|offset)|-miterlimit|-opacity|-width)?\n  |style(set)?\n  |stylistic\n  |sub(grid|pixel-antialiased|tract)?\n  |super|swash\n  |table(-caption|-cell|(-column|-footer|-header|-row)-group|-column|-row)?\n  |tabular-nums|tb-rl\n  |text((-bottom|-(decoration|emphasis)-color|-indent|-(over|under)-edge|-shadow|-size(-adjust)?|-top)|field)?\n  |thi(ck|n)\n  |titling-ca(ps|se)\n  |to[p]?\n  |touch|traditional\n  |transform(-origin)?\n  |under(-edge|line)?\n  |unicase|unset|uppercase|upright\n  |use-(glyph-orientation|script)\n  |verso\n  |vertical(-align|-ideographic|-lr|-rl|-text)?\n  |view-box\n  |viewport-fill(-opacity)?\n  |visibility\n  |visible(Fill|Painted|Stroke)?\n  |wait|wavy|weight|whitespace|(device-)?width|word-spacing\n  |wrap(-reverse)?\n  |x{1,2}-(large|small)\n  |z-index|zero\n  |zoom(-in|-out)?\n  |((?xi:arabic-indic|armenian|bengali|cambodian|circle|cjk-decimal|cjk-earthly-branch|cjk-heavenly-stem|decimal-leading-zero|decimal|devanagari|disclosure-closed|disclosure-open|disc|ethiopic-numeric|georgian|gujarati|gurmukhi|hebrew|hiragana-iroha|hiragana|japanese-formal|japanese-informal|kannada|katakana-iroha|katakana|khmer|korean-hangul-formal|korean-hanja-formal|korean-hanja-informal|lao|lower-alpha|lower-armenian|lower-greek|lower-latin|lower-roman|malayalam|mongolian|myanmar|oriya|persian|simp-chinese-formal|simp-chinese-informal|square|tamil|telugu|thai|tibetan|trad-chinese-formal|trad-chinese-informal|upper-alpha|upper-armenian|upper-latin|upper-roman)))\\b",
+					"comment": "align-content, align-items, align-self, justify-content, justify-items, justify-self",
+					"match": "(?x)\\b(?:\n  flex-start|flex-end|start|end|space-between|space-around|space-evenly\n  |stretch|baseline|safe|unsafe|legacy|anchor-center|first|last|self-start|self-end\n)\\b",
+					"name": "support.constant.property-value.less"
+				},
+				{
+					"comment": "alignment-baseline",
+					"match": "(?x)\\b(?:\n  text-before-edge|before-edge|middle|central|text-after-edge\n  |after-edge|ideographic|alphabetic|hanging|mathematical|top|center|bottom\n)\\b",
+					"name": "support.constant.property-value.less"
+				},
+				{
+					"comment": "all/global values",
+					"match": "\\b(?:initial|inherit|unset|revert-layer|revert)\\b",
+					"name": "support.constant.property-value.less"
+				},
+				{
+					"match": "(?x)\\b(\n  absolute|active|add\n|all(-(petite|small)-caps|-scroll)?\n|alpha(betic)?\n|alternate(-reverse)?\n|always|annotation|antialiased|at\n|auto(hiding-scrollbar)?\n|avoid(-column|-page|-region)?\n|background(-color|-image|-position|-size)?\n|backwards|balance|baseline|below|bevel|bicubic|bidi-override|blink\n|block(-(line-height|start|end))?\n|blur\n|bold(er)?\n|border(-bottom|-left|-right|-top)?-(color|radius|width|style)\n|border-(bottom|top)-(left|right)-radius\n|border-image(-outset|-repeat|-slice|-source|-width)?\n|border(-bottom|-left|-right|-top|-collapse|-spacing|-box)?\n|both|bottom\n|box(-shadow)?\n|break-(all|word|spaces)\n|brightness\n|butt(on)?\n|capitalize\n|cent(er|ral)\n|char(acter-variant)?\n|cjk-ideographic|clip|clone|close-quote\n|closest-(corner|side)\n|col-resize|collapse\n|color(-stop|-burn|-dodge)?\n|column((-count|-gap|-reverse|-rule(-color|-width)?|-width)|s)?\n|common-ligatures|condensed|consider-shifts|contain\n|content(-box|s)?\n|contextual|contrast|cover\n|crisp(-e|E)dges\n|crop\n|cross(hair)?\n|da(rken|shed)\n|default|dense|diagonal-fractions|difference|disabled\n|discard|discretionary-ligatures|disregard-shifts\n|distribute(-all-lines|-letter|-space)?\n|dotted|double|drop-shadow\n|(nwse|nesw|ns|ew|sw|se|nw|ne|w|s|e|n)-resize\n|ease(-in-out|-in|-out)?\n|element|ellipsis|embed|end|EndColorStr|evenodd\n|exclu(de(-ruby)?|sion)\n|expanded\n|(extra|semi|ultra)-(condensed|expanded)\n|farthest-(corner|side)?\n|fill(-box|-opacity)?\n|filter\n|fit-content\n|fixed\n|flat\n|flex((-basis|-end|-grow|-shrink|-start)|box)?\n|flip|flood-color\n|font(-size(-adjust)?|-stretch|-weight)?\n|forwards\n|from(-image)?\n|full-width|gap|geometricPrecision|glyphs|gradient|grayscale\n|grid((-column|-row)?-gap|-height)?\n|groove|hand|hanging|hard-light|height|help|hidden|hide\n|historical-(forms|ligatures)\n|horizontal(-tb)?\n|hue\n|ideograph(-alpha|-numeric|-parenthesis|-space|ic)\n|inactive|include-ruby|infinite|inherit|initial\n|inline(-(block|box|flex(box)?|line-height|table|start|end))?\n|inset|inside\n|inter(-ideograph|-word|sect)\n|invert|isolat(e|ion)|italic\n|jis(04|78|83|90)\n|justify(-all)?\n|keep-all\n|large[r]?\n|last|layout|left|letter-spacing\n|light(e[nr]|ing-color)\n|line(-edge|-height|-through)?\n|linear(-gradient|RGB)?\n|lining-nums|list-item|local|loose|lowercase|lr-tb|ltr\n|lumin(osity|ance)|manual\n|manipulation\n|margin(-bottom|-box|-left|-right|-top)?\n|marker(-offset|s)?\n|match-parent\n|mathematical\n|max-(content|height|lines|size|width)\n|medium|middle\n|min-(content|height|width)\n|miter|mixed|move|multiply|newspaper\n|no-(change|clip|(close|open)-quote|(common|discretionary|historical)-ligatures|contextual|drop|repeat)\n|none|nonzero|normal|not-allowed|nowrap|oblique\n|offset(-after|-before|-end|-start)?\n|oldstyle-nums|opacity|open-quote\n|optimize(Legibility|Precision|Quality|Speed)\n|order|ordinal|ornaments\n|outline(-color|-offset|-width)?\n|outset|outside|over(line|-edge|lay)\n|padding(-bottom|-box|-left|-right|-top|-box)?\n|page|paint(ed)?|paused\n|pan-(x|left|right|y|up|down)\n|perspective-origin\n|petite-caps|pixelated|pointer\n|pinch-zoom\n|pretty\n|pre(-line|-wrap)?\n|preserve(-3d|-breaks|-spaces)?\n|progid:DXImageTransform.Microsoft.(Alpha|Blur|dropshadow|gradient|Shadow)\n|progress\n|proportional-(nums|width)\n|radial-gradient|recto|region|relative\n|repeat(-[xy])?\n|repeating-(linear|radial)-gradient\n|replaced|reset-size|reverse|revert(-layer)?|ridge|right\n|round\n|row(-gap|-resize|-reverse)?\n|rtl|ruby|running|saturat(e|ion)|screen\n|scroll(-position|bar)?\n|separate|sepia\n|scale-down\n|shape-(image-threshold|margin|outside)\n|show\n|sideways(-lr|-rl)?\n|simplified\n|size\n|slashed-zero|slice\n|small(-caps|er)?\n|smooth|snap|solid|soft-light\n|space(-around|-between)?\n|span|sRGB\n|stable\n|stack(ed-fractions)?\n|start(ColorStr)?\n|static\n|step-(end|start)\n|sticky\n|stop-(color|opacity)\n|stretch|strict\n|stroke(-box|-dash(array|offset)|-miterlimit|-opacity|-width)?\n|style(set)?\n|stylistic\n|sub(grid|pixel-antialiased|tract)?\n|super|swash\n|table(-caption|-cell|(-column|-footer|-header|-row)-group|-column|-row)?\n|tabular-nums|tb-rl\n|text((-bottom|-(decoration|emphasis)-color|-indent|-(over|under)-edge|-shadow|-size(-adjust)?|-top)|field)?\n|thi(ck|n)\n|titling-ca(ps|se)\n|to[p]?\n|touch|traditional\n|transform(-origin)?\n|under(-edge|line)?\n|unicase|unset|uppercase|upright\n|use-(glyph-orientation|script)\n|verso\n|vertical(-align|-ideographic|-lr|-rl|-text)?\n|view-box\n|viewport-fill(-opacity)?\n|visibility\n|visible(Fill|Painted|Stroke)?\n|wait|wavy|weight|whitespace|(device-)?width|word-spacing\n|wrap(-reverse)?\n|x{1,2}-(large|small)\n|z-index|zero\n|zoom(-in|-out)?\n|((?xi:arabic-indic|armenian|bengali|cambodian|circle|cjk-decimal|cjk-earthly-branch|cjk-heavenly-stem|decimal-leading-zero|decimal|devanagari|disclosure-closed|disclosure-open|disc|ethiopic-numeric|georgian|gujarati|gurmukhi|hebrew|hiragana-iroha|hiragana|japanese-formal|japanese-informal|kannada|katakana-iroha|katakana|khmer|korean-hangul-formal|korean-hanja-formal|korean-hanja-informal|lao|lower-alpha|lower-armenian|lower-greek|lower-latin|lower-roman|malayalam|mongolian|myanmar|oriya|persian|simp-chinese-formal|simp-chinese-informal|square|tamil|telugu|thai|tibetan|trad-chinese-formal|trad-chinese-informal|upper-alpha|upper-armenian|upper-latin|upper-roman)))\\b",
 					"name": "support.constant.property-value.less"
 				},
 				{
@@ -3445,9 +3539,6 @@
 					"include": "#color-functions"
 				},
 				{
-					"include": "#less-math"
-				},
-				{
 					"include": "#less-functions"
 				},
 				{
@@ -3466,7 +3557,13 @@
 					"include": "#property-value-constants"
 				},
 				{
+					"include": "#less-math"
+				},
+				{
 					"include": "#literal-string"
+				},
+				{
+					"include": "#comma-delimiter"
 				},
 				{
 					"captures": {
@@ -3909,6 +4006,11 @@
 											"include": "#property-values"
 										},
 										{
+											"captures": {
+												"1": {
+													"name": "punctuation.definition.arbitrary-repetition.less"
+												}
+											},
 											"match": "\\s*(?:(,))"
 										}
 									]
@@ -3918,9 +4020,6 @@
 						{
 							"begin": "\\b(transition(-(property|duration|delay|timing-function))?)\\b",
 							"beginCaptures": {
-								"0": {
-									"name": "meta.property-name.less"
-								},
 								"1": {
 									"name": "support.type.property-name.less"
 								}
@@ -3933,35 +4032,41 @@
 							},
 							"patterns": [
 								{
-									"captures": {
+									"begin": "(((\\+_?)?):)(?=[\\s\\t]*)",
+									"beginCaptures": {
 										"1": {
 											"name": "punctuation.separator.key-value.less"
-										},
-										"4": {
-											"name": "meta.property-value.less"
 										}
 									},
-									"match": "(((\\+_?)?):)([\\s\\t]*)"
-								},
-								{
-									"include": "#time-type"
-								},
-								{
-									"include": "#property-values"
-								},
-								{
-									"include": "#cubic-bezier-function"
-								},
-								{
-									"include": "#steps-function"
-								},
-								{
 									"captures": {
 										"1": {
 											"name": "punctuation.definition.arbitrary-repetition.less"
 										}
 									},
-									"match": "\\s*(?:(,))"
+									"contentName": "meta.property-value.less",
+									"end": "(?=\\s*(;)|(?=[})]))",
+									"patterns": [
+										{
+											"include": "#time-type"
+										},
+										{
+											"include": "#property-values"
+										},
+										{
+											"include": "#cubic-bezier-function"
+										},
+										{
+											"include": "#steps-function"
+										},
+										{
+											"captures": {
+												"1": {
+													"name": "punctuation.definition.arbitrary-repetition.less"
+												}
+											},
+											"match": "\\s*(?:(,))"
+										}
+									]
 								}
 							]
 						},
@@ -4084,7 +4189,11 @@
 							]
 						},
 						{
-							"match": "(?x)\\b( accent-height | align-content | align-items | align-self | alignment-baseline | all | animation-timing-function | animation-play-state | animation-name | animation-iteration-count | animation-fill-mode | animation-duration | animation-direction | animation-delay | animation | appearance | ascent | azimuth | backface-visibility | background-size | background-repeat-y | background-repeat-x | background-repeat | background-position-y | background-position-x | background-position | background-origin | background-image | background-color | background-clip | background-blend-mode | background-attachment | background | baseline-shift | begin | bias | blend-mode | border-((top|right|bottom|left)-)?(width|style|color) | border-(top|bottom)-(right|left)-radius | border-image-(width|source|slice|repeat|outset) | border-(top|right|bottom|left|collapse|image|radius|spacing) | border | bottom | box-(align|decoration-break|direction|flex|ordinal-group|orient|pack|shadow|sizing) | break-(after|before|inside) | caption-side | clear | clip-path | clip-rule | clip | color(-(interpolation(-filters)?|profile|rendering))? | columns | column-(break-before|count|fill|gap|(rule(-(color|style|width))?)|span|width) | contain | content | counter-(increment|reset) | cursor | (c|d|f)(x|y) | direction | display | divisor | dominant-baseline | dur | elevation | empty-cells | enable-background | end | fallback | fill(-(opacity|rule))? | filter | flex(-(align|basis|direction|flow|grow|item-align|line-pack|negative|order|pack|positive|preferred-size|shrink|wrap))? | float | flood-(color|opacity) | font-display | font-family | font-feature-settings | font-kerning | font-language-override | font-size(-adjust)? | font-smoothing | font-stretch | font-style | font-synthesis | font-variant(-(alternates|caps|east-asian|ligatures|numeric|position))? | font-weight | font | fr | glyph-orientation-(horizontal|vertical) | grid-(area|gap) | grid-auto-(columns|flow|rows) | grid-(column|row)(-(end|gap|start))? | grid-template(-(areas|columns|rows))? | height | hyphens | image-(orientation|rendering|resolution) | isolation | justify-content | kerning | left | letter-spacing | lighting-color | line-(box-contain|break|clamp|height) | list-style(-(image|position|type))? | margin(-(bottom|left|right|top))? | marker(-(end|mid|start))? | mask(-(clip||composite|image|origin|position|repeat|size|type))? | (max|min)-(height|width) | mix-blend-mode | nbsp-mode | negative | object-(fit|position) | opacity | operator | order | orphans | outline(-(color|offset|style|width))? | overflow(-(scrolling|wrap|x|y))? | pad(ding(-(bottom|left|right|top))?)? | page(-break-(after|before|inside))? | paint-order | pause(-(after|before))? | perspective(-origin(-(x|y))?)? | pitch(-range)? | pointer-events | position | prefix | quotes | range | resize | right | rotate | scale | scroll-behavior | shape-(image-threshold|margin|outside|rendering) | size | speak(-as)? | src | stop-(color|opacity) | stroke(-(dash(array|offset)|line(cap|join)|miterlimit|opacity|width))? | suffix | symbols | system | tab-size | table-layout | tap-highlight-color | text-align(-last)? | text-decoration(-(color|line|style))? | text-emphasis(-(color|position|style))? | text-(anchor|fill-color|height|indent|justify|orientation|overflow|rendering|shadow|transform|underline-position) | top | touch-action | transform(-origin(-(x|y))?) | transform(-style)? | transition(-(delay|duration|property|timing-function))? | translate | unicode-(bidi|range) | user-(drag|select) | vertical-align | visibility | white-space | widows | width | will-change | word-(break|spacing|wrap) | writing-mode | z-index | zoom )\\b",
+							"match": "(?x)\\b( accent-height | align-content | align-items | align-self | alignment-baseline | all | animation-timing-function | animation-play-state | animation-name | animation-iteration-count | animation-fill-mode | animation-duration | animation-direction | animation-delay | animation | appearance | ascent | azimuth | backface-visibility | background-size | background-repeat-y | background-repeat-x | background-repeat | background-position-y | background-position-x | background-position | background-origin | background-image | background-color | background-clip | background-blend-mode | background-attachment | background | baseline-shift | begin | bias | blend-mode | border-((top|right|bottom|left|((block|inline)(-(start|end))?))-)?(width|style|color) | border-((top|bottom)-(right|left)|((start|end)-?){1,2})-radius | border-image-(width|source|slice|repeat|outset) | border-(top|right|bottom|left|collapse|image|radius|spacing|((block|inline)(-(start|end))?)) | border | bottom | box-(align|decoration-break|direction|flex|ordinal-group|orient|pack|shadow|sizing) | break-(after|before|inside) | caption-side | clear | clip-path | clip-rule | clip | color(-(interpolation(-filters)?|profile|rendering))? | columns | column-(break-before|count|fill|gap|(rule(-(color|style|width))?)|span|width) | contain(-intrinsic-((((block|inline)-)?size)|height|width))? | content | counter-(increment|reset) | cursor | (c|d|f)(x|y) | direction | display | divisor | dominant-baseline | dur | elevation | empty-cells | enable-background | end | fallback | fill(-(opacity|rule))? | filter | flex(-(align|basis|direction|flow|grow|item-align|line-pack|negative|order|pack|positive|preferred-size|shrink|wrap))? | float | flood-(color|opacity) | font-display | font-family | font-feature-settings | font-kerning | font-language-override | font-size(-adjust)? | font-smoothing | font-stretch | font-style | font-synthesis | font-variant(-(alternates|caps|east-asian|ligatures|numeric|position))? | font-weight | font | fr | ((column|row)-)?gap | glyph-orientation-(horizontal|vertical) | grid-(area|gap) | grid-auto-(columns|flow|rows) | grid-(column|row)(-(end|gap|start))? | grid-template(-(areas|columns|rows))? | height | hyphens | image-(orientation|rendering|resolution) | inset(-(block|inline))?(-(start|end))? | isolation | justify-content | justify-items | justify-self | kerning | left | letter-spacing | lighting-color | line-(box-contain|break|clamp|height) | list-style(-(image|position|type))? | (margin|padding)(-(bottom|left|right|top)|(-(block|inline)?(-(end|start))?))? | marker(-(end|mid|start))? | mask(-(clip||composite|image|origin|position|repeat|size|type))? | (max|min)-(height|width) | mix-blend-mode | nbsp-mode | negative | object-(fit|position) | opacity | operator | order | orphans | outline(-(color|offset|style|width))? | overflow(-((inline|block)|scrolling|wrap|x|y))? | overscroll-behavior(-block|-(inline|x|y))? | pad(ding(-(bottom|left|right|top))?)? | page(-break-(after|before|inside))? | paint-order | pause(-(after|before))? | perspective(-origin(-(x|y))?)? | pitch(-range)? | place-content | place-self | pointer-events | position | prefix | quotes | range | resize | right | rotate | scale | scroll-behavior | shape-(image-threshold|margin|outside|rendering) | size | speak(-as)? | src | stop-(color|opacity) | stroke(-(dash(array|offset)|line(cap|join)|miterlimit|opacity|width))? | suffix | symbols | system | tab-size | table-layout | tap-highlight-color | text-align(-last)? | text-decoration(-(color|line|style))? | text-emphasis(-(color|position|style))? | text-(anchor|fill-color|height|indent|justify|orientation|overflow|rendering|size-adjust|shadow|transform|underline-position|wrap) | top | touch-action | transform(-origin(-(x|y))?) | transform(-style)? | transition(-(delay|duration|property|timing-function))? | translate | unicode-(bidi|range) | user-(drag|select) | vertical-align | visibility | white-space(-collapse)? | widows | width | will-change | word-(break|spacing|wrap) | writing-mode | z-index | zoom )\\b",
+							"name": "support.type.property-name.less"
+						},
+						{
+							"match": "(?x)\\b(((contain-intrinsic|max|min)-)?(block|inline)?-size)\\b",
 							"name": "support.type.property-name.less"
 						},
 						{
@@ -4093,7 +4202,15 @@
 					]
 				},
 				{
-					"begin": "\\b(((\\+_?)?):)([\\s\\t]*)",
+					"begin": "\\b((?:(?:\\+_?)?):)([\\s\\t]*)",
+					"beginCaptures": {
+						"1": {
+							"name": "punctuation.separator.key-value.less"
+						},
+						"2": {
+							"name": "meta.property-value.less"
+						}
+					},
 					"captures": {
 						"1": {
 							"name": "punctuation.separator.key-value.less"
@@ -5002,6 +5119,9 @@
 								},
 								{
 									"include": "#less-variables"
+								},
+								{
+									"include": "#property-values"
 								}
 							]
 						}

@@ -12,7 +12,7 @@ const util = require('./lib/util');
 const { getVersion } = require('./lib/getVersion');
 const task = require('./lib/task');
 const optimize = require('./lib/optimize');
-const { date } = require('./lib/date');
+const { readISODate } = require('./lib/date');
 const product = require('../product.json');
 const rename = require('gulp-rename');
 const filter = require('gulp-filter');
@@ -37,6 +37,9 @@ const vscodeWebResourceIncludes = [
 	'out-build/vs/code/browser/workbench/*.html',
 	'out-build/vs/base/browser/ui/codicons/codicon/**/*.ttf',
 	'out-build/vs/**/markdown.css',
+
+	// NLS
+	'out-build/nls.messages.js',
 
 	// Webview
 	'out-build/vs/workbench/contrib/webview/browser/pre/*.js',
@@ -91,7 +94,7 @@ const createVSCodeWebProductConfigurationPatcher = (product) => {
 				...product,
 				version,
 				commit,
-				date
+				date: readISODate('out-build')
 			});
 			return content.replace('/*BUILD->INSERT_PRODUCT_CONFIGURATION*/', () => productConfiguration.substr(1, productConfiguration.length - 2) /* without { and }*/);
 		}

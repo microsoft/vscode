@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 //@ts-check
+'use strict';
+
 (function () {
-	'use strict';
 
 	/**
 	 * @import { ISandboxConfiguration } from '../../../../base/parts/sandbox/common/sandboxTypes'

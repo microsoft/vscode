@@ -4171,8 +4171,6 @@ export interface IInlineEditOptions {
 	 * Does not clear active inline suggestions when the editor loses focus.
 	 */
 	keepOnBlur?: boolean;
-
-	backgroundColoring?: boolean;
 }
 
 /**
@@ -4187,7 +4185,6 @@ class InlineEditorEdit extends BaseEditorOption<EditorOption.inlineEdit, IInline
 			showToolbar: 'onHover',
 			fontFamily: 'default',
 			keepOnBlur: false,
-			backgroundColoring: false,
 		};
 
 		super(
@@ -4214,11 +4211,6 @@ class InlineEditorEdit extends BaseEditorOption<EditorOption.inlineEdit, IInline
 					default: defaults.fontFamily,
 					description: nls.localize('inlineEdit.fontFamily', "Controls the font family of the inline edit.")
 				},
-				'editor.experimentalInlineEdit.backgroundColoring': {
-					type: 'boolean',
-					default: defaults.backgroundColoring,
-					description: nls.localize('inlineEdit.backgroundColoring', "Controls whether to color the background of inline edits.")
-				},
 			}
 		);
 	}
@@ -4233,7 +4225,6 @@ class InlineEditorEdit extends BaseEditorOption<EditorOption.inlineEdit, IInline
 			showToolbar: stringSet(input.showToolbar, this.defaultValue.showToolbar, ['always', 'onHover', 'never']),
 			fontFamily: EditorStringOption.string(input.fontFamily, this.defaultValue.fontFamily),
 			keepOnBlur: boolean(input.keepOnBlur, this.defaultValue.keepOnBlur),
-			backgroundColoring: boolean(input.backgroundColoring, this.defaultValue.backgroundColoring)
 		};
 	}
 }

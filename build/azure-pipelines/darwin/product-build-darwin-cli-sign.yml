@@ -9,7 +9,7 @@ steps:
     inputs:
       versionSource: fromFile
       versionFilePath: .nvmrc
-      nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
+      #nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
   - script: node build/setup-npm-registry.js $NPM_REGISTRY build
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))

@@ -129,6 +129,16 @@ export function clearNode(node: HTMLElement): void {
 	}
 }
 
+
+export function clearNodeRecursively(domNode: ChildNode) {
+	while (domNode.firstChild) {
+		const element = domNode.firstChild;
+		element.remove();
+		clearNodeRecursively(element);
+	}
+}
+
+
 class DomListener implements IDisposable {
 
 	private _handler: (e: any) => void;
@@ -1182,6 +1192,11 @@ export function isHTMLButtonElement(e: unknown): e is HTMLButtonElement {
 export function isHTMLDivElement(e: unknown): e is HTMLDivElement {
 	// eslint-disable-next-line no-restricted-syntax
 	return e instanceof HTMLDivElement || e instanceof getWindow(e as Node).HTMLDivElement;
+}
+
+export function isSVGElement(e: unknown): e is SVGElement {
+	// eslint-disable-next-line no-restricted-syntax
+	return e instanceof SVGElement || e instanceof getWindow(e as Node).SVGElement;
 }
 
 export function isMouseEvent(e: unknown): e is MouseEvent {

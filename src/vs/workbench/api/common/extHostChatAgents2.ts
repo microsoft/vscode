@@ -212,11 +212,11 @@ class ChatAgentResponseStream {
 					_report(dto);
 					return this;
 				},
-				confirmation(title, message, data) {
+				confirmation(title, message, data, buttons) {
 					throwIfDone(this.confirmation);
 					checkProposedApiEnabled(that._extension, 'chatParticipantAdditions');
 
-					const part = new extHostTypes.ChatResponseConfirmationPart(title, message, data);
+					const part = new extHostTypes.ChatResponseConfirmationPart(title, message, data, buttons);
 					const dto = typeConvert.ChatResponseConfirmationPart.from(part);
 					_report(dto);
 					return this;

@@ -97,7 +97,12 @@ export class FindModelBoundToEditorModel {
 		this._decorations = new FindDecorations(editor);
 		this._toDispose.add(this._decorations);
 
-		this._updateDecorationsScheduler = new RunOnceScheduler(() => this.research(false), 100);
+		this._updateDecorationsScheduler = new RunOnceScheduler(() => {
+			if (!this._editor.hasModel()) {
+				return;
+			}
+			return this.research(false);
+		}, 100);
 		this._toDispose.add(this._updateDecorationsScheduler);
 
 		this._toDispose.add(this._editor.onDidChangeCursorPosition((e: ICursorPositionChangedEvent) => {

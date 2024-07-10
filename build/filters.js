@@ -199,7 +199,7 @@ module.exports.eslintFilter = [
 		.toString().split(/\r\n|\n/)
 		.filter(line => !line.startsWith('#'))
 		.filter(line => !!line)
-		.map(line => `!${line}`)
+		.map(line => line.startsWith('!') ? line.slice(1) : `!${line}`)
 ];
 
 module.exports.stylelintFilter = [

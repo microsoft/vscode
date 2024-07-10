@@ -376,7 +376,7 @@ CommandsRegistry.registerCommand({
 				}
 			} else {
 				const vsix = URI.revive(arg);
-				await extensionsWorkbenchService.install(vsix, { installOnlyNewlyAddedFromExtensionPack: options?.installOnlyNewlyAddedFromExtensionPackVSIX });
+				await extensionsWorkbenchService.install(vsix, { installOnlyNewlyAddedFromExtensionPack: options?.installOnlyNewlyAddedFromExtensionPackVSIX, installGivenVersion: true });
 			}
 		} catch (e) {
 			onUnexpectedError(e);
@@ -818,7 +818,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				const notificationService = accessor.get(INotificationService);
 
 				const vsixs = Array.isArray(resources) ? resources : [resources];
-				const result = await Promise.allSettled(vsixs.map(async (vsix) => await extensionsWorkbenchService.install(vsix)));
+				const result = await Promise.allSettled(vsixs.map(async (vsix) => await extensionsWorkbenchService.install(vsix, { installGivenVersion: true })));
 				let error: Error | undefined, requireReload = false, requireRestart = false;
 				for (const r of result) {
 					if (r.status === 'rejected') {

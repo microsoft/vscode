@@ -462,7 +462,7 @@ export function getExcludes(configuration: ISearchConfiguration, includeSearchEx
 	}
 
 	if (!fileExcludes || !searchExcludes) {
-		return fileExcludes || searchExcludes;
+		return fileExcludes || searchExcludes || undefined;
 	}
 
 	let allExcludes: glob.IExpression = Object.create(null);
