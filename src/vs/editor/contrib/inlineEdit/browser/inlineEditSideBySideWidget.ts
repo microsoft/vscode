@@ -6,7 +6,7 @@
 import { $ } from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, ISettableObservable, ObservablePromise, autorun, autorunWithStore, derived, observableSignalFromEvent, observableValue } from 'vs/base/common/observable';
+import { IObservable, ObservablePromise, autorun, autorunWithStore, derived, observableSignalFromEvent } from 'vs/base/common/observable';
 import { derivedDisposable } from 'vs/base/common/observableInternal/derived';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./inlineEditSideBySideWidget';
@@ -277,8 +277,6 @@ class InlineEditSideBySideContentWidget extends Disposable implements IOverlayWi
 		return this._decorations.read(reader).mod;
 	});
 
-	private readonly _isVisible: ISettableObservable<boolean> = observableValue(this, false);
-
 	constructor(
 		private readonly _editor: ICodeEditor,
 		private readonly _position: IObservable<Pos | null>,
@@ -293,6 +291,7 @@ class InlineEditSideBySideContentWidget extends Disposable implements IOverlayWi
 		this._previewEditor.setModel(this._previewTextModel);
 
 		this._register(this._editorObs.setDecorations(this._originalDecorations));
+		this._register(this._previewEditorObs.setDecorations(this._modifiedDecorations));
 
 		this._register(autorun(reader => {
 			this._previewEditorObs.model.read(reader);
@@ -303,30 +302,6 @@ class InlineEditSideBySideContentWidget extends Disposable implements IOverlayWi
 				return;
 			}
 			this._previewEditor.layout({ height: height, width: width });
-		}));
-
-		this._register(autorun(reader => {
-			this._previewEditorObs.model.read(reader);
-			this._previewEditorObs.setDecorations(this._modifiedDecorations);
-		}));
-
-		this._register(autorun(reader => {
-			/** isVisible */
-			const isVisible = this._isVisible.read(reader);
-			if (!isVisible) {
-				this._nodes.style.display = 'none';
-			}
-			else {
-				this._nodes.style.display = 'block';
-			}
-		}));
-
-		this._register(autorun(reader => {
-			const isVisible = this._isVisible.read(reader);
-			if (isVisible) {
-				this._previewEditor.setModel(null);
-				this._previewEditor.setModel(this._previewTextModel);
-			}
 		}));
 
 		this._register(autorun(reader => {
@@ -342,11 +317,6 @@ class InlineEditSideBySideContentWidget extends Disposable implements IOverlayWi
 			if (!position) {
 				return;
 			}
-			const visibleRanges = this._editor.getVisibleRanges();
-			const isVisble = visibleRanges.some(range => {
-				return position.top >= range.startLineNumber && position.top <= range.endLineNumber;
-			});
-			this._isVisible.set(isVisble, undefined);
 			this._editor.layoutOverlayWidget(this);
 		}));
 	}
@@ -368,7 +338,9 @@ class InlineEditSideBySideContentWidget extends Disposable implements IOverlayWi
 			return null;
 		}
 		const top = visibPos.top - 1; //-1 to offset the border width
-		const left = layoutInfo.contentLeft + this._editor.getOffsetForColumn(position.left.lineNumber, position.left.column) + 10;
+		const offset = this._editor.getOffsetForColumn(position.left.lineNumber, position.left.column);
+		console.log('offset', offset);
+		const left = layoutInfo.contentLeft + offset + 10;
 		return {
 			preference: {
 				left,
