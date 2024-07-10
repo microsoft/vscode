@@ -32,6 +32,7 @@ import { PickerEditorState } from 'vs/workbench/browser/quickaccess';
 import { IViewsService } from 'vs/workbench/services/views/common/viewsService';
 import { Sequencer } from 'vs/base/common/async';
 import { URI } from 'vs/base/common/uri';
+import { Codicon } from 'vs/base/common/codicons';
 
 export const TEXT_SEARCH_QUICK_ACCESS_PREFIX = '%';
 
@@ -104,10 +105,13 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 		if (TEXT_SEARCH_QUICK_ACCESS_PREFIX.length < picker.value.length) {
 			picker.valueSelection = [TEXT_SEARCH_QUICK_ACCESS_PREFIX.length, picker.value.length];
 		}
-		picker.customButton = true;
-		picker.customLabel = '$(go-to-search)';
+		picker.buttons = [{
+			location: 'inline',
+			iconClass: ThemeIcon.asClassName(Codicon.goToSearch),
+			tooltip: localize('goToSearch', "See in Search Panel")
+		}];
 		this.editorViewState.reset();
-		disposables.add(picker.onDidCustom(() => {
+		disposables.add(picker.onDidTriggerButton(() => {
 			if (this.searchModel.searchResult.count() > 0) {
 				this.moveToSearchViewlet(undefined);
 			} else {
