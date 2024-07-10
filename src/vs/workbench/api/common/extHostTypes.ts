@@ -3597,6 +3597,11 @@ export class DebugVisualization {
 
 //#endregion
 
+export enum QuickInputButtonLocation {
+	Title = 1,
+	Inline = 2
+}
+
 @es5ClassCompat
 export class QuickInputButtons {
 

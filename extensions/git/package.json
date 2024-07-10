@@ -34,7 +34,8 @@
     "scmValidation",
     "tabInputMultiDiff",
     "tabInputTextMerge",
-    "timeline"
+    "timeline",
+    "quickInputButtonLocation"
   ],
   "categories": [
     "Other"
