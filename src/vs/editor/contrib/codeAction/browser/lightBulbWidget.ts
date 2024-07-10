@@ -53,14 +53,11 @@ namespace LightBulbState {
 }
 
 export class LightBulbWidget extends Disposable implements IContentWidget {
-
-	private _localToDispose = new DisposableStore();
 	private _gutterDecorationID: string | undefined;
 
-	private static readonly GUTTER_ICON_CLASSNAME = 'codicon-gutter-lightbulb';
 	private static readonly GUTTER_DECORATION = ModelDecorationOptions.register({
 		description: 'codicon-gutter-lightbulb-decoration',
-		glyphMarginClassName: ThemeIcon.asClassName(GUTTER_LIGHTBULB_ICON),
+		glyphMarginClassName: ThemeIcon.asClassName(Codicon.lightBulb),
 		glyphMargin: { position: GlyphMarginLane.Left },
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 	});
@@ -75,9 +72,6 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 	private readonly _onClick = this._register(new Emitter<{ readonly x: number; readonly y: number; readonly actions: CodeActionSet; readonly trigger: CodeActionTrigger }>());
 	public readonly onClick = this._onClick.event;
 
-	private readonly _onClickGutter = this._register(new Emitter<{ readonly x: number; readonly y: number; readonly actions: CodeActionSet; readonly trigger: CodeActionTrigger }>());
-	public readonly onClickGutter = this._onClickGutter.event;
-
 	private _state: LightBulbState.State = LightBulbState.Hidden;
 	private _gutterState: LightBulbState.State = LightBulbState.Hidden;
 	private _iconClasses: string[] = [];
@@ -85,7 +79,6 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 	private _preferredKbLabel?: string;
 	private _quickFixKbLabel?: string;
 
-	private static icon = GUTTER_LIGHTBULB_ICON;
 	private gutterDecoration: ModelDecorationOptions = LightBulbWidget.GUTTER_DECORATION;
 
 	constructor(
@@ -97,10 +90,6 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		this._domNode = dom.$('div.lightBulbWidget');
 		this._domNode.role = 'listbox';
 		this._register(Gesture.ignoreTarget(this._domNode));
-
-		// this._gutterDomNode = dom.$('div.' + LightBulbWidget.GUTTER_ICON_CLASSNAME);
-		// this._gutterDomNode.role = 'listbox';
-		// this._register(Gesture.ignoreTarget(this._gutterDomNode));
 
 		this._editor.addContentWidget(this);
 
@@ -156,12 +145,20 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		this._register(Event.runAndSubscribe(this._keybindingService.onDidUpdateKeybindings, () => {
 			this._preferredKbLabel = this._keybindingService.lookupKeybinding(autoFixCommandId)?.getLabel() ?? undefined;
 			this._quickFixKbLabel = this._keybindingService.lookupKeybinding(quickFixCommandId)?.getLabel() ?? undefined;
-
 			this._updateLightBulbTitleAndIcon();
 		}));
 
 		this._register(this._editor.onMouseDown(async (e: IEditorMouseEvent) => {
-			if (!e.target.element?.classList.contains(LightBulbWidget.GUTTER_ICON_CLASSNAME) && !e.target.element?.classList.contains('codicon-gutter-lightbulb-auto-fix') && !e.target.element?.classList.contains('codicon-gutter-lightbulb-aifix-auto-fix') && !e.target.element?.classList.contains('codicon-gutter-lightbulb-sparkle') && !e.target.element?.classList.contains('codicon-gutter-lightbulb-sparkle-filled')) {
+			// if (!e.target.element?.classList.contains(LightBulbWidget.GUTTER_ICON_CLASSNAME) && !e.target.element?.classList.contains('codicon-gutter-lightbulb-auto-fix') && !e.target.element?.classList.contains('codicon-gutter-lightbulb-aifix-auto-fix') && !e.target.element?.classList.contains('codicon-gutter-lightbulb-sparkle') && !e.target.element?.classList.contains('codicon-gutter-lightbulb-sparkle-filled')) {
+			const lightbulbClasses = [
+				'codicon-' + GUTTER_LIGHTBULB_ICON.id,
+				'codicon-' + GUTTER_LIGHTBULB_AIFIX_AUTO_FIX_ICON.id,
+				'codicon-' + GUTTER_LIGHTBULB_AUTO_FIX_ICON.id,
+				'codicon-' + GUTTER_LIGHTBULB_AIFIX_ICON.id,
+				'codicon-' + GUTTER_SPARKLE_FILLED_ICON.id
+			];
+
+			if (!e.target.element || !lightbulbClasses.some(cls => e.target.element && e.target.element.classList.contains(cls))) {
 				return;
 			}
 
@@ -181,8 +178,6 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			if (this.gutterState.widgetPosition.position !== null && this.gutterState.widgetPosition.position.lineNumber < this.gutterState.editorPosition.lineNumber) {
 				pad += lineHeight;
 			}
-			// pad += lineHeight;
-
 
 			this._onClick.fire({
 				x: e.event.posx,
@@ -191,12 +186,14 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 				trigger: this.gutterState.trigger,
 			});
 		}));
-
 	}
 
 	override dispose(): void {
 		super.dispose();
 		this._editor.removeContentWidget(this);
+		if (this._gutterDecorationID) {
+			this._removeGutterDecoration(this._gutterDecorationID);
+		}
 	}
 
 	getId(): string {
@@ -249,7 +246,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 				const lineContent = model.getLineContent(lineNumber);
 				return /^\s*$|^\s+/.test(lineContent) || lineContent.length <= effectiveColumnNumber;
 			};
-			const selection = this._editor.getSelection();
+
 			if (lineNumber > 1 && !isFolded(lineNumber - 1)) {
 				const lineCount = model.getLineCount();
 				const endLine = lineNumber === lineCount;
@@ -257,61 +254,37 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 				const nextLineEmptyOrIndented = !endLine && isLineEmptyOrIndented(lineNumber + 1);
 				const currLineEmptyOrIndented = isLineEmptyOrIndented(lineNumber);
 				const notEmpty = !nextLineEmptyOrIndented && !prevLineEmptyOrIndented;
+
 				let hasDecoration = false;
-				const temp = this._editor.getLineDecorations(lineNumber);
-				if (temp) {
-					for (const decoration of temp) {
-						if (decoration.options.glyphMarginClassName?.includes('codicon-debug-breakpoint')) {
+				const currLineDecorations = this._editor.getLineDecorations(lineNumber);
+				if (currLineDecorations) {
+					for (const decoration of currLineDecorations) {
+						if (decoration.options.glyphMarginClassName?.includes(Codicon.debugBreakpoint.id)) {
 							hasDecoration = true;
 						}
 					}
 				}
 
-				// check above and below. if both are blocked, display lightbulb below.
-
-				if (!nextLineEmptyOrIndented && !prevLineEmptyOrIndented && selection && !hasDecoration) {
+				// check above and below. if both are blocked, display lightbulb in the gutter.
+				if (!nextLineEmptyOrIndented && !prevLineEmptyOrIndented && !hasDecoration) {
 					this.gutterState = new LightBulbState.Showing(actions, trigger, atPosition, {
 						position: { lineNumber: effectiveLineNumber, column: effectiveColumnNumber },
 						preference: LightBulbWidget._posPref
 					});
-
-					if (this._gutterDecorationID === undefined) {
-						this._addGutterDecoration(selection.startLineNumber);
-					} else {
-						this._removeGutterDecoration(this._gutterDecorationID);
-						this._addGutterDecoration(selection.startLineNumber);
-					}
+					this.renderGutterLightbub();
 					return this.hide();
-
 				} else if (prevLineEmptyOrIndented || endLine || (notEmpty && !currLineEmptyOrIndented)) {
 					effectiveLineNumber -= 1;
 				} else if (nextLineEmptyOrIndented || (notEmpty && currLineEmptyOrIndented)) {
 					effectiveLineNumber += 1;
 				}
-			} else if (lineNumber === 1 && lineNumber === model.getLineCount() && selection) {
+			} else if (lineNumber === 1 && (lineNumber === model.getLineCount() || !isLineEmptyOrIndented(lineNumber + 1) && !isLineEmptyOrIndented(lineNumber))) {
+				// special checks for first line blocked vs. not blocked.
 				this.gutterState = new LightBulbState.Showing(actions, trigger, atPosition, {
 					position: { lineNumber: effectiveLineNumber, column: effectiveColumnNumber },
 					preference: LightBulbWidget._posPref
 				});
-				if (this._gutterDecorationID === undefined) {
-					this._addGutterDecoration(selection.startLineNumber);
-				} else {
-					this._removeGutterDecoration(this._gutterDecorationID);
-					this._addGutterDecoration(selection.startLineNumber);
-				}
-				return this.hide();
-			} else if (lineNumber === 1 && !isLineEmptyOrIndented(lineNumber + 1) && !isLineEmptyOrIndented(lineNumber) && selection) {
-				this.gutterState = new LightBulbState.Showing(actions, trigger, atPosition, {
-					position: { lineNumber: effectiveLineNumber, column: effectiveColumnNumber },
-					preference: LightBulbWidget._posPref
-				});
-
-				if (this._gutterDecorationID === undefined) {
-					this._addGutterDecoration(selection.startLineNumber);
-				} else {
-					this._removeGutterDecoration(this._gutterDecorationID);
-					this._addGutterDecoration(selection.startLineNumber);
-				}
+				this.renderGutterLightbub();
 				return this.hide();
 			} else if ((lineNumber < model.getLineCount()) && !isFolded(lineNumber + 1)) {
 				effectiveLineNumber += 1;
@@ -341,27 +314,6 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		}
 
 		this._editor.layoutContentWidget(this);
-	}
-
-
-	private _addGutterDecoration(lineNumber: number) {
-		this._editor.changeDecorations((accessor: IModelDecorationsChangeAccessor) => {
-			this._gutterDecorationID = accessor.addDecoration(new Range(lineNumber, 0, lineNumber, 0), this.gutterDecoration);
-		});
-	}
-
-	private _removeGutterDecoration(decorationId: string) {
-		this._editor.changeDecorations((accessor: IModelDecorationsChangeAccessor) => {
-			accessor.removeDecoration(decorationId);
-			this._gutterDecorationID = undefined;
-		});
-		this.gutterHide();
-	}
-
-	private _updateGutterDecoration(decorationId: string, lineNumber: number) {
-		this._editor.changeDecorations((accessor: IModelDecorationsChangeAccessor) => {
-			accessor.changeDecoration(decorationId, new Range(lineNumber, 0, lineNumber, 0));
-		});
 	}
 
 	public hide(): void {
@@ -429,8 +381,6 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 	}
 
 	private _updateGutterLightBulbTitleAndIcon(): void {
-		// this._gutterDomNode.classList.remove(...this._iconClasses);
-		// this._iconClasses = [];
 		if (this.gutterState.type !== LightBulbState.Type.Showing) {
 			return;
 		}
@@ -462,6 +412,40 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 		});
 
 		this.gutterDecoration = GUTTER_DECORATION;
+	}
+
+	/* Gutter Helper Functions */
+	private renderGutterLightbub(): void {
+		const selection = this._editor.getSelection();
+		if (!selection) {
+			return;
+		}
+
+		if (this._gutterDecorationID === undefined) {
+			this._addGutterDecoration(selection.startLineNumber);
+		} else {
+			this._updateGutterDecoration(this._gutterDecorationID, selection.startLineNumber);
+		}
+	}
+
+	private _addGutterDecoration(lineNumber: number) {
+		this._editor.changeDecorations((accessor: IModelDecorationsChangeAccessor) => {
+			this._gutterDecorationID = accessor.addDecoration(new Range(lineNumber, 0, lineNumber, 0), this.gutterDecoration);
+		});
+	}
+
+	private _removeGutterDecoration(decorationId: string) {
+		this._editor.changeDecorations((accessor: IModelDecorationsChangeAccessor) => {
+			accessor.removeDecoration(decorationId);
+			this._gutterDecorationID = undefined;
+		});
+	}
+
+	private _updateGutterDecoration(decorationId: string, lineNumber: number) {
+		this._editor.changeDecorations((accessor: IModelDecorationsChangeAccessor) => {
+			accessor.changeDecoration(decorationId, new Range(lineNumber, 0, lineNumber, 0));
+			accessor.changeDecorationOptions(decorationId, this.gutterDecoration);
+		});
 	}
 
 	private _updateLightbulbTitle(autoFix: boolean, autoRun: boolean): void {
