@@ -5,12 +5,14 @@
 
 import * as https from 'https';
 import 'mocha';
-import { assertNoRpc } from '../utils';
+import { assertNoRpc, delay } from '../utils';
 import { pki } from 'node-forge';
 import { AddressInfo } from 'net';
 import { resetCaches } from '@vscode/proxy-agent';
+import * as vscode from 'vscode';
+import { middleware, Straightforward } from 'straightforward';
 
-suite('vscode API - network proxy support', () => {
+(vscode.env.uiKind === vscode.UIKind.Web ? suite.skip : suite)('vscode API - network proxy support', () => {
 
 	teardown(async function () {
 		assertNoRpc();
@@ -72,6 +74,78 @@ suite('vscode API - network proxy support', () => {
 			delete (https.globalAgent as any).testCertificates;
 			resetCaches();
 			server.close();
+		}
+	});
+
+	test('basic auth', async () => {
+		const url = 'https://example.com'; // Need to use non-local URL because local URLs are excepted from proxying.
+		const user = 'testuser';
+		const pass = 'testpassword';
+
+		const sf = new Straightforward();
+		let authEnabled = false;
+		const auth = middleware.auth({ user, pass });
+		sf.onConnect.use(async (context, next) => {
+			if (authEnabled) {
+				return auth(context, next);
+			}
+			next();
+		});
+		sf.onConnect.use(({ clientSocket }) => {
+			// Shortcircuit the request.
+			if (authEnabled) {
+				clientSocket.end('HTTP/1.1 204\r\n\r\n');
+			} else {
+				clientSocket.end('HTTP/1.1 418\r\n\r\n');
+			}
+		});
+		const proxyListen = sf.listen(0);
+
+		try {
+			await proxyListen;
+			const proxyPort = (sf.server.address() as AddressInfo).port;
+
+			await vscode.workspace.getConfiguration().update('integration-test.http.proxy', `PROXY 127.0.0.1:${proxyPort}`, vscode.ConfigurationTarget.Global);
+			await delay(1000); // Wait for the configuration change to propagate.
+			await new Promise<void>((resolve, reject) => {
+				https.get(url, res => {
+					if (res.statusCode === 418) {
+						resolve();
+					} else {
+						reject(new Error(`Unexpected status code (expected 418): ${res.statusCode}`));
+					}
+				})
+					.on('error', reject);
+			});
+
+			authEnabled = true;
+			await new Promise<void>((resolve, reject) => {
+				https.get(url, res => {
+					if (res.statusCode === 407) {
+						resolve();
+					} else {
+						reject(new Error(`Unexpected status code (expected 407): ${res.statusCode}`));
+					}
+				})
+					.on('error', reject);
+			});
+
+			await vscode.workspace.getConfiguration().update('integration-test.http.proxyAuth', `${user}:${pass}`, vscode.ConfigurationTarget.Global);
+			await delay(1000); // Wait for the configuration change to propagate.
+			await new Promise<void>((resolve, reject) => {
+				https.get(url, res => {
+					if (res.statusCode === 204) {
+						resolve();
+					} else {
+						reject(new Error(`Unexpected status code (expected 204): ${res.statusCode}`));
+					}
+				})
+					.on('error', reject);
+			});
+		} finally {
+			sf.close();
+			await vscode.workspace.getConfiguration().update('integration-test.http.proxy', undefined, vscode.ConfigurationTarget.Global);
+			await vscode.workspace.getConfiguration().update('integration-test.http.proxyAuth', undefined, vscode.ConfigurationTarget.Global);
 		}
 	});
 });

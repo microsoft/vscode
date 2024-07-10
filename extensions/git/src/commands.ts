@@ -1339,14 +1339,14 @@ export class CommandCenter {
 
 	@command('git.stage')
 	async stage(...resourceStates: SourceControlResourceState[]): Promise<void> {
-		this.logger.debug(`git.stage ${resourceStates.length} `);
+		this.logger.debug(`[CommandCenter][stage] git.stage ${resourceStates.length} `);
 
 		resourceStates = resourceStates.filter(s => !!s);
 
 		if (resourceStates.length === 0 || (resourceStates[0] && !(resourceStates[0].resourceUri instanceof Uri))) {
 			const resource = this.getSCMResource();
 
-			this.logger.debug(`git.stage.getSCMResource ${resource ? resource.resourceUri.toString() : null} `);
+			this.logger.debug(`[CommandCenter][stage] git.stage.getSCMResource ${resource ? resource.resourceUri.toString() : null} `);
 
 			if (!resource) {
 				return;
@@ -1389,7 +1389,7 @@ export class CommandCenter {
 		const untracked = selection.filter(s => s.resourceGroupType === ResourceGroupType.Untracked);
 		const scmResources = [...workingTree, ...untracked, ...resolved, ...unresolved];
 
-		this.logger.debug(`git.stage.scmResources ${scmResources.length} `);
+		this.logger.debug(`[CommandCenter][stage] git.stage.scmResources ${scmResources.length} `);
 		if (!scmResources.length) {
 			return;
 		}
@@ -2063,7 +2063,7 @@ export class CommandCenter {
 			promptToSaveFilesBeforeCommit = 'never';
 		}
 
-		const enableSmartCommit = config.get<boolean>('enableSmartCommit') === true;
+		let enableSmartCommit = config.get<boolean>('enableSmartCommit') === true;
 		const enableCommitSigning = config.get<boolean>('enableCommitSigning') === true;
 		let noStagedChanges = repository.indexGroup.resourceStates.length === 0;
 		let noUnstagedChanges = repository.workingTreeGroup.resourceStates.length === 0;
@@ -2119,12 +2119,16 @@ export class CommandCenter {
 				const pick = await window.showWarningMessage(message, { modal: true }, yes, always, never);
 
 				if (pick === always) {
+					enableSmartCommit = true;
 					config.update('enableSmartCommit', true, true);
 				} else if (pick === never) {
 					config.update('suggestSmartCommit', false, true);
 					return;
-				} else if (pick !== yes) {
-					return; // do not commit on cancel
+				} else if (pick === yes) {
+					enableSmartCommit = true;
+				} else {
+					// Cancel
+					return;
 				}
 			}
 
@@ -3047,7 +3051,8 @@ export class CommandCenter {
 	}
 
 	@command('git.fetchRef', { repository: true })
-	async fetchRef(repository: Repository, ref: string): Promise<void> {
+	async fetchRef(repository: Repository, ref?: string): Promise<void> {
+		ref = ref ?? repository?.historyProvider.currentHistoryItemGroup?.remote?.id;
 		if (!repository || !ref) {
 			return;
 		}
@@ -3119,7 +3124,8 @@ export class CommandCenter {
 	}
 
 	@command('git.pullRef', { repository: true })
-	async pullRef(repository: Repository, ref: string): Promise<void> {
+	async pullRef(repository: Repository, ref?: string): Promise<void> {
+		ref = ref ?? repository?.historyProvider.currentHistoryItemGroup?.remote?.id;
 		if (!repository || !ref) {
 			return;
 		}
@@ -3266,8 +3272,8 @@ export class CommandCenter {
 	}
 
 	@command('git.pushRef', { repository: true })
-	async pushRef(repository: Repository, ref: string): Promise<void> {
-		if (!repository || !ref) {
+	async pushRef(repository: Repository): Promise<void> {
+		if (!repository) {
 			return;
 		}
 
@@ -4403,10 +4409,10 @@ export class CommandCenter {
 	private getSCMResource(uri?: Uri): Resource | undefined {
 		uri = uri ? uri : (window.activeTextEditor && window.activeTextEditor.document.uri);
 
-		this.logger.debug(`git.getSCMResource.uri ${uri && uri.toString()}`);
+		this.logger.debug(`[CommandCenter][getSCMResource] git.getSCMResource.uri: ${uri && uri.toString()}`);
 
 		for (const r of this.model.repositories.map(r => r.root)) {
-			this.logger.debug(`repo root ${r}`);
+			this.logger.debug(`[CommandCenter][getSCMResource] repo root: ${r}`);
 		}
 
 		if (!uri) {

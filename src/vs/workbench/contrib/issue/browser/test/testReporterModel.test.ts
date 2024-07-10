@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// eslint-disable-next-line local/code-import-patterns
 import assert from 'assert';
+// eslint-disable-next-line local/code-import-patterns
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IssueReporterModel } from 'vs/workbench/contrib/issue/browser/issueReporterModel';
 import { IssueType } from 'vs/platform/issue/common/issue';

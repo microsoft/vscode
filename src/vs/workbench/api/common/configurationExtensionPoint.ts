@@ -160,11 +160,17 @@ defaultConfigurationExtPoint.setHandler((extensions, { added, removed }) => {
 		const addedDefaultConfigurations = added.map<IConfigurationDefaults>(extension => {
 			const overrides: IStringDictionary<any> = objects.deepClone(extension.value);
 			for (const key of Object.keys(overrides)) {
+				const registeredPropertyScheme = registeredProperties[key];
+				if (registeredPropertyScheme?.disallowConfigurationDefault) {
+					extension.collector.warn(nls.localize('config.property.preventDefaultConfiguration.warning', "Cannot register configuration defaults for '{0}'. This setting does not allow contributing configuration defaults.", key));
+					delete overrides[key];
+					continue;
+				}
 				if (!OVERRIDE_PROPERTY_REGEX.test(key)) {
-					const registeredPropertyScheme = registeredProperties[key];
 					if (registeredPropertyScheme?.scope && !allowedScopes.includes(registeredPropertyScheme.scope)) {
 						extension.collector.warn(nls.localize('config.property.defaultConfiguration.warning', "Cannot register configuration defaults for '{0}'. Only defaults for machine-overridable, window, resource and language overridable scoped settings are supported.", key));
 						delete overrides[key];
+						continue;
 					}
 				}
 			}
