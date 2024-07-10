@@ -29,12 +29,19 @@ import { OutputPeekTree } from 'vs/workbench/contrib/testing/browser/testResults
 import { IObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
 import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestFollowup, ITestService } from 'vs/workbench/contrib/testing/common/testService';
+import { ITestMessageStackFrame } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
+import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
 
 const enum SubView {
 	CallStack = 0,
 	Diff = 1,
 	History = 2,
+}
+
+/** UI state that can be saved/restored, used to give a nice experience when switching stack frames */
+export interface ITestResultsViewContentUiState {
+	splitViewWidths: number[];
 }
 
 export class TestResultsViewContent extends Disposable {
@@ -43,6 +50,7 @@ export class TestResultsViewContent extends Disposable {
 	private readonly didReveal = this._register(new Emitter<{ subject: InspectSubject; preserveFocus: boolean }>());
 	private readonly currentSubjectStore = this._register(new DisposableStore());
 	private readonly onCloseEmitter = this._register(new Relay<void>());
+	private readonly onDidChangeStackFrameEmitter = this._register(new Relay<ITestMessageStackFrame>());
 	private followupWidget!: FollowupActionWidget;
 	private messageContextKeyService!: IContextKeyService;
 	private contextKeyTestMessage!: IContextKey<string>;
@@ -62,6 +70,16 @@ export class TestResultsViewContent extends Disposable {
 	public onDidRequestReveal!: Event<InspectSubject>;
 
 	public readonly onClose = this.onCloseEmitter.event;
+	public readonly onDidChangeStackFrame = this.onDidChangeStackFrameEmitter.event;
+
+	public get uiState(): ITestResultsViewContentUiState {
+		return {
+			splitViewWidths: Array.from(
+				{ length: this.splitView.length },
+				(_, i) => this.splitView.getViewSize(i)
+			),
+		};
+	}
 
 	constructor(
 		private readonly editor: ICodeEditor | undefined,
@@ -73,6 +91,7 @@ export class TestResultsViewContent extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITextModelService protected readonly modelService: ITextModelService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@ITestingPeekOpener private readonly peekOpener: ITestingPeekOpener,
 	) {
 		super();
 	}
@@ -94,6 +113,12 @@ export class TestResultsViewContent extends Disposable {
 			this._register(this.instantiationService.createInstance(TerminalMessagePeek, messageContainer, isInPeekView)),
 			this._register(this.instantiationService.createInstance(PlainTextMessagePeek, this.editor, messageContainer)),
 		];
+
+		this._register(this.peekOpener.callStackVisible.onDidChange(() => {
+			if (this.current) {
+				this.updateVisiblityOfStackView(this.current);
+			}
+		}));
 
 		this.messageContextKeyService = this._register(this.contextKeyService.createScoped(containerElement));
 		this.contextKeyTestMessage = TestingContextKeys.testMessageContext.bindTo(this.messageContextKeyService);
@@ -151,7 +176,12 @@ export class TestResultsViewContent extends Disposable {
 	 * Shows a message in-place without showing or changing the peek location.
 	 * This is mostly used if peeking a message without a location.
 	 */
-	public reveal(opts: { subject: InspectSubject; preserveFocus: boolean }) {
+	public reveal(opts: {
+		subject: InspectSubject;
+		preserveFocus: boolean;
+		frame?: ITestMessageStackFrame;
+		uiState?: ITestResultsViewContentUiState;
+	}) {
 		this.didReveal.fire(opts);
 
 		if (this.current && equalsSubject(this.current, opts.subject)) {
@@ -163,14 +193,17 @@ export class TestResultsViewContent extends Disposable {
 			await Promise.all(this.contentProviders.map(p => p.update(opts.subject)));
 			this.followupWidget.show(opts.subject);
 			this.currentSubjectStore.clear();
-			// todo@connor4312: disabled for next Insiders, finish implementing this!
-			if (Date.now() < 0) { this.updateVisiblityOfStackView(opts.subject); }
+			this.updateVisiblityOfStackView(opts.subject, opts.frame);
 			this.populateFloatingClick(opts.subject);
+
+			if (opts.uiState) {
+				opts.uiState.splitViewWidths.forEach((width, i) => this.splitView.resizeView(i, width));
+			}
 		});
 	}
 
-	private updateVisiblityOfStackView(subject: InspectSubject) {
-		const stack = subject instanceof MessageSubject && subject.stack;
+	private updateVisiblityOfStackView(subject: InspectSubject, frame?: ITestMessageStackFrame) {
+		const stack = this.peekOpener.callStackVisible.value && subject instanceof MessageSubject && subject.stack;
 
 		if (stack) {
 			if (!this.callStackWidget.value) {
@@ -182,12 +215,14 @@ export class TestResultsViewContent extends Disposable {
 					maximumSize: Number.MAX_VALUE,
 					layout: width => widget.layout(undefined, width),
 				}, 150, 0);
+				this.onDidChangeStackFrameEmitter.input = widget.onDidChangeStackFrame;
 			}
 
-			this.callStackWidget.value.update(stack);
+			this.callStackWidget.value.update(stack, frame);
 		} else if (this.callStackWidget.value) {
 			this.splitView.removeView(0);
-			this.callStackWidget.dispose();
+			this.onDidChangeStackFrameEmitter.input = Event.None;
+			this.callStackWidget.clear();
 		}
 	}
 
