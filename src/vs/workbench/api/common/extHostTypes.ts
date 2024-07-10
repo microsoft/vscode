@@ -3341,6 +3341,11 @@ export enum CommentThreadApplicability {
 	Outdated = 1
 }
 
+export enum CommentThreadFocus {
+	Reply = 1,
+	Comment = 2
+}
+
 //#endregion
 
 //#region Semantic Coloring
