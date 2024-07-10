@@ -6,7 +6,7 @@
 import { Barrier } from 'vs/base/common/async';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
-import { derivedOpts, observableValue } from 'vs/base/common/observable';
+import { derivedOpts, observableValue, observableValueOpts } from 'vs/base/common/observable';
 import { IDisposable, DisposableStore, combinedDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, IInputValidation, ISCMViewService, InputValidationType, ISCMActionButtonDescriptor } from 'vs/workbench/contrib/scm/common/scm';
 import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceSplices, SCMGroupFeatures, MainContext, SCMHistoryItemGroupDto, SCMHistoryItemDto } from '../common/extHost.protocol';
@@ -27,6 +27,7 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { ITextModelContentProvider, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { Schemas } from 'vs/base/common/network';
 import { ITextModel } from 'vs/editor/common/model';
+import { structuralEquals } from 'vs/base/common/equals';
 
 function getIconFromIconDto(iconDto?: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon): URI | { light: URI; dark: URI } | ThemeIcon | undefined {
 	if (iconDto === undefined) {
@@ -52,13 +53,6 @@ function historyItemGroupEquals(a: ISCMHistoryItemGroup | undefined, b: ISCMHist
 	return a?.id === b?.id && a?.name === b?.name &&
 		a?.base?.id === b?.base?.id && a?.base?.name === b?.base?.name &&
 		a?.remote?.id === b?.remote?.id && a?.remote?.name === b?.remote?.name;
-}
-
-function historyItemGroupWithRevisionEquals(a: ISCMHistoryItemGroupWithRevision | undefined, b: ISCMHistoryItemGroupWithRevision | undefined): boolean {
-	return historyItemGroupEquals(a, b) &&
-		a?.revision === b?.revision &&
-		a?.base?.revision === b?.base?.revision &&
-		a?.remote?.revision === b?.remote?.revision;
 }
 
 class SCMInputBoxContentProvider extends Disposable implements ITextModelContentProvider {
@@ -184,21 +178,19 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 		this._onDidChangeCurrentHistoryItemGroup.fire();
 	}
 
-	private readonly _currentHistoryItemGroupWithRevision = observableValue<ISCMHistoryItemGroupWithRevision | undefined>(this, undefined);
-
 	/**
 	 * Changes when the id/name changes for the current, remote, or base history item group
 	 */
-	readonly currentHistoryItemGroupObs = derivedOpts<ISCMHistoryItemGroup | undefined>({
+	private readonly _currentHistoryItemGroupObs = derivedOpts<ISCMHistoryItemGroup | undefined>({
 		owner: this, equalsFn: historyItemGroupEquals,
-	}, reader => this._currentHistoryItemGroupWithRevision.read(reader));
+	}, reader => this._currentHistoryItemGroupWithRevisionObs.read(reader));
+	get currentHistoryItemGroupObs() { return this._currentHistoryItemGroupObs; }
 
 	/**
 	 * Changes when the id/name/revision changes for the current, remote, or base history item group
 	 */
-	readonly currentHistoryItemGroupWithRevisionObs = derivedOpts<ISCMHistoryItemGroupWithRevision | undefined>({
-		owner: this, equalsFn: historyItemGroupWithRevisionEquals,
-	}, reader => this._currentHistoryItemGroupWithRevision.read(reader));
+	private readonly _currentHistoryItemGroupWithRevisionObs = observableValueOpts<ISCMHistoryItemGroupWithRevision | undefined>({ owner: this, equalsFn: structuralEquals }, undefined);
+	get currentHistoryItemGroupWithRevisionObs() { return this._currentHistoryItemGroupWithRevisionObs; }
 
 	constructor(private readonly proxy: ExtHostSCMShape, private readonly handle: number) { }
 
@@ -236,7 +228,7 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 	}
 
 	$onDidChangeCurrentHistoryItemGroup(historyItemGroup: ISCMHistoryItemGroupWithRevision | undefined): void {
-		this._currentHistoryItemGroupWithRevision.set(historyItemGroup, undefined);
+		this._currentHistoryItemGroupWithRevisionObs.set(historyItemGroup, undefined);
 	}
 }
 
