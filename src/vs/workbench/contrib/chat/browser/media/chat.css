@@ -547,12 +547,20 @@
 	flex-wrap: wrap;
 }
 
+.interactive-session .interactive-item-container.interactive-request .chat-attached-context {
+	margin-top: -8px;
+}
+
 .interactive-session .chat-attached-context .chat-attached-context-attachment {
 	padding: 2px;
 	border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
 	border-radius: 4px;
 	height: 18px;
 	max-width: 100%;
+}
+
+.interactive-session .interactive-item-container.interactive-request .chat-attached-context .chat-attached-context-attachment {
+	padding-right: 6px;
 }
 
 .interactive-session-followups {

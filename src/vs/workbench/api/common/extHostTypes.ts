@@ -3341,6 +3341,11 @@ export enum CommentThreadApplicability {
 	Outdated = 1
 }
 
+export enum CommentThreadFocus {
+	Reply = 1,
+	Comment = 2
+}
+
 //#endregion
 
 //#region Semantic Coloring
@@ -3591,6 +3596,11 @@ export class DebugVisualization {
 }
 
 //#endregion
+
+export enum QuickInputButtonLocation {
+	Title = 1,
+	Inline = 2
+}
 
 @es5ClassCompat
 export class QuickInputButtons {

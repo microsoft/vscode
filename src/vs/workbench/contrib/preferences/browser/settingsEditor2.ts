@@ -1304,6 +1304,7 @@ export class SettingsEditor2 extends EditorPane {
 		const toggleData = await getExperimentalExtensionToggleData(this.extensionGalleryService, this.productService);
 		if (toggleData && groups.filter(g => g.extensionInfo).length) {
 			for (const key in toggleData.settingsEditorRecommendedExtensions) {
+				const recommendationInfo = toggleData.settingsEditorRecommendedExtensions[key];
 				const extension = toggleData.recommendedExtensionsGalleryInfo[key];
 				let manifest: IExtensionManifest | null = null;
 				try {
@@ -1330,16 +1331,17 @@ export class SettingsEditor2 extends EditorPane {
 					keyRange: nullRange,
 					value: null,
 					valueRange: nullRange,
-					description: [extension?.description || ''],
+					description: [recommendationInfo.onSettingsEditorOpen?.descriptionOverride ?? extension.description],
 					descriptionIsMarkdown: false,
 					descriptionRanges: [],
-					title: extensionName,
 					scope: ConfigurationScope.WINDOW,
 					type: 'null',
 					displayExtensionId: extension.identifier.id,
 					prereleaseExtensionId: key,
 					stableExtensionId: key,
-					extensionGroupTitle: groupTitle ?? extensionName
+					extensionGroupTitle: groupTitle ?? extensionName,
+					categoryLabel: 'Extensions',
+					title: extensionName
 				};
 				const additionalGroup = this.addOrRemoveManageExtensionSetting(setting, extension, groups);
 				if (additionalGroup) {
