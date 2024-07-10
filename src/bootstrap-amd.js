@@ -7,9 +7,27 @@
 'use strict';
 
 /**
- * @typedef {import('./vs/nls').INLSConfiguration} INLSConfiguration
+ * @import { INLSConfiguration } from './vs/nls'
  * @import { IProductConfiguration } from './vs/base/common/product'
  */
+
+// ESM-comment-begin
+const isESM = false;
+// ESM-comment-end
+// ESM-uncomment-begin
+// import * as path from 'path';
+// import * as fs from 'fs';
+// import { fileURLToPath } from 'url';
+// import { createRequire } from 'node:module';
+// import { product, pkg } from './bootstrap-meta.js';
+// import * as bootstrap from './bootstrap.js';
+// import * as performance from './vs/base/common/performance.js';
+//
+// const require = createRequire(import.meta.url);
+// const isESM = true;
+// const module = { exports: {} };
+// const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// ESM-uncomment-end
 
 // Store the node.js require function in a variable
 // before loading our AMD loader to avoid issues
@@ -21,7 +39,12 @@ globalThis._VSCODE_NODE_MODULES = new Proxy(Object.create(null), { get: (_target
 
 // VSCODE_GLOBALS: package/product.json
 /** @type Partial<IProductConfiguration> */
+// ESM-comment-begin
 globalThis._VSCODE_PRODUCT_JSON = require('./bootstrap-meta').product;
+// ESM-comment-end
+// ESM-uncomment-begin
+// globalThis._VSCODE_PRODUCT_JSON = { ...product };
+// ESM-uncomment-end
 if (process.env['VSCODE_DEV']) {
 	// Patch product overrides when running out of sources
 	try {
@@ -30,29 +53,21 @@ if (process.env['VSCODE_DEV']) {
 		globalThis._VSCODE_PRODUCT_JSON = Object.assign(globalThis._VSCODE_PRODUCT_JSON, overrides);
 	} catch (error) { /* ignore */ }
 }
+// ESM-comment-begin
 globalThis._VSCODE_PACKAGE_JSON = require('./bootstrap-meta').pkg;
+// ESM-comment-end
+// ESM-uncomment-begin
+// globalThis._VSCODE_PACKAGE_JSON = { ...pkg };
+// ESM-uncomment-end
 
-// @ts-ignore
-const loader = require('./vs/loader');
+// VSCODE_GLOBALS: file root of all resources
+globalThis._VSCODE_FILE_ROOT = __dirname;
+
+// ESM-comment-begin
 const bootstrap = require('./bootstrap');
-const performance = require('./vs/base/common/performance');
+const performance = require(`./vs/base/common/performance`);
 const fs = require('fs');
-
-// Bootstrap: Loader
-loader.config({
-	baseUrl: bootstrap.fileUriFromPath(__dirname, { isWindows: process.platform === 'win32' }),
-	catchError: true,
-	nodeRequire,
-	amdModulesPattern: /^vs\//,
-	recordStats: true
-});
-
-// Running in Electron
-if (process.env['ELECTRON_RUN_AS_NODE'] || process.versions['electron']) {
-	loader.define('fs', ['original-fs'], function (/** @type {import('fs')} */originalFS) {
-		return originalFS;  // replace the patched electron fs with the original node fs for all AMD code
-	});
-}
+// ESM-comment-end
 
 //#region NLS helpers
 
@@ -138,31 +153,82 @@ async function doSetupNLS() {
 
 //#endregion
 
-/**
- * @param {string=} entrypoint
- * @param {(value: any) => void=} onLoad
- * @param {(err: Error) => void=} onError
- */
-exports.load = function (entrypoint, onLoad, onError) {
-	if (!entrypoint) {
-		return;
-	}
+//#region Loader Config
 
-	// code cache config
-	if (process.env['VSCODE_CODE_CACHE_PATH']) {
-		loader.config({
-			nodeCachedData: {
-				path: process.env['VSCODE_CODE_CACHE_PATH'],
-				seed: entrypoint
-			}
+if (isESM) {
+
+	/**
+	 * @param {string=} entrypoint
+	 * @param {(value: any) => void} [onLoad]
+	 * @param {(err: Error) => void} [onError]
+	 */
+	module.exports.load = function (entrypoint, onLoad, onError) {
+		if (!entrypoint) {
+			return;
+		}
+
+		entrypoint = `./${entrypoint}.js`;
+
+		onLoad = onLoad || function () { };
+		onError = onError || function (err) { console.error(err); };
+
+		setupNLS().then(() => {
+			performance.mark(`code/fork/willLoadCode`);
+			import(entrypoint).then(onLoad, onError);
+		});
+	};
+} else {
+
+	// @ts-ignore
+	const loader = require('./vs/loader');
+
+	loader.config({
+		baseUrl: bootstrap.fileUriFromPath(__dirname, { isWindows: process.platform === 'win32' }),
+		catchError: true,
+		nodeRequire,
+		amdModulesPattern: /^vs\//,
+		recordStats: true
+	});
+
+	// Running in Electron
+	if (process.env['ELECTRON_RUN_AS_NODE'] || process.versions['electron']) {
+		loader.define('fs', ['original-fs'], function (/** @type {import('fs')} */originalFS) {
+			return originalFS;  // replace the patched electron fs with the original node fs for all AMD code
 		});
 	}
 
-	onLoad = onLoad || function () { };
-	onError = onError || function (err) { console.error(err); };
+	/**
+	 * @param {string=} entrypoint
+	 * @param {(value: any) => void} [onLoad]
+	 * @param {(err: Error) => void} [onError]
+	 */
+	module.exports.load = function (entrypoint, onLoad, onError) {
+		if (!entrypoint) {
+			return;
+		}
 
-	setupNLS().then(() => {
-		performance.mark('code/fork/willLoadCode');
-		loader([entrypoint], onLoad, onError);
-	});
-};
+		// code cache config
+		if (process.env['VSCODE_CODE_CACHE_PATH']) {
+			loader.config({
+				nodeCachedData: {
+					path: process.env['VSCODE_CODE_CACHE_PATH'],
+					seed: entrypoint
+				}
+			});
+		}
+
+		onLoad = onLoad || function () { };
+		onError = onError || function (err) { console.error(err); };
+
+		setupNLS().then(() => {
+			performance.mark('code/fork/willLoadCode');
+			loader([entrypoint], onLoad, onError);
+		});
+	};
+}
+
+//#endregion
+
+// ESM-uncomment-begin
+// export const load = module.exports.load;
+// ESM-uncomment-end

@@ -109,9 +109,6 @@ export class ExtensionManagementChannel implements IServerChannel {
 				const uri = await this.service.zip(extension);
 				return transformOutgoingURI(uri, uriTransformer);
 			}
-			case 'unzip': {
-				return this.service.unzip(transformIncomingURI(args[0], uriTransformer));
-			}
 			case 'install': {
 				return this.service.install(transformIncomingURI(args[0], uriTransformer), transformIncomingOptions(args[1], uriTransformer));
 			}
@@ -239,10 +236,6 @@ export class ExtensionManagementChannelClient extends Disposable implements IExt
 
 	zip(extension: ILocalExtension): Promise<URI> {
 		return Promise.resolve(this.channel.call<UriComponents>('zip', [extension]).then(result => URI.revive(result)));
-	}
-
-	unzip(zipLocation: URI): Promise<IExtensionIdentifier> {
-		return Promise.resolve(this.channel.call<IExtensionIdentifier>('unzip', [zipLocation]));
 	}
 
 	install(vsix: URI, options?: InstallOptions): Promise<ILocalExtension> {

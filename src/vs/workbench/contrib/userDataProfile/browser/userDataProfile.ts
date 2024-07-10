@@ -285,19 +285,16 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			async run(accessor: ServicesAccessor) {
 				const quickInputService = accessor.get(IQuickInputService);
 				const menuService = accessor.get(IMenuService);
-				const menu = menuService.createMenu(ProfilesMenu, accessor.get(IContextKeyService));
-				const actions = menu.getActions().find(([group]) => group === '0_profiles')?.[1] ?? [];
-				try {
-					const result = await quickInputService.pick(actions.map(action => ({
-						action,
-						label: action.checked ? `$(check) ${action.label}` : action.label,
-					})), {
-						placeHolder: localize('selectProfile', "Select Profile")
-					});
-					await result?.action.run();
-				} finally {
-					menu.dispose();
-				}
+				const menu = menuService.getMenuActions(ProfilesMenu, accessor.get(IContextKeyService));
+				const actions = menu.find(([group]) => group === '0_profiles')?.[1] ?? [];
+				const result = await quickInputService.pick(actions.map(action => ({
+					action,
+					label: action.checked ? `$(check) ${action.label}` : action.label,
+				})), {
+					placeHolder: localize('selectProfile', "Select Profile")
+				});
+				await result?.action.run();
+
 			}
 		});
 	}

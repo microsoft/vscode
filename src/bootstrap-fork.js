@@ -6,11 +6,20 @@
 //@ts-check
 'use strict';
 
+// ESM-comment-begin
 const performance = require('./vs/base/common/performance');
-performance.mark('code/fork/start');
-
 const bootstrap = require('./bootstrap');
 const bootstrapNode = require('./bootstrap-node');
+const bootstrapAmd = require('./bootstrap-amd');
+// ESM-comment-end
+// ESM-uncomment-begin
+// import * as performance from './vs/base/common/performance.js';
+// import * as bootstrap from './bootstrap.js';
+// import * as bootstrapNode from './bootstrap-node.js';
+// import * as bootstrapAmd from './bootstrap-amd.js';
+// ESM-uncomment-end
+
+performance.mark('code/fork/start');
 
 // Crash reporter
 configureCrashReporter();
@@ -41,7 +50,7 @@ if (process.env['VSCODE_PARENT_PID']) {
 }
 
 // Load AMD entry point
-require('./bootstrap-amd').load(process.env['VSCODE_AMD_ENTRYPOINT']);
+bootstrapAmd.load(process.env['VSCODE_AMD_ENTRYPOINT']);
 
 
 //#region Helpers

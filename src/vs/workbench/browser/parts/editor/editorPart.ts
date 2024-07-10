@@ -1103,6 +1103,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 					openVerticalPosition = Position.BOTTOM;
 				}
 
+				if (e.eventData.clientY < boundingRect.top + proximity) {
+					openVerticalPosition = Position.TOP;
+				}
+
 				if (horizontalOpenerTimeout && openHorizontalPosition !== lastOpenHorizontalPosition) {
 					clearTimeout(horizontalOpenerTimeout);
 					horizontalOpenerTimeout = undefined;
