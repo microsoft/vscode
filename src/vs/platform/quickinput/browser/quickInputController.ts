@@ -157,6 +157,9 @@ export class QuickInputController extends Disposable {
 		countContainer.setAttribute('aria-live', 'polite');
 		const count = new CountBadge(countContainer, { countFormat: localize({ key: 'quickInput.countSelected', comment: ['This tells the user how many items are selected in a list of items to select from. The items can be anything.'] }, "{0} Selected") }, this.styles.countBadge);
 
+		const inlineActionBar = this._register(new ActionBar(headerContainer, { hoverDelegate: this.options.hoverDelegate }));
+		inlineActionBar.domNode.classList.add('quick-input-inline-action-bar');
+
 		const okContainer = dom.append(headerContainer, $('.quick-input-action'));
 		const ok = this._register(new Button(okContainer, this.styles.button));
 		ok.label = localize('ok', "OK");
@@ -321,6 +324,7 @@ export class QuickInputController extends Disposable {
 			description2,
 			widget,
 			rightActionBar,
+			inlineActionBar,
 			checkAll,
 			inputContainer,
 			filterContainer,

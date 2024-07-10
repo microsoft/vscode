@@ -148,8 +148,16 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		const historyItems: SourceControlHistoryItem[] = [];
 
 		try {
-			// Get the commits
-			const commits = await this.repository.log({ range: `${refsMergeBase}^..`, refNames, shortStats: true });
+			// Get the common ancestor commit, and commits
+			const [mergeBaseCommit, commits] = await Promise.all([
+				this.repository.getCommit(refsMergeBase),
+				this.repository.log({ range: `${refsMergeBase}..`, refNames, shortStats: true })
+			]);
+
+			// Add common ancestor commit
+			if (commits.length !== 0) {
+				commits.push(mergeBaseCommit);
+			}
 
 			await ensureEmojis();
 
@@ -171,7 +179,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 				};
 			}));
 		} catch (err) {
-			this.logger.error(`[GitHistoryProvider][provideHistoryItems2] Failed to get history items '${refsMergeBase}^..': ${err}`);
+			this.logger.error(`[GitHistoryProvider][provideHistoryItems2] Failed to get history items '${refsMergeBase}..': ${err}`);
 		}
 
 		return historyItems;

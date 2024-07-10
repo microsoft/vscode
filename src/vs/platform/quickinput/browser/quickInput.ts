@@ -25,7 +25,7 @@ import Severity from 'vs/base/common/severity';
 import { ThemeIcon } from 'vs/base/common/themables';
 import 'vs/css!./media/quickInput';
 import { localize } from 'vs/nls';
-import { IInputBox, IKeyMods, IQuickInput, IQuickInputButton, IQuickInputHideEvent, IQuickInputToggle, IQuickNavigateConfiguration, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent, IQuickPickWillAcceptEvent, IQuickWidget, ItemActivation, NO_KEY_MODS, QuickInputHideReason, QuickInputType } from 'vs/platform/quickinput/common/quickInput';
+import { IInputBox, IKeyMods, IQuickInput, IQuickInputButton, IQuickInputHideEvent, IQuickInputToggle, IQuickInputTopLevelButton, IQuickNavigateConfiguration, IQuickPick, IQuickPickDidAcceptEvent, IQuickPickItem, IQuickPickItemButtonEvent, IQuickPickSeparator, IQuickPickSeparatorButtonEvent, IQuickPickWillAcceptEvent, IQuickWidget, ItemActivation, NO_KEY_MODS, QuickInputHideReason, QuickInputType } from 'vs/platform/quickinput/common/quickInput';
 import { QuickInputBox } from './quickInputBox';
 import { quickInputButtonToAction, renderQuickInputDescription } from './quickInputUtils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -100,6 +100,7 @@ export interface QuickInputUI {
 	description2: HTMLElement;
 	widget: HTMLElement;
 	rightActionBar: ActionBar;
+	inlineActionBar: ActionBar;
 	checkAll: HTMLInputElement;
 	inputContainer: HTMLElement;
 	filterContainer: HTMLElement;
@@ -277,7 +278,7 @@ abstract class QuickInput extends Disposable implements IQuickInput {
 		return this._buttons;
 	}
 
-	set buttons(buttons: IQuickInputButton[]) {
+	set buttons(buttons: IQuickInputTopLevelButton[]) {
 		this._buttons = buttons;
 		this.buttonsUpdated = true;
 		this.update();
@@ -417,13 +418,22 @@ abstract class QuickInput extends Disposable implements IQuickInput {
 			this.ui.leftActionBar.push(leftButtons, { icon: true, label: false });
 			this.ui.rightActionBar.clear();
 			const rightButtons = this.buttons
-				.filter(button => button !== backButton)
+				.filter(button => button !== backButton && button.location !== 'inline')
 				.map((button, index) => quickInputButtonToAction(
 					button,
 					`id-${index}`,
 					async () => this.onDidTriggerButtonEmitter.fire(button)
 				));
 			this.ui.rightActionBar.push(rightButtons, { icon: true, label: false });
+			this.ui.inlineActionBar.clear();
+			const inlineButtons = this.buttons
+				.filter(button => button.location === 'inline')
+				.map((button, index) => quickInputButtonToAction(
+					button,
+					`id-${index}`,
+					async () => this.onDidTriggerButtonEmitter.fire(button)
+				));
+			this.ui.inlineActionBar.push(inlineButtons, { icon: true, label: false });
 		}
 		if (this.togglesUpdated) {
 			this.togglesUpdated = false;
@@ -986,7 +996,7 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 		const scrollTopBefore = this.keepScrollPosition ? this.scrollTop : 0;
 		const hasDescription = !!this.description;
 		const visibilities: Visibilities = {
-			title: !!this.title || !!this.step || !!this.buttons.length,
+			title: !!this.title || !!this.step || !!this.buttons.find(b => b.location !== 'inline'),
 			description: hasDescription,
 			checkAll: this.canSelectMany && !this._hideCheckAll,
 			checkBox: this.canSelectMany,

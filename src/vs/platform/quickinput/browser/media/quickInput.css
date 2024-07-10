@@ -25,6 +25,10 @@
 	flex: 1;
 }
 
+.quick-input-inline-action-bar {
+	margin: 2px 0 0 5px;
+}
+
 .quick-input-title {
 	padding: 3px 0px;
 	text-align: center;
