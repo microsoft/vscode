@@ -296,9 +296,8 @@ class InlineEditSideBySideContentWidget extends Disposable implements IOverlayWi
 		this._register(this._previewEditorObs.setDecorations(this._modifiedDecorations));
 
 		this._register(autorun(reader => {
-			this._previewEditorObs.model.read(reader);
 			const width = this._previewEditorObs.contentWidth.read(reader);
-			const lines = this._text.get().split('\n').length - 1;
+			const lines = this._text.read(reader).split('\n').length - 1;
 			const height = this._editor.getOption(EditorOption.lineHeight) * lines;
 			if (width <= 0) {
 				return;
@@ -341,7 +340,6 @@ class InlineEditSideBySideContentWidget extends Disposable implements IOverlayWi
 		}
 		const top = visibPos.top - 1; //-1 to offset the border width
 		const offset = this._editor.getOffsetForColumn(position.left.lineNumber, position.left.column);
-		console.log('offset', offset);
 		const left = layoutInfo.contentLeft + offset + 10;
 		return {
 			preference: {

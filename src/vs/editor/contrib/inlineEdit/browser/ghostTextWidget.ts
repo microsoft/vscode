@@ -158,7 +158,6 @@ export class GhostTextWidget extends Disposable {
 			});
 		}
 
-		console.log('isPureRemove', uiState.isPureRemove, uiState.range, uiState.isSingleLine);
 		if (uiState.range) {
 			const ranges = [];
 			if (uiState.isSingleLine) {
