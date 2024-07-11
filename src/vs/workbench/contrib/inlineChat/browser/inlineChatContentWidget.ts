@@ -78,7 +78,7 @@ export class InlineChatContentWidget implements IContentWidget {
 				renderStyle: 'minimal',
 				renderInputOnTop: true,
 				renderFollowups: true,
-				supportsFileReferences: false,
+				supportsFileReferences: configurationService.getValue(`chat.experimental.variables.${location.location}`) === true,
 				menus: {
 					telemetrySource: 'inlineChat-content',
 					executeToolbar: MENU_INLINE_CHAT_EXECUTE,
