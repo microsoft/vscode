@@ -21,15 +21,17 @@ export interface ISCMHistoryProvider {
 
 	readonly onDidChangeCurrentHistoryItemGroup: Event<void>;
 
-	get currentHistoryItemGroup(): ISCMHistoryItemGroup | undefined;
-	set currentHistoryItemGroup(historyItemGroup: ISCMHistoryItemGroup | undefined);
+	get currentHistoryItemGroup(): ISCMHistoryItemGroupWithRevision | undefined;
+	set currentHistoryItemGroup(historyItemGroup: ISCMHistoryItemGroupWithRevision | undefined);
 	readonly currentHistoryItemGroupObs: IObservable<ISCMHistoryItemGroup | undefined>;
+	readonly currentHistoryItemGroupWithRevisionObs: IObservable<ISCMHistoryItemGroupWithRevision | undefined>;
 
 	provideHistoryItems(historyItemGroupId: string, options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined>;
 	provideHistoryItems2(options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined>;
 	provideHistoryItemSummary(historyItemId: string, historyItemParentId: string | undefined): Promise<ISCMHistoryItem | undefined>;
 	provideHistoryItemChanges(historyItemId: string, historyItemParentId: string | undefined): Promise<ISCMHistoryItemChange[] | undefined>;
 	resolveHistoryItemGroupCommonAncestor(historyItemGroupId1: string, historyItemGroupId2: string | undefined): Promise<{ id: string; ahead: number; behind: number } | undefined>;
+	resolveHistoryItemGroupCommonAncestor2(historyItemGroupIds: string[]): Promise<string | undefined>;
 }
 
 export interface ISCMHistoryProviderCacheEntry {
@@ -51,6 +53,14 @@ export interface ISCMHistoryItemGroup {
 	readonly name: string;
 	readonly base?: Omit<Omit<ISCMHistoryItemGroup, 'base'>, 'remote'>;
 	readonly remote?: Omit<Omit<ISCMHistoryItemGroup, 'base'>, 'remote'>;
+}
+
+export interface ISCMHistoryItemGroupWithRevision {
+	readonly id: string;
+	readonly name: string;
+	readonly revision: string;
+	readonly base?: Omit<Omit<ISCMHistoryItemGroupWithRevision, 'base'>, 'remote'>;
+	readonly remote?: Omit<Omit<ISCMHistoryItemGroupWithRevision, 'base'>, 'remote'>;
 }
 
 export interface SCMHistoryItemGroupTreeElement {

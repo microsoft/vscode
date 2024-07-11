@@ -629,8 +629,8 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 			const viewsActions: IAction[] = [];
 			const scopedContextKeyService = disposables.add(this.contextKeyService.createScoped(this.element));
 			scopedContextKeyService.createKey('viewContainer', viewPaneContainer.viewContainer.id);
-			const menu = disposables.add(this.menuService.createMenu(ViewsSubMenu, scopedContextKeyService));
-			createAndFillInActionBarActions(menu, { shouldForwardArgs: true, renderShortTitle: true }, { primary: viewsActions, secondary: [] }, () => true);
+			const menu = this.menuService.getMenuActions(ViewsSubMenu, scopedContextKeyService, { shouldForwardArgs: true, renderShortTitle: true });
+			createAndFillInActionBarActions(menu, { primary: viewsActions, secondary: [] }, () => true);
 			disposables.dispose();
 			return viewsActions.length > 1 && viewsActions.some(a => a.enabled) ? new SubmenuAction('views', localize('views', "Views"), viewsActions) : undefined;
 		}

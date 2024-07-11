@@ -1544,11 +1544,10 @@ export class ModifiedElement extends AbstractElementRenderer {
 			}
 		}));
 
-		const menu = this.menuService.createMenu(MenuId.NotebookDiffCellInputTitle, scopedContextKeyService);
+		const menu = this.menuService.getMenuActions(MenuId.NotebookDiffCellInputTitle, scopedContextKeyService, { shouldForwardArgs: true });
 		const actions: IAction[] = [];
-		createAndFillInActionBarActions(menu, { shouldForwardArgs: true }, actions);
+		createAndFillInActionBarActions(menu, actions);
 		this._toolbar.setActions(actions);
-		menu.dispose();
 	}
 
 	private async _initializeSourceDiffEditor() {

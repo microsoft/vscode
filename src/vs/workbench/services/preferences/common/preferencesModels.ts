@@ -1125,9 +1125,15 @@ export class DefaultRawSettingsEditorModel extends Disposable {
 
 	private _content: string | null = null;
 
+	private readonly _onDidContentChanged = this._register(new Emitter<void>());
+	readonly onDidContentChanged = this._onDidContentChanged.event;
+
 	constructor(private defaultSettings: DefaultSettings) {
 		super();
-		this._register(defaultSettings.onDidChange(() => this._content = null));
+		this._register(defaultSettings.onDidChange(() => {
+			this._content = null;
+			this._onDidContentChanged.fire();
+		}));
 	}
 
 	get content(): string {

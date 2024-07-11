@@ -106,7 +106,7 @@ export class NativeRemoteExtensionManagementService extends RemoteExtensionManag
 		const location = await this.localExtensionManagementServer.extensionManagementService.download(compatible, installed.filter(i => areSameExtensions(i.identifier, compatible.identifier))[0] ? InstallOperation.Update : InstallOperation.Install, !!installOptions.donotVerifySignature);
 		this.logService.info('Downloaded extension:', compatible.identifier.id, location.path);
 		try {
-			const local = await super.install(location, installOptions);
+			const local = await super.install(location, { ...installOptions, keepExisting: true });
 			this.logService.info(`Successfully installed '${compatible.identifier.id}' extension`);
 			return local;
 		} finally {

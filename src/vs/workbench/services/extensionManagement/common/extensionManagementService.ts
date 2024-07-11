@@ -226,19 +226,16 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		return Promise.reject(`Invalid location ${extension.location.toString()}`);
 	}
 
+	async resetPinnedStateForAllUserExtensions(pinned: boolean): Promise<void> {
+		await Promise.allSettled(this.servers.map(server => server.extensionManagementService.resetPinnedStateForAllUserExtensions(pinned)));
+	}
+
 	zip(extension: ILocalExtension): Promise<URI> {
 		const server = this.getServer(extension);
 		if (server) {
 			return server.extensionManagementService.zip(extension);
 		}
 		return Promise.reject(`Invalid location ${extension.location.toString()}`);
-	}
-
-	unzip(zipLocation: URI): Promise<IExtensionIdentifier> {
-		return Promises.settled(this.servers
-			// Filter out web server
-			.filter(server => server !== this.extensionManagementServerService.webExtensionManagementServer)
-			.map(({ extensionManagementService }) => extensionManagementService.unzip(zipLocation))).then(([extensionIdentifier]) => extensionIdentifier);
 	}
 
 	download(extension: IGalleryExtension, operation: InstallOperation, donotVerifySignature: boolean): Promise<URI> {

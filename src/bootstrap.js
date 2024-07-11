@@ -6,11 +6,24 @@
 //@ts-check
 'use strict';
 
+// TODO@bpasero this file can no longer be used from a non-node.js context and thus should
+// move into bootstrap-node.js and remaining usages (if any) in browser context be replaced.
+
+// ESM-uncomment-begin
+// import * as path from 'path';
+// import { createRequire } from 'node:module';
+// import { fileURLToPath } from 'url';
+//
+// const require = createRequire(import.meta.url);
+// const module = { exports: {} };
+// const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// ESM-uncomment-end
+
 // Simple module style to support node.js and browser environments
-(function (globalThis, factory) {
+(function (factory) {
 
 	// Node.js
-	if (typeof exports === 'object') {
+	if (typeof module === 'object' && typeof module.exports === 'object') {
 		module.exports = factory();
 	}
 
@@ -19,7 +32,7 @@
 		// @ts-ignore
 		globalThis.MonacoBootstrap = factory();
 	}
-}(this, function () {
+}(function () {
 	const Module = typeof require === 'function' ? require('module') : undefined;
 	const path = typeof require === 'function' ? require('path') : undefined;
 
@@ -121,3 +134,8 @@
 		fileUriFromPath
 	};
 }));
+
+// ESM-uncomment-begin
+// export const enableASARSupport = module.exports.enableASARSupport;
+// export const fileUriFromPath = module.exports.fileUriFromPath;
+// ESM-uncomment-end

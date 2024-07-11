@@ -446,7 +446,6 @@ export const enum ExtensionManagementErrorCode {
 	Download = 'Download',
 	DownloadSignature = 'DownloadSignature',
 	DownloadFailedWriting = ExtensionGalleryErrorCode.DownloadFailedWriting,
-	UpdateExistingMetadata = 'UpdateExistingMetadata',
 	UpdateMetadata = 'UpdateMetadata',
 	Extract = 'Extract',
 	Scanning = 'Scanning',
@@ -491,6 +490,7 @@ export type InstallOptions = {
 	profileLocation?: URI;
 	installOnlyNewlyAddedFromExtensionPack?: boolean;
 	productVersion?: IProductVersion;
+	keepExisting?: boolean;
 	/**
 	 * Context passed through to InstallExtensionResult
 	 */
@@ -523,7 +523,6 @@ export interface IExtensionManagementService {
 	onDidUpdateExtensionMetadata: Event<DidUpdateExtensionMetadata>;
 
 	zip(extension: ILocalExtension): Promise<URI>;
-	unzip(zipLocation: URI): Promise<IExtensionIdentifier>;
 	getManifest(vsix: URI): Promise<IExtensionManifest>;
 	install(vsix: URI, options?: InstallOptions): Promise<ILocalExtension>;
 	canInstall(extension: IGalleryExtension): Promise<boolean>;
@@ -538,6 +537,7 @@ export interface IExtensionManagementService {
 	getExtensionsControlManifest(): Promise<IExtensionsControlManifest>;
 	copyExtensions(fromProfileLocation: URI, toProfileLocation: URI): Promise<void>;
 	updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>, profileLocation: URI): Promise<ILocalExtension>;
+	resetPinnedStateForAllUserExtensions(pinned: boolean): Promise<void>;
 
 	download(extension: IGalleryExtension, operation: InstallOperation, donotVerifySignature: boolean): Promise<URI>;
 
