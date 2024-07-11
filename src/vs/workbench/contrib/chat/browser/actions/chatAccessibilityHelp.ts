@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { AccessibleViewProviderId, AccessibleViewType } from 'vs/platform/accessibility/browser/accessibleView';
+import { AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider } from 'vs/platform/accessibility/browser/accessibleView';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { AccessibleDiffViewerNext } from 'vs/editor/browser/widget/diffEditor/commands';
 import { INLINE_CHAT_ID } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
@@ -25,7 +25,6 @@ export class ChatAccessibilityHelp implements IAccessibleViewImplentation {
 		const codeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor() || accessor.get(ICodeEditorService).getFocusedCodeEditor();
 		return getChatAccessibilityHelpProvider(accessor, codeEditor ?? undefined, 'panelChat');
 	}
-	dispose() { }
 }
 
 export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat'): string {
@@ -70,11 +69,11 @@ export function getChatAccessibilityHelpProvider(accessor: ServicesAccessor, edi
 	const cachedPosition = inputEditor.getPosition();
 	inputEditor.getSupportedActions();
 	const helpText = getAccessibilityHelpText(type);
-	return {
-		id: type === 'panelChat' ? AccessibleViewProviderId.Chat : AccessibleViewProviderId.InlineChat,
-		verbositySettingKey: type === 'panelChat' ? AccessibilityVerbositySettingId.Chat : AccessibilityVerbositySettingId.InlineChat,
-		provideContent: () => helpText,
-		onClose: () => {
+	return new AccessibleContentProvider(
+		type === 'panelChat' ? AccessibleViewProviderId.Chat : AccessibleViewProviderId.InlineChat,
+		{ type: AccessibleViewType.Help },
+		() => helpText,
+		() => {
 			if (type === 'panelChat' && cachedPosition) {
 				inputEditor.setPosition(cachedPosition);
 				inputEditor.focus();
@@ -86,6 +85,6 @@ export function getChatAccessibilityHelpProvider(accessor: ServicesAccessor, edi
 
 			}
 		},
-		options: { type: AccessibleViewType.Help }
-	};
+		type === 'panelChat' ? AccessibilityVerbositySettingId.Chat : AccessibilityVerbositySettingId.InlineChat,
+	);
 }
