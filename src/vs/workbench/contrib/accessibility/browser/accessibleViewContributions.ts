@@ -28,11 +28,16 @@ export class AccesibleViewContributions extends Disposable {
 		AccessibleViewRegistry.getImplementations().forEach(impl => {
 			const implementation = (accessor: ServicesAccessor) => {
 				const provider: AccessibleContentProvider | ExtensionContentProvider | undefined = impl.getProvider(accessor);
-				if (provider) {
+				if (!provider) {
+					return false;
+				}
+				try {
 					accessor.get(IAccessibleViewService).show(provider);
 					return true;
+				} catch {
+					provider.dispose();
+					return false;
 				}
-				return false;
 			};
 			if (impl.type === AccessibleViewType.View) {
 				this._register(AccessibleViewAction.addImplementation(impl.priority, impl.name, implementation, impl.when));
