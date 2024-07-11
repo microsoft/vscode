@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
 import { IObservable } from 'vs/base/common/observable';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
@@ -18,12 +17,6 @@ export interface ISCMHistoryProviderMenus {
 }
 
 export interface ISCMHistoryProvider {
-
-	readonly onDidChangeCurrentHistoryItemGroup: Event<void>;
-
-	get currentHistoryItemGroup(): ISCMHistoryItemGroup | undefined;
-	set currentHistoryItemGroup(historyItemGroup: ISCMHistoryItemGroup | undefined);
-
 	readonly currentHistoryItemGroupIdObs: IObservable<string | undefined>;
 	readonly currentHistoryItemGroupNameObs: IObservable<string | undefined>;
 	readonly currentHistoryItemGroupObs: IObservable<ISCMHistoryItemGroup | undefined>;

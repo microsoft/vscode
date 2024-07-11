@@ -161,19 +161,8 @@ class MainThreadSCMResource implements ISCMResource {
 }
 
 class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
-
-	private _onDidChangeCurrentHistoryItemGroup = new Emitter<void>();
-	readonly onDidChangeCurrentHistoryItemGroup = this._onDidChangeCurrentHistoryItemGroup.event;
-
-	private _currentHistoryItemGroup: ISCMHistoryItemGroup | undefined;
-	get currentHistoryItemGroup(): ISCMHistoryItemGroup | undefined { return this._currentHistoryItemGroup; }
-	set currentHistoryItemGroup(historyItemGroup: ISCMHistoryItemGroup | undefined) {
-		this._currentHistoryItemGroup = historyItemGroup;
-		this._onDidChangeCurrentHistoryItemGroup.fire();
-	}
-
-	readonly currentHistoryItemGroupIdObs = derived<string | undefined>(this, reader => this.currentHistoryItemGroup?.id);
-	readonly currentHistoryItemGroupNameObs = derived<string | undefined>(this, reader => this.currentHistoryItemGroup?.name);
+	readonly currentHistoryItemGroupIdObs = derived<string | undefined>(this, reader => this._currentHistoryItemGroupObs.read(reader)?.id);
+	readonly currentHistoryItemGroupNameObs = derived<string | undefined>(this, reader => this._currentHistoryItemGroupObs.read(reader)?.name);
 
 	private readonly _currentHistoryItemGroupObs = observableValueOpts<ISCMHistoryItemGroup | undefined>({ owner: this, equalsFn: structuralEquals }, undefined);
 	get currentHistoryItemGroupObs() { return this._currentHistoryItemGroupObs; }
@@ -461,7 +450,6 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 			return;
 		}
 
-		this._historyProvider.currentHistoryItemGroup = currentHistoryItemGroup ?? undefined;
 		this._historyProviderObs.get()?.$onDidChangeCurrentHistoryItemGroup(currentHistoryItemGroup);
 	}
 
