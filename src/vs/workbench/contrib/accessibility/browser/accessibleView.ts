@@ -85,6 +85,9 @@ export class AccessibleView extends Disposable {
 
 	private _lastProvider: AccesibleViewContentProvider | undefined;
 
+	private _viewContainer: HTMLElement | undefined;
+
+
 	constructor(
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -248,12 +251,11 @@ export class AccessibleView extends Disposable {
 			return;
 		}
 		provider.onOpen?.();
-		let viewContainer: HTMLElement | undefined;
 		const delegate: IContextViewDelegate = {
 			getAnchor: () => { return { x: (getActiveWindow().innerWidth / 2) - ((Math.min(this._layoutService.activeContainerDimension.width * 0.62 /* golden cut */, DIMENSIONS.MAX_WIDTH)) / 2), y: this._layoutService.activeContainerOffset.quickPickTop }; },
 			render: (container) => {
-				viewContainer = container;
-				viewContainer.classList.add('accessible-view-container');
+				this._viewContainer = container;
+				this._viewContainer.classList.add('accessible-view-container');
 				return this._render(provider, container, showAccessibleViewHelp);
 			},
 			onHide: () => {
@@ -297,17 +299,25 @@ export class AccessibleView extends Disposable {
 		}
 		if (provider.onDidChangeContent) {
 			this._register(provider.onDidChangeContent(() => {
-				if (viewContainer) { this._render(provider, viewContainer, showAccessibleViewHelp); }
+				if (this._viewContainer) { this._render(provider, this._viewContainer, showAccessibleViewHelp); }
 			}));
 		}
 	}
 
 	previous(): void {
-		this._currentProvider?.previous?.();
+		const newContent = this._currentProvider?.previous?.();
+		if (!this._currentProvider || !this._viewContainer || !newContent) {
+			return;
+		}
+		this._render(this._currentProvider, this._viewContainer, undefined, newContent);
 	}
 
 	next(): void {
-		this._currentProvider?.next?.();
+		const newContent = this._currentProvider?.next?.();
+		if (!this._currentProvider || !this._viewContainer || !newContent) {
+			return;
+		}
+		this._render(this._currentProvider, this._viewContainer, undefined, newContent);
 	}
 
 	private _verbosityEnabled(): boolean {
@@ -486,7 +496,7 @@ export class AccessibleView extends Disposable {
 		this._accessibleViewGoToSymbolSupported.set(this._goToSymbolsSupported() ? this.getSymbols()?.length! > 0 : false);
 	}
 
-	private _render(provider: AccesibleViewContentProvider, container: HTMLElement, showAccessibleViewHelp?: boolean): IDisposable {
+	private _render(provider: AccesibleViewContentProvider, container: HTMLElement, showAccessibleViewHelp?: boolean, updatedContent?: string): IDisposable {
 		this._currentProvider = provider;
 		this._accessibleViewCurrentProviderId.set(provider.id);
 		const verbose = this._verbosityEnabled();
@@ -512,7 +522,7 @@ export class AccessibleView extends Disposable {
 			}
 		}
 		const exitThisDialogHint = verbose && !provider.options.position ? localize('exit', '\n\nExit this dialog (Escape).') : '';
-		let content = provider.provideContent();
+		let content = updatedContent ?? provider.provideContent();
 		if (provider.options.type === AccessibleViewType.Help) {
 			const resolvedContent = resolveContentAndKeybindingItems(this._keybindingService, content + readMoreLink + disableHelpHint + exitThisDialogHint);
 			if (resolvedContent) {
