@@ -65,7 +65,7 @@ export class SCMWorkingSetController extends Disposable implements IWorkbenchCon
 
 		disposables.add(autorun(async reader => {
 			const historyProvider = repository.provider.historyProviderObs.read(reader);
-			const currentHistoryItemGroupId = historyProvider?.currentHistoryItemGroupObs.read(reader)?.id;
+			const currentHistoryItemGroupId = historyProvider?.currentHistoryItemGroupIdObs.read(reader);
 
 			if (!currentHistoryItemGroupId) {
 				return;
