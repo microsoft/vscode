@@ -306,7 +306,7 @@ export class SCMHistoryProviderMenus implements ISCMHistoryProviderMenus, IDispo
 
 	private getOutgoingHistoryItemGroupMenu(menuId: MenuId, historyItemGroup: SCMHistoryItemGroupTreeElement): IMenu {
 		const contextKeyService = this.contextKeyService.createOverlay([
-			['scmHistoryItemGroupHasRemote', !!historyItemGroup.repository.provider.historyProvider?.currentHistoryItemGroup?.remote],
+			['scmHistoryItemGroupHasRemote', !!historyItemGroup.repository.provider.historyProvider?.currentHistoryItemGroup.get()?.remote],
 		]);
 
 		return this.menuService.createMenu(menuId, contextKeyService);
