@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { InlineCompletionContextKeys } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionContextKeys';
 import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
@@ -12,12 +11,11 @@ import { IAccessibleViewImplentation } from 'vs/platform/accessibility/browser/a
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
-export class InlineCompletionsAccessibleView extends Disposable implements IAccessibleViewImplentation {
+export class InlineCompletionsAccessibleView implements IAccessibleViewImplentation {
 	readonly type = AccessibleViewType.View;
 	readonly priority = 95;
 	readonly name = 'inline-completions';
 	readonly when = ContextKeyExpr.and(InlineCompletionContextKeys.inlineSuggestionVisible);
-	private _provider: AccessibleContentProvider | undefined;
 	getProvider(accessor: ServicesAccessor) {
 		const codeEditorService = accessor.get(ICodeEditorService);
 		function resolveProvider() {
@@ -58,13 +56,6 @@ export class InlineCompletionsAccessibleView extends Disposable implements IAcce
 				},
 			);
 		}
-		this._provider = resolveProvider();
-		if (this._provider) {
-			this._register(this._provider);
-		}
-		return this._provider;
-	}
-	constructor() {
-		super();
+		return resolveProvider();
 	}
 }
