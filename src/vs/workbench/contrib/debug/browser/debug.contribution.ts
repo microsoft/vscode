@@ -643,4 +643,3 @@ configurationRegistry.registerConfiguration({
 });
 
 AccessibleViewRegistry.register(new DebugAccessibleView());
-
