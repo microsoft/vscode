@@ -642,7 +642,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		provider.updateCommentingRanges(resourceHints);
 	}
 
-	async $revealCommentThread(handle: number, commentThreadHandle: number, options: languages.CommentThreadRevealOptions): Promise<void> {
+	async $revealCommentThread(handle: number, commentThreadHandle: number, commentUniqueIdInThread: number, options: languages.CommentThreadRevealOptions): Promise<void> {
 		const provider = this._commentControllers.get(handle);
 
 		if (!provider) {
@@ -654,7 +654,24 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 			return Promise.resolve();
 		}
 
-		revealCommentThread(this._commentService, this._editorService, this._uriIdentityService, thread, undefined, options.focusReply, undefined, options.preserveFocus);
+		const comment = thread.comments?.find(comment => comment.uniqueIdInThread === commentUniqueIdInThread);
+
+		revealCommentThread(this._commentService, this._editorService, this._uriIdentityService, thread, comment, options.focusReply, undefined, options.preserveFocus);
+	}
+
+	async $hideCommentThread(handle: number, commentThreadHandle: number): Promise<void> {
+		const provider = this._commentControllers.get(handle);
+
+		if (!provider) {
+			return Promise.resolve();
+		}
+
+		const thread = provider.getAllComments().find(thread => thread.commentThreadHandle === commentThreadHandle);
+		if (!thread || !thread.isDocumentCommentThread()) {
+			return Promise.resolve();
+		}
+
+		thread.collapsibleState = languages.CommentThreadCollapsibleState.Collapsed;
 	}
 
 	private registerView(commentsViewAlreadyRegistered: boolean) {

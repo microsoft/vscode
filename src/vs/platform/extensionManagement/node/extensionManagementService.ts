@@ -300,7 +300,10 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 			}
 
 			// validate manifest
-			await getManifest(location.fsPath);
+			const manifest = await getManifest(location.fsPath);
+			if (!new ExtensionKey(gallery.identifier, gallery.version).equals(new ExtensionKey({ id: getGalleryExtensionId(manifest.publisher, manifest.name) }, manifest.version))) {
+				throw new ExtensionManagementError(nls.localize('invalidManifest', "Cannot install '{0}' extension because of manifest mismatch with Marketplace", gallery.identifier.id), ExtensionManagementErrorCode.Invalid);
+			}
 
 			const local = await this.extensionsScanner.extractUserExtension(
 				extensionKey,

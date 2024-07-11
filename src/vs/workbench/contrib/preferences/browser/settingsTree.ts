@@ -2008,7 +2008,7 @@ export class SettingBoolRenderer extends AbstractSettingRenderer implements ITre
 type ManageExtensionClickTelemetryClassification = {
 	extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The extension the user went to manage.' };
 	owner: 'rzhao271';
-	comment: 'Event used to gain insights into when users are using an experimental extension management setting';
+	comment: 'Event used to gain insights into when users interact with an extension management setting';
 };
 
 export class SettingsExtensionToggleRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingExtensionToggleItemTemplate> {
