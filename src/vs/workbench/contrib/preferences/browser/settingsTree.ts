@@ -667,6 +667,7 @@ interface ISettingBoolItemTemplate extends ISettingItemTemplate<boolean> {
 
 interface ISettingExtensionToggleItemTemplate extends ISettingItemTemplate<undefined> {
 	actionButton: Button;
+	dismissButton: Button;
 }
 
 interface ISettingTextItemTemplate extends ISettingItemTemplate<string> {
@@ -1055,7 +1056,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 	}
 }
 
-export class SettingGroupRenderer implements ITreeRenderer<SettingsTreeGroupElement, never, IGroupTitleTemplate> {
+class SettingGroupRenderer implements ITreeRenderer<SettingsTreeGroupElement, never, IGroupTitleTemplate> {
 	templateId = SETTINGS_ELEMENT_TEMPLATE_ID;
 
 	renderTemplate(container: HTMLElement): IGroupTitleTemplate {
@@ -1622,7 +1623,7 @@ abstract class SettingIncludeExcludeRenderer extends AbstractSettingRenderer imp
 	}
 }
 
-export class SettingExcludeRenderer extends SettingIncludeExcludeRenderer {
+class SettingExcludeRenderer extends SettingIncludeExcludeRenderer {
 	templateId = SETTINGS_EXCLUDE_TEMPLATE_ID;
 
 	protected override isExclude(): boolean {
@@ -1630,7 +1631,7 @@ export class SettingExcludeRenderer extends SettingIncludeExcludeRenderer {
 	}
 }
 
-export class SettingIncludeRenderer extends SettingIncludeExcludeRenderer {
+class SettingIncludeRenderer extends SettingIncludeExcludeRenderer {
 	templateId = SETTINGS_INCLUDE_TEMPLATE_ID;
 
 	protected override isExclude(): boolean {
@@ -1745,7 +1746,7 @@ class SettingMultilineTextRenderer extends AbstractSettingTextRenderer implement
 	}
 }
 
-export class SettingEnumRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingEnumItemTemplate> {
+class SettingEnumRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingEnumItemTemplate> {
 	templateId = SETTINGS_ENUM_TEMPLATE_ID;
 
 	renderTemplate(container: HTMLElement): ISettingEnumItemTemplate {
@@ -1862,7 +1863,7 @@ const settingsNumberInputBoxStyles = getInputBoxStyle({
 	inputBorder: settingsNumberInputBorder
 });
 
-export class SettingNumberRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingNumberItemTemplate> {
+class SettingNumberRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingNumberItemTemplate> {
 	templateId = SETTINGS_NUMBER_TEMPLATE_ID;
 
 	renderTemplate(_container: HTMLElement): ISettingNumberItemTemplate {
@@ -1916,7 +1917,7 @@ export class SettingNumberRenderer extends AbstractSettingRenderer implements IT
 	}
 }
 
-export class SettingBoolRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingBoolItemTemplate> {
+class SettingBoolRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingBoolItemTemplate> {
 	templateId = SETTINGS_BOOL_TEMPLATE_ID;
 
 	renderTemplate(_container: HTMLElement): ISettingBoolItemTemplate {
@@ -2011,8 +2012,11 @@ type ManageExtensionClickTelemetryClassification = {
 	comment: 'Event used to gain insights into when users interact with an extension management setting';
 };
 
-export class SettingsExtensionToggleRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingExtensionToggleItemTemplate> {
+class SettingsExtensionToggleRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingExtensionToggleItemTemplate> {
 	templateId = SETTINGS_EXTENSION_TOGGLE_TEMPLATE_ID;
+
+	private readonly _onDidDismissExtensionSetting = this._register(new Emitter<string>());
+	readonly onDidDismissExtensionSetting = this._onDidDismissExtensionSetting.event;
 
 	renderTemplate(_container: HTMLElement): ISettingExtensionToggleItemTemplate {
 		const common = super.renderCommonTemplate(null, _container, 'extension-toggle');
@@ -2024,9 +2028,18 @@ export class SettingsExtensionToggleRenderer extends AbstractSettingRenderer imp
 		actionButton.element.classList.add('setting-item-extension-toggle-button');
 		actionButton.label = localize('showExtension', "Show Extension");
 
+		const dismissButton = new Button(common.containerElement, {
+			title: false,
+			secondary: true,
+			...defaultButtonStyles
+		});
+		dismissButton.element.classList.add('setting-item-extension-dismiss-button');
+		dismissButton.label = localize('dismiss', "Dismiss");
+
 		const template: ISettingExtensionToggleItemTemplate = {
 			...common,
-			actionButton
+			actionButton,
+			dismissButton
 		};
 
 		this.addSettingElementFocusHandler(template);
@@ -2046,6 +2059,11 @@ export class SettingsExtensionToggleRenderer extends AbstractSettingRenderer imp
 			this._telemetryService.publicLog2<{ extensionId: String }, ManageExtensionClickTelemetryClassification>('ManageExtensionClick', { extensionId });
 			this._commandService.executeCommand('extension.open', extensionId);
 		}));
+
+		template.elementDisposables.add(template.dismissButton.onDidClick(async () => {
+			this._telemetryService.publicLog2<{ extensionId: String }, ManageExtensionClickTelemetryClassification>('DismissExtensionClick', { extensionId });
+			this._onDidDismissExtensionSetting.fire(extensionId);
+		}));
 	}
 }
 
@@ -2054,6 +2072,8 @@ export class SettingTreeRenderers extends Disposable {
 
 	private readonly _onDidChangeSetting = this._register(new Emitter<ISettingChangeEvent>());
 	readonly onDidChangeSetting: Event<ISettingChangeEvent>;
+
+	readonly onDidDismissExtensionSetting: Event<string>;
 
 	readonly onDidOpenSettings: Event<string>;
 
@@ -2098,6 +2118,7 @@ export class SettingTreeRenderers extends Disposable {
 
 		const actionFactory = (setting: ISetting, settingTarget: SettingsTarget) => this.getActionsForSetting(setting, settingTarget);
 		const emptyActionFactory = (_: ISetting) => [];
+		const extensionRenderer = this._instantiationService.createInstance(SettingsExtensionToggleRenderer, [], emptyActionFactory);
 		const settingRenderers = [
 			this._instantiationService.createInstance(SettingBoolRenderer, this.settingActions, actionFactory),
 			this._instantiationService.createInstance(SettingNumberRenderer, this.settingActions, actionFactory),
@@ -2110,7 +2131,7 @@ export class SettingTreeRenderers extends Disposable {
 			this._instantiationService.createInstance(SettingEnumRenderer, this.settingActions, actionFactory),
 			this._instantiationService.createInstance(SettingObjectRenderer, this.settingActions, actionFactory),
 			this._instantiationService.createInstance(SettingBoolObjectRenderer, this.settingActions, actionFactory),
-			this._instantiationService.createInstance(SettingsExtensionToggleRenderer, [], emptyActionFactory)
+			extensionRenderer
 		];
 
 		this.onDidClickOverrideElement = Event.any(...settingRenderers.map(r => r.onDidClickOverrideElement));
@@ -2118,6 +2139,7 @@ export class SettingTreeRenderers extends Disposable {
 			...settingRenderers.map(r => r.onDidChangeSetting),
 			this._onDidChangeSetting.event
 		);
+		this.onDidDismissExtensionSetting = extensionRenderer.onDidDismissExtensionSetting;
 		this.onDidOpenSettings = Event.any(...settingRenderers.map(r => r.onDidOpenSettings));
 		this.onDidClickSettingLink = Event.any(...settingRenderers.map(r => r.onDidClickSettingLink));
 		this.onDidFocusSetting = Event.any(...settingRenderers.map(r => r.onDidFocusSetting));

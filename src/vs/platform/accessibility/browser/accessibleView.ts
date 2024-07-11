@@ -9,6 +9,7 @@ import { IPickerQuickAccessItem } from 'vs/platform/quickinput/browser/pickerQui
 import { Event } from 'vs/base/common/event';
 import { IAction } from 'vs/base/common/actions';
 import { IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 
 export const IAccessibleViewService = createDecorator<IAccessibleViewService>('accessibleViewService');
 
@@ -26,7 +27,8 @@ export const enum AccessibleViewProviderId {
 	Hover = 'hover',
 	Notification = 'notification',
 	EmptyEditorHint = 'emptyEditorHint',
-	Comments = 'comments'
+	Comments = 'comments',
+	DebugConsole = 'debugConsole',
 }
 
 export const enum AccessibleViewType {
@@ -69,7 +71,7 @@ export interface IAccessibleViewOptions {
 }
 
 
-export interface IAccessibleViewContentProvider extends IBasicContentProvider {
+export interface IAccessibleViewContentProvider extends IBasicContentProvider, IDisposable {
 	id: AccessibleViewProviderId;
 	verbositySettingKey: string;
 	/**
@@ -102,6 +104,7 @@ export interface IPosition {
 
 export interface IAccessibleViewService {
 	readonly _serviceBrand: undefined;
+	// The provider will be disposed when the view is closed
 	show(provider: AccesibleViewContentProvider, position?: IPosition): void;
 	showLastProvider(id: AccessibleViewProviderId): void;
 	showAccessibleViewHelp(): void;
@@ -131,9 +134,9 @@ export interface ICodeBlockActionContext {
 	element: unknown;
 }
 
-export type AccesibleViewContentProvider = AdvancedContentProvider | ExtensionContentProvider;
+export type AccesibleViewContentProvider = AccessibleContentProvider | ExtensionContentProvider;
 
-export class AdvancedContentProvider implements IAccessibleViewContentProvider {
+export class AccessibleContentProvider extends Disposable implements IAccessibleViewContentProvider {
 
 	constructor(
 		public id: AccessibleViewProviderId,
@@ -149,10 +152,12 @@ export class AdvancedContentProvider implements IAccessibleViewContentProvider {
 		public onKeyDown?: (e: IKeyboardEvent) => void,
 		public getSymbols?: () => IAccessibleViewSymbol[],
 		public onDidRequestClearLastProvider?: Event<AccessibleViewProviderId>,
-	) { }
+	) {
+		super();
+	}
 }
 
-export class ExtensionContentProvider implements IBasicContentProvider {
+export class ExtensionContentProvider extends Disposable implements IBasicContentProvider {
 
 	constructor(
 		public readonly id: string,
@@ -164,10 +169,12 @@ export class ExtensionContentProvider implements IBasicContentProvider {
 		public previous?: () => void,
 		public actions?: IAction[],
 		public onDidChangeContent?: Event<void>,
-	) { }
+	) {
+		super();
+	}
 }
 
-export interface IBasicContentProvider {
+export interface IBasicContentProvider extends IDisposable {
 	id: string;
 	options: IAccessibleViewOptions;
 	onClose(): void;
