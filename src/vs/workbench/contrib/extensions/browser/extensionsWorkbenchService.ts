@@ -16,7 +16,8 @@ import {
 	IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions,
 	InstallExtensionEvent, DidUninstallExtensionEvent, InstallOperation, WEB_EXTENSION_TAG, InstallExtensionResult,
 	IExtensionsControlManifest, IExtensionInfo, IExtensionQueryOptions, IDeprecationInfo, isTargetPlatformCompatible, InstallExtensionInfo, EXTENSION_IDENTIFIER_REGEX,
-	InstallOptions, IProductVersion
+	InstallOptions, IProductVersion,
+	UninstallExtensionInfo
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, DefaultIconPath, IResourceExtension, extensionsConfigurationNodeBase } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, groupByExtension, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -2228,18 +2229,71 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return this.promptAndSetEnablement(extensions, enablementState);
 	}
 
-	uninstall(extension: IExtension): Promise<void> {
-		const ext = extension.local ? extension : this.local.filter(e => areSameExtensions(e.identifier, extension.identifier))[0];
-		const toUninstall: ILocalExtension | null = ext && ext.local ? ext.local : null;
-
-		if (!toUninstall) {
-			return Promise.reject(new Error('Missing local'));
+	async uninstall(e: IExtension): Promise<void> {
+		const extension = e.local ? e : this.local.find(local => areSameExtensions(local.identifier, e.identifier));
+		if (!extension?.local) {
+			throw new Error('Missing local');
 		}
+
+		const extensionsToUninstall: UninstallExtensionInfo[] = [{ extension: extension.local }];
+		const dependents: IExtension[] = [];
+		for (const local of this.local) {
+			if (local === extension) {
+				continue;
+			}
+			if (!local.local) {
+				continue;
+			}
+			if (local.dependencies.length === 0) {
+				continue;
+			}
+			if (extension.extensionPack.some(id => areSameExtensions({ id }, local.identifier))) {
+				continue;
+			}
+			if (dependents.some(d => d.extensionPack.some(id => areSameExtensions({ id }, local.identifier)))) {
+				continue;
+			}
+			if (local.dependencies.some(dep => areSameExtensions(extension.identifier, { id: dep }))) {
+				dependents.push(local);
+				extensionsToUninstall.push({ extension: local.local });
+			}
+		}
+
+		if (dependents.length) {
+			const { result } = await this.dialogService.prompt({
+				title: nls.localize('uninstallDependents', "Uninstall Extension with Dependents"),
+				type: Severity.Warning,
+				message: this.getErrorMessageForUninstallingAnExtensionWithDependents(extension, dependents),
+				buttons: [{
+					label: nls.localize('uninstallAll', "Uninstall All"),
+					run: () => true
+				}],
+				cancelButton: {
+					run: () => false
+				}
+			});
+			if (!result) {
+				throw new CancellationError();
+			}
+		}
+
 		return this.withProgress({
 			location: ProgressLocation.Extensions,
 			title: nls.localize('uninstallingExtension', 'Uninstalling extension....'),
-			source: `${toUninstall.identifier.id}`
-		}, () => this.extensionManagementService.uninstall(toUninstall).then(() => undefined));
+			source: `${extension.identifier.id}`
+		}, () => this.extensionManagementService.uninstallExtensions(extensionsToUninstall).then(() => undefined));
+	}
+
+	private getErrorMessageForUninstallingAnExtensionWithDependents(extension: IExtension, dependents: IExtension[]): string {
+		if (dependents.length === 1) {
+			return nls.localize('singleDependentUninstallError', "Cannot uninstall '{0}' extension alone. '{1}' extension depends on this. Do you want to uninstall all these extensions?", extension.displayName, dependents[0].displayName);
+		}
+		if (dependents.length === 2) {
+			return nls.localize('twoDependentsUninstallError', "Cannot uninstall '{0}' extension alone. '{1}' and '{2}' extensions depend on this. Do you want to uninstall all these extensions?",
+				extension.displayName, dependents[0].displayName, dependents[1].displayName);
+		}
+		return nls.localize('multipleDependentsUninstallError', "Cannot uninstall '{0}' extension alone. '{1}', '{2}' and other extensions depend on this. Do you want to uninstall all these extensions?",
+			extension.displayName, dependents[0].displayName, dependents[1].displayName);
 	}
 
 	reinstall(extension: IExtension): Promise<IExtension> {
@@ -2432,7 +2486,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				const dependents = this.getDependentsAfterDisablement(extension, allExtensions, this.local);
 				if (dependents.length) {
 					return new Promise<void>((resolve, reject) => {
-						this.notificationService.prompt(Severity.Error, this.getDependentsErrorMessage(extension, allExtensions, dependents), [
+						this.notificationService.prompt(Severity.Error, this.getDependentsErrorMessageForDisablement(extension, allExtensions, dependents), [
 							{
 								label: nls.localize('disable all', 'Disable All'),
 								run: async () => {
@@ -2502,7 +2556,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		});
 	}
 
-	private getDependentsErrorMessage(extension: IExtension, allDisabledExtensions: IExtension[], dependents: IExtension[]): string {
+	private getDependentsErrorMessageForDisablement(extension: IExtension, allDisabledExtensions: IExtension[], dependents: IExtension[]): string {
 		for (const e of [extension, ...allDisabledExtensions]) {
 			const dependentsOfTheExtension = dependents.filter(d => d.dependencies.some(id => areSameExtensions({ id }, e.identifier)));
 			if (dependentsOfTheExtension.length) {

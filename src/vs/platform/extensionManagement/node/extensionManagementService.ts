@@ -288,7 +288,7 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 	}
 
 	protected createUninstallExtensionTask(extension: ILocalExtension, options: UninstallExtensionTaskOptions): IUninstallExtensionTask {
-		return new UninstallExtensionInProfileTask(extension, options.profileLocation, this.extensionsProfileScannerService);
+		return new UninstallExtensionInProfileTask(extension, options, this.extensionsProfileScannerService);
 	}
 
 	private async downloadAndExtractGalleryExtension(extensionKey: ExtensionKey, gallery: IGalleryExtension, operation: InstallOperation, options: InstallExtensionTaskOptions, token: CancellationToken): Promise<ExtractExtensionResult> {
@@ -1084,14 +1084,14 @@ class UninstallExtensionInProfileTask extends AbstractExtensionTask<void> implem
 
 	constructor(
 		readonly extension: ILocalExtension,
-		private readonly profileLocation: URI,
+		readonly options: UninstallExtensionTaskOptions,
 		private readonly extensionsProfileScannerService: IExtensionsProfileScannerService,
 	) {
 		super();
 	}
 
 	protected async doRun(token: CancellationToken): Promise<void> {
-		await this.extensionsProfileScannerService.removeExtensionFromProfile(this.extension, this.profileLocation);
+		await this.extensionsProfileScannerService.removeExtensionFromProfile(this.extension, this.options.profileLocation);
 	}
 
 }
