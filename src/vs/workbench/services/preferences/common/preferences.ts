@@ -96,8 +96,6 @@ export interface ISetting {
 	// Internal properties
 	allKeysAreBoolean?: boolean;
 	displayExtensionId?: string;
-	stableExtensionId?: string;
-	prereleaseExtensionId?: string;
 	title?: string;
 	extensionGroupTitle?: string;
 	internalOrder?: number;
