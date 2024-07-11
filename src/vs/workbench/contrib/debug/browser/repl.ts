@@ -118,7 +118,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 	private filter: ReplFilter;
 	private multiSessionRepl: IContextKey<boolean>;
 	private menu: IMenu;
-	private replDataSource: ReplDataSource | undefined;
+	private replDataSource: IAsyncDataSource<IDebugSession, IReplElement> | undefined;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -530,7 +530,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		return this.replInput;
 	}
 
-	getReplDataSource(): ReplDataSource | undefined {
+	getReplDataSource(): IAsyncDataSource<IDebugSession, IReplElement> | undefined {
 		return this.replDataSource;
 	}
 
@@ -640,8 +640,8 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		const wordWrap = this.configurationService.getValue<IDebugConfiguration>('debug').console.wordWrap;
 		this.treeContainer.classList.toggle('word-wrap', wordWrap);
 		const linkDetector = this.instantiationService.createInstance(LinkDetector);
-		const dataSource: IAsyncDataSource<IDebugSession, IReplElement> = new ReplDataSource()
-		this.replDataSource = dataSource;
+		this.replDataSource = new ReplDataSource();
+
 		const tree = this.tree = <WorkbenchAsyncDataTree<IDebugSession, IReplElement, FuzzyScore>>this.instantiationService.createInstance(
 			WorkbenchAsyncDataTree,
 			'DebugRepl',
