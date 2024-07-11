@@ -1240,7 +1240,7 @@ class SeparatorRenderer implements ICompressibleTreeRenderer<SCMViewSeparatorEle
 		return { label, toolBar, elementDisposables: new DisposableStore(), templateDisposables };
 	}
 	renderElement(element: ITreeNode<SCMViewSeparatorElement, void>, index: number, templateData: SeparatorTemplate, height: number | undefined): void {
-		const historyProvider = element.element.repository.provider.historyProviderObs.get();
+		const historyProvider = element.element.repository.provider.historyProvider.get();
 		const currentHistoryItemGroup = historyProvider?.currentHistoryItemGroup.get();
 
 		// Label
@@ -3278,7 +3278,7 @@ export class SCMViewPane extends ViewPane {
 			const historyItem = e.element.historyItemViewModel.historyItem;
 			const historyItemParentId = historyItem.parentIds.length > 0 ? historyItem.parentIds[0] : undefined;
 
-			const historyProvider = e.element.repository.provider.historyProviderObs.get();
+			const historyProvider = e.element.repository.provider.historyProvider.get();
 			const historyItemChanges = await historyProvider?.provideHistoryItemChanges(historyItem.id, historyItemParentId);
 			if (historyItemChanges) {
 				const title = `${historyItem.id.substring(0, 8)} - ${historyItem.message}`;
@@ -3363,7 +3363,7 @@ export class SCMViewPane extends ViewPane {
 			repositoryDisposables.add(repository.provider.onDidChangeResourceGroups(() => this.updateChildren(repository)));
 
 			repositoryDisposables.add(autorun(reader => {
-				repository.provider.historyProviderObs.read(reader)?.currentHistoryItemGroup.read(reader);
+				repository.provider.historyProvider.read(reader)?.currentHistoryItemGroup.read(reader);
 
 				this.historyProviderDataSource.deleteCacheEntry(repository);
 				this.updateChildren(repository);
@@ -3769,7 +3769,7 @@ class SCMTreeHistoryProviderDataSource extends Disposable {
 		const { showIncomingChanges, showOutgoingChanges, showHistoryGraph } = this._getConfiguration();
 
 		const scmProvider = element.provider;
-		const historyProvider = scmProvider.historyProviderObs.get();
+		const historyProvider = scmProvider.historyProvider.get();
 		const currentHistoryItemGroup = historyProvider?.currentHistoryItemGroup.get();
 
 		if (!historyProvider || !currentHistoryItemGroup || (showIncomingChanges === 'never' && showOutgoingChanges === 'never') || showHistoryGraph) {
@@ -3839,7 +3839,7 @@ class SCMTreeHistoryProviderDataSource extends Disposable {
 
 	async getHistoryItems(element: SCMHistoryItemGroupTreeElement): Promise<SCMHistoryItemTreeElement[]> {
 		const repository = element.repository;
-		const historyProvider = repository.provider.historyProviderObs.get();
+		const historyProvider = repository.provider.historyProvider.get();
 
 		if (!historyProvider) {
 			return [];
@@ -3887,7 +3887,7 @@ class SCMTreeHistoryProviderDataSource extends Disposable {
 	async getHistoryItems2(element: ISCMRepository): Promise<SCMHistoryItemViewModelTreeElement[]> {
 		const { showHistoryGraph } = this._getConfiguration();
 
-		const historyProvider = element.provider.historyProviderObs.get();
+		const historyProvider = element.provider.historyProvider.get();
 		const currentHistoryItemGroup = historyProvider?.currentHistoryItemGroup.get();
 
 		if (!historyProvider || !currentHistoryItemGroup || !showHistoryGraph) {
@@ -3941,7 +3941,7 @@ class SCMTreeHistoryProviderDataSource extends Disposable {
 
 	async getHistoryItemChanges(element: SCMHistoryItemTreeElement): Promise<(SCMHistoryItemChangeTreeElement | IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement>)[]> {
 		const repository = element.historyItemGroup.repository;
-		const historyProvider = repository.provider.historyProviderObs.get();
+		const historyProvider = repository.provider.historyProvider.get();
 
 		if (!historyProvider) {
 			return [];

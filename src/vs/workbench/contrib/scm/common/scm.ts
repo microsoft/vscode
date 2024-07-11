@@ -75,7 +75,7 @@ export interface ISCMProvider extends IDisposable {
 	readonly inputBoxTextModel: ITextModel;
 	readonly count: IObservable<number | undefined>;
 	readonly commitTemplate: IObservable<string>;
-	readonly historyProviderObs: IObservable<ISCMHistoryProvider | undefined>;
+	readonly historyProvider: IObservable<ISCMHistoryProvider | undefined>;
 	readonly acceptInputCommand?: Command;
 	readonly actionButton?: ISCMActionButtonDescriptor;
 	readonly statusBarCommands: IObservable<readonly Command[] | undefined>;

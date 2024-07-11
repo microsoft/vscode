@@ -262,8 +262,8 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 	private _quickDiff: IDisposable | undefined;
 	public readonly isSCM: boolean = true;
 
-	private readonly _historyProviderObs = observableValue<MainThreadSCMHistoryProvider | undefined>(this, undefined);
-	get historyProviderObs() { return this._historyProviderObs; }
+	private readonly _historyProvider = observableValue<MainThreadSCMHistoryProvider | undefined>(this, undefined);
+	get historyProvider() { return this._historyProvider; }
 
 	constructor(
 		private readonly proxy: ExtHostSCMShape,
@@ -314,11 +314,11 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 			this._quickDiff = undefined;
 		}
 
-		if (features.hasHistoryProvider && !this.historyProviderObs.get()) {
+		if (features.hasHistoryProvider && !this.historyProvider.get()) {
 			const historyProvider = new MainThreadSCMHistoryProvider(this.proxy, this.handle);
-			this._historyProviderObs.set(historyProvider, undefined);
-		} else if (features.hasHistoryProvider === false && this.historyProviderObs.get()) {
-			this._historyProviderObs.set(undefined, undefined);
+			this._historyProvider.set(historyProvider, undefined);
+		} else if (features.hasHistoryProvider === false && this.historyProvider.get()) {
+			this._historyProvider.set(undefined, undefined);
 		}
 	}
 
@@ -435,11 +435,11 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 	}
 
 	$onDidChangeHistoryProviderCurrentHistoryItemGroup(currentHistoryItemGroup?: SCMHistoryItemGroupDto): void {
-		if (!this.historyProviderObs.get()) {
+		if (!this.historyProvider.get()) {
 			return;
 		}
 
-		this._historyProviderObs.get()?.$onDidChangeCurrentHistoryItemGroup(currentHistoryItemGroup);
+		this._historyProvider.get()?.$onDidChangeCurrentHistoryItemGroup(currentHistoryItemGroup);
 	}
 
 	toJSON(): any {
