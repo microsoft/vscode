@@ -6,15 +6,14 @@
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { IActiveCodeEditor, ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
+import { IBulkEditService, ResourceEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Range } from 'vs/editor/common/core/range';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { DocumentContextItem, WorkspaceEdit } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { CopyAction } from 'vs/editor/contrib/clipboard/browser/clipboard';
 import { localize, localize2 } from 'vs/nls';
@@ -81,6 +80,111 @@ abstract class ChatCodeBlockAction extends Action2 {
 	}
 
 	abstract runWithContext(accessor: ServicesAccessor, context: ICodeBlockActionContext): any;
+}
+
+abstract class InsertCodeBlockAction extends ChatCodeBlockAction {
+
+	override async runWithContext(accessor: ServicesAccessor, context: ICodeBlockActionContext) {
+		const editorService = accessor.get(IEditorService);
+		const textFileService = accessor.get(ITextFileService);
+
+		if (isResponseFiltered(context)) {
+			// When run from command palette
+			return;
+		}
+
+		if (editorService.activeEditorPane?.getId() === NOTEBOOK_EDITOR_ID) {
+			return this.handleNotebookEditor(accessor, editorService.activeEditorPane.getControl() as INotebookEditor, context);
+		}
+
+		let activeEditorControl = editorService.activeTextEditorControl;
+		if (isDiffEditor(activeEditorControl)) {
+			activeEditorControl = activeEditorControl.getOriginalEditor().hasTextFocus() ? activeEditorControl.getOriginalEditor() : activeEditorControl.getModifiedEditor();
+		}
+
+		if (!isCodeEditor(activeEditorControl)) {
+			return;
+		}
+
+		if (!activeEditorControl.hasModel()) {
+			return;
+		}
+		const activeModelUri = activeEditorControl.getModel().uri;
+
+		// Check if model is editable, currently only support untitled and text file
+		const activeTextModel = textFileService.files.get(activeModelUri) ?? textFileService.untitled.get(activeModelUri);
+		if (!activeTextModel || activeTextModel.isReadonly()) {
+			return;
+		}
+
+		await this.handleTextEditor(accessor, activeEditorControl, context);
+	}
+
+	private async handleNotebookEditor(accessor: ServicesAccessor, notebookEditor: INotebookEditor, context: ICodeBlockActionContext) {
+		if (!notebookEditor.hasModel()) {
+			return;
+		}
+
+		if (notebookEditor.isReadOnly) {
+			return;
+		}
+
+		if (notebookEditor.activeCodeEditor?.hasTextFocus()) {
+			const codeEditor = notebookEditor.activeCodeEditor;
+			if (codeEditor.hasModel()) {
+				return this.handleTextEditor(accessor, codeEditor, context);
+			}
+		}
+
+		const languageService = accessor.get(ILanguageService);
+		const focusRange = notebookEditor.getFocus();
+		const next = Math.max(focusRange.end - 1, 0);
+		insertCell(languageService, notebookEditor, next, CellKind.Code, 'below', context.code, true);
+		this.notifyUserAction(accessor, context);
+	}
+
+	protected async computeEdits(accessor: ServicesAccessor, codeEditor: IActiveCodeEditor, codeBlockActionContext: ICodeBlockActionContext): Promise<ResourceEdit[] | WorkspaceEdit> {
+		const activeModel = codeEditor.getModel();
+		const activeSelection = codeEditor.getSelection() ?? new Range(activeModel.getLineCount(), 1, activeModel.getLineCount(), 1);
+		return [
+			new ResourceTextEdit(activeModel.uri, {
+				range: activeSelection,
+				text: codeBlockActionContext.code,
+			}),
+		];
+	}
+
+	private async handleTextEditor(accessor: ServicesAccessor, codeEditor: IActiveCodeEditor, codeBlockActionContext: ICodeBlockActionContext) {
+		const bulkEditService = accessor.get(IBulkEditService);
+		const codeEditorService = accessor.get(ICodeEditorService);
+
+		this.notifyUserAction(accessor, codeBlockActionContext);
+		const activeModel = codeEditor.getModel();
+
+		const mappedEdits = await this.computeEdits(accessor, codeEditor, codeBlockActionContext);
+
+		await bulkEditService.apply(mappedEdits);
+		codeEditorService.listCodeEditors().find(editor => editor.getModel()?.uri.toString() === activeModel.uri.toString())?.focus();
+	}
+
+	private notifyUserAction(accessor: ServicesAccessor, context: ICodeBlockActionContext) {
+		if (isResponseVM(context.element)) {
+			const chatService = accessor.get(IChatService);
+			chatService.notifyUserAction({
+				agentId: context.element.agent?.id,
+				command: context.element.slashCommand?.name,
+				sessionId: context.element.sessionId,
+				requestId: context.element.requestId,
+				result: context.element.result,
+				action: {
+					kind: 'insert',
+					codeBlockIndex: context.codeBlockIndex,
+					totalCharacters: context.code.length,
+				}
+			});
+		}
+	}
+
 }
 
 export function registerChatCodeBlockActions() {
@@ -182,11 +286,100 @@ export function registerChatCodeBlockActions() {
 		return false;
 	});
 
-	registerAction2(class InsertCodeBlockAction extends ChatCodeBlockAction {
+	registerAction2(class SmartApplyInEditorAction extends InsertCodeBlockAction {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.applyInEditor',
+				title: localize2('interactive.applyInEditor.label', "Apply in Editor"),
+				precondition: CONTEXT_CHAT_ENABLED,
+				f1: true,
+				category: CHAT_CATEGORY,
+				icon: Codicon.sparkle,
+				menu: {
+					id: MenuId.ChatCodeBlock,
+					group: 'navigation',
+					when: CONTEXT_IN_CHAT_SESSION
+				},
+				keybinding: {
+					when: ContextKeyExpr.or(ContextKeyExpr.and(CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_CHAT_INPUT.negate()), accessibleViewInCodeBlock),
+					primary: KeyMod.CtrlCmd | KeyCode.Enter,
+					mac: { primary: KeyMod.WinCtrl | KeyCode.Enter },
+					weight: KeybindingWeight.ExternalExtension + 1
+				},
+			});
+		}
+
+		protected override async computeEdits(accessor: ServicesAccessor, codeEditor: IActiveCodeEditor, codeBlockActionContext: ICodeBlockActionContext): Promise<ResourceEdit[] | WorkspaceEdit> {
+
+			const progressService = accessor.get(IProgressService);
+			const notificationService = accessor.get(INotificationService);
+
+			const activeModel = codeEditor.getModel();
+
+			const mappedEditsProviders = accessor.get(ILanguageFeaturesService).mappedEditsProvider.ordered(activeModel);
+			if (mappedEditsProviders.length > 0) {
+
+				// 0th sub-array - editor selections array if there are any selections
+				// 1st sub-array - array with documents used to get the chat reply
+				const docRefs: DocumentContextItem[][] = [];
+
+				const currentDocUri = activeModel.uri;
+				const currentDocVersion = activeModel.getVersionId();
+				const selections = codeEditor.getSelections();
+				if (selections.length > 0) {
+					docRefs.push([
+						{
+							uri: currentDocUri,
+							version: currentDocVersion,
+							ranges: selections,
+						}
+					]);
+				}
+				const usedDocuments = getUsedDocuments(codeBlockActionContext);
+				if (usedDocuments) {
+					docRefs.push(usedDocuments);
+				}
+
+				const cancellationTokenSource = new CancellationTokenSource();
+				try {
+					const edits = await progressService.withProgress(
+						{ location: ProgressLocation.Notification, delay: 500, sticky: true, cancellable: true },
+						async progress => {
+							for (const provider of mappedEditsProviders) {
+								progress.report({ message: localize('applyCodeBlock.progress', "Applying code block using {0}...", provider.id) });
+								const mappedEdits = await provider.provideMappedEdits(
+									activeModel,
+									[codeBlockActionContext.code],
+									{ documents: docRefs },
+									cancellationTokenSource.token
+								);
+								if (mappedEdits) {
+									return mappedEdits;
+								}
+							}
+							return undefined;
+						},
+						() => cancellationTokenSource.cancel()
+					);
+					if (edits) {
+						return edits;
+					}
+				} catch (e) {
+					notificationService.notify({ severity: Severity.Error, message: localize('applyCodeBlock.error', "Failed to apply code block: {0}", e.message) });
+
+				} finally {
+					cancellationTokenSource.dispose();
+				}
+			}
+			return super.computeEdits(accessor, codeEditor, codeBlockActionContext);
+		}
+	});
+
+	registerAction2(class SmartApplyInEditorAction extends InsertCodeBlockAction {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.insertCodeBlock',
-				title: localize2('interactive.insertCodeBlock.label', "Apply in Editor"),
+				title: localize2('interactive.insertCodeBlock.label', "Insert At Cursor"),
 				precondition: CONTEXT_CHAT_ENABLED,
 				f1: true,
 				category: CHAT_CATEGORY,
@@ -204,173 +397,6 @@ export function registerChatCodeBlockActions() {
 				},
 			});
 		}
-
-		override async runWithContext(accessor: ServicesAccessor, context: ICodeBlockActionContext) {
-			const editorService = accessor.get(IEditorService);
-			const textFileService = accessor.get(ITextFileService);
-
-			if (isResponseFiltered(context)) {
-				// When run from command palette
-				return;
-			}
-
-			if (editorService.activeEditorPane?.getId() === NOTEBOOK_EDITOR_ID) {
-				return this.handleNotebookEditor(accessor, editorService.activeEditorPane.getControl() as INotebookEditor, context);
-			}
-
-			let activeEditorControl = editorService.activeTextEditorControl;
-			if (isDiffEditor(activeEditorControl)) {
-				activeEditorControl = activeEditorControl.getOriginalEditor().hasTextFocus() ? activeEditorControl.getOriginalEditor() : activeEditorControl.getModifiedEditor();
-			}
-
-			if (!isCodeEditor(activeEditorControl)) {
-				return;
-			}
-
-			const activeModel = activeEditorControl.getModel();
-			if (!activeModel) {
-				return;
-			}
-
-			// Check if model is editable, currently only support untitled and text file
-			const activeTextModel = textFileService.files.get(activeModel.uri) ?? textFileService.untitled.get(activeModel.uri);
-			if (!activeTextModel || activeTextModel.isReadonly()) {
-				return;
-			}
-
-			await this.handleTextEditor(accessor, activeEditorControl, activeModel, context);
-		}
-
-		private async handleNotebookEditor(accessor: ServicesAccessor, notebookEditor: INotebookEditor, context: ICodeBlockActionContext) {
-			if (!notebookEditor.hasModel()) {
-				return;
-			}
-
-			if (notebookEditor.isReadOnly) {
-				return;
-			}
-
-			if (notebookEditor.activeCodeEditor?.hasTextFocus()) {
-				const codeEditor = notebookEditor.activeCodeEditor;
-				const textModel = codeEditor.getModel();
-
-				if (textModel) {
-					return this.handleTextEditor(accessor, codeEditor, textModel, context);
-				}
-			}
-
-			const languageService = accessor.get(ILanguageService);
-			const focusRange = notebookEditor.getFocus();
-			const next = Math.max(focusRange.end - 1, 0);
-			insertCell(languageService, notebookEditor, next, CellKind.Code, 'below', context.code, true);
-			this.notifyUserAction(accessor, context);
-		}
-
-		private async handleTextEditor(accessor: ServicesAccessor, codeEditor: ICodeEditor, activeModel: ITextModel, codeBlockActionContext: ICodeBlockActionContext) {
-			this.notifyUserAction(accessor, codeBlockActionContext);
-
-			const bulkEditService = accessor.get(IBulkEditService);
-			const codeEditorService = accessor.get(ICodeEditorService);
-			const progressService = accessor.get(IProgressService);
-			const notificationService = accessor.get(INotificationService);
-
-			const mappedEditsProviders = accessor.get(ILanguageFeaturesService).mappedEditsProvider.ordered(activeModel);
-
-			// try applying workspace edit that was returned by a MappedEditsProvider, else simply insert at selection
-
-			let mappedEdits: WorkspaceEdit | null = null;
-
-			if (mappedEditsProviders.length > 0) {
-
-				// 0th sub-array - editor selections array if there are any selections
-				// 1st sub-array - array with documents used to get the chat reply
-				const docRefs: DocumentContextItem[][] = [];
-
-				if (codeEditor.hasModel()) {
-					const model = codeEditor.getModel();
-					const currentDocUri = model.uri;
-					const currentDocVersion = model.getVersionId();
-					const selections = codeEditor.getSelections();
-					if (selections.length > 0) {
-						docRefs.push([
-							{
-								uri: currentDocUri,
-								version: currentDocVersion,
-								ranges: selections,
-							}
-						]);
-					}
-				}
-
-				const usedDocuments = getUsedDocuments(codeBlockActionContext);
-				if (usedDocuments) {
-					docRefs.push(usedDocuments);
-				}
-
-				const cancellationTokenSource = new CancellationTokenSource();
-
-				try {
-					mappedEdits = await progressService.withProgress(
-						{ location: ProgressLocation.Notification, delay: 500, sticky: true, cancellable: true },
-						async progress => {
-							progress.report({ message: localize('applyCodeBlock.progress', "Applying code block...") });
-
-							for (const provider of mappedEditsProviders) {
-								const mappedEdits = await provider.provideMappedEdits(
-									activeModel,
-									[codeBlockActionContext.code],
-									{ documents: docRefs },
-									cancellationTokenSource.token
-								);
-								if (mappedEdits) {
-									return mappedEdits;
-								}
-							}
-							return null;
-						},
-						() => cancellationTokenSource.cancel()
-					);
-				} catch (e) {
-					notificationService.notify({ severity: Severity.Error, message: localize('applyCodeBlock.error', "Failed to apply code block: {0}", e.message) });
-				} finally {
-					cancellationTokenSource.dispose();
-				}
-
-			}
-
-			if (mappedEdits) {
-				console.log('Mapped edits:', mappedEdits);
-				await bulkEditService.apply(mappedEdits);
-			} else {
-				const activeSelection = codeEditor.getSelection() ?? new Range(activeModel.getLineCount(), 1, activeModel.getLineCount(), 1);
-				await bulkEditService.apply([
-					new ResourceTextEdit(activeModel.uri, {
-						range: activeSelection,
-						text: codeBlockActionContext.code,
-					}),
-				]);
-			}
-			codeEditorService.listCodeEditors().find(editor => editor.getModel()?.uri.toString() === activeModel.uri.toString())?.focus();
-		}
-
-		private notifyUserAction(accessor: ServicesAccessor, context: ICodeBlockActionContext) {
-			if (isResponseVM(context.element)) {
-				const chatService = accessor.get(IChatService);
-				chatService.notifyUserAction({
-					agentId: context.element.agent?.id,
-					command: context.element.slashCommand?.name,
-					sessionId: context.element.sessionId,
-					requestId: context.element.requestId,
-					result: context.element.result,
-					action: {
-						kind: 'insert',
-						codeBlockIndex: context.codeBlockIndex,
-						totalCharacters: context.code.length,
-					}
-				});
-			}
-		}
-
 	});
 
 	registerAction2(class InsertIntoNewFileAction extends ChatCodeBlockAction {
