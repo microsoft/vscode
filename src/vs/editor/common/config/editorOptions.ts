@@ -2956,7 +2956,7 @@ class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditor
 				'editor.inlayHints.maximumLength': {
 					type: 'number',
 					default: defaults.maximumLength,
-					description: nls.localize('inlayHints.maximumLength', "Maximum length for inlay hints. Set to 0 to have an unlimited length.")
+					description: nls.localize('inlayHints.maximumLength', "Maximum length for inlay hints before they get truncated by the editor. Set to 0 to have an unlimited length.")
 				}
 			}
 		);
@@ -2975,7 +2975,7 @@ class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, IEditor
 			fontSize: EditorIntOption.clampedInt(input.fontSize, this.defaultValue.fontSize, 0, 100),
 			fontFamily: EditorStringOption.string(input.fontFamily, this.defaultValue.fontFamily),
 			padding: boolean(input.padding, this.defaultValue.padding),
-			maximumLength: EditorIntOption.clampedInt(input.maximumLength, this.defaultValue.maximumLength, 0, 1000)
+			maximumLength: EditorIntOption.clampedInt(input.maximumLength, this.defaultValue.maximumLength, 0, Number.MAX_SAFE_INTEGER)
 		};
 	}
 }
